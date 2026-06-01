@@ -48,4 +48,12 @@
     </section>
     <section id="addMeal" class="screen hidden"><button class="back-btn" onclick="showScreen('home')">← Back</button><h2>Add Meal</h2><p class="muted">What are you logging?</p><div class="meal-grid"><button>🍳<strong>Breakfast</strong></button><button>🥗<strong>Lunch</strong></button><button>🍽<strong>Dinner</strong></button><button>🍎<strong>Snack</strong></button><button>💧<strong>Drinks</strong></button></div><div class="search-box"><input id="foodSearch" type="text" placeholder="Search food, drink, or alcohol..." /><button onclick="searchFood()">Search</button></div><div id="foodResults" class="food-results"></div></section>
     <section id="ask" class="screen hidden"><button class="back-btn" onclick="showScreen('home')">← Back</button><h2>Ask Cal Buddy</h2><p class="muted">AI nutrition coaching will connect in a later build.</p><div class="chat-card"><p><strong>Example:</strong> Why am I hungry at night?</p><p>Common reasons include not eating enough protein or fiber, poor sleep, stress, dehydration, or skipping meals.</p></div><textarea placeholder="Type your nutrition question..."></textarea><button class="primary-btn full">Ask</button></section>
-  </main><script src="app.js"></script></body></html>
+  </main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
