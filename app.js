@@ -194,8 +194,7 @@ return;
 }
 
 message.textContent = "Logged in successfully.";
-await initApp();
-showScreen("home");
+showScreen("setup");
 }
 // Initialize app when DOM is ready
 document.addEventListener("DOMContentLoaded", initApp);
