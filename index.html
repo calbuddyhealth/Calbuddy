@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cal Buddy Health</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero-card">
+      <div class="brand-badge">CB</div>
+      <h1>Cal Buddy</h1>
+      <p class="tagline">Be in Control. Be Confident. Feel Better.</p>
+      <p class="subtitle">Feeling Healthier Made Simple.</p>
+      <p class="trust">Created by a Registered Nurse.</p>
+      <div class="button-row">
+        <button class="primary-btn" onclick="showScreen('setup')">Get Started</button>
+        <button class="secondary-btn" onclick="showScreen('login')">Log In</button>
+      </div>
+    </section>
+    <section id="setup" class="screen hidden">
+      <h2>Welcome to Cal Buddy</h2>
+      <p class="muted">Let’s personalize your nutrition dashboard.</p>
+      <form id="setupForm">
+        <label>Name<input id="name" type="text" placeholder="Your name" /></label>
+        <div class="grid-2">
+          <label>Height<input id="height" type="number" placeholder="70" /><span class="field-note">inches</span></label>
+          <label>Weight<input id="weight" type="number" placeholder="183" /><span class="field-note">lbs</span></label>
+        </div>
+        <div class="grid-2">
+          <label>Goal<select id="goal"><option>Lose Weight</option><option>Maintain Weight</option><option>Gain Weight</option><option>Improve Heart Health</option><option>Manage Blood Sugar</option></select></label>
+          <label>Diet Style<select id="diet"><option>Balanced Nutrition</option><option>DASH</option><option>Mediterranean</option><option>Keto</option><option>Low Carb</option><option>High Protein</option><option>Vegan</option><option>Vegetarian</option><option>Pescatarian</option><option>Diabetes-Friendly</option><option>Pregnancy Nutrition</option><option>Custom Macros</option></select></label>
+        </div>
+        <label>Display Style<select id="displayMode"><option>Simple</option><option>Standard</option><option>Advanced</option></select></label>
+        <label class="checkbox-label"><input id="relationshipMode" type="checkbox" /> Turn on Relationship With Food Mode</label>
+        <button type="submit" class="primary-btn full">Save Profile</button>
+      </form>
+    </section>
+    <section id="login" class="screen hidden"><h2>Log In</h2><p class="muted">Authentication will connect to Supabase in the next build.</p><button class="secondary-btn" onclick="showScreen('home')">Preview Home</button></section>
+    <section id="home" class="screen hidden">
+      <div class="top-bar"><div><p class="eyebrow">Good day,</p><h2 id="greetingName">Friend 👋</h2></div><button class="chip">🌎 English</button></div>
+      <div class="preference-row"><button class="preference-card">🎯 <span id="goalText">Lose Weight</span></button><button class="preference-card">🥗 <span id="dietText">Balanced Nutrition</span></button></div>
+      <section class="progress-card"><div class="progress-header"><h3>Today’s Progress</h3><button>Edit Targets</button></div><div class="metric"><span>🔥 Calories</span><strong>0 / 2,100</strong><small>Log your first meal to begin</small></div><div class="metric"><span>💪 Protein</span><strong>0g / 180g</strong></div></section>
+      <section class="quick-actions"><button onclick="showScreen('addMeal')">🔍<span>Search Food</span></button><button onclick="showScreen('addMeal')">📸<span>Scan Food</span></button><button onclick="showScreen('addMeal')">➕<span>Add Meal</span></button><button onclick="showScreen('ask')">🤖<span>Ask Cal Buddy</span></button></section>
+      <section class="meal-list"><h3>Today’s Meals</h3><div>🍳 Breakfast <span>Not logged</span></div><div>🥗 Lunch <span>Not logged</span></div><div>🍽 Dinner <span>Not logged</span></div><div>🍎 Snack <span>Not logged</span></div><div>💧 Drinks <span>Not logged</span></div></section>
+      <section class="insight-card"><h3>💡 Daily Tip</h3><p>Protein and fiber can help you feel full longer.</p></section>
+    </section>
+    <section id="addMeal" class="screen hidden"><button class="back-btn" onclick="showScreen('home')">← Back</button><h2>Add Meal</h2><p class="muted">What are you logging?</p><div class="meal-grid"><button>🍳<strong>Breakfast</strong></button><button>🥗<strong>Lunch</strong></button><button>🍽<strong>Dinner</strong></button><button>🍎<strong>Snack</strong></button><button>💧<strong>Drinks</strong></button></div><div class="search-box"><input id="foodSearch" type="text" placeholder="Search food, drink, or alcohol..." /><button onclick="searchFood()">Search</button></div><div id="foodResults" class="food-results"></div></section>
+    <section id="ask" class="screen hidden"><button class="back-btn" onclick="showScreen('home')">← Back</button><h2>Ask Cal Buddy</h2><p class="muted">AI nutrition coaching will connect in a later build.</p><div class="chat-card"><p><strong>Example:</strong> Why am I hungry at night?</p><p>Common reasons include not eating enough protein or fiber, poor sleep, stress, dehydration, or skipping meals.</p></div><textarea placeholder="Type your nutrition question..."></textarea><button class="primary-btn full">Ask</button></section>
+  </main><script src="app.js"></script></body></html>
