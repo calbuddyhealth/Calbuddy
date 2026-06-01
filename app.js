@@ -156,6 +156,44 @@ function searchFood() {
     results.appendChild(item);
   });
 }
+async function handleSignup() {
+const email = document.getElementById("authEmail").value.trim();
+const password = document.getElementById("authPassword").value.trim();
+const message = document.getElementById("authMessage");
 
-// Initialize app when DOM is ready
+if (!email || !password) {
+message.textContent = "Enter an email and password.";
+return;
+}
+
+const result = await signUp(email, password);
+
+if (!result.success) {
+message.textContent = result.error;
+return;
+}
+
+message.textContent = "Account created. Check your email if confirmation is required.";
+}
+
+async function handleLogin() {
+const email = document.getElementById("authEmail").value.trim();
+const password = document.getElementById("authPassword").value.trim();
+const message = document.getElementById("authMessage");
+
+if (!email || !password) {
+message.textContent = "Enter an email and password.";
+return;
+}
+
+const result = await signIn(email, password);
+
+if (!result.success) {
+message.textContent = result.error;
+return;
+}
+
+message.textContent = "Logged in successfully.";
+await initApp();
+}// Initialize app when DOM is ready
 document.addEventListener("DOMContentLoaded", initApp);
