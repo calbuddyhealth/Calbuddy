@@ -67,7 +67,6 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
       .upsert(
         {
           id: user.id,
-          email: user.email,
           full_name: profile.full_name,
           height_inches: profile.height_inches,
           weight_lbs: profile.weight_lbs,
