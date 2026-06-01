@@ -67,13 +67,13 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
       .upsert(
         {
           id: user.id,
-          full_name: profile.full_name,
-          height_inches: profile.height_inches,
+          name: profile.full_name,
+          height_in: profile.height_inches,
           weight_lbs: profile.weight_lbs,
           goal: profile.goal,
           diet_style: profile.diet_style,
           display_mode: profile.display_mode,
-          relationship_mode: profile.relationship_mode,
+          relationship_with_: profile.relationship_mode,
           updated_at: new Date().toISOString()
         },
         { onConflict: ["id"] }
@@ -128,7 +128,7 @@ async function loadHomeScreen() {
   }
   
   if (currentProfile) {
-    document.getElementById("greetingName").textContent = currentProfile.full_name + " 👋";
+    document.getElementById("greetingName").textContent = currentProfile.name + " 👋";
     document.getElementById("goalText").textContent = currentProfile.goal;
     document.getElementById("dietText").textContent = currentProfile.diet_style;
   }
