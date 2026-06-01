@@ -95,7 +95,7 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
 
 // Load profile from Supabase
 async function loadProfileFromSupabase(userId) {
-  const { data, error } = await supabase
+  const { data, error } = await window.calbuddySupabase
     .from("profiles")
     .select("*")
     .eq("id", userId)
