@@ -66,8 +66,8 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
       .upsert(
         {
           id: user.id,
-          name: profile.full_name,
-          height_in: profile.height_inches,
+          name: profile.name,
+          height_in: profile.height_in,
           weight_lbs: profile.weight_lbs,
           goal: profile.goal,
           diet_style: profile.diet_style,
@@ -104,9 +104,9 @@ async function loadProfileFromSupabase(userId) {
   
   if (data) {
     currentProfile = {
-      id: user.id,
-name: profile.full_name,
-height_in: profile.height_inches,
+id: user.id,
+name: profile.name,
+height_in: profile.height_in,
 weight_lbs: profile.weight_lbs,
 goal: profile.goal,
 diet_style: profile.diet_style,
