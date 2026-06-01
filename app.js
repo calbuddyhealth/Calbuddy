@@ -1,4 +1,161 @@
-const sampleFoods=[{name:"Zucchini",serving:"1 cup sliced",calories:33,protein:2.4,carbs:6.1,fat:.6},{name:"Grilled Chicken Breast",serving:"6 oz",calories:280,protein:53,carbs:0,fat:6},{name:"White Rice",serving:"1 cup cooked",calories:205,protein:4,carbs:45,fat:.4},{name:"Egg",serving:"1 large",calories:70,protein:6,carbs:.6,fat:5},{name:"Greek Yogurt",serving:"1 cup",calories:130,protein:20,carbs:9,fat:0},{name:"Water",serving:"16 oz bottle",calories:0,protein:0,carbs:0,fat:0},{name:"Beer",serving:"12 oz",calories:150,protein:1,carbs:13,fat:0,alcohol:14},{name:"Red Wine",serving:"5 oz",calories:125,protein:0,carbs:4,fat:0,alcohol:14},{name:"Margarita",serving:"1 cocktail",calories:250,protein:0,carbs:25,fat:0,alcohol:14}];
-function showScreen(screenId){document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden"));const target=document.getElementById(screenId);if(target)target.classList.remove("hidden");if(screenId==="home"){const profile=JSON.parse(localStorage.getItem("calbuddyProfile")||"{}");document.getElementById("greetingName").textContent=`${profile.name||"Friend"} 👋`;document.getElementById("goalText").textContent=profile.goal||"Lose Weight";document.getElementById("dietText").textContent=profile.diet||"Balanced Nutrition"}window.scrollTo({top:0,behavior:"smooth"})}
-document.getElementById("setupForm").addEventListener("submit",e=>{e.preventDefault();const profile={name:document.getElementById("name").value||"Friend",height:document.getElementById("height").value,weight:document.getElementById("weight").value,goal:document.getElementById("goal").value,diet:document.getElementById("diet").value,displayMode:document.getElementById("displayMode").value,relationshipMode:document.getElementById("relationshipMode").checked};localStorage.setItem("calbuddyProfile",JSON.stringify(profile));showScreen("home")});
-function searchFood(){const query=document.getElementById("foodSearch").value.trim().toLowerCase();const results=document.getElementById("foodResults");results.innerHTML="";const matches=sampleFoods.filter(food=>food.name.toLowerCase().includes(query));if(!query){results.innerHTML='<p class="muted">Type a food like zucchini, chicken, rice, water, beer, or wine.</p>';return}if(matches.length===0){results.innerHTML='<p class="muted">No sample result found yet. Real food database search comes in a later build.</p>';return}matches.forEach(food=>{const card=document.createElement("div");card.className="food-card";card.innerHTML=`<div><strong>${food.name}</strong><small>${food.serving}</small><small>${food.calories} cal • Protein ${food.protein}g • Carbs ${food.carbs}g • Fat ${food.fat}g</small></div><button>Add</button>`;results.appendChild(card)})}
+const sampleFoods = [
+  { name: "Zucchini", serving: "1 cup sliced", calories: 33, protein: 2.4, carbs: 6.1, fat: 0.6 },
+  { name: "Grilled Chicken Breast", serving: "6 oz", calories: 280, protein: 53, carbs: 0, fat: 6 },
+  { name: "White Rice", serving: "1 cup cooked", calories: 206, protein: 4.3, carbs: 45.8, fat: 0.3 },
+  { name: "Sweet Potato", serving: "1 medium", calories: 103, protein: 2.3, carbs: 23.6, fat: 0.1 },
+  { name: "Broccoli", serving: "1 cup chopped", calories: 34, protein: 3.7, carbs: 6.6, fat: 0.4 },
+  { name: "Salmon", serving: "6 oz", calories: 385, protein: 42, carbs: 0, fat: 22 },
+  { name: "Eggs", serving: "2 large", calories: 155, protein: 13, carbs: 1.1, fat: 11 },
+  { name: "Olive Oil", serving: "1 tbsp", calories: 119, protein: 0, carbs: 0, fat: 13.5 },
+  { name: "Almonds", serving: "1 oz (23 nuts)", calories: 164, protein: 6, carbs: 6, fat: 14 },
+  { name: "Banana", serving: "1 medium", calories: 105, protein: 1.3, carbs: 27, fat: 0.3 }
+];
+
+let currentProfile = null;
+
+// Initialize app and check for logged-in user
+async function initApp() {
+  const user = await getCurrentUser();
+  
+  if (user) {
+    // Load profile from Supabase for authenticated user
+    await loadProfileFromSupabase(user.id);
+    showScreen("home");
+  } else {
+    // Check for profile in localStorage for non-authenticated users
+    const savedProfile = localStorage.getItem("userProfile");
+    if (savedProfile) {
+      currentProfile = JSON.parse(savedProfile);
+      showScreen("home");
+    } else {
+      showScreen("setup");
+    }
+  }
+}
+
+function showScreen(screenId) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.add("hidden"));
+  const target = document.getElementById(screenId);
+  if (target) target.classList.remove("hidden");
+  
+  // Reload profile on home screen
+  if (screenId === "home") {
+    loadHomeScreen();
+  }
+}
+
+// Setup form: save profile to Supabase if logged in, otherwise to localStorage
+document.getElementById("setupForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  
+  const profile = {
+    full_name: document.getElementById("name").value || "Friend",
+    height_inches: document.getElementById("height").value || 0,
+    weight_lbs: document.getElementById("weight").value || 0,
+    goal: document.getElementById("goal").value || "Lose Weight",
+    diet_style: document.getElementById("diet").value || "Balanced Nutrition",
+    display_mode: document.getElementById("displayMode").value || "Simple",
+    relationship_mode: document.getElementById("relationshipMode").checked || false
+  };
+  
+  const user = await getCurrentUser();
+  
+  if (user) {
+    // Save to Supabase profiles table
+    const { error } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          email: user.email,
+          full_name: profile.full_name,
+          height_inches: profile.height_inches,
+          weight_lbs: profile.weight_lbs,
+          goal: profile.goal,
+          diet_style: profile.diet_style,
+          display_mode: profile.display_mode,
+          relationship_mode: profile.relationship_mode,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: ["id"] }
+      );
+    
+    if (error) {
+      alert("Error saving profile: " + error.message);
+      return;
+    }
+  } else {
+    // Save to localStorage if not logged in
+    localStorage.setItem("userProfile", JSON.stringify(profile));
+  }
+  
+  currentProfile = profile;
+  showScreen("home");
+});
+
+// Load profile from Supabase
+async function loadProfileFromSupabase(userId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+  
+  if (error && error.code !== "PGRST116") {
+    console.error("Error loading profile:", error);
+    return;
+  }
+  
+  if (data) {
+    currentProfile = {
+      full_name: data.full_name || "Friend",
+      height_inches: data.height_inches || 0,
+      weight_lbs: data.weight_lbs || 0,
+      goal: data.goal || "Lose Weight",
+      diet_style: data.diet_style || "Balanced Nutrition",
+      display_mode: data.display_mode || "Simple",
+      relationship_mode: data.relationship_mode || false
+    };
+  }
+}
+
+// Load and display profile on home screen
+async function loadHomeScreen() {
+  const user = await getCurrentUser();
+  
+  if (user && !currentProfile) {
+    await loadProfileFromSupabase(user.id);
+  }
+  
+  if (currentProfile) {
+    document.getElementById("greetingName").textContent = currentProfile.full_name + " 👋";
+    document.getElementById("goalText").textContent = currentProfile.goal;
+    document.getElementById("dietText").textContent = currentProfile.diet_style;
+  }
+}
+
+// Search for foods
+function searchFood() {
+  const query = document.getElementById("foodSearch").value.trim().toLowerCase();
+  const results = document.getElementById("foodResults");
+  results.innerHTML = "";
+  
+  const matches = sampleFoods.filter(food =>
+    food.name.toLowerCase().includes(query) ||
+    food.serving.toLowerCase().includes(query)
+  );
+  
+  matches.forEach(food => {
+    const item = document.createElement("div");
+    item.className = "food-item";
+    item.innerHTML = `
+      <strong>${food.name}</strong><br>
+      Serving: ${food.serving}<br>
+      Calories: ${food.calories} | Protein: ${food.protein}g | Carbs: ${food.carbs}g | Fat: ${food.fat}g
+    `;
+    results.appendChild(item);
+  });
+}
+
+// Initialize app when DOM is ready
+document.addEventListener("DOMContentLoaded", initApp);
