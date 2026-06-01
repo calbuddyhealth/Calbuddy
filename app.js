@@ -107,13 +107,14 @@ async function loadProfileFromSupabase(userId) {
   
   if (data) {
     currentProfile = {
-      full_name: data.full_name || "Friend",
-      height_inches: data.height_inches || 0,
-      weight_lbs: data.weight_lbs || 0,
-      goal: data.goal || "Lose Weight",
-      diet_style: data.diet_style || "Balanced Nutrition",
-      display_mode: data.display_mode || "Simple",
-      relationship_mode: data.relationship_mode || false
+      id: user.id,
+name: profile.full_name,
+height_in: profile.height_inches,
+weight_lbs: profile.weight_lbs,
+goal: profile.goal,
+diet_style: profile.diet_style,
+display_mode: profile.display_mode,
+relationship_with_: profile.relationship_mode
     };
   }
 }
