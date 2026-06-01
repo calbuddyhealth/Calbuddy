@@ -72,7 +72,6 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
           goal: profile.goal,
           diet_style: profile.diet_style,
           display_mode: profile.display_mode,
-          updated_at: new Date().toISOString()
         },
         { onConflict: ["id"] }
       );
