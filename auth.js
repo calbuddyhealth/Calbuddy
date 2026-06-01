@@ -2,7 +2,7 @@
 
 // Sign up with email and password
 async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await window.calbuddySupabase.auth.signUp({
     email: email,
     password: password
   });
@@ -16,7 +16,7 @@ async function signUp(email, password) {
 
 // Log in with email and password
 async function signIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await window.calbuddySupabase.auth.signInWithPassword({
     email: email,
     password: password
   });
@@ -30,7 +30,7 @@ async function signIn(email, password) {
 
 // Log out
 async function signOut() {
-  const { error } = await supabase.auth.signOut();
+  const { error } = await window.calbuddySupabase.auth.signOut();
   
   if (error) {
     return { success: false, error: error.message };
@@ -41,7 +41,7 @@ async function signOut() {
 
 // Get current session
 async function getCurrentUser() {
-  const { data: { session }, error } = await supabase.auth.getSession();
+  const { data: { session }, error } = await window.calbuddySupabase.auth.getSession();
   
   if (error) {
     return null;
