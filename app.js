@@ -62,7 +62,7 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
   
   if (user) {
     // Save to Supabase profiles table
-    const { error } = await supabase
+    const { error } = await window.calbuddySupabase
       .from("profiles")
       .upsert(
         {
