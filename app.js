@@ -55,7 +55,6 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
     goal: document.getElementById("goal").value || "Lose Weight",
     diet_style: document.getElementById("diet").value || "Balanced Nutrition",
     display_mode: document.getElementById("displayMode").value || "Simple",
-    relationship_mode: document.getElementById("relationshipMode").checked || false
   };
   
   const user = await getCurrentUser();
@@ -73,7 +72,6 @@ document.getElementById("setupForm").addEventListener("submit", async e => {
           goal: profile.goal,
           diet_style: profile.diet_style,
           display_mode: profile.display_mode,
-          relationship_with_: profile.relationship_mode,
           updated_at: new Date().toISOString()
         },
         { onConflict: ["id"] }
@@ -114,7 +112,6 @@ weight_lbs: profile.weight_lbs,
 goal: profile.goal,
 diet_style: profile.diet_style,
 display_mode: profile.display_mode,
-relationship_with_: profile.relationship_mode
     };
   }
 }
