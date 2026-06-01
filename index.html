@@ -37,7 +37,25 @@
         <button type="submit" class="primary-btn full">Save Profile</button>
       </form>
     </section>
-    <section id="login" class="screen hidden"><h2>Log In</h2><p class="muted">Authentication will connect to Supabase in the next build.</p><button class="secondary-btn" onclick="showScreen('home')">Preview Home</button></section>
+    <section id="login" class="screen hidden">
+<h2>Log In</h2>
+<p class="muted">Log in or create an account to save your profile across devices.</p>
+
+<label>Email
+<input id="authEmail" type="email" placeholder="you@example.com" />
+</label>
+
+<label>Password
+<input id="authPassword" type="password" placeholder="Password" />
+</label>
+
+<div class="button-row">
+<button class="primary-btn" onclick="handleLogin()">Log In</button>
+<button class="secondary-btn" onclick="handleSignup()">Create Account</button>
+</div>
+
+<p id="authMessage" class="muted"></p>
+</section>
     <section id="home" class="screen hidden">
       <div class="top-bar"><div><p class="eyebrow">Good day,</p><h2 id="greetingName">Friend 👋</h2></div><button class="chip">🌎 English</button></div>
       <div class="preference-row"><button class="preference-card">🎯 <span id="goalText">Lose Weight</span></button><button class="preference-card">🥗 <span id="dietText">Balanced Nutrition</span></button></div>
