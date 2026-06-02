@@ -337,7 +337,7 @@ border-color: #a9edf0;
 display: grid;
 grid-template-columns: 1.15fr 0.85fr;
 overflow: hidden;
-min-height: 180px;
+min-height: 160px;
 width: 100%;
 }
 
@@ -478,12 +478,12 @@ font-size: 54px;
 }
 }
 .robot-illustration {
-  width: 170% !important;
-  max-width: 700px !important;
+  width: 220% !important;
+  max-width: 900px !important;
   height: auto !important;
   position: absoulte;
-  right: -40px;
-  bottom: -45px;
+  right: -80px;
+  bottom: -55px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
