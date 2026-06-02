@@ -470,7 +470,7 @@ font-size: 11px;
 }
 
 .ask-card {
-min-height: 180px;
+min-height: 205px;
 }
 
 .robot-placeholder {
@@ -478,12 +478,12 @@ font-size: 54px;
 }
 }
 .robot-illustration {
-  width: 140% !important;
-  max-width: 600px !important;
+  width: 170% !important;
+  max-width: 700px !important;
   height: auto !important;
   position: absoulte;
-  right: -60px;
-  bottom: -20px;
+  right: -110px;
+  bottom: -45px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
