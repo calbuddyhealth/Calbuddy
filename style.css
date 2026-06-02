@@ -478,21 +478,21 @@ font-size: 54px;
 }
 }
 .robot-illustration {
-  width: 360px;
-  max-width: 58%;
-  height: auto;
-  object-fit: contain;
-  align-self: end;
-  justify-self: end;
-  transform: translate(35px, 20px);
+  width: 100% !important;
+  max-width: 320px !important;
+  height: auto !important;
+  position: absoulte;
+  right: 8px;
+  bottom: 0;
+  z-index: 2;
+  transform: translate(0px, 0px);
   filter:
-    brightness(1.18)
-    contrast(1.1)
-    drop-shadow(0 0 8px rgba(255,255,255,0.6))
-    drop-shadow(0 8px 18px rgba(0,0,0,0.14));  
-  opacity: 1;
+    brightness(1.15)
+    contrast(1.08)
+    drop-shadow(0 8px 20px rgba(0,0,0,0.12));
 }
 
 .ask-card {
+position: relative;
 overflow: hidden;
 }
