@@ -482,8 +482,8 @@ font-size: 54px;
   max-width: 240px !important;
   height: auto !important;
   position: absolute;
-  right: -2px;
-  bottom: 40px;
+  right: -5px;
+  bottom: -60px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
