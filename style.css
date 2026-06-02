@@ -470,7 +470,7 @@ font-size: 11px;
 }
 
 .ask-card {
-min-height: 205px;
+min-height: 140px;
 }
 
 .robot-placeholder {
@@ -481,9 +481,9 @@ font-size: 54px;
   width: 150% !important;
   max-width: 620px !important;
   height: auto !important;
-  position: absoulte;
-  right: -20px;
-  bottom: -35px;
+  position: absolute;
+  right: 45px;
+  bottom: -25px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
@@ -493,7 +493,7 @@ font-size: 54px;
 }
 
 .ask-card {
-min-height:175px;
+min-height:140px;
 position: relative;
 overflow: hidden;
 }
