@@ -26,14 +26,14 @@ padding: 12px;
 display: flex;
 align-items: flex-start;
 justify-content: space-between;
-margin-bottom: 18px;
+margin-bottom: 14px;
 }
 
 .logo {
 font-size: 34px;
 margin: 0;
 font-weight: 950;
-letter-spacing: -2.5px;
+letter-spacing: -2px;
 }
 
 .cal {
@@ -45,10 +45,10 @@ color: #079c9d;
 }
 
 .menu-btn {
-font-size: 32px;
+font-size: 30px;
 background: transparent;
 border: none;
-margin-top: 10px;
+margin-top: 14px;
 cursor: pointer;
 color: #071225;
 }
@@ -56,45 +56,46 @@ color: #071225;
 .right-actions {
 display: flex;
 flex-direction: column;
-gap: 8px;
+gap: 6px;
 }
 
 .signin-btn,
 .goals-pill {
-background: rgba(255, 255, 255, 0.92);
+background: rgba(255, 255, 255, 0.94);
 border: 1.8px solid #6d3df2;
 color: #5b31e8;
 border-radius: 16px;
-padding: 10px 14px;
+padding: 8px 12px;
 font-weight: 900;
-box-shadow: 0 8px 20px rgba(68, 57, 120, 0.14);
+box-shadow: 0 8px 18px rgba(68, 57, 120, 0.13);
 cursor: pointer;
+font-size: 14px;
 }
 
 .goals-pill {
 border-color: #9ce6e8;
 color: #078e91;
-padding: 8px 12px;
+padding: 7px 10px;
 font-size: 13px;
 }
 
 .hero-card,
 .tile,
 .ask-card {
-border-radius: 26px;
-background: rgba(255, 255, 255, 0.95);
+border-radius: 24px;
+background: rgba(255, 255, 255, 0.96);
 box-shadow:
-0 16px 34px rgba(17, 24, 39, 0.12),
+0 14px 28px rgba(17, 24, 39, 0.11),
 inset 0 1px 0 rgba(255, 255, 255, 0.9);
 border: 1.5px solid rgba(15, 23, 42, 0.06);
 }
 
 .hero-card {
-padding: 14px;
+padding: 12px;
 display: grid;
-grid-template-columns: 1.25fr 0.85fr;
-gap: 12px;
-margin-bottom: 16px;
+grid-template-columns: 1.15fr 0.85fr;
+gap: 10px;
+margin-bottom: 14px;
 }
 
 .meter-side {
@@ -106,10 +107,10 @@ width: 100%;
 }
 
 .arch-meter {
-height: 150px;
-border-top: 16px solid #12943a;
-border-left: 16px solid #10a6a5;
-border-right: 16px solid #e3e7ee;
+height: 130px;
+border-top: 14px solid #12943a;
+border-left: 14px solid #10a6a5;
+border-right: 14px solid #e3e7ee;
 border-bottom: none;
 border-radius: 190px 190px 0 0;
 position: relative;
@@ -117,21 +118,21 @@ position: relative;
 
 .meter-text {
 text-align: center;
-padding-top: 36px;
+padding-top: 28px;
 }
 
 .meter-text p {
 margin: 0;
 color: #0a8d24;
 font-weight: 950;
-font-size: 13px;
-letter-spacing: 0.3px;
+font-size: 11px;
+letter-spacing: 0.2px;
 }
 
 .meter-text h2 {
 margin: 0;
 color: #0b8f1f;
-font-size: 44px;
+font-size: 42px;
 line-height: 1;
 font-weight: 950;
 }
@@ -139,39 +140,43 @@ font-weight: 950;
 .meter-text span {
 color: #66708a;
 font-weight: 750;
+font-size: 14px;
 }
 
 .consumed-row {
 display: flex;
-gap: 12px;
+gap: 9px;
 align-items: center;
 border-top: 1px solid #e6ebf3;
-padding-top: 16px;
+padding-top: 10px;
 margin-top: 4px;
 }
 
 .flame {
 background: #e9f8e8;
 border-radius: 50%;
-padding: 10px;
-min-width: 42px;
+padding: 8px;
+min-width: 36px;
 text-align: center;
 }
 
 .consumed-row strong {
-font-size: 22px;
+font-size: 24px;
 font-weight: 950;
+line-height: 1.05;
 }
 
 .consumed-row p {
 margin: 3px 0 0;
 color: #66708a;
 font-weight: 800;
+font-size: 18px;
+line-height: 1.05;
 }
 
 .status-side {
 border-left: 1px solid #dfe5ee;
-padding-left: 18px;
+padding-left: 12px;
 display: flex;
 flex-direction: column;
 justify-content: center;
@@ -182,31 +187,33 @@ display: inline-block;
 width: fit-content;
 background: #e9f8e8;
 color: #0d8e25;
-padding: 9px 12px;
+padding: 8px 10px;
 border-radius: 13px;
 font-weight: 950;
-margin-bottom: 14px;
+margin-bottom: 12px;
+font-size: 15px;
+line-height: 1.05;
 }
 
 .status-side h3 {
 color: #078e1f;
-font-size: 17px;
+font-size: 18px;
 line-height: 1.08;
-margin: 0 0 12px;
+margin: 0 0 10px;
 font-weight: 950;
 }
 
 .status-side p {
 font-weight: 650;
-line-height: 1.35;
-font-size: 15px;
+line-height: 1.25;
+font-size: 14px;
 margin: 0;
 }
 
 .dashboard-grid {
 display: grid;
 grid-template-columns: 1fr 1fr;
-gap: 14px;
+gap: 12px;
 }
 
 .tile,
@@ -220,35 +227,35 @@ transition: transform 0.18s ease, box-shadow 0.18s ease;
 .ask-card:hover {
 transform: translateY(-3px);
 box-shadow:
-0 20px 42px rgba(17, 24, 39, 0.16),
+0 18px 36px rgba(17, 24, 39, 0.15),
 inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .tile {
-min-height: 210px;
-padding: 16px;
+min-height: 190px;
+padding: 14px;
 position: relative;
 overflow: hidden;
 }
 
 .tile-icon,
 .chat-icon {
-font-size: 34px;
-margin-bottom: 10px;
+font-size: 28px;
+margin-bottom: 8px;
 }
 
 .tile h2,
 .ask-card h2 {
-margin: 0 0 12px;
-font-size: 20px;
+margin: 0 0 10px;
+font-size: 19px;
 font-weight: 950;
 }
 
 .tile p {
 font-weight: 650;
-line-height: 1.45;
-font-size: 14px;
+line-height: 1.35;
 margin: 0;
+font-size: 13px;
 }
 
 .intake {
@@ -262,7 +269,7 @@ border-color: #d9c4ff;
 }
 
 .food-art {
-font-size: 34px;
+font-size: 28px;
 position: absolute;
 bottom: 12px;
 right: 10px;
@@ -270,8 +277,8 @@ right: 10px;
 
 .weight-badge {
 position: absolute;
-top: 18px;
-right: 16px;
+top: 14px;
+right: 12px;
 background: linear-gradient(135deg, #7b42ff, #4f25d8);
 color: white;
 border-radius: 12px;
@@ -292,48 +299,48 @@ margin-top: 2px;
 .progress h3 {
 color: #6534f5;
 font-size: 34px;
-margin: 18px 0 0;
+margin: 12px 0 0;
 font-weight: 950;
 }
 
 .progress > p {
-margin-bottom: 16px;
+margin-bottom: 10px;
 }
 
 .mini-stats {
 display: flex;
 flex-direction: column;
-gap: 8px;
+gap: 7px;
 font-weight: 850;
-font-size: 13px;
+font-size: 12px;
 }
 
 .mini-stats span {
 background: rgba(255, 255, 255, 0.66);
 border-radius: 12px;
-padding: 8px;
+padding: 7px;
 }
 
 .trend-line {
 position: absolute;
 left: 18px;
 right: 18px;
-bottom: 18px;
-height: 52px;
+bottom: 14px;
+height: 36px;
 border-bottom: 4px solid #6534f5;
 transform: skewY(-12deg);
 opacity: 0.85;
 }
 
 .ask-card {
-margin-top: 14px;
-padding: 20px;
+margin-top: 12px;
+padding: 16px;
 background: linear-gradient(145deg, #edfdff, #dff9fb);
 border-color: #a9edf0;
 display: grid;
-grid-template-columns: 1.1fr 0.9fr;
+grid-template-columns: 1.15fr 0.85fr;
 overflow: hidden;
-min-height: 235px;
+min-height: 205px;
 width: 100%;
 }
 
@@ -343,18 +350,19 @@ z-index: 2;
 }
 
 .question-bubble {
-margin-top: 18px;
-padding: 16px;
+margin-top: 14px;
+padding: 14px;
 border-radius: 18px;
 background: white;
 color: #078e91;
 font-weight: 900;
-line-height: 1.4;
+font-size: 14px;
+line-height: 1.35;
 box-shadow: 0 8px 18px rgba(0,0,0,0.08);
 }
 
 .robot-thinking {
-font-size: 112px;
+font-size: 88px;
 align-self: end;
 justify-self: center;
 filter: drop-shadow(0 12px 16px rgba(0,0,0,0.16));
@@ -364,38 +372,111 @@ footer {
 text-align: center;
 color: #6f7890;
 font-weight: 650;
-margin: 14px 0 0;
+font-size: 14px;
+margin: 12px 0 0;
 }
 
+/* Extra small phones */
 @media (max-width: 390px) {
 .app {
-padding: 14px;
+padding: 10px;
 }
 
 .logo {
-font-size: 34px;
+font-size: 31px;
+}
+
+.menu-btn {
+font-size: 28px;
 }
 
 .signin-btn,
 .goals-pill {
-padding: 8px 10px;
+padding: 7px 9px;
 font-size: 12px;
 }
 
 .hero-card {
-padding: 14px;
-gap: 12px;
+grid-template-columns: 1.2fr 0.8fr;
+padding: 10px;
+gap: 8px;
 }
 
 .arch-meter {
-height: 150px;
+height: 120px;
+border-top-width: 13px;
+border-left-width: 13px;
+border-right-width: 13px;
+}
+
+.meter-text {
+padding-top: 25px;
 }
 
 .meter-text h2 {
-font-size: 44px;
+font-size: 38px;
+}
+
+.meter-text span {
+font-size: 13px;
+}
+
+.consumed-row strong {
+font-size: 21px;
+}
+
+.consumed-row p {
+font-size: 15px;
+}
+
+.status-side {
+padding-left: 10px;
+}
+
+.badge {
+font-size: 13px;
+padding: 7px 9px;
+}
+
+.status-side h3 {
+font-size: 16px;
+}
+
+.status-side p {
+font-size: 13px;
 }
 
 .tile {
-min-height: 210px;
+min-height: 178px;
+padding: 12px;
+}
+
+.tile h2,
+.ask-card h2 {
+font-size: 18px;
+}
+
+.tile p {
+font-size: 12px;
+}
+
+.food-art {
+font-size: 24px;
+}
+
+.progress h3 {
+font-size: 30px;
+}
+
+.mini-stats {
+font-size: 11px;
+}
+
+.ask-card {
+min-height: 190px;
+}
+
+.robot-thinking {
+font-size: 76px;
 }
 }
