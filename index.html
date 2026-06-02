@@ -10,7 +10,7 @@
 <main class="app">
 
 <header class="top-bar">
-<button class="menu-btn">☰</button>
+<button class="menu-btn" aria-label="Open menu">☰</button>
 
 <h1 class="logo">
 <span class="cal">Cal</span><span class="buddy">Buddy</span>
@@ -24,11 +24,13 @@
 
 <section class="hero-card">
 <div class="meter-side">
+<div class="arch-wrap">
 <div class="arch-meter">
 <div class="meter-text">
 <p>CALORIES LEFT</p>
 <h2>850</h2>
 <span>of 2,100 kcal</span>
+</div>
 </div>
 </div>
 
@@ -48,30 +50,37 @@
 </div>
 </section>
 
-<section class="tiles">
+<section class="dashboard-grid">
 <button class="tile intake">
 <div class="tile-icon">🍽️</div>
 <h2>Log Intake</h2>
 <p>Log breakfast, lunch, dinner, snacks, and drinks.</p>
-<div class="food-art">🥗🍎🥤</div>
+<div class="food-art">🥗 🍎 🥤</div>
 </button>
 
 <button class="tile progress">
 <div class="tile-icon">📈</div>
 <h2>Progress</h2>
-<div class="weight-badge">183 lbs<br><span>Current Weight</span></div>
+
+<div class="weight-badge">
+183 lbs
+<span>Current Weight</span>
+</div>
+
 <h3>4 lb ↓</h3>
 <p>lost this month</p>
+
 <div class="mini-stats">
 <span>🔥 12 Day Streak</span>
 <span>🎯 83% Goal Adherence</span>
 </div>
-<div class="graph-line">╲╲╲</div>
+
+<div class="trend-line"></div>
 </button>
 </section>
 
-<section class="ask-card">
-<div>
+<button class="ask-card">
+<div class="ask-content">
 <div class="chat-icon">💬</div>
 <h2>Ask CalBuddy</h2>
 
@@ -80,8 +89,8 @@
 </div>
 </div>
 
-<div class="robot">🤖</div>
-</section>
+<div class="robot-thinking">🤖💭</div>
+</button>
 
 <footer>
 🔒 Your data is private and secure.
