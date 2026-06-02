@@ -337,7 +337,7 @@ border-color: #a9edf0;
 display: grid;
 grid-template-columns: 1.15fr 0.85fr;
 overflow: hidden;
-min-height: 165px;
+min-height: 180px;
 width: 100%;
 }
 
@@ -470,7 +470,7 @@ font-size: 11px;
 }
 
 .ask-card {
-min-height: 155px;
+min-height: 180px;
 }
 
 .robot-placeholder {
@@ -478,12 +478,12 @@ font-size: 54px;
 }
 }
 .robot-illustration {
-  width: 100% !important;
-  max-width: 420px !important;
+  width: 140% !important;
+  max-width: 600px !important;
   height: auto !important;
   position: absoulte;
-  right: -15px;
-  bottom: -10px;
+  right: -60px;
+  bottom: -20px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
