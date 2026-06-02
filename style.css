@@ -478,11 +478,13 @@ font-size: 54px;
 }
 }
 .robot-illustration {
-width: 180px;
-height: auto;
-object-fit: contain;
-align-self: end;
-justify-self: end;
+  width: 185px;
+  height: auto;
+  object-fit: contain;
+  align-self: end;
+  justify-self: end;
+  mix-blend-mode: multiply;
+  transform: translate(12px, 10px);
 }
 
 .ask-card {
