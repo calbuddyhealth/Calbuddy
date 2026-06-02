@@ -477,3 +477,14 @@ min-height: 155px;
 font-size: 54px;
 }
 }
+.robot-illustration {
+width: 180px;
+height: auto;
+object-fit: contain;
+align-self: end;
+justify-self: end;
+}
+
+.ask-card {
+overflow: hidden;
+}
