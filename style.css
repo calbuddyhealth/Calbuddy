@@ -30,7 +30,7 @@ margin-bottom: 18px;
 }
 
 .logo {
-font-size: 46px;
+font-size: 36px;
 margin: 0;
 font-weight: 950;
 letter-spacing: -2.5px;
@@ -90,10 +90,10 @@ border: 1.5px solid rgba(15, 23, 42, 0.06);
 }
 
 .hero-card {
-padding: 22px;
+padding: 18px;
 display: grid;
 grid-template-columns: 1.25fr 0.85fr;
-gap: 18px;
+gap: 12px;
 margin-bottom: 16px;
 }
 
@@ -106,10 +106,10 @@ width: 100%;
 }
 
 .arch-meter {
-height: 185px;
-border-top: 20px solid #12943a;
-border-left: 20px solid #10a6a5;
-border-right: 20px solid #e3e7ee;
+height: 150px;
+border-top: 16px solid #12943a;
+border-left: 16px solid #10a6a5;
+border-right: 16px solid #e3e7ee;
 border-bottom: none;
 border-radius: 190px 190px 0 0;
 position: relative;
@@ -117,7 +117,7 @@ position: relative;
 
 .meter-text {
 text-align: center;
-padding-top: 45px;
+padding-top: 36px;
 }
 
 .meter-text p {
@@ -131,7 +131,7 @@ letter-spacing: 0.3px;
 .meter-text h2 {
 margin: 0;
 color: #0b8f1f;
-font-size: 64px;
+font-size: 48px;
 line-height: 1;
 font-weight: 950;
 }
@@ -159,7 +159,7 @@ text-align: center;
 }
 
 .consumed-row strong {
-font-size: 25px;
+font-size: 22px;
 font-weight: 950;
 }
 
@@ -190,7 +190,7 @@ margin-bottom: 14px;
 
 .status-side h3 {
 color: #078e1f;
-font-size: 24px;
+font-size: 20px;
 line-height: 1.08;
 margin: 0 0 12px;
 font-weight: 950;
@@ -199,6 +199,7 @@ font-weight: 950;
 .status-side p {
 font-weight: 650;
 line-height: 1.35;
+font-size: 15px;
 margin: 0;
 }
 
@@ -224,8 +225,8 @@ inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .tile {
-min-height: 255px;
-padding: 18px;
+min-height: 220px;
+padding: 16px;
 position: relative;
 overflow: hidden;
 }
@@ -239,13 +240,14 @@ margin-bottom: 10px;
 .tile h2,
 .ask-card h2 {
 margin: 0 0 12px;
-font-size: 24px;
+font-size: 22px;
 font-weight: 950;
 }
 
 .tile p {
 font-weight: 650;
 line-height: 1.45;
+font-size: 14px;
 margin: 0;
 }
 
@@ -260,10 +262,10 @@ border-color: #d9c4ff;
 }
 
 .food-art {
-font-size: 48px;
+font-size: 34px;
 position: absolute;
-bottom: 18px;
-right: 12px;
+bottom: 12px;
+right: 10px;
 }
 
 .weight-badge {
@@ -273,22 +275,23 @@ right: 16px;
 background: linear-gradient(135deg, #7b42ff, #4f25d8);
 color: white;
 border-radius: 12px;
-padding: 8px 12px;
+padding: 7px 10px;
 font-weight: 950;
 text-align: center;
+font-size: 13px;
 box-shadow: 0 8px 18px rgba(101, 52, 245, 0.25);
 }
 
 .weight-badge span {
 display: block;
-font-size: 10px;
+font-size: 9px;
 color: #eee8ff;
 margin-top: 2px;
 }
 
 .progress h3 {
 color: #6534f5;
-font-size: 40px;
+font-size: 34px;
 margin: 18px 0 0;
 font-weight: 950;
 }
