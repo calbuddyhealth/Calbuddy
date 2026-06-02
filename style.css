@@ -478,12 +478,12 @@ font-size: 54px;
 }
 }
 .robot-illustration {
-  width: 150% !important;
-  max-width: 620px !important;
+  width: 115% !important;
+  max-width: 380px !important;
   height: auto !important;
   position: absolute;
-  right: 45px;
-  bottom: -25px;
+  right: 10px;
+  bottom: -20px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
@@ -493,7 +493,7 @@ font-size: 54px;
 }
 
 .ask-card {
-min-height:140px;
+min-height:165px;
 position: relative;
 overflow: hidden;
 }
