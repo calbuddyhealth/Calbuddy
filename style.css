@@ -479,11 +479,11 @@ font-size: 54px;
 }
 .robot-illustration {
   width: 100% !important;
-  max-width: 320px !important;
+  max-width: 420px !important;
   height: auto !important;
   position: absoulte;
-  right: 8px;
-  bottom: 0;
+  right: -15px;
+  bottom: -10px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
