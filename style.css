@@ -482,8 +482,8 @@ font-size: 54px;
   max-width: 240px !important;
   height: auto !important;
   position: absolute;
-  right: -15px;
-  bottom: -73px;
+  right: -10px;
+  bottom: -75px;
   z-index: 2;
   transform: translate(0px, 0px);
   filter:
@@ -495,5 +495,5 @@ font-size: 54px;
 .ask-card {
 min-height:165px;
 position: relative;
-overflow: hidden;
+overflow: visible;
 }
