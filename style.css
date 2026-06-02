@@ -19,7 +19,7 @@ font-family: inherit;
 .app {
 max-width: 430px;
 margin: 0 auto;
-padding: 18px;
+padding: 12px;
 }
 
 .top-bar {
@@ -30,7 +30,7 @@ margin-bottom: 18px;
 }
 
 .logo {
-font-size: 36px;
+font-size: 34px;
 margin: 0;
 font-weight: 950;
 letter-spacing: -2.5px;
@@ -90,7 +90,7 @@ border: 1.5px solid rgba(15, 23, 42, 0.06);
 }
 
 .hero-card {
-padding: 18px;
+padding: 14px;
 display: grid;
 grid-template-columns: 1.25fr 0.85fr;
 gap: 12px;
@@ -131,7 +131,7 @@ letter-spacing: 0.3px;
 .meter-text h2 {
 margin: 0;
 color: #0b8f1f;
-font-size: 48px;
+font-size: 44px;
 line-height: 1;
 font-weight: 950;
 }
@@ -190,7 +190,7 @@ margin-bottom: 14px;
 
 .status-side h3 {
 color: #078e1f;
-font-size: 20px;
+font-size: 17px;
 line-height: 1.08;
 margin: 0 0 12px;
 font-weight: 950;
@@ -225,7 +225,7 @@ inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .tile {
-min-height: 220px;
+min-height: 210px;
 padding: 16px;
 position: relative;
 overflow: hidden;
@@ -240,7 +240,7 @@ margin-bottom: 10px;
 .tile h2,
 .ask-card h2 {
 margin: 0 0 12px;
-font-size: 22px;
+font-size: 20px;
 font-weight: 950;
 }
 
@@ -373,7 +373,7 @@ padding: 14px;
 }
 
 .logo {
-font-size: 38px;
+font-size: 34px;
 }
 
 .signin-btn,
@@ -383,19 +383,19 @@ font-size: 12px;
 }
 
 .hero-card {
-padding: 18px;
-gap: 14px;
+padding: 14px;
+gap: 12px;
 }
 
 .arch-meter {
-height: 165px;
+height: 150px;
 }
 
 .meter-text h2 {
-font-size: 54px;
+font-size: 44px;
 }
 
 .tile {
-min-height: 235px;
+min-height: 210px;
 }
 }
