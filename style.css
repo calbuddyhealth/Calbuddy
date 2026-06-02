@@ -478,13 +478,13 @@ font-size: 54px;
 }
 }
 .robot-illustration {
-  width: 220px;
-  max-width: 42%;
+  width: 360px;
+  max-width: 58%;
   height: auto;
   object-fit: contain;
   align-self: end;
   justify-self: end;
-  transform: translate(12px, 10px);
+  transform: translate(35px, 20px);
   filter:
     brightness(1.18)
     contrast(1.1)
