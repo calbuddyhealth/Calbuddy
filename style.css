@@ -340,7 +340,7 @@ border-color: #a9edf0;
 display: grid;
 grid-template-columns: 1.15fr 0.85fr;
 overflow: hidden;
-min-height: 205px;
+min-height: 165px;
 width: 100%;
 }
 
@@ -356,13 +356,13 @@ border-radius: 18px;
 background: white;
 color: #078e91;
 font-weight: 900;
-font-size: 14px;
+font-size: 12px;
 line-height: 1.35;
 box-shadow: 0 8px 18px rgba(0,0,0,0.08);
 }
 
 .robot-thinking {
-font-size: 88px;
+font-size: 62px;
 align-self: end;
 justify-self: center;
 filter: drop-shadow(0 12px 16px rgba(0,0,0,0.16));
@@ -473,10 +473,10 @@ font-size: 11px;
 }
 
 .ask-card {
-min-height: 190px;
+min-height: 165px;
 }
 
 .robot-thinking {
-font-size: 76px;
+font-size: 62px;
 }
 }
