@@ -6,8 +6,8 @@ body {
 margin: 0;
 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 background:
-radial-gradient(circle at top left, rgba(109, 61, 242, 0.12), transparent 32%),
-radial-gradient(circle at top right, rgba(7, 156, 157, 0.14), transparent 35%),
+radial-gradient(circle at top left, rgba(109, 61, 242, 0.14), transparent 35%),
+radial-gradient(circle at top right, rgba(7, 156, 157, 0.16), transparent 38%),
 #f8fbff;
 color: #071225;
 }
@@ -61,13 +61,13 @@ gap: 6px;
 
 .signin-btn,
 .goals-pill {
-background: rgba(255, 255, 255, 0.94);
+background: rgba(255, 255, 255, 0.95);
 border: 1.8px solid #6d3df2;
 color: #5b31e8;
-border-radius: 16px;
+border-radius: 18px;
 padding: 8px 12px;
 font-weight: 900;
-box-shadow: 0 8px 18px rgba(68, 57, 120, 0.13);
+box-shadow: 0 8px 18px rgba(68, 57, 120, 0.14);
 cursor: pointer;
 font-size: 14px;
 }
@@ -85,7 +85,7 @@ font-size: 13px;
 border-radius: 24px;
 background: rgba(255, 255, 255, 0.96);
 box-shadow:
-0 14px 28px rgba(17, 24, 39, 0.11),
+0 14px 30px rgba(17, 24, 39, 0.12),
 inset 0 1px 0 rgba(255, 255, 255, 0.9);
 border: 1.5px solid rgba(15, 23, 42, 0.06);
 }
@@ -100,10 +100,6 @@ margin-bottom: 14px;
 
 .meter-side {
 min-width: 0;
-}
-
-.arch-wrap {
-width: 100%;
 }
 
 .arch-meter {
@@ -268,11 +264,14 @@ background: linear-gradient(145deg, #fbf7ff, #f3eaff);
 border-color: #d9c4ff;
 }
 
-.food-art {
-font-size: 28px;
+.food-illustration {
 position: absolute;
-bottom: 12px;
 right: 10px;
+bottom: 12px;
+display: flex;
+align-items: flex-end;
+gap: 8px;
+font-size: 26px;
 }
 
 .weight-badge {
@@ -361,7 +360,7 @@ line-height: 1.35;
 box-shadow: 0 8px 18px rgba(0,0,0,0.08);
 }
 
-.robot-thinking {
+.robot-placeholder {
 font-size: 62px;
 align-self: end;
 justify-self: center;
@@ -460,7 +459,7 @@ font-size: 18px;
 font-size: 12px;
 }
 
-.food-art {
+.food-illustration {
 font-size: 24px;
 }
 
@@ -473,10 +472,10 @@ font-size: 11px;
 }
 
 .ask-card {
-min-height: 165px;
+min-height: 155px;
 }
 
-.robot-thinking {
-font-size: 62px;
+.robot-placeholder {
+font-size: 54px;
 }
 }
