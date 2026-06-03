@@ -24,6 +24,7 @@
 id="email"
 type="email"
 placeholder="Email"
+autocomplete="email"
 style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;"
 />
 
@@ -31,14 +32,15 @@ style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px s
 id="password"
 type="password"
 placeholder="Password"
+autocomplete="current-password"
 style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;"
 />
 
-<button id="loginBtn" class="signin-btn" style="width:100%; margin-top:12px;">
+<button id="loginBtn" type="button" class="signin-btn" style="width:100%; margin-top:12px;">
 Sign In
 </button>
 
-<button id="signupBtn" class="goals-pill" style="width:100%; margin-top:12px;">
+<button id="signupBtn" type="button" class="goals-pill" style="width:100%; margin-top:12px;">
 Create Account
 </button>
 
@@ -47,40 +49,104 @@ Create Account
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js?v=3"></script>
-<script src="auth.js?v=3"></script>
+<script src="supabase-config.js?v=5"></script>
 
 <script>
 const emailInput = document.getElementById("email");
 const passwordInput = document.getElementById("password");
 const message = document.getElementById("authMessage");
+const loginBtn = document.getElementById("loginBtn");
+const signupBtn = document.getElementById("signupBtn");
 
-document.getElementById("loginBtn").onclick = async () => {
+function setMessage(text) {
+message.textContent = text;
+}
+
+function validateInputs() {
 const email = emailInput.value.trim();
 const password = passwordInput.value.trim();
 
-const result = await signIn(email, password);
+if (!email) {
+setMessage("Enter your email.");
+return null;
+}
 
-if (result.success) {
-message.textContent = "Signed in successfully.";
+if (!password) {
+setMessage("Enter your password.");
+return null;
+}
+
+if (password.length < 6) {
+setMessage("Password must be at least 6 characters.");
+return null;
+}
+
+return { email, password };
+}
+
+loginBtn.addEventListener("click", async () => {
+const values = validateInputs();
+if (!values) return;
+
+loginBtn.disabled = true;
+setMessage("Signing in...");
+
+try {
+const { data, error } =
+await window.calbuddySupabase.auth.signInWithPassword({
+email: values.email,
+password: values.password
+});
+
+if (error) {
+setMessage(error.message);
+loginBtn.disabled = false;
+return;
+}
+
+if (data && data.user) {
+setMessage("Signed in successfully.");
 window.location.href = "index.html";
-} else {
-message.textContent = result.error;
+return;
 }
-};
 
-document.getElementById("signupBtn").onclick = async () => {
-const email = emailInput.value.trim();
-const password = passwordInput.value.trim();
+setMessage("Sign in failed. Please try again.");
+loginBtn.disabled = false;
 
-const result = await signUp(email, password);
-
-if (result.success) {
-message.textContent = "Account created. Check your email if confirmation is required.";
-} else {
-message.textContent = result.error;
+} catch (err) {
+setMessage("Sign in error. Please try again.");
+loginBtn.disabled = false;
 }
-};
+});
+
+signupBtn.addEventListener("click", async () => {
+const values = validateInputs();
+if (!values) return;
+
+signupBtn.disabled = true;
+setMessage("Creating account...");
+
+try {
+const { data, error } =
+await window.calbuddySupabase.auth.signUp({
+email: values.email,
+password: values.password
+});
+
+if (error) {
+setMessage(error.message);
+signupBtn.disabled = false;
+return;
+}
+
+setMessage("Account created. Check your email if confirmation is required.");
+signupBtn.disabled = false;
+
+} catch (err) {
+setMessage("Account creation error. Please try again.");
+signupBtn.disabled = false;
+}
+});
 </script>
 </body>
 </html>
