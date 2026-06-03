@@ -10,23 +10,36 @@ const questions = [
 let index = 0;
 const questionBox = document.getElementById("calbuddy-question");
 
+if (questionBox) {
 setInterval(() => {
 index = (index + 1) % questions.length;
-questionBox.textContent = `“${questions[index]}”`;
+questionBox.textContent = `"${questions[index]}"`;
 }, 4000);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
 const authButton = document.getElementById("authButton");
 
-if (!authButton || !window.calbuddySupabase) return;
+if (!authButton) return;
 
-const { data } = await window.calbuddySupabase.auth.getSession();
+if (!window.calbuddySupabase) {
+console.log("Supabase not loaded");
+return;
+}
+
+const { data, error } = await window.calbuddySupabase.auth.getSession();
+
+if (error) {
+console.log("Session error:", error);
+return;
+}
 
 if (data.session) {
 authButton.textContent = "Logout";
 
 authButton.onclick = async () => {
 await window.calbuddySupabase.auth.signOut();
-window.location.reload();
+window.location.href = "index.html";
 };
 } else {
 authButton.textContent = "👤 Sign In";
