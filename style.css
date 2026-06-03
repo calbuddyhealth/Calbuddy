@@ -404,7 +404,7 @@ background: linear-gradient(145deg, #edfdff, #dff9fb);
 border-color: #a9edf0;
 display: grid;
 grid-template-columns: 1.05fr 0.95fr;
-overflow: hidden;
+overflow: visible;
 min-height: 160px;
 width: 100%;
 position: relative;
@@ -435,17 +435,17 @@ box-shadow: 0 8px 18px rgba(0,0,0,0.08);
 }
 
 .robot-illustration {
-width: 56% !important;
-max-width: 210px !important;
+width: 72% !important;
+max-width: 280px !important;
 height: auto !important;
 position: absolute;
-right: -6px;
-bottom: -75px;
-z-index: 2;
+right: -20px;
+bottom: -45px;
+z-index: 3;
 filter:
-brightness(1.15)
-contrast(1.08)
-drop-shadow(0 8px 20px rgba(0,0,0,0.12));
+brightness(1.18)
+contrast(1.1)
+drop-shadow(0 14px 30px rgba(0,0,0,0.22));
 }
 
 /* Hide old homepage sections */
@@ -511,9 +511,10 @@ width: 108px;
 }
 
 .robot-illustration {
-width: 55% !important;
-right: -8px;
-bottom: -4px;
+width: 72% !important;
+max-width: 260px !important;
+right: -18px;
+bottom: -35px;
 }
 }
 
