@@ -8,207 +8,49 @@
 
 <style>
 .log-card { display: block; padding: 24px; }
+.log-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 18px; }
+.log-tab { padding: 12px; border: none; border-radius: 18px; font-weight: 900; font-size: 0.85rem; background: #f1f5f9; cursor: pointer; }
+.log-tab.active { background: #14b8a6; color: white; }
 
-.log-tabs {
-display: grid;
-grid-template-columns: repeat(2, 1fr);
-gap: 8px;
-margin-bottom: 18px;
+.meal-options { display: none; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
+.meal-option { padding: 12px; border: none; border-radius: 16px; background: #f8f5ff; font-weight: 900; cursor: pointer; }
+.meal-option.active { background: #8b5cf6; color: white; }
+
+.search-section, .manual-section, .history-section, .favorites-section { display: none; margin-top: 14px; }
+.search-section label, .manual-section label { display: block; font-weight: 900; margin-bottom: 8px; }
+.search-section input, .manual-section input, .manual-section select {
+width: 100%; box-sizing: border-box; padding: 14px; border-radius: 16px;
+border: 1px solid #d8d8d8; font-size: 16px; margin-bottom: 10px;
 }
 
-.log-tab {
-padding: 12px;
-border: none;
-border-radius: 18px;
-font-weight: 900;
-font-size: 0.85rem;
-background: #f1f5f9;
-cursor: pointer;
+.search-button, .manual-save-btn { width: 100%; margin-top: 8px; padding: 14px; }
+
+.food-result, .history-card, .favorite-card {
+margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
 }
 
-.log-tab.active {
-background: #14b8a6;
-color: white;
-}
+.food-result h3 { margin: 0 0 6px; }
 
-.meal-options {
-display: none;
-grid-template-columns: repeat(2, 1fr);
-gap: 10px;
-margin-bottom: 18px;
-}
+.macro-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
+.macro-box { background: white; border-radius: 14px; padding: 10px; font-weight: 900; text-align: center; }
 
-.meal-option {
-padding: 12px;
-border: none;
-border-radius: 16px;
-background: #f8f5ff;
-font-weight: 900;
-cursor: pointer;
-}
+.multiplier-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0; }
+.multiplier-row button { border: none; border-radius: 12px; padding: 8px 12px; font-weight: 900; cursor: pointer; }
+.multiplier-value { font-weight: 950; font-size: 1.1rem; }
 
-.meal-option.active {
-background: #8b5cf6;
-color: white;
-}
+.add-food-btn { width: 100%; margin-top: 10px; }
 
-.search-section,
-.manual-section,
-.history-section,
-.favorites-section {
-display: none;
-margin-top: 14px;
-}
+.intake-list { margin-top: 24px; padding: 18px; border-radius: 22px; background: #f4fff8; }
+.intake-item { padding: 12px 0; border-bottom: 1px solid #d1fae5; font-weight: 700; }
+.intake-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.intake-actions button { border: none; border-radius: 12px; padding: 6px 10px; cursor: pointer; font-weight: 900; }
 
-.search-section label,
-.manual-section label {
-display: block;
-font-weight: 900;
-margin-bottom: 8px;
-}
+.delete-intake-btn { background: #fff1f2; color: #be123c; }
+.repeat-btn { background: #eefcef; color: #15803d; }
+.favorite-btn { background: #fff7ed; color: #f97316; }
 
-.search-section input,
-.manual-section input,
-.manual-section select {
-width: 100%;
-box-sizing: border-box;
-padding: 14px;
-border-radius: 16px;
-border: 1px solid #d8d8d8;
-font-size: 16px;
-margin-bottom: 10px;
-}
-
-.search-button,
-.manual-save-btn {
-width: 100%;
-margin-top: 8px;
-padding: 14px;
-}
-
-.food-result {
-margin-top: 14px;
-padding: 16px;
-border-radius: 18px;
-background: #f8fafc;
-}
-
-.food-result h3 {
-margin: 0 0 6px;
-}
-
-.macro-row {
-display: grid;
-grid-template-columns: repeat(3, 1fr);
-gap: 8px;
-margin: 10px 0;
-}
-
-.macro-box {
-background: white;
-border-radius: 14px;
-padding: 10px;
-font-weight: 900;
-text-align: center;
-}
-
-.multiplier-row {
-display: flex;
-align-items: center;
-justify-content: center;
-gap: 12px;
-margin: 12px 0;
-}
-
-.multiplier-row button {
-border: none;
-border-radius: 12px;
-padding: 8px 12px;
-font-weight: 900;
-cursor: pointer;
-}
-
-.multiplier-value {
-font-weight: 950;
-font-size: 1.1rem;
-}
-
-.add-food-btn {
-width: 100%;
-margin-top: 10px;
-}
-
-.intake-list {
-margin-top: 24px;
-padding: 18px;
-border-radius: 22px;
-background: #f4fff8;
-}
-
-.intake-item {
-padding: 12px 0;
-border-bottom: 1px solid #d1fae5;
-font-weight: 700;
-}
-
-.intake-item-header {
-display: flex;
-justify-content: space-between;
-gap: 8px;
-}
-
-.intake-actions {
-display: flex;
-gap: 6px;
-margin-top: 8px;
-flex-wrap: wrap;
-}
-
-.intake-actions button {
-border: none;
-border-radius: 12px;
-padding: 6px 10px;
-cursor: pointer;
-font-weight: 900;
-}
-
-.delete-intake-btn {
-background: #fff1f2;
-color: #be123c;
-}
-
-.repeat-btn {
-background: #eefcef;
-color: #15803d;
-}
-
-.favorite-btn {
-background: #fff7ed;
-color: #f97316;
-}
-
-.total-box {
-margin-top: 16px;
-padding: 14px;
-border-radius: 18px;
-background: white;
-font-weight: 900;
-}
-
-.success-message {
-margin-top: 14px;
-font-weight: 900;
-color: #18a558;
-text-align: center;
-}
-
-.history-card,
-.favorite-card {
-margin-top: 12px;
-padding: 14px;
-border-radius: 18px;
-background: #f8fafc;
-}
+.total-box { margin-top: 16px; padding: 14px; border-radius: 18px; background: white; font-weight: 900; }
+.success-message { margin-top: 14px; font-weight: 900; color: #18a558; text-align: center; }
 </style>
 </head>
 
@@ -217,11 +59,7 @@ background: #f8fafc;
 
 <header class="top-bar">
 <button class="menu-btn" onclick="window.location.href='index.html'">☰</button>
-
-<h1 class="logo">
-<span class="cal">Cal</span><span class="buddy">Buddy</span>
-</h1>
-
+<h1 class="logo"><span class="cal">Cal</span><span class="buddy">Buddy</span></h1>
 <button class="signin-btn" onclick="window.location.href='index.html'">← Back</button>
 </header>
 
@@ -281,6 +119,7 @@ background: #f8fafc;
 
 <div id="historySection" class="history-section">
 <h3>Meal History</h3>
+<button class="signin-btn" type="button" onclick="repeatYesterday()">🔁 Repeat Yesterday</button>
 <p>Showing the last 14 days.</p>
 <div id="historyItems"></div>
 </div>
@@ -317,6 +156,12 @@ let selectedMealType = "";
 
 function getTodayDate() {
 return new Date().toISOString().split("T")[0];
+}
+
+function getYesterdayDate() {
+const d = new Date();
+d.setDate(d.getDate() - 1);
+return d.toISOString().split("T")[0];
 }
 
 function roundMacro(value) {
@@ -357,9 +202,7 @@ if (mode === "favorites") document.getElementById("favoritesTab").classList.add(
 
 clearSections();
 
-if (mode === "meal") {
-document.getElementById("mealOptions").style.display = "grid";
-}
+if (mode === "meal") document.getElementById("mealOptions").style.display = "grid";
 
 if (mode === "drink") {
 document.getElementById("searchSection").style.display = "block";
@@ -367,9 +210,7 @@ document.getElementById("searchLabel").textContent = "Search drink";
 document.getElementById("foodSearchInput").placeholder = "Example: orange juice";
 }
 
-if (mode === "calories") {
-document.getElementById("manualSection").style.display = "block";
-}
+if (mode === "calories") document.getElementById("manualSection").style.display = "block";
 
 if (mode === "history") {
 document.getElementById("historySection").style.display = "block";
@@ -397,6 +238,32 @@ document.getElementById("results").innerHTML = "";
 document.getElementById("successMessage").textContent = "";
 }
 
+function scoreFoodResult(food, query) {
+const desc = (food.description || "").toLowerCase();
+const brand = food.brandName || "";
+const dataType = (food.dataType || "").toLowerCase();
+const q = query.toLowerCase();
+
+let score = 0;
+
+if (!brand) score += 40;
+if (dataType.includes("foundation")) score += 40;
+if (dataType.includes("sr legacy")) score += 35;
+if (desc === q) score += 100;
+if (desc === `${q}, raw`) score += 95;
+if (desc.includes(`${q}, raw`)) score += 80;
+if (desc.startsWith(q)) score += 50;
+if (desc.includes("raw")) score += 20;
+if (desc.includes("baked")) score += 5;
+
+if (brand) score -= 30;
+if (desc.includes("peanut butter")) score -= 40;
+if (desc.includes("flavored")) score -= 15;
+if (desc.includes("candy")) score -= 20;
+
+return score;
+}
+
 async function searchFood() {
 const query = document.getElementById("foodSearchInput").value.trim();
 const results = document.getElementById("results");
@@ -420,7 +287,7 @@ results.innerHTML = "<p>Searching...</p>";
 
 try {
 const url =
-`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=10&api_key=DEMO_KEY`;
+`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=25&api_key=DEMO_KEY`;
 
 const response = await fetch(url);
 const data = await response.json();
@@ -430,9 +297,13 @@ results.innerHTML = "<p>No results found.</p>";
 return;
 }
 
+const sortedFoods = data.foods.sort((a, b) => {
+return scoreFoodResult(b, query) - scoreFoodResult(a, query);
+});
+
 results.innerHTML = "";
 
-data.foods.forEach(food => {
+sortedFoods.slice(0, 10).forEach(food => {
 const nutrients = food.foodNutrients || [];
 
 const getNutrient = (names) => {
@@ -441,7 +312,6 @@ names.some(name =>
 nutrient.nutrientName?.toLowerCase().includes(name.toLowerCase())
 )
 );
-
 return found?.value ?? 0;
 };
 
@@ -578,16 +448,13 @@ carbs_g: Number(meal.carbs_g || 0),
 fat_g: Number(meal.fat_g || 0),
 serving_size: meal.serving_size || null,
 multiplier: Number(meal.multiplier || 1),
-is_favorite: false
+is_favorite: Boolean(meal.is_favorite || false)
 };
 
 if (user) {
 const { error } = await window.calbuddySupabase
 .from("meals")
-.insert({
-user_id: user.id,
-...mealToSave
-});
+.insert({ user_id: user.id, ...mealToSave });
 
 if (error) {
 saveMealLocally(mealToSave);
@@ -623,59 +490,31 @@ source: "local"
 localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 }
 
-async function getTodaysMeals() {
+async function getMealsByDate(date) {
 const user = await getCurrentUser();
-const today = getTodayDate();
 
 if (user) {
 const { data, error } = await window.calbuddySupabase
 .from("meals")
 .select("*")
 .eq("user_id", user.id)
-.eq("nutrition_date", today)
+.eq("nutrition_date", date)
 .order("created_at", { ascending: true });
 
 if (!error && data) {
-return data.map(meal => ({
-...meal,
-date: meal.nutrition_date,
-source: "supabase"
-}));
+return data.map(meal => ({ ...meal, source: "supabase" }));
 }
 }
 
 const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
 return meals
-.filter(meal => meal.date === today || meal.nutrition_date === today)
-.map(meal => ({
-...meal,
-source: "local"
-}));
+.filter(meal => meal.date === date || meal.nutrition_date === date)
+.map(meal => ({ ...meal, source: "local" }));
 }
 
-async function deleteIntakeItem(id, source) {
-if (source === "supabase") {
-const { error } = await window.calbuddySupabase
-.from("meals")
-.delete()
-.eq("id", id);
-
-if (error) {
-document.getElementById("successMessage").textContent =
-"Could not delete cloud meal: " + error.message;
-return;
-}
-} else {
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
-const updatedMeals = meals.filter(meal => String(meal.id) !== String(id));
-localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
-}
-
-document.getElementById("successMessage").textContent =
-"🗑️ Item removed. Calories updated.";
-
-await renderTodayIntake();
+async function getTodaysMeals() {
+return getMealsByDate(getTodayDate());
 }
 
 async function repeatMeal(meal) {
@@ -687,8 +526,26 @@ protein_g: meal.protein_g,
 carbs_g: meal.carbs_g,
 fat_g: meal.fat_g,
 serving_size: meal.serving_size,
-multiplier: meal.multiplier || 1
+multiplier: meal.multiplier || 1,
+is_favorite: false
 });
+}
+
+async function repeatYesterday() {
+const yesterdayMeals = await getMealsByDate(getYesterdayDate());
+
+if (!yesterdayMeals.length) {
+document.getElementById("successMessage").textContent =
+"No meals found from yesterday.";
+return;
+}
+
+for (const meal of yesterdayMeals) {
+await addToIntake(meal);
+}
+
+document.getElementById("successMessage").textContent =
+`🔁 Repeated ${yesterdayMeals.length} meals from yesterday.`;
 }
 
 async function favoriteMeal(id, source) {
@@ -712,6 +569,30 @@ localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
 }
 
 document.getElementById("successMessage").textContent = "⭐ Added to favorites.";
+await renderTodayIntake();
+}
+
+async function deleteIntakeItem(id, source) {
+if (source === "supabase") {
+const { error } = await window.calbuddySupabase
+.from("meals")
+.delete()
+.eq("id", id);
+
+if (error) {
+document.getElementById("successMessage").textContent =
+"Could not delete cloud meal: " + error.message;
+return;
+}
+} else {
+const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+const updatedMeals = meals.filter(meal => String(meal.id) !== String(id));
+localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
+}
+
+document.getElementById("successMessage").textContent =
+"🗑️ Item removed. Calories updated.";
+
 await renderTodayIntake();
 }
 
@@ -741,14 +622,11 @@ const item = document.createElement("div");
 item.className = "intake-item";
 
 item.innerHTML = `
-<div class="intake-item-header">
-<div>
 <strong>${meal.category}: ${meal.name}</strong>
 <p>${Math.round(meal.calories)} kcal</p>
 <p>${roundMacro(meal.protein_g)}g P • ${roundMacro(meal.carbs_g)}g C • ${roundMacro(meal.fat_g)}g F</p>
 <p>Serving: ${meal.serving_size || "-"} ${meal.multiplier ? `• ${meal.multiplier}x` : ""}</p>
-</div>
-</div>
+
 <div class="intake-actions">
 <button class="favorite-btn" type="button">⭐ Favorite</button>
 <button class="repeat-btn" type="button">🔁 Repeat</button>
@@ -791,8 +669,9 @@ const user = await getCurrentUser();
 const today = new Date();
 const start = new Date();
 start.setDate(today.getDate() - 14);
-
 const startDate = start.toISOString().split("T")[0];
+
+let meals = [];
 
 if (user) {
 const { data, error } = await window.calbuddySupabase
@@ -802,37 +681,19 @@ const { data, error } = await window.calbuddySupabase
 .gte("nutrition_date", startDate)
 .order("nutrition_date", { ascending: false });
 
-if (!error && data) {
-container.innerHTML = data.length ? "" : "<p>No meal history yet.</p>";
-
-data.forEach(meal => {
-const card = document.createElement("div");
-card.className = "history-card";
-card.innerHTML = `
-<strong>${meal.nutrition_date} — ${meal.category}</strong>
-<p>${meal.name}</p>
-<p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
-<button class="signin-btn" type="button">🔁 Repeat Today</button>
-`;
-
-card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
-container.appendChild(card);
-});
-
-return;
-}
-}
-
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
+if (!error && data) meals = data;
+} else {
+meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
 .filter(meal => (meal.date || meal.nutrition_date) >= startDate);
+}
 
-container.innerHTML = meals.length ? "" : "<p>No local meal history yet.</p>";
+container.innerHTML = meals.length ? "" : "<p>No meal history yet.</p>";
 
 meals.forEach(meal => {
 const card = document.createElement("div");
 card.className = "history-card";
 card.innerHTML = `
-<strong>${meal.date || meal.nutrition_date} — ${meal.category}</strong>
+<strong>${meal.nutrition_date || meal.date} — ${meal.category}</strong>
 <p>${meal.name}</p>
 <p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
 <button class="signin-btn" type="button">🔁 Repeat Today</button>
@@ -846,6 +707,7 @@ container.appendChild(card);
 async function renderFavorites() {
 const container = document.getElementById("favoriteItems");
 const user = await getCurrentUser();
+let meals = [];
 
 if (user) {
 const { data, error } = await window.calbuddySupabase
@@ -855,30 +717,13 @@ const { data, error } = await window.calbuddySupabase
 .eq("is_favorite", true)
 .order("created_at", { ascending: false });
 
-if (!error && data) {
-container.innerHTML = data.length ? "" : "<p>No favorite meals yet.</p>";
-
-data.forEach(meal => {
-const card = document.createElement("div");
-card.className = "favorite-card";
-card.innerHTML = `
-<strong>${meal.name}</strong>
-<p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
-<button class="signin-btn" type="button">Add Again Today</button>
-`;
-
-card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
-container.appendChild(card);
-});
-
-return;
-}
-}
-
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
+if (!error && data) meals = data;
+} else {
+meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
 .filter(meal => meal.is_favorite);
+}
 
-container.innerHTML = meals.length ? "" : "<p>No local favorite meals yet.</p>";
+container.innerHTML = meals.length ? "" : "<p>No favorite meals yet.</p>";
 
 meals.forEach(meal => {
 const card = document.createElement("div");
