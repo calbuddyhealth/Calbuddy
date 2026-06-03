@@ -367,7 +367,6 @@ document.getElementById("manualCalories").value = "";
 
 async function addToIntake(name, calories, category) {
 const user = await getCurrentUser();
-
 const today = getTodayDate();
 
 if (user) {
@@ -381,6 +380,22 @@ category: category,
 nutrition_date: today
 });
 
+if (error) {
+alert("SUPABASE ERROR: " + error.message);
+console.log(error);
+
+document.getElementById("successMessage").textContent =
+"Meal saved on this device, but cloud save failed: " + error.message;
+
+saveMealLocally(name, calories, category, today);
+
+} else {
+alert("Meal saved to Supabase");
+
+document.getElementById("successMessage").textContent =
+`✅ Added to ${category}: ${name} — ${calories} kcal`;
+}
+}
 if (error) {
 document.getElementById("successMessage").textContent =
 "Meal saved on this device, but cloud save failed: " + error.message;
