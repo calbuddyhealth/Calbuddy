@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign In - CalBuddy</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+<main class="app">
+<header class="top-bar">
+<button class="menu-btn" onclick="window.location.href='index.html'">☰</button>
+
+<h1 class="logo">
+<span class="cal">Cal</span><span class="buddy">Buddy</span>
+</h1>
+</header>
+
+<section class="hero-card" style="display:block; padding:28px;">
+<h2>Sign In</h2>
+
+<input
+id="email"
+type="email"
+placeholder="Email"
+style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;"
+/>
+
+<input
+id="password"
+type="password"
+placeholder="Password"
+style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;"
+/>
+
+<button id="loginBtn" class="signin-btn" style="width:100%; margin-top:12px;">
+Sign In
+</button>
+
+<button id="signupBtn" class="goals-pill" style="width:100%; margin-top:12px;">
+Create Account
+</button>
+
+<p id="authMessage" style="margin-top:16px; font-weight:700;"></p>
+</section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="auth.js"></script>
+
+<script>
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+const message = document.getElementById("authMessage");
+
+document.getElementById("loginBtn").onclick = async () => {
+const email = emailInput.value.trim();
+const password = passwordInput.value.trim();
+
+const result = await signIn(email, password);
+
+if (result.success) {
+message.textContent = "Signed in successfully.";
+window.location.href = "index.html";
+} else {
+message.textContent = result.error;
+}
+};
+
+document.getElementById("signupBtn").onclick = async () => {
+const email = emailInput.value.trim();
+const password = passwordInput.value.trim();
+
+const result = await signUp(email, password);
+
+if (result.success) {
+message.textContent = "Account created. Check your email if confirmation is required.";
+} else {
+message.textContent = result.error;
+}
+};
+</script>
+</body>
+</html>
