@@ -49,7 +49,7 @@ Create Account
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js?v=5"></script>
+<script src="supabase-config.js?v=8"></script>
 
 <script>
 const emailInput = document.getElementById("email");
@@ -84,6 +84,30 @@ return null;
 return { email, password };
 }
 
+async function createUserProfile(user) {
+if (!user || !user.id) return;
+
+const { error } = await window.calbuddySupabase
+.from("profiles")
+.upsert(
+{
+id: user.id,
+email: user.email || "",
+daily_calorie_goal: 2100,
+reset_hour: 4,
+updated_at: new Date().toISOString()
+},
+{
+onConflict: "id"
+}
+);
+
+if (error) {
+console.error("Profile save error:", error.message);
+setMessage("Signed in, but profile could not be saved: " + error.message);
+}
+}
+
 loginBtn.addEventListener("click", async () => {
 const values = validateInputs();
 if (!values) return;
@@ -105,6 +129,7 @@ return;
 }
 
 if (data && data.user) {
+await createUserProfile(data.user);
 setMessage("Signed in successfully.");
 window.location.href = "index.html";
 return;
@@ -114,6 +139,7 @@ setMessage("Sign in failed. Please try again.");
 loginBtn.disabled = false;
 
 } catch (err) {
+console.error(err);
 setMessage("Sign in error. Please try again.");
 loginBtn.disabled = false;
 }
@@ -139,10 +165,15 @@ signupBtn.disabled = false;
 return;
 }
 
+if (data && data.user) {
+await createUserProfile(data.user);
+}
+
 setMessage("Account created. Check your email if confirmation is required.");
 signupBtn.disabled = false;
 
 } catch (err) {
+console.error(err);
 setMessage("Account creation error. Please try again.");
 signupBtn.disabled = false;
 }
