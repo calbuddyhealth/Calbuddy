@@ -20,10 +20,16 @@
 <div class="right-actions">
 <button class="signin-btn" id="authButton">👤 Sign In</button>
 <button class="goals-pill" onclick="window.location.href='goals.html'">🎯 My Goals</button>
+<button class="progress-pill" onclick="window.location.href='progress.html'">📈 Progress</button>
 </div>
 </header>
 
-<section class="hero-card">
+<div class="home-weight-badge" id="currentWeightBadge">
+199 lbs
+<span>Current Weight</span>
+</div>
+
+<section class="hero-card compact-calorie-card">
 <div class="meter-side">
 <div class="arch-meter">
 <div class="meter-text">
@@ -32,13 +38,13 @@
 <span>of <span id="dailyGoalText">2,100</span> kcal</span>
 </div>
 </div>
+</div>
 
-<div class="consumed-row">
+<div class="consumed-inline">
 <div class="flame">🔥</div>
 <div>
 <strong><span id="caloriesConsumedText">0</span> / <span id="dailyGoalConsumed">2,100</span></strong>
 <p>Calories Consumed</p>
-</div>
 </div>
 </div>
 
@@ -47,6 +53,8 @@
 <p class="reset-label">Resets in:</p>
 <h2 id="resetCountdownText">--h --m</h2>
 </div>
+
+<div class="track-pill">On Track ✅</div>
 
 <div id="resetOptions" class="reset-options" onclick="event.stopPropagation()">
 <p class="reset-title">Reset Time</p>
@@ -66,49 +74,48 @@
 </div>
 </section>
 
-<section class="dashboard-grid">
-
-<button class="tile intake" type="button" onclick="window.location.href='log.html'">
+<section class="log-home-card" onclick="window.location.href='log.html'">
+<div class="log-title-row">
 <div class="tile-icon">🍽️</div>
 <h2>Log Intake</h2>
-<p>Add meals, drinks, snacks, and update today’s calories.</p>
+</div>
+
+<div class="log-shortcuts" onclick="event.stopPropagation()">
+<button type="button" onclick="window.location.href='log.html?mode=meal'">
+<span>➕</span>
+Add Meal
+</button>
+
+<button type="button" onclick="window.location.href='log.html?mode=drink'">
+<span>🥤</span>
+Add Drink
+</button>
+
+<button type="button" onclick="window.location.href='log.html?mode=repeat'">
+<span>🔁</span>
+Repeat Meal
+</button>
+
+<button type="button" onclick="window.location.href='log.html?mode=favorite'">
+<span>⭐</span>
+Favorite Meal
+</button>
+</div>
 
 <img
 class="food-illustration"
 src="assets/food-bowl.svg"
-alt="Healthy meal bowl with apple and water"
+alt="Healthy meal bowl with water"
 />
-</button>
-
-<button class="tile progress" type="button">
-<div class="tile-icon">📈</div>
-<h2>Progress</h2>
-
-<div class="weight-badge" id="currentWeightBadge">
-183 lbs
-<span>Current Weight</span>
-</div>
-
-<h3 id="weightProgressText">4 lb ↓</h3>
-<p id="weightProgressSubtext">lost this month</p>
-
-<div class="mini-stats">
-<span>🔥 12 Day Streak</span>
-<span>🎯 83% Goal Adherence</span>
-</div>
-
-<div class="trend-line"></div>
-</button>
-
 </section>
 
-<button class="ask-card" type="button">
+<button class="ask-card final-ask-card" type="button">
 <div class="ask-content">
 <div class="chat-icon">💬</div>
 <h2>Ask CalBuddy</h2>
 
 <div class="question-bubble" id="calbuddy-question">
-“Need help choosing your next meal?”
+“You have 850 calories left. Need dinner ideas?”
 </div>
 </div>
 
@@ -118,10 +125,6 @@ src="calbuddy-robot.png?v=2"
 alt="CalBuddy AI Nutrition Coach"
 />
 </button>
-
-<footer>
-🔒 Your data is private and secure.
-</footer>
 
 </main>
 
@@ -234,7 +237,7 @@ if (question) {
 if (consumed === 0) {
 question.textContent = `“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
 } else if (consumed < goal) {
-question.textContent = `“You have ${caloriesLeft.toLocaleString()} calories left. Need meal ideas?”`;
+question.textContent = `“You have ${caloriesLeft.toLocaleString()} calories left. Need dinner ideas?”`;
 } else {
 question.textContent = "“Want lighter options for the rest of the day?”";
 }
@@ -242,27 +245,10 @@ question.textContent = "“Want lighter options for the rest of the day?”";
 
 if (savedGoals) {
 const goals = JSON.parse(savedGoals);
-
 const currentWeightBadge = document.getElementById("currentWeightBadge");
-const weightProgressText = document.getElementById("weightProgressText");
-const weightProgressSubtext = document.getElementById("weightProgressSubtext");
 
 if (currentWeightBadge && goals.weight) {
 currentWeightBadge.innerHTML = `${goals.weight} lbs <span>Current Weight</span>`;
-}
-
-if (weightProgressText && goals.weight && goals.targetWeight) {
-const remaining = Math.max(
-Number(goals.weight) - Number(goals.targetWeight),
-0
-).toFixed(1);
-
-weightProgressText.textContent = `${remaining} lb`;
-}
-
-if (weightProgressSubtext && goals.targetWeight) {
-weightProgressSubtext.textContent =
-`left to reach ${goals.targetWeight} lbs`;
 }
 }
 }
