@@ -141,12 +141,7 @@ text-align: center;
 </select>
 </div>
 
-<button
-class="goals-pill"
-type="button"
-onclick="toggleActivityGuide()"
-style="width:100%; margin-bottom:18px;"
->
+<button class="goals-pill" type="button" onclick="toggleActivityGuide()" style="width:100%; margin-bottom:18px;">
 ⓘ What do these activity levels mean?
 </button>
 
@@ -159,27 +154,38 @@ style="width:100%; margin-bottom:18px;"
 </div>
 
 <div class="goal-group">
+<label for="goalMode">Goal</label>
+<select id="goalMode">
+<option value="lose" selected>Lose Weight</option>
+<option value="maintain">Maintain Weight</option>
+<option value="gain">Gain Weight</option>
+</select>
+</div>
+
+<div class="goal-group">
 <label for="targetWeight">Target Weight (lbs)</label>
 <input id="targetWeight" type="number" step="0.1" value="175.0" />
 </div>
 
-<div class="goal-group">
-<label for="weeklyLoss">Weekly Weight Loss Goal</label>
-<select id="weeklyLoss">
+<div class="goal-group" id="weeklyChangeGroup">
+<label for="weeklyChange">Weekly Weight Change Goal</label>
+<select id="weeklyChange">
+<option value="0.25">0.25 lb/week</option>
 <option value="0.5">0.5 lb/week</option>
 <option value="1" selected>1 lb/week</option>
 <option value="1.5">1.5 lb/week</option>
 <option value="2">2 lb/week</option>
 </select>
+<p id="goalModeHelper" class="helper-text">For weight loss, this creates a calorie deficit.</p>
 </div>
 
 <div class="result-card">
 <h3>Daily Calorie Goal</h3>
 <p id="calorieGoal" class="calorie-number">— kcal</p>
-<p>Auto-calculated from your age, sex, height, weight, activity level, and weekly goal.</p>
+<p id="goalExplanation">Auto-calculated from your profile and goal.</p>
 
 <div id="warningBox" class="warning-card">
-⚠️ This goal may be too aggressive. Consider a slower weekly weight-loss goal.
+⚠️ This goal may be too aggressive. Consider a slower weekly goal.
 </div>
 
 <div id="maintenanceBox" class="mini-card">
@@ -207,6 +213,9 @@ Save Goals
 </section>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js?v=8"></script>
+
 <script>
 const goalInputs = [
 "age",
@@ -214,8 +223,9 @@ const goalInputs = [
 "weight",
 "height",
 "activity",
+"goalMode",
 "targetWeight",
-"weeklyLoss"
+"weeklyChange"
 ];
 
 goalInputs.forEach((id) => {
@@ -239,7 +249,6 @@ return;
 
 const feet = Math.floor(heightInches / 12);
 const inches = (heightInches - feet * 12).toFixed(1);
-
 conversion.textContent = `Equivalent: ${feet} ft ${inches} in`;
 }
 
@@ -250,24 +259,45 @@ if (bmi < 30) return "Working toward healthy range";
 return "Above healthy range";
 }
 
+function updateGoalModeUI() {
+const goalMode = document.getElementById("goalMode").value;
+const weeklyGroup = document.getElementById("weeklyChangeGroup");
+const helper = document.getElementById("goalModeHelper");
+
+if (goalMode === "maintain") {
+weeklyGroup.style.display = "none";
+} else {
+weeklyGroup.style.display = "block";
+}
+
+if (goalMode === "lose") {
+helper.textContent = "For weight loss, this creates a calorie deficit.";
+} else if (goalMode === "gain") {
+helper.textContent = "For weight gain, this creates a calorie surplus.";
+}
+}
+
 function calculateGoals() {
+updateGoalModeUI();
+
 const age = parseFloat(document.getElementById("age").value);
 const sex = document.getElementById("sex").value;
 const weightLbs = parseFloat(document.getElementById("weight").value);
 const heightInches = parseFloat(document.getElementById("height").value);
 const activity = parseFloat(document.getElementById("activity").value);
+const goalMode = document.getElementById("goalMode").value;
 const targetWeight = parseFloat(document.getElementById("targetWeight").value);
-const weeklyLoss = parseFloat(document.getElementById("weeklyLoss").value);
+const weeklyChange = parseFloat(document.getElementById("weeklyChange").value);
 
 updateHeightConversion(heightInches);
 
-if (!age || !weightLbs || !heightInches || !activity || !weeklyLoss) {
+if (!age || !weightLbs || !heightInches || !activity) {
 document.getElementById("calorieGoal").textContent = "— kcal";
 document.getElementById("maintenanceBox").textContent = "Maintenance calories: —";
 document.getElementById("bmiBox").textContent = "BMI: —";
 document.getElementById("timeToGoal").textContent = "Estimated time to goal: —";
 document.getElementById("goalDate").textContent = "Estimated goal date: —";
-return;
+return null;
 }
 
 const weightKg = weightLbs / 2.20462;
@@ -282,16 +312,36 @@ bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
 }
 
 const maintenance = Math.round(bmr * activity);
-const dailyDeficit = weeklyLoss * 500;
-const calorieGoal = Math.round(maintenance - dailyDeficit);
+let calorieGoal = maintenance;
+
+if (goalMode === "lose") {
+calorieGoal = Math.round(maintenance - weeklyChange * 500);
+}
+
+if (goalMode === "gain") {
+calorieGoal = Math.round(maintenance + weeklyChange * 500);
+}
 
 document.getElementById("calorieGoal").textContent = `${calorieGoal} kcal`;
 document.getElementById("maintenanceBox").textContent =
 `Maintenance calories: ${maintenance} kcal`;
 
+const explanation = document.getElementById("goalExplanation");
+
+if (goalMode === "lose") {
+explanation.textContent = "This target helps create a calorie deficit for gradual weight loss.";
+} else if (goalMode === "gain") {
+explanation.textContent = "This target helps create a calorie surplus for gradual weight gain.";
+} else {
+explanation.textContent = "This target is estimated to help maintain your current weight.";
+}
+
 const warningBox = document.getElementById("warningBox");
 
-if ((sex === "male" && calorieGoal < 1500) || (sex === "female" && calorieGoal < 1200)) {
+if (
+goalMode === "lose" &&
+((sex === "male" && calorieGoal < 1500) || (sex === "female" && calorieGoal < 1200))
+) {
 warningBox.style.display = "block";
 } else {
 warningBox.style.display = "none";
@@ -302,21 +352,53 @@ const bmi = (weightLbs / (heightInches * heightInches)) * 703;
 document.getElementById("bmiBox").textContent =
 `BMI: ${bmi.toFixed(1)} — ${getBmiCategory(bmi)}`;
 
-updateTimeAndDate(weightLbs, targetWeight, weeklyLoss);
+updateTimeAndDate(weightLbs, targetWeight, weeklyChange, goalMode);
+
+return {
+age,
+sex,
+weightLbs,
+heightInches,
+activity,
+goalMode,
+targetWeight,
+weeklyChange,
+calorieGoal,
+maintenance
+};
 }
 
-function updateTimeAndDate(currentWeight, targetWeight, weeklyLoss) {
+function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) {
 const timeBox = document.getElementById("timeToGoal");
 const dateBox = document.getElementById("goalDate");
 
-if (!currentWeight || !targetWeight || !weeklyLoss || currentWeight <= targetWeight) {
+if (goalMode === "maintain") {
+timeBox.textContent = "Estimated time to goal: maintaining current weight";
+dateBox.textContent = "Estimated goal date: not applicable";
+return;
+}
+
+if (!currentWeight || !targetWeight || !weeklyChange) {
 timeBox.textContent = "Estimated time to goal: —";
 dateBox.textContent = "Estimated goal date: —";
 return;
 }
 
-const poundsToLose = currentWeight - targetWeight;
-const weeks = poundsToLose / weeklyLoss;
+let poundsToGoal;
+
+if (goalMode === "lose") {
+poundsToGoal = currentWeight - targetWeight;
+} else {
+poundsToGoal = targetWeight - currentWeight;
+}
+
+if (poundsToGoal <= 0) {
+timeBox.textContent = "Estimated time to goal: already at or past target";
+dateBox.textContent = "Estimated goal date: —";
+return;
+}
+
+const weeks = poundsToGoal / weeklyChange;
 const months = weeks / 4.345;
 
 const goalDate = new Date();
@@ -333,9 +415,24 @@ year: "numeric"
 })}`;
 }
 
-function saveGoals() {
-const calorieGoalText = document.getElementById("calorieGoal").textContent;
-const calorieGoal = parseInt(calorieGoalText.replace(/[^0-9]/g, ""));
+async function getCurrentUser() {
+const { data, error } = await window.calbuddySupabase.auth.getSession();
+
+if (error || !data.session) {
+return null;
+}
+
+return data.session.user;
+}
+
+async function saveGoals() {
+const calculated = calculateGoals();
+
+if (!calculated || !calculated.calorieGoal) {
+document.getElementById("saveMessage").textContent =
+"Please complete your goal information first.";
+return;
+}
 
 const goals = {
 age: document.getElementById("age").value,
@@ -343,19 +440,92 @@ sex: document.getElementById("sex").value,
 weight: document.getElementById("weight").value,
 height: document.getElementById("height").value,
 activity: document.getElementById("activity").value,
+goalMode: document.getElementById("goalMode").value,
 targetWeight: document.getElementById("targetWeight").value,
-weeklyLoss: document.getElementById("weeklyLoss").value,
-calorieGoal: calorieGoal
+weeklyChange: document.getElementById("weeklyChange").value,
+calorieGoal: calculated.calorieGoal
 };
 
 localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
-localStorage.setItem("calbuddyDailyCalorieGoal", calorieGoal);
+localStorage.setItem("calbuddyDailyCalorieGoal", calculated.calorieGoal);
 
+const user = await getCurrentUser();
+
+if (user) {
+const { error } = await window.calbuddySupabase
+.from("profiles")
+.upsert(
+{
+id: user.id,
+email: user.email || null,
+age: Number(goals.age),
+sex: goals.sex,
+weight_lbs: Number(goals.weight),
+height_in: Number(goals.height),
+activity_level: goals.activity,
+goal: goals.goalMode,
+target_weight_lbs: Number(goals.targetWeight),
+daily_calorie_goal: calculated.calorieGoal,
+updated_at: new Date().toISOString()
+},
+{
+onConflict: "id"
+}
+);
+
+if (error) {
 document.getElementById("saveMessage").textContent =
-`✅ Goals saved. Daily target: ${calorieGoal} kcal`;
+"Saved on this device, but cloud profile did not save: " + error.message;
+return;
 }
 
-function loadSavedGoals() {
+document.getElementById("saveMessage").textContent =
+`✅ Goals saved to your profile. Daily target: ${calculated.calorieGoal} kcal`;
+} else {
+document.getElementById("saveMessage").textContent =
+`✅ Goals saved on this device. Sign in to save them to your profile.`;
+}
+}
+
+async function loadSavedGoals() {
+const user = await getCurrentUser();
+
+if (user) {
+const { data, error } = await window.calbuddySupabase
+.from("profiles")
+.select("*")
+.eq("id", user.id)
+.single();
+
+if (!error && data) {
+if (data.age) document.getElementById("age").value = data.age;
+if (data.sex) document.getElementById("sex").value = data.sex;
+if (data.weight_lbs) document.getElementById("weight").value = data.weight_lbs;
+if (data.height_in) document.getElementById("height").value = data.height_in;
+if (data.activity_level) document.getElementById("activity").value = data.activity_level;
+if (data.goal) document.getElementById("goalMode").value = data.goal;
+if (data.target_weight_lbs) document.getElementById("targetWeight").value = data.target_weight_lbs;
+if (data.daily_calorie_goal) {
+localStorage.setItem("calbuddyDailyCalorieGoal", data.daily_calorie_goal);
+}
+
+const localGoals = {
+age: data.age,
+sex: data.sex,
+weight: data.weight_lbs,
+height: data.height_in,
+activity: data.activity_level,
+goalMode: data.goal,
+targetWeight: data.target_weight_lbs,
+calorieGoal: data.daily_calorie_goal
+};
+
+localStorage.setItem("calbuddyGoals", JSON.stringify(localGoals));
+calculateGoals();
+return;
+}
+}
+
 const savedGoals = localStorage.getItem("calbuddyGoals");
 
 if (!savedGoals) return;
@@ -367,14 +537,16 @@ document.getElementById("sex").value = goals.sex || "male";
 document.getElementById("weight").value = goals.weight || "185.2";
 document.getElementById("height").value = goals.height || "69.8";
 document.getElementById("activity").value = goals.activity || "1.55";
+document.getElementById("goalMode").value = goals.goalMode || "lose";
 document.getElementById("targetWeight").value = goals.targetWeight || "175.0";
-document.getElementById("weeklyLoss").value = goals.weeklyLoss || "1";
+document.getElementById("weeklyChange").value = goals.weeklyChange || "1";
 }
 
 document.getElementById("saveGoalsBtn").addEventListener("click", saveGoals);
 
-loadSavedGoals();
+loadSavedGoals().then(() => {
 calculateGoals();
+});
 </script>
 </body>
 </html>
