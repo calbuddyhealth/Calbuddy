@@ -4,6 +4,7 @@ box-sizing: border-box;
 
 html,
 body {
+width: 100%;
 min-height: 100%;
 height: auto;
 overflow-x: hidden;
@@ -29,10 +30,10 @@ font-family: inherit;
 max-width: 430px;
 margin: 0 auto;
 padding: 12px;
+padding-bottom: 180px;
 min-height: 100vh;
 height: auto;
 overflow: visible;
-padding-bottom: 120px;
 }
 
 .top-bar {
@@ -190,19 +191,6 @@ padding-left: 12px;
 display: flex;
 flex-direction: column;
 justify-content: center;
-}
-
-.badge {
-display: inline-block;
-width: fit-content;
-background: #e9f8e8;
-color: #0d8e25;
-padding: 8px 10px;
-border-radius: 13px;
-font-weight: 950;
-margin-bottom: 12px;
-font-size: 15px;
-line-height: 1.05;
 }
 
 .status-side h3 {
@@ -390,135 +378,6 @@ position: absolute;
 right: -10px;
 bottom: -75px;
 z-index: 2;
-transform: translate(0px, 0px);
-filter:
-brightness(1.15)
-contrast(1.08)
-drop-shadow(0 8px 20px rgba(0,0,0,0.12));
-}
-
-footer {
-text-align: center;
-color: #6f7890;
-font-weight: 650;
-font-size: 14px;
-margin: 12px 0 0;
-}
-
-/* Extra small phones */
-@media (max-width: 390px) {
-.app {
-padding: 10px;
-padding-bottom: 120px;
-}
-
-.logo {
-font-size: 31px;
-}
-
-.menu-btn {
-font-size: 28px;
-}
-
-.signin-btn,
-.goals-pill {
-padding: 7px 9px;
-font-size: 12px;
-}
-
-.hero-card {
-grid-template-columns: 1.2fr 0.8fr;
-padding: 10px;
-gap: 8px;
-}
-
-.arch-meter {
-height: 120px;
-border-top-width: 13px;
-border-left-width: 13px;
-border-right-width: 13px;
-}
-
-.meter-text {
-padding-top: 25px;
-}
-
-.meter-text h2 {
-font-size: 38px;
-}
-
-.meter-text span {
-font-size: 13px;
-}
-
-.consumed-row strong {
-font-size: 21px;
-}
-
-.consumed-row p {
-font-size: 15px;
-}
-
-.status-side {
-padding-left: 10px;
-}
-
-.badge {
-font-size: 13px;
-padding: 7px 9px;
-}
-
-.status-side h3 {
-font-size: 16px;
-}
-
-.status-side p {
-font-size: 13px;
-}
-
-.tile {
-min-height: 178px;
-padding: 12px;
-}
-
-.tile h2,
-.ask-card h2 {
-font-size: 18px;
-}
-
-.tile p {
-font-size: 12px;
-}
-
-.food-illustration {
-width: 120px;
-}
-
-.progress h3 {
-font-size: 30px;
-}
-
-.mini-stats {
-font-size: 11px;
-}
-
-.ask-card {
-min-height: 140px;
-margin-bottom: 90px;
-}
-
-.robot-placeholder {
-font-size: 54px;
-}
-
-.robot-illustration {
-width: 62% !important;
-max-width: 220px !important;
-height: auto !important;
-position: absolute;
-right: -8px;
-bottom: -70px;
-z-index: 2;
 transform: translate(0, 0);
 filter:
 brightness(1.15)
@@ -526,45 +385,8 @@ contrast(1.08)
 drop-shadow(0 8px 20px rgba(0,0,0,0.12));
 }
 
-.ask-card {
-min-height: 165px;
-position: relative;
-overflow: visible;
-}
+/* Reset countdown section */
 
-/* PAGE SCROLL FIX */
-
-html {
-width: 100%;
-min-height: 100%;
-}
-
-body {
-margin: 0;
-width: 100%;
-min-height: 100vh;
-overflow-x: hidden;
-overflow-y: auto;
-}
-
-.app {
-max-width: 430px;
-margin: 0 auto;
-padding: 12px;
-padding-bottom: 180px;
-}
-
-/* iPhone Safari Fix */
-
-@supports (-webkit-touch-callout: none) {
-body {
-min-height: -webkit-fill-available;
-}
-
-.app {
-min-height: auto;
-}
-}
 .reset-side {
 align-items: center;
 text-align: center;
@@ -649,22 +471,144 @@ font-weight: 950;
 cursor: pointer;
 }
 
+footer {
+text-align: center;
+color: #6f7890;
+font-weight: 650;
+font-size: 14px;
+margin: 12px 0 0;
+}
+
+/* Extra small phones */
+
+@media (max-width: 390px) {
+.app {
+padding: 10px;
+padding-bottom: 180px;
+}
+
+.logo {
+font-size: 31px;
+}
+
+.menu-btn {
+font-size: 28px;
+}
+
+.signin-btn,
+.goals-pill {
+padding: 7px 9px;
+font-size: 12px;
+}
+
+.hero-card {
+grid-template-columns: 1.2fr 0.8fr;
+padding: 10px;
+gap: 8px;
+}
+
+.arch-meter {
+height: 120px;
+border-top-width: 13px;
+border-left-width: 13px;
+border-right-width: 13px;
+}
+
+.meter-text {
+padding-top: 25px;
+}
+
+.meter-text h2 {
+font-size: 38px;
+}
+
+.meter-text span {
+font-size: 13px;
+}
+
+.consumed-row strong {
+font-size: 21px;
+}
+
+.consumed-row p {
+font-size: 15px;
+}
+
+.status-side {
+padding-left: 10px;
+}
+
+.status-side h3 {
+font-size: 16px;
+}
+
+.status-side p {
+font-size: 13px;
+}
+
+.tile {
+min-height: 178px;
+padding: 12px;
+}
+
+.tile h2,
+.ask-card h2 {
+font-size: 18px;
+}
+
+.tile p {
+font-size: 12px;
+}
+
+.food-illustration {
+width: 120px;
+}
+
+.progress h3 {
+font-size: 30px;
+}
+
+.mini-stats {
+font-size: 11px;
+}
+
+.ask-card {
+min-height: 140px;
+margin-bottom: 90px;
+}
+
+.robot-placeholder {
+font-size: 54px;
+}
+
+.robot-illustration {
+width: 62% !important;
+max-width: 220px !important;
+right: -8px;
+bottom: -70px;
+}
+
+#resetCountdownText {
+font-size: 28px;
+}
+
 .reset-time-row input {
-width: 44px;
+width: 40px;
 }
 
 .reset-time-row select {
-width: 56px;
+width: 54px;
+}
 }
 
-.reset-save-btn {
-margin-top: 10px;
-width: 100%;
-border: none;
-border-radius: 12px;
-padding: 9px;
-background: #e9f8e8;
-color: #0d8e25;
-font-weight: 950;
-cursor: pointer;
+/* iPhone Safari Fix */
+
+@supports (-webkit-touch-callout: none) {
+body {
+min-height: -webkit-fill-available;
+}
+
+.app {
+min-height: auto;
+}
 }
