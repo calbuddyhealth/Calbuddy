@@ -1,201 +1,342 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Add Meal - CalBuddy</title>
-<link rel="stylesheet" href="style.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Log Intake - CalBuddy</title>
+<link rel="stylesheet" href="style.css" />
 
 <style>
-.search-box {
-margin-top: 20px;
+.log-card {
+display: block;
+padding: 26px;
 }
 
-.search-box input {
-width: 100%;
+.log-tabs {
+display: flex;
+gap: 12px;
+margin-bottom: 22px;
+}
+
+.log-tab {
+flex: 1;
 padding: 14px;
-border-radius: 12px;
-border: 1px solid #ddd;
+border: none;
+border-radius: 18px;
+font-weight: 800;
+font-size: 1rem;
+background: #f1f5f9;
+cursor: pointer;
+}
+
+.log-tab.active {
+background: #14b8a6;
+color: white;
+}
+
+.meal-options {
+display: none;
+grid-template-columns: repeat(2, 1fr);
+gap: 10px;
+margin-bottom: 20px;
+}
+
+.meal-option {
+padding: 12px;
+border: none;
+border-radius: 16px;
+background: #f8f5ff;
+font-weight: 800;
+cursor: pointer;
+}
+
+.meal-option.active {
+background: #8b5cf6;
+color: white;
+}
+
+.search-section {
+display: none;
+margin-top: 14px;
+}
+
+.search-section label {
+display: block;
+font-weight: 800;
+margin-bottom: 8px;
+}
+
+.search-section input {
+width: 100%;
+box-sizing: border-box;
+padding: 14px;
+border-radius: 16px;
+border: 1px solid #d8d8d8;
 font-size: 16px;
 }
 
-.search-btn {
+.search-button {
 width: 100%;
 margin-top: 12px;
 padding: 14px;
 }
 
-.food-card {
-margin-top: 12px;
+.food-result {
+margin-top: 14px;
 padding: 16px;
-border-radius: 16px;
-background: #f7f7f7;
+border-radius: 18px;
+background: #f8fafc;
 }
 
-.food-card h4 {
-margin: 0;
+.food-result h3 {
+margin-bottom: 6px;
 }
 
-.food-card p {
-margin: 6px 0;
-}
-
-.add-btn {
-margin-top: 10px;
+.add-food-btn {
 width: 100%;
+margin-top: 10px;
 }
 
-.success {
-margin-top: 16px;
-font-weight: bold;
-color: green;
+.intake-list {
+margin-top: 24px;
+padding: 18px;
+border-radius: 22px;
+background: #f4fff8;
+}
+
+.intake-item {
+padding: 10px 0;
+border-bottom: 1px solid #d1fae5;
+font-weight: 700;
+}
+
+.success-message {
+margin-top: 14px;
+font-weight: 900;
+color: #18a558;
+text-align: center;
 }
 </style>
 </head>
 
 <body>
-
 <main class="app">
 
 <header class="top-bar">
-<button class="menu-btn" onclick="window.location.href='index.html'">≡</button>
+<button class="menu-btn" onclick="window.location.href='index.html'">☰</button>
 
 <h1 class="logo">
 <span class="cal">Cal</span><span class="buddy">Buddy</span>
 </h1>
 
-<button class="signin-btn"
-onclick="window.location.href='index.html'">
-← Back
-</button>
+<button class="signin-btn" onclick="window.location.href='index.html'">← Back</button>
 </header>
 
-<section class="hero-card" style="display:block;padding:24px;">
+<section class="hero-card log-card">
 
-<h2>🍽 Add Meal</h2>
+<div class="log-tabs">
+<button class="log-tab" id="mealTab" onclick="selectMode('meal')">🍽️ Add Meal</button>
+<button class="log-tab" id="drinkTab" onclick="selectMode('drink')">🥤 Add Drink</button>
+</div>
 
-<div class="search-box">
+<div id="mealOptions" class="meal-options">
+<button class="meal-option" onclick="selectMealType('Breakfast')">Breakfast</button>
+<button class="meal-option" onclick="selectMealType('Lunch')">Lunch</button>
+<button class="meal-option" onclick="selectMealType('Dinner')">Dinner</button>
+<button class="meal-option" onclick="selectMealType('Snack')">Snack</button>
+</div>
 
-<label>Search Food</label>
+<div id="searchSection" class="search-section">
+<label id="searchLabel">Search food</label>
 
 <input
+id="foodSearchInput"
 type="text"
-id="foodSearch"
-placeholder="Chicken burrito"
+placeholder="Type food item"
 />
 
-<button
-class="signin-btn search-btn"
-onclick="searchFood()">
-Search
+<button class="signin-btn search-button" onclick="searchFood()">
+🔍 Search
 </button>
-
 </div>
 
 <div id="results"></div>
 
-<div id="successMessage" class="success"></div>
+<div id="successMessage" class="success-message"></div>
+
+<div class="intake-list">
+<h3>Today’s Intake</h3>
+<div id="todayIntakeItems"></div>
+<p><strong>Total Consumed:</strong> <span id="totalConsumedText">0</span> kcal</p>
+</div>
 
 </section>
+
+<footer>
+🔒 Your data is private and secure.
+</footer>
 
 </main>
 
 <script>
+let currentMode = "";
+let selectedMealType = "";
+
+function selectMode(mode) {
+currentMode = mode;
+selectedMealType = mode === "drink" ? "Drink" : "";
+
+document.getElementById("mealTab").classList.toggle("active", mode === "meal");
+document.getElementById("drinkTab").classList.toggle("active", mode === "drink");
+
+document.getElementById("mealOptions").style.display =
+mode === "meal" ? "grid" : "none";
+
+document.getElementById("searchSection").style.display =
+mode === "drink" ? "block" : "none";
+
+document.getElementById("searchLabel").textContent =
+mode === "drink" ? "Search drink" : "Search food";
+
+document.getElementById("foodSearchInput").placeholder =
+mode === "drink" ? "Example: orange juice" : "Example: chicken burrito";
+
+document.getElementById("results").innerHTML = "";
+document.getElementById("successMessage").textContent = "";
+}
+
+function selectMealType(type) {
+selectedMealType = type;
+
+document.querySelectorAll(".meal-option").forEach(button => {
+button.classList.toggle("active", button.textContent === type);
+});
+
+document.getElementById("searchSection").style.display = "block";
+document.getElementById("searchLabel").textContent = `Search food for ${type}`;
+document.getElementById("foodSearchInput").placeholder = "Example: chicken burrito";
+document.getElementById("results").innerHTML = "";
+document.getElementById("successMessage").textContent = "";
+}
 
 async function searchFood() {
+const query = document.getElementById("foodSearchInput").value.trim();
+const results = document.getElementById("results");
 
-const query =
-document.getElementById("foodSearch").value.trim();
-
-if (!query) return;
-
-const resultsDiv =
-document.getElementById("results");
-
-resultsDiv.innerHTML =
-"<p>Searching...</p>";
-
-try {
-
-const response =
-await fetch(`/api/search-food?query=${encodeURIComponent(query)}`);
-
-const data =
-await response.json();
-
-if (!data.foods || data.foods.length === 0) {
-
-resultsDiv.innerHTML =
-"<p>No foods found.</p>";
-
+if (!currentMode) {
+results.innerHTML = "<p>Please choose Add Meal or Add Drink first.</p>";
 return;
 }
 
-resultsDiv.innerHTML = "";
+if (currentMode === "meal" && !selectedMealType) {
+results.innerHTML = "<p>Please choose Breakfast, Lunch, Dinner, or Snack first.</p>";
+return;
+}
+
+if (!query) {
+results.innerHTML = "<p>Please type a food or drink to search.</p>";
+return;
+}
+
+results.innerHTML = "<p>Searching...</p>";
+
+try {
+const response = await fetch(`/api/search-food?query=${encodeURIComponent(query)}`);
+const data = await response.json();
+
+if (!data.foods || data.foods.length === 0) {
+results.innerHTML = "<p>No results found.</p>";
+return;
+}
+
+results.innerHTML = "";
 
 data.foods.forEach(food => {
+if (!food.calories && food.calories !== 0) return;
 
-const calories =
-food.calories ?? "Unknown";
-
-const card =
-document.createElement("div");
-
-card.className =
-"food-card";
+const card = document.createElement("div");
+card.className = "food-result";
 
 card.innerHTML = `
-<h4>${food.description}</h4>
-<p>${calories} kcal</p>
-
-<button
-class="signin-btn add-btn"
-onclick="addMeal(${calories})">
-Add Meal
+<h3>${food.description}</h3>
+<p>${food.brandName ? food.brandName : "USDA FoodData Central"}</p>
+<p><strong>${Math.round(food.calories)} kcal</strong></p>
+<button class="signin-btn add-food-btn">
+Add to ${selectedMealType || "Intake"}
 </button>
 `;
 
-resultsDiv.appendChild(card);
-
+card.querySelector("button").addEventListener("click", () => {
+addToIntake(food.description, Math.round(food.calories), selectedMealType);
 });
 
+results.appendChild(card);
+});
+
+} catch (error) {
+results.innerHTML = "<p>Search failed. Check your USDA API setup.</p>";
 }
-catch(error) {
-
-resultsDiv.innerHTML =
-"<p>Search failed.</p>";
-
-}
-
 }
 
-function addMeal(calories) {
+function addToIntake(name, calories, category) {
+const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
-if (!calories || isNaN(calories)) {
-alert("Calories unavailable for this food.");
+const meal = {
+name: name,
+calories: calories,
+category: category,
+date: new Date().toISOString().split("T")[0]
+};
+
+meals.push(meal);
+
+localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
+
+const todaysMeals = getTodaysMeals();
+const total = todaysMeals.reduce((sum, item) => sum + Number(item.calories), 0);
+
+localStorage.setItem("calbuddyCaloriesConsumed", total);
+
+document.getElementById("successMessage").textContent =
+`✅ Added to ${category}: ${name} — ${calories} kcal`;
+
+renderTodayIntake();
+}
+
+function getTodaysMeals() {
+const today = new Date().toISOString().split("T")[0];
+const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+
+return meals.filter(meal => meal.date === today);
+}
+
+function renderTodayIntake() {
+const itemsDiv = document.getElementById("todayIntakeItems");
+const totalText = document.getElementById("totalConsumedText");
+const meals = getTodaysMeals();
+
+if (meals.length === 0) {
+itemsDiv.innerHTML = "<p>No meals logged yet today.</p>";
+totalText.textContent = "0";
+localStorage.setItem("calbuddyCaloriesConsumed", 0);
 return;
 }
 
-const currentConsumed =
-parseInt(
-localStorage.getItem("calbuddyCaloriesConsumed")
-) || 0;
+itemsDiv.innerHTML = "";
 
-const newConsumed =
-currentConsumed + calories;
+meals.forEach(meal => {
+const item = document.createElement("div");
+item.className = "intake-item";
+item.textContent = `${meal.category}: ${meal.name} — ${meal.calories} kcal`;
+itemsDiv.appendChild(item);
+});
 
-localStorage.setItem(
-"calbuddyCaloriesConsumed",
-newConsumed
-);
-
-document.getElementById(
-"successMessage"
-).textContent =
-`✅ Meal added. Total consumed today: ${newConsumed} kcal`;
-
+const total = meals.reduce((sum, item) => sum + Number(item.calories), 0);
+totalText.textContent = total.toLocaleString();
+localStorage.setItem("calbuddyCaloriesConsumed", total);
 }
 
+renderTodayIntake();
 </script>
 
 </body>
