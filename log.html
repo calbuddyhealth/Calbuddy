@@ -7,134 +7,65 @@
 <link rel="stylesheet" href="style.css" />
 
 <style>
-.log-card {
-display: block;
-padding: 26px;
-}
-
-.log-tabs {
-display: flex;
-gap: 8px;
-margin-bottom: 22px;
-}
-
+.log-card { display: block; padding: 26px; }
+.log-tabs { display: flex; gap: 8px; margin-bottom: 22px; }
 .log-tab {
-flex: 1;
-padding: 12px;
-border: none;
-border-radius: 18px;
-font-weight: 900;
-font-size: 0.9rem;
-background: #f1f5f9;
-cursor: pointer;
+flex: 1; padding: 12px; border: none; border-radius: 18px;
+font-weight: 900; font-size: 0.9rem; background: #f1f5f9; cursor: pointer;
 }
-
-.log-tab.active {
-background: #14b8a6;
-color: white;
-}
+.log-tab.active { background: #14b8a6; color: white; }
 
 .meal-options {
-display: none;
-grid-template-columns: repeat(2, 1fr);
-gap: 10px;
-margin-bottom: 20px;
+display: none; grid-template-columns: repeat(2, 1fr);
+gap: 10px; margin-bottom: 20px;
 }
-
 .meal-option {
-padding: 12px;
-border: none;
-border-radius: 16px;
-background: #f8f5ff;
-font-weight: 900;
-cursor: pointer;
+padding: 12px; border: none; border-radius: 16px;
+background: #f8f5ff; font-weight: 900; cursor: pointer;
+}
+.meal-option.active { background: #8b5cf6; color: white; }
+
+.search-section, .manual-section { display: none; margin-top: 14px; }
+.search-section label, .manual-section label {
+display: block; font-weight: 900; margin-bottom: 8px;
+}
+.search-section input, .manual-section input, .manual-section select {
+width: 100%; box-sizing: border-box; padding: 14px;
+border-radius: 16px; border: 1px solid #d8d8d8;
+font-size: 16px; margin-bottom: 10px;
 }
 
-.meal-option.active {
-background: #8b5cf6;
-color: white;
-}
-
-.search-section,
-.manual-section {
-display: none;
-margin-top: 14px;
-}
-
-.search-section label,
-.manual-section label {
-display: block;
-font-weight: 900;
-margin-bottom: 8px;
-}
-
-.search-section input,
-.manual-section input,
-.manual-section select {
-width: 100%;
-box-sizing: border-box;
-padding: 14px;
-border-radius: 16px;
-border: 1px solid #d8d8d8;
-font-size: 16px;
-margin-bottom: 10px;
-}
-
-.search-button,
-.manual-save-btn {
-width: 100%;
-margin-top: 8px;
-padding: 14px;
+.search-button, .manual-save-btn {
+width: 100%; margin-top: 8px; padding: 14px;
 }
 
 .food-result {
-margin-top: 14px;
-padding: 16px;
-border-radius: 18px;
-background: #f8fafc;
+margin-top: 14px; padding: 16px;
+border-radius: 18px; background: #f8fafc;
 }
 
-.food-result h3 {
-margin-bottom: 6px;
-}
-
-.add-food-btn {
-width: 100%;
-margin-top: 10px;
-}
+.add-food-btn { width: 100%; margin-top: 10px; }
 
 .intake-list {
-margin-top: 24px;
-padding: 18px;
-border-radius: 22px;
-background: #f4fff8;
+margin-top: 24px; padding: 18px;
+border-radius: 22px; background: #f4fff8;
 }
 
 .intake-item {
-padding: 10px 0;
-border-bottom: 1px solid #d1fae5;
-font-weight: 700;
-display: flex;
-align-items: center;
-justify-content: space-between;
-gap: 8px;
+padding: 10px 0; border-bottom: 1px solid #d1fae5;
+font-weight: 700; display: flex; align-items: center;
+justify-content: space-between; gap: 8px;
 }
 
 .delete-intake-btn {
-border: none;
-background: #fff1f2;
-color: #be123c;
-border-radius: 12px;
-padding: 6px 10px;
-cursor: pointer;
-font-weight: 900;
+border: none; background: #fff1f2; color: #be123c;
+border-radius: 12px; padding: 6px 10px;
+cursor: pointer; font-weight: 900;
 }
 
 .success-message {
-margin-top: 14px;
-font-weight: 900;
-color: #18a558;
-text-align: center;
+margin-top: 14px; font-weight: 900;
+color: #18a558; text-align: center;
 }
 </style>
 </head>
@@ -155,30 +86,22 @@ text-align: center;
 <section class="hero-card log-card">
 
 <div class="log-tabs">
-<button class="log-tab" id="mealTab" onclick="selectMode('meal')">🍽️ Add Meal</button>
-<button class="log-tab" id="drinkTab" onclick="selectMode('drink')">🥤 Add Drink</button>
-<button class="log-tab" id="calorieTab" onclick="selectMode('calories')">🔢 Add Calories</button>
+<button class="log-tab" id="mealTab" type="button" onclick="selectMode('meal')">🍽️ Add Meal</button>
+<button class="log-tab" id="drinkTab" type="button" onclick="selectMode('drink')">🥤 Add Drink</button>
+<button class="log-tab" id="calorieTab" type="button" onclick="selectMode('calories')">🔢 Add Calories</button>
 </div>
 
 <div id="mealOptions" class="meal-options">
-<button class="meal-option" onclick="selectMealType('Breakfast')">Breakfast</button>
-<button class="meal-option" onclick="selectMealType('Lunch')">Lunch</button>
-<button class="meal-option" onclick="selectMealType('Dinner')">Dinner</button>
-<button class="meal-option" onclick="selectMealType('Snack')">Snack</button>
+<button class="meal-option" type="button" onclick="selectMealType('Breakfast')">Breakfast</button>
+<button class="meal-option" type="button" onclick="selectMealType('Lunch')">Lunch</button>
+<button class="meal-option" type="button" onclick="selectMealType('Dinner')">Dinner</button>
+<button class="meal-option" type="button" onclick="selectMealType('Snack')">Snack</button>
 </div>
 
 <div id="searchSection" class="search-section">
 <label id="searchLabel">Search food</label>
-
-<input
-id="foodSearchInput"
-type="text"
-placeholder="Type food item"
-/>
-
-<button class="signin-btn search-button" onclick="searchFood()">
-🔍 Search
-</button>
+<input id="foodSearchInput" type="text" placeholder="Type food item" />
+<button class="signin-btn search-button" type="button" onclick="searchFood()">🔍 Search</button>
 </div>
 
 <div id="manualSection" class="manual-section">
@@ -197,13 +120,10 @@ placeholder="Type food item"
 <option value="Drink">Drink</option>
 </select>
 
-<button class="signin-btn manual-save-btn" onclick="saveManualCalories()">
-Save
-</button>
+<button class="signin-btn manual-save-btn" type="button" onclick="saveManualCalories()">Save</button>
 </div>
 
 <div id="results"></div>
-
 <div id="successMessage" class="success-message"></div>
 
 <div class="intake-list">
@@ -233,11 +153,7 @@ return new Date().toISOString().split("T")[0];
 
 async function getCurrentUser() {
 const { data, error } = await window.calbuddySupabase.auth.getSession();
-
-if (error || !data.session) {
-return null;
-}
-
+if (error || !data.session) return null;
 return data.session.user;
 }
 
@@ -249,18 +165,11 @@ document.getElementById("mealTab").classList.toggle("active", mode === "meal");
 document.getElementById("drinkTab").classList.toggle("active", mode === "drink");
 document.getElementById("calorieTab").classList.toggle("active", mode === "calories");
 
-document.getElementById("mealOptions").style.display =
-mode === "meal" ? "grid" : "none";
+document.getElementById("mealOptions").style.display = mode === "meal" ? "grid" : "none";
+document.getElementById("searchSection").style.display = mode === "drink" ? "block" : "none";
+document.getElementById("manualSection").style.display = mode === "calories" ? "block" : "none";
 
-document.getElementById("searchSection").style.display =
-mode === "drink" ? "block" : "none";
-
-document.getElementById("manualSection").style.display =
-mode === "calories" ? "block" : "none";
-
-document.getElementById("searchLabel").textContent =
-mode === "drink" ? "Search drink" : "Search food";
-
+document.getElementById("searchLabel").textContent = mode === "drink" ? "Search drink" : "Search food";
 document.getElementById("foodSearchInput").placeholder =
 mode === "drink" ? "Example: orange juice" : "Example: chicken burrito";
 
@@ -319,7 +228,6 @@ data.foods.forEach(food => {
 if (!food.calories && food.calories !== 0) return;
 
 const calories = Math.round(food.calories);
-
 const card = document.createElement("div");
 card.className = "food-result";
 
@@ -327,7 +235,7 @@ card.innerHTML = `
 <h3>${food.description}</h3>
 <p>${food.brandName ? food.brandName : "USDA FoodData Central"}</p>
 <p><strong>${calories} kcal</strong></p>
-<button class="signin-btn add-food-btn">Add to ${selectedMealType || "Intake"}</button>
+<button class="signin-btn add-food-btn" type="button">Add to ${selectedMealType}</button>
 `;
 
 card.querySelector("button").addEventListener("click", async event => {
@@ -381,24 +289,9 @@ nutrition_date: today
 });
 
 if (error) {
-alert("SUPABASE ERROR: " + error.message);
-console.log(error);
-
 document.getElementById("successMessage").textContent =
 "Meal saved on this device, but cloud save failed: " + error.message;
 
-saveMealLocally(name, calories, category, today);
-
-} else {
-alert("Meal saved to Supabase");
-
-document.getElementById("successMessage").textContent =
-`✅ Added to ${category}: ${name} — ${calories} kcal`;
-}
-}
-if (error) {
-document.getElementById("successMessage").textContent =
-"Meal saved on this device, but cloud save failed: " + error.message;
 saveMealLocally(name, calories, category, today);
 } else {
 document.getElementById("successMessage").textContent =
@@ -420,15 +313,13 @@ await renderTodayIntake();
 function saveMealLocally(name, calories, category, date) {
 const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
-const meal = {
+meals.push({
 id: Date.now(),
 name,
 calories,
 category,
 date
-};
-
-meals.push(meal);
+});
 
 localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 }
@@ -515,6 +406,7 @@ label.textContent = `${meal.category}: ${meal.name} — ${Math.round(meal.calori
 const deleteButton = document.createElement("button");
 deleteButton.className = "delete-intake-btn";
 deleteButton.textContent = "🗑️";
+deleteButton.type = "button";
 deleteButton.addEventListener("click", () => {
 deleteIntakeItem(meal.id, meal.source);
 });
