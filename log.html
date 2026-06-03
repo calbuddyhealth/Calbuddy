@@ -367,8 +367,6 @@ document.getElementById("manualCalories").value = "";
 
 async function addToIntake(name, calories, category) {
 const user = await getCurrentUser();
-console.log("Current user on log page:", user);
-alert(user ? "Signed in user detected" : "No signed in user detected");
 
 const today = getTodayDate();
 
