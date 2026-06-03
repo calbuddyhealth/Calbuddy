@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add Meal - CalBuddy</title>
+<link rel="stylesheet" href="style.css">
+
+<style>
+.search-box {
+margin-top: 20px;
+}
+
+.search-box input {
+width: 100%;
+padding: 14px;
+border-radius: 12px;
+border: 1px solid #ddd;
+font-size: 16px;
+}
+
+.search-btn {
+width: 100%;
+margin-top: 12px;
+padding: 14px;
+}
+
+.food-card {
+margin-top: 12px;
+padding: 16px;
+border-radius: 16px;
+background: #f7f7f7;
+}
+
+.food-card h4 {
+margin: 0;
+}
+
+.food-card p {
+margin: 6px 0;
+}
+
+.add-btn {
+margin-top: 10px;
+width: 100%;
+}
+
+.success {
+margin-top: 16px;
+font-weight: bold;
+color: green;
+}
+</style>
+</head>
+
+<body>
+
+<main class="app">
+
+<header class="top-bar">
+<button class="menu-btn" onclick="window.location.href='index.html'">≡</button>
+
+<h1 class="logo">
+<span class="cal">Cal</span><span class="buddy">Buddy</span>
+</h1>
+
+<button class="signin-btn"
+onclick="window.location.href='index.html'">
+← Back
+</button>
+</header>
+
+<section class="hero-card" style="display:block;padding:24px;">
+
+<h2>🍽 Add Meal</h2>
+
+<div class="search-box">
+
+<label>Search Food</label>
+
+<input
+type="text"
+id="foodSearch"
+placeholder="Chicken burrito"
+/>
+
+<button
+class="signin-btn search-btn"
+onclick="searchFood()">
+Search
+</button>
+
+</div>
+
+<div id="results"></div>
+
+<div id="successMessage" class="success"></div>
+
+</section>
+
+</main>
+
+<script>
+
+async function searchFood() {
+
+const query =
+document.getElementById("foodSearch").value.trim();
+
+if (!query) return;
+
+const resultsDiv =
+document.getElementById("results");
+
+resultsDiv.innerHTML =
+"<p>Searching...</p>";
+
+try {
+
+const response =
+await fetch(`/api/search-food?query=${encodeURIComponent(query)}`);
+
+const data =
+await response.json();
+
+if (!data.foods || data.foods.length === 0) {
+
+resultsDiv.innerHTML =
+"<p>No foods found.</p>";
+
+return;
+}
+
+resultsDiv.innerHTML = "";
+
+data.foods.forEach(food => {
+
+const calories =
+food.calories ?? "Unknown";
+
+const card =
+document.createElement("div");
+
+card.className =
+"food-card";
+
+card.innerHTML = `
+<h4>${food.description}</h4>
+<p>${calories} kcal</p>
+
+<button
+class="signin-btn add-btn"
+onclick="addMeal(${calories})">
+Add Meal
+</button>
+`;
+
+resultsDiv.appendChild(card);
+
+});
+
+}
+catch(error) {
+
+resultsDiv.innerHTML =
+"<p>Search failed.</p>";
+
+}
+
+}
+
+function addMeal(calories) {
+
+if (!calories || isNaN(calories)) {
+alert("Calories unavailable for this food.");
+return;
+}
+
+const currentConsumed =
+parseInt(
+localStorage.getItem("calbuddyCaloriesConsumed")
+) || 0;
+
+const newConsumed =
+currentConsumed + calories;
+
+localStorage.setItem(
+"calbuddyCaloriesConsumed",
+newConsumed
+);
+
+document.getElementById(
+"successMessage"
+).textContent =
+`✅ Meal added. Total consumed today: ${newConsumed} kcal`;
+
+}
+
+</script>
+
+</body>
+</html>
