@@ -42,10 +42,17 @@
 </div>
 </div>
 
-<div class="status-side">
-<div class="badge" id="homeStatusBadge">✅ On Track</div>
-<h3 id="homeStatusTitle">You’re doing great!</h3>
-<p id="homeStatusMessage">Keep it up and crush your goal.</p>
+<div class="status-side reset-side" onclick="toggleResetOptions()">
+<p class="reset-label">Resets in:</p>
+<h2 id="resetCountdownText">--h --m</h2>
+
+<div id="resetOptions" class="reset-options">
+<button onclick="setResetTime(0, event)">12:00 AM</button>
+<button onclick="setResetTime(2, event)">2:00 AM</button>
+<button onclick="setResetTime(4, event)">4:00 AM</button>
+<button onclick="setResetTime(6, event)">6:00 AM</button>
+<button onclick="setResetTime(8, event)">8:00 AM</button>
+</div>
 </div>
 </section>
 
@@ -109,6 +116,40 @@ alt="CalBuddy AI Nutrition Coach"
 </main>
 
 <script>
+function getResetHour() {
+return Number(localStorage.getItem("calbuddyResetHour")) || 4;
+}
+
+function toggleResetOptions() {
+document.getElementById("resetOptions").classList.toggle("show");
+}
+
+function setResetTime(hour, event) {
+event.stopPropagation();
+localStorage.setItem("calbuddyResetHour", hour);
+document.getElementById("resetOptions").classList.remove("show");
+updateResetCountdown();
+}
+
+function updateResetCountdown() {
+const resetHour = getResetHour();
+const now = new Date();
+const nextReset = new Date();
+
+nextReset.setHours(resetHour, 0, 0, 0);
+
+if (now >= nextReset) {
+nextReset.setDate(nextReset.getDate() + 1);
+}
+
+const diff = nextReset - now;
+const hours = Math.floor(diff / (1000 * 60 * 60));
+const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+document.getElementById("resetCountdownText").textContent =
+`${hours}h ${minutes}m`;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
 const savedConsumed = localStorage.getItem("calbuddyCaloriesConsumed") || 0;
@@ -118,37 +159,19 @@ const goal = savedGoal ? Number(savedGoal) : 2100;
 const consumed = Number(savedConsumed);
 const caloriesLeft = Math.max(goal - consumed, 0);
 
-const caloriesLeftText = document.getElementById("caloriesLeftText");
-const dailyGoalText = document.getElementById("dailyGoalText");
-const caloriesConsumedText = document.getElementById("caloriesConsumedText");
-const dailyGoalConsumed = document.getElementById("dailyGoalConsumed");
+document.getElementById("caloriesLeftText").textContent = caloriesLeft.toLocaleString();
+document.getElementById("dailyGoalText").textContent = goal.toLocaleString();
+document.getElementById("caloriesConsumedText").textContent = consumed.toLocaleString();
+document.getElementById("dailyGoalConsumed").textContent = goal.toLocaleString();
 
-if (caloriesLeftText) caloriesLeftText.textContent = caloriesLeft.toLocaleString();
-if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
-if (caloriesConsumedText) caloriesConsumedText.textContent = consumed.toLocaleString();
-if (dailyGoalConsumed) dailyGoalConsumed.textContent = goal.toLocaleString();
-
-const badge = document.getElementById("homeStatusBadge");
-const title = document.getElementById("homeStatusTitle");
-const message = document.getElementById("homeStatusMessage");
 const question = document.getElementById("calbuddy-question");
 
 if (consumed === 0) {
-if (badge) badge.textContent = "✅ Ready";
-if (title) title.textContent = "Ready when you are!";
-if (message) message.textContent = "Log your first meal to start tracking today.";
-if (question) question.textContent = `“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
+question.textContent = `“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
 } else if (consumed < goal) {
-if (badge) badge.textContent = "✅ On Track";
-if (title) title.textContent = "You’re doing great!";
-if (message) message.textContent = `${caloriesLeft.toLocaleString()} calories left today.`;
-if (question) question.textContent = `“You have ${caloriesLeft.toLocaleString()} calories left. Need meal ideas?”`;
+question.textContent = `“You have ${caloriesLeft.toLocaleString()} calories left. Need meal ideas?”`;
 } else {
-const overAmount = consumed - goal;
-if (badge) badge.textContent = "⚠️ Over Goal";
-if (title) title.textContent = "You’re over today.";
-if (message) message.textContent = `${overAmount.toLocaleString()} calories over your goal.`;
-if (question) question.textContent = "“Want lighter options for the rest of the day?”";
+question.textContent = "“Want lighter options for the rest of the day?”";
 }
 
 if (savedGoals) {
@@ -171,6 +194,9 @@ if (weightProgressSubtext && goals.targetWeight) {
 weightProgressSubtext.textContent = `left to reach ${goals.targetWeight} lbs`;
 }
 }
+
+updateResetCountdown();
+setInterval(updateResetCountdown, 60000);
 });
 </script>
 
