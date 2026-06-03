@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>My Goals - CalBuddy</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 <main class="app">
-
 <header class="top-bar">
 <button class="menu-btn" onclick="window.location.href='index.html'">≡</button>
 
@@ -17,47 +16,131 @@
 <span class="cal">Cal</span><span class="buddy">Buddy</span>
 </h1>
 
-<button class="signin-btn"
-onclick="window.location.href='index.html'">
-← Back
-</button>
+<button class="signin-btn" onclick="window.location.href='index.html'">← Back</button>
 </header>
 
-<section class="hero-card" style="display:block;padding:24px;">
+<section class="hero-card" style="display:block; padding:24px;">
 <h2>🎯 My Goals</h2>
 
-<br>
+<label>Age</label>
+<input id="age" type="number" placeholder="34" />
 
-<label>Target Weight (lbs)</label>
-<input
-type="number"
-placeholder="185"
-style="width:100%;padding:12px;margin-top:6px;margin-bottom:16px;"
->
-
-<label>Daily Calorie Goal</label>
-<input
-type="number"
-placeholder="2100"
-style="width:100%;padding:12px;margin-top:6px;margin-bottom:16px;"
->
-
-<label>Weekly Weight Loss Goal</label>
-<select
-style="width:100%;padding:12px;margin-top:6px;margin-bottom:20px;"
->
-<option>0.5 lb/week</option>
-<option>1 lb/week</option>
-<option>1.5 lb/week</option>
-<option>2 lb/week</option>
+<label>Sex</label>
+<select id="sex">
+<option value="male">Male</option>
+<option value="female">Female</option>
 </select>
 
-<button class="signin-btn" style="width:100%;">
-Save Goals
+<label>Current Weight (lbs)</label>
+<input id="weight" type="number" step="0.1" placeholder="185.2" />
+
+<label>Height (inches)</label>
+<input id="height" type="number" step="0.1" placeholder="69.8" />
+<p id="heightConversion" style="font-weight:700; margin-top:-8px;">Equivalent: —</p>
+
+<label>Activity Level</label>
+<select id="activity">
+<option value="1.2">🛋 Sedentary</option>
+<option value="1.375" selected>🚶 Lightly Active</option>
+<option value="1.55">🏃 Moderately Active</option>
+<option value="1.725">🔥 Very Active</option>
+<option value="1.9">⚡ Athlete / Extremely Active</option>
+</select>
+
+<button class="goals-pill" type="button" onclick="toggleActivityGuide()" style="width:100%; margin:10px 0;">
+ⓘ What do these activity levels mean?
 </button>
 
-</section>
+<div id="activityGuide" style="display:none; font-size:0.9rem; line-height:1.4; margin-bottom:16px;">
+<p><strong>🛋 Sedentary:</strong> Little or no exercise. Mostly sitting.</p>
+<p><strong>🚶 Lightly Active:</strong> Walking often or light exercise 1–3 days/week.</p>
+<p><strong>🏃 Moderately Active:</strong> Exercise 3–5 days/week or active job.</p>
+<p><strong>🔥 Very Active:</strong> Hard exercise 6–7 days/week or physical work.</p>
+<p><strong>⚡ Athlete:</strong> Intense daily training or multiple workouts/day.</p>
+</div>
 
+<label>Target Weight (lbs)</label>
+<input id="targetWeight" type="number" step="0.1" placeholder="175.0" />
+
+<label>Weekly Weight Loss Goal</label>
+<select id="weeklyLoss">
+<option value="0.5">0.5 lb/week</option>
+<option value="1" selected>1 lb/week</option>
+<option value="1.5">1.5 lb/week</option>
+<option value="2">2 lb/week</option>
+</select>
+
+<div style="margin-top:20px; padding:18px; border-radius:18px; background:#f4fff8;">
+<h3>Daily Calorie Goal</h3>
+<p id="calorieGoal" style="font-size:2rem; font-weight:800; color:#18a558;">— kcal</p>
+<p style="font-size:0.85rem;">Auto-calculated from your age, sex, height, weight, activity level, and weekly goal.</p>
+</div>
+
+<button class="signin-btn" style="width:100%; margin-top:18px;">
+Save Goals
+</button>
+</section>
 </main>
+
+<script>
+const inputs = ["age", "sex", "weight", "height", "activity", "weeklyLoss"];
+
+inputs.forEach(id => {
+document.getElementById(id).addEventListener("input", calculateCalories);
+document.getElementById(id).addEventListener("change", calculateCalories);
+});
+
+function toggleActivityGuide() {
+const guide = document.getElementById("activityGuide");
+guide.style.display = guide.style.display === "none" ? "block" : "none";
+}
+
+function updateHeightConversion(heightInches) {
+const conversion = document.getElementById("heightConversion");
+
+if (!heightInches || heightInches <= 0) {
+conversion.textContent = "Equivalent: —";
+return;
+}
+
+const feet = Math.floor(heightInches / 12);
+const inches = (heightInches - feet * 12).toFixed(1);
+
+conversion.textContent = `Equivalent: ${feet}' ${inches}"`;
+}
+
+function calculateCalories() {
+const age = parseFloat(document.getElementById("age").value);
+const sex = document.getElementById("sex").value;
+const weightLbs = parseFloat(document.getElementById("weight").value);
+const heightInches = parseFloat(document.getElementById("height").value);
+const activity = parseFloat(document.getElementById("activity").value);
+const weeklyLoss = parseFloat(document.getElementById("weeklyLoss").value);
+
+updateHeightConversion(heightInches);
+
+if (!age || !weightLbs || !heightInches) {
+document.getElementById("calorieGoal").textContent = "— kcal";
+return;
+}
+
+const weightKg = weightLbs / 2.20462;
+const heightCm = heightInches * 2.54;
+
+let bmr;
+
+if (sex === "male") {
+bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+} else {
+bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+}
+
+const maintenance = bmr * activity;
+const dailyDeficit = weeklyLoss * 500;
+const calorieGoal = Math.round(maintenance - dailyDeficit);
+
+document.getElementById("calorieGoal").textContent = `${calorieGoal} kcal`;
+}
+</script>
 </body>
 </html>
