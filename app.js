@@ -68,4 +68,25 @@ dailyGoalConsumed.textContent = formattedGoal;
 }
 }
 
+function updateHomeCaloriesFromGoals() {
+const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
+const savedConsumed = localStorage.getItem("calbuddyCaloriesConsumed") || 0;
+
+if (!savedGoal) return;
+
+const goal = Number(savedGoal);
+const consumed = Number(savedConsumed);
+const caloriesLeft = Math.max(goal - consumed, 0);
+
+const dailyGoalText = document.getElementById("dailyGoalText");
+const dailyGoalConsumed = document.getElementById("dailyGoalConsumed");
+const caloriesConsumedText = document.getElementById("caloriesConsumedText");
+const caloriesLeftText = document.getElementById("caloriesLeftText");
+
+if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
+if (dailyGoalConsumed) dailyGoalConsumed.textContent = goal.toLocaleString();
+if (caloriesConsumedText) caloriesConsumedText.textContent = consumed.toLocaleString();
+if (caloriesLeftText) caloriesLeftText.textContent = caloriesLeft.toLocaleString();
+}
+
 updateHomeCaloriesFromGoals();
