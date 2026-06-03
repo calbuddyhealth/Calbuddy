@@ -46,12 +46,20 @@
 <p class="reset-label">Resets in:</p>
 <h2 id="resetCountdownText">--h --m</h2>
 
-<div id="resetOptions" class="reset-options">
-<button onclick="setResetTime(0, event)">12:00 AM</button>
-<button onclick="setResetTime(2, event)">2:00 AM</button>
-<button onclick="setResetTime(4, event)">4:00 AM</button>
-<button onclick="setResetTime(6, event)">6:00 AM</button>
-<button onclick="setResetTime(8, event)">8:00 AM</button>
+<div id="resetOptions" class="reset-options" onclick="event.stopPropagation()">
+<p class="reset-title">Reset Time</p>
+
+<div class="reset-time-row">
+<input id="resetHourInput" type="number" min="1" max="12" value="4" />
+<span>:</span>
+<input id="resetMinuteInput" type="number" min="0" max="59" value="00" />
+<select id="resetAmPmInput">
+<option value="AM">AM</option>
+<option value="PM">PM</option>
+</select>
+</div>
+
+<button class="reset-save-btn" onclick="saveCustomResetTime()">Save</button>
 </div>
 </div>
 </section>
