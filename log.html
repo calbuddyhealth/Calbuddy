@@ -424,7 +424,7 @@ return;
 results.innerHTML = "<p>Searching...</p>";
 
 try {
-const response = await fetch(`/api/searchfood?query=${encodeURIComponent(query)}`);
+const response = await fetch(`/api/searchFood?query=${encodeURIComponent(query)}`);
 const data = await response.json();
 
 if (!data.foods || data.foods.length === 0) {
