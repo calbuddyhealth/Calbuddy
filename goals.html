@@ -258,8 +258,13 @@ year: "numeric"
 }
 
 document.getElementById("saveGoalsBtn").addEventListener("click", () => {
+const calorieGoalText = document.getElementById("calorieGoal").textContent;
+const calorieGoal = parseInt(calorieGoalText);
+
+localStorage.setItem("calbuddyDailyCalorieGoal", calorieGoal);
+
 document.getElementById("saveMessage").textContent =
-"✅ Goals saved locally for now. Supabase saving is next.";
+`✅ Goals saved. Daily target: ${calorieGoal} kcal`;
 });
 
 calculateGoals();
