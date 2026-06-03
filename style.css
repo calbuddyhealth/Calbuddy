@@ -440,7 +440,7 @@ max-width: 235px !important;
 height: auto !important;
 position: absolute;
 right: -18px;
-bottom: -25px;
+bottom: -70px;
 z-index: 3;
 filter:
 brightness(1.15)
@@ -514,7 +514,7 @@ width: 108px;
 width: 58% !important;
 max-width: 220px !important;
 right: -12px;
-bottom: -12px;
+bottom: -35px;
 }
 }
 
