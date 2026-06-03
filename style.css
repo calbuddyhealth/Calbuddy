@@ -591,20 +591,56 @@ font-weight: 950;
 display: none;
 margin-top: 12px;
 width: 100%;
-flex-direction: column;
-gap: 6px;
+background: #f4fff8;
+border-radius: 16px;
+padding: 10px;
 }
 
 .reset-options.show {
-display: flex;
+display: block;
 }
 
-.reset-options button {
+.reset-title {
+margin: 0 0 8px;
+color: #078e91;
+font-weight: 950;
+font-size: 13px;
+}
+
+.reset-time-row {
+display: flex;
+align-items: center;
+gap: 5px;
+}
+
+.reset-time-row input,
+.reset-time-row select {
+min-width: 0;
+padding: 7px;
+border-radius: 10px;
+border: 1px solid #d1fae5;
+font-weight: 900;
+font-size: 13px;
+text-align: center;
+background: white;
+}
+
+.reset-time-row input {
+width: 44px;
+}
+
+.reset-time-row select {
+width: 56px;
+}
+
+.reset-save-btn {
+margin-top: 10px;
+width: 100%;
 border: none;
 border-radius: 12px;
-padding: 8px;
+padding: 9px;
 background: #e9f8e8;
 color: #0d8e25;
-font-weight: 900;
+font-weight: 950;
 cursor: pointer;
 }
