@@ -124,27 +124,61 @@ alt="CalBuddy AI Nutrition Coach"
 </main>
 
 <script>
-function getResetHour() {
-return Number(localStorage.getItem("calbuddyResetHour")) || 4;
+function getResetTime() {
+const saved = localStorage.getItem("calbuddyResetTime");
+
+if (saved) {
+return JSON.parse(saved);
+}
+
+return {
+hour: 4,
+minute: 0,
+ampm: "AM"
+};
+}
+
+function convertTo24Hour(hour, ampm) {
+hour = Number(hour);
+
+if (ampm === "AM" && hour === 12) return 0;
+if (ampm === "PM" && hour !== 12) return hour + 12;
+
+return hour;
 }
 
 function toggleResetOptions() {
-document.getElementById("resetOptions").classList.toggle("show");
+const box = document.getElementById("resetOptions");
+box.classList.toggle("show");
 }
 
-function setResetTime(hour, event) {
-event.stopPropagation();
-localStorage.setItem("calbuddyResetHour", hour);
+function saveCustomResetTime() {
+const hour = Number(document.getElementById("resetHourInput").value);
+const minute = Number(document.getElementById("resetMinuteInput").value);
+const ampm = document.getElementById("resetAmPmInput").value;
+
+if (hour < 1 || hour > 12 || minute < 0 || minute > 59) {
+alert("Please enter a valid reset time.");
+return;
+}
+
+localStorage.setItem(
+"calbuddyResetTime",
+JSON.stringify({ hour, minute, ampm })
+);
+
 document.getElementById("resetOptions").classList.remove("show");
 updateResetCountdown();
 }
 
 function updateResetCountdown() {
-const resetHour = getResetHour();
+const reset = getResetTime();
+const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
+
 const now = new Date();
 const nextReset = new Date();
 
-nextReset.setHours(resetHour, 0, 0, 0);
+nextReset.setHours(resetHour24, Number(reset.minute), 0, 0);
 
 if (now >= nextReset) {
 nextReset.setDate(nextReset.getDate() + 1);
@@ -156,53 +190,15 @@ const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
 document.getElementById("resetCountdownText").textContent =
 `${hours}h ${minutes}m`;
+
+const hourInput = document.getElementById("resetHourInput");
+const minuteInput = document.getElementById("resetMinuteInput");
+const ampmInput = document.getElementById("resetAmPmInput");
+
+if (hourInput) hourInput.value = reset.hour;
+if (minuteInput) minuteInput.value = String(reset.minute).padStart(2, "0");
+if (ampmInput) ampmInput.value = reset.ampm;
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
-const savedConsumed = localStorage.getItem("calbuddyCaloriesConsumed") || 0;
-const savedGoals = localStorage.getItem("calbuddyGoals");
-
-const goal = savedGoal ? Number(savedGoal) : 2100;
-const consumed = Number(savedConsumed);
-const caloriesLeft = Math.max(goal - consumed, 0);
-
-document.getElementById("caloriesLeftText").textContent = caloriesLeft.toLocaleString();
-document.getElementById("dailyGoalText").textContent = goal.toLocaleString();
-document.getElementById("caloriesConsumedText").textContent = consumed.toLocaleString();
-document.getElementById("dailyGoalConsumed").textContent = goal.toLocaleString();
-
-const question = document.getElementById("calbuddy-question");
-
-if (consumed === 0) {
-question.textContent = `“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
-} else if (consumed < goal) {
-question.textContent = `“You have ${caloriesLeft.toLocaleString()} calories left. Need meal ideas?”`;
-} else {
-question.textContent = "“Want lighter options for the rest of the day?”";
-}
-
-if (savedGoals) {
-const goals = JSON.parse(savedGoals);
-
-const currentWeightBadge = document.getElementById("currentWeightBadge");
-const weightProgressText = document.getElementById("weightProgressText");
-const weightProgressSubtext = document.getElementById("weightProgressSubtext");
-
-if (currentWeightBadge && goals.weight) {
-currentWeightBadge.innerHTML = `${goals.weight} lbs <span>Current Weight</span>`;
-}
-
-if (weightProgressText && goals.weight && goals.targetWeight) {
-const remaining = Math.max(Number(goals.weight) - Number(goals.targetWeight), 0).toFixed(1);
-weightProgressText.textContent = `${remaining} lb`;
-}
-
-if (weightProgressSubtext && goals.targetWeight) {
-weightProgressSubtext.textContent = `left to reach ${goals.targetWeight} lbs`;
-}
-}
-
 updateResetCountdown();
 setInterval(updateResetCountdown, 60000);
 });
