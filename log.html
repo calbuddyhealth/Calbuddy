@@ -187,11 +187,6 @@ background: #fff7ed;
 color: #f97316;
 }
 
-.edit-btn {
-background: #eef2ff;
-color: #4f46e5;
-}
-
 .total-box {
 margin-top: 16px;
 padding: 14px;
@@ -424,7 +419,10 @@ return;
 results.innerHTML = "<p>Searching...</p>";
 
 try {
-const response = await fetch(`/api/searchFood?query=${encodeURIComponent(query)}`);
+const url =
+`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=10&api_key=DEMO_KEY`;
+
+const response = await fetch(url);
 const data = await response.json();
 
 if (!data.foods || data.foods.length === 0) {
@@ -434,13 +432,28 @@ return;
 
 results.innerHTML = "";
 
-data.foods.forEach((food, index) => {
-if (!food.calories && food.calories !== 0) return;
+data.foods.forEach(food => {
+const nutrients = food.foodNutrients || [];
 
-const baseCalories = Math.round(Number(food.calories || 0));
-const baseProtein = Number(food.protein_g || 0);
-const baseCarbs = Number(food.carbs_g || 0);
-const baseFat = Number(food.fat_g || 0);
+const getNutrient = (names) => {
+const found = nutrients.find(nutrient =>
+names.some(name =>
+nutrient.nutrientName?.toLowerCase().includes(name.toLowerCase())
+)
+);
+
+return found?.value ?? 0;
+};
+
+const baseCalories = Math.round(Number(getNutrient(["Energy"]) || 0));
+const baseProtein = Number(getNutrient(["Protein"]) || 0);
+const baseCarbs = Number(getNutrient(["Carbohydrate"]) || 0);
+const baseFat = Number(getNutrient(["Total lipid", "Total Fat"]) || 0);
+
+const servingSize =
+food.servingSize && food.servingSizeUnit
+? `${food.servingSize} ${food.servingSizeUnit}`
+: food.householdServingFullText || "100 g";
 
 let multiplier = 1;
 
@@ -456,7 +469,7 @@ const adjustedFat = roundMacro(baseFat * multiplier);
 card.innerHTML = `
 <h3>${food.description}</h3>
 <p>${food.brandName ? food.brandName : "USDA FoodData Central"}</p>
-<p>🍽️ Serving: ${food.serving_size || "100 g"}</p>
+<p>🍽️ Serving: ${servingSize}</p>
 
 <div class="multiplier-row">
 <button type="button" class="minus-btn">−</button>
@@ -483,7 +496,7 @@ renderCardValues();
 });
 
 card.querySelector(".plus-btn").addEventListener("click", () => {
-multiplier = multiplier + 0.5;
+multiplier += 0.5;
 renderCardValues();
 });
 
@@ -498,7 +511,7 @@ category: selectedMealType,
 protein_g: adjustedProtein,
 carbs_g: adjustedCarbs,
 fat_g: adjustedFat,
-serving_size: food.serving_size || "100 g",
+serving_size: servingSize,
 multiplier
 });
 });
@@ -509,7 +522,7 @@ results.appendChild(card);
 });
 
 } catch (error) {
-results.innerHTML = "<p>Search failed. Check your USDA API setup.</p>";
+results.innerHTML = `<p>Search failed: ${error.message}</p>`;
 }
 }
 
