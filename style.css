@@ -29,21 +29,22 @@ font-family: inherit;
 .app {
 max-width: 430px;
 margin: 0 auto;
-padding: 12px;
-padding-bottom: 36px;
+padding: 8px 12px 20px;
 min-height: 100vh;
 }
+
+/* Top Header */
 
 .top-bar {
 display: flex;
 align-items: flex-start;
 justify-content: space-between;
-margin-bottom: 16px;
+margin-bottom: 4px;
 }
 
 .logo {
-font-size: 34px;
-margin: 16px 0 0;
+font-size: 31px;
+margin: 10px 0 0;
 font-weight: 950;
 letter-spacing: -2px;
 }
@@ -57,10 +58,10 @@ color: #079c9d;
 }
 
 .menu-btn {
-font-size: 30px;
+font-size: 28px;
 background: transparent;
 border: none;
-margin-top: 22px;
+margin-top: 14px;
 cursor: pointer;
 color: #071225;
 }
@@ -68,7 +69,7 @@ color: #071225;
 .right-actions {
 display: flex;
 flex-direction: column;
-gap: 8px;
+gap: 5px;
 align-items: flex-end;
 }
 
@@ -79,38 +80,34 @@ background: rgba(255, 255, 255, 0.95);
 border: 1.8px solid #6d3df2;
 color: #5b31e8;
 border-radius: 18px;
-padding: 8px 13px;
+padding: 6px 10px;
 font-weight: 900;
 box-shadow: 0 8px 18px rgba(68, 57, 120, 0.14);
 cursor: pointer;
-font-size: 14px;
+font-size: 12px;
 }
 
 .goals-pill {
 border-color: #9ce6e8;
 color: #078e91;
-padding: 7px 11px;
-font-size: 13px;
 }
 
 .progress-pill {
 border-color: #eadcff;
 color: #6d3df2;
-padding: 7px 11px;
-font-size: 13px;
 }
 
 /* Current Weight Badge */
 
 .home-weight-badge {
 width: fit-content;
-margin: 6px auto 12px;
+margin: 2px auto 8px;
 background: linear-gradient(135deg, #7b42ff, #4f25d8);
 color: white;
-border-radius: 14px;
-padding: 8px 18px;
+border-radius: 13px;
+padding: 6px 14px;
 font-weight: 950;
-font-size: 20px;
+font-size: 16px;
 line-height: 1;
 text-align: center;
 box-shadow: 0 10px 20px rgba(101, 52, 245, 0.25);
@@ -118,12 +115,12 @@ box-shadow: 0 10px 20px rgba(101, 52, 245, 0.25);
 
 .home-weight-badge span {
 display: block;
-font-size: 12px;
-margin-top: 5px;
+font-size: 10px;
+margin-top: 4px;
 color: #eee8ff;
 }
 
-/* Calories Card */
+/* Shared Cards */
 
 .hero-card,
 .log-home-card,
@@ -136,26 +133,31 @@ inset 0 1px 0 rgba(255, 255, 255, 0.9);
 border: 1.5px solid rgba(15, 23, 42, 0.06);
 }
 
+/* Calories Card */
+
 .hero-card {
-padding: 14px;
+padding: 12px;
 display: grid;
-grid-template-columns: 1fr 0.8fr 0.9fr;
-gap: 10px;
+grid-template-columns: 1.05fr 0.85fr;
+grid-template-rows: auto auto;
+gap: 6px 8px;
 align-items: center;
-margin-bottom: 14px;
+margin-bottom: 10px;
 min-height: 150px;
 overflow: visible;
 }
 
 .meter-side {
+grid-column: 1;
+grid-row: 1;
 min-width: 0;
 }
 
 .arch-meter {
-height: 100px;
-border-top: 12px solid #12943a;
-border-left: 12px solid #10a6a5;
-border-right: 12px solid #e3e7ee;
+height: 96px;
+border-top: 11px solid #12943a;
+border-left: 11px solid #10a6a5;
+border-right: 11px solid #e3e7ee;
 border-bottom: none;
 border-radius: 170px 170px 0 0;
 position: relative;
@@ -163,21 +165,21 @@ position: relative;
 
 .meter-text {
 text-align: center;
-padding-top: 22px;
+padding-top: 20px;
 }
 
 .meter-text p {
 margin: 0;
 color: #0a8d24;
 font-weight: 950;
-font-size: 10px;
+font-size: 9px;
 letter-spacing: 0.2px;
 }
 
 .meter-text h2 {
 margin: 0;
 color: #0b8f1f;
-font-size: 34px;
+font-size: 31px;
 line-height: 1;
 font-weight: 950;
 }
@@ -185,27 +187,30 @@ font-weight: 950;
 .meter-text span {
 color: #66708a;
 font-weight: 750;
-font-size: 12px;
+font-size: 11px;
 }
 
 .consumed-inline {
+grid-column: 1;
+grid-row: 2;
 display: flex;
 align-items: center;
 gap: 8px;
 min-width: 0;
+margin-top: -4px;
 }
 
 .flame {
 background: #e9f8e8;
 border-radius: 50%;
-padding: 8px;
-min-width: 36px;
+padding: 7px;
+min-width: 34px;
 text-align: center;
-font-size: 20px;
+font-size: 18px;
 }
 
 .consumed-inline strong {
-font-size: 18px;
+font-size: 17px;
 font-weight: 950;
 line-height: 1.05;
 white-space: nowrap;
@@ -215,13 +220,15 @@ white-space: nowrap;
 margin: 3px 0 0;
 color: #66708a;
 font-weight: 800;
-font-size: 11px;
+font-size: 10px;
 line-height: 1.1;
 }
 
 .status-side {
+grid-column: 2;
+grid-row: 1 / span 2;
 border-left: 1px solid #dfe5ee;
-padding-left: 12px;
+padding-left: 10px;
 display: flex;
 flex-direction: column;
 align-items: center;
@@ -238,26 +245,26 @@ width: 100%;
 margin: 0 0 6px;
 color: #66708a;
 font-weight: 950;
-font-size: 13px;
+font-size: 12px;
 }
 
 #resetCountdownText {
 color: #078e91;
-font-size: 30px;
+font-size: 27px;
 line-height: 1;
 margin: 0;
 font-weight: 950;
 }
 
 .track-pill {
-margin-top: 12px;
+margin-top: 10px;
 background: #eefcef;
 color: #0d8e25;
 border: 1px solid #c7f1cc;
 border-radius: 18px;
-padding: 7px 12px;
+padding: 6px 10px;
 font-weight: 950;
-font-size: 13px;
+font-size: 12px;
 white-space: nowrap;
 }
 
@@ -324,9 +331,9 @@ cursor: pointer;
 /* Log Intake Homepage Card */
 
 .log-home-card {
-margin-bottom: 14px;
-min-height: 170px;
-padding: 16px;
+margin-bottom: 10px;
+min-height: 150px;
+padding: 12px;
 position: relative;
 overflow: hidden;
 cursor: pointer;
@@ -338,53 +345,53 @@ border-color: #bdebc4;
 display: flex;
 align-items: center;
 gap: 10px;
-margin-bottom: 14px;
+margin-bottom: 10px;
 }
 
 .tile-icon,
 .chat-icon {
-font-size: 28px;
+font-size: 24px;
 }
 
 .log-title-row h2,
 .ask-card h2 {
 margin: 0;
-font-size: 24px;
+font-size: 22px;
 font-weight: 950;
 color: #063ba8;
 }
 
 .log-shortcuts {
 display: flex;
-gap: 8px;
+gap: 5px;
 position: relative;
 z-index: 2;
 }
 
 .log-shortcuts button {
-width: 74px;
-height: 86px;
+width: 62px;
+height: 74px;
 border: none;
-border-radius: 16px;
+border-radius: 14px;
 background: white;
 box-shadow: 0 8px 18px rgba(17, 24, 39, 0.08);
 font-weight: 900;
 color: #071225;
-font-size: 11px;
+font-size: 9px;
 cursor: pointer;
 }
 
 .log-shortcuts button span {
 display: block;
-font-size: 30px;
-margin-bottom: 8px;
+font-size: 24px;
+margin-bottom: 5px;
 }
 
 .food-illustration {
 position: absolute;
-right: 4px;
-bottom: 8px;
-width: 150px;
+right: -2px;
+bottom: 6px;
+width: 118px;
 height: auto;
 z-index: 1;
 }
@@ -392,16 +399,17 @@ z-index: 1;
 /* Ask CalBuddy */
 
 .ask-card {
-padding: 16px;
+padding: 12px;
 background: linear-gradient(145deg, #edfdff, #dff9fb);
 border-color: #a9edf0;
 display: grid;
 grid-template-columns: 1.05fr 0.95fr;
 overflow: hidden;
-min-height: 185px;
+min-height: 160px;
 width: 100%;
 position: relative;
 cursor: pointer;
+margin-bottom: 0;
 }
 
 .ask-content {
@@ -410,34 +418,37 @@ z-index: 2;
 }
 
 .ask-card h2 {
-margin-top: 8px;
+margin-top: 4px;
 }
 
 .question-bubble {
-margin-top: 22px;
-padding: 14px;
+margin-top: 12px;
+padding: 10px;
+max-width: 205px;
 border-radius: 18px;
 background: white;
 color: #078e91;
 font-weight: 900;
-font-size: 13px;
-line-height: 1.45;
+font-size: 12px;
+line-height: 1.35;
 box-shadow: 0 8px 18px rgba(0,0,0,0.08);
 }
 
 .robot-illustration {
-width: 64% !important;
-max-width: 250px !important;
+width: 56% !important;
+max-width: 210px !important;
 height: auto !important;
 position: absolute;
-right: -8px;
-bottom: -18px;
+right: -6px;
+bottom: -6px;
 z-index: 2;
 filter:
 brightness(1.15)
 contrast(1.08)
 drop-shadow(0 8px 20px rgba(0,0,0,0.12));
 }
+
+/* Hide old homepage sections */
 
 footer,
 .dashboard-grid,
@@ -446,103 +457,74 @@ footer,
 display: none !important;
 }
 
-/* Extra small phones */
+/* Very small phones */
 
 @media (max-width: 390px) {
 .app {
-padding: 10px;
-padding-bottom: 32px;
+padding: 8px 10px 20px;
 }
 
 .logo {
-font-size: 31px;
+font-size: 30px;
 }
 
 .menu-btn {
-font-size: 28px;
+font-size: 27px;
 }
 
 .signin-btn,
 .goals-pill,
 .progress-pill {
-padding: 7px 9px;
-font-size: 12px;
-}
-
-.home-weight-badge {
-font-size: 18px;
-padding: 7px 16px;
+padding: 6px 9px;
+font-size: 11px;
 }
 
 .hero-card {
-grid-template-columns: 0.95fr 0.75fr 0.8fr;
-padding: 12px;
-gap: 8px;
-min-height: 142px;
+min-height: 148px;
+padding: 10px;
 }
 
 .arch-meter {
 height: 92px;
-border-top-width: 11px;
-border-left-width: 11px;
-border-right-width: 11px;
-}
-
-.meter-text {
-padding-top: 20px;
 }
 
 .meter-text h2 {
-font-size: 30px;
+font-size: 29px;
 }
 
 .consumed-inline strong {
 font-size: 16px;
 }
 
-.consumed-inline p {
-font-size: 10px;
-}
-
 #resetCountdownText {
-font-size: 26px;
-}
-
-.track-pill {
-font-size: 12px;
-padding: 6px 10px;
-}
-
-.log-home-card {
-min-height: 160px;
-padding: 14px;
-}
-
-.log-shortcuts {
-gap: 6px;
+font-size: 25px;
 }
 
 .log-shortcuts button {
-width: 65px;
-height: 80px;
-font-size: 10px;
-}
-
-.log-shortcuts button span {
-font-size: 27px;
+width: 58px;
+height: 72px;
+font-size: 8.5px;
 }
 
 .food-illustration {
-width: 135px;
-}
-
-.ask-card {
-min-height: 175px;
+width: 108px;
 }
 
 .robot-illustration {
-width: 66% !important;
-right: -10px;
-bottom: -16px;
+width: 55% !important;
+right: -8px;
+bottom: -4px;
+}
+}
+
+/* iPhone Safari Fix */
+
+@supports (-webkit-touch-callout: none) {
+body {
+min-height: -webkit-fill-available;
+}
+
+.app {
+min-height: auto;
 }
 }
