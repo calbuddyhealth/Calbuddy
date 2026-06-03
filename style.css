@@ -514,7 +514,54 @@ font-size: 54px;
 .robot-illustration {
 width: 62% !important;
 max-width: 220px !important;
+height: auto !important;
+position: absolute;
 right: -8px;
 bottom: -70px;
+z-index: 2;
+transform: translate(0, 0);
+filter:
+brightness(1.15)
+contrast(1.08)
+drop-shadow(0 8px 20px rgba(0,0,0,0.12));
+}
+
+.ask-card {
+min-height: 165px;
+position: relative;
+overflow: visible;
+}
+
+/* PAGE SCROLL FIX */
+
+html {
+width: 100%;
+min-height: 100%;
+}
+
+body {
+margin: 0;
+width: 100%;
+min-height: 100vh;
+overflow-x: hidden;
+overflow-y: auto;
+}
+
+.app {
+max-width: 430px;
+margin: 0 auto;
+padding: 12px;
+padding-bottom: 180px;
+}
+
+/* iPhone Safari Fix */
+
+@supports (-webkit-touch-callout: none) {
+body {
+min-height: -webkit-fill-available;
+}
+
+.app {
+min-height: auto;
 }
 }
