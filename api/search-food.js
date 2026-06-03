@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+xport default async function handler(req, res) {
 const query = req.query.query;
 
 if (!query) {
@@ -19,17 +19,40 @@ const response = await fetch(url);
 const data = await response.json();
 
 const foods = (data.foods || []).map((food) => {
-const caloriesNutrient = food.foodNutrients?.find(
-(nutrient) =>
-nutrient.nutrientName === "Energy" ||
-nutrient.nutrientName === "Energy (Atwater General Factors)"
+const nutrients = food.foodNutrients || [];
+
+const getNutrient = (names) => {
+const found = nutrients.find((nutrient) =>
+names.some((name) =>
+nutrient.nutrientName?.toLowerCase().includes(name.toLowerCase())
+)
 );
+
+return found?.value ?? null;
+};
+
+const calories =
+getNutrient(["Energy"]) ??
+getNutrient(["Energy (Atwater General Factors)"]);
+
+const protein = getNutrient(["Protein"]);
+const carbs = getNutrient(["Carbohydrate, by difference"]);
+const fat = getNutrient(["Total lipid", "Total Fat"]);
+
+const servingSize =
+food.servingSize && food.servingSizeUnit
+? `${food.servingSize} ${food.servingSizeUnit}`
+: food.householdServingFullText || "100 g";
 
 return {
 fdcId: food.fdcId,
 description: food.description,
 brandName: food.brandName || "",
-calories: caloriesNutrient?.value || null
+calories: calories !== null ? Math.round(Number(calories)) : null,
+protein_g: protein !== null ? Number(protein).toFixed(1) : null,
+carbs_g: carbs !== null ? Number(carbs).toFixed(1) : null,
+fat_g: fat !== null ? Number(fat).toFixed(1) : null,
+serving_size: servingSize
 };
 });
 
