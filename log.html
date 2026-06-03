@@ -14,17 +14,17 @@ padding: 26px;
 
 .log-tabs {
 display: flex;
-gap: 12px;
+gap: 8px;
 margin-bottom: 22px;
 }
 
 .log-tab {
 flex: 1;
-padding: 14px;
+padding: 12px;
 border: none;
 border-radius: 18px;
-font-weight: 800;
-font-size: 1rem;
+font-weight: 900;
+font-size: 0.9rem;
 background: #f1f5f9;
 cursor: pointer;
 }
@@ -46,7 +46,7 @@ padding: 12px;
 border: none;
 border-radius: 16px;
 background: #f8f5ff;
-font-weight: 800;
+font-weight: 900;
 cursor: pointer;
 }
 
@@ -55,29 +55,35 @@ background: #8b5cf6;
 color: white;
 }
 
-.search-section {
+.search-section,
+.manual-section {
 display: none;
 margin-top: 14px;
 }
 
-.search-section label {
+.search-section label,
+.manual-section label {
 display: block;
-font-weight: 800;
+font-weight: 900;
 margin-bottom: 8px;
 }
 
-.search-section input {
+.search-section input,
+.manual-section input,
+.manual-section select {
 width: 100%;
 box-sizing: border-box;
 padding: 14px;
 border-radius: 16px;
 border: 1px solid #d8d8d8;
 font-size: 16px;
+margin-bottom: 10px;
 }
 
-.search-button {
+.search-button,
+.manual-save-btn {
 width: 100%;
-margin-top: 12px;
+margin-top: 8px;
 padding: 14px;
 }
 
@@ -151,6 +157,7 @@ text-align: center;
 <div class="log-tabs">
 <button class="log-tab" id="mealTab" onclick="selectMode('meal')">🍽️ Add Meal</button>
 <button class="log-tab" id="drinkTab" onclick="selectMode('drink')">🥤 Add Drink</button>
+<button class="log-tab" id="calorieTab" onclick="selectMode('calories')">🔢 Add Calories</button>
 </div>
 
 <div id="mealOptions" class="meal-options">
@@ -174,6 +181,27 @@ placeholder="Type food item"
 </button>
 </div>
 
+<div id="manualSection" class="manual-section">
+<label>Food / Item Name</label>
+<input id="manualFoodName" type="text" placeholder="Example: homemade pasta" />
+
+<label>Calories</label>
+<input id="manualCalories" type="number" step="1" placeholder="Example: 650" />
+
+<label>Category</label>
+<select id="manualCategory">
+<option value="Breakfast">Breakfast</option>
+<option value="Lunch">Lunch</option>
+<option value="Dinner">Dinner</option>
+<option value="Snack">Snack</option>
+<option value="Drink">Drink</option>
+</select>
+
+<button class="signin-btn manual-save-btn" onclick="saveManualCalories()">
+Save
+</button>
+</div>
+
 <div id="results"></div>
 
 <div id="successMessage" class="success-message"></div>
@@ -192,9 +220,26 @@ placeholder="Type food item"
 
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js?v=8"></script>
+
 <script>
 let currentMode = "";
 let selectedMealType = "";
+
+function getTodayDate() {
+return new Date().toISOString().split("T")[0];
+}
+
+async function getCurrentUser() {
+const { data, error } = await window.calbuddySupabase.auth.getSession();
+
+if (error || !data.session) {
+return null;
+}
+
+return data.session.user;
+}
 
 function selectMode(mode) {
 currentMode = mode;
@@ -202,12 +247,16 @@ selectedMealType = mode === "drink" ? "Drink" : "";
 
 document.getElementById("mealTab").classList.toggle("active", mode === "meal");
 document.getElementById("drinkTab").classList.toggle("active", mode === "drink");
+document.getElementById("calorieTab").classList.toggle("active", mode === "calories");
 
 document.getElementById("mealOptions").style.display =
 mode === "meal" ? "grid" : "none";
 
 document.getElementById("searchSection").style.display =
 mode === "drink" ? "block" : "none";
+
+document.getElementById("manualSection").style.display =
+mode === "calories" ? "block" : "none";
 
 document.getElementById("searchLabel").textContent =
 mode === "drink" ? "Search drink" : "Search food";
@@ -227,6 +276,7 @@ button.classList.toggle("active", button.textContent === type);
 });
 
 document.getElementById("searchSection").style.display = "block";
+document.getElementById("manualSection").style.display = "none";
 document.getElementById("searchLabel").textContent = `Search food for ${type}`;
 document.getElementById("foodSearchInput").placeholder = "Example: chicken burrito";
 document.getElementById("results").innerHTML = "";
@@ -238,7 +288,7 @@ const query = document.getElementById("foodSearchInput").value.trim();
 const results = document.getElementById("results");
 
 if (!currentMode) {
-results.innerHTML = "<p>Please choose Add Meal or Add Drink first.</p>";
+results.innerHTML = "<p>Please choose Add Meal, Add Drink, or Add Calories first.</p>";
 return;
 }
 
@@ -277,15 +327,13 @@ card.innerHTML = `
 <h3>${food.description}</h3>
 <p>${food.brandName ? food.brandName : "USDA FoodData Central"}</p>
 <p><strong>${calories} kcal</strong></p>
-<button class="signin-btn add-food-btn">
-Add to ${selectedMealType || "Intake"}
-</button>
+<button class="signin-btn add-food-btn">Add to ${selectedMealType || "Intake"}</button>
 `;
 
-card.querySelector("button").addEventListener("click", event => {
+card.querySelector("button").addEventListener("click", async event => {
 event.target.disabled = true;
 event.target.textContent = "Added ✅";
-addToIntake(food.description, calories, selectedMealType);
+await addToIntake(food.description, calories, selectedMealType);
 });
 
 results.appendChild(card);
@@ -296,7 +344,64 @@ results.innerHTML = "<p>Search failed. Check your USDA API setup.</p>";
 }
 }
 
-function addToIntake(name, calories, category) {
+async function saveManualCalories() {
+const name = document.getElementById("manualFoodName").value.trim();
+const calories = Number(document.getElementById("manualCalories").value);
+const category = document.getElementById("manualCategory").value;
+
+if (!name) {
+document.getElementById("successMessage").textContent = "Please enter a food or item name.";
+return;
+}
+
+if (!calories || calories <= 0) {
+document.getElementById("successMessage").textContent = "Please enter a valid calorie amount.";
+return;
+}
+
+await addToIntake(name, Math.round(calories), category);
+
+document.getElementById("manualFoodName").value = "";
+document.getElementById("manualCalories").value = "";
+}
+
+async function addToIntake(name, calories, category) {
+const user = await getCurrentUser();
+const today = getTodayDate();
+
+if (user) {
+const { error } = await window.calbuddySupabase
+.from("meals")
+.insert({
+user_id: user.id,
+name: name,
+calories: calories,
+category: category,
+nutrition_date: today
+});
+
+if (error) {
+document.getElementById("successMessage").textContent =
+"Meal saved on this device, but cloud save failed: " + error.message;
+saveMealLocally(name, calories, category, today);
+} else {
+document.getElementById("successMessage").textContent =
+`✅ Added to ${category}: ${name} — ${calories} kcal`;
+}
+} else {
+saveMealLocally(name, calories, category, today);
+
+document.getElementById("successMessage").textContent =
+`✅ Added to ${category}: ${name} — ${calories} kcal`;
+}
+
+document.getElementById("foodSearchInput").value = "";
+document.getElementById("results").innerHTML = "";
+
+await renderTodayIntake();
+}
+
+function saveMealLocally(name, calories, category, date) {
 const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
 const meal = {
@@ -304,46 +409,76 @@ id: Date.now(),
 name,
 calories,
 category,
-date: new Date().toISOString().split("T")[0]
+date
 };
 
 meals.push(meal);
 
 localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
-
-document.getElementById("successMessage").textContent =
-`✅ Added to ${category}: ${name} — ${calories} kcal`;
-
-document.getElementById("foodSearchInput").value = "";
-document.getElementById("results").innerHTML = "";
-
-renderTodayIntake();
 }
 
-function deleteIntakeItem(id) {
+async function deleteIntakeItem(id, source) {
+if (source === "supabase") {
+const { error } = await window.calbuddySupabase
+.from("meals")
+.delete()
+.eq("id", id);
+
+if (error) {
+document.getElementById("successMessage").textContent =
+"Could not delete cloud meal: " + error.message;
+return;
+}
+} else {
 const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
-
-const updatedMeals = meals.filter(meal => meal.id !== id);
-
+const updatedMeals = meals.filter(meal => String(meal.id) !== String(id));
 localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
+}
 
 document.getElementById("successMessage").textContent =
 "🗑️ Item removed. Calories updated.";
 
-renderTodayIntake();
+await renderTodayIntake();
 }
 
-function getTodaysMeals() {
-const today = new Date().toISOString().split("T")[0];
+async function getTodaysMeals() {
+const user = await getCurrentUser();
+const today = getTodayDate();
+
+if (user) {
+const { data, error } = await window.calbuddySupabase
+.from("meals")
+.select("*")
+.eq("user_id", user.id)
+.eq("nutrition_date", today)
+.order("created_at", { ascending: true });
+
+if (!error && data) {
+return data.map(meal => ({
+id: meal.id,
+name: meal.name,
+calories: meal.calories,
+category: meal.category,
+date: meal.nutrition_date,
+source: "supabase"
+}));
+}
+}
+
 const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
-return meals.filter(meal => meal.date === today);
+return meals
+.filter(meal => meal.date === today)
+.map(meal => ({
+...meal,
+source: "local"
+}));
 }
 
-function renderTodayIntake() {
+async function renderTodayIntake() {
 const itemsDiv = document.getElementById("todayIntakeItems");
 const totalText = document.getElementById("totalConsumedText");
-const meals = getTodaysMeals();
+const meals = await getTodaysMeals();
 
 if (meals.length === 0) {
 itemsDiv.innerHTML = "<p>No meals logged yet today.</p>";
@@ -357,10 +492,19 @@ itemsDiv.innerHTML = "";
 meals.forEach(meal => {
 const item = document.createElement("div");
 item.className = "intake-item";
-item.innerHTML = `
-<span>${meal.category}: ${meal.name} — ${meal.calories} kcal</span>
-<button class="delete-intake-btn" onclick="deleteIntakeItem(${meal.id})">🗑️</button>
-`;
+
+const label = document.createElement("span");
+label.textContent = `${meal.category}: ${meal.name} — ${Math.round(meal.calories)} kcal`;
+
+const deleteButton = document.createElement("button");
+deleteButton.className = "delete-intake-btn";
+deleteButton.textContent = "🗑️";
+deleteButton.addEventListener("click", () => {
+deleteIntakeItem(meal.id, meal.source);
+});
+
+item.appendChild(label);
+item.appendChild(deleteButton);
 itemsDiv.appendChild(item);
 });
 
