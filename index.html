@@ -42,9 +42,11 @@
 </div>
 </div>
 
-<div class="status-side reset-side" onclick="toggleResetOptions()">
+<div class="status-side reset-side">
+<div class="reset-click-area" onclick="toggleResetOptions()">
 <p class="reset-label">Resets in:</p>
 <h2 id="resetCountdownText">--h --m</h2>
+</div>
 
 <div id="resetOptions" class="reset-options" onclick="event.stopPropagation()">
 <p class="reset-title">Reset Time</p>
@@ -59,7 +61,7 @@
 </select>
 </div>
 
-<button class="reset-save-btn" onclick="saveCustomResetTime()">Save</button>
+<button class="reset-save-btn" type="button" onclick="saveCustomResetTime(event)">Save</button>
 </div>
 </div>
 </section>
