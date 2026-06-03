@@ -51,10 +51,10 @@
 
 <section class="dashboard-grid">
 
-<button class="tile intake" onclick="window.location.href='log.html'">
+<button class="tile intake" type="button" onclick="window.location.href='log.html'">
 <div class="tile-icon">🍽️</div>
 <h2>Log Intake</h2>
-<p>Search foods and add meals to your daily calories.</p>
+<p>Add meals, drinks, snacks, and update today’s calories.</p>
 
 <img
 class="food-illustration"
@@ -63,7 +63,7 @@ alt="Healthy meal bowl with apple and water"
 />
 </button>
 
-<button class="tile progress">
+<button class="tile progress" type="button">
 <div class="tile-icon">📈</div>
 <h2>Progress</h2>
 
@@ -85,7 +85,7 @@ alt="Healthy meal bowl with apple and water"
 
 </section>
 
-<button class="ask-card">
+<button class="ask-card" type="button">
 <div class="ask-content">
 <div class="chat-icon">💬</div>
 <h2>Ask CalBuddy</h2>
@@ -148,7 +148,7 @@ const overAmount = consumed - goal;
 if (badge) badge.textContent = "⚠️ Over Goal";
 if (title) title.textContent = "You’re over today.";
 if (message) message.textContent = `${overAmount.toLocaleString()} calories over your goal.`;
-if (question) question.textContent = `“Want lighter options for the rest of the day?”`;
+if (question) question.textContent = "“Want lighter options for the rest of the day?”";
 }
 
 if (savedGoals) {
