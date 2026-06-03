@@ -566,10 +566,14 @@ min-height: auto;
 }
 }
 .reset-side {
-cursor: pointer;
 align-items: center;
 text-align: center;
 justify-content: center;
+}
+
+.reset-click-area {
+cursor: pointer;
+width: 100%;
 }
 
 .reset-label {
@@ -588,7 +592,7 @@ font-weight: 950;
 }
 
 .reset-options {
-display: none;
+display: none !important;
 margin-top: 12px;
 width: 100%;
 background: #f4fff8;
@@ -597,7 +601,7 @@ padding: 10px;
 }
 
 .reset-options.show {
-display: block;
+display: block !important;
 }
 
 .reset-title {
@@ -610,12 +614,12 @@ font-size: 13px;
 .reset-time-row {
 display: flex;
 align-items: center;
+justify-content: center;
 gap: 5px;
 }
 
 .reset-time-row input,
 .reset-time-row select {
-min-width: 0;
 padding: 7px;
 border-radius: 10px;
 border: 1px solid #d1fae5;
@@ -623,6 +627,26 @@ font-weight: 900;
 font-size: 13px;
 text-align: center;
 background: white;
+}
+
+.reset-time-row input {
+width: 44px;
+}
+
+.reset-time-row select {
+width: 58px;
+}
+
+.reset-save-btn {
+margin-top: 10px;
+width: 100%;
+border: none;
+border-radius: 12px;
+padding: 9px;
+background: #e9f8e8;
+color: #0d8e25;
+font-weight: 950;
+cursor: pointer;
 }
 
 .reset-time-row input {
