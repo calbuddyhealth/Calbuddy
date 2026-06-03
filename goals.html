@@ -19,56 +19,76 @@
 <button class="signin-btn" onclick="window.location.href='index.html'">← Back</button>
 </header>
 
-<section class="hero-card" style="display:block; padding:24px;">
+<section class="hero-card" style="display:block; padding:32px;">
 <h2>🎯 My Goals</h2>
 
-<label>Age</label>
-<input id="age" type="number" placeholder="34" />
-
-<label>Sex</label>
-<select id="sex">
-<option value="male">Male</option>
-<option value="female">Female</option>
-</select>
-
-<label>Current Weight (lbs)</label>
-<input id="weight" type="number" step="0.1" placeholder="185.2" />
-
-<label>Height (inches)</label>
-<input id="height" type="number" step="0.1" placeholder="69.8" />
-<p id="heightConversion" style="font-weight:700; margin-top:-8px;">Equivalent: —</p>
-
-<label>Activity Level</label>
-<select id="activity">
-<option value="1.2">🛋 Sedentary</option>
-<option value="1.375" selected>🚶 Lightly Active</option>
-<option value="1.55">🏃 Moderately Active</option>
-<option value="1.725">🔥 Very Active</option>
-<option value="1.9">⚡ Athlete / Extremely Active</option>
-</select>
-
-<button class="goals-pill" type="button" onclick="toggleActivityGuide()" style="width:100%; margin:10px 0;">
-ⓘ What do these activity levels mean?
-</button>
-
-<div id="activityGuide" style="display:none; font-size:0.9rem; line-height:1.4; margin-bottom:16px;">
-<p><strong>🛋 Sedentary:</strong> Little or no exercise. Mostly sitting.</p>
-<p><strong>🚶 Lightly Active:</strong> Walking often or light exercise 1–3 days/week.</p>
-<p><strong>🏃 Moderately Active:</strong> Exercise 3–5 days/week or active job.</p>
-<p><strong>🔥 Very Active:</strong> Hard exercise 6–7 days/week or physical work.</p>
-<p><strong>⚡ Athlete:</strong> Intense daily training or multiple workouts/day.</p>
+<div style="margin-bottom:18px;">
+  <label>Age</label>
+  <input id="age" type="number" placeholder="34">
 </div>
 
-<label>Target Weight (lbs)</label>
-<input id="targetWeight" type="number" step="0.1" placeholder="175.0" />
+<div style="margin-bottom:18px;">
+  <label>Sex</label>
+  <select id="sex">
+    <option value="male">Male</option>
+    <option value="female">Female</option>
+  </select>
+</div>
 
-<label>Weekly Weight Loss Goal</label>
-<select id="weeklyLoss">
-<option value="0.5">0.5 lb/week</option>
-<option value="1" selected>1 lb/week</option>
-<option value="1.5">1.5 lb/week</option>
-<option value="2">2 lb/week</option>
-</select>
+<div style="margin-bottom:18px;">
+  <label>Current Weight (lbs)</label>
+  <input id="weight" type="number" step="0.1" placeholder="185.2">
+</div>
+
+<div style="margin-bottom:18px;">
+  <label>Height (inches)</label>
+  <input id="height" type="number" step="0.1" placeholder="69.8">
+
+  <p id="heightConversion"
+     style="margin-top:10px; font-weight:700;">
+     Equivalent: —
+  </p>
+</div>
+
+<div style="margin-bottom:18px;">
+  <label>Activity Level</label>
+
+  <select id="activity">
+    <option value="1.2">🛋 Sedentary</option>
+    <option value="1.375" selected>🚶 Lightly Active</option>
+    <option value="1.55">🏃 Moderately Active</option>
+    <option value="1.725">🔥 Very Active</option>
+    <option value="1.9">⚡ Athlete / Extremely Active</option>
+  </select>
+</div>
+
+<button
+  class="goals-pill"
+  type="button"
+  onclick="toggleActivityGuide()"
+  style="width:100%; margin-bottom:20px;"
+>
+  ⓘ What do these activity levels mean?
+</button>
+
+<div style="margin-bottom:18px;">
+  <label>Target Weight (lbs)</label>
+  <input id="targetWeight"
+         type="number"
+         step="0.1"
+         placeholder="175.0">
+</div>
+
+<div style="margin-bottom:28px;">
+  <label>Weekly Weight Loss Goal</label>
+
+  <select id="weeklyLoss">
+    <option value="0.5">0.5 lb/week</option>
+    <option value="1" selected>1 lb/week</option>
+    <option value="1.5">1.5 lb/week</option>
+    <option value="2">2 lb/week</option>
+  </select>
+</div>
 
 <div style="margin-top:20px; padding:18px; border-radius:18px; background:#f4fff8;">
 <h3>Daily Calorie Goal</h3>
