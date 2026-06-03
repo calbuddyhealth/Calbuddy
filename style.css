@@ -435,17 +435,17 @@ box-shadow: 0 8px 18px rgba(0,0,0,0.08);
 }
 
 .robot-illustration {
-width: 72% !important;
-max-width: 280px !important;
+width: 62% !important;
+max-width: 235px !important;
 height: auto !important;
 position: absolute;
-right: -20px;
-bottom: -45px;
+right: -18px;
+bottom: -25px;
 z-index: 3;
 filter:
-brightness(1.18)
-contrast(1.1)
-drop-shadow(0 14px 30px rgba(0,0,0,0.22));
+brightness(1.15)
+contrast(1.08)
+drop-shadow(0 12px 24px rgba(0,0,0,0.18));
 }
 
 /* Hide old homepage sections */
@@ -511,10 +511,10 @@ width: 108px;
 }
 
 .robot-illustration {
-width: 72% !important;
-max-width: 260px !important;
-right: -18px;
-bottom: -35px;
+width: 58% !important;
+max-width: 220px !important;
+right: -12px;
+bottom: -12px;
 }
 }
 
