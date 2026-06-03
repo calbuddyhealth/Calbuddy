@@ -154,7 +154,9 @@ const box = document.getElementById("resetOptions");
 box.classList.toggle("show");
 }
 
-function saveCustomResetTime() {
+function saveCustomResetTime(event) {
+if (event) event.stopPropagation();
+
 const hour = Number(document.getElementById("resetHourInput").value);
 const minute = Number(document.getElementById("resetMinuteInput").value);
 const ampm = document.getElementById("resetAmPmInput").value;
