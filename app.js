@@ -45,7 +45,7 @@ window.location.href = "index.html";
 authButton.textContent = "👤 Sign In";
 
 authButton.onclick = () => {
-window.location.href = "signin.html";
+alert("Sign in page coming soon.");
 };
 }
 });
