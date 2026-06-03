@@ -1,57 +1,84 @@
-// Auth helper functions
+// CalBuddy Auth Helper Functions
 
-// Sign up with email and password
 async function signUp(email, password) {
   const { data, error } = await window.calbuddySupabase.auth.signUp({
-    email: email,
-    password: password
+    email,
+    password
   });
-  
+
   if (error) {
     return { success: false, error: error.message };
   }
-  
+
+  if (data.user) {
+    await createUserProfile(data.user);
+  }
+
   return { success: true, user: data.user };
 }
 
-// Log in with email and password
 async function signIn(email, password) {
   const { data, error } = await window.calbuddySupabase.auth.signInWithPassword({
-    email: email,
-    password: password
+    email,
+    password
   });
-  
+
   if (error) {
     return { success: false, error: error.message };
   }
-  
+
+  if (data.user) {
+    await createUserProfile(data.user);
+  }
+
   return { success: true, user: data.user };
 }
 
-// Log out
 async function signOut() {
   const { error } = await window.calbuddySupabase.auth.signOut();
-  
+
   if (error) {
     return { success: false, error: error.message };
   }
-  
+
   return { success: true };
 }
 
-// Get current session
 async function getCurrentUser() {
-  const { data: { session }, error } = await window.calbuddySupabase.auth.getSession();
-  
-  if (error) {
+  const {
+    data: { session },
+    error
+  } = await window.calbuddySupabase.auth.getSession();
+
+  if (error || !session) {
     return null;
   }
-  
-  return session?.user || null;
+
+  return session.user;
 }
 
-// Check if user is authenticated
 async function isUserAuthenticated() {
   const user = await getCurrentUser();
   return user !== null;
+}
+
+async function createUserProfile(user) {
+  if (!user || !user.id) return;
+
+  const { error } = await window.calbuddySupabase
+    .from("profiles")
+    .upsert(
+      {
+        id: user.id,
+        email: user.email,
+        updated_at: new Date().toISOString()
+      },
+      {
+        onConflict: "id"
+      }
+    );
+
+  if (error) {
+    console.log("Profile save error:", error.message);
+  }
 }
