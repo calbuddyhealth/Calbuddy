@@ -254,20 +254,24 @@ results.innerHTML = "";
 data.foods.forEach(food => {
 if (!food.calories && food.calories !== 0) return;
 
+const calories = Math.round(food.calories);
+
 const card = document.createElement("div");
 card.className = "food-result";
 
 card.innerHTML = `
 <h3>${food.description}</h3>
 <p>${food.brandName ? food.brandName : "USDA FoodData Central"}</p>
-<p><strong>${Math.round(food.calories)} kcal</strong></p>
+<p><strong>${calories} kcal</strong></p>
 <button class="signin-btn add-food-btn">
 Add to ${selectedMealType || "Intake"}
 </button>
 `;
 
-card.querySelector("button").addEventListener("click", () => {
-addToIntake(food.description, Math.round(food.calories), selectedMealType);
+card.querySelector("button").addEventListener("click", event => {
+event.target.disabled = true;
+event.target.textContent = "Added ✅";
+addToIntake(food.description, calories, selectedMealType);
 });
 
 results.appendChild(card);
@@ -282,9 +286,10 @@ function addToIntake(name, calories, category) {
 const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
 const meal = {
-name: name,
-calories: calories,
-category: category,
+id: Date.now(),
+name,
+calories,
+category,
 date: new Date().toISOString().split("T")[0]
 };
 
@@ -292,13 +297,24 @@ meals.push(meal);
 
 localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 
-const todaysMeals = getTodaysMeals();
-const total = todaysMeals.reduce((sum, item) => sum + Number(item.calories), 0);
-
-localStorage.setItem("calbuddyCaloriesConsumed", total);
-
 document.getElementById("successMessage").textContent =
 `✅ Added to ${category}: ${name} — ${calories} kcal`;
+
+document.getElementById("foodSearchInput").value = "";
+document.getElementById("results").innerHTML = "";
+
+renderTodayIntake();
+}
+
+function deleteIntakeItem(id) {
+const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+
+const updatedMeals = meals.filter(meal => meal.id !== id);
+
+localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
+
+document.getElementById("successMessage").textContent =
+"🗑️ Item removed. Calories updated.";
 
 renderTodayIntake();
 }
@@ -327,7 +343,10 @@ itemsDiv.innerHTML = "";
 meals.forEach(meal => {
 const item = document.createElement("div");
 item.className = "intake-item";
-item.textContent = `${meal.category}: ${meal.name} — ${meal.calories} kcal`;
+item.innerHTML = `
+<span>${meal.category}: ${meal.name} — ${meal.calories} kcal</span>
+<button class="delete-intake-btn" onclick="deleteIntakeItem(${meal.id})">🗑️</button>
+`;
 itemsDiv.appendChild(item);
 });
 
@@ -338,6 +357,5 @@ localStorage.setItem("calbuddyCaloriesConsumed", total);
 
 renderTodayIntake();
 </script>
-
 </body>
 </html>
