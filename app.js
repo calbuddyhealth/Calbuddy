@@ -49,3 +49,23 @@ window.location.href= 'signin.html';
 };
 }
 });
+function updateHomeCaloriesFromGoals() {
+const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
+
+if (!savedGoal) return;
+
+const formattedGoal = Number(savedGoal).toLocaleString();
+
+const dailyGoalText = document.getElementById("dailyGoalText");
+const dailyGoalConsumed = document.getElementById("dailyGoalConsumed");
+
+if (dailyGoalText) {
+dailyGoalText.textContent = formattedGoal;
+}
+
+if (dailyGoalConsumed) {
+dailyGoalConsumed.textContent = formattedGoal;
+}
+}
+
+updateHomeCaloriesFromGoals();
