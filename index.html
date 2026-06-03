@@ -43,23 +43,23 @@
 </div>
 
 <div class="status-side">
-<div class="badge">✅ On Track</div>
-<h3>You’re doing great!</h3>
-<p>Keep it up and crush your goal.</p>
+<div class="badge" id="homeStatusBadge">✅ On Track</div>
+<h3 id="homeStatusTitle">You’re doing great!</h3>
+<p id="homeStatusMessage">Keep it up and crush your goal.</p>
 </div>
 </section>
 
 <section class="dashboard-grid">
 
-<button class="tile intake">
+<button class="tile intake" onclick="window.location.href='log.html'">
 <div class="tile-icon">🍽️</div>
 <h2>Log Intake</h2>
-<p>Log breakfast, lunch, dinner, snacks, and drinks.</p>
+<p>Search foods and add meals to your daily calories.</p>
 
-<img 
-  class="food-illustration" 
-  src="assets/food-bowl.svg" 
-  alt="Healthy meal bowl with apple and water"
+<img
+class="food-illustration"
+src="assets/food-bowl.svg"
+alt="Healthy meal bowl with apple and water"
 />
 </button>
 
@@ -67,13 +67,13 @@
 <div class="tile-icon">📈</div>
 <h2>Progress</h2>
 
-<div class="weight-badge">
+<div class="weight-badge" id="currentWeightBadge">
 183 lbs
 <span>Current Weight</span>
 </div>
 
-<h3>4 lb ↓</h3>
-<p>lost this month</p>
+<h3 id="weightProgressText">4 lb ↓</h3>
+<p id="weightProgressSubtext">lost this month</p>
 
 <div class="mini-stats">
 <span>🔥 12 Day Streak</span>
@@ -91,7 +91,7 @@
 <h2>Ask CalBuddy</h2>
 
 <div class="question-bubble" id="calbuddy-question">
-“You have 850 calories left. Need dinner ideas?”
+“Need help choosing your next meal?”
 </div>
 </div>
 
@@ -107,6 +107,72 @@ alt="CalBuddy AI Nutrition Coach"
 </footer>
 
 </main>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
+const savedConsumed = localStorage.getItem("calbuddyCaloriesConsumed") || 0;
+const savedGoals = localStorage.getItem("calbuddyGoals");
+
+const goal = savedGoal ? Number(savedGoal) : 2100;
+const consumed = Number(savedConsumed);
+const caloriesLeft = Math.max(goal - consumed, 0);
+
+const caloriesLeftText = document.getElementById("caloriesLeftText");
+const dailyGoalText = document.getElementById("dailyGoalText");
+const caloriesConsumedText = document.getElementById("caloriesConsumedText");
+const dailyGoalConsumed = document.getElementById("dailyGoalConsumed");
+
+if (caloriesLeftText) caloriesLeftText.textContent = caloriesLeft.toLocaleString();
+if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
+if (caloriesConsumedText) caloriesConsumedText.textContent = consumed.toLocaleString();
+if (dailyGoalConsumed) dailyGoalConsumed.textContent = goal.toLocaleString();
+
+const badge = document.getElementById("homeStatusBadge");
+const title = document.getElementById("homeStatusTitle");
+const message = document.getElementById("homeStatusMessage");
+const question = document.getElementById("calbuddy-question");
+
+if (consumed === 0) {
+if (badge) badge.textContent = "✅ Ready";
+if (title) title.textContent = "Ready when you are!";
+if (message) message.textContent = "Log your first meal to start tracking today.";
+if (question) question.textContent = `“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
+} else if (consumed < goal) {
+if (badge) badge.textContent = "✅ On Track";
+if (title) title.textContent = "You’re doing great!";
+if (message) message.textContent = `${caloriesLeft.toLocaleString()} calories left today.`;
+if (question) question.textContent = `“You have ${caloriesLeft.toLocaleString()} calories left. Need meal ideas?”`;
+} else {
+const overAmount = consumed - goal;
+if (badge) badge.textContent = "⚠️ Over Goal";
+if (title) title.textContent = "You’re over today.";
+if (message) message.textContent = `${overAmount.toLocaleString()} calories over your goal.`;
+if (question) question.textContent = `“Want lighter options for the rest of the day?”`;
+}
+
+if (savedGoals) {
+const goals = JSON.parse(savedGoals);
+
+const currentWeightBadge = document.getElementById("currentWeightBadge");
+const weightProgressText = document.getElementById("weightProgressText");
+const weightProgressSubtext = document.getElementById("weightProgressSubtext");
+
+if (currentWeightBadge && goals.weight) {
+currentWeightBadge.innerHTML = `${goals.weight} lbs <span>Current Weight</span>`;
+}
+
+if (weightProgressText && goals.weight && goals.targetWeight) {
+const remaining = Math.max(Number(goals.weight) - Number(goals.targetWeight), 0).toFixed(1);
+weightProgressText.textContent = `${remaining} lb`;
+}
+
+if (weightProgressSubtext && goals.targetWeight) {
+weightProgressSubtext.textContent = `left to reach ${goals.targetWeight} lbs`;
+}
+}
+});
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
