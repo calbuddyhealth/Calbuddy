@@ -451,6 +451,28 @@ setInterval(updateResetCountdown, 60000);
 
 window.addEventListener("focus", updateHomeCalories);
 window.addEventListener("pageshow", updateHomeCalories);
+
+function toggleMenu() {
+
+const menu = document.getElementById("sideMenu");
+const overlay = document.getElementById("menuOverlay");
+
+menu.classList.toggle("open");
+overlay.classList.toggle("show");
+}
+
+function openCalBuddyChat() {
+
+const askCard = document.querySelector(".ask-card");
+
+if (askCard) {
+askCard.scrollIntoView({
+behavior: "smooth"
+});
+}
+
+toggleMenu();
+}
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
