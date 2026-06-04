@@ -676,3 +676,81 @@ min-height: -webkit-fill-available;
 min-height: auto;
 }
 }
+/* Functional Live Arch Meter */
+
+.live-arch-meter {
+width: 100%;
+height: 104px;
+border-radius: 170px 170px 0 0;
+position: relative;
+background:
+conic-gradient(
+from 270deg,
+#10a6a5 0deg,
+#22c55e 180deg,
+#e3e7ee 180deg,
+#e3e7ee 180deg,
+transparent 180deg,
+transparent 360deg
+);
+filter: drop-shadow(0 8px 14px rgba(16, 166, 165, 0.16));
+transition: background 0.8s ease, filter 0.4s ease;
+overflow: hidden;
+animation: meterGlow 3.5s ease-in-out infinite;
+}
+
+.live-arch-meter::before {
+content: "";
+position: absolute;
+left: 14px;
+right: 14px;
+top: 14px;
+bottom: -1px;
+background: rgba(255, 255, 255, 0.98);
+border-radius: 150px 150px 0 0;
+z-index: 1;
+}
+
+.live-arch-inner {
+position: absolute;
+inset: 0;
+z-index: 2;
+}
+
+.live-arch-inner .meter-text {
+text-align: center;
+padding-top: 31px;
+}
+
+.live-arch-inner .meter-text p {
+margin: 0;
+color: #0a8d24;
+font-weight: 950;
+font-size: 9px;
+letter-spacing: 0.2px;
+}
+
+.live-arch-inner .meter-text h2 {
+margin: 0;
+color: #0b8f1f;
+font-size: 31px;
+line-height: 1;
+font-weight: 950;
+animation: calorieNumberBreath 4s ease-in-out infinite;
+}
+
+.live-arch-inner .meter-text span {
+color: #66708a;
+font-weight: 750;
+font-size: 11px;
+}
+
+.hero-card.meter-yellow .live-arch-inner .meter-text h2,
+.hero-card.meter-yellow .live-arch-inner .meter-text p {
+color: #d97706;
+}
+
+.hero-card.meter-red .live-arch-inner .meter-text h2,
+.hero-card.meter-red .live-arch-inner .meter-text p {
+color: #dc2626;
+}
