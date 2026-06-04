@@ -143,7 +143,7 @@ grid-template-rows: auto auto;
 gap: 6px 8px;
 align-items: center;
 margin-bottom: 10px;
-min-height: 150px;
+min-height: 170px;
 overflow: visible;
 }
 
@@ -680,8 +680,8 @@ min-height: auto;
 
 .live-arch-meter {
 width: 100%;
-height: 104px;
-border-radius: 170px 170px 0 0;
+height: 126px;
+border-radius: 190px 190px 0 0;
 position: relative;
 background:
 conic-gradient(
@@ -696,18 +696,17 @@ transparent 360deg
 filter: drop-shadow(0 8px 14px rgba(16, 166, 165, 0.16));
 transition: background 0.8s ease, filter 0.4s ease;
 overflow: hidden;
-animation: meterGlow 3.5s ease-in-out infinite;
 }
 
 .live-arch-meter::before {
 content: "";
 position: absolute;
-left: 14px;
-right: 14px;
-top: 14px;
-bottom: -1px;
+left: 18px;
+right: 18px;
+top: 18px;
+bottom: -2px;
 background: rgba(255, 255, 255, 0.98);
-border-radius: 150px 150px 0 0;
+border-radius: 170px 170px 0 0;
 z-index: 1;
 }
 
@@ -719,7 +718,7 @@ z-index: 2;
 
 .live-arch-inner .meter-text {
 text-align: center;
-padding-top: 31px;
+padding-top: 38px;
 }
 
 .live-arch-inner .meter-text p {
