@@ -827,3 +827,64 @@ color: #66708a;
 font-weight: 750;
 font-size: 12px;
 }
+/* Premium 3D Alive Meter Polish */
+
+.true-meter-wrap {
+transform: scale(1.08);
+transform-origin: center;
+}
+
+.true-meter-bg {
+stroke: #e4e8ef !important;
+stroke-width: 20 !important;
+filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.08));
+}
+
+.true-meter-fill {
+stroke-width: 20 !important;
+stroke-linecap: round;
+filter:
+drop-shadow(0 6px 8px rgba(16, 166, 165, 0.18))
+drop-shadow(0 0 10px rgba(34, 197, 94, 0.22));
+animation: aliveMeterGlow 3.8s ease-in-out infinite;
+}
+
+.true-meter-fill.meter-fill-green {
+stroke: #18c76b !important;
+}
+
+.true-meter-fill.meter-fill-yellow {
+stroke: #f59e0b !important;
+filter:
+drop-shadow(0 6px 8px rgba(245, 158, 11, 0.22))
+drop-shadow(0 0 10px rgba(251, 191, 36, 0.28));
+}
+
+.true-meter-fill.meter-fill-red {
+stroke: #dc2626 !important;
+filter:
+drop-shadow(0 6px 8px rgba(220, 38, 38, 0.22))
+drop-shadow(0 0 10px rgba(239, 68, 68, 0.28));
+}
+
+.true-meter-text {
+top: 56%;
+}
+
+.true-meter-text h2 {
+text-shadow: 0 4px 10px rgba(11, 143, 31, 0.18);
+}
+
+.true-meter::after {
+content: "";
+}
+
+@keyframes aliveMeterGlow {
+0%, 100% {
+opacity: 0.94;
+}
+
+50% {
+opacity: 1;
+}
+}
