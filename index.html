@@ -259,8 +259,8 @@ document.getElementById("resetOptions").classList.remove("show");
 updateResetCountdown();
 }
 
-function updateResetCountdown() {
-const reset = getResetTime();
+async function updateResetCountdown() {
+const reset = await getResetTime();
 const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
 
 const now = new Date();
