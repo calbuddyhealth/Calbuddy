@@ -36,6 +36,11 @@
 <p>CALORIES LEFT</p>
 <h2 id="caloriesLeftText">850</h2>
 <span>of <span id="dailyGoalText">2,100</span> kcal</span>
+
+<div class="meter-progress-track">
+<div class="meter-progress-fill" id="meterProgressFill"></div>
+</div>
+
 </div>
 </div>
 </div>
@@ -132,6 +137,20 @@ alt="CalBuddy AI Nutrition Coach"
 function safeNumber(value, fallback = 0) {
 const number = Number(value);
 return Number.isFinite(number) ? number : fallback;
+}
+
+function getTodayDate() {
+return new Date().toISOString().split("T")[0];
+}
+
+async function getCurrentUser() {
+if (!window.calbuddySupabase) return null;
+
+const { data, error } = await window.calbuddySupabase.auth.getSession();
+
+if (error || !data.session) return null;
+
+return data.session.user;
 }
 
 function getResetTime() {
@@ -263,6 +282,27 @@ if (trackPill) trackPill.textContent = "Over Goal ⚠️";
 }
 }
 
+function updateMeterFill(consumed, goal) {
+const fill = document.getElementById("meterProgressFill");
+
+if (!fill || !goal) return;
+
+const percentUsed = Math.min(consumed / goal, 1);
+const percentLeft = Math.max(1 - percentUsed, 0);
+
+fill.style.width = `${percentLeft * 100}%`;
+
+fill.classList.remove("fill-green", "fill-yellow", "fill-red");
+
+if (percentUsed < 0.8) {
+fill.classList.add("fill-green");
+} else if (percentUsed <= 1) {
+fill.classList.add("fill-yellow");
+} else {
+fill.classList.add("fill-red");
+}
+}
+
 function updateCalBuddyQuestion(consumed, goal, caloriesLeft) {
 const question = document.getElementById("calbuddy-question");
 
@@ -283,13 +323,45 @@ question.textContent =
 }
 }
 
-function updateHomeCalories() {
+async function getTodaysConsumedCaloriesFromSupabase() {
+const user = await getCurrentUser();
+
+if (!user || !window.calbuddySupabase) return null;
+
+const today = getTodayDate();
+
+const { data, error } = await window.calbuddySupabase
+.from("meals")
+.select("calories")
+.eq("user_id", user.id)
+.eq("nutrition_date", today);
+
+if (error || !data) {
+console.log("Could not load today's meals from Supabase.", error);
+return null;
+}
+
+const total = data.reduce((sum, meal) => {
+return sum + safeNumber(meal.calories, 0);
+}, 0);
+
+localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
+
+return Math.round(total);
+}
+
+async function updateHomeCalories() {
 const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
-const savedConsumed = localStorage.getItem("calbuddyCaloriesConsumed") || 0;
 const savedGoals = localStorage.getItem("calbuddyGoals");
 
 const goal = savedGoal ? safeNumber(savedGoal, 2100) : 2100;
-const consumed = safeNumber(savedConsumed, 0);
+
+let consumed = await getTodaysConsumedCaloriesFromSupabase();
+
+if (consumed === null) {
+consumed = safeNumber(localStorage.getItem("calbuddyCaloriesConsumed") || 0, 0);
+}
+
 const caloriesLeft = Math.max(goal - consumed, 0);
 
 const caloriesLeftText = document.getElementById("caloriesLeftText");
@@ -303,6 +375,7 @@ safeNumber(caloriesLeftText.textContent.replace(/,/g, ""), 0);
 
 animateNumber(caloriesLeftText, currentValue, caloriesLeft);
 updateMeterStatus(consumed, goal);
+updateMeterFill(consumed, goal);
 }
 
 if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
@@ -326,8 +399,8 @@ console.log("Could not read saved goals.");
 }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-updateHomeCalories();
+document.addEventListener("DOMContentLoaded", async () => {
+await updateHomeCalories();
 updateResetCountdown();
 
 setInterval(updateResetCountdown, 60000);
