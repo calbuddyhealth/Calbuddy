@@ -11,29 +11,22 @@
 <main class="app">
 
 <header class="top-bar">
-<!-- Side Menu -->
 
 <div id="sideMenu" class="side-menu">
-
 <button class="close-menu" onclick="toggleMenu()">✕</button>
 
 <a href="index.html">🏠 Home</a>
-
 <a href="log.html">🍽️ Log Intake</a>
-
 <a href="goals.html">🎯 My Goals</a>
-
 <a href="progress.html">📈 Progress</a>
-
 <a href="log.html?mode=favorite">⭐ Favorites</a>
-
 <a href="log.html?mode=history">📖 Meal History</a>
-
+<a href="progress.html#caloriesBurnedSection">🔥 Calories Burned</a>
 <a href="#" onclick="openCalBuddyChat()">💬 Ask CalBuddy</a>
-
 </div>
 
 <div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()"></div>
+
 <button class="menu-btn" onclick="toggleMenu()">☰</button>
 
 <h1 class="logo">
@@ -52,7 +45,7 @@
 <span>Current Weight</span>
 </div>
 
-<section class="hero-card compact-calorie-card">
+<section class="hero-card compact-calorie-card" onclick="window.location.href='progress.html#caloriesBurnedSection'">
 
 <div class="meter-side">
 <div class="true-meter-wrap">
@@ -86,10 +79,11 @@ pathLength="100"
 <div>
 <strong><span id="caloriesConsumedText">0</span> / <span id="dailyGoalConsumed">2,100</span></strong>
 <p>Calories Consumed</p>
+<p class="burned-mini">Burned: <span id="caloriesBurnedText">0</span> kcal</p>
 </div>
 </div>
 
-<div class="status-side reset-side">
+<div class="status-side reset-side" onclick="event.stopPropagation()">
 <div class="reset-click-area" onclick="toggleResetOptions()">
 <p class="reset-label">Resets in:</p>
 <h2 id="resetCountdownText">--h --m</h2>
@@ -216,6 +210,26 @@ if (ampm === "PM" && hour !== 12) return hour + 12;
 return hour;
 }
 
+function toggleMenu() {
+const menu = document.getElementById("sideMenu");
+const overlay = document.getElementById("menuOverlay");
+
+if (!menu || !overlay) return;
+
+menu.classList.toggle("open");
+overlay.classList.toggle("show");
+}
+
+function openCalBuddyChat() {
+const askCard = document.querySelector(".ask-card");
+
+if (askCard) {
+askCard.scrollIntoView({ behavior: "smooth" });
+}
+
+toggleMenu();
+}
+
 function toggleResetOptions() {
 const box = document.getElementById("resetOptions");
 
@@ -296,17 +310,21 @@ requestAnimationFrame(update);
 requestAnimationFrame(update);
 }
 
-function updateMeterStatus(consumed, goal) {
+function updateMeterStatus(consumed, goal, burned = 0) {
 const heroCard = document.querySelector(".hero-card");
 const trackPill = document.getElementById("trackPill");
 
 if (!heroCard || !goal) return;
 
-const percentUsed = consumed / goal;
+const netConsumed = Math.max(consumed - burned, 0);
+const percentUsed = netConsumed / goal;
 
-heroCard.classList.remove("meter-green", "meter-yellow", "meter-red");
+heroCard.classList.remove("meter-green", "meter-yellow", "meter-red", "meter-blue");
 
-if (percentUsed < 0.8) {
+if (burned > 0) {
+heroCard.classList.add("meter-blue");
+if (trackPill) trackPill.textContent = "Deficit Mode 🔵";
+} else if (percentUsed < 0.8) {
 heroCard.classList.add("meter-green");
 if (trackPill) trackPill.textContent = "On Track ✅";
 } else if (percentUsed <= 1) {
@@ -318,14 +336,16 @@ if (trackPill) trackPill.textContent = "Over Goal ⚠️";
 }
 }
 
-function updateLiveArchMeter(consumed, goal) {
+function updateLiveArchMeter(consumed, goal, burned = 0) {
 const fill = document.getElementById("trueMeterFill");
 
 if (!fill || !goal) return;
 
+const netConsumed = Math.max(consumed - burned, 0);
+
 const percentLeft = Math.max(
 0,
-Math.min((goal - consumed) / goal, 1)
+Math.min((goal - netConsumed) / goal, 1)
 );
 
 fill.style.strokeDasharray = "100";
@@ -334,10 +354,13 @@ fill.style.strokeDashoffset = String(100 - percentLeft * 100);
 fill.classList.remove(
 "meter-fill-green",
 "meter-fill-yellow",
-"meter-fill-red"
+"meter-fill-red",
+"meter-fill-blue"
 );
 
-if (percentLeft > 0.4) {
+if (burned > 0) {
+fill.classList.add("meter-fill-blue");
+} else if (percentLeft > 0.4) {
 fill.classList.add("meter-fill-green");
 } else if (percentLeft > 0.15) {
 fill.classList.add("meter-fill-yellow");
@@ -346,12 +369,15 @@ fill.classList.add("meter-fill-red");
 }
 }
 
-function updateCalBuddyQuestion(consumed, goal, caloriesLeft) {
+function updateCalBuddyQuestion(consumed, goal, caloriesLeft, burned = 0) {
 const question = document.getElementById("calbuddy-question");
 
 if (!question) return;
 
-if (consumed === 0) {
+if (burned > 0) {
+question.textContent =
+`“You burned ${burned.toLocaleString()} kcal today. Want help using that deficit wisely?”`;
+} else if (consumed === 0) {
 question.textContent =
 `“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
 } else if (consumed < goal * 0.8) {
@@ -393,10 +419,65 @@ localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
 return Math.round(total);
 }
 
+async function getTodaysCaloriesBurned() {
+const localBurned = safeNumber(localStorage.getItem("calbuddyCaloriesBurned") || 0, 0);
+const user = await getCurrentUser();
+
+if (!user || !window.calbuddySupabase) return localBurned;
+
+const today = getTodayDate();
+
+try {
+const { data, error } = await window.calbuddySupabase
+.from("daily_activity")
+.select("calories_burned")
+.eq("user_id", user.id)
+.eq("activity_date", today)
+.maybeSingle();
+
+if (error || !data) return localBurned;
+
+const burned = safeNumber(data.calories_burned, localBurned);
+localStorage.setItem("calbuddyCaloriesBurned", burned);
+
+return burned;
+} catch {
+return localBurned;
+}
+}
+
+function updateWeightBadgeFromStorage() {
+const savedGoals = localStorage.getItem("calbuddyGoals");
+const currentWeightBadge = document.getElementById("currentWeightBadge");
+
+if (!currentWeightBadge) return;
+
+const localCurrentWeight =
+localStorage.getItem("calbuddyCurrentWeight") ||
+localStorage.getItem("calbuddyLatestWeight");
+
+if (localCurrentWeight) {
+currentWeightBadge.innerHTML =
+`${localCurrentWeight} lbs <span>Current Weight</span>`;
+return;
+}
+
+if (savedGoals) {
+try {
+const goals = JSON.parse(savedGoals);
+
+if (goals.weight) {
+currentWeightBadge.innerHTML =
+`${goals.weight} lbs <span>Current Weight</span>`;
+}
+} catch {
+console.log("Could not read saved goals.");
+}
+}
+}
+
 async function updateHomeCalories() {
 const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
-const savedGoals = localStorage.getItem("calbuddyGoals");
-
 const goal = savedGoal ? safeNumber(savedGoal, 2100) : 2100;
 
 let consumed = await getTodaysConsumedCaloriesFromSupabase();
@@ -405,41 +486,31 @@ if (consumed === null) {
 consumed = safeNumber(localStorage.getItem("calbuddyCaloriesConsumed") || 0, 0);
 }
 
-const caloriesLeft = Math.max(goal - consumed, 0);
+const burned = await getTodaysCaloriesBurned();
+const caloriesLeft = Math.max(goal - consumed + burned, 0);
 
 const caloriesLeftText = document.getElementById("caloriesLeftText");
 const dailyGoalText = document.getElementById("dailyGoalText");
 const caloriesConsumedText = document.getElementById("caloriesConsumedText");
 const dailyGoalConsumed = document.getElementById("dailyGoalConsumed");
+const caloriesBurnedText = document.getElementById("caloriesBurnedText");
 
 if (caloriesLeftText) {
 const currentValue =
 safeNumber(caloriesLeftText.textContent.replace(/,/g, ""), 0);
 
 animateNumber(caloriesLeftText, currentValue, caloriesLeft);
-updateMeterStatus(consumed, goal);
-updateLiveArchMeter(consumed, goal);
+updateMeterStatus(consumed, goal, burned);
+updateLiveArchMeter(consumed, goal, burned);
 }
 
 if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
 if (caloriesConsumedText) caloriesConsumedText.textContent = consumed.toLocaleString();
 if (dailyGoalConsumed) dailyGoalConsumed.textContent = goal.toLocaleString();
+if (caloriesBurnedText) caloriesBurnedText.textContent = burned.toLocaleString();
 
-updateCalBuddyQuestion(consumed, goal, caloriesLeft);
-
-if (savedGoals) {
-try {
-const goals = JSON.parse(savedGoals);
-const currentWeightBadge = document.getElementById("currentWeightBadge");
-
-if (currentWeightBadge && goals.weight) {
-currentWeightBadge.innerHTML =
-`${goals.weight} lbs <span>Current Weight</span>`;
-}
-} catch {
-console.log("Could not read saved goals.");
-}
-}
+updateCalBuddyQuestion(consumed, goal, caloriesLeft, burned);
+updateWeightBadgeFromStorage();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -451,28 +522,6 @@ setInterval(updateResetCountdown, 60000);
 
 window.addEventListener("focus", updateHomeCalories);
 window.addEventListener("pageshow", updateHomeCalories);
-
-function toggleMenu() {
-
-const menu = document.getElementById("sideMenu");
-const overlay = document.getElementById("menuOverlay");
-
-menu.classList.toggle("open");
-overlay.classList.toggle("show");
-}
-
-function openCalBuddyChat() {
-
-const askCard = document.querySelector(".ask-card");
-
-if (askCard) {
-askCard.scrollIntoView({
-behavior: "smooth"
-});
-}
-
-toggleMenu();
-}
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
