@@ -574,3 +574,62 @@ transform: scale(1.04);
 box-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
 }
 }
+/* Dynamic Meter Colors */
+
+.hero-card.meter-green .arch-meter {
+border-top-color: #12943a;
+border-left-color: #10a6a5;
+}
+
+.hero-card.meter-green .meter-text h2 {
+color: #0b8f1f;
+}
+
+.hero-card.meter-green .track-pill {
+background: #eefcef;
+color: #0d8e25;
+border-color: #c7f1cc;
+}
+
+.hero-card.meter-yellow .arch-meter {
+border-top-color: #f59e0b;
+border-left-color: #fbbf24;
+}
+
+.hero-card.meter-yellow .meter-text h2 {
+color: #d97706;
+}
+
+.hero-card.meter-yellow .track-pill {
+background: #fffbeb;
+color: #b45309;
+border-color: #fde68a;
+}
+
+.hero-card.meter-yellow .track-pill::before {
+content: "Close ";
+}
+
+.hero-card.meter-red .arch-meter {
+border-top-color: #dc2626;
+border-left-color: #ef4444;
+}
+
+.hero-card.meter-red .meter-text h2 {
+color: #dc2626;
+}
+
+.hero-card.meter-red .track-pill {
+background: #fff1f2;
+color: #be123c;
+border-color: #fecdd3;
+}
+
+.hero-card.meter-red .track-pill {
+font-size: 0;
+}
+
+.hero-card.meter-red .track-pill::after {
+content: "Over Goal ⚠️";
+font-size: 12px;
+}
