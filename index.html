@@ -28,7 +28,7 @@ position: fixed;
 inset: 0;
 background: rgba(15, 23, 42, 0.45);
 z-index: 9999;
-padding: 18px;
+padding: 14px;
 align-items: flex-end;
 }
 
@@ -39,11 +39,14 @@ display: flex;
 .calbuddy-chat-box {
 width: 100%;
 max-width: 430px;
+max-height: 88vh;
 margin: 0 auto;
 background: white;
 border-radius: 26px;
 padding: 18px;
 box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+display: flex;
+flex-direction: column;
 }
 
 .chat-header-row {
@@ -69,62 +72,86 @@ height: 38px;
 font-size: 20px;
 font-weight: 900;
 cursor: pointer;
+color: #3b82f6;
 }
 
 .chat-messages {
-min-height: 170px;
-max-height: 330px;
+flex: 1;
+min-height: 240px;
+max-height: 55vh;
 overflow-y: auto;
 background: #f8fafc;
-border-radius: 20px;
-padding: 14px;
+border-radius: 22px;
+padding: 16px;
 margin-bottom: 12px;
 }
 
 .chat-message {
-margin-bottom: 10px;
-padding: 11px 13px;
-border-radius: 16px;
-font-weight: 750;
-line-height: 1.35;
-font-size: 14px;
+margin-bottom: 18px;
+font-weight: 800;
+line-height: 1.45;
+font-size: 15px;
+color: #071225;
+white-space: pre-wrap;
+}
+
+.chat-label {
+display: block;
+font-size: 12px;
+color: #64748b;
+font-weight: 950;
+margin-bottom: 5px;
+}
+
+.chat-user,
+.chat-ai {
+background: transparent;
+border: none;
+padding: 0;
 }
 
 .chat-user {
-background: #6d3df2;
-color: white;
-margin-left: 30px;
+margin-left: 28px;
 }
 
 .chat-ai {
-background: white;
-color: #071225;
-margin-right: 20px;
-border: 1px solid #e5e7eb;
+margin-right: 18px;
 }
 
 .chat-input-row {
 display: flex;
 gap: 8px;
+align-items: flex-end;
 }
 
 #calbuddyChatInput {
 flex: 1;
 border: 1px solid #d1d5db;
-border-radius: 16px;
+border-radius: 18px;
 padding: 13px;
 font-size: 15px;
 font-weight: 800;
+min-height: 48px;
+max-height: 130px;
+resize: none;
+overflow-y: auto;
+font-family: inherit;
+line-height: 1.35;
 }
 
 .send-chat-btn {
 border: none;
-border-radius: 16px;
+border-radius: 18px;
 background: #6d3df2;
 color: white;
 font-weight: 950;
-padding: 0 16px;
+padding: 0 17px;
+height: 48px;
 cursor: pointer;
+}
+
+.send-chat-btn:disabled {
+opacity: 0.55;
 }
 </style>
 </head>
@@ -259,13 +286,20 @@ cursor: pointer;
 
 <div id="chatMessages" class="chat-messages">
 <div class="chat-message chat-ai">
+<span class="chat-label">CalBuddy</span>
 Hey, I’m CalBuddy. Ask me about meals, calories, cravings, weight goals, or life stuff. I got you.
 </div>
 </div>
 
 <div class="chat-input-row">
-<input id="calbuddyChatInput" type="text" placeholder="Type question..." onkeydown="handleChatEnter(event)" />
-<button class="send-chat-btn" onclick="sendCalBuddyMessage()">Send</button>
+<textarea
+id="calbuddyChatInput"
+placeholder="Type question..."
+rows="1"
+oninput="autoResizeChatInput()"
+onkeydown="handleChatEnter(event)"
+></textarea>
+<button id="sendChatBtn" class="send-chat-btn" onclick="sendCalBuddyMessage()">Send</button>
 </div>
 </div>
 </div>
@@ -278,8 +312,15 @@ const number = Number(value);
 return Number.isFinite(number) ? number : fallback;
 }
 
+function formatLocalDate(date) {
+const year = date.getFullYear();
+const month = String(date.getMonth() + 1).padStart(2, "0");
+const day = String(date.getDate()).padStart(2, "0");
+return `${year}-${month}-${day}`;
+}
+
 function getTodayDate() {
-return new Date().toISOString().split("T")[0];
+return formatLocalDate(new Date());
 }
 
 async function getCurrentUser() {
@@ -330,6 +371,23 @@ if (ampm === "PM" && hour !== 12) return hour + 12;
 return hour;
 }
 
+async function getNutritionDate() {
+const reset = await getResetTime();
+const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
+
+const now = new Date();
+const resetToday = new Date();
+resetToday.setHours(resetHour24, Number(reset.minute), 0, 0);
+
+const nutritionDate = new Date(now);
+
+if (now < resetToday) {
+nutritionDate.setDate(nutritionDate.getDate() - 1);
+}
+
+return formatLocalDate(nutritionDate);
+}
+
 function toggleMenu() {
 const menu = document.getElementById("sideMenu");
 const overlay = document.getElementById("menuOverlay");
@@ -361,59 +419,127 @@ const overlay = document.getElementById("calbuddyChatOverlay");
 if (overlay) overlay.classList.remove("show");
 }
 
+function autoResizeChatInput() {
+const input = document.getElementById("calbuddyChatInput");
+if (!input) return;
+
+input.style.height = "auto";
+input.style.height = Math.min(input.scrollHeight, 130) + "px";
+}
+
 function addChatMessage(text, sender) {
 const messages = document.getElementById("chatMessages");
 if (!messages) return;
 
 const div = document.createElement("div");
 div.className = `chat-message ${sender === "user" ? "chat-user" : "chat-ai"}`;
-div.textContent = text;
+
+const label = document.createElement("span");
+label.className = "chat-label";
+label.textContent = sender === "user" ? "You" : "CalBuddy";
+
+const body = document.createElement("span");
+body.textContent = text;
+
+div.appendChild(label);
+div.appendChild(body);
 
 messages.appendChild(div);
 messages.scrollTop = messages.scrollHeight;
 }
 
 function handleChatEnter(event) {
-if (event.key === "Enter") {
+if (event.key === "Enter" && !event.shiftKey) {
+event.preventDefault();
 sendCalBuddyMessage();
 }
 }
 
+async function getUserContextForCalBuddy() {
+const dailyGoal = safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 2100);
+const consumed = safeNumber(localStorage.getItem("calbuddyCaloriesConsumed"), 0);
+const burned = safeNumber(localStorage.getItem("calbuddyCaloriesBurned"), 0);
+const caloriesLeft = Math.max(dailyGoal - consumed + burned, 0);
+
+let goals = {};
+try {
+goals = JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
+} catch {
+goals = {};
+}
+
+return {
+caloriesConsumed: consumed,
+dailyGoal,
+caloriesBurned: burned,
+caloriesLeft,
+currentWeight:
+localStorage.getItem("calbuddyCurrentWeight") ||
+localStorage.getItem("calbuddyLatestWeight") ||
+goals.weight ||
+null,
+goalWeight:
+goals.targetWeight ||
+localStorage.getItem("calbuddyGoalWeight") ||
+null,
+coachStyle: localStorage.getItem("calbuddyCoachStyle") || "auto",
+literacyLevel: localStorage.getItem("calbuddyLiteracyLevel") || "standard",
+humorLevel: localStorage.getItem("calbuddyHumorLevel") || "medium"
+};
+}
+
 async function sendCalBuddyMessage() {
 const input = document.getElementById("calbuddyChatInput");
+const button = document.getElementById("sendChatBtn");
 if (!input) return;
 
 const message = input.value.trim();
 if (!message) return;
 
 input.value = "";
+autoResizeChatInput();
+
 addChatMessage(message, "user");
 addChatMessage("Thinking...", "ai");
 
+if (button) button.disabled = true;
+
 try {
+const userContext = await getUserContextForCalBuddy();
+
 const response = await fetch("/api/ask-calbuddy", {
 method: "POST",
 headers: {
 "Content-Type": "application/json"
 },
-body: JSON.stringify({ message })
+body: JSON.stringify({
+message,
+userContext
+})
 });
 
 const data = await response.json();
 
 const messages = document.getElementById("chatMessages");
 const lastMessage = messages.lastElementChild;
+const lastBody = lastMessage?.querySelector("span:last-child");
 
-if (lastMessage && lastMessage.textContent === "Thinking...") {
-lastMessage.textContent = data.reply || "I had trouble answering that. Try again.";
+if (lastBody && lastBody.textContent === "Thinking...") {
+lastBody.textContent =
+data.reply ||
+data.error ||
+"Hmm. I had trouble answering that. Try again.";
 }
 } catch (error) {
 const messages = document.getElementById("chatMessages");
 const lastMessage = messages.lastElementChild;
+const lastBody = lastMessage?.querySelector("span:last-child");
 
-if (lastMessage && lastMessage.textContent === "Thinking...") {
-lastMessage.textContent = "Something glitched. Try again in a second.";
+if (lastBody && lastBody.textContent === "Thinking...") {
+lastBody.textContent = "Something glitched. Try again in a second.";
 }
+} finally {
+if (button) button.disabled = false;
 }
 }
 
@@ -456,6 +582,7 @@ if (error) console.log("Reset time cloud save failed:", error);
 }
 
 document.getElementById("resetOptions").classList.remove("show");
+await updateHomeCalories();
 await updateResetCountdown();
 }
 
@@ -549,60 +676,66 @@ else if (percentLeft > 0.15) fill.classList.add("meter-fill-yellow");
 else fill.classList.add("meter-fill-red");
 }
 
-function updateCalBuddyQuestion() {
-return;
-}
-
 async function getTodaysConsumedCaloriesFromSupabase() {
 const user = await getCurrentUser();
+const nutritionDate = await getNutritionDate();
 
-if (!user || !window.calbuddySupabase) return null;
-
-const today = getTodayDate();
+if (!user || !window.calbuddySupabase) {
+return safeNumber(localStorage.getItem(`calbuddyCaloriesConsumed_${nutritionDate}`), 0);
+}
 
 const { data, error } = await window.calbuddySupabase
 .from("meals")
 .select("calories")
 .eq("user_id", user.id)
-.eq("nutrition_date", today);
+.eq("nutrition_date", nutritionDate);
 
 if (error || !data) {
-console.log("Could not load today's meals from Supabase.", error);
-return null;
+console.log("Could not load meals from Supabase.", error);
+return safeNumber(localStorage.getItem(`calbuddyCaloriesConsumed_${nutritionDate}`), 0);
 }
 
 const total = data.reduce((sum, meal) => {
 return sum + safeNumber(meal.calories, 0);
 }, 0);
 
+localStorage.setItem(`calbuddyCaloriesConsumed_${nutritionDate}`, Math.round(total));
 localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
+localStorage.setItem("calbuddyActiveNutritionDate", nutritionDate);
 
 return Math.round(total);
 }
 
 async function getTodaysCaloriesBurned() {
-const localBurned = safeNumber(localStorage.getItem("calbuddyCaloriesBurned") || 0, 0);
+const nutritionDate = await getNutritionDate();
+const localBurned = safeNumber(localStorage.getItem(`calbuddyCaloriesBurned_${nutritionDate}`), 0);
 const user = await getCurrentUser();
 
-if (!user || !window.calbuddySupabase) return localBurned;
-
-const today = getTodayDate();
+if (!user || !window.calbuddySupabase) {
+localStorage.setItem("calbuddyCaloriesBurned", localBurned);
+return localBurned;
+}
 
 try {
 const { data, error } = await window.calbuddySupabase
 .from("activity_logs")
 .select("calories_burned")
 .eq("user_id", user.id)
-.eq("log_date", today)
+.eq("log_date", nutritionDate)
 .maybeSingle();
 
-if (error || !data) return localBurned;
+if (error || !data) {
+localStorage.setItem("calbuddyCaloriesBurned", localBurned);
+return localBurned;
+}
 
 const burned = safeNumber(data.calories_burned, localBurned);
+localStorage.setItem(`calbuddyCaloriesBurned_${nutritionDate}`, burned);
 localStorage.setItem("calbuddyCaloriesBurned", burned);
 
 return burned;
 } catch {
+localStorage.setItem("calbuddyCaloriesBurned", localBurned);
 return localBurned;
 }
 }
@@ -641,13 +774,19 @@ async function updateHomeCalories() {
 const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
 const goal = savedGoal ? safeNumber(savedGoal, 2100) : 2100;
 
-let consumed = await getTodaysConsumedCaloriesFromSupabase();
+const nutritionDate = await getNutritionDate();
+const lastActiveDate = localStorage.getItem("calbuddyActiveNutritionDate");
 
-if (consumed === null) {
-consumed = safeNumber(localStorage.getItem("calbuddyCaloriesConsumed") || 0, 0);
+if (lastActiveDate && lastActiveDate !== nutritionDate) {
+localStorage.setItem("calbuddyCaloriesConsumed", 0);
+localStorage.setItem("calbuddyCaloriesBurned", 0);
 }
 
+localStorage.setItem("calbuddyActiveNutritionDate", nutritionDate);
+
+let consumed = await getTodaysConsumedCaloriesFromSupabase();
 const burned = await getTodaysCaloriesBurned();
+
 const caloriesLeft = Math.max(goal - consumed + burned, 0);
 
 const caloriesLeftText = document.getElementById("caloriesLeftText");
@@ -677,7 +816,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 await updateHomeCalories();
 await updateResetCountdown();
 
-setInterval(updateResetCountdown, 60000);
+setInterval(async () => {
+await updateResetCountdown();
+await updateHomeCalories();
+}, 60000);
 });
 
 window.addEventListener("focus", updateHomeCalories);
