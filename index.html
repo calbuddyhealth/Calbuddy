@@ -54,7 +54,7 @@
 <h2 id="resetCountdownText">--h --m</h2>
 </div>
 
-<div class="track-pill">On Track ✅</div>
+<div class="track-pill" id="trackPill">On Track ✅</div>
 
 <div id="resetOptions" class="reset-options" onclick="event.stopPropagation()">
 <p class="reset-title">Reset Time</p>
@@ -129,11 +129,20 @@ alt="CalBuddy AI Nutrition Coach"
 </main>
 
 <script>
+function safeNumber(value, fallback = 0) {
+const number = Number(value);
+return Number.isFinite(number) ? number : fallback;
+}
+
 function getResetTime() {
 const saved = localStorage.getItem("calbuddyResetTime");
 
 if (saved) {
+try {
 return JSON.parse(saved);
+} catch {
+return { hour: 4, minute: 0, ampm: "AM" };
+}
 }
 
 return {
@@ -213,42 +222,106 @@ if (minuteInput) minuteInput.value = String(reset.minute).padStart(2, "0");
 if (ampmInput) ampmInput.value = reset.ampm;
 }
 
+function animateNumber(element, start, end) {
+const duration = 800;
+const startTime = performance.now();
+
+function update(currentTime) {
+const progress = Math.min((currentTime - startTime) / duration, 1);
+const easedProgress = 1 - Math.pow(1 - progress, 3);
+const value = Math.round(start + (end - start) * easedProgress);
+
+element.textContent = value.toLocaleString();
+
+if (progress < 1) {
+requestAnimationFrame(update);
+}
+}
+
+requestAnimationFrame(update);
+}
+
+function updateMeterStatus(consumed, goal) {
+const heroCard = document.querySelector(".hero-card");
+const trackPill = document.getElementById("trackPill");
+
+if (!heroCard || !goal) return;
+
+const percentUsed = consumed / goal;
+
+heroCard.classList.remove("meter-green", "meter-yellow", "meter-red");
+
+if (percentUsed < 0.8) {
+heroCard.classList.add("meter-green");
+if (trackPill) trackPill.textContent = "On Track ✅";
+} else if (percentUsed <= 1) {
+heroCard.classList.add("meter-yellow");
+if (trackPill) trackPill.textContent = "Close ⚠️";
+} else {
+heroCard.classList.add("meter-red");
+if (trackPill) trackPill.textContent = "Over Goal ⚠️";
+}
+}
+
+function updateCalBuddyQuestion(consumed, goal, caloriesLeft) {
+const question = document.getElementById("calbuddy-question");
+
+if (!question) return;
+
+if (consumed === 0) {
+question.textContent =
+`“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
+} else if (consumed < goal * 0.8) {
+question.textContent =
+`“You have ${caloriesLeft.toLocaleString()} calories left. Need dinner ideas?”`;
+} else if (consumed <= goal) {
+question.textContent =
+`“You’re close to your goal. Want a lighter option?”`;
+} else {
+question.textContent =
+"“Over goal? No panic. Want help planning tomorrow?”";
+}
+}
+
 function updateHomeCalories() {
 const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
 const savedConsumed = localStorage.getItem("calbuddyCaloriesConsumed") || 0;
 const savedGoals = localStorage.getItem("calbuddyGoals");
 
-const goal = savedGoal ? Number(savedGoal) : 2100;
-const consumed = Number(savedConsumed);
+const goal = savedGoal ? safeNumber(savedGoal, 2100) : 2100;
+const consumed = safeNumber(savedConsumed, 0);
 const caloriesLeft = Math.max(goal - consumed, 0);
 
 const caloriesLeftText = document.getElementById("caloriesLeftText");
 const dailyGoalText = document.getElementById("dailyGoalText");
 const caloriesConsumedText = document.getElementById("caloriesConsumedText");
 const dailyGoalConsumed = document.getElementById("dailyGoalConsumed");
-const question = document.getElementById("calbuddy-question");
 
-if (caloriesLeftText) caloriesLeftText.textContent = caloriesLeft.toLocaleString();
+if (caloriesLeftText) {
+const currentValue =
+safeNumber(caloriesLeftText.textContent.replace(/,/g, ""), 0);
+
+animateNumber(caloriesLeftText, currentValue, caloriesLeft);
+updateMeterStatus(consumed, goal);
+}
+
 if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
 if (caloriesConsumedText) caloriesConsumedText.textContent = consumed.toLocaleString();
 if (dailyGoalConsumed) dailyGoalConsumed.textContent = goal.toLocaleString();
 
-if (question) {
-if (consumed === 0) {
-question.textContent = `“You have ${goal.toLocaleString()} calories available. Want meal ideas?”`;
-} else if (consumed < goal) {
-question.textContent = `“You have ${caloriesLeft.toLocaleString()} calories left. Need dinner ideas?”`;
-} else {
-question.textContent = "“Want lighter options for the rest of the day?”";
-}
-}
+updateCalBuddyQuestion(consumed, goal, caloriesLeft);
 
 if (savedGoals) {
+try {
 const goals = JSON.parse(savedGoals);
 const currentWeightBadge = document.getElementById("currentWeightBadge");
 
 if (currentWeightBadge && goals.weight) {
-currentWeightBadge.innerHTML = `${goals.weight} lbs <span>Current Weight</span>`;
+currentWeightBadge.innerHTML =
+`${goals.weight} lbs <span>Current Weight</span>`;
+}
+} catch {
+console.log("Could not read saved goals.");
 }
 }
 }
@@ -256,8 +329,12 @@ currentWeightBadge.innerHTML = `${goals.weight} lbs <span>Current Weight</span>`
 document.addEventListener("DOMContentLoaded", () => {
 updateHomeCalories();
 updateResetCountdown();
+
 setInterval(updateResetCountdown, 60000);
 });
+
+window.addEventListener("focus", updateHomeCalories);
+window.addEventListener("pageshow", updateHomeCalories);
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
