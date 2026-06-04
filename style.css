@@ -962,3 +962,60 @@ z-index: 9998;
 opacity: 1;
 visibility: visible;
 }
+/* Thicker 3D meter + deficit glow */
+
+.true-meter-bg {
+stroke-width: 22 !important;
+stroke: #e1e7ef !important;
+filter:
+drop-shadow(0 7px 12px rgba(15, 23, 42, 0.10));
+}
+
+.true-meter-fill {
+stroke-width: 22 !important;
+stroke-linecap: round;
+filter:
+drop-shadow(0 7px 10px rgba(34, 197, 94, 0.20))
+drop-shadow(0 0 10px rgba(34, 197, 94, 0.20));
+animation: meterAliveGlow 3.6s ease-in-out infinite;
+}
+
+.true-meter-fill.meter-fill-green {
+stroke: #22c55e !important;
+}
+
+.true-meter-fill.meter-fill-yellow {
+stroke: #f59e0b !important;
+filter:
+drop-shadow(0 7px 10px rgba(245, 158, 11, 0.22))
+drop-shadow(0 0 10px rgba(245, 158, 11, 0.25));
+}
+
+.true-meter-fill.meter-fill-red {
+stroke: #dc2626 !important;
+filter:
+drop-shadow(0 7px 10px rgba(220, 38, 38, 0.22))
+drop-shadow(0 0 10px rgba(220, 38, 38, 0.25));
+}
+
+.hero-card.meter-blue .true-meter-fill {
+filter:
+drop-shadow(0 7px 10px rgba(34, 197, 94, 0.25))
+drop-shadow(0 0 18px rgba(59, 130, 246, 0.35));
+}
+
+.hero-card.meter-blue .track-pill {
+box-shadow:
+0 0 14px rgba(59, 130, 246, 0.24),
+inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+@keyframes meterAliveGlow {
+0%, 100% {
+opacity: 0.94;
+}
+
+50% {
+opacity: 1;
+}
+}
