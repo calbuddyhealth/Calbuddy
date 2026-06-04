@@ -153,22 +153,86 @@ grid-row: 1;
 min-width: 0;
 }
 
-.arch-meter {
-height: 96px;
-border-top: 11px solid #12943a;
-border-left: 11px solid #10a6a5;
-border-right: 11px solid #e3e7ee;
-border-bottom: none;
-border-radius: 170px 170px 0 0;
+/* Functional 3D SVG Calories Meter */
+
+.svg-meter-wrap {
 position: relative;
+width: 100%;
+height: 104px;
 }
 
-.meter-text {
+.calorie-svg-meter {
+width: 100%;
+height: 112px;
+display: block;
+overflow: visible;
+}
+
+.meter-bg-arc {
+fill: none;
+stroke: #e3e7ee;
+stroke-width: 16;
+stroke-linecap: round;
+}
+
+.meter-fill-arc {
+fill: none;
+stroke: url(#meterGreenGradient);
+stroke-width: 16;
+stroke-linecap: round;
+stroke-dasharray: 267;
+stroke-dashoffset: 0;
+filter: url(#meterSoftShadow);
+transition:
+stroke-dashoffset 0.85s ease,
+stroke 0.35s ease;
+animation: meterGlow 3.5s ease-in-out infinite;
+}
+
+.meter-fill-arc.arc-green {
+stroke: url(#meterGreenGradient);
+}
+
+.meter-fill-arc.arc-yellow {
+stroke: url(#meterYellowGradient);
+}
+
+.meter-fill-arc.arc-red {
+stroke: url(#meterRedGradient);
+}
+
+.meter-cap {
+fill: #22c55e;
+filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.25));
+transition:
+cx 0.85s ease,
+cy 0.85s ease,
+fill 0.35s ease;
+}
+
+.meter-cap.cap-green {
+fill: #22c55e;
+}
+
+.meter-cap.cap-yellow {
+fill: #f59e0b;
+}
+
+.meter-cap.cap-red {
+fill: #dc2626;
+}
+
+.svg-meter-text {
+position: absolute;
+left: 50%;
+top: 54%;
+transform: translate(-50%, -50%);
+width: 82%;
 text-align: center;
-padding-top: 20px;
+pointer-events: none;
 }
 
-.meter-text p {
+.svg-meter-text p {
 margin: 0;
 color: #0a8d24;
 font-weight: 950;
@@ -176,19 +240,22 @@ font-size: 9px;
 letter-spacing: 0.2px;
 }
 
-.meter-text h2 {
+.svg-meter-text h2 {
 margin: 0;
 color: #0b8f1f;
 font-size: 31px;
 line-height: 1;
 font-weight: 950;
+animation: calorieNumberBreath 4s ease-in-out infinite;
 }
 
-.meter-text span {
+.svg-meter-text span {
 color: #66708a;
 font-weight: 750;
 font-size: 11px;
 }
+
+/* Consumed Calories */
 
 .consumed-inline {
 grid-column: 1;
@@ -223,6 +290,8 @@ font-weight: 800;
 font-size: 10px;
 line-height: 1.1;
 }
+
+/* Status Side */
 
 .status-side {
 grid-column: 2;
@@ -266,6 +335,42 @@ padding: 6px 10px;
 font-weight: 950;
 font-size: 12px;
 white-space: nowrap;
+animation: trackPulse 3.8s ease-in-out infinite;
+}
+
+/* Dynamic Meter Colors */
+
+.hero-card.meter-green .svg-meter-text h2,
+.hero-card.meter-green .svg-meter-text p {
+color: #0b8f1f;
+}
+
+.hero-card.meter-green .track-pill {
+background: #eefcef;
+color: #0d8e25;
+border-color: #c7f1cc;
+}
+
+.hero-card.meter-yellow .svg-meter-text h2,
+.hero-card.meter-yellow .svg-meter-text p {
+color: #d97706;
+}
+
+.hero-card.meter-yellow .track-pill {
+background: #fffbeb;
+color: #b45309;
+border-color: #fde68a;
+}
+
+.hero-card.meter-red .svg-meter-text h2,
+.hero-card.meter-red .svg-meter-text p {
+color: #dc2626;
+}
+
+.hero-card.meter-red .track-pill {
+background: #fff1f2;
+color: #be123c;
+border-color: #fecdd3;
 }
 
 /* Reset Options */
@@ -457,6 +562,44 @@ footer,
 display: none !important;
 }
 
+/* Animations */
+
+@keyframes meterGlow {
+0%, 100% {
+filter:
+url(#meterSoftShadow)
+drop-shadow(0 0 0 rgba(20, 184, 166, 0));
+}
+
+50% {
+filter:
+url(#meterSoftShadow)
+drop-shadow(0 0 10px rgba(20, 184, 166, 0.35));
+}
+}
+
+@keyframes calorieNumberBreath {
+0%, 100% {
+transform: scale(1);
+}
+
+50% {
+transform: scale(1.035);
+}
+}
+
+@keyframes trackPulse {
+0%, 100% {
+transform: scale(1);
+box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+}
+
+50% {
+transform: scale(1.04);
+box-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
+}
+}
+
 /* Very small phones */
 
 @media (max-width: 390px) {
@@ -484,11 +627,15 @@ min-height: 148px;
 padding: 10px;
 }
 
-.arch-meter {
-height: 92px;
+.svg-meter-wrap {
+height: 100px;
 }
 
-.meter-text h2 {
+.calorie-svg-meter {
+height: 108px;
+}
+
+.svg-meter-text h2 {
 font-size: 29px;
 }
 
@@ -528,137 +675,4 @@ min-height: -webkit-fill-available;
 .app {
 min-height: auto;
 }
-}
-/* Alive Calories Meter */
-
-.arch-meter {
-animation: meterGlow 3.5s ease-in-out infinite;
-}
-
-.meter-text h2 {
-animation: calorieNumberBreath 4s ease-in-out infinite;
-}
-
-.track-pill {
-animation: trackPulse 3.8s ease-in-out infinite;
-}
-
-@keyframes meterGlow {
-0%, 100% {
-filter: drop-shadow(0 0 0 rgba(20, 184, 166, 0));
-}
-
-50% {
-filter: drop-shadow(0 0 10px rgba(20, 184, 166, 0.35));
-}
-}
-
-@keyframes calorieNumberBreath {
-0%, 100% {
-transform: scale(1);
-}
-
-50% {
-transform: scale(1.035);
-}
-}
-
-@keyframes trackPulse {
-0%, 100% {
-transform: scale(1);
-box-shadow: 0 0 0 rgba(34, 197, 94, 0);
-}
-
-50% {
-transform: scale(1.04);
-box-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
-}
-}
-/* Dynamic Meter Colors */
-
-.hero-card.meter-green .arch-meter {
-border-top-color: #12943a;
-border-left-color: #10a6a5;
-}
-
-.hero-card.meter-green .meter-text h2 {
-color: #0b8f1f;
-}
-
-.hero-card.meter-green .track-pill {
-background: #eefcef;
-color: #0d8e25;
-border-color: #c7f1cc;
-}
-
-.hero-card.meter-yellow .arch-meter {
-border-top-color: #f59e0b;
-border-left-color: #fbbf24;
-}
-
-.hero-card.meter-yellow .meter-text h2 {
-color: #d97706;
-}
-
-.hero-card.meter-yellow .track-pill {
-background: #fffbeb;
-color: #b45309;
-border-color: #fde68a;
-}
-
-.hero-card.meter-yellow .track-pill::before {
-content: "Close ";
-}
-
-.hero-card.meter-red .arch-meter {
-border-top-color: #dc2626;
-border-left-color: #ef4444;
-}
-
-.hero-card.meter-red .meter-text h2 {
-color: #dc2626;
-}
-
-.hero-card.meter-red .track-pill {
-background: #fff1f2;
-color: #be123c;
-border-color: #fecdd3;
-}
-
-.hero-card.meter-red .track-pill {
-font-size: 0;
-}
-
-.hero-card.meter-red .track-pill::after {
-content: "Over Goal ⚠️";
-font-size: 12px;
-}
-/* Meter Fill Bar */
-
-.meter-progress-track {
-width: 76%;
-height: 7px;
-margin: 6px auto 0;
-background: #e5e7eb;
-border-radius: 999px;
-overflow: hidden;
-}
-
-.meter-progress-fill {
-height: 100%;
-width: 100%;
-border-radius: 999px;
-transition: width 0.8s ease, background-color 0.4s ease;
-}
-
-.meter-progress-fill.fill-green {
-background: linear-gradient(90deg, #10a6a5, #22c55e);
-}
-
-.meter-progress-fill.fill-yellow {
-background: linear-gradient(90deg, #fbbf24, #f59e0b);
-}
-
-.meter-progress-fill.fill-red {
-background: linear-gradient(90deg, #ef4444, #dc2626);
 }
