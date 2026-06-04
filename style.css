@@ -763,7 +763,8 @@ height: 118px;
 
 .true-meter {
 width: 100%;
-height: 120px;
+height: auto;
+transform: translateY(-18px);
 overflow: visible;
 }
 
