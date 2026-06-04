@@ -30,17 +30,15 @@
 </div>
 
 <section class="hero-card compact-calorie-card">
+
 <div class="meter-side">
-<div class="arch-meter">
+<div class="live-arch-meter" id="liveArchMeter">
+<div class="live-arch-inner">
 <div class="meter-text">
 <p>CALORIES LEFT</p>
 <h2 id="caloriesLeftText">850</h2>
 <span>of <span id="dailyGoalText">2,100</span> kcal</span>
-
-<div class="meter-progress-track">
-<div class="meter-progress-fill" id="meterProgressFill"></div>
 </div>
-
 </div>
 </div>
 </div>
@@ -282,25 +280,39 @@ if (trackPill) trackPill.textContent = "Over Goal ⚠️";
 }
 }
 
-function updateMeterFill(consumed, goal) {
-const fill = document.getElementById("meterProgressFill");
+function updateLiveArchMeter(consumed, goal) {
+const meter = document.getElementById("liveArchMeter");
 
-if (!fill || !goal) return;
+if (!meter || !goal) return;
 
 const percentUsed = Math.min(consumed / goal, 1);
 const percentLeft = Math.max(1 - percentUsed, 0);
+const degrees = Math.round(percentLeft * 180);
 
-fill.style.width = `${percentLeft * 100}%`;
+let mainColor = "#22c55e";
+let accentColor = "#10a6a5";
 
-fill.classList.remove("fill-green", "fill-yellow", "fill-red");
-
-if (percentUsed < 0.8) {
-fill.classList.add("fill-green");
-} else if (percentUsed <= 1) {
-fill.classList.add("fill-yellow");
-} else {
-fill.classList.add("fill-red");
+if (percentUsed >= 0.8 && percentUsed <= 1) {
+mainColor = "#f59e0b";
+accentColor = "#fbbf24";
 }
+
+if (percentUsed > 1) {
+mainColor = "#dc2626";
+accentColor = "#ef4444";
+}
+
+meter.style.background = `
+conic-gradient(
+from 270deg,
+${accentColor} 0deg,
+${mainColor} ${degrees}deg,
+#e3e7ee ${degrees}deg,
+#e3e7ee 180deg,
+transparent 180deg,
+transparent 360deg
+)
+`;
 }
 
 function updateCalBuddyQuestion(consumed, goal, caloriesLeft) {
@@ -375,7 +387,7 @@ safeNumber(caloriesLeftText.textContent.replace(/,/g, ""), 0);
 
 animateNumber(caloriesLeftText, currentValue, caloriesLeft);
 updateMeterStatus(consumed, goal);
-updateMeterFill(consumed, goal);
+updateLiveArchMeter(consumed, goal);
 }
 
 if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
