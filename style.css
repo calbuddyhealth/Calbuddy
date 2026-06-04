@@ -888,3 +888,77 @@ opacity: 0.94;
 opacity: 1;
 }
 }
+/* ==========================
+HAMBURGER MENU
+========================== */
+
+.side-menu {
+position: fixed;
+top: 0;
+left: -280px;
+width: 260px;
+height: 100%;
+background: white;
+z-index: 9999;
+
+display: flex;
+flex-direction: column;
+
+padding: 80px 22px 22px;
+
+box-shadow:
+0 0 40px rgba(0,0,0,0.18);
+
+transition: left 0.28s ease;
+}
+
+.side-menu.open {
+left: 0;
+}
+
+.side-menu a {
+text-decoration: none;
+color: #071225;
+
+font-weight: 800;
+font-size: 18px;
+
+padding: 14px 0;
+
+border-bottom: 1px solid #eef2f7;
+}
+
+.side-menu a:hover {
+color: #6d3df2;
+}
+
+.close-menu {
+position: absolute;
+top: 20px;
+right: 20px;
+
+border: none;
+background: transparent;
+
+font-size: 24px;
+cursor: pointer;
+}
+
+.menu-overlay {
+position: fixed;
+inset: 0;
+
+background: rgba(0,0,0,0.35);
+
+opacity: 0;
+visibility: hidden;
+
+transition: all 0.25s ease;
+
+z-index: 9998;
+}
+
+.menu-overlay.show {
+opacity: 1;
+visibility: visible;
+}
