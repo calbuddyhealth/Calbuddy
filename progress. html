@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Progress - CalBuddy</title>
+<link rel="stylesheet" href="style.css" />
+
+<style>
+.progress-page-card {
+padding: 22px;
+}
+
+.progress-title {
+font-size: 28px;
+font-weight: 950;
+color: #063ba8;
+margin: 10px 0 18px;
+}
+
+.progress-section {
+background: #f8fafc;
+border-radius: 22px;
+padding: 18px;
+margin-bottom: 16px;
+}
+
+.progress-section h2 {
+margin: 0 0 14px;
+font-size: 20px;
+}
+
+.forecast-grid {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 12px;
+}
+
+.forecast-box {
+background: white;
+border-radius: 18px;
+padding: 14px;
+font-weight: 900;
+box-shadow: 0 8px 18px rgba(17,24,39,0.07);
+}
+
+.forecast-box span {
+display: block;
+color: #64748b;
+font-size: 12px;
+margin-bottom: 5px;
+}
+
+.progress-input {
+width: 100%;
+padding: 14px;
+border-radius: 16px;
+border: 1px solid #d8d8d8;
+font-size: 16px;
+font-weight: 800;
+margin-bottom: 10px;
+}
+
+.progress-save-btn {
+width: 100%;
+padding: 14px;
+border-radius: 18px;
+border: none;
+background: #6d3df2;
+color: white;
+font-weight: 950;
+font-size: 16px;
+}
+
+.energy-balance {
+background: #eff6ff;
+border: 1px solid #bfdbfe;
+}
+
+.balance-row {
+display: flex;
+justify-content: space-between;
+font-weight: 900;
+margin: 10px 0;
+}
+
+.deficit-good {
+color: #0284c7;
+}
+
+.graph-placeholder {
+height: 180px;
+background: linear-gradient(145deg, #ffffff, #eef6ff);
+border-radius: 22px;
+display: flex;
+align-items: center;
+justify-content: center;
+font-weight: 950;
+color: #64748b;
+text-align: center;
+}
+
+.success-message {
+margin-top: 10px;
+color: #16a34a;
+font-weight: 950;
+text-align: center;
+}
+</style>
+</head>
+
+<body>
+<main class="app">
+
+<header class="top-bar">
+<button class="menu-btn" onclick="window.location.href='index.html'">☰</button>
+
+<h1 class="logo">
+<span class="cal">Cal</span><span class="buddy">Buddy</span>
+</h1>
+
+<button class="signin-btn" onclick="window.location.href='index.html'">← Back</button>
+</header>
+
+<section class="hero-card progress-page-card">
+
+<h1 class="progress-title">📈 Progress</h1>
+
+<div class="progress-section">
+<h2>Weight Forecast</h2>
+
+<div class="forecast-grid">
+<div class="forecast-box">
+<span>Starting Weight</span>
+<div id="startingWeightText">-- lbs</div>
+</div>
+
+<div class="forecast-box">
+<span>Current Weight</span>
+<div id="currentWeightText">-- lbs</div>
+</div>
+
+<div class="forecast-box">
+<span>Goal Weight</span>
+<div id="goalWeightText">-- lbs</div>
+</div>
+
+<div class="forecast-box">
+<span>Estimated Goal Date</span>
+<div id="goalDateText">Calculating...</div>
+</div>
+</div>
+</div>
+
+<div class="progress-section">
+<h2>Log Today’s Weight</h2>
+
+<input
+id="todayWeightInput"
+class="progress-input"
+type="number"
+step="0.1"
+placeholder="Example: 199.0"
+/>
+
+<button class="progress-save-btn" onclick="saveTodayWeight()">Save Weight</button>
+
+<div id="weightSuccess" class="success-message"></div>
+</div>
+
+<div class="progress-section">
+<h2>Calories Burned Today</h2>
+
+<input
+id="caloriesBurnedInput"
+class="progress-input"
+type="number"
+step="1"
+placeholder="Example: 350"
+/>
+
+<button class="progress-save-btn" onclick="saveCaloriesBurned()">Save Calories Burned</button>
+
+<div id="burnSuccess" class="success-message"></div>
+</div>
+
+<div class="progress-section energy-balance">
+<h2>Energy Balance</h2>
+
+<div class="balance-row">
+<span>Calories Consumed</span>
+<span id="balanceConsumed">0 kcal</span>
+</div>
+
+<div class="balance-row">
+<span>Calories Burned</span>
+<span id="balanceBurned">0 kcal</span>
+</div>
+
+<div class="balance-row">
+<span>Daily Goal</span>
+<span id="balanceGoal">2,100 kcal</span>
+</div>
+
+<hr />
+
+<div class="balance-row deficit-good">
+<span>Estimated Deficit</span>
+<span id="balanceDeficit">0 kcal</span>
+</div>
+</div>
+
+<div class="progress-section">
+<h2>Weight Goal Graph</h2>
+
+<div class="graph-placeholder">
+Graph coming next:<br />
+Current Weight → 🏆 Goal Weight
+</div>
+</div>
+
+</section>
+
+</main>
+
+<script>
+function safeNumber(value, fallback = 0) {
+const number = Number(value);
+return Number.isFinite(number) ? number : fallback;
+}
+
+function getTodayDate() {
+return new Date().toISOString().split("T")[0];
+}
+
+function loadProgressData() {
+const goals = JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
+
+const startingWeight =
+safeNumber(localStorage.getItem("calbuddyStartingWeight"), goals.weight || 199);
+
+const currentWeight =
+safeNumber(localStorage.getItem("calbuddyCurrentWeight"), goals.weight || 199);
+
+const goalWeight =
+safeNumber(goals.targetWeight, 185);
+
+const dailyGoal =
+safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 2100);
+
+const consumed =
+safeNumber(localStorage.getItem("calbuddyCaloriesConsumed"), 0);
+
+const burned =
+safeNumber(localStorage.getItem("calbuddyCaloriesBurned"), 0);
+
+document.getElementById("startingWeightText").textContent = `${startingWeight} lbs`;
+document.getElementById("currentWeightText").textContent = `${currentWeight} lbs`;
+document.getElementById("goalWeightText").textContent = `${goalWeight} lbs`;
+
+document.getElementById("balanceConsumed").textContent = `${consumed.toLocaleString()} kcal`;
+document.getElementById("balanceBurned").textContent = `${burned.toLocaleString()} kcal`;
+document.getElementById("balanceGoal").textContent = `${dailyGoal.toLocaleString()} kcal`;
+
+const deficit = Math.max(dailyGoal - consumed + burned, 0);
+document.getElementById("balanceDeficit").textContent = `${deficit.toLocaleString()} kcal`;
+
+estimateGoalDate(currentWeight, goalWeight, deficit);
+}
+
+function estimateGoalDate(currentWeight, goalWeight, dailyDeficit) {
+const goalDateText = document.getElementById("goalDateText");
+
+const poundsToLose = currentWeight - goalWeight;
+
+if (poundsToLose <= 0) {
+goalDateText.textContent = "Goal reached 🏆";
+return;
+}
+
+if (dailyDeficit <= 0) {
+goalDateText.textContent = "Need deficit";
+return;
+}
+
+const caloriesPerPound = 3500;
+const daysToGoal = Math.ceil((poundsToLose * caloriesPerPound) / dailyDeficit);
+
+const estimatedDate = new Date();
+estimatedDate.setDate(estimatedDate.getDate() + daysToGoal);
+
+goalDateText.textContent = estimatedDate.toLocaleDateString(undefined, {
+month: "short",
+day: "numeric",
+year: "numeric"
+});
+}
+
+function saveTodayWeight() {
+const weight = safeNumber(document.getElementById("todayWeightInput").value, 0);
+
+if (!weight || weight <= 0) {
+document.getElementById("weightSuccess").textContent = "Enter a valid weight.";
+return;
+}
+
+localStorage.setItem("calbuddyCurrentWeight", weight);
+
+const goals = JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
+goals.weight = weight;
+localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
+
+const weightLogs = JSON.parse(localStorage.getItem("calbuddyWeightLogs") || "[]");
+
+weightLogs.push({
+date: getTodayDate(),
+weight
+});
+
+localStorage.setItem("calbuddyWeightLogs", JSON.stringify(weightLogs));
+
+document.getElementById("weightSuccess").textContent =
+"✅ Weight saved. Homepage will update.";
+
+document.getElementById("todayWeightInput").value = "";
+
+loadProgressData();
+}
+
+function saveCaloriesBurned() {
+const burned = safeNumber(document.getElementById("caloriesBurnedInput").value, 0);
+
+if (burned < 0) {
+document.getElementById("burnSuccess").textContent = "Enter a valid number.";
+return;
+}
+
+localStorage.setItem("calbuddyCaloriesBurned", burned);
+
+document.getElementById("burnSuccess").textContent =
+"✅ Calories burned saved. Homepage meter will update.";
+
+document.getElementById("caloriesBurnedInput").value = "";
+
+loadProgressData();
+}
+
+document.addEventListener("DOMContentLoaded", loadProgressData);
+</script>
+
+</body>
+</html>
