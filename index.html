@@ -183,8 +183,28 @@ if (error || !data.session) return null;
 return data.session.user;
 }
 
-function getResetTime() {
+async function getResetTime() {
 const saved = localStorage.getItem("calbuddyResetTime");
+const user = await getCurrentUser();
+
+if (user && window.calbuddySupabase) {
+const { data, error } = await window.calbuddySupabase
+.from("profiles")
+.select("reset_hour, reset_minute, reset_ampm")
+.eq("id", user.id)
+.maybeSingle();
+
+if (!error && data) {
+const resetTime = {
+hour: safeNumber(data.reset_hour, 4),
+minute: safeNumber(data.reset_minute, 0),
+ampm: data.reset_ampm || "AM"
+};
+
+localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
+return resetTime;
+}
+}
 
 if (saved) {
 try {
@@ -238,7 +258,7 @@ box.classList.toggle("show");
 }
 }
 
-function saveCustomResetTime(event) {
+async function saveCustomResetTime(event) {
 if (event) event.stopPropagation();
 
 const hour = Number(document.getElementById("resetHourInput").value);
@@ -250,13 +270,33 @@ alert("Please enter a valid reset time.");
 return;
 }
 
-localStorage.setItem(
-"calbuddyResetTime",
-JSON.stringify({ hour, minute, ampm })
+const resetTime = { hour, minute, ampm };
+
+localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
+
+const user = await getCurrentUser();
+
+if (user && window.calbuddySupabase) {
+const { error } = await window.calbuddySupabase
+.from("profiles")
+.upsert(
+{
+id: user.id,
+reset_hour: hour,
+reset_minute: minute,
+reset_ampm: ampm,
+updated_at: new Date().toISOString()
+},
+{ onConflict: "id" }
 );
 
+if (error) {
+console.log("Reset time cloud save failed:", error);
+}
+}
+
 document.getElementById("resetOptions").classList.remove("show");
-updateResetCountdown();
+await updateResetCountdown();
 }
 
 async function updateResetCountdown() {
@@ -358,9 +398,7 @@ fill.classList.remove(
 "meter-fill-blue"
 );
 
-if (burned > 0) {
-fill.classList.add("meter-fill-blue");
-} else if (percentLeft > 0.4) {
+if (percentLeft > 0.4) {
 fill.classList.add("meter-fill-green");
 } else if (percentLeft > 0.15) {
 fill.classList.add("meter-fill-yellow");
@@ -515,7 +553,7 @@ updateWeightBadgeFromStorage();
 
 document.addEventListener("DOMContentLoaded", async () => {
 await updateHomeCalories();
-updateResetCountdown();
+await updateResetCountdown();
 
 setInterval(updateResetCountdown, 60000);
 });
