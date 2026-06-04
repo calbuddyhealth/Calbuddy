@@ -529,3 +529,48 @@ min-height: -webkit-fill-available;
 min-height: auto;
 }
 }
+/* Alive Calories Meter */
+
+.arch-meter {
+animation: meterGlow 3.5s ease-in-out infinite;
+}
+
+.meter-text h2 {
+animation: calorieNumberBreath 4s ease-in-out infinite;
+}
+
+.track-pill {
+animation: trackPulse 3.8s ease-in-out infinite;
+}
+
+@keyframes meterGlow {
+0%, 100% {
+filter: drop-shadow(0 0 0 rgba(20, 184, 166, 0));
+}
+
+50% {
+filter: drop-shadow(0 0 10px rgba(20, 184, 166, 0.35));
+}
+}
+
+@keyframes calorieNumberBreath {
+0%, 100% {
+transform: scale(1);
+}
+
+50% {
+transform: scale(1.035);
+}
+}
+
+@keyframes trackPulse {
+0%, 100% {
+transform: scale(1);
+box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+}
+
+50% {
+transform: scale(1.04);
+box-shadow: 0 0 14px rgba(34, 197, 94, 0.25);
+}
+}
