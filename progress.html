@@ -7,131 +7,128 @@
 <link rel="stylesheet" href="style.css" />
 
 <style>
-.progress-card {
-display: block;
-padding: 22px;
-}
+.progress-card { display: block; padding: 22px; }
 
 .progress-title {
-margin: 8px 0 18px;
-font-size: 30px;
-font-weight: 950;
-color: #063ba8;
+  margin: 8px 0 18px;
+  font-size: 30px;
+  font-weight: 950;
+  color: #063ba8;
 }
 
 .progress-section {
-background: #f8fafc;
-border-radius: 22px;
-padding: 18px;
-margin-bottom: 16px;
+  background: #f8fafc;
+  border-radius: 22px;
+  padding: 18px;
+  margin-bottom: 16px;
 }
 
 .progress-section h2 {
-margin: 0 0 14px;
-font-size: 21px;
-font-weight: 950;
-color: #071225;
+  margin: 0 0 14px;
+  font-size: 21px;
+  font-weight: 950;
+  color: #071225;
 }
 
 .forecast-grid {
-display: grid;
-grid-template-columns: 1fr 1fr;
-gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .forecast-box {
-background: white;
-border-radius: 18px;
-padding: 14px;
-box-shadow: 0 8px 18px rgba(17,24,39,0.07);
+  background: white;
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 8px 18px rgba(17,24,39,0.07);
 }
 
 .forecast-box span {
-display: block;
-color: #64748b;
-font-size: 12px;
-font-weight: 900;
-margin-bottom: 5px;
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 5px;
 }
 
 .forecast-box strong {
-font-size: 18px;
-font-weight: 950;
+  font-size: 18px;
+  font-weight: 950;
 }
 
 .progress-input {
-width: 100%;
-padding: 14px;
-border-radius: 16px;
-border: 1px solid #d8d8d8;
-font-size: 16px;
-font-weight: 800;
-margin-bottom: 10px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid #d8d8d8;
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 10px;
 }
 
 .progress-save-btn {
-width: 100%;
-padding: 14px;
-border-radius: 18px;
-border: none;
-background: #6d3df2;
-color: white;
-font-weight: 950;
-font-size: 16px;
-cursor: pointer;
+  width: 100%;
+  padding: 14px;
+  border-radius: 18px;
+  border: none;
+  background: #6d3df2;
+  color: white;
+  font-weight: 950;
+  font-size: 16px;
+  cursor: pointer;
 }
 
 .energy-section {
-background: #eff6ff;
-border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
 }
 
 .balance-row {
-display: flex;
-justify-content: space-between;
-gap: 12px;
-font-weight: 900;
-margin: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 900;
+  margin: 10px 0;
 }
 
 .deficit-good {
-color: #0284c7;
-font-weight: 950;
+  color: #0284c7;
+  font-weight: 950;
 }
 
 .graph-box {
-background: white;
-border-radius: 20px;
-padding: 12px;
-overflow: hidden;
+  background: white;
+  border-radius: 20px;
+  padding: 12px;
+  overflow: hidden;
 }
 
 .weight-chart {
-width: 100%;
-height: 210px;
-display: block;
+  width: 100%;
+  height: 230px;
+  display: block;
 }
 
 .chart-caption {
-margin: 10px 0 0;
-color: #64748b;
-font-weight: 800;
-font-size: 13px;
-text-align: center;
+  margin: 10px 0 0;
+  color: #64748b;
+  font-weight: 800;
+  font-size: 13px;
+  text-align: center;
 }
 
 .success-message {
-margin-top: 10px;
-color: #16a34a;
-font-weight: 950;
-text-align: center;
+  margin-top: 10px;
+  color: #16a34a;
+  font-weight: 950;
+  text-align: center;
 }
 
 .warning-message {
-margin-top: 10px;
-color: #b45309;
-font-weight: 900;
-text-align: center;
+  margin-top: 10px;
+  color: #b45309;
+  font-weight: 900;
+  text-align: center;
 }
 </style>
 </head>
@@ -251,7 +248,7 @@ placeholder="Example: 350"
 <h2>Weight Goal Graph</h2>
 
 <div class="graph-box">
-<svg id="weightChart" class="weight-chart" viewBox="0 0 320 210"></svg>
+<svg id="weightChart" class="weight-chart" viewBox="0 0 320 230"></svg>
 <p class="chart-caption" id="chartCaption">Current weight → 🏆 goal weight</p>
 </div>
 </div>
@@ -265,354 +262,408 @@ placeholder="Example: 350"
 
 <script>
 function safeNumber(value, fallback = 0) {
-const number = Number(value);
-return Number.isFinite(number) ? number : fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function getTodayDate() {
-return new Date().toISOString().split("T")[0];
+  return new Date().toISOString().split("T")[0];
 }
 
 async function getCurrentUser() {
-if (!window.calbuddySupabase) return null;
+  if (!window.calbuddySupabase) return null;
 
-const { data, error } = await window.calbuddySupabase.auth.getSession();
+  const { data, error } = await window.calbuddySupabase.auth.getSession();
 
-if (error || !data.session) return null;
+  if (error || !data.session) return null;
 
-return data.session.user;
+  return data.session.user;
 }
 
 function getGoals() {
-try {
-return JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
-} catch {
-return {};
+  try {
+    return JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
+  } catch {
+    return {};
+  }
 }
+
+async function fetchConsumedCalories() {
+  const localConsumed = safeNumber(localStorage.getItem("calbuddyCaloriesConsumed"), 0);
+  const user = await getCurrentUser();
+  const today = getTodayDate();
+
+  if (!user || !window.calbuddySupabase) return localConsumed;
+
+  const { data, error } = await window.calbuddySupabase
+    .from("meals")
+    .select("calories")
+    .eq("user_id", user.id)
+    .eq("nutrition_date", today);
+
+  if (error || !data) return localConsumed;
+
+  const total = data.reduce((sum, meal) => {
+    return sum + safeNumber(meal.calories, 0);
+  }, 0);
+
+  localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
+  return Math.round(total);
 }
 
 async function fetchWeightLogs() {
-const user = await getCurrentUser();
+  const user = await getCurrentUser();
 
-if (!user || !window.calbuddySupabase) {
-return JSON.parse(localStorage.getItem("calbuddyWeightLogs") || "[]");
-}
+  if (!user || !window.calbuddySupabase) {
+    return JSON.parse(localStorage.getItem("calbuddyWeightLogs") || "[]");
+  }
 
-const { data, error } = await window.calbuddySupabase
-.from("weight_logs")
-.select("weight_lbs, log_date")
-.eq("user_id", user.id)
-.order("log_date", { ascending: true });
+  const { data, error } = await window.calbuddySupabase
+    .from("weight_logs")
+    .select("weight_lbs, log_date")
+    .eq("user_id", user.id)
+    .order("log_date", { ascending: true });
 
-if (error) {
-console.log("Weight logs fetch failed:", error);
-return JSON.parse(localStorage.getItem("calbuddyWeightLogs") || "[]");
-}
+  if (error) {
+    console.log("Weight logs fetch failed:", error);
+    return JSON.parse(localStorage.getItem("calbuddyWeightLogs") || "[]");
+  }
 
-return (data || []).map(item => ({
-weight: safeNumber(item.weight_lbs, 0),
-date: item.log_date
-}));
+  return (data || []).map(item => ({
+    weight: safeNumber(item.weight_lbs, 0),
+    date: item.log_date
+  }));
 }
 
 async function fetchCaloriesBurned() {
-const user = await getCurrentUser();
-const today = getTodayDate();
+  const user = await getCurrentUser();
+  const today = getTodayDate();
 
-if (!user || !window.calbuddySupabase) {
-return safeNumber(localStorage.getItem("calbuddyCaloriesBurned"), 0);
-}
+  if (!user || !window.calbuddySupabase) {
+    return safeNumber(localStorage.getItem("calbuddyCaloriesBurned"), 0);
+  }
 
-const { data, error } = await window.calbuddySupabase
-.from("activity_logs")
-.select("calories_burned")
-.eq("user_id", user.id)
-.eq("log_date", today)
-.maybeSingle();
+  const { data, error } = await window.calbuddySupabase
+    .from("activity_logs")
+    .select("calories_burned")
+    .eq("user_id", user.id)
+    .eq("log_date", today)
+    .maybeSingle();
 
-if (error || !data) {
-return safeNumber(localStorage.getItem("calbuddyCaloriesBurned"), 0);
-}
+  if (error || !data) {
+    return safeNumber(localStorage.getItem("calbuddyCaloriesBurned"), 0);
+  }
 
-const burned = safeNumber(data.calories_burned, 0);
-localStorage.setItem("calbuddyCaloriesBurned", burned);
+  const burned = safeNumber(data.calories_burned, 0);
+  localStorage.setItem("calbuddyCaloriesBurned", burned);
 
-return burned;
+  return burned;
 }
 
 async function saveTodayWeight() {
-const weight = safeNumber(document.getElementById("todayWeightInput").value, 0);
-const today = getTodayDate();
+  const weight = safeNumber(document.getElementById("todayWeightInput").value, 0);
+  const today = getTodayDate();
 
-if (!weight || weight <= 0) {
-document.getElementById("weightSuccess").textContent = "Enter a valid weight.";
-return;
-}
+  if (!weight || weight <= 0) {
+    document.getElementById("weightSuccess").textContent = "Enter a valid weight.";
+    return;
+  }
 
-localStorage.setItem("calbuddyCurrentWeight", weight);
-localStorage.setItem("calbuddyLatestWeight", weight);
+  localStorage.setItem("calbuddyCurrentWeight", weight);
+  localStorage.setItem("calbuddyLatestWeight", weight);
 
-const goals = getGoals();
-goals.weight = weight;
-localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
+  const goals = getGoals();
+  goals.weight = weight;
+  localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
 
-let weightLogs = JSON.parse(localStorage.getItem("calbuddyWeightLogs") || "[]");
-weightLogs = weightLogs.filter(log => log.date !== today);
-weightLogs.push({ date: today, weight });
-localStorage.setItem("calbuddyWeightLogs", JSON.stringify(weightLogs));
+  let weightLogs = JSON.parse(localStorage.getItem("calbuddyWeightLogs") || "[]");
+  weightLogs = weightLogs.filter(log => log.date !== today);
+  weightLogs.push({ date: today, weight });
+  weightLogs.sort((a, b) => new Date(a.date) - new Date(b.date));
+  localStorage.setItem("calbuddyWeightLogs", JSON.stringify(weightLogs));
 
-const user = await getCurrentUser();
+  const user = await getCurrentUser();
 
-if (user && window.calbuddySupabase) {
-const { error } = await window.calbuddySupabase
-.from("weight_logs")
-.upsert(
-{
-user_id: user.id,
-weight_lbs: weight,
-log_date: today
-},
-{ onConflict: "user_id,log_date" }
-);
+  if (user && window.calbuddySupabase) {
+    const { error } = await window.calbuddySupabase
+      .from("weight_logs")
+      .upsert(
+        {
+          user_id: user.id,
+          weight_lbs: weight,
+          log_date: today
+        },
+        { onConflict: "user_id,log_date" }
+      );
 
-if (error) {
-document.getElementById("weightSuccess").textContent =
-"Saved locally, but cloud save failed: " + error.message;
-} else {
-document.getElementById("weightSuccess").textContent =
-"✅ Weight saved. Homepage will update.";
-}
-} else {
-document.getElementById("weightSuccess").textContent =
-"✅ Weight saved on this device.";
-}
+    if (error) {
+      document.getElementById("weightSuccess").textContent =
+        "Saved locally, but cloud save failed: " + error.message;
+    } else {
+      document.getElementById("weightSuccess").textContent =
+        "✅ Weight saved. Homepage will update.";
+    }
+  } else {
+    document.getElementById("weightSuccess").textContent =
+      "✅ Weight saved on this device.";
+  }
 
-document.getElementById("todayWeightInput").value = "";
-await loadProgressData();
+  document.getElementById("todayWeightInput").value = "";
+  await loadProgressData();
 }
 
 async function saveCaloriesBurned() {
-const burned = safeNumber(document.getElementById("caloriesBurnedInput").value, 0);
-const today = getTodayDate();
+  const burned = safeNumber(document.getElementById("caloriesBurnedInput").value, 0);
+  const today = getTodayDate();
 
-if (burned < 0) {
-document.getElementById("burnSuccess").textContent = "Enter a valid number.";
-return;
-}
+  if (burned < 0) {
+    document.getElementById("burnSuccess").textContent = "Enter a valid number.";
+    return;
+  }
 
-localStorage.setItem("calbuddyCaloriesBurned", burned);
+  localStorage.setItem("calbuddyCaloriesBurned", burned);
 
-const user = await getCurrentUser();
+  const user = await getCurrentUser();
 
-if (user && window.calbuddySupabase) {
-const { error } = await window.calbuddySupabase
-.from("activity_logs")
-.upsert(
-{
-user_id: user.id,
-activity_name: "Daily Activity",
-calories_burned: burned,
-duration_minutes: 0,
-log_date: today
-},
-{ onConflict: "user_id,log_date" }
-);
+  if (user && window.calbuddySupabase) {
+    const { error } = await window.calbuddySupabase
+      .from("activity_logs")
+      .upsert(
+        {
+          user_id: user.id,
+          activity_name: "Daily Activity",
+          calories_burned: burned,
+          duration_minutes: 0,
+          log_date: today
+        },
+        { onConflict: "user_id,log_date" }
+      );
 
-if (error) {
-document.getElementById("burnSuccess").textContent =
-"Saved locally, but cloud save failed: " + error.message;
-} else {
-document.getElementById("burnSuccess").textContent =
-"✅ Calories burned saved. Homepage meter will update.";
-}
-} else {
-document.getElementById("burnSuccess").textContent =
-"✅ Calories burned saved on this device.";
-}
+    if (error) {
+      document.getElementById("burnSuccess").textContent =
+        "Saved locally, but cloud save failed: " + error.message;
+    } else {
+      document.getElementById("burnSuccess").textContent =
+        "✅ Calories burned saved. Homepage meter will update.";
+    }
+  } else {
+    document.getElementById("burnSuccess").textContent =
+      "✅ Calories burned saved on this device.";
+  }
 
-document.getElementById("caloriesBurnedInput").value = "";
-await loadProgressData();
+  document.getElementById("caloriesBurnedInput").value = "";
+  await loadProgressData();
 }
 
 function estimateGoalDate(currentWeight, goalWeight, dailyDeficit, logs) {
-const goalDateText = document.getElementById("goalDateText");
-const paceText = document.getElementById("paceText");
-const statusText = document.getElementById("forecastStatusText");
+  const goalDateText = document.getElementById("goalDateText");
+  const paceText = document.getElementById("paceText");
+  const statusText = document.getElementById("forecastStatusText");
 
-const losingWeight = currentWeight > goalWeight;
-const poundsRemaining = Math.abs(currentWeight - goalWeight);
+  const poundsRemaining = Math.abs(currentWeight - goalWeight);
 
-if (poundsRemaining <= 0.2) {
-goalDateText.textContent = "Goal reached 🏆";
-paceText.textContent = "Goal met";
-statusText.textContent = "On target";
-return;
-}
+  if (poundsRemaining <= 0.2) {
+    goalDateText.textContent = "Goal reached 🏆";
+    paceText.textContent = "Goal met";
+    statusText.textContent = "On target";
+    return;
+  }
 
-let weeklyPace = 0;
+  let trendPace = 0;
 
-if (logs.length >= 2) {
-const first = logs[0];
-const last = logs[logs.length - 1];
+  if (logs.length >= 2) {
+    const first = logs[0];
+    const last = logs[logs.length - 1];
 
-const firstDate = new Date(first.date);
-const lastDate = new Date(last.date);
+    const firstDate = new Date(first.date);
+    const lastDate = new Date(last.date);
 
-const days = Math.max((lastDate - firstDate) / (1000 * 60 * 60 * 24), 1);
-const change = safeNumber(first.weight, currentWeight) - safeNumber(last.weight, currentWeight);
+    const days = Math.max((lastDate - firstDate) / (1000 * 60 * 60 * 24), 1);
+    const weightChange = safeNumber(first.weight, currentWeight) - safeNumber(last.weight, currentWeight);
 
-weeklyPace = change / days * 7;
+    trendPace = Math.abs((weightChange / days) * 7);
+  }
 
-if (!losingWeight) weeklyPace = -weeklyPace;
-}
+  const deficitPace = dailyDeficit > 0
+    ? (dailyDeficit * 7) / 3500
+    : 0;
 
-const deficitPace = dailyDeficit > 0
-? (dailyDeficit * 7) / 3500
-: 0;
+  const estimatedWeeklyPace = Math.max(trendPace, deficitPace, 0.25);
 
-const estimatedWeeklyPace = Math.max(Math.abs(weeklyPace), deficitPace, 0.25);
+  const weeksToGoal = poundsRemaining / estimatedWeeklyPace;
+  const daysToGoal = Math.ceil(weeksToGoal * 7);
 
-const weeksToGoal = poundsRemaining / estimatedWeeklyPace;
-const daysToGoal = Math.ceil(weeksToGoal * 7);
+  const estimatedDate = new Date();
+  estimatedDate.setDate(estimatedDate.getDate() + daysToGoal);
 
-const estimatedDate = new Date();
-estimatedDate.setDate(estimatedDate.getDate() + daysToGoal);
+  goalDateText.textContent = estimatedDate.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
 
-goalDateText.textContent = estimatedDate.toLocaleDateString(undefined, {
-month: "short",
-day: "numeric",
-year: "numeric"
-});
-
-paceText.textContent = `${estimatedWeeklyPace.toFixed(1)} lbs/week`;
-statusText.textContent = dailyDeficit > 0 ? "Deficit active 🔵" : "Needs more data";
+  paceText.textContent = `${estimatedWeeklyPace.toFixed(1)} lbs/week`;
+  statusText.textContent = dailyDeficit > 0 ? "Deficit active 🔵" : "Needs more data";
 }
 
 function drawWeightChart(logs, currentWeight, goalWeight) {
-const svg = document.getElementById("weightChart");
-const caption = document.getElementById("chartCaption");
+  const svg = document.getElementById("weightChart");
+  const caption = document.getElementById("chartCaption");
 
-if (!svg) return;
+  if (!svg) return;
 
-svg.innerHTML = "";
+  svg.innerHTML = "";
 
-const width = 320;
-const height = 210;
-const padding = 28;
+  const width = 320;
+  const height = 230;
+  const padding = 34;
 
-const chartLogs = logs.length
-? logs
-: [{ date: getTodayDate(), weight: currentWeight }];
+  const cleanLogs = logs
+    .filter(log => log.weight && log.date)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-const weights = chartLogs.map(log => safeNumber(log.weight, currentWeight));
-weights.push(goalWeight);
+  if (cleanLogs.length === 0) {
+    cleanLogs.push({
+      date: getTodayDate(),
+      weight: currentWeight
+    });
+  }
 
-const maxWeight = Math.max(...weights) + 3;
-const minWeight = Math.min(...weights) - 3;
+  const weights = cleanLogs.map(log => safeNumber(log.weight, currentWeight));
+  weights.push(goalWeight);
 
-const xForIndex = index => {
-if (chartLogs.length === 1) return padding;
-return padding + (index / (chartLogs.length - 1)) * (width - padding * 2 - 30);
-};
+  const maxWeight = Math.max(...weights) + 3;
+  const minWeight = Math.min(...weights) - 3;
 
-const yForWeight = weight => {
-return padding + ((maxWeight - weight) / (maxWeight - minWeight)) * (height - padding * 2);
-};
+  function xForIndex(index) {
+    if (cleanLogs.length === 1) return padding + 12;
+    return padding + (index / (cleanLogs.length - 1)) * (width - padding * 2 - 38);
+  }
 
-const goalY = yForWeight(goalWeight);
+  function yForWeight(weight) {
+    return padding + ((maxWeight - weight) / (maxWeight - minWeight)) * (height - padding * 2);
+  }
 
-const goalLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-goalLine.setAttribute("x1", padding);
-goalLine.setAttribute("x2", width - padding);
-goalLine.setAttribute("y1", goalY);
-goalLine.setAttribute("y2", goalY);
-goalLine.setAttribute("stroke", "#f59e0b");
-goalLine.setAttribute("stroke-width", "2");
-goalLine.setAttribute("stroke-dasharray", "6 5");
-svg.appendChild(goalLine);
+  const goalY = yForWeight(goalWeight);
 
-const trophy = document.createElementNS("http://www.w3.org/2000/svg", "text");
-trophy.setAttribute("x", width - 34);
-trophy.setAttribute("y", goalY + 6);
-trophy.setAttribute("font-size", "22");
-trophy.textContent = "🏆";
-svg.appendChild(trophy);
+  const goalLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  goalLine.setAttribute("x1", padding);
+  goalLine.setAttribute("x2", width - padding);
+  goalLine.setAttribute("y1", goalY);
+  goalLine.setAttribute("y2", goalY);
+  goalLine.setAttribute("stroke", "#f59e0b");
+  goalLine.setAttribute("stroke-width", "3");
+  goalLine.setAttribute("stroke-dasharray", "7 6");
+  svg.appendChild(goalLine);
 
-if (chartLogs.length > 1) {
-const points = chartLogs.map((log, index) => {
-return `${xForIndex(index)},${yForWeight(safeNumber(log.weight, currentWeight))}`;
-}).join(" ");
+  const trophy = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  trophy.setAttribute("x", width - 42);
+  trophy.setAttribute("y", goalY + 8);
+  trophy.setAttribute("font-size", "24");
+  trophy.textContent = "🏆";
+  svg.appendChild(trophy);
 
-const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-polyline.setAttribute("points", points);
-polyline.setAttribute("fill", "none");
-polyline.setAttribute("stroke", "#6d3df2");
-polyline.setAttribute("stroke-width", "5");
-polyline.setAttribute("stroke-linecap", "round");
-polyline.setAttribute("stroke-linejoin", "round");
-svg.appendChild(polyline);
-}
+  if (cleanLogs.length > 1) {
+    const points = cleanLogs.map((log, index) => {
+      return `${xForIndex(index)},${yForWeight(safeNumber(log.weight, currentWeight))}`;
+    }).join(" ");
 
-chartLogs.forEach((log, index) => {
-const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-circle.setAttribute("cx", xForIndex(index));
-circle.setAttribute("cy", yForWeight(safeNumber(log.weight, currentWeight)));
-circle.setAttribute("r", "5");
-circle.setAttribute("fill", "#079c9d");
-svg.appendChild(circle);
-});
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    line.setAttribute("points", points);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", "#6d3df2");
+    line.setAttribute("stroke-width", "5");
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(line);
+  }
 
-caption.textContent = `${currentWeight} lbs today → 🏆 ${goalWeight} lbs goal`;
+  cleanLogs.forEach((log, index) => {
+    const x = xForIndex(index);
+    const y = yForWeight(safeNumber(log.weight, currentWeight));
+
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", y);
+    dot.setAttribute("r", "6");
+    dot.setAttribute("fill", "#079c9d");
+    dot.setAttribute("stroke", "white");
+    dot.setAttribute("stroke-width", "3");
+    svg.appendChild(dot);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", x);
+    label.setAttribute("y", y - 12);
+    label.setAttribute("text-anchor", "middle");
+    label.setAttribute("font-size", "11");
+    label.setAttribute("font-weight", "800");
+    label.setAttribute("fill", "#071225");
+    label.textContent = `${safeNumber(log.weight, currentWeight)} lbs`;
+    svg.appendChild(label);
+  });
+
+  const latestWeight = safeNumber(cleanLogs[cleanLogs.length - 1].weight, currentWeight);
+
+  caption.textContent =
+    `${latestWeight} lbs today → 🏆 ${goalWeight} lbs goal`;
 }
 
 async function loadProgressData() {
-const goals = getGoals();
+  const goals = getGoals();
 
-const dailyGoal =
-safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 2100);
+  const dailyGoal =
+    safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 2100);
 
-const consumed =
-safeNumber(localStorage.getItem("calbuddyCaloriesConsumed"), 0);
+  const consumed = await fetchConsumedCalories();
+  const burned = await fetchCaloriesBurned();
+  const logs = await fetchWeightLogs();
 
-const burned = await fetchCaloriesBurned();
+  const latestLog = logs.length ? logs[logs.length - 1] : null;
 
-const logs = await fetchWeightLogs();
+  const currentWeight =
+    safeNumber(
+      localStorage.getItem("calbuddyCurrentWeight") ||
+      localStorage.getItem("calbuddyLatestWeight") ||
+      latestLog?.weight ||
+      goals.weight,
+      199
+    );
 
-const latestLog = logs.length ? logs[logs.length - 1] : null;
+  const startingWeight =
+    logs.length
+      ? safeNumber(logs[0].weight, currentWeight)
+      : safeNumber(localStorage.getItem("calbuddyStartingWeight") || goals.weight, currentWeight);
 
-const currentWeight =
-safeNumber(
-localStorage.getItem("calbuddyCurrentWeight") ||
-localStorage.getItem("calbuddyLatestWeight") ||
-latestLog?.weight ||
-goals.weight,
-199
-);
+  const goalWeight =
+    safeNumber(goals.targetWeight || localStorage.getItem("calbuddyGoalWeight"), 185);
 
-const startingWeight =
-logs.length
-? safeNumber(logs[0].weight, currentWeight)
-: safeNumber(localStorage.getItem("calbuddyStartingWeight") || goals.weight, currentWeight);
+  const deficit = Math.max(dailyGoal - consumed + burned, 0);
 
-const goalWeight =
-safeNumber(goals.targetWeight || localStorage.getItem("calbuddyGoalWeight"), 185);
+  document.getElementById("startingWeightText").textContent = `${startingWeight} lbs`;
+  document.getElementById("currentWeightText").textContent = `${currentWeight} lbs`;
+  document.getElementById("goalWeightText").textContent = `${goalWeight} lbs`;
 
-const deficit = Math.max(dailyGoal - consumed + burned, 0);
+  document.getElementById("balanceConsumed").textContent = `${consumed.toLocaleString()} kcal`;
+  document.getElementById("balanceBurned").textContent = `${burned.toLocaleString()} kcal`;
+  document.getElementById("balanceGoal").textContent = `${dailyGoal.toLocaleString()} kcal`;
+  document.getElementById("balanceDeficit").textContent = `${deficit.toLocaleString()} kcal`;
 
-document.getElementById("startingWeightText").textContent = `${startingWeight} lbs`;
-document.getElementById("currentWeightText").textContent = `${currentWeight} lbs`;
-document.getElementById("goalWeightText").textContent = `${goalWeight} lbs`;
-
-document.getElementById("balanceConsumed").textContent = `${consumed.toLocaleString()} kcal`;
-document.getElementById("balanceBurned").textContent = `${burned.toLocaleString()} kcal`;
-document.getElementById("balanceGoal").textContent = `${dailyGoal.toLocaleString()} kcal`;
-document.getElementById("balanceDeficit").textContent = `${deficit.toLocaleString()} kcal`;
-
-estimateGoalDate(currentWeight, goalWeight, deficit, logs);
-drawWeightChart(logs, currentWeight, goalWeight);
+  estimateGoalDate(currentWeight, goalWeight, deficit, logs);
+  drawWeightChart(logs, currentWeight, goalWeight);
 }
 
-document.addEventListener("DOMContentLoaded", loadProgressData);
+document.addEventListener("DOMContentLoaded", () => {
+  loadProgressData();
+
+  if (window.location.hash === "#caloriesBurnedSection") {
+    setTimeout(() => {
+      document.getElementById("caloriesBurnedSection")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }, 400);
+  }
+});
 </script>
 
 </body>
