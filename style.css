@@ -633,3 +633,32 @@ font-size: 0;
 content: "Over Goal ⚠️";
 font-size: 12px;
 }
+/* Meter Fill Bar */
+
+.meter-progress-track {
+width: 76%;
+height: 7px;
+margin: 6px auto 0;
+background: #e5e7eb;
+border-radius: 999px;
+overflow: hidden;
+}
+
+.meter-progress-fill {
+height: 100%;
+width: 100%;
+border-radius: 999px;
+transition: width 0.8s ease, background-color 0.4s ease;
+}
+
+.meter-progress-fill.fill-green {
+background: linear-gradient(90deg, #10a6a5, #22c55e);
+}
+
+.meter-progress-fill.fill-yellow {
+background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.meter-progress-fill.fill-red {
+background: linear-gradient(90deg, #ef4444, #dc2626);
+}
