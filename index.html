@@ -22,6 +22,58 @@ border: 1px solid rgba(15, 23, 42, 0.08);
 text-align: left;
 }
 
+.reset-tab-card {
+margin: 12px 0 14px;
+padding: 12px 14px;
+border-radius: 22px;
+background: #f8fafc;
+border: 1px solid #e5e7eb;
+box-shadow: 0 8px 18px rgba(17,24,39,0.06);
+position: relative;
+}
+
+.reset-tab-main {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 10px;
+cursor: pointer;
+}
+
+.reset-tab-left {
+display: flex;
+flex-direction: column;
+gap: 2px;
+}
+
+.reset-tab-label {
+margin: 0;
+color: #64748b;
+font-size: 12px;
+font-weight: 950;
+}
+
+.reset-tab-time {
+margin: 0;
+color: #071225;
+font-size: 20px;
+font-weight: 950;
+}
+
+.reset-tab-chip {
+padding: 8px 12px;
+border-radius: 999px;
+background: #eef2ff;
+color: #6d3df2;
+font-size: 12px;
+font-weight: 950;
+white-space: nowrap;
+}
+
+.reset-options {
+z-index: 50;
+}
+
 .calbuddy-chat-overlay {
 display: none;
 position: fixed;
@@ -222,13 +274,17 @@ opacity: 0.55;
 </div>
 </div>
 
-<div class="status-side reset-side" onclick="event.stopPropagation()">
-<div class="reset-click-area" onclick="toggleResetOptions()">
-<p class="reset-label">Resets in:</p>
-<h2 id="resetCountdownText">--h --m</h2>
-</div>
-
 <div class="track-pill" id="trackPill">On Track ✅</div>
+</section>
+
+<section class="reset-tab-card" onclick="toggleResetOptions()">
+<div class="reset-tab-main">
+<div class="reset-tab-left">
+<p class="reset-tab-label">Resets in</p>
+<h2 class="reset-tab-time" id="resetCountdownText">--h --m</h2>
+</div>
+<div class="reset-tab-chip">Reset Time</div>
+</div>
 
 <div id="resetOptions" class="reset-options" onclick="event.stopPropagation()">
 <p class="reset-title">Reset Time</p>
@@ -245,8 +301,20 @@ opacity: 0.55;
 
 <button class="reset-save-btn" type="button" onclick="saveCustomResetTime(event)">Save</button>
 </div>
-</div>
 </section>
+
+<button class="ask-card final-ask-card" type="button" onclick="openCalBuddyChat()">
+<div class="ask-content">
+<div class="chat-icon">💬</div>
+<h2>Ask CalBuddy</h2>
+
+<div class="ask-search-preview">
+🔍 Type question...
+</div>
+</div>
+
+<img class="robot-illustration" src="calbuddy-robot.png?v=2" alt="CalBuddy AI Nutrition Coach" />
+</button>
 
 <section class="log-home-card" onclick="window.location.href='log.html'">
 <div class="log-title-row">
@@ -263,19 +331,6 @@ opacity: 0.55;
 
 <img class="food-illustration" src="assets/food-bowl.svg" alt="Healthy meal bowl with water" />
 </section>
-
-<button class="ask-card final-ask-card" type="button" onclick="openCalBuddyChat()">
-<div class="ask-content">
-<div class="chat-icon">💬</div>
-<h2>Ask CalBuddy</h2>
-
-<div class="ask-search-preview">
-🔍 Type question...
-</div>
-</div>
-
-<img class="robot-illustration" src="calbuddy-robot.png?v=2" alt="CalBuddy AI Nutrition Coach" />
-</button>
 
 <div id="calbuddyChatOverlay" class="calbuddy-chat-overlay" onclick="closeCalBuddyChat(event)">
 <div class="calbuddy-chat-box" onclick="event.stopPropagation()">
@@ -308,6 +363,7 @@ onkeydown="handleChatEnter(event)"
 
 <script>
 let calbuddyChatHistory = [];
+let pendingMealCandidate = null;
 
 function safeNumber(value, fallback = 0) {
 const number = Number(value);
@@ -405,7 +461,8 @@ const resetKey = `${String(resetHour24).padStart(2, "0")}${String(reset.minute).
 return {
 start,
 end,
-dateKey: `${formatLocalDate(start)}_${resetKey}`
+dateKey: `${formatLocalDate(start)}_${resetKey}`,
+nutritionDate: formatLocalDate(start)
 };
 }
 
@@ -512,6 +569,144 @@ humorLevel: localStorage.getItem("calbuddyHumorLevel") || "medium"
 };
 }
 
+function inferMealFromText(text) {
+const lower = text.toLowerCase();
+
+const hasLogIntent =
+lower.includes("add") ||
+lower.includes("log") ||
+lower.includes("input") ||
+lower.includes("put it") ||
+lower.includes("track");
+
+const calorieMatch = text.match(/(\d{2,5})\s*(cal|cals|calorie|calories|kcal)/i);
+
+if (!hasLogIntent || !calorieMatch) return null;
+
+const calories = Number(calorieMatch[1]);
+if (!calories || calories <= 0) return null;
+
+let name = text
+.replace(/can you/gi, "")
+.replace(/please/gi, "")
+.replace(/add/gi, "")
+.replace(/log/gi, "")
+.replace(/input/gi, "")
+.replace(/to my intake/gi, "")
+.replace(/to intake/gi, "")
+.replace(/today/gi, "")
+.replace(/(\d{2,5})\s*(cal|cals|calorie|calories|kcal)/gi, "")
+.replace(/[?.!,]/g, "")
+.trim();
+
+if (!name || name.length < 2) name = "CalBuddy meal";
+
+return {
+name,
+calories,
+category: "Meal",
+protein_g: 0,
+carbs_g: 0,
+fat_g: 0,
+serving_size: "Added by CalBuddy",
+multiplier: 1
+};
+}
+
+function isConfirmingPendingMeal(text) {
+const lower = text.trim().toLowerCase();
+return [
+"yes",
+"yep",
+"yeah",
+"sure",
+"add it",
+"log it",
+"do it",
+"yes add it",
+"yes log it",
+"please add it"
+].includes(lower);
+}
+
+async function addMealFromCalBuddy(meal) {
+const user = await getCurrentUser();
+const windowInfo = await getNutritionWindow();
+const createdAt = new Date().toISOString();
+
+const mealToSave = {
+name: meal.name || "CalBuddy meal",
+calories: Number(meal.calories || 0),
+category: meal.category || "Meal",
+nutrition_date: windowInfo.nutritionDate,
+protein_g: Number(meal.protein_g || 0),
+carbs_g: Number(meal.carbs_g || 0),
+fat_g: Number(meal.fat_g || 0),
+serving_size: meal.serving_size || "Added by CalBuddy",
+multiplier: Number(meal.multiplier || 1),
+is_favorite: false,
+created_at: createdAt
+};
+
+if (!mealToSave.calories || mealToSave.calories <= 0) return false;
+
+if (user && window.calbuddySupabase) {
+const { error } = await window.calbuddySupabase
+.from("meals")
+.insert({ user_id: user.id, ...mealToSave });
+
+if (error) {
+saveMealLocallyFromIndex(mealToSave);
+}
+} else {
+saveMealLocallyFromIndex(mealToSave);
+}
+
+clearCalorieCache();
+await updateHomeCalories();
+
+return true;
+}
+
+function saveMealLocallyFromIndex(meal) {
+const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+
+meals.push({
+id: Date.now(),
+date: meal.nutrition_date,
+...meal,
+source: "local"
+});
+
+localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
+}
+
+async function handleCalBuddyMealAction(data, originalMessage) {
+if (data?.mealToLog) {
+pendingMealCandidate = data.mealToLog;
+}
+
+if (data?.action === "log_meal" && data?.meal) {
+const saved = await addMealFromCalBuddy(data.meal);
+if (saved) {
+addChatMessage(`✅ Added ${data.meal.name || "that meal"} — ${data.meal.calories} kcal to your current intake.`, "ai");
+}
+return;
+}
+
+const directMeal = inferMealFromText(originalMessage);
+
+if (directMeal) {
+pendingMealCandidate = directMeal;
+
+const saved = await addMealFromCalBuddy(directMeal);
+
+if (saved) {
+addChatMessage(`✅ Added ${directMeal.name} — ${directMeal.calories} kcal to your current intake.`, "ai");
+}
+}
+}
+
 async function sendCalBuddyMessage() {
 const input = document.getElementById("calbuddyChatInput");
 const button = document.getElementById("sendChatBtn");
@@ -524,6 +719,17 @@ input.value = "";
 autoResizeChatInput();
 
 addChatMessage(message, "user");
+
+if (pendingMealCandidate && isConfirmingPendingMeal(message)) {
+const saved = await addMealFromCalBuddy(pendingMealCandidate);
+
+if (saved) {
+addChatMessage(`✅ Added ${pendingMealCandidate.name} — ${pendingMealCandidate.calories} kcal to your current intake.`, "ai");
+pendingMealCandidate = null;
+return;
+}
+}
+
 addChatMessage("Thinking...", "ai");
 
 calbuddyChatHistory.push({ role: "user", content: message });
@@ -564,6 +770,8 @@ lastBody.textContent = reply;
 calbuddyChatHistory.push({ role: "assistant", content: reply });
 calbuddyChatHistory = calbuddyChatHistory.slice(-10);
 
+await handleCalBuddyMealAction(data, message);
+
 } catch (error) {
 const messages = document.getElementById("chatMessages");
 const lastMessage = messages.lastElementChild;
@@ -595,7 +803,6 @@ return;
 }
 
 localStorage.setItem("calbuddyResetTime", JSON.stringify({ hour, minute, ampm }));
-
 clearCalorieCache();
 
 const user = await getCurrentUser();
