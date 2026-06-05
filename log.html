@@ -23,7 +23,7 @@ width: 100%; box-sizing: border-box; padding: 14px; border-radius: 16px;
 border: 1px solid #d8d8d8; font-size: 16px; margin-bottom: 10px;
 }
 
-.search-button, .manual-save-btn { width: 100%; margin-top: 8px; padding: 14px; }
+.search-button, .manual-save-btn { width: 100%; margin-top: 8px; }
 
 .food-result, .history-card, .favorite-card {
 margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
@@ -51,6 +51,7 @@ margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
 
 .total-box { margin-top: 16px; padding: 14px; border-radius: 18px; background: white; font-weight: 900; }
 .success-message { margin-top: 14px; font-weight: 900; color: #18a558; text-align: center; }
+.window-note { margin: 8px 0 0; font-size: 0.85rem; color: #64748b; font-weight: 800; }
 </style>
 </head>
 
@@ -119,7 +120,7 @@ margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
 
 <div id="historySection" class="history-section">
 <h3>Meal History</h3>
-<button class="signin-btn" type="button" onclick="repeatYesterday()">🔁 Repeat Yesterday</button>
+<button class="signin-btn" type="button" onclick="repeatPreviousWindow()">🔁 Repeat Previous Reset Window</button>
 <p>Showing the last 14 days.</p>
 <div id="historyItems"></div>
 </div>
@@ -133,7 +134,8 @@ margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
 <div id="successMessage" class="success-message"></div>
 
 <div class="intake-list">
-<h3>Today’s Intake</h3>
+<h3>Current Intake</h3>
+<p class="window-note" id="windowNote">Reset window loading...</p>
 <div id="todayIntakeItems"></div>
 
 <div class="total-box">
@@ -154,14 +156,20 @@ margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
 let currentMode = "";
 let selectedMealType = "";
 
-function getTodayDate() {
-return new Date().toISOString().split("T")[0];
+function safeNumber(value, fallback = 0) {
+const number = Number(value);
+return Number.isFinite(number) ? number : fallback;
 }
 
-function getYesterdayDate() {
-const d = new Date();
-d.setDate(d.getDate() - 1);
-return d.toISOString().split("T")[0];
+function formatLocalDate(date) {
+const year = date.getFullYear();
+const month = String(date.getMonth() + 1).padStart(2, "0");
+const day = String(date.getDate()).padStart(2, "0");
+return `${year}-${month}-${day}`;
+}
+
+function formatDisplayTime(date) {
+return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function roundMacro(value) {
@@ -169,10 +177,88 @@ const num = Number(value || 0);
 return Math.round(num * 10) / 10;
 }
 
+function convertTo24Hour(hour, ampm) {
+hour = Number(hour);
+if (ampm === "AM" && hour === 12) return 0;
+if (ampm === "PM" && hour !== 12) return hour + 12;
+return hour;
+}
+
 async function getCurrentUser() {
+if (!window.calbuddySupabase) return null;
+
 const { data, error } = await window.calbuddySupabase.auth.getSession();
 if (error || !data.session) return null;
+
 return data.session.user;
+}
+
+async function getResetTime() {
+const saved = localStorage.getItem("calbuddyResetTime");
+const user = await getCurrentUser();
+
+if (user && window.calbuddySupabase) {
+const { data, error } = await window.calbuddySupabase
+.from("profiles")
+.select("reset_hour, reset_minute, reset_ampm")
+.eq("id", user.id)
+.maybeSingle();
+
+if (!error && data) {
+const resetTime = {
+hour: safeNumber(data.reset_hour, 4),
+minute: safeNumber(data.reset_minute, 0),
+ampm: data.reset_ampm || "AM"
+};
+
+localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
+return resetTime;
+}
+}
+
+if (saved) {
+try {
+return JSON.parse(saved);
+} catch {
+return { hour: 4, minute: 0, ampm: "AM" };
+}
+}
+
+return { hour: 4, minute: 0, ampm: "AM" };
+}
+
+async function getNutritionWindow(offset = 0) {
+const reset = await getResetTime();
+const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
+const now = new Date();
+
+const start = new Date();
+start.setHours(resetHour24, Number(reset.minute), 0, 0);
+
+if (now < start) {
+start.setDate(start.getDate() - 1);
+}
+
+start.setDate(start.getDate() + offset);
+
+const end = new Date(start);
+end.setDate(end.getDate() + 1);
+
+const resetKey = `${String(resetHour24).padStart(2, "0")}${String(reset.minute).padStart(2, "0")}`;
+
+return {
+start,
+end,
+dateKey: `${formatLocalDate(start)}_${resetKey}`,
+nutritionDate: formatLocalDate(start)
+};
+}
+
+function updateWindowNote(windowInfo) {
+const note = document.getElementById("windowNote");
+if (!note) return;
+
+note.textContent = `Current reset window: ${formatDisplayTime(windowInfo.start)} – ${formatDisplayTime(windowInfo.end)}`;
 }
 
 function clearSections() {
@@ -436,19 +522,21 @@ document.getElementById("manualServing").value = "";
 
 async function addToIntake(meal) {
 const user = await getCurrentUser();
-const today = getTodayDate();
+const windowInfo = await getNutritionWindow();
+const createdAt = new Date().toISOString();
 
 const mealToSave = {
 name: meal.name,
 calories: Number(meal.calories || 0),
-category: meal.category,
-nutrition_date: today,
+category: meal.category || "Meal",
+nutrition_date: windowInfo.nutritionDate,
 protein_g: Number(meal.protein_g || 0),
 carbs_g: Number(meal.carbs_g || 0),
 fat_g: Number(meal.fat_g || 0),
 serving_size: meal.serving_size || null,
 multiplier: Number(meal.multiplier || 1),
-is_favorite: Boolean(meal.is_favorite || false)
+is_favorite: Boolean(meal.is_favorite || false),
+created_at: createdAt
 };
 
 if (user) {
@@ -462,12 +550,12 @@ document.getElementById("successMessage").textContent =
 "Meal saved on this device, but cloud save failed: " + error.message;
 } else {
 document.getElementById("successMessage").textContent =
-`✅ Added to ${meal.category}: ${meal.name} — ${meal.calories} kcal`;
+`✅ Added to ${mealToSave.category}: ${mealToSave.name} — ${mealToSave.calories} kcal`;
 }
 } else {
 saveMealLocally(mealToSave);
 document.getElementById("successMessage").textContent =
-`✅ Added to ${meal.category}: ${meal.name} — ${meal.calories} kcal`;
+`✅ Added to ${mealToSave.category}: ${mealToSave.name} — ${mealToSave.calories} kcal`;
 }
 
 const searchInput = document.getElementById("foodSearchInput");
@@ -490,7 +578,7 @@ source: "local"
 localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 }
 
-async function getMealsByDate(date) {
+async function getMealsInWindow(windowInfo) {
 const user = await getCurrentUser();
 
 if (user) {
@@ -498,7 +586,8 @@ const { data, error } = await window.calbuddySupabase
 .from("meals")
 .select("*")
 .eq("user_id", user.id)
-.eq("nutrition_date", date)
+.gte("created_at", windowInfo.start.toISOString())
+.lt("created_at", windowInfo.end.toISOString())
 .order("created_at", { ascending: true });
 
 if (!error && data) {
@@ -509,12 +598,16 @@ return data.map(meal => ({ ...meal, source: "supabase" }));
 const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
 return meals
-.filter(meal => meal.date === date || meal.nutrition_date === date)
+.filter(meal => {
+const created = new Date(meal.created_at || meal.createdAt || meal.date || meal.nutrition_date);
+return created >= windowInfo.start && created < windowInfo.end;
+})
 .map(meal => ({ ...meal, source: "local" }));
 }
 
 async function getTodaysMeals() {
-return getMealsByDate(getTodayDate());
+const windowInfo = await getNutritionWindow();
+return getMealsInWindow(windowInfo);
 }
 
 async function repeatMeal(meal) {
@@ -531,21 +624,22 @@ is_favorite: false
 });
 }
 
-async function repeatYesterday() {
-const yesterdayMeals = await getMealsByDate(getYesterdayDate());
+async function repeatPreviousWindow() {
+const previousWindow = await getNutritionWindow(-1);
+const previousMeals = await getMealsInWindow(previousWindow);
 
-if (!yesterdayMeals.length) {
+if (!previousMeals.length) {
 document.getElementById("successMessage").textContent =
-"No meals found from yesterday.";
+"No meals found from the previous reset window.";
 return;
 }
 
-for (const meal of yesterdayMeals) {
-await addToIntake(meal);
+for (const meal of previousMeals) {
+await repeatMeal(meal);
 }
 
 document.getElementById("successMessage").textContent =
-`🔁 Repeated ${yesterdayMeals.length} meals from yesterday.`;
+`🔁 Repeated ${previousMeals.length} meals from the previous reset window.`;
 }
 
 async function favoriteMeal(id, source) {
@@ -603,10 +697,13 @@ const proteinText = document.getElementById("totalProteinText");
 const carbsText = document.getElementById("totalCarbsText");
 const fatText = document.getElementById("totalFatText");
 
-const meals = await getTodaysMeals();
+const windowInfo = await getNutritionWindow();
+updateWindowNote(windowInfo);
+
+const meals = await getMealsInWindow(windowInfo);
 
 if (meals.length === 0) {
-itemsDiv.innerHTML = "<p>No meals logged yet today.</p>";
+itemsDiv.innerHTML = "<p>No meals logged in this reset window.</p>";
 totalText.textContent = "0";
 proteinText.textContent = "0";
 carbsText.textContent = "0";
@@ -669,7 +766,6 @@ const user = await getCurrentUser();
 const today = new Date();
 const start = new Date();
 start.setDate(today.getDate() - 14);
-const startDate = start.toISOString().split("T")[0];
 
 let meals = [];
 
@@ -678,13 +774,13 @@ const { data, error } = await window.calbuddySupabase
 .from("meals")
 .select("*")
 .eq("user_id", user.id)
-.gte("nutrition_date", startDate)
-.order("nutrition_date", { ascending: false });
+.gte("created_at", start.toISOString())
+.order("created_at", { ascending: false });
 
 if (!error && data) meals = data;
 } else {
 meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
-.filter(meal => (meal.date || meal.nutrition_date) >= startDate);
+.filter(meal => new Date(meal.created_at || meal.date || meal.nutrition_date) >= start);
 }
 
 container.innerHTML = meals.length ? "" : "<p>No meal history yet.</p>";
@@ -692,11 +788,16 @@ container.innerHTML = meals.length ? "" : "<p>No meal history yet.</p>";
 meals.forEach(meal => {
 const card = document.createElement("div");
 card.className = "history-card";
+
+const displayDate = meal.created_at
+? new Date(meal.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+: meal.nutrition_date || meal.date;
+
 card.innerHTML = `
-<strong>${meal.nutrition_date || meal.date} — ${meal.category}</strong>
+<strong>${displayDate} — ${meal.category}</strong>
 <p>${meal.name}</p>
 <p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
-<button class="signin-btn" type="button">🔁 Repeat Today</button>
+<button class="signin-btn" type="button">🔁 Repeat Now</button>
 `;
 
 card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
@@ -731,7 +832,7 @@ card.className = "favorite-card";
 card.innerHTML = `
 <strong>${meal.name}</strong>
 <p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
-<button class="signin-btn" type="button">Add Again Today</button>
+<button class="signin-btn" type="button">Add Again Now</button>
 `;
 
 card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
@@ -739,7 +840,36 @@ container.appendChild(card);
 });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+async function handlePendingCalBuddyMeal() {
+const pending = localStorage.getItem("calbuddyPendingMealToLog");
+if (!pending) return;
+
+try {
+const meal = JSON.parse(pending);
+
+if (meal && meal.name && meal.calories) {
+await addToIntake({
+name: meal.name,
+calories: meal.calories,
+category: meal.category || "Meal",
+protein_g: meal.protein_g || 0,
+carbs_g: meal.carbs_g || 0,
+fat_g: meal.fat_g || 0,
+serving_size: meal.serving_size || "Added by CalBuddy",
+multiplier: meal.multiplier || 1
+});
+
+document.getElementById("successMessage").textContent =
+`✅ CalBuddy added: ${meal.name} — ${meal.calories} kcal`;
+
+localStorage.removeItem("calbuddyPendingMealToLog");
+}
+} catch {
+localStorage.removeItem("calbuddyPendingMealToLog");
+}
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
 const params = new URLSearchParams(window.location.search);
 const mode = params.get("mode");
 
@@ -749,7 +879,8 @@ else if (mode === "repeat") selectMode("history");
 else if (mode === "favorite") selectMode("favorites");
 else selectMode("meal");
 
-renderTodayIntake();
+await handlePendingCalBuddyMeal();
+await renderTodayIntake();
 });
 </script>
 </body>
