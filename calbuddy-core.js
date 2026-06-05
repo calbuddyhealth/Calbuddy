@@ -504,3 +504,4 @@ throw new Error(`Unknown action type: ${type}`);
 };
 
 console.log("CalBuddy core loaded.");
+
