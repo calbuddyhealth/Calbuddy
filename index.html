@@ -321,6 +321,21 @@ const day = String(date.getDate()).padStart(2, "0");
 return `${year}-${month}-${day}`;
 }
 
+function clearCalorieCache() {
+localStorage.removeItem("calbuddyCaloriesConsumed");
+localStorage.removeItem("calbuddyCaloriesBurned");
+localStorage.removeItem("calbuddyActiveNutritionDate");
+
+Object.keys(localStorage).forEach(key => {
+if (
+key.startsWith("calbuddyCaloriesConsumed_") ||
+key.startsWith("calbuddyCaloriesBurned_")
+) {
+localStorage.removeItem(key);
+}
+});
+}
+
 async function getCurrentUser() {
 if (!window.calbuddySupabase) return null;
 const { data, error } = await window.calbuddySupabase.auth.getSession();
@@ -385,10 +400,12 @@ start.setDate(start.getDate() - 1);
 const end = new Date(start);
 end.setDate(end.getDate() + 1);
 
+const resetKey = `${String(resetHour24).padStart(2, "0")}${String(reset.minute).padStart(2, "0")}`;
+
 return {
 start,
 end,
-dateKey: formatLocalDate(start)
+dateKey: `${formatLocalDate(start)}_${resetKey}`
 };
 }
 
@@ -578,6 +595,8 @@ return;
 }
 
 localStorage.setItem("calbuddyResetTime", JSON.stringify({ hour, minute, ampm }));
+
+clearCalorieCache();
 
 const user = await getCurrentUser();
 
