@@ -1020,3 +1020,364 @@ opacity: 0.94;
 opacity: 1;
 }
 }
+/* ==========================
+HOMEPAGE V3 FIXES
+========================== */
+
+.home-v3 {
+background: linear-gradient(180deg, #110827 0%, #1b0f3a 42%, #081225 100%);
+color: white;
+padding-bottom: 24px;
+}
+
+.home-v3 .logo {
+margin-top: 6px;
+font-size: 28px;
+line-height: 1;
+}
+
+.health-word {
+color: #e9d5ff;
+}
+
+.brand-block {
+text-align: center;
+flex: 1;
+}
+
+.brand-subtitle {
+margin: 3px 0 0;
+font-size: 8px;
+font-style: italic;
+font-weight: 700;
+color: rgba(255,255,255,0.68);
+letter-spacing: 0.1px;
+}
+
+.profile-btn {
+margin-top: 10px;
+border: 1px solid rgba(45, 212, 191, 0.7);
+background: rgba(255,255,255,0.08);
+color: white;
+border-radius: 16px;
+padding: 8px 10px;
+font-weight: 900;
+}
+
+.utility-tabs {
+display: grid;
+grid-template-columns: repeat(4, 1fr);
+gap: 8px;
+margin: 10px 0 10px;
+}
+
+.utility-tabs button {
+border: 1px solid rgba(45, 212, 191, 0.32);
+background: rgba(255,255,255,0.08);
+color: white;
+border-radius: 16px;
+padding: 9px 6px;
+font-size: 11px;
+font-weight: 900;
+}
+
+.top-stats-row {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 10px;
+margin-bottom: 10px;
+}
+
+.weight-card,
+.reset-mini-card {
+background: rgba(255,255,255,0.09);
+border: 1px solid rgba(139, 92, 246, 0.32);
+border-radius: 20px;
+padding: 12px;
+text-align: center;
+color: white;
+box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+}
+
+.weight-card span,
+.reset-mini-card p {
+display: block;
+margin: 4px 0 0;
+font-size: 10px;
+color: rgba(255,255,255,0.64);
+font-weight: 800;
+}
+
+.reset-mini-card strong {
+font-size: 20px;
+color: #2dd4bf;
+}
+
+.calorie-card {
+margin-bottom: 12px;
+background: rgba(255,255,255,0.09) !important;
+border: 1px solid rgba(45, 212, 191, 0.28) !important;
+box-shadow: 0 14px 34px rgba(0,0,0,0.25) !important;
+min-height: 150px;
+}
+
+.ari-home-card {
+position: relative;
+overflow: visible;
+border-radius: 28px;
+padding: 16px;
+margin-top: 8px;
+background:
+radial-gradient(circle at 85% 20%, rgba(45,212,191,0.22), transparent 35%),
+radial-gradient(circle at 20% 0%, rgba(139,92,246,0.28), transparent 40%),
+rgba(255,255,255,0.08);
+border: 1px solid rgba(255,255,255,0.14);
+box-shadow: 0 18px 38px rgba(0,0,0,0.30);
+}
+
+.ari-copy {
+position: relative;
+z-index: 3;
+max-width: 170px;
+}
+
+.ari-copy p {
+margin: 0;
+font-size: 19px;
+font-weight: 950;
+color: white;
+line-height: 1.15;
+}
+
+.ari-copy h2 {
+margin: 8px 0 0;
+font-size: 31px;
+color: #2dd4bf;
+font-weight: 950;
+}
+
+.ari-stage {
+position: absolute;
+right: -12px;
+top: -8px;
+width: 175px;
+height: 185px;
+overflow: visible;
+pointer-events: none;
+z-index: 2;
+}
+
+.ari-robot {
+width: 170px !important;
+max-width: 170px !important;
+height: auto !important;
+display: block;
+filter: drop-shadow(0 18px 26px rgba(0,0,0,0.35));
+transform-origin: center bottom;
+}
+
+.ari-idle {
+animation: ariBreathe 3.8s ease-in-out infinite;
+}
+
+.ari-thinking {
+animation: ariThinking 1.6s ease-in-out infinite;
+}
+
+.ari-celebrate,
+.ari-success {
+animation: ariCelebrate 0.9s ease-in-out 2;
+}
+
+.ari-sad,
+.ari-concerned {
+animation: ariConcerned 2s ease-in-out infinite;
+}
+
+.ari-thread {
+margin-top: 108px;
+max-height: 190px;
+overflow-y: auto;
+background: rgba(8, 18, 37, 0.55);
+border-radius: 20px;
+padding: 12px;
+border: 1px solid rgba(255,255,255,0.08);
+}
+
+.ari-message {
+margin-bottom: 12px;
+line-height: 1.35;
+}
+
+.ari-message p {
+margin: 4px 0 0;
+font-size: 14px;
+font-weight: 700;
+color: rgba(255,255,255,0.92);
+}
+
+.ari-label {
+display: block;
+font-size: 11px;
+color: #2dd4bf;
+font-weight: 950;
+}
+
+.ari-user {
+text-align: right;
+}
+
+.ari-user .ari-label {
+color: #c4b5fd;
+}
+
+.ari-input-shell {
+display: flex;
+align-items: flex-end;
+gap: 8px;
+margin-top: 12px;
+padding: 8px;
+border-radius: 22px;
+background: rgba(255,255,255,0.10);
+border: 1px solid rgba(255,255,255,0.14);
+}
+
+#ariInput {
+flex: 1;
+min-height: 52px;
+max-height: 130px;
+resize: none;
+border: none;
+outline: none;
+background: transparent;
+color: white;
+font-size: 15px;
+font-weight: 800;
+font-family: inherit;
+padding: 10px 4px;
+}
+
+#ariInput::placeholder {
+color: rgba(255,255,255,0.52);
+}
+
+.input-plus-btn,
+.ari-send-btn {
+width: 44px;
+height: 44px;
+border: none;
+border-radius: 16px;
+font-size: 22px;
+font-weight: 950;
+cursor: pointer;
+}
+
+.input-plus-btn {
+background: rgba(255,255,255,0.12);
+color: white;
+}
+
+.ari-send-btn {
+background: linear-gradient(135deg, #8b5cf6, #2dd4bf);
+color: white;
+}
+
+.pending-action-bar {
+display: none;
+margin-top: 12px;
+padding: 12px;
+border-radius: 18px;
+background: rgba(45, 212, 191, 0.14);
+border: 1px solid rgba(45, 212, 191, 0.35);
+}
+
+.pending-action-bar.show {
+display: block;
+}
+
+.pending-action-bar p {
+margin: 0 0 10px;
+font-weight: 900;
+color: white;
+}
+
+.pending-action-buttons {
+display: flex;
+gap: 8px;
+}
+
+.pending-action-buttons button {
+flex: 1;
+border: none;
+border-radius: 14px;
+padding: 10px;
+font-weight: 950;
+}
+
+.bottom-metrics {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 10px;
+margin-top: 12px;
+}
+
+.metric-card {
+border-radius: 22px;
+padding: 14px;
+background: rgba(255,255,255,0.09);
+border: 1px solid rgba(255,255,255,0.12);
+color: white;
+}
+
+.metric-card p {
+margin: 0;
+font-size: 12px;
+color: rgba(255,255,255,0.65);
+font-weight: 900;
+}
+
+.metric-card h3 {
+margin: 8px 0 0;
+font-size: 22px;
+font-weight: 950;
+}
+
+.plus-menu {
+display: none;
+grid-template-columns: repeat(2, 1fr);
+gap: 8px;
+margin: 8px 0 12px;
+}
+
+.plus-menu.show {
+display: grid;
+}
+
+.plus-menu button {
+border: 1px solid rgba(45, 212, 191, 0.28);
+border-radius: 16px;
+padding: 11px;
+background: rgba(255,255,255,0.09);
+color: white;
+font-weight: 900;
+}
+
+@keyframes ariBreathe {
+0%, 100% { transform: translateY(0) rotate(0deg); }
+50% { transform: translateY(-5px) rotate(-1deg); }
+}
+
+@keyframes ariThinking {
+0%, 100% { transform: translateY(0) rotate(0deg); }
+50% { transform: translateY(-3px) rotate(2deg); }
+}
+
+@keyframes ariCelebrate {
+0%, 100% { transform: scale(1) translateY(0); }
+50% { transform: scale(1.06) translateY(-8px); }
+}
+
+@keyframes ariConcerned {
+0%, 100% { transform: translateX(0); }
+50% { transform: translateX(-3px); }
+}
