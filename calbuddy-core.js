@@ -1,7 +1,17 @@
 // calbuddy-core.js
-// Shared CalBuddy app brain: auth, reset windows, meals, goals, weight, burned calories, and AI context.
+// Shared CalBuddy Health app brain.
+// Handles auth, reset windows, meals, goals, weight, burned calories,
+// AI context, API routing, pending actions, Ari moods, and dashboard refresh hooks.
 
 window.CalBuddy = window.CalBuddy || {};
+
+CalBuddy.version = "2.0.0";
+CalBuddy.pendingAction = null;
+CalBuddy.currentMood = "idle";
+
+/* -----------------------------
+BASIC HELPERS
+----------------------------- */
 
 CalBuddy.safeNumber = function (value, fallback = 0) {
 const number = Number(value);
@@ -15,6 +25,44 @@ const day = String(date.getDate()).padStart(2, "0");
 return `${year}-${month}-${day}`;
 };
 
+CalBuddy.isYes = function (text = "") {
+const t = String(text).trim().toLowerCase();
+return ["yes", "yes log it", "log it", "yep", "yeah", "sure", "ok", "okay", "do it", "add it"].includes(t);
+};
+
+CalBuddy.isNo = function (text = "") {
+const t = String(text).trim().toLowerCase();
+return ["no", "nope", "cancel", "don't", "dont", "never mind", "nevermind"].includes(t);
+};
+
+/* -----------------------------
+API HELPER
+----------------------------- */
+
+CalBuddy.api = async function (endpoint, body = {}, options = {}) {
+const method = options.method || "POST";
+
+const response = await fetch(endpoint, {
+method,
+headers: {
+"Content-Type": "application/json"
+},
+body: method === "GET" ? undefined : JSON.stringify(body)
+});
+
+const data = await response.json().catch(() => ({}));
+
+if (!response.ok) {
+throw new Error(data.error?.message || data.error || `API failed: ${endpoint}`);
+}
+
+return data;
+};
+
+/* -----------------------------
+AUTH
+----------------------------- */
+
 CalBuddy.getCurrentUser = async function () {
 if (window.getCurrentUser) return await window.getCurrentUser();
 if (!window.calbuddySupabase) return null;
@@ -24,6 +72,72 @@ if (error || !data.session) return null;
 
 return data.session.user;
 };
+
+CalBuddy.requireUser = async function () {
+const user = await CalBuddy.getCurrentUser();
+
+if (!user) {
+window.location.href = "signin.html";
+throw new Error("User must be signed in.");
+}
+
+return user;
+};
+
+/* -----------------------------
+ARI MOOD / ANIMATION SYSTEM
+----------------------------- */
+
+CalBuddy.allowedMoods = [
+"idle",
+"thinking",
+"happy",
+"celebrate",
+"sad",
+"concerned",
+"mad",
+"shy",
+"coach",
+"wow",
+"laugh",
+"listening",
+"logging",
+"success"
+];
+
+CalBuddy.setAriMood = function (mood = "idle") {
+if (!CalBuddy.allowedMoods.includes(mood)) mood = "idle";
+
+CalBuddy.currentMood = mood;
+
+const ari = document.querySelector("[data-ari-mascot]");
+if (ari) {
+CalBuddy.allowedMoods.forEach(m => ari.classList.remove(`ari-${m}`));
+ari.classList.add(`ari-${mood}`);
+ari.setAttribute("data-mood", mood);
+}
+
+window.dispatchEvent(new CustomEvent("calbuddy:mood", { detail: { mood } }));
+
+return mood;
+};
+
+CalBuddy.moodFromText = function (text = "") {
+const t = String(text).toLowerCase();
+
+if (t.includes("congrat") || t.includes("great job") || t.includes("proud") || t.includes("woo")) return "celebrate";
+if (t.includes("sorry") || t.includes("rough") || t.includes("sad")) return "sad";
+if (t.includes("hmm") || t.includes("thinking")) return "thinking";
+if (t.includes("yikes") || t.includes("careful")) return "concerned";
+if (t.includes("haha") || t.includes("lol")) return "laugh";
+if (t.includes("nice") || t.includes("great") || t.includes("good")) return "happy";
+
+return "idle";
+};
+
+/* -----------------------------
+RESET WINDOW
+----------------------------- */
 
 CalBuddy.getResetTime = async function () {
 const saved = localStorage.getItem("calbuddyResetTime");
@@ -75,9 +189,7 @@ const now = new Date();
 const start = new Date();
 start.setHours(resetHour24, Number(reset.minute), 0, 0);
 
-if (now < start) {
-start.setDate(start.getDate() - 1);
-}
+if (now < start) start.setDate(start.getDate() - 1);
 
 start.setDate(start.getDate() + offset);
 
@@ -141,7 +253,25 @@ updated_at: new Date().toISOString()
 if (error) throw error;
 }
 
+await CalBuddy.refreshDashboard();
 return resetTime;
+};
+
+/* -----------------------------
+MEALS / CALORIES
+----------------------------- */
+
+CalBuddy.saveMealLocally = function (meal) {
+const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+
+meals.push({
+id: Date.now(),
+date: meal.nutrition_date,
+...meal,
+source: "local"
+});
+
+localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 };
 
 CalBuddy.logMeal = async function (meal) {
@@ -150,14 +280,14 @@ const windowInfo = await CalBuddy.getNutritionWindow();
 const createdAt = new Date().toISOString();
 
 const mealToSave = {
-name: meal.name || "CalBuddy meal",
+name: meal.name || "Ari meal",
 calories: Number(meal.calories || 0),
 category: meal.category || "Meal",
-nutrition_date: windowInfo.nutritionDate,
+nutrition_date: meal.nutrition_date || windowInfo.nutritionDate,
 protein_g: Number(meal.protein_g || 0),
 carbs_g: Number(meal.carbs_g || 0),
 fat_g: Number(meal.fat_g || 0),
-serving_size: meal.serving_size || "Added by CalBuddy",
+serving_size: meal.serving_size || "Added by Ari",
 multiplier: Number(meal.multiplier || 1),
 is_favorite: Boolean(meal.is_favorite || false),
 created_at: createdAt
@@ -166,6 +296,8 @@ created_at: createdAt
 if (!mealToSave.calories || mealToSave.calories <= 0) {
 throw new Error("Meal calories are required.");
 }
+
+CalBuddy.setAriMood("logging");
 
 if (user && window.calbuddySupabase) {
 const { error } = await window.calbuddySupabase
@@ -180,22 +312,10 @@ CalBuddy.saveMealLocally(mealToSave);
 }
 
 CalBuddy.clearCalorieCache();
-await CalBuddy.getConsumedCalories();
+await CalBuddy.refreshDashboard();
+CalBuddy.setAriMood("success");
 
 return mealToSave;
-};
-
-CalBuddy.saveMealLocally = function (meal) {
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
-
-meals.push({
-id: Date.now(),
-date: meal.nutrition_date,
-...meal,
-source: "local"
-});
-
-localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 };
 
 CalBuddy.getMealsInWindow = async function (offset = 0) {
@@ -239,6 +359,10 @@ localStorage.setItem("calbuddyActiveNutritionDate", windowInfo.dateKey);
 return Math.round(total);
 };
 
+/* -----------------------------
+ACTIVITY / BURNED CALORIES
+----------------------------- */
+
 CalBuddy.logCaloriesBurned = async function ({ calories_burned, activity_name = "Activity" }) {
 const user = await CalBuddy.getCurrentUser();
 const windowInfo = await CalBuddy.getNutritionWindow();
@@ -263,6 +387,8 @@ if (error) throw error;
 }
 
 CalBuddy.clearCalorieCache();
+await CalBuddy.refreshDashboard();
+
 return entry;
 };
 
@@ -297,6 +423,10 @@ localStorage.setItem("calbuddyCaloriesBurned", burned);
 
 return burned;
 };
+
+/* -----------------------------
+PROFILE / WEIGHT / GOALS
+----------------------------- */
 
 CalBuddy.updateProfile = async function (updates = {}) {
 const user = await CalBuddy.getCurrentUser();
@@ -334,6 +464,7 @@ updated_at: new Date().toISOString()
 if (error) throw error;
 }
 
+await CalBuddy.refreshDashboard();
 return updates;
 };
 
@@ -362,8 +493,66 @@ await window.calbuddySupabase
 await CalBuddy.updateProfile({ current_weight: entry.weight });
 }
 
+await CalBuddy.refreshDashboard();
 return entry;
 };
+
+CalBuddy.recommendCalories = function ({
+weight,
+height,
+age,
+gender,
+activityLevel = "moderate",
+goalType = "lose"
+}) {
+weight = Number(weight);
+height = Number(height);
+age = Number(age);
+
+if (!weight || !height || !age || !gender) return null;
+
+const kg = weight * 0.453592;
+const cm = height * 2.54;
+
+let bmr;
+
+if (String(gender).toLowerCase().startsWith("f")) {
+bmr = 10 * kg + 6.25 * cm - 5 * age - 161;
+} else {
+bmr = 10 * kg + 6.25 * cm - 5 * age + 5;
+}
+
+const activityMap = {
+sedentary: 1.2,
+light: 1.375,
+moderate: 1.55,
+active: 1.725,
+very_active: 1.9
+};
+
+const multiplier = activityMap[activityLevel] || 1.55;
+const maintenance = Math.round(bmr * multiplier);
+
+let recommended = maintenance;
+
+if (goalType === "lose") recommended = maintenance - 400;
+if (goalType === "gain") recommended = maintenance + 300;
+if (goalType === "maintain") recommended = maintenance;
+
+recommended = Math.max(1200, Math.round(recommended / 10) * 10);
+
+return {
+bmr: Math.round(bmr),
+maintenance,
+recommendedCalories: recommended,
+goalType,
+activityLevel
+};
+};
+
+/* -----------------------------
+USER CONTEXT
+----------------------------- */
 
 CalBuddy.getUserContext = async function () {
 const windowInfo = await CalBuddy.getNutritionWindow();
@@ -406,88 +595,152 @@ humorLevel: localStorage.getItem("calbuddyHumorLevel") || "medium"
 };
 };
 
-CalBuddy.recommendCalories = function ({
-weight,
-height,
-age,
-gender,
-activityLevel = "moderate",
-goalType = "lose"
-}) {
-weight = Number(weight);
-height = Number(height);
-age = Number(age);
+/* -----------------------------
+MEMORY / KNOWLEDGE / BARCODE / IMAGE
+----------------------------- */
 
-if (!weight || !height || !age || !gender) {
+CalBuddy.saveMemory = async function ({ memory_type, memory_key = null, memory_value, source = "conversation" }) {
+const user = await CalBuddy.requireUser();
+
+return await CalBuddy.api("/api/memory", {
+action: "save_memory",
+user_id: user.id,
+memory_type,
+memory_key,
+memory_value,
+source
+});
+};
+
+CalBuddy.getMemories = async function () {
+const user = await CalBuddy.requireUser();
+
+return await CalBuddy.api("/api/memory", {
+action: "get_memories",
+user_id: user.id
+});
+};
+
+CalBuddy.searchKnowledge = async function (query) {
+const user = await CalBuddy.requireUser();
+
+return await CalBuddy.api("/api/knowledge", {
+action: "search_knowledge",
+user_id: user.id,
+query
+});
+};
+
+CalBuddy.lookupBarcode = async function (barcode) {
+return await CalBuddy.api("/api/barcode", { barcode });
+};
+
+CalBuddy.analyzeImage = async function ({ imageBase64, imageUrl, prompt = "", analysisType = "general" }) {
+const user = await CalBuddy.requireUser();
+
+CalBuddy.setAriMood("thinking");
+
+const result = await CalBuddy.api("/api/image-analyze", {
+imageBase64,
+imageUrl,
+prompt,
+analysisType,
+user_id: user.id
+});
+
+if (result.pendingAction) {
+CalBuddy.setPendingAction(result.pendingAction);
+}
+
+CalBuddy.setAriMood(result.pendingAction ? "thinking" : "happy");
+
+return result;
+};
+
+/* -----------------------------
+USAGE LIMITS
+----------------------------- */
+
+CalBuddy.checkUsage = async function (usage_type = "chat") {
+const user = await CalBuddy.requireUser();
+
+return await CalBuddy.api("/api/usage", {
+user_id: user.id,
+action: "check",
+usage_type
+});
+};
+
+CalBuddy.logUsage = async function ({ message = "", usage_type = "chat", model = "gpt-4o-mini" }) {
+const user = await CalBuddy.requireUser();
+
+return await CalBuddy.api("/api/usage", {
+user_id: user.id,
+action: "log",
+message,
+usage_type,
+model
+});
+};
+
+/* -----------------------------
+PENDING ACTIONS
+----------------------------- */
+
+CalBuddy.setPendingAction = function (action) {
+CalBuddy.pendingAction = action;
+localStorage.setItem("calbuddyPendingAction", JSON.stringify(action));
+window.dispatchEvent(new CustomEvent("calbuddy:pendingAction", { detail: { action } }));
+return action;
+};
+
+CalBuddy.getPendingAction = function () {
+if (CalBuddy.pendingAction) return CalBuddy.pendingAction;
+
+const saved = localStorage.getItem("calbuddyPendingAction");
+if (!saved) return null;
+
+try {
+CalBuddy.pendingAction = JSON.parse(saved);
+return CalBuddy.pendingAction;
+} catch {
 return null;
 }
-
-const kg = weight * 0.453592;
-const cm = height * 2.54;
-
-let bmr;
-
-if (String(gender).toLowerCase().startsWith("f")) {
-bmr = 10 * kg + 6.25 * cm - 5 * age - 161;
-} else {
-bmr = 10 * kg + 6.25 * cm - 5 * age + 5;
-}
-
-const activityMap = {
-sedentary: 1.2,
-light: 1.375,
-moderate: 1.55,
-active: 1.725,
-very_active: 1.9
 };
 
-const multiplier = activityMap[activityLevel] || 1.55;
-const maintenance = Math.round(bmr * multiplier);
-
-let recommended = maintenance;
-
-if (goalType === "lose") recommended = maintenance - 400;
-if (goalType === "gain") recommended = maintenance + 300;
-if (goalType === "maintain") recommended = maintenance;
-
-recommended = Math.max(1200, Math.round(recommended / 10) * 10);
-
-return {
-bmr: Math.round(bmr),
-maintenance,
-recommendedCalories: recommended,
-goalType,
-activityLevel
-};
+CalBuddy.clearPendingAction = function () {
+CalBuddy.pendingAction = null;
+localStorage.removeItem("calbuddyPendingAction");
+window.dispatchEvent(new CustomEvent("calbuddy:pendingActionCleared"));
 };
 
-CalBuddy.createPendingAction = async function ({ action_type, payload }) {
+CalBuddy.createPendingAction = async function ({ action_type, payload, confirmation_text = null }) {
 const user = await CalBuddy.getCurrentUser();
 
 const action = {
 action_type,
 status: "pending",
 payload: payload || {},
+confirmation_text,
 created_at: new Date().toISOString()
 };
 
+CalBuddy.setPendingAction(action);
+
 if (user && window.calbuddySupabase) {
 const { data, error } = await window.calbuddySupabase
-.from("calbuddy_actions")
+.from("ai_app_actions")
 .insert({ user_id: user.id, ...action })
 .select()
 .single();
 
-if (error) throw error;
+if (!error && data) {
+CalBuddy.setPendingAction(data);
 return data;
 }
+}
 
-const actions = JSON.parse(localStorage.getItem("calbuddyActions") || "[]");
-const localAction = { id: Date.now(), ...action, source: "local" };
-actions.push(localAction);
-localStorage.setItem("calbuddyActions", JSON.stringify(actions));
-
-return localAction;
+return action;
 };
 
 CalBuddy.executeAction = async function (action) {
@@ -503,5 +756,136 @@ if (type === "update_profile" || type === "update_goal_profile") return await Ca
 throw new Error(`Unknown action type: ${type}`);
 };
 
-console.log("CalBuddy core loaded.");
+CalBuddy.confirmPendingAction = async function () {
+const action = CalBuddy.getPendingAction();
 
+if (!action) {
+return {
+success: false,
+reply: "I don’t have anything waiting to confirm."
+};
+}
+
+try {
+const result = await CalBuddy.executeAction(action);
+CalBuddy.clearPendingAction();
+
+CalBuddy.setAriMood("success");
+
+return {
+success: true,
+result,
+reply: "Done — I logged that for you."
+};
+} catch (error) {
+CalBuddy.setAriMood("concerned");
+
+return {
+success: false,
+error: error.message,
+reply: "I tried to do that, but something glitched."
+};
+}
+};
+
+CalBuddy.cancelPendingAction = function () {
+CalBuddy.clearPendingAction();
+CalBuddy.setAriMood("idle");
+
+return {
+success: true,
+reply: "No problem — I won’t log that."
+};
+};
+
+/* -----------------------------
+ASK ARI
+----------------------------- */
+
+CalBuddy.askAri = async function ({ message, history = [] }) {
+const user = await CalBuddy.requireUser();
+
+if (!message || !message.trim()) {
+throw new Error("Message is required.");
+}
+
+const pending = CalBuddy.getPendingAction();
+
+if (pending && CalBuddy.isYes(message)) {
+return await CalBuddy.confirmPendingAction();
+}
+
+if (pending && CalBuddy.isNo(message)) {
+return CalBuddy.cancelPendingAction();
+}
+
+const usage = await CalBuddy.checkUsage("chat");
+
+if (usage && usage.allowed === false) {
+CalBuddy.setAriMood("concerned");
+return {
+reply: usage.message || "You’ve reached today’s AI limit.",
+blocked: true
+};
+}
+
+CalBuddy.setAriMood("thinking");
+
+const userContext = await CalBuddy.getUserContext();
+
+const response = await CalBuddy.api("/api/ask-calbuddy", {
+message,
+userContext,
+history
+});
+
+await CalBuddy.logUsage({ message, usage_type: "chat" });
+
+if (response.pendingAction) {
+CalBuddy.setPendingAction(response.pendingAction);
+}
+
+const mood =
+response.emotion ||
+response.mood ||
+CalBuddy.moodFromText(response.reply || "");
+
+CalBuddy.setAriMood(mood);
+
+return response;
+};
+
+/* -----------------------------
+DASHBOARD REFRESH HOOK
+----------------------------- */
+
+CalBuddy.refreshDashboard = async function () {
+const context = await CalBuddy.getUserContext();
+
+window.dispatchEvent(new CustomEvent("calbuddy:dashboardUpdated", {
+detail: context
+}));
+
+return context;
+};
+
+/* -----------------------------
+INIT
+----------------------------- */
+
+CalBuddy.init = async function () {
+CalBuddy.getPendingAction();
+CalBuddy.setAriMood("idle");
+
+try {
+await CalBuddy.refreshDashboard();
+} catch {
+console.log("Dashboard refresh skipped.");
+}
+
+console.log("CalBuddy core loaded.", CalBuddy.version);
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+CalBuddy.init();
+});
