@@ -1,29 +1,13 @@
-const questions = [
-"You have 850 calories left. Need dinner ideas?",
-"Need help estimating a meal?",
-"Can you still fit dessert today?",
-"Want a lighter dinner option?",
-"Need help staying on track?",
-"What should you eat after a workout?"
-];
-
-let index = 0;
-const questionBox = document.getElementById("calbuddy-question");
-
-if (questionBox) {
-setInterval(() => {
-index = (index + 1) % questions.length;
-questionBox.textContent = `"${questions[index]}"`;
-}, 4000);
-}
+// app.js
+// CalBuddy Health shared page helpers.
+// Homepage V3 uses most logic from calbuddy-core.js.
 
 document.addEventListener("DOMContentLoaded", async () => {
 const supabase = window.calbuddySupabase;
 
-setupAuthButton(supabase);
-updateHomeCaloriesFromGoals();
-await loadProfileFromSupabase(supabase);
+await setupAuthButton(supabase);
 setupSaveGoalsButton(supabase);
+await loadProfileFromSupabase(supabase);
 });
 
 async function setupAuthButton(supabase) {
@@ -38,40 +22,16 @@ return;
 }
 
 if (data.session) {
-authButton.textContent = "Logout";
-
-authButton.onclick = async () => {
-await supabase.auth.signOut();
-window.location.href = "index.html";
+authButton.textContent = "👤";
+authButton.onclick = () => {
+window.location.href = "goals.html";
 };
 } else {
-authButton.textContent = "👤 Sign In";
-
+authButton.textContent = "Sign In";
 authButton.onclick = () => {
 window.location.href = "signin.html";
 };
 }
-}
-
-function updateHomeCaloriesFromGoals() {
-const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
-const savedConsumed = localStorage.getItem("calbuddyCaloriesConsumed") || 0;
-
-if (!savedGoal) return;
-
-const goal = Number(savedGoal);
-const consumed = Number(savedConsumed);
-const caloriesLeft = Math.max(goal - consumed, 0);
-
-const dailyGoalText = document.getElementById("dailyGoalText");
-const dailyGoalConsumed = document.getElementById("dailyGoalConsumed");
-const caloriesConsumedText = document.getElementById("caloriesConsumedText");
-const caloriesLeftText = document.getElementById("caloriesLeftText");
-
-if (dailyGoalText) dailyGoalText.textContent = goal.toLocaleString();
-if (dailyGoalConsumed) dailyGoalConsumed.textContent = goal.toLocaleString();
-if (caloriesConsumedText) caloriesConsumedText.textContent = consumed.toLocaleString();
-if (caloriesLeftText) caloriesLeftText.textContent = caloriesLeft.toLocaleString();
 }
 
 async function loadProfileFromSupabase(supabase) {
@@ -86,7 +46,7 @@ const { data: profile, error } = await supabase
 .from("profiles")
 .select("*")
 .eq("id", user.id)
-.single();
+.maybeSingle();
 
 if (error) {
 console.log("Profile load error:", error);
@@ -98,29 +58,38 @@ if (!profile) return;
 setValue("name", profile.name);
 setValue("age", profile.age);
 setValue("sex", profile.sex);
-setValue("currentWeight", profile.weight_lbs);
+setValue("currentWeight", profile.weight_lbs || profile.current_weight);
 setValue("heightIn", profile.height_in);
 setValue("activityLevel", profile.activity_level);
-setValue("goal", profile.goal);
-setValue("targetWeight", profile.target_weight_lbs);
+setValue("goal", profile.goal || profile.goal_type);
+setValue("targetWeight", profile.target_weight_lbs || profile.goal_weight);
 setValue("weeklyWeightChangeGoal", profile.weekly_weight_change_goal);
 
 if (profile.daily_calorie_goal) {
 localStorage.setItem("calbuddyDailyCalorieGoal", profile.daily_calorie_goal);
-updateHomeCaloriesFromGoals();
+}
+
+if (profile.weight_lbs || profile.current_weight) {
+localStorage.setItem("calbuddyCurrentWeight", profile.weight_lbs || profile.current_weight);
+}
+
+if (profile.target_weight_lbs || profile.goal_weight) {
+localStorage.setItem("calbuddyGoalWeight", profile.target_weight_lbs || profile.goal_weight);
+}
+
+if (window.CalBuddy?.refreshDashboard) {
+await CalBuddy.refreshDashboard();
 }
 }
 
 function setupSaveGoalsButton(supabase) {
 const saveButton = document.getElementById("saveGoalsButton");
-
 if (!saveButton) return;
 
 saveButton.addEventListener("click", async () => {
 const dailyCalorieGoal = calculateDailyCalorieGoal();
 
 localStorage.setItem("calbuddyDailyCalorieGoal", dailyCalorieGoal);
-updateHomeCaloriesFromGoals();
 
 if (!supabase) {
 alert("Saved on this device only. Supabase is not connected.");
@@ -135,16 +104,27 @@ alert("Saved on this device. Sign in to save to your account.");
 return;
 }
 
+const currentWeight = getNumber("currentWeight");
+const targetWeight = getNumber("targetWeight");
+
 const profileData = {
 id: user.id,
 name: getValue("name") || null,
 age: getNumber("age"),
 sex: getValue("sex") || null,
-weight_lbs: getNumber("currentWeight"),
+
+weight_lbs: currentWeight,
+current_weight: currentWeight,
+
 height_in: getNumber("heightIn"),
 activity_level: getValue("activityLevel") || null,
+
 goal: getValue("goal") || null,
-target_weight_lbs: getNumber("targetWeight"),
+goal_type: getValue("goal") || null,
+
+target_weight_lbs: targetWeight,
+goal_weight: targetWeight,
+
 weekly_weight_change_goal: getNumber("weeklyWeightChangeGoal"),
 daily_calorie_goal: dailyCalorieGoal,
 updated_at: new Date().toISOString()
@@ -158,6 +138,13 @@ if (error) {
 console.log("Save profile error:", error);
 alert("Something went wrong saving your goals.");
 return;
+}
+
+localStorage.setItem("calbuddyCurrentWeight", currentWeight || "");
+localStorage.setItem("calbuddyGoalWeight", targetWeight || "");
+
+if (window.CalBuddy?.refreshDashboard) {
+await CalBuddy.refreshDashboard();
 }
 
 alert("Goals saved.");
@@ -177,7 +164,7 @@ const heightCm = height * 2.54;
 
 let bmr;
 
-if (sex.toLowerCase() === "female") {
+if (String(sex).toLowerCase() === "female") {
 bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
 } else {
 bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
