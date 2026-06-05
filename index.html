@@ -111,11 +111,11 @@ padding: 0;
 }
 
 .chat-user {
-margin-left: 28px;
+margin-left: 26px;
 }
 
 .chat-ai {
-margin-right: 18px;
+margin-right: 16px;
 }
 
 .chat-input-row {
@@ -307,6 +307,8 @@ onkeydown="handleChatEnter(event)"
 </main>
 
 <script>
+let calbuddyChatHistory = [];
+
 function safeNumber(value, fallback = 0) {
 const number = Number(value);
 return Number.isFinite(number) ? number : fallback;
@@ -317,10 +319,6 @@ const year = date.getFullYear();
 const month = String(date.getMonth() + 1).padStart(2, "0");
 const day = String(date.getDate()).padStart(2, "0");
 return `${year}-${month}-${day}`;
-}
-
-function getTodayDate() {
-return formatLocalDate(new Date());
 }
 
 async function getCurrentUser() {
@@ -371,21 +369,27 @@ if (ampm === "PM" && hour !== 12) return hour + 12;
 return hour;
 }
 
-async function getNutritionDate() {
+async function getNutritionWindow() {
 const reset = await getResetTime();
 const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
 
 const now = new Date();
-const resetToday = new Date();
-resetToday.setHours(resetHour24, Number(reset.minute), 0, 0);
 
-const nutritionDate = new Date(now);
+const start = new Date();
+start.setHours(resetHour24, Number(reset.minute), 0, 0);
 
-if (now < resetToday) {
-nutritionDate.setDate(nutritionDate.getDate() - 1);
+if (now < start) {
+start.setDate(start.getDate() - 1);
 }
 
-return formatLocalDate(nutritionDate);
+const end = new Date(start);
+end.setDate(end.getDate() + 1);
+
+return {
+start,
+end,
+dateKey: formatLocalDate(start)
+};
 }
 
 function toggleMenu() {
@@ -456,6 +460,7 @@ sendCalBuddyMessage();
 }
 
 async function getUserContextForCalBuddy() {
+const windowInfo = await getNutritionWindow();
 const dailyGoal = safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 2100);
 const consumed = safeNumber(localStorage.getItem("calbuddyCaloriesConsumed"), 0);
 const burned = safeNumber(localStorage.getItem("calbuddyCaloriesBurned"), 0);
@@ -469,6 +474,8 @@ goals = {};
 }
 
 return {
+nutritionWindowStart: windowInfo.start.toISOString(),
+nutritionWindowEnd: windowInfo.end.toISOString(),
 caloriesConsumed: consumed,
 dailyGoal,
 caloriesBurned: burned,
@@ -502,6 +509,9 @@ autoResizeChatInput();
 addChatMessage(message, "user");
 addChatMessage("Thinking...", "ai");
 
+calbuddyChatHistory.push({ role: "user", content: message });
+calbuddyChatHistory = calbuddyChatHistory.slice(-10);
+
 if (button) button.disabled = true;
 
 try {
@@ -514,7 +524,8 @@ headers: {
 },
 body: JSON.stringify({
 message,
-userContext
+userContext,
+history: calbuddyChatHistory
 })
 });
 
@@ -524,12 +535,18 @@ const messages = document.getElementById("chatMessages");
 const lastMessage = messages.lastElementChild;
 const lastBody = lastMessage?.querySelector("span:last-child");
 
-if (lastBody && lastBody.textContent === "Thinking...") {
-lastBody.textContent =
+const reply =
 data.reply ||
 data.error ||
 "Hmm. I had trouble answering that. Try again.";
+
+if (lastBody && lastBody.textContent === "Thinking...") {
+lastBody.textContent = reply;
 }
+
+calbuddyChatHistory.push({ role: "assistant", content: reply });
+calbuddyChatHistory = calbuddyChatHistory.slice(-10);
+
 } catch (error) {
 const messages = document.getElementById("chatMessages");
 const lastMessage = messages.lastElementChild;
@@ -582,30 +599,23 @@ if (error) console.log("Reset time cloud save failed:", error);
 }
 
 document.getElementById("resetOptions").classList.remove("show");
-await updateHomeCalories();
 await updateResetCountdown();
+await updateHomeCalories();
 }
 
 async function updateResetCountdown() {
-const reset = await getResetTime();
-const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
-
+const windowInfo = await getNutritionWindow();
 const now = new Date();
-const nextReset = new Date();
+const diff = windowInfo.end - now;
 
-nextReset.setHours(resetHour24, Number(reset.minute), 0, 0);
-
-if (now >= nextReset) {
-nextReset.setDate(nextReset.getDate() + 1);
-}
-
-const diff = nextReset - now;
-const hours = Math.floor(diff / (1000 * 60 * 60));
-const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+const safeDiff = Math.max(diff, 0);
+const hours = Math.floor(safeDiff / (1000 * 60 * 60));
+const minutes = Math.floor((safeDiff % (1000 * 60 * 60)) / (1000 * 60));
 
 const countdown = document.getElementById("resetCountdownText");
 if (countdown) countdown.textContent = `${hours}h ${minutes}m`;
 
+const reset = await getResetTime();
 const hourInput = document.getElementById("resetHourInput");
 const minuteInput = document.getElementById("resetMinuteInput");
 const ampmInput = document.getElementById("resetAmPmInput");
@@ -678,37 +688,42 @@ else fill.classList.add("meter-fill-red");
 
 async function getTodaysConsumedCaloriesFromSupabase() {
 const user = await getCurrentUser();
-const nutritionDate = await getNutritionDate();
+const windowInfo = await getNutritionWindow();
 
 if (!user || !window.calbuddySupabase) {
-return safeNumber(localStorage.getItem(`calbuddyCaloriesConsumed_${nutritionDate}`), 0);
+const localValue = safeNumber(localStorage.getItem(`calbuddyCaloriesConsumed_${windowInfo.dateKey}`), 0);
+localStorage.setItem("calbuddyCaloriesConsumed", localValue);
+return localValue;
 }
 
 const { data, error } = await window.calbuddySupabase
 .from("meals")
-.select("calories")
+.select("calories, created_at")
 .eq("user_id", user.id)
-.eq("nutrition_date", nutritionDate);
+.gte("created_at", windowInfo.start.toISOString())
+.lt("created_at", windowInfo.end.toISOString());
 
 if (error || !data) {
 console.log("Could not load meals from Supabase.", error);
-return safeNumber(localStorage.getItem(`calbuddyCaloriesConsumed_${nutritionDate}`), 0);
+const localValue = safeNumber(localStorage.getItem(`calbuddyCaloriesConsumed_${windowInfo.dateKey}`), 0);
+localStorage.setItem("calbuddyCaloriesConsumed", localValue);
+return localValue;
 }
 
 const total = data.reduce((sum, meal) => {
 return sum + safeNumber(meal.calories, 0);
 }, 0);
 
-localStorage.setItem(`calbuddyCaloriesConsumed_${nutritionDate}`, Math.round(total));
+localStorage.setItem(`calbuddyCaloriesConsumed_${windowInfo.dateKey}`, Math.round(total));
 localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
-localStorage.setItem("calbuddyActiveNutritionDate", nutritionDate);
+localStorage.setItem("calbuddyActiveNutritionDate", windowInfo.dateKey);
 
 return Math.round(total);
 }
 
 async function getTodaysCaloriesBurned() {
-const nutritionDate = await getNutritionDate();
-const localBurned = safeNumber(localStorage.getItem(`calbuddyCaloriesBurned_${nutritionDate}`), 0);
+const windowInfo = await getNutritionWindow();
+const localBurned = safeNumber(localStorage.getItem(`calbuddyCaloriesBurned_${windowInfo.dateKey}`), 0);
 const user = await getCurrentUser();
 
 if (!user || !window.calbuddySupabase) {
@@ -719,18 +734,21 @@ return localBurned;
 try {
 const { data, error } = await window.calbuddySupabase
 .from("activity_logs")
-.select("calories_burned")
+.select("calories_burned, created_at")
 .eq("user_id", user.id)
-.eq("log_date", nutritionDate)
-.maybeSingle();
+.gte("created_at", windowInfo.start.toISOString())
+.lt("created_at", windowInfo.end.toISOString());
 
 if (error || !data) {
 localStorage.setItem("calbuddyCaloriesBurned", localBurned);
 return localBurned;
 }
 
-const burned = safeNumber(data.calories_burned, localBurned);
-localStorage.setItem(`calbuddyCaloriesBurned_${nutritionDate}`, burned);
+const burned = data.reduce((sum, item) => {
+return sum + safeNumber(item.calories_burned, 0);
+}, 0);
+
+localStorage.setItem(`calbuddyCaloriesBurned_${windowInfo.dateKey}`, burned);
 localStorage.setItem("calbuddyCaloriesBurned", burned);
 
 return burned;
@@ -774,19 +792,18 @@ async function updateHomeCalories() {
 const savedGoal = localStorage.getItem("calbuddyDailyCalorieGoal");
 const goal = savedGoal ? safeNumber(savedGoal, 2100) : 2100;
 
-const nutritionDate = await getNutritionDate();
+const windowInfo = await getNutritionWindow();
 const lastActiveDate = localStorage.getItem("calbuddyActiveNutritionDate");
 
-if (lastActiveDate && lastActiveDate !== nutritionDate) {
+if (lastActiveDate && lastActiveDate !== windowInfo.dateKey) {
 localStorage.setItem("calbuddyCaloriesConsumed", 0);
 localStorage.setItem("calbuddyCaloriesBurned", 0);
 }
 
-localStorage.setItem("calbuddyActiveNutritionDate", nutritionDate);
+localStorage.setItem("calbuddyActiveNutritionDate", windowInfo.dateKey);
 
-let consumed = await getTodaysConsumedCaloriesFromSupabase();
+const consumed = await getTodaysConsumedCaloriesFromSupabase();
 const burned = await getTodaysCaloriesBurned();
-
 const caloriesLeft = Math.max(goal - consumed + burned, 0);
 
 const caloriesLeftText = document.getElementById("caloriesLeftText");
