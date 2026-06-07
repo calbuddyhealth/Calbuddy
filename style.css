@@ -2617,3 +2617,65 @@ white-space: pre-wrap;
 .ari-search-section:not(.expanded) .ari-conversation-panel {
 display: none !important;
 }
+/* =====================================================
+ARI SIZE + SMALLER METER FINAL OVERRIDE
+===================================================== */
+
+.ari-large-coach-hero {
+min-height: 350px !important;
+}
+
+.ari-large-coach-hero .ari-master-img,
+.ari-master-img {
+width: 355px !important;
+max-width: none !important;
+right: -58px !important;
+bottom: 0 !important;
+}
+
+.ari-speech-bubble {
+width: 235px !important;
+min-height: 120px !important;
+max-height: 170px !important;
+overflow-y: auto !important;
+padding: 16px !important;
+font-size: 14px !important;
+line-height: 1.45 !important;
+}
+
+.ari-search-section {
+margin-top: -8px !important;
+}
+
+.ari-meter-card {
+min-height: 205px !important;
+margin-top: 14px !important;
+padding: 12px 14px !important;
+}
+
+.ari-meter-card .true-meter-wrap {
+height: 150px !important;
+transform: scale(0.82) !important;
+}
+
+.ari-meter-card .true-meter {
+transform: translateY(0) scale(1) !important;
+}
+
+.ari-meter-card .true-meter-text {
+top: 58% !important;
+}
+
+.ari-meter-card .true-meter-text h2 {
+font-size: 48px !important;
+}
+
+.ari-meter-card .true-meter-text p {
+font-size: 10px !important;
+letter-spacing: 3px !important;
+}
+
+.ari-meter-card .true-meter-text span {
+font-size: 13px !important;
+margin-top: 8px !important;
+}
