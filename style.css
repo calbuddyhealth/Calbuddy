@@ -1870,3 +1870,19 @@ max-height: 245px;
 .ari-action-tile {
 height: 82px;
 }
+/* =====================================================
+ARI MASTER HOME HOTFIX 3
+===================================================== */
+
+.ari-action-grid {
+grid-template-columns: repeat(2, 1fr) !important;
+gap: 14px;
+}
+
+.ari-action-tile {
+height: 92px;
+}
+
+.ari-meter-card {
+margin-bottom: 18px;
+}
