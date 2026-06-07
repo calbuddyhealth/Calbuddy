@@ -10,7 +10,7 @@
 <body>
 <main class="app">
 <header class="top-bar">
-<button class="menu-btn" onclick="window.location.href='index.html'">☰</button>
+<button class="menu-btn" onclick="window.location.href='index.html'">←</button>
 
 <h1 class="logo">
 <span class="cal">Cal</span><span class="buddy">Buddy</span>
@@ -20,21 +20,11 @@
 <section class="hero-card" style="display:block; padding:28px;">
 <h2>Sign In</h2>
 
-<input
-id="email"
-type="email"
-placeholder="Email"
-autocomplete="email"
-style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;"
-/>
+<input id="email" type="email" placeholder="Email" autocomplete="email"
+style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;" />
 
-<input
-id="password"
-type="password"
-placeholder="Password"
-autocomplete="current-password"
-style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;"
-/>
+<input id="password" type="password" placeholder="Password" autocomplete="current-password"
+style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;" />
 
 <button id="loginBtn" type="button" class="signin-btn" style="width:100%; margin-top:12px;">
 Sign In
@@ -42,6 +32,11 @@ Sign In
 
 <button id="signupBtn" type="button" class="goals-pill" style="width:100%; margin-top:12px;">
 Create Account
+</button>
+
+<button id="forgotPasswordBtn" type="button"
+style="width:100%; margin-top:14px; background:none; border:none; color:#6d3df2; font-weight:900; cursor:pointer;">
+Forgot Password?
 </button>
 
 <p id="authMessage" style="margin-top:16px; font-weight:700;"></p>
@@ -57,6 +52,7 @@ const passwordInput = document.getElementById("password");
 const message = document.getElementById("authMessage");
 const loginBtn = document.getElementById("loginBtn");
 const signupBtn = document.getElementById("signupBtn");
+const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
 
 function setMessage(text) {
 message.textContent = text;
@@ -97,9 +93,7 @@ daily_calorie_goal: 2100,
 reset_hour: 4,
 updated_at: new Date().toISOString()
 },
-{
-onConflict: "id"
-}
+{ onConflict: "id" }
 );
 
 if (error) {
@@ -128,7 +122,7 @@ loginBtn.disabled = false;
 return;
 }
 
-if (data && data.user) {
+if (data?.user) {
 await createUserProfile(data.user);
 setMessage("Signed in successfully.");
 window.location.href = "index.html";
@@ -165,7 +159,7 @@ signupBtn.disabled = false;
 return;
 }
 
-if (data && data.user) {
+if (data?.user) {
 await createUserProfile(data.user);
 }
 
@@ -176,6 +170,39 @@ signupBtn.disabled = false;
 console.error(err);
 setMessage("Account creation error. Please try again.");
 signupBtn.disabled = false;
+}
+});
+
+forgotPasswordBtn.addEventListener("click", async () => {
+const email = emailInput.value.trim();
+
+if (!email) {
+setMessage("Enter your email first, then tap Forgot Password.");
+return;
+}
+
+forgotPasswordBtn.disabled = true;
+setMessage("Sending password reset email...");
+
+try {
+const { error } =
+await window.calbuddySupabase.auth.resetPasswordForEmail(email, {
+redirectTo: window.location.origin + "/reset-password.html"
+});
+
+if (error) {
+setMessage(error.message);
+forgotPasswordBtn.disabled = false;
+return;
+}
+
+setMessage("Password reset email sent. Check your inbox.");
+forgotPasswordBtn.disabled = false;
+
+} catch (err) {
+console.error(err);
+setMessage("Unable to send reset email. Try again.");
+forgotPasswordBtn.disabled = false;
 }
 });
 </script>
