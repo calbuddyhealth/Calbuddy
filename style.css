@@ -2594,3 +2594,26 @@ font-size: 62px;
 font-size: 15px;
 }
 }
+/* ARI HISTORY TILE + BUBBLE RESPONSE FIX */
+
+.ari-action-grid {
+grid-template-columns: repeat(3, 1fr) !important;
+gap: 10px;
+}
+
+.history-tile {
+background: linear-gradient(145deg, rgba(14,165,233,0.42), rgba(8,18,37,0.78));
+border-color: rgba(125,211,252,0.44);
+color: #bae6fd;
+}
+
+.ari-speech-bubble {
+max-height: 170px;
+overflow-y: auto;
+scrollbar-width: thin;
+white-space: pre-wrap;
+}
+
+.ari-search-section:not(.expanded) .ari-conversation-panel {
+display: none !important;
+}
