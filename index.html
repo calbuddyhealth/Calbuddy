@@ -180,6 +180,15 @@ window.addEventListener("calbuddy:pendingActionCleared", () => {
   hidePendingAction();
 });
 
+function scrollToAri(delay = 150) {
+  setTimeout(() => {
+    document.querySelector(".ari-hero-section")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }, delay);
+}
+
 function preloadAriAssets() {
   Object.values(ARI_ASSETS).forEach((src) => {
     const img = new Image();
@@ -463,6 +472,8 @@ async function sendAriMessage() {
 
   input.value = "";
   autoResizeAriInput();
+  input.blur();
+  scrollToAri(250);
 
   addAriMessage(message, "user");
   const thinkingMessage = addAriMessage("Thinking...", "ari");
@@ -481,6 +492,7 @@ async function sendAriMessage() {
     const reply = response.reply || "Hmm. I had trouble answering that. Try again.";
 
     setAriBubble(reply);
+    scrollToAri(150);
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
@@ -501,6 +513,7 @@ async function sendAriMessage() {
   } catch (error) {
     setAriPose("concerned");
     setAriBubble(error.message || "Something glitched. Try again in a second.");
+    scrollToAri(150);
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
@@ -529,20 +542,26 @@ function hidePendingAction() {
 
 async function confirmAriAction() {
   const result = await CalBuddy.confirmPendingAction();
+
   addAriMessage(result.reply || "Done.", "ari");
   setAriPose("celebrate");
   setAriBubble(result.reply || "Done. Nice work.");
   hidePendingAction();
+
   await refreshHomeDashboard();
+  scrollToAri(150);
   resetAriAfterDelay();
 }
 
 function cancelAriAction() {
   const result = CalBuddy.cancelPendingAction();
+
   addAriMessage(result.reply || "No problem.", "ari");
   setAriPose("idleOpen");
   setAriBubble(result.reply || "No problem.");
   hidePendingAction();
+
+  scrollToAri(150);
   resetAriAfterDelay();
 }
 </script>
