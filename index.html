@@ -23,7 +23,7 @@
 <nav id="sideMenu" class="side-menu">
   <button class="close-menu" type="button" onclick="toggleMenu()">✕</button>
   <a href="index.html">🏠 Home</a>
-  <a href="profile.html">👤Profile</a>
+  <a href="profile.html">👤 Profile</a>
   <a href="goals.html">🎯 My Goals</a>
   <a href="log.html?mode=today">🍽️ Daily Intake</a>
   <a href="progress.html">📈 Progress</a>
@@ -34,18 +34,16 @@
 <div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()"></div>
 
 <section class="ari-hero-section ari-large-coach-hero">
-<div class="ari-speech-bubble ari-coach-card" id="ariSpeechBubble">
-<strong>Good morning! ☀️</strong>
-<span>You’re off to a great start. Let’s keep that momentum going! 💪</span>
-<em>Tip for you: try adding more protein at lunch to stay full and fuel your goals.</em>
-</div>
+  <div class="ari-speech-bubble ari-coach-card" id="ariSpeechBubble">
+    I’m here when you’re ready.
+  </div>
 
-<img
-id="ariMascot"
-class="ari-master-img"
-src="assets/ari/ari-idle-open.png"
-alt="Ari, CalBuddy AI Nutrition Coach"
-/>
+  <img
+    id="ariMascot"
+    class="ari-master-img"
+    src="assets/ari/ari-idle-open.png"
+    alt="Ari, CalBuddy AI Nutrition Coach"
+  />
 </section>
 
 <section class="ari-search-section" id="ariSearchSection">
@@ -56,8 +54,7 @@ alt="Ari, CalBuddy AI Nutrition Coach"
       id="ariInput"
       rows="1"
       placeholder="Ask Ari anything..."
-      onfocus="expandAriSearch()"
-      oninput="autoResizeAriInput(); expandAriSearch();"
+      oninput="autoResizeAriInput()"
       onkeydown="handleAriEnter(event)"
     ></textarea>
 
@@ -68,7 +65,7 @@ alt="Ari, CalBuddy AI Nutrition Coach"
     <div id="ariMessages" class="ari-thread">
       <div class="ari-message ari-ai">
         <span class="ari-label">Ari</span>
-        <p>Ask me about calories, cravings, meals, goals, progress, or if you need a little accountability.</p>
+        <p>Your conversation history will appear here.</p>
       </div>
     </div>
 
@@ -99,16 +96,21 @@ alt="Ari, CalBuddy AI Nutrition Coach"
   </div>
 </a>
 
-<section class="ari-action-grid two-actions">
-<a class="ari-action-tile goals-tile" href="goals.html">
-<span>🎯</span>
-<strong>My Goals</strong>
-</a>
+<section class="ari-action-grid three-actions">
+  <a class="ari-action-tile goals-tile" href="goals.html">
+    <span>🎯</span>
+    <strong>My Goals</strong>
+  </a>
 
-<a class="ari-action-tile progress-tile" href="progress.html">
-<span>📈</span>
-<strong>Progress</strong>
-</a>
+  <a class="ari-action-tile progress-tile" href="progress.html">
+    <span>📈</span>
+    <strong>Progress</strong>
+  </a>
+
+  <button class="ari-action-tile history-tile" type="button" onclick="toggleConversationHistory()">
+    <span>💬</span>
+    <strong>History</strong>
+  </button>
 </section>
 
 </main>
@@ -123,6 +125,8 @@ let ariBlinkInterval = null;
 let ariBlinkTimeout = null;
 let ariResetTimeout = null;
 let ariBusy = false;
+
+const ARI_DEFAULT_BUBBLE = "I’m here when you’re ready.";
 
 const ARI_ASSETS = {
   idleOpen: "assets/ari/ari-idle-open.png",
@@ -149,6 +153,7 @@ const ARI_ASSETS = {
 document.addEventListener("DOMContentLoaded", async () => {
   preloadAriAssets();
   setAriPose("idleOpen");
+  setAriBubble(ARI_DEFAULT_BUBBLE);
   startAriBlinkLoop();
 
   await setupHomeAuth();
@@ -190,7 +195,9 @@ function setAriPose(poseKey) {
 
 function setAriBubble(text) {
   const bubble = document.getElementById("ariSpeechBubble");
-  if (bubble) bubble.textContent = text;
+  if (!bubble) return;
+  bubble.textContent = text || ARI_DEFAULT_BUBBLE;
+  bubble.scrollTop = 0;
 }
 
 function startAriBlinkLoop() {
@@ -217,35 +224,96 @@ function interruptAri(poseKey, bubbleText) {
   if (bubbleText) setAriBubble(bubbleText);
 }
 
-function resetAriAfterDelay(delay = 8000) {
+function resetAriAfterDelay(delay = 120000) {
   clearTimeout(ariResetTimeout);
 
   ariResetTimeout = setTimeout(() => {
     ariBusy = false;
     setAriPose("idleOpen");
+    setAriBubble(ARI_DEFAULT_BUBBLE);
   }, delay);
 }
 
 function chooseAriReaction(message = "") {
   const text = message.toLowerCase();
 
-  if (text.includes("5 lbs") || text.includes("5 pounds") || text.includes("lose weight fast")) {
-    return { pose: "excited", bubble: "Good question. Let’s be honest about it." };
+  if (
+    text.includes("fat") ||
+    text.includes("gained") ||
+    text.includes("5 lbs") ||
+    text.includes("5 pounds") ||
+    text.includes("weight gain")
+  ) {
+    return {
+      pose: "concerned",
+      bubble: "I hear you. Let me look at this with you."
+    };
+  }
+
+  if (text.includes("lose weight fast") || text.includes("can i lose")) {
+    return {
+      pose: "excited",
+      bubble: "Good question. Let’s be honest about it."
+    };
   }
 
   if (text.includes("thank") || text.includes("beautiful") || text.includes("love you")) {
-    return { pose: "shy", bubble: "Aw. Don’t make me blush." };
+    return {
+      pose: "shy",
+      bubble: "Aw. Don’t make me blush."
+    };
   }
 
   if (text.includes("sad") || text.includes("bad day") || text.includes("relapse") || text.includes("failed")) {
-    return { pose: "sad", bubble: "Okay. Let’s slow down and talk." };
+    return {
+      pose: "sad",
+      bubble: "Okay. Let’s slow down and talk."
+    };
   }
 
   if (text.includes("excuse") || text.includes("monday") || text.includes("cheated")) {
-    return { pose: "armsCrossed", bubble: "Hmm. That sounds like an excuse." };
+    return {
+      pose: "armsCrossed",
+      bubble: "Hmm. That sounds like an excuse."
+    };
   }
 
-  return { pose: "thinking", bubble: "I’m thinking..." };
+  return {
+    pose: "thinking",
+    bubble: "I’m thinking..."
+  };
+}
+
+function applyAriAfterResponseEmotion(message = "", reply = "") {
+  const combined = `${message} ${reply}`.toLowerCase();
+
+  if (
+    combined.includes("water weight") ||
+    combined.includes("scale") ||
+    combined.includes("not fat")
+  ) {
+    setAriPose("concerned");
+  } else if (
+    combined.includes("yes") ||
+    combined.includes("possible") ||
+    combined.includes("good news")
+  ) {
+    setAriPose("goodNews");
+  } else if (
+    combined.includes("great job") ||
+    combined.includes("congrats") ||
+    combined.includes("nice work")
+  ) {
+    setAriPose("celebrate");
+  } else {
+    setAriPose("idleOpen");
+  }
+
+  resetAriAfterDelay();
+}
+
+function toggleConversationHistory() {
+  document.getElementById("ariSearchSection")?.classList.toggle("expanded");
 }
 
 function toggleMenu() {
@@ -254,23 +322,23 @@ function toggleMenu() {
 }
 
 async function setupHomeAuth() {
-const authButton = document.getElementById("authButton");
-if (!authButton || !window.calbuddySupabase) return;
+  const authButton = document.getElementById("authButton");
+  if (!authButton || !window.calbuddySupabase) return;
 
-const { data } = await window.calbuddySupabase.auth.getSession();
+  const { data } = await window.calbuddySupabase.auth.getSession();
 
-if (data?.session) {
-authButton.textContent = "Sign Out";
-authButton.onclick = async () => {
-await window.calbuddySupabase.auth.signOut();
-window.location.href = "signin.html";
-};
-} else {
-authButton.textContent = "Sign In";
-authButton.onclick = () => {
-window.location.href = "signin.html";
-};
-}
+  if (data?.session) {
+    authButton.textContent = "Sign Out";
+    authButton.onclick = async () => {
+      await window.calbuddySupabase.auth.signOut();
+      window.location.href = "signin.html";
+    };
+  } else {
+    authButton.textContent = "Sign In";
+    authButton.onclick = () => {
+      window.location.href = "signin.html";
+    };
+  }
 }
 
 async function refreshHomeDashboard() {
@@ -343,10 +411,6 @@ function updateLiveArchMeter(netConsumed, goal) {
   }
 }
 
-function expandAriSearch() {
-  document.getElementById("ariSearchSection")?.classList.add("expanded");
-}
-
 function autoResizeAriInput() {
   const input = document.getElementById("ariInput");
   if (!input) return;
@@ -394,8 +458,6 @@ async function sendAriMessage() {
   const message = input.value.trim();
   if (!message) return;
 
-  expandAriSearch();
-
   const reaction = chooseAriReaction(message);
   interruptAri(reaction.pose, reaction.bubble);
 
@@ -417,6 +479,7 @@ async function sendAriMessage() {
     });
 
     const reply = response.reply || "Hmm. I had trouble answering that. Try again.";
+
     setAriBubble(reply);
 
     if (thinkingMessage) {
@@ -437,7 +500,7 @@ async function sendAriMessage() {
 
   } catch (error) {
     setAriPose("concerned");
-    setAriBubble("Something glitched.");
+    setAriBubble(error.message || "Something glitched. Try again in a second.");
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
@@ -448,26 +511,6 @@ async function sendAriMessage() {
   } finally {
     if (button) button.disabled = false;
   }
-}
-
-function applyAriAfterResponseEmotion(message = "", reply = "") {
-  const combined = `${message} ${reply}`.toLowerCase();
-
-  if (combined.includes("water weight") || combined.includes("not fat")) {
-    setAriPose("badNews");
-    setAriBubble("Bad news first: it may just be water weight.");
-  } else if (combined.includes("yes") || combined.includes("possible") || combined.includes("good news")) {
-    setAriPose("goodNews");
-    setAriBubble("Good news. It’s possible.");
-  } else if (combined.includes("great job") || combined.includes("congrats") || combined.includes("nice work")) {
-    setAriPose("celebrate");
-    setAriBubble("Now that’s worth celebrating.");
-  } else {
-    setAriPose("idleOpen");
-    setAriBubble("I’m here when you’re ready.");
-  }
-
-  resetAriAfterDelay();
 }
 
 function showPendingAction(action) {
@@ -488,7 +531,7 @@ async function confirmAriAction() {
   const result = await CalBuddy.confirmPendingAction();
   addAriMessage(result.reply || "Done.", "ari");
   setAriPose("celebrate");
-  setAriBubble("Done. Nice work.");
+  setAriBubble(result.reply || "Done. Nice work.");
   hidePendingAction();
   await refreshHomeDashboard();
   resetAriAfterDelay();
@@ -498,7 +541,7 @@ function cancelAriAction() {
   const result = CalBuddy.cancelPendingAction();
   addAriMessage(result.reply || "No problem.", "ari");
   setAriPose("idleOpen");
-  setAriBubble("No problem.");
+  setAriBubble(result.reply || "No problem.");
   hidePendingAction();
   resetAriAfterDelay();
 }
