@@ -223,7 +223,6 @@ function resetAriAfterDelay(delay = 8000) {
   ariResetTimeout = setTimeout(() => {
     ariBusy = false;
     setAriPose("idleOpen");
-    setAriBubble("I’m here when you’re ready.");
   }, delay);
 }
 
@@ -418,6 +417,7 @@ async function sendAriMessage() {
     });
 
     const reply = response.reply || "Hmm. I had trouble answering that. Try again.";
+    setAriBubble(reply);
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
