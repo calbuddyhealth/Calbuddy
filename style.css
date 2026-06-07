@@ -1766,3 +1766,61 @@ font-size: 23px;
 font-size: 11px;
 }
 }
+/* =====================================================
+ARI MASTER HOME HOTFIX 1
+===================================================== */
+
+/* Make Ari more visible */
+.ari-master-img {
+width: 255px;
+max-width: 86%;
+margin-top: -4px;
+}
+
+/* Tighten spacing between Ari and search */
+.ari-search-section {
+margin-top: -10px;
+}
+
+/* Make the search bar cleaner */
+.ari-search-bar {
+min-height: 56px;
+}
+
+/* Make meter less oversized */
+.ari-meter-card {
+min-height: 148px;
+padding-top: 6px;
+padding-bottom: 10px;
+}
+
+.ari-meter-card .true-meter-wrap {
+height: 112px;
+transform: scale(1.02);
+}
+
+.ari-meter-card .true-meter-text h2 {
+font-size: 36px;
+}
+
+/* Keep bottom buttons aligned */
+.ari-action-grid {
+grid-template-columns: repeat(3, 1fr);
+align-items: stretch;
+}
+
+.ari-action-tile {
+height: 86px;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+}
+
+/* Better desktop preview */
+@media (min-width: 700px) {
+.ari-master-home {
+width: 430px;
+max-width: 430px;
+}
+}
