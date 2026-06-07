@@ -23,6 +23,7 @@
 <nav id="sideMenu" class="side-menu">
   <button class="close-menu" type="button" onclick="toggleMenu()">✕</button>
   <a href="index.html">🏠 Home</a>
+  <a href="profile.html">👤Profile</a>
   <a href="goals.html">🎯 My Goals</a>
   <a href="log.html?mode=today">🍽️ Daily Intake</a>
   <a href="progress.html">📈 Progress</a>
@@ -252,22 +253,23 @@ function toggleMenu() {
 }
 
 async function setupHomeAuth() {
-  const authButton = document.getElementById("authButton");
-  if (!authButton || !window.calbuddySupabase) return;
+const authButton = document.getElementById("authButton");
+if (!authButton || !window.calbuddySupabase) return;
 
-  const { data } = await window.calbuddySupabase.auth.getSession();
+const { data } = await window.calbuddySupabase.auth.getSession();
 
-  if (data?.session) {
-    authButton.textContent = "👤";
-    authButton.onclick = () => {
-      window.location.href = "goals.html";
-    };
-  } else {
-    authButton.textContent = "Sign In";
-    authButton.onclick = () => {
-      window.location.href = "signin.html";
-    };
-  }
+if (data?.session) {
+authButton.textContent = "Sign Out";
+authButton.onclick = async () => {
+await window.calbuddySupabase.auth.signOut();
+window.location.href = "signin.html";
+};
+} else {
+authButton.textContent = "Sign In";
+authButton.onclick = () => {
+window.location.href = "signin.html";
+};
+}
 }
 
 async function refreshHomeDashboard() {
