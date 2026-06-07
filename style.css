@@ -1824,3 +1824,49 @@ width: 430px;
 max-width: 430px;
 }
 }
+/* =====================================================
+ARI MASTER HOME HOTFIX 2
+===================================================== */
+
+/* Make Ari more dominant */
+.ari-master-img {
+width: 285px;
+max-width: 90%;
+}
+
+/* Pull search closer to Ari */
+.ari-search-section {
+margin-top: -18px;
+}
+
+/* Hide status pill under meter */
+.ari-meter-card .track-pill {
+display: none !important;
+}
+
+/* Clean up meter spacing after pill removal */
+.ari-meter-card {
+min-height: 138px;
+padding-bottom: 4px;
+}
+
+/* New Calories Burned tile */
+.burn-tile {
+background: linear-gradient(145deg, rgba(14,165,233,0.32), rgba(8,47,73,0.46));
+border-color: rgba(56,189,248,0.34);
+}
+
+/* Make conversation expansion push meter downward */
+.ari-search-section.expanded {
+margin-bottom: 12px;
+}
+
+.ari-search-section.expanded .ari-conversation-panel {
+display: block;
+max-height: 245px;
+}
+
+/* Slightly tighter bottom tiles */
+.ari-action-tile {
+height: 82px;
+}
