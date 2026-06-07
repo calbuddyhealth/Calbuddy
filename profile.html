@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile - CalBuddy</title>
+
+<link rel="stylesheet" href="style.css">
+
+<style>
+.profile-page {
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.profile-card {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 24px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.profile-card h2 {
+  margin-top: 0;
+}
+
+.profile-email {
+  margin: 15px 0;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.profile-btn {
+  width: 100%;
+  margin-top: 10px;
+  border: none;
+  border-radius: 16px;
+  padding: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.primary-btn {
+  background: #2dd4bf;
+  color: white;
+}
+
+.secondary-btn {
+  background: #8b5cf6;
+  color: white;
+}
+
+.danger-btn {
+  background: #ef4444;
+  color: white;
+}
+</style>
+
+</head>
+<body>
+
+<main class="profile-page">
+
+<h1>
+<span class="cal">Cal</span><span class="buddy">Buddy</span>
+</h1>
+
+<div class="profile-card">
+
+<h2>Profile</h2>
+
+<p>Email Address</p>
+
+<div id="userEmail" class="profile-email">
+Loading...
+</div>
+
+<button
+class="profile-btn primary-btn"
+onclick="changeEmail()">
+Change Email
+</button>
+
+<button
+class="profile-btn secondary-btn"
+onclick="resetPassword()">
+Change Password
+</button>
+
+<button
+class="profile-btn danger-btn"
+onclick="logoutUser()">
+Log Out
+</button>
+
+<button
+class="profile-btn"
+onclick="window.location.href='index.html'">
+Back Home
+</button>
+
+</div>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", loadProfile);
+
+async function loadProfile() {
+
+  const { data } =
+    await window.calbuddySupabase.auth.getSession();
+
+  if (!data?.session) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  document.getElementById("userEmail").textContent =
+    data.session.user.email;
+}
+
+async function logoutUser() {
+
+  await window.calbuddySupabase.auth.signOut();
+
+  window.location.href = "signin.html";
+}
+
+async function resetPassword() {
+
+  const { data } =
+    await window.calbuddySupabase.auth.getSession();
+
+  const email = data.session.user.email;
+
+  await window.calbuddySupabase.auth.resetPasswordForEmail(
+    email,
+    {
+      redirectTo:
+        window.location.origin +
+        "/reset-password.html"
+    }
+  );
+
+  alert(
+    "Password reset email sent."
+  );
+}
+
+async function changeEmail() {
+
+  const newEmail =
+    prompt("Enter your new email address:");
+
+  if (!newEmail) return;
+
+  const { error } =
+    await window.calbuddySupabase.auth.updateUser({
+      email: newEmail
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert(
+    "Confirmation email sent to your new address."
+  );
+}
+
+</script>
+
+</body>
+</html>
