@@ -1886,3 +1886,12 @@ height: 92px;
 .ari-meter-card {
 margin-bottom: 18px;
 }
+.ari-action-tile {
+text-decoration: none;
+-webkit-tap-highlight-color: transparent;
+touch-action: manipulation;
+}
+
+.ari-meter-card {
+touch-action: manipulation;
+}
