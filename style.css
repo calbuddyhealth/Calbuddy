@@ -2284,3 +2284,310 @@ min-height: 98px;
 height: 98px;
 }
 }
+/* =====================================================
+ARI LARGE FUTURISTIC HOME FINAL OVERRIDE
+===================================================== */
+
+.ari-master-home {
+padding: 10px 16px 24px;
+background:
+radial-gradient(circle at 78% 12%, rgba(45, 212, 191, 0.18), transparent 25%),
+radial-gradient(circle at 18% 20%, rgba(59, 130, 246, 0.14), transparent 32%),
+linear-gradient(180deg, #06111f 0%, #07182b 46%, #040b18 100%);
+}
+
+.ari-master-home .logo {
+font-size: 36px;
+font-weight: 950;
+}
+
+.ari-master-home .cal {
+color: white;
+}
+
+.ari-master-home .buddy {
+color: #46dff5;
+}
+
+.ari-master-home .menu-btn,
+.ari-master-home .profile-btn {
+border: 1px solid rgba(125,211,252,0.55);
+background: rgba(8,18,37,0.65);
+color: white;
+border-radius: 20px;
+min-height: 52px;
+box-shadow: 0 0 20px rgba(45,212,191,0.16);
+}
+
+.ari-master-home .profile-btn {
+min-width: 96px;
+font-size: 15px;
+font-weight: 950;
+}
+
+/* Bigger Ari + smaller bubble */
+
+.ari-large-coach-hero {
+position: relative;
+display: block;
+min-height: 420px;
+margin-top: 8px;
+}
+
+.ari-large-coach-hero .ari-master-img {
+position: absolute;
+right: -58px;
+bottom: 0;
+width: 365px;
+max-width: none;
+z-index: 2;
+filter:
+drop-shadow(0 24px 34px rgba(0,0,0,0.48))
+drop-shadow(0 0 18px rgba(94,231,255,0.18));
+}
+
+.ari-coach-card {
+position: absolute;
+left: 0;
+top: 32px;
+width: 48%;
+min-height: 190px;
+margin: 0;
+padding: 16px 13px;
+border-radius: 24px;
+text-align: left;
+background: rgba(8,18,37,0.72);
+border: 1px solid rgba(103,232,249,0.70);
+box-shadow:
+0 0 28px rgba(34,211,238,0.24),
+inset 0 1px 0 rgba(255,255,255,0.12);
+backdrop-filter: blur(10px);
+}
+
+.ari-coach-card::after {
+content: "";
+position: absolute;
+right: -14px;
+top: 92px;
+width: 26px;
+height: 26px;
+background: rgba(8,18,37,0.72);
+border-right: 1px solid rgba(103,232,249,0.70);
+border-bottom: 1px solid rgba(103,232,249,0.70);
+transform: rotate(-45deg);
+}
+
+.ari-coach-card strong {
+display: block;
+color: #22d3ee;
+font-size: 15px;
+margin-bottom: 10px;
+}
+
+.ari-coach-card span {
+display: block;
+color: white;
+font-size: 12px;
+line-height: 1.38;
+font-weight: 800;
+}
+
+.ari-coach-card em {
+display: block;
+margin-top: 12px;
+padding-top: 10px;
+border-top: 1px solid rgba(125,211,252,0.28);
+color: rgba(255,255,255,0.78);
+font-size: 11px;
+line-height: 1.35;
+font-style: normal;
+font-weight: 700;
+}
+
+/* Futuristic search */
+
+.ari-search-section {
+margin-top: -14px !important;
+}
+
+.ari-search-bar {
+min-height: 70px;
+padding: 9px 12px;
+border-radius: 36px;
+background: rgba(8,18,37,0.84);
+border: 1px solid rgba(125,211,252,0.65);
+box-shadow:
+0 0 28px rgba(56,189,248,0.18),
+inset 0 0 24px rgba(14,165,233,0.10);
+}
+
+.search-icon {
+width: 48px;
+min-width: 48px;
+height: 48px;
+border-radius: 50%;
+background: rgba(14,165,233,0.12);
+border: 1px solid rgba(125,211,252,0.50);
+color: #67e8f9;
+}
+
+.ari-master-home #ariInput {
+font-size: 17px;
+min-height: 48px;
+}
+
+.ari-master-home .ari-send-btn {
+width: 54px;
+min-width: 54px;
+height: 54px;
+border-radius: 50%;
+background: linear-gradient(135deg, #2563eb, #22d3ee);
+box-shadow: 0 0 22px rgba(34,211,238,0.32);
+}
+
+/* Premium meter */
+
+.ari-meter-card {
+margin-top: 16px;
+min-height: 285px;
+padding: 18px 16px;
+border-radius: 28px;
+background: rgba(8,18,37,0.82) !important;
+border: 1px solid rgba(125,211,252,0.55) !important;
+box-shadow:
+0 0 34px rgba(56,189,248,0.18),
+inset 0 0 28px rgba(14,165,233,0.08) !important;
+}
+
+.ari-meter-card .true-meter-wrap {
+height: 220px;
+transform: scale(1);
+}
+
+.ari-meter-card .true-meter {
+transform: translateY(14px) scale(1.08);
+}
+
+.ari-meter-card .true-meter-bg {
+stroke: rgba(148,163,184,0.22) !important;
+stroke-width: 24 !important;
+}
+
+.ari-meter-card .true-meter-fill {
+stroke-width: 24 !important;
+}
+
+.ari-meter-card .true-meter-fill.meter-fill-blue {
+stroke: #67e8f9 !important;
+filter:
+drop-shadow(0 8px 12px rgba(34,211,238,0.25))
+drop-shadow(0 0 22px rgba(34,211,238,0.45));
+}
+
+.ari-meter-card .true-meter-text {
+top: 58%;
+}
+
+.ari-meter-card .true-meter-text p {
+font-size: 13px;
+letter-spacing: 5px;
+color: #93f5ff;
+}
+
+.ari-meter-card .true-meter-text h2 {
+font-size: 72px;
+color: white;
+}
+
+.ari-meter-card .true-meter-text span {
+display: block;
+margin-top: 12px;
+font-size: 18px;
+color: rgba(255,255,255,0.82);
+}
+
+/* Two bottom tiles only */
+
+.ari-action-grid {
+grid-template-columns: repeat(2, 1fr) !important;
+gap: 14px;
+margin-top: 14px;
+}
+
+.ari-action-tile {
+height: 116px;
+min-height: 116px;
+border-radius: 22px;
+text-transform: uppercase;
+letter-spacing: 1.4px;
+border: 1px solid rgba(125,211,252,0.36);
+background: rgba(8,18,37,0.78);
+box-shadow:
+0 0 24px rgba(56,189,248,0.14),
+inset 0 0 20px rgba(14,165,233,0.08);
+}
+
+.ari-action-tile span {
+font-size: 34px;
+margin-bottom: 10px;
+}
+
+.ari-action-tile strong {
+font-size: 13px;
+}
+
+.goals-tile {
+background: linear-gradient(145deg, rgba(127,29,29,0.50), rgba(8,18,37,0.78));
+border-color: rgba(248,113,113,0.44);
+color: #fecaca;
+}
+
+.progress-tile {
+background: linear-gradient(145deg, rgba(76,29,149,0.52), rgba(8,18,37,0.78));
+border-color: rgba(192,132,252,0.44);
+color: #e9d5ff;
+}
+
+/* Mobile tuning */
+
+@media (max-width: 390px) {
+.ari-large-coach-hero {
+min-height: 390px;
+}
+
+.ari-large-coach-hero .ari-master-img {
+width: 335px;
+right: -62px;
+}
+
+.ari-coach-card {
+width: 48%;
+min-height: 176px;
+padding: 14px 11px;
+}
+
+.ari-coach-card strong {
+font-size: 14px;
+}
+
+.ari-coach-card span,
+.ari-coach-card em {
+font-size: 10.5px;
+}
+
+.ari-meter-card {
+min-height: 260px;
+}
+
+.ari-meter-card .true-meter-wrap {
+height: 200px;
+}
+
+.ari-meter-card .true-meter-text h2 {
+font-size: 62px;
+}
+
+.ari-meter-card .true-meter-text span {
+font-size: 15px;
+}
+}
