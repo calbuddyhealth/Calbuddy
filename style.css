@@ -1381,3 +1381,388 @@ font-weight: 900;
 0%, 100% { transform: translateX(0); }
 50% { transform: translateX(-3px); }
 }
+/* =====================================================
+ARI MASTER HOME OVERRIDES
+Paste at very bottom of style.css
+===================================================== */
+
+.ari-master-home {
+max-width: 430px;
+margin: 0 auto;
+min-height: 100vh;
+padding: 8px 14px 24px;
+background:
+radial-gradient(circle at 50% 0%, rgba(45, 212, 191, 0.18), transparent 28%),
+radial-gradient(circle at 15% 20%, rgba(139, 92, 246, 0.20), transparent 32%),
+linear-gradient(180deg, #0b1026 0%, #140b2e 48%, #071225 100%);
+color: white;
+}
+
+.ari-master-home .top-bar {
+align-items: center;
+margin-bottom: 4px;
+}
+
+.ari-master-home .logo {
+margin: 0;
+font-size: 30px;
+line-height: 1;
+letter-spacing: -1.6px;
+}
+
+.ari-master-home .menu-btn {
+margin-top: 0;
+color: white;
+}
+
+.ari-master-home .profile-btn {
+margin-top: 0;
+min-width: 48px;
+}
+
+/* Ari hero */
+
+.ari-hero-section {
+position: relative;
+display: flex;
+flex-direction: column;
+align-items: center;
+margin-top: 2px;
+}
+
+.ari-master-img {
+width: 225px;
+max-width: 78%;
+height: auto;
+display: block;
+object-fit: contain;
+filter: drop-shadow(0 18px 30px rgba(0,0,0,0.35));
+transition: opacity 0.12s ease, transform 0.2s ease;
+}
+
+.ari-speech-bubble {
+max-width: 290px;
+margin: 2px auto 6px;
+padding: 9px 13px;
+border-radius: 18px;
+background: rgba(255,255,255,0.10);
+border: 1px solid rgba(45, 212, 191, 0.28);
+color: rgba(255,255,255,0.88);
+font-size: 12px;
+font-weight: 850;
+text-align: center;
+box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+}
+
+/* Search */
+
+.ari-search-section {
+position: relative;
+z-index: 5;
+margin-top: -4px;
+}
+
+.ari-search-bar {
+display: flex;
+align-items: flex-end;
+gap: 8px;
+padding: 7px 8px;
+border-radius: 24px;
+background: rgba(255,255,255,0.10);
+border: 1px solid rgba(45, 212, 191, 0.32);
+box-shadow:
+0 14px 30px rgba(0,0,0,0.22),
+inset 0 1px 0 rgba(255,255,255,0.10);
+}
+
+.search-icon {
+width: 34px;
+min-width: 34px;
+height: 38px;
+display: grid;
+place-items: center;
+color: #2dd4bf;
+font-size: 21px;
+font-weight: 950;
+}
+
+.ari-master-home #ariInput {
+flex: 1;
+min-height: 38px;
+max-height: 100px;
+resize: none;
+border: none;
+outline: none;
+background: transparent;
+color: white;
+font-size: 15px;
+font-weight: 800;
+font-family: inherit;
+padding: 9px 0;
+}
+
+.ari-master-home #ariInput::placeholder {
+color: rgba(255,255,255,0.52);
+}
+
+.ari-master-home .ari-send-btn {
+width: 40px;
+min-width: 40px;
+height: 40px;
+border: none;
+border-radius: 16px;
+background: linear-gradient(135deg, #8b5cf6, #2dd4bf);
+color: white;
+font-size: 18px;
+font-weight: 950;
+cursor: pointer;
+}
+
+.ari-conversation-panel {
+display: none;
+margin-top: 10px;
+padding: 10px;
+border-radius: 22px;
+background: rgba(8, 18, 37, 0.72);
+border: 1px solid rgba(255,255,255,0.10);
+box-shadow: 0 16px 30px rgba(0,0,0,0.24);
+}
+
+.ari-search-section.expanded .ari-conversation-panel {
+display: block;
+}
+
+.ari-master-home .ari-thread {
+margin-top: 0;
+max-height: 185px;
+overflow-y: auto;
+background: transparent;
+border: none;
+padding: 2px;
+}
+
+.ari-master-home .ari-message {
+margin-bottom: 10px;
+line-height: 1.35;
+}
+
+.ari-master-home .ari-message p {
+margin: 4px 0 0;
+font-size: 13px;
+font-weight: 750;
+color: rgba(255,255,255,0.92);
+}
+
+.ari-master-home .ari-label {
+display: block;
+font-size: 10px;
+color: #2dd4bf;
+font-weight: 950;
+}
+
+.ari-master-home .ari-user {
+text-align: right;
+}
+
+.ari-master-home .ari-user .ari-label {
+color: #c4b5fd;
+}
+
+/* Meter */
+
+.ari-meter-card {
+display: block;
+position: relative;
+margin-top: 12px;
+margin-bottom: 14px;
+padding: 12px 14px 14px;
+min-height: 162px;
+cursor: pointer;
+border-radius: 28px;
+background:
+radial-gradient(circle at 50% 0%, rgba(45, 212, 191, 0.16), transparent 45%),
+rgba(255,255,255,0.09) !important;
+border: 1px solid rgba(45, 212, 191, 0.28) !important;
+box-shadow:
+0 18px 38px rgba(0,0,0,0.30),
+inset 0 1px 0 rgba(255,255,255,0.10) !important;
+transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.ari-meter-card:active {
+transform: scale(0.985);
+}
+
+.ari-meter-card .meter-side {
+width: 100%;
+}
+
+.ari-meter-card .true-meter-wrap {
+height: 128px;
+transform: scale(1.08);
+}
+
+.ari-meter-card .true-meter {
+transform: translateY(-14px);
+}
+
+.ari-meter-card .true-meter-bg {
+stroke: rgba(255,255,255,0.18) !important;
+}
+
+.ari-meter-card .true-meter-fill.meter-fill-blue {
+stroke: #2dd4bf !important;
+filter:
+drop-shadow(0 7px 10px rgba(45, 212, 191, 0.25))
+drop-shadow(0 0 16px rgba(45, 212, 191, 0.35));
+}
+
+.ari-meter-card .true-meter-fill.meter-fill-yellow {
+stroke: #f59e0b !important;
+}
+
+.ari-meter-card .true-meter-fill.meter-fill-red {
+stroke: #ef4444 !important;
+}
+
+.ari-meter-card .true-meter-text {
+top: 56%;
+}
+
+.ari-meter-card .true-meter-text p {
+color: #2dd4bf;
+font-size: 10px;
+letter-spacing: 0.6px;
+}
+
+.ari-meter-card .true-meter-text h2 {
+color: white;
+font-size: 39px;
+text-shadow: 0 0 16px rgba(45,212,191,0.22);
+}
+
+.ari-meter-card .true-meter-text span {
+color: rgba(255,255,255,0.66);
+font-size: 12px;
+}
+
+.ari-meter-card .track-pill {
+width: fit-content;
+margin: 5px auto 0;
+background: rgba(45,212,191,0.13);
+color: #99f6e4;
+border: 1px solid rgba(45,212,191,0.34);
+}
+
+/* 3 action buttons */
+
+.ari-action-grid {
+display: grid;
+grid-template-columns: repeat(3, 1fr);
+gap: 9px;
+margin-top: 4px;
+}
+
+.ari-action-tile {
+min-height: 86px;
+border: 1px solid rgba(255,255,255,0.12);
+border-radius: 24px;
+padding: 12px 8px;
+color: white;
+font-weight: 950;
+text-align: center;
+cursor: pointer;
+box-shadow: 0 14px 28px rgba(0,0,0,0.22);
+}
+
+.ari-action-tile span {
+display: block;
+font-size: 26px;
+margin-bottom: 8px;
+}
+
+.ari-action-tile strong {
+font-size: 12px;
+}
+
+.goals-tile {
+background: linear-gradient(145deg, rgba(239,68,68,0.30), rgba(127,29,29,0.40));
+}
+
+.progress-tile {
+background: linear-gradient(145deg, rgba(139,92,246,0.34), rgba(76,29,149,0.42));
+}
+
+.log-tile {
+background: linear-gradient(145deg, rgba(45,212,191,0.30), rgba(13,148,136,0.38));
+}
+
+/* Pending bar */
+
+.ari-master-home .pending-action-bar {
+display: none;
+margin-top: 10px;
+padding: 11px;
+border-radius: 18px;
+background: rgba(45, 212, 191, 0.14);
+border: 1px solid rgba(45, 212, 191, 0.35);
+}
+
+.ari-master-home .pending-action-bar.show {
+display: block;
+}
+
+.ari-master-home .pending-action-bar p {
+margin: 0 0 10px;
+color: white;
+font-weight: 900;
+}
+
+.ari-master-home .pending-action-buttons {
+display: flex;
+gap: 8px;
+}
+
+.ari-master-home .pending-action-buttons button {
+flex: 1;
+border: none;
+border-radius: 14px;
+padding: 10px;
+font-weight: 950;
+}
+
+/* Hide old home sections if any remain */
+
+.ari-master-home .utility-tabs,
+.ari-master-home .top-stats-row,
+.ari-master-home .bottom-metrics,
+.ari-master-home .ari-home-card,
+.ari-master-home .brand-subtitle,
+.ari-master-home .health-word {
+display: none !important;
+}
+
+/* Small phones */
+
+@media (max-width: 390px) {
+.ari-master-img {
+width: 205px;
+}
+
+.ari-meter-card .true-meter-text h2 {
+font-size: 35px;
+}
+
+.ari-action-tile {
+min-height: 78px;
+border-radius: 20px;
+}
+
+.ari-action-tile span {
+font-size: 23px;
+}
+
+.ari-action-tile strong {
+font-size: 11px;
+}
+}
