@@ -2718,3 +2718,39 @@ margin-top: 8px !important;
   height: 130px !important;
   transform: scale(0.76) !important;
 }
+/* FINAL METER TEXT FIX */
+
+.ari-meter-card {
+  min-height: 165px !important;
+  padding: 8px 14px 10px !important;
+}
+
+.ari-meter-card .true-meter-wrap {
+  height: 118px !important;
+  transform: scale(0.72) !important;
+}
+
+.ari-meter-card .true-meter {
+  transform: translateY(-4px) scale(1) !important;
+}
+
+.ari-meter-card .true-meter-text {
+  top: 62% !important;
+}
+
+.ari-meter-card .true-meter-text p {
+  font-size: 9px !important;
+  letter-spacing: 2.6px !important;
+  margin-bottom: 4px !important;
+}
+
+.ari-meter-card .true-meter-text h2 {
+  font-size: 40px !important;
+  line-height: 0.95 !important;
+}
+
+.ari-meter-card .true-meter-text span {
+  font-size: 12px !important;
+  margin-top: 6px !important;
+  line-height: 1.1 !important;
+}
