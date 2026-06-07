@@ -108,10 +108,6 @@ onkeydown="handleAriEnter(event)"
 <strong>Progress</strong>
 </button>
 
-<button class="ari-action-tile log-tile" type="button" onclick="window.location.href='log.html'">
-<span>🔥</span>
-<strong>burned</strong>
-</button>
 </section>
 
 <div id="plusMenu" class="plus-menu">
@@ -193,8 +189,11 @@ await refreshHomeDashboard();
 }, 60000);
 });
 
-window.addEventListener("focus", refreshHomeDashboard);
-window.addEventListener("pageshow", refreshHomeDashboard);
+window.addEventListener("focus", () => refreshHomeDashboard());
+
+window.addEventListener("pageshow", () => {
+setTimeout(refreshHomeDashboard, 300);
+});
 
 window.addEventListener("calbuddy:dashboardUpdated", (event) => {
 renderDashboard(event.detail);
