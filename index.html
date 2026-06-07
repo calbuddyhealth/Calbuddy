@@ -109,8 +109,8 @@ onkeydown="handleAriEnter(event)"
 </button>
 
 <button class="ari-action-tile log-tile" type="button" onclick="window.location.href='log.html'">
-<span>🥗</span>
-<strong>Log Food</strong>
+<span>🔥</span>
+<strong>burned</strong>
 </button>
 </section>
 
@@ -462,7 +462,7 @@ const fill = document.getElementById("trueMeterFill");
 if (!fill || !goal) return;
 
 const netConsumed = Math.max(consumed - burned, 0);
-const percentUsed = Math.max(0, Math.min(netConsumed / goal, 1));
+const percentLeft = Math.max(0, Math.min((goal - netConsumed / goal, 1));
 
 fill.style.strokeDasharray = "100";
 fill.style.strokeDashoffset = String(100 - percentUsed * 100);
