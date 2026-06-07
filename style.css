@@ -1452,6 +1452,9 @@ font-size: 12px;
 font-weight: 850;
 text-align: center;
 box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+  max-height: 180px;
+  overflow-y: auto;
+  scroll-width: thin;
 }
 
 /* Search */
