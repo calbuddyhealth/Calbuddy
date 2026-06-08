@@ -617,103 +617,146 @@ CalBuddy.getUserContext = async function () {
 CLIENT-SIDE ACTION DETECTION
 ----------------------------- */
 CalBuddy.detectAriActionFromMessage = async function (message = "") {
-  const text = String(message).toLowerCase();
-  const calorieGoalMatch =
-    text.match(/(?:set|change|update).{0,25}(?:calorie|calories).{0,15}(?:goal|target).{0,15}(\d{3,5})/) ||
-    text.match(/(?:calorie|calories).{0,15}(?:goal|target).{0,15}(?:to|is)?\s*(\d{3,5})/);
-  if (calorieGoalMatch) {
-    const goal = Number(calorieGoalMatch[1]);
-    if (goal >= 1000 && goal <= 6000) {
-      return {
-        action_type: "update_profile",
-        payload: { daily_calorie_goal: goal, calorieGoal: goal },
-        confirmation_text: `Change your daily calorie goal to ${goal.toLocaleString()} kcal?`
-      };
-    }
-  }
-  const weightMatch =
-    text.match(/(?:i weigh|my weight is|weighed|current weight is|update my weight to|set my weight to)\s*(\d{2,3}(?:\.\d+)?)/);
-  if (weightMatch) {
-    const weight = Number(weightMatch[1]);
-    if (weight >= 70 && weight <= 700) {
-      return {
-        action_type: "log_weight",
-        payload: { weight, notes: "Logged through Ari" },
-        confirmation_text: `Log your current weight as ${weight} lb?`
-      };
-    }
-  }
-  const goalWeightMatch =
-    text.match(/(?:goal weight|target weight).{0,20}(?:is|to|at)?\s*(\d{2,3}(?:\.\d+)?)/);
-  if (goalWeightMatch) {
-    const goalWeight = Number(goalWeightMatch[1]);
-    if (goalWeight >= 70 && goalWeight <= 700) {
-      return {
-        action_type: "update_profile",
-        payload: {
-          goal_weight: goalWeight,
-          targetWeight: goalWeight,
-          target_weight_lbs: goalWeight
-        },
-        confirmation_text: `Set your goal weight to ${goalWeight} lb?`
-      };
-    }
-  }
-  const sexMatch = text.match(/(?:i am|i'm|sex is|gender is|set sex to|set gender to)\s*(male|female)/);
-  if (sexMatch) {
-    const sex = sexMatch[1];
-    return {
-      action_type: "update_profile",
-      payload: { sex, gender: sex },
-      confirmation_text: `Update your sex to ${sex}?`
-    };
-  }
-  const heightMatch =
-    text.match(/(?:height is|my height is|set my height to|update my height to)\s*(\d{2,3}(?:\.\d+)?)/);
-  if (heightMatch) {
-    const height = Number(heightMatch[1]);
-    if (height >= 36 && height <= 96) {
-      return {
-        action_type: "update_profile",
-        payload: { height_in: height, height },
-        confirmation_text: `Update your height to ${height} inches?`
-      };
-    }
-  }
-  if (text.includes("lose weight")) {
-    return {
-      action_type: "update_profile",
-      payload: { goal: "lose", goalType: "lose" },
-      confirmation_text: "Set your goal to lose weight?"
-    };
-  }
-  if (text.includes("maintain weight")) {
-    return {
-      action_type: "update_profile",
-      payload: { goal: "maintain", goalType: "maintain" },
-      confirmation_text: "Set your goal to maintain weight?"
-    };
-  }
-  if (text.includes("gain weight")) {
-    return {
-      action_type: "update_profile",
-      payload: { goal: "gain", goalType: "gain" },
-      confirmation_text: "Set your goal to gain weight?"
-    };
-  }
-  const weeklyMatch =
-    text.match(/(?:lose|gain|change).{0,20}(\d(?:\.\d+)?)\s*(?:lb|lbs|pound|pounds).{0,15}(?:week|weekly)/);
-  if (weeklyMatch) {
-    const weekly = Number(weeklyMatch[1]);
-    if (weekly > 0 && weekly <= 2) {
-      return {
-        action_type: "update_profile",
-        payload: { weekly_weight_change_goal: weekly, weeklyChange: weekly },
-        confirmation_text: `Set your weekly weight change goal to ${weekly} lb/week?`
-      };
-    }
-  }
-  return null;
+const text = String(message).toLowerCase().replace(/,/g, "").trim();
+
+const getNumber = (match) => {
+if (!match) return null;
+const value = Number(match[1]);
+return Number.isFinite(value) ? value : null;
+};
+
+const calorieGoalMatch =
+text.match(/\b(?:set|change|update)?\s*(?:my)?\s*(?:daily)?\s*(?:calorie|calories|kcal)\s*(?:goal|target)?\s*(?:to|is|at)?\s*(\d{4,5})\b/) ||
+text.match(/\b(\d{4,5})\s*(?:calories|kcal)\b/);
+
+const calorieGoal = getNumber(calorieGoalMatch);
+
+if (calorieGoal && calorieGoal >= 1000 && calorieGoal <= 6000) {
+return {
+action_type: "update_profile",
+payload: {
+daily_calorie_goal: calorieGoal,
+calorieGoal: calorieGoal
+},
+confirmation_text: `Change your daily calorie goal to ${calorieGoal.toLocaleString()} kcal?`
+};
+}
+
+const currentWeightMatch =
+text.match(/\b(?:i weigh|my weight is|weighed|current weight is|update my weight to|set my weight to)\s*(\d{2,3}(?:\.\d+)?)\s*(?:lb|lbs|pounds)?\b/);
+
+const currentWeight = getNumber(currentWeightMatch);
+
+if (currentWeight && currentWeight >= 70 && currentWeight <= 700) {
+return {
+action_type: "log_weight",
+payload: {
+weight: currentWeight,
+notes: "Logged through Ari"
+},
+confirmation_text: `Log your current weight as ${currentWeight} lb?`
+};
+}
+
+const goalWeightMatch =
+text.match(/\b(?:my\s+)?(?:goal weight|target weight)\s*(?:is|to|at)?\s*(\d{2,3}(?:\.\d+)?)\s*(?:lb|lbs|pounds)?\b/) ||
+text.match(/\b(?:my goal is|set my goal to|change my goal to|i want to weigh|i want my weight to be)\s*(\d{2,3}(?:\.\d+)?)\s*(?:lb|lbs|pounds)?\b/);
+
+const goalWeight = getNumber(goalWeightMatch);
+
+if (goalWeight && goalWeight >= 70 && goalWeight <= 700) {
+return {
+action_type: "update_profile",
+payload: {
+goal_weight: goalWeight,
+targetWeight: goalWeight,
+target_weight_lbs: goalWeight
+},
+confirmation_text: `Set your goal weight to ${goalWeight} lb?`
+};
+}
+
+const sexMatch = text.match(/\b(?:i am|i'm|sex is|gender is|set sex to|set gender to)\s*(male|female)\b/);
+
+if (sexMatch) {
+const sex = sexMatch[1];
+
+return {
+action_type: "update_profile",
+payload: {
+sex,
+gender: sex
+},
+confirmation_text: `Update your sex to ${sex}?`
+};
+}
+
+const heightMatch =
+text.match(/\b(?:height is|my height is|set my height to|update my height to)\s*(\d{2,3}(?:\.\d+)?)\s*(?:in|inch|inches)?\b/);
+
+const height = getNumber(heightMatch);
+
+if (height && height >= 36 && height <= 96) {
+return {
+action_type: "update_profile",
+payload: {
+height_in: height,
+height
+},
+confirmation_text: `Update your height to ${height} inches?`
+};
+}
+
+if (text.includes("lose weight")) {
+return {
+action_type: "update_profile",
+payload: {
+goal: "lose",
+goalType: "lose"
+},
+confirmation_text: "Set your goal to lose weight?"
+};
+}
+
+if (text.includes("maintain weight")) {
+return {
+action_type: "update_profile",
+payload: {
+goal: "maintain",
+goalType: "maintain"
+},
+confirmation_text: "Set your goal to maintain weight?"
+};
+}
+
+if (text.includes("gain weight")) {
+return {
+action_type: "update_profile",
+payload: {
+goal: "gain",
+goalType: "gain"
+},
+confirmation_text: "Set your goal to gain weight?"
+};
+}
+
+const weeklyMatch =
+text.match(/\b(?:lose|gain|change).{0,20}(\d(?:\.\d+)?)\s*(?:lb|lbs|pound|pounds).{0,15}(?:week|weekly)\b/);
+
+const weekly = getNumber(weeklyMatch);
+
+if (weekly && weekly > 0 && weekly <= 2) {
+return {
+action_type: "update_profile",
+payload: {
+weekly_weight_change_goal: weekly,
+weeklyChange: weekly
+},
+confirmation_text: `Set your weekly weight change goal to ${weekly} lb/week?`
+};
+}
+
+return null;
 };
 /* -----------------------------
 BARCODE / PHOTO / KNOWLEDGE HOOKS
