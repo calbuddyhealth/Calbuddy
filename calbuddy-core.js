@@ -1222,6 +1222,30 @@ CalBuddy.saveAriMemoryCandidate = async function (memoryCandidate) {
   }
 };
 
+CalBuddy.sendGithubEditRequest = async function (payload) {
+  try {
+    const response = await fetch("/api/ari-github-edit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+
+    console.log("GitHub Edit Response:", data);
+
+    return data;
+  } catch (err) {
+    console.error("GitHub Edit Error:", err);
+
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+};
 CalBuddy.saveDeveloperIntentLocally = function (developerIntent) {
   if (!developerIntent) return null;
 
