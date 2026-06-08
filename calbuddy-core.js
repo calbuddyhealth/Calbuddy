@@ -1006,6 +1006,166 @@ const mood =
   CalBuddy.setAriMood(mood);
   return response;
 };
+
+/* -----------------------------
+ARI INTELLIGENCE FOUNDATION
+Dynamic greetings, owner mode, simple patterns
+----------------------------- */
+
+CalBuddy.isOwner = function (context = {}) {
+  const profile = context.profile || {};
+  return profile.owner_access === true;
+};
+
+CalBuddy.getAriModeLabel = function (context = {}) {
+  const profile = context.profile || {};
+  const mode = profile.ari_mode || "auto";
+
+  if (!CalBuddy.isOwner(context)) return "Coach";
+
+  if (mode === "developer_wonder") return "Developer + Wonder";
+  if (mode === "companion_wonder") return "Companion + Wonder";
+  if (mode === "coach_wonder") return "Coach + Wonder";
+
+  return "Auto Mode";
+};
+
+CalBuddy.buildPatternSummary = function (context = {}) {
+  const mealsToday = Array.isArray(context.mealsToday) ? context.mealsToday : [];
+  const recentMeals = Array.isArray(context.recentMeals) ? context.recentMeals : [];
+  const recentWeights = Array.isArray(context.recentWeights) ? context.recentWeights : [];
+
+  const patterns = [];
+
+  if (mealsToday.length === 0) {
+    patterns.push("No meals logged yet today.");
+  }
+
+  if (recentMeals.length >= 3) {
+    const names = recentMeals
+      .map(meal => String(meal.name || "").toLowerCase())
+      .filter(Boolean);
+
+    const repeated = names.find((name, index) => names.indexOf(name) !== index);
+
+    if (repeated) {
+      patterns.push(`Repeated recent food: ${repeated}.`);
+    }
+  }
+
+  if (recentWeights.length >= 2) {
+    const latest = CalBuddy.safeNumber(recentWeights[0]?.weight, 0);
+    const previous = CalBuddy.safeNumber(recentWeights[recentWeights.length - 1]?.weight, 0);
+
+    if (latest && previous) {
+      const difference = latest - previous;
+
+      if (Math.abs(difference) >= 2) {
+        patterns.push(
+          difference > 0
+            ? `Weight is up about ${difference.toFixed(1)} lb across recent logs.`
+            : `Weight is down about ${Math.abs(difference).toFixed(1)} lb across recent logs.`
+        );
+      }
+    }
+  }
+
+  return patterns.length ? patterns.join(" ") : "No strong pattern detected yet.";
+};
+
+CalBuddy.getHomepageGreeting = async function () {
+  const context = await CalBuddy.getUserContext();
+
+  const owner = CalBuddy.isOwner(context);
+  const modeLabel = CalBuddy.getAriModeLabel(context);
+
+  const hour = new Date().getHours();
+  const consumed = Number(context.caloriesConsumed || 0);
+  const burned = Number(context.caloriesBurned || 0);
+  const goal = Number(context.dailyGoal || 2100);
+  const left = Number(context.caloriesLeft || 0);
+  const netCalories = Math.max(consumed - burned, 0);
+
+  let timeGreeting = "Hey.";
+  if (hour < 12) timeGreeting = "Good morning.";
+  else if (hour < 17) timeGreeting = "Good afternoon.";
+  else timeGreeting = "Good evening.";
+
+  if (owner) {
+    if (consumed === 0) {
+      return `${timeGreeting} Owner Mode is active: ${modeLabel}.\n\nNo meals logged yet. We can build, debug, or start your day strong.`;
+    }
+
+    return `${timeGreeting} Owner Mode is active: ${modeLabel}.\n\nYou have ${left.toLocaleString()} calories left. CalBuddy is ready for coaching, product work, or debugging.`;
+  }
+
+  if (consumed === 0) {
+    return `${timeGreeting} You haven't logged anything yet. What are we eating first?`;
+  }
+
+  if (netCalories < goal * 0.5) {
+    return `${timeGreeting} You're on track today. Keep it going.`;
+  }
+
+  if (netCalories <= goal) {
+    return `${timeGreeting} Nice work. You're still within your calorie goal.`;
+  }
+
+  return `${timeGreeting} You're over goal today, but one day doesn't define you. Let's look at the whole pattern.`;
+};
+
+CalBuddy.getOwnerStatusSummary = async function () {
+  const context = await CalBuddy.getUserContext();
+
+  if (!CalBuddy.isOwner(context)) {
+    return "Owner status is not available on this account.";
+  }
+
+  const modeLabel = CalBuddy.getAriModeLabel(context);
+  const patternSummary = CalBuddy.buildPatternSummary(context);
+
+  return [
+    `Owner Mode: ${modeLabel}`,
+    `Calories today: ${context.caloriesConsumed || 0} consumed / ${context.dailyGoal || 0} goal`,
+    `Calories left: ${context.caloriesLeft || 0}`,
+    `Meals today: ${Array.isArray(context.mealsToday) ? context.mealsToday.length : 0}`,
+    `Pattern note: ${patternSummary}`,
+    "Next build priorities: dynamic greetings, memory storage, Developer + Wonder task saving, homepage chat compression."
+  ].join("\n");
+};
+
+CalBuddy.saveAriMemoryCandidate = async function (memoryCandidate) {
+  if (!memoryCandidate || !memoryCandidate.memory_value) return null;
+
+  try {
+    return await CalBuddy.saveMemory({
+      memory_type: memoryCandidate.memory_type || "preference",
+      memory_key: memoryCandidate.memory_key || null,
+      memory_value: memoryCandidate.memory_value,
+      source: "ari"
+    });
+  } catch (error) {
+    console.log("Memory save skipped:", error.message);
+    return null;
+  }
+};
+
+CalBuddy.saveDeveloperIntentLocally = function (developerIntent) {
+  if (!developerIntent) return null;
+
+  const tasks = JSON.parse(localStorage.getItem("calbuddyDeveloperTasks") || "[]");
+
+  const task = {
+    id: Date.now(),
+    created_at: new Date().toISOString(),
+    ...developerIntent
+  };
+
+  tasks.unshift(task);
+  localStorage.setItem("calbuddyDeveloperTasks", JSON.stringify(tasks.slice(0, 50)));
+
+  return task;
+};
 /* -----------------------------
 DASHBOARD REFRESH
 ----------------------------- */
