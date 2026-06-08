@@ -2919,3 +2919,50 @@ Paste at very bottom of style.css
 .ari-action-grid {
   margin-top: 8px !important;
 }
+/* ===================================
+ARI HIGHER HERO REBALANCE
+Paste at very bottom of style.css
+=================================== */
+
+.ari-hero-section {
+  margin-top: -34px !important;
+  min-height: 300px !important;
+  position: relative !important;
+}
+
+.ari-speech-bubble {
+  width: 250px !important;
+  min-height: 110px !important;
+  max-height: 180px !important;
+
+  left: 12px !important;
+  top: 58px !important;
+
+  padding: 14px 16px !important;
+  font-size: 13px !important;
+  line-height: 1.38 !important;
+
+  overflow-y: auto !important;
+  z-index: 5 !important;
+}
+
+.ari-master-img {
+  width: 335px !important;
+  max-width: none !important;
+
+  position: absolute !important;
+  right: -88px !important;
+  top: 42px !important;
+
+  z-index: 6 !important;
+}
+
+.ari-search-section {
+  margin-top: -36px !important;
+  position: relative !important;
+  z-index: 20 !important;
+}
+
+.ari-meter-card {
+  margin-top: 8px !important;
+}
