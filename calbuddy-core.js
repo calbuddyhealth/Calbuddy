@@ -978,7 +978,7 @@ CalBuddy.askAri = async function ({ message, history = [] }) {
     JSON.stringify(response.memoryCandidate)
   );
 
-  await CalBuddy.saveAriMemoryCandidate(response.memoryCandidate);
+  CalBuddy.saveAriMemoryCandidate(response.memoryCandidate);
 
   window.dispatchEvent(
     new CustomEvent("calbuddy:memoryCandidate", {
