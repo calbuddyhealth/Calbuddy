@@ -935,7 +935,54 @@ return {
     "Saved to Owner Tasks. I prepared the implementation plan instead of trying to directly edit production code."
 };
 };
+CalBuddy.confirmPendingGithubEdit = async function () {
+  const saved = localStorage.getItem("calbuddyPendingGithubEdit");
 
+  if (!saved) {
+    return {
+      success: false,
+      reply: "I don’t have a GitHub edit waiting to confirm."
+    };
+  }
+
+  const developerIntent = JSON.parse(saved);
+  const githubEdit = developerIntent.githubEdit || {};
+
+  if (!githubEdit.filePath || !githubEdit.newContent) {
+    return {
+      success: false,
+      reply: "I saved the GitHub edit request, but I don’t have the exact file path and replacement code yet. I should prepare a real file edit before claiming anything changed."
+    };
+  }
+
+  const context = await CalBuddy.getUserContext();
+
+  const result = await CalBuddy.sendGithubEditRequest({
+    owner_access: context.ownerMode === true,
+    mode: "commit",
+    filePath: githubEdit.filePath,
+    newContent: githubEdit.newContent,
+    commitMessage: developerIntent.title || "Ari GitHub edit",
+    confirmationText: "CONFIRM GITHUB EDIT"
+  });
+
+  if (result.success) {
+    localStorage.removeItem("calbuddyPendingGithubEdit");
+    localStorage.setItem("calbuddyLastGithubEditResult", JSON.stringify(result));
+
+    return {
+      success: true,
+      result,
+      reply: "GitHub commit created. Vercel should redeploy automatically."
+    };
+  }
+
+  return {
+    success: false,
+    result,
+    reply: result.error || "The GitHub edit did not go through."
+  };
+};
 CalBuddy.confirmPendingAction = async function () {
   const action = CalBuddy.getPendingAction();
   if (!action) {
@@ -978,6 +1025,11 @@ CalBuddy.askAri = async function ({ message, history = [] }) {
   if (!message || !message.trim()) {
     throw new Error("Message is required.");
   }
+  const pendingGithubEdit = localStorage.getItem("calbuddyPendingGithubEdit");
+
+if (pendingGithubEdit && CalBuddy.isYes(message)) {
+  return await CalBuddy.confirmPendingGithubEdit();
+}
   const pending = CalBuddy.getPendingAction();
   if (pending && CalBuddy.isYes(message)) {
     return await CalBuddy.confirmPendingAction();
