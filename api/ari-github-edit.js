@@ -70,6 +70,24 @@ export default async function handler(req, res) {
       "base64"
     ).toString("utf8");
 
+    let editedContent = newContent || "";
+
+    if (operation === "replace") {
+      if (!find || replace === undefined) {
+        return res.status(400).json({
+          error: "find and replace are required for replace operation"
+        });
+      }
+
+      editedContent = currentContent.replace(find, replace);
+
+      if (editedContent === currentContent) {
+        return res.status(400).json({
+          error: "Target text not found"
+        });
+      }
+    }
+
     if (mode === "preview") {
       return res.status(200).json({
         success: true,
@@ -77,7 +95,7 @@ export default async function handler(req, res) {
         filePath,
         branch,
         currentContent,
-        proposedContent: newContent || "",
+        proposedContent: editedContent,
         message:
           "Preview ready. No GitHub changes were made. Type CONFIRM GITHUB EDIT to commit."
       });
@@ -90,31 +108,13 @@ export default async function handler(req, res) {
         });
       }
 
-      let finalContent = newContent;
+      if (!editedContent) {
+        return res.status(400).json({
+          error: "No content generated"
+        });
+      }
 
-if (operation === "replace") {
-  if (!find || !replace) {
-    return res.status(400).json({
-      error: "find and replace are required for replace operation"
-    });
-  }
-
-  finalContent = currentContent.replace(find, replace);
-
-  if (finalContent === currentContent) {
-    return res.status(400).json({
-      error: "Target text not found"
-    });
-  }
-}
-
-if (!finalContent) {
-  return res.status(400).json({
-    error: "No content generated"
-  });
-}
-
-const encoded = Buffer.from(finalContent, "utf8").toString("base64");
+      const encoded = Buffer.from(editedContent, "utf8").toString("base64");
 
       const result = await githubFetch(apiBase, {
         method: "PUT",
