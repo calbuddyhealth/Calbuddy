@@ -903,7 +903,29 @@ CalBuddy.executeAction = async function (action) {
 }
 console.log("ACTION TYPE:", type);
 console.log("ACTION:", action);
-  throw new Error(`Unknown action type: ${type}`);
+  const fallbackTask = CalBuddy.saveDeveloperIntentLocally({
+  enabled: true,
+  type: type || "owner_code_task",
+  title: action.title || payload.title || "Owner requested app change",
+  summary:
+    action.summary ||
+    payload.summary ||
+    action.confirmation_text ||
+    "Owner confirmed an app improvement request.",
+  priority: payload.priority || action.priority || "medium",
+  recommended_files:
+    payload.recommended_files ||
+    action.recommended_files ||
+    ["index.html", "style.css", "calbuddy-core.js", "api/ask-calbuddy.js"],
+  ownerCommand: true,
+  payload
+});
+
+return {
+  success: true,
+  task: fallbackTask,
+  reply:
+    "Saved to Owner Tasks. I prepared the implementation plan instead of trying to directly edit production code."
 };
 CalBuddy.confirmPendingAction = async function () {
   const action = CalBuddy.getPendingAction();
