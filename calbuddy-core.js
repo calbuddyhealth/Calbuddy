@@ -665,7 +665,10 @@ CalBuddy.detectAriActionFromMessage = async function (message = "") {
     if (goalWeight >= 70 && goalWeight <= 700) {
       return {
         action_type: "update_profile",
-        payload: { goal_weight: goalWeight },
+        payload: {
+  goal_weight: goalWeight,
+  targetWeight: goalWeight
+},
         confirmation_text: `Set your goal weight to ${goalWeight} lb?`
       };
     }
