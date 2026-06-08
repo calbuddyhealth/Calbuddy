@@ -2754,3 +2754,88 @@ margin-top: 8px !important;
   margin-top: 6px !important;
   line-height: 1.1 !important;
 }
+/* ===================================
+CALBUDDY HERO COMPACT LAYOUT
+IPHONE OPTIMIZED
+Paste at VERY bottom of style.css
+=================================== */
+
+/* Pull entire hero section upward */
+.ari-hero-section {
+  margin-top: -40px !important;
+  min-height: 290px !important;
+  position: relative;
+}
+
+/* Larger speech bubble */
+.ari-speech-bubble {
+  width: 290px !important;
+  min-height: 160px !important;
+  max-height: 320px !important;
+
+  overflow-y: auto !important;
+
+  position: absolute !important;
+  left: 10px !important;
+  top: 18px !important;
+
+  z-index: 4;
+}
+
+/* Ari larger and further right */
+.ari-master-img {
+  width: 340px !important;
+  max-width: none !important;
+
+  position: absolute !important;
+  right: -25px !important;
+  top: 30px !important;
+
+  z-index: 5;
+}
+
+/* Pull search bar upward */
+.ari-search-section {
+  margin-top: -95px !important;
+  position: relative;
+  z-index: 20;
+}
+
+/* Bring meter closer */
+.ari-meter-card {
+  margin-top: 8px !important;
+}
+
+/* Bring buttons closer */
+.ari-action-grid {
+  margin-top: 8px !important;
+}
+
+/* Slightly smaller meter */
+.ari-meter-card .true-meter-wrap {
+  transform: scale(0.68) !important;
+  height: 110px !important;
+}
+
+/* Better meter positioning */
+.ari-meter-card .true-meter-text {
+  top: 64% !important;
+}
+
+.ari-meter-card .true-meter-text h2 {
+  font-size: 38px !important;
+}
+
+/* iPhone specific */
+@media (max-width: 430px) {
+
+  .ari-master-img {
+    width: 330px !important;
+    right: -18px !important;
+  }
+
+  .ari-speech-bubble {
+    width: 270px !important;
+  }
+
+}
