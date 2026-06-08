@@ -521,6 +521,9 @@ Current user context:
 - Current weight: ${context.currentWeight || "unknown"}
 - Goal weight: ${context.goalWeight || "unknown"}
 - Goal type: ${context.goalType || "unknown"}
+- Owner mode: ${context.ownerMode ? "active" : "inactive"}
+- Ari mode: ${context.ariModeLabel || "Coach"}
+- Ari permissions: ${JSON.stringify(context.ariPermissions || {})}
 - Activity level: ${context.activityLevel || "unknown"}
 - Meals logged today: ${todayMealNames || "none yet"}
 - Recent meals: ${recentMealNames || "none available"}
@@ -610,8 +613,12 @@ CalBuddy.getUserContext = async function () {
     recentWeights,
     profile
   };
-  context.coachMemorySummary = CalBuddy.buildCoachMemorySummary(context);
-  return context;
+  context.ariPermissions = CalBuddy.getAriPermissions(context);
+context.ownerMode = CalBuddy.isOwner(context);
+context.ariModeLabel = CalBuddy.getAriModeLabel(context);
+
+context.coachMemorySummary = CalBuddy.buildCoachMemorySummary(context);
+return context;
 };
 /* -----------------------------
 CLIENT-SIDE ACTION DETECTION
@@ -1066,7 +1073,22 @@ CalBuddy.isOwner = function (context = {}) {
   const profile = context.profile || {};
   return profile.owner_access === true;
 };
+CalBuddy.getAriPermissions = function (context = {}) {
+  const owner = CalBuddy.isOwner(context);
 
+  return {
+    owner_access: owner,
+    read_app_data: true,
+    update_profile: true,
+    log_meals: true,
+    log_weight: true,
+    update_goals: true,
+    save_memory: owner,
+    create_developer_tasks: owner,
+    suggest_code_changes: owner,
+    direct_code_editing: false
+  };
+};
 CalBuddy.getAriModeLabel = function (context = {}) {
   const profile = context.profile || {};
   const mode = profile.ari_mode || "auto";
