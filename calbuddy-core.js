@@ -973,31 +973,37 @@ CalBuddy.askAri = async function ({ message, history = [] }) {
     CalBuddy.setPendingAction(response.pendingAction);
   }
   if (response.memoryCandidate) {
-localStorage.setItem(
-"calbuddyLastMemoryCandidate",
-JSON.stringify(response.memoryCandidate)
-);
+  localStorage.setItem(
+    "calbuddyLastMemoryCandidate",
+    JSON.stringify(response.memoryCandidate)
+  );
 
-window.dispatchEvent(
-new CustomEvent("calbuddy:memoryCandidate", {
-detail: { memoryCandidate: response.memoryCandidate }
-})
-);
+  await CalBuddy.saveAriMemoryCandidate(response.memoryCandidate);
+
+  window.dispatchEvent(
+    new CustomEvent("calbuddy:memoryCandidate", {
+      detail: { memoryCandidate: response.memoryCandidate }
+    })
+  );
+
+  console.log("CalBuddy Memory Candidate:", response.memoryCandidate);
 }
 
 if (response.developerIntent) {
-localStorage.setItem(
-"calbuddyLastDeveloperIntent",
-JSON.stringify(response.developerIntent)
-);
+  localStorage.setItem(
+    "calbuddyLastDeveloperIntent",
+    JSON.stringify(response.developerIntent)
+  );
 
-window.dispatchEvent(
-new CustomEvent("calbuddy:developerIntent", {
-detail: { developerIntent: response.developerIntent }
-})
-);
+  CalBuddy.saveDeveloperIntentLocally(response.developerIntent);
 
-console.log("CalBuddy Developer Intent:", response.developerIntent);
+  window.dispatchEvent(
+    new CustomEvent("calbuddy:developerIntent", {
+      detail: { developerIntent: response.developerIntent }
+    })
+  );
+
+  console.log("CalBuddy Developer Intent:", response.developerIntent);
 }  
 const mood =
     response.emotion ||
