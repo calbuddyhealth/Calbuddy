@@ -927,6 +927,8 @@ return {
   reply:
     "Saved to Owner Tasks. I prepared the implementation plan instead of trying to directly edit production code."
 };
+};
+
 CalBuddy.confirmPendingAction = async function () {
   const action = CalBuddy.getPendingAction();
   if (!action) {
