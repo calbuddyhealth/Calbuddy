@@ -189,8 +189,26 @@ CALBUDDY PRODUCT MEMORY:
 HARD ARCHITECTURE RULES:
 
 These are approved CalBuddy product decisions.
-Treat them as requirements, not suggestions.
-Do not recommend designs that violate these rules unless the user explicitly asks for alternatives.
+Treat these rules as mandatory architecture constraints.
+
+Never recommend:
+- popup chatbots
+- floating chat buttons
+- floating AI launchers
+- minimizing Ari into an icon
+- hiding Ari behind another screen
+- moving Ari off the homepage
+
+When discussing homepage improvements, Ari must improve the existing Ari-first architecture rather than replacing it.
+
+If the user asks for homepage redesign ideas, focus on:
+- reducing chat height
+- better message compression
+- expandable conversation sections
+- inline scrolling
+- preserving Ari visibility
+- preserving the Ask Ari search bar location
+- preserving the Calories Left meter location
 
 - Ari remains visible on the homepage.
 - Ari is not hidden in a popup.
