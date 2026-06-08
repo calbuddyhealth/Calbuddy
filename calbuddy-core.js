@@ -948,10 +948,24 @@ CalBuddy.confirmPendingGithubEdit = async function () {
   const developerIntent = JSON.parse(saved);
   const githubEdit = developerIntent.githubEdit || {};
 
-  if (!githubEdit.filePath || !githubEdit.newContent) {
+  if (!githubEdit.filePath) {
     return {
       success: false,
-      reply: "I saved the GitHub edit request, but I don’t have the exact file path and replacement code yet. I should prepare a real file edit before claiming anything changed."
+      reply: "I saved the GitHub edit request, but I’m missing the file path."
+    };
+  }
+
+  if (githubEdit.operation === "replace") {
+    if (!githubEdit.find || githubEdit.replace === undefined) {
+      return {
+        success: false,
+        reply: "I saved the GitHub edit request, but I’m missing the exact find/replace text."
+      };
+    }
+  } else if (!githubEdit.newContent) {
+    return {
+      success: false,
+      reply: "I saved the GitHub edit request, but I don’t have replacement content yet."
     };
   }
 
@@ -959,8 +973,11 @@ CalBuddy.confirmPendingGithubEdit = async function () {
 
   const result = await CalBuddy.sendGithubEditRequest({
     owner_access: context.ownerMode === true,
-    mode: "commit",
+    mode: githubEdit.mode || "commit",
     filePath: githubEdit.filePath,
+    operation: githubEdit.operation,
+    find: githubEdit.find,
+    replace: githubEdit.replace,
     newContent: githubEdit.newContent,
     commitMessage: developerIntent.title || "Ari GitHub edit",
     confirmationText: "CONFIRM GITHUB EDIT"
