@@ -3093,3 +3093,142 @@ FINAL VERSION
         font-size:14px;
     }
 }
+/* =====================================================
+CALBUDDY ARI HOME FINAL SYSTEM
+Single source of truth for current homepage layout
+===================================================== */
+
+.ari-master-home {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 10px 16px 24px;
+  background:
+    radial-gradient(circle at 78% 12%, rgba(45, 212, 191, 0.18), transparent 25%),
+    radial-gradient(circle at 18% 20%, rgba(59, 130, 246, 0.14), transparent 32%),
+    linear-gradient(180deg, #06111f 0%, #07182b 46%, #040b18 100%);
+  color: white;
+  overflow-x: hidden;
+}
+
+.ari-hero-section {
+  position: relative !important;
+  height: 285px !important;
+  min-height: 285px !important;
+  margin-top: -25px !important;
+  margin-bottom: -18px !important;
+}
+
+.ari-speech-bubble {
+  position: absolute !important;
+  left: 18px !important;
+  top: 18px !important;
+  width: 220px !important;
+  min-height: 110px !important;
+  max-height: 260px !important;
+  overflow-y: auto !important;
+  padding: 18px !important;
+  border-radius: 28px !important;
+  background: rgba(4, 12, 32, 0.94) !important;
+  border: 1px solid rgba(45, 212, 191, 0.45) !important;
+  color: white !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  line-height: 1.45 !important;
+  text-align: left !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.35) !important;
+  white-space: pre-wrap !important;
+  z-index: 5 !important;
+}
+
+.ari-master-img {
+  position: absolute !important;
+  right: -12px !important;
+  top: -22px !important;
+  width: 305px !important;
+  max-width: none !important;
+  height: auto !important;
+  z-index: 4 !important;
+  filter: drop-shadow(0 20px 30px rgba(0,0,0,0.35)) !important;
+}
+
+.ari-search-section {
+  margin-top: -10px !important;
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+.ari-search-bar {
+  min-height: 64px !important;
+  border-radius: 34px !important;
+}
+
+.ari-conversation-panel {
+  max-height: 260px !important;
+  overflow-y: auto !important;
+}
+
+.ari-meter-card {
+  min-height: 165px !important;
+  margin-top: 6px !important;
+  padding: 8px 14px 10px !important;
+}
+
+.ari-meter-card .true-meter-wrap {
+  height: 118px !important;
+  transform: scale(0.72) !important;
+}
+
+.ari-meter-card .true-meter-text {
+  top: 62% !important;
+}
+
+.ari-meter-card .true-meter-text h2 {
+  font-size: 40px !important;
+}
+
+.ari-action-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 10px !important;
+  margin-top: 10px !important;
+}
+
+.ari-action-tile {
+  height: 92px !important;
+  min-height: 92px !important;
+  border-radius: 22px !important;
+  text-decoration: none !important;
+}
+
+.owner-mode-badge {
+  display: inline-block;
+  margin: 6px auto 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(196, 181, 253, 0.45);
+  color: #ddd6fe;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+@media (max-width: 390px) {
+  .ari-hero-section {
+    height: 270px !important;
+    min-height: 270px !important;
+  }
+
+  .ari-master-img {
+    width: 280px !important;
+    right: -16px !important;
+    top: -18px !important;
+  }
+
+  .ari-speech-bubble {
+    width: 205px !important;
+    font-size: 14px !important;
+  }
+}
