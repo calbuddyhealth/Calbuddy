@@ -1086,7 +1086,7 @@ CalBuddy.getAriPermissions = function (context = {}) {
     save_memory: owner,
     create_developer_tasks: owner,
     suggest_code_changes: owner,
-    direct_code_editing: false
+    direct_code_editing: owner
   };
 };
 CalBuddy.getAriModeLabel = function (context = {}) {
