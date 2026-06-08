@@ -1,891 +1,914 @@
 // calbuddy-core.js
-// Shared CalBuddy Health app brain.
-// Handles auth, reset windows, meals, goals, weight, burned calories,
-// AI context, API routing, pending actions, Ari moods, and dashboard refresh hooks.
-
+// CalBuddy Health app brain.
+// Level 3 Ari upgrade: stronger user context, recent meals, favorites,
+// weight trends, coach memory summary, smarter pending actions, and dashboard hooks.
 window.CalBuddy = window.CalBuddy || {};
-
-CalBuddy.version = "2.0.0";
+CalBuddy.version = "3.0.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
-
 /* -----------------------------
 BASIC HELPERS
 ----------------------------- */
-
 CalBuddy.safeNumber = function (value, fallback = 0) {
-const number = Number(value);
-return Number.isFinite(number) ? number : fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 };
-
 CalBuddy.formatLocalDate = function (date) {
-const year = date.getFullYear();
-const month = String(date.getMonth() + 1).padStart(2, "0");
-const day = String(date.getDate()).padStart(2, "0");
-return `${year}-${month}-${day}`;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
-
 CalBuddy.isYes = function (text = "") {
-const t = String(text).trim().toLowerCase();
-return ["yes", "yes log it", "log it", "yep", "yeah", "sure", "ok", "okay", "do it", "add it"].includes(t);
+  const t = String(text).trim().toLowerCase();
+  return [
+    "yes",
+    "yes log it",
+    "log it",
+    "yep",
+    "yeah",
+    "sure",
+    "ok",
+    "okay",
+    "do it",
+    "add it",
+    "confirm",
+    "correct"
+  ].includes(t);
 };
-
 CalBuddy.isNo = function (text = "") {
-const t = String(text).trim().toLowerCase();
-return ["no", "nope", "cancel", "don't", "dont", "never mind", "nevermind"].includes(t);
+  const t = String(text).trim().toLowerCase();
+  return [
+    "no",
+    "nope",
+    "cancel",
+    "don't",
+    "dont",
+    "never mind",
+    "nevermind",
+    "stop"
+  ].includes(t);
 };
-
+CalBuddy.cleanText = function (text = "") {
+  return String(text || "").trim();
+};
 /* -----------------------------
 API HELPER
 ----------------------------- */
-
 CalBuddy.api = async function (endpoint, body = {}, options = {}) {
-const method = options.method || "POST";
-
-const response = await fetch(endpoint, {
-method,
-headers: {
-"Content-Type": "application/json"
-},
-body: method === "GET" ? undefined : JSON.stringify(body)
-});
-
-const data = await response.json().catch(() => ({}));
-
-if (!response.ok) {
-throw new Error(data.error?.message || data.error || `API failed: ${endpoint}`);
-}
-
-return data;
+  const method = options.method || "POST";
+  const response = await fetch(endpoint, {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: method === "GET" ? undefined : JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error?.message || data.error || `API failed: ${endpoint}`);
+  }
+  return data;
 };
-
 /* -----------------------------
 AUTH
 ----------------------------- */
-
 CalBuddy.getCurrentUser = async function () {
-if (window.getCurrentUser) return await window.getCurrentUser();
-if (!window.calbuddySupabase) return null;
-
-const { data, error } = await window.calbuddySupabase.auth.getSession();
-if (error || !data.session) return null;
-
-return data.session.user;
+  if (window.getCurrentUser) return await window.getCurrentUser();
+  if (!window.calbuddySupabase) return null;
+  const { data, error } = await window.calbuddySupabase.auth.getSession();
+  if (error || !data.session) return null;
+  return data.session.user;
 };
-
 CalBuddy.requireUser = async function () {
-const user = await CalBuddy.getCurrentUser();
-
-if (!user) {
-window.location.href = "signin.html";
-throw new Error("User must be signed in.");
-}
-
-return user;
+  const user = await CalBuddy.getCurrentUser();
+  if (!user) {
+    window.location.href = "signin.html";
+    throw new Error("User must be signed in.");
+  }
+  return user;
 };
-
 /* -----------------------------
 ARI MOOD / ANIMATION SYSTEM
 ----------------------------- */
-
 CalBuddy.allowedMoods = [
-"idle",
-"thinking",
-"happy",
-"celebrate",
-"sad",
-"concerned",
-"mad",
-"shy",
-"coach",
-"wow",
-"laugh",
-"listening",
-"logging",
-"success"
+  "idle",
+  "thinking",
+  "happy",
+  "celebrate",
+  "sad",
+  "concerned",
+  "mad",
+  "shy",
+  "coach",
+  "wow",
+  "laugh",
+  "listening",
+  "logging",
+  "success"
 ];
-
 CalBuddy.setAriMood = function (mood = "idle") {
-if (!CalBuddy.allowedMoods.includes(mood)) mood = "idle";
-
-CalBuddy.currentMood = mood;
-
-const ari = document.querySelector("[data-ari-mascot]");
-if (ari) {
-CalBuddy.allowedMoods.forEach(m => ari.classList.remove(`ari-${m}`));
-ari.classList.add(`ari-${mood}`);
-ari.setAttribute("data-mood", mood);
-}
-
-window.dispatchEvent(new CustomEvent("calbuddy:mood", { detail: { mood } }));
-
-return mood;
+  if (!CalBuddy.allowedMoods.includes(mood)) mood = "idle";
+  CalBuddy.currentMood = mood;
+  const ari = document.querySelector("[data-ari-mascot]");
+  if (ari) {
+    CalBuddy.allowedMoods.forEach(m => ari.classList.remove(`ari-${m}`));
+    ari.classList.add(`ari-${mood}`);
+    ari.setAttribute("data-mood", mood);
+  }
+  window.dispatchEvent(new CustomEvent("calbuddy:mood", { detail: { mood } }));
+  return mood;
 };
-
 CalBuddy.moodFromText = function (text = "") {
-const t = String(text).toLowerCase();
-
-if (t.includes("congrat") || t.includes("great job") || t.includes("proud") || t.includes("woo")) return "celebrate";
-if (t.includes("sorry") || t.includes("rough") || t.includes("sad")) return "sad";
-if (t.includes("hmm") || t.includes("thinking")) return "thinking";
-if (t.includes("yikes") || t.includes("careful")) return "concerned";
-if (t.includes("haha") || t.includes("lol")) return "laugh";
-if (t.includes("nice") || t.includes("great") || t.includes("good")) return "happy";
-
-return "idle";
+  const t = String(text).toLowerCase();
+  if (t.includes("congrat") || t.includes("great job") || t.includes("proud") || t.includes("woo")) return "celebrate";
+  if (t.includes("sorry") || t.includes("rough") || t.includes("sad")) return "sad";
+  if (t.includes("hmm") || t.includes("thinking")) return "thinking";
+  if (t.includes("yikes") || t.includes("careful") || t.includes("concern")) return "concerned";
+  if (t.includes("haha") || t.includes("lol")) return "laugh";
+  if (t.includes("nice") || t.includes("great") || t.includes("good")) return "happy";
+  return "idle";
 };
-
 /* -----------------------------
 RESET WINDOW
 ----------------------------- */
-
 CalBuddy.getResetTime = async function () {
-const saved = localStorage.getItem("calbuddyResetTime");
-const user = await CalBuddy.getCurrentUser();
-
-if (user && window.calbuddySupabase) {
-const { data, error } = await window.calbuddySupabase
-.from("profiles")
-.select("reset_hour, reset_minute, reset_ampm")
-.eq("id", user.id)
-.maybeSingle();
-
-if (!error && data) {
-const resetTime = {
-hour: CalBuddy.safeNumber(data.reset_hour, 4),
-minute: CalBuddy.safeNumber(data.reset_minute, 0),
-ampm: data.reset_ampm || "AM"
+  const saved = localStorage.getItem("calbuddyResetTime");
+  const user = await CalBuddy.getCurrentUser();
+  if (user && window.calbuddySupabase) {
+    const { data, error } = await window.calbuddySupabase
+      .from("profiles")
+      .select("reset_hour, reset_minute, reset_ampm")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!error && data) {
+      const resetTime = {
+        hour: CalBuddy.safeNumber(data.reset_hour, 4),
+        minute: CalBuddy.safeNumber(data.reset_minute, 0),
+        ampm: data.reset_ampm || "AM"
+      };
+      localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
+      return resetTime;
+    }
+  }
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return { hour: 4, minute: 0, ampm: "AM" };
+    }
+  }
+  return { hour: 4, minute: 0, ampm: "AM" };
 };
-
-localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
-return resetTime;
-}
-}
-
-if (saved) {
-try {
-return JSON.parse(saved);
-} catch {
-return { hour: 4, minute: 0, ampm: "AM" };
-}
-}
-
-return { hour: 4, minute: 0, ampm: "AM" };
-};
-
 CalBuddy.convertTo24Hour = function (hour, ampm) {
-hour = Number(hour);
-if (ampm === "AM" && hour === 12) return 0;
-if (ampm === "PM" && hour !== 12) return hour + 12;
-return hour;
+  hour = Number(hour);
+  if (ampm === "AM" && hour === 12) return 0;
+  if (ampm === "PM" && hour !== 12) return hour + 12;
+  return hour;
 };
-
 CalBuddy.getNutritionWindow = async function (offset = 0) {
-const reset = await CalBuddy.getResetTime();
-const resetHour24 = CalBuddy.convertTo24Hour(reset.hour, reset.ampm);
-
-const now = new Date();
-
-const start = new Date();
-start.setHours(resetHour24, Number(reset.minute), 0, 0);
-
-if (now < start) start.setDate(start.getDate() - 1);
-
-start.setDate(start.getDate() + offset);
-
-const end = new Date(start);
-end.setDate(end.getDate() + 1);
-
-const resetKey =
-`${String(resetHour24).padStart(2, "0")}${String(reset.minute).padStart(2, "0")}`;
-
-return {
-start,
-end,
-dateKey: `${CalBuddy.formatLocalDate(start)}_${resetKey}`,
-nutritionDate: CalBuddy.formatLocalDate(start)
+  const reset = await CalBuddy.getResetTime();
+  const resetHour24 = CalBuddy.convertTo24Hour(reset.hour, reset.ampm);
+  const now = new Date();
+  const start = new Date();
+  start.setHours(resetHour24, Number(reset.minute), 0, 0);
+  if (now < start) start.setDate(start.getDate() - 1);
+  start.setDate(start.getDate() + offset);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const resetKey =
+    `${String(resetHour24).padStart(2, "0")}${String(reset.minute).padStart(2, "0")}`;
+  return {
+    start,
+    end,
+    dateKey: `${CalBuddy.formatLocalDate(start)}_${resetKey}`,
+    nutritionDate: CalBuddy.formatLocalDate(start)
+  };
 };
-};
-
 CalBuddy.clearCalorieCache = function () {
-localStorage.removeItem("calbuddyCaloriesConsumed");
-localStorage.removeItem("calbuddyCaloriesBurned");
-localStorage.removeItem("calbuddyActiveNutritionDate");
-
-Object.keys(localStorage).forEach(key => {
-if (
-key.startsWith("calbuddyCaloriesConsumed_") ||
-key.startsWith("calbuddyCaloriesBurned_")
-) {
-localStorage.removeItem(key);
-}
-});
+  localStorage.removeItem("calbuddyCaloriesConsumed");
+  localStorage.removeItem("calbuddyCaloriesBurned");
+  localStorage.removeItem("calbuddyActiveNutritionDate");
+  Object.keys(localStorage).forEach(key => {
+    if (
+      key.startsWith("calbuddyCaloriesConsumed_") ||
+      key.startsWith("calbuddyCaloriesBurned_")
+    ) {
+      localStorage.removeItem(key);
+    }
+  });
 };
-
 CalBuddy.changeResetTime = async function ({ hour, minute, ampm }) {
-hour = Number(hour);
-minute = Number(minute);
-
-if (hour < 1 || hour > 12 || minute < 0 || minute > 59) {
-throw new Error("Invalid reset time.");
-}
-
-const resetTime = { hour, minute, ampm: ampm || "AM" };
-localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
-CalBuddy.clearCalorieCache();
-
-const user = await CalBuddy.getCurrentUser();
-
-if (user && window.calbuddySupabase) {
-const { error } = await window.calbuddySupabase
-.from("profiles")
-.upsert(
-{
-id: user.id,
-reset_hour: hour,
-reset_minute: minute,
-reset_ampm: resetTime.ampm,
-updated_at: new Date().toISOString()
-},
-{ onConflict: "id" }
-);
-
-if (error) throw error;
-}
-
-await CalBuddy.refreshDashboard();
-return resetTime;
+  hour = Number(hour);
+  minute = Number(minute);
+  if (hour < 1 || hour > 12 || minute < 0 || minute > 59) {
+    throw new Error("Invalid reset time.");
+  }
+  const resetTime = { hour, minute, ampm: ampm || "AM" };
+  localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
+  CalBuddy.clearCalorieCache();
+  const user = await CalBuddy.getCurrentUser();
+  if (user && window.calbuddySupabase) {
+    const { error } = await window.calbuddySupabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          reset_hour: hour,
+          reset_minute: minute,
+          reset_ampm: resetTime.ampm,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "id" }
+      );
+    if (error) throw error;
+  }
+  await CalBuddy.refreshDashboard();
+  return resetTime;
 };
-
 /* -----------------------------
 MEALS / CALORIES
 ----------------------------- */
-
 CalBuddy.saveMealLocally = function (meal) {
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
-
-meals.push({
-id: Date.now(),
-date: meal.nutrition_date,
-...meal,
-source: "local"
-});
-
-localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
+  const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+  meals.push({
+    id: Date.now(),
+    date: meal.nutrition_date,
+    ...meal,
+    source: "local"
+  });
+  localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 };
-
 CalBuddy.logMeal = async function (meal) {
-const user = await CalBuddy.getCurrentUser();
-const windowInfo = await CalBuddy.getNutritionWindow();
-const createdAt = new Date().toISOString();
-
-const mealToSave = {
-name: meal.name || "Ari meal",
-calories: Number(meal.calories || 0),
-category: meal.category || "Meal",
-nutrition_date: meal.nutrition_date || windowInfo.nutritionDate,
-protein_g: Number(meal.protein_g || 0),
-carbs_g: Number(meal.carbs_g || 0),
-fat_g: Number(meal.fat_g || 0),
-serving_size: meal.serving_size || "Added by Ari",
-multiplier: Number(meal.multiplier || 1),
-is_favorite: Boolean(meal.is_favorite || false),
-created_at: createdAt
+  const user = await CalBuddy.getCurrentUser();
+  const windowInfo = await CalBuddy.getNutritionWindow();
+  const createdAt = new Date().toISOString();
+  const mealToSave = {
+    name: meal.name || "Ari meal",
+    calories: Number(meal.calories || 0),
+    category: meal.category || "Meal",
+    nutrition_date: meal.nutrition_date || windowInfo.nutritionDate,
+    protein_g: Number(meal.protein_g || 0),
+    carbs_g: Number(meal.carbs_g || 0),
+    fat_g: Number(meal.fat_g || 0),
+    serving_size: meal.serving_size || "Added by Ari",
+    multiplier: Number(meal.multiplier || 1),
+    is_favorite: Boolean(meal.is_favorite || false),
+    created_at: createdAt
+  };
+  if (!mealToSave.calories || mealToSave.calories <= 0) {
+    throw new Error("Meal calories are required.");
+  }
+  CalBuddy.setAriMood("logging");
+  if (user && window.calbuddySupabase) {
+    const { error } = await window.calbuddySupabase
+      .from("meals")
+      .insert({ user_id: user.id, ...mealToSave });
+    if (error) {
+      CalBuddy.saveMealLocally(mealToSave);
+    }
+  } else {
+    CalBuddy.saveMealLocally(mealToSave);
+  }
+  CalBuddy.clearCalorieCache();
+  await CalBuddy.refreshDashboard();
+  CalBuddy.setAriMood("success");
+  return mealToSave;
 };
-
-if (!mealToSave.calories || mealToSave.calories <= 0) {
-throw new Error("Meal calories are required.");
-}
-
-CalBuddy.setAriMood("logging");
-
-if (user && window.calbuddySupabase) {
-const { error } = await window.calbuddySupabase
-.from("meals")
-.insert({ user_id: user.id, ...mealToSave });
-
-if (error) {
-CalBuddy.saveMealLocally(mealToSave);
-}
-} else {
-CalBuddy.saveMealLocally(mealToSave);
-}
-
-CalBuddy.clearCalorieCache();
-await CalBuddy.refreshDashboard();
-CalBuddy.setAriMood("success");
-
-return mealToSave;
-};
-
 CalBuddy.getMealsInWindow = async function (offset = 0) {
-const user = await CalBuddy.getCurrentUser();
-const windowInfo = await CalBuddy.getNutritionWindow(offset);
-
-if (user && window.calbuddySupabase) {
-const { data, error } = await window.calbuddySupabase
-.from("meals")
-.select("*")
-.eq("user_id", user.id)
-.gte("created_at", windowInfo.start.toISOString())
-.lt("created_at", windowInfo.end.toISOString())
-.order("created_at", { ascending: true });
-
-if (!error && data) return data.map(meal => ({ ...meal, source: "supabase" }));
-}
-
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
-
-return meals
-.filter(meal => {
-const created = new Date(meal.created_at || meal.createdAt || meal.date || meal.nutrition_date);
-return created >= windowInfo.start && created < windowInfo.end;
-})
-.map(meal => ({ ...meal, source: "local" }));
+  const user = await CalBuddy.getCurrentUser();
+  const windowInfo = await CalBuddy.getNutritionWindow(offset);
+  if (user && window.calbuddySupabase) {
+    const { data, error } = await window.calbuddySupabase
+      .from("meals")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("created_at", windowInfo.start.toISOString())
+      .lt("created_at", windowInfo.end.toISOString())
+      .order("created_at", { ascending: true });
+    if (!error && data) return data.map(meal => ({ ...meal, source: "supabase" }));
+  }
+  const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+  return meals
+    .filter(meal => {
+      const created = new Date(meal.created_at || meal.createdAt || meal.date || meal.nutrition_date);
+      return created >= windowInfo.start && created < windowInfo.end;
+    })
+    .map(meal => ({ ...meal, source: "local" }));
 };
-
 CalBuddy.getConsumedCalories = async function () {
-const windowInfo = await CalBuddy.getNutritionWindow();
-const meals = await CalBuddy.getMealsInWindow();
-
-const total = meals.reduce((sum, meal) => {
-return sum + CalBuddy.safeNumber(meal.calories, 0);
-}, 0);
-
-localStorage.setItem(`calbuddyCaloriesConsumed_${windowInfo.dateKey}`, Math.round(total));
-localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
-localStorage.setItem("calbuddyActiveNutritionDate", windowInfo.dateKey);
-
-return Math.round(total);
+  const windowInfo = await CalBuddy.getNutritionWindow();
+  const meals = await CalBuddy.getMealsInWindow();
+  const total = meals.reduce((sum, meal) => {
+    return sum + CalBuddy.safeNumber(meal.calories, 0);
+  }, 0);
+  localStorage.setItem(`calbuddyCaloriesConsumed_${windowInfo.dateKey}`, Math.round(total));
+  localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
+  localStorage.setItem("calbuddyActiveNutritionDate", windowInfo.dateKey);
+  return Math.round(total);
 };
-
+CalBuddy.getRecentMeals = async function (limit = 12) {
+  const user = await CalBuddy.getCurrentUser();
+  if (user && window.calbuddySupabase) {
+    const { data, error } = await window.calbuddySupabase
+      .from("meals")
+      .select("name, calories, category, protein_g, carbs_g, fat_g, serving_size, created_at, nutrition_date")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!error && data) return data;
+  }
+  const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+  return meals.slice(-limit).reverse();
+};
+CalBuddy.getFavoriteFoods = async function (limit = 10) {
+  const user = await CalBuddy.getCurrentUser();
+  if (user && window.calbuddySupabase) {
+    const { data, error } = await window.calbuddySupabase
+      .from("meals")
+      .select("name, calories, category, protein_g, carbs_g, fat_g, serving_size")
+      .eq("user_id", user.id)
+      .eq("is_favorite", true)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!error && data) return data;
+  }
+  return [];
+};
 /* -----------------------------
 ACTIVITY / BURNED CALORIES
 ----------------------------- */
-
 CalBuddy.logCaloriesBurned = async function ({ calories_burned, activity_name = "Activity" }) {
-const user = await CalBuddy.getCurrentUser();
-const windowInfo = await CalBuddy.getNutritionWindow();
-
-const entry = {
-calories_burned: Number(calories_burned || 0),
-activity_name,
-log_date: windowInfo.nutritionDate,
-created_at: new Date().toISOString()
+  const user = await CalBuddy.getCurrentUser();
+  const windowInfo = await CalBuddy.getNutritionWindow();
+  const entry = {
+    calories_burned: Number(calories_burned || 0),
+    activity_name,
+    log_date: windowInfo.nutritionDate,
+    created_at: new Date().toISOString()
+  };
+  if (!entry.calories_burned || entry.calories_burned <= 0) {
+    throw new Error("Calories burned are required.");
+  }
+  if (user && window.calbuddySupabase) {
+    const { error } = await window.calbuddySupabase
+      .from("activity_logs")
+      .insert({ user_id: user.id, ...entry });
+    if (error) throw error;
+  }
+  CalBuddy.clearCalorieCache();
+  await CalBuddy.refreshDashboard();
+  return entry;
 };
-
-if (!entry.calories_burned || entry.calories_burned <= 0) {
-throw new Error("Calories burned are required.");
-}
-
-if (user && window.calbuddySupabase) {
-const { error } = await window.calbuddySupabase
-.from("activity_logs")
-.insert({ user_id: user.id, ...entry });
-
-if (error) throw error;
-}
-
-CalBuddy.clearCalorieCache();
-await CalBuddy.refreshDashboard();
-
-return entry;
-};
-
 CalBuddy.getCaloriesBurned = async function () {
-const user = await CalBuddy.getCurrentUser();
-const windowInfo = await CalBuddy.getNutritionWindow();
-const localBurned = CalBuddy.safeNumber(localStorage.getItem(`calbuddyCaloriesBurned_${windowInfo.dateKey}`), 0);
-
-if (!user || !window.calbuddySupabase) {
-localStorage.setItem("calbuddyCaloriesBurned", localBurned);
-return localBurned;
-}
-
-const { data, error } = await window.calbuddySupabase
-.from("activity_logs")
-.select("calories_burned, created_at")
-.eq("user_id", user.id)
-.gte("created_at", windowInfo.start.toISOString())
-.lt("created_at", windowInfo.end.toISOString());
-
-if (error || !data) {
-localStorage.setItem("calbuddyCaloriesBurned", localBurned);
-return localBurned;
-}
-
-const burned = data.reduce((sum, item) => {
-return sum + CalBuddy.safeNumber(item.calories_burned, 0);
-}, 0);
-
-localStorage.setItem(`calbuddyCaloriesBurned_${windowInfo.dateKey}`, burned);
-localStorage.setItem("calbuddyCaloriesBurned", burned);
-
-return burned;
+  const user = await CalBuddy.getCurrentUser();
+  const windowInfo = await CalBuddy.getNutritionWindow();
+  const localBurned = CalBuddy.safeNumber(localStorage.getItem(`calbuddyCaloriesBurned_${windowInfo.dateKey}`), 0);
+  if (!user || !window.calbuddySupabase) {
+    localStorage.setItem("calbuddyCaloriesBurned", localBurned);
+    return localBurned;
+  }
+  const { data, error } = await window.calbuddySupabase
+    .from("activity_logs")
+    .select("calories_burned, created_at")
+    .eq("user_id", user.id)
+    .gte("created_at", windowInfo.start.toISOString())
+    .lt("created_at", windowInfo.end.toISOString());
+  if (error || !data) {
+    localStorage.setItem("calbuddyCaloriesBurned", localBurned);
+    return localBurned;
+  }
+  const burned = data.reduce((sum, item) => {
+    return sum + CalBuddy.safeNumber(item.calories_burned, 0);
+  }, 0);
+  localStorage.setItem(`calbuddyCaloriesBurned_${windowInfo.dateKey}`, burned);
+  localStorage.setItem("calbuddyCaloriesBurned", burned);
+  return burned;
 };
-
 /* -----------------------------
 PROFILE / WEIGHT / GOALS
 ----------------------------- */
-
 CalBuddy.updateProfile = async function (updates = {}) {
-const user = await CalBuddy.getCurrentUser();
-
-Object.entries(updates).forEach(([key, value]) => {
-if (value !== undefined && value !== null) {
-localStorage.setItem(`calbuddy_${key}`, value);
-}
-});
-
-if (updates.daily_calorie_goal) {
-localStorage.setItem("calbuddyDailyCalorieGoal", updates.daily_calorie_goal);
-}
-
-if (updates.current_weight) {
-localStorage.setItem("calbuddyCurrentWeight", updates.current_weight);
-}
-
-if (updates.goal_weight) {
-localStorage.setItem("calbuddyGoalWeight", updates.goal_weight);
-}
-
-if (user && window.calbuddySupabase) {
-const { error } = await window.calbuddySupabase
-.from("profiles")
-.upsert(
-{
-id: user.id,
-...updates,
-updated_at: new Date().toISOString()
-},
-{ onConflict: "id" }
-);
-
-if (error) throw error;
-}
-
-await CalBuddy.refreshDashboard();
-return updates;
+  const user = await CalBuddy.getCurrentUser();
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      localStorage.setItem(`calbuddy_${key}`, value);
+    }
+  });
+  if (updates.daily_calorie_goal) {
+    localStorage.setItem("calbuddyDailyCalorieGoal", updates.daily_calorie_goal);
+  }
+  if (updates.current_weight) {
+    localStorage.setItem("calbuddyCurrentWeight", updates.current_weight);
+  }
+  if (updates.goal_weight) {
+    localStorage.setItem("calbuddyGoalWeight", updates.goal_weight);
+  }
+  if (user && window.calbuddySupabase) {
+    const { error } = await window.calbuddySupabase
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          ...updates,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "id" }
+      );
+    if (error) throw error;
+  }
+  await CalBuddy.refreshDashboard();
+  return updates;
 };
-
 CalBuddy.logWeight = async function ({ weight, notes = "" }) {
-const user = await CalBuddy.getCurrentUser();
-
-if (!weight || Number(weight) <= 0) {
-throw new Error("Valid weight is required.");
-}
-
-const entry = {
-weight: Number(weight),
-notes,
-log_date: CalBuddy.formatLocalDate(new Date()),
-created_at: new Date().toISOString()
+  const user = await CalBuddy.getCurrentUser();
+  if (!weight || Number(weight) <= 0) {
+    throw new Error("Valid weight is required.");
+  }
+  const entry = {
+    weight: Number(weight),
+    notes,
+    log_date: CalBuddy.formatLocalDate(new Date()),
+    created_at: new Date().toISOString()
+  };
+  localStorage.setItem("calbuddyCurrentWeight", entry.weight);
+  localStorage.setItem("calbuddyLatestWeight", entry.weight);
+  if (user && window.calbuddySupabase) {
+    await window.calbuddySupabase
+      .from("weight_logs")
+      .insert({ user_id: user.id, ...entry });
+    await CalBuddy.updateProfile({ current_weight: entry.weight });
+  }
+  await CalBuddy.refreshDashboard();
+  return entry;
 };
-
-localStorage.setItem("calbuddyCurrentWeight", entry.weight);
-localStorage.setItem("calbuddyLatestWeight", entry.weight);
-
-if (user && window.calbuddySupabase) {
-await window.calbuddySupabase
-.from("weight_logs")
-.insert({ user_id: user.id, ...entry });
-
-await CalBuddy.updateProfile({ current_weight: entry.weight });
-}
-
-await CalBuddy.refreshDashboard();
-return entry;
+CalBuddy.getRecentWeights = async function (limit = 8) {
+  const user = await CalBuddy.getCurrentUser();
+  if (user && window.calbuddySupabase) {
+    const { data, error } = await window.calbuddySupabase
+      .from("weight_logs")
+      .select("weight, log_date, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!error && data) return data;
+  }
+  return [];
 };
-
 CalBuddy.recommendCalories = function ({
-weight,
-height,
-age,
-gender,
-activityLevel = "moderate",
-goalType = "lose"
+  weight,
+  height,
+  age,
+  gender,
+  activityLevel = "moderate",
+  goalType = "lose"
 }) {
-weight = Number(weight);
-height = Number(height);
-age = Number(age);
-
-if (!weight || !height || !age || !gender) return null;
-
-const kg = weight * 0.453592;
-const cm = height * 2.54;
-
-let bmr;
-
-if (String(gender).toLowerCase().startsWith("f")) {
-bmr = 10 * kg + 6.25 * cm - 5 * age - 161;
-} else {
-bmr = 10 * kg + 6.25 * cm - 5 * age + 5;
-}
-
-const activityMap = {
-sedentary: 1.2,
-light: 1.375,
-moderate: 1.55,
-active: 1.725,
-very_active: 1.9
+  weight = Number(weight);
+  height = Number(height);
+  age = Number(age);
+  if (!weight || !height || !age || !gender) return null;
+  const kg = weight * 0.453592;
+  const cm = height * 2.54;
+  let bmr;
+  if (String(gender).toLowerCase().startsWith("f")) {
+    bmr = 10 * kg + 6.25 * cm - 5 * age - 161;
+  } else {
+    bmr = 10 * kg + 6.25 * cm - 5 * age + 5;
+  }
+  const activityMap = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    active: 1.725,
+    very_active: 1.9
+  };
+  const multiplier = activityMap[activityLevel] || 1.55;
+  const maintenance = Math.round(bmr * multiplier);
+  let recommended = maintenance;
+  if (goalType === "lose") recommended = maintenance - 400;
+  if (goalType === "gain") recommended = maintenance + 300;
+  if (goalType === "maintain") recommended = maintenance;
+  recommended = Math.max(1200, Math.round(recommended / 10) * 10);
+  return {
+    bmr: Math.round(bmr),
+    maintenance,
+    recommendedCalories: recommended,
+    goalType,
+    activityLevel
+  };
 };
-
-const multiplier = activityMap[activityLevel] || 1.55;
-const maintenance = Math.round(bmr * multiplier);
-
-let recommended = maintenance;
-
-if (goalType === "lose") recommended = maintenance - 400;
-if (goalType === "gain") recommended = maintenance + 300;
-if (goalType === "maintain") recommended = maintenance;
-
-recommended = Math.max(1200, Math.round(recommended / 10) * 10);
-
-return {
-bmr: Math.round(bmr),
-maintenance,
-recommendedCalories: recommended,
-goalType,
-activityLevel
+/* -----------------------------
+LEVEL 3 CONTEXT / MEMORY SUMMARY
+----------------------------- */
+CalBuddy.buildCoachMemorySummary = function (context = {}) {
+  const mealsToday = Array.isArray(context.mealsToday) ? context.mealsToday : [];
+  const recentMeals = Array.isArray(context.recentMeals) ? context.recentMeals : [];
+  const favoriteFoods = Array.isArray(context.favoriteFoods) ? context.favoriteFoods : [];
+  const recentWeights = Array.isArray(context.recentWeights) ? context.recentWeights : [];
+  const todayMealNames = mealsToday.map(m => `${m.name || "meal"} (${m.calories || 0} kcal)`).slice(0, 8).join(", ");
+  const recentMealNames = recentMeals.map(m => m.name || "meal").slice(0, 8).join(", ");
+  const favoriteNames = favoriteFoods.map(m => m.name || "food").slice(0, 8).join(", ");
+  const weightTrend = recentWeights.map(w => `${w.weight} lb`).slice(0, 5).join(" → ");
+  return `
+You are Ari, CalBuddy's personal AI nutrition coach.
+Act like a warm, direct, practical coach. Be supportive, but honest.
+Do not say you cannot remember things if they are provided in this context.
+Avoid generic disclaimers unless safety requires it.
+Use simple language. Give clear next steps.
+Current user context:
+- Daily calorie goal: ${context.dailyGoal || "unknown"} kcal
+- Calories consumed today: ${context.caloriesConsumed || 0} kcal
+- Calories burned today: ${context.caloriesBurned || 0} kcal
+- Calories left today: ${context.caloriesLeft || 0} kcal
+- Current weight: ${context.currentWeight || "unknown"}
+- Goal weight: ${context.goalWeight || "unknown"}
+- Goal type: ${context.goalType || "unknown"}
+- Activity level: ${context.activityLevel || "unknown"}
+- Coach style: ${context.coachStyle || "supportive but honest"}
+- Meals logged today: ${todayMealNames || "none yet"}
+- Recent meals: ${recentMealNames || "none available"}
+- Favorite foods: ${favoriteNames || "none saved"}
+- Recent weight trend: ${weightTrend || "not enough data"}
+Behavior:
+- If user feels discouraged about weight gain, explain water weight, sodium, food volume, alcohol, hormones, constipation, and inflammation before assuming fat gain.
+- If user asks for meal plans, use their calorie goal and preferences from context.
+- If user asks to update goals, weight, calories, reset time, or log food, create a confirmation action when possible.
+- If user is making excuses, be firm but not cruel.
+- Keep answers useful and personal to the user's data.
+`.trim();
 };
-};
-
 /* -----------------------------
 USER CONTEXT
 ----------------------------- */
-
 CalBuddy.getUserContext = async function () {
-const windowInfo = await CalBuddy.getNutritionWindow();
-const dailyGoal = CalBuddy.safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 2100);
-const consumed = await CalBuddy.getConsumedCalories();
-const burned = await CalBuddy.getCaloriesBurned();
-const caloriesLeft = Math.max(dailyGoal - consumed + burned, 0);
-
-let goals = {};
-try {
-goals = JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
-} catch {
-goals = {};
-}
-
-return {
-nutritionWindowStart: windowInfo.start.toISOString(),
-nutritionWindowEnd: windowInfo.end.toISOString(),
-caloriesConsumed: consumed,
-dailyGoal,
-caloriesBurned: burned,
-caloriesLeft,
-currentWeight:
-localStorage.getItem("calbuddyCurrentWeight") ||
-localStorage.getItem("calbuddyLatestWeight") ||
-goals.weight ||
-null,
-goalWeight:
-goals.targetWeight ||
-localStorage.getItem("calbuddyGoalWeight") ||
-null,
-height: goals.height || localStorage.getItem("calbuddy_height") || null,
-age: goals.age || localStorage.getItem("calbuddy_age") || null,
-gender: goals.gender || localStorage.getItem("calbuddy_gender") || null,
-activityLevel: goals.activityLevel || localStorage.getItem("calbuddy_activity_level") || null,
-goalType: goals.goalType || localStorage.getItem("calbuddy_goal_type") || null,
-coachStyle: localStorage.getItem("calbuddyCoachStyle") || "auto",
-literacyLevel: localStorage.getItem("calbuddyLiteracyLevel") || "standard",
-humorLevel: localStorage.getItem("calbuddyHumorLevel") || "medium"
+  const user = await CalBuddy.getCurrentUser();
+  const windowInfo = await CalBuddy.getNutritionWindow();
+  let goals = {};
+  try {
+    goals = JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
+  } catch {
+    goals = {};
+  }
+  let profile = {};
+  if (user && window.calbuddySupabase) {
+    const { data } = await window.calbuddySupabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (data) profile = data;
+  }
+  const dailyGoal =
+    CalBuddy.safeNumber(profile.daily_calorie_goal, 0) ||
+    CalBuddy.safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 0) ||
+    CalBuddy.safeNumber(goals.dailyCalorieGoal, 0) ||
+    2100;
+  const consumed = await CalBuddy.getConsumedCalories();
+  const burned = await CalBuddy.getCaloriesBurned();
+  const caloriesLeft = Math.max(dailyGoal - consumed + burned, 0);
+  const mealsToday = await CalBuddy.getMealsInWindow();
+  const recentMeals = await CalBuddy.getRecentMeals(12);
+  const favoriteFoods = await CalBuddy.getFavoriteFoods(10);
+  const recentWeights = await CalBuddy.getRecentWeights(8);
+  const context = {
+    userId: user?.id || null,
+    email: user?.email || null,
+    nutritionWindowStart: windowInfo.start.toISOString(),
+    nutritionWindowEnd: windowInfo.end.toISOString(),
+    nutritionDate: windowInfo.nutritionDate,
+    caloriesConsumed: consumed,
+    dailyGoal,
+    caloriesBurned: burned,
+    caloriesLeft,
+    currentWeight:
+      profile.current_weight ||
+      localStorage.getItem("calbuddyCurrentWeight") ||
+      localStorage.getItem("calbuddyLatestWeight") ||
+      goals.weight ||
+      null,
+    goalWeight:
+      profile.goal_weight ||
+      goals.targetWeight ||
+      localStorage.getItem("calbuddyGoalWeight") ||
+      null,
+    height:
+      profile.height ||
+      goals.height ||
+      localStorage.getItem("calbuddy_height") ||
+      null,
+    age:
+      profile.age ||
+      goals.age ||
+      localStorage.getItem("calbuddy_age") ||
+      null,
+    gender:
+      profile.gender ||
+      goals.gender ||
+      localStorage.getItem("calbuddy_gender") ||
+      null,
+    activityLevel:
+      profile.activity_level ||
+      goals.activityLevel ||
+      localStorage.getItem("calbuddy_activity_level") ||
+      null,
+    goalType:
+      profile.goal_type ||
+      goals.goalType ||
+      localStorage.getItem("calbuddy_goal_type") ||
+      null,
+    coachStyle: localStorage.getItem("calbuddyCoachStyle") || "supportive but honest",
+    literacyLevel: localStorage.getItem("calbuddyLiteracyLevel") || "standard",
+    humorLevel: localStorage.getItem("calbuddyHumorLevel") || "medium",
+    mealsToday,
+    recentMeals,
+    favoriteFoods,
+    recentWeights,
+    profile
+  };
+  context.coachMemorySummary = CalBuddy.buildCoachMemorySummary(context);
+  return context;
 };
+/* -----------------------------
+CLIENT-SIDE QUICK ACTION DETECTION
+----------------------------- */
+CalBuddy.detectAriActionFromMessage = async function (message = "") {
+  const text = String(message).toLowerCase();
+  const calorieGoalMatch =
+    text.match(/(?:set|change|update).{0,25}(?:calorie|calories).{0,15}(?:goal|target).{0,15}(\d{3,5})/) ||
+    text.match(/(?:calorie|calories).{0,15}(?:goal|target).{0,15}(?:to|is)?\s*(\d{3,5})/);
+  if (calorieGoalMatch) {
+    const goal = Number(calorieGoalMatch[1]);
+    if (goal >= 1000 && goal <= 6000) {
+      return {
+        action_type: "update_profile",
+        payload: { daily_calorie_goal: goal },
+        confirmation_text: `Change your daily calorie goal to ${goal.toLocaleString()} kcal?`
+      };
+    }
+  }
+  const weightMatch =
+    text.match(/(?:i weigh|my weight is|weighed|current weight is)\s*(\d{2,3}(?:\.\d+)?)/);
+  if (weightMatch) {
+    const weight = Number(weightMatch[1]);
+    if (weight >= 70 && weight <= 700) {
+      return {
+        action_type: "log_weight",
+        payload: { weight, notes: "Logged through Ari" },
+        confirmation_text: `Log your current weight as ${weight} lb?`
+      };
+    }
+  }
+  const goalWeightMatch =
+    text.match(/(?:goal weight|target weight).{0,15}(?:is|to)?\s*(\d{2,3}(?:\.\d+)?)/);
+  if (goalWeightMatch) {
+    const goalWeight = Number(goalWeightMatch[1]);
+    if (goalWeight >= 70 && goalWeight <= 700) {
+      return {
+        action_type: "update_profile",
+        payload: { goal_weight: goalWeight },
+        confirmation_text: `Set your goal weight to ${goalWeight} lb?`
+      };
+    }
+  }
+  return null;
 };
-
 /* -----------------------------
 MEMORY / KNOWLEDGE / BARCODE / IMAGE
 ----------------------------- */
-
 CalBuddy.saveMemory = async function ({ memory_type, memory_key = null, memory_value, source = "conversation" }) {
-const user = await CalBuddy.requireUser();
-
-return await CalBuddy.api("/api/memory", {
-action: "save_memory",
-user_id: user.id,
-memory_type,
-memory_key,
-memory_value,
-source
-});
+  const user = await CalBuddy.requireUser();
+  return await CalBuddy.api("/api/memory", {
+    action: "save_memory",
+    user_id: user.id,
+    memory_type,
+    memory_key,
+    memory_value,
+    source
+  });
 };
-
 CalBuddy.getMemories = async function () {
-const user = await CalBuddy.requireUser();
-
-return await CalBuddy.api("/api/memory", {
-action: "get_memories",
-user_id: user.id
-});
+  const user = await CalBuddy.requireUser();
+  return await CalBuddy.api("/api/memory", {
+    action: "get_memories",
+    user_id: user.id
+  });
 };
-
 CalBuddy.searchKnowledge = async function (query) {
-const user = await CalBuddy.requireUser();
-
-return await CalBuddy.api("/api/knowledge", {
-action: "search_knowledge",
-user_id: user.id,
-query
-});
+  const user = await CalBuddy.requireUser();
+  return await CalBuddy.api("/api/knowledge", {
+    action: "search_knowledge",
+    user_id: user.id,
+    query
+  });
 };
-
 CalBuddy.lookupBarcode = async function (barcode) {
-return await CalBuddy.api("/api/barcode", { barcode });
+  return await CalBuddy.api("/api/barcode", { barcode });
 };
-
 CalBuddy.analyzeImage = async function ({ imageBase64, imageUrl, prompt = "", analysisType = "general" }) {
-const user = await CalBuddy.requireUser();
-
-CalBuddy.setAriMood("thinking");
-
-const result = await CalBuddy.api("/api/image-analyze", {
-imageBase64,
-imageUrl,
-prompt,
-analysisType,
-user_id: user.id
-});
-
-if (result.pendingAction) {
-CalBuddy.setPendingAction(result.pendingAction);
-}
-
-CalBuddy.setAriMood(result.pendingAction ? "thinking" : "happy");
-
-return result;
+  const user = await CalBuddy.requireUser();
+  CalBuddy.setAriMood("thinking");
+  const result = await CalBuddy.api("/api/image-analyze", {
+    imageBase64,
+    imageUrl,
+    prompt,
+    analysisType,
+    user_id: user.id
+  });
+  if (result.pendingAction) {
+    CalBuddy.setPendingAction(result.pendingAction);
+  }
+  CalBuddy.setAriMood(result.pendingAction ? "thinking" : "happy");
+  return result;
 };
-
 /* -----------------------------
 USAGE LIMITS
 ----------------------------- */
-
 CalBuddy.checkUsage = async function (usage_type = "chat") {
-const user = await CalBuddy.requireUser();
-
-return await CalBuddy.api("/api/usage", {
-user_id: user.id,
-action: "check",
-usage_type
-});
+  const user = await CalBuddy.requireUser();
+  return await CalBuddy.api("/api/usage", {
+    user_id: user.id,
+    action: "check",
+    usage_type
+  });
 };
-
 CalBuddy.logUsage = async function ({ message = "", usage_type = "chat", model = "gpt-4o-mini" }) {
-const user = await CalBuddy.requireUser();
-
-return await CalBuddy.api("/api/usage", {
-user_id: user.id,
-action: "log",
-message,
-usage_type,
-model
-});
+  const user = await CalBuddy.requireUser();
+  return await CalBuddy.api("/api/usage", {
+    user_id: user.id,
+    action: "log",
+    message,
+    usage_type,
+    model
+  });
 };
-
 /* -----------------------------
 PENDING ACTIONS
 ----------------------------- */
-
 CalBuddy.setPendingAction = function (action) {
-CalBuddy.pendingAction = action;
-localStorage.setItem("calbuddyPendingAction", JSON.stringify(action));
-window.dispatchEvent(new CustomEvent("calbuddy:pendingAction", { detail: { action } }));
-return action;
+  CalBuddy.pendingAction = action;
+  localStorage.setItem("calbuddyPendingAction", JSON.stringify(action));
+  window.dispatchEvent(new CustomEvent("calbuddy:pendingAction", { detail: { action } }));
+  return action;
 };
-
 CalBuddy.getPendingAction = function () {
-if (CalBuddy.pendingAction) return CalBuddy.pendingAction;
-
-const saved = localStorage.getItem("calbuddyPendingAction");
-if (!saved) return null;
-
-try {
-CalBuddy.pendingAction = JSON.parse(saved);
-return CalBuddy.pendingAction;
-} catch {
-return null;
-}
+  if (CalBuddy.pendingAction) return CalBuddy.pendingAction;
+  const saved = localStorage.getItem("calbuddyPendingAction");
+  if (!saved) return null;
+  try {
+    CalBuddy.pendingAction = JSON.parse(saved);
+    return CalBuddy.pendingAction;
+  } catch {
+    return null;
+  }
 };
-
 CalBuddy.clearPendingAction = function () {
-CalBuddy.pendingAction = null;
-localStorage.removeItem("calbuddyPendingAction");
-window.dispatchEvent(new CustomEvent("calbuddy:pendingActionCleared"));
+  CalBuddy.pendingAction = null;
+  localStorage.removeItem("calbuddyPendingAction");
+  window.dispatchEvent(new CustomEvent("calbuddy:pendingActionCleared"));
 };
-
 CalBuddy.createPendingAction = async function ({ action_type, payload, confirmation_text = null }) {
-const user = await CalBuddy.getCurrentUser();
-
-const action = {
-action_type,
-status: "pending",
-payload: payload || {},
-confirmation_text,
-created_at: new Date().toISOString()
+  const user = await CalBuddy.getCurrentUser();
+  const action = {
+    action_type,
+    status: "pending",
+    payload: payload || {},
+    confirmation_text,
+    created_at: new Date().toISOString()
+  };
+  CalBuddy.setPendingAction(action);
+  if (user && window.calbuddySupabase) {
+    const { data, error } = await window.calbuddySupabase
+      .from("ai_app_actions")
+      .insert({ user_id: user.id, ...action })
+      .select()
+      .single();
+    if (!error && data) {
+      CalBuddy.setPendingAction(data);
+      return data;
+    }
+  }
+  return action;
 };
-
-CalBuddy.setPendingAction(action);
-
-if (user && window.calbuddySupabase) {
-const { data, error } = await window.calbuddySupabase
-.from("ai_app_actions")
-.insert({ user_id: user.id, ...action })
-.select()
-.single();
-
-if (!error && data) {
-CalBuddy.setPendingAction(data);
-return data;
-}
-}
-
-return action;
-};
-
 CalBuddy.executeAction = async function (action) {
-const type = action.action_type || action.type;
-const payload = action.payload || {};
-
-if (type === "log_meal") return await CalBuddy.logMeal(payload);
-if (type === "log_weight") return await CalBuddy.logWeight(payload);
-if (type === "log_calories_burned") return await CalBuddy.logCaloriesBurned(payload);
-if (type === "change_reset_time") return await CalBuddy.changeResetTime(payload);
-if (type === "update_profile" || type === "update_goal_profile") return await CalBuddy.updateProfile(payload);
-
-throw new Error(`Unknown action type: ${type}`);
+  const type = action.action_type || action.type;
+  const payload = action.payload || {};
+  if (type === "log_meal") return await CalBuddy.logMeal(payload);
+  if (type === "log_weight") return await CalBuddy.logWeight(payload);
+  if (type === "log_calories_burned") return await CalBuddy.logCaloriesBurned(payload);
+  if (type === "change_reset_time") return await CalBuddy.changeResetTime(payload);
+  if (type === "update_profile" || type === "update_goal_profile") return await CalBuddy.updateProfile(payload);
+  throw new Error(`Unknown action type: ${type}`);
 };
-
 CalBuddy.confirmPendingAction = async function () {
-const action = CalBuddy.getPendingAction();
-
-if (!action) {
-return {
-success: false,
-reply: "I don’t have anything waiting to confirm."
+  const action = CalBuddy.getPendingAction();
+  if (!action) {
+    return {
+      success: false,
+      reply: "I don’t have anything waiting to confirm."
+    };
+  }
+  try {
+    const result = await CalBuddy.executeAction(action);
+    CalBuddy.clearPendingAction();
+    CalBuddy.setAriMood("success");
+    return {
+      success: true,
+      result,
+      reply: "Done — I updated that for you."
+    };
+  } catch (error) {
+    CalBuddy.setAriMood("concerned");
+    return {
+      success: false,
+      error: error.message,
+      reply: "I tried to do that, but something glitched."
+    };
+  }
 };
-}
-
-try {
-const result = await CalBuddy.executeAction(action);
-CalBuddy.clearPendingAction();
-
-CalBuddy.setAriMood("success");
-
-return {
-success: true,
-result,
-reply: "Done — I logged that for you."
-};
-} catch (error) {
-CalBuddy.setAriMood("concerned");
-
-return {
-success: false,
-error: error.message,
-reply: "I tried to do that, but something glitched."
-};
-}
-};
-
 CalBuddy.cancelPendingAction = function () {
-CalBuddy.clearPendingAction();
-CalBuddy.setAriMood("idle");
-
-return {
-success: true,
-reply: "No problem — I won’t log that."
+  CalBuddy.clearPendingAction();
+  CalBuddy.setAriMood("idle");
+  return {
+    success: true,
+    reply: "No problem — I won’t change that."
+  };
 };
-};
-
 /* -----------------------------
 ASK ARI
 ----------------------------- */
-
 CalBuddy.askAri = async function ({ message, history = [] }) {
-const user = await CalBuddy.requireUser();
-
-if (!message || !message.trim()) {
-throw new Error("Message is required.");
-}
-
-const pending = CalBuddy.getPendingAction();
-
-if (pending && CalBuddy.isYes(message)) {
-return await CalBuddy.confirmPendingAction();
-}
-
-if (pending && CalBuddy.isNo(message)) {
-return CalBuddy.cancelPendingAction();
-}
-
-const usage = await CalBuddy.checkUsage("chat");
-
-if (usage && usage.allowed === false) {
-CalBuddy.setAriMood("concerned");
-return {
-reply: usage.message || "You’ve reached today’s AI limit.",
-blocked: true
+  const user = await CalBuddy.requireUser();
+  if (!message || !message.trim()) {
+    throw new Error("Message is required.");
+  }
+  const pending = CalBuddy.getPendingAction();
+  if (pending && CalBuddy.isYes(message)) {
+    return await CalBuddy.confirmPendingAction();
+  }
+  if (pending && CalBuddy.isNo(message)) {
+    return CalBuddy.cancelPendingAction();
+  }
+  const quickAction = await CalBuddy.detectAriActionFromMessage(message);
+  if (quickAction) {
+    const action = await CalBuddy.createPendingAction(quickAction);
+    CalBuddy.setAriMood("coach");
+    return {
+      reply: action.confirmation_text || "I can update that. Want me to do it?",
+      pendingAction: action,
+      emotion: "coach"
+    };
+  }
+  const usage = await CalBuddy.checkUsage("chat");
+  if (usage && usage.allowed === false) {
+    CalBuddy.setAriMood("concerned");
+    return {
+      reply: usage.message || "You’ve reached today’s AI limit.",
+      blocked: true
+    };
+  }
+  CalBuddy.setAriMood("thinking");
+  const userContext = await CalBuddy.getUserContext();
+  const response = await CalBuddy.api("/api/ask-calbuddy", {
+    message,
+    userContext,
+    coachMemorySummary: userContext.coachMemorySummary,
+    history: history.slice(-20),
+    ariLevel: 3
+  });
+  await CalBuddy.logUsage({ message, usage_type: "chat" });
+  if (response.pendingAction) {
+    CalBuddy.setPendingAction(response.pendingAction);
+  }
+  const mood =
+    response.emotion ||
+    response.mood ||
+    CalBuddy.moodFromText(response.reply || "");
+  CalBuddy.setAriMood(mood);
+  return response;
 };
-}
-
-CalBuddy.setAriMood("thinking");
-
-const userContext = await CalBuddy.getUserContext();
-
-const response = await CalBuddy.api("/api/ask-calbuddy", {
-message,
-userContext,
-history
-});
-
-await CalBuddy.logUsage({ message, usage_type: "chat" });
-
-if (response.pendingAction) {
-CalBuddy.setPendingAction(response.pendingAction);
-}
-
-const mood =
-response.emotion ||
-response.mood ||
-CalBuddy.moodFromText(response.reply || "");
-
-CalBuddy.setAriMood(mood);
-
-return response;
-};
-
 /* -----------------------------
 DASHBOARD REFRESH HOOK
 ----------------------------- */
-
 CalBuddy.refreshDashboard = async function () {
-const context = await CalBuddy.getUserContext();
-
-window.dispatchEvent(new CustomEvent("calbuddy:dashboardUpdated", {
-detail: context
-}));
-
-return context;
+  const context = await CalBuddy.getUserContext();
+  window.dispatchEvent(new CustomEvent("calbuddy:dashboardUpdated", {
+    detail: context
+  }));
+  return context;
 };
-
 /* -----------------------------
 INIT
 ----------------------------- */
-
 CalBuddy.init = async function () {
-CalBuddy.getPendingAction();
-CalBuddy.setAriMood("idle");
-
-try {
-await CalBuddy.refreshDashboard();
-} catch {
-console.log("Dashboard refresh skipped.");
-}
-
-console.log("CalBuddy core loaded.", CalBuddy.version);
+  CalBuddy.getPendingAction();
+  CalBuddy.setAriMood("idle");
+  try {
+    await CalBuddy.refreshDashboard();
+  } catch {
+    console.log("Dashboard refresh skipped.");
+  }
+  console.log("CalBuddy core loaded.", CalBuddy.version);
 };
-
 document.addEventListener("DOMContentLoaded", () => {
-CalBuddy.init();
+  CalBuddy.init();
 });
