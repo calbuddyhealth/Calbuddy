@@ -917,10 +917,10 @@ CalBuddy.confirmPendingAction = async function () {
     CalBuddy.clearPendingAction();
     CalBuddy.setAriMood("success");
     return {
-      success: true,
-      result,
-      reply: "Done — I updated that for you."
-    };
+  success: true,
+  result,
+  reply: result?.reply || "Done — I updated that for you."
+};
   } catch (error) {
     CalBuddy.setAriMood("concerned");
     return {
