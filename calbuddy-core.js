@@ -883,6 +883,25 @@ CalBuddy.executeAction = async function (action) {
   if (type === "log_calories_burned") return await CalBuddy.logCaloriesBurned(payload);
   if (type === "change_reset_time") return await CalBuddy.changeResetTime(payload);
   if (type === "update_profile" || type === "update_goal_profile") return await CalBuddy.updateProfile(payload);
+  if (type === "owner_code_task" || type === "developer_task" || type === "design_change") {
+  const task = CalBuddy.saveDeveloperIntentLocally({
+    enabled: true,
+    type,
+    title: action.title || payload.title || "Owner requested app change",
+    summary: action.summary || payload.summary || action.confirmation_text || "Owner confirmed an app improvement request.",
+    priority: payload.priority || action.priority || "medium",
+    recommended_files: payload.recommended_files || action.recommended_files || ["index.html", "style.css", "calbuddy-core.js", "api/ask-calbuddy.js"],
+    ownerCommand: true,
+    payload
+  });
+
+  return {
+    success: true,
+    task,
+    reply: "Saved to Owner Tasks. I prepared the implementation plan instead of trying to directly edit production code."
+  };
+}
+
   throw new Error(`Unknown action type: ${type}`);
 };
 CalBuddy.confirmPendingAction = async function () {
