@@ -972,7 +972,34 @@ CalBuddy.askAri = async function ({ message, history = [] }) {
   if (response.pendingAction) {
     CalBuddy.setPendingAction(response.pendingAction);
   }
-  const mood =
+  if (response.memoryCandidate) {
+localStorage.setItem(
+"calbuddyLastMemoryCandidate",
+JSON.stringify(response.memoryCandidate)
+);
+
+window.dispatchEvent(
+new CustomEvent("calbuddy:memoryCandidate", {
+detail: { memoryCandidate: response.memoryCandidate }
+})
+);
+}
+
+if (response.developerIntent) {
+localStorage.setItem(
+"calbuddyLastDeveloperIntent",
+JSON.stringify(response.developerIntent)
+);
+
+window.dispatchEvent(
+new CustomEvent("calbuddy:developerIntent", {
+detail: { developerIntent: response.developerIntent }
+})
+);
+
+console.log("CalBuddy Developer Intent:", response.developerIntent);
+}  
+const mood =
     response.emotion ||
     response.mood ||
     CalBuddy.moodFromText(response.reply || "");
