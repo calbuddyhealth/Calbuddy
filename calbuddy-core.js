@@ -1048,6 +1048,13 @@ if (response.developerIntent) {
 
   CalBuddy.saveDeveloperIntentLocally(response.developerIntent);
 
+  if (response.developerIntent.githubEdit) {
+    localStorage.setItem(
+      "calbuddyPendingGithubEdit",
+      JSON.stringify(response.developerIntent)
+    );
+  }
+
   window.dispatchEvent(
     new CustomEvent("calbuddy:developerIntent", {
       detail: { developerIntent: response.developerIntent }
@@ -1055,7 +1062,7 @@ if (response.developerIntent) {
   );
 
   console.log("CalBuddy Developer Intent:", response.developerIntent);
-}  
+}
 const mood =
     response.emotion ||
     response.mood ||
