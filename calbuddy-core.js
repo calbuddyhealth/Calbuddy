@@ -1,9 +1,10 @@
 // calbuddy-core.js
 // CalBuddy Health app brain.
-// Level 3 Ari upgrade: stronger user context, recent meals, favorites,
-// weight trends, coach memory summary, smarter pending actions, and dashboard hooks.
+// Level 3 Ari: personalized nutrition coach + wellness support companion.
+// Handles auth, reset windows, meals, goals, weight, burned calories,
+// AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.0.0";
+CalBuddy.version = "3.1.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -12,6 +13,9 @@ BASIC HELPERS
 CalBuddy.safeNumber = function (value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+};
+CalBuddy.cleanText = function (text = "") {
+  return String(text || "").trim();
 };
 CalBuddy.formatLocalDate = function (date) {
   const year = date.getFullYear();
@@ -22,35 +26,16 @@ CalBuddy.formatLocalDate = function (date) {
 CalBuddy.isYes = function (text = "") {
   const t = String(text).trim().toLowerCase();
   return [
-    "yes",
-    "yes log it",
-    "log it",
-    "yep",
-    "yeah",
-    "sure",
-    "ok",
-    "okay",
-    "do it",
-    "add it",
-    "confirm",
-    "correct"
+    "yes", "yes log it", "log it", "yep", "yeah", "sure",
+    "ok", "okay", "do it", "add it", "confirm", "correct"
   ].includes(t);
 };
 CalBuddy.isNo = function (text = "") {
   const t = String(text).trim().toLowerCase();
   return [
-    "no",
-    "nope",
-    "cancel",
-    "don't",
-    "dont",
-    "never mind",
-    "nevermind",
-    "stop"
+    "no", "nope", "cancel", "don't", "dont",
+    "never mind", "nevermind", "stop"
   ].includes(t);
-};
-CalBuddy.cleanText = function (text = "") {
-  return String(text || "").trim();
 };
 /* -----------------------------
 API HELPER
@@ -59,9 +44,7 @@ CalBuddy.api = async function (endpoint, body = {}, options = {}) {
   const method = options.method || "POST";
   const response = await fetch(endpoint, {
     method,
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: method === "GET" ? undefined : JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({}));
@@ -89,23 +72,12 @@ CalBuddy.requireUser = async function () {
   return user;
 };
 /* -----------------------------
-ARI MOOD / ANIMATION SYSTEM
+ARI MOODS
 ----------------------------- */
 CalBuddy.allowedMoods = [
-  "idle",
-  "thinking",
-  "happy",
-  "celebrate",
-  "sad",
-  "concerned",
-  "mad",
-  "shy",
-  "coach",
-  "wow",
-  "laugh",
-  "listening",
-  "logging",
-  "success"
+  "idle", "thinking", "happy", "celebrate", "sad", "concerned",
+  "mad", "shy", "coach", "wow", "laugh", "listening",
+  "logging", "success"
 ];
 CalBuddy.setAriMood = function (mood = "idle") {
   if (!CalBuddy.allowedMoods.includes(mood)) mood = "idle";
@@ -121,10 +93,10 @@ CalBuddy.setAriMood = function (mood = "idle") {
 };
 CalBuddy.moodFromText = function (text = "") {
   const t = String(text).toLowerCase();
-  if (t.includes("congrat") || t.includes("great job") || t.includes("proud") || t.includes("woo")) return "celebrate";
+  if (t.includes("congrat") || t.includes("great job") || t.includes("proud")) return "celebrate";
   if (t.includes("sorry") || t.includes("rough") || t.includes("sad")) return "sad";
-  if (t.includes("hmm") || t.includes("thinking")) return "thinking";
-  if (t.includes("yikes") || t.includes("careful") || t.includes("concern")) return "concerned";
+  if (t.includes("thinking") || t.includes("hmm")) return "thinking";
+  if (t.includes("careful") || t.includes("concern") || t.includes("yikes")) return "concerned";
   if (t.includes("haha") || t.includes("lol")) return "laugh";
   if (t.includes("nice") || t.includes("great") || t.includes("good")) return "happy";
   return "idle";
@@ -264,9 +236,7 @@ CalBuddy.logMeal = async function (meal) {
     const { error } = await window.calbuddySupabase
       .from("meals")
       .insert({ user_id: user.id, ...mealToSave });
-    if (error) {
-      CalBuddy.saveMealLocally(mealToSave);
-    }
+    if (error) CalBuddy.saveMealLocally(mealToSave);
   } else {
     CalBuddy.saveMealLocally(mealToSave);
   }
@@ -388,37 +358,95 @@ CalBuddy.getCaloriesBurned = async function () {
 /* -----------------------------
 PROFILE / WEIGHT / GOALS
 ----------------------------- */
+CalBuddy.normalizeProfileUpdates = function (updates = {}) {
+  const normalized = { ...updates };
+  if (normalized.current_weight && !normalized.weight_lbs) normalized.weight_lbs = normalized.current_weight;
+  if (normalized.weight_lbs && !normalized.current_weight) normalized.current_weight = normalized.weight_lbs;
+  if (normalized.goal_weight && !normalized.target_weight_lbs) normalized.target_weight_lbs = normalized.goal_weight;
+  if (normalized.target_weight_lbs && !normalized.goal_weight) normalized.goal_weight = normalized.target_weight_lbs;
+  if (normalized.targetWeight && !normalized.target_weight_lbs) normalized.target_weight_lbs = normalized.targetWeight;
+  if (normalized.gender && !normalized.sex) normalized.sex = normalized.gender;
+  if (normalized.sex && !normalized.gender) normalized.gender = normalized.sex;
+  if (normalized.height && !normalized.height_in) normalized.height_in = normalized.height;
+  if (normalized.height_in && !normalized.height) normalized.height = normalized.height_in;
+  if (normalized.activityLevel && !normalized.activity_level) normalized.activity_level = normalized.activityLevel;
+  if (normalized.activity_level && !normalized.activityLevel) normalized.activityLevel = normalized.activity_level;
+  if (normalized.goalType && !normalized.goal) normalized.goal = normalized.goalType;
+  if (normalized.goal && !normalized.goalType) normalized.goalType = normalized.goal;
+  if (normalized.weeklyChange && !normalized.weekly_weight_change_goal) {
+    normalized.weekly_weight_change_goal = normalized.weeklyChange;
+  }
+  if (normalized.calorieGoal && !normalized.daily_calorie_goal) {
+    normalized.daily_calorie_goal = normalized.calorieGoal;
+  }
+  return normalized;
+};
+CalBuddy.updateLocalGoals = function (updates = {}) {
+  const goals = JSON.parse(localStorage.getItem("calbuddyGoals") || "{}");
+  if (updates.name !== undefined) goals.name = updates.name;
+  if (updates.age !== undefined) goals.age = updates.age;
+  if (updates.sex !== undefined) goals.sex = updates.sex;
+  if (updates.weight_lbs !== undefined) goals.weight = updates.weight_lbs;
+  if (updates.height_in !== undefined) goals.height = updates.height_in;
+  if (updates.activity_level !== undefined) goals.activity = updates.activity_level;
+  if (updates.goal !== undefined) goals.goalMode = updates.goal;
+  if (updates.target_weight_lbs !== undefined) goals.targetWeight = updates.target_weight_lbs;
+  if (updates.weekly_weight_change_goal !== undefined) goals.weeklyChange = updates.weekly_weight_change_goal;
+  if (updates.daily_calorie_goal !== undefined) goals.calorieGoal = updates.daily_calorie_goal;
+  localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
+  return goals;
+};
 CalBuddy.updateProfile = async function (updates = {}) {
   const user = await CalBuddy.getCurrentUser();
-  Object.entries(updates).forEach(([key, value]) => {
+  const normalized = CalBuddy.normalizeProfileUpdates(updates);
+  Object.entries(normalized).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
       localStorage.setItem(`calbuddy_${key}`, value);
     }
   });
-  if (updates.daily_calorie_goal) {
-    localStorage.setItem("calbuddyDailyCalorieGoal", updates.daily_calorie_goal);
+  if (normalized.daily_calorie_goal) {
+    localStorage.setItem("calbuddyDailyCalorieGoal", normalized.daily_calorie_goal);
   }
-  if (updates.current_weight) {
-    localStorage.setItem("calbuddyCurrentWeight", updates.current_weight);
+  if (normalized.weight_lbs) {
+    localStorage.setItem("calbuddyCurrentWeight", normalized.weight_lbs);
+    localStorage.setItem("calbuddyLatestWeight", normalized.weight_lbs);
   }
-  if (updates.goal_weight) {
-    localStorage.setItem("calbuddyGoalWeight", updates.goal_weight);
+  if (normalized.target_weight_lbs) {
+    localStorage.setItem("calbuddyGoalWeight", normalized.target_weight_lbs);
   }
+  CalBuddy.updateLocalGoals(normalized);
   if (user && window.calbuddySupabase) {
+    const supabaseProfile = {
+      id: user.id,
+      email: user.email || null,
+      updated_at: new Date().toISOString()
+    };
+    [
+      "name",
+      "age",
+      "sex",
+      "weight_lbs",
+      "height_in",
+      "activity_level",
+      "goal",
+      "target_weight_lbs",
+      "weekly_weight_change_goal",
+      "daily_calorie_goal",
+      "reset_hour",
+      "reset_minute",
+      "reset_ampm"
+    ].forEach(key => {
+      if (normalized[key] !== undefined && normalized[key] !== null) {
+        supabaseProfile[key] = normalized[key];
+      }
+    });
     const { error } = await window.calbuddySupabase
       .from("profiles")
-      .upsert(
-        {
-          id: user.id,
-          ...updates,
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: "id" }
-      );
+      .upsert(supabaseProfile, { onConflict: "id" });
     if (error) throw error;
   }
   await CalBuddy.refreshDashboard();
-  return updates;
+  return normalized;
 };
 CalBuddy.logWeight = async function ({ weight, notes = "" }) {
   const user = await CalBuddy.getCurrentUser();
@@ -437,7 +465,7 @@ CalBuddy.logWeight = async function ({ weight, notes = "" }) {
     await window.calbuddySupabase
       .from("weight_logs")
       .insert({ user_id: user.id, ...entry });
-    await CalBuddy.updateProfile({ current_weight: entry.weight });
+    await CalBuddy.updateProfile({ weight_lbs: entry.weight, current_weight: entry.weight });
   }
   await CalBuddy.refreshDashboard();
   return entry;
@@ -455,50 +483,8 @@ CalBuddy.getRecentWeights = async function (limit = 8) {
   }
   return [];
 };
-CalBuddy.recommendCalories = function ({
-  weight,
-  height,
-  age,
-  gender,
-  activityLevel = "moderate",
-  goalType = "lose"
-}) {
-  weight = Number(weight);
-  height = Number(height);
-  age = Number(age);
-  if (!weight || !height || !age || !gender) return null;
-  const kg = weight * 0.453592;
-  const cm = height * 2.54;
-  let bmr;
-  if (String(gender).toLowerCase().startsWith("f")) {
-    bmr = 10 * kg + 6.25 * cm - 5 * age - 161;
-  } else {
-    bmr = 10 * kg + 6.25 * cm - 5 * age + 5;
-  }
-  const activityMap = {
-    sedentary: 1.2,
-    light: 1.375,
-    moderate: 1.55,
-    active: 1.725,
-    very_active: 1.9
-  };
-  const multiplier = activityMap[activityLevel] || 1.55;
-  const maintenance = Math.round(bmr * multiplier);
-  let recommended = maintenance;
-  if (goalType === "lose") recommended = maintenance - 400;
-  if (goalType === "gain") recommended = maintenance + 300;
-  if (goalType === "maintain") recommended = maintenance;
-  recommended = Math.max(1200, Math.round(recommended / 10) * 10);
-  return {
-    bmr: Math.round(bmr),
-    maintenance,
-    recommendedCalories: recommended,
-    goalType,
-    activityLevel
-  };
-};
 /* -----------------------------
-LEVEL 3 CONTEXT / MEMORY SUMMARY
+LEVEL 3 CONTEXT
 ----------------------------- */
 CalBuddy.buildCoachMemorySummary = function (context = {}) {
   const mealsToday = Array.isArray(context.mealsToday) ? context.mealsToday : [];
@@ -510,11 +496,23 @@ CalBuddy.buildCoachMemorySummary = function (context = {}) {
   const favoriteNames = favoriteFoods.map(m => m.name || "food").slice(0, 8).join(", ");
   const weightTrend = recentWeights.map(w => `${w.weight} lb`).slice(0, 5).join(" → ");
   return `
-You are Ari, CalBuddy's personal AI nutrition coach.
-Act like a warm, direct, practical coach. Be supportive, but honest.
-Do not say you cannot remember things if they are provided in this context.
-Avoid generic disclaimers unless safety requires it.
-Use simple language. Give clear next steps.
+You are Ari, CalBuddy's personal AI nutrition coach and supportive wellness companion.
+Personality:
+- Warm, direct, practical, emotionally intelligent.
+- Supportive but honest.
+- A little playful when appropriate.
+- Never shame the user.
+- Be conversational enough that users enjoy coming back.
+Nutrition behavior:
+- Use the user's calorie goal, calories left, meals, weight, and favorites when available.
+- If user feels discouraged about weight gain, explain water weight, sodium, alcohol, food volume, constipation, hormones, and inflammation before assuming fat gain.
+- If user asks for a meal plan, create one using the user's calorie goal.
+- If user asks to log food, update goals, update weight, or update profile, create a confirmation action when possible.
+Social / emotional support behavior:
+- You may talk with the user about stress, motivation, cravings, confidence, relationships, discipline, or hard days.
+- Do not claim to be a therapist.
+- Do not diagnose mental health conditions.
+- If user mentions self-harm, suicide, abuse, or immediate danger, respond supportively and encourage emergency/local crisis help.
 Current user context:
 - Daily calorie goal: ${context.dailyGoal || "unknown"} kcal
 - Calories consumed today: ${context.caloriesConsumed || 0} kcal
@@ -524,22 +522,12 @@ Current user context:
 - Goal weight: ${context.goalWeight || "unknown"}
 - Goal type: ${context.goalType || "unknown"}
 - Activity level: ${context.activityLevel || "unknown"}
-- Coach style: ${context.coachStyle || "supportive but honest"}
 - Meals logged today: ${todayMealNames || "none yet"}
 - Recent meals: ${recentMealNames || "none available"}
 - Favorite foods: ${favoriteNames || "none saved"}
 - Recent weight trend: ${weightTrend || "not enough data"}
-Behavior:
-- If user feels discouraged about weight gain, explain water weight, sodium, food volume, alcohol, hormones, constipation, and inflammation before assuming fat gain.
-- If user asks for meal plans, use their calorie goal and preferences from context.
-- If user asks to update goals, weight, calories, reset time, or log food, create a confirmation action when possible.
-- If user is making excuses, be firm but not cruel.
-- Keep answers useful and personal to the user's data.
 `.trim();
 };
-/* -----------------------------
-USER CONTEXT
------------------------------ */
 CalBuddy.getUserContext = async function () {
   const user = await CalBuddy.getCurrentUser();
   const windowInfo = await CalBuddy.getNutritionWindow();
@@ -561,7 +549,7 @@ CalBuddy.getUserContext = async function () {
   const dailyGoal =
     CalBuddy.safeNumber(profile.daily_calorie_goal, 0) ||
     CalBuddy.safeNumber(localStorage.getItem("calbuddyDailyCalorieGoal"), 0) ||
-    CalBuddy.safeNumber(goals.dailyCalorieGoal, 0) ||
+    CalBuddy.safeNumber(goals.calorieGoal, 0) ||
     2100;
   const consumed = await CalBuddy.getConsumedCalories();
   const burned = await CalBuddy.getCaloriesBurned();
@@ -581,20 +569,20 @@ CalBuddy.getUserContext = async function () {
     caloriesBurned: burned,
     caloriesLeft,
     currentWeight:
-      profile.current_weight ||
+      profile.weight_lbs ||
       localStorage.getItem("calbuddyCurrentWeight") ||
       localStorage.getItem("calbuddyLatestWeight") ||
       goals.weight ||
       null,
     goalWeight:
-      profile.goal_weight ||
-      goals.targetWeight ||
+      profile.target_weight_lbs ||
       localStorage.getItem("calbuddyGoalWeight") ||
+      goals.targetWeight ||
       null,
     height:
-      profile.height ||
+      profile.height_in ||
       goals.height ||
-      localStorage.getItem("calbuddy_height") ||
+      localStorage.getItem("calbuddy_height_in") ||
       null,
     age:
       profile.age ||
@@ -602,23 +590,20 @@ CalBuddy.getUserContext = async function () {
       localStorage.getItem("calbuddy_age") ||
       null,
     gender:
-      profile.gender ||
-      goals.gender ||
-      localStorage.getItem("calbuddy_gender") ||
+      profile.sex ||
+      goals.sex ||
+      localStorage.getItem("calbuddy_sex") ||
       null,
     activityLevel:
       profile.activity_level ||
-      goals.activityLevel ||
+      goals.activity ||
       localStorage.getItem("calbuddy_activity_level") ||
       null,
     goalType:
-      profile.goal_type ||
-      goals.goalType ||
-      localStorage.getItem("calbuddy_goal_type") ||
+      profile.goal ||
+      goals.goalMode ||
+      localStorage.getItem("calbuddy_goal") ||
       null,
-    coachStyle: localStorage.getItem("calbuddyCoachStyle") || "supportive but honest",
-    literacyLevel: localStorage.getItem("calbuddyLiteracyLevel") || "standard",
-    humorLevel: localStorage.getItem("calbuddyHumorLevel") || "medium",
     mealsToday,
     recentMeals,
     favoriteFoods,
@@ -629,7 +614,7 @@ CalBuddy.getUserContext = async function () {
   return context;
 };
 /* -----------------------------
-CLIENT-SIDE QUICK ACTION DETECTION
+CLIENT-SIDE ACTION DETECTION
 ----------------------------- */
 CalBuddy.detectAriActionFromMessage = async function (message = "") {
   const text = String(message).toLowerCase();
@@ -641,13 +626,13 @@ CalBuddy.detectAriActionFromMessage = async function (message = "") {
     if (goal >= 1000 && goal <= 6000) {
       return {
         action_type: "update_profile",
-        payload: { daily_calorie_goal: goal },
+        payload: { daily_calorie_goal: goal, calorieGoal: goal },
         confirmation_text: `Change your daily calorie goal to ${goal.toLocaleString()} kcal?`
       };
     }
   }
   const weightMatch =
-    text.match(/(?:i weigh|my weight is|weighed|current weight is)\s*(\d{2,3}(?:\.\d+)?)/);
+    text.match(/(?:i weigh|my weight is|weighed|current weight is|update my weight to|set my weight to)\s*(\d{2,3}(?:\.\d+)?)/);
   if (weightMatch) {
     const weight = Number(weightMatch[1]);
     if (weight >= 70 && weight <= 700) {
@@ -659,25 +644,99 @@ CalBuddy.detectAriActionFromMessage = async function (message = "") {
     }
   }
   const goalWeightMatch =
-    text.match(/(?:goal weight|target weight).{0,15}(?:is|to)?\s*(\d{2,3}(?:\.\d+)?)/);
+    text.match(/(?:goal weight|target weight).{0,20}(?:is|to|at)?\s*(\d{2,3}(?:\.\d+)?)/);
   if (goalWeightMatch) {
     const goalWeight = Number(goalWeightMatch[1]);
     if (goalWeight >= 70 && goalWeight <= 700) {
       return {
         action_type: "update_profile",
         payload: {
-  goal_weight: goalWeight,
-  targetWeight: goalWeight
-},
+          goal_weight: goalWeight,
+          targetWeight: goalWeight,
+          target_weight_lbs: goalWeight
+        },
         confirmation_text: `Set your goal weight to ${goalWeight} lb?`
+      };
+    }
+  }
+  const sexMatch = text.match(/(?:i am|i'm|sex is|gender is|set sex to|set gender to)\s*(male|female)/);
+  if (sexMatch) {
+    const sex = sexMatch[1];
+    return {
+      action_type: "update_profile",
+      payload: { sex, gender: sex },
+      confirmation_text: `Update your sex to ${sex}?`
+    };
+  }
+  const heightMatch =
+    text.match(/(?:height is|my height is|set my height to|update my height to)\s*(\d{2,3}(?:\.\d+)?)/);
+  if (heightMatch) {
+    const height = Number(heightMatch[1]);
+    if (height >= 36 && height <= 96) {
+      return {
+        action_type: "update_profile",
+        payload: { height_in: height, height },
+        confirmation_text: `Update your height to ${height} inches?`
+      };
+    }
+  }
+  if (text.includes("lose weight")) {
+    return {
+      action_type: "update_profile",
+      payload: { goal: "lose", goalType: "lose" },
+      confirmation_text: "Set your goal to lose weight?"
+    };
+  }
+  if (text.includes("maintain weight")) {
+    return {
+      action_type: "update_profile",
+      payload: { goal: "maintain", goalType: "maintain" },
+      confirmation_text: "Set your goal to maintain weight?"
+    };
+  }
+  if (text.includes("gain weight")) {
+    return {
+      action_type: "update_profile",
+      payload: { goal: "gain", goalType: "gain" },
+      confirmation_text: "Set your goal to gain weight?"
+    };
+  }
+  const weeklyMatch =
+    text.match(/(?:lose|gain|change).{0,20}(\d(?:\.\d+)?)\s*(?:lb|lbs|pound|pounds).{0,15}(?:week|weekly)/);
+  if (weeklyMatch) {
+    const weekly = Number(weeklyMatch[1]);
+    if (weekly > 0 && weekly <= 2) {
+      return {
+        action_type: "update_profile",
+        payload: { weekly_weight_change_goal: weekly, weeklyChange: weekly },
+        confirmation_text: `Set your weekly weight change goal to ${weekly} lb/week?`
       };
     }
   }
   return null;
 };
 /* -----------------------------
-MEMORY / KNOWLEDGE / BARCODE / IMAGE
+BARCODE / PHOTO / KNOWLEDGE HOOKS
 ----------------------------- */
+CalBuddy.lookupBarcode = async function (barcode) {
+  return await CalBuddy.api("/api/barcode", { barcode });
+};
+CalBuddy.analyzeImage = async function ({ imageBase64, imageUrl, prompt = "", analysisType = "food" }) {
+  const user = await CalBuddy.requireUser();
+  CalBuddy.setAriMood("thinking");
+  const result = await CalBuddy.api("/api/image-analyze", {
+    imageBase64,
+    imageUrl,
+    prompt,
+    analysisType,
+    user_id: user.id
+  });
+  if (result.pendingAction) {
+    CalBuddy.setPendingAction(result.pendingAction);
+  }
+  CalBuddy.setAriMood(result.pendingAction ? "thinking" : "happy");
+  return result;
+};
 CalBuddy.saveMemory = async function ({ memory_type, memory_key = null, memory_value, source = "conversation" }) {
   const user = await CalBuddy.requireUser();
   return await CalBuddy.api("/api/memory", {
@@ -703,25 +762,6 @@ CalBuddy.searchKnowledge = async function (query) {
     user_id: user.id,
     query
   });
-};
-CalBuddy.lookupBarcode = async function (barcode) {
-  return await CalBuddy.api("/api/barcode", { barcode });
-};
-CalBuddy.analyzeImage = async function ({ imageBase64, imageUrl, prompt = "", analysisType = "general" }) {
-  const user = await CalBuddy.requireUser();
-  CalBuddy.setAriMood("thinking");
-  const result = await CalBuddy.api("/api/image-analyze", {
-    imageBase64,
-    imageUrl,
-    prompt,
-    analysisType,
-    user_id: user.id
-  });
-  if (result.pendingAction) {
-    CalBuddy.setPendingAction(result.pendingAction);
-  }
-  CalBuddy.setAriMood(result.pendingAction ? "thinking" : "happy");
-  return result;
 };
 /* -----------------------------
 USAGE LIMITS
@@ -876,7 +916,14 @@ CalBuddy.askAri = async function ({ message, history = [] }) {
     userContext,
     coachMemorySummary: userContext.coachMemorySummary,
     history: history.slice(-20),
-    ariLevel: 3
+    ariLevel: 3,
+    modes: {
+      nutrition: true,
+      wellnessSupport: true,
+      socialCompanion: true,
+      barcodeReady: true,
+      photoAnalysisReady: true
+    }
   });
   await CalBuddy.logUsage({ message, usage_type: "chat" });
   if (response.pendingAction) {
@@ -890,7 +937,7 @@ CalBuddy.askAri = async function ({ message, history = [] }) {
   return response;
 };
 /* -----------------------------
-DASHBOARD REFRESH HOOK
+DASHBOARD REFRESH
 ----------------------------- */
 CalBuddy.refreshDashboard = async function () {
   const context = await CalBuddy.getUserContext();
