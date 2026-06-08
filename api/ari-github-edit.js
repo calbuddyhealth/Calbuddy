@@ -19,6 +19,9 @@ export default async function handler(req, res) {
       mode,
       filePath,
       newContent,
+      operation,
+      find,
+      replace,
       commitMessage,
       confirmationText,
       previousContent
