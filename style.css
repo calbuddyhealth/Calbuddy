@@ -2966,3 +2966,130 @@ Paste at very bottom of style.css
 .ari-meter-card {
   margin-top: 8px !important;
 }
+/* ==========================================
+ARI PREMIUM HERO V2
+FINAL VERSION
+========================================== */
+
+.ari-hero-section{
+    position:relative;
+    height:285px;
+    margin-top:-25px;
+    margin-bottom:-18px;
+}
+
+/* ---------- SPEECH BUBBLE ---------- */
+
+.ari-speech-bubble{
+    position:absolute !important;
+
+    left:18px;
+    top:18px;
+
+    width:220px;
+
+    max-height:300px;
+
+    overflow-y:auto;
+
+    padding:18px;
+
+    border-radius:28px;
+
+    background:rgba(4,12,32,.94);
+
+    border:1px solid rgba(45,212,191,.45);
+
+    color:white;
+
+    font-size:15px;
+    font-weight:800;
+    line-height:1.55;
+
+    text-align:left;
+
+    box-shadow:
+        0 20px 40px rgba(0,0,0,.35);
+
+    z-index:5;
+}
+
+/* speech pointer */
+
+.ari-speech-bubble::after{
+    content:"";
+
+    position:absolute;
+
+    right:-12px;
+    top:50%;
+
+    width:22px;
+    height:22px;
+
+    background:rgba(4,12,32,.94);
+
+    border-top:1px solid rgba(45,212,191,.45);
+    border-right:1px solid rgba(45,212,191,.45);
+
+    transform:
+        translateY(-50%)
+        rotate(45deg);
+}
+
+/* ---------- ARI ---------- */
+
+.ari-master-img{
+    position:absolute !important;
+
+    right:-12px;
+    top:-22px;
+
+    width:305px !important;
+    max-width:none !important;
+
+    z-index:4;
+
+    filter:
+        drop-shadow(0 20px 30px rgba(0,0,0,.35));
+}
+
+/* ---------- SEARCH ---------- */
+
+.ari-search-section{
+    margin-top:-10px !important;
+    position:relative;
+    z-index:10;
+}
+
+/* ---------- METER ---------- */
+
+.ari-meter-card{
+    margin-top:6px !important;
+}
+
+/* ---------- TILES ---------- */
+
+.ari-action-grid{
+    margin-top:10px !important;
+}
+
+/* ---------- SMALL IPHONES ---------- */
+
+@media (max-width:390px){
+
+    .ari-hero-section{
+        height:270px;
+    }
+
+    .ari-master-img{
+        width:280px !important;
+        right:-16px;
+        top:-18px;
+    }
+
+    .ari-speech-bubble{
+        width:205px;
+        font-size:14px;
+    }
+}
