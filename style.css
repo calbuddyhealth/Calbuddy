@@ -2839,3 +2839,83 @@ Paste at VERY bottom of style.css
   }
 
 }
+/* ===================================
+FIX HERO BALANCE - BUBBLE + ARI + METER
+Paste at very bottom of style.css
+=================================== */
+
+.ari-hero-section {
+  margin-top: -18px !important;
+  min-height: 330px !important;
+  position: relative !important;
+}
+
+/* Smaller, left-side speech bubble */
+.ari-speech-bubble {
+  width: 225px !important;
+  min-height: 110px !important;
+  max-height: 185px !important;
+  left: 12px !important;
+  top: 70px !important;
+
+  padding: 14px 15px !important;
+  font-size: 13px !important;
+  line-height: 1.38 !important;
+
+  overflow-y: auto !important;
+  z-index: 6 !important;
+}
+
+/* Move Ari lower/right so she is visible */
+.ari-master-img {
+  width: 330px !important;
+  max-width: none !important;
+
+  position: absolute !important;
+  right: -95px !important;
+  top: 98px !important;
+
+  z-index: 5 !important;
+}
+
+/* Search sits under Ari */
+.ari-search-section {
+  margin-top: -22px !important;
+  position: relative !important;
+  z-index: 20 !important;
+}
+
+/* Meter smaller but readable */
+.ari-meter-card {
+  min-height: 175px !important;
+  margin-top: 10px !important;
+  padding: 10px 14px !important;
+}
+
+.ari-meter-card .true-meter-wrap {
+  height: 125px !important;
+  transform: scale(0.78) !important;
+}
+
+.ari-meter-card .true-meter-text {
+  top: 61% !important;
+}
+
+.ari-meter-card .true-meter-text h2 {
+  font-size: 42px !important;
+}
+
+.ari-meter-card .true-meter-text p {
+  font-size: 9px !important;
+  letter-spacing: 2.4px !important;
+}
+
+.ari-meter-card .true-meter-text span {
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+}
+
+/* Keep tiles tighter */
+.ari-action-grid {
+  margin-top: 8px !important;
+}
