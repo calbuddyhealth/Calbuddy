@@ -90,11 +90,31 @@ export default async function handler(req, res) {
         });
       }
 
-      if (!newContent) {
-        return res.status(400).json({ error: "newContent is required" });
-      }
+      let finalContent = newContent;
 
-      const encoded = Buffer.from(newContent, "utf8").toString("base64");
+if (operation === "replace") {
+  if (!find || !replace) {
+    return res.status(400).json({
+      error: "find and replace are required for replace operation"
+    });
+  }
+
+  finalContent = currentContent.replace(find, replace);
+
+  if (finalContent === currentContent) {
+    return res.status(400).json({
+      error: "Target text not found"
+    });
+  }
+}
+
+if (!finalContent) {
+  return res.status(400).json({
+    error: "No content generated"
+  });
+}
+
+const encoded = Buffer.from(finalContent, "utf8").toString("base64");
 
       const result = await githubFetch(apiBase, {
         method: "PUT",
