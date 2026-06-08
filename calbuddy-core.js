@@ -901,7 +901,8 @@ CalBuddy.executeAction = async function (action) {
     reply: "Saved to Owner Tasks. I prepared the implementation plan instead of trying to directly edit production code."
   };
 }
-
+console.log("ACTION TYPE:", type);
+console.log("ACTION:", action);
   throw new Error(`Unknown action type: ${type}`);
 };
 CalBuddy.confirmPendingAction = async function () {
