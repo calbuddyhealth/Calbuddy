@@ -553,16 +553,40 @@ If no developer request, developerIntent must be null.
       };
     }
 
-    return res.status(200).json({
-      reply: parsed.reply || "Hmm. I glitched for a second. Try asking me again.",
-      emotion: parsed.emotion || parsed.mood || "happy",
-      pendingAction: parsed.pendingAction || null,
-      memoryCandidate: parsed.memoryCandidate || null,
-      developerIntent: parsed.developerIntent || null,
-      ariModeUsed: parsed.ariModeUsed || ariModeUsed,
-      ownerAccess,
-      coachingStyle
-    });
+    const fallbackReply =
+  parsed.reply ||
+  parsed.message ||
+  parsed.response ||
+  parsed.content ||
+  parsed.text ||
+  null;
+
+let finalReply = fallbackReply;
+
+if (!finalReply && parsed.developerIntent?.githubEdit) {
+  finalReply =
+    "I prepared a GitHub edit request. Confirm it and I’ll send it to GitHub.";
+}
+
+if (!finalReply && parsed.developerIntent) {
+  finalReply =
+    "I prepared a developer task for this. I need the exact file path and replacement code before making a real GitHub edit.";
+}
+
+if (!finalReply) {
+  finalReply = "Hmm. I glitched for a second. Try asking me again.";
+}
+
+return res.status(200).json({
+  reply: finalReply,
+  emotion: parsed.emotion || parsed.mood || "happy",
+  pendingAction: parsed.pendingAction || null,
+  memoryCandidate: parsed.memoryCandidate || null,
+  developerIntent: parsed.developerIntent || null,
+  ariModeUsed: parsed.ariModeUsed || ariModeUsed,
+  ownerAccess,
+  coachingStyle
+});
   } catch (error) {
     return res.status(500).json({
       error: error.message || "Something went wrong."
