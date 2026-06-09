@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "query is required" });
     }
 
-    const searchQuery = `${query} repo:${repo} ref:${branch}`;
+   const searchQuery = `${query} repo:${repo} in:file`;
     const apiUrl =
       `https://api.github.com/search/code?q=${encodeURIComponent(searchQuery)}`;
 
