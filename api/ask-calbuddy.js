@@ -30,6 +30,7 @@ export default async function handler(req, res) {
       "balanced";
 
     const text = String(message || "").toLowerCase();
+
 const knownFileMatch = String(message || "").match(
   /\b(?:read|inspect|look at|open)\s+([a-zA-Z0-9_\-./]+?\.(?:html|css|js))\b/i
 );
