@@ -1193,7 +1193,34 @@ You just read this GitHub file. Analyze the file content and answer the owner's 
     }
   }
 }
+if (response.developerIntent?.type === "github_search_request") {
+  const query =
+    response.developerIntent.query ||
+    response.developerIntent.searchQuery ||
+    response.developerIntent.githubSearch?.query;
+
+  if (query) {
+    const searchResult = await CalBuddy.searchGithubCode(query);
+
+    if (searchResult.success) {
+      const resultsText = (searchResult.results || [])
+        .map(item => `- ${item.path}`)
+        .join("\n");
+
+      response.githubSearchResult = searchResult;
+
+      response.reply =
+        searchResult.count > 0
+          ? `I found ${searchResult.count} result(s) for "${query}":\n${resultsText}`
+          : `I searched for "${query}" but did not find a match.`;
+    } else {
+      response.reply =
+        searchResult.error ||
+        "I could not search the repository.";
+    }
+  }
 }
+
 const mood =
     response.emotion ||
     response.mood ||
