@@ -1131,6 +1131,17 @@ if (response.developerIntent) {
   );
 
   console.log("CalBuddy Developer Intent:", response.developerIntent);
+
+if (response.developerIntent?.type === "github_read_request") {
+  const filePath = response.developerIntent.filePath || response.developerIntent.githubRead?.filePath;
+
+  if (filePath) {
+    const readResult = await CalBuddy.readGithubFile(filePath);
+    response.reply = readResult.success
+      ? `I read ${filePath}. The file has ${readResult.content.length} characters.`
+      : readResult.error || "I could not read that file.";
+  }
+  }
 }
 const mood =
     response.emotion ||
