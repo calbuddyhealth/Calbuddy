@@ -1141,12 +1141,51 @@ if (response.developerIntent?.type === "github_read_request") {
     const readResult = await CalBuddy.readGithubFile(filePath);
 
     if (readResult.success) {
+      const analysisResponse = await CalBuddy.api("/api/ask-calbuddy", {
+        message: `The owner asked: "${message}"
+
+You just read this GitHub file. Analyze the file content and answer the owner's request. Be specific. If relevant, identify exact text, sections, functions, or likely edits needed.`,
+        userContext,
+        coachMemorySummary: userContext.coachMemorySummary,
+        history: history.slice(-10),
+        githubFileContext: {
+          filePath,
+          content: readResult.content
+        },
+        ariLevel: 3,
+        modes: {
+          nutrition: true,
+          wellnessSupport: true,
+          socialCompanion: true,
+          developerFileAnalysis: true
+        }
+      });
+
+      response.reply =
+        analysisResponse.reply ||
+        `Successfully read ${filePath}.`;
+
+      response.emotion =
+        analysisResponse.emotion ||
+        response.emotion ||
+        "thinking";
+
+      response.developerIntent =
+        analysisResponse.developerIntent ||
+        response.developerIntent;
+
+      response.pendingAction =
+        analysisResponse.pendingAction ||
+        response.pendingAction;
+
+      response.memoryCandidate =
+        analysisResponse.memoryCandidate ||
+        response.memoryCandidate;
+
       response.githubReadResult = {
         filePath,
         content: readResult.content
       };
-
-      response.reply = `Successfully read ${filePath}.`;
     } else {
       response.reply =
         readResult.error ||
