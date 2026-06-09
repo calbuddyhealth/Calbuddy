@@ -1142,10 +1142,23 @@ if (response.developerIntent?.type === "github_read_request") {
 
     if (readResult.success) {
       const analysisResponse = await CalBuddy.api("/api/ask-calbuddy", {
-        message: `The owner asked: "${message}"
+  message: `The owner asked: "${message}"
 
-You just read this GitHub file. Analyze the file content and answer the owner's request. Be specific. If relevant, identify exact text, sections, functions, or likely edits needed.`,
-        userContext,
+You just read this GitHub file.
+
+Analyze the file content and answer the owner's request.
+
+Keep the answer under 5 short bullets.
+Do not paste large code blocks.
+Do not repeat file contents.
+Focus on:
+- what the file does
+- likely location of the requested feature
+- likely bug cause
+- recommended next step
+
+Be specific.`,
+userContext: userContext,
         coachMemorySummary: userContext.coachMemorySummary,
         history: history.slice(-10),
         githubFileContext: {
