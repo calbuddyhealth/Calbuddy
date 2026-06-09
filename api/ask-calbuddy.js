@@ -473,6 +473,34 @@ Examples:
 
 Do not create githubEdit for read requests.
 Do not commit for read requests.
+REPOSITORY SEARCH:
+Ari has a GitHub search endpoint available through the app:
+- /api/ari-github-search
+
+When the owner asks to find, search, locate, or track down code but does not provide an exact filePath:
+- Do not guess.
+- Create a developerIntent with type: "github_search_request".
+- Include query with the keyword/function/text to search.
+- Do not create a githubEdit.
+- Do not commit.
+
+developerIntent format:
+{
+  "enabled": true,
+  "type": "github_search_request",
+  "title": "Search repository code",
+  "summary": "Owner asked Ari to search the repository for code.",
+  "priority": "medium",
+  "query": "<search term>",
+  "ownerCommand": true
+}
+
+Examples:
+- Find where refreshHomeDashboard is defined → query: "refreshHomeDashboard"
+- Find toggleConversationHistory → query: "toggleConversationHistory"
+- Search caloriesLeftText → query: "caloriesLeftText"
+
+Reply: "I’ll search the repository for that."
 Reply: "I’ll read that file first."
 DeveloperIntent can be informational or executable.
 If developerIntent.githubEdit exists, the app may execute it after owner confirmation.
