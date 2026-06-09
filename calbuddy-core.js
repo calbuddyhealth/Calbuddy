@@ -1220,7 +1220,7 @@ if (response.developerIntent?.type === "github_search_request") {
     }
   }
 }
-
+}
 const mood =
     response.emotion ||
     response.mood ||
