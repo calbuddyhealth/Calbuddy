@@ -30,7 +30,55 @@ export default async function handler(req, res) {
       "balanced";
 
     const text = String(message || "").toLowerCase();
+const knownFileMatch = String(message || "").match(
+  /\b(?:read|inspect|look at|open)\s+([a-zA-Z0-9_\-./]+?\.(?:html|css|js))\b/i
+);
 
+if (ownerAccess && knownFileMatch) {
+  return res.status(200).json({
+    reply: "I'll read that file first.",
+    emotion: "thinking",
+    pendingAction: null,
+    memoryCandidate: null,
+    developerIntent: {
+      enabled: true,
+      type: "github_read_request",
+      title: "Read repository file",
+      summary: "Owner asked Ari to read a repository file before editing.",
+      priority: "medium",
+      filePath: knownFileMatch[1],
+      ownerCommand: true
+    },
+    ariModeUsed: "developer_wonder",
+    ownerAccess,
+    coachingStyle
+  });
+}
+
+const searchMatch = String(message || "").match(
+  /\b(?:find|search|locate|track down|where is|where's)\s+(?:where\s+)?([a-zA-Z0-9_$.\-]+)\b/i
+);
+
+if (ownerAccess && searchMatch) {
+  return res.status(200).json({
+    reply: "I'll search the repository for that.",
+    emotion: "thinking",
+    pendingAction: null,
+    memoryCandidate: null,
+    developerIntent: {
+      enabled: true,
+      type: "github_search_request",
+      title: "Search repository code",
+      summary: "Owner asked Ari to search the repository for code.",
+      priority: "medium",
+      query: searchMatch[1],
+      ownerCommand: true
+    },
+    ariModeUsed: "developer_wonder",
+    ownerAccess,
+    coachingStyle
+  });
+}
     let detectedMode = "coach_wonder";
 
     if (
