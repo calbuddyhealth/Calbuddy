@@ -558,7 +558,19 @@ console.log("RAW GPT RESPONSE:", rawContent);
       };
     }
 
-    const fallbackReply =
+  if ((parsed.enabled || parsed.type || parsed.githubEdit) && !parsed.developerIntent) {
+  parsed = {
+    reply:
+      "I prepared a developer request for that. Confirm it and I’ll try to send it to GitHub.",
+    emotion: "thinking",
+    pendingAction: null,
+    memoryCandidate: null,
+    developerIntent: parsed,
+    ariModeUsed
+  };
+}
+
+const fallbackReply =
   parsed.reply ||
   parsed.message ||
   parsed.response ||
