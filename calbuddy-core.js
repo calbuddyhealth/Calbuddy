@@ -1359,7 +1359,35 @@ CalBuddy.saveAriMemoryCandidate = async function (memoryCandidate) {
     return null;
   }
 };
+CalBuddy.searchGithubCode = async function (query) {
+  try {
+    const context = await CalBuddy.getUserContext();
 
+    const response = await fetch("/api/ari-github-search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        owner_access: context.ownerMode === true,
+        query
+      })
+    });
+
+    const data = await response.json();
+
+    console.log("GitHub Search Response:", data);
+
+    return data;
+  } catch (err) {
+    console.error("GitHub Search Error:", err);
+
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+};
 CalBuddy.sendGithubEditRequest = async function (payload) {
   try {
     const response = await fetch("/api/ari-github-edit", {
