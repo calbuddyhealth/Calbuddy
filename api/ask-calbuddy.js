@@ -459,6 +459,11 @@ Return ONLY valid JSON.
 No markdown.
 No backticks.
 
+CRITICAL:
+The "reply" field is required and must always be a non-empty string.
+Never return an empty object.
+Never return JSON without "reply".
+For normal greetings like "hello", reply naturally as Ari.
 JSON shape:
 {
   "reply": "string",
@@ -537,7 +542,7 @@ If no developer request, developerIntent must be null.
     }
 
     const rawContent = data.choices?.[0]?.message?.content || "";
-
+console.log("RAW GPT RESPONSE:", rawContent);
     let parsed;
 
     try {
