@@ -9,7 +9,8 @@ export default async function handler(req, res) {
       userContext = {},
       coachMemorySummary = "",
       history = [],
-      modes = {}
+      modes = {},
+      githubFileContext = null
     } = req.body;
 
     if (!process.env.OPENAI_API_KEY) {
@@ -172,6 +173,16 @@ COACH MEMORY SUMMARY:
 ${coachMemorySummary || "No memory summary available yet."}
 
 ${modeInstructions}
+
+GITHUB FILE CONTEXT:
+${
+  githubFileContext?.content
+    ? `File path: ${githubFileContext.filePath}
+
+File content:
+${String(githubFileContext.content).slice(0, 18000)}`
+    : "No GitHub file content provided."
+}
 `;
 
     const systemPrompt = `
