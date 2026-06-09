@@ -1322,6 +1322,37 @@ CalBuddy.sendGithubEditRequest = async function (payload) {
     };
   }
 };
+CalBuddy.readGithubFile = async function (filePath) {
+  try {
+    const context = await CalBuddy.getUserContext();
+
+    const response = await fetch("/api/ari-github-read", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        owner_access: context.ownerMode === true,
+        filePath
+      })
+    });
+
+    const data = await response.json();
+
+    console.log("GitHub Read Response:", data);
+
+    return data;
+
+  } catch (err) {
+
+    console.error("GitHub Read Error:", err);
+
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+};
 CalBuddy.saveDeveloperIntentLocally = function (developerIntent) {
   if (!developerIntent) return null;
 
