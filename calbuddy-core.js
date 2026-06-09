@@ -1148,7 +1148,9 @@ You just read this GitHub file.
 
 Analyze the file content and answer the owner's request.
 
-Keep the answer under 5 short bullets.
+Answer in 3 short bullets maximum.
+Do not use markdown headings.
+Do not explain basic sections unless the owner asked for a full file summary.
 Do not paste large code blocks.
 Do not repeat file contents.
 Focus on:
