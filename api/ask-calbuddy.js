@@ -35,7 +35,7 @@ const knownFileMatch = String(message || "").match(
   /\b(?:read|inspect|look at|open)\s+([a-zA-Z0-9_\-./]+?\.(?:html|css|js))\b/i
 );
 
-if (ownerAccess && knownFileMatch) {
+if (ownerAccess && knownFileMatch && !githubFileContext?.content) {
   return res.status(200).json({
     reply: "I'll read that file first.",
     emotion: "thinking",
@@ -60,7 +60,7 @@ const searchMatch = String(message || "").match(
   /\b(?:find|search|locate|track down|where is|where's)\s+(?:where\s+)?([a-zA-Z0-9_$.\-]+)\b/i
 );
 
-if (ownerAccess && searchMatch) {
+if (ownerAccess && searchMatch && !githubFileContext?.content) {
   return res.status(200).json({
     reply: "I'll search the repository for that.",
     emotion: "thinking",
