@@ -201,7 +201,65 @@ window.Ari.observerNetwork = {
       wantsHealth: this.containsAny(text, ["weight", "calorie", "nutrition", "exercise", "meal", "fitness"])
     };
   },
+  
+observeLifeTransitions(text) {
+  return {
+    fatherhood: this.containsAny(text, [
+      "becoming a father",
+      "my daughter",
+      "my son",
+      "first child",
+      "future daughter",
+      "future son"
+    ]),
 
+    motherhood: this.containsAny(text, [
+      "becoming a mother",
+      "my baby",
+      "future child"
+    ]),
+
+    pregnancy: this.containsAny(text, [
+      "pregnant",
+      "pregnancy",
+      "due in",
+      "expecting"
+    ]),
+
+    marriage: this.containsAny(text, [
+      "wife",
+      "husband",
+      "married",
+      "marriage"
+    ]),
+
+    engagement: this.containsAny(text, [
+      "engaged",
+      "fiance",
+      "fiancée",
+      "planning a wedding"
+    ]),
+
+    militaryTransition: this.containsAny(text, [
+      "leaving the navy",
+      "separating",
+      "retiring from military",
+      "getting out"
+    ]),
+
+    careerTransition: this.containsAny(text, [
+      "career change",
+      "new career",
+      "changing careers",
+      "starting a new job"
+    ]),
+
+    retirement: this.containsAny(text, [
+      "retirement",
+      "retiring"
+    ])
+  };
+},
   observeRelationship(text, context = {}) {
     return {
       unknownUser: !context.userId && !context.profile,
@@ -278,8 +336,9 @@ window.Ari.observerNetwork = {
       intent: this.observeIntent(text),
       memory: this.observeMemory(text),
       goals: this.observeGoals(text),
-      relationship: this.observeRelationship(text, context),
-      risk: this.observeRisk(text),
+lifeTransitions: this.observeLifeTransitions(text),
+relationship: this.observeRelationship(text, context),
+risk: this.observeRisk(text),
       observedAt: new Date().toISOString(),
       source: "ari-observer-network"
     };
