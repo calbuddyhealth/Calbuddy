@@ -1,11 +1,11 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
-// Purpose: Connect Loader, Observer, Value, Identity, Conflict, Executive, Attention, Router, Emotion, and Memory.
+// Purpose: Connect Loader, Observer, Value, Identity, Conflict, Executive, Insight, Attention, Router, Emotion, and Memory.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -94,13 +94,32 @@ window.Ari.core = {
           source: "executive-function-unavailable"
         };
 
+    const insight = window.Ari.insightEngine
+      ? window.Ari.insightEngine.generate({
+          observation,
+          values,
+          identity,
+          conflicts,
+          executive
+        })
+      : {
+          hiddenConflict: null,
+          avoidance: null,
+          pattern: null,
+          tradeoff: null,
+          wisdom: null,
+          oneLineInsight: null,
+          source: "insight-engine-unavailable"
+        };
+
     const attention = window.Ari.attentionSystem
       ? window.Ari.attentionSystem.prioritize({
           ...observation,
           values,
           identity,
           conflicts,
-          executive
+          executive,
+          insight
         })
       : {
           focusType: "unknown",
@@ -119,6 +138,7 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
+          insight,
           attention
         })
       : {
@@ -169,6 +189,7 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
+          insight,
           attention
         })
       : {
@@ -185,6 +206,7 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
+          insight,
           attention,
           route,
           emotion
@@ -203,6 +225,7 @@ window.Ari.core = {
       identity,
       conflicts,
       executive,
+      insight,
       attention,
       route,
       emotion,
@@ -217,6 +240,7 @@ window.Ari.core = {
     const identity = analysis.identity || {};
     const conflicts = analysis.conflicts || {};
     const executive = analysis.executive || {};
+    const insight = analysis.insight || {};
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
@@ -244,6 +268,12 @@ window.Ari.core = {
       executiveDecision: executive.executiveDecision || null,
       recommendedFocus: executive.recommendedFocus || null,
 
+      oneLineInsight: insight.oneLineInsight || null,
+      hiddenConflict: insight.hiddenConflict?.name || null,
+      avoidance: insight.avoidance?.name || null,
+      pattern: insight.pattern?.name || null,
+      tradeoff: insight.tradeoff?.name || null,
+
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
 
@@ -262,6 +292,7 @@ window.Ari.core = {
       identitySource: identity.source || "unknown",
       conflictSource: conflicts.source || "unknown",
       executiveSource: executive.source || "unknown",
+      insightSource: insight.source || "unknown",
       attentionSource: attention.source || "unknown",
 
       authorityHierarchy: window.Ari.authority
