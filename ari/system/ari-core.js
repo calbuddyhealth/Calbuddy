@@ -39,7 +39,10 @@ window.Ari.core = {
           risk: {},
           source: "observer-unavailable"
         };
-
+const questionType = window.Ari.questionUnderstanding
+  ? window.Ari.questionUnderstanding.classify(message)
+  : "understanding";
+  
     const values = window.Ari.valueEngine
       ? window.Ari.valueEngine.analyze(observation)
       : {
@@ -220,6 +223,7 @@ window.Ari.core = {
     return {
       message,
       context,
+      questionType,
       observation,
       values,
       identity,
@@ -247,6 +251,7 @@ window.Ari.core = {
     const memory = analysis.memory || {};
 
     return {
+      questionType: analysis.questionType || "unknown",
       focusType: attention.focusType || "unknown",
       focusReason: attention.focusReason || "No focus reason.",
       primaryNeed: attention.primaryNeed || null,
