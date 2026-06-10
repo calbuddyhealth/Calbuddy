@@ -1,7 +1,7 @@
 # ARI AUTHORITY MAP
 Version: 1.0
 
-## Purpose
+## Purpose 
 
 This document defines Ari's chain of command.
 
