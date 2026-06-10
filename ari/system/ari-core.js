@@ -1,11 +1,11 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
-// Purpose: Connect Loader, Observer, Value, Identity, Conflict, Attention, Router, Emotion, and Memory.
+// Purpose: Connect Loader, Observer, Value, Identity, Conflict, Executive, Attention, Router, Emotion, and Memory.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -67,22 +67,6 @@ window.Ari.core = {
           values,
           identity
         })
-    const executive = window.Ari.executiveFunction
-  ? window.Ari.executiveFunction.decide({
-      observation,
-      values,
-      identity,
-      conflicts,
-      emotion: observation.emotion
-    })
-  : {
-      primaryPriority: null,
-      secondaryPriorities: [],
-      thingsToDelay: [],
-      executiveDecision: "unavailable",
-      recommendedFocus: null,
-      source: "executive-function-unavailable"
-    };
       : {
           conflicts: [],
           primaryConflict: null,
@@ -93,12 +77,30 @@ window.Ari.core = {
           source: "conflict-engine-unavailable"
         };
 
+    const executive = window.Ari.executiveFunction
+      ? window.Ari.executiveFunction.decide({
+          observation,
+          values,
+          identity,
+          conflicts,
+          emotion: observation.emotion
+        })
+      : {
+          primaryPriority: null,
+          secondaryPriorities: [],
+          thingsToDelay: [],
+          executiveDecision: "unavailable",
+          recommendedFocus: null,
+          source: "executive-function-unavailable"
+        };
+
     const attention = window.Ari.attentionSystem
       ? window.Ari.attentionSystem.prioritize({
           ...observation,
           values,
           identity,
-          conflicts
+          conflicts,
+          executive
         })
       : {
           focusType: "unknown",
@@ -116,6 +118,7 @@ window.Ari.core = {
           values,
           identity,
           conflicts,
+          executive,
           attention
         })
       : {
@@ -137,7 +140,6 @@ window.Ari.core = {
     }
 
     const supportSet = new Set(route.supportingOrgans || []);
-
     supportSet.delete(route.primaryOrgan);
 
     if (attention.emotionalSupportNeeded && route.primaryOrgan !== "companion") {
@@ -161,13 +163,14 @@ window.Ari.core = {
     );
 
     const emotion = window.Ari.emotionEngine
-  ? window.Ari.emotionEngine.selectEmotion(message, route, {
-      observation,
-      values,
-      identity,
-      conflicts,
-      attention
-    })
+      ? window.Ari.emotionEngine.selectEmotion(message, route, {
+          observation,
+          values,
+          identity,
+          conflicts,
+          executive,
+          attention
+        })
       : {
           primaryEmotion: "curiosity",
           secondaryEmotions: [],
@@ -181,6 +184,7 @@ window.Ari.core = {
           values,
           identity,
           conflicts,
+          executive,
           attention,
           route,
           emotion
@@ -198,6 +202,7 @@ window.Ari.core = {
       values,
       identity,
       conflicts,
+      executive,
       attention,
       route,
       emotion,
@@ -211,6 +216,7 @@ window.Ari.core = {
     const values = analysis.values || {};
     const identity = analysis.identity || {};
     const conflicts = analysis.conflicts || {};
+    const executive = analysis.executive || {};
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
@@ -230,6 +236,14 @@ window.Ari.core = {
       competingFor: conflicts.competingFor || [],
       needsExecutiveFunction: Boolean(conflicts.needsExecutiveFunction),
 
+      primaryPriority: executive.primaryPriority?.name || null,
+      secondaryPriorities:
+        executive.secondaryPriorities?.map((item) => item.name) || [],
+      thingsToDelay:
+        executive.thingsToDelay?.map((item) => item.name) || [],
+      executiveDecision: executive.executiveDecision || null,
+      recommendedFocus: executive.recommendedFocus || null,
+
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
 
@@ -247,6 +261,7 @@ window.Ari.core = {
       valueSource: values.source || "unknown",
       identitySource: identity.source || "unknown",
       conflictSource: conflicts.source || "unknown",
+      executiveSource: executive.source || "unknown",
       attentionSource: attention.source || "unknown",
 
       authorityHierarchy: window.Ari.authority
