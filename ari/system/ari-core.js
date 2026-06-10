@@ -67,6 +67,22 @@ window.Ari.core = {
           values,
           identity
         })
+    const executive = window.Ari.executiveFunction
+  ? window.Ari.executiveFunction.decide({
+      observation,
+      values,
+      identity,
+      conflicts,
+      emotion: observation.emotion
+    })
+  : {
+      primaryPriority: null,
+      secondaryPriorities: [],
+      thingsToDelay: [],
+      executiveDecision: "unavailable",
+      recommendedFocus: null,
+      source: "executive-function-unavailable"
+    };
       : {
           conflicts: [],
           primaryConflict: null,
