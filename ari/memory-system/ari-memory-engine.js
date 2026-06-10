@@ -1,116 +1,202 @@
 // ari/memory-system/ari-memory-engine.js
 // Ari Memory Engine
-// Purpose: Classify potential memories by type and importance.
+// Purpose: Classify potential memories by type, importance, stability, and meaning.
+// V2: Remember less. Remember better.
 
 window.Ari = window.Ari || {};
 
 window.Ari.memoryEngine = {
-  version: "1.0.0",
-
-  memoryTypes: [
-    "identity",
-    "preference",
-    "journey",
-    "relationship",
-    "reflection",
-    "story"
-  ],
-
-  importanceLevels: [
-    "temporary",
-    "session",
-    "longTerm",
-    "sacred"
-  ],
+  version: "2.0.0",
 
   classify(message = "", context = {}) {
-    const text = String(message || "").toLowerCase();
+    const text = String(message || "").toLowerCase().trim();
+    const observation = context.observation || {};
+    const attention = context.attention || {};
+    const memorySignals = observation.memory || {};
+    const emotionSignals = observation.emotion || {};
 
-    const result = {
+    const base = {
       shouldRemember: false,
       memoryType: "temporary",
       importance: "temporary",
-      reason: "No meaningful memory detected.",
+      stability: "temporary",
+      confidence: "low",
+      reason: "No stable memory signal detected.",
       source: "ari-memory-engine"
     };
 
-    if (!text.trim()) return result;
+    if (!text) return base;
 
-    if (
-      text.includes("remember") ||
-      text.includes("from now on") ||
-      text.includes("going forward")
-    ) {
+    const has = (phrases = []) => phrases.some((p) => text.includes(p));
+
+    const temporaryEmotion =
+      emotionSignals.isTemporaryEmotion ||
+      has([
+        "i feel",
+        "i'm feeling",
+        "i am feeling",
+        "today",
+        "right now",
+        "tonight",
+        "this morning",
+        "this afternoon"
+      ]);
+
+    const explicitMemory = memorySignals.explicitMemoryIntent;
+
+    const preference =
+      memorySignals.preferenceSignal ||
+      has([
+        "i prefer",
+        "i value",
+        "direct feedback",
+        "don't sugarcoat",
+        "no sugarcoating",
+        "be blunt",
+        "be gentle",
+        "talk to me"
+      ]);
+
+    const identity =
+      memorySignals.identitySignal ||
+      has([
+        "my name is",
+        "call me",
+        "i go by",
+        "i am a nurse",
+        "i'm a nurse",
+        "i work as",
+        "my job is"
+      ]);
+
+    const journey =
+      memorySignals.journeySignal ||
+      has([
+        "i want to become",
+        "i am trying to become",
+        "i'm trying to become",
+        "my goal is",
+        "pmhnp journey",
+        "leaving the navy",
+        "becoming a father",
+        "planning a wedding",
+        "building ari rebirth"
+      ]);
+
+    const milestone =
+      memorySignals.milestoneSignal &&
+      has([
+        "i passed",
+        "i graduated",
+        "got married",
+        "baby was born",
+        "daughter was born",
+        "son was born",
+        "ari was born"
+      ]);
+
+    const reflection =
+      memorySignals.reflectionSignal ||
+      has([
+        "i learned that",
+        "i realized that",
+        "this taught me",
+        "what i learned"
+      ]);
+
+    if (temporaryEmotion && !explicitMemory) {
       return {
+        ...base,
+        shouldRemember: false,
+        memoryType: "temporary",
+        importance: "session",
+        stability: "temporary",
+        confidence: "medium",
+        reason: "Temporary emotional state detected. Do not store as long-term memory."
+      };
+    }
+
+    if (explicitMemory && preference) {
+      return {
+        ...base,
         shouldRemember: true,
         memoryType: "preference",
         importance: "longTerm",
-        reason: "User explicitly requested memory or future preference.",
-        source: "ari-memory-engine"
+        stability: "stable",
+        confidence: "high",
+        reason: "User explicitly requested memory of a stable preference."
       };
     }
 
-    if (
-      text.includes("i am") ||
-      text.includes("i'm") ||
-      text.includes("my name") ||
-      text.includes("my wife") ||
-      text.includes("my daughter") ||
-      text.includes("my son")
-    ) {
+    if (identity) {
       return {
+        ...base,
         shouldRemember: true,
         memoryType: "identity",
         importance: "longTerm",
-        reason: "Identity or important relationship information detected.",
-        source: "ari-memory-engine"
+        stability: "stable",
+        confidence: "high",
+        reason: "Stable identity information detected."
       };
     }
 
-    if (
-      text.includes("milestone") ||
-      text.includes("passed") ||
-      text.includes("graduated") ||
-      text.includes("got married") ||
-      text.includes("baby was born") ||
-      text.includes("rebirth")
-    ) {
+    if (milestone) {
       return {
+        ...base,
         shouldRemember: true,
         memoryType: "story",
         importance: "sacred",
-        reason: "Meaningful milestone or story event detected.",
-        source: "ari-memory-engine"
+        stability: "stable",
+        confidence: "high",
+        reason: "Major milestone detected."
       };
     }
 
-    if (
-      text.includes("i learned") ||
-      text.includes("i realized") ||
-      text.includes("this means") ||
-      text.includes("i discovered")
-    ) {
+    if (journey) {
       return {
+        ...base,
+        shouldRemember: true,
+        memoryType: "journey",
+        importance: "longTerm",
+        stability: "developing",
+        confidence: "medium",
+        reason: "Long-term journey or life transition detected."
+      };
+    }
+
+    if (reflection) {
+      return {
+        ...base,
         shouldRemember: true,
         memoryType: "reflection",
         importance: "longTerm",
-        reason: "Reflection or lesson detected.",
-        source: "ari-memory-engine"
+        stability: "stable",
+        confidence: "medium",
+        reason: "Reflection or lesson detected."
       };
     }
 
-    return result;
+    if (explicitMemory) {
+      return {
+        ...base,
+        shouldRemember: true,
+        memoryType: "reflection",
+        importance: "longTerm",
+        stability: "unknown",
+        confidence: "medium",
+        reason: "User explicitly requested memory, but type is unclear."
+      };
+    }
+
+    return base;
   },
 
   shouldForget(memory = {}) {
     if (!memory) return true;
-
+    if (memory.forgetRequest === true) return true;
     if (memory.importance === "temporary") return true;
-
     if (memory.expired === true) return true;
-
     if (memory.userRequestedForget === true) return true;
-
     return false;
   }
 };
