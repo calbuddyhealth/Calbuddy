@@ -1,11 +1,11 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
-// Purpose: Connect Loader, Observer, Value, Identity, Conflict, Executive, Insight, Attention, Router, Emotion, and Memory.
+// Purpose: Connect Loader, Observer, Question Understanding, Value, Identity, Conflict, Executive, Insight, Attention, Router, Emotion, Emotional Intelligence, and Memory.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -39,10 +39,11 @@ window.Ari.core = {
           risk: {},
           source: "observer-unavailable"
         };
-const questionType = window.Ari.questionUnderstanding
-  ? window.Ari.questionUnderstanding.classify(message)
-  : "understanding";
-  
+
+    const questionType = window.Ari.questionUnderstanding
+      ? window.Ari.questionUnderstanding.classify(message)
+      : "understanding";
+
     const values = window.Ari.valueEngine
       ? window.Ari.valueEngine.analyze(observation)
       : {
@@ -118,6 +119,7 @@ const questionType = window.Ari.questionUnderstanding
     const attention = window.Ari.attentionSystem
       ? window.Ari.attentionSystem.prioritize({
           ...observation,
+          questionType,
           values,
           identity,
           conflicts,
@@ -136,6 +138,7 @@ const questionType = window.Ari.questionUnderstanding
     const route = window.Ari.router
       ? window.Ari.router.route(message, {
           ...context,
+          questionType,
           observation,
           values,
           identity,
@@ -198,12 +201,33 @@ const questionType = window.Ari.questionUnderstanding
       : {
           primaryEmotion: "curiosity",
           secondaryEmotions: [],
-          balance: { brain: 70, heart: 20, soul: 10 }
+          balance: { brain: 70, heart: 20, soul: 10 },
+          source: "emotion-engine-unavailable"
+        };
+
+    const emotionalIntelligence = window.Ari.emotionalIntelligence
+      ? window.Ari.emotionalIntelligence.analyze({
+          observation,
+          values,
+          identity,
+          conflicts,
+          executive,
+          insight
+        })
+      : {
+          surfaceEmotion: null,
+          underlyingEmotion: null,
+          emotionalTension: null,
+          rootNeed: null,
+          protecting: null,
+          regulation: null,
+          source: "emotional-intelligence-unavailable"
         };
 
     const memory = window.Ari.memoryEngine
       ? window.Ari.memoryEngine.classify(message, {
           ...context,
+          questionType,
           observation,
           values,
           identity,
@@ -212,12 +236,14 @@ const questionType = window.Ari.questionUnderstanding
           insight,
           attention,
           route,
-          emotion
+          emotion,
+          emotionalIntelligence
         })
       : {
           shouldRemember: false,
           memoryType: "temporary",
-          importance: "temporary"
+          importance: "temporary",
+          source: "memory-engine-unavailable"
         };
 
     return {
@@ -233,6 +259,7 @@ const questionType = window.Ari.questionUnderstanding
       attention,
       route,
       emotion,
+      emotionalIntelligence,
       memory,
       analyzedAt: new Date().toISOString()
     };
@@ -248,10 +275,12 @@ const questionType = window.Ari.questionUnderstanding
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
+    const emotionalIntelligence = analysis.emotionalIntelligence || {};
     const memory = analysis.memory || {};
 
     return {
       questionType: analysis.questionType || "unknown",
+
       focusType: attention.focusType || "unknown",
       focusReason: attention.focusReason || "No focus reason.",
       primaryNeed: attention.primaryNeed || null,
@@ -290,6 +319,19 @@ const questionType = window.Ari.questionUnderstanding
       secondaryEmotions: emotion.secondaryEmotions || [],
       balance: emotion.balance || { brain: 70, heart: 20, soul: 10 },
 
+      surfaceEmotion:
+        emotionalIntelligence.surfaceEmotion?.name || null,
+      underlyingEmotion:
+        emotionalIntelligence.underlyingEmotion?.name || null,
+      emotionalTension:
+        emotionalIntelligence.emotionalTension?.level || null,
+      rootNeed:
+        emotionalIntelligence.rootNeed?.name || null,
+      protecting:
+        emotionalIntelligence.protecting?.name || null,
+      regulationStrategy:
+        emotionalIntelligence.regulation?.strategy || null,
+
       memoryCandidate: memory.shouldRemember ? memory : null,
 
       observationSource: observation.source || "unknown",
@@ -299,6 +341,10 @@ const questionType = window.Ari.questionUnderstanding
       executiveSource: executive.source || "unknown",
       insightSource: insight.source || "unknown",
       attentionSource: attention.source || "unknown",
+      emotionSource: emotion.source || "unknown",
+      emotionalIntelligenceSource:
+        emotionalIntelligence.source || "unknown",
+      memorySource: memory.source || "unknown",
 
       authorityHierarchy: window.Ari.authority
         ? window.Ari.authority.hierarchy
