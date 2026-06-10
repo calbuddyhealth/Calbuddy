@@ -31,31 +31,71 @@
   </main>
 
   <script src="ari/system/ari-loader.js"></script>
-<script src="ari/system/ari-authority.js"></script>
+  <script src="ari/system/ari-authority.js"></script>
 
-<script src="ari/observer-system/ari-observer-network.js"></script>
-<script src="ari/attention-system/ari-attention-system.js"></script>
-<script src="ari/language-system/ari-language-system.js"></script>
-<script src="ari/value-system/ari-value-engine.js"></script>
-<script src="ari/identity-system/ari-identity-engine.js"></script>
-<script src="ari/conflict-system/ari-conflict-engine.js"></script>
-<script src="ari/executive-system/ari-executive-function.js"></script>
-<script src="ari/brain/ari-router.js"></script>
-<script src="ari/heart/ari-emotion-engine.js"></script>
-<script src="ari/memory-system/ari-memory-engine.js"></script>
+  <script src="ari/observer-system/ari-observer-network.js"></script>
+  <script src="ari/attention-system/ari-attention-system.js"></script>
 
-<script src="ari/system/ari-core.js"></script>
-<script src="ari/system/ari-prompt-builder.js"></script>
-<script src="ari/system/ari-bootstrap.js"></script>
+  <script src="ari/value-system/ari-value-engine.js"></script>
+  <script src="ari/identity-system/ari-identity-engine.js"></script>
+  <script src="ari/conflict-system/ari-conflict-engine.js"></script>
+  <script src="ari/executive-system/ari-executive-function.js"></script>
+
+  <script src="ari/brain/ari-router.js"></script>
+  <script src="ari/heart/ari-emotion-engine.js"></script>
+  <script src="ari/memory-system/ari-memory-engine.js"></script>
+
+  <script src="ari/system/ari-core.js"></script>
+  <script src="ari/language-system/ari-language-system.js"></script>
+  <script src="ari/system/ari-prompt-builder.js"></script>
+  <script src="ari/system/ari-bootstrap.js"></script>
 
   <script>
     document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
       const message = document.getElementById("ariInput").value;
+
+      if (!message.trim()) {
+        document.getElementById("ariOutput").textContent =
+          "Enter a message first.";
+        return;
+      }
+
       const analysis = window.Ari.core.analyzeMessage(message, {});
       const summary = window.Ari.core.createSystemSummary(analysis);
 
+      const response = window.Ari.languageSystem.generate(
+        analysis,
+        {
+          length: "normal"
+        }
+      );
+
       document.getElementById("ariOutput").textContent =
-        JSON.stringify({ analysis, summary }, null, 2);
+`===== ARI RESPONSE =====
+
+${response}
+
+==================================================
+
+===== EXECUTIVE DECISION =====
+
+${summary.executiveDecision || "none"}
+
+Primary Priority:
+${summary.primaryPriority || "none"}
+
+Recommended Focus:
+${summary.recommendedFocus || "none"}
+
+Things To Delay:
+${(summary.thingsToDelay || []).join(", ") || "none"}
+
+==================================================
+
+===== SYSTEM SUMMARY =====
+
+${JSON.stringify(summary, null, 2)}
+`;
     });
   </script>
 </body>
