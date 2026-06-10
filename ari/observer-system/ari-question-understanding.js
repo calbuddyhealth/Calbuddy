@@ -32,14 +32,43 @@ window.Ari.questionUnderstanding = {
 
     if (
       this.containsAny(text, [
-        "what should i do",
-        "which should i choose",
-        "help me decide",
-        "what should i focus",
-        "what deserves my attention",
-        "which identity should become primary",
-        "what should i delay",
-        "prioritize"
+    "what pattern",
+
+    "what pattern do you see",
+
+    "what am i avoiding",
+
+    "what am i not seeing",
+
+    "what am i likely not seeing",
+
+    "central struggle",
+
+    "underneath",
+
+    "hidden conflict",
+
+    "blind spot",
+
+    "tell me something about me",
+
+    "why might i be doing that",
+
+    "what is really going on",
+
+    "what am i sacrificing",
+
+    "what am i likely sacrificing",
+
+    "what tradeoff",
+
+    "what am i giving up",
+
+    "what is this costing me",
+
+    "what cost am i ignoring",
+
+    "what am i paying for"
       ])
     ) {
       return "decision";
