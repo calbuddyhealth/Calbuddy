@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-network.js
 // Ari Observer Network
 // Purpose: Perceive emotional, intent, memory, goal, life-transition, and human-pattern signals before routing.
-// V2.8: Adds life transitions, role conflict, competing priorities, burnout risk, and life transition load.
+// V2.8.1: Improves promotion, provider conflict, opportunity cost, and regret detection.
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "2.8.0",
+  version: "2.8.1",
 
   normalize(message = "") {
     return String(message || "").toLowerCase().trim();
@@ -68,7 +68,7 @@ window.Ari.observerNetwork = {
       signals.push("compassion");
     }
 
-    if (this.containsAny(text, ["worried", "risk", "unsafe", "danger", "confused", "overwhelmed", "guilty"])) {
+    if (this.containsAny(text, ["worried", "risk", "unsafe", "danger", "confused", "overwhelmed", "guilty", "regret"])) {
       signals.push("concern");
     }
 
@@ -85,7 +85,19 @@ window.Ari.observerNetwork = {
       signals.push("determination");
     }
 
-    if (this.containsAny(text, ["responsibility", "provide", "protect", "family", "daughter", "son"])) {
+    if (this.containsAny(text, [
+      "responsibility",
+      "irresponsible",
+      "provide",
+      "protect",
+      "family",
+      "daughter",
+      "son",
+      "promotion",
+      "income",
+      "first child",
+      "wife"
+    ])) {
       signals.push("stewardship");
     }
 
@@ -144,7 +156,9 @@ window.Ari.observerNetwork = {
       "what deserves my attention",
       "help me decide",
       "figure out what matters",
-      "what matters most"
+      "what matters most",
+      "what am i not seeing",
+      "which choice"
     ])) {
       return "plan";
     }
@@ -235,7 +249,9 @@ window.Ari.observerNetwork = {
         "leaving the navy",
         "becoming a father",
         "planning a wedding",
-        "building ari rebirth"
+        "building ari rebirth",
+        "promotion",
+        "offered a promotion"
       ]),
 
       reflectionSignal: this.containsAny(text, [
@@ -259,7 +275,9 @@ window.Ari.observerNetwork = {
         "focus on first",
         "what deserves my attention",
         "help me decide",
-        "what matters most"
+        "what matters most",
+        "what am i not seeing",
+        "which choice"
       ]),
 
       wantsGrowth: this.containsAny(text, [
@@ -272,7 +290,9 @@ window.Ari.observerNetwork = {
         "healthier",
         "pursuing",
         "school",
-        "certification"
+        "certification",
+        "promotion",
+        "opportunity"
       ]),
 
       wantsBuild: this.containsAny(text, [
@@ -358,7 +378,13 @@ window.Ari.observerNetwork = {
         "graduate school",
         "school after military",
         "civilian career",
-        "leaving the navy"
+        "leaving the navy",
+        "promotion",
+        "offered a promotion",
+        "increase my income",
+        "longer hours",
+        "more travel",
+        "career opportunity"
       ]),
 
       retirement: this.containsAny(text, [
@@ -388,7 +414,15 @@ window.Ari.observerNetwork = {
       roles.push("builder");
     }
 
-    if (this.containsAny(text, ["provider", "support my family", "support my daughter", "protect my family"])) {
+    if (this.containsAny(text, [
+      "provider",
+      "support my family",
+      "support my daughter",
+      "protect my family",
+      "provide more for my family",
+      "income",
+      "promotion"
+    ])) {
       roles.push("provider");
     }
 
@@ -404,7 +438,10 @@ window.Ari.observerNetwork = {
       "all at the same time",
       "advance every goal equally",
       "deserves my attention",
-      "help me decide"
+      "help me decide",
+      "prioritize income or family",
+      "income or family",
+      "which choice"
     ]);
 
     const burnoutRisk = this.containsAny(text, [
@@ -429,7 +466,13 @@ window.Ari.observerNetwork = {
       "what should come first",
       "protect the others",
       "care deeply about",
-      "purpose"
+      "purpose",
+      "income or family",
+      "provide more for my family",
+      "miss moments",
+      "which choice",
+      "regret more",
+      "prioritize income or family"
     ]);
 
     const opportunityCost = this.containsAny(text, [
@@ -439,7 +482,16 @@ window.Ari.observerNetwork = {
       "cannot give 100%",
       "can't give 100%",
       "if i focus on",
-      "if i continue"
+      "if i continue",
+      "income or family",
+      "more money",
+      "more time",
+      "longer hours",
+      "more travel",
+      "miss moments",
+      "never get back",
+      "turning down the promotion",
+      "accepting it would require"
     ]);
 
     const futureRegretRisk = this.containsAny(text, [
@@ -447,12 +499,17 @@ window.Ari.observerNetwork = {
       "miss my son",
       "first year",
       "regret",
+      "regret more",
+      "which choice i would regret",
       "wish i had",
       "look back",
-      "family first"
+      "family first",
+      "miss moments",
+      "never get back"
     ]);
 
     const roleConflict =
+      roles.length >= 2 && competingPriorities ||
       roles.length >= 3 ||
       this.containsAny(text, [
         "multiple roles",
@@ -464,7 +521,8 @@ window.Ari.observerNetwork = {
         "father and",
         "husband and",
         "student and",
-        "provider and"
+        "provider and",
+        "prioritize income or family"
       ]);
 
     return {
@@ -545,7 +603,7 @@ window.Ari.observerNetwork = {
       topics.push("health");
     }
 
-    if (this.containsAny(text, ["lonely", "sad", "overwhelmed", "relationship", "feel", "guilty", "worried"])) {
+    if (this.containsAny(text, ["lonely", "sad", "overwhelmed", "relationship", "feel", "guilty", "worried", "regret"])) {
       topics.push("emotional");
     }
 
@@ -553,11 +611,11 @@ window.Ari.observerNetwork = {
       topics.push("ari-development");
     }
 
-    if (this.containsAny(text, ["plan", "roadmap", "next step", "focus", "attention", "decide"])) {
+    if (this.containsAny(text, ["plan", "roadmap", "next step", "focus", "attention", "decide", "prioritize"])) {
       topics.push("planning");
     }
 
-    if (this.containsAny(text, ["daughter", "son", "baby", "father", "mother", "pregnant", "pregnancy"])) {
+    if (this.containsAny(text, ["daughter", "son", "baby", "father", "mother", "pregnant", "pregnancy", "first child", "wife", "husband"])) {
       topics.push("family");
     }
 
@@ -565,11 +623,11 @@ window.Ari.observerNetwork = {
       topics.push("military-transition");
     }
 
-    if (this.containsAny(text, ["pmhnp", "school", "career", "job", "nurse practitioner"])) {
+    if (this.containsAny(text, ["pmhnp", "school", "career", "job", "nurse practitioner", "promotion", "income"])) {
       topics.push("career-transition");
     }
 
-    if (this.containsAny(text, ["wedding", "marriage", "fiance", "fiancée"])) {
+    if (this.containsAny(text, ["wedding", "marriage", "fiance", "fiancée", "wife", "husband"])) {
       topics.push("relationship-transition");
     }
 
