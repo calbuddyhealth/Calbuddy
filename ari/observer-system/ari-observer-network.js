@@ -1,11 +1,12 @@
 // ari/observer-system/ari-observer-network.js
 // Ari Observer Network
-// Purpose: Perceive emotional, intent, memory, goal, and context signals before routing.
+// Purpose: Perceive emotional, intent, memory, goal, life-transition, and human-pattern signals before routing.
+// V2.8: Adds life transitions, role conflict, competing priorities, burnout risk, and life transition load.
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "2.5.0",
+  version: "2.8.0",
 
   normalize(message = "") {
     return String(message || "").toLowerCase().trim();
@@ -17,7 +18,10 @@ window.Ari.observerNetwork = {
 
   observeConversation(text) {
     return {
-      hasQuestion: text.includes("?") || /^(how|what|why|when|where|can|should|do|does|is|are)\b/.test(text),
+      hasQuestion:
+        text.includes("?") ||
+        /^(how|what|why|when|where|can|should|do|does|is|are)\b/.test(text),
+
       hasDirectRequest: this.containsAny(text, [
         "help me",
         "can you",
@@ -30,8 +34,12 @@ window.Ari.observerNetwork = {
         "explain",
         "teach",
         "remember",
-        "forget"
+        "forget",
+        "tell me",
+        "do not give me",
+        "don't give me"
       ]),
+
       isSharing: this.containsAny(text, [
         "i am",
         "i'm",
@@ -42,8 +50,13 @@ window.Ari.observerNetwork = {
         "my name is",
         "i passed",
         "i want",
-        "i need"
+        "i need",
+        "my daughter",
+        "my son",
+        "my wife",
+        "my husband"
       ]),
+
       topicHints: this.detectTopics(text)
     };
   },
@@ -55,25 +68,34 @@ window.Ari.observerNetwork = {
       signals.push("compassion");
     }
 
-    if (this.containsAny(text, ["worried", "risk", "unsafe", "danger", "confused", "overwhelmed"])) {
+    if (this.containsAny(text, ["worried", "risk", "unsafe", "danger", "confused", "overwhelmed", "guilty"])) {
       signals.push("concern");
     }
 
-    if (this.containsAny(text, ["passed", "did it", "success", "great news", "finished"])) {
+    if (this.containsAny(text, ["passed", "did it", "success", "great news", "finished", "excited"])) {
       signals.push("joy");
       signals.push("pride");
     }
 
-    if (this.containsAny(text, ["what if", "imagine", "future", "possibility", "vision"])) {
+    if (this.containsAny(text, ["what if", "imagine", "future", "possibility", "vision", "someday"])) {
       signals.push("wonder");
     }
 
-    if (this.containsAny(text, ["stuck", "hard", "can't", "trying", "need to"])) {
+    if (this.containsAny(text, ["stuck", "hard", "can't", "trying", "need to", "pursuing"])) {
       signals.push("determination");
+    }
+
+    if (this.containsAny(text, ["responsibility", "provide", "protect", "family", "daughter", "son"])) {
+      signals.push("stewardship");
+    }
+
+    if (this.containsAny(text, ["hope", "hopeful", "future", "dream"])) {
+      signals.push("hope");
     }
 
     return {
       signals: [...new Set(signals)],
+
       hasEmotionalPain: this.containsAny(text, [
         "lonely",
         "sad",
@@ -83,15 +105,22 @@ window.Ari.observerNetwork = {
         "scared",
         "worried",
         "anxious",
-        "stressed"
+        "stressed",
+        "guilty",
+        "exhausted",
+        "burned out"
       ]),
+
       isTemporaryEmotion: this.containsAny(text, [
         "i am feeling",
         "i'm feeling",
         "i feel",
         "today",
         "right now",
-        "tonight"
+        "tonight",
+        "this morning",
+        "this afternoon",
+        "this evening"
       ])
     };
   },
@@ -105,7 +134,18 @@ window.Ari.observerNetwork = {
       return "forget";
     }
 
-    if (this.containsAny(text, ["help me create a plan", "make a plan", "create a plan", "roadmap", "next step"])) {
+    if (this.containsAny(text, [
+      "help me create a plan",
+      "make a plan",
+      "create a plan",
+      "roadmap",
+      "next step",
+      "what should i focus",
+      "what deserves my attention",
+      "help me decide",
+      "figure out what matters",
+      "what matters most"
+    ])) {
       return "plan";
     }
 
@@ -142,12 +182,14 @@ window.Ari.observerNetwork = {
         "going forward",
         "keep in mind"
       ]),
+
       forgetIntent: this.containsAny(text, [
         "forget that",
         "forget this",
         "delete that memory",
         "don't remember that"
       ]),
+
       identitySignal: this.containsAny(text, [
         "my name is",
         "call me",
@@ -157,22 +199,27 @@ window.Ari.observerNetwork = {
         "i work as",
         "my job is"
       ]),
+
       preferenceSignal: this.containsAny(text, [
         "i prefer",
         "i like when",
         "i don't like when",
         "i want you to",
-        "i need you to"
+        "i need you to",
+        "i value"
       ]),
+
       milestoneSignal: this.containsAny(text, [
         "milestone",
         "i passed",
         "i graduated",
         "got married",
         "baby was born",
-        "ari was born",
-        "ari rebirth"
+        "daughter was born",
+        "son was born",
+        "ari was born"
       ]),
+
       journeySignal: this.containsAny(text, [
         "i am trying to",
         "i'm trying to",
@@ -181,8 +228,16 @@ window.Ari.observerNetwork = {
         "i am working on",
         "i'm working on",
         "i am building",
-        "i'm building"
+        "i'm building",
+        "pmhnp journey",
+        "starting my pmhnp",
+        "pursuing pmhnp",
+        "leaving the navy",
+        "becoming a father",
+        "planning a wedding",
+        "building ari rebirth"
       ]),
+
       reflectionSignal: this.containsAny(text, [
         "i learned",
         "i realized",
@@ -195,74 +250,250 @@ window.Ari.observerNetwork = {
 
   observeGoals(text) {
     return {
-      wantsPlan: this.containsAny(text, ["plan", "roadmap", "next step", "milestone", "schedule"]),
-      wantsGrowth: this.containsAny(text, ["become", "improve", "better", "grow", "stronger", "healthier"]),
-      wantsBuild: this.containsAny(text, ["build", "create", "code", "debug", "architecture"]),
-      wantsHealth: this.containsAny(text, ["weight", "calorie", "nutrition", "exercise", "meal", "fitness"])
+      wantsPlan: this.containsAny(text, [
+        "plan",
+        "roadmap",
+        "next step",
+        "milestone",
+        "schedule",
+        "focus on first",
+        "what deserves my attention",
+        "help me decide",
+        "what matters most"
+      ]),
+
+      wantsGrowth: this.containsAny(text, [
+        "become",
+        "becoming",
+        "improve",
+        "better",
+        "grow",
+        "stronger",
+        "healthier",
+        "pursuing",
+        "school",
+        "certification"
+      ]),
+
+      wantsBuild: this.containsAny(text, [
+        "build",
+        "building",
+        "create",
+        "code",
+        "debug",
+        "architecture",
+        "ari rebirth"
+      ]),
+
+      wantsHealth: this.containsAny(text, [
+        "weight",
+        "calorie",
+        "nutrition",
+        "exercise",
+        "meal",
+        "fitness"
+      ])
     };
   },
-  
-observeLifeTransitions(text) {
-  return {
-    fatherhood: this.containsAny(text, [
-      "becoming a father",
-      "my daughter",
-      "my son",
-      "first child",
-      "future daughter",
-      "future son"
-    ]),
 
-    motherhood: this.containsAny(text, [
-      "becoming a mother",
-      "my baby",
-      "future child"
-    ]),
+  observeLifeTransitions(text) {
+    return {
+      fatherhood: this.containsAny(text, [
+        "becoming a father",
+        "become a father",
+        "about to become a father",
+        "my daughter",
+        "my son",
+        "first child",
+        "future daughter",
+        "future son"
+      ]),
 
-    pregnancy: this.containsAny(text, [
-      "pregnant",
-      "pregnancy",
-      "due in",
-      "expecting"
-    ]),
+      motherhood: this.containsAny(text, [
+        "becoming a mother",
+        "become a mother",
+        "about to become a mother",
+        "my baby",
+        "future child"
+      ]),
 
-    marriage: this.containsAny(text, [
-      "wife",
-      "husband",
-      "married",
-      "marriage"
-    ]),
+      pregnancy: this.containsAny(text, [
+        "pregnant",
+        "pregnancy",
+        "due in",
+        "expecting"
+      ]),
 
-    engagement: this.containsAny(text, [
-      "engaged",
-      "fiance",
-      "fiancée",
-      "planning a wedding"
-    ]),
+      marriage: this.containsAny(text, [
+        "wife",
+        "husband",
+        "married",
+        "marriage"
+      ]),
 
-    militaryTransition: this.containsAny(text, [
-      "leaving the navy",
-      "separating",
-      "retiring from military",
-      "getting out"
-    ]),
+      engagement: this.containsAny(text, [
+        "engaged",
+        "fiance",
+        "fiancée",
+        "planning a wedding",
+        "wedding"
+      ]),
 
-    careerTransition: this.containsAny(text, [
-      "career change",
-      "new career",
-      "changing careers",
-      "starting a new job"
-    ]),
+      militaryTransition: this.containsAny(text, [
+        "leaving the navy",
+        "leaving the military",
+        "separating",
+        "retiring from military",
+        "getting out",
+        "after years of service"
+      ]),
 
-    retirement: this.containsAny(text, [
-      "retirement",
-      "retiring"
-    ])
-  };
-},
+      careerTransition: this.containsAny(text, [
+        "career change",
+        "new career",
+        "changing careers",
+        "starting a new job",
+        "pmhnp",
+        "nurse practitioner",
+        "graduate school",
+        "school after military",
+        "civilian career",
+        "leaving the navy"
+      ]),
+
+      retirement: this.containsAny(text, [
+        "retirement",
+        "retiring"
+      ])
+    };
+  },
+
+  observeHumanPatterns(text, lifeTransitions = {}) {
+    const activeTransitions = Object.values(lifeTransitions).filter(Boolean).length;
+
+    const roles = [];
+
+    if (lifeTransitions.fatherhood) roles.push("father");
+    if (lifeTransitions.motherhood) roles.push("mother");
+    if (lifeTransitions.marriage) roles.push("spouse");
+    if (lifeTransitions.engagement) roles.push("fiance");
+    if (lifeTransitions.militaryTransition) roles.push("military-transitioning");
+    if (lifeTransitions.careerTransition) roles.push("career-transitioning");
+
+    if (this.containsAny(text, ["student", "school", "pmhnp", "graduate school"])) {
+      roles.push("student");
+    }
+
+    if (this.containsAny(text, ["build ari", "building ari", "ari rebirth", "founder", "business"])) {
+      roles.push("builder");
+    }
+
+    if (this.containsAny(text, ["provider", "support my family", "support my daughter", "protect my family"])) {
+      roles.push("provider");
+    }
+
+    const competingPriorities = this.containsAny(text, [
+      "what should i focus on",
+      "what matters most",
+      "cannot do everything",
+      "can't do everything",
+      "too much at once",
+      "which should come first",
+      "competing priorities",
+      "give 100%",
+      "all at the same time",
+      "advance every goal equally",
+      "deserves my attention",
+      "help me decide"
+    ]);
+
+    const burnoutRisk = this.containsAny(text, [
+      "burned out",
+      "burnout",
+      "exhausted",
+      "overwhelmed",
+      "spreading myself too thin",
+      "spread too thin",
+      "running out of energy",
+      "cannot give 100%",
+      "can't give 100%",
+      "too much at once"
+    ]);
+
+    const purposeConflict = this.containsAny(text, [
+      "what matters most",
+      "what i most need to hear",
+      "not what i want to hear",
+      "which should i sacrifice",
+      "what deserves my attention",
+      "what should come first",
+      "protect the others",
+      "care deeply about",
+      "purpose"
+    ]);
+
+    const opportunityCost = this.containsAny(text, [
+      "neglect one area",
+      "sacrifice",
+      "protect the others",
+      "cannot give 100%",
+      "can't give 100%",
+      "if i focus on",
+      "if i continue"
+    ]);
+
+    const futureRegretRisk = this.containsAny(text, [
+      "miss my daughter",
+      "miss my son",
+      "first year",
+      "regret",
+      "wish i had",
+      "look back",
+      "family first"
+    ]);
+
+    const roleConflict =
+      roles.length >= 3 ||
+      this.containsAny(text, [
+        "multiple roles",
+        "pulled in different directions",
+        "balance everything",
+        "cannot do everything",
+        "can't do everything",
+        "too many responsibilities",
+        "father and",
+        "husband and",
+        "student and",
+        "provider and"
+      ]);
+
+    return {
+      roles: [...new Set(roles)],
+      roleConflict,
+      competingPriorities,
+      burnoutRisk,
+      purposeConflict,
+      opportunityCost,
+      futureRegretRisk,
+
+      lifeTransitionLoad: {
+        count: activeTransitions,
+        level:
+          activeTransitions >= 5
+            ? "extreme"
+            : activeTransitions >= 3
+            ? "high"
+            : activeTransitions >= 1
+            ? "moderate"
+            : "low"
+      }
+    };
+  },
+
   observeRelationship(text, context = {}) {
     return {
       unknownUser: !context.userId && !context.profile,
+
       relationshipSignal: this.containsAny(text, [
         "friend",
         "companion",
@@ -271,13 +502,17 @@ observeLifeTransitions(text) {
         "talk to me",
         "listen to me"
       ]),
+
       communicationPreference: this.containsAny(text, [
         "talk to me",
         "be more",
         "be less",
         "direct feedback",
         "gentle",
-        "blunt"
+        "blunt",
+        "don't sugarcoat",
+        "no sugarcoating",
+        "what i need to hear"
       ])
     };
   },
@@ -310,7 +545,7 @@ observeLifeTransitions(text) {
       topics.push("health");
     }
 
-    if (this.containsAny(text, ["lonely", "sad", "overwhelmed", "relationship", "feel"])) {
+    if (this.containsAny(text, ["lonely", "sad", "overwhelmed", "relationship", "feel", "guilty", "worried"])) {
       topics.push("emotional");
     }
 
@@ -318,15 +553,33 @@ observeLifeTransitions(text) {
       topics.push("ari-development");
     }
 
-    if (this.containsAny(text, ["plan", "roadmap", "next step"])) {
+    if (this.containsAny(text, ["plan", "roadmap", "next step", "focus", "attention", "decide"])) {
       topics.push("planning");
     }
 
-    return topics;
+    if (this.containsAny(text, ["daughter", "son", "baby", "father", "mother", "pregnant", "pregnancy"])) {
+      topics.push("family");
+    }
+
+    if (this.containsAny(text, ["navy", "military", "service", "separating"])) {
+      topics.push("military-transition");
+    }
+
+    if (this.containsAny(text, ["pmhnp", "school", "career", "job", "nurse practitioner"])) {
+      topics.push("career-transition");
+    }
+
+    if (this.containsAny(text, ["wedding", "marriage", "fiance", "fiancée"])) {
+      topics.push("relationship-transition");
+    }
+
+    return [...new Set(topics)];
   },
 
   observe(message = "", context = {}) {
     const text = this.normalize(message);
+    const lifeTransitions = this.observeLifeTransitions(text);
+    const humanPatterns = this.observeHumanPatterns(text, lifeTransitions);
 
     const observation = {
       message,
@@ -336,9 +589,10 @@ observeLifeTransitions(text) {
       intent: this.observeIntent(text),
       memory: this.observeMemory(text),
       goals: this.observeGoals(text),
-lifeTransitions: this.observeLifeTransitions(text),
-relationship: this.observeRelationship(text, context),
-risk: this.observeRisk(text),
+      lifeTransitions,
+      humanPatterns,
+      relationship: this.observeRelationship(text, context),
+      risk: this.observeRisk(text),
       observedAt: new Date().toISOString(),
       source: "ari-observer-network"
     };
