@@ -1,13 +1,14 @@
 // ari/heart/ari-emotion-engine.js
 // Ari Emotion Engine
-// Purpose: Select Ari's companion-state emotions and response influence balance.
+// Purpose: Select Ari's emotional posture based on message, route, observation, values, identity, and conflict.
+// V2.0: Uses contextual emotional reasoning instead of keyword fallback.
 
 window.Ari = window.Ari || {};
 
 window.Ari.emotionEngine = {
-  version: "1.0.0",
+  version: "2.0.0",
 
-  coreEmotions: [
+  emotions: [
     "joy",
     "compassion",
     "concern",
@@ -20,114 +21,261 @@ window.Ari.emotionEngine = {
     "hope"
   ],
 
-  defaultBalance: {
-    brain: 70,
-    heart: 20,
-    soul: 10
+  containsAny(text, phrases = []) {
+    return phrases.some((phrase) => text.includes(phrase));
   },
 
-  contextBalances: {
-    technical: { brain: 85, heart: 5, soul: 10 },
-    emotionalPain: { brain: 50, heart: 40, soul: 10 },
-    purpose: { brain: 45, heart: 25, soul: 30 },
-    coaching: { brain: 65, heart: 20, soul: 15 },
-    safety: { brain: 70, heart: 10, soul: 20, guardianOverride: true }
-  },
+  selectEmotion(message = "", route = {}, context = {}) {
+    const text = String(message || "").toLowerCase();
 
-  emotionKeywords: {
-    joy: ["great", "good news", "happy", "won", "success", "passed", "finished"],
-    compassion: ["sad", "hurt", "lonely", "ashamed", "scared", "grief", "cry"],
-    concern: ["danger", "risk", "unsafe", "worried", "emergency", "missed med", "pain"],
-    curiosity: ["why", "how", "what does", "explain", "understand"],
-    wonder: ["what if", "imagine", "future", "possibility", "dream", "vision"],
-    pride: ["i did it", "passed", "completed", "finally", "progress", "kept going"],
-    determination: ["stuck", "hard", "can't", "avoid", "need to", "discipline"],
-    gratitude: ["thank you", "grateful", "appreciate", "meaningful"],
-    stewardship: ["help me build", "guide me", "mentor", "lead me", "make ari"],
-    hope: ["failed", "defeated", "hopeless", "can't do this", "try again"]
-  },
+    const observation = context.observation || {};
+    const values = context.values || {};
+    const identity = context.identity || {};
+    const conflicts = context.conflicts || {};
 
-  normalize(text = "") {
-    return String(text || "").toLowerCase().trim();
-  },
+    const emotionSignals = observation.emotion || {};
+    const humanPatterns = observation.humanPatterns || {};
+    const valuesAndConflicts = observation.valuesAndConflicts || {};
 
-  scoreEmotion(text, emotion) {
-    const keywords = this.emotionKeywords[emotion] || [];
-    let score = 0;
+    const scores = {
+      joy: 0,
+      compassion: 0,
+      concern: 0,
+      curiosity: 0,
+      wonder: 0,
+      pride: 0,
+      determination: 0,
+      gratitude: 0,
+      stewardship: 0,
+      hope: 0
+    };
 
-    for (const keyword of keywords) {
-      if (text.includes(keyword)) {
-        score += keyword.length > 8 ? 2 : 1;
+    const add = (emotion, points) => {
+      if (scores[emotion] !== undefined) {
+        scores[emotion] += points;
       }
+    };
+
+    // 1. Use Observer emotion signals first.
+    (emotionSignals.signals || []).forEach((signal) => {
+      add(signal, 10);
+    });
+
+    // 2. Emotional pain should create compassion/concern.
+    if (emotionSignals.hasEmotionalPain) {
+      add("compassion", 12);
+      add("concern", 8);
     }
 
-    return score;
+    // 3. Milestones and achievement.
+    if (
+      this.containsAny(text, [
+        "passed",
+        "graduated",
+        "finished",
+        "i did it",
+        "success"
+      ])
+    ) {
+      add("joy", 12);
+      add("pride", 10);
+    }
+
+    // 4. Responsibility / family / provider posture.
+    if (
+      values.values?.includes("family") ||
+      values.values?.includes("responsibility") ||
+      identity.identityHierarchy?.primary === "father" ||
+      identity.identityHierarchy?.primary === "mother" ||
+      this.containsAny(text, [
+        "daughter",
+        "son",
+        "family",
+        "wife",
+        "husband",
+        "first child",
+        "provide",
+        "protect",
+        "responsible",
+        "responsibility"
+      ])
+    ) {
+      add("stewardship", 15);
+      add("concern", 6);
+    }
+
+    // 5. Critical conflict or overload should raise concern.
+    if (
+      conflicts.conflictIntensity === "high" ||
+      conflicts.conflictIntensity === "critical" ||
+      humanPatterns.burnoutRisk ||
+      valuesAndConflicts.decisionPressure === "critical"
+    ) {
+      add("concern", 15);
+      add("stewardship", 8);
+    }
+
+    // 6. Future orientation / possibility.
+    if (
+      values.values?.includes("purpose") ||
+      values.values?.includes("creation") ||
+      this.containsAny(text, [
+        "future",
+        "someday",
+        "possibility",
+        "vision",
+        "could help people",
+        "ari rebirth"
+      ])
+    ) {
+      add("wonder", 8);
+      add("hope", 8);
+    }
+
+    // 7. Growth / effort / pursuit.
+    if (
+      values.values?.includes("growth") ||
+      this.containsAny(text, [
+        "trying",
+        "pursuing",
+        "become",
+        "school",
+        "pmhnp",
+        "build",
+        "building"
+      ])
+    ) {
+      add("determination", 8);
+    }
+
+    // 8. Route-based gentle shaping.
+    if (route.primaryOrgan === "companion") {
+      add("compassion", 6);
+    }
+
+    if (route.primaryOrgan === "planner") {
+      add("stewardship", 6);
+      add("determination", 4);
+    }
+
+    if (route.primaryOrgan === "teacher") {
+      add("curiosity", 6);
+    }
+
+    if (route.primaryOrgan === "explorer") {
+      add("wonder", 6);
+      add("curiosity", 4);
+    }
+
+    if (route.primaryOrgan === "storykeeper") {
+      add("pride", 8);
+      add("gratitude", 6);
+    }
+
+    // 9. Fallback only if nothing else fired.
+    const total = Object.values(scores).reduce((sum, value) => sum + value, 0);
+
+    if (total === 0) {
+      add("curiosity", 3);
+    }
+
+    const ranked = Object.entries(scores)
+      .map(([emotion, score]) => ({ emotion, score }))
+      .sort((a, b) => b.score - a.score);
+
+    const primaryEmotion = ranked[0]?.score > 0 ? ranked[0].emotion : "curiosity";
+
+    const secondaryEmotions = ranked
+      .filter((item) => item.emotion !== primaryEmotion && item.score > 0)
+      .slice(0, 2)
+      .map((item) => item.emotion);
+
+    const contextType = this.getContextType({
+      primaryEmotion,
+      observation,
+      values,
+      identity,
+      conflicts
+    });
+
+    return {
+      primaryEmotion,
+      secondaryEmotions,
+      contextType,
+      balance: this.getBalance(primaryEmotion, contextType),
+      intensity: this.getIntensity(ranked[0]?.score || 0),
+      scores: ranked,
+      source: "ari-emotion-engine"
+    };
   },
 
-  detectContext(route = {}, message = "") {
-    const text = this.normalize(message);
-
-    if (route.guardianRequired || route.primaryOrgan === "guardian") {
-      return "safety";
+  getContextType({ primaryEmotion, observation = {}, values = {}, identity = {}, conflicts = {} }) {
+    if (conflicts.conflictIntensity === "critical") {
+      return "criticalConflict";
     }
 
-    if (route.primaryOrgan === "builder") {
-      return "technical";
+    if (conflicts.conflictIntensity === "high") {
+      return "conflict";
     }
 
     if (
-      route.primaryOrgan === "companion" &&
-      (text.includes("sad") ||
-        text.includes("lonely") ||
-        text.includes("hurt") ||
-        text.includes("ashamed") ||
-        text.includes("overwhelmed"))
+      identity.dominantTheme === "identity_overload" ||
+      identity.dominantTheme === "identity_transition"
     ) {
+      return "identityTransition";
+    }
+
+    if (values.dominantValue === "family") {
+      return "familyResponsibility";
+    }
+
+    if (observation.emotion?.hasEmotionalPain) {
       return "emotionalPain";
     }
 
-    if (
-      route.primaryOrgan === "reflection" ||
-      text.includes("purpose") ||
-      text.includes("meaning") ||
-      text.includes("identity")
-    ) {
-      return "purpose";
+    if (primaryEmotion === "joy" || primaryEmotion === "pride") {
+      return "achievement";
     }
 
-    if (route.primaryOrgan === "coach") {
-      return "coaching";
+    if (primaryEmotion === "wonder" || primaryEmotion === "hope") {
+      return "purpose";
     }
 
     return "default";
   },
 
-  selectEmotion(message = "", route = {}) {
-    const text = this.normalize(message);
+  getBalance(primaryEmotion = "curiosity", contextType = "default") {
+    if (contextType === "criticalConflict") {
+      return { brain: 60, heart: 25, soul: 15 };
+    }
 
-    const scores = this.coreEmotions.map(emotion => ({
-      emotion,
-      score: this.scoreEmotion(text, emotion)
-    }));
+    if (contextType === "identityTransition") {
+      return { brain: 50, heart: 25, soul: 25 };
+    }
 
-    scores.sort((a, b) => b.score - a.score);
+    if (contextType === "familyResponsibility") {
+      return { brain: 55, heart: 30, soul: 15 };
+    }
 
-    const primary = scores[0]?.score > 0 ? scores[0].emotion : "curiosity";
+    if (contextType === "emotionalPain") {
+      return { brain: 50, heart: 40, soul: 10 };
+    }
 
-    const secondary = scores
-      .filter(item => item.score > 0 && item.emotion !== primary)
-      .slice(0, 2)
-      .map(item => item.emotion);
+    if (contextType === "purpose") {
+      return { brain: 45, heart: 25, soul: 30 };
+    }
 
-    const contextType = this.detectContext(route, message);
+    if (primaryEmotion === "stewardship") {
+      return { brain: 60, heart: 25, soul: 15 };
+    }
 
-    return {
-      primaryEmotion: primary,
-      secondaryEmotions: secondary,
-      contextType,
-      balance: this.contextBalances[contextType] || this.defaultBalance,
-      intensity: scores[0]?.score >= 2 ? "medium" : "low",
-      scores
-    };
+    return { brain: 70, heart: 20, soul: 10 };
+  },
+
+  getIntensity(score = 0) {
+    if (score >= 30) return "high";
+    if (score >= 15) return "medium";
+    if (score > 0) return "low";
+    return "low";
   }
 };
