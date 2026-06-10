@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-network.js
 // Ari Observer Network
-// Purpose: Perceive emotional, intent, memory, goal, life-transition, and human-pattern signals before routing.
-// V2.8.1: Improves promotion, provider conflict, opportunity cost, and regret detection.
+// Purpose: Perceive emotional, intent, memory, goal, life-transition, human-pattern, values, and conflict signals before routing.
+// V2.9: Adds values and hidden conflict detection.
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "2.8.1",
+  version: "2.9.0",
 
   normalize(message = "") {
     return String(message || "").toLowerCase().trim();
@@ -509,7 +509,7 @@ window.Ari.observerNetwork = {
     ]);
 
     const roleConflict =
-      roles.length >= 2 && competingPriorities ||
+      (roles.length >= 2 && competingPriorities) ||
       roles.length >= 3 ||
       this.containsAny(text, [
         "multiple roles",
@@ -545,6 +545,163 @@ window.Ari.observerNetwork = {
             ? "moderate"
             : "low"
       }
+    };
+  },
+
+  observeValuesAndConflicts(text, humanPatterns = {}) {
+    const values = [];
+
+    if (this.containsAny(text, [
+      "tell me what i need to hear",
+      "what i need to hear",
+      "direct feedback",
+      "truth",
+      "honest",
+      "do not give me encouragement",
+      "don't sugarcoat",
+      "no sugarcoating"
+    ])) {
+      values.push("truth");
+    }
+
+    if (this.containsAny(text, [
+      "accountability",
+      "hold me accountable",
+      "what i need to hear",
+      "not what i want to hear"
+    ])) {
+      values.push("accountability");
+    }
+
+    if (this.containsAny(text, [
+      "daughter",
+      "son",
+      "family",
+      "wife",
+      "husband",
+      "first child",
+      "baby"
+    ])) {
+      values.push("family");
+    }
+
+    if (this.containsAny(text, [
+      "responsibility",
+      "irresponsible",
+      "provide",
+      "protect",
+      "provider"
+    ])) {
+      values.push("responsibility");
+    }
+
+    if (this.containsAny(text, [
+      "pmhnp",
+      "growth",
+      "improve",
+      "become",
+      "promotion",
+      "opportunity"
+    ])) {
+      values.push("growth");
+    }
+
+    if (this.containsAny(text, [
+      "ari rebirth",
+      "build",
+      "building",
+      "create",
+      "founder"
+    ])) {
+      values.push("creation");
+    }
+
+    if (this.containsAny(text, [
+      "service",
+      "navy",
+      "military",
+      "take care of others",
+      "support others"
+    ])) {
+      values.push("service");
+    }
+
+    const coreConflicts = [];
+
+    if (
+      this.containsAny(text, ["promotion", "career", "income", "opportunity", "longer hours", "more travel"]) &&
+      this.containsAny(text, ["daughter", "son", "family", "first child", "wife", "husband"])
+    ) {
+      coreConflicts.push("ambition_vs_presence");
+    }
+
+    if (
+      this.containsAny(text, ["school", "pmhnp", "career change", "promotion", "opportunity"]) &&
+      this.containsAny(text, ["security", "stable", "safe", "income", "provide"])
+    ) {
+      coreConflicts.push("growth_vs_stability");
+    }
+
+    if (
+      this.containsAny(text, ["everyone else", "take care of others", "support everyone", "provide", "protect"]) &&
+      this.containsAny(text, ["burned out", "exhausted", "overwhelmed", "too much"])
+    ) {
+      coreConflicts.push("service_vs_self");
+    }
+
+    if (this.containsAny(text, ["leaving the navy", "leaving the military", "after years of service"])) {
+      coreConflicts.push("identity_vs_transition");
+    }
+
+    if (
+      this.containsAny(text, ["income or family", "provide more for my family"]) ||
+      (
+        this.containsAny(text, ["income", "promotion", "more money"]) &&
+        this.containsAny(text, ["family", "daughter", "son", "first child"])
+      )
+    ) {
+      coreConflicts.push("provider_vs_present_parent");
+    }
+
+    let decisionPressure = "low";
+
+    if (humanPatterns.competingPriorities && humanPatterns.roleConflict) {
+      decisionPressure = "medium";
+    }
+
+    if (
+      humanPatterns.lifeTransitionLoad &&
+      humanPatterns.lifeTransitionLoad.level === "high"
+    ) {
+      decisionPressure = "high";
+    }
+
+    if (
+      humanPatterns.lifeTransitionLoad &&
+      humanPatterns.lifeTransitionLoad.level === "extreme"
+    ) {
+      decisionPressure = "critical";
+    }
+
+    if (humanPatterns.futureRegretRisk && humanPatterns.opportunityCost) {
+      decisionPressure = decisionPressure === "low" ? "medium" : decisionPressure;
+    }
+
+    const sacrificeDetected = this.containsAny(text, [
+      "sacrifice",
+      "neglect",
+      "protect the others",
+      "cannot do everything",
+      "can't do everything",
+      "miss moments",
+      "never get back"
+    ]);
+
+    return {
+      values: [...new Set(values)],
+      coreConflicts: [...new Set(coreConflicts)],
+      decisionPressure,
+      sacrificeDetected
     };
   },
 
@@ -638,6 +795,7 @@ window.Ari.observerNetwork = {
     const text = this.normalize(message);
     const lifeTransitions = this.observeLifeTransitions(text);
     const humanPatterns = this.observeHumanPatterns(text, lifeTransitions);
+    const valuesAndConflicts = this.observeValuesAndConflicts(text, humanPatterns);
 
     const observation = {
       message,
@@ -649,6 +807,7 @@ window.Ari.observerNetwork = {
       goals: this.observeGoals(text),
       lifeTransitions,
       humanPatterns,
+      valuesAndConflicts,
       relationship: this.observeRelationship(text, context),
       risk: this.observeRisk(text),
       observedAt: new Date().toISOString(),
