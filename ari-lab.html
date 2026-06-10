@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ari Lab</title>
+</head>
+
+<body>
+  <main style="max-width: 720px; margin: 40px auto; padding: 20px; font-family: system-ui;">
+    <h1>Ari Lab</h1>
+    <p>A standalone test space for Ari Rebirth.</p>
+
+    <textarea
+      id="ariInput"
+      placeholder="Talk with Ari..."
+      style="width: 100%; min-height: 120px; padding: 14px; font-size: 16px;"
+    ></textarea>
+
+    <button
+      id="ariAnalyzeBtn"
+      style="margin-top: 12px; padding: 12px 18px; font-weight: 700;"
+    >
+      Analyze with Ari
+    </button>
+
+    <pre
+      id="ariOutput"
+      style="margin-top: 20px; padding: 16px; background: #111827; color: #d1fae5; white-space: pre-wrap;"
+    ></pre>
+  </main>
+
+  <script src="ari/system/ari-loader.js"></script>
+  <script src="ari/system/ari-authority.js"></script>
+  <script src="ari/brain/ari-router.js"></script>
+  <script src="ari/heart/ari-emotion-engine.js"></script>
+  <script src="ari/memory-system/ari-memory-engine.js"></script>
+  <script src="ari/system/ari-core.js"></script>
+  <script src="ari/system/ari-prompt-builder.js"></script>
+  <script src="ari/system/ari-bootstrap.js"></script>
+
+  <script>
+    document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
+      const message = document.getElementById("ariInput").value;
+      const analysis = window.Ari.core.analyzeMessage(message, {});
+      const summary = window.Ari.core.createSystemSummary(analysis);
+
+      document.getElementById("ariOutput").textContent =
+        JSON.stringify({ analysis, summary }, null, 2);
+    });
+  </script>
+</body>
+</html>
