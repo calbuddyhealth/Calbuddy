@@ -145,7 +145,13 @@ window.Ari.core = {
     );
 
     const emotion = window.Ari.emotionEngine
-      ? window.Ari.emotionEngine.selectEmotion(message, route)
+  ? window.Ari.emotionEngine.selectEmotion(message, route, {
+      observation,
+      values,
+      identity,
+      conflicts,
+      attention
+    })
       : {
           primaryEmotion: "curiosity",
           secondaryEmotions: [],
