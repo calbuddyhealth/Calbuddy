@@ -1,12 +1,12 @@
 // ari/executive-system/ari-executive-function.js
 // Ari Executive Function
 // Purpose: Decide what deserves priority based on observation, values, identity, conflict, and emotion.
-// V1.0
+// V1.1: Adds stronger delay logic for family vs career / provider vs present parent conflicts.
 
 window.Ari = window.Ari || {};
 
 window.Ari.executiveFunction = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   decide({ observation = {}, values = {}, identity = {}, conflicts = {}, emotion = {} } = {}) {
     const priorities = [];
@@ -75,6 +75,7 @@ window.Ari.executiveFunction = {
     const secondaryPriorities = priorities.slice(1, 4);
 
     const thingsToDelay = this.getThingsToDelay({
+      primaryPriority,
       priorities,
       values,
       identity,
@@ -99,37 +100,80 @@ window.Ari.executiveFunction = {
     };
   },
 
-  getThingsToDelay({ priorities = [], values = {}, identity = {}, conflicts = {}, observation = {} } = {}) {
+  getThingsToDelay({
+    primaryPriority = null,
+    priorities = [],
+    values = {},
+    identity = {},
+    conflicts = {},
+    observation = {}
+  } = {}) {
     const delay = [];
     const life = observation.lifeTransitions || {};
     const patterns = observation.humanPatterns || {};
+    const primaryConflict = conflicts.primaryConflict?.name || "";
+    const conflictNames = (conflicts.conflicts || []).map((item) => item.name);
+
+    const addDelay = (name, reason) => {
+      if (!delay.some((item) => item.name === name)) {
+        delay.push({ name, reason });
+      }
+    };
+
+    if (
+      primaryPriority?.name === "family" &&
+      (
+        primaryConflict === "provider_vs_present_parent" ||
+        conflictNames.includes("provider_vs_present_parent") ||
+        conflictNames.includes("family_vs_achievement") ||
+        patterns.opportunityCost
+      )
+    ) {
+      addDelay(
+        "career-acceleration",
+        "Protect family presence during a major life transition instead of maximizing career growth."
+      );
+    }
+
+    if (
+      primaryPriority?.name === "family" &&
+      identity.dominantIdentity?.name === "father"
+    ) {
+      addDelay(
+        "nonessential-expansion",
+        "Avoid adding major new commitments during the first year of fatherhood."
+      );
+    }
 
     if (
       values.values?.includes("creation") &&
       life.fatherhood &&
-      patterns.lifeTransitionLoad?.level === "extreme"
+      (
+        patterns.lifeTransitionLoad?.level === "extreme" ||
+        conflictNames.includes("family_vs_creation")
+      )
     ) {
-      delay.push({
-        name: "creation",
-        reason: "Ari Rebirth should become maintenance mode during extreme family/life transition load."
-      });
+      addDelay(
+        "creation-scaling",
+        "Keep Ari Rebirth alive, but avoid large-scale expansion during a family transition season."
+      );
     }
 
     if (
       values.values?.includes("growth") &&
       patterns.lifeTransitionLoad?.level === "extreme"
     ) {
-      delay.push({
-        name: "career-acceleration",
-        reason: "Career growth should continue, but not at full acceleration during extreme transition load."
-      });
+      addDelay(
+        "career-acceleration",
+        "Career growth should continue, but not at full acceleration during extreme transition load."
+      );
     }
 
     if (patterns.burnoutRisk) {
-      delay.push({
-        name: "nonessential-expansion",
-        reason: "Avoid expanding optional goals while burnout risk is active."
-      });
+      addDelay(
+        "nonessential-expansion",
+        "Avoid expanding optional goals while burnout risk is active."
+      );
     }
 
     return delay;
@@ -171,9 +215,9 @@ window.Ari.executiveFunction = {
       return "Prioritize choices that protect irreplaceable time and reduce future regret.";
     }
 
-    return `Prioritize ${primaryPriority.name} while delaying: ${thingsToDelay
-      .map((item) => item.name)
-      .join(", ") || "nothing major"}.`;
+    return `Prioritize ${primaryPriority.name} while delaying: ${
+      thingsToDelay.map((item) => item.name).join(", ") || "nothing major"
+    }.`;
   },
 
   getReasoning({ primaryPriority = null, priorities = [], conflicts = {}, identity = {}, values = {} } = {}) {
