@@ -1,19 +1,24 @@
 // ari/language-system/ari-language-system.js
 // Ari Language System
-// Purpose: Convert Ari's deep analysis into short, human, useful responses.
-// V3.0: Adds question-type routing so insight questions use Insight before Executive.
+// Purpose: Convert Ari's analysis into short, human, useful responses.
+// V4.0: Speaks from Meaning, Insight, Belief, Person Model, Simulation, and Emotional Intelligence.
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageSystem = {
-  version: "3.0.0",
+  version: "4.0.0",
 
   generate(analysis = {}, options = {}) {
     const summary = window.Ari.core
       ? window.Ari.core.createSystemSummary(analysis)
       : {};
 
-    const questionType = analysis.questionType || summary.questionType || "understanding";
+    const questionType =
+      analysis.questionType || summary.questionType || "understanding";
+
+    if (questionType === "meaning") {
+      return this.generateMeaningResponse(analysis, summary);
+    }
 
     if (questionType === "insight") {
       return this.generateInsightResponse(analysis, summary);
@@ -23,274 +28,425 @@ window.Ari.languageSystem = {
       return this.generateEmotionalResponse(analysis, summary);
     }
 
-    const length = options.length || this.chooseLength(analysis);
-    const style = options.style || this.chooseStyle(analysis);
-
-    const coreInsight = this.getCoreInsight(analysis, summary);
-    const direction = this.getDirection(analysis, summary);
-    const nextStep = this.getNextStep(analysis, summary);
-
-    if (length === "brief") {
-      return this.briefResponse(coreInsight, direction, nextStep);
+    if (questionType === "decision") {
+      return this.generateDecisionResponse(analysis, summary);
     }
 
-    if (length === "deep") {
-      return this.deepResponse(coreInsight, direction, nextStep, analysis, summary);
+    if (questionType === "planning") {
+      return this.generatePlanningResponse(analysis, summary);
     }
 
-    return this.normalResponse(coreInsight, direction, nextStep, style);
+    if (questionType === "building") {
+      return this.generateBuildingResponse(analysis, summary);
+    }
+
+    return this.generateDefaultResponse(analysis, summary);
   },
 
-  chooseLength(analysis = {}) {
-    const text = analysis.message || "";
+  generateMeaningResponse(analysis = {}, summary = {}) {
+    const meaning = analysis.meaning || {};
+    const insight = analysis.insight || {};
+    const personModel = analysis.personModel || {};
+    const beliefModel = analysis.beliefModel || {};
+    const simulation = analysis.simulation || {};
 
-    if (text.length < 80) return "brief";
+    const humanTruth = meaning.humanTruth;
+    const meaningStatement = meaning.meaning;
+    const oneLineInsight = insight.oneLineInsight;
+    const lifeChapter = personModel.lifeChapter?.name;
+    const primaryBelief = beliefModel.primaryBelief?.name;
+    const simulationTheme = simulation.primarySimulation?.theme;
 
-    if (
-      text.includes("why") ||
-      text.includes("what am i actually") ||
-      text.includes("hidden conflict") ||
-      text.includes("meaning")
-    ) {
-      return "deep";
+    const lines = [];
+
+    if (humanTruth) {
+      lines.push(humanTruth);
+    } else if (meaningStatement) {
+      lines.push(meaningStatement);
+    } else if (oneLineInsight) {
+      lines.push(oneLineInsight);
+    } else {
+      lines.push("This moment seems to be asking for meaning, not just action.");
     }
 
-    return "normal";
-  },
+    if (lifeChapter && lifeChapter !== "unclear") {
+      lines.push("");
+      lines.push(this.humanizeLifeChapter(lifeChapter));
+    }
 
-  chooseStyle(analysis = {}) {
-    const emotion = analysis.emotion || {};
-    const executive = analysis.executive || {};
+    if (oneLineInsight && oneLineInsight !== humanTruth) {
+      lines.push("");
+      lines.push(oneLineInsight);
+    }
 
-    if (executive.executiveDecision) return "steward";
+    if (primaryBelief && primaryBelief !== "unclear") {
+      lines.push("");
+      lines.push(this.humanizeBelief(primaryBelief));
+    }
 
-    if (emotion.primaryEmotion === "compassion") return "companion";
+    if (simulationTheme) {
+      lines.push("");
+      lines.push(this.humanizeSimulationTheme(simulationTheme));
+    }
 
-    return "clear";
+    return this.finalize(lines.join("\n"));
   },
 
   generateInsightResponse(analysis = {}, summary = {}) {
     const insight = analysis.insight || {};
-    const text = String(analysis.message || "").toLowerCase();
+    const pattern = insight.pattern || {};
+    const hiddenConflict = insight.hiddenConflict || {};
+    const tradeoff = insight.tradeoff || {};
+    const hiddenMotive = insight.hiddenMotive || {};
+    const oneLineInsight = insight.oneLineInsight;
 
-    if (
-      text.includes("central struggle") ||
-      text.includes("summarize the central struggle")
-    ) {
-      return this.applyWisdomCompression(
-        "Your central struggle is trying to honor every important identity at once without accepting that life moves in seasons."
-      );
+    const lines = [];
+
+    if (oneLineInsight) {
+      lines.push(this.withConfidencePrefix(oneLineInsight, this.highestConfidence([
+        pattern,
+        hiddenConflict,
+        tradeoff,
+        hiddenMotive
+      ])));
+    } else {
+      lines.push("I think there is something here, but Ari does not have enough signal to name it cleanly yet.");
     }
 
-    if (
-      text.includes("what pattern") ||
-      text.includes("pattern do you see")
-    ) {
-      if (insight.pattern?.name && insight.pattern.name !== "unclear") {
-        return this.applyWisdomCompression(
-          `${insight.oneLineInsight || "I see a pattern."}\n\nThe pattern is ${this.humanizeLabel(insight.pattern.name)}.`
-        );
-      }
-
-      return this.applyWisdomCompression(
-        "The pattern is not that life keeps getting harder.\n\nThe pattern is that peace keeps getting placed on the other side of the next achievement."
-      );
+    if (pattern.name && pattern.name !== "unclear") {
+      lines.push("");
+      lines.push(this.humanizePattern(pattern.name));
     }
 
-    if (
-      text.includes("what am i avoiding") ||
-      text.includes("what am i not seeing") ||
-      text.includes("blind spot")
-    ) {
-      if (insight.avoidance?.name && insight.avoidance.name !== "none_detected") {
-        return this.applyWisdomCompression(
-          `${insight.oneLineInsight || "There is something you may not want to name yet."}\n\nYou may already know the answer. The hard part is accepting what it costs.`
-        );
-      }
-
-      return this.applyWisdomCompression(
-        "You may not be avoiding the answer.\n\nYou may be avoiding the cost of accepting it."
-      );
+    if (tradeoff.name && tradeoff.name !== "none_detected") {
+      lines.push("");
+      lines.push(this.humanizeTradeoff(tradeoff.name));
     }
 
-    if (insight.oneLineInsight) {
-      return this.applyWisdomCompression(insight.oneLineInsight);
+    if (hiddenConflict.name && hiddenConflict.name !== "unclear") {
+      lines.push("");
+      lines.push(this.humanizeHiddenConflict(hiddenConflict.name));
     }
 
-    return "I think there is something important here, but Ari does not have enough context yet to name it cleanly.";
+    return this.finalize(lines.join("\n"));
   },
 
   generateEmotionalResponse(analysis = {}, summary = {}) {
-    const emotion = analysis.emotion || {};
-    const primaryEmotion = emotion.primaryEmotion || "concern";
+    const emotionalIntelligence = analysis.emotionalIntelligence || {};
+    const surface = emotionalIntelligence.surfaceEmotion?.name;
+    const underlying = emotionalIntelligence.underlyingEmotion?.name;
+    const rootNeed = emotionalIntelligence.rootNeed?.name;
+    const protecting = emotionalIntelligence.protecting?.name;
 
-    if (primaryEmotion === "compassion" || primaryEmotion === "concern") {
-      return this.applyWisdomCompression(
-        "Slow down.\n\nThis is not weakness. This is your system telling you something matters and needs care."
-      );
+    const lines = [];
+
+    if (underlying && underlying !== "unclear") {
+      lines.push(this.humanizeUnderlyingEmotion(underlying));
+    } else if (surface && surface !== "curiosity") {
+      lines.push(this.humanizeSurfaceEmotion(surface));
+    } else {
+      lines.push("The feeling matters. It is information, not noise.");
     }
 
-    if (primaryEmotion === "stewardship") {
-      return this.applyWisdomCompression(
-        "You are trying to protect something important.\n\nBefore you act, name what cannot be replaced."
-      );
+    if (rootNeed) {
+      lines.push("");
+      lines.push(this.humanizeRootNeed(rootNeed));
     }
 
-    return this.applyWisdomCompression(
-      "The feeling matters.\n\nDo not ignore it, but do not let it drive alone."
+    if (protecting) {
+      lines.push("");
+      lines.push(this.humanizeProtecting(protecting));
+    }
+
+    return this.finalize(lines.join("\n"));
+  },
+
+  generateDecisionResponse(analysis = {}, summary = {}) {
+    const executive = analysis.executive || {};
+    const meaning = analysis.meaning || {};
+    const insight = analysis.insight || {};
+    const simulation = analysis.simulation || {};
+
+    const lines = [];
+
+    if (meaning.humanTruth) {
+      lines.push(meaning.humanTruth);
+    } else if (insight.oneLineInsight) {
+      lines.push(insight.oneLineInsight);
+    } else if (executive.recommendedFocus) {
+      lines.push(executive.recommendedFocus);
+    } else {
+      lines.push("One thing needs to lead. The rest need to support.");
+    }
+
+    if (executive.recommendedFocus) {
+      lines.push("");
+      lines.push(executive.recommendedFocus);
+    }
+
+    if (simulation.primarySimulation?.theme) {
+      lines.push("");
+      lines.push(this.humanizeSimulationTheme(simulation.primarySimulation.theme));
+    }
+
+    const delay = executive.thingsToDelay || [];
+    if (delay.length > 0) {
+      lines.push("");
+      lines.push(`Delay: ${delay.map((item) => item.name).join(", ")}.`);
+    }
+
+    return this.finalize(lines.join("\n"));
+  },
+
+  generatePlanningResponse(analysis = {}, summary = {}) {
+    const executive = analysis.executive || {};
+    const insight = analysis.insight || {};
+
+    const lines = [];
+
+    if (insight.oneLineInsight) {
+      lines.push(insight.oneLineInsight);
+      lines.push("");
+    }
+
+    lines.push(
+      executive.recommendedFocus ||
+        "Choose one next action instead of trying to solve everything at once."
+    );
+
+    const delay = executive.thingsToDelay || [];
+    if (delay.length > 0) {
+      lines.push("");
+      lines.push(`First, slow down: ${delay[0].name}.`);
+    }
+
+    return this.finalize(lines.join("\n"));
+  },
+
+  generateBuildingResponse(analysis = {}, summary = {}) {
+    return this.finalize(
+      "This is a building question.\n\nFocus on the next clean change, not the whole architecture at once."
     );
   },
 
-  humanizeLabel(label = "") {
-    const labels = {
-      too_many_primary_roles: "trying to make too many roles primary at the same time",
-      service_without_recovery: "serving without protecting your recovery",
-      growth_scattered_across_too_many_paths: "spreading growth across too many demanding paths",
-      family_vs_purpose: "protecting family while fearing you are betraying purpose",
-      identity_overload: "carrying too many identities at full strength",
-      provider_vs_presence: "confusing providing more with being present more",
-      chosen_sacrifice: "needing to choose one sacrifice instead of letting life choose it for you"
-    };
-
-    return labels[label] || label.replaceAll("_", " ");
-  },
-
-  getCoreInsight(analysis = {}, summary = {}) {
-    if (summary.primaryPriority === "family") {
-      return "For this season, family comes first.";
-    }
-
-    if (summary.primaryConflict === "identity_vs_transition") {
-      return "The real conflict is not just your goals. It is who gets to become primary next.";
-    }
-
-    if (summary.conflictIntensity === "critical") {
-      return "You are carrying too many major priorities at the same time.";
-    }
-
-    if (summary.dominantValue) {
-      return `Your strongest value here appears to be ${summary.dominantValue}.`;
-    }
-
-    return "The important thing is to identify what matters most before acting.";
-  },
-
-  getDirection(analysis = {}, summary = {}) {
+  generateDefaultResponse(analysis = {}, summary = {}) {
+    const meaning = analysis.meaning || {};
+    const insight = analysis.insight || {};
     const executive = analysis.executive || {};
 
+    if (meaning.humanTruth) {
+      return this.finalize(meaning.humanTruth);
+    }
+
+    if (insight.oneLineInsight) {
+      return this.finalize(insight.oneLineInsight);
+    }
+
     if (executive.recommendedFocus) {
-      return executive.recommendedFocus;
+      return this.finalize(executive.recommendedFocus);
     }
 
-    if (summary.needsExecutiveFunction) {
-      return "Do not treat every goal as equal. One has to lead, and the others need to support it.";
-    }
-
-    return "Move slowly enough to make a clear decision.";
+    return "I need a little more context before I can name this cleanly.";
   },
 
-  getNextStep(analysis = {}, summary = {}) {
-    const delay = summary.thingsToDelay || [];
+  highestConfidence(signals = []) {
+    const rank = {
+      high: 3,
+      medium: 2,
+      low: 1,
+      unknown: 0
+    };
 
-    if (delay.length > 0) {
-      return `Put ${this.humanizeLabel(delay[0])} into maintenance mode first.`;
-    }
+    const best = signals
+      .filter(Boolean)
+      .sort((a, b) => (rank[b.confidence] || 0) - (rank[a.confidence] || 0))[0];
 
-    if (summary.primaryPriority) {
-      return `Protect ${this.humanizeLabel(summary.primaryPriority)} this week with one concrete action.`;
-    }
-
-    return "Choose one next action instead of trying to solve everything at once.";
+    return best?.confidence || "low";
   },
 
-  compressInsight(text = "") {
-    const replacements = [
-      {
-        from: "For this season, family comes first.",
-        to: "Some opportunities return.\nFamily moments don't."
-      },
-      {
-        from: "Make family the primary focus for this season. Keep other identities alive, but do not let them compete equally.",
-        to: "Keep your other ambitions alive.\nJust don't let them sit in the driver's seat."
-      },
-      {
-        from: "The move is simple: Protect family this week with one concrete action.",
-        to: "This week, protect one family moment on purpose."
-      },
-      {
-        from: "The tradeoff is that something meaningful may need to slow down so something irreplaceable can be protected.",
-        to: "The tradeoff is simple:\nSomething meaningful may need to slow down so something irreplaceable can be protected."
-      },
-      {
-        from: "You are carrying too many major priorities at the same time.",
-        to: "You are carrying too many futures at once."
-      },
-      {
-        from: "Do not treat every goal as equal. One has to lead, and the others need to support it.",
-        to: "Not every goal gets to be first.\nOne leads. The others support."
-      },
-      {
-        from: "Put career-acceleration into maintenance mode first.",
-        to: "Slow the career sprint first."
-      },
-      {
-        from: "Put nonessential-expansion into maintenance mode first.",
-        to: "Stop adding extra battles first."
-      },
-      {
-        from: "Put creation-scaling into maintenance mode first.",
-        to: "Keep creating, but stop scaling for now."
-      }
-    ];
-
-    let result = text;
-
-    replacements.forEach((rule) => {
-      result = result.replace(rule.from, rule.to);
-    });
-
-    return result;
+  withConfidencePrefix(text = "", confidence = "low") {
+    if (confidence === "high") return text;
+    if (confidence === "medium") return `I could be wrong, but ${text}`;
+    return `This is only a weak signal, but ${text}`;
   },
 
-  applyWisdomCompression(response = "") {
-    return this.compressInsight(response).trim();
+  humanizeLifeChapter(name = "") {
+    const map = {
+      fatherhood_and_transition:
+        "This is a double transition: becoming a father while also leaving an old service chapter.",
+      entering_fatherhood:
+        "This chapter is about becoming someone your child can depend on.",
+      career_and_identity_transition:
+        "This chapter is about letting one career identity change shape while another one forms.",
+      family_transition:
+        "This chapter is pulling you from achievement-centered success toward relationship-centered success.",
+      fatherhood_transition:
+        "This chapter is less about becoming perfect and more about becoming steady."
+    };
+
+    return map[name] || `This chapter appears to be about ${name.replaceAll("_", " ")}.`;
   },
 
-  briefResponse(coreInsight, direction, nextStep) {
-    const response = [
-      coreInsight,
-      "",
-      direction,
-      "",
-      `Next step: ${nextStep}`
-    ].join("\n");
+  humanizeBelief(name = "") {
+    const map = {
+      achievement_creates_security:
+        "Ari may be noticing a belief underneath it: achievement creates safety.",
+      all_important_roles_must_be_maintained:
+        "There may be a belief that every important role has to stay active at full strength.",
+      slowing_down_means_falling_behind:
+        "There may be a belief that slowing down means falling behind.",
+      responsibility_comes_before_rest:
+        "There may be a belief that responsibility has to come before rest.",
+      people_depend_on_me_to_be_stable:
+        "There may be a belief that people need you to stay steady no matter what.",
+      family_moments_are_irreplaceable:
+        "Ari is also detecting a strong belief: family moments cannot simply be recovered later.",
+      presence_matters_more_than_performance:
+        "There may be a new belief forming: presence matters more than performance.",
+      purpose_must_not_be_abandoned:
+        "There may be a belief that purpose must be protected from being abandoned.",
+      delaying_purpose_feels_like_betrayal:
+        "Delay may feel like betrayal, even when it is actually discipline."
+    };
 
-    return this.applyWisdomCompression(response);
+    return map[name] || `Ari may be detecting this belief: ${name.replaceAll("_", " ")}.`;
   },
 
-  normalResponse(coreInsight, direction, nextStep, style = "clear") {
-    const response = [
-      coreInsight,
-      "",
-      direction,
-      "",
-      `The move is simple: ${nextStep}`
-    ].join("\n");
+  humanizeSimulationTheme(theme = "") {
+    const map = {
+      presence_vs_acceleration:
+        "The simulated tradeoff is presence versus acceleration.",
+      achievement_vs_presence:
+        "The simulated tradeoff is achievement versus presence.",
+      capacity_protection:
+        "The simulation points toward protecting capacity before adding more responsibility."
+    };
 
-    return this.applyWisdomCompression(response);
+    return map[theme] || `The likely tradeoff is ${theme.replaceAll("_", " ")}.`;
   },
 
-  deepResponse(coreInsight, direction, nextStep, analysis = {}, summary = {}) {
-    const response = [
-      coreInsight,
-      "",
-      direction,
-      "",
-      "The tradeoff is that something meaningful may need to slow down so something irreplaceable can be protected.",
-      "",
-      `Next step: ${nextStep}`
-    ].join("\n");
+  humanizePattern(name = "") {
+    const map = {
+      achievement_before_peace:
+        "The pattern may be that peace keeps getting placed after the next achievement.",
+      achievement_before_presence:
+        "The pattern may be that achievement has to feel complete before presence feels allowed.",
+      too_many_primary_roles:
+        "The pattern may be that too many roles are trying to be primary at once.",
+      responsibility_before_recovery:
+        "The pattern may be that responsibility keeps coming before recovery."
+    };
 
-    return this.applyWisdomCompression(response);
+    return map[name] || `The pattern may be ${name.replaceAll("_", " ")}.`;
+  },
+
+  humanizeTradeoff(name = "") {
+    const map = {
+      presence_vs_acceleration:
+        "The real tradeoff may be presence versus acceleration.",
+      family_presence_vs_creation:
+        "The tradeoff may be family presence versus creative output.",
+      growth_vs_stability:
+        "The tradeoff may be growth versus stability.",
+      chosen_sacrifice:
+        "The tradeoff is that one meaningful thing may need to slow so another can be protected."
+    };
+
+    return map[name] || `The tradeoff may be ${name.replaceAll("_", " ")}.`;
+  },
+
+  humanizeHiddenConflict(name = "") {
+    const map = {
+      family_vs_purpose:
+        "The hidden conflict may be family versus purpose.",
+      provider_vs_presence:
+        "The hidden conflict may be providing more versus being present more.",
+      identity_vs_transition:
+        "The hidden conflict may be an old identity trying to survive a new chapter.",
+      growth_vs_stability:
+        "The hidden conflict may be growth versus stability."
+    };
+
+    return map[name] || `The hidden conflict may be ${name.replaceAll("_", " ")}.`;
+  },
+
+  humanizeUnderlyingEmotion(name = "") {
+    const map = {
+      fear_of_failing_family:
+        "Underneath this, Ari may be detecting fear of failing the people who matter most.",
+      fear_of_betraying_purpose:
+        "Underneath this, Ari may be detecting fear that slowing down means betraying purpose.",
+      fear_of_falling_behind:
+        "Underneath this, Ari may be detecting fear of falling behind.",
+      anticipatory_guilt:
+        "This may be guilt arriving before the situation has even happened.",
+      depleted_capacity:
+        "This may not just be stress. It may be depleted capacity.",
+      identity_instability:
+        "This may be the discomfort of an old identity changing shape."
+    };
+
+    return map[name] || `The underlying emotion may be ${name.replaceAll("_", " ")}.`;
+  },
+
+  humanizeSurfaceEmotion(name = "") {
+    const map = {
+      concern:
+        "There is concern here, but it seems connected to something important.",
+      stewardship:
+        "You are trying to protect something important.",
+      determination:
+        "There is determination here, but determination may be carrying more than it should.",
+      excitement:
+        "There is excitement here, but it may be mixed with responsibility.",
+      guilt:
+        "There is guilt here, but guilt does not always mean wrongdoing.",
+      fear:
+        "There is fear here, but fear may be pointing at what matters.",
+      overwhelm:
+        "This looks like overwhelm, not weakness."
+    };
+
+    return map[name] || `The surface emotion appears to be ${name.replaceAll("_", " ")}.`;
+  },
+
+  humanizeRootNeed(name = "") {
+    const map = {
+      secure_family_presence:
+        "The need underneath is secure family presence.",
+      recovery_and_capacity:
+        "The need underneath is recovery and capacity.",
+      clarity_and_prioritization:
+        "The need underneath is clarity and prioritization.",
+      stability:
+        "The need underneath is stability.",
+      understanding:
+        "The need underneath is understanding."
+    };
+
+    return map[name] || `The need underneath may be ${name.replaceAll("_", " ")}.`;
+  },
+
+  humanizeProtecting(name = "") {
+    const map = {
+      future_family:
+        "What you are protecting may be your future family.",
+      family:
+        "What you are protecting may be family.",
+      creative_purpose:
+        "What you are protecting may be creative purpose.",
+      future_self:
+        "What you are protecting may be your future self.",
+      meaning:
+        "What you are protecting may be meaning."
+    };
+
+    return map[name] || `What you are protecting may be ${name.replaceAll("_", " ")}.`;
+  },
+
+  finalize(response = "") {
+    return response
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   }
 };
