@@ -1,11 +1,12 @@
-// ari-language-emotion-builder.js
+// ari/language-system/ari-language-emotion-builder.js
+// Ari Language Emotion Builder
 // Purpose: Speak about emotions, fears, needs, and what is being protected.
-// V1.0
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageEmotionBuilder = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   build(analysis = {}) {
     const lines = [];
@@ -18,6 +19,8 @@ window.Ari.languageEmotionBuilder = {
 
     const recovery =
       analysis.emotionRecoveryQuestions || {};
+
+    const humanizers = this.humanizers();
 
     const surfaceEmotion =
       emotionalIntelligence.surfaceEmotion?.name;
@@ -39,16 +42,19 @@ window.Ari.languageEmotionBuilder = {
 
     if (depth && depth !== "unclear") {
       lines.push(
-        this.humanizeUnderlyingEmotion(depth)
+        humanizers.underlyingEmotion(depth)
       );
     }
 
     if (
       surfaceEmotion &&
-      surfaceEmotion !== "curiosity"
+      surfaceEmotion !== "curiosity" &&
+      surfaceEmotion !== "unclear"
     ) {
       lines.push(
-        this.humanizeSurfaceEmotion(surfaceEmotion)
+        humanizers.surfaceEmotion
+          ? humanizers.surfaceEmotion(surfaceEmotion)
+          : `The surface emotion appears to be ${String(surfaceEmotion).replaceAll("_", " ")}.`
       );
     }
 
@@ -60,15 +66,15 @@ window.Ari.languageEmotionBuilder = {
       lines.push(vulnerableTruth);
     }
 
-    if (rootNeed) {
+    if (rootNeed && rootNeed !== "unclear") {
       lines.push(
-        this.humanizeRootNeed(rootNeed)
+        humanizers.rootNeed(rootNeed)
       );
     }
 
-    if (protecting) {
+    if (protecting && protecting !== "unclear") {
       lines.push(
-        this.humanizeProtecting(protecting)
+        humanizers.protecting(protecting)
       );
     }
 
@@ -76,103 +82,23 @@ window.Ari.languageEmotionBuilder = {
       lines.push(recovery.primaryQuestion);
     }
 
-    return lines.filter(Boolean);
+    return this.unique(lines);
   },
 
-  humanizeUnderlyingEmotion(name = "") {
-    const map = {
-
-      fear_of_losing_identity:
-        "Underneath this, Ari may be detecting fear of losing identity.",
-
-      fear_of_missing_irreplaceable_moments:
-        "Underneath this, Ari may be detecting fear of missing moments that cannot be recovered.",
-
-      fear_of_failing_family:
-        "Underneath this, Ari may be detecting fear of failing the people who matter most.",
-
-      fear_of_betraying_purpose:
-        "Underneath this, Ari may be detecting fear of betraying purpose.",
-
-      fear_of_collapse_if_capacity_is_ignored:
-        "Underneath this, Ari may be detecting fear that everything becomes harder if capacity is ignored."
+  humanizers() {
+    return window.Ari.languageHumanizers || {
+      underlyingEmotion: (name) =>
+        `Underneath this, Ari may be detecting ${String(name).replaceAll("_", " ")}.`,
+      surfaceEmotion: (name) =>
+        `The surface emotion appears to be ${String(name).replaceAll("_", " ")}.`,
+      rootNeed: (name) =>
+        `The need underneath may be ${String(name).replaceAll("_", " ")}.`,
+      protecting: (name) =>
+        `What you may be protecting is ${String(name).replaceAll("_", " ")}.`
     };
-
-    return (
-      map[name] ||
-      `Underneath this, Ari may be detecting ${name.replaceAll("_"," ")}.`
-    );
   },
 
-  humanizeSurfaceEmotion(name = "") {
-    const map = {
-
-      concern:
-        "There is concern here, but it seems connected to something important.",
-
-      stewardship:
-        "You seem to be trying to protect something valuable.",
-
-      guilt:
-        "There is guilt here, but guilt does not automatically mean wrongdoing.",
-
-      overwhelm:
-        "This looks more like overload than weakness.",
-
-      determination:
-        "There is determination here, but determination may be carrying more than it should."
-    };
-
-    return (
-      map[name] ||
-      `The surface emotion appears to be ${name.replaceAll("_"," ")}.`
-    );
-  },
-
-  humanizeRootNeed(name = "") {
-    const map = {
-
-      secure_family_presence:
-        "The need underneath may be secure family presence.",
-
-      recovery_and_capacity:
-        "The need underneath may be recovery and capacity.",
-
-      understanding:
-        "The need underneath may be understanding.",
-
-      stability:
-        "The need underneath may be stability."
-    };
-
-    return (
-      map[name] ||
-      `The need underneath may be ${name.replaceAll("_"," ")}.`
-    );
-  },
-
-  humanizeProtecting(name = "") {
-    const map = {
-
-      future_family:
-        "What you may be protecting is your future family.",
-
-      family:
-        "What you may be protecting is family.",
-
-      creative_purpose:
-        "What you may be protecting is creative purpose.",
-
-      future_self:
-        "What you may be protecting is your future self.",
-
-      meaning:
-        "What you may be protecting is meaning."
-    };
-
-    return (
-      map[name] ||
-      `What you may be protecting is ${name.replaceAll("_"," ")}.`
-    );
+  unique(lines = []) {
+    return [...new Set(lines.filter(Boolean))];
   }
 };
