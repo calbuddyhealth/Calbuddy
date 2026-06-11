@@ -2,12 +2,12 @@
 // Ari Core Perception Spine
 // Purpose: Handle the first stage of Ari's processing.
 // Answers: What is happening?
-// V1.0
+// V1.1: Adds Life Signal Extractor.
 
 window.Ari = window.Ari || {};
 
 window.Ari.corePerception = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   run(message = "", context = {}) {
     const observation = window.Ari.observerNetwork
@@ -21,12 +21,27 @@ window.Ari.corePerception = {
           source: "observer-unavailable"
         };
 
+    const lifeSignals = window.Ari.lifeSignalExtractor
+      ? window.Ari.lifeSignalExtractor.extract(message, context)
+      : {
+          signals: [],
+          signalNames: [],
+          primarySignal: null,
+          hasMajorLifeSignal: false,
+          source: "life-signal-unavailable"
+        };
+
+    observation.lifeSignals = lifeSignals;
+
     const questionType = window.Ari.questionUnderstanding
       ? window.Ari.questionUnderstanding.classify(message)
       : "understanding";
 
     const values = window.Ari.valueEngine
-      ? window.Ari.valueEngine.analyze(observation)
+      ? window.Ari.valueEngine.analyze({
+          ...observation,
+          lifeSignals
+        })
       : {
           values: [],
           rankedValues: [],
@@ -36,7 +51,13 @@ window.Ari.corePerception = {
         };
 
     const identity = window.Ari.identityEngine
-      ? window.Ari.identityEngine.analyze(observation, values)
+      ? window.Ari.identityEngine.analyze(
+          {
+            ...observation,
+            lifeSignals
+          },
+          values
+        )
       : {
           identities: [],
           identityHierarchy: {},
@@ -48,7 +69,11 @@ window.Ari.corePerception = {
 
     const conflicts = window.Ari.conflictEngine
       ? window.Ari.conflictEngine.analyze({
-          observation,
+          observation: {
+            ...observation,
+            lifeSignals
+          },
+          lifeSignals,
           values,
           identity
         })
@@ -64,7 +89,11 @@ window.Ari.corePerception = {
 
     const executive = window.Ari.executiveFunction
       ? window.Ari.executiveFunction.decide({
-          observation,
+          observation: {
+            ...observation,
+            lifeSignals
+          },
+          lifeSignals,
           values,
           identity,
           conflicts,
@@ -81,7 +110,11 @@ window.Ari.corePerception = {
 
     const earlyInsight = window.Ari.insightEngine
       ? window.Ari.insightEngine.generate({
-          observation,
+          observation: {
+            ...observation,
+            lifeSignals
+          },
+          lifeSignals,
           values,
           identity,
           conflicts,
@@ -107,6 +140,7 @@ window.Ari.corePerception = {
     const attention = window.Ari.attentionSystem
       ? window.Ari.attentionSystem.prioritize({
           ...observation,
+          lifeSignals,
           questionType,
           values,
           identity,
@@ -126,6 +160,7 @@ window.Ari.corePerception = {
     const route = this.buildRoute(message, context, {
       questionType,
       observation,
+      lifeSignals,
       values,
       identity,
       conflicts,
@@ -136,7 +171,11 @@ window.Ari.corePerception = {
 
     const emotion = window.Ari.emotionEngine
       ? window.Ari.emotionEngine.selectEmotion(message, route, {
-          observation,
+          observation: {
+            ...observation,
+            lifeSignals
+          },
+          lifeSignals,
           values,
           identity,
           conflicts,
@@ -156,6 +195,7 @@ window.Ari.corePerception = {
       context,
       questionType,
       observation,
+      lifeSignals,
       values,
       identity,
       conflicts,
@@ -171,6 +211,7 @@ window.Ari.corePerception = {
     const {
       questionType,
       observation,
+      lifeSignals,
       values,
       identity,
       conflicts,
@@ -183,7 +224,11 @@ window.Ari.corePerception = {
       ? window.Ari.router.route(message, {
           ...context,
           questionType,
-          observation,
+          observation: {
+            ...observation,
+            lifeSignals
+          },
+          lifeSignals,
           values,
           identity,
           conflicts,
