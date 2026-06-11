@@ -1,12 +1,12 @@
 // ari/language-system/ari-language-system.js
 // Ari Language System
 // Purpose: Convert Ari's analysis into short, human, useful responses.
-// V6.0: Wisdom-aware language. Ari can now speak from wisdom and wisdom resolution.
+// V6.1: Uses wisdom, regret, long-term consequence, underlying emotion depth, and recovery questions.
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageSystem = {
-  version: "6.0.0",
+  version: "6.1.0",
 
   generate(analysis = {}, options = {}) {
     const summary = window.Ari.core
@@ -54,6 +54,14 @@ window.Ari.languageSystem = {
     );
   },
 
+  hasEmotionDepth(analysis = {}) {
+    const depth = analysis.underlyingEmotion || {};
+    return Boolean(
+      depth.primaryUnderlyingEmotion?.name &&
+        depth.primaryUnderlyingEmotion.name !== "unclear"
+    );
+  },
+
   shouldLeadWithWisdom(analysis = {}) {
     const wisdom = analysis.wisdom || {};
     const resolution = analysis.wisdomResolution || {};
@@ -84,28 +92,80 @@ window.Ari.languageSystem = {
   generateWisdomLines(analysis = {}, options = {}) {
     const wisdom = analysis.wisdom || {};
     const resolution = analysis.wisdomResolution || {};
+    const regret = analysis.regret || {};
+    const consequence = analysis.longTermConsequence || {};
     const lines = [];
 
     if (wisdom.wisdomPrinciple) {
       lines.push(wisdom.wisdomPrinciple);
     }
 
-    if (resolution.leadingGood && resolution.supportingGood) {
-      lines.push(
-        `For this season, ${this.cleanConcept(resolution.leadingGood)} should lead and ${this.cleanConcept(resolution.supportingGood)} should support.`
-      );
+    if (
+      resolution.resolvedStatement &&
+      resolution.resolvedStatement !==
+        "Ari does not have enough wisdom signal to resolve the tension yet."
+    ) {
+      if (resolution.leadingGood && resolution.supportingGood) {
+        lines.push(
+          `For this season, ${this.cleanConcept(resolution.leadingGood)} should lead and ${this.cleanConcept(resolution.supportingGood)} should support.`
+        );
+      }
+
+      if (resolution.boundary) lines.push(resolution.boundary);
+      if (resolution.integration) lines.push(resolution.integration);
     }
 
-    if (resolution.boundary) {
-      lines.push(resolution.boundary);
-    }
-
-    if (resolution.integration) {
-      lines.push(resolution.integration);
-    }
-
-    if (options.includeRegret && wisdom.likelyRegret) {
+    if (options.includeRegret && regret.regretStatement) {
+      lines.push(regret.regretStatement);
+    } else if (options.includeRegret && wisdom.likelyRegret) {
       lines.push(`The regret to avoid is ${this.lowercaseFirst(wisdom.likelyRegret)}`);
+    }
+
+    if (options.includeConsequence && consequence.courseCorrection) {
+      lines.push(consequence.courseCorrection);
+    }
+
+    return lines;
+  },
+
+  generateEmotionDepthLines(analysis = {}, options = {}) {
+    const depth = analysis.underlyingEmotion || {};
+    const recovery = analysis.emotionRecoveryQuestions || {};
+    const primary = depth.primaryUnderlyingEmotion || {};
+    const lines = [];
+
+    if (primary.name && primary.name !== "unclear") {
+      lines.push(this.humanizeUnderlyingEmotionDepth(primary.name));
+    }
+
+    if (depth.hiddenFear) {
+      lines.push(depth.hiddenFear);
+    }
+
+    if (depth.vulnerableTruth) {
+      lines.push(depth.vulnerableTruth);
+    }
+
+    if (options.includeQuestion && recovery.primaryQuestion) {
+      lines.push(recovery.primaryQuestion);
+    }
+
+    return lines;
+  },
+
+  generateRecoveryLines(analysis = {}) {
+    const wisdomRecovery = analysis.wisdomQuestionRecovery || {};
+    const emotionRecovery = analysis.emotionRecoveryQuestions || {};
+    const lines = [];
+
+    if (wisdomRecovery.shouldRecover && wisdomRecovery.primaryQuestion) {
+      lines.push("I do not have enough evidence to answer that strongly yet.");
+      lines.push(wisdomRecovery.primaryQuestion);
+      return lines;
+    }
+
+    if (emotionRecovery.shouldAsk && emotionRecovery.primaryQuestion) {
+      lines.push(emotionRecovery.primaryQuestion);
     }
 
     return lines;
@@ -133,6 +193,12 @@ window.Ari.languageSystem = {
 
     lines.push(opening);
 
+    if (analysis.wisdomQuestionRecovery?.shouldRecover) {
+      lines.push("");
+      lines.push(...this.generateRecoveryLines(analysis));
+      return this.finalize(lines.join("\n"));
+    }
+
     if (this.shouldLeadWithWisdom(analysis)) {
       lines.push("");
       lines.push(...this.generateWisdomLines(analysis, { includeRegret: false }));
@@ -156,6 +222,11 @@ window.Ari.languageSystem = {
       lines.push("I think there is something here, but Ari does not have enough signal to name it cleanly yet.");
     }
 
+    if (this.hasEmotionDepth(analysis)) {
+      lines.push("");
+      lines.push(...this.generateEmotionDepthLines(analysis, { includeQuestion: false }));
+    }
+
     if (
       !this.shouldLeadWithWisdom(analysis) &&
       hypothesis?.explanation &&
@@ -171,23 +242,6 @@ window.Ari.languageSystem = {
     ) {
       lines.push("");
       lines.push(this.humanizeCounterHypothesis(counterHypothesis));
-    }
-
-    if (!this.shouldLeadWithWisdom(analysis)) {
-      if (pattern.name && pattern.name !== "unclear") {
-        lines.push("");
-        lines.push(this.humanizePattern(pattern.name));
-      }
-
-      if (tradeoff.name && tradeoff.name !== "none_detected") {
-        lines.push("");
-        lines.push(this.humanizeTradeoff(tradeoff.name));
-      }
-
-      if (hiddenConflict.name && hiddenConflict.name !== "unclear") {
-        lines.push("");
-        lines.push(this.humanizeHiddenConflict(hiddenConflict.name));
-      }
     }
 
     if (Array.isArray(voice.structure) && voice.structure.includes("question")) {
@@ -224,13 +278,27 @@ window.Ari.languageSystem = {
 
     lines.push(opening);
 
+    if (analysis.wisdomQuestionRecovery?.shouldRecover) {
+      lines.push("");
+      lines.push(...this.generateRecoveryLines(analysis));
+      return this.finalize(lines.join("\n"));
+    }
+
     if (this.shouldLeadWithWisdom(analysis)) {
       lines.push("");
-      lines.push(...this.generateWisdomLines(analysis, { includeRegret: true }));
+      lines.push(...this.generateWisdomLines(analysis, {
+        includeRegret: true,
+        includeConsequence: true
+      }));
 
       if (humanTruth) {
         lines.push("");
         lines.push(humanTruth);
+      }
+
+      if (this.hasEmotionDepth(analysis)) {
+        lines.push("");
+        lines.push(...this.generateEmotionDepthLines(analysis, { includeQuestion: false }));
       }
 
       if (Array.isArray(voice.structure) && voice.structure.includes("reflection_question")) {
@@ -269,6 +337,11 @@ window.Ari.languageSystem = {
       lines.push(this.humanizeSimulationTheme(simulationTheme));
     }
 
+    if (this.hasEmotionDepth(analysis)) {
+      lines.push("");
+      lines.push(...this.generateEmotionDepthLines(analysis, { includeQuestion: false }));
+    }
+
     if (Array.isArray(voice.structure) && voice.structure.includes("reflection_question")) {
       lines.push("");
       lines.push(this.generateReflectionQuestion(analysis));
@@ -282,7 +355,6 @@ window.Ari.languageSystem = {
 
     const emotionalIntelligence = analysis.emotionalIntelligence || {};
     const surface = emotionalIntelligence.surfaceEmotion?.name;
-    const underlying = emotionalIntelligence.underlyingEmotion?.name;
     const rootNeed = emotionalIntelligence.rootNeed?.name;
     const protecting = emotionalIntelligence.protecting?.name;
 
@@ -290,9 +362,9 @@ window.Ari.languageSystem = {
 
     lines.push(opening);
 
-    if (underlying && underlying !== "unclear") {
+    if (this.hasEmotionDepth(analysis)) {
       lines.push("");
-      lines.push(this.humanizeUnderlyingEmotion(underlying));
+      lines.push(...this.generateEmotionDepthLines(analysis, { includeQuestion: false }));
     } else if (surface && surface !== "curiosity") {
       lines.push("");
       lines.push(this.humanizeSurfaceEmotion(surface));
@@ -312,12 +384,21 @@ window.Ari.languageSystem = {
     }
 
     if (this.hasWisdom(analysis)) {
-      const wisdomLines = this.generateWisdomLines(analysis, { includeRegret: false });
+      const wisdomLines = this.generateWisdomLines(analysis, {
+        includeRegret: true,
+        includeConsequence: false
+      });
 
       if (wisdomLines.length > 0) {
         lines.push("");
         lines.push(wisdomLines[0]);
       }
+    }
+
+    const recoveryQuestion = analysis.emotionRecoveryQuestions?.primaryQuestion;
+    if (recoveryQuestion) {
+      lines.push("");
+      lines.push(recoveryQuestion);
     }
 
     return this.finalize(lines.join("\n"));
@@ -327,17 +408,21 @@ window.Ari.languageSystem = {
     const opening = this.getOpeningLine(analysis);
 
     const executive = analysis.executive || {};
-    const meaning = analysis.meaning || {};
-    const insight = analysis.insight || {};
-    const simulation = analysis.simulation || {};
-
     const lines = [];
 
     lines.push(opening);
 
     if (this.hasWisdom(analysis)) {
       lines.push("");
-      lines.push(...this.generateWisdomLines(analysis, { includeRegret: true }));
+      lines.push(...this.generateWisdomLines(analysis, {
+        includeRegret: true,
+        includeConsequence: true
+      }));
+
+      if (this.hasEmotionDepth(analysis)) {
+        lines.push("");
+        lines.push(...this.generateEmotionDepthLines(analysis, { includeQuestion: false }));
+      }
 
       if (executive.recommendedFocus) {
         lines.push("");
@@ -353,34 +438,12 @@ window.Ari.languageSystem = {
       return this.finalize(lines.join("\n"));
     }
 
-    if (meaning.humanTruth) {
-      lines.push("");
-      lines.push(meaning.humanTruth);
-    } else if (insight.oneLineInsight) {
-      lines.push("");
-      lines.push(insight.oneLineInsight);
-    } else if (executive.recommendedFocus) {
+    if (executive.recommendedFocus) {
       lines.push("");
       lines.push(executive.recommendedFocus);
     } else {
       lines.push("");
       lines.push("One thing needs to lead. The rest need to support.");
-    }
-
-    if (executive.recommendedFocus) {
-      lines.push("");
-      lines.push(executive.recommendedFocus);
-    }
-
-    if (simulation.primarySimulation?.theme) {
-      lines.push("");
-      lines.push(this.humanizeSimulationTheme(simulation.primarySimulation.theme));
-    }
-
-    const delay = executive.thingsToDelay || [];
-    if (delay.length > 0) {
-      lines.push("");
-      lines.push(`Delay: ${delay.map((item) => item.name).join(", ")}.`);
     }
 
     return this.finalize(lines.join("\n"));
@@ -391,17 +454,24 @@ window.Ari.languageSystem = {
 
     const executive = analysis.executive || {};
     const insight = analysis.insight || {};
-
     const lines = [];
 
     lines.push(opening);
 
     if (this.hasWisdom(analysis)) {
       lines.push("");
-      lines.push(...this.generateWisdomLines(analysis, { includeRegret: false }));
+      lines.push(...this.generateWisdomLines(analysis, {
+        includeRegret: false,
+        includeConsequence: true
+      }));
     } else if (insight.oneLineInsight) {
       lines.push("");
       lines.push(insight.oneLineInsight);
+    }
+
+    if (this.hasEmotionDepth(analysis)) {
+      lines.push("");
+      lines.push(...this.generateEmotionDepthLines(analysis, { includeQuestion: false }));
     }
 
     lines.push("");
@@ -421,10 +491,37 @@ window.Ari.languageSystem = {
 
   generateBuildingResponse(analysis = {}, summary = {}) {
     const opening = this.getOpeningLine(analysis);
+    const executive = analysis.executive || {};
+    const insight = analysis.insight || {};
+    const lines = [];
 
-    return this.finalize(
-      `${opening}\n\nThe bottleneck is not the whole system.\n\nFocus on the next clean change.`
+    lines.push(opening);
+
+    if (this.hasWisdom(analysis)) {
+      lines.push("");
+      lines.push(...this.generateWisdomLines(analysis, {
+        includeRegret: false,
+        includeConsequence: true
+      }));
+    }
+
+    if (insight.oneLineInsight) {
+      lines.push("");
+      lines.push(insight.oneLineInsight);
+    }
+
+    if (this.hasEmotionDepth(analysis)) {
+      lines.push("");
+      lines.push(...this.generateEmotionDepthLines(analysis, { includeQuestion: false }));
+    }
+
+    lines.push("");
+    lines.push(
+      executive.recommendedFocus ||
+        "The bottleneck is not the whole system. Focus on the next clean change."
     );
+
+    return this.finalize(lines.join("\n"));
   },
 
   generateDefaultResponse(analysis = {}, summary = {}) {
@@ -434,9 +531,26 @@ window.Ari.languageSystem = {
     const insight = analysis.insight || {};
     const executive = analysis.executive || {};
 
+    if (analysis.wisdomQuestionRecovery?.shouldRecover) {
+      return this.finalize(
+        `${opening}\n\n${this.generateRecoveryLines(analysis).join("\n\n")}`
+      );
+    }
+
     if (this.shouldLeadWithWisdom(analysis)) {
       return this.finalize(
-        `${opening}\n\n${this.generateWisdomLines(analysis, { includeRegret: false }).join("\n\n")}`
+        `${opening}\n\n${this.generateWisdomLines(analysis, {
+          includeRegret: false,
+          includeConsequence: true
+        }).join("\n\n")}`
+      );
+    }
+
+    if (this.hasEmotionDepth(analysis)) {
+      return this.finalize(
+        `${opening}\n\n${this.generateEmotionDepthLines(analysis, {
+          includeQuestion: true
+        }).join("\n\n")}`
       );
     }
 
@@ -459,23 +573,31 @@ window.Ari.languageSystem = {
 
   humanizeHypothesis(hypothesis = {}) {
     if (!hypothesis.explanation) return "";
-
     return `One possible explanation is this: ${this.lowercaseFirst(hypothesis.explanation)}`;
   },
 
   humanizeCounterHypothesis(counterHypothesis = {}) {
     if (!counterHypothesis.explanation) return "";
-
     return `I do not want to overstate that. ${counterHypothesis.explanation}`;
   },
 
   generateReflectionQuestion(analysis = {}) {
+    const wisdomRecovery = analysis.wisdomQuestionRecovery || {};
+    const emotionRecovery = analysis.emotionRecoveryQuestions || {};
     const insight = analysis.insight || {};
     const wisdom = analysis.wisdom || {};
     const wisdomResolution = analysis.wisdomResolution || {};
     const tradeoff = insight.tradeoff?.name;
     const pattern = insight.pattern?.name;
     const meaning = analysis.meaning || {};
+
+    if (wisdomRecovery.shouldRecover && wisdomRecovery.primaryQuestion) {
+      return wisdomRecovery.primaryQuestion;
+    }
+
+    if (emotionRecovery.primaryQuestion) {
+      return emotionRecovery.primaryQuestion;
+    }
 
     if (wisdomResolution.leadingGood === "capacity") {
       return "What would need to come off your plate for capacity to actually lead?";
@@ -543,6 +665,25 @@ window.Ari.languageSystem = {
 
   cleanConcept(text = "") {
     return String(text || "").replaceAll("_", " ");
+  },
+
+  humanizeUnderlyingEmotionDepth(name = "") {
+    const map = {
+      fear_of_losing_identity:
+        "Underneath this, Ari may be detecting fear of losing identity.",
+      fear_of_being_irresponsible:
+        "Underneath this, Ari may be detecting fear of being irresponsible.",
+      fear_of_failing_family:
+        "Underneath this, Ari may be detecting fear of failing family.",
+      fear_of_missing_irreplaceable_moments:
+        "Underneath this, Ari may be detecting fear of missing irreplaceable moments.",
+      fear_of_betraying_purpose:
+        "Underneath this, Ari may be detecting fear of betraying purpose.",
+      fear_of_collapse_if_capacity_is_ignored:
+        "Underneath this, Ari may be detecting fear that capacity will collapse if ignored."
+    };
+
+    return map[name] || `Underneath this, Ari may be detecting ${name.replaceAll("_", " ")}.`;
   },
 
   humanizeLifeChapter(name = "") {
