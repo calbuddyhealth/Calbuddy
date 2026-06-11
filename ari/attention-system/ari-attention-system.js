@@ -1,12 +1,12 @@
 // ari/attention-system/ari-attention-system.js
 // Ari Attention System
 // Purpose: Decide what deserves focus before routing.
-// V2: Uses priority scoring instead of first-match wins.
+// V2.1: Adds questionType support for meaning, insight, emotional, decision, planning, and building.
 
 window.Ari = window.Ari || {};
 
 window.Ari.attentionSystem = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   prioritize(observation = {}) {
     const result = {
@@ -25,6 +25,8 @@ window.Ari.attentionSystem = {
     if (!observation) return result;
 
     const text = observation.normalizedMessage || "";
+    const questionType = observation.questionType || "understanding";
+
     const risk = observation.risk || {};
     const intent = observation.intent || "unknown";
     const emotion = observation.emotion || {};
@@ -55,6 +57,75 @@ window.Ari.attentionSystem = {
     const hasAny = (phrases = []) => {
       return phrases.some((phrase) => text.includes(phrase));
     };
+
+    // 1. Safety always wins.
+    if (risk.guardianRequired) {
+      addPriority("safety", 100, "guardian", "Potential safety concern detected.");
+    }
+
+    // 2. Question type should strongly influence routing.
+    if (questionType === "meaning") {
+      addPriority(
+        "meaning",
+        35,
+        "storykeeper",
+        "User is seeking meaning, purpose, or life interpretation."
+      );
+    }
+
+    if (questionType === "insight") {
+      addPriority(
+        "insight",
+        32,
+        "observer",
+        "User is asking for insight, pattern recognition, or hidden meaning."
+      );
+    }
+
+    if (questionType === "emotional") {
+      addPriority(
+        "support",
+        30,
+        "companion",
+        "User is asking about feelings or emotional experience."
+      );
+    }
+
+    if (questionType === "decision") {
+      addPriority(
+        "prioritization",
+        30,
+        "planner",
+        "User is asking for a decision, priority, or tradeoff."
+      );
+    }
+
+    if (questionType === "planning") {
+      addPriority(
+        "planning",
+        28,
+        "planner",
+        "User is asking for a plan, next step, or roadmap."
+      );
+    }
+
+    if (questionType === "building") {
+      addPriority(
+        "building",
+        28,
+        "builder",
+        "User is asking about code, architecture, or building Ari."
+      );
+    }
+
+    if (questionType === "teaching") {
+      addPriority(
+        "teaching",
+        24,
+        "teacher",
+        "User is asking for explanation or teaching."
+      );
+    }
 
     const decisionConflict = hasAny([
       "part of me",
@@ -115,8 +186,7 @@ window.Ari.attentionSystem = {
       emotion.hasEmotionalPain ||
       intent === "support";
 
-    const milestone =
-      memory.milestoneSignal;
+    const milestone = memory.milestoneSignal;
 
     const journey =
       memory.journeySignal ||
@@ -129,15 +199,16 @@ window.Ari.attentionSystem = {
         "pmhnp",
         "school",
         "career",
-        "family"
+        "family",
+        "season of my life",
+        "life chapter"
       ]);
 
     const reflection =
       memory.reflectionSignal ||
       intent === "reflect";
 
-    const identity =
-      memory.identitySignal;
+    const identity = memory.identitySignal;
 
     const preference =
       memory.preferenceSignal ||
@@ -149,12 +220,7 @@ window.Ari.attentionSystem = {
         "uncomfortable"
       ]);
 
-    // 1. Safety always wins.
-    if (risk.guardianRequired) {
-      addPriority("safety", 100, "guardian", "Potential safety concern detected.");
-    }
-
-    // 2. Decision and prioritization requests are very high priority.
+    // 3. Decision and prioritization requests.
     if (decisionConflict) {
       addPriority(
         "prioritization",
@@ -173,7 +239,7 @@ window.Ari.attentionSystem = {
       );
     }
 
-    // 3. Technical/building requests matter, but may support planning.
+    // 4. Technical/building requests.
     if (buildingRequest) {
       addPriority(
         "building",
@@ -183,7 +249,7 @@ window.Ari.attentionSystem = {
       );
     }
 
-    // 4. Journey and growth signals support planning.
+    // 5. Journey and growth signals.
     if (journey) {
       addPriority(
         "journey",
@@ -193,7 +259,7 @@ window.Ari.attentionSystem = {
       );
     }
 
-    // 5. Emotional pain matters, but should not always lead.
+    // 6. Emotional support.
     if (emotionalPain) {
       addPriority(
         "support",
@@ -203,7 +269,7 @@ window.Ari.attentionSystem = {
       );
     }
 
-    // 6. Explicit memory is important, but usually support unless it is the only main request.
+    // 7. Memory and preferences.
     if (explicitMemory) {
       addPriority(
         "memory",
@@ -222,7 +288,7 @@ window.Ari.attentionSystem = {
       );
     }
 
-    // 7. Milestones matter, but they should not overpower decision requests.
+    // 8. Milestones and story.
     if (milestone) {
       addPriority(
         "story",
@@ -232,7 +298,6 @@ window.Ari.attentionSystem = {
       );
     }
 
-    // 8. Identity/reflection.
     if (identity) {
       addPriority(
         "identity",
@@ -299,7 +364,8 @@ window.Ari.attentionSystem = {
       emotionalPain && winner.routeTo !== "companion";
 
     const memoryAttentionNeeded =
-      (explicitMemory || preference || identity) && winner.routeTo !== "memory";
+      (explicitMemory || preference || identity || questionType === "meaning") &&
+      winner.routeTo !== "memory";
 
     const guardianAttentionNeeded =
       Boolean(risk.guardianRequired);
