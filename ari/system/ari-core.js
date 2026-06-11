@@ -1,12 +1,12 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
 // Purpose: Coordinate Ari's full cognitive organ system.
-// V2.0: Integrates Confidence, Meaning, Person Model, Belief Model, Simulation, Insight V2, Identity V2, Emotion, Executive, and Memory.
+// V3.0: Adds Self Model, Self Reflection, and Voice Engine integration.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "2.0.0",
+  version: "3.0.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -315,6 +315,92 @@ window.Ari.core = {
         })
       : earlyInsight;
 
+    const self = window.Ari.selfModel
+      ? window.Ari.selfModel.getSelf()
+      : null;
+
+    const selfValues = window.Ari.selfValues
+      ? window.Ari.selfValues.getValues()
+      : [];
+
+    const constitution = window.Ari.constitution
+      ? window.Ari.constitution.getHierarchy()
+      : [];
+
+    const selfReflection = window.Ari.selfReflection
+      ? window.Ari.selfReflection.reflect({
+          message,
+          context,
+          questionType,
+          observation,
+          values,
+          identity,
+          conflicts,
+          executive,
+          earlyInsight,
+          insight,
+          attention,
+          route,
+          emotion,
+          emotionalIntelligence,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          self,
+          selfValues,
+          constitution
+        })
+      : {
+          stance: { name: route.primaryOrgan || "steady_companion" },
+          leadPrinciple: null,
+          leadValue: null,
+          approach: null,
+          confidence: "low",
+          source: "self-reflection-unavailable"
+        };
+
+    const voice = window.Ari.voiceEngine
+      ? window.Ari.voiceEngine.chooseVoice({
+          analysis: {
+            message,
+            context,
+            questionType,
+            observation,
+            values,
+            identity,
+            conflicts,
+            executive,
+            earlyInsight,
+            insight,
+            attention,
+            route,
+            emotion,
+            emotionalIntelligence,
+            meaning,
+            personModel,
+            beliefModel,
+            simulation,
+            self,
+            selfValues,
+            constitution,
+            selfReflection
+          },
+          selfReflection
+        })
+      : {
+          stance: selfReflection.stance?.name || route.primaryOrgan || "steady_companion",
+          openingStyle: "steady_observation",
+          confidenceStyle: { name: "tentative", prefix: "" },
+          confidence: "low",
+          warmth: 65,
+          challenge: 50,
+          depth: 45,
+          structure: ["observation", "interpretation", "next_step"],
+          rhythm: "short_clear",
+          source: "voice-engine-unavailable"
+        };
+
     const memory = window.Ari.memoryEngine
       ? window.Ari.memoryEngine.classify(message, {
           ...context,
@@ -332,7 +418,12 @@ window.Ari.core = {
           meaning,
           personModel,
           beliefModel,
-          simulation
+          simulation,
+          self,
+          selfValues,
+          constitution,
+          selfReflection,
+          voice
         })
       : {
           shouldRemember: false,
@@ -360,6 +451,11 @@ window.Ari.core = {
       personModel,
       beliefModel,
       simulation,
+      self,
+      selfValues,
+      constitution,
+      selfReflection,
+      voice,
       memory,
       analyzedAt: new Date().toISOString()
     };
@@ -380,6 +476,8 @@ window.Ari.core = {
     const personModel = analysis.personModel || {};
     const beliefModel = analysis.beliefModel || {};
     const simulation = analysis.simulation || {};
+    const selfReflection = analysis.selfReflection || {};
+    const voice = analysis.voice || {};
     const memory = analysis.memory || {};
 
     return {
@@ -449,6 +547,22 @@ window.Ari.core = {
       simulationTheme: simulation.primarySimulation?.theme || null,
       likelyRegret: simulation.primarySimulation?.likelyRegret || null,
 
+      selfStance: selfReflection.stance?.name || null,
+      selfLeadPrinciple: selfReflection.leadPrinciple || null,
+      selfLeadValue: selfReflection.leadValue || null,
+      selfApproach: selfReflection.approach || null,
+      selfReflectionConfidence: selfReflection.confidence || null,
+
+      voiceStance: voice.stance || null,
+      voiceOpeningStyle: voice.openingStyle || null,
+      voiceConfidence: voice.confidence || null,
+      voiceConfidenceStyle: voice.confidenceStyle?.name || null,
+      voiceWarmth: voice.warmth || null,
+      voiceChallenge: voice.challenge || null,
+      voiceDepth: voice.depth || null,
+      voiceStructure: voice.structure || [],
+      voiceRhythm: voice.rhythm || null,
+
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
 
@@ -485,6 +599,8 @@ window.Ari.core = {
       personModelSource: personModel.source || "unknown",
       beliefSource: beliefModel.source || "unknown",
       simulationSource: simulation.source || "unknown",
+      selfReflectionSource: selfReflection.source || "unknown",
+      voiceSource: voice.source || "unknown",
       attentionSource: attention.source || "unknown",
       emotionSource: emotion.source || "unknown",
       emotionalIntelligenceSource:
