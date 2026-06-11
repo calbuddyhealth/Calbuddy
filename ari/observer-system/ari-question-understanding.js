@@ -1,12 +1,12 @@
 // ari/observer-system/ari-question-understanding.js
 // Ari Question Understanding
 // Purpose: Detect what kind of answer the user is asking for.
-// V1.2: Adds meaning detection for life-season, purpose, and deeper interpretation questions.
+// V1.3: Adds uncomfortable-truth detection and simple intent scoring.
 
 window.Ari = window.Ari || {};
 
 window.Ari.questionUnderstanding = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   classify(message = "") {
     const text = String(message || "").toLowerCase();
@@ -63,10 +63,25 @@ window.Ari.questionUnderstanding = {
       "what am i protecting",
       "what does this say about me",
       "why do i keep",
-      "running from"
+      "running from",
+      "uncomfortable truth",
+      "most uncomfortable truth",
+      "what truth",
+      "truth am i avoiding",
+      "might be avoiding",
+      "avoiding right now",
+      "what am i refusing to see",
+      "what am i not ready to admit",
+      "what am i scared to admit",
+      "what truth am i avoiding",
+      "what am i pretending not to know"
     ];
 
     if (this.containsAny(text, insightPhrases)) {
+      return "insight";
+    }
+
+    if (this.scoreInsightIntent(text) >= 4) {
       return "insight";
     }
 
@@ -146,6 +161,27 @@ window.Ari.questionUnderstanding = {
     }
 
     return "understanding";
+  },
+
+  scoreInsightIntent(text = "") {
+    let score = 0;
+
+    if (text.includes("truth")) score += 2;
+    if (text.includes("uncomfortable")) score += 2;
+    if (text.includes("avoid") || text.includes("avoiding")) score += 3;
+    if (text.includes("blind spot")) score += 3;
+    if (text.includes("pattern")) score += 2;
+    if (text.includes("hidden")) score += 2;
+    if (text.includes("sacrifice") || text.includes("sacrificing")) score += 2;
+    if (text.includes("tradeoff") || text.includes("trade-off")) score += 2;
+    if (text.includes("not seeing")) score += 2;
+    if (text.includes("refusing to see")) score += 3;
+    if (text.includes("not ready to admit")) score += 3;
+    if (text.includes("pretending not to know")) score += 3;
+    if (text.includes("costing me")) score += 2;
+    if (text.includes("really going on")) score += 2;
+
+    return score;
   },
 
   containsAny(text, phrases = []) {
