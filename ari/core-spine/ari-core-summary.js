@@ -1,12 +1,13 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.7: Adds Ari Rebirth Pipeline support.
+// V1.8: Core summary now only creates base summary.
+// Rebirth pipeline should run outside this file to prevent duplicate execution.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.7.0",
+  version: "1.8.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -46,19 +47,16 @@ window.Ari.coreSummary = {
     const voice = analysis.voice || {};
     const memory = analysis.memory || {};
 
-    let summary = {
+    const summary = {
       questionType: analysis.questionType || "unknown",
 
-      // LANGUAGE ROUTING
       languageRoute,
       recommendedLanguageLead: signals.recommendedLanguageLead || null,
 
-      // LIFE SIGNALS
       lifeSignals: lifeSignals.signalNames || [],
       primaryLifeSignal: lifeSignals.primarySignal?.name || null,
       hasMajorLifeSignal: Boolean(lifeSignals.hasMajorLifeSignal),
 
-      // LIFE SIGNAL WEIGHTING
       primaryWeightedLifeSignal:
         lifeSignalWeighting.primaryWeightedLifeSignalName || null,
       primaryWeightedLifeSignalWeight:
@@ -73,7 +71,6 @@ window.Ari.coreSummary = {
           confidence: item.confidence
         })) || [],
 
-      // SIGNAL SYSTEM
       strongestSignal: signals.strongestSignalName || null,
       strongestSignalCategory: signals.strongestSignalCategory || null,
       strongestSignalStrength: signals.strongestSignalStrength || 0,
@@ -86,7 +83,6 @@ window.Ari.coreSummary = {
           confidence: item.confidence
         })) || [],
 
-      // SALIENCE NETWORK
       primarySalienceName: salience.primarySalienceName || null,
       primarySalienceCategory: salience.primarySalienceCategory || null,
       primarySalienceStrength: salience.primarySalienceStrength || 0,
@@ -312,17 +308,6 @@ window.Ari.coreSummary = {
         ? window.Ari.authority.hierarchy
         : []
     };
-
-    // ARI REBIRTH PIPELINE
-    // Adds uncertainty classification, identity priority, value integration,
-    // stewardship/fear differentiation, life chapter detection, salience governance,
-    // synthesis, and new language composition.
-    if (
-      window.AriRebirthPipeline &&
-      typeof window.AriRebirthPipeline.run === "function"
-    ) {
-      summary = window.AriRebirthPipeline.run(summary);
-    }
 
     return summary;
   }
