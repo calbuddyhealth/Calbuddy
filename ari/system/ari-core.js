@@ -1,12 +1,12 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
 // Purpose: Coordinate Ari's full cognitive organ system.
-// V3.0: Adds Self Model, Self Reflection, and Voice Engine integration.
+// V4.0: Integrates Insight Hypotheses, Counter-Hypotheses, Confidence Calibration, and Meta Awareness.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "3.0.0",
+  version: "4.0.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -105,7 +105,8 @@ window.Ari.core = {
           values,
           identity,
           conflicts,
-          executive
+          executive,
+          questionType
         })
       : {
           pattern: { name: "unclear", confidence: "low" },
@@ -113,6 +114,12 @@ window.Ari.core = {
           avoidance: { name: "none_detected", confidence: "low" },
           tradeoff: { name: "none_detected", confidence: "low" },
           hiddenMotive: { name: "unclear", confidence: "low" },
+          hypothesis: null,
+          hypotheses: [],
+          counterHypothesis: null,
+          counterHypotheses: [],
+          calibratedConfidence: "low",
+          confidenceScore: null,
           oneLineInsight: null,
           source: "insight-engine-unavailable"
         };
@@ -311,9 +318,33 @@ window.Ari.core = {
           personModel,
           beliefModel,
           simulation,
-          emotionalIntelligence
+          emotionalIntelligence,
+          questionType
         })
       : earlyInsight;
+
+    const metaAwareness = window.Ari.metaAwareness
+      ? window.Ari.metaAwareness.reflect({
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          emotionalIntelligence,
+          questionType
+        })
+      : {
+          primaryConclusion: insight.oneLineInsight || null,
+          confidenceLevel: insight.calibratedConfidence || "low",
+          confidenceScore: insight.confidenceScore || null,
+          confidenceReason: "Meta awareness unavailable.",
+          alternativeExplanation:
+            insight.counterHypothesis?.explanation || null,
+          uncertaintyAreas: [],
+          knownUnknowns: [],
+          recommendation: "continue_observing",
+          source: "meta-awareness-unavailable"
+        };
 
     const self = window.Ari.selfModel
       ? window.Ari.selfModel.getSelf()
@@ -339,6 +370,7 @@ window.Ari.core = {
           executive,
           earlyInsight,
           insight,
+          metaAwareness,
           attention,
           route,
           emotion,
@@ -373,6 +405,7 @@ window.Ari.core = {
             executive,
             earlyInsight,
             insight,
+            metaAwareness,
             attention,
             route,
             emotion,
@@ -392,7 +425,7 @@ window.Ari.core = {
           stance: selfReflection.stance?.name || route.primaryOrgan || "steady_companion",
           openingStyle: "steady_observation",
           confidenceStyle: { name: "tentative", prefix: "" },
-          confidence: "low",
+          confidence: metaAwareness.confidenceLevel || "low",
           warmth: 65,
           challenge: 50,
           depth: 45,
@@ -411,6 +444,7 @@ window.Ari.core = {
           conflicts,
           executive,
           insight,
+          metaAwareness,
           attention,
           route,
           emotion,
@@ -443,6 +477,7 @@ window.Ari.core = {
       executive,
       earlyInsight,
       insight,
+      metaAwareness,
       attention,
       route,
       emotion,
@@ -468,6 +503,7 @@ window.Ari.core = {
     const conflicts = analysis.conflicts || {};
     const executive = analysis.executive || {};
     const insight = analysis.insight || {};
+    const metaAwareness = analysis.metaAwareness || {};
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
@@ -524,7 +560,37 @@ window.Ari.core = {
       tradeoffConfidence: insight.tradeoff?.confidence || null,
       hiddenMotive: insight.hiddenMotive?.name || null,
       hiddenMotiveConfidence: insight.hiddenMotive?.confidence || null,
+
+      hypothesis: insight.hypothesis?.name || null,
+      hypothesisConfidence: insight.hypothesis?.confidence || null,
+      hypothesisExplanation: insight.hypothesis?.explanation || null,
+      hypotheses:
+        insight.hypotheses?.map((item) => item.name) || [],
+
+      counterHypothesis: insight.counterHypothesis?.name || null,
+      counterHypothesisConfidence:
+        insight.counterHypothesis?.confidence || null,
+      counterHypothesisExplanation:
+        insight.counterHypothesis?.explanation || null,
+      counterHypotheses:
+        insight.counterHypotheses?.map((item) => item.name) || [],
+
+      calibratedConfidence: insight.calibratedConfidence || null,
+      confidenceScore: insight.confidenceScore || null,
+      confidenceReason: insight.confidenceReason || null,
+      shouldSpeakHypothesis: Boolean(insight.shouldSpeakHypothesis),
+
       oneLineInsight: insight.oneLineInsight || null,
+
+      metaConclusion: metaAwareness.primaryConclusion || null,
+      metaConfidence: metaAwareness.confidenceLevel || null,
+      metaConfidenceScore: metaAwareness.confidenceScore || null,
+      metaConfidenceReason: metaAwareness.confidenceReason || null,
+      alternativeExplanation:
+        metaAwareness.alternativeExplanation || null,
+      uncertaintyAreas: metaAwareness.uncertaintyAreas || [],
+      knownUnknowns: metaAwareness.knownUnknowns || [],
+      metaRecommendation: metaAwareness.recommendation || null,
 
       meaningTheme: meaning.theme || null,
       meaningConfidence: meaning.confidence || null,
@@ -595,6 +661,7 @@ window.Ari.core = {
       conflictSource: conflicts.source || "unknown",
       executiveSource: executive.source || "unknown",
       insightSource: insight.source || "unknown",
+      metaAwarenessSource: metaAwareness.source || "unknown",
       meaningSource: meaning.source || "unknown",
       personModelSource: personModel.source || "unknown",
       beliefSource: beliefModel.source || "unknown",
