@@ -1,12 +1,12 @@
 // ari/language-system/ari-language-humanizers.js
 // Ari Language Humanizers
 // Purpose: Convert internal signal names into natural language.
-// V1.0
+// V2.0
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageHumanizers = {
-  version: "1.0.0",
+  version: "2.0.0",
 
   underlyingEmotion(name = "") {
     const map = {
@@ -95,6 +95,114 @@ window.Ari.languageHumanizers = {
     return (
       map[name] ||
       `Ari may be detecting this belief: ${String(name).replaceAll("_", " ")}.`
+    );
+  },
+
+  pattern(name = "") {
+    const map = {
+      achievement_before_presence:
+        "Ari may be noticing a pattern where achievement feels like it must come before presence.",
+
+      achievement_before_peace:
+        "Ari may be noticing a pattern where peace keeps getting delayed until the next achievement.",
+
+      too_many_primary_roles:
+        "Ari may be noticing that too many meaningful roles are trying to be primary at the same time.",
+
+      responsibility_before_recovery:
+        "Ari may be noticing a pattern where responsibility keeps arriving before recovery."
+    };
+
+    return (
+      map[name] ||
+      `Ari may be noticing a pattern around ${String(name).replaceAll("_", " ")}.`
+    );
+  },
+
+  conflict(name = "") {
+    const map = {
+      provider_vs_presence:
+        "The deeper conflict may not be family versus work. It may be providing versus being present.",
+
+      family_vs_purpose:
+        "The deeper conflict may be family versus purpose.",
+
+      identity_vs_transition:
+        "The deeper conflict may be an old identity resisting a new chapter.",
+
+      growth_vs_stability:
+        "The deeper conflict may be growth versus stability."
+    };
+
+    return (
+      map[name] ||
+      `The deeper conflict may be ${String(name).replaceAll("_", " ")}.`
+    );
+  },
+
+  tradeoff(name = "") {
+    const map = {
+      presence_vs_acceleration:
+        "The real tradeoff may be presence versus acceleration.",
+
+      growth_vs_stability:
+        "The real tradeoff may be growth versus stability.",
+
+      family_presence_vs_creation:
+        "The real tradeoff may be family presence versus creation."
+    };
+
+    return (
+      map[name] ||
+      `The tradeoff may be ${String(name).replaceAll("_", " ")}.`
+    );
+  },
+
+  simulation(name = "") {
+    const map = {
+      presence_vs_acceleration:
+        "The underlying tension may be presence versus acceleration.",
+
+      achievement_vs_presence:
+        "The underlying tension may be achievement versus presence.",
+
+      capacity_protection:
+        "The situation may be asking you to protect capacity before adding responsibility."
+    };
+
+    return (
+      map[name] ||
+      `The likely tension may be ${String(name).replaceAll("_", " ")}.`
+    );
+  },
+
+  surfaceEmotion(name = "") {
+    const map = {
+      concern:
+        "There is concern here, but it seems connected to something important.",
+
+      stewardship:
+        "You appear to be trying to protect something important.",
+
+      determination:
+        "There is determination here, but determination may be carrying more than it should.",
+
+      excitement:
+        "There is excitement here, though it may be mixed with responsibility.",
+
+      guilt:
+        "There is guilt here, but guilt does not always mean wrongdoing.",
+
+      fear:
+        "There is fear here, but fear may be pointing toward what matters.",
+
+      overwhelm:
+        "This looks like overwhelm, not weakness."
+    };
+
+    return (
+      map[name] ||
+      `The surface emotion appears to be ${String(name).replaceAll("_", " ")}.`
     );
   },
 
