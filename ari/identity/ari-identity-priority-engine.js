@@ -1,12 +1,16 @@
 // ari/identity/ari-identity-priority-engine.js
 // Ari Identity Priority Engine
 // Purpose: Decide which identity/role should lead when multiple parts of the user are active.
-// V1.0
+// V1.1
+// Fixes:
+// - Deduplicates repeated life/signals/salience inputs.
+// - Caps identity score inflation.
+// - Prevents duplicate reasons from stacking endlessly.
+// - Keeps identity ranking useful for salience governor.
 
 window.AriIdentityPriorityEngine = {
   evaluate(input = {}) {
     const summary = input.summary || input || {};
-
     const candidates = [];
 
     const strongestSignal = summary.strongestSignal || null;
@@ -23,70 +27,61 @@ window.AriIdentityPriorityEngine = {
     const lifeSignals = Array.isArray(summary.lifeSignals) ? summary.lifeSignals : [];
     const rankedSignals = Array.isArray(summary.rankedSignals) ? summary.rankedSignals : [];
     const rankedSalience = Array.isArray(summary.rankedSalience) ? summary.rankedSalience : [];
-    const uncertaintyType = summary.uncertaintyType || null;
     const wisdomLeadingGood = summary.wisdomLeadingGood || null;
     const highestGood = summary.highestGood || null;
     const wisdomTension = summary.wisdomTension || null;
     const primaryEmotion = summary.primaryEmotion || summary.surfaceEmotion || null;
 
+    function normalizeKey(value = "") {
+      return String(value).trim();
+    }
+
+    function uniqueArray(items = []) {
+      return [...new Set(items.filter(Boolean).map(normalizeKey))];
+    }
+
+    function cap(value, max = 120) {
+      return Math.min(Number(value || 0), max);
+    }
+
     function addIdentity(name, score, reason, protects, motivation, action = "support") {
       if (!name) return;
 
+      const safeScore = Number(score || 0);
       const existing = candidates.find(c => c.name === name);
 
       if (existing) {
-        existing.score += score;
-        existing.reasons.push(reason);
-        if (protects && !existing.protects.includes(protects)) existing.protects.push(protects);
-        if (motivation && !existing.motivations.includes(motivation)) existing.motivations.push(motivation);
+        if (!existing.reasons.includes(reason)) {
+          existing.score += safeScore;
+          existing.reasons.push(reason);
+        }
+
+        if (protects && !existing.protects.includes(protects)) {
+          existing.protects.push(protects);
+        }
+
+        if (motivation && !existing.motivations.includes(motivation)) {
+          existing.motivations.push(motivation);
+        }
+
+        if (action === "lead_candidate") {
+          existing.recommendedAction = "lead_candidate";
+        }
+
+        existing.score = cap(existing.score);
         return;
       }
 
       candidates.push({
         name,
-        score,
-        reasons: [reason],
+        score: cap(safeScore),
+        reasons: reason ? [reason] : [],
         protects: protects ? [protects] : [],
         motivations: motivation ? [motivation] : [],
         recommendedAction: action
       });
     }
 
-    // Direct identity signals
-    if (dominantIdentity && dominantIdentity !== "unknown") {
-      addIdentity(
-        dominantIdentity,
-        38,
-        "Dominant identity detected.",
-        protecting || highestGood || null,
-        primaryEmotion || null,
-        "lead_candidate"
-      );
-    }
-
-    if (personPrimaryRole && personPrimaryRole !== "unknown") {
-      addIdentity(
-        personPrimaryRole,
-        34,
-        "Person model identified this as the primary role.",
-        protecting || null,
-        primaryEmotion || null,
-        "lead_candidate"
-      );
-    }
-
-    if (strongestSignalCategory === "identity" && strongestSignal) {
-      addIdentity(
-        strongestSignal,
-        36,
-        "Strongest signal is identity-related.",
-        protecting || null,
-        primaryEmotion || null,
-        "lead_candidate"
-      );
-    }
-
-    // Life chapter → identity mapping
     const lifeIdentityMap = {
       fatherhood_transition: {
         identity: "father",
@@ -135,28 +130,6 @@ window.AriIdentityPriorityEngine = {
       }
     };
 
-    const lifeKeys = [
-      primaryLifeSignal,
-      primaryWeightedLifeSignal,
-      ...lifeSignals
-    ].filter(Boolean);
-
-    lifeKeys.forEach(signal => {
-      const mapped = lifeIdentityMap[signal];
-
-      if (mapped) {
-        addIdentity(
-          mapped.identity,
-          signal === primaryWeightedLifeSignal ? 42 : 34,
-          `Life signal '${signal}' maps to identity '${mapped.identity}'.`,
-          mapped.protects,
-          mapped.motivation,
-          "lead_candidate"
-        );
-      }
-    });
-
-    // Priority / value mapping
     const valueIdentityMap = {
       family: {
         identity: "family-protector",
@@ -192,27 +165,17 @@ window.AriIdentityPriorityEngine = {
         identity: "steward",
         protects: "stability",
         motivation: "responsibility"
+      },
+      sustainable_purpose: {
+        identity: "builder",
+        protects: "purpose",
+        motivation: "meaning"
       }
     };
 
-    [primaryPriority, dominantValue, wisdomLeadingGood, highestGood, rootNeed].forEach(value => {
-      const mapped = valueIdentityMap[value];
-
-      if (mapped) {
-        addIdentity(
-          mapped.identity,
-          28,
-          `Value or priority '${value}' maps to identity '${mapped.identity}'.`,
-          mapped.protects,
-          mapped.motivation,
-          "support_candidate"
-        );
-      }
-    });
-
-    // Organ mapping
     const organIdentityMap = {
       builder: "builder",
+      creator: "builder",
       planner: "planner",
       teacher: "teacher",
       observer: "observer",
@@ -221,10 +184,87 @@ window.AriIdentityPriorityEngine = {
       executive: "leader"
     };
 
+    // 1. Direct identity signals
+    if (dominantIdentity && dominantIdentity !== "unknown") {
+      addIdentity(
+        dominantIdentity,
+        32,
+        "Dominant identity detected.",
+        protecting || highestGood || null,
+        primaryEmotion || null,
+        "lead_candidate"
+      );
+    }
+
+    if (personPrimaryRole && personPrimaryRole !== "unknown") {
+      addIdentity(
+        personPrimaryRole,
+        30,
+        "Person model identified this as the primary role.",
+        protecting || null,
+        primaryEmotion || null,
+        "lead_candidate"
+      );
+    }
+
+    if (strongestSignalCategory === "identity" && strongestSignal) {
+      addIdentity(
+        strongestSignal,
+        34,
+        "Strongest signal is identity-related.",
+        protecting || null,
+        primaryEmotion || null,
+        "lead_candidate"
+      );
+    }
+
+    // 2. Life signal mapping
+    const lifeKeys = uniqueArray([
+      primaryLifeSignal,
+      primaryWeightedLifeSignal,
+      ...lifeSignals
+    ]);
+
+    lifeKeys.forEach(signal => {
+      const mapped = lifeIdentityMap[signal];
+      if (!mapped) return;
+
+      addIdentity(
+        mapped.identity,
+        signal === primaryWeightedLifeSignal ? 36 : 28,
+        `Life signal '${signal}' maps to identity '${mapped.identity}'.`,
+        mapped.protects,
+        mapped.motivation,
+        "lead_candidate"
+      );
+    });
+
+    // 3. Priority / value mapping
+    uniqueArray([
+      primaryPriority,
+      dominantValue,
+      wisdomLeadingGood,
+      highestGood,
+      rootNeed
+    ]).forEach(value => {
+      const mapped = valueIdentityMap[value];
+      if (!mapped) return;
+
+      addIdentity(
+        mapped.identity,
+        24,
+        `Value or priority '${value}' maps to identity '${mapped.identity}'.`,
+        mapped.protects,
+        mapped.motivation,
+        "support_candidate"
+      );
+    });
+
+    // 4. Organ mapping
     if (primaryOrgan && organIdentityMap[primaryOrgan]) {
       addIdentity(
         organIdentityMap[primaryOrgan],
-        18,
+        16,
         `Primary organ '${primaryOrgan}' suggests identity '${organIdentityMap[primaryOrgan]}'.`,
         protecting || null,
         primaryEmotion || null,
@@ -232,18 +272,24 @@ window.AriIdentityPriorityEngine = {
       );
     }
 
-    // Ranked signals can add supporting weight
+    // 5. Ranked signals, deduped by name/category
+    const seenRankedSignals = new Set();
+
     rankedSignals.forEach(signal => {
       if (!signal || !signal.name) return;
 
       const name = signal.name;
       const category = signal.category;
       const strength = Number(signal.strength || 0);
+      const key = `${name}:${category}`;
+
+      if (seenRankedSignals.has(key)) return;
+      seenRankedSignals.add(key);
 
       if (category === "identity" || category === "role") {
         addIdentity(
           name,
-          Math.round(strength * 0.25),
+          Math.round(strength * 0.18),
           `Ranked signal '${name}' supports this identity.`,
           protecting || null,
           null,
@@ -253,9 +299,10 @@ window.AriIdentityPriorityEngine = {
 
       if (lifeIdentityMap[name]) {
         const mapped = lifeIdentityMap[name];
+
         addIdentity(
           mapped.identity,
-          Math.round(strength * 0.25),
+          Math.round(strength * 0.18),
           `Ranked life signal '${name}' supports identity '${mapped.identity}'.`,
           mapped.protects,
           mapped.motivation,
@@ -264,18 +311,26 @@ window.AriIdentityPriorityEngine = {
       }
     });
 
-    // Ranked salience can add supporting weight
+    // 6. Ranked salience, deduped by name/category
+    const seenSalienceSignals = new Set();
+
     rankedSalience.forEach(signal => {
       if (!signal || !signal.name) return;
 
       const name = signal.name;
+      const category = signal.category || "unknown";
       const strength = Number(signal.strength || 0);
+      const key = `${name}:${category}`;
+
+      if (seenSalienceSignals.has(key)) return;
+      seenSalienceSignals.add(key);
 
       if (lifeIdentityMap[name]) {
         const mapped = lifeIdentityMap[name];
+
         addIdentity(
           mapped.identity,
-          Math.round(strength * 0.2),
+          Math.round(strength * 0.14),
           `Salience signal '${name}' supports identity '${mapped.identity}'.`,
           mapped.protects,
           mapped.motivation,
@@ -284,7 +339,7 @@ window.AriIdentityPriorityEngine = {
       }
     });
 
-    // Stewardship vs fear correction
+    // 7. Stewardship vs fear correction
     if (
       primaryEmotion === "stewardship" ||
       primaryEmotion === "responsibility" ||
@@ -292,7 +347,7 @@ window.AriIdentityPriorityEngine = {
     ) {
       addIdentity(
         "steward",
-        30,
+        28,
         "Primary emotional tone suggests stewardship rather than fear.",
         protecting || "what has been entrusted",
         "stewardship",
@@ -300,7 +355,7 @@ window.AriIdentityPriorityEngine = {
       );
     }
 
-    // Wisdom tension handling
+    // 8. Wisdom tension handling
     if (wisdomTension === "presence_vs_achievement") {
       addIdentity(
         "present-self",
@@ -313,7 +368,7 @@ window.AriIdentityPriorityEngine = {
 
       addIdentity(
         "builder",
-        20,
+        18,
         "Achievement remains meaningful but should not dominate this tension.",
         "purpose",
         "purpose",
@@ -333,7 +388,7 @@ window.AriIdentityPriorityEngine = {
 
       addIdentity(
         "builder",
-        28,
+        24,
         "Purpose is active in the tension.",
         "purpose",
         "purpose",
@@ -341,7 +396,7 @@ window.AriIdentityPriorityEngine = {
       );
     }
 
-    // Fallback
+    // 9. Fallback
     if (candidates.length === 0) {
       addIdentity(
         "observer",
@@ -353,7 +408,10 @@ window.AriIdentityPriorityEngine = {
       );
     }
 
-    // Sort candidates
+    candidates.forEach(candidate => {
+      candidate.score = cap(candidate.score);
+    });
+
     candidates.sort((a, b) => b.score - a.score);
 
     const lead = candidates[0];
@@ -431,6 +489,12 @@ window.AriIdentityPriorityEngine = {
         reasons: item.reasons,
         recommendedAction: item.recommendedAction
       })),
+
+      identityScoreNormalization: {
+        maxScore: 120,
+        dedupedLifeSignals: lifeKeys,
+        source: "ari-identity-priority-engine-normalization"
+      },
 
       source: "ari-identity-priority-engine"
     };
