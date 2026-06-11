@@ -1,13 +1,13 @@
 // ari/core-spine/ari-core-cognition.js
 // Ari Core Cognition Spine
-// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, meta awareness, wisdom, regret, consequence, and underlying emotion.
-// Answers: What does this mean, how strongly should Ari trust it, what matters most, and what deeper emotion may be underneath?
-// V1.3
+// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, meta awareness, wisdom, regret, consequence, underlying emotion, and signal activation.
+// Answers: What does this mean, how strongly should Ari trust it, what matters most, and what signal should lead?
+// V1.4
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreCognition = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   run(state = {}) {
     const emotionalIntelligence = window.Ari.emotionalIntelligence
@@ -17,7 +17,8 @@ window.Ari.coreCognition = {
           identity: state.identity,
           conflicts: state.conflicts,
           executive: state.executive,
-          insight: state.earlyInsight
+          insight: state.earlyInsight,
+          lifeSignals: state.lifeSignals
         })
       : {
           surfaceEmotion: null,
@@ -39,7 +40,8 @@ window.Ari.coreCognition = {
           executive: state.executive,
           insight: state.earlyInsight,
           emotion: state.emotion,
-          emotionalIntelligence
+          emotionalIntelligence,
+          lifeSignals: state.lifeSignals
         })
       : {
           theme: null,
@@ -57,7 +59,8 @@ window.Ari.coreCognition = {
           conflicts: state.conflicts,
           insight: state.earlyInsight,
           emotionalIntelligence,
-          meaning
+          meaning,
+          lifeSignals: state.lifeSignals
         })
       : {
           roles: [],
@@ -78,7 +81,8 @@ window.Ari.coreCognition = {
           insight: state.earlyInsight,
           emotionalIntelligence,
           meaning,
-          personModel
+          personModel,
+          lifeSignals: state.lifeSignals
         })
       : {
           beliefs: [],
@@ -96,7 +100,8 @@ window.Ari.coreCognition = {
           executive: state.executive,
           meaning,
           personModel,
-          beliefModel
+          beliefModel,
+          lifeSignals: state.lifeSignals
         })
       : {
           simulations: [],
@@ -116,7 +121,8 @@ window.Ari.coreCognition = {
           beliefModel,
           simulation,
           emotionalIntelligence,
-          questionType: state.questionType
+          questionType: state.questionType,
+          lifeSignals: state.lifeSignals
         })
       : state.earlyInsight;
 
@@ -129,7 +135,8 @@ window.Ari.coreCognition = {
           simulation,
           emotionalIntelligence,
           evidenceEvaluation: insight.evidenceEvaluation || null,
-          questionType: state.questionType
+          questionType: state.questionType,
+          lifeSignals: state.lifeSignals
         })
       : {
           primaryConclusion: insight.oneLineInsight || null,
@@ -155,7 +162,8 @@ window.Ari.coreCognition = {
           personModel,
           beliefModel,
           simulation,
-          metaAwareness
+          metaAwareness,
+          lifeSignals: state.lifeSignals
         })
       : {
           wisdomPrinciple: null,
@@ -178,7 +186,8 @@ window.Ari.coreCognition = {
           personModel,
           beliefModel,
           simulation,
-          metaAwareness
+          metaAwareness,
+          lifeSignals: state.lifeSignals
         })
       : {
           tension: null,
@@ -201,7 +210,8 @@ window.Ari.coreCognition = {
           personModel,
           beliefModel,
           simulation,
-          executive: state.executive
+          executive: state.executive,
+          lifeSignals: state.lifeSignals
         })
       : {
           regretType: null,
@@ -220,7 +230,8 @@ window.Ari.coreCognition = {
           simulation,
           executive: state.executive,
           wisdom,
-          regret
+          regret,
+          lifeSignals: state.lifeSignals
         })
       : {
           path: null,
@@ -239,7 +250,8 @@ window.Ari.coreCognition = {
           wisdomResolution,
           consequences: longTermConsequence,
           personModel,
-          beliefModel
+          beliefModel,
+          lifeSignals: state.lifeSignals
         })
       : {
           synthesis: wisdom.wisdomStatement || insight.oneLineInsight || null,
@@ -260,7 +272,8 @@ window.Ari.coreCognition = {
           personModel,
           beliefModel,
           emotionalIntelligence,
-          executive: state.executive
+          executive: state.executive,
+          lifeSignals: state.lifeSignals
         })
       : {
           shouldRecover: false,
@@ -280,7 +293,8 @@ window.Ari.coreCognition = {
           personModel,
           beliefModel,
           simulation,
-          wisdom
+          wisdom,
+          lifeSignals: state.lifeSignals
         })
       : {
           primaryUnderlyingEmotion: {
@@ -304,7 +318,8 @@ window.Ari.coreCognition = {
           meaning,
           personModel,
           beliefModel,
-          wisdom
+          wisdom,
+          lifeSignals: state.lifeSignals
         })
       : {
           shouldAsk: false,
@@ -312,6 +327,37 @@ window.Ari.coreCognition = {
           primaryQuestion: null,
           supportingQuestions: [],
           source: "emotion-recovery-questions-unavailable"
+        };
+
+    const signals = window.Ari.signalSystem
+      ? window.Ari.signalSystem.analyze({
+          lifeSignals: state.lifeSignals,
+          observation: state.observation,
+          values: state.values,
+          identity: state.identity,
+          conflicts: state.conflicts,
+          executive: state.executive,
+          emotion: state.emotion,
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          wisdom,
+          wisdomResolution,
+          regret,
+          longTermConsequence,
+          underlyingEmotion
+        })
+      : {
+          signals: [],
+          rankedSignals: [],
+          strongestSignal: null,
+          strongestSignalName: null,
+          strongestSignalCategory: null,
+          strongestSignalStrength: 0,
+          recommendedLanguageLead: null,
+          recommendedOrgans: [],
+          source: "signal-system-unavailable"
         };
 
     return {
@@ -330,7 +376,8 @@ window.Ari.coreCognition = {
       wisdomSynthesis,
       wisdomQuestionRecovery,
       underlyingEmotion,
-      emotionRecoveryQuestions
+      emotionRecoveryQuestions,
+      signals
     };
   }
 };
