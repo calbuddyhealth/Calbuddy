@@ -1,26 +1,36 @@
 // ari/identity-system/ari-identity-engine.js
 // Ari Identity Engine
 // Purpose: Detect active identities, role hierarchy, role conflicts, and identity themes.
-// V2.0: Stronger role detection, confidence, seasonal identity hierarchy, and identity tension.
+// V2.1
+// Fixes:
+// - Makes builder detection less aggressive.
+// - Prevents vague uncertainty prompts from becoming "builder" by default.
+// - Requires stronger project-specific evidence for builder identity.
+// - Adds uncertainty protection for vague messages.
+// - Deduplicates and caps identity strength.
 
 window.Ari = window.Ari || {};
 
 window.Ari.identityEngine = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   analyze(observation = {}, values = {}) {
     const identities = [];
 
+    const text = observation.normalizedMessage || "";
+    const isVagueUncertainty = this.isVagueUncertaintyMessage(text, observation);
+
     this.detectLifeTransitionIdentities(observation, identities);
-    this.detectRoleLanguageIdentities(observation, identities);
-    this.detectValueBasedIdentities(values, identities);
-    this.detectGoalBasedIdentities(observation, identities);
+    this.detectRoleLanguageIdentities(observation, identities, { isVagueUncertainty });
+    this.detectValueBasedIdentities(values, identities, { isVagueUncertainty });
+    this.detectGoalBasedIdentities(observation, identities, { isVagueUncertainty });
 
     const normalizedIdentities = this.normalizeIdentities(identities);
     const identityHierarchy = this.buildIdentityHierarchy({
       identities: normalizedIdentities,
       observation,
-      values
+      values,
+      isVagueUncertainty
     });
 
     const identityConflicts = this.detectIdentityConflicts({
@@ -36,7 +46,8 @@ window.Ari.identityEngine = {
       identityHierarchy,
       identityConflicts,
       observation,
-      values
+      values,
+      isVagueUncertainty
     });
 
     const coreQuestion = this.getCoreQuestion(dominantTheme);
@@ -50,25 +61,115 @@ window.Ari.identityEngine = {
       dominantTheme,
       coreQuestion,
       primaryRisk,
+      vagueUncertaintyProtected: isVagueUncertainty,
       source: "ari-identity-engine"
     };
   },
 
+  isVagueUncertaintyMessage(text = "", observation = {}) {
+    const clean = String(text || "").toLowerCase().trim();
+
+    const vaguePhrases = [
+      "something feels off",
+      "something is off",
+      "i feel off",
+      "i don't know",
+      "im not sure",
+      "i'm not sure",
+      "not sure what i want",
+      "i don't know what i want",
+      "i don't know how i feel",
+      "lately i've been thinking",
+      "lately ive been thinking",
+      "i have a decision to make",
+      "i'm considering two different options",
+      "im considering two different options",
+      "something important is happening",
+      "i don't know what is happening",
+      "i dont know what is happening"
+    ];
+
+    const hasVaguePhrase = vaguePhrases.some((phrase) =>
+      clean.includes(phrase)
+    );
+
+    const hasSpecificProjectSignal = this.hasStrongBuilderSignal(clean);
+    const life = observation.lifeTransitions || {};
+    const hasMajorLifeTransition =
+      Boolean(life.fatherhood) ||
+      Boolean(life.pregnancy) ||
+      Boolean(life.marriage) ||
+      Boolean(life.engagement) ||
+      Boolean(life.militaryTransition) ||
+      Boolean(life.careerTransition);
+
+    return hasVaguePhrase && !hasSpecificProjectSignal && !hasMajorLifeTransition;
+  },
+
+  hasStrongBuilderSignal(text = "") {
+    const clean = String(text || "").toLowerCase();
+
+    const strongProjectSignals = [
+      "ari rebirth",
+      "building ari",
+      "build ari",
+      "ari's future",
+      "aris future",
+      "calbuddy",
+      "cal buddy",
+      "calbuddy health",
+      "architecture",
+      "code",
+      "coding",
+      "javascript",
+      "html",
+      "css",
+      "github",
+      "vercel",
+      "supabase",
+      "app development",
+      "build the app",
+      "building the app",
+      "create the app",
+      "project roadmap",
+      "ari lab",
+      "rebirth pipeline",
+      "identity engine",
+      "salience governor",
+      "language composer",
+      "core spine"
+    ];
+
+    return strongProjectSignals.some((phrase) => clean.includes(phrase));
+  },
+
   addIdentity(identities = [], identity = {}) {
+    if (!identity.name) return;
+
     const existing = identities.find((item) => item.name === identity.name);
+    const incomingStrength = Number(identity.strength || 0);
 
     if (existing) {
-      existing.strength += identity.strength || 0;
+      existing.strength = Math.min(
+        120,
+        existing.strength + incomingStrength
+      );
+
       existing.reasons = [
         ...new Set([...(existing.reasons || []), ...(identity.reasons || [])])
       ];
-      existing.confidence = this.mergeConfidence(existing.confidence, identity.confidence);
+
+      existing.confidence = this.mergeConfidence(
+        existing.confidence,
+        identity.confidence
+      );
+
       return;
     }
 
     identities.push({
       name: identity.name,
-      strength: identity.strength || 50,
+      strength: Math.min(incomingStrength || 50, 120),
       confidence: identity.confidence || "medium",
       reasons: identity.reasons || []
     });
@@ -134,45 +235,73 @@ window.Ari.identityEngine = {
     }
   },
 
-  detectRoleLanguageIdentities(observation = {}, identities = []) {
+  detectRoleLanguageIdentities(observation = {}, identities = [], options = {}) {
     const text = observation.normalizedMessage || "";
     const patterns = observation.humanPatterns || {};
+    const isVagueUncertainty = Boolean(options.isVagueUncertainty);
+
+    const strongBuilderSignal = this.hasStrongBuilderSignal(text);
 
     const roleMap = [
       {
         name: "provider",
-        strength: 80,
-        phrases: ["provide", "provider", "protect my family", "stability", "responsibility"],
+        strength: 76,
+        phrases: [
+          "provide",
+          "provider",
+          "protect my family",
+          "stability",
+          "responsibility"
+        ],
         reason: "Provider, protection, responsibility, or stability language detected."
-      },
-      {
-        name: "builder",
-        strength: 78,
-        phrases: ["building ari", "ari rebirth", "calbuddy", "app", "project", "create", "building"],
-        reason: "Creation, Ari Rebirth, CalBuddy, or builder language detected."
       },
       {
         name: "learner",
         strength: 72,
-        phrases: ["pmhnp", "school", "student", "learn", "study", "degree"],
+        phrases: [
+          "pmhnp",
+          "school",
+          "student",
+          "learn",
+          "study",
+          "degree"
+        ],
         reason: "School, PMHNP, student, or learning language detected."
       },
       {
         name: "helper",
         strength: 68,
-        phrases: ["help people", "serve", "service", "patients", "nurse"],
+        phrases: [
+          "help people",
+          "serve",
+          "service",
+          "patients",
+          "nurse"
+        ],
         reason: "Helping, service, nursing, or patient-care language detected."
       },
       {
         name: "achiever",
-        strength: 70,
-        phrases: ["achievement", "milestone", "goals", "behind", "fall behind", "accomplish"],
+        strength: 68,
+        phrases: [
+          "achievement",
+          "milestone",
+          "goals",
+          "fall behind",
+          "accomplish"
+        ],
         reason: "Achievement, milestone, or accomplishment language detected."
       },
       {
         name: "leader",
         strength: 65,
-        phrases: ["lead", "leader", "officer", "charge", "supervise"],
+        phrases: [
+          "lead",
+          "leader",
+          "officer",
+          "charge",
+          "supervise"
+        ],
         reason: "Leadership or officer language detected."
       }
     ];
@@ -188,11 +317,40 @@ window.Ari.identityEngine = {
       }
     });
 
-    if (Array.isArray(patterns.roles)) {
+    // Builder detection is intentionally stricter than other roles.
+    if (strongBuilderSignal) {
+      this.addIdentity(identities, {
+        name: "builder",
+        strength: 82,
+        confidence: "high",
+        reasons: ["Specific Ari, CalBuddy, code, architecture, or app-building language detected."]
+      });
+    } else if (!isVagueUncertainty) {
+      const moderateBuilderSignals = [
+        "build something",
+        "building something",
+        "create something",
+        "project i am building",
+        "thing i am building",
+        "something meaningful",
+        "future i am trying to create"
+      ];
+
+      if (moderateBuilderSignals.some((phrase) => text.includes(phrase))) {
+        this.addIdentity(identities, {
+          name: "builder",
+          strength: 55,
+          confidence: "low",
+          reasons: ["General creation language detected, but not enough for strong builder certainty."]
+        });
+      }
+    }
+
+    if (Array.isArray(patterns.roles) && !isVagueUncertainty) {
       patterns.roles.forEach((role) => {
         this.addIdentity(identities, {
           name: role,
-          strength: 60,
+          strength: 50,
           confidence: "medium",
           reasons: ["Observer detected this active role."]
         });
@@ -200,8 +358,9 @@ window.Ari.identityEngine = {
     }
   },
 
-  detectValueBasedIdentities(values = {}, identities = []) {
+  detectValueBasedIdentities(values = {}, identities = [], options = {}) {
     const valueList = values.values || [];
+    const isVagueUncertainty = Boolean(options.isVagueUncertainty);
 
     if (valueList.includes("family")) {
       this.addIdentity(identities, {
@@ -221,10 +380,11 @@ window.Ari.identityEngine = {
       });
     }
 
-    if (valueList.includes("creation")) {
+    // Do not let vague creation/purpose values force builder identity too early.
+    if (!isVagueUncertainty && valueList.includes("creation")) {
       this.addIdentity(identities, {
         name: "builder",
-        strength: 70,
+        strength: 62,
         confidence: "medium",
         reasons: ["Creation value detected."]
       });
@@ -249,15 +409,25 @@ window.Ari.identityEngine = {
     }
   },
 
-  detectGoalBasedIdentities(observation = {}, identities = []) {
+  detectGoalBasedIdentities(observation = {}, identities = [], options = {}) {
     const goals = observation.goals || {};
+    const text = observation.normalizedMessage || "";
+    const isVagueUncertainty = Boolean(options.isVagueUncertainty);
+    const strongBuilderSignal = this.hasStrongBuilderSignal(text);
 
-    if (goals.wantsBuild) {
+    if (goals.wantsBuild && strongBuilderSignal) {
       this.addIdentity(identities, {
         name: "builder",
-        strength: 75,
-        confidence: "medium",
-        reasons: ["User wants to build or improve a project."]
+        strength: 78,
+        confidence: "high",
+        reasons: ["User wants to build or improve a specific project."]
+      });
+    } else if (goals.wantsBuild && !isVagueUncertainty) {
+      this.addIdentity(identities, {
+        name: "builder",
+        strength: 48,
+        confidence: "low",
+        reasons: ["User may want to build, but the project signal is still broad."]
       });
     }
 
@@ -291,25 +461,39 @@ window.Ari.identityEngine = {
     return [...identities]
       .map((identity) => ({
         ...identity,
+        strength: Math.min(identity.strength || 0, 120),
         score:
-          (identity.strength || 0) +
+          Math.min(identity.strength || 0, 120) +
           (confidenceBonus[identity.confidence] || 0)
       }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 10);
   },
 
-  buildIdentityHierarchy({ identities = [], observation = {}, values = {} } = {}) {
+  buildIdentityHierarchy({
+    identities = [],
+    observation = {},
+    values = {},
+    isVagueUncertainty = false
+  } = {}) {
     const life = observation.lifeTransitions || {};
     const valueList = values.values || [];
 
+    if (isVagueUncertainty && identities.length === 0) {
+      return {
+        primary: null,
+        secondary: [],
+        supporting: [],
+        seasonalPrimaryReason:
+          "Vague uncertainty detected; no identity should lead yet."
+      };
+    }
+
     let primary = identities[0] || null;
 
-    // Seasonal override: fatherhood/family transition should usually lead.
     const father = identities.find((item) => item.name === "father");
     const expectantParent = identities.find((item) => item.name === "expectant-parent");
     const provider = identities.find((item) => item.name === "provider");
-    const spouse = identities.find((item) => item.name === "future-spouse");
 
     if (life.fatherhood && father) {
       primary = father;
@@ -337,7 +521,8 @@ window.Ari.identityEngine = {
       primary,
       secondary,
       supporting,
-      seasonalPrimaryReason: this.getSeasonalPrimaryReason(primary, observation, values)
+      seasonalPrimaryReason:
+        this.getSeasonalPrimaryReason(primary, observation, values)
     };
   },
 
@@ -350,12 +535,16 @@ window.Ari.identityEngine = {
       return "Fatherhood is active and should likely lead this season.";
     }
 
+    if (primary.name === "expectant-parent") {
+      return "Incoming child or pregnancy transition is active.";
+    }
+
     if (primary.name === "provider") {
       return "Provider responsibility is active and may be organizing the user's decisions.";
     }
 
     if (primary.name === "builder") {
-      return "Builder identity is active through creation or project work.";
+      return "Builder identity is active through specific creation or project work.";
     }
 
     return `${primary.name} appears strongest based on current evidence.`;
@@ -395,7 +584,10 @@ window.Ari.identityEngine = {
       );
     }
 
-    if (names.includes("veteran-transitioning") && names.includes("career-builder")) {
+    if (
+      names.includes("veteran-transitioning") &&
+      names.includes("career-builder")
+    ) {
       addConflict(
         "old_service_identity_vs_new_career",
         "medium",
@@ -422,10 +614,15 @@ window.Ari.identityEngine = {
     identityHierarchy = {},
     identityConflicts = [],
     observation = {},
-    values = {}
+    values = {},
+    isVagueUncertainty = false
   } = {}) {
     const life = observation.lifeTransitions || {};
     const patterns = observation.humanPatterns || {};
+
+    if (isVagueUncertainty && !identityHierarchy.primary) {
+      return "identity_unclear";
+    }
 
     if (identityConflicts.length >= 3 || patterns.roleConflict) {
       return "identity_overload";
@@ -439,15 +636,26 @@ window.Ari.identityEngine = {
       return "fatherhood_transition";
     }
 
-    if (identityConflicts.some((conflict) => conflict.name === "father_vs_builder")) {
+    if (
+      identityConflicts.some(
+        (conflict) => conflict.name === "father_vs_builder"
+      )
+    ) {
       return "family_vs_creation_identity";
     }
 
-    if (identityConflicts.some((conflict) => conflict.name === "provider_vs_present_parent")) {
+    if (
+      identityConflicts.some(
+        (conflict) => conflict.name === "provider_vs_present_parent"
+      )
+    ) {
       return "provider_vs_presence";
     }
 
-    if (life.militaryTransition || identities.some((item) => item.name === "veteran-transitioning")) {
+    if (
+      life.militaryTransition ||
+      identities.some((item) => item.name === "veteran-transitioning")
+    ) {
       return "identity_transition";
     }
 
