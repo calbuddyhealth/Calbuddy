@@ -106,6 +106,18 @@
   <script src="ari/language-system/ari-language-humanizers.js"></script>
   <script src="ari/language-system/ari-language-reflection-questions.js"></script>
   <script src="ari/language-system/ari-language-prioritizer.js"></script>
+  <script src="ari/language-system/ari-language-router.js"></script>
+
+  <!-- LANGUAGE BUILDERS -->
+  <script src="ari/language-system/ari-language-insight-builder.js"></script>
+  <script src="ari/language-system/ari-language-meaning-builder.js"></script>
+  <script src="ari/language-system/ari-language-emotion-builder.js"></script>
+  <script src="ari/language-system/ari-language-decision-builder.js"></script>
+  <script src="ari/language-system/ari-language-planning-builder.js"></script>
+  <script src="ari/language-system/ari-language-building-builder.js"></script>
+  <script src="ari/language-system/ari-language-recovery-builder.js"></script>
+
+  <!-- LANGUAGE COORDINATOR -->
   <script src="ari/language-system/ari-language-builder.js"></script>
   <script src="ari/language-system/ari-language-system.js"></script>
 
@@ -127,25 +139,46 @@
 
   <script>
     document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
-      const message = document.getElementById("ariInput").value;
+      const output = document.getElementById("ariOutput");
 
-      if (!message.trim()) {
-        document.getElementById("ariOutput").textContent =
-          "Enter a message first.";
-        return;
-      }
+      try {
+        const message = document.getElementById("ariInput").value;
 
-      const analysis = window.Ari.core.analyzeMessage(message, {});
-      const summary = window.Ari.core.createSystemSummary(analysis);
+        if (!message.trim()) {
+          output.textContent = "Enter a message first.";
+          return;
+        }
 
-      const response = window.Ari.languageSystem.generate(analysis, {
-        length: "normal"
-      });
+        const analysis = window.Ari.core.analyzeMessage(message, {});
+        const summary = window.Ari.core.createSystemSummary(analysis);
 
-      document.getElementById("ariOutput").textContent =
+        const languageRoute = window.Ari.languageRouter
+          ? window.Ari.languageRouter.route(analysis)
+          : "language-router-unavailable";
+
+        const response = window.Ari.languageSystem.generate(analysis, {
+          length: "normal"
+        });
+
+        output.textContent =
 `===== ARI RESPONSE =====
 
 ${response}
+
+==================================================
+
+===== LANGUAGE ROUTE =====
+
+${languageRoute}
+
+Recommended Language Lead:
+${summary.recommendedLanguageLead || analysis.signals?.recommendedLanguageLead || "none"}
+
+Strongest Signal:
+${summary.strongestSignal || analysis.signals?.strongestSignalName || "none"}
+
+Strongest Signal Category:
+${summary.strongestSignalCategory || analysis.signals?.strongestSignalCategory || "none"}
 
 ==================================================
 
@@ -168,6 +201,19 @@ ${(summary.thingsToDelay || []).join(", ") || "none"}
 
 ${JSON.stringify(summary, null, 2)}
 `;
+      } catch (error) {
+        console.error("[ARI LAB ERROR]", error);
+
+        output.textContent =
+`===== ARI LAB ERROR =====
+
+${error.message}
+
+==================================================
+
+${error.stack}
+`;
+      }
     });
   </script>
 </body>
