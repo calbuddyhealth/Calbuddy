@@ -137,7 +137,8 @@
   <script src="ari/integration/ari-synthesis-engine.js"></script>
 
   <script src="ari/language/ari-language-composer.js"></script>
-<script src="ari/integration/ari-rebirth-pipeline.js"></script>
+  <script src="ari/integration/ari-rebirth-pipeline.js"></script>
+
   <!-- MEMORY -->
   <script src="ari/memory-system/ari-memory-engine.js"></script>
 
@@ -155,77 +156,6 @@
   <script src="ari/system/ari-bootstrap.js"></script>
 
   <script>
-    function runAriRebirthPipeline(systemSummary = {}) {
-      let summary = { ...systemSummary };
-
-      if (window.AriUncertaintyClassificationEngine) {
-        summary = {
-          ...summary,
-          ...window.AriUncertaintyClassificationEngine.classify(summary)
-        };
-      }
-
-      if (window.AriIdentityPriorityEngine) {
-        summary = {
-          ...summary,
-          ...window.AriIdentityPriorityEngine.evaluate(summary)
-        };
-      }
-
-      if (window.AriIdentityConflictResolver) {
-        summary = {
-          ...summary,
-          ...window.AriIdentityConflictResolver.resolve(summary)
-        };
-      }
-
-      if (window.AriValueIntegrationEngine) {
-        summary = {
-          ...summary,
-          ...window.AriValueIntegrationEngine.integrate(summary)
-        };
-      }
-
-      if (window.AriStewardshipFearDifferentiator) {
-        summary = {
-          ...summary,
-          ...window.AriStewardshipFearDifferentiator.evaluate(summary)
-        };
-      }
-
-      if (window.AriLifeChapterEngine) {
-        summary = {
-          ...summary,
-          ...window.AriLifeChapterEngine.detect(summary)
-        };
-      }
-
-      if (window.AriSalienceGovernor) {
-        summary = {
-          ...summary,
-          ...window.AriSalienceGovernor.govern(summary)
-        };
-      }
-
-      if (window.AriSynthesisEngine) {
-        summary = {
-          ...summary,
-          ...window.AriSynthesisEngine.synthesize(summary)
-        };
-      }
-
-      if (window.AriLanguageComposer) {
-        summary = {
-          ...summary,
-          ...window.AriLanguageComposer.compose(summary)
-        };
-      }
-
-      return summary;
-    }
-
-    window.runAriRebirthPipeline = runAriRebirthPipeline;
-
     document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
       const output = document.getElementById("ariOutput");
 
@@ -240,8 +170,6 @@
         const analysis = window.Ari.core.analyzeMessage(message, {});
         const summary = window.Ari.core.createSystemSummary(analysis);
 
-        const rebirthSummary = window.runAriRebirthPipeline(summary);
-
         const languageRoute = window.Ari.languageRouter
           ? window.Ari.languageRouter.route(analysis)
           : "language-router-unavailable";
@@ -251,10 +179,10 @@
         });
 
         const rebirthResponse =
-          rebirthSummary.finalResponse ||
-          rebirthSummary.synthesisRecommendedQuestion ||
-          rebirthSummary.salienceQuestion ||
-          rebirthSummary.recommendedRecoveryQuestion ||
+          summary.finalResponse ||
+          summary.synthesisRecommendedQuestion ||
+          summary.salienceQuestion ||
+          summary.recommendedRecoveryQuestion ||
           oldResponse;
 
         output.textContent =
@@ -272,25 +200,25 @@ ${rebirthResponse}
 
 ===== REBIRTH LEAD ORGAN =====
 
-${rebirthSummary.salienceLeadOrgan || "none"}
+${summary.salienceLeadOrgan || "none"}
 
 Mode:
-${rebirthSummary.salienceMode || "none"}
+${summary.salienceMode || "none"}
 
 Lead Identity:
-${rebirthSummary.resolvedLeadIdentity || rebirthSummary.leadIdentity || "none"}
+${summary.resolvedLeadIdentity || summary.leadIdentity || "none"}
 
 Primary Life Chapter:
-${rebirthSummary.primaryLifeChapter || "none"}
+${summary.primaryLifeChapter || "none"}
 
 Uncertainty Type:
-${rebirthSummary.uncertaintyType || "none"}
+${summary.uncertaintyType || "none"}
 
 Integrated Value:
-${rebirthSummary.integratedValue || "none"}
+${summary.integratedValue || "none"}
 
 Emotional Classification:
-${rebirthSummary.emotionalClassification || "none"}
+${summary.emotionalClassification || "none"}
 
 ==================================================
 
@@ -326,7 +254,7 @@ ${(summary.thingsToDelay || []).join(", ") || "none"}
 
 ===== REBIRTH SYSTEM SUMMARY =====
 
-${JSON.stringify(rebirthSummary, null, 2)}
+${JSON.stringify(summary, null, 2)}
 `;
       } catch (error) {
         console.error("[ARI LAB ERROR]", error);
