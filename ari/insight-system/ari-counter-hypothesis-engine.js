@@ -1,12 +1,12 @@
 // ari/insight-system/ari-counter-hypothesis-engine.js
 // Ari Counter-Hypothesis Engine
 // Purpose: Generate alternate explanations so Ari does not lock onto one story too quickly.
-// V1.0
+// V1.1: Expanded to challenge newer hypothesis types.
 
 window.Ari = window.Ari || {};
 
 window.Ari.counterHypothesisEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   generate({ hypothesis = null, observation = {}, analysis = {} } = {}) {
     if (!hypothesis) {
@@ -18,6 +18,7 @@ window.Ari.counterHypothesisEngine = {
     }
 
     const counters = [];
+
     const text = (
       observation.normalizedMessage ||
       observation.message ||
@@ -33,6 +34,31 @@ window.Ari.counterHypothesisEngine = {
         evidence
       });
     };
+
+    const meaning = analysis.meaning || {};
+    const personModel = analysis.personModel || {};
+    const beliefModel = analysis.beliefModel || {};
+    const emotionalIntelligence = analysis.emotionalIntelligence || {};
+
+    const lifeChapter = personModel.lifeChapter?.name || "";
+    const primaryBelief = beliefModel.primaryBelief?.name || "";
+    const rootNeed = emotionalIntelligence.rootNeed?.name || "";
+
+    if (hypothesis.name === "unwanted_cost") {
+      add(
+        "truth_seeking_not_avoidance",
+        "low",
+        "Another possibility is that the user is not avoiding the truth. They may be trying to understand it more honestly.",
+        ["avoidance hypothesis detected"]
+      );
+
+      add(
+        "language_may_be_exploratory",
+        "low",
+        "Another possibility is that the prompt is exploratory rather than confessional.",
+        ["insight-seeking language detected"]
+      );
+    }
 
     if (hypothesis.name === "achievement_before_arrival") {
       add(
@@ -50,6 +76,24 @@ window.Ari.counterHypothesisEngine = {
       );
     }
 
+    if (hypothesis.name === "presence_must_be_earned") {
+      add(
+        "presence_may_need_structure",
+        "low",
+        "Another possibility is that presence is not being avoided. It may simply need structure because the user's responsibilities are real.",
+        ["presence hypothesis detected"]
+      );
+    }
+
+    if (hypothesis.name === "identity_overload") {
+      add(
+        "seasonal_intensity_not_identity_overload",
+        "low",
+        "Another possibility is that this is temporary seasonal intensity, not a permanent identity problem.",
+        ["multiple role signals detected"]
+      );
+    }
+
     if (hypothesis.name === "responsibility_before_rest") {
       add(
         "responsibility_is_currently_appropriate",
@@ -59,21 +103,48 @@ window.Ari.counterHypothesisEngine = {
       );
     }
 
-    if (hypothesis.name === "too_many_primary_roles") {
+    if (hypothesis.name === "purpose_abandonment_fear") {
       add(
-        "seasonal_intensity_not_identity_overload",
+        "purpose_may_be_changing_form",
         "low",
-        "Another possibility is that this is temporary seasonal intensity, not a permanent identity problem.",
-        ["multiple role signals detected"]
+        "Another possibility is that purpose is not being abandoned. It may be changing form for this season.",
+        ["purpose fear hypothesis detected"]
       );
     }
 
-    if (hypothesis.name === "slowing_down_equals_loss") {
+    if (hypothesis.name === "growth_requires_instability") {
       add(
-        "slowing_down_may_be_strategy",
+        "stability_can_support_growth",
         "low",
-        "Another possibility is that slowing down is not loss. It may be strategic pacing.",
-        ["delay or slowing language detected"]
+        "Another possibility is that stability is not opposed to growth. It may be the foundation that makes growth sustainable.",
+        ["growth versus stability hypothesis detected"]
+      );
+    }
+
+    if (hypothesis.name === "hope_for_clarity") {
+      add(
+        "clarity_may_require_action",
+        "low",
+        "Another possibility is that clarity may not come from more reflection alone. It may require action and feedback.",
+        ["meaning search detected"]
+      );
+    }
+
+    if (hypothesis.name === "identity_reorganization") {
+      add(
+        "identity_continuity_still_exists",
+        "low",
+        "Another possibility is that the user's identity is not being replaced. The same core self may be reorganizing around new responsibilities.",
+        ["life chapter transition detected"]
+      );
+    }
+
+    if (hypothesis.name === "purpose_protection") {
+      add(
+        "purpose_may_need_pacing",
+        "low",
+        "Another possibility is that purpose does not need more intensity right now. It may need pacing.",
+        ["purpose protection detected"]
       );
     }
 
@@ -89,6 +160,65 @@ window.Ari.counterHypothesisEngine = {
         ["truth or avoidance prompt detected"]
       );
     }
+
+    if (
+      meaning.theme === "search_for_meaning" &&
+      !counters.some((item) => item.name === "language_may_be_exploratory")
+    ) {
+      add(
+        "meaning_search_not_hidden_problem",
+        "low",
+        "Another possibility is that there is no hidden problem yet. The user may simply be searching for meaning.",
+        ["meaning search detected"]
+      );
+    }
+
+    if (
+      lifeChapter &&
+      lifeChapter !== "unclear" &&
+      !counters.some((item) => item.name === "seasonal_intensity_not_identity_overload")
+    ) {
+      add(
+        "seasonal_transition_not_character_flaw",
+        "low",
+        "Another possibility is that the tension is seasonal rather than a flaw in the user's character.",
+        ["life chapter detected"]
+      );
+    }
+
+    if (
+      rootNeed === "understanding" &&
+      !counters.some((item) => item.name === "language_may_be_exploratory")
+    ) {
+      add(
+        "need_for_understanding_not_avoidance",
+        "low",
+        "Another possibility is that the user is not avoiding action; they may first need understanding.",
+        ["root need is understanding"]
+      );
+    }
+
+    if (
+      primaryBelief &&
+      !counters.some((item) => item.name === "belief_may_be_contextual")
+    ) {
+      add(
+        "belief_may_be_contextual",
+        "low",
+        "Another possibility is that this belief is active only in this context, not across the user's whole life.",
+        ["primary belief detected"]
+      );
+    }
+
+    counters.sort((a, b) => {
+      const rank = {
+        high: 3,
+        medium: 2,
+        low: 1
+      };
+
+      return (rank[b.confidence] || 0) - (rank[a.confidence] || 0);
+    });
 
     return {
       primaryCounterHypothesis: counters[0] || null,
