@@ -168,7 +168,12 @@
         }
 
         const analysis = window.Ari.core.analyzeMessage(message, {});
-        const summary = window.Ari.core.createSystemSummary(analysis);
+
+        let summary = window.Ari.core.createSystemSummary(analysis);
+
+        if (window.AriRebirthPipeline && typeof window.AriRebirthPipeline.run === "function") {
+          summary = window.AriRebirthPipeline.run(summary);
+        }
 
         const languageRoute = window.Ari.languageRouter
           ? window.Ari.languageRouter.route(analysis)
@@ -184,6 +189,18 @@
           summary.salienceQuestion ||
           summary.recommendedRecoveryQuestion ||
           oldResponse;
+
+        const primaryPriority =
+          typeof summary.primaryPriority === "object"
+            ? summary.primaryPriority?.name
+            : summary.primaryPriority;
+
+        const thingsToDelay = Array.isArray(summary.thingsToDelay)
+          ? summary.thingsToDelay
+              .map(item => typeof item === "string" ? item : item.name)
+              .filter(Boolean)
+              .join(", ")
+          : "";
 
         output.textContent =
 `===== OLD ARI RESPONSE =====
@@ -242,13 +259,26 @@ ${summary.strongestSignalCategory || analysis.signals?.strongestSignalCategory |
 ${summary.executiveDecision || "none"}
 
 Primary Priority:
-${summary.primaryPriority || "none"}
+${primaryPriority || "none"}
 
 Recommended Focus:
 ${summary.recommendedFocus || "none"}
 
 Things To Delay:
-${(summary.thingsToDelay || []).join(", ") || "none"}
+${thingsToDelay || "none"}
+
+==================================================
+
+===== REBIRTH PIPELINE CHECK =====
+
+Pipeline Ran:
+${summary.rebirthPipelineRan ? "yes" : "no"}
+
+Pipeline Source:
+${summary.rebirthPipelineSource || "none"}
+
+Language Source:
+${summary.source || "none"}
 
 ==================================================
 
