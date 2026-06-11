@@ -1,12 +1,12 @@
 // ari/core-spine/ari-core-cognition.js
 // Ari Core Cognition Spine
 // Purpose: Handle cognition, wisdom, emotion depth, nervous signals, life weighting, and salience.
-// V1.5
+// V1.6: Adds optional Ari Rebirth pipeline bridge after classic cognition completes.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreCognition = {
-  version: "1.5.0",
+  version: "1.6.0",
 
   run(state = {}) {
     const emotionalIntelligence = window.Ari.emotionalIntelligence
@@ -409,7 +409,7 @@ window.Ari.coreCognition = {
           source: "salience-network-unavailable"
         };
 
-    return {
+    let nextState = {
       ...state,
       emotionalIntelligence,
       meaning,
@@ -430,5 +430,152 @@ window.Ari.coreCognition = {
       lifeSignalWeighting,
       salience
     };
+
+    // REBIRTH BRIDGE
+    // This creates a temporary flat summary so the new organs can run during cognition.
+    // Core Summary will still run Rebirth again for debug output, but this lets later
+    // spine layers like reflection/expression see Rebirth outputs earlier.
+    if (
+      window.AriRebirthPipeline &&
+      typeof window.AriRebirthPipeline.run === "function"
+    ) {
+      const rebirthInput = {
+        questionType: nextState.questionType || "unknown",
+
+        lifeSignals: nextState.lifeSignals?.signalNames || [],
+        primaryLifeSignal: nextState.lifeSignals?.primarySignal?.name || null,
+        hasMajorLifeSignal: Boolean(nextState.lifeSignals?.hasMajorLifeSignal),
+
+        primaryWeightedLifeSignal:
+          nextState.lifeSignalWeighting?.primaryWeightedLifeSignalName || null,
+        primaryWeightedLifeSignalWeight:
+          nextState.lifeSignalWeighting?.primaryWeightedLifeSignalWeight || 0,
+        lifePriorityClass:
+          nextState.lifeSignalWeighting?.lifePriorityClass || "none",
+        rankedLifeSignals:
+          nextState.lifeSignalWeighting?.rankedLifeSignals?.slice(0, 8) || [],
+
+        strongestSignal: nextState.signals?.strongestSignalName || null,
+        strongestSignalCategory:
+          nextState.signals?.strongestSignalCategory || null,
+        strongestSignalStrength:
+          nextState.signals?.strongestSignalStrength || 0,
+        rankedSignals:
+          nextState.signals?.rankedSignals?.slice(0, 8) || [],
+
+        rankedSalience:
+          nextState.salience?.rankedSalience?.slice(0, 8) || [],
+
+        focusType: nextState.attention?.focusType || "unknown",
+        primaryNeed: nextState.attention?.primaryNeed || null,
+
+        dominantValue: nextState.values?.dominantValue || null,
+        dominantIdentity:
+          nextState.identity?.dominantIdentity?.name || null,
+
+        primaryConflict:
+          nextState.conflicts?.primaryConflict?.name || null,
+        conflictIntensity:
+          nextState.conflicts?.conflictIntensity || "none",
+
+        primaryPriority:
+          nextState.executive?.primaryPriority?.name || null,
+        executiveDecision:
+          nextState.executive?.executiveDecision || null,
+
+        hypothesis: nextState.insight?.hypothesis?.name || null,
+        counterHypothesis:
+          nextState.insight?.counterHypothesis?.name || null,
+        evidenceStrength:
+          nextState.insight?.evidenceStrength || null,
+        calibratedConfidence:
+          nextState.insight?.calibratedConfidence || null,
+        metaConfidence:
+          nextState.metaAwareness?.confidenceLevel || null,
+        uncertaintyAreas:
+          nextState.metaAwareness?.uncertaintyAreas || [],
+        knownUnknowns:
+          nextState.metaAwareness?.knownUnknowns || [],
+
+        wisdomTension:
+          nextState.wisdom?.wisdomTension?.name || null,
+        highestGood:
+          nextState.wisdom?.highestGood || null,
+        wisdomConfidence:
+          nextState.wisdom?.confidence || null,
+        wisdomStatement:
+          nextState.wisdom?.wisdomStatement || null,
+
+        wisdomLeadingGood:
+          nextState.wisdomResolution?.leadingGood || null,
+        wisdomSupportingGood:
+          nextState.wisdomResolution?.supportingGood || null,
+        wisdomResolvedStatement:
+          nextState.wisdomResolution?.resolvedStatement || null,
+
+        emotionRecoveryQuestion:
+          nextState.emotionRecoveryQuestions?.primaryQuestion || null,
+        wisdomRecoveryQuestion:
+          nextState.wisdomQuestionRecovery?.primaryQuestion || null,
+
+        underlyingEmotionDepth:
+          nextState.underlyingEmotion?.primaryUnderlyingEmotion?.name || null,
+        underlyingEmotionDepthConfidence:
+          nextState.underlyingEmotion?.primaryUnderlyingEmotion?.confidence || null,
+
+        primaryEmotion:
+          nextState.emotion?.primaryEmotion || "curiosity",
+        secondaryEmotions:
+          nextState.emotion?.secondaryEmotions || [],
+        surfaceEmotion:
+          nextState.emotionalIntelligence?.surfaceEmotion?.name || null,
+        underlyingEmotion:
+          nextState.emotionalIntelligence?.underlyingEmotion?.name || null,
+        rootNeed:
+          nextState.emotionalIntelligence?.rootNeed?.name || null,
+        protecting:
+          nextState.emotionalIntelligence?.protecting?.name || null,
+
+        meaningTheme:
+          nextState.meaning?.theme || null,
+        meaningConfidence:
+          nextState.meaning?.confidence || null,
+        meaningStatement:
+          nextState.meaning?.meaning || null,
+        humanTruth:
+          nextState.meaning?.humanTruth || null,
+
+        personLifeChapter:
+          nextState.personModel?.lifeChapter?.name || null,
+        personPrimaryRole:
+          nextState.personModel?.snapshot?.primaryRole || null,
+        personMainNeed:
+          nextState.personModel?.snapshot?.mainNeed || null,
+
+        primaryBelief:
+          nextState.beliefModel?.primaryBelief?.name || null,
+        primaryBeliefConfidence:
+          nextState.beliefModel?.primaryBelief?.confidence || null,
+
+        primaryOrgan:
+          nextState.route?.primaryOrgan || "companion",
+        supportingOrgans:
+          nextState.route?.supportingOrgans || []
+      };
+
+      const rebirth = window.AriRebirthPipeline.run(rebirthInput);
+
+      nextState = {
+        ...nextState,
+
+        // Flat fields for expression/voice access
+        ...rebirth,
+
+        // Grouped object for debugging
+        rebirth
+      };
+    }
+
+    return nextState;
   }
 };
