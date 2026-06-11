@@ -1,12 +1,12 @@
 // ari/insight-system/ari-insight-engine.js
 // Ari Insight Engine
-// Purpose: Detect patterns, hidden conflicts, avoidance, tradeoffs, motives, hypotheses, counter-hypotheses, and one useful insight.
-// V3.0: Integrates Insight Hypothesis Engine, Counter-Hypothesis Engine, and Confidence Calibration.
+// Purpose: Detect patterns, conflicts, avoidance, tradeoffs, motives, hypotheses, evidence, confidence, and one useful insight.
+// V3.1: Uses separate Evidence System and updated hypothesis/counter/calibration flow.
 
 window.Ari = window.Ari || {};
 
 window.Ari.insightEngine = {
-  version: "3.0.0",
+  version: "3.1.0",
 
   generate({
     observation = {},
@@ -21,20 +21,6 @@ window.Ari.insightEngine = {
     emotionalIntelligence = {},
     questionType = "understanding"
   } = {}) {
-    const analysisContext = {
-      observation,
-      values,
-      identity,
-      conflicts,
-      executive,
-      meaning,
-      personModel,
-      beliefModel,
-      simulation,
-      emotionalIntelligence,
-      questionType
-    };
-
     const pattern = this.detectPattern({
       observation,
       values,
@@ -71,7 +57,6 @@ window.Ari.insightEngine = {
       conflicts,
       executive,
       meaning,
-      personModel,
       beliefModel,
       simulation
     });
@@ -81,12 +66,40 @@ window.Ari.insightEngine = {
       values,
       identity,
       beliefModel,
-      emotionalIntelligence,
-      meaning
+      emotionalIntelligence
     });
 
+    const baseInsight = {
+      pattern,
+      hiddenConflict,
+      avoidance,
+      tradeoff,
+      hiddenMotive
+    };
+
+    const analysisContext = {
+      observation,
+      values,
+      identity,
+      conflicts,
+      executive,
+      meaning,
+      personModel,
+      beliefModel,
+      simulation,
+      emotionalIntelligence,
+      questionType
+    };
+
     const hypothesisResult = window.Ari.insightHypothesisEngine
-      ? window.Ari.insightHypothesisEngine.generate(observation, analysisContext)
+      ? window.Ari.insightHypothesisEngine.generate({
+          observation,
+          insight: baseInsight,
+          meaning,
+          personModel,
+          beliefModel,
+          emotionalIntelligence
+        })
       : {
           primaryHypothesis: null,
           hypotheses: []
@@ -109,10 +122,33 @@ window.Ari.insightEngine = {
     const counterHypothesis = counterResult.primaryCounterHypothesis || null;
     const counterHypotheses = counterResult.counterHypotheses || [];
 
+    const evidenceEvaluation = window.Ari.evidenceEngine
+      ? window.Ari.evidenceEngine.evaluate({
+          hypothesis,
+          counterHypothesis,
+          insight: baseInsight,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          emotionalIntelligence,
+          observation
+        })
+      : {
+          supportingEvidence: [],
+          contradictingEvidence: [],
+          missingEvidence: ["Evidence engine unavailable."],
+          evidenceScore: 0,
+          evidenceStrength: "none",
+          evidenceSummary: "Evidence engine unavailable.",
+          source: "evidence-engine-unavailable"
+        };
+
     const calibrated = window.Ari.confidenceCalibration
       ? window.Ari.confidenceCalibration.calibrate({
           hypothesis,
           counterHypothesis,
+          evidenceEvaluation,
           evidence: hypothesis?.evidence || [],
           questionType,
           analysis: analysisContext
@@ -146,6 +182,15 @@ window.Ari.insightEngine = {
       hypotheses,
       counterHypothesis,
       counterHypotheses,
+
+      evidenceEvaluation,
+      evidenceStrength: evidenceEvaluation?.evidenceStrength || "none",
+      evidenceScore: evidenceEvaluation?.evidenceScore || 0,
+      evidenceSummary: evidenceEvaluation?.evidenceSummary || null,
+      supportingEvidence: evidenceEvaluation?.supportingEvidence || [],
+      contradictingEvidence: evidenceEvaluation?.contradictingEvidence || [],
+      missingEvidence: evidenceEvaluation?.missingEvidence || [],
+
       calibratedConfidence: calibrated.confidence,
       confidenceScore: calibrated.confidenceScore,
       confidenceReason: calibrated.reason,
@@ -161,9 +206,9 @@ window.Ari.insightEngine = {
           avoidance,
           tradeoff,
           hiddenMotive,
-          meaning,
           hypothesis,
           counterHypothesis,
+          evidenceEvaluation,
           calibrated
         })
       },
@@ -184,6 +229,7 @@ window.Ari.insightEngine = {
           name,
           confidence,
           evidence,
+          description,
           source: "ari-insight-engine"
         }),
         description
@@ -206,7 +252,7 @@ window.Ari.insightEngine = {
           ? ""
           : confidence === "medium"
           ? "I could be wrong, but "
-          : "This is only a weak signal, but "
+          : "This is only a possibility, but "
     };
   },
 
@@ -214,7 +260,6 @@ window.Ari.insightEngine = {
     observation = {},
     values = {},
     identity = {},
-    conflicts = {},
     meaning = {},
     personModel = {},
     beliefModel = {},
@@ -391,8 +436,6 @@ window.Ari.insightEngine = {
   detectAvoidance({
     observation = {},
     executive = {},
-    conflicts = {},
-    meaning = {},
     beliefModel = {},
     simulation = {}
   } = {}) {
@@ -447,7 +490,7 @@ window.Ari.insightEngine = {
           "belief connects achievement with safety or momentum"
         ],
         description:
-          "The user may be avoiding the discomfort of uncertainty without achievement as protection."
+          "The user may be avoiding uncertainty without achievement as protection."
       });
     }
 
@@ -478,9 +521,7 @@ window.Ari.insightEngine = {
       return this.makeSignal({
         name: "presence_vs_acceleration",
         confidence: "high",
-        evidence: [
-          "simulation identified presence versus acceleration"
-        ],
+        evidence: ["simulation identified presence versus acceleration"],
         description:
           "The user may need to choose between being more present and accelerating achievement."
       });
@@ -493,9 +534,7 @@ window.Ari.insightEngine = {
       return this.makeSignal({
         name: "family_presence_vs_creation",
         confidence: "medium",
-        evidence: [
-          "family versus creation conflict detected"
-        ],
+        evidence: ["family versus creation conflict detected"],
         description:
           "Time invested in building may reduce time available for family presence."
       });
@@ -508,9 +547,7 @@ window.Ari.insightEngine = {
       return this.makeSignal({
         name: "growth_vs_stability",
         confidence: "medium",
-        evidence: [
-          "growth versus stability conflict or belief detected"
-        ],
+        evidence: ["growth versus stability conflict or belief detected"],
         description:
           "Aggressive growth may temporarily reduce stability."
       });
@@ -520,9 +557,7 @@ window.Ari.insightEngine = {
       return this.makeSignal({
         name: "chosen_sacrifice",
         confidence: "medium",
-        evidence: [
-          "executive system recommended delaying something"
-        ],
+        evidence: ["executive system recommended delaying something"],
         description:
           "Protecting one meaningful priority requires slowing another."
       });
@@ -555,9 +590,7 @@ window.Ari.insightEngine = {
       return this.makeSignal({
         name: "achievement_as_control",
         confidence: "medium",
-        evidence: [
-          "achievement language or belief detected"
-        ],
+        evidence: ["achievement language or belief detected"],
         description:
           "The user may use achievement to make uncertainty feel controllable."
       });
@@ -570,9 +603,7 @@ window.Ari.insightEngine = {
       return this.makeSignal({
         name: "protecting_purpose",
         confidence: "medium",
-        evidence: [
-          "purpose-related fear or belief detected"
-        ],
+        evidence: ["purpose-related fear or belief detected"],
         description:
           "The user may be trying to protect a meaningful mission from being lost."
       });
@@ -585,9 +616,7 @@ window.Ari.insightEngine = {
       return this.makeSignal({
         name: "protecting_stability",
         confidence: "medium",
-        evidence: [
-          "responsibility or provider identity detected"
-        ],
+        evidence: ["responsibility or provider identity detected"],
         description:
           "The user may be trying to protect stability for themselves or others."
       });
@@ -658,6 +687,7 @@ window.Ari.insightEngine = {
     hiddenMotive = {},
     hypothesis = null,
     counterHypothesis = null,
+    evidenceEvaluation = null,
     calibrated = {}
   } = {}) {
     const evidence = [
@@ -671,11 +701,13 @@ window.Ari.insightEngine = {
 
     const uniqueEvidence = [...new Set(evidence)];
 
-    if (uniqueEvidence.length === 0) {
-      return "Ari does not have enough evidence yet to explain the insight clearly.";
-    }
+    let explanation = uniqueEvidence.length
+      ? `This insight is based on: ${uniqueEvidence.join(", ")}.`
+      : "Ari does not have enough evidence yet to explain the insight clearly.";
 
-    let explanation = `This insight is based on: ${uniqueEvidence.join(", ")}.`;
+    if (evidenceEvaluation?.evidenceSummary) {
+      explanation += ` ${evidenceEvaluation.evidenceSummary}`;
+    }
 
     if (counterHypothesis?.explanation) {
       explanation += ` Counterpoint: ${counterHypothesis.explanation}`;
