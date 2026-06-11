@@ -1,13 +1,12 @@
 // ari/core-spine/ari-core-cognition.js
 // Ari Core Cognition Spine
-// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, meta awareness, wisdom, regret, consequence, underlying emotion, and signal activation.
-// Answers: What does this mean, how strongly should Ari trust it, what matters most, and what signal should lead?
-// V1.4
+// Purpose: Handle cognition, wisdom, emotion depth, nervous signals, life weighting, and salience.
+// V1.5
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreCognition = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   run(state = {}) {
     const emotionalIntelligence = window.Ari.emotionalIntelligence
@@ -360,6 +359,56 @@ window.Ari.coreCognition = {
           source: "signal-system-unavailable"
         };
 
+    const lifeSignalWeighting = window.Ari.lifeSignalWeighting
+      ? window.Ari.lifeSignalWeighting.weight({
+          lifeSignals: state.lifeSignals,
+          identity: state.identity,
+          conflicts: state.conflicts,
+          insight,
+          wisdom,
+          regret,
+          underlyingEmotion
+        })
+      : {
+          weightedSignals: [],
+          rankedLifeSignals: [],
+          primaryWeightedLifeSignal: null,
+          primaryWeightedLifeSignalName: null,
+          primaryWeightedLifeSignalWeight: 0,
+          lifePriorityClass: "none",
+          source: "life-signal-weighting-unavailable"
+        };
+
+    const salience = window.Ari.salienceNetwork
+      ? window.Ari.salienceNetwork.evaluate({
+          lifeSignalWeighting,
+          signals,
+          lifeSignals: state.lifeSignals,
+          identity: state.identity,
+          conflicts: state.conflicts,
+          insight,
+          emotionalIntelligence,
+          underlyingEmotion,
+          wisdom,
+          wisdomResolution,
+          regret,
+          longTermConsequence,
+          executive: state.executive
+        })
+      : {
+          candidates: [],
+          rankedSalience: [],
+          primarySalience: null,
+          primarySalienceName: null,
+          primarySalienceCategory: null,
+          primarySalienceStrength: 0,
+          primarySalienceReason: null,
+          recommendedLead: null,
+          recommendedMode: null,
+          shouldOverrideLanguage: false,
+          source: "salience-network-unavailable"
+        };
+
     return {
       ...state,
       emotionalIntelligence,
@@ -377,7 +426,9 @@ window.Ari.coreCognition = {
       wisdomQuestionRecovery,
       underlyingEmotion,
       emotionRecoveryQuestions,
-      signals
+      signals,
+      lifeSignalWeighting,
+      salience
     };
   }
 };
