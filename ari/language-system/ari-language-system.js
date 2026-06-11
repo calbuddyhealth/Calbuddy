@@ -1,12 +1,12 @@
 // ari/language-system/ari-language-system.js
 // Ari Language System
 // Purpose: Convert Ari's analysis into short, human, useful responses.
-// V5.1: Uses Voice Engine and fixes confidence capitalization.
+// V5.2: Adds hypothesis, counter-hypothesis, and calibrated confidence language.
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageSystem = {
-  version: "5.1.0",
+  version: "5.2.0",
 
   generate(analysis = {}, options = {}) {
     const summary = window.Ari.core
@@ -16,29 +16,12 @@ window.Ari.languageSystem = {
     const questionType =
       analysis.questionType || summary.questionType || "understanding";
 
-    if (questionType === "meaning") {
-      return this.generateMeaningResponse(analysis, summary);
-    }
-
-    if (questionType === "insight") {
-      return this.generateInsightResponse(analysis, summary);
-    }
-
-    if (questionType === "emotional") {
-      return this.generateEmotionalResponse(analysis, summary);
-    }
-
-    if (questionType === "decision") {
-      return this.generateDecisionResponse(analysis, summary);
-    }
-
-    if (questionType === "planning") {
-      return this.generatePlanningResponse(analysis, summary);
-    }
-
-    if (questionType === "building") {
-      return this.generateBuildingResponse(analysis, summary);
-    }
+    if (questionType === "meaning") return this.generateMeaningResponse(analysis, summary);
+    if (questionType === "insight") return this.generateInsightResponse(analysis, summary);
+    if (questionType === "emotional") return this.generateEmotionalResponse(analysis, summary);
+    if (questionType === "decision") return this.generateDecisionResponse(analysis, summary);
+    if (questionType === "planning") return this.generatePlanningResponse(analysis, summary);
+    if (questionType === "building") return this.generateBuildingResponse(analysis, summary);
 
     return this.generateDefaultResponse(analysis, summary);
   },
@@ -63,14 +46,78 @@ window.Ari.languageSystem = {
     return "The thing I notice first is this.";
   },
 
-  getConfidencePrefix(analysis = {}, fallbackConfidence = "medium") {
+  generateInsightResponse(analysis = {}, summary = {}) {
     const voice = this.getVoice(analysis);
+    const opening = this.getOpeningLine(analysis);
 
-    if (voice.confidenceStyle?.prefix !== undefined) {
-      return voice.confidenceStyle.prefix;
+    const insight = analysis.insight || {};
+    const pattern = insight.pattern || {};
+    const hiddenConflict = insight.hiddenConflict || {};
+    const tradeoff = insight.tradeoff || {};
+    const hiddenMotive = insight.hiddenMotive || {};
+    const hypothesis = insight.hypothesis || null;
+    const counterHypothesis = insight.counterHypothesis || null;
+    const oneLineInsight = insight.oneLineInsight;
+
+    const calibratedConfidence =
+      insight.calibratedConfidence ||
+      this.highestConfidence([pattern, hiddenConflict, tradeoff, hiddenMotive]);
+
+    const prefix = this.getPrefixForConfidence(calibratedConfidence);
+
+    const lines = [];
+
+    lines.push(opening);
+
+    if (oneLineInsight) {
+      lines.push("");
+      lines.push(
+        calibratedConfidence === "high"
+          ? oneLineInsight
+          : `${prefix}${this.lowercaseFirst(oneLineInsight)}`
+      );
+    } else if (hypothesis?.explanation) {
+      lines.push("");
+      lines.push(`${prefix}${this.lowercaseFirst(hypothesis.explanation)}`);
+    } else {
+      lines.push("");
+      lines.push("I think there is something here, but Ari does not have enough signal to name it cleanly yet.");
     }
 
-    return this.withConfidencePrefix("", fallbackConfidence);
+    if (hypothesis?.explanation && oneLineInsight !== hypothesis.explanation) {
+      lines.push("");
+      lines.push(this.humanizeHypothesis(hypothesis));
+    }
+
+    if (
+      counterHypothesis?.explanation &&
+      calibratedConfidence !== "high"
+    ) {
+      lines.push("");
+      lines.push(this.humanizeCounterHypothesis(counterHypothesis));
+    }
+
+    if (pattern.name && pattern.name !== "unclear") {
+      lines.push("");
+      lines.push(this.humanizePattern(pattern.name));
+    }
+
+    if (tradeoff.name && tradeoff.name !== "none_detected") {
+      lines.push("");
+      lines.push(this.humanizeTradeoff(tradeoff.name));
+    }
+
+    if (hiddenConflict.name && hiddenConflict.name !== "unclear") {
+      lines.push("");
+      lines.push(this.humanizeHiddenConflict(hiddenConflict.name));
+    }
+
+    if (Array.isArray(voice.structure) && voice.structure.includes("question")) {
+      lines.push("");
+      lines.push(this.generateReflectionQuestion(analysis));
+    }
+
+    return this.finalize(lines.join("\n"));
   },
 
   generateMeaningResponse(analysis = {}, summary = {}) {
@@ -106,7 +153,7 @@ window.Ari.languageSystem = {
 
     if (humanTruth) {
       lines.push("");
-  lines.push(prefix ? `${prefix}${this.lowercaseFirst(humanTruth)}` : humanTruth);
+      lines.push(prefix ? `${prefix}${this.lowercaseFirst(humanTruth)}` : humanTruth);
     } else if (meaningStatement) {
       lines.push("");
       lines.push(prefix ? `${prefix}${this.lowercaseFirst(meaningStatement)}` : meaningStatement);
@@ -127,71 +174,7 @@ window.Ari.languageSystem = {
       lines.push(this.humanizeSimulationTheme(simulationTheme));
     }
 
-    if (
-      Array.isArray(voice.structure) &&
-      voice.structure.includes("reflection_question")
-    ) {
-      lines.push("");
-      lines.push(this.generateReflectionQuestion(analysis));
-    }
-
-    return this.finalize(lines.join("\n"));
-  },
-
-  generateInsightResponse(analysis = {}, summary = {}) {
-    const voice = this.getVoice(analysis);
-    const opening = this.getOpeningLine(analysis);
-
-    const insight = analysis.insight || {};
-    const pattern = insight.pattern || {};
-    const hiddenConflict = insight.hiddenConflict || {};
-    const tradeoff = insight.tradeoff || {};
-    const hiddenMotive = insight.hiddenMotive || {};
-    const oneLineInsight = insight.oneLineInsight;
-
-    const confidence = this.highestConfidence([
-      pattern,
-      hiddenConflict,
-      tradeoff,
-      hiddenMotive
-    ]);
-
-    const prefix =
-      confidence === "high"
-        ? ""
-        : voice.confidenceStyle?.prefix || this.getPrefixForConfidence(confidence);
-
-    const lines = [];
-
-    lines.push(opening);
-
-    if (oneLineInsight) {
-      lines.push("");
-      lines.push(`${prefix}${this.lowercaseFirst(oneLineInsight)}`);
-    } else {
-      lines.push("");
-      lines.push("I think there is something here, but Ari does not have enough signal to name it cleanly yet.");
-    }
-
-    if (pattern.name && pattern.name !== "unclear") {
-      lines.push("");
-      lines.push(this.humanizePattern(pattern.name));
-    }
-
-    if (tradeoff.name && tradeoff.name !== "none_detected") {
-      lines.push("");
-      lines.push(this.humanizeTradeoff(tradeoff.name));
-    }
-
-    if (hiddenConflict.name && hiddenConflict.name !== "unclear") {
-      lines.push("");
-      lines.push(this.humanizeHiddenConflict(hiddenConflict.name));
-    }
-
-    if (
-      Array.isArray(voice.structure) &&
-      voice.structure.includes("question")
-    ) {
+    if (Array.isArray(voice.structure) && voice.structure.includes("reflection_question")) {
       lines.push("");
       lines.push(this.generateReflectionQuestion(analysis));
     }
@@ -343,6 +326,18 @@ window.Ari.languageSystem = {
     );
   },
 
+  humanizeHypothesis(hypothesis = {}) {
+    if (!hypothesis.explanation) return "";
+
+    return `One possible explanation is this: ${this.lowercaseFirst(hypothesis.explanation)}`;
+  },
+
+  humanizeCounterHypothesis(counterHypothesis = {}) {
+    if (!counterHypothesis.explanation) return "";
+
+    return `I do not want to overstate that. ${counterHypothesis.explanation}`;
+  },
+
   generateReflectionQuestion(analysis = {}) {
     const insight = analysis.insight || {};
     const tradeoff = insight.tradeoff?.name;
@@ -362,6 +357,10 @@ window.Ari.languageSystem = {
 
     if (tradeoff === "growth_vs_stability") {
       return "What would growth look like if stability had to be protected too?";
+    }
+
+    if (insight.hypothesis?.name === "achievement_before_arrival") {
+      return "What would it feel like to stop moving the finish line for peace?";
     }
 
     return "What part of this feels most true?";
@@ -385,13 +384,8 @@ window.Ari.languageSystem = {
   getPrefixForConfidence(confidence = "low") {
     if (confidence === "high") return "";
     if (confidence === "medium") return "I could be wrong, but ";
-    return "This is only a possibility, but ";
-  },
-
-  withConfidencePrefix(text = "", confidence = "low") {
-    if (confidence === "high") return text;
-    if (confidence === "medium") return `I could be wrong, but ${text}`;
-    return `This is only a weak signal, but ${text}`;
+    if (confidence === "low") return "This is only a possibility, but ";
+    return "I do not have enough to say this clearly, but ";
   },
 
   lowercaseFirst(text = "") {
