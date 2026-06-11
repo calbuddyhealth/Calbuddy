@@ -1,12 +1,12 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
 // Purpose: Coordinate Ari's spine layers.
-// V5.0: Refactored into core spine architecture.
+// V5.1: Adds Ari Rebirth summary pipeline support.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "5.0.0",
+  version: "5.1.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -62,15 +62,50 @@ window.Ari.core = {
   },
 
   createSystemSummary(analysis = {}) {
-    if (window.Ari.coreSummary) {
-      return window.Ari.coreSummary.create(analysis);
+    let summary = window.Ari.coreSummary
+      ? window.Ari.coreSummary.create(analysis)
+      : {
+          questionType: analysis.questionType || "unknown",
+          oneLineInsight: analysis.insight?.oneLineInsight || null,
+          source: "core-summary-unavailable"
+        };
+
+    // Safety fallback:
+    // If coreSummary has not run Rebirth yet, run it here.
+    if (
+      window.AriRebirthPipeline &&
+      typeof window.AriRebirthPipeline.run === "function" &&
+      !summary.rebirthPipelineRan
+    ) {
+      summary = window.AriRebirthPipeline.run(summary);
     }
 
-    return {
-      questionType: analysis.questionType || "unknown",
-      oneLineInsight: analysis.insight?.oneLineInsight || null,
-      source: "core-summary-unavailable"
-    };
+    return summary;
+  },
+
+  getResponse(analysis = {}, options = {}) {
+    const summary = this.createSystemSummary(analysis);
+
+    if (summary.finalResponse) {
+      return summary.finalResponse;
+    }
+
+    if (summary.synthesisRecommendedQuestion) {
+      return summary.synthesisRecommendedQuestion;
+    }
+
+    if (summary.salienceQuestion) {
+      return summary.salienceQuestion;
+    }
+
+    if (
+      window.Ari.languageSystem &&
+      typeof window.Ari.languageSystem.generate === "function"
+    ) {
+      return window.Ari.languageSystem.generate(analysis, options);
+    }
+
+    return "Ari needs more context before responding.";
   }
 };
 
