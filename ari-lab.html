@@ -30,40 +30,58 @@
     ></pre>
   </main>
 
+  <!-- System -->
   <script src="ari/system/ari-loader.js"></script>
-<script src="ari/system/ari-authority.js"></script>
+  <script src="ari/system/ari-authority.js"></script>
 
-<script src="ari/observer-system/ari-observer-network.js"></script>
-<script src="ari/observer-system/ari-question-understanding.js"></script>
+  <!-- Observer -->
+  <script src="ari/observer-system/ari-observer-network.js"></script>
+  <script src="ari/observer-system/ari-question-understanding.js"></script>
 
-<script src="ari/attention-system/ari-attention-system.js"></script>
-<script src="ari/language-system/ari-language-system.js"></script>
+  <!-- Core cognition -->
+  <script src="ari/attention-system/ari-attention-system.js"></script>
+  <script src="ari/value-system/ari-value-engine.js"></script>
+  <script src="ari/identity-system/ari-identity-engine.js"></script>
+  <script src="ari/conflict-system/ari-conflict-engine.js"></script>
 
-<script src="ari/value-system/ari-value-engine.js"></script>
-<script src="ari/identity-system/ari-identity-engine.js"></script>
-<script src="ari/conflict-system/ari-conflict-engine.js"></script>
-<script src="ari/confidence-system/ari-confidence-system.js"></script>
-<script src="ari/executive-system/ari-executive-function.js"></script>
-<script src="ari/insight-system/ari-insight-engine.js"></script>
+  <!-- Confidence -->
+  <script src="ari/confidence-system/ari-confidence-system.js"></script>
+  <script src="ari/confidence-system/ari-confidence-calibration.js"></script>
 
-<script src="ari/brain/ari-router.js"></script>
-<script src="ari/heart/ari-emotion-engine.js"></script>
-<script src="ari/emotion-system/ari-emotional-intelligence.js"></script>
-<script src="ari/meaning-engine/ari-meaning-engine.js"></script>
+  <!-- Executive -->
+  <script src="ari/executive-system/ari-executive-function.js"></script>
 
-<script src="ari/person-model/ari-person-model.js"></script>
-<script src="ari/belief-system/ari-belief-engine.js"></script>
-<script src="ari/simulation-system/ari-simulation-engine.js"></script>
-<script src="ari/self-system/ari-self-model.js"></script>
-<script src="ari/self-system/ari-self-values.js"></script>
-<script src="ari/self-system/ari-constitution.js"></script>
-<script src="ari/self-system/ari-self-reflection.js"></script>
-<script src="ari/voice-system/ari-voice-engine.js"></script>
-<script src="ari/memory-system/ari-memory-engine.js"></script>
+  <!-- Insight -->
+  <script src="ari/insight-system/ari-insight-hypothesis-engine.js"></script>
+  <script src="ari/insight-system/ari-counter-hypothesis-engine.js"></script>
+  <script src="ari/insight-system/ari-insight-engine.js"></script>
 
-<script src="ari/system/ari-core.js"></script>
-<script src="ari/system/ari-prompt-builder.js"></script>
-<script src="ari/system/ari-bootstrap.js"></script>
+  <!-- Routing / emotion / meaning -->
+  <script src="ari/brain/ari-router.js"></script>
+  <script src="ari/heart/ari-emotion-engine.js"></script>
+  <script src="ari/emotion-system/ari-emotional-intelligence.js"></script>
+  <script src="ari/meaning-engine/ari-meaning-engine.js"></script>
+
+  <!-- User model -->
+  <script src="ari/person-model/ari-person-model.js"></script>
+  <script src="ari/belief-system/ari-belief-engine.js"></script>
+  <script src="ari/simulation-system/ari-simulation-engine.js"></script>
+
+  <!-- Ari self system -->
+  <script src="ari/self-system/ari-self-model.js"></script>
+  <script src="ari/self-system/ari-self-values.js"></script>
+  <script src="ari/self-system/ari-constitution.js"></script>
+  <script src="ari/self-system/ari-self-reflection.js"></script>
+
+  <!-- Voice / language / memory -->
+  <script src="ari/voice-system/ari-voice-engine.js"></script>
+  <script src="ari/language-system/ari-language-system.js"></script>
+  <script src="ari/memory-system/ari-memory-engine.js"></script>
+
+  <!-- Ari core must load near the end -->
+  <script src="ari/system/ari-core.js"></script>
+  <script src="ari/system/ari-prompt-builder.js"></script>
+  <script src="ari/system/ari-bootstrap.js"></script>
 
   <script>
     document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
@@ -78,12 +96,9 @@
       const analysis = window.Ari.core.analyzeMessage(message, {});
       const summary = window.Ari.core.createSystemSummary(analysis);
 
-      const response = window.Ari.languageSystem.generate(
-        analysis,
-        {
-          length: "normal"
-        }
-      );
+      const response = window.Ari.languageSystem.generate(analysis, {
+        length: "normal"
+      });
 
       document.getElementById("ariOutput").textContent =
 `===== ARI RESPONSE =====
