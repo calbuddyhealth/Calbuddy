@@ -1,12 +1,12 @@
 // ari/language-system/ari-language-system.js
 // Ari Language System
 // Purpose: Convert Ari's analysis into short, human, useful responses.
-// V5.0: Uses Voice Engine, Self Reflection, Meaning, Insight, Belief, Simulation, and Emotional Intelligence.
+// V5.1: Uses Voice Engine and fixes confidence capitalization.
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageSystem = {
-  version: "5.0.0",
+  version: "5.1.0",
 
   generate(analysis = {}, options = {}) {
     const summary = window.Ari.core
@@ -106,10 +106,10 @@ window.Ari.languageSystem = {
 
     if (humanTruth) {
       lines.push("");
-      lines.push(`${prefix}${this.lowercaseFirst(humanTruth)}`);
+  lines.push(prefix ? `${prefix}${this.lowercaseFirst(humanTruth)}` : humanTruth);
     } else if (meaningStatement) {
       lines.push("");
-      lines.push(`${prefix}${this.lowercaseFirst(meaningStatement)}`);
+      lines.push(prefix ? `${prefix}${this.lowercaseFirst(meaningStatement)}` : meaningStatement);
     }
 
     if (oneLineInsight && oneLineInsight !== humanTruth) {
