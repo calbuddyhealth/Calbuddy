@@ -1,13 +1,7 @@
 // ari/executive-system/ari-executive-function.js
 // Ari Executive Function
-// Purpose: Decide what deserves priority based on observation, values, identity, conflict, emotion, and life signals.
-// V1.2 Rebirth Compatible
-// Fixes:
-// - Adds lifeSignals input.
-// - Adds life-signal-aware priority scoring.
-// - Adds stronger family/presence/purpose/capacity logic.
-// - Normalizes priority scores to prevent runaway inflation.
-// - Adds clearer delay logic.
+// Purpose: Decide what deserves priority based on observation, life signals, values, identity, conflict, and emotion.
+// V1.2: Family-first correction. Regret-protection supports family instead of stealing lead.
 
 window.Ari = window.Ari || {};
 
@@ -16,26 +10,20 @@ window.Ari.executiveFunction = {
 
   decide({
     observation = {},
+    lifeSignals = {},
     values = {},
     identity = {},
     conflicts = {},
-    emotion = {},
-    lifeSignals = {}
+    emotion = {}
   } = {}) {
     const priorities = [];
 
     const addPriority = (name, score, reason) => {
-      if (!name) return;
-
       const existing = priorities.find((item) => item.name === name);
 
       if (existing) {
         existing.score += score;
-
-        if (!existing.reasons.includes(reason)) {
-          existing.reasons.push(reason);
-        }
-
+        existing.reasons.push(reason);
         return;
       }
 
@@ -48,186 +36,103 @@ window.Ari.executiveFunction = {
 
     const life = observation.lifeTransitions || {};
     const patterns = observation.humanPatterns || {};
+    const dominantValue = values.dominantValue;
+    const valueList = values.values || [];
 
-    const dominantValue = values.dominantValue || null;
-    const valueList = Array.isArray(values.values) ? values.values : [];
+    const dominantIdentity = identity.dominantIdentity?.name;
+    const conflictIntensity = conflicts.conflictIntensity;
+    const primaryConflict = conflicts.primaryConflict?.name || "";
+    const conflictNames = (conflicts.conflicts || []).map((item) => item.name);
 
-    const dominantIdentity = identity.dominantIdentity?.name || null;
-    const identityConflicts = Array.isArray(identity.identityConflicts)
-      ? identity.identityConflicts
-      : [];
-
-    const conflictIntensity = conflicts.conflictIntensity || "none";
-    const primaryConflict = conflicts.primaryConflict?.name || null;
-    const conflictNames = Array.isArray(conflicts.conflicts)
-      ? conflicts.conflicts.map((item) => item.name)
-      : [];
-
-    const primaryEmotion = emotion.primaryEmotion || null;
-
-    const lifeSignalNames = Array.isArray(lifeSignals.signalNames)
-      ? lifeSignals.signalNames
-      : [];
-
+    const signalNames = lifeSignals.signalNames || [];
     const primaryLifeSignal = lifeSignals.primarySignal?.name || null;
 
-    const activeSignals = [
-      ...lifeSignalNames,
-      primaryLifeSignal,
-      dominantValue,
-      dominantIdentity,
-      primaryConflict,
-      primaryEmotion,
-      ...conflictNames,
-      ...identityConflicts.map((item) => item.name)
-    ]
-      .filter(Boolean)
-      .map((item) => String(item).toLowerCase());
+    const familyConflictActive =
+      primaryConflict === "family_vs_creation" ||
+      primaryConflict === "provider_vs_present_parent" ||
+      conflictNames.includes("family_vs_creation") ||
+      conflictNames.includes("family_vs_achievement") ||
+      conflictNames.includes("provider_vs_present_parent");
 
-    const hasSignal = (...needles) => {
-      return activeSignals.some((signal) =>
-        needles.some((needle) => signal.includes(needle))
-      );
-    };
-
-    // FAMILY / PRESENCE
-    if (
+    const familySignalActive =
       life.fatherhood ||
       life.pregnancy ||
-      hasSignal("fatherhood", "family_transition", "expectant", "protect_family")
-    ) {
+      life.familyTransition ||
+      primaryLifeSignal === "family_transition" ||
+      signalNames.includes("family_transition") ||
+      dominantValue === "family" ||
+      valueList.includes("family");
+
+    const regretSignalActive =
+      patterns.futureRegretRisk ||
+      primaryConflict === "presence_vs_achievement" ||
+      conflictNames.includes("presence_vs_achievement") ||
+      conflictNames.includes("family_vs_achievement");
+
+    if (familySignalActive) {
       addPriority(
         "family",
-        48,
-        "Fatherhood, pregnancy, or family transition is active."
+        60,
+        "Family or major family transition is active and should organize the executive priority."
       );
     }
 
-    if (
-      dominantValue === "family" ||
-      valueList.includes("family")
-    ) {
-      addPriority("family", 28, "Family is an active or dominant value.");
-    }
-
-    if (
-      hasSignal("presence_vs_achievement", "presence_loss", "missing_irreplaceable_presence") ||
-      patterns.futureRegretRisk
-    ) {
+    if (familyConflictActive) {
       addPriority(
-        "regret-protection",
-        36,
-        "Presence, irreplaceable time, or future regret risk is active."
+        "family",
+        40,
+        "Family is competing with creation, achievement, or provision, so family should lead this season."
       );
     }
 
-    // RELATIONSHIP
-    if (life.engagement || life.marriage || hasSignal("marriage_transition")) {
-      addPriority(
-        "relationship",
-        28,
-        "Marriage, wedding, spouse, or relationship transition is active."
-      );
+    if (life.fatherhood || dominantIdentity === "father") {
+      addPriority("family", 40, "Fatherhood or child-related transition is active.");
     }
 
-    // MILITARY / CAREER TRANSITION
-    if (life.militaryTransition || hasSignal("military-transition")) {
-      addPriority(
-        "military-transition",
-        28,
-        "Military transition requires stability and planning."
-      );
+    if (life.pregnancy) {
+      addPriority("family", 35, "Pregnancy or incoming child transition is active.");
     }
 
-    if (
-      life.careerTransition ||
-      valueList.includes("growth") ||
-      hasSignal("career_transition")
-    ) {
-      addPriority(
-        "career-development",
-        22,
-        "Career, education, or growth path is active."
-      );
+    if (life.engagement || life.marriage) {
+      addPriority("relationship", 25, "Marriage, wedding, or spouse transition is active.");
     }
 
-    // PURPOSE / CREATION
-    if (
-      valueList.includes("creation") ||
-      dominantValue === "creation" ||
-      hasSignal("creative_mission", "purpose_signal", "builder_development")
-    ) {
+    if (life.militaryTransition) {
+      addPriority("military-transition", 25, "Military transition requires stability and planning.");
+    }
+
+    if (life.careerTransition || valueList.includes("growth")) {
+      addPriority("career-development", 20, "Career or education growth is active.");
+    }
+
+    if (valueList.includes("creation")) {
+      addPriority("creation", 15, "Creative mission or Ari Rebirth is active.");
+    }
+
+    if (valueList.includes("service")) {
+      addPriority("service", 15, "Service/helping value is active.");
+    }
+
+    if (patterns.burnoutRisk || conflictIntensity === "critical") {
+      addPriority("capacity-protection", 35, "Burnout risk or critical conflict detected.");
+    }
+
+    // Important correction:
+    // Future regret supports family when family is already active.
+    // It should not steal the executive lead from family.
+    if (regretSignalActive && familySignalActive) {
       addPriority(
-        "creation",
+        "family",
         30,
-        "Creative mission, purpose, or Ari Rebirth building signal is active."
+        "Future regret risk points toward protecting irreplaceable family presence."
       );
+    } else if (regretSignalActive) {
+      addPriority("regret-protection", 25, "Future regret risk detected.");
     }
 
-    if (
-      hasSignal("family_vs_purpose", "fear_of_betraying_purpose", "purpose_relationship_split")
-    ) {
-      addPriority(
-        "sustainable-purpose",
-        34,
-        "Purpose is active, but it must be protected sustainably."
-      );
+    if (dominantValue === "family") {
+      addPriority("family", 25, "Family is the dominant value.");
     }
-
-    // SERVICE
-    if (valueList.includes("service") || dominantValue === "service") {
-      addPriority("service", 18, "Service or helping value is active.");
-    }
-
-    // CAPACITY / BURNOUT
-    if (
-      patterns.burnoutRisk ||
-      conflictIntensity === "critical" ||
-      conflictIntensity === "high" ||
-      hasSignal("capacity_pressure")
-    ) {
-      addPriority(
-        "capacity-protection",
-        42,
-        "Burnout risk, high conflict, or capacity pressure detected."
-      );
-    }
-
-    // RESPONSIBILITY / STEWARDSHIP
-    if (
-      primaryEmotion === "stewardship" ||
-      primaryEmotion === "responsibility" ||
-      valueList.includes("responsibility") ||
-      dominantValue === "responsibility"
-    ) {
-      addPriority(
-        "stewardship",
-        26,
-        "Responsibility or stewardship is active."
-      );
-    }
-
-    // If no clear priorities, continue observing.
-    if (priorities.length === 0) {
-      return {
-        primaryPriority: null,
-        secondaryPriorities: [],
-        thingsToDelay: [],
-        executiveDecision: "continue_observing",
-        recommendedFocus: "Gather more context before making a decision.",
-        reasoning: "No clear executive priority emerged.",
-        priorityScoreNormalization: {
-          maxScore: 100,
-          source: "ari-executive-function-normalization"
-        },
-        source: "ari-executive-function"
-      };
-    }
-
-    priorities.forEach((item) => {
-      item.rawScore = item.score;
-      item.score = Math.min(item.score, 100);
-    });
 
     priorities.sort((a, b) => b.score - a.score);
 
@@ -240,9 +145,7 @@ window.Ari.executiveFunction = {
       values,
       identity,
       conflicts,
-      observation,
-      lifeSignals,
-      emotion
+      observation
     });
 
     return {
@@ -258,10 +161,6 @@ window.Ari.executiveFunction = {
         identity,
         values
       }),
-      priorityScoreNormalization: {
-        maxScore: 100,
-        source: "ari-executive-function-normalization"
-      },
       source: "ari-executive-function"
     };
   },
@@ -272,42 +171,13 @@ window.Ari.executiveFunction = {
     values = {},
     identity = {},
     conflicts = {},
-    observation = {},
-    lifeSignals = {},
-    emotion = {}
+    observation = {}
   } = {}) {
     const delay = [];
-
     const life = observation.lifeTransitions || {};
     const patterns = observation.humanPatterns || {};
-
-    const valueList = Array.isArray(values.values) ? values.values : [];
-
     const primaryConflict = conflicts.primaryConflict?.name || "";
-    const conflictNames = Array.isArray(conflicts.conflicts)
-      ? conflicts.conflicts.map((item) => item.name)
-      : [];
-
-    const lifeSignalNames = Array.isArray(lifeSignals.signalNames)
-      ? lifeSignals.signalNames
-      : [];
-
-    const primaryLifeSignal = lifeSignals.primarySignal?.name || null;
-
-    const activeSignals = [
-      primaryConflict,
-      primaryLifeSignal,
-      ...lifeSignalNames,
-      ...conflictNames
-    ]
-      .filter(Boolean)
-      .map((item) => String(item).toLowerCase());
-
-    const hasSignal = (...needles) => {
-      return activeSignals.some((signal) =>
-        needles.some((needle) => signal.includes(needle))
-      );
-    };
+    const conflictNames = (conflicts.conflicts || []).map((item) => item.name);
 
     const addDelay = (name, reason) => {
       if (!delay.some((item) => item.name === name)) {
@@ -316,77 +186,60 @@ window.Ari.executiveFunction = {
     };
 
     if (
-      primaryPriority?.name === "family" ||
-      primaryPriority?.name === "regret-protection"
-    ) {
-      if (
+      primaryPriority?.name === "family" &&
+      (
         primaryConflict === "provider_vs_present_parent" ||
+        primaryConflict === "family_vs_creation" ||
         conflictNames.includes("provider_vs_present_parent") ||
         conflictNames.includes("family_vs_achievement") ||
-        hasSignal("presence_vs_achievement", "presence_loss") ||
+        conflictNames.includes("family_vs_creation") ||
         patterns.opportunityCost
-      ) {
-        addDelay(
-          "career-acceleration",
-          "Protect family presence during a major life transition instead of maximizing career growth."
-        );
-      }
-
-      if (
-        valueList.includes("creation") ||
-        hasSignal("creative_mission", "purpose_signal", "builder_development")
-      ) {
-        addDelay(
-          "creation-scaling",
-          "Keep purpose alive, but avoid scaling it so hard that it competes with family presence."
-        );
-      }
-
+      )
+    ) {
       addDelay(
-        "nonessential-expansion",
-        "Avoid adding major optional commitments while family or presence is the leading priority."
+        "career-or-creation-acceleration",
+        "Protect family presence during a major life transition instead of maximizing career, creation, or achievement."
       );
     }
 
     if (
-      primaryPriority?.name === "sustainable-purpose" ||
-      primaryPriority?.name === "creation"
-    ) {
-      if (
-        life.fatherhood ||
-        life.pregnancy ||
-        hasSignal("family_transition", "family_vs_purpose")
-      ) {
-        addDelay(
-          "all-or-nothing-building",
-          "Build in a smaller rhythm so purpose survives without competing with family."
-        );
-      }
-    }
-
-    if (
-      primaryPriority?.name === "capacity-protection" ||
-      patterns.burnoutRisk ||
-      hasSignal("capacity_pressure")
+      primaryPriority?.name === "family" &&
+      (identity.dominantIdentity?.name === "father" || life.fatherhood || life.pregnancy)
     ) {
       addDelay(
         "nonessential-expansion",
-        "Avoid expanding optional goals while capacity pressure or burnout risk is active."
-      );
-
-      addDelay(
-        "high-intensity-ambition",
-        "Reduce intensity before adding more ambition."
+        "Avoid adding major new commitments during this family transition season."
       );
     }
 
     if (
-      valueList.includes("growth") &&
+      values.values?.includes("creation") &&
+      (life.fatherhood || life.pregnancy) &&
+      (
+        patterns.lifeTransitionLoad?.level === "extreme" ||
+        conflictNames.includes("family_vs_creation")
+      )
+    ) {
+      addDelay(
+        "creation-scaling",
+        "Keep Ari Rebirth alive, but avoid large-scale expansion during a family transition season."
+      );
+    }
+
+    if (
+      values.values?.includes("growth") &&
       patterns.lifeTransitionLoad?.level === "extreme"
     ) {
       addDelay(
         "career-acceleration",
-        "Career growth can continue, but not at full acceleration during extreme transition load."
+        "Career growth should continue, but not at full acceleration during extreme transition load."
+      );
+    }
+
+    if (patterns.burnoutRisk) {
+      addDelay(
+        "nonessential-expansion",
+        "Avoid expanding optional goals while burnout risk is active."
       );
     }
 
@@ -404,9 +257,7 @@ window.Ari.executiveFunction = {
       "military-transition": "stabilize_transition",
       "career-development": "continue_growth_with_limits",
       creation: "build_slowly_without_overextending",
-      "sustainable-purpose": "protect_purpose_with_sustainable_rhythm",
-      service: "serve_without_self_erasure",
-      stewardship: "steward_responsibility_without_overcontrol",
+      service: "serve_without_self-erasure",
       "capacity-protection": "reduce_load_immediately",
       "regret-protection": "protect_irreplaceable_moments"
     };
@@ -423,20 +274,12 @@ window.Ari.executiveFunction = {
       return "Make family the primary focus for this season. Keep other identities alive, but do not let them compete equally.";
     }
 
-    if (primaryPriority.name === "regret-protection") {
-      return "Prioritize choices that protect irreplaceable time, presence, and future peace.";
-    }
-
     if (primaryPriority.name === "capacity-protection") {
       return "Reduce load before adding ambition. Protect energy, sleep, relationships, and follow-through.";
     }
 
-    if (primaryPriority.name === "sustainable-purpose") {
-      return "Keep purpose alive through a smaller, sustainable rhythm instead of all-or-nothing intensity.";
-    }
-
-    if (primaryPriority.name === "creation") {
-      return "Prioritize building, but keep the scope small enough that it does not consume the rest of life.";
+    if (primaryPriority.name === "regret-protection") {
+      return "Prioritize choices that protect irreplaceable time and reduce future regret.";
     }
 
     return `Prioritize ${primaryPriority.name} while delaying: ${
@@ -444,18 +287,12 @@ window.Ari.executiveFunction = {
     }.`;
   },
 
-  getReasoning({
-    primaryPriority = null,
-    priorities = [],
-    conflicts = {},
-    identity = {},
-    values = {}
-  } = {}) {
+  getReasoning({ primaryPriority = null, priorities = [], conflicts = {}, identity = {}, values = {} } = {}) {
     if (!primaryPriority) {
       return "No clear executive priority emerged.";
     }
 
-    return `Ari identified ${primaryPriority.name} as the leading priority because it scored highest against current values, identities, conflicts, and life signals. Dominant value: ${
+    return `Ari identified ${primaryPriority.name} as the leading priority because it scored highest against current values, identities, and conflicts. Dominant value: ${
       values.dominantValue || "unknown"
     }. Dominant identity: ${
       identity.dominantIdentity?.name || "unknown"
