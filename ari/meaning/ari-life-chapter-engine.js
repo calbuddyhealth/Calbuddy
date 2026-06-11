@@ -1,18 +1,31 @@
 // ari/meaning/ari-life-chapter-engine.js
 // Ari Life Chapter Engine
 // Purpose: Detect the user's major life chapter and guide meaning-level interpretation.
-// V1.1
+// V1.2
+// Fixes:
+// - Deduplicates direct, ranked, and salience signals.
+// - Prevents repeated chapter score explosions.
+// - Caps final chapter strength.
+// - Keeps major life chapters strong but not absurd.
+// - Adds normalization debug.
 
 window.AriLifeChapterEngine = {
   detect(input = {}) {
     const summary = input.summary || input || {};
 
-    const lifeSignals = Array.isArray(summary.lifeSignals) ? summary.lifeSignals : [];
-    const rankedSignals = Array.isArray(summary.rankedSignals) ? summary.rankedSignals : [];
-    const rankedSalience = Array.isArray(summary.rankedSalience) ? summary.rankedSalience : [];
+    const lifeSignals = Array.isArray(summary.lifeSignals)
+      ? summary.lifeSignals
+      : [];
+
+    const rankedSignals = Array.isArray(summary.rankedSignals)
+      ? summary.rankedSignals
+      : [];
+
+    const rankedSalience = Array.isArray(summary.rankedSalience)
+      ? summary.rankedSalience
+      : [];
 
     const strongestSignal = summary.strongestSignal || null;
-    const strongestSignalCategory = summary.strongestSignalCategory || null;
     const primaryLifeSignal = summary.primaryLifeSignal || null;
     const primaryWeightedLifeSignal = summary.primaryWeightedLifeSignal || null;
     const lifePriorityClass = summary.lifePriorityClass || "none";
@@ -30,19 +43,38 @@ window.AriLifeChapterEngine = {
 
     const candidates = [];
 
+    function normalizeKey(value = "") {
+      return String(value || "").toLowerCase().trim();
+    }
+
+    function uniqueArray(items = []) {
+      return [...new Set(items.filter(Boolean).map(normalizeKey))];
+    }
+
+    function capScore(value, max = 120) {
+      return Math.min(Number(value || 0), max);
+    }
+
     function addChapter(name, score, reason, question, focus = null) {
+      if (!name) return;
+
       const existing = candidates.find(c => c.name === name);
+      const safeScore = Number(score || 0);
 
       if (existing) {
-        existing.score += score;
-        existing.reasons.push(reason);
+        if (!existing.reasons.includes(reason)) {
+          existing.score += safeScore;
+          existing.reasons.push(reason);
+        }
+
+        existing.score = capScore(existing.score);
         return;
       }
 
       candidates.push({
         name,
-        score,
-        reasons: [reason],
+        score: capScore(safeScore),
+        reasons: reason ? [reason] : [],
         question,
         focus
       });
@@ -101,7 +133,7 @@ window.AriLifeChapterEngine = {
       }
     };
 
-    const directSignals = [
+    const directSignals = uniqueArray([
       strongestSignal,
       primaryLifeSignal,
       primaryWeightedLifeSignal,
@@ -115,16 +147,14 @@ window.AriLifeChapterEngine = {
       highestGood,
       wisdomTension,
       rootNeed
-    ].filter(Boolean);
+    ]);
 
-    directSignals.forEach(signal => {
-      const key = String(signal).toLowerCase();
-
+    directSignals.forEach(key => {
       if (chapterMap[key]) {
         addChapter(
           chapterMap[key].chapter,
-          34,
-          `Direct signal '${signal}' maps to chapter '${chapterMap[key].chapter}'.`,
+          key === normalizeKey(primaryWeightedLifeSignal) ? 34 : 26,
+          `Direct signal '${key}' maps to chapter '${chapterMap[key].chapter}'.`,
           chapterMap[key].question,
           chapterMap[key].focus
         );
@@ -133,8 +163,8 @@ window.AriLifeChapterEngine = {
       if (key.includes("father")) {
         addChapter(
           "fatherhood_transition",
-          38,
-          `Signal '${signal}' points toward fatherhood transition.`,
+          32,
+          `Signal '${key}' points toward fatherhood transition.`,
           "What kind of father does this season ask you to become?",
           "Protect presence, family stability, and identity transition."
         );
@@ -143,8 +173,8 @@ window.AriLifeChapterEngine = {
       if (key.includes("family")) {
         addChapter(
           "family_transition",
-          32,
-          `Signal '${signal}' points toward family transition.`,
+          28,
+          `Signal '${key}' points toward family transition.`,
           "What does your family need from you in this season?",
           "Protect family, relationship, and presence."
         );
@@ -153,18 +183,22 @@ window.AriLifeChapterEngine = {
       if (key.includes("husband") || key.includes("marriage")) {
         addChapter(
           "marriage_transition",
-          32,
-          `Signal '${signal}' points toward marriage transition.`,
+          28,
+          `Signal '${key}' points toward marriage transition.`,
           "What kind of husband does this chapter require?",
           "Protect commitment, communication, and shared life."
         );
       }
 
-      if (key.includes("builder") || key.includes("creation") || key.includes("mission")) {
+      if (
+        key.includes("builder") ||
+        key.includes("creation") ||
+        key.includes("mission")
+      ) {
         addChapter(
           "builder_development",
-          28,
-          `Signal '${signal}' points toward builder development.`,
+          22,
+          `Signal '${key}' points toward builder development.`,
           "What are you building, and what kind of builder do you need to become?",
           "Build sustainably, not compulsively."
         );
@@ -173,8 +207,8 @@ window.AriLifeChapterEngine = {
       if (key.includes("purpose") || key.includes("calling")) {
         addChapter(
           "purpose_chapter",
-          28,
-          `Signal '${signal}' points toward purpose chapter.`,
+          24,
+          `Signal '${key}' points toward purpose chapter.`,
           "What part of your purpose needs to stay alive in this season?",
           "Keep meaning connected to life, not separated from it."
         );
@@ -183,42 +217,60 @@ window.AriLifeChapterEngine = {
       if (key.includes("career") || key.includes("transition")) {
         addChapter(
           "career_transition",
-          22,
-          `Signal '${signal}' may point toward career or transition themes.`,
+          18,
+          `Signal '${key}' may point toward career or transition themes.`,
           "What future stability are you trying to protect?",
           "Protect transition, responsibility, and long-term stability."
         );
       }
     });
 
+    const seenRankedSignals = new Set();
+
     rankedSignals.forEach(signal => {
       if (!signal || !signal.name) return;
-      const key = String(signal.name).toLowerCase();
+
+      const key = normalizeKey(signal.name);
+      const category = normalizeKey(signal.category || "unknown");
       const strength = Number(signal.strength || 0);
+      const seenKey = `${key}:${category}`;
+
+      if (seenRankedSignals.has(seenKey)) return;
+      seenRankedSignals.add(seenKey);
 
       if (chapterMap[key]) {
         const mapped = chapterMap[key];
+
         addChapter(
           mapped.chapter,
-          Math.round(strength * 0.22),
-          `Ranked signal '${signal.name}' supports chapter '${mapped.chapter}'.`,
+          Math.round(strength * 0.14),
+          `Ranked signal '${key}' supports chapter '${mapped.chapter}'.`,
           mapped.question,
           mapped.focus
         );
       }
     });
 
+    const seenSalienceSignals = new Set();
+
     rankedSalience.forEach(signal => {
       if (!signal || !signal.name) return;
-      const key = String(signal.name).toLowerCase();
+
+      const key = normalizeKey(signal.name);
+      const category = normalizeKey(signal.category || "unknown");
       const strength = Number(signal.strength || 0);
+      const seenKey = `${key}:${category}`;
+
+      if (seenSalienceSignals.has(seenKey)) return;
+      seenSalienceSignals.add(seenKey);
 
       if (chapterMap[key]) {
         const mapped = chapterMap[key];
+
         addChapter(
           mapped.chapter,
-          Math.round(strength * 0.25),
-          `Salience signal '${signal.name}' supports chapter '${mapped.chapter}'.`,
+          Math.round(strength * 0.12),
+          `Salience signal '${key}' supports chapter '${mapped.chapter}'.`,
           mapped.question,
           mapped.focus
         );
@@ -226,12 +278,15 @@ window.AriLifeChapterEngine = {
     });
 
     if (lifePriorityClass === "major_life_priority") {
-      if (primaryWeightedLifeSignal && chapterMap[primaryWeightedLifeSignal]) {
-        const mapped = chapterMap[primaryWeightedLifeSignal];
+      const key = normalizeKey(primaryWeightedLifeSignal);
+
+      if (key && chapterMap[key]) {
+        const mapped = chapterMap[key];
+
         addChapter(
           mapped.chapter,
-          48,
-          "Major life priority detected; this chapter should receive extra weight.",
+          32,
+          "Major life priority detected; this chapter receives extra weight.",
           mapped.question,
           mapped.focus
         );
@@ -241,7 +296,7 @@ window.AriLifeChapterEngine = {
     if (wisdomTension === "presence_vs_achievement") {
       addChapter(
         "presence_reordering_chapter",
-        40,
+        36,
         "Presence versus achievement tension suggests the chapter is asking for reordered priorities.",
         "What moment of presence needs protection before achievement gets more attention?",
         "Put irreplaceable moments before replaceable milestones."
@@ -251,7 +306,7 @@ window.AriLifeChapterEngine = {
     if (wisdomTension === "family_vs_purpose") {
       addChapter(
         "family_purpose_integration_chapter",
-        40,
+        36,
         "Family versus purpose tension suggests integration, not abandonment.",
         "How can your purpose serve your family instead of competing with it?",
         "Let purpose deepen love instead of competing with it."
@@ -268,6 +323,10 @@ window.AriLifeChapterEngine = {
       );
     }
 
+    candidates.forEach(candidate => {
+      candidate.score = capScore(candidate.score);
+    });
+
     candidates.sort((a, b) => b.score - a.score);
 
     const winner = candidates[0];
@@ -281,6 +340,7 @@ window.AriLifeChapterEngine = {
           : `The strongest life chapter appears to be '${winner.name}'.`,
       lifeChapterQuestion: winner.question,
       lifeChapterFocus: winner.focus,
+
       rankedLifeChapters: candidates.map(item => ({
         name: item.name,
         score: item.score,
@@ -288,6 +348,15 @@ window.AriLifeChapterEngine = {
         question: item.question,
         reasons: item.reasons
       })),
+
+      lifeChapterScoreNormalization: {
+        maxScore: 120,
+        directSignals,
+        rankedSignalCount: seenRankedSignals.size,
+        salienceSignalCount: seenSalienceSignals.size,
+        source: "ari-life-chapter-engine-normalization"
+      },
+
       source: "ari-life-chapter-engine"
     };
   }
