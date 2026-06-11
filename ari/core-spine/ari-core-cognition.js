@@ -1,13 +1,13 @@
 // ari/core-spine/ari-core-cognition.js
 // Ari Core Cognition Spine
-// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, and meta awareness.
-// Answers: What does this mean, and how strongly should Ari trust it?
-// V1.1
+// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, meta awareness, wisdom, and wisdom resolution.
+// Answers: What does this mean, how strongly should Ari trust it, and what matters most?
+// V1.2
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreCognition = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   run(state = {}) {
     const emotionalIntelligence = window.Ari.emotionalIntelligence
@@ -147,6 +147,51 @@ window.Ari.coreCognition = {
           source: "meta-awareness-unavailable"
         };
 
+    const wisdom = window.Ari.wisdomEngine
+      ? window.Ari.wisdomEngine.synthesize({
+          executive: state.executive,
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          metaAwareness
+        })
+      : {
+          wisdomPrinciple: null,
+          wisdomTension: null,
+          highestGood: null,
+          longTermPriority: null,
+          likelyRegret: null,
+          archetype: null,
+          wisdomStatement: null,
+          confidence: "low",
+          source: "wisdom-engine-unavailable"
+        };
+
+    const wisdomResolution = window.Ari.wisdomConflictResolver
+      ? window.Ari.wisdomConflictResolver.resolve({
+          wisdom,
+          executive: state.executive,
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          metaAwareness
+        })
+      : {
+          tension: null,
+          resolutionMode: null,
+          leadingGood: null,
+          supportingGood: null,
+          boundary: null,
+          integration: null,
+          resolvedStatement: null,
+          confidence: "low",
+          source: "wisdom-conflict-resolver-unavailable"
+        };
+
     return {
       ...state,
       emotionalIntelligence,
@@ -155,7 +200,9 @@ window.Ari.coreCognition = {
       beliefModel,
       simulation,
       insight,
-      metaAwareness
+      metaAwareness,
+      wisdom,
+      wisdomResolution
     };
   }
 };
