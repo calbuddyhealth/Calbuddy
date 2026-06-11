@@ -1,11 +1,12 @@
-// ari-language-decision-builder.js
+// ari/language-system/ari-language-decision-builder.js
+// Ari Language Decision Builder
 // Purpose: Speak when Ari is helping choose.
-// V1.0
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageDecisionBuilder = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   build(analysis = {}) {
     const lines = [];
@@ -33,7 +34,11 @@ window.Ari.languageDecisionBuilder = {
       );
     }
 
-    if (resolution.boundary) {
+    if (
+      resolution.boundary &&
+      resolution.boundary !==
+        "Ari does not have enough wisdom signal to resolve the tension yet."
+    ) {
       lines.push(resolution.boundary);
     }
 
@@ -53,10 +58,25 @@ window.Ari.languageDecisionBuilder = {
       lines.push(executive.recommendedFocus);
     }
 
-    return lines.filter(Boolean);
+    const delayItems =
+      executive.thingsToDelay || [];
+
+    if (delayItems.length > 0) {
+      lines.push(
+        `Delay: ${delayItems
+          .map((item) => item.name || item)
+          .join(", ")}.`
+      );
+    }
+
+    return this.unique(lines);
+  },
+
+  unique(lines = []) {
+    return [...new Set(lines.filter(Boolean))];
   },
 
   clean(text = "") {
-    return text.replaceAll("_", " ");
+    return String(text || "").replaceAll("_", " ");
   }
 };
