@@ -1,15 +1,39 @@
 // ari/observer-system/ari-question-understanding.js
 // Ari Question Understanding
 // Purpose: Detect what kind of answer the user is asking for.
-// V1.1: Strengthens insight detection and prevents sacrifice/tradeoff questions from being misclassified as decisions.
+// V1.2: Adds meaning detection for life-season, purpose, and deeper interpretation questions.
 
 window.Ari = window.Ari || {};
 
 window.Ari.questionUnderstanding = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   classify(message = "") {
     const text = String(message || "").toLowerCase();
+
+    const meaningPhrases = [
+      "season of my life",
+      "what is this really about",
+      "what does this mean",
+      "what is the lesson",
+      "what am i supposed to learn",
+      "what is life trying to teach me",
+      "what does this reveal",
+      "what is underneath all of this",
+      "what is the deeper meaning",
+      "why is this happening now",
+      "what is this season teaching me",
+      "what do you think this season of my life is really about",
+      "what is really going on here",
+      "what does this chapter mean",
+      "what is this chapter about",
+      "what is this season about",
+      "what is this trying to teach me"
+    ];
+
+    if (this.containsAny(text, meaningPhrases)) {
+      return "meaning";
+    }
 
     const insightPhrases = [
       "what pattern",
@@ -32,7 +56,14 @@ window.Ari.questionUnderstanding = {
       "what is this costing me",
       "what cost am i ignoring",
       "what am i paying for",
-      "without realizing it"
+      "without realizing it",
+      "protect myself from",
+      "what am i using",
+      "what am i afraid",
+      "what am i protecting",
+      "what does this say about me",
+      "why do i keep",
+      "running from"
     ];
 
     if (this.containsAny(text, insightPhrases)) {
