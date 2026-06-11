@@ -1,113 +1,86 @@
 // ari/language-system/ari-language-prioritizer.js
 // Ari Language Prioritizer
 // Purpose: Decide what Ari should say first based on salience, signals, wisdom, emotion, insight, and recovery.
-// V1.0
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.languagePrioritizer = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   prioritize(analysis = {}) {
     const salience = analysis.salience || {};
     const signals = analysis.signals || {};
     const insight = analysis.insight || {};
-    const wisdom = analysis.wisdom || {};
-    const wisdomResolution = analysis.wisdomResolution || {};
-    const regret = analysis.regret || {};
-    const consequence = analysis.longTermConsequence || {};
-    const emotionDepth = analysis.underlyingEmotion || {};
     const recovery = analysis.wisdomQuestionRecovery || {};
-    const emotionRecovery = analysis.emotionRecoveryQuestions || {};
 
     if (
       recovery.shouldRecover &&
       insight.evidenceStrength === "none"
     ) {
-      return this.recoveryPlan(recovery, emotionRecovery);
+      return this.recoveryPlan(analysis);
     }
 
     const lead =
-      salience.recommendedLead ||
-      signals.recommendedLanguageLead ||
-      "insight";
+      salience.shouldOverrideLanguage && salience.recommendedLead
+        ? salience.recommendedLead
+        : signals.recommendedLanguageLead ||
+          salience.recommendedLead ||
+          analysis.questionType ||
+          "insight";
 
-    if (lead === "life_chapter") {
-      return this.lifeChapterPlan(analysis);
-    }
-
-    if (lead === "emotion_depth") {
-      return this.emotionDepthPlan(emotionDepth, wisdom, emotionRecovery);
-    }
-
-    if (lead === "wisdom" || lead === "executive_wisdom") {
-      return this.wisdomPlan(wisdom, wisdomResolution, regret, consequence);
-    }
-
-    if (lead === "regret") {
-      return this.regretPlan(regret, consequence, wisdom);
-    }
-
-    if (lead === "consequence") {
-      return this.consequencePlan(consequence, regret, wisdom);
-    }
-
-    if (lead === "conflict" || lead === "tradeoff") {
-      return this.conflictPlan(analysis);
-    }
-
-    if (lead === "belief") {
-      return this.beliefPlan(analysis);
-    }
+    if (lead === "life_chapter") return this.lifeChapterPlan(analysis);
+    if (lead === "emotion_depth") return this.emotionDepthPlan(analysis);
+    if (lead === "wisdom" || lead === "executive_wisdom") return this.wisdomPlan(analysis);
+    if (lead === "regret") return this.regretPlan(analysis);
+    if (lead === "consequence") return this.consequencePlan(analysis);
+    if (lead === "conflict" || lead === "tradeoff") return this.conflictPlan(analysis);
+    if (lead === "belief") return this.beliefPlan(analysis);
+    if (lead === "planning") return this.planningPlan(analysis);
+    if (lead === "building") return this.buildingPlan(analysis);
+    if (lead === "decision") return this.wisdomPlan(analysis);
+    if (lead === "emotional") return this.emotionDepthPlan(analysis);
+    if (lead === "meaning") return this.lifeChapterPlan(analysis);
 
     return this.defaultPlan(analysis);
   },
 
-  recoveryPlan(recovery = {}, emotionRecovery = {}) {
+  recoveryPlan(analysis = {}) {
+    const recovery = analysis.wisdomQuestionRecovery || {};
+    const emotionRecovery = analysis.emotionRecoveryQuestions || {};
+
     return {
       leadType: "recovery",
       openingIntent: "humble_uncertainty",
       primaryLine:
-        "I do not think Ari has enough evidence to name this honestly yet.",
+        "I do not have enough evidence to be confident yet, but something important is present.",
       secondaryLines: [
         recovery.primaryQuestion ||
           emotionRecovery.primaryQuestion ||
           "What part of this feels most important but least understood?"
       ],
-      shouldAskQuestion: true,
+      shouldAskQuestion: false,
       source: "ari-language-prioritizer"
     };
   },
 
   lifeChapterPlan(analysis = {}) {
-    const salience = analysis.salience || {};
     const personModel = analysis.personModel || {};
     const wisdom = analysis.wisdom || {};
     const resolution = analysis.wisdomResolution || {};
     const consequence = analysis.longTermConsequence || {};
+    const h = this.humanizers();
 
     const chapter = personModel.lifeChapter?.name;
-    const primary = salience.primarySalienceName;
-
     const lines = [];
 
     if (chapter && chapter !== "unclear") {
-      lines.push(this.humanizeLifeChapter(chapter));
-    } else if (primary) {
-      lines.push(`The strongest signal is ${this.clean(primary)}.`);
+      lines.push(h.lifeChapter(chapter));
     }
 
-    if (wisdom.wisdomPrinciple) {
-      lines.push(wisdom.wisdomPrinciple);
-    }
-
-    if (resolution.boundary) {
-      lines.push(resolution.boundary);
-    }
-
-    if (consequence.courseCorrection) {
-      lines.push(consequence.courseCorrection);
-    }
+    if (wisdom.wisdomPrinciple) lines.push(wisdom.wisdomPrinciple);
+    if (resolution.boundary) lines.push(resolution.boundary);
+    if (consequence.courseCorrection) lines.push(consequence.courseCorrection);
 
     return {
       leadType: "life_chapter",
@@ -119,29 +92,23 @@ window.Ari.languagePrioritizer = {
     };
   },
 
-  emotionDepthPlan(emotionDepth = {}, wisdom = {}, emotionRecovery = {}) {
+  emotionDepthPlan(analysis = {}) {
+    const emotionDepth = analysis.underlyingEmotion || {};
+    const wisdom = analysis.wisdom || {};
+    const emotionRecovery = analysis.emotionRecoveryQuestions || {};
+    const h = this.humanizers();
+
     const primary = emotionDepth.primaryUnderlyingEmotion || {};
     const lines = [];
 
     if (primary.name && primary.name !== "unclear") {
-      lines.push(this.humanizeEmotionDepth(primary.name));
+      lines.push(h.underlyingEmotion(primary.name));
     }
 
-    if (emotionDepth.hiddenFear) {
-      lines.push(emotionDepth.hiddenFear);
-    }
-
-    if (emotionDepth.vulnerableTruth) {
-      lines.push(emotionDepth.vulnerableTruth);
-    }
-
-    if (wisdom.wisdomPrinciple) {
-      lines.push(wisdom.wisdomPrinciple);
-    }
-
-    if (emotionRecovery.primaryQuestion) {
-      lines.push(emotionRecovery.primaryQuestion);
-    }
+    if (emotionDepth.hiddenFear) lines.push(emotionDepth.hiddenFear);
+    if (emotionDepth.vulnerableTruth) lines.push(emotionDepth.vulnerableTruth);
+    if (wisdom.wisdomPrinciple) lines.push(wisdom.wisdomPrinciple);
+    if (emotionRecovery.primaryQuestion) lines.push(emotionRecovery.primaryQuestion);
 
     return {
       leadType: "emotion_depth",
@@ -150,17 +117,19 @@ window.Ari.languagePrioritizer = {
         lines[0] ||
         "The deeper feeling matters here more than the surface problem.",
       secondaryLines: lines.slice(1),
-      shouldAskQuestion: Boolean(emotionRecovery.primaryQuestion),
+      shouldAskQuestion: false,
       source: "ari-language-prioritizer"
     };
   },
 
-  wisdomPlan(wisdom = {}, resolution = {}, regret = {}, consequence = {}) {
+  wisdomPlan(analysis = {}) {
+    const wisdom = analysis.wisdom || {};
+    const resolution = analysis.wisdomResolution || {};
+    const regret = analysis.regret || {};
+    const consequence = analysis.longTermConsequence || {};
     const lines = [];
 
-    if (wisdom.wisdomPrinciple) {
-      lines.push(wisdom.wisdomPrinciple);
-    }
+    if (wisdom.wisdomPrinciple) lines.push(wisdom.wisdomPrinciple);
 
     if (resolution.leadingGood && resolution.supportingGood) {
       lines.push(
@@ -168,21 +137,16 @@ window.Ari.languagePrioritizer = {
       );
     }
 
-    if (resolution.boundary) {
+    if (
+      resolution.boundary &&
+      resolution.boundary !== "Ari does not have enough wisdom signal to resolve the tension yet."
+    ) {
       lines.push(resolution.boundary);
     }
 
-    if (resolution.integration) {
-      lines.push(resolution.integration);
-    }
-
-    if (regret.regretStatement) {
-      lines.push(regret.regretStatement);
-    }
-
-    if (consequence.courseCorrection) {
-      lines.push(consequence.courseCorrection);
-    }
+    if (resolution.integration) lines.push(resolution.integration);
+    if (regret.regretStatement) lines.push(regret.regretStatement);
+    if (consequence.courseCorrection) lines.push(consequence.courseCorrection);
 
     return {
       leadType: "wisdom",
@@ -194,24 +158,16 @@ window.Ari.languagePrioritizer = {
     };
   },
 
-  regretPlan(regret = {}, consequence = {}, wisdom = {}) {
+  regretPlan(analysis = {}) {
+    const regret = analysis.regret || {};
+    const consequence = analysis.longTermConsequence || {};
+    const wisdom = analysis.wisdom || {};
     const lines = [];
 
-    if (regret.regretStatement) {
-      lines.push(regret.regretStatement);
-    }
-
-    if (consequence.riskIfIgnored) {
-      lines.push(consequence.riskIfIgnored);
-    }
-
-    if (consequence.courseCorrection) {
-      lines.push(consequence.courseCorrection);
-    }
-
-    if (wisdom.wisdomPrinciple) {
-      lines.push(wisdom.wisdomPrinciple);
-    }
+    if (regret.regretStatement) lines.push(regret.regretStatement);
+    if (consequence.riskIfIgnored) lines.push(consequence.riskIfIgnored);
+    if (consequence.courseCorrection) lines.push(consequence.courseCorrection);
+    if (wisdom.wisdomPrinciple) lines.push(wisdom.wisdomPrinciple);
 
     return {
       leadType: "regret",
@@ -225,24 +181,16 @@ window.Ari.languagePrioritizer = {
     };
   },
 
-  consequencePlan(consequence = {}, regret = {}, wisdom = {}) {
+  consequencePlan(analysis = {}) {
+    const consequence = analysis.longTermConsequence || {};
+    const regret = analysis.regret || {};
+    const wisdom = analysis.wisdom || {};
     const lines = [];
 
-    if (consequence.fiveYearConsequence) {
-      lines.push(consequence.fiveYearConsequence);
-    }
-
-    if (consequence.protectedFuture) {
-      lines.push(consequence.protectedFuture);
-    }
-
-    if (regret.regretStatement) {
-      lines.push(regret.regretStatement);
-    }
-
-    if (wisdom.wisdomPrinciple) {
-      lines.push(wisdom.wisdomPrinciple);
-    }
+    if (consequence.fiveYearConsequence) lines.push(consequence.fiveYearConsequence);
+    if (consequence.protectedFuture) lines.push(consequence.protectedFuture);
+    if (regret.regretStatement) lines.push(regret.regretStatement);
+    if (wisdom.wisdomPrinciple) lines.push(wisdom.wisdomPrinciple);
 
     return {
       leadType: "consequence",
@@ -259,19 +207,26 @@ window.Ari.languagePrioritizer = {
   conflictPlan(analysis = {}) {
     const insight = analysis.insight || {};
     const wisdom = analysis.wisdom || {};
+    const h = this.humanizers();
     const lines = [];
 
-    if (insight.hiddenConflict?.name && insight.hiddenConflict.name !== "unclear") {
-      lines.push(this.humanizeConflict(insight.hiddenConflict.name));
+    if (
+      insight.hiddenConflict?.name &&
+      insight.hiddenConflict.name !== "unclear" &&
+      insight.hiddenConflict.name !== "none_detected"
+    ) {
+      lines.push(h.conflict(insight.hiddenConflict.name));
     }
 
-    if (insight.tradeoff?.name && insight.tradeoff.name !== "none_detected") {
-      lines.push(this.humanizeTradeoff(insight.tradeoff.name));
+    if (
+      insight.tradeoff?.name &&
+      insight.tradeoff.name !== "unclear" &&
+      insight.tradeoff.name !== "none_detected"
+    ) {
+      lines.push(h.tradeoff(insight.tradeoff.name));
     }
 
-    if (wisdom.wisdomPrinciple) {
-      lines.push(wisdom.wisdomPrinciple);
-    }
+    if (wisdom.wisdomPrinciple) lines.push(wisdom.wisdomPrinciple);
 
     return {
       leadType: "conflict",
@@ -288,13 +243,17 @@ window.Ari.languagePrioritizer = {
   beliefPlan(analysis = {}) {
     const belief = analysis.beliefModel?.primaryBelief;
     const insight = analysis.insight || {};
+    const h = this.humanizers();
     const lines = [];
 
-    if (belief?.name) {
-      lines.push(this.humanizeBelief(belief.name));
+    if (belief?.name && belief.name !== "unclear") {
+      lines.push(h.belief(belief.name));
     }
 
-    if (insight.oneLineInsight) {
+    if (
+      insight.oneLineInsight &&
+      insight.oneLineInsight !== "Ari needs more context before naming this cleanly."
+    ) {
       lines.push(insight.oneLineInsight);
     }
 
@@ -305,6 +264,45 @@ window.Ari.languagePrioritizer = {
         lines[0] ||
         "The belief underneath this may matter more than the surface choice.",
       secondaryLines: lines.slice(1),
+      shouldAskQuestion: false,
+      source: "ari-language-prioritizer"
+    };
+  },
+
+  planningPlan(analysis = {}) {
+    const executive = analysis.executive || {};
+    const consequence = analysis.longTermConsequence || {};
+
+    return {
+      leadType: "planning",
+      openingIntent: "steady_observation",
+      primaryLine:
+        executive.recommendedFocus ||
+        consequence.courseCorrection ||
+        "Choose one next action instead of trying to solve everything at once.",
+      secondaryLines: [],
+      shouldAskQuestion: false,
+      source: "ari-language-prioritizer"
+    };
+  },
+
+  buildingPlan(analysis = {}) {
+    const insight = analysis.insight || {};
+    const executive = analysis.executive || {};
+    const meaning = analysis.meaning || {};
+
+    return {
+      leadType: "building",
+      openingIntent: "steady_observation",
+      primaryLine:
+        meaning.humanTruth ||
+        insight.oneLineInsight ||
+        executive.recommendedFocus ||
+        "The bottleneck is not the whole system. Focus on the next clean change.",
+      secondaryLines: [
+        "The bottleneck is usually smaller than it first appears.",
+        "Focus on the next clean improvement rather than redesigning the entire system."
+      ],
       shouldAskQuestion: false,
       source: "ari-language-prioritizer"
     };
@@ -329,86 +327,18 @@ window.Ari.languagePrioritizer = {
     };
   },
 
+  humanizers() {
+    return window.Ari.languageHumanizers || {
+      lifeChapter: (name) => `This looks connected to ${this.clean(name)}.`,
+      underlyingEmotion: (name) =>
+        `Underneath this, Ari may be detecting ${this.clean(name)}.`,
+      conflict: (name) => `The conflict may be ${this.clean(name)}.`,
+      tradeoff: (name) => `The tradeoff may be ${this.clean(name)}.`,
+      belief: (name) => `The belief underneath may be ${this.clean(name)}.`
+    };
+  },
+
   clean(text = "") {
     return String(text || "").replaceAll("_", " ");
-  },
-
-  humanizeLifeChapter(name = "") {
-    const map = {
-      fatherhood_and_transition:
-        "This is not just a productivity question. This is a fatherhood and transition chapter.",
-      fatherhood_transition:
-        "This season is about becoming a father, not just finishing more tasks.",
-      family_transition:
-        "This season is asking you to measure success by presence, not just progress.",
-      builder_development:
-        "This is partly about what kind of builder you are becoming.",
-      career_and_identity_transition:
-        "This is a career and identity transition, not just a planning problem."
-    };
-
-    return map[name] || `This looks connected to ${this.clean(name)}.`;
-  },
-
-  humanizeEmotionDepth(name = "") {
-    const map = {
-      fear_of_betraying_purpose:
-        "Underneath this, Ari may be detecting fear of betraying purpose.",
-      fear_of_losing_identity:
-        "Underneath this, Ari may be detecting fear of losing identity.",
-      fear_of_missing_irreplaceable_moments:
-        "Underneath this, Ari may be detecting fear of missing moments you cannot get back.",
-      fear_of_failing_family:
-        "Underneath this, Ari may be detecting fear of failing the people who matter most.",
-      fear_of_collapse_if_capacity_is_ignored:
-        "Underneath this, Ari may be detecting fear that capacity will collapse if ignored."
-    };
-
-    return map[name] || `Underneath this, Ari may be detecting ${this.clean(name)}.`;
-  },
-
-  humanizeConflict(name = "") {
-    const map = {
-      family_vs_purpose:
-        "The conflict may be family versus purpose.",
-      provider_vs_presence:
-        "The conflict may be providing more versus being present more.",
-      identity_vs_transition:
-        "The conflict may be an old identity trying to survive a new chapter.",
-      growth_vs_stability:
-        "The conflict may be growth versus stability."
-    };
-
-    return map[name] || `The conflict may be ${this.clean(name)}.`;
-  },
-
-  humanizeTradeoff(name = "") {
-    const map = {
-      presence_vs_acceleration:
-        "The tradeoff may be presence versus acceleration.",
-      achievement_vs_presence:
-        "The tradeoff may be achievement versus presence.",
-      growth_vs_stability:
-        "The tradeoff may be growth versus stability."
-    };
-
-    return map[name] || `The tradeoff may be ${this.clean(name)}.`;
-  },
-
-  humanizeBelief(name = "") {
-    const map = {
-      purpose_must_not_be_abandoned:
-        "The belief underneath may be that purpose must not be abandoned.",
-      achievement_creates_security:
-        "The belief underneath may be that achievement creates safety.",
-      responsibility_comes_before_rest:
-        "The belief underneath may be that responsibility must come before rest.",
-      family_moments_are_irreplaceable:
-        "The belief underneath may be that family moments cannot simply be recovered later.",
-      slowing_down_means_falling_behind:
-        "The belief underneath may be that slowing down means falling behind."
-    };
-
-    return map[name] || `The belief underneath may be ${this.clean(name)}.`;
   }
 };
