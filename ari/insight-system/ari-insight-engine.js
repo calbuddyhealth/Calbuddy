@@ -1,12 +1,12 @@
 // ari/insight-system/ari-insight-engine.js
 // Ari Insight Engine
-// Purpose: Detect patterns, hidden conflicts, avoidance, tradeoffs, motives, and one useful insight.
-// V2.0: Adds confidence-based hypotheses and uses meaning, person model, belief model, and simulation when available.
+// Purpose: Detect patterns, hidden conflicts, avoidance, tradeoffs, motives, hypotheses, counter-hypotheses, and one useful insight.
+// V3.0: Integrates Insight Hypothesis Engine, Counter-Hypothesis Engine, and Confidence Calibration.
 
 window.Ari = window.Ari || {};
 
 window.Ari.insightEngine = {
-  version: "2.0.0",
+  version: "3.0.0",
 
   generate({
     observation = {},
@@ -18,8 +18,23 @@ window.Ari.insightEngine = {
     personModel = {},
     beliefModel = {},
     simulation = {},
-    emotionalIntelligence = {}
+    emotionalIntelligence = {},
+    questionType = "understanding"
   } = {}) {
+    const analysisContext = {
+      observation,
+      values,
+      identity,
+      conflicts,
+      executive,
+      meaning,
+      personModel,
+      beliefModel,
+      simulation,
+      emotionalIntelligence,
+      questionType
+    };
+
     const pattern = this.detectPattern({
       observation,
       values,
@@ -70,13 +85,54 @@ window.Ari.insightEngine = {
       meaning
     });
 
+    const hypothesisResult = window.Ari.insightHypothesisEngine
+      ? window.Ari.insightHypothesisEngine.generate(observation, analysisContext)
+      : {
+          primaryHypothesis: null,
+          hypotheses: []
+        };
+
+    const hypothesis = hypothesisResult.primaryHypothesis || null;
+    const hypotheses = hypothesisResult.hypotheses || [];
+
+    const counterResult = window.Ari.counterHypothesisEngine
+      ? window.Ari.counterHypothesisEngine.generate({
+          hypothesis,
+          observation,
+          analysis: analysisContext
+        })
+      : {
+          primaryCounterHypothesis: null,
+          counterHypotheses: []
+        };
+
+    const counterHypothesis = counterResult.primaryCounterHypothesis || null;
+    const counterHypotheses = counterResult.counterHypotheses || [];
+
+    const calibrated = window.Ari.confidenceCalibration
+      ? window.Ari.confidenceCalibration.calibrate({
+          hypothesis,
+          counterHypothesis,
+          evidence: hypothesis?.evidence || [],
+          questionType,
+          analysis: analysisContext
+        })
+      : {
+          confidence: hypothesis?.confidence || "low",
+          confidenceScore: null,
+          reason: "Confidence calibration unavailable.",
+          shouldSpeak: Boolean(hypothesis)
+        };
+
     const oneLineInsight = this.generateOneLineInsight({
       pattern,
       hiddenConflict,
       avoidance,
       tradeoff,
       hiddenMotive,
-      meaning
+      meaning,
+      hypothesis,
+      calibrated
     });
 
     return {
@@ -85,7 +141,18 @@ window.Ari.insightEngine = {
       avoidance,
       tradeoff,
       hiddenMotive,
+
+      hypothesis,
+      hypotheses,
+      counterHypothesis,
+      counterHypotheses,
+      calibratedConfidence: calibrated.confidence,
+      confidenceScore: calibrated.confidenceScore,
+      confidenceReason: calibrated.reason,
+      shouldSpeakHypothesis: calibrated.shouldSpeak,
+
       oneLineInsight,
+
       wisdom: {
         oneLine: oneLineInsight,
         explanation: this.generateExplanation({
@@ -94,9 +161,13 @@ window.Ari.insightEngine = {
           avoidance,
           tradeoff,
           hiddenMotive,
-          meaning
+          meaning,
+          hypothesis,
+          counterHypothesis,
+          calibrated
         })
       },
+
       source: "ari-insight-engine"
     };
   },
@@ -108,12 +179,15 @@ window.Ari.insightEngine = {
     description = ""
   } = {}) {
     if (window.Ari.confidenceSystem) {
-      return window.Ari.confidenceSystem.evaluateSignal({
-        name,
-        confidence,
-        evidence,
-        source: "ari-insight-engine"
-      });
+      return {
+        ...window.Ari.confidenceSystem.evaluateSignal({
+          name,
+          confidence,
+          evidence,
+          source: "ari-insight-engine"
+        }),
+        description
+      };
     }
 
     return {
@@ -149,7 +223,6 @@ window.Ari.insightEngine = {
     const text = observation.normalizedMessage || "";
     const patterns = observation.humanPatterns || {};
     const meaningTheme = meaning.theme || "";
-    const lifeChapter = personModel.lifeChapter?.name || "";
     const primaryBelief = beliefModel.primaryBelief?.name || "";
     const primarySimulation = simulation.primarySimulation?.theme || "";
 
@@ -295,9 +368,7 @@ window.Ari.insightEngine = {
       });
     }
 
-    if (
-      primaryBelief === "slowing_down_means_falling_behind"
-    ) {
+    if (primaryBelief === "slowing_down_means_falling_behind") {
       return this.makeSignal({
         name: "growth_vs_stability",
         confidence: "medium",
@@ -333,16 +404,19 @@ window.Ari.insightEngine = {
     if (
       text.includes("what am i avoiding") ||
       text.includes("avoiding admitting") ||
-      text.includes("what am i not seeing")
+      text.includes("what am i not seeing") ||
+      text.includes("uncomfortable truth") ||
+      text.includes("truth am i avoiding") ||
+      text.includes("what am i pretending not to know")
     ) {
       return this.makeSignal({
         name: "known_answer_unwanted_cost",
-        confidence: "high",
+        confidence: "medium",
         evidence: [
-          "user directly asked what they are avoiding"
+          "user directly asked about avoidance, truth, or uncomfortable insight"
         ],
         description:
-          "The user may already know the answer but is struggling with the cost of accepting it."
+          "The user may already sense the answer but may be struggling with the cost of accepting it."
       });
     }
 
@@ -387,10 +461,8 @@ window.Ari.insightEngine = {
 
   detectTradeoff({
     values = {},
-    conflicts = {},
     executive = {},
     meaning = {},
-    personModel = {},
     beliefModel = {},
     simulation = {}
   } = {}) {
@@ -469,8 +541,7 @@ window.Ari.insightEngine = {
     values = {},
     identity = {},
     beliefModel = {},
-    emotionalIntelligence = {},
-    meaning = {}
+    emotionalIntelligence = {}
   } = {}) {
     const text = observation.normalizedMessage || "";
     const primaryBelief = beliefModel.primaryBelief?.name || "";
@@ -536,7 +607,9 @@ window.Ari.insightEngine = {
     avoidance = {},
     tradeoff = {},
     hiddenMotive = {},
-    meaning = {}
+    meaning = {},
+    hypothesis = null,
+    calibrated = {}
   } = {}) {
     if (hiddenMotive.name === "achievement_as_control") {
       return "You may be using achievement to make uncertainty feel controllable.";
@@ -566,6 +639,10 @@ window.Ari.insightEngine = {
       return "You may not be avoiding the answer. You may be avoiding the cost of accepting it.";
     }
 
+    if (hypothesis?.explanation && calibrated.shouldSpeak !== false) {
+      return hypothesis.explanation;
+    }
+
     if (meaning.humanTruth) {
       return meaning.humanTruth;
     }
@@ -579,20 +656,35 @@ window.Ari.insightEngine = {
     avoidance = {},
     tradeoff = {},
     hiddenMotive = {},
-    meaning = {}
+    hypothesis = null,
+    counterHypothesis = null,
+    calibrated = {}
   } = {}) {
     const evidence = [
       ...(pattern.evidence || []),
       ...(hiddenConflict.evidence || []),
       ...(avoidance.evidence || []),
       ...(tradeoff.evidence || []),
-      ...(hiddenMotive.evidence || [])
+      ...(hiddenMotive.evidence || []),
+      ...(hypothesis?.evidence || [])
     ];
 
-    if (evidence.length === 0) {
+    const uniqueEvidence = [...new Set(evidence)];
+
+    if (uniqueEvidence.length === 0) {
       return "Ari does not have enough evidence yet to explain the insight clearly.";
     }
 
-    return `This insight is based on: ${[...new Set(evidence)].join(", ")}.`;
+    let explanation = `This insight is based on: ${uniqueEvidence.join(", ")}.`;
+
+    if (counterHypothesis?.explanation) {
+      explanation += ` Counterpoint: ${counterHypothesis.explanation}`;
+    }
+
+    if (calibrated?.reason) {
+      explanation += ` Confidence: ${calibrated.reason}`;
+    }
+
+    return explanation;
   }
 };
