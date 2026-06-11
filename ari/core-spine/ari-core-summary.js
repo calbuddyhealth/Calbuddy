@@ -1,12 +1,12 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.0
+// V1.1: Adds evidence and meta-evidence fields.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   create(analysis = {}) {
     const observation = analysis.observation || {};
@@ -77,6 +77,13 @@ window.Ari.coreSummary = {
       counterHypotheses:
         insight.counterHypotheses?.map((item) => item.name) || [],
 
+      evidenceStrength: insight.evidenceStrength || null,
+      evidenceScore: insight.evidenceScore || null,
+      evidenceSummary: insight.evidenceSummary || null,
+      supportingEvidence: insight.supportingEvidence || [],
+      contradictingEvidence: insight.contradictingEvidence || [],
+      missingEvidence: insight.missingEvidence || [],
+
       calibratedConfidence: insight.calibratedConfidence || null,
       confidenceScore: insight.confidenceScore || null,
       confidenceReason: insight.confidenceReason || null,
@@ -89,6 +96,12 @@ window.Ari.coreSummary = {
       metaConfidenceScore: metaAwareness.confidenceScore || null,
       metaConfidenceReason: metaAwareness.confidenceReason || null,
       alternativeExplanation: metaAwareness.alternativeExplanation || null,
+
+      metaEvidenceStrength: metaAwareness.evidenceStrength || null,
+      metaSupportingEvidence: metaAwareness.supportingEvidence || [],
+      metaContradictingEvidence: metaAwareness.contradictingEvidence || [],
+      metaMissingEvidence: metaAwareness.missingEvidence || [],
+
       uncertaintyAreas: metaAwareness.uncertaintyAreas || [],
       knownUnknowns: metaAwareness.knownUnknowns || [],
       metaRecommendation: metaAwareness.recommendation || null,
