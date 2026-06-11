@@ -1,13 +1,13 @@
 // ari/core-spine/ari-core-cognition.js
 // Ari Core Cognition Spine
-// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, meta awareness, wisdom, and wisdom resolution.
-// Answers: What does this mean, how strongly should Ari trust it, and what matters most?
-// V1.2
+// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, meta awareness, wisdom, regret, consequence, and underlying emotion.
+// Answers: What does this mean, how strongly should Ari trust it, what matters most, and what deeper emotion may be underneath?
+// V1.3
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreCognition = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   run(state = {}) {
     const emotionalIntelligence = window.Ari.emotionalIntelligence
@@ -192,6 +192,128 @@ window.Ari.coreCognition = {
           source: "wisdom-conflict-resolver-unavailable"
         };
 
+    const regret = window.Ari.regretEngine
+      ? window.Ari.regretEngine.evaluate({
+          wisdom,
+          wisdomResolution,
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          executive: state.executive
+        })
+      : {
+          regretType: null,
+          regretStatement: null,
+          regretIntensity: "low",
+          preventableAction: null,
+          source: "regret-engine-unavailable"
+        };
+
+    const longTermConsequence = window.Ari.longTermConsequenceEngine
+      ? window.Ari.longTermConsequenceEngine.evaluate({
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          executive: state.executive,
+          wisdom,
+          regret
+        })
+      : {
+          path: null,
+          fiveYearConsequence: null,
+          protectedFuture: null,
+          riskIfIgnored: null,
+          courseCorrection: null,
+          confidence: "low",
+          source: "long-term-consequence-engine-unavailable"
+        };
+
+    const wisdomSynthesis = window.Ari.wisdomSynthesizer
+      ? window.Ari.wisdomSynthesizer.synthesize({
+          insight,
+          wisdom,
+          wisdomResolution,
+          consequences: longTermConsequence,
+          personModel,
+          beliefModel
+        })
+      : {
+          synthesis: wisdom.wisdomStatement || insight.oneLineInsight || null,
+          principles: [],
+          principleStatements: [],
+          primaryPrinciple: null,
+          archetype: null,
+          source: "wisdom-synthesizer-unavailable"
+        };
+
+    const wisdomQuestionRecovery = window.Ari.wisdomQuestionRecovery
+      ? window.Ari.wisdomQuestionRecovery.recover({
+          insight,
+          metaAwareness,
+          wisdom,
+          wisdomResolution,
+          meaning,
+          personModel,
+          beliefModel,
+          emotionalIntelligence,
+          executive: state.executive
+        })
+      : {
+          shouldRecover: false,
+          recoveryReason: null,
+          primaryQuestion: null,
+          supportingQuestions: [],
+          source: "wisdom-question-recovery-unavailable"
+        };
+
+    const underlyingEmotion = window.Ari.underlyingEmotionEngine
+      ? window.Ari.underlyingEmotionEngine.analyze({
+          observation: state.observation,
+          emotion: state.emotion,
+          emotionalIntelligence,
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          wisdom
+        })
+      : {
+          primaryUnderlyingEmotion: {
+            name: "unclear",
+            confidence: "low"
+          },
+          candidates: [],
+          emotionalSource: null,
+          protectiveStrategy: null,
+          hiddenFear: null,
+          vulnerableTruth: null,
+          confidence: "low",
+          source: "underlying-emotion-engine-unavailable"
+        };
+
+    const emotionRecoveryQuestions = window.Ari.emotionRecoveryQuestions
+      ? window.Ari.emotionRecoveryQuestions.generate({
+          underlyingEmotion,
+          emotionalIntelligence,
+          insight,
+          meaning,
+          personModel,
+          beliefModel,
+          wisdom
+        })
+      : {
+          shouldAsk: false,
+          questionType: null,
+          primaryQuestion: null,
+          supportingQuestions: [],
+          source: "emotion-recovery-questions-unavailable"
+        };
+
     return {
       ...state,
       emotionalIntelligence,
@@ -202,7 +324,13 @@ window.Ari.coreCognition = {
       insight,
       metaAwareness,
       wisdom,
-      wisdomResolution
+      wisdomResolution,
+      regret,
+      longTermConsequence,
+      wisdomSynthesis,
+      wisdomQuestionRecovery,
+      underlyingEmotion,
+      emotionRecoveryQuestions
     };
   }
 };
