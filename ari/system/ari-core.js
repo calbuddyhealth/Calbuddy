@@ -1,11 +1,12 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
-// Purpose: Connect Loader, Observer, Question Understanding, Value, Identity, Conflict, Executive, Insight, Attention, Router, Emotion, Emotional Intelligence, Meaning, and Memory.
+// Purpose: Coordinate Ari's full cognitive organ system.
+// V2.0: Integrates Confidence, Meaning, Person Model, Belief Model, Simulation, Insight V2, Identity V2, Emotion, Executive, and Memory.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "1.6.0",
+  version: "2.0.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -98,7 +99,7 @@ window.Ari.core = {
           source: "executive-function-unavailable"
         };
 
-    const insight = window.Ari.insightEngine
+    const earlyInsight = window.Ari.insightEngine
       ? window.Ari.insightEngine.generate({
           observation,
           values,
@@ -107,11 +108,11 @@ window.Ari.core = {
           executive
         })
       : {
-          hiddenConflict: null,
-          avoidance: null,
-          pattern: null,
-          tradeoff: null,
-          wisdom: null,
+          pattern: { name: "unclear", confidence: "low" },
+          hiddenConflict: { name: "unclear", confidence: "low" },
+          avoidance: { name: "none_detected", confidence: "low" },
+          tradeoff: { name: "none_detected", confidence: "low" },
+          hiddenMotive: { name: "unclear", confidence: "low" },
           oneLineInsight: null,
           source: "insight-engine-unavailable"
         };
@@ -124,7 +125,7 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
-          insight
+          insight: earlyInsight
         })
       : {
           focusType: "unknown",
@@ -144,7 +145,7 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
-          insight,
+          insight: earlyInsight,
           attention
         })
       : {
@@ -195,7 +196,7 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
-          insight,
+          insight: earlyInsight,
           attention
         })
       : {
@@ -212,7 +213,7 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
-          insight
+          insight: earlyInsight
         })
       : {
           surfaceEmotion: null,
@@ -232,16 +233,87 @@ window.Ari.core = {
           identity,
           conflicts,
           executive,
-          insight,
+          insight: earlyInsight,
           emotion,
           emotionalIntelligence
         })
       : {
           theme: null,
+          confidence: "low",
           meaning: null,
           humanTruth: null,
           source: "meaning-engine-unavailable"
         };
+
+    const personModel = window.Ari.personModel
+      ? window.Ari.personModel.build({
+          observation,
+          values,
+          identity,
+          conflicts,
+          insight: earlyInsight,
+          emotionalIntelligence,
+          meaning
+        })
+      : {
+          roles: [],
+          lifeChapter: null,
+          activePressures: [],
+          likelyNeeds: [],
+          recurringPattern: null,
+          snapshot: null,
+          source: "person-model-unavailable"
+        };
+
+    const beliefModel = window.Ari.beliefEngine
+      ? window.Ari.beliefEngine.analyze({
+          observation,
+          values,
+          identity,
+          conflicts,
+          insight: earlyInsight,
+          emotionalIntelligence,
+          meaning,
+          personModel
+        })
+      : {
+          beliefs: [],
+          primaryBelief: null,
+          beliefTheme: null,
+          beliefSummary: null,
+          source: "belief-engine-unavailable"
+        };
+
+    const simulation = window.Ari.simulationEngine
+      ? window.Ari.simulationEngine.simulate({
+          values,
+          identity,
+          conflicts,
+          executive,
+          meaning,
+          personModel,
+          beliefModel
+        })
+      : {
+          simulations: [],
+          primarySimulation: null,
+          source: "simulation-engine-unavailable"
+        };
+
+    const insight = window.Ari.insightEngine
+      ? window.Ari.insightEngine.generate({
+          observation,
+          values,
+          identity,
+          conflicts,
+          executive,
+          meaning,
+          personModel,
+          beliefModel,
+          simulation,
+          emotionalIntelligence
+        })
+      : earlyInsight;
 
     const memory = window.Ari.memoryEngine
       ? window.Ari.memoryEngine.classify(message, {
@@ -257,7 +329,10 @@ window.Ari.core = {
           route,
           emotion,
           emotionalIntelligence,
-          meaning
+          meaning,
+          personModel,
+          beliefModel,
+          simulation
         })
       : {
           shouldRemember: false,
@@ -275,12 +350,16 @@ window.Ari.core = {
       identity,
       conflicts,
       executive,
+      earlyInsight,
       insight,
       attention,
       route,
       emotion,
       emotionalIntelligence,
       meaning,
+      personModel,
+      beliefModel,
+      simulation,
       memory,
       analyzedAt: new Date().toISOString()
     };
@@ -298,6 +377,9 @@ window.Ari.core = {
     const emotion = analysis.emotion || {};
     const emotionalIntelligence = analysis.emotionalIntelligence || {};
     const meaning = analysis.meaning || {};
+    const personModel = analysis.personModel || {};
+    const beliefModel = analysis.beliefModel || {};
+    const simulation = analysis.simulation || {};
     const memory = analysis.memory || {};
 
     return {
@@ -309,7 +391,17 @@ window.Ari.core = {
 
       dominantValue: values.dominantValue || null,
       dominantIdentity: identity.dominantIdentity?.name || null,
+      dominantIdentityConfidence: identity.dominantIdentity?.confidence || null,
       dominantTheme: identity.dominantTheme || null,
+      identityHierarchy: {
+        primary: identity.identityHierarchy?.primary?.name || null,
+        secondary:
+          identity.identityHierarchy?.secondary?.map((item) => item.name) || [],
+        supporting:
+          identity.identityHierarchy?.supporting?.map((item) => item.name) || [],
+        seasonalPrimaryReason:
+          identity.identityHierarchy?.seasonalPrimaryReason || null
+      },
 
       primaryConflict: conflicts.primaryConflict?.name || null,
       conflictIntensity: conflicts.conflictIntensity || "none",
@@ -324,18 +416,38 @@ window.Ari.core = {
       executiveDecision: executive.executiveDecision || null,
       recommendedFocus: executive.recommendedFocus || null,
 
-      oneLineInsight: insight.oneLineInsight || null,
-      hiddenConflict: insight.hiddenConflict?.name || null,
-      avoidance: insight.avoidance?.name || null,
       pattern: insight.pattern?.name || null,
+      patternConfidence: insight.pattern?.confidence || null,
+      hiddenConflict: insight.hiddenConflict?.name || null,
+      hiddenConflictConfidence: insight.hiddenConflict?.confidence || null,
+      avoidance: insight.avoidance?.name || null,
+      avoidanceConfidence: insight.avoidance?.confidence || null,
       tradeoff: insight.tradeoff?.name || null,
+      tradeoffConfidence: insight.tradeoff?.confidence || null,
+      hiddenMotive: insight.hiddenMotive?.name || null,
+      hiddenMotiveConfidence: insight.hiddenMotive?.confidence || null,
+      oneLineInsight: insight.oneLineInsight || null,
 
-      meaningTheme:
-        meaning.theme || null,
-      meaningStatement:
-        meaning.meaning || null,
-      humanTruth:
-        meaning.humanTruth || null,
+      meaningTheme: meaning.theme || null,
+      meaningConfidence: meaning.confidence || null,
+      meaningReason: meaning.reason || null,
+      meaningStatement: meaning.meaning || null,
+      humanTruth: meaning.humanTruth || null,
+
+      personLifeChapter: personModel.lifeChapter?.name || null,
+      personLifeChapterConfidence: personModel.lifeChapter?.confidence || null,
+      personPrimaryRole: personModel.snapshot?.primaryRole || null,
+      personMainPressure: personModel.snapshot?.mainPressure || null,
+      personMainNeed: personModel.snapshot?.mainNeed || null,
+      personRecurringPattern: personModel.snapshot?.recurringPattern || null,
+
+      primaryBelief: beliefModel.primaryBelief?.name || null,
+      primaryBeliefConfidence: beliefModel.primaryBelief?.confidence || null,
+      beliefSummary: beliefModel.beliefSummary || null,
+
+      primarySimulation: simulation.primarySimulation?.name || null,
+      simulationTheme: simulation.primarySimulation?.theme || null,
+      likelyRegret: simulation.primarySimulation?.likelyRegret || null,
 
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
@@ -370,6 +482,9 @@ window.Ari.core = {
       executiveSource: executive.source || "unknown",
       insightSource: insight.source || "unknown",
       meaningSource: meaning.source || "unknown",
+      personModelSource: personModel.source || "unknown",
+      beliefSource: beliefModel.source || "unknown",
+      simulationSource: simulation.source || "unknown",
       attentionSource: attention.source || "unknown",
       emotionSource: emotion.source || "unknown",
       emotionalIntelligenceSource:
