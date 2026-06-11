@@ -1,12 +1,12 @@
 // ari/language-system/ari-language-recovery-builder.js
 // Ari Language Recovery Builder
 // Purpose: Speak intelligently when Ari lacks certainty.
-// V1.0
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageRecoveryBuilder = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   build(analysis = {}) {
     const lines = [];
@@ -16,55 +16,70 @@ window.Ari.languageRecoveryBuilder = {
     const personModel = analysis.personModel || {};
     const wisdomRecovery = analysis.wisdomQuestionRecovery || {};
     const emotionRecovery = analysis.emotionRecoveryQuestions || {};
+    const emotionalIntelligence = analysis.emotionalIntelligence || {};
+    const humanizers = this.humanizers();
 
-    // Observation
+    const lifeChapter = personModel.lifeChapter?.name;
+    const rootNeed = emotionalIntelligence.rootNeed?.name;
+    const protecting = emotionalIntelligence.protecting?.name;
 
-    if (
-      personModel.lifeChapter?.name &&
-      personModel.lifeChapter.name !== "unclear"
-    ) {
-      lines.push(
-        `Something stands out about this chapter: ${personModel.lifeChapter.name.replaceAll("_", " ")}.`
-      );
+    if (lifeChapter && lifeChapter !== "unclear") {
+      lines.push(humanizers.lifeChapter(lifeChapter));
     }
-
-    // Best understanding
 
     if (
       meaning.humanTruth &&
-      meaning.humanTruth !==
-        "Ari needs more context before naming this cleanly."
+      meaning.humanTruth !== "Ari needs more context before naming this cleanly."
     ) {
       lines.push(meaning.humanTruth);
-    }
-    else if (
+    } else if (
       insight.oneLineInsight &&
-      insight.oneLineInsight !==
-        "Ari needs more context before naming this cleanly."
+      insight.oneLineInsight !== "Ari needs more context before naming this cleanly."
     ) {
       lines.push(
         `I could be wrong, but ${this.lowercaseFirst(
           insight.oneLineInsight
         )}`
       );
-    }
-    else {
+    } else {
       lines.push(
-        "I do not think Ari has enough evidence to be confident yet, but something important is present."
+        "I do not have enough evidence to be confident yet, but something important is present."
       );
     }
 
-    // Recovery question
+    if (rootNeed && rootNeed !== "unclear") {
+      lines.push(humanizers.rootNeed(rootNeed));
+    }
+
+    if (protecting && protecting !== "unclear") {
+      lines.push(humanizers.protecting(protecting));
+    }
 
     const question =
       wisdomRecovery.primaryQuestion ||
-      emotionRecovery.primaryQuestion;
+      emotionRecovery.primaryQuestion ||
+      "What part of this feels most important but least understood?";
 
     if (question) {
       lines.push(question);
     }
 
-    return lines;
+    return this.unique(lines);
+  },
+
+  humanizers() {
+    return window.Ari.languageHumanizers || {
+      lifeChapter: (name) =>
+        `This chapter appears to be about ${String(name).replaceAll("_", " ")}.`,
+      rootNeed: (name) =>
+        `The need underneath may be ${String(name).replaceAll("_", " ")}.`,
+      protecting: (name) =>
+        `What you are protecting may be ${String(name).replaceAll("_", " ")}.`
+    };
+  },
+
+  unique(lines = []) {
+    return [...new Set(lines.filter(Boolean))];
   },
 
   lowercaseFirst(text = "") {
