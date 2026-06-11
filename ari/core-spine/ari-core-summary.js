@@ -1,15 +1,17 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.4: Adds life signal visibility.
+// V1.5: Adds life signal and nervous signal visibility.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
+    const signals = analysis.signals || {};
+
     const observation = analysis.observation || {};
     const values = analysis.values || {};
     const identity = analysis.identity || {};
@@ -25,6 +27,7 @@ window.Ari.coreSummary = {
     const wisdomQuestionRecovery = analysis.wisdomQuestionRecovery || {};
     const underlyingEmotionDepth = analysis.underlyingEmotion || {};
     const emotionRecoveryQuestions = analysis.emotionRecoveryQuestions || {};
+
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
@@ -43,6 +46,19 @@ window.Ari.coreSummary = {
       lifeSignals: lifeSignals.signalNames || [],
       primaryLifeSignal: lifeSignals.primarySignal?.name || null,
       hasMajorLifeSignal: Boolean(lifeSignals.hasMajorLifeSignal),
+
+      strongestSignal: signals.strongestSignalName || null,
+      strongestSignalCategory: signals.strongestSignalCategory || null,
+      strongestSignalStrength: signals.strongestSignalStrength || 0,
+      recommendedLanguageLead: signals.recommendedLanguageLead || null,
+      recommendedOrgans: signals.recommendedOrgans || [],
+      rankedSignals:
+        signals.rankedSignals?.slice(0, 8).map((item) => ({
+          name: item.name,
+          category: item.category,
+          strength: item.strength,
+          confidence: item.confidence
+        })) || [],
 
       focusType: attention.focusType || "unknown",
       focusReason: attention.focusReason || "No focus reason.",
@@ -175,6 +191,8 @@ window.Ari.coreSummary = {
       memoryCandidate: memory.shouldRemember ? memory : null,
 
       lifeSignalSource: lifeSignals.source || "unknown",
+      signalSystemSource: signals.source || "unknown",
+
       insightSource: insight.source || "unknown",
       metaAwarenessSource: metaAwareness.source || "unknown",
       wisdomSource: wisdom.source || "unknown",
