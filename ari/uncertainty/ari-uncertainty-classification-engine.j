@@ -1,8 +1,11 @@
 // ari/uncertainty/ari-uncertainty-classification-engine.js
 // Ari Uncertainty Classification Engine
 // Purpose: Determine WHY Ari is uncertain before choosing a recovery question.
-// V1.1
-// Major upgrade: candidate scoring system instead of "last if wins."
+// V1.2
+// Fixes:
+// - Treats null / unknown / none / low evidence as weak evidence.
+// - Strengthens life chapter uncertainty when a meaningful life signal exists.
+// - Prevents emotion recovery from becoming the default unless emotion is truly central.
 
 window.AriUncertaintyClassificationEngine = {
   classify(input = {}) {
@@ -10,24 +13,67 @@ window.AriUncertaintyClassificationEngine = {
 
     const hypothesis = summary.hypothesis || null;
     const evidenceStrength = summary.evidenceStrength || "none";
-    const primaryEmotion = summary.primaryEmotion || summary.surfaceEmotion || null;
-    const underlyingEmotion = summary.underlyingEmotion || "unclear";
-    const underlyingEmotionDepth = summary.underlyingEmotionDepth || null;
-    const strongestSignal = summary.strongestSignal || null;
-    const strongestSignalCategory = summary.strongestSignalCategory || null;
-    const rootNeed = summary.rootNeed || summary.primaryNeed || null;
-    const dominantIdentity = summary.dominantIdentity || null;
-    const primaryBelief = summary.primaryBelief || null;
-    const wisdomTension = summary.wisdomTension || null;
-    const highestGood = summary.highestGood || null;
-    const primaryLifeSignal = summary.primaryLifeSignal || null;
-    const primaryWeightedLifeSignal = summary.primaryWeightedLifeSignal || null;
-    const lifePriorityClass = summary.lifePriorityClass || "none";
-    const lifeSignals = Array.isArray(summary.lifeSignals) ? summary.lifeSignals : [];
-    const uncertaintyAreas = Array.isArray(summary.uncertaintyAreas) ? summary.uncertaintyAreas : [];
-    const knownUnknowns = Array.isArray(summary.knownUnknowns) ? summary.knownUnknowns : [];
+
+    const primaryEmotion =
+      summary.primaryEmotion ||
+      summary.surfaceEmotion ||
+      null;
+
+    const underlyingEmotion =
+      summary.underlyingEmotion || "unclear";
+
+    const underlyingEmotionDepth =
+      summary.underlyingEmotionDepth || null;
+
+    const strongestSignal =
+      summary.strongestSignal || null;
+
+    const strongestSignalCategory =
+      summary.strongestSignalCategory || null;
+
+    const rootNeed =
+      summary.rootNeed || summary.primaryNeed || null;
+
+    const dominantIdentity =
+      summary.dominantIdentity || null;
+
+    const primaryBelief =
+      summary.primaryBelief || null;
+
+    const wisdomTension =
+      summary.wisdomTension || null;
+
+    const highestGood =
+      summary.highestGood || null;
+
+    const primaryLifeSignal =
+      summary.primaryLifeSignal || null;
+
+    const primaryWeightedLifeSignal =
+      summary.primaryWeightedLifeSignal || null;
+
+    const lifePriorityClass =
+      summary.lifePriorityClass || "none";
+
+    const lifeSignals = Array.isArray(summary.lifeSignals)
+      ? summary.lifeSignals
+      : [];
+
+    const uncertaintyAreas = Array.isArray(summary.uncertaintyAreas)
+      ? summary.uncertaintyAreas
+      : [];
+
+    const knownUnknowns = Array.isArray(summary.knownUnknowns)
+      ? summary.knownUnknowns
+      : [];
 
     const candidates = [];
+
+    const noEvidence =
+      !evidenceStrength ||
+      evidenceStrength === "none" ||
+      evidenceStrength === "unknown" ||
+      evidenceStrength === "low";
 
     function addCandidate(type, score, reason, recoveryQuestion, extra = {}) {
       candidates.push({
@@ -40,20 +86,24 @@ window.AriUncertaintyClassificationEngine = {
     }
 
     // 1. Missing information
-    if (!hypothesis && evidenceStrength === "none") {
+    if (!hypothesis && noEvidence) {
       addCandidate(
         "missing_information",
-        88,
+        92,
         "Ari has no grounded hypothesis and needs more context before interpreting.",
         "What information feels most missing right now?"
       );
     }
 
     // 2. Understanding / curiosity uncertainty
-    if (primaryEmotion === "curiosity" && rootNeed === "understanding" && !hypothesis) {
+    if (
+      primaryEmotion === "curiosity" &&
+      rootNeed === "understanding" &&
+      !hypothesis
+    ) {
       addCandidate(
         "understanding_uncertainty",
-        86,
+        90,
         "The dominant state is curiosity and understanding, not hidden emotion.",
         "What are you trying to understand more clearly?"
       );
@@ -67,7 +117,7 @@ window.AriUncertaintyClassificationEngine = {
     ) {
       addCandidate(
         "emotion_uncertainty",
-        84,
+        88,
         "An underlying emotion appears central and needs deeper clarification.",
         "What feeling is hardest to admit underneath this?",
         {
@@ -84,7 +134,7 @@ window.AriUncertaintyClassificationEngine = {
     ) {
       addCandidate(
         "emotion_uncertainty",
-        80,
+        82,
         "Ari has a possible emotional signal, but it needs confirmation.",
         "What feeling feels closest to the truth here?",
         {
@@ -102,7 +152,7 @@ window.AriUncertaintyClassificationEngine = {
     ) {
       addCandidate(
         "belief_uncertainty",
-        primaryBelief ? 82 : 74,
+        primaryBelief ? 86 : 78,
         "A belief or assumption appears important, but Ari does not fully understand it yet.",
         "What assumption are you making that might be shaping this?",
         {
@@ -120,7 +170,7 @@ window.AriUncertaintyClassificationEngine = {
     ) {
       addCandidate(
         "identity_uncertainty",
-        dominantIdentity ? 82 : 76,
+        dominantIdentity ? 86 : 80,
         "The active identity or role is unclear.",
         "Which part of you feels most responsible for this right now?",
         {
@@ -137,11 +187,12 @@ window.AriUncertaintyClassificationEngine = {
       lifeSignals.length > 0 ||
       uncertaintyAreas.includes("life_chapter_unclear")
     ) {
-      let score = 76;
+      let score = 80;
 
-      if (primaryLifeSignal || primaryWeightedLifeSignal) score = 84;
-      if (lifePriorityClass === "high_life_priority") score = 88;
-      if (lifePriorityClass === "major_life_priority") score = 92;
+      if (primaryLifeSignal || primaryWeightedLifeSignal) score = 90;
+      if (lifePriorityClass === "medium_life_priority") score = 94;
+      if (lifePriorityClass === "high_life_priority") score = 98;
+      if (lifePriorityClass === "major_life_priority") score = 102;
 
       addCandidate(
         "life_chapter_uncertainty",
@@ -149,7 +200,11 @@ window.AriUncertaintyClassificationEngine = {
         "A life chapter signal is present, but Ari needs more context before naming it cleanly.",
         "What feels different about this season of life?",
         {
-          lifeSignal: primaryLifeSignal || primaryWeightedLifeSignal || strongestSignal || null,
+          lifeSignal:
+            primaryLifeSignal ||
+            primaryWeightedLifeSignal ||
+            strongestSignal ||
+            null,
           lifePriorityClass
         }
       );
@@ -158,14 +213,14 @@ window.AriUncertaintyClassificationEngine = {
     // 7. Value / wisdom uncertainty
     if (
       strongestSignalCategory === "highest_good" ||
-      wisdomTension ||
+      (wisdomTension && wisdomTension !== "unclear") ||
       highestGood ||
       rootNeed === "understanding" ||
       uncertaintyAreas.includes("future_consequence_unclear")
     ) {
       addCandidate(
         "value_or_wisdom_uncertainty",
-        wisdomTension || highestGood ? 82 : 78,
+        wisdomTension && wisdomTension !== "unclear" ? 86 : 80,
         "Ari detects a need for clarity, wisdom, or prioritization rather than emotional excavation.",
         "What good are you trying to protect most right now?",
         {
@@ -184,11 +239,14 @@ window.AriUncertaintyClassificationEngine = {
     ) {
       addCandidate(
         "conflict_uncertainty",
-        summary.conflictIntensity === "high" ? 86 : 78,
+        summary.conflictIntensity === "high" ? 88 : 80,
         "A conflict or tradeoff may be present, but Ari needs to understand what is competing.",
         "What two good things feel like they are competing right now?",
         {
-          conflictSignal: summary.primaryConflict || summary.hiddenConflict || null
+          conflictSignal:
+            summary.primaryConflict ||
+            summary.hiddenConflict ||
+            null
         }
       );
     }
@@ -203,7 +261,7 @@ window.AriUncertaintyClassificationEngine = {
     ) {
       addCandidate(
         "mission_uncertainty",
-        84,
+        94,
         "Ari detects a creative mission or purpose signal, but the mission needs clarification.",
         "What future are you trying to create?",
         {
@@ -212,7 +270,7 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // If no candidates were detected, use general uncertainty.
+    // 10. If no candidates were detected, use general uncertainty.
     if (candidates.length === 0) {
       addCandidate(
         "general_uncertainty",
@@ -222,12 +280,12 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // Sort highest score first.
     candidates.sort((a, b) => b.score - a.score);
 
     const winner = candidates[0];
 
-    const shouldUseEmotionRecovery = winner.type === "emotion_uncertainty";
+    const shouldUseEmotionRecovery =
+      winner.type === "emotion_uncertainty";
 
     const shouldContinueObserving =
       winner.type === "missing_information" ||
