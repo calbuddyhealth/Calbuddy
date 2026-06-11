@@ -1,21 +1,23 @@
 // ari/insight-system/ari-insight-hypothesis-engine.js
 // Ari Insight Hypothesis Engine
 // Purpose: Generate possible explanations when certainty is low.
-// V1.0
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.insightHypothesisEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
-  generate(observation = {}, analysis = {}) {
+  generate({
+    observation = {},
+    insight = {},
+    meaning = {},
+    personModel = {},
+    beliefModel = {},
+    emotionalIntelligence = {}
+  } = {}) {
+
     const hypotheses = [];
-
-    const text = (
-      observation.normalizedMessage ||
-      observation.message ||
-      ""
-    ).toLowerCase();
 
     const add = (
       name,
@@ -31,71 +33,212 @@ window.Ari.insightHypothesisEngine = {
       });
     };
 
-    // Achievement / productivity signals
+    const pattern = insight.pattern?.name;
+    const hiddenConflict = insight.hiddenConflict?.name;
+    const avoidance = insight.avoidance?.name;
+    const tradeoff = insight.tradeoff?.name;
+
+    const belief =
+      beliefModel.primaryBelief?.name;
+
+    const lifeChapter =
+      personModel.lifeChapter?.name;
+
+    const underlyingEmotion =
+      emotionalIntelligence.underlyingEmotion?.name;
+
+    //
+    // Avoidance
+    //
 
     if (
-      text.includes("career") ||
-      text.includes("school") ||
-      text.includes("goal") ||
-      text.includes("success") ||
-      text.includes("achievement") ||
-      text.includes("future")
+      avoidance === "known_answer_unwanted_cost"
+    ) {
+      add(
+        "unwanted_cost",
+        "medium",
+        "The user may already know the answer but may be struggling with the cost of accepting it.",
+        [
+          "avoidance_detected",
+          "known_answer_unwanted_cost"
+        ]
+      );
+    }
+
+    //
+    // Achievement
+    //
+
+    if (
+      pattern === "achievement_before_peace" ||
+      belief === "achievement_creates_security"
     ) {
       add(
         "achievement_before_arrival",
-        "low",
-        "You may be postponing peace until after the next achievement.",
-        ["achievement_language"]
+        "medium",
+        "The user may be postponing peace until after the next achievement.",
+        [
+          "achievement_pattern",
+          "achievement_belief"
+        ]
       );
     }
 
-    // Over-responsibility
+    //
+    // Presence
+    //
 
     if (
-      text.includes("family") ||
-      text.includes("provider") ||
-      text.includes("responsibility") ||
-      text.includes("everyone")
+      pattern === "achievement_before_presence" ||
+      tradeoff === "presence_vs_acceleration"
+    ) {
+      add(
+        "presence_must_be_earned",
+        "high",
+        "The user may believe achievement must be completed before presence is allowed.",
+        [
+          "presence_tradeoff",
+          "achievement_before_presence"
+        ]
+      );
+    }
+
+    //
+    // Identity Overload
+    //
+
+    if (
+      pattern === "too_many_primary_roles"
+    ) {
+      add(
+        "identity_overload",
+        "high",
+        "Multiple important identities may be competing for primary status.",
+        [
+          "role_conflict",
+          "identity_overload"
+        ]
+      );
+    }
+
+    //
+    // Family vs Purpose
+    //
+
+    if (
+      hiddenConflict === "family_vs_purpose"
+    ) {
+      add(
+        "purpose_abandonment_fear",
+        "high",
+        "The user may fear that protecting family means abandoning purpose.",
+        [
+          "family_vs_purpose"
+        ]
+      );
+    }
+
+    //
+    // Growth vs Stability
+    //
+
+    if (
+      hiddenConflict === "growth_vs_stability"
+    ) {
+      add(
+        "growth_requires_instability",
+        "medium",
+        "The user may believe growth requires sacrificing stability.",
+        [
+          "growth_vs_stability"
+        ]
+      );
+    }
+
+    //
+    // Responsibility
+    //
+
+    if (
+      pattern === "responsibility_before_recovery"
     ) {
       add(
         "responsibility_before_rest",
-        "low",
-        "You may be carrying responsibilities that leave little room for recovery.",
-        ["responsibility_language"]
-      );
-    }
-
-    // Identity overload
-
-    if (
-      text.includes("career") &&
-      text.includes("family")
-    ) {
-      add(
-        "too_many_primary_roles",
         "medium",
-        "Too many important identities may be competing to be primary.",
-        ["multiple_identity_signals"]
+        "The user may consistently place responsibility ahead of recovery.",
+        [
+          "responsibility_pattern"
+        ]
       );
     }
 
-    // Fear of slowing down
+    //
+    // Hope
+    //
 
     if (
-      text.includes("behind") ||
-      text.includes("slow") ||
-      text.includes("delay")
+      meaning.theme === "search_for_meaning"
     ) {
       add(
-        "slowing_down_equals_loss",
+        "hope_for_clarity",
         "low",
-        "Part of you may associate slowing down with losing progress.",
-        ["delay_language"]
+        "The user may be searching for a clearer interpretation of their situation.",
+        [
+          "meaning_search"
+        ]
       );
     }
+
+    //
+    // Life chapter
+    //
+
+    if (
+      lifeChapter === "fatherhood_and_transition"
+    ) {
+      add(
+        "identity_reorganization",
+        "high",
+        "The user's life may be reorganizing around a new chapter.",
+        [
+          "fatherhood_transition"
+        ]
+      );
+    }
+
+    //
+    // Emotion
+    //
+
+    if (
+      underlyingEmotion === "fear_of_betraying_purpose"
+    ) {
+      add(
+        "purpose_protection",
+        "medium",
+        "The user may be trying to protect something deeply meaningful.",
+        [
+          "fear_of_betraying_purpose"
+        ]
+      );
+    }
+
+    hypotheses.sort((a, b) => {
+      const rank = {
+        high: 3,
+        medium: 2,
+        low: 1
+      };
+
+      return (
+        (rank[b.confidence] || 0) -
+        (rank[a.confidence] || 0)
+      );
+    });
 
     return {
-      primaryHypothesis: hypotheses[0] || null,
+      primaryHypothesis:
+        hypotheses[0] || null,
       hypotheses
     };
   }
