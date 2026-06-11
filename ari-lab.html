@@ -121,6 +121,23 @@
   <script src="ari/language-system/ari-language-builder.js"></script>
   <script src="ari/language-system/ari-language-system.js"></script>
 
+  <!-- ARI REBIRTH ORGANS -->
+  <script src="ari/uncertainty/ari-uncertainty-classification-engine.js"></script>
+
+  <script src="ari/identity/ari-identity-priority-engine.js"></script>
+  <script src="ari/identity/ari-identity-conflict-resolver.js"></script>
+
+  <script src="ari/values/ari-value-integration-engine.js"></script>
+
+  <script src="ari/emotion/ari-stewardship-fear-differentiator.js"></script>
+
+  <script src="ari/meaning/ari-life-chapter-engine.js"></script>
+
+  <script src="ari/integration/ari-salience-governor.js"></script>
+  <script src="ari/integration/ari-synthesis-engine.js"></script>
+
+  <script src="ari/language/ari-language-composer.js"></script>
+
   <!-- MEMORY -->
   <script src="ari/memory-system/ari-memory-engine.js"></script>
 
@@ -138,6 +155,77 @@
   <script src="ari/system/ari-bootstrap.js"></script>
 
   <script>
+    function runAriRebirthPipeline(systemSummary = {}) {
+      let summary = { ...systemSummary };
+
+      if (window.AriUncertaintyClassificationEngine) {
+        summary = {
+          ...summary,
+          ...window.AriUncertaintyClassificationEngine.classify(summary)
+        };
+      }
+
+      if (window.AriIdentityPriorityEngine) {
+        summary = {
+          ...summary,
+          ...window.AriIdentityPriorityEngine.evaluate(summary)
+        };
+      }
+
+      if (window.AriIdentityConflictResolver) {
+        summary = {
+          ...summary,
+          ...window.AriIdentityConflictResolver.resolve(summary)
+        };
+      }
+
+      if (window.AriValueIntegrationEngine) {
+        summary = {
+          ...summary,
+          ...window.AriValueIntegrationEngine.integrate(summary)
+        };
+      }
+
+      if (window.AriStewardshipFearDifferentiator) {
+        summary = {
+          ...summary,
+          ...window.AriStewardshipFearDifferentiator.evaluate(summary)
+        };
+      }
+
+      if (window.AriLifeChapterEngine) {
+        summary = {
+          ...summary,
+          ...window.AriLifeChapterEngine.detect(summary)
+        };
+      }
+
+      if (window.AriSalienceGovernor) {
+        summary = {
+          ...summary,
+          ...window.AriSalienceGovernor.govern(summary)
+        };
+      }
+
+      if (window.AriSynthesisEngine) {
+        summary = {
+          ...summary,
+          ...window.AriSynthesisEngine.synthesize(summary)
+        };
+      }
+
+      if (window.AriLanguageComposer) {
+        summary = {
+          ...summary,
+          ...window.AriLanguageComposer.compose(summary)
+        };
+      }
+
+      return summary;
+    }
+
+    window.runAriRebirthPipeline = runAriRebirthPipeline;
+
     document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
       const output = document.getElementById("ariOutput");
 
@@ -152,22 +240,61 @@
         const analysis = window.Ari.core.analyzeMessage(message, {});
         const summary = window.Ari.core.createSystemSummary(analysis);
 
+        const rebirthSummary = window.runAriRebirthPipeline(summary);
+
         const languageRoute = window.Ari.languageRouter
           ? window.Ari.languageRouter.route(analysis)
           : "language-router-unavailable";
 
-        const response = window.Ari.languageSystem.generate(analysis, {
+        const oldResponse = window.Ari.languageSystem.generate(analysis, {
           length: "normal"
         });
 
-        output.textContent =
-`===== ARI RESPONSE =====
+        const rebirthResponse =
+          rebirthSummary.finalResponse ||
+          rebirthSummary.synthesisRecommendedQuestion ||
+          rebirthSummary.salienceQuestion ||
+          rebirthSummary.recommendedRecoveryQuestion ||
+          oldResponse;
 
-${response}
+        output.textContent =
+`===== OLD ARI RESPONSE =====
+
+${oldResponse}
 
 ==================================================
 
-===== LANGUAGE ROUTE =====
+===== ARI REBIRTH RESPONSE =====
+
+${rebirthResponse}
+
+==================================================
+
+===== REBIRTH LEAD ORGAN =====
+
+${rebirthSummary.salienceLeadOrgan || "none"}
+
+Mode:
+${rebirthSummary.salienceMode || "none"}
+
+Lead Identity:
+${rebirthSummary.resolvedLeadIdentity || rebirthSummary.leadIdentity || "none"}
+
+Primary Life Chapter:
+${rebirthSummary.primaryLifeChapter || "none"}
+
+Uncertainty Type:
+${rebirthSummary.uncertaintyType || "none"}
+
+Integrated Value:
+${rebirthSummary.integratedValue || "none"}
+
+Emotional Classification:
+${rebirthSummary.emotionalClassification || "none"}
+
+==================================================
+
+===== OLD LANGUAGE ROUTE =====
 
 ${languageRoute}
 
@@ -197,9 +324,9 @@ ${(summary.thingsToDelay || []).join(", ") || "none"}
 
 ==================================================
 
-===== SYSTEM SUMMARY =====
+===== REBIRTH SYSTEM SUMMARY =====
 
-${JSON.stringify(summary, null, 2)}
+${JSON.stringify(rebirthSummary, null, 2)}
 `;
       } catch (error) {
         console.error("[ARI LAB ERROR]", error);
