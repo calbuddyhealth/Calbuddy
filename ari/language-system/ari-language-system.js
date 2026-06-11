@@ -4,7 +4,7 @@
 // V6.1: Uses wisdom, regret, long-term consequence, underlying emotion depth, and recovery questions.
 
 window.Ari = window.Ari || {};
-
+ 
 window.Ari.languageSystem = {
   version: "6.1.0",
 
