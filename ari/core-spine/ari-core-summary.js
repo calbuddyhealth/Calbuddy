@@ -1,12 +1,12 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.1: Adds evidence and meta-evidence fields.
+// V1.2: Adds evidence, wisdom, and wisdom conflict resolution fields.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   create(analysis = {}) {
     const observation = analysis.observation || {};
@@ -16,6 +16,8 @@ window.Ari.coreSummary = {
     const executive = analysis.executive || {};
     const insight = analysis.insight || {};
     const metaAwareness = analysis.metaAwareness || {};
+    const wisdom = analysis.wisdom || {};
+    const wisdomResolution = analysis.wisdomResolution || {};
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
@@ -106,6 +108,27 @@ window.Ari.coreSummary = {
       knownUnknowns: metaAwareness.knownUnknowns || [],
       metaRecommendation: metaAwareness.recommendation || null,
 
+      wisdomPrinciple: wisdom.wisdomPrinciple || null,
+      wisdomTension: wisdom.wisdomTension?.name || null,
+      wisdomTensionSideA: wisdom.wisdomTension?.sideA || null,
+      wisdomTensionSideB: wisdom.wisdomTension?.sideB || null,
+      highestGood: wisdom.highestGood || null,
+      longTermPriority: wisdom.longTermPriority || null,
+      likelyRegret: wisdom.likelyRegret || null,
+      wisdomStatement: wisdom.wisdomStatement || null,
+      wisdomConfidence: wisdom.confidence || null,
+      wisdomArchetype: wisdom.archetype?.name || null,
+      wisdomArchetypeInspiration: wisdom.archetype?.inspiration || null,
+      wisdomArchetypeLesson: wisdom.archetype?.lesson || null,
+
+      wisdomResolutionMode: wisdomResolution.resolutionMode || null,
+      wisdomLeadingGood: wisdomResolution.leadingGood || null,
+      wisdomSupportingGood: wisdomResolution.supportingGood || null,
+      wisdomBoundary: wisdomResolution.boundary || null,
+      wisdomIntegration: wisdomResolution.integration || null,
+      wisdomResolvedStatement: wisdomResolution.resolvedStatement || null,
+      wisdomResolutionConfidence: wisdomResolution.confidence || null,
+
       meaningTheme: meaning.theme || null,
       meaningConfidence: meaning.confidence || null,
       meaningReason: meaning.reason || null,
@@ -125,7 +148,7 @@ window.Ari.coreSummary = {
 
       primarySimulation: simulation.primarySimulation?.name || null,
       simulationTheme: simulation.primarySimulation?.theme || null,
-      likelyRegret: simulation.primarySimulation?.likelyRegret || null,
+      likelyRegretFromSimulation: simulation.primarySimulation?.likelyRegret || null,
 
       selfStance: selfReflection.stance?.name || null,
       selfLeadPrinciple: selfReflection.leadPrinciple || null,
@@ -173,6 +196,8 @@ window.Ari.coreSummary = {
       executiveSource: executive.source || "unknown",
       insightSource: insight.source || "unknown",
       metaAwarenessSource: metaAwareness.source || "unknown",
+      wisdomSource: wisdom.source || "unknown",
+      wisdomResolutionSource: wisdomResolution.source || "unknown",
       meaningSource: meaning.source || "unknown",
       personModelSource: personModel.source || "unknown",
       beliefSource: beliefModel.source || "unknown",
