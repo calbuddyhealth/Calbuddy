@@ -1,18 +1,19 @@
-// ari-language-planning-builder.js
+// ari/language-system/ari-language-planning-builder.js
+// Ari Language Planning Builder
 // Purpose: Turn decisions into actions.
-// V1.0
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.languagePlanningBuilder = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   build(analysis = {}) {
     const lines = [];
 
     const executive = analysis.executive || {};
-    const consequence =
-      analysis.longTermConsequence || {};
+    const consequence = analysis.longTermConsequence || {};
+    const regret = analysis.regret || {};
 
     if (executive.recommendedFocus) {
       lines.push(executive.recommendedFocus);
@@ -22,14 +23,20 @@ window.Ari.languagePlanningBuilder = {
       lines.push(consequence.courseCorrection);
     }
 
-    const delays =
-      executive.thingsToDelay || [];
+    if (
+      regret.preventableAction &&
+      regret.preventableAction !== consequence.courseCorrection
+    ) {
+      lines.push(regret.preventableAction);
+    }
+
+    const delays = executive.thingsToDelay || [];
 
     if (delays.length) {
       lines.push(
         `Delay: ${delays
-          .map((d) => d.name || d)
-          .join(", ")}`
+          .map((item) => item.name || item)
+          .join(", ")}.`
       );
     }
 
@@ -39,6 +46,10 @@ window.Ari.languagePlanningBuilder = {
       );
     }
 
-    return lines;
+    return this.unique(lines);
+  },
+
+  unique(lines = []) {
+    return [...new Set(lines.filter(Boolean))];
   }
 };
