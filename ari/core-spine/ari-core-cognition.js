@@ -1,13 +1,13 @@
 // ari/core-spine/ari-core-cognition.js
 // Ari Core Cognition Spine
-// Purpose: Handle meaning, person model, belief model, simulation, insight, and meta awareness.
-// Answers: What does this mean?
-// V1.0
+// Purpose: Handle meaning, person model, belief model, simulation, insight, evidence, and meta awareness.
+// Answers: What does this mean, and how strongly should Ari trust it?
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreCognition = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   run(state = {}) {
     const emotionalIntelligence = window.Ari.emotionalIntelligence
@@ -128,6 +128,7 @@ window.Ari.coreCognition = {
           beliefModel,
           simulation,
           emotionalIntelligence,
+          evidenceEvaluation: insight.evidenceEvaluation || null,
           questionType: state.questionType
         })
       : {
@@ -136,6 +137,10 @@ window.Ari.coreCognition = {
           confidenceScore: insight.confidenceScore || null,
           confidenceReason: "Meta awareness unavailable.",
           alternativeExplanation: insight.counterHypothesis?.explanation || null,
+          evidenceStrength: insight.evidenceStrength || null,
+          supportingEvidence: insight.supportingEvidence || [],
+          contradictingEvidence: insight.contradictingEvidence || [],
+          missingEvidence: insight.missingEvidence || [],
           uncertaintyAreas: [],
           knownUnknowns: [],
           recommendation: "continue_observing",
