@@ -1,11 +1,11 @@
 // ari/system/ari-core.js
 // Ari Core Coordinator
-// Purpose: Connect Loader, Observer, Question Understanding, Value, Identity, Conflict, Executive, Insight, Attention, Router, Emotion, Emotional Intelligence, and Memory.
+// Purpose: Connect Loader, Observer, Question Understanding, Value, Identity, Conflict, Executive, Insight, Attention, Router, Emotion, Emotional Intelligence, Meaning, and Memory.
 
 window.Ari = window.Ari || {};
 
 window.Ari.core = {
-  version: "1.5.0",
+  version: "1.6.0",
 
   async init() {
     if (window.Ari.loader && !window.Ari.loader.isLoaded()) {
@@ -224,6 +224,25 @@ window.Ari.core = {
           source: "emotional-intelligence-unavailable"
         };
 
+    const meaning = window.Ari.meaningEngine
+      ? window.Ari.meaningEngine.synthesize({
+          observation,
+          questionType,
+          values,
+          identity,
+          conflicts,
+          executive,
+          insight,
+          emotion,
+          emotionalIntelligence
+        })
+      : {
+          theme: null,
+          meaning: null,
+          humanTruth: null,
+          source: "meaning-engine-unavailable"
+        };
+
     const memory = window.Ari.memoryEngine
       ? window.Ari.memoryEngine.classify(message, {
           ...context,
@@ -237,7 +256,8 @@ window.Ari.core = {
           attention,
           route,
           emotion,
-          emotionalIntelligence
+          emotionalIntelligence,
+          meaning
         })
       : {
           shouldRemember: false,
@@ -260,6 +280,7 @@ window.Ari.core = {
       route,
       emotion,
       emotionalIntelligence,
+      meaning,
       memory,
       analyzedAt: new Date().toISOString()
     };
@@ -276,6 +297,7 @@ window.Ari.core = {
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
     const emotionalIntelligence = analysis.emotionalIntelligence || {};
+    const meaning = analysis.meaning || {};
     const memory = analysis.memory || {};
 
     return {
@@ -307,6 +329,13 @@ window.Ari.core = {
       avoidance: insight.avoidance?.name || null,
       pattern: insight.pattern?.name || null,
       tradeoff: insight.tradeoff?.name || null,
+
+      meaningTheme:
+        meaning.theme || null,
+      meaningStatement:
+        meaning.meaning || null,
+      humanTruth:
+        meaning.humanTruth || null,
 
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
@@ -340,6 +369,7 @@ window.Ari.core = {
       conflictSource: conflicts.source || "unknown",
       executiveSource: executive.source || "unknown",
       insightSource: insight.source || "unknown",
+      meaningSource: meaning.source || "unknown",
       attentionSource: attention.source || "unknown",
       emotionSource: emotion.source || "unknown",
       emotionalIntelligenceSource:
