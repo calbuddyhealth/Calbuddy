@@ -1,12 +1,12 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.2: Adds evidence, wisdom, and wisdom conflict resolution fields.
+// V1.3: Adds regret, long-term consequence, wisdom synthesis, recovery questions, and underlying emotion.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   create(analysis = {}) {
     const observation = analysis.observation || {};
@@ -18,6 +18,13 @@ window.Ari.coreSummary = {
     const metaAwareness = analysis.metaAwareness || {};
     const wisdom = analysis.wisdom || {};
     const wisdomResolution = analysis.wisdomResolution || {};
+    const regret = analysis.regret || {};
+    const longTermConsequence = analysis.longTermConsequence || {};
+    const wisdomSynthesis = analysis.wisdomSynthesis || {};
+    const wisdomQuestionRecovery = analysis.wisdomQuestionRecovery || {};
+    const underlyingEmotionDepth = analysis.underlyingEmotion || {};
+    const emotionRecoveryQuestions = analysis.emotionRecoveryQuestions || {};
+
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
@@ -39,79 +46,43 @@ window.Ari.coreSummary = {
 
       dominantValue: values.dominantValue || null,
       dominantIdentity: identity.dominantIdentity?.name || null,
-      dominantIdentityConfidence: identity.dominantIdentity?.confidence || null,
       dominantTheme: identity.dominantTheme || null,
 
       primaryConflict: conflicts.primaryConflict?.name || null,
       conflictIntensity: conflicts.conflictIntensity || "none",
       competingFor: conflicts.competingFor || [],
-      needsExecutiveFunction: Boolean(conflicts.needsExecutiveFunction),
 
       primaryPriority: executive.primaryPriority?.name || null,
-      secondaryPriorities:
-        executive.secondaryPriorities?.map((item) => item.name) || [],
-      thingsToDelay:
-        executive.thingsToDelay?.map((item) => item.name) || [],
       executiveDecision: executive.executiveDecision || null,
       recommendedFocus: executive.recommendedFocus || null,
 
       pattern: insight.pattern?.name || null,
-      patternConfidence: insight.pattern?.confidence || null,
       hiddenConflict: insight.hiddenConflict?.name || null,
-      hiddenConflictConfidence: insight.hiddenConflict?.confidence || null,
-      avoidance: insight.avoidance?.name || null,
-      avoidanceConfidence: insight.avoidance?.confidence || null,
       tradeoff: insight.tradeoff?.name || null,
-      tradeoffConfidence: insight.tradeoff?.confidence || null,
       hiddenMotive: insight.hiddenMotive?.name || null,
-      hiddenMotiveConfidence: insight.hiddenMotive?.confidence || null,
 
       hypothesis: insight.hypothesis?.name || null,
-      hypothesisConfidence: insight.hypothesis?.confidence || null,
       hypothesisExplanation: insight.hypothesis?.explanation || null,
-      hypotheses: insight.hypotheses?.map((item) => item.name) || [],
-
       counterHypothesis: insight.counterHypothesis?.name || null,
-      counterHypothesisConfidence:
-        insight.counterHypothesis?.confidence || null,
-      counterHypothesisExplanation:
-        insight.counterHypothesis?.explanation || null,
-      counterHypotheses:
-        insight.counterHypotheses?.map((item) => item.name) || [],
+      counterHypothesisExplanation: insight.counterHypothesis?.explanation || null,
 
       evidenceStrength: insight.evidenceStrength || null,
       evidenceScore: insight.evidenceScore || null,
       evidenceSummary: insight.evidenceSummary || null,
-      supportingEvidence: insight.supportingEvidence || [],
-      contradictingEvidence: insight.contradictingEvidence || [],
-      missingEvidence: insight.missingEvidence || [],
 
       calibratedConfidence: insight.calibratedConfidence || null,
       confidenceScore: insight.confidenceScore || null,
       confidenceReason: insight.confidenceReason || null,
-      shouldSpeakHypothesis: Boolean(insight.shouldSpeakHypothesis),
-
       oneLineInsight: insight.oneLineInsight || null,
 
       metaConclusion: metaAwareness.primaryConclusion || null,
       metaConfidence: metaAwareness.confidenceLevel || null,
-      metaConfidenceScore: metaAwareness.confidenceScore || null,
-      metaConfidenceReason: metaAwareness.confidenceReason || null,
-      alternativeExplanation: metaAwareness.alternativeExplanation || null,
-
-      metaEvidenceStrength: metaAwareness.evidenceStrength || null,
-      metaSupportingEvidence: metaAwareness.supportingEvidence || [],
-      metaContradictingEvidence: metaAwareness.contradictingEvidence || [],
-      metaMissingEvidence: metaAwareness.missingEvidence || [],
-
+      metaRecommendation: metaAwareness.recommendation || null,
       uncertaintyAreas: metaAwareness.uncertaintyAreas || [],
       knownUnknowns: metaAwareness.knownUnknowns || [],
-      metaRecommendation: metaAwareness.recommendation || null,
 
       wisdomPrinciple: wisdom.wisdomPrinciple || null,
       wisdomTension: wisdom.wisdomTension?.name || null,
-      wisdomTensionSideA: wisdom.wisdomTension?.sideA || null,
-      wisdomTensionSideB: wisdom.wisdomTension?.sideB || null,
       highestGood: wisdom.highestGood || null,
       longTermPriority: wisdom.longTermPriority || null,
       likelyRegret: wisdom.likelyRegret || null,
@@ -129,16 +100,53 @@ window.Ari.coreSummary = {
       wisdomResolvedStatement: wisdomResolution.resolvedStatement || null,
       wisdomResolutionConfidence: wisdomResolution.confidence || null,
 
+      regretType: regret.regretType || null,
+      regretStatement: regret.regretStatement || null,
+      regretIntensity: regret.regretIntensity || null,
+      regretPreventableAction: regret.preventableAction || null,
+
+      longTermPath: longTermConsequence.path || null,
+      fiveYearConsequence: longTermConsequence.fiveYearConsequence || null,
+      protectedFuture: longTermConsequence.protectedFuture || null,
+      riskIfIgnored: longTermConsequence.riskIfIgnored || null,
+      courseCorrection: longTermConsequence.courseCorrection || null,
+      longTermConsequenceConfidence: longTermConsequence.confidence || null,
+
+      wisdomSynthesis: wisdomSynthesis.synthesis || null,
+      wisdomPrimaryPrinciple: wisdomSynthesis.primaryPrinciple || null,
+      wisdomPrincipleStatements: wisdomSynthesis.principleStatements || [],
+      wisdomSynthesisArchetype: wisdomSynthesis.archetype || null,
+
+      wisdomQuestionRecoveryNeeded: Boolean(wisdomQuestionRecovery.shouldRecover),
+      wisdomRecoveryReason: wisdomQuestionRecovery.recoveryReason || null,
+      wisdomRecoveryQuestion: wisdomQuestionRecovery.primaryQuestion || null,
+      wisdomRecoverySupportingQuestions:
+        wisdomQuestionRecovery.supportingQuestions || [],
+
+      underlyingEmotionDepth:
+        underlyingEmotionDepth.primaryUnderlyingEmotion?.name || null,
+      underlyingEmotionDepthConfidence:
+        underlyingEmotionDepth.primaryUnderlyingEmotion?.confidence || null,
+      emotionalSource: underlyingEmotionDepth.emotionalSource || null,
+      protectiveStrategy: underlyingEmotionDepth.protectiveStrategy || null,
+      hiddenFear: underlyingEmotionDepth.hiddenFear || null,
+      vulnerableTruth: underlyingEmotionDepth.vulnerableTruth || null,
+      underlyingEmotionCandidates:
+        underlyingEmotionDepth.candidates?.map((item) => item.name) || [],
+
+      emotionRecoveryShouldAsk: Boolean(emotionRecoveryQuestions.shouldAsk),
+      emotionRecoveryQuestionType: emotionRecoveryQuestions.questionType || null,
+      emotionRecoveryQuestion: emotionRecoveryQuestions.primaryQuestion || null,
+      emotionRecoverySupportingQuestions:
+        emotionRecoveryQuestions.supportingQuestions || [],
+
       meaningTheme: meaning.theme || null,
       meaningConfidence: meaning.confidence || null,
-      meaningReason: meaning.reason || null,
       meaningStatement: meaning.meaning || null,
       humanTruth: meaning.humanTruth || null,
 
       personLifeChapter: personModel.lifeChapter?.name || null,
-      personLifeChapterConfidence: personModel.lifeChapter?.confidence || null,
       personPrimaryRole: personModel.snapshot?.primaryRole || null,
-      personMainPressure: personModel.snapshot?.mainPressure || null,
       personMainNeed: personModel.snapshot?.mainNeed || null,
       personRecurringPattern: personModel.snapshot?.recurringPattern || null,
 
@@ -148,56 +156,37 @@ window.Ari.coreSummary = {
 
       primarySimulation: simulation.primarySimulation?.name || null,
       simulationTheme: simulation.primarySimulation?.theme || null,
-      likelyRegretFromSimulation: simulation.primarySimulation?.likelyRegret || null,
-
-      selfStance: selfReflection.stance?.name || null,
-      selfLeadPrinciple: selfReflection.leadPrinciple || null,
-      selfLeadValue: selfReflection.leadValue || null,
-      selfApproach: selfReflection.approach || null,
-      selfReflectionConfidence: selfReflection.confidence || null,
-
-      voiceStance: voice.stance || null,
-      voiceOpeningStyle: voice.openingStyle || null,
-      voiceConfidence: voice.confidence || null,
-      voiceConfidenceStyle: voice.confidenceStyle?.name || null,
-      voiceWarmth: voice.warmth || null,
-      voiceChallenge: voice.challenge || null,
-      voiceDepth: voice.depth || null,
-      voiceStructure: voice.structure || [],
-      voiceRhythm: voice.rhythm || null,
 
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
 
-      guardianRequired: Boolean(
-        route.guardianRequired || attention.guardianAttentionNeeded
-      ),
-
       primaryEmotion: emotion.primaryEmotion || "curiosity",
       secondaryEmotions: emotion.secondaryEmotions || [],
-      balance: emotion.balance || { brain: 70, heart: 20, soul: 10 },
-
       surfaceEmotion: emotionalIntelligence.surfaceEmotion?.name || null,
       underlyingEmotion:
         emotionalIntelligence.underlyingEmotion?.name || null,
-      emotionalTension:
-        emotionalIntelligence.emotionalTension?.level || null,
       rootNeed: emotionalIntelligence.rootNeed?.name || null,
       protecting: emotionalIntelligence.protecting?.name || null,
-      regulationStrategy:
-        emotionalIntelligence.regulation?.strategy || null,
 
       memoryCandidate: memory.shouldRemember ? memory : null,
+
+      insightSource: insight.source || "unknown",
+      metaAwarenessSource: metaAwareness.source || "unknown",
+      wisdomSource: wisdom.source || "unknown",
+      wisdomResolutionSource: wisdomResolution.source || "unknown",
+      regretSource: regret.source || "unknown",
+      longTermConsequenceSource: longTermConsequence.source || "unknown",
+      wisdomSynthesisSource: wisdomSynthesis.source || "unknown",
+      wisdomQuestionRecoverySource: wisdomQuestionRecovery.source || "unknown",
+      underlyingEmotionDepthSource: underlyingEmotionDepth.source || "unknown",
+      emotionRecoveryQuestionsSource:
+        emotionRecoveryQuestions.source || "unknown",
 
       observationSource: observation.source || "unknown",
       valueSource: values.source || "unknown",
       identitySource: identity.source || "unknown",
       conflictSource: conflicts.source || "unknown",
       executiveSource: executive.source || "unknown",
-      insightSource: insight.source || "unknown",
-      metaAwarenessSource: metaAwareness.source || "unknown",
-      wisdomSource: wisdom.source || "unknown",
-      wisdomResolutionSource: wisdomResolution.source || "unknown",
       meaningSource: meaning.source || "unknown",
       personModelSource: personModel.source || "unknown",
       beliefSource: beliefModel.source || "unknown",
