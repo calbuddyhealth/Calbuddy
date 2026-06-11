@@ -1,16 +1,17 @@
 // ari/confidence-system/ari-confidence-calibration.js
 // Ari Confidence Calibration
-// Purpose: Adjust confidence based on evidence strength, competing explanations, and question type.
-// V1.0
+// Purpose: Calibrate Ari's overall confidence after hypothesis, evidence, counter-hypothesis, and uncertainty.
+// V1.1
 
 window.Ari = window.Ari || {};
 
 window.Ari.confidenceCalibration = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   calibrate({
     hypothesis = null,
     counterHypothesis = null,
+    evidenceEvaluation = null,
     evidence = [],
     questionType = "understanding",
     analysis = {}
@@ -25,10 +26,31 @@ window.Ari.confidenceCalibration = {
       };
     }
 
+    const supportingCount =
+      evidenceEvaluation?.supportingEvidence?.length ||
+      evidence.length ||
+      hypothesis.evidence?.length ||
+      0;
+
+    const contradictingCount =
+      evidenceEvaluation?.contradictingEvidence?.length ||
+      (counterHypothesis ? 1 : 0);
+
+    const missingCount =
+      evidenceEvaluation?.missingEvidence?.length || 0;
+
     let score = this.baseScore(hypothesis.confidence);
-    score += this.evidenceScore(evidence.length || hypothesis.evidence?.length || 0);
+
+    score += this.supportingEvidenceScore(supportingCount);
+    score -= this.contradictingEvidencePenalty(contradictingCount);
+    score -= this.missingEvidencePenalty(missingCount);
     score += this.questionTypeBoost(questionType);
-    score -= this.counterPenalty(counterHypothesis);
+
+    if (evidenceEvaluation?.evidenceStrength === "high") score += 10;
+    if (evidenceEvaluation?.evidenceStrength === "medium") score += 5;
+    if (evidenceEvaluation?.evidenceStrength === "none") score -= 10;
+
+    score = Math.max(0, Math.min(100, score));
 
     const confidence = this.scoreToConfidence(score);
 
@@ -38,8 +60,11 @@ window.Ari.confidenceCalibration = {
       reason: this.createReason({
         hypothesis,
         counterHypothesis,
-        evidence,
+        evidenceEvaluation,
         questionType,
+        supportingCount,
+        contradictingCount,
+        missingCount,
         score,
         confidence
       }),
@@ -59,31 +84,32 @@ window.Ari.confidenceCalibration = {
     return map[confidence] || 20;
   },
 
-  evidenceScore(count = 0) {
-    if (count >= 4) return 20;
-    if (count >= 2) return 12;
-    if (count >= 1) return 6;
+  supportingEvidenceScore(count = 0) {
+    if (count >= 5) return 20;
+    if (count >= 3) return 14;
+    if (count >= 1) return 7;
+    return 0;
+  },
+
+  contradictingEvidencePenalty(count = 0) {
+    if (count >= 3) return 20;
+    if (count >= 2) return 14;
+    if (count >= 1) return 8;
+    return 0;
+  },
+
+  missingEvidencePenalty(count = 0) {
+    if (count >= 5) return 15;
+    if (count >= 3) return 10;
+    if (count >= 1) return 5;
     return 0;
   },
 
   questionTypeBoost(questionType = "understanding") {
-    if (questionType === "insight") return 10;
-    if (questionType === "meaning") return 8;
-    if (questionType === "emotional") return 5;
+    if (questionType === "insight") return 8;
+    if (questionType === "meaning") return 6;
+    if (questionType === "emotional") return 4;
     return 0;
-  },
-
-  counterPenalty(counterHypothesis = null) {
-    if (!counterHypothesis) return 0;
-
-    const map = {
-      high: 20,
-      medium: 12,
-      low: 6,
-      unknown: 0
-    };
-
-    return map[counterHypothesis.confidence] || 4;
   },
 
   scoreToConfidence(score = 0) {
@@ -96,24 +122,31 @@ window.Ari.confidenceCalibration = {
   createReason({
     hypothesis = {},
     counterHypothesis = null,
-    evidence = [],
+    evidenceEvaluation = null,
     questionType = "",
+    supportingCount = 0,
+    contradictingCount = 0,
+    missingCount = 0,
     score = 0,
     confidence = "low"
   } = {}) {
     const parts = [];
 
     parts.push(`Base hypothesis confidence is ${hypothesis.confidence || "unknown"}.`);
-
-    const evidenceCount = evidence.length || hypothesis.evidence?.length || 0;
-    parts.push(`${evidenceCount} evidence signal(s) were considered.`);
-
-    if (questionType === "insight" || questionType === "meaning") {
-      parts.push(`${questionType} questions allow reasonable hypotheses.`);
-    }
+    parts.push(`${supportingCount} supporting evidence signal(s) were considered.`);
+    parts.push(`${contradictingCount} contradicting evidence signal(s) were considered.`);
+    parts.push(`${missingCount} missing evidence area(s) were considered.`);
 
     if (counterHypothesis) {
-      parts.push("A counter-hypothesis reduced confidence slightly.");
+      parts.push(`Counter-hypothesis considered: ${counterHypothesis.name}.`);
+    }
+
+    if (evidenceEvaluation?.evidenceStrength) {
+      parts.push(`Evidence strength is ${evidenceEvaluation.evidenceStrength}.`);
+    }
+
+    if (questionType === "insight" || questionType === "meaning") {
+      parts.push(`${questionType} questions allow Ari to speak in hypotheses.`);
     }
 
     parts.push(`Final calibrated confidence is ${confidence} with score ${score}.`);
