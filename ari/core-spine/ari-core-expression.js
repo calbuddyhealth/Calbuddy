@@ -1,108 +1,100 @@
 // ari/core-spine/ari-core-expression.js
 // Ari Core Expression Spine
 // Purpose: Determine HOW Ari speaks after cognition and reflection finish.
-// V2.1: Uses full Rebirth flat-field awareness for voice and response preparation.
+// V2.2: Safely reads Rebirth fields from state, summary, or rebirthContext.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreExpression = {
-  version: "2.1.0",
+  version: "2.2.0",
 
   run(state = {}) {
-    const rebirthContext =
-      state.rebirthContext || {
-        rebirth: state.rebirth || null,
+    const summary = state.summary || {};
+    const existingRebirth = state.rebirthContext || state.rebirth || {};
 
-        uncertaintyType: state.uncertaintyType || null,
-        uncertaintyConfidence: state.uncertaintyConfidence || null,
-        uncertaintyReason: state.uncertaintyReason || null,
-        recommendedRecoveryQuestion:
-          state.recommendedRecoveryQuestion || null,
-        shouldUseEmotionRecovery:
-          Boolean(state.shouldUseEmotionRecovery),
-        shouldContinueObserving:
-          Boolean(state.shouldContinueObserving),
+    const get = (key, fallback = null) =>
+      existingRebirth[key] ??
+      summary[key] ??
+      state[key] ??
+      fallback;
 
-        leadIdentity: state.leadIdentity || null,
-        leadIdentityScore: state.leadIdentityScore || null,
-        leadIdentityProtects: state.leadIdentityProtects || [],
-        leadIdentityMotivations: state.leadIdentityMotivations || [],
-        supportingIdentities: state.supportingIdentities || [],
-        deferredIdentities: state.deferredIdentities || [],
-        identityLeadershipMode: state.identityLeadershipMode || null,
-        identityPrioritySummary: state.identityPrioritySummary || null,
-        identityRecoveryQuestion:
-          state.identityRecoveryQuestion || null,
-        rankedIdentities: state.rankedIdentities || [],
+    const rebirthContext = {
+      rebirth: existingRebirth || null,
 
-        identityConflictDetected:
-          Boolean(state.identityConflictDetected),
-        conflictType: state.conflictType || null,
-        resolvedLeadIdentity: state.resolvedLeadIdentity || null,
-        resolvedSupportingIdentity:
-          state.resolvedSupportingIdentity || null,
-        resolutionMode: state.resolutionMode || null,
-        resolutionReason: state.resolutionReason || null,
-        identityConflictQuestion:
-          state.identityConflictQuestion || null,
-        competingIdentities: state.competingIdentities || [],
+      uncertaintyType: get("uncertaintyType"),
+      uncertaintyConfidence: get("uncertaintyConfidence"),
+      uncertaintyReason: get("uncertaintyReason"),
+      recommendedRecoveryQuestion: get("recommendedRecoveryQuestion"),
+      shouldUseEmotionRecovery: Boolean(get("shouldUseEmotionRecovery", false)),
+      shouldContinueObserving: Boolean(get("shouldContinueObserving", false)),
+      shouldSuppressUncertainty: Boolean(get("shouldSuppressUncertainty", false)),
 
-        valueIntegrationDetected:
-          Boolean(state.valueIntegrationDetected),
-        apparentConflict: state.apparentConflict || null,
-        integratedValue: state.integratedValue || null,
-        integrationStatement: state.integrationStatement || null,
-        valueIntegrationQuestion:
-          state.valueIntegrationQuestion || null,
-        topValues: state.topValues || [],
-        sharedValues: state.sharedValues || [],
-        rankedValues: state.rankedValues || [],
+      leadIdentity: get("leadIdentity"),
+      leadIdentityScore: get("leadIdentityScore"),
+      leadIdentityProtects: get("leadIdentityProtects", []),
+      leadIdentityMotivations: get("leadIdentityMotivations", []),
+      supportingIdentities: get("supportingIdentities", []),
+      deferredIdentities: get("deferredIdentities", []),
+      identityLeadershipMode: get("identityLeadershipMode"),
+      identityPrioritySummary: get("identityPrioritySummary"),
+      identityRecoveryQuestion: get("identityRecoveryQuestion"),
+      rankedIdentities: get("rankedIdentities", []),
 
-        emotionalClassification:
-          state.emotionalClassification || null,
-        stewardshipScore: state.stewardshipScore || 0,
-        fearScore: state.fearScore || 0,
-        stewardshipFearExplanation:
-          state.explanation || null,
+      identityConflictDetected: Boolean(get("identityConflictDetected", false)),
+      conflictType: get("conflictType"),
+      resolvedLeadIdentity: get("resolvedLeadIdentity"),
+      resolvedSupportingIdentity: get("resolvedSupportingIdentity"),
+      resolutionMode: get("resolutionMode"),
+      resolutionReason: get("resolutionReason"),
+      identityConflictQuestion: get("identityConflictQuestion"),
+      competingIdentities: get("competingIdentities", []),
 
-        primaryLifeChapter: state.primaryLifeChapter || null,
-        lifeChapterStrength: state.lifeChapterStrength || null,
-        lifeChapterStatement: state.lifeChapterStatement || null,
-        lifeChapterQuestion: state.lifeChapterQuestion || null,
-        lifeChapterFocus: state.lifeChapterFocus || null,
-        rankedLifeChapters: state.rankedLifeChapters || [],
+      valueIntegrationDetected: Boolean(get("valueIntegrationDetected", false)),
+      apparentConflict: get("apparentConflict"),
+      integratedValue: get("integratedValue"),
+      integrationStatement: get("integrationStatement"),
+      valueIntegrationQuestion: get("valueIntegrationQuestion"),
+      topValues: get("topValues", []),
+      sharedValues: get("sharedValues", []),
+      rankedValues: get("rankedValues", []),
 
-        salienceLeadOrgan: state.salienceLeadOrgan || null,
-        salienceLeadScore: state.salienceLeadScore || null,
-        salienceMode: state.salienceMode || null,
-        salienceQuestion: state.salienceQuestion || null,
-        salienceReason: state.salienceReason || null,
-        supportingSalienceOrgans:
-          state.supportingSalienceOrgans || [],
-        rankedSalienceDecisions:
-          state.rankedSalienceDecisions || [],
+      emotionalClassification: get("emotionalClassification"),
+      stewardshipScore: get("stewardshipScore", 0),
+      fearScore: get("fearScore", 0),
+      stewardshipFearExplanation: get("explanation"),
 
-        synthesisStatement: state.synthesisStatement || null,
-        synthesisCautions: state.synthesisCautions || [],
-        synthesisActionGuidance:
-          state.synthesisActionGuidance || [],
-        synthesisRecommendedQuestion:
-          state.synthesisRecommendedQuestion || null,
-        synthesisLeadOrgan: state.synthesisLeadOrgan || null,
-        synthesisMode: state.synthesisMode || null,
-        synthesisDebug: state.synthesisDebug || null,
+      primaryLifeChapter: get("primaryLifeChapter"),
+      lifeChapterStrength: get("lifeChapterStrength"),
+      lifeChapterStatement: get("lifeChapterStatement"),
+      lifeChapterQuestion: get("lifeChapterQuestion"),
+      lifeChapterFocus: get("lifeChapterFocus"),
+      rankedLifeChapters: get("rankedLifeChapters", []),
 
-        languageMode: state.languageMode || null,
-        languageOpening: state.languageOpening || null,
-        languageBody: state.languageBody || null,
-        languageClosing: state.languageClosing || null,
-        finalResponse: state.finalResponse || null,
+      salienceLeadOrgan: get("salienceLeadOrgan"),
+      salienceLeadScore: get("salienceLeadScore"),
+      salienceMode: get("salienceMode"),
+      salienceQuestion: get("salienceQuestion"),
+      salienceReason: get("salienceReason"),
+      supportingSalienceOrgans: get("supportingSalienceOrgans", []),
+      rankedSalienceDecisions: get("rankedSalienceDecisions", []),
 
-        rebirthPipelineRan:
-          Boolean(state.rebirthPipelineRan),
-        rebirthPipelineSource:
-          state.rebirthPipelineSource || null
-      };
+      synthesisStatement: get("synthesisStatement"),
+      synthesisCautions: get("synthesisCautions", []),
+      synthesisActionGuidance: get("synthesisActionGuidance", []),
+      synthesisRecommendedQuestion: get("synthesisRecommendedQuestion"),
+      synthesisLeadOrgan: get("synthesisLeadOrgan"),
+      synthesisMode: get("synthesisMode"),
+      synthesisDebug: get("synthesisDebug"),
+
+      languageMode: get("languageMode"),
+      languageOpening: get("languageOpening"),
+      languageBody: get("languageBody"),
+      languageClosing: get("languageClosing"),
+      finalResponse: get("finalResponse"),
+
+      rebirthPipelineRan: Boolean(get("rebirthPipelineRan", false)),
+      rebirthPipelineSource: get("rebirthPipelineSource")
+    };
 
     const analysis = {
       message: state.message,
@@ -149,7 +141,7 @@ window.Ari.coreExpression = {
       constitution: state.constitution,
       selfReflection: state.selfReflection,
 
-      // Full Rebirth context for voice engine
+      summary,
       rebirthContext
     };
 
@@ -162,48 +154,48 @@ window.Ari.coreExpression = {
           })
         : {
             stance:
-              state.salienceLeadOrgan ||
-              state.resolvedLeadIdentity ||
-              state.leadIdentity ||
+              rebirthContext.salienceLeadOrgan ||
+              rebirthContext.resolvedLeadIdentity ||
+              rebirthContext.leadIdentity ||
               state.route?.primaryOrgan ||
               "steady_companion",
 
             openingStyle:
-              state.salienceMode ||
-              state.synthesisMode ||
+              rebirthContext.salienceMode ||
+              rebirthContext.synthesisMode ||
               "steady_observation",
 
             confidenceStyle: {
               name:
-                state.shouldContinueObserving ||
-                state.uncertaintyType === "missing_information"
+                rebirthContext.shouldContinueObserving ||
+                rebirthContext.uncertaintyType === "missing_information"
                   ? "tentative"
                   : "calibrated",
               prefix: ""
             },
 
             confidence:
-              state.calibratedConfidence ||
-              state.metaConfidence ||
+              get("calibratedConfidence") ||
+              get("metaConfidence") ||
               state.metaAwareness?.confidenceLevel ||
               "medium",
 
             warmth:
-              state.resolvedLeadIdentity === "father" ||
-              state.resolvedLeadIdentity === "family-protector"
+              rebirthContext.resolvedLeadIdentity === "father" ||
+              rebirthContext.resolvedLeadIdentity === "family-protector"
                 ? 82
                 : 70,
 
             challenge:
-              state.salienceLeadOrgan === "wisdom" ||
-              state.salienceLeadOrgan === "identity"
+              rebirthContext.salienceLeadOrgan === "wisdom" ||
+              rebirthContext.salienceLeadOrgan === "identity"
                 ? 65
                 : 55,
 
             depth:
-              state.salienceLeadOrgan === "meaning" ||
-              state.salienceLeadOrgan === "values" ||
-              state.salienceLeadOrgan === "wisdom"
+              rebirthContext.salienceLeadOrgan === "meaning" ||
+              rebirthContext.salienceLeadOrgan === "values" ||
+              rebirthContext.salienceLeadOrgan === "wisdom"
                 ? 80
                 : 65,
 
@@ -215,7 +207,7 @@ window.Ari.coreExpression = {
             ],
 
             rhythm:
-              state.salienceLeadOrgan === "uncertainty"
+              rebirthContext.salienceLeadOrgan === "uncertainty"
                 ? "short_clear"
                 : "adaptive",
 
@@ -224,33 +216,33 @@ window.Ari.coreExpression = {
 
     const expression = {
       preferredResponse:
-        state.finalResponse ||
-        state.synthesisRecommendedQuestion ||
-        state.salienceQuestion ||
+        rebirthContext.finalResponse ||
+        rebirthContext.synthesisRecommendedQuestion ||
+        rebirthContext.salienceQuestion ||
         null,
 
       expressionLead:
-        state.salienceLeadOrgan ||
-        state.synthesisLeadOrgan ||
+        rebirthContext.salienceLeadOrgan ||
+        rebirthContext.synthesisLeadOrgan ||
         state.route?.primaryOrgan ||
         "observer",
 
       expressionMode:
-        state.salienceMode ||
-        state.synthesisMode ||
+        rebirthContext.salienceMode ||
+        rebirthContext.synthesisMode ||
         "continue_observing",
 
       expressionQuestion:
-        state.synthesisRecommendedQuestion ||
-        state.salienceQuestion ||
-        state.recommendedRecoveryQuestion ||
+        rebirthContext.synthesisRecommendedQuestion ||
+        rebirthContext.salienceQuestion ||
+        rebirthContext.recommendedRecoveryQuestion ||
         null,
 
       shouldPreferRebirthResponse:
         Boolean(
-          state.finalResponse ||
-            state.synthesisRecommendedQuestion ||
-            state.salienceQuestion
+          rebirthContext.finalResponse ||
+            rebirthContext.synthesisRecommendedQuestion ||
+            rebirthContext.salienceQuestion
         ),
 
       source: "ari-core-expression"
