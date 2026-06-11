@@ -2,12 +2,12 @@
 // Ari Core Perception Spine
 // Purpose: Handle the first stage of Ari's processing.
 // Answers: What is happening?
-// V1.1: Adds Life Signal Extractor.
+// V1.2: Adds safer defaults and prepares perception state for Rebirth downstream.
 
 window.Ari = window.Ari || {};
 
 window.Ari.corePerception = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   run(message = "", context = {}) {
     const observation = window.Ari.observerNetwork
@@ -150,6 +150,8 @@ window.Ari.corePerception = {
         })
       : {
           focusType: "unknown",
+          focusReason: "Attention system unavailable.",
+          primaryNeed: null,
           shouldRouteTo: null,
           emotionalSupportNeeded: false,
           memoryAttentionNeeded: false,
@@ -203,7 +205,10 @@ window.Ari.corePerception = {
       earlyInsight,
       attention,
       route,
-      emotion
+      emotion,
+
+      perceptionReady: true,
+      perceptionSource: "ari-core-perception"
     };
   },
 
