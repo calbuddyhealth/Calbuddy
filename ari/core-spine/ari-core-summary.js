@@ -1,14 +1,15 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.3: Adds regret, long-term consequence, wisdom synthesis, recovery questions, and underlying emotion.
+// V1.4: Adds life signal visibility.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   create(analysis = {}) {
+    const lifeSignals = analysis.lifeSignals || {};
     const observation = analysis.observation || {};
     const values = analysis.values || {};
     const identity = analysis.identity || {};
@@ -24,7 +25,6 @@ window.Ari.coreSummary = {
     const wisdomQuestionRecovery = analysis.wisdomQuestionRecovery || {};
     const underlyingEmotionDepth = analysis.underlyingEmotion || {};
     const emotionRecoveryQuestions = analysis.emotionRecoveryQuestions || {};
-
     const attention = analysis.attention || {};
     const route = analysis.route || {};
     const emotion = analysis.emotion || {};
@@ -39,6 +39,10 @@ window.Ari.coreSummary = {
 
     return {
       questionType: analysis.questionType || "unknown",
+
+      lifeSignals: lifeSignals.signalNames || [],
+      primaryLifeSignal: lifeSignals.primarySignal?.name || null,
+      hasMajorLifeSignal: Boolean(lifeSignals.hasMajorLifeSignal),
 
       focusType: attention.focusType || "unknown",
       focusReason: attention.focusReason || "No focus reason.",
@@ -170,6 +174,7 @@ window.Ari.coreSummary = {
 
       memoryCandidate: memory.shouldRemember ? memory : null,
 
+      lifeSignalSource: lifeSignals.source || "unknown",
       insightSource: insight.source || "unknown",
       metaAwarenessSource: metaAwareness.source || "unknown",
       wisdomSource: wisdom.source || "unknown",
