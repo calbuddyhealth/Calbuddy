@@ -1,7 +1,12 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.0
+// V1.1
+// Fixes:
+// - Missing/null evidence now counts as no evidence.
+// - Uncertainty overrides wisdom when no hypothesis exists.
+// - Highest-good signals support wisdom only when there is enough evidence.
+// - Wisdom cannot lead on an unclear wisdom tension.
 
 window.AriSalienceGovernor = {
   govern(input = {}) {
@@ -15,7 +20,8 @@ window.AriSalienceGovernor = {
     const primaryLifeChapter = summary.primaryLifeChapter || null;
     const lifeChapterStrength = Number(summary.lifeChapterStrength || 0);
 
-    const leadIdentity = summary.resolvedLeadIdentity || summary.leadIdentity || null;
+    const leadIdentity =
+      summary.resolvedLeadIdentity || summary.leadIdentity || null;
     const leadIdentityScore = Number(summary.leadIdentityScore || 0);
 
     const valueIntegrationDetected = Boolean(summary.valueIntegrationDetected);
@@ -35,12 +41,24 @@ window.AriSalienceGovernor = {
     const strongestSignal = summary.strongestSignal || null;
     const strongestSignalCategory = summary.strongestSignalCategory || null;
 
+    const noHypothesis = !hypothesis;
+    const noEvidence =
+      !evidenceStrength ||
+      evidenceStrength === "none" ||
+      evidenceStrength === "unknown";
+
+    const shouldUncertaintyOverride =
+      noHypothesis &&
+      noEvidence &&
+      strongestSignalCategory !== "underlying_emotion";
+
     function addCandidate(lead, score, reason, mode, question = null) {
       const existing = candidates.find(c => c.lead === lead);
 
       if (existing) {
         existing.score += score;
         existing.reasons.push(reason);
+        if (!existing.question && question) existing.question = question;
         return;
       }
 
@@ -57,19 +75,21 @@ window.AriSalienceGovernor = {
     if (
       uncertaintyType === "missing_information" ||
       uncertaintyType === "understanding_uncertainty" ||
-      (!hypothesis && evidenceStrength === "none")
+      shouldUncertaintyOverride
     ) {
       addCandidate(
         "uncertainty",
-        Math.max(uncertaintyConfidence, 86),
-        "Ari lacks a grounded hypothesis, so uncertainty classification should lead before interpretation.",
+        Math.max(uncertaintyConfidence, shouldUncertaintyOverride ? 104 : 88),
+        "Ari lacks a grounded hypothesis and evidence, so uncertainty must lead before interpretation.",
         "continue_observing",
-        summary.recommendedRecoveryQuestion || "What information feels most missing right now?"
+        summary.recommendedRecoveryQuestion ||
+          "What information feels most missing right now?"
       );
     }
 
-    // 2. Major life chapters should override emotional depth.
+    // 2. Major life chapters should override emotional depth, unless uncertainty hard-overrides.
     if (
+      !shouldUncertaintyOverride &&
       primaryLifeChapter &&
       primaryLifeChapter !== "unclear_chapter" &&
       lifeChapterStrength >= 70
@@ -83,8 +103,13 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 3. Identity should lead when a clear role has priority.
-    if (leadIdentity && leadIdentity !== "observer" && leadIdentityScore >= 70) {
+    // 3. Identity should lead when a clear role has priority, unless uncertainty hard-overrides.
+    if (
+      !shouldUncertaintyOverride &&
+      leadIdentity &&
+      leadIdentity !== "observer" &&
+      leadIdentityScore >= 70
+    ) {
       addCandidate(
         "identity",
         leadIdentityScore + 6,
@@ -96,8 +121,11 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 4. Values should lead when integration is detected.
-    if (valueIntegrationDetected || integratedValue) {
+    // 4. Values can lead only when integration is meaningful and uncertainty is not overriding.
+    if (
+      !shouldUncertaintyOverride &&
+      (valueIntegrationDetected || integratedValue)
+    ) {
       addCandidate(
         "values",
         82,
@@ -110,8 +138,9 @@ window.AriSalienceGovernor = {
 
     // 5. Stewardship should beat fear when responsibility is dominant.
     if (
-      emotionalClassification === "stewardship" ||
-      stewardshipScore >= fearScore + 15
+      !shouldUncertaintyOverride &&
+      (emotionalClassification === "stewardship" ||
+        stewardshipScore >= fearScore + 15)
     ) {
       addCandidate(
         "stewardship",
@@ -129,7 +158,7 @@ window.AriSalienceGovernor = {
     ) {
       addCandidate(
         "emotion",
-        78,
+        strongestSignalCategory === "underlying_emotion" ? 90 : 78,
         "An underlying emotion appears central enough to guide the response.",
         "emotion_depth",
         summary.emotionRecoveryQuestion ||
@@ -137,8 +166,9 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 7. Wisdom leads when there is a real tension and confidence is not low.
+    // 7. Wisdom leads only when there is a real, named tension.
     if (
+      !shouldUncertaintyOverride &&
       wisdomTension &&
       wisdomTension !== "unclear" &&
       wisdomConfidence !== "low"
@@ -146,14 +176,18 @@ window.AriSalienceGovernor = {
       addCandidate(
         "wisdom",
         80,
-        "A wisdom tension is present and should guide resolution.",
+        "A real wisdom tension is present and should guide resolution.",
         "wisdom_resolution",
         "Which good thing should lead, and which should support?"
       );
     }
 
-    // 8. Highest good / leading good can support wisdom.
-    if (highestGood || wisdomLeadingGood) {
+    // 8. Highest good / leading good can support wisdom, but not when evidence is absent.
+    if (
+      !shouldUncertaintyOverride &&
+      !noEvidence &&
+      (highestGood || wisdomLeadingGood)
+    ) {
       addCandidate(
         "wisdom",
         18,
@@ -164,7 +198,7 @@ window.AriSalienceGovernor = {
     }
 
     // 9. Strongest signal category fallback.
-    if (strongestSignalCategory === "life") {
+    if (!shouldUncertaintyOverride && strongestSignalCategory === "life") {
       addCandidate(
         "meaning",
         74,
@@ -174,7 +208,7 @@ window.AriSalienceGovernor = {
       );
     }
 
-    if (strongestSignalCategory === "belief") {
+    if (!shouldUncertaintyOverride && strongestSignalCategory === "belief") {
       addCandidate(
         "belief",
         74,
@@ -184,7 +218,7 @@ window.AriSalienceGovernor = {
       );
     }
 
-    if (strongestSignalCategory === "identity") {
+    if (!shouldUncertaintyOverride && strongestSignalCategory === "identity") {
       addCandidate(
         "identity",
         74,
@@ -194,11 +228,14 @@ window.AriSalienceGovernor = {
       );
     }
 
-    if (strongestSignalCategory === "highest_good") {
+    if (
+      !shouldUncertaintyOverride &&
+      strongestSignalCategory === "highest_good"
+    ) {
       addCandidate(
         "wisdom",
-        74,
-        `Strongest signal '${strongestSignal}' points toward a highest-good question.`,
+        64,
+        `Strongest signal '${strongestSignal}' points toward a highest-good question, but should not override missing evidence.`,
         "wisdom_clarity",
         "What good are you trying to protect most right now?"
       );
