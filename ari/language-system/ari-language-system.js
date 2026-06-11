@@ -1,12 +1,12 @@
 // ari/language-system/ari-language-system.js
 // Ari Language System
 // Purpose: Convert Ari's analysis into short, human, useful responses.
-// V4.0: Speaks from Meaning, Insight, Belief, Person Model, Simulation, and Emotional Intelligence.
+// V5.0: Uses Voice Engine, Self Reflection, Meaning, Insight, Belief, Simulation, and Emotional Intelligence.
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageSystem = {
-  version: "4.0.0",
+  version: "5.0.0",
 
   generate(analysis = {}, options = {}) {
     const summary = window.Ari.core
@@ -43,7 +43,40 @@ window.Ari.languageSystem = {
     return this.generateDefaultResponse(analysis, summary);
   },
 
+  getVoice(analysis = {}) {
+    return analysis.voice || {
+      openingStyle: "steady_observation",
+      confidenceStyle: { name: "tentative", prefix: "" },
+      confidence: "low",
+      structure: ["observation", "interpretation", "next_step"],
+      stance: "steady_companion"
+    };
+  },
+
+  getOpeningLine(analysis = {}) {
+    const voice = this.getVoice(analysis);
+
+    if (window.Ari.voiceEngine?.getOpeningLine) {
+      return window.Ari.voiceEngine.getOpeningLine(voice);
+    }
+
+    return "The thing I notice first is this.";
+  },
+
+  getConfidencePrefix(analysis = {}, fallbackConfidence = "medium") {
+    const voice = this.getVoice(analysis);
+
+    if (voice.confidenceStyle?.prefix !== undefined) {
+      return voice.confidenceStyle.prefix;
+    }
+
+    return this.withConfidencePrefix("", fallbackConfidence);
+  },
+
   generateMeaningResponse(analysis = {}, summary = {}) {
+    const voice = this.getVoice(analysis);
+    const opening = this.getOpeningLine(analysis);
+
     const meaning = analysis.meaning || {};
     const insight = analysis.insight || {};
     const personModel = analysis.personModel || {};
@@ -57,21 +90,26 @@ window.Ari.languageSystem = {
     const primaryBelief = beliefModel.primaryBelief?.name;
     const simulationTheme = simulation.primarySimulation?.theme;
 
+    const prefix =
+      voice.confidence === "high"
+        ? ""
+        : voice.confidenceStyle?.prefix || "";
+
     const lines = [];
 
-    if (humanTruth) {
-      lines.push(humanTruth);
-    } else if (meaningStatement) {
-      lines.push(meaningStatement);
-    } else if (oneLineInsight) {
-      lines.push(oneLineInsight);
-    } else {
-      lines.push("This moment seems to be asking for meaning, not just action.");
-    }
+    lines.push(opening);
 
     if (lifeChapter && lifeChapter !== "unclear") {
       lines.push("");
       lines.push(this.humanizeLifeChapter(lifeChapter));
+    }
+
+    if (humanTruth) {
+      lines.push("");
+      lines.push(`${prefix}${this.lowercaseFirst(humanTruth)}`);
+    } else if (meaningStatement) {
+      lines.push("");
+      lines.push(`${prefix}${this.lowercaseFirst(meaningStatement)}`);
     }
 
     if (oneLineInsight && oneLineInsight !== humanTruth) {
@@ -89,10 +127,21 @@ window.Ari.languageSystem = {
       lines.push(this.humanizeSimulationTheme(simulationTheme));
     }
 
+    if (
+      Array.isArray(voice.structure) &&
+      voice.structure.includes("reflection_question")
+    ) {
+      lines.push("");
+      lines.push(this.generateReflectionQuestion(analysis));
+    }
+
     return this.finalize(lines.join("\n"));
   },
 
   generateInsightResponse(analysis = {}, summary = {}) {
+    const voice = this.getVoice(analysis);
+    const opening = this.getOpeningLine(analysis);
+
     const insight = analysis.insight || {};
     const pattern = insight.pattern || {};
     const hiddenConflict = insight.hiddenConflict || {};
@@ -100,16 +149,27 @@ window.Ari.languageSystem = {
     const hiddenMotive = insight.hiddenMotive || {};
     const oneLineInsight = insight.oneLineInsight;
 
+    const confidence = this.highestConfidence([
+      pattern,
+      hiddenConflict,
+      tradeoff,
+      hiddenMotive
+    ]);
+
+    const prefix =
+      confidence === "high"
+        ? ""
+        : voice.confidenceStyle?.prefix || this.getPrefixForConfidence(confidence);
+
     const lines = [];
 
+    lines.push(opening);
+
     if (oneLineInsight) {
-      lines.push(this.withConfidencePrefix(oneLineInsight, this.highestConfidence([
-        pattern,
-        hiddenConflict,
-        tradeoff,
-        hiddenMotive
-      ])));
+      lines.push("");
+      lines.push(`${prefix}${this.lowercaseFirst(oneLineInsight)}`);
     } else {
+      lines.push("");
       lines.push("I think there is something here, but Ari does not have enough signal to name it cleanly yet.");
     }
 
@@ -128,10 +188,20 @@ window.Ari.languageSystem = {
       lines.push(this.humanizeHiddenConflict(hiddenConflict.name));
     }
 
+    if (
+      Array.isArray(voice.structure) &&
+      voice.structure.includes("question")
+    ) {
+      lines.push("");
+      lines.push(this.generateReflectionQuestion(analysis));
+    }
+
     return this.finalize(lines.join("\n"));
   },
 
   generateEmotionalResponse(analysis = {}, summary = {}) {
+    const opening = this.getOpeningLine(analysis);
+
     const emotionalIntelligence = analysis.emotionalIntelligence || {};
     const surface = emotionalIntelligence.surfaceEmotion?.name;
     const underlying = emotionalIntelligence.underlyingEmotion?.name;
@@ -140,11 +210,16 @@ window.Ari.languageSystem = {
 
     const lines = [];
 
+    lines.push(opening);
+
     if (underlying && underlying !== "unclear") {
+      lines.push("");
       lines.push(this.humanizeUnderlyingEmotion(underlying));
     } else if (surface && surface !== "curiosity") {
+      lines.push("");
       lines.push(this.humanizeSurfaceEmotion(surface));
     } else {
+      lines.push("");
       lines.push("The feeling matters. It is information, not noise.");
     }
 
@@ -162,6 +237,8 @@ window.Ari.languageSystem = {
   },
 
   generateDecisionResponse(analysis = {}, summary = {}) {
+    const opening = this.getOpeningLine(analysis);
+
     const executive = analysis.executive || {};
     const meaning = analysis.meaning || {};
     const insight = analysis.insight || {};
@@ -169,13 +246,19 @@ window.Ari.languageSystem = {
 
     const lines = [];
 
+    lines.push(opening);
+
     if (meaning.humanTruth) {
+      lines.push("");
       lines.push(meaning.humanTruth);
     } else if (insight.oneLineInsight) {
+      lines.push("");
       lines.push(insight.oneLineInsight);
     } else if (executive.recommendedFocus) {
+      lines.push("");
       lines.push(executive.recommendedFocus);
     } else {
+      lines.push("");
       lines.push("One thing needs to lead. The rest need to support.");
     }
 
@@ -199,16 +282,21 @@ window.Ari.languageSystem = {
   },
 
   generatePlanningResponse(analysis = {}, summary = {}) {
+    const opening = this.getOpeningLine(analysis);
+
     const executive = analysis.executive || {};
     const insight = analysis.insight || {};
 
     const lines = [];
 
+    lines.push(opening);
+
     if (insight.oneLineInsight) {
-      lines.push(insight.oneLineInsight);
       lines.push("");
+      lines.push(insight.oneLineInsight);
     }
 
+    lines.push("");
     lines.push(
       executive.recommendedFocus ||
         "Choose one next action instead of trying to solve everything at once."
@@ -224,29 +312,59 @@ window.Ari.languageSystem = {
   },
 
   generateBuildingResponse(analysis = {}, summary = {}) {
+    const opening = this.getOpeningLine(analysis);
+
     return this.finalize(
-      "This is a building question.\n\nFocus on the next clean change, not the whole architecture at once."
+      `${opening}\n\nThe bottleneck is not the whole system.\n\nFocus on the next clean change.`
     );
   },
 
   generateDefaultResponse(analysis = {}, summary = {}) {
+    const opening = this.getOpeningLine(analysis);
+
     const meaning = analysis.meaning || {};
     const insight = analysis.insight || {};
     const executive = analysis.executive || {};
 
     if (meaning.humanTruth) {
-      return this.finalize(meaning.humanTruth);
+      return this.finalize(`${opening}\n\n${meaning.humanTruth}`);
     }
 
     if (insight.oneLineInsight) {
-      return this.finalize(insight.oneLineInsight);
+      return this.finalize(`${opening}\n\n${insight.oneLineInsight}`);
     }
 
     if (executive.recommendedFocus) {
-      return this.finalize(executive.recommendedFocus);
+      return this.finalize(`${opening}\n\n${executive.recommendedFocus}`);
     }
 
-    return "I need a little more context before I can name this cleanly.";
+    return this.finalize(
+      `${opening}\n\nI need a little more context before I can name this cleanly.`
+    );
+  },
+
+  generateReflectionQuestion(analysis = {}) {
+    const insight = analysis.insight || {};
+    const tradeoff = insight.tradeoff?.name;
+    const pattern = insight.pattern?.name;
+    const meaning = analysis.meaning || {};
+
+    if (
+      pattern === "achievement_before_presence" ||
+      tradeoff === "presence_vs_acceleration"
+    ) {
+      return "What would change if presence did not have to be earned first?";
+    }
+
+    if (meaning.theme === "family_transition") {
+      return "What would it look like to measure this season by presence instead of progress?";
+    }
+
+    if (tradeoff === "growth_vs_stability") {
+      return "What would growth look like if stability had to be protected too?";
+    }
+
+    return "What part of this feels most true?";
   },
 
   highestConfidence(signals = []) {
@@ -264,10 +382,21 @@ window.Ari.languageSystem = {
     return best?.confidence || "low";
   },
 
+  getPrefixForConfidence(confidence = "low") {
+    if (confidence === "high") return "";
+    if (confidence === "medium") return "I could be wrong, but ";
+    return "This is only a possibility, but ";
+  },
+
   withConfidencePrefix(text = "", confidence = "low") {
     if (confidence === "high") return text;
     if (confidence === "medium") return `I could be wrong, but ${text}`;
     return `This is only a weak signal, but ${text}`;
+  },
+
+  lowercaseFirst(text = "") {
+    if (!text) return text;
+    return text.charAt(0).toLowerCase() + text.slice(1);
   },
 
   humanizeLifeChapter(name = "") {
