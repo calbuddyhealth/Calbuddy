@@ -1,164 +1,457 @@
 // ari/identity-system/ari-identity-engine.js
 // Ari Identity Engine
-// Purpose: Understand roles, identity hierarchy, and identity conflict.
-// V1.0: Converts observer signals into identity-level meaning.
+// Purpose: Detect active identities, role hierarchy, role conflicts, and identity themes.
+// V2.0: Stronger role detection, confidence, seasonal identity hierarchy, and identity tension.
 
 window.Ari = window.Ari || {};
 
 window.Ari.identityEngine = {
-  version: "1.0.0",
+  version: "2.0.0",
 
-  analyze(observation = {}) {
-    const life = observation.lifeTransitions || {};
-    const patterns = observation.humanPatterns || {};
-    const valuesData = observation.valuesAndConflicts || {};
-    const roles = patterns.roles || [];
-    const values = valuesData.values || [];
-    const coreConflicts = valuesData.coreConflicts || [];
-
+  analyze(observation = {}, values = {}) {
     const identities = [];
 
-    const addIdentity = (name, strength, reason) => {
-      const existing = identities.find((item) => item.name === name);
+    this.detectLifeTransitionIdentities(observation, identities);
+    this.detectRoleLanguageIdentities(observation, identities);
+    this.detectValueBasedIdentities(values, identities);
+    this.detectGoalBasedIdentities(observation, identities);
 
-      if (existing) {
-        existing.strength += strength;
-        existing.reasons.push(reason);
-        return;
-      }
-
-      identities.push({
-        name,
-        strength,
-        reasons: [reason]
-      });
-    };
-
-    if (life.fatherhood || roles.includes("father")) {
-      addIdentity("father", 95, "Fatherhood or child-related transition detected.");
-    }
-
-    if (life.motherhood || roles.includes("mother")) {
-      addIdentity("mother", 95, "Motherhood or child-related transition detected.");
-    }
-
-    if (life.marriage || roles.includes("spouse")) {
-      addIdentity("spouse", 85, "Marriage or spouse role detected.");
-    }
-
-    if (life.engagement || roles.includes("fiance")) {
-      addIdentity("future-spouse", 80, "Engagement or wedding transition detected.");
-    }
-
-    if (roles.includes("provider") || values.includes("responsibility")) {
-      addIdentity("provider", 85, "Provider or responsibility value detected.");
-    }
-
-    if (life.careerTransition || values.includes("growth")) {
-      addIdentity("career-builder", 75, "Career growth or transition detected.");
-    }
-
-    if (roles.includes("student") || values.includes("growth")) {
-      addIdentity("learner", 70, "Student, PMHNP, or growth path detected.");
-    }
-
-    if (roles.includes("builder") || values.includes("creation")) {
-      addIdentity("builder", 75, "Creation, Ari Rebirth, or founder role detected.");
-    }
-
-    if (life.militaryTransition || values.includes("service")) {
-      addIdentity("veteran", 70, "Military service or transition detected.");
-    }
-
-    if (values.includes("service")) {
-      addIdentity("helper", 65, "Service/helping value detected.");
-    }
-
-    identities.sort((a, b) => b.strength - a.strength);
-
-    const identityConflicts = [];
-
-    if (
-      identities.some((i) => i.name === "father") &&
-      identities.some((i) => i.name === "builder")
-    ) {
-      identityConflicts.push("father_vs_builder");
-    }
-
-    if (
-      identities.some((i) => i.name === "father") &&
-      identities.some((i) => i.name === "provider")
-    ) {
-      identityConflicts.push("provider_vs_present_parent");
-    }
-
-    if (
-      identities.some((i) => i.name === "veteran") &&
-      identities.some((i) => i.name === "career-builder")
-    ) {
-      identityConflicts.push("veteran_vs_new_career");
-    }
-
-    if (
-      identities.some((i) => i.name === "learner") &&
-      identities.some((i) => i.name === "builder")
-    ) {
-      identityConflicts.push("learner_vs_builder");
-    }
-
-    const dominantIdentity = identities[0] || null;
-
-    const identityHierarchy = {
-      primary: identities[0]?.name || null,
-      secondary: identities[1]?.name || null,
-      tertiary: identities[2]?.name || null,
-      supporting: identities.slice(3).map((item) => item.name)
-    };
-
-    const dominantTheme = this.getDominantTheme({
-      identities,
-      patterns,
-      coreConflicts,
-      identityConflicts
+    const normalizedIdentities = this.normalizeIdentities(identities);
+    const identityHierarchy = this.buildIdentityHierarchy({
+      identities: normalizedIdentities,
+      observation,
+      values
     });
 
+    const identityConflicts = this.detectIdentityConflicts({
+      identities: normalizedIdentities,
+      observation,
+      values
+    });
+
+    const dominantIdentity = identityHierarchy.primary || null;
+
+    const dominantTheme = this.detectDominantTheme({
+      identities: normalizedIdentities,
+      identityHierarchy,
+      identityConflicts,
+      observation,
+      values
+    });
+
+    const coreQuestion = this.getCoreQuestion(dominantTheme);
+    const primaryRisk = this.getPrimaryRisk(dominantTheme);
+
     return {
-      identities,
+      identities: normalizedIdentities,
       identityHierarchy,
       identityConflicts,
       dominantIdentity,
       dominantTheme,
-      coreQuestion: this.getCoreQuestion(dominantTheme),
-      primaryRisk: this.getPrimaryRisk(dominantTheme),
+      coreQuestion,
+      primaryRisk,
       source: "ari-identity-engine"
     };
   },
 
-  getDominantTheme({ identities = [], patterns = {}, coreConflicts = [], identityConflicts = [] }) {
+  addIdentity(identities = [], identity = {}) {
+    const existing = identities.find((item) => item.name === identity.name);
+
+    if (existing) {
+      existing.strength += identity.strength || 0;
+      existing.reasons = [
+        ...new Set([...(existing.reasons || []), ...(identity.reasons || [])])
+      ];
+      existing.confidence = this.mergeConfidence(existing.confidence, identity.confidence);
+      return;
+    }
+
+    identities.push({
+      name: identity.name,
+      strength: identity.strength || 50,
+      confidence: identity.confidence || "medium",
+      reasons: identity.reasons || []
+    });
+  },
+
+  mergeConfidence(current = "medium", incoming = "medium") {
+    const rank = {
+      unknown: 0,
+      low: 1,
+      medium: 2,
+      high: 3
+    };
+
+    return rank[incoming] > rank[current] ? incoming : current;
+  },
+
+  detectLifeTransitionIdentities(observation = {}, identities = []) {
+    const life = observation.lifeTransitions || {};
+
+    if (life.fatherhood) {
+      this.addIdentity(identities, {
+        name: "father",
+        strength: 95,
+        confidence: "high",
+        reasons: ["Fatherhood or child-related transition detected."]
+      });
+    }
+
+    if (life.engagement || life.marriage) {
+      this.addIdentity(identities, {
+        name: "future-spouse",
+        strength: 85,
+        confidence: "high",
+        reasons: ["Engagement, wedding, or spouse transition detected."]
+      });
+    }
+
+    if (life.militaryTransition) {
+      this.addIdentity(identities, {
+        name: "veteran-transitioning",
+        strength: 80,
+        confidence: "high",
+        reasons: ["Military transition detected."]
+      });
+    }
+
+    if (life.careerTransition) {
+      this.addIdentity(identities, {
+        name: "career-builder",
+        strength: 75,
+        confidence: "medium",
+        reasons: ["Career transition or career growth detected."]
+      });
+    }
+
+    if (life.pregnancy) {
+      this.addIdentity(identities, {
+        name: "expectant-parent",
+        strength: 85,
+        confidence: "high",
+        reasons: ["Pregnancy or incoming child transition detected."]
+      });
+    }
+  },
+
+  detectRoleLanguageIdentities(observation = {}, identities = []) {
+    const text = observation.normalizedMessage || "";
+    const patterns = observation.humanPatterns || {};
+
+    const roleMap = [
+      {
+        name: "provider",
+        strength: 80,
+        phrases: ["provide", "provider", "protect my family", "stability", "responsibility"],
+        reason: "Provider, protection, responsibility, or stability language detected."
+      },
+      {
+        name: "builder",
+        strength: 78,
+        phrases: ["building ari", "ari rebirth", "calbuddy", "app", "project", "create", "building"],
+        reason: "Creation, Ari Rebirth, CalBuddy, or builder language detected."
+      },
+      {
+        name: "learner",
+        strength: 72,
+        phrases: ["pmhnp", "school", "student", "learn", "study", "degree"],
+        reason: "School, PMHNP, student, or learning language detected."
+      },
+      {
+        name: "helper",
+        strength: 68,
+        phrases: ["help people", "serve", "service", "patients", "nurse"],
+        reason: "Helping, service, nursing, or patient-care language detected."
+      },
+      {
+        name: "achiever",
+        strength: 70,
+        phrases: ["achievement", "milestone", "goals", "behind", "fall behind", "accomplish"],
+        reason: "Achievement, milestone, or accomplishment language detected."
+      },
+      {
+        name: "leader",
+        strength: 65,
+        phrases: ["lead", "leader", "officer", "charge", "supervise"],
+        reason: "Leadership or officer language detected."
+      }
+    ];
+
+    roleMap.forEach((role) => {
+      if (role.phrases.some((phrase) => text.includes(phrase))) {
+        this.addIdentity(identities, {
+          name: role.name,
+          strength: role.strength,
+          confidence: "medium",
+          reasons: [role.reason]
+        });
+      }
+    });
+
+    if (Array.isArray(patterns.roles)) {
+      patterns.roles.forEach((role) => {
+        this.addIdentity(identities, {
+          name: role,
+          strength: 60,
+          confidence: "medium",
+          reasons: ["Observer detected this active role."]
+        });
+      });
+    }
+  },
+
+  detectValueBasedIdentities(values = {}, identities = []) {
+    const valueList = values.values || [];
+
+    if (valueList.includes("family")) {
+      this.addIdentity(identities, {
+        name: "family-protector",
+        strength: 75,
+        confidence: "medium",
+        reasons: ["Family value detected."]
+      });
+    }
+
+    if (valueList.includes("responsibility")) {
+      this.addIdentity(identities, {
+        name: "provider",
+        strength: 70,
+        confidence: "medium",
+        reasons: ["Responsibility value detected."]
+      });
+    }
+
+    if (valueList.includes("creation")) {
+      this.addIdentity(identities, {
+        name: "builder",
+        strength: 70,
+        confidence: "medium",
+        reasons: ["Creation value detected."]
+      });
+    }
+
+    if (valueList.includes("growth")) {
+      this.addIdentity(identities, {
+        name: "learner",
+        strength: 65,
+        confidence: "medium",
+        reasons: ["Growth value detected."]
+      });
+    }
+
+    if (valueList.includes("service")) {
+      this.addIdentity(identities, {
+        name: "helper",
+        strength: 65,
+        confidence: "medium",
+        reasons: ["Service value detected."]
+      });
+    }
+  },
+
+  detectGoalBasedIdentities(observation = {}, identities = []) {
+    const goals = observation.goals || {};
+
+    if (goals.wantsBuild) {
+      this.addIdentity(identities, {
+        name: "builder",
+        strength: 75,
+        confidence: "medium",
+        reasons: ["User wants to build or improve a project."]
+      });
+    }
+
+    if (goals.wantsGrowth) {
+      this.addIdentity(identities, {
+        name: "learner",
+        strength: 70,
+        confidence: "medium",
+        reasons: ["User wants growth or development."]
+      });
+    }
+
+    if (goals.wantsPlan) {
+      this.addIdentity(identities, {
+        name: "planner",
+        strength: 60,
+        confidence: "medium",
+        reasons: ["User wants planning or prioritization."]
+      });
+    }
+  },
+
+  normalizeIdentities(identities = []) {
+    const confidenceBonus = {
+      high: 10,
+      medium: 5,
+      low: 0,
+      unknown: 0
+    };
+
+    return [...identities]
+      .map((identity) => ({
+        ...identity,
+        score:
+          (identity.strength || 0) +
+          (confidenceBonus[identity.confidence] || 0)
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  },
+
+  buildIdentityHierarchy({ identities = [], observation = {}, values = {} } = {}) {
+    const life = observation.lifeTransitions || {};
+    const valueList = values.values || [];
+
+    let primary = identities[0] || null;
+
+    // Seasonal override: fatherhood/family transition should usually lead.
+    const father = identities.find((item) => item.name === "father");
+    const expectantParent = identities.find((item) => item.name === "expectant-parent");
+    const provider = identities.find((item) => item.name === "provider");
+    const spouse = identities.find((item) => item.name === "future-spouse");
+
+    if (life.fatherhood && father) {
+      primary = father;
+    } else if (life.pregnancy && expectantParent) {
+      primary = expectantParent;
+    } else if (valueList.includes("family") && father) {
+      primary = father;
+    } else if (valueList.includes("responsibility") && provider) {
+      primary = provider;
+    }
+
+    const secondary = identities
+      .filter((item) => item.name !== primary?.name)
+      .slice(0, 2);
+
+    const supporting = identities
+      .filter(
+        (item) =>
+          item.name !== primary?.name &&
+          !secondary.some((secondaryItem) => secondaryItem.name === item.name)
+      )
+      .slice(0, 5);
+
+    return {
+      primary,
+      secondary,
+      supporting,
+      seasonalPrimaryReason: this.getSeasonalPrimaryReason(primary, observation, values)
+    };
+  },
+
+  getSeasonalPrimaryReason(primary = null, observation = {}, values = {}) {
+    if (!primary) return "No primary identity detected.";
+
+    const life = observation.lifeTransitions || {};
+
+    if (primary.name === "father" && life.fatherhood) {
+      return "Fatherhood is active and should likely lead this season.";
+    }
+
+    if (primary.name === "provider") {
+      return "Provider responsibility is active and may be organizing the user's decisions.";
+    }
+
+    if (primary.name === "builder") {
+      return "Builder identity is active through creation or project work.";
+    }
+
+    return `${primary.name} appears strongest based on current evidence.`;
+  },
+
+  detectIdentityConflicts({ identities = [], observation = {}, values = {} } = {}) {
+    const names = identities.map((item) => item.name);
+    const conflicts = [];
+
+    const addConflict = (name, confidence, reason) => {
+      if (!conflicts.some((item) => item.name === name)) {
+        conflicts.push({ name, confidence, reason });
+      }
+    };
+
+    if (names.includes("father") && names.includes("builder")) {
+      addConflict(
+        "father_vs_builder",
+        "high",
+        "Father and builder identities both appear active."
+      );
+    }
+
+    if (names.includes("provider") && names.includes("father")) {
+      addConflict(
+        "provider_vs_present_parent",
+        "medium",
+        "Provider and present-parent roles may compete for time and energy."
+      );
+    }
+
+    if (names.includes("learner") && names.includes("builder")) {
+      addConflict(
+        "learner_vs_builder",
+        "medium",
+        "Learning path and building path may compete for focus."
+      );
+    }
+
+    if (names.includes("veteran-transitioning") && names.includes("career-builder")) {
+      addConflict(
+        "old_service_identity_vs_new_career",
+        "medium",
+        "Military transition and new career identity are both active."
+      );
+    }
+
     if (
-      patterns.lifeTransitionLoad?.level === "extreme" &&
-      identityConflicts.length >= 2
+      values.valueConflicts?.includes("family_vs_creation") ||
+      (names.includes("family-protector") && names.includes("builder"))
     ) {
+      addConflict(
+        "family_vs_creation_identity",
+        "medium",
+        "Family-protector and builder identities may compete."
+      );
+    }
+
+    return conflicts;
+  },
+
+  detectDominantTheme({
+    identities = [],
+    identityHierarchy = {},
+    identityConflicts = [],
+    observation = {},
+    values = {}
+  } = {}) {
+    const life = observation.lifeTransitions || {};
+    const patterns = observation.humanPatterns || {};
+
+    if (identityConflicts.length >= 3 || patterns.roleConflict) {
       return "identity_overload";
     }
 
-    if (coreConflicts.includes("identity_vs_transition")) {
+    if (life.fatherhood && life.militaryTransition) {
+      return "fatherhood_during_transition";
+    }
+
+    if (life.fatherhood) {
+      return "fatherhood_transition";
+    }
+
+    if (identityConflicts.some((conflict) => conflict.name === "father_vs_builder")) {
+      return "family_vs_creation_identity";
+    }
+
+    if (identityConflicts.some((conflict) => conflict.name === "provider_vs_present_parent")) {
+      return "provider_vs_presence";
+    }
+
+    if (life.militaryTransition || identities.some((item) => item.name === "veteran-transitioning")) {
       return "identity_transition";
     }
 
-    if (coreConflicts.includes("ambition_vs_presence")) {
-      return "ambition_vs_presence";
-    }
-
-    if (identityConflicts.includes("provider_vs_present_parent")) {
-      return "provider_presence_conflict";
-    }
-
-    if (patterns.roleConflict) {
-      return "role_conflict";
-    }
-
-    if (identities.length > 0) {
+    if (identityHierarchy.primary?.name) {
       return "identity_mapping";
     }
 
@@ -168,19 +461,28 @@ window.Ari.identityEngine = {
   getCoreQuestion(theme = "") {
     const questions = {
       identity_overload:
-        "Which identity needs to become primary during this season of life?",
+        "Which identity needs to become primary, and which identities need to support instead of compete?",
+
+      fatherhood_during_transition:
+        "How does the user become a father while also letting an old service chapter change shape?",
+
+      fatherhood_transition:
+        "What kind of father is the user becoming in this season?",
+
+      family_vs_creation_identity:
+        "How can the user protect family without abandoning the builder identity?",
+
+      provider_vs_presence:
+        "Is the user trying to provide more when the deeper need may be to be present more?",
+
       identity_transition:
-        "Who is this person becoming after leaving an old identity behind?",
-      ambition_vs_presence:
-        "How should ambition be balanced against presence with loved ones?",
-      provider_presence_conflict:
-        "Does providing more require sacrificing presence, and is that tradeoff worth it?",
-      role_conflict:
-        "Which role has the strongest claim on attention right now?",
+        "Which old identity is ending, and which new identity is trying to emerge?",
+
       identity_mapping:
-        "Which identity is most active in this situation?",
+        "Which identity is currently organizing the user's decisions?",
+
       identity_unclear:
-        "What identity signal is missing or unclear?"
+        "What identity is actually active underneath this question?"
     };
 
     return questions[theme] || questions.identity_unclear;
@@ -190,18 +492,27 @@ window.Ari.identityEngine = {
     const risks = {
       identity_overload:
         "Trying to fully maintain every identity at once may create burnout or fractured focus.",
+
+      fatherhood_during_transition:
+        "The user may try to handle fatherhood with the same achievement strategy used in military or career life.",
+
+      fatherhood_transition:
+        "The user may confuse being a good father with being perfect or endlessly productive.",
+
+      family_vs_creation_identity:
+        "The user may treat slowing a project as abandoning purpose.",
+
+      provider_vs_presence:
+        "The user may over-provide while under-resting or under-connecting.",
+
       identity_transition:
         "Clinging to an old identity may make the next chapter harder to enter.",
-      ambition_vs_presence:
-        "Pursuing achievement may unintentionally cost irreplaceable presence.",
-      provider_presence_conflict:
-        "The person may confuse providing materially with being present relationally.",
-      role_conflict:
-        "Competing roles may dilute attention and increase guilt.",
+
       identity_mapping:
-        "Identity signals are present but not yet prioritized.",
+        "Ari may over-focus on the loudest identity instead of the identity that should lead this season.",
+
       identity_unclear:
-        "Ari lacks enough identity context to infer the deeper conflict."
+        "Ari may give generic advice without knowing who the user is trying to become."
     };
 
     return risks[theme] || risks.identity_unclear;
