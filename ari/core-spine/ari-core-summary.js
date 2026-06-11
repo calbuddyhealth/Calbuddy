@@ -1,12 +1,12 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.6: Adds life weighting, salience, and language-route visibility.
+// V1.7: Adds Ari Rebirth Pipeline support.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.6.0",
+  version: "1.7.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -46,7 +46,7 @@ window.Ari.coreSummary = {
     const voice = analysis.voice || {};
     const memory = analysis.memory || {};
 
-    return {
+    let summary = {
       questionType: analysis.questionType || "unknown",
 
       // LANGUAGE ROUTING
@@ -312,5 +312,18 @@ window.Ari.coreSummary = {
         ? window.Ari.authority.hierarchy
         : []
     };
+
+    // ARI REBIRTH PIPELINE
+    // Adds uncertainty classification, identity priority, value integration,
+    // stewardship/fear differentiation, life chapter detection, salience governance,
+    // synthesis, and new language composition.
+    if (
+      window.AriRebirthPipeline &&
+      typeof window.AriRebirthPipeline.run === "function"
+    ) {
+      summary = window.AriRebirthPipeline.run(summary);
+    }
+
+    return summary;
   }
 };
