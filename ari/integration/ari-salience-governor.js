@@ -1,12 +1,13 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.1
+// V1.2
 // Fixes:
-// - Missing/null evidence now counts as no evidence.
-// - Uncertainty overrides wisdom when no hypothesis exists.
-// - Highest-good signals support wisdom only when there is enough evidence.
-// - Wisdom cannot lead on an unclear wisdom tension.
+// - Caps inflated upstream scores.
+// - Prevents identity/life chapter score explosions.
+// - Adds deterministic tie-breaking.
+// - Keeps uncertainty override intact.
+// - Keeps emotion from hijacking when meaning/identity has stronger context.
 
 window.AriSalienceGovernor = {
   govern(input = {}) {
@@ -15,21 +16,21 @@ window.AriSalienceGovernor = {
     const candidates = [];
 
     const uncertaintyType = summary.uncertaintyType || null;
-    const uncertaintyConfidence = Number(summary.uncertaintyConfidence || 0);
+    const uncertaintyConfidenceRaw = Number(summary.uncertaintyConfidence || 0);
 
     const primaryLifeChapter = summary.primaryLifeChapter || null;
-    const lifeChapterStrength = Number(summary.lifeChapterStrength || 0);
+    const lifeChapterStrengthRaw = Number(summary.lifeChapterStrength || 0);
 
     const leadIdentity =
       summary.resolvedLeadIdentity || summary.leadIdentity || null;
-    const leadIdentityScore = Number(summary.leadIdentityScore || 0);
+    const leadIdentityScoreRaw = Number(summary.leadIdentityScore || 0);
 
     const valueIntegrationDetected = Boolean(summary.valueIntegrationDetected);
     const integratedValue = summary.integratedValue || null;
 
     const emotionalClassification = summary.emotionalClassification || null;
-    const stewardshipScore = Number(summary.stewardshipScore || 0);
-    const fearScore = Number(summary.fearScore || 0);
+    const stewardshipScoreRaw = Number(summary.stewardshipScore || 0);
+    const fearScoreRaw = Number(summary.fearScore || 0);
 
     const wisdomTension = summary.wisdomTension || null;
     const wisdomConfidence = summary.wisdomConfidence || null;
@@ -52,11 +53,39 @@ window.AriSalienceGovernor = {
       noEvidence &&
       strongestSignalCategory !== "underlying_emotion";
 
+    function clampScore(value, min = 0, max = 100) {
+      const n = Number(value || 0);
+      return Math.max(min, Math.min(max, n));
+    }
+
+    const uncertaintyConfidence = clampScore(uncertaintyConfidenceRaw, 0, 100);
+    const lifeChapterStrength = clampScore(lifeChapterStrengthRaw, 0, 100);
+    const leadIdentityScore = clampScore(leadIdentityScoreRaw, 0, 100);
+    const stewardshipScore = clampScore(stewardshipScoreRaw, 0, 100);
+    const fearScore = clampScore(fearScoreRaw, 0, 100);
+
+    function priorityForLead(lead) {
+      const priority = {
+        uncertainty: 100,
+        meaning: 90,
+        identity: 85,
+        wisdom: 80,
+        values: 75,
+        stewardship: 70,
+        emotion: 60,
+        belief: 55,
+        observer: 10
+      };
+
+      return priority[lead] || 0;
+    }
+
     function addCandidate(lead, score, reason, mode, question = null) {
+      const normalizedScore = clampScore(score, 0, 120);
       const existing = candidates.find(c => c.lead === lead);
 
       if (existing) {
-        existing.score += score;
+        existing.score = Math.max(existing.score, normalizedScore);
         existing.reasons.push(reason);
         if (!existing.question && question) existing.question = question;
         return;
@@ -64,10 +93,11 @@ window.AriSalienceGovernor = {
 
       candidates.push({
         lead,
-        score,
+        score: normalizedScore,
         reasons: [reason],
         mode,
-        question
+        question,
+        priority: priorityForLead(lead)
       });
     }
 
@@ -79,7 +109,10 @@ window.AriSalienceGovernor = {
     ) {
       addCandidate(
         "uncertainty",
-        Math.max(uncertaintyConfidence, shouldUncertaintyOverride ? 104 : 88),
+        Math.max(
+          uncertaintyConfidence,
+          shouldUncertaintyOverride ? 112 : 92
+        ),
         "Ari lacks a grounded hypothesis and evidence, so uncertainty must lead before interpretation.",
         "continue_observing",
         summary.recommendedRecoveryQuestion ||
@@ -87,7 +120,7 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 2. Major life chapters should override emotional depth, unless uncertainty hard-overrides.
+    // 2. Major life chapters should lead when a real chapter is active.
     if (
       !shouldUncertaintyOverride &&
       primaryLifeChapter &&
@@ -99,11 +132,12 @@ window.AriSalienceGovernor = {
         lifeChapterStrength + 10,
         "A strong life chapter is active, so meaning/life chapter should lead.",
         "protect_life_chapter",
-        summary.lifeChapterQuestion || "What feels different about this season of life?"
+        summary.lifeChapterQuestion ||
+          "What feels different about this season of life?"
       );
     }
 
-    // 3. Identity should lead when a clear role has priority, unless uncertainty hard-overrides.
+    // 3. Identity should lead when a clear role has priority.
     if (
       !shouldUncertaintyOverride &&
       leadIdentity &&
@@ -121,7 +155,7 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 4. Values can lead only when integration is meaningful and uncertainty is not overriding.
+    // 4. Values can lead when integration is meaningful.
     if (
       !shouldUncertaintyOverride &&
       (valueIntegrationDetected || integratedValue)
@@ -156,9 +190,14 @@ window.AriSalienceGovernor = {
       uncertaintyType === "emotion_uncertainty" ||
       strongestSignalCategory === "underlying_emotion"
     ) {
+      const emotionHasOverrideStrength =
+        strongestSignalCategory === "underlying_emotion" &&
+        !primaryLifeChapter &&
+        !leadIdentity;
+
       addCandidate(
         "emotion",
-        strongestSignalCategory === "underlying_emotion" ? 90 : 78,
+        emotionHasOverrideStrength ? 96 : 90,
         "An underlying emotion appears central enough to guide the response.",
         "emotion_depth",
         summary.emotionRecoveryQuestion ||
@@ -190,7 +229,7 @@ window.AriSalienceGovernor = {
     ) {
       addCandidate(
         "wisdom",
-        18,
+        98,
         "Highest good or leading good signal supports wisdom leadership.",
         "wisdom_resolution",
         "What good should lead right now?"
@@ -201,7 +240,7 @@ window.AriSalienceGovernor = {
     if (!shouldUncertaintyOverride && strongestSignalCategory === "life") {
       addCandidate(
         "meaning",
-        74,
+        86,
         `Strongest signal '${strongestSignal}' is life-related.`,
         "life_chapter",
         "What feels different about this season of life?"
@@ -211,7 +250,7 @@ window.AriSalienceGovernor = {
     if (!shouldUncertaintyOverride && strongestSignalCategory === "belief") {
       addCandidate(
         "belief",
-        74,
+        84,
         `Strongest signal '${strongestSignal}' is belief-related.`,
         "belief_reflection",
         "What assumption are you making that might be shaping this?"
@@ -221,7 +260,7 @@ window.AriSalienceGovernor = {
     if (!shouldUncertaintyOverride && strongestSignalCategory === "identity") {
       addCandidate(
         "identity",
-        74,
+        86,
         `Strongest signal '${strongestSignal}' is identity-related.`,
         "identity_reflection",
         "Which part of you feels most responsible for this?"
@@ -234,7 +273,7 @@ window.AriSalienceGovernor = {
     ) {
       addCandidate(
         "wisdom",
-        64,
+        88,
         `Strongest signal '${strongestSignal}' points toward a highest-good question, but should not override missing evidence.`,
         "wisdom_clarity",
         "What good are you trying to protect most right now?"
@@ -252,7 +291,10 @@ window.AriSalienceGovernor = {
       );
     }
 
-    candidates.sort((a, b) => b.score - a.score);
+    candidates.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.priority - a.priority;
+    });
 
     const winner = candidates[0];
     const supports = candidates.slice(1, 4);
@@ -276,8 +318,23 @@ window.AriSalienceGovernor = {
         score: item.score,
         mode: item.mode,
         question: item.question,
+        priority: item.priority,
         reasons: item.reasons
       })),
+
+      salienceScoreNormalization: {
+        uncertaintyConfidenceRaw,
+        uncertaintyConfidence,
+        lifeChapterStrengthRaw,
+        lifeChapterStrength,
+        leadIdentityScoreRaw,
+        leadIdentityScore,
+        stewardshipScoreRaw,
+        stewardshipScore,
+        fearScoreRaw,
+        fearScore,
+        source: "ari-salience-governor-normalization"
+      },
 
       source: "ari-salience-governor"
     };
