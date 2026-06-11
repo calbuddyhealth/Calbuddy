@@ -1,12 +1,13 @@
 // ari/conflict-system/ari-conflict-engine.js
 // Ari Conflict Engine
 // Purpose: Identify what values, roles, and identities are competing.
-// V1.0
+// V1.1
+// Fixes object-based conflict names causing .includes() crashes.
 
 window.Ari = window.Ari || {};
 
 window.Ari.conflictEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   analyze({ observation = {}, values = {}, identity = {} } = {}) {
     const patterns = observation.humanPatterns || {};
@@ -17,8 +18,20 @@ window.Ari.conflictEngine = {
 
     const conflicts = [];
 
+    const normalizeName = (item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        return String(item.name || item.id || "unknown_conflict");
+      }
+      return "unknown_conflict";
+    };
+
     const addConflict = (name, intensity, category, reason) => {
-      const existing = conflicts.find((item) => item.name === name);
+      const normalizedName = normalizeName(name);
+
+      const existing = conflicts.find(
+        (item) => item.name === normalizedName
+      );
 
       if (existing) {
         existing.score += intensity;
@@ -27,7 +40,7 @@ window.Ari.conflictEngine = {
       }
 
       conflicts.push({
-        name,
+        name: normalizedName,
         score: intensity,
         category,
         reasons: [reason]
@@ -112,8 +125,10 @@ window.Ari.conflictEngine = {
 
     const competingFor = this.getCompetingResources(conflicts, patterns);
     const conflictIntensity = this.getIntensity(conflicts);
+
     const needsExecutiveFunction =
-      conflictIntensity === "high" || conflictIntensity === "critical";
+      conflictIntensity === "high" ||
+      conflictIntensity === "critical";
 
     return {
       conflicts,
@@ -127,7 +142,10 @@ window.Ari.conflictEngine = {
   },
 
   getIntensity(conflicts = []) {
-    const totalScore = conflicts.reduce((sum, item) => sum + item.score, 0);
+    const totalScore = conflicts.reduce(
+      (sum, item) => sum + item.score,
+      0
+    );
 
     if (totalScore >= 90) return "critical";
     if (totalScore >= 60) return "high";
@@ -161,15 +179,19 @@ window.Ari.conflictEngine = {
       resources.add("recovery");
     }
 
-    if (conflicts.some((item) => item.name.includes("family"))) {
+    const conflictNames = conflicts.map(
+      (item) => String(item?.name || "")
+    );
+
+    if (conflictNames.some((name) => name.includes("family"))) {
       resources.add("family presence");
     }
 
-    if (conflicts.some((item) => item.name.includes("achievement"))) {
+    if (conflictNames.some((name) => name.includes("achievement"))) {
       resources.add("achievement");
     }
 
-    if (conflicts.some((item) => item.name.includes("creation"))) {
+    if (conflictNames.some((name) => name.includes("creation"))) {
       resources.add("creative purpose");
     }
 
@@ -181,24 +203,24 @@ window.Ari.conflictEngine = {
       return "No major conflict detected.";
     }
 
-    if (primaryConflict.name === "family_vs_creation") {
-      return "Over-prioritizing creation may cost family presence; over-prioritizing family may slow the creative mission.";
-    }
+    switch (primaryConflict.name) {
+      case "family_vs_creation":
+        return "Over-prioritizing creation may cost family presence; over-prioritizing family may slow the creative mission.";
 
-    if (primaryConflict.name === "family_vs_achievement") {
-      return "Over-prioritizing achievement may cost family presence; over-prioritizing family may slow career advancement.";
-    }
+      case "family_vs_achievement":
+        return "Over-prioritizing achievement may cost family presence; over-prioritizing family may slow career advancement.";
 
-    if (primaryConflict.name === "provider_vs_present_parent") {
-      return "The person may confuse providing materially with being present relationally.";
-    }
+      case "provider_vs_present_parent":
+        return "The person may confuse providing materially with being present relationally.";
 
-    if (primaryConflict.name === "ambition_vs_presence") {
-      return "Ambition may create future opportunity, but presence may protect irreplaceable moments.";
-    }
+      case "ambition_vs_presence":
+        return "Ambition may create future opportunity, but presence may protect irreplaceable moments.";
 
-    if (primaryConflict.name === "identity_vs_transition") {
-      return "Clinging to an old identity may make the next chapter harder to enter.";
+      case "identity_vs_transition":
+        return "Clinging to an old identity may make the next chapter harder to enter.";
+
+      default:
+        break;
     }
 
     if (patterns.burnoutRisk) {
