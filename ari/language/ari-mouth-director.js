@@ -1,14 +1,15 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide HOW Ari communicates.
-// V2.3
+// V2.4
 // Fixes:
-// - Adds Organism Function response intent support.
-// - Forces body/survival-function stabilization to be short, practical, and non-abstract.
-// - Prevents meaning/wisdom/identity language from leaking into body-first responses.
+// - Keeps organism/body stabilization short, practical, and non-abstract.
+// - Prevents meaning/wisdom/identity leakage into body-first responses.
+// - Softens connection support so Ari does not over-question loneliness.
+// - Adds comfort_then_truth pattern for connection wounds.
 
 window.AriMouthDirector = {
-  version: "2.3.0",
+  version: "2.4.0",
 
   direct(summary = {}) {
     const mode =
@@ -234,12 +235,14 @@ window.AriMouthDirector = {
     if (
       intent === "offer_connection" ||
       intent === "support_before_solution" ||
-      mode === "emotional_connection"
+      mode === "emotional_connection" ||
+      mode === "restore_connection" ||
+      need === "connection"
     ) {
       director.explanationLevel = "minimal";
-      director.responsePattern = "comfort_then_question";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = true;
+      director.responsePattern = "comfort_then_truth";
+      director.maxBodySections = 3;
+      director.askBeforeTeaching = false;
 
       director.allowMeaning = false;
       director.allowEmotion = true;
