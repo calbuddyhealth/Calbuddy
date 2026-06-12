@@ -1,11 +1,13 @@
 // ari/language/ari-response-shaper.js
 // Ari Response Shaper
 // Purpose: Organize final responses into human-readable flow.
-// V1.2
+// V1.3
 // Fixes:
 // - polish() only cleans spacing.
-// - Does not compress/remove truth, emotion, wisdom, or action.
-// - shape() now supports finalResponse passthrough.
+// - shape() supports finalResponse passthrough.
+// - Adds optional compress() mode.
+// - Never removes truth/emotion/wisdom/action accidentally.
+// - Safe for Ari Rebirth pipeline.
 
 window.AriResponseShaper = {
 
@@ -17,15 +19,47 @@ window.AriResponseShaper = {
     }
 
     return {
-      finalResponse: finalResponse
-        .replace(/[ \t]+\n/g, "\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim(),
+      finalResponse: this.clean(finalResponse),
+      source: "ari-response-shaper"
+    };
+  },
+
+  compress(input = {}) {
+    const finalResponse = input.finalResponse || "";
+
+    if (!finalResponse.trim()) {
+      return null;
+    }
+
+    const sections = finalResponse
+      .split(/\n\s*\n/)
+      .map(section => section.trim())
+      .filter(Boolean);
+
+    // Keep strongest sections.
+    // Opening + last 4 sections minimum.
+    if (sections.length <= 6) {
+      return {
+        finalResponse: this.clean(finalResponse),
+        source: "ari-response-shaper"
+      };
+    }
+
+    const compressed = [
+      sections[0],
+      ...sections.slice(-5)
+    ];
+
+    return {
+      finalResponse: this.clean(
+        compressed.join("\n\n")
+      ),
       source: "ari-response-shaper"
     };
   },
 
   shape(input = {}) {
+
     if (input.finalResponse) {
       return this.polish(input);
     }
@@ -51,17 +85,24 @@ window.AriResponseShaper = {
     if (question) sections.push(question.trim());
 
     return {
-      finalResponse: sections
-        .filter(Boolean)
-        .join("\n\n")
-        .replace(/[ \t]+\n/g, "\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim(),
+      finalResponse: this.clean(
+        sections
+          .filter(Boolean)
+          .join("\n\n")
+      ),
       source: "ari-response-shaper"
     };
   },
 
+  clean(text = "") {
+    return String(text)
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  },
+
   getMode(summary = {}) {
+
     if (
       summary.primaryLifeChapter ||
       summary.salienceLeadOrgan === "meaning"
