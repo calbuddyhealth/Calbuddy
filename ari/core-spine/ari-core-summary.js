@@ -65,7 +65,8 @@ window.Ari.coreSummary = {
     const selfReflection = analysis.selfReflection || {};
     const voice = analysis.voice || {};
     const memory = analysis.memory || {};
-    const responseIntent = analysis.responseIntent || {};
+   const organism = analysis.organism || {};
+     const responseIntent = analysis.responseIntent || {};
     const mouthDirector = analysis.mouthDirector || {};
 
     const rawUserMessage =
@@ -331,6 +332,14 @@ window.Ari.coreSummary = {
 
       memoryCandidate: memory.shouldRemember ? memory : null,
 
+organismFunction: organism.organismFunction || null,
+organismNeed: organism.organismNeed || null,
+organismNeedBlocked: organism.organismNeedBlocked ?? null,
+organismUrgency: organism.organismUrgency || null,
+organismRecommendedMode: organism.organismRecommendedMode || null,
+organismReason: organism.organismReason || null,
+organismSource: organism.source || "unknown",
+      
       lifeSignalSource: lifeSignals.source || "unknown",
       lifeSignalWeightingSource: lifeSignalWeighting.source || "unknown",
       signalSystemSource: signals.source || "unknown",
