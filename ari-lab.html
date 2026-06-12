@@ -153,7 +153,8 @@
   <script src="ari/language/ari-response-shaper.js"></script>
   <script src="ari/language/ari-language-composer.js"></script>
 
-<script src="ari/safety/ari-safety-classifier.js"></script>
+  <!-- SAFETY / NEEDS / REBIRTH PIPELINE -->
+  <script src="ari/safety/ari-safety-classifier.js"></script>
   <script src="ari/needs/ari-need-engine.js"></script>
   <script src="ari/integration/ari-rebirth-pipeline.js"></script>
 
@@ -183,6 +184,11 @@
       const analysis = window.Ari.core.analyzeMessage(message, {});
 
       let summary = window.Ari.core.createSystemSummary(analysis);
+
+      // Preserve raw user message for Safety + Human Needs Network.
+      summary.userMessage = message;
+      summary.message = message;
+      summary.input = message;
 
       if (
         window.AriRebirthPipeline &&
@@ -267,6 +273,12 @@ ${summary.resolvedLeadIdentity || summary.leadIdentity || "none"}
 Primary Life Chapter:
 ${summary.primaryLifeChapter || "none"}
 
+Primary Human Need:
+${summary.primaryHumanNeed || "none"}
+
+Need Response Mode:
+${summary.needResponseMode || "none"}
+
 Uncertainty Type:
 ${summary.uncertaintyType || "none"}
 
@@ -315,6 +327,12 @@ ${summary.rebirthPipelineRan ? "yes" : "no"}
 
 Pipeline Source:
 ${summary.rebirthPipelineSource || "none"}
+
+Need Engine Ran:
+${summary.needEngineRan ? "yes" : "no"}
+
+Need Engine Source:
+${summary.needEngineSource || "none"}
 
 Language Source:
 ${summary.source || "none"}
