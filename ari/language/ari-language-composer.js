@@ -2,12 +2,6 @@
 // Ari Language Composer
 // Purpose: Final mouth coordinator for Ari Rebirth.
 // V2.8
-// Fixes:
-// - Composer now obeys Salience Governor / Synthesis lead.
-// - restore_dignity mode suppresses generic uncertainty/wisdom/action filler.
-// - Emotion-led worth/connection responses use synthesis + dignity language.
-// - Prevents "Ari needs more context..." from appearing when a human need leads.
-// - Keeps uncertainty language only when uncertainty is actually leading.
 
 window.AriLanguageComposer = {
   compose(input = {}) {
@@ -25,9 +19,7 @@ window.AriLanguageComposer = {
 
     const primaryHumanNeed = summary.primaryHumanNeed || null;
     const needResponseMode = summary.needResponseMode || null;
-
-    const strongestSignalCategory =
-      summary.strongestSignalCategory || null;
+    const strongestSignalCategory = summary.strongestSignalCategory || null;
 
     const languageMode = this.getLanguageMode(leadOrgan, salienceMode);
 
@@ -73,11 +65,6 @@ window.AriLanguageComposer = {
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
 
-    // -----------------------------
-    // MODE OVERRIDES
-    // -----------------------------
-
-    // Human need / dignity mode must not sound like vague uncertainty.
     if (salienceMode === "restore_dignity" || needResponseMode === "restore_dignity") {
       opening = "That sounds disrespectful and frustrating.";
 
@@ -103,30 +90,19 @@ window.AriLanguageComposer = {
       actionText = "Name who feels distant, then decide whether this needs comfort, repair, or a direct conversation.";
     }
 
-    // If uncertainty leads, keep uncertainty language.
     if (leadOrgan === "uncertainty") {
       if (truthText) meaningText = null;
       else if (meaningText) truthText = null;
     }
 
-    // If emotion/need leads, suppress generic uncertainty phrases.
     if (leadOrgan === "emotion") {
       meaningText = null;
 
-      if (this.isGenericUncertaintyLine(truthText)) {
-        truthText = null;
-      }
-
-      if (this.isGenericWisdomLine(wisdomText)) {
-        wisdomText = null;
-      }
-
-      if (this.isGenericActionLine(actionText)) {
-        actionText = null;
-      }
+      if (this.isGenericUncertaintyLine(truthText)) truthText = null;
+      if (this.isGenericWisdomLine(wisdomText)) wisdomText = null;
+      if (this.isGenericActionLine(actionText)) actionText = null;
     }
 
-    // Meaning mode should not drag emotion in unless emotion is the real signal.
     if (
       leadOrgan === "meaning" &&
       strongestSignalCategory !== "underlying_emotion"
@@ -295,59 +271,31 @@ ${closing}`;
     actionText
   } = {}) {
     if (salienceMode === "restore_dignity") {
-      return [
-        emotionText,
-        truthText,
-        actionText
-      ].filter(Boolean);
+      return [emotionText, truthText, actionText].filter(Boolean);
     }
 
     if (salienceMode === "emotional_connection") {
-      return [
-        emotionText,
-        truthText,
-        actionText
-      ].filter(Boolean);
+      return [emotionText, truthText, actionText].filter(Boolean);
     }
 
     if (leadOrgan === "meaning") {
-      return [
-        meaningText || synthesisText || truthText,
-        wisdomText,
-        actionText
-      ].filter(Boolean);
+      return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
     }
 
     if (leadOrgan === "uncertainty") {
-      return [
-        truthText || synthesisText || meaningText,
-        wisdomText,
-        actionText
-      ].filter(Boolean);
+      return [truthText || synthesisText || meaningText, wisdomText, actionText].filter(Boolean);
     }
 
     if (leadOrgan === "emotion") {
-      return [
-        emotionText,
-        truthText || synthesisText,
-        actionText
-      ].filter(Boolean);
+      return [emotionText, truthText || synthesisText, actionText].filter(Boolean);
     }
 
     if (leadOrgan === "wisdom") {
-      return [
-        wisdomText,
-        truthText || synthesisText,
-        actionText
-      ].filter(Boolean);
+      return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
     }
 
     if (leadOrgan === "identity") {
-      return [
-        truthText || synthesisText || meaningText,
-        wisdomText,
-        actionText
-      ].filter(Boolean);
+      return [truthText || synthesisText || meaningText, wisdomText, actionText].filter(Boolean);
     }
 
     return [
@@ -377,9 +325,7 @@ ${closing}`;
         );
       });
 
-      if (!duplicate) {
-        cleaned.push(line.trim());
-      }
+      if (!duplicate) cleaned.push(line.trim());
     }
 
     return cleaned;
