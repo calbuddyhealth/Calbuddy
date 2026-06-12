@@ -1,16 +1,16 @@
 // ari/observer-system/ari-observer-hierarchy-engine.js
 // Ari Observer Hierarchy Engine
 // Purpose: Decide which observation deserves the microphone.
-// V1.1
+// V1.2
 // Fixes:
-// - Uses primary.confidence instead of primary.primaryConfidence.
-// - Prevents weak Dual Salience clarification from overpowering stronger life chapter signals.
-// - Adds explicit conversation-aware clarification logic.
+// - Adds late-stage summary-aware hierarchy pass.
+// - Allows hierarchy to use richer signals from salience, wisdom, life chapter, executive, and confidence.
+// - Keeps early observer hierarchy behavior when no summary is provided.
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerHierarchyEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   analyze(observation = {}) {
     const dual = observation.dualSalience || {};
@@ -21,6 +21,7 @@ window.Ari.observerHierarchyEngine = {
     const humanPatterns = observation.humanPatterns || {};
     const valuesAndConflicts = observation.valuesAndConflicts || {};
     const risk = observation.risk || {};
+    const summary = observation.summary || observation || {};
 
     const candidates = this.buildCandidates({
       dual,
@@ -30,11 +31,24 @@ window.Ari.observerHierarchyEngine = {
       lifeTransitions,
       humanPatterns,
       valuesAndConflicts,
-      risk
+      risk,
+      summary
     });
 
     const ranked = this.rankCandidates(candidates);
     const primary = ranked[0] || this.defaultCandidate();
+
+    const detectedLifeChapter =
+      this.detectLifeChapter(lifeTransitions, humanPatterns) ||
+      summary.primaryLifeChapter ||
+      (primary.category === "life_chapter" ? primary.name : null);
+
+    const detectedTension =
+      this.detectDominantTension(valuesAndConflicts, humanPatterns) ||
+      summary.wisdomTension ||
+      summary.apparentConflict ||
+      summary.primaryConflict ||
+      null;
 
     return {
       system: "ari-observer-hierarchy-engine",
@@ -45,27 +59,30 @@ window.Ari.observerHierarchyEngine = {
       primaryReason: primary.reason,
       primaryConfidence: primary.confidence,
 
-      supportingObservations: ranked.slice(1, 5),
+      supportingObservations: ranked
+        .filter((item, index) => index > 0)
+        .slice(0, 5),
 
-      dominantTension: this.detectDominantTension(valuesAndConflicts, humanPatterns),
-      lifeChapter: this.detectLifeChapter(lifeTransitions, humanPatterns),
+      dominantTension: detectedTension,
+      lifeChapter: detectedLifeChapter,
 
-      objectiveLead: dual.priority?.objectiveLead || null,
-      subjectiveLead: dual.priority?.subjectiveLead || null,
-      dualSalienceMode: dual.priority?.mode || null,
+      objectiveLead: dual.priority?.objectiveLead || summary.dualSalienceObjectiveLead || null,
+      subjectiveLead: dual.priority?.subjectiveLead || summary.dualSalienceSubjectiveLead || null,
+      dualSalienceMode: dual.priority?.mode || summary.dualSalienceMode || null,
 
       recommendedExecutiveInstruction:
-        this.recommendExecutiveInstruction(primary, dual, risk),
+        this.recommendExecutiveInstruction(primary, dual, risk, summary),
 
       shouldAskClarifyingQuestion:
         this.shouldAskClarifyingQuestion(primary, dual, conversation, {
           lifeTransitions,
           humanPatterns,
-          valuesAndConflicts
+          valuesAndConflicts,
+          summary
         }),
 
       recommendedQuestion:
-        this.recommendedQuestion(primary, dual),
+        this.recommendedQuestion(primary, dual, summary),
 
       rankedObservations: ranked
     };
@@ -80,18 +97,140 @@ window.Ari.observerHierarchyEngine = {
       lifeTransitions,
       humanPatterns,
       valuesAndConflicts,
-      risk
+      risk,
+      summary = {}
     } = parts;
 
     const candidates = [];
 
-    if (risk.guardianRequired || dual.priority?.lead === "safety") {
+    if (
+      risk.guardianRequired ||
+      dual.priority?.lead === "safety" ||
+      summary.safetyTriggered ||
+      summary.executiveDecision === "protect_safety_first"
+    ) {
       candidates.push({
         name: "safety_or_urgent_risk",
         category: "safety",
         weight: 100,
         confidence: 0.98,
         reason: "Safety risk overrides all other observations."
+      });
+    }
+
+    // ===================================
+    // LATE-STAGE SUMMARY SIGNALS
+    // These are stronger than early observer guesses.
+    // ===================================
+
+    if (summary.primaryLifeChapter) {
+      candidates.push({
+        name: summary.primaryLifeChapter,
+        category: "life_chapter",
+        weight: 98,
+        confidence: 0.96,
+        reason: "Later systems identified a dominant life chapter."
+      });
+    }
+
+    if (summary.primaryWeightedLifeSignal) {
+      candidates.push({
+        name: summary.primaryWeightedLifeSignal,
+        category: "life_priority",
+        weight: 97,
+        confidence: 0.95,
+        reason: "Life signal weighting identified a major life priority."
+      });
+    }
+
+    if (summary.primarySalienceName) {
+      candidates.push({
+        name: summary.primarySalienceName,
+        category: summary.primarySalienceCategory || "salience",
+        weight: 96,
+        confidence: 0.94,
+        reason: "Salience network identified the dominant signal."
+      });
+    }
+
+    if (summary.strongestSignal) {
+      candidates.push({
+        name: summary.strongestSignal,
+        category: summary.strongestSignalCategory || "signal",
+        weight: 94,
+        confidence:
+          summary.strongestSignalCategory === "life" ? 0.94 : 0.86,
+        reason: "Signal system identified the strongest active signal."
+      });
+    }
+
+    if (summary.wisdomTension) {
+      candidates.push({
+        name: summary.wisdomTension,
+        category: "core_conflict",
+        weight: 92,
+        confidence: 0.92,
+        reason: "Wisdom systems detected a major tension."
+      });
+    }
+
+    if (summary.apparentConflict) {
+      candidates.push({
+        name: summary.apparentConflict,
+        category: "core_conflict",
+        weight: 91,
+        confidence: 0.9,
+        reason: "Value integration detected an apparent conflict."
+      });
+    }
+
+    if (summary.highestGood) {
+      candidates.push({
+        name: summary.highestGood,
+        category: "highest_good",
+        weight: 90,
+        confidence: 0.9,
+        reason: "Highest good signal detected."
+      });
+    }
+
+    if (summary.executiveDecision === "protect_family_first") {
+      candidates.push({
+        name: "protect_family_first",
+        category: "executive_priority",
+        weight: 93,
+        confidence: 0.93,
+        reason: "Executive function selected family as the leading priority."
+      });
+    }
+
+    if (summary.primaryPriority === "family") {
+      candidates.push({
+        name: "family_priority",
+        category: "executive_priority",
+        weight: 92,
+        confidence: 0.92,
+        reason: "Executive priority is family."
+      });
+    }
+
+    if (summary.regretType) {
+      candidates.push({
+        name: summary.regretType,
+        category: "long_term_consequence",
+        weight: 88,
+        confidence: 0.88,
+        reason: "Regret engine identified a preventable regret."
+      });
+    }
+
+    if (summary.longTermPath) {
+      candidates.push({
+        name: summary.longTermPath,
+        category: "long_term_path",
+        weight: 86,
+        confidence: 0.86,
+        reason: "Long-term consequence engine identified a path."
       });
     }
 
@@ -167,8 +306,6 @@ window.Ari.observerHierarchyEngine = {
       });
     }
 
-    // Dual Salience should inform hierarchy, but not automatically outrank
-    // stronger life chapter / conflict / regret signals.
     if (dual.priority?.lead) {
       candidates.push({
         name: `dual_salience_${dual.priority.lead}`,
@@ -189,7 +326,22 @@ window.Ari.observerHierarchyEngine = {
       });
     }
 
-    return candidates;
+    return this.dedupeCandidates(candidates);
+  },
+
+  dedupeCandidates(candidates = []) {
+    const map = new Map();
+
+    candidates.forEach((candidate) => {
+      const key = `${candidate.category}:${candidate.name}`;
+      const existing = map.get(key);
+
+      if (!existing || candidate.weight * candidate.confidence > existing.weight * existing.confidence) {
+        map.set(key, candidate);
+      }
+    });
+
+    return Array.from(map.values());
   },
 
   rankCandidates(candidates = []) {
@@ -241,17 +393,28 @@ window.Ari.observerHierarchyEngine = {
     return null;
   },
 
-  recommendExecutiveInstruction(primary, dual = {}, risk = {}) {
+  recommendExecutiveInstruction(primary, dual = {}, risk = {}, summary = {}) {
     if (risk.guardianRequired || primary.category === "safety") {
       return "Lead with safety, stabilization, and urgent support.";
     }
 
-    if (primary.category === "core_conflict") {
-      return "Name the conflict clearly and help the user choose what must lead.";
+    if (
+      primary.category === "life_chapter" ||
+      primary.category === "life_priority" ||
+      summary.primaryLifeChapter
+    ) {
+      return "Frame the issue as part of a larger life chapter.";
     }
 
-    if (primary.category === "life_chapter") {
-      return "Frame the issue as part of a larger life chapter.";
+    if (
+      primary.category === "executive_priority" ||
+      summary.executiveDecision === "protect_family_first"
+    ) {
+      return "Follow the executive priority and protect the leading good."
+    }
+
+    if (primary.category === "core_conflict") {
+      return "Name the conflict clearly and help the user choose what must lead.";
     }
 
     if (dual.priority?.mode === "acknowledge_gap_then_gently_redirect") {
@@ -276,19 +439,44 @@ window.Ari.observerHierarchyEngine = {
   shouldAskClarifyingQuestion(primary, dual = {}, conversation = {}, context = {}) {
     if (primary.category === "safety") return false;
 
-    const { lifeTransitions = {}, humanPatterns = {}, valuesAndConflicts = {} } = context;
+    const {
+      lifeTransitions = {},
+      humanPatterns = {},
+      valuesAndConflicts = {},
+      summary = {}
+    } = context;
+
+    const resolvedEnough =
+      summary.uncertaintyType === "resolved_enough" ||
+      summary.calibratedConfidence === "high" ||
+      summary.metaConfidence === "high" ||
+      Number(summary.confidenceScore || 0) >= 75;
 
     const strongChapterActive =
       primary.category === "life_chapter" ||
+      primary.category === "life_priority" ||
+      Boolean(summary.primaryLifeChapter) ||
       Boolean(this.detectLifeChapter(lifeTransitions, humanPatterns));
 
     const strongConflictActive =
       primary.category === "core_conflict" ||
+      Boolean(summary.wisdomTension) ||
+      Boolean(summary.apparentConflict) ||
       valuesAndConflicts.coreConflicts?.length > 0 ||
       humanPatterns.futureRegretRisk ||
       humanPatterns.opportunityCost;
 
-    if (strongChapterActive || strongConflictActive) {
+    const executiveClear =
+      Boolean(summary.executiveDecision) &&
+      summary.executiveDecision !== "continue_observing" &&
+      summary.executiveDecision !== "ask_before_directing";
+
+    if (
+      resolvedEnough ||
+      strongChapterActive ||
+      strongConflictActive ||
+      executiveClear
+    ) {
       return false;
     }
 
@@ -307,12 +495,27 @@ window.Ari.observerHierarchyEngine = {
     return false;
   },
 
-  recommendedQuestion(primary, dual = {}) {
+  recommendedQuestion(primary, dual = {}, summary = {}) {
+    if (summary.primaryLifeChapter === "fatherhood_transition") {
+      return "What kind of father does this season ask you to become?";
+    }
+
+    if (summary.identityRecoveryQuestion) {
+      return summary.identityRecoveryQuestion;
+    }
+
+    if (summary.lifeChapterQuestion) {
+      return summary.lifeChapterQuestion;
+    }
+
     if (primary.category === "core_conflict") {
       return "Which part of this feels hardest to sacrifice?";
     }
 
-    if (primary.category === "life_chapter") {
+    if (
+      primary.category === "life_chapter" ||
+      primary.category === "life_priority"
+    ) {
       return "What kind of person is this season asking you to become?";
     }
 
