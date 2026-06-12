@@ -1,11 +1,13 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth coordinator for Ari Rebirth.
-// V2.5
+// V2.6
 // Fixes:
-// - Prevents duplicate uncertainty language.
-// - In uncertainty mode, uses truth OR meaning, not both.
-// - Keeps opening, truth/meaning, emotion, wisdom, action, and question as readable sections.
+// - Adds response budget / section limiter.
+// - Prevents strong meaning mode from becoming too long.
+// - In meaning mode, suppresses emotion unless emotion is truly leading.
+// - Keeps uncertainty duplicate protection.
+// - Keeps readable sections.
 
 window.AriLanguageComposer = {
   compose(input = {}) {
@@ -15,6 +17,9 @@ window.AriLanguageComposer = {
       summary.synthesisLeadOrgan ||
       summary.salienceLeadOrgan ||
       "observer";
+
+    const strongestSignalCategory =
+      summary.strongestSignalCategory || null;
 
     const modeMap = {
       meaning: "life_chapter",
@@ -78,61 +83,13 @@ window.AriLanguageComposer = {
     const shapeEngine = getEngine("AriMouthShapeEngine", "AriResponseShapeEngine");
     const shaperEngine = getEngine("AriMouthShaper", "AriResponseShaper");
 
-    const openingResult = safeRunAny(openingEngine, [
-      "create",
-      "generate",
-      "compose",
-      "open",
-      "run"
-    ]);
-
-    const truthResult = safeRunAny(truthEngine, [
-      "extract",
-      "generate",
-      "compose",
-      "tell",
-      "run"
-    ]);
-
-    const emotionResult = safeRunAny(emotionEngine, [
-      "name",
-      "generate",
-      "compose",
-      "detect",
-      "run"
-    ]);
-
-    const wisdomResult = safeRunAny(wisdomEngine, [
-      "distill",
-      "generate",
-      "compose",
-      "resolve",
-      "run"
-    ]);
-
-    const actionResult = safeRunAny(actionEngine, [
-      "guide",
-      "generate",
-      "compose",
-      "recommend",
-      "run"
-    ]);
-
-    const voiceResult = safeRunAny(voiceEngine, [
-      "blend",
-      "generate",
-      "compose",
-      "choose",
-      "run"
-    ]);
-
-    const shapeResult = safeRunAny(shapeEngine, [
-      "shape",
-      "generate",
-      "compose",
-      "structure",
-      "run"
-    ]);
+    const openingResult = safeRunAny(openingEngine, ["create", "generate", "compose", "open", "run"]);
+    const truthResult = safeRunAny(truthEngine, ["extract", "generate", "compose", "tell", "run"]);
+    const emotionResult = safeRunAny(emotionEngine, ["name", "generate", "compose", "detect", "run"]);
+    const wisdomResult = safeRunAny(wisdomEngine, ["distill", "generate", "compose", "resolve", "run"]);
+    const actionResult = safeRunAny(actionEngine, ["guide", "generate", "compose", "recommend", "run"]);
+    const voiceResult = safeRunAny(voiceEngine, ["blend", "generate", "compose", "choose", "run"]);
+    const shapeResult = safeRunAny(shapeEngine, ["shape", "generate", "compose", "structure", "run"]);
 
     const recommendedQuestion =
       summary.synthesisRecommendedQuestion ||
@@ -151,11 +108,11 @@ window.AriLanguageComposer = {
         : null;
 
     let truthText = readText(truthResult, ["truth", "text", "line"]);
-    const emotionText = readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
-    const wisdomText = readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
-    const actionText = readText(actionResult, ["guidance", "action", "text", "line"]);
+    let emotionText = readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
+    let wisdomText = readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
+    let actionText = readText(actionResult, ["guidance", "action", "text", "line"]);
 
-    // Prevent duplicate uncertainty language.
+    // Uncertainty mode should not repeat meaning + truth if both say "not enough context."
     if (leadOrgan === "uncertainty") {
       if (truthText) {
         meaningText = null;
@@ -164,13 +121,23 @@ window.AriLanguageComposer = {
       }
     }
 
-    const bodyParts = [
+    // Meaning mode should not become bloated.
+    // Emotion only stays if emotion is actually leading or the strongest signal.
+    if (
+      leadOrgan === "meaning" &&
+      strongestSignalCategory !== "underlying_emotion"
+    ) {
+      emotionText = null;
+    }
+
+    const bodyParts = this.chooseBodyParts({
+      leadOrgan,
       meaningText,
       truthText,
       emotionText,
       wisdomText,
       actionText
-    ].filter(Boolean);
+    });
 
     const body =
       bodyParts.length > 0
@@ -208,11 +175,11 @@ ${closing}`;
 
       mouthUsed: {
         opening: Boolean(readText(openingResult, ["opening", "text", "line"])),
-        meaning: Boolean(meaningText),
-        truth: Boolean(truthText),
-        emotion: Boolean(emotionText),
-        wisdom: Boolean(wisdomText),
-        action: Boolean(actionText),
+        meaning: bodyParts.includes(meaningText),
+        truth: bodyParts.includes(truthText),
+        emotion: bodyParts.includes(emotionText),
+        wisdom: bodyParts.includes(wisdomText),
+        action: bodyParts.includes(actionText),
         voice: Boolean(voiceResult),
         shape: Boolean(shapeResult),
         shaper: Boolean(shapedResponse?.finalResponse)
@@ -237,11 +204,70 @@ ${closing}`;
         emotionText,
         wisdomText,
         actionText,
-        closing
+        closing,
+        selectedBodyParts: bodyParts
       },
 
       source: "ari-language-composer"
     };
+  },
+
+  chooseBodyParts({
+    leadOrgan,
+    meaningText,
+    truthText,
+    emotionText,
+    wisdomText,
+    actionText
+  } = {}) {
+    if (leadOrgan === "meaning") {
+      return [
+        meaningText || truthText,
+        wisdomText,
+        actionText
+      ].filter(Boolean);
+    }
+
+    if (leadOrgan === "uncertainty") {
+      return [
+        truthText || meaningText,
+        wisdomText,
+        actionText
+      ].filter(Boolean);
+    }
+
+    if (leadOrgan === "emotion") {
+      return [
+        emotionText,
+        truthText,
+        wisdomText,
+        actionText
+      ].filter(Boolean);
+    }
+
+    if (leadOrgan === "wisdom") {
+      return [
+        wisdomText,
+        truthText,
+        actionText
+      ].filter(Boolean);
+    }
+
+    if (leadOrgan === "identity") {
+      return [
+        truthText || meaningText,
+        wisdomText,
+        actionText
+      ].filter(Boolean);
+    }
+
+    return [
+      meaningText,
+      truthText,
+      emotionText,
+      wisdomText,
+      actionText
+    ].filter(Boolean);
   },
 
   humanizeLabel(label = "") {
