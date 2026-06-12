@@ -1,16 +1,17 @@
 // ari/organism-system/ari-organism-function-engine.js
 // Ari Organism Function Engine
 // Purpose: Help Ari understand basic living-system functions before meaning, identity, wisdom, or advice.
-// V1.1
+// V1.2
 // Fixes:
-// - Adds compatibility fields for Core Summary V2.4.
-// - Maps organism functions into basic organism needs.
-// - Makes blocked survival functions easier for pipeline/hierarchy to read.
+// - Normalizes curly apostrophes so "haven’t" matches "haven't".
+// - Expands detection across food, hydration, sleep, pain, breathing, elimination, temperature, movement, threat, and connection.
+// - Adds stronger time-duration detection for sleep deprivation and food/fluid deprivation.
+// - Keeps compatibility fields for Core Summary V2.4.
 
 window.Ari = window.Ari || {};
 
 window.AriOrganismFunctionEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   evaluate(input = {}) {
     const summary = input.summary || input || {};
@@ -49,7 +50,6 @@ window.AriOrganismFunctionEngine = {
       organismRecommendedMode: this.getRecommendedMode(primaryFunction, urgency),
       organismRecommendedAction: this.getRecommendedAction(primaryFunction, urgency),
 
-      // Compatibility fields for Core Summary V2.4
       organismFunction: primaryFunctionName,
       organismNeed: this.mapFunctionToNeed(primaryFunctionName),
       organismNeedBlocked: disruption.hasDisruption,
@@ -59,7 +59,12 @@ window.AriOrganismFunctionEngine = {
   },
 
   normalize(text = "") {
-    return String(text || "").toLowerCase().trim();
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/\s+/g, " ")
+      .trim();
   },
 
   containsAny(text, phrases = []) {
@@ -71,7 +76,9 @@ window.AriOrganismFunctionEngine = {
 
     if (existing) {
       existing.score += score;
-      existing.reasons.push(reason);
+      if (!existing.reasons.includes(reason)) {
+        existing.reasons.push(reason);
+      }
       return;
     }
 
@@ -85,22 +92,34 @@ window.AriOrganismFunctionEngine = {
   detectFunctions(text) {
     const functions = [];
 
+    // 1. ENERGY / FOOD
     if (this.containsAny(text, [
       "hungry",
+      "starving",
       "haven't eaten",
       "havent eaten",
+      "have not eaten",
       "didn't eat",
       "didnt eat",
       "not eating",
       "can't eat",
       "cant eat",
+      "cannot eat",
+      "skipped meals",
+      "skipped breakfast",
+      "skipped lunch",
+      "skipped dinner",
       "food",
       "meal",
       "nauseous",
       "nausea",
       "dizzy",
       "lightheaded",
-      "blood sugar"
+      "blood sugar",
+      "low sugar",
+      "hypoglycemia",
+      "haven't eaten all day",
+      "all day without eating"
     ])) {
       this.addFunction(
         functions,
@@ -110,110 +129,255 @@ window.AriOrganismFunctionEngine = {
       );
     }
 
+    // 2. HYDRATION / FLUIDS
     if (this.containsAny(text, [
       "thirsty",
       "dehydrated",
       "dry mouth",
       "haven't drank",
       "havent drank",
+      "have not drank",
       "haven't had water",
+      "havent had water",
+      "no water",
       "water",
       "fluids",
-      "dark urine"
+      "can't keep fluids down",
+      "cant keep fluids down",
+      "dark urine",
+      "barely peeing",
+      "not peeing",
+      "very little urine"
     ])) {
       this.addFunction(
         functions,
         "hydration",
         35,
-        "Thirst, dehydration, fluids, or water signals hydration need."
+        "Thirst, dehydration, fluids, vomiting, or low urine output signals hydration need."
       );
     }
 
+    // 3. REST / SLEEP / RECOVERY
     if (this.containsAny(text, [
       "tired",
       "exhausted",
       "sleepy",
       "can't sleep",
       "cant sleep",
+      "cannot sleep",
       "insomnia",
       "awake all night",
       "no sleep",
-      "rest"
+      "without sleep",
+      "haven't slept",
+      "havent slept",
+      "have not slept",
+      "haven't slept in",
+      "been awake",
+      "awake for",
+      "36 hours",
+      "24 hours",
+      "48 hours",
+      "72 hours",
+      "rest",
+      "sleep deprived"
     ])) {
       this.addFunction(
         functions,
         "rest_recovery",
-        30,
-        "Sleep, exhaustion, or recovery signals rest need."
+        40,
+        "Sleep loss, exhaustion, insomnia, or prolonged wakefulness signals rest and recovery need."
       );
     }
 
+    // 4. PAIN / INJURY / TISSUE PROTECTION
     if (this.containsAny(text, [
       "pain",
       "hurts",
+      "hurt",
       "ache",
+      "aching",
       "cramp",
       "injury",
+      "injured",
       "bleeding",
       "swollen",
-      "sore"
+      "sore",
+      "sharp pain",
+      "severe pain",
+      "worst pain",
+      "constant pain",
+      "can't move",
+      "cant move",
+      "sprain",
+      "strain",
+      "burn",
+      "cut",
+      "wound"
     ])) {
       this.addFunction(
         functions,
         "injury_protection",
         35,
-        "Pain or injury signals protection and assessment need."
+        "Pain, bleeding, injury, swelling, or impaired movement signals protection and assessment need."
       );
     }
 
+    // 5. VITAL STABILITY / RED FLAGS
     if (this.containsAny(text, [
       "can't breathe",
       "cant breathe",
+      "cannot breathe",
       "short of breath",
+      "trouble breathing",
+      "difficulty breathing",
       "chest pain",
       "faint",
+      "fainted",
       "passed out",
+      "passing out",
       "stroke",
-      "seizure"
+      "seizure",
+      "overdose",
+      "confused",
+      "confusion",
+      "blue lips",
+      "severe weakness",
+      "one sided weakness",
+      "slurred speech"
     ])) {
       this.addFunction(
         functions,
         "vital_stability",
         100,
-        "Breathing, chest pain, fainting, stroke, or seizure signals urgent vital stability concern."
+        "Breathing, chest pain, fainting, confusion, stroke, seizure, or overdose signals urgent vital stability concern."
       );
     }
 
+    // 6. ELIMINATION / WASTE REMOVAL
+    if (this.containsAny(text, [
+      "diarrhea",
+      "constipated",
+      "constipation",
+      "throwing up",
+      "vomiting",
+      "vomit",
+      "can't poop",
+      "cant poop",
+      "can't pee",
+      "cant pee",
+      "painful urination",
+      "burning when i pee",
+      "blood in urine",
+      "blood in stool",
+      "black stool",
+      "bowel movement",
+      "stomach bug"
+    ])) {
+      this.addFunction(
+        functions,
+        "waste_elimination",
+        32,
+        "Vomiting, diarrhea, constipation, urination issues, or abnormal stool/urine signals elimination and fluid balance need."
+      );
+    }
+
+    // 7. TEMPERATURE / INFECTION BALANCE
+    if (this.containsAny(text, [
+      "fever",
+      "chills",
+      "sweating",
+      "night sweats",
+      "overheating",
+      "too hot",
+      "too cold",
+      "hypothermia",
+      "heat exhaustion",
+      "heat stroke",
+      "infection",
+      "flu",
+      "covid",
+      "high temperature"
+    ])) {
+      this.addFunction(
+        functions,
+        "temperature_regulation",
+        34,
+        "Fever, chills, overheating, infection, or temperature instability signals temperature regulation need."
+      );
+    }
+
+    // 8. MOVEMENT / MOBILITY
+    if (this.containsAny(text, [
+      "can't walk",
+      "cant walk",
+      "cannot walk",
+      "limping",
+      "weak",
+      "weakness",
+      "dizzy when standing",
+      "falling",
+      "fell",
+      "balance",
+      "can't stand",
+      "cant stand",
+      "numb",
+      "numbness",
+      "tingling",
+      "paralyzed"
+    ])) {
+      this.addFunction(
+        functions,
+        "movement_mobility",
+        34,
+        "Weakness, falls, numbness, balance issues, or inability to walk/stand signals movement and mobility need."
+      );
+    }
+
+    // 9. THREAT / NERVOUS SYSTEM REGULATION
     if (this.containsAny(text, [
       "panic",
+      "panic attack",
       "anxious",
       "anxiety",
       "overwhelmed",
       "scared",
+      "terrified",
       "unsafe",
-      "danger"
+      "danger",
+      "fight or flight",
+      "can't calm down",
+      "cant calm down",
+      "racing heart",
+      "heart racing"
     ])) {
       this.addFunction(
         functions,
         "threat_regulation",
-        25,
-        "Fear, panic, or danger signals threat regulation need."
+        28,
+        "Fear, panic, danger, or nervous system activation signals threat regulation need."
       );
     }
 
+    // 10. CONNECTION / ATTACHMENT
     if (this.containsAny(text, [
       "alone",
       "lonely",
       "abandoned",
       "ignored",
       "rejected",
-      "nobody cares"
+      "nobody cares",
+      "no one cares",
+      "unseen",
+      "unloved",
+      "disconnected",
+      "isolated"
     ])) {
       this.addFunction(
         functions,
         "connection",
         25,
-        "Loneliness or rejection signals connection need."
+        "Loneliness, rejection, or isolation signals connection need."
       );
     }
 
@@ -228,14 +392,36 @@ window.AriOrganismFunctionEngine = {
       "i know i should eat but",
       "i can't eat",
       "i cant eat",
+      "i cannot eat",
       "too nauseous",
       "haven't eaten all day",
-      "havent eaten all day"
+      "havent eaten all day",
+      "have not eaten all day",
+      "can't keep food down",
+      "cant keep food down"
     ])) {
       disruptions.push({
         type: "survival_function_blocked",
         function: "energy_intake",
-        reason: "The user recognizes a body need but cannot easily act on it."
+        reason: "The user recognizes a food/energy need but cannot easily act on it."
+      });
+    }
+
+    if (this.containsAny(text, [
+      "i should drink but",
+      "i know i should drink but",
+      "i can't drink",
+      "i cant drink",
+      "can't keep fluids down",
+      "cant keep fluids down",
+      "haven't had water",
+      "havent had water",
+      "no water all day"
+    ])) {
+      disruptions.push({
+        type: "hydration_function_blocked",
+        function: "hydration",
+        reason: "The user recognizes a hydration need but cannot easily act on it."
       });
     }
 
@@ -244,7 +430,12 @@ window.AriOrganismFunctionEngine = {
       "i know i should sleep but",
       "can't sleep",
       "cant sleep",
-      "no sleep"
+      "cannot sleep",
+      "no sleep",
+      "haven't slept",
+      "havent slept",
+      "have not slept",
+      "without sleep"
     ])) {
       disruptions.push({
         type: "recovery_function_blocked",
@@ -258,7 +449,11 @@ window.AriOrganismFunctionEngine = {
       "i should but",
       "can't stop",
       "cant stop",
-      "even though"
+      "cannot stop",
+      "even though",
+      "i keep doing it",
+      "i know it's bad",
+      "i know its bad"
     ])) {
       disruptions.push({
         type: "cognition_overriding_body",
@@ -277,12 +472,20 @@ window.AriOrganismFunctionEngine = {
     if (this.containsAny(text, [
       "can't breathe",
       "cant breathe",
+      "cannot breathe",
       "chest pain",
       "faint",
+      "fainted",
       "passed out",
       "stroke",
       "seizure",
-      "overdose"
+      "overdose",
+      "blue lips",
+      "slurred speech",
+      "one sided weakness",
+      "severe weakness",
+      "confused",
+      "confusion"
     ])) {
       return {
         level: "critical",
@@ -297,12 +500,25 @@ window.AriOrganismFunctionEngine = {
       "nausea",
       "haven't eaten all day",
       "havent eaten all day",
+      "have not eaten all day",
       "can't keep food down",
-      "cant keep food down"
+      "cant keep food down",
+      "can't keep fluids down",
+      "cant keep fluids down",
+      "36 hours",
+      "48 hours",
+      "72 hours",
+      "haven't slept in",
+      "havent slept in",
+      "have not slept in",
+      "severe pain",
+      "worst pain",
+      "high fever",
+      "heat stroke"
     ])) {
       return {
         level: "high",
-        reason: "Dizziness, nausea, or not eating all day can affect body stability."
+        reason: "A body function may be unstable and should be addressed before interpretation."
       };
     }
 
@@ -358,6 +574,12 @@ window.AriOrganismFunctionEngine = {
         "Assess pain, protect the injured area, and consider medical guidance if severe or worsening.",
       vital_stability:
         "Prioritize immediate safety and urgent medical support.",
+      waste_elimination:
+        "Support fluid balance, monitor severity, and consider medical guidance if symptoms are severe, prolonged, or worsening.",
+      temperature_regulation:
+        "Support temperature stability and consider medical guidance if fever, chills, or overheating are severe or persistent.",
+      movement_mobility:
+        "Protect mobility, avoid unsafe movement, and consider medical guidance if weakness, numbness, falls, or inability to walk are present.",
       threat_regulation:
         "Regulate threat first through grounding, safety, and support.",
       connection:
@@ -374,6 +596,9 @@ window.AriOrganismFunctionEngine = {
       rest_recovery: "sleep",
       injury_protection: "pain_protection",
       vital_stability: "vital_safety",
+      waste_elimination: "elimination",
+      temperature_regulation: "temperature_stability",
+      movement_mobility: "mobility",
       threat_regulation: "felt_safety",
       connection: "attachment"
     };
