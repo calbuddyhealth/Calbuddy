@@ -1,13 +1,13 @@
 // ari/needs/ari-need-engine.js
-// Ari Need Engine
-// Purpose: Identify the user's dominant human need before Ari chooses wisdom, meaning, emotion, or action.
-// Inspired by Maslow, adapted for Ari Rebirth.
-// V1.0
+// Ari Human Needs Network
+// Purpose: Identify the user's active human needs before Ari chooses wisdom, meaning, emotion, identity, or action.
+// Replaces Maslow-style hierarchy with Ari's need network.
+// V2.0
 
 window.Ari = window.Ari || {};
 
 window.Ari.needEngine = {
-  version: "1.0.0",
+  version: "2.0.0",
 
   evaluate(summary = {}) {
     const text = String(
@@ -21,10 +21,18 @@ window.Ari.needEngine = {
     const needs = [];
 
     const add = (name, score, reason, leadOrgan, responseMode) => {
+      const existing = needs.find((need) => need.name === name);
+
+      if (existing) {
+        existing.score = Math.max(existing.score, score);
+        existing.reasons.push(reason);
+        return;
+      }
+
       needs.push({
         name,
         score,
-        reason,
+        reasons: [reason],
         leadOrgan,
         responseMode
       });
@@ -32,7 +40,8 @@ window.Ari.needEngine = {
 
     const has = (phrases = []) => phrases.some((p) => text.includes(p));
 
-    // 1. Survival / body needs
+    // 1. BODY
+    // Sleep, food, pain, hydration, exhaustion, body stability.
     if (
       has([
         "haven't slept",
@@ -45,19 +54,26 @@ window.Ari.needEngine = {
         "can't eat",
         "cannot eat",
         "exhausted",
-        "severe pain"
+        "severe pain",
+        "worst pain",
+        "sharp pain",
+        "constant pain",
+        "dizzy",
+        "fainted",
+        "passed out"
       ])
     ) {
       add(
-        "survival",
+        "body",
         100,
-        "Body-level need detected: sleep, food, hydration, pain, or exhaustion.",
+        "Body-level need detected: sleep, food, hydration, pain, energy, or physical stability.",
         "safety",
         "stabilize_body_first"
       );
     }
 
-    // 2. Safety
+    // 2. SECURITY
+    // Protection, medical danger, money, shelter, stability, predictability.
     if (
       has([
         "unsafe",
@@ -70,19 +86,34 @@ window.Ari.needEngine = {
         "kill myself",
         "suicidal",
         "scared for my safety",
-        "panic"
+        "panic",
+        "rent",
+        "money",
+        "bills",
+        "job",
+        "career",
+        "housing",
+        "insurance",
+        "debt",
+        "provider",
+        "responsibility",
+        "family needs",
+        "baby coming",
+        "pregnancy",
+        "marriage"
       ])
     ) {
       add(
-        "safety",
-        98,
-        "Safety need detected.",
-        "safety",
-        "protect_safety_first"
+        "security",
+        96,
+        "Security need detected: safety, health, money, responsibility, stability, or protection.",
+        "executive",
+        "protect_security"
       );
     }
 
-    // 3. Connection / belonging
+    // 3. CONNECTION
+    // Belonging, love, attachment, family, being seen.
     if (
       has([
         "alone",
@@ -93,19 +124,30 @@ window.Ari.needEngine = {
         "ignored",
         "abandoned",
         "unloved",
-        "disconnected"
+        "disconnected",
+        "my family needs me",
+        "family needs more of me",
+        "relationship",
+        "wife",
+        "fiance",
+        "fiancé",
+        "girlfriend",
+        "baby",
+        "daughter",
+        "son"
       ])
     ) {
       add(
         "connection",
         90,
-        "Connection or belonging need detected.",
+        "Connection need detected: belonging, love, family, attachment, or being seen.",
         "emotion",
-        "emotional_connection"
+        "restore_connection"
       );
     }
 
-    // 4. Esteem / respect / worth
+    // 4. WORTH
+    // Respect, dignity, competence, confidence, validation, self-worth.
     if (
       has([
         "nobody respects me",
@@ -118,67 +160,61 @@ window.Ari.needEngine = {
         "embarrassed",
         "ashamed",
         "humiliated",
-        "look down on me"
+        "look down on me",
+        "useless",
+        "stupid",
+        "incompetent",
+        "i don't matter",
+        "i do not matter"
       ])
     ) {
       add(
-        "esteem",
+        "worth",
         88,
-        "Esteem, respect, or self-worth need detected.",
+        "Worth need detected: respect, dignity, competence, confidence, or self-value.",
         "emotion",
         "restore_dignity"
       );
     }
 
-    // 5. Stability / responsibility
+    // 5. IDENTITY
+    // Who am I becoming? Role, self-concept, life transition.
     if (
       has([
-        "rent",
-        "money",
-        "bills",
-        "job",
-        "career",
-        "provider",
-        "responsibility",
-        "family needs",
-        "baby coming",
-        "pregnancy",
-        "marriage"
-      ])
-    ) {
-      add(
-        "stability",
-        82,
-        "Stability and responsibility need detected.",
-        "executive",
-        "protect_stability"
-      );
-    }
-
-    // 6. Growth
-    if (
-      has([
-        "better",
-        "improve",
-        "grow",
-        "learn",
-        "develop",
+        "who am i",
         "become",
-        "discipline",
-        "habit",
-        "goal"
+        "becoming",
+        "better father",
+        "better mother",
+        "better husband",
+        "better wife",
+        "better leader",
+        "better nurse",
+        "identity",
+        "role",
+        "father",
+        "mother",
+        "husband",
+        "wife",
+        "leader",
+        "nurse",
+        "marine",
+        "builder",
+        "developer",
+        "protector"
       ])
     ) {
       add(
-        "growth",
-        78,
-        "Growth or development need detected.",
         "identity",
-        "support_growth"
+        84,
+        "Identity need detected: role, self-concept, or who the user is becoming.",
+        "identity",
+        "clarify_identity"
       );
     }
 
-    // 7. Meaning / purpose
+    // 6. PURPOSE
+    // Meaning, mission, calling, legacy, contribution.
     if (
       has([
         "meaning",
@@ -189,15 +225,47 @@ window.Ari.needEngine = {
         "calling",
         "legacy",
         "build something great",
-        "life"
+        "contribution",
+        "impact",
+        "what is my life",
+        "what should i do with my life"
       ])
     ) {
       add(
+        "purpose",
+        80,
+        "Purpose need detected: meaning, mission, contribution, or legacy.",
         "meaning",
+        "clarify_purpose"
+      );
+    }
+
+    // 7. WISDOM
+    // Integration, tradeoffs, what should lead, values in conflict.
+    if (
+      has([
+        "what should i do",
+        "should i",
+        "wise",
+        "wisdom",
+        "right thing",
+        "wrong thing",
+        "tradeoff",
+        "balance",
+        "priority",
+        "prioritize",
+        "what matters most",
+        "what good should lead",
+        "uncomfortable truth",
+        "what am i avoiding"
+      ])
+    ) {
+      add(
+        "wisdom",
         76,
-        "Meaning or purpose need detected.",
-        "meaning",
-        "clarify_meaning"
+        "Wisdom need detected: tradeoff, priority, integration, or values in conflict.",
+        "wisdom",
+        "choose_what_leads"
       );
     }
 
@@ -214,15 +282,32 @@ window.Ari.needEngine = {
     needs.sort((a, b) => b.score - a.score);
 
     const primaryNeed = needs[0];
+    const secondaryNeed = needs[1] || null;
+
+    const needsMap = needs.reduce((map, need) => {
+      map[need.name] = need.score;
+      return map;
+    }, {});
 
     return {
       needEngineRan: true,
-      needEngineSource: "ari-need-engine",
+      needEngineSource: "ari-human-needs-network",
+      needEngineVersion: this.version,
+
       primaryHumanNeed: primaryNeed.name,
       primaryHumanNeedScore: primaryNeed.score,
-      primaryHumanNeedReason: primaryNeed.reason,
+      primaryHumanNeedReason: primaryNeed.reasons.join(" "),
+
+      secondaryHumanNeed: secondaryNeed ? secondaryNeed.name : null,
+      secondaryHumanNeedScore: secondaryNeed ? secondaryNeed.score : null,
+      secondaryHumanNeedReason: secondaryNeed
+        ? secondaryNeed.reasons.join(" ")
+        : null,
+
       needRecommendedLeadOrgan: primaryNeed.leadOrgan,
       needResponseMode: primaryNeed.responseMode,
+
+      humanNeedsMap: needsMap,
       rankedHumanNeeds: needs
     };
   }
