@@ -1,15 +1,19 @@
 // ari/language/ari-truth-engine.js
 // Ari Truth Engine
 // Purpose: Compress complex analysis into a memorable human truth.
-// V2.0
+// V2.1
 // Upgrade:
+// - Adds organism/body stabilization truth.
+// - Recognizes stabilize_organism_function.
+// - Keeps body-first responses practical instead of abstract.
 // - Template-driven + mode-driven.
 // - Returns metadata: truthType, patternUsed, confidence, avoid.
 // - Separates situation from identity.
-// - Handles dignity, connection, safety, uncertainty, fatherhood, presence, identity overload.
 // - Respects Mouth Director truth permission.
 
 window.AriTruthEngine = {
+  version: "2.1.0",
+
   extract(summary = {}) {
     const result = this.generateDetailed(summary);
 
@@ -67,6 +71,11 @@ window.AriTruthEngine = {
       primaryHumanNeed: summary.primaryHumanNeed || null,
       primaryHumanNeedScore: Number(summary.primaryHumanNeedScore || 0),
 
+      organismPrimaryFunction: summary.organismPrimaryFunction || null,
+      organismNeedsStabilization: Boolean(summary.organismNeedsStabilization),
+      organismUrgency: summary.organismUrgency || {},
+      organismRecommendedMode: summary.organismRecommendedMode || null,
+
       conflict: summary.primaryConflict || null,
       chapter: summary.primaryLifeChapter || null,
 
@@ -102,6 +111,9 @@ window.AriTruthEngine = {
       responseIntent,
       primaryHumanNeed,
       primaryHumanNeedScore,
+      organismNeedsStabilization,
+      organismUrgency,
+      organismRecommendedMode,
       conflict,
       chapter,
       identity,
@@ -114,6 +126,25 @@ window.AriTruthEngine = {
       dominantTheme,
       confidence
     } = context;
+
+    const organismUrgencyLevel = organismUrgency?.level || null;
+
+    if (
+      organismNeedsStabilization ||
+      organismUrgencyLevel === "critical" ||
+      organismUrgencyLevel === "high" ||
+      organismUrgencyLevel === "moderate" ||
+      organismRecommendedMode === "urgent_safety" ||
+      organismRecommendedMode === "stabilize_body_first" ||
+      responseIntent === "stabilize_organism_function"
+    ) {
+      return this.pattern(
+        "organism_stabilization",
+        "body_function_first",
+        organismUrgencyLevel === "critical" ? "high" : "medium",
+        ["avoid_analysis_first", "avoid_abstract_meaning", "avoid_identity_interpretation"]
+      );
+    }
 
     if (
       mode === "restore_dignity" ||
@@ -143,7 +174,9 @@ window.AriTruthEngine = {
 
     if (
       mode === "safety_override" ||
+      mode === "stabilize_body_first" ||
       responseIntent === "protect_safety" ||
+      responseIntent === "stabilize_health" ||
       primaryHumanNeed === "security" ||
       primaryHumanNeed === "body"
     ) {
@@ -284,6 +317,12 @@ window.AriTruthEngine = {
 
   chooseLine(pattern = {}, context = {}) {
     const lines = {
+      organism_stabilization: [
+        "A body signal should be stabilized before it is interpreted.",
+        "When a basic body function is struggling, the first move is support, not meaning-making.",
+        "The body does not need a theory first. It needs stabilization first."
+      ],
+
       restore_dignity_worth: [
         "Being disrespected is information about the situation, not proof about your worth.",
         "Someone failing to respect you may reveal something about the interaction, but it does not get to define your value.",
