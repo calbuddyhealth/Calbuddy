@@ -1,12 +1,13 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth coordinator for Ari Rebirth.
-// V2.3
+// V2.4
 // Fixes:
+// - Adds meaningStatement into the final body before truth.
+// - Keeps opening, meaning, truth, emotion, wisdom, action, and question as separate readable sections.
 // - Accepts mouth engines that return either objects OR plain strings.
 // - Prevents mouthUsed true while text is ignored.
 // - Sends finalResponse correctly into shaper/polish.
-// - Assembles opening, truth, emotion, wisdom, action, and question as separate readable sections.
 
 window.AriLanguageComposer = {
   compose(input = {}) {
@@ -97,12 +98,19 @@ window.AriLanguageComposer = {
       readText(openingResult, ["opening", "text", "line"]) ||
       this.createFallbackOpening(summary, leadOrgan);
 
+    const meaningText =
+      typeof summary.meaningStatement === "string" &&
+      summary.meaningStatement.trim()
+        ? summary.meaningStatement.trim()
+        : null;
+
     const truthText = readText(truthResult, ["truth", "text", "line"]);
     const emotionText = readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
     const wisdomText = readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     const actionText = readText(actionResult, ["guidance", "action", "text", "line"]);
 
     const bodyParts = [
+      meaningText,
       truthText,
       emotionText,
       wisdomText,
@@ -145,6 +153,7 @@ ${closing}`;
 
       mouthUsed: {
         opening: Boolean(readText(openingResult, ["opening", "text", "line"])),
+        meaning: Boolean(meaningText),
         truth: Boolean(truthText),
         emotion: Boolean(emotionText),
         wisdom: Boolean(wisdomText),
@@ -156,6 +165,7 @@ ${closing}`;
 
       mouthEnginesFound: {
         opening: Boolean(openingEngine),
+        meaning: Boolean(summary.meaningStatement),
         truth: Boolean(truthEngine),
         emotion: Boolean(emotionEngine),
         wisdom: Boolean(wisdomEngine),
@@ -167,6 +177,7 @@ ${closing}`;
 
       mouthTextDebug: {
         opening,
+        meaningText,
         truthText,
         emotionText,
         wisdomText,
