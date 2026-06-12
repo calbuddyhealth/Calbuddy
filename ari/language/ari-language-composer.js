@@ -1,12 +1,14 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth coordinator for Ari Rebirth.
-// V2.6
+// V2.7
 // Fixes:
 // - Adds response budget / section limiter.
 // - Prevents strong meaning mode from becoming too long.
-// - In meaning mode, suppresses emotion unless emotion is truly leading.
-// - Keeps uncertainty duplicate protection.
+// - In meaning mode, prefers meaning + wisdom + action.
+// - Suppresses emotion unless emotion is truly leading.
+// - Prevents duplicate uncertainty language.
+// - Prevents duplicate/similar body lines.
 // - Keeps readable sections.
 
 window.AriLanguageComposer = {
@@ -21,75 +23,24 @@ window.AriLanguageComposer = {
     const strongestSignalCategory =
       summary.strongestSignalCategory || null;
 
-    const modeMap = {
-      meaning: "life_chapter",
-      identity: "identity",
-      values: "values",
-      stewardship: "stewardship",
-      emotion: "emotion",
-      wisdom: "wisdom",
-      uncertainty: "uncertainty",
-      observer: "observer"
-    };
+    const languageMode = this.getLanguageMode(leadOrgan);
 
-    const languageMode = modeMap[leadOrgan] || "reflection";
+    const openingEngine = this.getEngine("AriMouthOpeningEngine", "AriOpeningEngine");
+    const truthEngine = this.getEngine("AriMouthTruthEngine", "AriTruthEngine");
+    const emotionEngine = this.getEngine("AriMouthEmotionEngine", "AriEmotionalNamingEngine");
+    const wisdomEngine = this.getEngine("AriMouthWisdomEngine", "AriWisdomPrincipleEngine");
+    const actionEngine = this.getEngine("AriMouthActionEngine", "AriActionGuidanceEngine");
+    const voiceEngine = this.getEngine("AriMouthVoiceEngine", "AriVoiceBlendEngine");
+    const shapeEngine = this.getEngine("AriMouthShapeEngine", "AriResponseShapeEngine");
+    const shaperEngine = this.getEngine("AriMouthShaper", "AriResponseShaper");
 
-    const getEngine = (...names) => {
-      for (const name of names) {
-        if (window[name]) return window[name];
-      }
-      return null;
-    };
-
-    const safeRunAny = (engine, methods = [], arg = summary, fallback = null) => {
-      try {
-        if (!engine) return fallback;
-
-        for (const method of methods) {
-          if (typeof engine[method] === "function") {
-            const result = engine[method](arg);
-            if (result) return result;
-          }
-        }
-      } catch (error) {
-        console.warn("[AriLanguageComposer] mouth engine failed", error);
-      }
-
-      return fallback;
-    };
-
-    const readText = (result, keys = []) => {
-      if (!result) return null;
-
-      if (typeof result === "string") {
-        return result.trim() || null;
-      }
-
-      for (const key of keys) {
-        if (typeof result[key] === "string" && result[key].trim()) {
-          return result[key].trim();
-        }
-      }
-
-      return null;
-    };
-
-    const openingEngine = getEngine("AriMouthOpeningEngine", "AriOpeningEngine");
-    const truthEngine = getEngine("AriMouthTruthEngine", "AriTruthEngine");
-    const emotionEngine = getEngine("AriMouthEmotionEngine", "AriEmotionalNamingEngine");
-    const wisdomEngine = getEngine("AriMouthWisdomEngine", "AriWisdomPrincipleEngine");
-    const actionEngine = getEngine("AriMouthActionEngine", "AriActionGuidanceEngine");
-    const voiceEngine = getEngine("AriMouthVoiceEngine", "AriVoiceBlendEngine");
-    const shapeEngine = getEngine("AriMouthShapeEngine", "AriResponseShapeEngine");
-    const shaperEngine = getEngine("AriMouthShaper", "AriResponseShaper");
-
-    const openingResult = safeRunAny(openingEngine, ["create", "generate", "compose", "open", "run"]);
-    const truthResult = safeRunAny(truthEngine, ["extract", "generate", "compose", "tell", "run"]);
-    const emotionResult = safeRunAny(emotionEngine, ["name", "generate", "compose", "detect", "run"]);
-    const wisdomResult = safeRunAny(wisdomEngine, ["distill", "generate", "compose", "resolve", "run"]);
-    const actionResult = safeRunAny(actionEngine, ["guide", "generate", "compose", "recommend", "run"]);
-    const voiceResult = safeRunAny(voiceEngine, ["blend", "generate", "compose", "choose", "run"]);
-    const shapeResult = safeRunAny(shapeEngine, ["shape", "generate", "compose", "structure", "run"]);
+    const openingResult = this.safeRunAny(openingEngine, ["create", "generate", "compose", "open", "run"], summary);
+    const truthResult = this.safeRunAny(truthEngine, ["extract", "generate", "compose", "tell", "run"], summary);
+    const emotionResult = this.safeRunAny(emotionEngine, ["name", "generate", "compose", "detect", "run"], summary);
+    const wisdomResult = this.safeRunAny(wisdomEngine, ["distill", "generate", "compose", "resolve", "run"], summary);
+    const actionResult = this.safeRunAny(actionEngine, ["guide", "generate", "compose", "recommend", "run"], summary);
+    const voiceResult = this.safeRunAny(voiceEngine, ["blend", "generate", "compose", "choose", "run"], summary);
+    const shapeResult = this.safeRunAny(shapeEngine, ["shape", "generate", "compose", "structure", "run"], summary);
 
     const recommendedQuestion =
       summary.synthesisRecommendedQuestion ||
@@ -98,31 +49,24 @@ window.AriLanguageComposer = {
       "What feels most important about this right now?";
 
     const opening =
-      readText(openingResult, ["opening", "text", "line"]) ||
+      this.readText(openingResult, ["opening", "text", "line"]) ||
       this.createFallbackOpening(summary, leadOrgan);
 
     let meaningText =
-      typeof summary.meaningStatement === "string" &&
-      summary.meaningStatement.trim()
+      typeof summary.meaningStatement === "string" && summary.meaningStatement.trim()
         ? summary.meaningStatement.trim()
         : null;
 
-    let truthText = readText(truthResult, ["truth", "text", "line"]);
-    let emotionText = readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
-    let wisdomText = readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
-    let actionText = readText(actionResult, ["guidance", "action", "text", "line"]);
+    let truthText = this.readText(truthResult, ["truth", "text", "line"]);
+    let emotionText = this.readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
+    let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
+    let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
 
-    // Uncertainty mode should not repeat meaning + truth if both say "not enough context."
     if (leadOrgan === "uncertainty") {
-      if (truthText) {
-        meaningText = null;
-      } else if (meaningText) {
-        truthText = null;
-      }
+      if (truthText) meaningText = null;
+      else if (meaningText) truthText = null;
     }
 
-    // Meaning mode should not become bloated.
-    // Emotion only stays if emotion is actually leading or the strongest signal.
     if (
       leadOrgan === "meaning" &&
       strongestSignalCategory !== "underlying_emotion"
@@ -139,13 +83,15 @@ window.AriLanguageComposer = {
       actionText
     });
 
+    const cleanBodyParts = this.dedupeLines(bodyParts);
+
     const body =
-      bodyParts.length > 0
-        ? bodyParts.join("\n\n")
+      cleanBodyParts.length > 0
+        ? cleanBodyParts.join("\n\n")
         : this.createFallbackBody(summary, leadOrgan);
 
     const closing =
-      readText(shapeResult, ["closing", "question", "finalQuestion"]) ||
+      this.readText(shapeResult, ["closing", "question", "finalQuestion"]) ||
       recommendedQuestion;
 
     let finalResponse =
@@ -155,9 +101,9 @@ ${body}
 
 ${closing}`;
 
-    const shapedResponse = safeRunAny(
+    const shapedResponse = this.safeRunAny(
       shaperEngine,
-      ["polish", "compose", "generate", "run"],
+      ["polish", "shape", "compose", "generate", "run"],
       { finalResponse },
       { finalResponse }
     );
@@ -174,12 +120,12 @@ ${closing}`;
       finalResponse,
 
       mouthUsed: {
-        opening: Boolean(readText(openingResult, ["opening", "text", "line"])),
-        meaning: bodyParts.includes(meaningText),
-        truth: bodyParts.includes(truthText),
-        emotion: bodyParts.includes(emotionText),
-        wisdom: bodyParts.includes(wisdomText),
-        action: bodyParts.includes(actionText),
+        opening: Boolean(this.readText(openingResult, ["opening", "text", "line"])),
+        meaning: cleanBodyParts.includes(meaningText),
+        truth: cleanBodyParts.includes(truthText),
+        emotion: cleanBodyParts.includes(emotionText),
+        wisdom: cleanBodyParts.includes(wisdomText),
+        action: cleanBodyParts.includes(actionText),
         voice: Boolean(voiceResult),
         shape: Boolean(shapeResult),
         shaper: Boolean(shapedResponse?.finalResponse)
@@ -205,11 +151,66 @@ ${closing}`;
         wisdomText,
         actionText,
         closing,
-        selectedBodyParts: bodyParts
+        selectedBodyParts: cleanBodyParts
       },
 
       source: "ari-language-composer"
     };
+  },
+
+  getLanguageMode(leadOrgan = "observer") {
+    const modeMap = {
+      meaning: "life_chapter",
+      identity: "identity",
+      values: "values",
+      stewardship: "stewardship",
+      emotion: "emotion",
+      wisdom: "wisdom",
+      uncertainty: "uncertainty",
+      observer: "observer"
+    };
+
+    return modeMap[leadOrgan] || "reflection";
+  },
+
+  getEngine(...names) {
+    for (const name of names) {
+      if (window[name]) return window[name];
+    }
+    return null;
+  },
+
+  safeRunAny(engine, methods = [], arg = {}, fallback = null) {
+    try {
+      if (!engine) return fallback;
+
+      for (const method of methods) {
+        if (typeof engine[method] === "function") {
+          const result = engine[method](arg);
+          if (result) return result;
+        }
+      }
+    } catch (error) {
+      console.warn("[AriLanguageComposer] mouth engine failed", error);
+    }
+
+    return fallback;
+  },
+
+  readText(result, keys = []) {
+    if (!result) return null;
+
+    if (typeof result === "string") {
+      return result.trim() || null;
+    }
+
+    for (const key of keys) {
+      if (typeof result[key] === "string" && result[key].trim()) {
+        return result[key].trim();
+      }
+    }
+
+    return null;
   },
 
   chooseBodyParts({
@@ -268,6 +269,39 @@ ${closing}`;
       wisdomText,
       actionText
     ].filter(Boolean);
+  },
+
+  dedupeLines(lines = []) {
+    const cleaned = [];
+
+    for (const line of lines) {
+      if (!line || typeof line !== "string") continue;
+
+      const normalized = this.normalizeText(line);
+
+      const duplicate = cleaned.some(existing => {
+        const existingNormalized = this.normalizeText(existing);
+        return (
+          existingNormalized === normalized ||
+          existingNormalized.includes(normalized) ||
+          normalized.includes(existingNormalized)
+        );
+      });
+
+      if (!duplicate) {
+        cleaned.push(line.trim());
+      }
+    }
+
+    return cleaned;
+  },
+
+  normalizeText(text = "") {
+    return String(text)
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
   },
 
   humanizeLabel(label = "") {
