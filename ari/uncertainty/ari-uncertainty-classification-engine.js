@@ -1,12 +1,11 @@
 // ari/uncertainty/ari-uncertainty-classification-engine.js
 // Ari Uncertainty Classification Engine
 // Purpose: Determine WHY Ari is uncertain before choosing a recovery question.
-// V1.3
+// V1.4
 // Fixes:
-// - Stops labeling strong/high-evidence interpretations as uncertainty.
-// - Adds resolved_enough when Ari already has hypothesis + evidence.
-// - Keeps true uncertainty when evidence is weak or hypothesis is missing.
-// - Prevents life_chapter_uncertainty from overpowering validated insight.
+// - Improves missing_information recovery question.
+// - Uses a more human, insight-opening question instead of asking users to identify missing data.
+// - Keeps resolved_enough protection for high-evidence interpretations.
 
 window.AriUncertaintyClassificationEngine = {
   classify(input = {}) {
@@ -14,7 +13,8 @@ window.AriUncertaintyClassificationEngine = {
 
     const hypothesis = summary.hypothesis || null;
     const evidenceStrength = summary.evidenceStrength || "none";
-    const calibratedConfidence = summary.calibratedConfidence || summary.metaConfidence || "unknown";
+    const calibratedConfidence =
+      summary.calibratedConfidence || summary.metaConfidence || "unknown";
     const confidenceScore = Number(summary.confidenceScore || 0);
 
     const primaryEmotion = summary.primaryEmotion || summary.surfaceEmotion || null;
@@ -35,9 +35,17 @@ window.AriUncertaintyClassificationEngine = {
     const primaryWeightedLifeSignal = summary.primaryWeightedLifeSignal || null;
     const lifePriorityClass = summary.lifePriorityClass || "none";
 
-    const lifeSignals = Array.isArray(summary.lifeSignals) ? summary.lifeSignals : [];
-    const uncertaintyAreas = Array.isArray(summary.uncertaintyAreas) ? summary.uncertaintyAreas : [];
-    const knownUnknowns = Array.isArray(summary.knownUnknowns) ? summary.knownUnknowns : [];
+    const lifeSignals = Array.isArray(summary.lifeSignals)
+      ? summary.lifeSignals
+      : [];
+
+    const uncertaintyAreas = Array.isArray(summary.uncertaintyAreas)
+      ? summary.uncertaintyAreas
+      : [];
+
+    const knownUnknowns = Array.isArray(summary.knownUnknowns)
+      ? summary.knownUnknowns
+      : [];
 
     const candidates = [];
 
@@ -93,12 +101,16 @@ window.AriUncertaintyClassificationEngine = {
         "missing_information",
         92,
         "Ari has no grounded hypothesis and needs more context before interpreting.",
-        "What information feels most missing right now?"
+        "What feels important here that has not been said out loud yet?"
       );
     }
 
     // 2. Understanding / curiosity uncertainty
-    if (primaryEmotion === "curiosity" && rootNeed === "understanding" && !hypothesis) {
+    if (
+      primaryEmotion === "curiosity" &&
+      rootNeed === "understanding" &&
+      !hypothesis
+    ) {
       addCandidate(
         "understanding_uncertainty",
         90,
@@ -201,7 +213,11 @@ window.AriUncertaintyClassificationEngine = {
         "A life chapter signal is present, but Ari needs more context before naming it cleanly.",
         "What feels different about this season of life?",
         {
-          lifeSignal: primaryLifeSignal || primaryWeightedLifeSignal || strongestSignal || null,
+          lifeSignal:
+            primaryLifeSignal ||
+            primaryWeightedLifeSignal ||
+            strongestSignal ||
+            null,
           lifePriorityClass
         }
       );
