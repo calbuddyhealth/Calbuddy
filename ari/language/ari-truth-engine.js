@@ -1,11 +1,13 @@
 // ari/language/ari-truth-engine.js
 // Ari Truth Engine
 // Purpose: Compress complex analysis into a memorable human truth.
-// V1.1
+// V1.2
 // Fixes:
-// - Adds extract() so AriLanguageComposer can use this engine.
-// - Returns { truth } object for composer compatibility.
-// - Keeps generate() for older code.
+// - Adds Human Needs Network truth lines.
+// - Handles restore_dignity / worth.
+// - Handles emotional_connection / connection.
+// - Respects Mouth Director truth permission.
+// - Keeps extract() and generate() compatibility.
 
 window.AriTruthEngine = {
   extract(summary = {}) {
@@ -20,6 +22,23 @@ window.AriTruthEngine = {
   },
 
   generate(summary = {}) {
+    const director = summary.mouthDirector || {};
+
+    const allowTruth =
+      summary.mouthAllows?.truth !== false &&
+      director.allowTruth !== false &&
+      summary.allowTruth !== false;
+
+    if (!allowTruth) return null;
+
+    const mode =
+      summary.synthesisMode ||
+      summary.salienceMode ||
+      summary.needResponseMode ||
+      null;
+
+    const primaryHumanNeed = summary.primaryHumanNeed || null;
+
     const conflict = summary.primaryConflict;
     const chapter = summary.primaryLifeChapter;
     const identity =
@@ -33,6 +52,36 @@ window.AriTruthEngine = {
     const hypothesis = summary.hypothesis;
     const integratedValue = summary.integratedValue;
     const executiveDecision = summary.executiveDecision;
+
+    // -------------------------
+    // HUMAN NEED: WORTH / DIGNITY
+    // -------------------------
+    if (
+      mode === "restore_dignity" ||
+      primaryHumanNeed === "worth"
+    ) {
+      return "Other people’s behavior may be giving you a signal, but it should not get to define your value.";
+    }
+
+    // -------------------------
+    // HUMAN NEED: CONNECTION
+    // -------------------------
+    if (
+      mode === "emotional_connection" ||
+      primaryHumanNeed === "connection"
+    ) {
+      return "Feeling alone does not mean you are without value or without people who care.";
+    }
+
+    // -------------------------
+    // HUMAN NEED: SECURITY / BODY
+    // -------------------------
+    if (
+      primaryHumanNeed === "security" ||
+      primaryHumanNeed === "body"
+    ) {
+      return "Stability comes before interpretation.";
+    }
 
     // Fatherhood + achievement / presence conflict
     if (
