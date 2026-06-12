@@ -1,9 +1,25 @@
 // ari/language/ari-emotional-naming-engine.js
 // Ari Emotional Naming Engine
 // Purpose: Convert emotional analysis into human language.
-// V1.0
+// V1.1
+// Fixes:
+// - Adds name() for composer compatibility.
+// - Returns { emotionalName } object.
+// - Keeps generate() for backward compatibility.
 
 window.AriEmotionalNamingEngine = {
+
+  name(summary = {}) {
+
+    const emotionalName = this.generate(summary);
+
+    if (!emotionalName) return null;
+
+    return {
+      emotionalName,
+      source: "ari-emotional-naming-engine"
+    };
+  },
 
   generate(summary = {}) {
 
@@ -46,5 +62,4 @@ window.AriEmotionalNamingEngine = {
 
     return null;
   }
-
 };
