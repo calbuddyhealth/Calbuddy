@@ -1,29 +1,32 @@
 // ari/meaning/ari-life-chapter-engine.js
 // Ari Life Chapter Engine
 // Purpose: Detect the user's major life chapter and guide meaning-level interpretation.
-// V1.2
+// V1.3
 // Fixes:
+// - Adds relationship_rupture_chapter.
+// - Prevents loneliness / abandonment from being misread as family-achievement transition.
+// - Requires stronger family/fatherhood signals before family_transition dominates.
 // - Deduplicates direct, ranked, and salience signals.
-// - Prevents repeated chapter score explosions.
 // - Caps final chapter strength.
-// - Keeps major life chapters strong but not absurd.
-// - Adds normalization debug.
+// - Keeps normalization debug.
 
 window.AriLifeChapterEngine = {
+  version: "1.3.0",
+
   detect(input = {}) {
     const summary = input.summary || input || {};
 
-    const lifeSignals = Array.isArray(summary.lifeSignals)
-      ? summary.lifeSignals
-      : [];
+    const rawText = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      summary.normalizedMessage ||
+      ""
+    ).toLowerCase();
 
-    const rankedSignals = Array.isArray(summary.rankedSignals)
-      ? summary.rankedSignals
-      : [];
-
-    const rankedSalience = Array.isArray(summary.rankedSalience)
-      ? summary.rankedSalience
-      : [];
+    const lifeSignals = Array.isArray(summary.lifeSignals) ? summary.lifeSignals : [];
+    const rankedSignals = Array.isArray(summary.rankedSignals) ? summary.rankedSignals : [];
+    const rankedSalience = Array.isArray(summary.rankedSalience) ? summary.rankedSalience : [];
 
     const strongestSignal = summary.strongestSignal || null;
     const primaryLifeSignal = summary.primaryLifeSignal || null;
@@ -34,26 +37,88 @@ window.AriLifeChapterEngine = {
     const personPrimaryRole = summary.personPrimaryRole || null;
     const leadIdentity = summary.resolvedLeadIdentity || summary.leadIdentity || null;
 
-    const primaryPriority = summary.primaryPriority || null;
+    const primaryPriority =
+      typeof summary.primaryPriority === "object"
+        ? summary.primaryPriority?.name
+        : summary.primaryPriority || null;
+
     const dominantValue = summary.dominantValue || null;
     const protecting = summary.protecting || null;
     const highestGood = summary.highestGood || null;
     const wisdomTension = summary.wisdomTension || null;
     const rootNeed = summary.rootNeed || summary.primaryNeed || null;
+    const primaryHumanNeed = summary.primaryHumanNeed || null;
+    const needResponseMode = summary.needResponseMode || null;
+    const organismFunction = summary.organismPrimaryFunction || summary.organismFunction || null;
 
     const candidates = [];
 
-    function normalizeKey(value = "") {
-      return String(value || "").toLowerCase().trim();
-    }
+    const normalizeKey = value =>
+      String(value || "").toLowerCase().trim();
 
-    function uniqueArray(items = []) {
-      return [...new Set(items.filter(Boolean).map(normalizeKey))];
-    }
+    const uniqueArray = items =>
+      [...new Set(items.filter(Boolean).map(normalizeKey))];
 
-    function capScore(value, max = 120) {
-      return Math.min(Number(value || 0), max);
-    }
+    const capScore = (value, max = 120) =>
+      Math.min(Number(value || 0), max);
+
+    const containsAny = (text, phrases = []) =>
+      phrases.some(phrase => text.includes(phrase));
+
+    const relationshipRuptureActive =
+      primaryHumanNeed === "connection" ||
+      needResponseMode === "restore_connection" ||
+      organismFunction === "connection" ||
+      containsAny(rawText, [
+        "left me",
+        "wife left",
+        "husband left",
+        "girlfriend left",
+        "boyfriend left",
+        "broke up",
+        "breakup",
+        "divorce",
+        "separated",
+        "alone",
+        "lonely",
+        "abandoned",
+        "rejected"
+      ]);
+
+    const explicitFamilyTransitionActive =
+      containsAny(rawText, [
+        "baby",
+        "pregnant",
+        "pregnancy",
+        "father",
+        "mother",
+        "parent",
+        "parenthood",
+        "newborn",
+        "child",
+        "daughter",
+        "son",
+        "family needs",
+        "provide for my family",
+        "work life balance",
+        "missing family moments"
+      ]);
+
+    const explicitAchievementPresenceActive =
+      wisdomTension === "presence_vs_achievement" ||
+      containsAny(rawText, [
+        "career",
+        "achievement",
+        "work too much",
+        "working too much",
+        "success",
+        "goals",
+        "milestones",
+        "provide",
+        "building",
+        "business",
+        "mission"
+      ]);
 
     function addChapter(name, score, reason, question, focus = null) {
       if (!name) return;
@@ -62,7 +127,7 @@ window.AriLifeChapterEngine = {
       const safeScore = Number(score || 0);
 
       if (existing) {
-        if (!existing.reasons.includes(reason)) {
+        if (reason && !existing.reasons.includes(reason)) {
           existing.score += safeScore;
           existing.reasons.push(reason);
         }
@@ -81,6 +146,11 @@ window.AriLifeChapterEngine = {
     }
 
     const chapterMap = {
+      relationship_rupture: {
+        chapter: "relationship_rupture_chapter",
+        question: "What part of this feels most alone right now?",
+        focus: "Restore connection, dignity, and emotional stability before deeper interpretation."
+      },
       fatherhood_transition: {
         chapter: "fatherhood_transition",
         question: "What kind of father does this season ask you to become?",
@@ -93,7 +163,7 @@ window.AriLifeChapterEngine = {
       },
       marriage_transition: {
         chapter: "marriage_transition",
-        question: "What kind of husband does this chapter require?",
+        question: "What kind of spouse does this chapter require?",
         focus: "Protect commitment, communication, and shared life."
       },
       creative_mission: {
@@ -133,6 +203,16 @@ window.AriLifeChapterEngine = {
       }
     };
 
+    if (relationshipRuptureActive) {
+      addChapter(
+        "relationship_rupture_chapter",
+        96,
+        "Relationship rupture, loneliness, abandonment, or connection pain is active.",
+        "What part of this feels most alone right now?",
+        "Restore connection, dignity, and emotional stability before deeper interpretation."
+      );
+    }
+
     const directSignals = uniqueArray([
       strongestSignal,
       primaryLifeSignal,
@@ -160,7 +240,7 @@ window.AriLifeChapterEngine = {
         );
       }
 
-      if (key.includes("father")) {
+      if (key.includes("father") && explicitFamilyTransitionActive) {
         addChapter(
           "fatherhood_transition",
           32,
@@ -170,7 +250,7 @@ window.AriLifeChapterEngine = {
         );
       }
 
-      if (key.includes("family")) {
+      if (key.includes("family") && explicitFamilyTransitionActive) {
         addChapter(
           "family_transition",
           28,
@@ -180,12 +260,15 @@ window.AriLifeChapterEngine = {
         );
       }
 
-      if (key.includes("husband") || key.includes("marriage")) {
+      if (
+        (key.includes("husband") || key.includes("wife") || key.includes("marriage")) &&
+        !relationshipRuptureActive
+      ) {
         addChapter(
           "marriage_transition",
           28,
           `Signal '${key}' points toward marriage transition.`,
-          "What kind of husband does this chapter require?",
+          "What kind of spouse does this chapter require?",
           "Protect commitment, communication, and shared life."
         );
       }
@@ -277,7 +360,10 @@ window.AriLifeChapterEngine = {
       }
     });
 
-    if (lifePriorityClass === "major_life_priority") {
+    if (
+      lifePriorityClass === "major_life_priority" &&
+      explicitFamilyTransitionActive
+    ) {
       const key = normalizeKey(primaryWeightedLifeSignal);
 
       if (key && chapterMap[key]) {
@@ -293,7 +379,10 @@ window.AriLifeChapterEngine = {
       }
     }
 
-    if (wisdomTension === "presence_vs_achievement") {
+    if (
+      wisdomTension === "presence_vs_achievement" &&
+      explicitAchievementPresenceActive
+    ) {
       addChapter(
         "presence_reordering_chapter",
         36,
@@ -354,6 +443,9 @@ window.AriLifeChapterEngine = {
         directSignals,
         rankedSignalCount: seenRankedSignals.size,
         salienceSignalCount: seenSalienceSignals.size,
+        relationshipRuptureActive,
+        explicitFamilyTransitionActive,
+        explicitAchievementPresenceActive,
         source: "ari-life-chapter-engine-normalization"
       },
 
