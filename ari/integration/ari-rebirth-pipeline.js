@@ -1,9 +1,10 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.2
+// V1.3
 // Fixes:
 // - Adds Safety Override before all meaning/wisdom/emotion systems.
+// - Adds Human Need Engine after Safety and before identity/wisdom/meaning.
 // - Safety can stop the pipeline and return an urgent response.
 // - Preserves existing Rebirth organ order after safety clears.
 
@@ -38,6 +39,11 @@ window.AriRebirthPipeline = {
           safetyUrgency: safety.urgency,
           safetyReason: safety.reason,
 
+          primaryHumanNeed: "safety",
+          primaryHumanNeedScore: 100,
+          needRecommendedLeadOrgan: "safety",
+          needResponseMode: "protect_safety_first",
+
           salienceLeadOrgan: "safety",
           salienceMode: "safety_override",
           salienceReason: safety.reason,
@@ -64,35 +70,48 @@ window.AriRebirthPipeline = {
       }
     };
 
-    // 1. Build identity signals first.
+    // 1. Human Need Detection
+    if (
+      window.Ari &&
+      window.Ari.needEngine &&
+      typeof window.Ari.needEngine.evaluate === "function"
+    ) {
+      const needResult = window.Ari.needEngine.evaluate(summary) || {};
+      summary = {
+        ...summary,
+        ...needResult
+      };
+    }
+
+    // 2. Build identity signals.
     runStep(window.AriIdentityPriorityEngine, "evaluate");
 
-    // 2. Add emotional/stewardship correction before meaning/salience.
+    // 3. Add emotional/stewardship correction before meaning/salience.
     runStep(window.AriStewardshipFearDifferentiator, "evaluate");
 
-    // 3. Detect life chapter after identity + stewardship are known.
+    // 4. Detect life chapter after identity + stewardship are known.
     runStep(window.AriLifeChapterEngine, "detect");
 
-    // 4. Now classify uncertainty with better context.
+    // 5. Now classify uncertainty with better context.
     runStep(window.AriUncertaintyClassificationEngine, "classify");
 
-    // 5. Resolve identity conflict AFTER uncertainty.
+    // 6. Resolve identity conflict AFTER uncertainty.
     // This lets uncertainty pause identity leadership when evidence is weak.
     runStep(window.AriIdentityConflictResolver, "resolve");
 
-    // 6. Integrate values after resolved identity exists.
+    // 7. Integrate values after resolved identity exists.
     runStep(window.AriValueIntegrationEngine, "integrate");
 
-    // 7. Re-check life chapter after resolved identity/value integration.
+    // 8. Re-check life chapter after resolved identity/value integration.
     runStep(window.AriLifeChapterEngine, "detect");
 
-    // 8. Decide lead organ.
+    // 9. Decide lead organ.
     runStep(window.AriSalienceGovernor, "govern");
 
-    // 9. Synthesize final interpretation.
+    // 10. Synthesize final interpretation.
     runStep(window.AriSynthesisEngine, "synthesize");
 
-    // 10. Compose final language.
+    // 11. Compose final language.
     runStep(window.AriLanguageComposer, "compose");
 
     summary.rebirthPipelineRan = true;
