@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-network.js
 // Ari Observer Network
-// Purpose: Perceive emotional, intent, memory, goal, life-transition, human-pattern, values, conflict, and dual-salience signals before routing.
-// V3.0: Adds Dual Salience System integration.
+// Purpose: Perceive emotional, intent, memory, goal, life-transition, human-pattern, values, conflict, dual-salience, and hierarchy signals before routing.
+// V3.1: Adds Observer Hierarchy Engine integration.
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "3.0.0",
+  version: "3.1.0",
 
   normalize(message = "") {
     return String(message || "").toLowerCase().trim();
@@ -766,6 +766,24 @@ window.Ari.observerNetwork = {
     };
   },
 
+  observeHierarchy(observation = {}) {
+    if (
+      !window.Ari ||
+      !window.Ari.observerHierarchyEngine ||
+      !window.Ari.observerHierarchyEngine.analyze
+    ) {
+      return {
+        available: false,
+        reason: "AriObserverHierarchyEngine not loaded"
+      };
+    }
+
+    return {
+      available: true,
+      ...window.Ari.observerHierarchyEngine.analyze(observation)
+    };
+  },
+
   detectTopics(text) {
     const topics = [];
 
@@ -815,7 +833,7 @@ window.Ari.observerNetwork = {
     const valuesAndConflicts = this.observeValuesAndConflicts(text, humanPatterns);
     const dualSalience = this.observeDualSalience(message, context);
 
-    const observation = {
+    const baseObservation = {
       message,
       normalizedMessage: text,
       conversation: this.observeConversation(text),
@@ -832,6 +850,14 @@ window.Ari.observerNetwork = {
       observedAt: new Date().toISOString(),
       source: "ari-observer-network",
       version: this.version
+    };
+
+    const observerHierarchy = this.observeHierarchy(baseObservation);
+
+    const observation = {
+      ...baseObservation,
+      observerHierarchy,
+      hierarchy: observerHierarchy
     };
 
     window.dispatchEvent(
