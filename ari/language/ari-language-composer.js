@@ -1,13 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
-// Purpose: Final mouth coordinator for Ari Rebirth.
-// V2.9
+// Purpose: Final mouth assembler for Ari Rebirth.
+// V3.0
 // Fixes:
-// - Obeys Ari Mouth Director fields.
-// - Enforces maxBodySections.
-// - Enforces allowMeaning / allowEmotion / allowTruth / allowWisdom / allowAction.
-// - Supports responsePattern like validate_then_question and question_only.
-// - Prevents action/wisdom filler when Mouth Director says no.
+// - Composer no longer writes emotion/truth/action content.
+// - Emotion, Truth, Wisdom, Action engines own content.
+// - Composer only gathers, filters, orders, dedupes, limits, and assembles.
+// - Fully obeys Ari Mouth Director.
 
 window.AriLanguageComposer = {
   compose(input = {}) {
@@ -23,12 +22,7 @@ window.AriLanguageComposer = {
       summary.salienceMode ||
       "continue_observing";
 
-    const primaryHumanNeed = summary.primaryHumanNeed || null;
-    const needResponseMode = summary.needResponseMode || null;
-    const strongestSignalCategory = summary.strongestSignalCategory || null;
-
     const director = this.readDirector(summary);
-
     const languageMode = this.getLanguageMode(leadOrgan, salienceMode);
 
     const openingEngine = this.getEngine("AriMouthOpeningEngine", "AriOpeningEngine");
@@ -58,103 +52,37 @@ window.AriLanguageComposer = {
       this.readText(openingResult, ["opening", "text", "line"]) ||
       this.createFallbackOpening(summary, leadOrgan, salienceMode);
 
-    let meaningText =
-      typeof summary.meaningStatement === "string" && summary.meaningStatement.trim()
-        ? summary.meaningStatement.trim()
-        : null;
-
     let synthesisText =
       typeof summary.synthesisStatement === "string" && summary.synthesisStatement.trim()
         ? summary.synthesisStatement.trim()
         : null;
 
-    let truthText = this.readText(truthResult, ["truth", "text", "line"]);
+    let meaningText =
+      typeof summary.meaningStatement === "string" && summary.meaningStatement.trim()
+        ? summary.meaningStatement.trim()
+        : null;
+
     let emotionText = this.readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
+    let truthText = this.readText(truthResult, ["truth", "text", "line"]);
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
-
-    // -----------------------------
-    // MODE OVERRIDES
-    // -----------------------------
-
-    if (salienceMode === "restore_dignity" || needResponseMode === "restore_dignity") {
-      opening = "That sounds disrespectful and frustrating.";
-
-      emotionText =
-        primaryHumanNeed === "worth"
-          ? "That kind of thing can hit your sense of worth, even when your worth has not actually changed."
-          : emotionText;
-
-      truthText =
-        "Other people’s behavior may be giving you a signal, but it should not get to define your value.";
-
-      wisdomText = null;
-      actionText = null;
-      meaningText = null;
-      synthesisText = null;
-    }
-
-    if (salienceMode === "emotional_connection") {
-      opening = "That sounds lonely.";
-      emotionText = "The need underneath this may be connection, not just answers.";
-      truthText = "Feeling alone does not mean you are actually without value or without people who care.";
-      wisdomText = null;
-      actionText = null;
-      meaningText = null;
-      synthesisText = null;
-    }
-
-    if (leadOrgan === "uncertainty") {
-      if (truthText) meaningText = null;
-      else if (meaningText) truthText = null;
-    }
-
-    if (leadOrgan === "emotion") {
-      meaningText = null;
-
-      if (this.isGenericUncertaintyLine(truthText)) truthText = null;
-      if (this.isGenericWisdomLine(wisdomText)) wisdomText = null;
-      if (this.isGenericActionLine(actionText)) actionText = null;
-    }
-
-    if (
-      leadOrgan === "meaning" &&
-      strongestSignalCategory !== "underlying_emotion"
-    ) {
-      emotionText = null;
-    }
-
-    // -----------------------------
-    // MOUTH DIRECTOR OBEDIENCE
-    // -----------------------------
 
     if (director.allowMeaning === false) {
       meaningText = null;
       synthesisText = null;
     }
 
-    if (director.allowEmotion === false) {
-      emotionText = null;
-    }
-
-    if (director.allowTruth === false) {
-      truthText = null;
-    }
-
-    if (director.allowWisdom === false) {
-      wisdomText = null;
-    }
-
-    if (director.allowAction === false) {
-      actionText = null;
-    }
+    if (director.allowEmotion === false) emotionText = null;
+    if (director.allowTruth === false) truthText = null;
+    if (director.allowWisdom === false) wisdomText = null;
+    if (director.allowAction === false) actionText = null;
 
     if (director.responsePattern === "question_only") {
       opening = "";
-      meaningText = null;
       synthesisText = null;
-      truthText = null;
+      meaningText = null;
       emotionText = null;
+      truthText = null;
       wisdomText = null;
       actionText = null;
     }
@@ -165,8 +93,8 @@ window.AriLanguageComposer = {
       responsePattern: director.responsePattern,
       synthesisText,
       meaningText,
-      truthText,
       emotionText,
+      truthText,
       wisdomText,
       actionText
     });
@@ -177,10 +105,7 @@ window.AriLanguageComposer = {
       bodyParts = bodyParts.slice(0, director.maxBodySections);
     }
 
-    const body =
-      bodyParts.length > 0
-        ? bodyParts.join("\n\n")
-        : this.createFallbackBody(summary, leadOrgan, salienceMode, director);
+    const body = bodyParts.join("\n\n");
 
     const closing =
       this.readText(shapeResult, ["closing", "question", "finalQuestion"]) ||
@@ -210,8 +135,8 @@ window.AriLanguageComposer = {
         opening: Boolean(opening),
         synthesis: bodyParts.includes(synthesisText),
         meaning: bodyParts.includes(meaningText),
-        truth: bodyParts.includes(truthText),
         emotion: bodyParts.includes(emotionText),
+        truth: bodyParts.includes(truthText),
         wisdom: bodyParts.includes(wisdomText),
         action: bodyParts.includes(actionText),
         voice: Boolean(voiceResult),
@@ -222,8 +147,8 @@ window.AriLanguageComposer = {
       mouthEnginesFound: {
         opening: Boolean(openingEngine),
         meaning: Boolean(summary.meaningStatement),
-        truth: Boolean(truthEngine),
         emotion: Boolean(emotionEngine),
+        truth: Boolean(truthEngine),
         wisdom: Boolean(wisdomEngine),
         action: Boolean(actionEngine),
         voice: Boolean(voiceEngine),
@@ -234,14 +159,12 @@ window.AriLanguageComposer = {
       mouthTextDebug: {
         leadOrgan,
         salienceMode,
-        primaryHumanNeed,
-        needResponseMode,
         director,
         opening,
         synthesisText,
         meaningText,
-        truthText,
         emotionText,
+        truthText,
         wisdomText,
         actionText,
         closing,
@@ -307,6 +230,71 @@ window.AriLanguageComposer = {
     };
   },
 
+  chooseBodyParts({
+    leadOrgan,
+    salienceMode,
+    responsePattern,
+    synthesisText,
+    meaningText,
+    emotionText,
+    truthText,
+    wisdomText,
+    actionText
+  } = {}) {
+    if (responsePattern === "validate_then_question") {
+      return [emotionText, truthText].filter(Boolean);
+    }
+
+    if (responsePattern === "comfort_then_question") {
+      return [emotionText, truthText].filter(Boolean);
+    }
+
+    if (responsePattern === "observe_then_question") {
+      return [truthText || synthesisText || meaningText].filter(Boolean);
+    }
+
+    if (responsePattern === "principle_then_choice") {
+      return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
+    }
+
+    if (responsePattern === "meaning_then_guidance") {
+      return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
+    }
+
+    if (responsePattern === "insight_then_guidance") {
+      return [truthText || synthesisText, wisdomText, actionText].filter(Boolean);
+    }
+
+    if (leadOrgan === "emotion") {
+      return [emotionText, truthText || synthesisText, actionText].filter(Boolean);
+    }
+
+    if (leadOrgan === "meaning") {
+      return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
+    }
+
+    if (leadOrgan === "uncertainty") {
+      return [truthText || synthesisText || meaningText, actionText].filter(Boolean);
+    }
+
+    if (leadOrgan === "wisdom") {
+      return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
+    }
+
+    if (leadOrgan === "identity") {
+      return [truthText || synthesisText || meaningText, wisdomText, actionText].filter(Boolean);
+    }
+
+    return [
+      synthesisText,
+      meaningText,
+      emotionText,
+      truthText,
+      wisdomText,
+      actionText
+    ].filter(Boolean);
+  },
+
   buildFinalResponse(opening, body, closing) {
     return [opening, body, closing]
       .filter(part => typeof part === "string" && part.trim())
@@ -325,7 +313,8 @@ window.AriLanguageComposer = {
       emotion: "emotion",
       wisdom: "wisdom",
       uncertainty: "uncertainty",
-      observer: "observer"
+      observer: "observer",
+      safety: "safety"
     };
 
     return modeMap[leadOrgan] || "reflection";
@@ -371,73 +360,6 @@ window.AriLanguageComposer = {
     return null;
   },
 
-  chooseBodyParts({
-    leadOrgan,
-    salienceMode,
-    responsePattern,
-    synthesisText,
-    meaningText,
-    truthText,
-    emotionText,
-    wisdomText,
-    actionText
-  } = {}) {
-    if (
-      responsePattern === "validate_then_question" ||
-      salienceMode === "restore_dignity"
-    ) {
-      return [emotionText, truthText].filter(Boolean);
-    }
-
-    if (
-      responsePattern === "comfort_then_question" ||
-      salienceMode === "emotional_connection"
-    ) {
-      return [emotionText, truthText].filter(Boolean);
-    }
-
-    if (responsePattern === "observe_then_question") {
-      return [truthText || synthesisText || meaningText].filter(Boolean);
-    }
-
-    if (responsePattern === "principle_then_choice") {
-      return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
-    }
-
-    if (responsePattern === "meaning_then_guidance") {
-      return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "meaning") {
-      return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "uncertainty") {
-      return [truthText || synthesisText || meaningText, wisdomText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "emotion") {
-      return [emotionText, truthText || synthesisText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "wisdom") {
-      return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "identity") {
-      return [truthText || synthesisText || meaningText, wisdomText, actionText].filter(Boolean);
-    }
-
-    return [
-      synthesisText,
-      meaningText,
-      truthText,
-      emotionText,
-      wisdomText,
-      actionText
-    ].filter(Boolean);
-  },
-
   dedupeLines(lines = []) {
     const cleaned = [];
 
@@ -448,6 +370,7 @@ window.AriLanguageComposer = {
 
       const duplicate = cleaned.some(existing => {
         const existingNormalized = this.normalizeText(existing);
+
         return (
           existingNormalized === normalized ||
           existingNormalized.includes(normalized) ||
@@ -469,42 +392,6 @@ window.AriLanguageComposer = {
       .trim();
   },
 
-  isGenericUncertaintyLine(text = "") {
-    const normalized = this.normalizeText(text);
-
-    return (
-      normalized.includes("needs more context before naming this cleanly") ||
-      normalized.includes("not enough evidence") ||
-      normalized.includes("something is unclear") ||
-      normalized.includes("before interpreting")
-    );
-  },
-
-  isGenericWisdomLine(text = "") {
-    const normalized = this.normalizeText(text);
-
-    return (
-      normalized.includes("not everything important can be first") ||
-      normalized.includes("wisdom chooses what leads")
-    );
-  },
-
-  isGenericActionLine(text = "") {
-    const normalized = this.normalizeText(text);
-
-    return (
-      normalized.includes("ask one better question before choosing the next action") ||
-      normalized.includes("ask one clarifying question before offering insight")
-    );
-  },
-
-  humanizeLabel(label = "") {
-    return String(label)
-      .replace(/_/g, " ")
-      .replace(/-/g, " ")
-      .trim();
-  },
-
   createFallbackOpening(summary = {}, leadOrgan = "observer", salienceMode = null) {
     if (salienceMode === "restore_dignity") return "That sounds disrespectful and frustrating.";
     if (salienceMode === "emotional_connection") return "That sounds lonely.";
@@ -515,100 +402,8 @@ window.AriLanguageComposer = {
     if (leadOrgan === "stewardship") return "This may not be fear.";
     if (leadOrgan === "emotion") return "That sounds heavier than it looks.";
     if (leadOrgan === "uncertainty") return "Something is unclear here.";
+    if (leadOrgan === "safety") return "Safety comes first here.";
 
     return "Something important may be present.";
-  },
-
-  createFallbackBody(summary = {}, leadOrgan = "observer", salienceMode = null, director = {}) {
-    if (director.responsePattern === "question_only") {
-      return "";
-    }
-
-    if (salienceMode === "restore_dignity") {
-      return "That kind of thing can hit your sense of worth, even when your worth has not actually changed.";
-    }
-
-    if (salienceMode === "emotional_connection") {
-      return "The need underneath this may be connection. Ari should respond with warmth before trying to analyze.";
-    }
-
-    const chapter = summary.primaryLifeChapter || null;
-    const identity =
-      summary.resolvedLeadIdentity ||
-      summary.leadIdentity ||
-      null;
-
-    const tension = summary.wisdomTension || null;
-    const value = summary.integratedValue || null;
-    const hypothesis = summary.hypothesis || null;
-
-    const chapterMap = {
-      fatherhood_transition:
-        "This seems to be about stepping into fatherhood with presence, steadiness, and love.",
-      family_transition:
-        "This seems to be about protecting family, presence, and the relationships that cannot be replaced.",
-      purpose_chapter:
-        "This seems to be about staying connected to the purpose behind what you are building.",
-      builder_development:
-        "This seems to be about becoming the kind of builder who can create without burning out.",
-      identity_transition:
-        "This seems to be about letting an old identity adapt to a new season."
-    };
-
-    const tensionMap = {
-      presence_vs_achievement:
-        "There may be a real tension between presence and achievement.",
-      family_vs_purpose:
-        "There may be a real tension between family and purpose."
-    };
-
-    const valueMap = {
-      meaningful_presence:
-        "The deeper value may be meaningful presence.",
-      meaningful_love:
-        "The deeper value may be a meaningful life rooted in love, service, and contribution.",
-      clarity:
-        "The deeper value may be clarity."
-    };
-
-    const pieces = [];
-
-    if (leadOrgan === "meaning" && chapter) {
-      pieces.push(chapterMap[chapter] || `This seems to be about ${this.humanizeLabel(chapter)}.`);
-    }
-
-    if (identity && leadOrgan === "identity") {
-      pieces.push(`The ${this.humanizeLabel(identity)} part of you seems to be trying to protect something important.`);
-    }
-
-    if (tension && tension !== "unclear") {
-      pieces.push(tensionMap[tension] || `There may be a real tension around ${this.humanizeLabel(tension)}.`);
-    }
-
-    if (value) {
-      pieces.push(valueMap[value] || `The deeper value may be ${this.humanizeLabel(value)}.`);
-    }
-
-    if (hypothesis === "presence_must_be_earned") {
-      pieces.push("One possible pattern is that presence feels like something you have to earn after achievement.");
-    }
-
-    if (hypothesis === "purpose_abandonment_fear") {
-      pieces.push("One possible pattern is that slowing down feels too close to abandoning the future you care about.");
-    }
-
-    if (leadOrgan === "stewardship") {
-      pieces.push("It may be stewardship. Responsibility, care, commitment, and preparation can feel intense without being unhealthy.");
-    }
-
-    if (leadOrgan === "uncertainty") {
-      pieces.push("Ari does not have enough evidence to be confident yet. More understanding is needed before a strong interpretation should be made.");
-    }
-
-    if (pieces.length === 0) {
-      pieces.push("Ari is still observing before reaching a stronger conclusion.");
-    }
-
-    return pieces.join(" ");
   }
 };
