@@ -1,14 +1,16 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.1 MOUTH DEBUG ACTIVE
+// V3.2
 // Fixes:
-// - Adds mouth debug sources.
-// - Shows which engine generated each line.
-// - Shows body assembly order.
+// - Adds safety/body gate so physical health responses do not pull abstract synthesis, meaning, wisdom, or value text.
+// - Suppresses unclear placeholder text from meaning/synthesis/value systems.
+// - Keeps mouth debug sources.
 // - Composer remains an assembler, not a writer.
 
 window.AriLanguageComposer = {
+  version: "3.2.0",
+
   compose(input = {}) {
     const summary = input.summary || input || {};
 
@@ -21,6 +23,24 @@ window.AriLanguageComposer = {
       summary.synthesisMode ||
       summary.salienceMode ||
       "continue_observing";
+
+    const primaryHumanNeed = summary.primaryHumanNeed || null;
+    const responseIntent = summary.responseIntent || null;
+
+    const isSafetyOrBody =
+      leadOrgan === "safety" ||
+      salienceMode === "stabilize_body_first" ||
+      primaryHumanNeed === "body" ||
+      responseIntent === "stabilize_health";
+
+    const hasUnclearLifeChapter =
+      summary.primaryLifeChapter === "unclear_chapter" ||
+      summary.personLifeChapter === "unclear";
+
+    const hasUnclearConflict =
+      summary.apparentConflict === "unclear" ||
+      summary.wisdomTension === "unclear" ||
+      summary.primaryConflict === "unclear";
 
     const director = this.readDirector(summary);
     const languageMode = this.getLanguageMode(leadOrgan, salienceMode);
@@ -43,6 +63,8 @@ window.AriLanguageComposer = {
     const shapeResult = this.safeRunAny(shapeEngine, ["shape", "generate", "compose", "structure", "run"], summary);
 
     const recommendedQuestion =
+      summary.recommendedQuestion ||
+      summary.observerHierarchyRecommendedQuestion ||
       summary.synthesisRecommendedQuestion ||
       summary.salienceQuestion ||
       summary.recommendedRecoveryQuestion ||
@@ -66,6 +88,62 @@ window.AriLanguageComposer = {
     let truthText = this.readText(truthResult, ["truth", "text", "line"]);
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
+
+    // ===================================
+    // HARD GATE: SAFETY / BODY
+    // ===================================
+    // Body-first responses should not sound philosophical or diagnostic.
+    // The user needs stabilization, not meaning-making.
+    if (isSafetyOrBody) {
+      synthesisText = null;
+      meaningText = null;
+      wisdomText = null;
+
+      // Keep emotion only if it is simple and not abstract/system language.
+      if (this.isAbstractOrDiagnosticText(emotionText)) {
+        emotionText = null;
+      }
+
+      if (this.isAbstractOrDiagnosticText(truthText)) {
+        truthText = "Stability comes before interpretation.";
+      }
+
+      if (this.isAbstractOrDiagnosticText(actionText)) {
+        actionText = "Stabilize first, then interpret later.";
+      }
+
+      if (!truthText) {
+        truthText = "Stability comes before interpretation.";
+      }
+
+      if (!actionText) {
+        actionText = "Sit down, sip water, and try a few small bites of something gentle if you can tolerate it.";
+      }
+    }
+
+    // ===================================
+    // UNCLEAR SIGNAL SUPPRESSION
+    // ===================================
+    // Unknowns should be acknowledged in diagnostics, not treated as content.
+    if (hasUnclearLifeChapter) {
+      meaningText = null;
+    }
+
+    if (hasUnclearConflict) {
+      wisdomText = null;
+    }
+
+    if (this.isPlaceholderOrUnclearText(synthesisText)) {
+      synthesisText = null;
+    }
+
+    if (this.isPlaceholderOrUnclearText(meaningText)) {
+      meaningText = null;
+    }
+
+    if (this.isPlaceholderOrUnclearText(wisdomText)) {
+      wisdomText = null;
+    }
 
     if (director.allowMeaning === false) {
       meaningText = null;
@@ -91,6 +169,7 @@ window.AriLanguageComposer = {
       leadOrgan,
       salienceMode,
       responsePattern: director.responsePattern,
+      isSafetyOrBody,
       synthesisText,
       meaningText,
       emotionText,
@@ -133,12 +212,12 @@ window.AriLanguageComposer = {
 
       mouthUsed: {
         opening: Boolean(opening),
-        synthesis: bodyParts.includes(synthesisText),
-        meaning: bodyParts.includes(meaningText),
-        emotion: bodyParts.includes(emotionText),
-        truth: bodyParts.includes(truthText),
-        wisdom: bodyParts.includes(wisdomText),
-        action: bodyParts.includes(actionText),
+        synthesis: Boolean(synthesisText && bodyParts.includes(synthesisText)),
+        meaning: Boolean(meaningText && bodyParts.includes(meaningText)),
+        emotion: Boolean(emotionText && bodyParts.includes(emotionText)),
+        truth: Boolean(truthText && bodyParts.includes(truthText)),
+        wisdom: Boolean(wisdomText && bodyParts.includes(wisdomText)),
+        action: Boolean(actionText && bodyParts.includes(actionText)),
         voice: Boolean(voiceResult),
         shape: Boolean(shapeResult),
         shaper: Boolean(shapedResponse?.finalResponse)
@@ -159,6 +238,11 @@ window.AriLanguageComposer = {
       mouthTextDebug: {
         leadOrgan,
         salienceMode,
+        primaryHumanNeed,
+        responseIntent,
+        isSafetyOrBody,
+        hasUnclearLifeChapter,
+        hasUnclearConflict,
         director,
 
         sources: {
@@ -255,6 +339,7 @@ window.AriLanguageComposer = {
   chooseBodyParts({
     leadOrgan,
     responsePattern,
+    isSafetyOrBody,
     synthesisText,
     meaningText,
     emotionText,
@@ -262,6 +347,10 @@ window.AriLanguageComposer = {
     wisdomText,
     actionText
   } = {}) {
+    if (isSafetyOrBody) {
+      return [emotionText, truthText, actionText].filter(Boolean);
+    }
+
     if (responsePattern === "validate_then_question") {
       return [emotionText, truthText].filter(Boolean);
     }
@@ -274,6 +363,18 @@ window.AriLanguageComposer = {
       return [truthText || synthesisText || meaningText].filter(Boolean);
     }
 
+    if (responsePattern === "validate_then_next_step") {
+      return [emotionText, truthText, actionText].filter(Boolean);
+    }
+
+    if (responsePattern === "calm_health_step") {
+      return [truthText, actionText].filter(Boolean);
+    }
+
+    if (responsePattern === "comfort_bridge_then_one_step") {
+      return [emotionText, truthText, actionText].filter(Boolean);
+    }
+
     if (responsePattern === "principle_then_choice") {
       return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
     }
@@ -282,8 +383,16 @@ window.AriLanguageComposer = {
       return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
     }
 
+    if (responsePattern === "meaning_truth_then_action") {
+      return [meaningText || synthesisText, truthText, wisdomText, actionText].filter(Boolean);
+    }
+
     if (responsePattern === "insight_then_guidance") {
       return [truthText || synthesisText, wisdomText, actionText].filter(Boolean);
+    }
+
+    if (leadOrgan === "safety") {
+      return [truthText, actionText].filter(Boolean);
     }
 
     if (leadOrgan === "emotion") {
@@ -325,6 +434,7 @@ window.AriLanguageComposer = {
   getLanguageMode(leadOrgan = "observer", salienceMode = null) {
     if (salienceMode === "restore_dignity") return "restore_dignity";
     if (salienceMode === "emotional_connection") return "emotional_connection";
+    if (salienceMode === "stabilize_body_first") return "safety";
 
     const modeMap = {
       meaning: "life_chapter",
@@ -413,9 +523,47 @@ window.AriLanguageComposer = {
       .trim();
   },
 
+  isPlaceholderOrUnclearText(text = "") {
+    if (!text || typeof text !== "string") return false;
+
+    const normalized = this.normalizeText(text);
+
+    return (
+      normalized.includes("does not have enough evidence") ||
+      normalized.includes("unclear") ||
+      normalized.includes("not clear enough") ||
+      normalized.includes("no strong belief pattern") ||
+      normalized.includes("cannot evaluate evidence") ||
+      normalized.includes("no hypothesis available") ||
+      normalized.includes("continue observing before naming")
+    );
+  },
+
+  isAbstractOrDiagnosticText(text = "") {
+    if (!text || typeof text !== "string") return false;
+
+    const normalized = this.normalizeText(text);
+
+    return (
+      normalized.includes("active human need") ||
+      normalized.includes("strongest deeper value") ||
+      normalized.includes("ari should") ||
+      normalized.includes("lead identity") ||
+      normalized.includes("supporting identity") ||
+      normalized.includes("synthesis") ||
+      normalized.includes("life chapter") ||
+      normalized.includes("meaningful priority") ||
+      normalized.includes("interpretation") ||
+      normalized.includes("system may be asking") ||
+      normalized.includes("understanding the feeling underneath") ||
+      normalized.includes("clarity")
+    );
+  },
+
   createFallbackOpening(summary = {}, leadOrgan = "observer", salienceMode = null) {
     if (salienceMode === "restore_dignity") return "That sounds disrespectful and frustrating.";
     if (salienceMode === "emotional_connection") return "That sounds lonely.";
+    if (salienceMode === "stabilize_body_first") return "Your body is the priority right now.";
 
     if (leadOrgan === "meaning") return "Something feels important about this chapter.";
     if (leadOrgan === "identity") return "This may be more about identity than circumstance.";
@@ -423,8 +571,8 @@ window.AriLanguageComposer = {
     if (leadOrgan === "stewardship") return "This may not be fear.";
     if (leadOrgan === "emotion") return "That sounds heavier than it looks.";
     if (leadOrgan === "uncertainty") return "Something is unclear here.";
-    if (leadOrgan === "safety") return "Safety comes first here.";
+    if (leadOrgan === "safety") return "Your body is the priority right now.";
 
     return "Something important may be present.";
   }
-}; 
+};
