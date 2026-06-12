@@ -1,7 +1,7 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide HOW Ari communicates.
-// V2.5
+// V2.5 
 // Fixes:
 // - Keeps organism/body stabilization short, practical, and non-abstract.
 // - Prevents meaning/wisdom/identity leakage into body-first responses.
