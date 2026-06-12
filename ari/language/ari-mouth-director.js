@@ -1,15 +1,16 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide HOW Ari communicates.
-// V2.4
+// V2.5
 // Fixes:
 // - Keeps organism/body stabilization short, practical, and non-abstract.
 // - Prevents meaning/wisdom/identity leakage into body-first responses.
 // - Softens connection support so Ari does not over-question loneliness.
 // - Adds comfort_then_truth pattern for connection wounds.
+// - Prevents family-priority wisdom from hijacking connection/attachment wounds.
 
 window.AriMouthDirector = {
-  version: "2.4.0",
+  version: "2.5.0",
 
   direct(summary = {}) {
     const mode =
@@ -17,8 +18,7 @@ window.AriMouthDirector = {
       summary.salienceMode ||
       "observe";
 
-    const need =
-      summary.primaryHumanNeed || null;
+    const need = summary.primaryHumanNeed || null;
 
     const confidence =
       summary.calibratedConfidence ||
@@ -41,13 +41,25 @@ window.AriMouthDirector = {
         ? summary.primaryPriority?.name
         : summary.primaryPriority || null;
 
-    const dualMode =
-      summary.dualSalienceMode || null;
+    const dualMode = summary.dualSalienceMode || null;
 
     const organismUrgencyLevel =
       summary.organismUrgency?.level ||
       summary.organismUrgencyLevel ||
       "none";
+
+    const organismFunction =
+      summary.organismPrimaryFunction ||
+      summary.organismFunction ||
+      null;
+
+    const isConnectionWound =
+      intent === "offer_connection" ||
+      mode === "restore_connection" ||
+      mode === "emotional_connection" ||
+      need === "connection" ||
+      need === "belonging" ||
+      organismFunction === "connection";
 
     const director = {
       explanationLevel: "standard",
@@ -65,7 +77,6 @@ window.AriMouthDirector = {
       mouthDirectorRan: true
     };
 
-    // SAFETY OVERRIDE
     if (
       intent === "protect_safety" ||
       executiveDecision === "protect_safety_first" ||
@@ -86,7 +97,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // ORGANISM / BODY STABILIZATION
     if (
       intent === "stabilize_organism_function" ||
       shape === "body_truth_then_action" ||
@@ -107,7 +117,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // CLARIFY BEFORE ADVISING
     if (
       intent === "clarify_before_advising" ||
       intent === "clarify_before_interpreting" ||
@@ -128,11 +137,28 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // PROTECT FAMILY PRESENCE
+    if (isConnectionWound) {
+      director.explanationLevel = "minimal";
+      director.responsePattern = "comfort_then_truth";
+      director.maxBodySections = 3;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = false;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = false;
+      director.allowAction = false;
+
+      return director;
+    }
+
     if (
-      intent === "protect_family_presence" ||
-      executiveDecision === "protect_family_first" ||
-      primaryPriority === "family"
+      !isConnectionWound &&
+      (
+        intent === "protect_family_presence" ||
+        executiveDecision === "protect_family_first" ||
+        primaryPriority === "family"
+      )
     ) {
       director.explanationLevel = "deep";
       director.responsePattern = "meaning_truth_then_action";
@@ -148,7 +174,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // DUAL SALIENCE BRIDGE
     if (
       intent === "bridge_subjective_to_objective" ||
       shape === "acknowledge_then_gently_redirect" ||
@@ -170,7 +195,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // FOLLOW SUBJECTIVE SALIENCE
     if (
       intent === "follow_subjective_salience" ||
       shape === "comfort_then_explore" ||
@@ -192,7 +216,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // VALIDATE THEN ACT
     if (
       intent === "validate_then_act" ||
       shape === "validate_then_next_step"
@@ -211,7 +234,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // PROTECT DIGNITY
     if (
       intent === "protect_dignity" ||
       mode === "restore_dignity" ||
@@ -231,29 +253,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // CONNECTION / SUPPORT
-    if (
-      intent === "offer_connection" ||
-      intent === "support_before_solution" ||
-      mode === "emotional_connection" ||
-      mode === "restore_connection" ||
-      need === "connection"
-    ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "comfort_then_truth";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    // HEALTH STABILIZATION
     if (
       intent === "stabilize_health" ||
       executiveDecision === "stabilize_health_first" ||
@@ -273,7 +272,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // PLANNING / STRUCTURE
     if (
       intent === "create_priority_structure" ||
       executiveDecision === "create_priority_structure" ||
@@ -293,7 +291,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // CAPACITY PROTECTION
     if (
       intent === "protect_capacity" ||
       executiveDecision === "reduce_load_immediately" ||
@@ -313,7 +310,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // CONFLICT
     if (
       intent === "name_conflict" ||
       shape === "conflict_then_choice"
@@ -332,7 +328,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // WISDOM
     if (intent === "resolve_tension") {
       director.explanationLevel = "deep";
       director.responsePattern = "principle_then_choice";
@@ -348,7 +343,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // MEANING
     if (intent === "name_life_chapter") {
       director.explanationLevel = "deep";
       director.responsePattern = "meaning_then_guidance";
@@ -364,7 +358,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // IDENTITY
     if (intent === "clarify_identity") {
       director.explanationLevel = "standard";
       director.responsePattern = "identity_then_question";
@@ -380,7 +373,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // STEWARDSHIP
     if (intent === "support_stewardship") {
       director.explanationLevel = "standard";
       director.responsePattern = "steady_then_next_step";
@@ -396,7 +388,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // EMOTION
     if (intent === "name_emotion") {
       director.explanationLevel = "minimal";
       director.responsePattern = "emotion_then_question";
@@ -412,7 +403,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // VALUES
     if (intent === "integrate_values") {
       director.explanationLevel = "standard";
       director.responsePattern = "value_then_question";
@@ -428,7 +418,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // LOW CONFIDENCE
     if (
       confidence === "unknown" ||
       confidence === "low"
@@ -447,7 +436,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // HIGH CONFIDENCE
     if (
       confidence === "high" ||
       confidence === "very_high"
