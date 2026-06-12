@@ -1,24 +1,50 @@
 // ari/language/ari-response-intent-engine.js
 // Ari Response Intent Engine
 // Purpose: Decide what kind of conversational move Ari should make before composing words.
-// V1.0
+// V1.1
+// Fixes:
+// - Adds evaluate() alias so pipeline can call this engine consistently.
+// - Keeps decide() as the main logic.
+// - Produces responseIntent + responseShape before Mouth Director / Composer.
 
 window.AriResponseIntentEngine = {
+  version: "1.1.0",
+
+  evaluate(input = {}) {
+    return this.decide(input);
+  },
+
   decide(input = {}) {
     const summary = input.summary || input || {};
 
-    const leadOrgan = summary.synthesisLeadOrgan || summary.salienceLeadOrgan || "observer";
-    const mode = summary.synthesisMode || summary.salienceMode || "continue_observing";
+    const leadOrgan =
+      summary.synthesisLeadOrgan ||
+      summary.salienceLeadOrgan ||
+      "observer";
+
+    const mode =
+      summary.synthesisMode ||
+      summary.salienceMode ||
+      "continue_observing";
+
     const need = summary.primaryHumanNeed || null;
     const needScore = Number(summary.primaryHumanNeedScore || 0);
     const uncertaintyType = summary.uncertaintyType || null;
     const safetyTriggered = Boolean(summary.safetyTriggered);
 
     if (safetyTriggered) {
-      return this.intent("protect_safety", "urgent_support", "Safety is active and must lead.");
+      return this.intent(
+        "protect_safety",
+        "urgent_support",
+        "Safety is active and must lead."
+      );
     }
 
-    if (mode === "restore_dignity" || need === "worth") {
+    if (
+      mode === "restore_dignity" ||
+      need === "worth" ||
+      (need === "esteem" && needScore >= 75)
+    ) {
       return this.intent(
         "protect_dignity",
         "validate_then_ask",
@@ -26,7 +52,11 @@ window.AriResponseIntentEngine = {
       );
     }
 
-    if (mode === "emotional_connection" || need === "connection") {
+    if (
+      mode === "emotional_connection" ||
+      need === "connection" ||
+      need === "belonging"
+    ) {
       return this.intent(
         "offer_connection",
         "comfort_then_ask",
@@ -34,7 +64,11 @@ window.AriResponseIntentEngine = {
       );
     }
 
-    if (leadOrgan === "uncertainty" || uncertaintyType === "missing_information") {
+    if (
+      leadOrgan === "uncertainty" ||
+      uncertaintyType === "missing_information" ||
+      uncertaintyType === "understanding_uncertainty"
+    ) {
       return this.intent(
         "clarify_before_interpreting",
         "brief_reflect_then_question",
@@ -63,6 +97,30 @@ window.AriResponseIntentEngine = {
         "clarify_identity",
         "identity_then_question",
         "Identity is active. Ari should name the role and ask what it protects."
+      );
+    }
+
+    if (leadOrgan === "stewardship") {
+      return this.intent(
+        "support_stewardship",
+        "steady_then_next_step",
+        "Stewardship is active. Ari should steady the user and focus on responsible next action."
+      );
+    }
+
+    if (leadOrgan === "emotion") {
+      return this.intent(
+        "name_emotion",
+        "emotion_then_question",
+        "Emotion is active. Ari should name the emotional signal and ask one useful question."
+      );
+    }
+
+    if (leadOrgan === "values") {
+      return this.intent(
+        "integrate_values",
+        "value_then_question",
+        "A value integration signal is active. Ari should name the deeper value and ask what protects it."
       );
     }
 
