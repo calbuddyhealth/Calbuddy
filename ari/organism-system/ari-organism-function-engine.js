@@ -1,12 +1,16 @@
 // ari/organism-system/ari-organism-function-engine.js
 // Ari Organism Function Engine
 // Purpose: Help Ari understand basic living-system functions before meaning, identity, wisdom, or advice.
-// V1.0
+// V1.1
+// Fixes:
+// - Adds compatibility fields for Core Summary V2.4.
+// - Maps organism functions into basic organism needs.
+// - Makes blocked survival functions easier for pipeline/hierarchy to read.
 
 window.Ari = window.Ari || {};
 
 window.AriOrganismFunctionEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   evaluate(input = {}) {
     const summary = input.summary || input || {};
@@ -23,25 +27,34 @@ window.AriOrganismFunctionEngine = {
     const urgency = this.detectUrgency(text, functions, disruption);
 
     const primaryFunction = this.getPrimaryFunction(functions);
+    const primaryFunctionName = primaryFunction?.name || null;
 
     return {
       organismEngineRan: true,
       organismEngineSource: "ari-organism-function-engine",
       organismEngineVersion: this.version,
 
-      organismPrimaryFunction: primaryFunction?.name || null,
+      organismPrimaryFunction: primaryFunctionName,
       organismPrimaryFunctionScore: primaryFunction?.score || 0,
       organismFunctions: functions,
       organismDisruption: disruption,
       organismUrgency: urgency,
 
       organismNeedsStabilization:
+        urgency.level === "critical" ||
         urgency.level === "high" ||
         urgency.level === "moderate" ||
         disruption.hasDisruption,
 
       organismRecommendedMode: this.getRecommendedMode(primaryFunction, urgency),
-      organismRecommendedAction: this.getRecommendedAction(primaryFunction, urgency)
+      organismRecommendedAction: this.getRecommendedAction(primaryFunction, urgency),
+
+      // Compatibility fields for Core Summary V2.4
+      organismFunction: primaryFunctionName,
+      organismNeed: this.mapFunctionToNeed(primaryFunctionName),
+      organismNeedBlocked: disruption.hasDisruption,
+      organismReason: urgency.reason,
+      organismSource: "ari-organism-function-engine"
     };
   },
 
@@ -352,5 +365,19 @@ window.AriOrganismFunctionEngine = {
     };
 
     return actions[primaryFunction.name] || "Stabilize the basic function first.";
+  },
+
+  mapFunctionToNeed(functionName = null) {
+    const map = {
+      energy_intake: "food",
+      hydration: "water",
+      rest_recovery: "sleep",
+      injury_protection: "pain_protection",
+      vital_stability: "vital_safety",
+      threat_regulation: "felt_safety",
+      connection: "attachment"
+    };
+
+    return map[functionName] || null;
   }
 };
