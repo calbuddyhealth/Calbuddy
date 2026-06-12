@@ -1,11 +1,17 @@
 // ari/integration/ari-synthesis-engine.js
 // Ari Synthesis Engine
 // Purpose: Combine organ outputs into one coherent interpretation.
-// V1.0
+// V1.1
+// Fixes:
+// - Updates weak missing-information question.
+// - Prevents synthesis from reintroducing old recovery wording.
 
 window.AriSynthesisEngine = {
   synthesize(input = {}) {
     const summary = input.summary || input || {};
+
+    const defaultMissingInformationQuestion =
+      "What feels important here that has not been said out loud yet?";
 
     const salienceLeadOrgan = summary.salienceLeadOrgan || "observer";
     const salienceMode = summary.salienceMode || "continue_observing";
@@ -18,7 +24,8 @@ window.AriSynthesisEngine = {
     const lifeChapterStatement = summary.lifeChapterStatement || null;
     const lifeChapterFocus = summary.lifeChapterFocus || null;
 
-    const leadIdentity = summary.resolvedLeadIdentity || summary.leadIdentity || null;
+    const leadIdentity =
+      summary.resolvedLeadIdentity || summary.leadIdentity || null;
     const supportIdentity = summary.resolvedSupportingIdentity || null;
     const identityPrioritySummary = summary.identityPrioritySummary || null;
     const resolutionReason = summary.resolutionReason || null;
@@ -35,7 +42,8 @@ window.AriSynthesisEngine = {
 
     const hypothesis = summary.hypothesis || null;
     const counterHypothesis = summary.counterHypothesis || null;
-    const confidence = summary.calibratedConfidence || summary.metaConfidence || "unknown";
+    const confidence =
+      summary.calibratedConfidence || summary.metaConfidence || "unknown";
 
     const strongestSignal = summary.strongestSignal || null;
     const strongestSignalCategory = summary.strongestSignalCategory || null;
@@ -56,11 +64,27 @@ window.AriSynthesisEngine = {
       if (text && !actionGuidance.includes(text)) actionGuidance.push(text);
     }
 
+    function cleanQuestion(question) {
+      if (!question) return null;
+
+      if (question === "What information feels most missing right now?") {
+        return defaultMissingInformationQuestion;
+      }
+
+      return question;
+    }
+
     // 1. Start with the leading organ.
     if (salienceLeadOrgan === "uncertainty") {
-      addPart("Ari does not have enough grounded evidence yet, so the wisest move is to clarify before interpreting.");
+      addPart(
+        "Ari does not have enough grounded evidence yet, so the wisest move is to clarify before interpreting."
+      );
+
       if (uncertaintyReason) addPart(uncertaintyReason);
-      addCaution("Do not force an emotional interpretation before Ari knows what kind of uncertainty this is.");
+
+      addCaution(
+        "Do not force an emotional interpretation before Ari knows what kind of uncertainty this is."
+      );
     }
 
     if (salienceLeadOrgan === "meaning") {
@@ -70,17 +94,22 @@ window.AriSynthesisEngine = {
 
     if (salienceLeadOrgan === "identity") {
       if (leadIdentity) {
-        addPart(`The identity that appears most important right now is '${leadIdentity}'.`);
+        addPart(
+          `The identity that appears most important right now is '${leadIdentity}'.`
+        );
       }
+
       if (supportIdentity) {
         addPart(`The supporting identity appears to be '${supportIdentity}'.`);
       }
+
       if (identityPrioritySummary) addPart(identityPrioritySummary);
       if (resolutionReason) addPart(resolutionReason);
     }
 
     if (salienceLeadOrgan === "values") {
       if (integrationStatement) addPart(integrationStatement);
+
       if (integratedValue) {
         addPart(`The deeper value Ari should protect is '${integratedValue}'.`);
       }
@@ -92,7 +121,9 @@ window.AriSynthesisEngine = {
     }
 
     if (salienceLeadOrgan === "emotion") {
-      addPart("An emotional signal appears central, but Ari should still keep the interpretation calibrated.");
+      addPart(
+        "An emotional signal appears central, but Ari should still keep the interpretation calibrated."
+      );
     }
 
     if (salienceLeadOrgan === "wisdom") {
@@ -122,10 +153,7 @@ window.AriSynthesisEngine = {
       addPart(`The active leading identity appears to be '${leadIdentity}'.`);
     }
 
-    if (
-      salienceLeadOrgan !== "values" &&
-      integrationStatement
-    ) {
+    if (salienceLeadOrgan !== "values" && integrationStatement) {
       addPart(integrationStatement);
     }
 
@@ -149,14 +177,20 @@ window.AriSynthesisEngine = {
       addPart(`Ari's current working hypothesis is '${hypothesis}'.`);
 
       if (counterHypothesis) {
-        addCaution(`Ari should keep the counter-hypothesis in view: '${counterHypothesis}'.`);
+        addCaution(
+          `Ari should keep the counter-hypothesis in view: '${counterHypothesis}'.`
+        );
       }
 
       if (confidence === "low" || confidence === "unknown") {
-        addCaution("This hypothesis should be spoken gently because confidence is not high.");
+        addCaution(
+          "This hypothesis should be spoken gently because confidence is not high."
+        );
       }
     } else {
-      addCaution("No grounded hypothesis exists yet, so Ari should ask a recovery question instead of presenting a conclusion.");
+      addCaution(
+        "No grounded hypothesis exists yet, so Ari should ask a recovery question instead of presenting a conclusion."
+      );
     }
 
     // 4. Prevent emotion hijack.
@@ -164,7 +198,9 @@ window.AriSynthesisEngine = {
       strongestSignalCategory !== "underlying_emotion" &&
       salienceLeadOrgan !== "emotion"
     ) {
-      addCaution("Do not default to 'What feeling is hardest to admit?' unless emotion is actually the leading domain.");
+      addCaution(
+        "Do not default to 'What feeling is hardest to admit?' unless emotion is actually the leading domain."
+      );
     }
 
     // 5. Action guidance.
@@ -185,11 +221,15 @@ window.AriSynthesisEngine = {
     }
 
     if (salienceMode === "stewardship_not_fear") {
-      addAction("Use language of responsibility, care, and stewardship instead of fear unless stronger evidence supports fear.");
+      addAction(
+        "Use language of responsibility, care, and stewardship instead of fear unless stronger evidence supports fear."
+      );
     }
 
     if (salienceMode === "emotion_depth") {
-      addAction("Ask an emotional depth question, but keep it specific to the detected emotion.");
+      addAction(
+        "Ask an emotional depth question, but keep it specific to the detected emotion."
+      );
     }
 
     if (salienceMode === "wisdom_resolution") {
@@ -202,15 +242,15 @@ window.AriSynthesisEngine = {
         : "Ari should continue observing until a clearer synthesis emerges.";
 
     const recommendedQuestion =
-      salienceQuestion ||
-      summary.identityConflictQuestion ||
-      summary.identityRecoveryQuestion ||
-      summary.valueIntegrationQuestion ||
-      summary.lifeChapterQuestion ||
-      summary.recommendedRecoveryQuestion ||
-      summary.wisdomRecoveryQuestion ||
-      summary.emotionRecoveryQuestion ||
-      "What are you trying to understand more clearly?";
+      cleanQuestion(salienceQuestion) ||
+      cleanQuestion(summary.identityConflictQuestion) ||
+      cleanQuestion(summary.identityRecoveryQuestion) ||
+      cleanQuestion(summary.valueIntegrationQuestion) ||
+      cleanQuestion(summary.lifeChapterQuestion) ||
+      cleanQuestion(summary.recommendedRecoveryQuestion) ||
+      cleanQuestion(summary.wisdomRecoveryQuestion) ||
+      cleanQuestion(summary.emotionRecoveryQuestion) ||
+      defaultMissingInformationQuestion;
 
     return {
       synthesisStatement,
