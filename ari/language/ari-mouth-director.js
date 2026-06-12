@@ -1,11 +1,14 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide HOW Ari communicates.
-// V2.1
-// Adds Response Intent V1.2, Executive V1.3, Dual Salience, and Observer Hierarchy awareness.
+// V2.2
+// Fixes:
+// - Mouth obeys Response Intent first.
+// - Removes direct observerShouldAsk override from the clarify block.
+// - Prevents Observer noise from forcing question_only when Executive / Response Intent already chose a stronger move.
 
 window.AriMouthDirector = {
-  version: "2.1.0",
+  version: "2.2.0",
 
   direct(summary = {}) {
     const mode =
@@ -40,9 +43,6 @@ window.AriMouthDirector = {
     const dualMode =
       summary.dualSalienceMode || null;
 
-    const observerShouldAsk =
-      summary.observerHierarchyShouldAskClarifyingQuestion === true;
-
     const director = {
       explanationLevel: "standard",
       responsePattern: "reflection_then_question",
@@ -59,7 +59,10 @@ window.AriMouthDirector = {
       mouthDirectorRan: true
     };
 
-    // SAFETY
+    // ===================================
+    // 1. SAFETY OVERRIDE
+    // ===================================
+
     if (
       intent === "protect_safety" ||
       executiveDecision === "protect_safety_first" ||
@@ -79,13 +82,19 @@ window.AriMouthDirector = {
       return director;
     }
 
+    // ===================================
+    // 2. RESPONSE INTENT FIRST
+    // ===================================
+
     // CLARIFY BEFORE ADVISING
+    // Important: do NOT check observerShouldAsk here.
+    // Response Intent is responsible for deciding whether observation uncertainty
+    // deserves a question. Mouth only obeys the final intent.
     if (
       intent === "clarify_before_advising" ||
       intent === "clarify_before_interpreting" ||
       shape === "brief_reflect_then_question" ||
-      executiveDecision === "ask_before_directing" ||
-      observerShouldAsk
+      executiveDecision === "ask_before_directing"
     ) {
       director.explanationLevel = "minimal";
       director.responsePattern = "question_only";
@@ -101,6 +110,26 @@ window.AriMouthDirector = {
       return director;
     }
 
+    // PROTECT FAMILY PRESENCE
+    if (
+      intent === "protect_family_presence" ||
+      executiveDecision === "protect_family_first" ||
+      primaryPriority === "family"
+    ) {
+      director.explanationLevel = "deep";
+      director.responsePattern = "meaning_truth_then_action";
+      director.maxBodySections = 4;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = true;
+      director.allowAction = true;
+
+      return director;
+    }
+
     // DUAL SALIENCE BRIDGE
     if (
       intent === "bridge_subjective_to_objective" ||
@@ -109,8 +138,8 @@ window.AriMouthDirector = {
       primaryPriority === "bridge-objective-and-subjective" ||
       dualMode === "acknowledge_gap_then_gently_redirect"
     ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "comfort_bridge_then_one_step";
+      director.explanationLevel = "standard";
+      director.responsePattern = "acknowledge_then_gently_redirect";
       director.maxBodySections = 3;
       director.askBeforeTeaching = false;
 
@@ -164,26 +193,6 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // PROTECT FAMILY PRESENCE
-    if (
-      intent === "protect_family_presence" ||
-      executiveDecision === "protect_family_first" ||
-      primaryPriority === "family"
-    ) {
-      director.explanationLevel = "standard";
-      director.responsePattern = "meaning_truth_then_action";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
-
-      return director;
-    }
-
     // PROTECT DIGNITY
     if (
       intent === "protect_dignity" ||
@@ -232,7 +241,7 @@ window.AriMouthDirector = {
     ) {
       director.explanationLevel = "minimal";
       director.responsePattern = "calm_health_step";
-      director.maxBodySections = 3;
+      director.maxBodySections = 2;
       director.askBeforeTeaching = false;
 
       director.allowMeaning = false;
@@ -250,7 +259,7 @@ window.AriMouthDirector = {
       executiveDecision === "create_priority_structure" ||
       primaryPriority === "planning"
     ) {
-      director.explanationLevel = "standard";
+      director.explanationLevel = "deep";
       director.responsePattern = "prioritize_then_plan";
       director.maxBodySections = 4;
       director.askBeforeTeaching = false;
@@ -289,9 +298,9 @@ window.AriMouthDirector = {
       intent === "name_conflict" ||
       shape === "conflict_then_choice"
     ) {
-      director.explanationLevel = "standard";
+      director.explanationLevel = "deep";
       director.responsePattern = "conflict_then_choice";
-      director.maxBodySections = 3;
+      director.maxBodySections = 4;
       director.askBeforeTeaching = false;
 
       director.allowMeaning = true;
@@ -308,7 +317,11 @@ window.AriMouthDirector = {
       director.explanationLevel = "deep";
       director.responsePattern = "principle_then_choice";
       director.maxBodySections = 4;
+      director.askBeforeTeaching = false;
 
+      director.allowMeaning = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
       director.allowWisdom = true;
       director.allowAction = true;
 
@@ -320,9 +333,84 @@ window.AriMouthDirector = {
       director.explanationLevel = "deep";
       director.responsePattern = "meaning_then_guidance";
       director.maxBodySections = 4;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = true;
+      director.allowAction = true;
 
       return director;
     }
+
+    // IDENTITY
+    if (intent === "clarify_identity") {
+      director.explanationLevel = "standard";
+      director.responsePattern = "identity_then_question";
+      director.maxBodySections = 3;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = false;
+      director.allowAction = false;
+
+      return director;
+    }
+
+    // STEWARDSHIP
+    if (intent === "support_stewardship") {
+      director.explanationLevel = "standard";
+      director.responsePattern = "steady_then_next_step";
+      director.maxBodySections = 3;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = true;
+      director.allowAction = true;
+
+      return director;
+    }
+
+    // EMOTION
+    if (intent === "name_emotion") {
+      director.explanationLevel = "minimal";
+      director.responsePattern = "emotion_then_question";
+      director.maxBodySections = 2;
+      director.askBeforeTeaching = true;
+
+      director.allowMeaning = false;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = false;
+      director.allowAction = false;
+
+      return director;
+    }
+
+    // VALUES
+    if (intent === "integrate_values") {
+      director.explanationLevel = "standard";
+      director.responsePattern = "value_then_question";
+      director.maxBodySections = 3;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = true;
+      director.allowAction = false;
+
+      return director;
+    }
+
+    // ===================================
+    // 3. CONFIDENCE FALLBACKS
+    // ===================================
 
     // LOW CONFIDENCE
     if (
@@ -333,6 +421,11 @@ window.AriMouthDirector = {
       director.responsePattern = "observe_then_question";
       director.maxBodySections = 2;
       director.askBeforeTeaching = true;
+
+      director.allowMeaning = false;
+      director.allowEmotion = true;
+      director.allowTruth = false;
+      director.allowWisdom = false;
       director.allowAction = false;
 
       return director;
@@ -346,6 +439,13 @@ window.AriMouthDirector = {
       director.explanationLevel = "deep";
       director.responsePattern = "insight_then_guidance";
       director.maxBodySections = 4;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
+      director.allowWisdom = true;
+      director.allowAction = true;
 
       return director;
     }
