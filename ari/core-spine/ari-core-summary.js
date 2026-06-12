@@ -1,16 +1,17 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V2.0
+// V2.1
 // Fixes:
 // - Preserves raw user message for Safety + Human Needs Network.
-// - Adds response intent placeholders for the new mouth/intent layer.
+// - Adds response intent placeholders.
+// - Adds Mouth Director placeholders/debug fields.
 // - Keeps Rebirth pipeline outside this file to prevent duplicate execution.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -50,6 +51,7 @@ window.Ari.coreSummary = {
     const voice = analysis.voice || {};
     const memory = analysis.memory || {};
     const responseIntent = analysis.responseIntent || {};
+    const mouthDirector = analysis.mouthDirector || {};
 
     const rawUserMessage =
       analysis.userMessage ||
@@ -80,6 +82,21 @@ window.Ari.coreSummary = {
       responseShape: responseIntent.responseShape || null,
       responseIntentReason: responseIntent.responseIntentReason || null,
       responseIntentSource: responseIntent.responseIntentSource || "not-yet-run",
+
+      mouthDirector: mouthDirector || null,
+      mouthDirectorSource: mouthDirector.source || "not-yet-run",
+      mouthExplanationLevel: mouthDirector.explanationLevel || null,
+      mouthResponsePattern: mouthDirector.responsePattern || null,
+      mouthMaxBodySections: mouthDirector.maxBodySections || null,
+      mouthAskBeforeTeaching: mouthDirector.askBeforeTeaching ?? null,
+
+      mouthAllows: {
+        meaning: mouthDirector.allowMeaning ?? null,
+        emotion: mouthDirector.allowEmotion ?? null,
+        truth: mouthDirector.allowTruth ?? null,
+        wisdom: mouthDirector.allowWisdom ?? null,
+        action: mouthDirector.allowAction ?? null
+      },
 
       lifeSignals: lifeSignals.signalNames || [],
       primaryLifeSignal: lifeSignals.primarySignal?.name || null,
