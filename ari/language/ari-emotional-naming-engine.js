@@ -1,16 +1,16 @@
 // ari/language/ari-emotional-naming-engine.js
 // Ari Emotional Naming Engine
-// Purpose: Convert emotional analysis into human language.
-// V1.1
+// Purpose: Convert emotional + human-need analysis into human language.
+// V1.2
 // Fixes:
-// - Adds name() for composer compatibility.
-// - Returns { emotionalName } object.
-// - Keeps generate() for backward compatibility.
+// - Adds Human Needs Network support.
+// - Handles restore_dignity / worth language.
+// - Handles emotional_connection / connection language.
+// - Respects Mouth Director permissions.
+// - Keeps name() and generate() compatibility.
 
 window.AriEmotionalNamingEngine = {
-
   name(summary = {}) {
-
     const emotionalName = this.generate(summary);
 
     if (!emotionalName) return null;
@@ -22,6 +22,22 @@ window.AriEmotionalNamingEngine = {
   },
 
   generate(summary = {}) {
+    const director = summary.mouthDirector || {};
+
+    const allowEmotion =
+      summary.mouthAllows?.emotion !== false &&
+      director.allowEmotion !== false &&
+      summary.allowEmotion !== false;
+
+    if (!allowEmotion) return null;
+
+    const mode =
+      summary.synthesisMode ||
+      summary.salienceMode ||
+      summary.needResponseMode ||
+      null;
+
+    const primaryHumanNeed = summary.primaryHumanNeed || null;
 
     const emotion =
       summary.emotionalClassification ||
@@ -30,8 +46,42 @@ window.AriEmotionalNamingEngine = {
 
     const underlying =
       summary.underlyingEmotion ||
+      summary.underlyingEmotionDepth ||
       null;
 
+    // -------------------------
+    // HUMAN NEED: WORTH / DIGNITY
+    // -------------------------
+    if (
+      mode === "restore_dignity" ||
+      primaryHumanNeed === "worth"
+    ) {
+      return "That kind of thing can hit your sense of worth, even when your worth has not actually changed.";
+    }
+
+    // -------------------------
+    // HUMAN NEED: CONNECTION
+    // -------------------------
+    if (
+      mode === "emotional_connection" ||
+      primaryHumanNeed === "connection"
+    ) {
+      return "That sounds lonely, like part of you is looking for connection instead of another explanation.";
+    }
+
+    // -------------------------
+    // HUMAN NEED: SECURITY / BODY
+    // -------------------------
+    if (
+      primaryHumanNeed === "security" ||
+      primaryHumanNeed === "body"
+    ) {
+      return "Your system may be asking for safety and stability before anything else.";
+    }
+
+    // -------------------------
+    // EXISTING EMOTION MAP
+    // -------------------------
     if (emotion === "stewardship") {
       return "This feels less like fear and more like responsibility for something you deeply care about.";
     }
