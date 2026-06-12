@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-network.js
 // Ari Observer Network
-// Purpose: Perceive emotional, intent, memory, goal, life-transition, human-pattern, values, and conflict signals before routing.
-// V2.9: Adds values and hidden conflict detection.
+// Purpose: Perceive emotional, intent, memory, goal, life-transition, human-pattern, values, conflict, and dual-salience signals before routing.
+// V3.0: Adds Dual Salience System integration.
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "2.9.0",
+  version: "3.0.0",
 
   normalize(message = "") {
     return String(message || "").toLowerCase().trim();
@@ -749,6 +749,23 @@ window.Ari.observerNetwork = {
     };
   },
 
+  observeDualSalience(message, context = {}) {
+    if (!window.AriDualSalienceSystem || !window.AriDualSalienceSystem.analyze) {
+      return {
+        available: false,
+        reason: "AriDualSalienceSystem not loaded"
+      };
+    }
+
+    return {
+      available: true,
+      ...window.AriDualSalienceSystem.analyze({
+        text: message,
+        context
+      })
+    };
+  },
+
   detectTopics(text) {
     const topics = [];
 
@@ -796,6 +813,7 @@ window.Ari.observerNetwork = {
     const lifeTransitions = this.observeLifeTransitions(text);
     const humanPatterns = this.observeHumanPatterns(text, lifeTransitions);
     const valuesAndConflicts = this.observeValuesAndConflicts(text, humanPatterns);
+    const dualSalience = this.observeDualSalience(message, context);
 
     const observation = {
       message,
@@ -810,8 +828,10 @@ window.Ari.observerNetwork = {
       valuesAndConflicts,
       relationship: this.observeRelationship(text, context),
       risk: this.observeRisk(text),
+      dualSalience,
       observedAt: new Date().toISOString(),
-      source: "ari-observer-network"
+      source: "ari-observer-network",
+      version: this.version
     };
 
     window.dispatchEvent(
