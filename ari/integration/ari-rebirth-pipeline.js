@@ -1,11 +1,11 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.3
+// V1.4
 // Fixes:
-// - Adds Safety Override before all meaning/wisdom/emotion systems.
-// - Adds Human Need Engine after Safety and before identity/wisdom/meaning.
-// - Safety can stop the pipeline and return an urgent response.
+// - Safety Override runs first and can stop the pipeline.
+// - Ari Human Needs Network runs immediately after safety.
+// - Needs become foundational context for identity, emotion, meaning, wisdom, uncertainty, and salience.
 // - Preserves existing Rebirth organ order after safety clears.
 
 window.AriRebirthPipeline = {
@@ -39,10 +39,37 @@ window.AriRebirthPipeline = {
           safetyUrgency: safety.urgency,
           safetyReason: safety.reason,
 
-          primaryHumanNeed: "safety",
+          primaryHumanNeed: "security",
           primaryHumanNeedScore: 100,
+          primaryHumanNeedReason:
+            "Safety override triggered. Security need must lead.",
+          secondaryHumanNeed: "body",
+          secondaryHumanNeedScore: 100,
+          secondaryHumanNeedReason:
+            "Physical/medical stability may be threatened.",
+
           needRecommendedLeadOrgan: "safety",
           needResponseMode: "protect_safety_first",
+          humanNeedsMap: {
+            body: 100,
+            security: 100
+          },
+          rankedHumanNeeds: [
+            {
+              name: "security",
+              score: 100,
+              reasons: ["Safety override triggered."],
+              leadOrgan: "safety",
+              responseMode: "protect_safety_first"
+            },
+            {
+              name: "body",
+              score: 100,
+              reasons: ["Physical/medical stability may be threatened."],
+              leadOrgan: "safety",
+              responseMode: "stabilize_body_first"
+            }
+          ],
 
           salienceLeadOrgan: "safety",
           salienceMode: "safety_override",
@@ -70,7 +97,8 @@ window.AriRebirthPipeline = {
       }
     };
 
-    // 1. Human Need Detection
+    // 1. HUMAN NEEDS NETWORK
+    // Needs should be known before identity, wisdom, meaning, or uncertainty try to lead.
     if (
       window.Ari &&
       window.Ari.needEngine &&
@@ -81,25 +109,36 @@ window.AriRebirthPipeline = {
         ...summary,
         ...needResult
       };
+    } else {
+      summary = {
+        ...summary,
+        needEngineRan: false,
+        primaryHumanNeed: "understanding",
+        primaryHumanNeedScore: 55,
+        primaryHumanNeedReason:
+          "Need engine unavailable. Defaulting to understanding.",
+        needRecommendedLeadOrgan: "observer",
+        needResponseMode: "continue_observing",
+        rankedHumanNeeds: []
+      };
     }
 
-    // 2. Build identity signals.
+    // 2. Build identity signals with need context available.
     runStep(window.AriIdentityPriorityEngine, "evaluate");
 
-    // 3. Add emotional/stewardship correction before meaning/salience.
+    // 3. Add emotional/stewardship correction with need context available.
     runStep(window.AriStewardshipFearDifferentiator, "evaluate");
 
-    // 4. Detect life chapter after identity + stewardship are known.
+    // 4. Detect life chapter after identity + needs + stewardship are known.
     runStep(window.AriLifeChapterEngine, "detect");
 
-    // 5. Now classify uncertainty with better context.
+    // 5. Classify uncertainty after need/life/identity context exists.
     runStep(window.AriUncertaintyClassificationEngine, "classify");
 
     // 6. Resolve identity conflict AFTER uncertainty.
-    // This lets uncertainty pause identity leadership when evidence is weak.
     runStep(window.AriIdentityConflictResolver, "resolve");
 
-    // 7. Integrate values after resolved identity exists.
+    // 7. Integrate values after resolved identity and needs exist.
     runStep(window.AriValueIntegrationEngine, "integrate");
 
     // 8. Re-check life chapter after resolved identity/value integration.
