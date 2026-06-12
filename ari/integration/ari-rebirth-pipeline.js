@@ -1,11 +1,11 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.6
+// V1.7
 // Fixes:
-// - Uses AriResponseIntentEngine.decide(), not evaluate().
-// - Wraps Mouth Director output so diagnostics show Mouth Director Ran: yes.
-// - Passes mouthDirector fields into composer correctly.
+// - Adds late-stage Observer Hierarchy pass after synthesis.
+// - Lets hierarchy see primaryLifeChapter, wisdomTension, highestGood, executiveDecision, confidence, etc.
+// - Response Intent and Mouth Director now receive the late hierarchy result.
 
 window.AriRebirthPipeline = {
   run(systemSummary = {}) {
@@ -122,6 +122,67 @@ window.AriRebirthPipeline = {
 
     // 10. Synthesize final interpretation.
     runStep(window.AriSynthesisEngine, "synthesize");
+
+    // 10.5. Late Observer Hierarchy pass.
+    // This overwrites early observer hierarchy with synthesis-aware hierarchy.
+    if (
+      window.Ari &&
+      window.Ari.observerHierarchyEngine &&
+      typeof window.Ari.observerHierarchyEngine.analyze === "function"
+    ) {
+      const lateHierarchy =
+        window.Ari.observerHierarchyEngine.analyze({
+          ...(summary.observation || {}),
+          ...summary,
+          summary
+        }) || {};
+
+      summary = {
+        ...summary,
+
+        observerHierarchy: lateHierarchy,
+        hierarchy: lateHierarchy,
+
+        observerHierarchySource:
+          lateHierarchy.system || "ari-observer-hierarchy-engine",
+
+        observerHierarchyPrimaryObservation:
+          lateHierarchy.primaryObservation || null,
+        observerHierarchyPrimaryCategory:
+          lateHierarchy.primaryCategory || null,
+        observerHierarchyPrimaryReason:
+          lateHierarchy.primaryReason || null,
+        observerHierarchyPrimaryConfidence:
+          lateHierarchy.primaryConfidence ?? null,
+
+        observerHierarchySupportingObservations:
+          lateHierarchy.supportingObservations || [],
+
+        observerHierarchyDominantTension:
+          lateHierarchy.dominantTension || null,
+        observerHierarchyLifeChapter:
+          lateHierarchy.lifeChapter || null,
+
+        observerHierarchyObjectiveLead:
+          lateHierarchy.objectiveLead || null,
+        observerHierarchySubjectiveLead:
+          lateHierarchy.subjectiveLead || null,
+        observerHierarchyDualSalienceMode:
+          lateHierarchy.dualSalienceMode || null,
+
+        observerHierarchyExecutiveInstruction:
+          lateHierarchy.recommendedExecutiveInstruction || null,
+
+        observerHierarchyShouldAskClarifyingQuestion:
+          Boolean(lateHierarchy.shouldAskClarifyingQuestion),
+
+        observerHierarchyRecommendedQuestion:
+          lateHierarchy.recommendedQuestion || null,
+
+        observerHierarchyRankedObservations:
+          lateHierarchy.rankedObservations || []
+      };
+    }
 
     // 11. Decide response intent.
     if (
