@@ -24,6 +24,13 @@
       Analyze with Ari
     </button>
 
+    <button
+      id="ariDiagnosticBtn"
+      style="margin-top: 12px; margin-left: 8px; padding: 12px 18px; font-weight: 700;"
+    >
+      Run Readiness Diagnostic
+    </button>
+
     <pre
       id="ariOutput"
       style="margin-top: 20px; padding: 16px; background: #111827; color: #d1fae5; white-space: pre-wrap;"
@@ -135,19 +142,23 @@
 
   <script src="ari/integration/ari-salience-governor.js"></script>
   <script src="ari/integration/ari-synthesis-engine.js"></script>
-<script src="ari/language/ari-opening-engine.js"></script>
-<script src="ari/language/ari-truth-engine.js"></script>
-<script src="ari/language/ari-emotional-naming-engine.js"></script>
-<script src="ari/language/ari-wisdom-principle-engine.js"></script>
-<script src="ari/language/ari-action-guidance-engine.js"></script>
-<script src="ari/language/ari-voice-blend-engine.js"></script>
-<script src="ari/language/ari-response-shape-engine.js"></script>
-<script src="ari/language/ari-response-shaper.js"></script>
+
+  <script src="ari/language/ari-opening-engine.js"></script>
+  <script src="ari/language/ari-truth-engine.js"></script>
+  <script src="ari/language/ari-emotional-naming-engine.js"></script>
+  <script src="ari/language/ari-wisdom-principle-engine.js"></script>
+  <script src="ari/language/ari-action-guidance-engine.js"></script>
+  <script src="ari/language/ari-voice-blend-engine.js"></script>
+  <script src="ari/language/ari-response-shape-engine.js"></script>
+  <script src="ari/language/ari-response-shaper.js"></script>
   <script src="ari/language/ari-language-composer.js"></script>
+
   <script src="ari/integration/ari-rebirth-pipeline.js"></script>
 
   <!-- MEMORY -->
   <script src="ari/memory-system/ari-memory-engine.js"></script>
+  <script src="ari/memory-system/ari-memory-store.js"></script>
+  <script src="ari/memory-system/ari-memory-context-builder.js"></script>
 
   <!-- CORE SPINE -->
   <script src="ari/core-spine/ari-core-perception.js"></script>
@@ -162,10 +173,46 @@
   <script src="ari/system/ari-prompt-builder.js"></script>
   <script src="ari/system/ari-bootstrap.js"></script>
 
-<!-- TESTING -->
-<script src="ari/testing/ari-readiness-diagnostic.js"></script>
- 
-   <script>
+  <!-- TESTING -->
+  <script src="ari/testing/ari-readiness-diagnostic.js"></script>
+
+  <script>
+    function runAriOnce(message) {
+      const analysis = window.Ari.core.analyzeMessage(message, {});
+
+      let summary = window.Ari.core.createSystemSummary(analysis);
+
+      if (
+        window.AriRebirthPipeline &&
+        typeof window.AriRebirthPipeline.run === "function"
+      ) {
+        summary = window.AriRebirthPipeline.run(summary);
+      }
+
+      const languageRoute = window.Ari.languageRouter
+        ? window.Ari.languageRouter.route(analysis)
+        : "language-router-unavailable";
+
+      const oldResponse = window.Ari.languageSystem.generate(analysis, {
+        length: "normal"
+      });
+
+      const rebirthResponse =
+        summary.finalResponse ||
+        summary.synthesisRecommendedQuestion ||
+        summary.salienceQuestion ||
+        summary.recommendedRecoveryQuestion ||
+        oldResponse;
+
+      return {
+        analysis,
+        summary,
+        languageRoute,
+        oldResponse,
+        rebirthResponse
+      };
+    }
+
     document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
       const output = document.getElementById("ariOutput");
 
@@ -177,28 +224,8 @@
           return;
         }
 
-        const analysis = window.Ari.core.analyzeMessage(message, {});
-
-        let summary = window.Ari.core.createSystemSummary(analysis);
-
-        if (window.AriRebirthPipeline && typeof window.AriRebirthPipeline.run === "function") {
-          summary = window.AriRebirthPipeline.run(summary);
-        }
-
-        const languageRoute = window.Ari.languageRouter
-          ? window.Ari.languageRouter.route(analysis)
-          : "language-router-unavailable";
-
-        const oldResponse = window.Ari.languageSystem.generate(analysis, {
-          length: "normal"
-        });
-
-        const rebirthResponse =
-          summary.finalResponse ||
-          summary.synthesisRecommendedQuestion ||
-          summary.salienceQuestion ||
-          summary.recommendedRecoveryQuestion ||
-          oldResponse;
+        const run = runAriOnce(message);
+        const summary = run.summary;
 
         const primaryPriority =
           typeof summary.primaryPriority === "object"
@@ -215,13 +242,13 @@
         output.textContent =
 `===== OLD ARI RESPONSE =====
 
-${oldResponse}
+${run.oldResponse}
 
 ==================================================
 
 ===== ARI REBIRTH RESPONSE =====
 
-${rebirthResponse}
+${run.rebirthResponse}
 
 ==================================================
 
@@ -251,16 +278,16 @@ ${summary.emotionalClassification || "none"}
 
 ===== OLD LANGUAGE ROUTE =====
 
-${languageRoute}
+${run.languageRoute}
 
 Recommended Language Lead:
-${summary.recommendedLanguageLead || analysis.signals?.recommendedLanguageLead || "none"}
+${summary.recommendedLanguageLead || run.analysis.signals?.recommendedLanguageLead || "none"}
 
 Strongest Signal:
-${summary.strongestSignal || analysis.signals?.strongestSignalName || "none"}
+${summary.strongestSignal || run.analysis.signals?.strongestSignalName || "none"}
 
 Strongest Signal Category:
-${summary.strongestSignalCategory || analysis.signals?.strongestSignalCategory || "none"}
+${summary.strongestSignalCategory || run.analysis.signals?.strongestSignalCategory || "none"}
 
 ==================================================
 
@@ -301,6 +328,86 @@ ${JSON.stringify(summary, null, 2)}
 
         output.textContent =
 `===== ARI LAB ERROR =====
+
+${error.message}
+
+==================================================
+
+${error.stack}
+`;
+      }
+    });
+
+    document.getElementById("ariDiagnosticBtn").addEventListener("click", () => {
+      const output = document.getElementById("ariOutput");
+
+      try {
+        if (!window.Ari.readinessDiagnostic) {
+          output.textContent = "Ari Readiness Diagnostic not loaded.";
+          return;
+        }
+
+        const responseMap = {};
+        const fullRuns = [];
+
+        window.Ari.readinessDiagnostic.testCases.forEach((testCase) => {
+          const run = runAriOnce(testCase.prompt);
+
+          responseMap[testCase.id] = run.rebirthResponse;
+
+          fullRuns.push({
+            id: testCase.id,
+            category: testCase.category,
+            prompt: testCase.prompt,
+            oldResponse: run.oldResponse,
+            rebirthResponse: run.rebirthResponse,
+            languageRoute: run.languageRoute,
+            summary: run.summary
+          });
+        });
+
+        const results = window.Ari.readinessDiagnostic.testCases.map((testCase) => {
+          return window.Ari.readinessDiagnostic.analyzeResponse(
+            testCase,
+            responseMap[testCase.id]
+          );
+        });
+
+        const grade = window.Ari.readinessDiagnostic.grade(results);
+
+        output.textContent =
+`===== ARI READINESS DIAGNOSTIC =====
+
+Average Score:
+${grade.averageScore}
+
+Readiness:
+${grade.readiness}
+
+Recommendation:
+${grade.recommendation}
+
+==================================================
+
+Weak Areas:
+${JSON.stringify(grade.weakAreas, null, 2)}
+
+==================================================
+
+Full Results:
+${JSON.stringify(results, null, 2)}
+
+==================================================
+
+Full Ari Runs:
+${JSON.stringify(fullRuns, null, 2)}
+`;
+
+      } catch (error) {
+        console.error("[ARI DIAGNOSTIC ERROR]", error);
+
+        output.textContent =
+`===== ARI DIAGNOSTIC ERROR =====
 
 ${error.message}
 
