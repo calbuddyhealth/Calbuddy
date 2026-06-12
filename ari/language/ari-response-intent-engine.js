@@ -1,13 +1,15 @@
 // ari/language/ari-response-intent-engine.js
 // Ari Response Intent Engine
 // Purpose: Decide what kind of conversational move Ari should make before composing words.
-// V1.3
+// V1.4
 // Fixes:
-// - Prevents low-confidence Observer Hierarchy from overriding high-confidence Rebirth / Executive signals.
-// - Keeps Executive V1.3, Observer Hierarchy, and Dual Salience integration.
+// - Adds Organism Function Engine awareness.
+// - Lets body/survival-function disruption override vague validate_then_act.
+// - Creates stabilize_organism_function intent.
+// - Prevents meaning, identity, wisdom, or generic dual salience from leading when body stability is active.
 
 window.AriResponseIntentEngine = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   evaluate(input = {}) {
     return this.decide(input);
@@ -62,6 +64,26 @@ window.AriResponseIntentEngine = {
     const uncertaintyType = summary.uncertaintyType || null;
     const safetyTriggered = Boolean(summary.safetyTriggered);
 
+    const organismUrgencyLevel =
+      summary.organismUrgency?.level ||
+      summary.organismUrgencyLevel ||
+      "none";
+
+    const organismNeedsStabilization =
+      summary.organismNeedsStabilization === true ||
+      summary.organismRecommendedMode === "stabilize_body_first" ||
+      summary.organismRecommendedMode === "restore_basic_function" ||
+      organismUrgencyLevel === "critical" ||
+      organismUrgencyLevel === "high" ||
+      organismUrgencyLevel === "moderate";
+
+    const bodyNeedActive =
+      need === "body" ||
+      summary.needResponseMode === "stabilize_body_first" ||
+      summary.needRecommendedLeadOrgan === "safety" ||
+      summary.organismPrimaryFunction ||
+      organismNeedsStabilization;
+
     const rebirthResolvedEnough =
       summary.uncertaintyType === "resolved_enough" ||
       summary.calibratedConfidence === "high" ||
@@ -84,7 +106,8 @@ window.AriResponseIntentEngine = {
     if (
       safetyTriggered ||
       executiveDecision === "protect_safety_first" ||
-      primaryPriority === "safety"
+      primaryPriority === "safety" ||
+      organismUrgencyLevel === "critical"
     ) {
       return this.intent(
         "protect_safety",
@@ -98,8 +121,24 @@ window.AriResponseIntentEngine = {
       );
     }
 
-    // Clarify should only win when Ari does NOT already have a grounded,
-    // high-confidence life/executive read.
+    if (bodyNeedActive) {
+      return this.intent(
+        "stabilize_organism_function",
+        "body_truth_then_action",
+        "A basic organism function is active or disrupted. Ari should stabilize the body before meaning, identity, wisdom, or deeper interpretation.",
+        {
+          shouldAskQuestion: false,
+          recommendedQuestion:
+            summary.organismRecommendedQuestion ||
+            summary.synthesisRecommendedQuestion ||
+            summary.salienceQuestion ||
+            observerQuestion ||
+            "What does your body need first right now?",
+          sourceLayer: "organism_function"
+        }
+      );
+    }
+
     if (
       !rebirthResolvedEnough &&
       !strongLifeChapterActive &&
