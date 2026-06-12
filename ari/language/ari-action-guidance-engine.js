@@ -1,9 +1,25 @@
 // ari/language/ari-action-guidance-engine.js
 // Ari Action Guidance Engine
 // Purpose: Convert conclusions into practical guidance.
-// V1.0
+// V1.1
+// Fixes:
+// - Adds guide() for AriLanguageComposer compatibility.
+// - Returns { guidance } object.
+// - Keeps generate() for backward compatibility.
 
 window.AriActionGuidanceEngine = {
+
+  guide(summary = {}) {
+
+    const guidance = this.generate(summary);
+
+    if (!guidance) return null;
+
+    return {
+      guidance,
+      source: "ari-action-guidance-engine"
+    };
+  },
 
   generate(summary = {}) {
 
@@ -32,7 +48,5 @@ window.AriActionGuidanceEngine = {
       default:
         return null;
     }
-
   }
-
 };
