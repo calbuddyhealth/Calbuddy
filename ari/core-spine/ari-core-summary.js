@@ -1,13 +1,16 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
-// Purpose: Create Ari's system/debug summary.
-// V1.9: Adds raw user message fields so Safety + Human Needs Network can read the original prompt.
-// Rebirth pipeline should run outside this file to prevent duplicate execution.
+// Purpose: Create Ari's base system/debug summary.
+// V2.0
+// Fixes:
+// - Preserves raw user message for Safety + Human Needs Network.
+// - Adds response intent placeholders for the new mouth/intent layer.
+// - Keeps Rebirth pipeline outside this file to prevent duplicate execution.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.9.0",
+  version: "2.0.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -46,10 +49,12 @@ window.Ari.coreSummary = {
     const selfReflection = analysis.selfReflection || {};
     const voice = analysis.voice || {};
     const memory = analysis.memory || {};
+    const responseIntent = analysis.responseIntent || {};
 
     const rawUserMessage =
       analysis.userMessage ||
       analysis.message ||
+      analysis.input ||
       observation.message ||
       observation.originalMessage ||
       observation.rawMessage ||
@@ -60,7 +65,7 @@ window.Ari.coreSummary = {
       analysis.normalizedMessage ||
       String(rawUserMessage || "").toLowerCase().trim();
 
-    const summary = {
+    return {
       userMessage: rawUserMessage,
       message: rawUserMessage,
       input: rawUserMessage,
@@ -71,6 +76,11 @@ window.Ari.coreSummary = {
       languageRoute,
       recommendedLanguageLead: signals.recommendedLanguageLead || null,
 
+      responseIntent: responseIntent.responseIntent || null,
+      responseShape: responseIntent.responseShape || null,
+      responseIntentReason: responseIntent.responseIntentReason || null,
+      responseIntentSource: responseIntent.responseIntentSource || "not-yet-run",
+
       lifeSignals: lifeSignals.signalNames || [],
       primaryLifeSignal: lifeSignals.primarySignal?.name || null,
       hasMajorLifeSignal: Boolean(lifeSignals.hasMajorLifeSignal),
@@ -79,8 +89,7 @@ window.Ari.coreSummary = {
         lifeSignalWeighting.primaryWeightedLifeSignalName || null,
       primaryWeightedLifeSignalWeight:
         lifeSignalWeighting.primaryWeightedLifeSignalWeight || 0,
-      lifePriorityClass:
-        lifeSignalWeighting.lifePriorityClass || null,
+      lifePriorityClass: lifeSignalWeighting.lifePriorityClass || null,
       rankedLifeSignals:
         lifeSignalWeighting.rankedLifeSignals?.slice(0, 8).map((item) => ({
           name: item.name,
@@ -107,8 +116,7 @@ window.Ari.coreSummary = {
       primarySalienceReason: salience.primarySalienceReason || null,
       salienceRecommendedLead: salience.recommendedLead || null,
       salienceRecommendedMode: salience.recommendedMode || null,
-      salienceShouldOverrideLanguage:
-        Boolean(salience.shouldOverrideLanguage),
+      salienceShouldOverrideLanguage: Boolean(salience.shouldOverrideLanguage),
       rankedSalience:
         salience.rankedSalience?.slice(0, 8).map((item) => ({
           name: item.name,
@@ -169,18 +177,15 @@ window.Ari.coreSummary = {
       wisdomStatement: wisdom.wisdomStatement || null,
       wisdomConfidence: wisdom.confidence || null,
       wisdomArchetype: wisdom.archetype?.name || null,
-      wisdomArchetypeInspiration:
-        wisdom.archetype?.inspiration || null,
-      wisdomArchetypeLesson:
-        wisdom.archetype?.lesson || null,
+      wisdomArchetypeInspiration: wisdom.archetype?.inspiration || null,
+      wisdomArchetypeLesson: wisdom.archetype?.lesson || null,
 
       wisdomResolutionMode: wisdomResolution.resolutionMode || null,
       wisdomLeadingGood: wisdomResolution.leadingGood || null,
       wisdomSupportingGood: wisdomResolution.supportingGood || null,
       wisdomBoundary: wisdomResolution.boundary || null,
       wisdomIntegration: wisdomResolution.integration || null,
-      wisdomResolvedStatement:
-        wisdomResolution.resolvedStatement || null,
+      wisdomResolvedStatement: wisdomResolution.resolvedStatement || null,
       wisdomResolutionConfidence: wisdomResolution.confidence || null,
 
       regretType: regret.regretType || null,
@@ -189,31 +194,20 @@ window.Ari.coreSummary = {
       regretPreventableAction: regret.preventableAction || null,
 
       longTermPath: longTermConsequence.path || null,
-      fiveYearConsequence:
-        longTermConsequence.fiveYearConsequence || null,
-      protectedFuture:
-        longTermConsequence.protectedFuture || null,
-      riskIfIgnored:
-        longTermConsequence.riskIfIgnored || null,
-      courseCorrection:
-        longTermConsequence.courseCorrection || null,
-      longTermConsequenceConfidence:
-        longTermConsequence.confidence || null,
+      fiveYearConsequence: longTermConsequence.fiveYearConsequence || null,
+      protectedFuture: longTermConsequence.protectedFuture || null,
+      riskIfIgnored: longTermConsequence.riskIfIgnored || null,
+      courseCorrection: longTermConsequence.courseCorrection || null,
+      longTermConsequenceConfidence: longTermConsequence.confidence || null,
 
       wisdomSynthesis: wisdomSynthesis.synthesis || null,
-      wisdomPrimaryPrinciple:
-        wisdomSynthesis.primaryPrinciple || null,
-      wisdomPrincipleStatements:
-        wisdomSynthesis.principleStatements || [],
-      wisdomSynthesisArchetype:
-        wisdomSynthesis.archetype || null,
+      wisdomPrimaryPrinciple: wisdomSynthesis.primaryPrinciple || null,
+      wisdomPrincipleStatements: wisdomSynthesis.principleStatements || [],
+      wisdomSynthesisArchetype: wisdomSynthesis.archetype || null,
 
-      wisdomQuestionRecoveryNeeded:
-        Boolean(wisdomQuestionRecovery.shouldRecover),
-      wisdomRecoveryReason:
-        wisdomQuestionRecovery.recoveryReason || null,
-      wisdomRecoveryQuestion:
-        wisdomQuestionRecovery.primaryQuestion || null,
+      wisdomQuestionRecoveryNeeded: Boolean(wisdomQuestionRecovery.shouldRecover),
+      wisdomRecoveryReason: wisdomQuestionRecovery.recoveryReason || null,
+      wisdomRecoveryQuestion: wisdomQuestionRecovery.primaryQuestion || null,
       wisdomRecoverySupportingQuestions:
         wisdomQuestionRecovery.supportingQuestions || [],
 
@@ -221,23 +215,16 @@ window.Ari.coreSummary = {
         underlyingEmotionDepth.primaryUnderlyingEmotion?.name || null,
       underlyingEmotionDepthConfidence:
         underlyingEmotionDepth.primaryUnderlyingEmotion?.confidence || null,
-      emotionalSource:
-        underlyingEmotionDepth.emotionalSource || null,
-      protectiveStrategy:
-        underlyingEmotionDepth.protectiveStrategy || null,
-      hiddenFear:
-        underlyingEmotionDepth.hiddenFear || null,
-      vulnerableTruth:
-        underlyingEmotionDepth.vulnerableTruth || null,
+      emotionalSource: underlyingEmotionDepth.emotionalSource || null,
+      protectiveStrategy: underlyingEmotionDepth.protectiveStrategy || null,
+      hiddenFear: underlyingEmotionDepth.hiddenFear || null,
+      vulnerableTruth: underlyingEmotionDepth.vulnerableTruth || null,
       underlyingEmotionCandidates:
         underlyingEmotionDepth.candidates?.map((item) => item.name) || [],
 
-      emotionRecoveryShouldAsk:
-        Boolean(emotionRecoveryQuestions.shouldAsk),
-      emotionRecoveryQuestionType:
-        emotionRecoveryQuestions.questionType || null,
-      emotionRecoveryQuestion:
-        emotionRecoveryQuestions.primaryQuestion || null,
+      emotionRecoveryShouldAsk: Boolean(emotionRecoveryQuestions.shouldAsk),
+      emotionRecoveryQuestionType: emotionRecoveryQuestions.questionType || null,
+      emotionRecoveryQuestion: emotionRecoveryQuestions.primaryQuestion || null,
       emotionRecoverySupportingQuestions:
         emotionRecoveryQuestions.supportingQuestions || [],
 
@@ -247,61 +234,43 @@ window.Ari.coreSummary = {
       humanTruth: meaning.humanTruth || null,
 
       personLifeChapter: personModel.lifeChapter?.name || null,
-      personPrimaryRole:
-        personModel.snapshot?.primaryRole || null,
-      personMainNeed:
-        personModel.snapshot?.mainNeed || null,
-      personRecurringPattern:
-        personModel.snapshot?.recurringPattern || null,
+      personPrimaryRole: personModel.snapshot?.primaryRole || null,
+      personMainNeed: personModel.snapshot?.mainNeed || null,
+      personRecurringPattern: personModel.snapshot?.recurringPattern || null,
 
-      primaryBelief:
-        beliefModel.primaryBelief?.name || null,
-      primaryBeliefConfidence:
-        beliefModel.primaryBelief?.confidence || null,
-      beliefSummary:
-        beliefModel.beliefSummary || null,
+      primaryBelief: beliefModel.primaryBelief?.name || null,
+      primaryBeliefConfidence: beliefModel.primaryBelief?.confidence || null,
+      beliefSummary: beliefModel.beliefSummary || null,
 
-      primarySimulation:
-        simulation.primarySimulation?.name || null,
-      simulationTheme:
-        simulation.primarySimulation?.theme || null,
+      primarySimulation: simulation.primarySimulation?.name || null,
+      simulationTheme: simulation.primarySimulation?.theme || null,
 
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
 
       primaryEmotion: emotion.primaryEmotion || "curiosity",
       secondaryEmotions: emotion.secondaryEmotions || [],
-      surfaceEmotion:
-        emotionalIntelligence.surfaceEmotion?.name || null,
-      underlyingEmotion:
-        emotionalIntelligence.underlyingEmotion?.name || null,
-      rootNeed:
-        emotionalIntelligence.rootNeed?.name || null,
-      protecting:
-        emotionalIntelligence.protecting?.name || null,
+      surfaceEmotion: emotionalIntelligence.surfaceEmotion?.name || null,
+      underlyingEmotion: emotionalIntelligence.underlyingEmotion?.name || null,
+      rootNeed: emotionalIntelligence.rootNeed?.name || null,
+      protecting: emotionalIntelligence.protecting?.name || null,
 
       memoryCandidate: memory.shouldRemember ? memory : null,
 
       lifeSignalSource: lifeSignals.source || "unknown",
-      lifeSignalWeightingSource:
-        lifeSignalWeighting.source || "unknown",
+      lifeSignalWeightingSource: lifeSignalWeighting.source || "unknown",
       signalSystemSource: signals.source || "unknown",
       salienceSource: salience.source || "unknown",
 
       insightSource: insight.source || "unknown",
       metaAwarenessSource: metaAwareness.source || "unknown",
       wisdomSource: wisdom.source || "unknown",
-      wisdomResolutionSource:
-        wisdomResolution.source || "unknown",
+      wisdomResolutionSource: wisdomResolution.source || "unknown",
       regretSource: regret.source || "unknown",
-      longTermConsequenceSource:
-        longTermConsequence.source || "unknown",
-      wisdomSynthesisSource:
-        wisdomSynthesis.source || "unknown",
-      wisdomQuestionRecoverySource:
-        wisdomQuestionRecovery.source || "unknown",
-      underlyingEmotionDepthSource:
-        underlyingEmotionDepth.source || "unknown",
+      longTermConsequenceSource: longTermConsequence.source || "unknown",
+      wisdomSynthesisSource: wisdomSynthesis.source || "unknown",
+      wisdomQuestionRecoverySource: wisdomQuestionRecovery.source || "unknown",
+      underlyingEmotionDepthSource: underlyingEmotionDepth.source || "unknown",
       emotionRecoveryQuestionsSource:
         emotionRecoveryQuestions.source || "unknown",
 
@@ -318,15 +287,12 @@ window.Ari.coreSummary = {
       voiceSource: voice.source || "unknown",
       attentionSource: attention.source || "unknown",
       emotionSource: emotion.source || "unknown",
-      emotionalIntelligenceSource:
-        emotionalIntelligence.source || "unknown",
+      emotionalIntelligenceSource: emotionalIntelligence.source || "unknown",
       memorySource: memory.source || "unknown",
 
       authorityHierarchy: window.Ari.authority
         ? window.Ari.authority.hierarchy
         : []
     };
-
-    return summary;
   }
 };
