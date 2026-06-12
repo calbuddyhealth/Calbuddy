@@ -1,11 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth coordinator for Ari Rebirth.
-// V2.1
+// V2.2
 // Fixes:
-// - Supports both old and new mouth engine names.
-// - Makes mouthUsed show true when modules are available.
-// - Keeps safe fallbacks if any mouth module is missing.
+// - Supports old and new mouth engine names.
+// - Tries multiple possible method names per mouth engine.
+// - Tracks engines found vs engines actually used.
+// - Keeps safe fallback language if a mouth engine returns null.
 
 window.AriLanguageComposer = {
   compose(input = {}) {
@@ -36,13 +37,18 @@ window.AriLanguageComposer = {
       return null;
     };
 
-    const safeRun = (engine, method, fallback = null) => {
+    const safeRunAny = (engine, methods = [], fallback = null) => {
       try {
-        if (engine && typeof engine[method] === "function") {
-          return engine[method](summary) || fallback;
+        if (!engine) return fallback;
+
+        for (const method of methods) {
+          if (typeof engine[method] === "function") {
+            const result = engine[method](summary);
+            if (result) return result;
+          }
         }
       } catch (error) {
-        console.warn(`[AriLanguageComposer] ${method} failed`, error);
+        console.warn("[AriLanguageComposer] mouth engine failed", error);
       }
 
       return fallback;
@@ -57,13 +63,61 @@ window.AriLanguageComposer = {
     const shapeEngine = getEngine("AriMouthShapeEngine", "AriResponseShapeEngine");
     const shaperEngine = getEngine("AriMouthShaper", "AriResponseShaper");
 
-    const openingResult = safeRun(openingEngine, "create", null);
-    const truthResult = safeRun(truthEngine, "extract", null);
-    const emotionResult = safeRun(emotionEngine, "name", null);
-    const wisdomResult = safeRun(wisdomEngine, "distill", null);
-    const actionResult = safeRun(actionEngine, "guide", null);
-    const voiceResult = safeRun(voiceEngine, "blend", null);
-    const shapeResult = safeRun(shapeEngine, "shape", null);
+    const openingResult = safeRunAny(openingEngine, [
+      "create",
+      "generate",
+      "compose",
+      "open",
+      "run"
+    ], null);
+
+    const truthResult = safeRunAny(truthEngine, [
+      "extract",
+      "generate",
+      "compose",
+      "tell",
+      "run"
+    ], null);
+
+    const emotionResult = safeRunAny(emotionEngine, [
+      "name",
+      "generate",
+      "compose",
+      "detect",
+      "run"
+    ], null);
+
+    const wisdomResult = safeRunAny(wisdomEngine, [
+      "distill",
+      "generate",
+      "compose",
+      "resolve",
+      "run"
+    ], null);
+
+    const actionResult = safeRunAny(actionEngine, [
+      "guide",
+      "generate",
+      "compose",
+      "recommend",
+      "run"
+    ], null);
+
+    const voiceResult = safeRunAny(voiceEngine, [
+      "blend",
+      "generate",
+      "compose",
+      "choose",
+      "run"
+    ], null);
+
+    const shapeResult = safeRunAny(shapeEngine, [
+      "shape",
+      "generate",
+      "compose",
+      "structure",
+      "run"
+    ], null);
 
     const recommendedQuestion =
       summary.synthesisRecommendedQuestion ||
@@ -78,20 +132,28 @@ window.AriLanguageComposer = {
     let opening =
       openingResult?.opening ||
       openingResult?.text ||
+      openingResult?.line ||
       fallbackOpening;
 
-    let bodyParts = [
+    const bodyParts = [
       truthResult?.truth,
       truthResult?.text,
+      truthResult?.line,
+
       emotionResult?.emotionalName,
       emotionResult?.emotion,
       emotionResult?.text,
+      emotionResult?.line,
+
       wisdomResult?.principle,
       wisdomResult?.wisdom,
       wisdomResult?.text,
+      wisdomResult?.line,
+
       actionResult?.guidance,
       actionResult?.action,
-      actionResult?.text
+      actionResult?.text,
+      actionResult?.line
     ].filter(Boolean);
 
     let body =
@@ -102,6 +164,7 @@ window.AriLanguageComposer = {
     let closing =
       shapeResult?.closing ||
       shapeResult?.question ||
+      shapeResult?.finalQuestion ||
       fallbackClosing;
 
     let finalResponse =
@@ -111,9 +174,9 @@ ${body.trim()}
 
 ${closing}`;
 
-    const shapedResponse = safeRun(
+    const shapedResponse = safeRunAny(
       shaperEngine,
-      "polish",
+      ["polish", "shape", "compose", "generate", "run"],
       { finalResponse }
     );
 
