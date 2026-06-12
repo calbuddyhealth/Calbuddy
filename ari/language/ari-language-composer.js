@@ -1,13 +1,11 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth coordinator for Ari Rebirth.
-// V2.4
+// V2.5
 // Fixes:
-// - Adds meaningStatement into the final body before truth.
-// - Keeps opening, meaning, truth, emotion, wisdom, action, and question as separate readable sections.
-// - Accepts mouth engines that return either objects OR plain strings.
-// - Prevents mouthUsed true while text is ignored.
-// - Sends finalResponse correctly into shaper/polish.
+// - Prevents duplicate uncertainty language.
+// - In uncertainty mode, uses truth OR meaning, not both.
+// - Keeps opening, truth/meaning, emotion, wisdom, action, and question as readable sections.
 
 window.AriLanguageComposer = {
   compose(input = {}) {
@@ -98,16 +96,26 @@ window.AriLanguageComposer = {
       readText(openingResult, ["opening", "text", "line"]) ||
       this.createFallbackOpening(summary, leadOrgan);
 
-    const meaningText =
+    let meaningText =
       typeof summary.meaningStatement === "string" &&
       summary.meaningStatement.trim()
         ? summary.meaningStatement.trim()
         : null;
 
-    const truthText = readText(truthResult, ["truth", "text", "line"]);
+    let truthText = readText(truthResult, ["truth", "text", "line"]);
     const emotionText = readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
     const wisdomText = readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     const actionText = readText(actionResult, ["guidance", "action", "text", "line"]);
+
+    // Prevent duplicate uncertainty language.
+    // In uncertainty mode, meaningText and truthText often say the same thing.
+    if (leadOrgan === "uncertainty") {
+      if (truthText) {
+        meaningText = null;
+      } else if (meaningText) {
+        truthText = null;
+      }
+    }
 
     const bodyParts = [
       meaningText,
