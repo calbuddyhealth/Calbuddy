@@ -1,11 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.7
+// V1.8
 // Fixes:
-// - Adds late-stage Observer Hierarchy pass after synthesis.
-// - Lets hierarchy see primaryLifeChapter, wisdomTension, highestGood, executiveDecision, confidence, etc.
-// - Response Intent and Mouth Director now receive the late hierarchy result.
+// - Adds Organism Function Engine before Human Needs.
+// - Lets Ari understand survival/body functions before meaning, identity, wisdom, or advice.
+// - Keeps late-stage Observer Hierarchy pass after synthesis.
+// - Response Intent and Mouth Director receive organism + hierarchy context.
 
 window.AriRebirthPipeline = {
   run(systemSummary = {}) {
@@ -29,7 +30,6 @@ window.AriRebirthPipeline = {
       if (safety.safetyTriggered) {
         return {
           ...summary,
-
           finalResponse: safety.response,
 
           safetyTriggered: true,
@@ -64,6 +64,40 @@ window.AriRebirthPipeline = {
         safetyType: safety.safetyType,
         safetyUrgency: safety.urgency,
         safetyReason: safety.reason
+      };
+    }
+
+    // 0.5. ORGANISM FUNCTION ENGINE
+    if (
+      window.AriOrganismFunctionEngine &&
+      typeof window.AriOrganismFunctionEngine.evaluate === "function"
+    ) {
+      const organismResult =
+        window.AriOrganismFunctionEngine.evaluate(summary) || {};
+
+      summary = {
+        ...summary,
+        ...organismResult
+      };
+    } else {
+      summary = {
+        ...summary,
+        organismEngineRan: false,
+        organismEngineSource: "not-loaded",
+        organismPrimaryFunction: null,
+        organismPrimaryFunctionScore: 0,
+        organismFunctions: [],
+        organismDisruption: {
+          hasDisruption: false,
+          disruptions: []
+        },
+        organismUrgency: {
+          level: "none",
+          reason: "Organism engine unavailable."
+        },
+        organismNeedsStabilization: false,
+        organismRecommendedMode: "no_organism_signal",
+        organismRecommendedAction: "No organism-level action available."
       };
     }
 
@@ -124,7 +158,6 @@ window.AriRebirthPipeline = {
     runStep(window.AriSynthesisEngine, "synthesize");
 
     // 10.5. Late Observer Hierarchy pass.
-    // This overwrites early observer hierarchy with synthesis-aware hierarchy.
     if (
       window.Ari &&
       window.Ari.observerHierarchyEngine &&
@@ -180,7 +213,10 @@ window.AriRebirthPipeline = {
           lateHierarchy.recommendedQuestion || null,
 
         observerHierarchyRankedObservations:
-          lateHierarchy.rankedObservations || []
+          lateHierarchy.rankedObservations || [],
+
+        observerHierarchyRankedUnknowns:
+          lateHierarchy.rankedUnknowns || []
       };
     }
 
