@@ -1,15 +1,61 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.1
+// V1.2
 // Fixes:
-// - Runs identity/life/value context before uncertainty.
-// - Runs identity conflict after uncertainty so uncertainty can pause identity leadership.
-// - Prevents early uncertainty from labeling strong life chapters as unclear too soon.
+// - Adds Safety Override before all meaning/wisdom/emotion systems.
+// - Safety can stop the pipeline and return an urgent response.
+// - Preserves existing Rebirth organ order after safety clears.
 
 window.AriRebirthPipeline = {
   run(systemSummary = {}) {
     let summary = { ...systemSummary };
+
+    const userMessage =
+      summary.userMessage ||
+      summary.message ||
+      summary.normalizedMessage ||
+      summary.input ||
+      "";
+
+    // 0. SAFETY OVERRIDE
+    // Safety outranks every other organ.
+    if (
+      window.Ari &&
+      window.Ari.safetyClassifier &&
+      typeof window.Ari.safetyClassifier.classify === "function"
+    ) {
+      const safety = window.Ari.safetyClassifier.classify(userMessage);
+
+      if (safety.safetyTriggered) {
+        return {
+          ...summary,
+
+          finalResponse: safety.response,
+
+          safetyTriggered: true,
+          safetyType: safety.safetyType,
+          safetyUrgency: safety.urgency,
+          safetyReason: safety.reason,
+
+          salienceLeadOrgan: "safety",
+          salienceMode: "safety_override",
+          salienceReason: safety.reason,
+
+          rebirthPipelineRan: true,
+          rebirthPipelineSource: "ari-rebirth-pipeline",
+          source: "ari-safety-classifier"
+        };
+      }
+
+      summary = {
+        ...summary,
+        safetyTriggered: false,
+        safetyType: safety.safetyType,
+        safetyUrgency: safety.urgency,
+        safetyReason: safety.reason
+      };
+    }
 
     const runStep = (engine, method) => {
       if (engine && typeof engine[method] === "function") {
