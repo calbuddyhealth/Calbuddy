@@ -132,16 +132,11 @@
 
   <!-- ARI REBIRTH ORGANS -->
   <script src="ari/uncertainty/ari-uncertainty-classification-engine.js"></script>
-
   <script src="ari/identity/ari-identity-priority-engine.js"></script>
   <script src="ari/identity/ari-identity-conflict-resolver.js"></script>
-
   <script src="ari/values/ari-value-integration-engine.js"></script>
-
   <script src="ari/emotion/ari-stewardship-fear-differentiator.js"></script>
-
   <script src="ari/meaning/ari-life-chapter-engine.js"></script>
-
   <script src="ari/integration/ari-salience-governor.js"></script>
   <script src="ari/integration/ari-synthesis-engine.js"></script>
 
@@ -190,7 +185,6 @@
 
       let summary = window.Ari.core.createSystemSummary(analysis);
 
-      // Preserve raw user message for Safety + Human Needs Network.
       summary.userMessage = message;
       summary.message = message;
       summary.input = message;
@@ -357,6 +351,77 @@ ${summary.recommendedFocus || "none"}
 
 Things To Delay:
 ${thingsToDelay || "none"}
+
+==================================================
+
+===== OBSERVER HIERARCHY =====
+
+Primary Observation:
+${summary.observerHierarchyPrimaryObservation || "none"}
+
+Primary Category:
+${summary.observerHierarchyPrimaryCategory || "none"}
+
+Primary Reason:
+${summary.observerHierarchyPrimaryReason || "none"}
+
+Primary Confidence:
+${summary.observerHierarchyPrimaryConfidence ?? "none"}
+
+Dominant Tension:
+${summary.observerHierarchyDominantTension || "none"}
+
+Life Chapter:
+${summary.observerHierarchyLifeChapter || "none"}
+
+Objective Lead:
+${summary.observerHierarchyObjectiveLead || "none"}
+
+Subjective Lead:
+${summary.observerHierarchySubjectiveLead || "none"}
+
+Dual Salience Mode:
+${summary.observerHierarchyDualSalienceMode || "none"}
+
+Executive Instruction:
+${summary.observerHierarchyExecutiveInstruction || "none"}
+
+Should Ask Clarifying Question:
+${summary.observerHierarchyShouldAskClarifyingQuestion === true ? "yes" : summary.observerHierarchyShouldAskClarifyingQuestion === false ? "no" : "none"}
+
+Recommended Question:
+${summary.observerHierarchyRecommendedQuestion || "none"}
+
+==================================================
+
+===== DUAL SALIENCE =====
+
+Available:
+${summary.dualSalienceAvailable === true ? "yes" : summary.dualSalienceAvailable === false ? "no" : "none"}
+
+Lead:
+${summary.dualSalienceLead || "none"}
+
+Mode:
+${summary.dualSalienceMode || "none"}
+
+Objective Lead:
+${summary.dualSalienceObjectiveLead || "none"}
+
+Subjective Lead:
+${summary.dualSalienceSubjectiveLead || "none"}
+
+Reason:
+${summary.dualSalienceReason || "none"}
+
+Clarity Confidence:
+${summary.dualSalienceClarityConfidence ?? "none"}
+
+Clarity Action:
+${summary.dualSalienceClarityAction || "none"}
+
+Recommended Move:
+${summary.dualSalienceRecommendedMove || "none"}
 
 ==================================================
 
