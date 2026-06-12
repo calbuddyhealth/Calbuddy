@@ -1,13 +1,13 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's system/debug summary.
-// V1.8: Core summary now only creates base summary.
+// V1.9: Adds raw user message fields so Safety + Human Needs Network can read the original prompt.
 // Rebirth pipeline should run outside this file to prevent duplicate execution.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "1.8.0",
+  version: "1.9.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -47,7 +47,25 @@ window.Ari.coreSummary = {
     const voice = analysis.voice || {};
     const memory = analysis.memory || {};
 
+    const rawUserMessage =
+      analysis.userMessage ||
+      analysis.message ||
+      observation.message ||
+      observation.originalMessage ||
+      observation.rawMessage ||
+      "";
+
+    const normalizedUserMessage =
+      observation.normalizedMessage ||
+      analysis.normalizedMessage ||
+      String(rawUserMessage || "").toLowerCase().trim();
+
     const summary = {
+      userMessage: rawUserMessage,
+      message: rawUserMessage,
+      input: rawUserMessage,
+      normalizedMessage: normalizedUserMessage,
+
       questionType: analysis.questionType || "unknown",
 
       languageRoute,
