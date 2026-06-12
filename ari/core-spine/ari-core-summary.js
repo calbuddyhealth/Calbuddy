@@ -1,17 +1,18 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V2.1
+// V2.2
 // Fixes:
 // - Preserves raw user message for Safety + Human Needs Network.
 // - Adds response intent placeholders.
 // - Adds Mouth Director placeholders/debug fields.
+// - Adds Dual Salience debug fields.
 // - Keeps Rebirth pipeline outside this file to prevent duplicate execution.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "2.1.0",
+  version: "2.2.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -24,6 +25,11 @@ window.Ari.coreSummary = {
       : null;
 
     const observation = analysis.observation || {};
+    const dualSalience =
+      analysis.dualSalience ||
+      observation.dualSalience ||
+      {};
+
     const values = analysis.values || {};
     const identity = analysis.identity || {};
     const conflicts = analysis.conflicts || {};
@@ -141,6 +147,42 @@ window.Ari.coreSummary = {
           strength: item.strength,
           reason: item.reason
         })) || [],
+
+      dualSalienceAvailable:
+        dualSalience.available ?? null,
+
+      dualSalienceObjective:
+        dualSalience.objective || {},
+
+      dualSalienceSubjective:
+        dualSalience.subjective || {},
+
+      dualSalienceGaps:
+        dualSalience.gaps || [],
+
+      dualSalienceLead:
+        dualSalience.priority?.lead || null,
+
+      dualSalienceMode:
+        dualSalience.priority?.mode || null,
+
+      dualSalienceObjectiveLead:
+        dualSalience.priority?.objectiveLead || null,
+
+      dualSalienceSubjectiveLead:
+        dualSalience.priority?.subjectiveLead || null,
+
+      dualSalienceReason:
+        dualSalience.priority?.reason || null,
+
+      dualSalienceClarityConfidence:
+        dualSalience.clarity?.confidence || null,
+
+      dualSalienceClarityAction:
+        dualSalience.clarity?.action || null,
+
+      dualSalienceRecommendedMove:
+        dualSalience.recommendedMove || null,
 
       focusType: attention.focusType || "unknown",
       focusReason: attention.focusReason || "No focus reason.",
@@ -306,6 +348,7 @@ window.Ari.coreSummary = {
       emotionSource: emotion.source || "unknown",
       emotionalIntelligenceSource: emotionalIntelligence.source || "unknown",
       memorySource: memory.source || "unknown",
+      dualSalienceSource: dualSalience.system || "unknown",
 
       authorityHierarchy: window.Ari.authority
         ? window.Ari.authority.hierarchy
