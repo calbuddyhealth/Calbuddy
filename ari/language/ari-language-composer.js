@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.1
+// V3.1 MOUTH DEBUG ACTIVE
 // Fixes:
 // - Adds mouth debug sources.
 // - Shows which engine generated each line.
