@@ -2,12 +2,18 @@
 // Ari Human Needs Network
 // Purpose: Identify the user's active human needs before Ari chooses wisdom, meaning, emotion, identity, or action.
 // Replaces Maslow-style hierarchy with Ari's need network.
-// V2.0
+// V2.1
+// Fixes:
+// - Adds organism-function awareness.
+// - Detects when basic survival functions are blocked.
+// - Strengthens body need detection for food, nausea, dizziness, hydration, sleep, pain.
+// - Allows humans to go against their own living functions through worry, fear, shame, conflict, or cognition.
+// - Sends body/security needs to safety before meaning, wisdom, or identity.
 
 window.Ari = window.Ari || {};
 
 window.Ari.needEngine = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   evaluate(summary = {}) {
     const text = String(
@@ -19,6 +25,13 @@ window.Ari.needEngine = {
     ).toLowerCase();
 
     const needs = [];
+
+    const organismPrimaryFunction = summary.organismPrimaryFunction || null;
+    const organismNeedsStabilization = Boolean(summary.organismNeedsStabilization);
+    const organismUrgency = summary.organismUrgency || {};
+    const organismUrgencyLevel = organismUrgency.level || null;
+    const organismDisruption = summary.organismDisruption || {};
+    const organismHasDisruption = Boolean(organismDisruption.hasDisruption);
 
     const add = (name, score, reason, leadOrgan, responseMode) => {
       const existing = needs.find((need) => need.name === name);
@@ -40,25 +53,63 @@ window.Ari.needEngine = {
 
     const has = (phrases = []) => phrases.some((p) => text.includes(p));
 
+    // 0. ORGANISM FUNCTION OVERRIDE
+    // Basic living functions must be understood before abstract interpretation.
+    if (
+      organismNeedsStabilization ||
+      organismUrgencyLevel === "critical" ||
+      organismUrgencyLevel === "high" ||
+      organismUrgencyLevel === "moderate"
+    ) {
+      add(
+        "body",
+        organismUrgencyLevel === "critical" ? 100 : 98,
+        `Organism function need detected: '${organismPrimaryFunction || "unknown"}' may need stabilization before interpretation.`,
+        "safety",
+        organismUrgencyLevel === "critical"
+          ? "urgent_safety"
+          : "stabilize_body_first"
+      );
+    }
+
     // 1. BODY
-    // Sleep, food, pain, hydration, exhaustion, body stability.
+    // Sleep, food, pain, hydration, exhaustion, nausea, dizziness, body stability.
     if (
       has([
         "haven't slept",
         "have not slept",
         "can't sleep",
         "cannot sleep",
+        "no sleep",
+        "insomnia",
         "hungry",
         "starving",
-        "dehydrated",
+        "haven't eaten",
+        "have not eaten",
+        "havent eaten",
+        "didn't eat",
+        "didnt eat",
+        "haven't eaten all day",
+        "havent eaten all day",
         "can't eat",
         "cannot eat",
+        "cant eat",
+        "too nauseous",
+        "nauseous",
+        "nausea",
+        "dizzy",
+        "lightheaded",
+        "blood sugar",
+        "dehydrated",
+        "thirsty",
+        "dry mouth",
+        "dark urine",
         "exhausted",
+        "fatigued",
         "severe pain",
         "worst pain",
         "sharp pain",
         "constant pain",
-        "dizzy",
         "fainted",
         "passed out"
       ])
@@ -66,9 +117,45 @@ window.Ari.needEngine = {
       add(
         "body",
         100,
-        "Body-level need detected: sleep, food, hydration, pain, energy, or physical stability.",
+        "Body-level need detected: sleep, food, hydration, nausea, dizziness, pain, energy, or physical stability.",
         "safety",
         "stabilize_body_first"
+      );
+    }
+
+    // 1.5 BODY OVERRIDE / SELF-REGULATION DISRUPTION
+    // Humans can know what keeps them alive and still be unable to act on it.
+    if (
+      has([
+        "i should eat but",
+        "i know i should eat but",
+        "i should sleep but",
+        "i know i should sleep but",
+        "i know but",
+        "i should but",
+        "can't stop worrying",
+        "cant stop worrying",
+        "too anxious to eat",
+        "too stressed to eat",
+        "too nauseous to eat",
+        "i can't make myself eat",
+        "i cant make myself eat"
+      ])
+    ) {
+      add(
+        "body",
+        100,
+        "Body need is being overridden or blocked by cognition, fear, nausea, stress, or emotional conflict.",
+        "safety",
+        "stabilize_body_first"
+      );
+
+      add(
+        "security",
+        90,
+        "Self-regulation disruption detected: the user may know the survival need but cannot easily follow it.",
+        "executive",
+        "restore_basic_function"
       );
     }
 
@@ -79,6 +166,13 @@ window.Ari.needEngine = {
         "unsafe",
         "danger",
         "emergency",
+        "can't breathe",
+        "cannot breathe",
+        "cant breathe",
+        "short of breath",
+        "chest pain",
+        "stroke",
+        "seizure",
         "pregnant",
         "severe pain",
         "bleeding",
@@ -113,7 +207,6 @@ window.Ari.needEngine = {
     }
 
     // 3. CONNECTION
-    // Belonging, love, attachment, family, being seen.
     if (
       has([
         "alone",
@@ -147,7 +240,6 @@ window.Ari.needEngine = {
     }
 
     // 4. WORTH
-    // Respect, dignity, competence, confidence, validation, self-worth.
     if (
       has([
         "nobody respects me",
@@ -178,7 +270,6 @@ window.Ari.needEngine = {
     }
 
     // 5. IDENTITY
-    // Who am I becoming? Role, self-concept, life transition.
     if (
       has([
         "who am i",
@@ -214,7 +305,6 @@ window.Ari.needEngine = {
     }
 
     // 6. PURPOSE
-    // Meaning, mission, calling, legacy, contribution.
     if (
       has([
         "meaning",
@@ -241,7 +331,6 @@ window.Ari.needEngine = {
     }
 
     // 7. WISDOM
-    // Integration, tradeoffs, what should lead, values in conflict.
     if (
       has([
         "what should i do",
