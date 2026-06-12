@@ -78,13 +78,61 @@ window.AriLanguageComposer = {
     const shapeEngine = getEngine("AriMouthShapeEngine", "AriResponseShapeEngine");
     const shaperEngine = getEngine("AriMouthShaper", "AriResponseShaper");
 
-    const openingResult = safeRunAny(openingEngine, ["create", "generate", "compose", "open", "run"]);
-    const truthResult = safeRunAny(truthEngine, ["extract", "generate", "compose", "tell", "run"]);
-    const emotionResult = safeRunAny(emotionEngine, ["name", "generate", "compose", "detect", "run"]);
-    const wisdomResult = safeRunAny(wisdomEngine, ["distill", "generate", "compose", "resolve", "run"]);
-    const actionResult = safeRunAny(actionEngine, ["guide", "generate", "compose", "recommend", "run"]);
-    const voiceResult = safeRunAny(voiceEngine, ["blend", "generate", "compose", "choose", "run"]);
-    const shapeResult = safeRunAny(shapeEngine, ["shape", "generate", "compose", "structure", "run"]);
+    const openingResult = safeRunAny(openingEngine, [
+      "create",
+      "generate",
+      "compose",
+      "open",
+      "run"
+    ]);
+
+    const truthResult = safeRunAny(truthEngine, [
+      "extract",
+      "generate",
+      "compose",
+      "tell",
+      "run"
+    ]);
+
+    const emotionResult = safeRunAny(emotionEngine, [
+      "name",
+      "generate",
+      "compose",
+      "detect",
+      "run"
+    ]);
+
+    const wisdomResult = safeRunAny(wisdomEngine, [
+      "distill",
+      "generate",
+      "compose",
+      "resolve",
+      "run"
+    ]);
+
+    const actionResult = safeRunAny(actionEngine, [
+      "guide",
+      "generate",
+      "compose",
+      "recommend",
+      "run"
+    ]);
+
+    const voiceResult = safeRunAny(voiceEngine, [
+      "blend",
+      "generate",
+      "compose",
+      "choose",
+      "run"
+    ]);
+
+    const shapeResult = safeRunAny(shapeEngine, [
+      "shape",
+      "generate",
+      "compose",
+      "structure",
+      "run"
+    ]);
 
     const recommendedQuestion =
       summary.synthesisRecommendedQuestion ||
@@ -108,7 +156,6 @@ window.AriLanguageComposer = {
     const actionText = readText(actionResult, ["guidance", "action", "text", "line"]);
 
     // Prevent duplicate uncertainty language.
-    // In uncertainty mode, meaningText and truthText often say the same thing.
     if (leadOrgan === "uncertainty") {
       if (truthText) {
         meaningText = null;
