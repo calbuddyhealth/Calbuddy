@@ -1,9 +1,28 @@
 // ari/language/ari-response-shaper.js
 // Ari Response Shaper
 // Purpose: Organize final responses into human-readable flow.
-// V1.0
+// V1.1
+// Fixes:
+// - Adds polish() for AriLanguageComposer compatibility.
+// - Keeps shape() and getMode() for backward compatibility.
 
 window.AriResponseShaper = {
+
+  polish(input = {}) {
+    const finalResponse = input.finalResponse || "";
+
+    if (!finalResponse.trim()) {
+      return null;
+    }
+
+    return {
+      finalResponse: finalResponse
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim(),
+      source: "ari-response-shaper"
+    };
+  },
 
   shape({
     opening = null,
@@ -74,5 +93,4 @@ window.AriResponseShaper = {
 
     return "standard";
   }
-
 };
