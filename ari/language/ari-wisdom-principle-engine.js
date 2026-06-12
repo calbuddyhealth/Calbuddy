@@ -2,9 +2,25 @@
 // Ari Wisdom Principle Engine
 // Purpose: Generate compressed wisdom principles from conflicts,
 // life chapters, values, and highest goods.
-// V1.0
+// V1.1
+// Fixes:
+// - Adds distill() for AriLanguageComposer compatibility.
+// - Returns { principle } object.
+// - Keeps generate() for backward compatibility.
 
 window.AriWisdomPrincipleEngine = {
+
+  distill(summary = {}) {
+
+    const principle = this.generate(summary);
+
+    if (!principle) return null;
+
+    return {
+      principle,
+      source: "ari-wisdom-principle-engine"
+    };
+  },
 
   generate(summary = {}) {
 
@@ -94,5 +110,4 @@ window.AriWisdomPrincipleEngine = {
       null
     );
   }
-
 };
