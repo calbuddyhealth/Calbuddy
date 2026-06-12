@@ -1,14 +1,14 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide HOW Ari communicates.
-// V2.2
+// V2.3
 // Fixes:
-// - Mouth obeys Response Intent first.
-// - Removes direct observerShouldAsk override from the clarify block.
-// - Prevents Observer noise from forcing question_only when Executive / Response Intent already chose a stronger move.
+// - Adds Organism Function response intent support.
+// - Forces body/survival-function stabilization to be short, practical, and non-abstract.
+// - Prevents meaning/wisdom/identity language from leaking into body-first responses.
 
 window.AriMouthDirector = {
-  version: "2.2.0",
+  version: "2.3.0",
 
   direct(summary = {}) {
     const mode =
@@ -43,6 +43,11 @@ window.AriMouthDirector = {
     const dualMode =
       summary.dualSalienceMode || null;
 
+    const organismUrgencyLevel =
+      summary.organismUrgency?.level ||
+      summary.organismUrgencyLevel ||
+      "none";
+
     const director = {
       explanationLevel: "standard",
       responsePattern: "reflection_then_question",
@@ -59,14 +64,12 @@ window.AriMouthDirector = {
       mouthDirectorRan: true
     };
 
-    // ===================================
-    // 1. SAFETY OVERRIDE
-    // ===================================
-
+    // SAFETY OVERRIDE
     if (
       intent === "protect_safety" ||
       executiveDecision === "protect_safety_first" ||
-      primaryPriority === "safety"
+      primaryPriority === "safety" ||
+      organismUrgencyLevel === "critical"
     ) {
       director.explanationLevel = "minimal";
       director.responsePattern = "urgent_support";
@@ -82,14 +85,28 @@ window.AriMouthDirector = {
       return director;
     }
 
-    // ===================================
-    // 2. RESPONSE INTENT FIRST
-    // ===================================
+    // ORGANISM / BODY STABILIZATION
+    if (
+      intent === "stabilize_organism_function" ||
+      shape === "body_truth_then_action" ||
+      mode === "stabilize_body_first" ||
+      need === "body"
+    ) {
+      director.explanationLevel = "minimal";
+      director.responsePattern = "body_truth_then_action";
+      director.maxBodySections = 2;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = false;
+      director.allowEmotion = false;
+      director.allowTruth = true;
+      director.allowWisdom = false;
+      director.allowAction = true;
+
+      return director;
+    }
 
     // CLARIFY BEFORE ADVISING
-    // Important: do NOT check observerShouldAsk here.
-    // Response Intent is responsible for deciding whether observation uncertainty
-    // deserves a question. Mouth only obeys the final intent.
     if (
       intent === "clarify_before_advising" ||
       intent === "clarify_before_interpreting" ||
@@ -407,10 +424,6 @@ window.AriMouthDirector = {
 
       return director;
     }
-
-    // ===================================
-    // 3. CONFIDENCE FALLBACKS
-    // ===================================
 
     // LOW CONFIDENCE
     if (
