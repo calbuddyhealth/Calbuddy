@@ -1,15 +1,15 @@
 // ari/language/ari-response-intent-engine.js
 // Ari Response Intent Engine
 // Purpose: Decide what kind of conversational move Ari should make before composing words.
-// V1.4
+// V1.5
 // Fixes:
-// - Adds Organism Function Engine awareness.
-// - Lets body/survival-function disruption override vague validate_then_act.
-// - Creates stabilize_organism_function intent.
-// - Prevents meaning, identity, wisdom, or generic dual salience from leading when body stability is active.
+// - Separates true body organism functions from relational organism functions.
+// - Prevents connection/attachment signals from triggering body stabilization.
+// - Routes loneliness, abandonment, relationship rupture, and attachment pain to connection support.
+// - Keeps body/survival functions protected before meaning, wisdom, identity, or interpretation.
 
 window.AriResponseIntentEngine = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   evaluate(input = {}) {
     return this.decide(input);
@@ -19,6 +19,7 @@ window.AriResponseIntentEngine = {
     const summary = input.summary || input || {};
 
     const executiveDecision = summary.executiveDecision || null;
+
     const primaryPriority =
       typeof summary.primaryPriority === "object"
         ? summary.primaryPriority?.name
@@ -64,24 +65,52 @@ window.AriResponseIntentEngine = {
     const uncertaintyType = summary.uncertaintyType || null;
     const safetyTriggered = Boolean(summary.safetyTriggered);
 
+    const organismFunction =
+      summary.organismPrimaryFunction ||
+      summary.organismFunction ||
+      null;
+
     const organismUrgencyLevel =
       summary.organismUrgency?.level ||
       summary.organismUrgencyLevel ||
       "none";
 
+    const bodyOrganismFunctions = [
+      "energy_intake",
+      "hydration",
+      "rest_recovery",
+      "injury_protection",
+      "vital_stability"
+    ];
+
+    const relationalOrganismFunctions = [
+      "connection"
+    ];
+
+    const organismIsBodyFunction =
+      bodyOrganismFunctions.includes(organismFunction);
+
+    const organismIsRelationalFunction =
+      relationalOrganismFunctions.includes(organismFunction);
+
     const organismNeedsStabilization =
-      summary.organismNeedsStabilization === true ||
-      summary.organismRecommendedMode === "stabilize_body_first" ||
-      summary.organismRecommendedMode === "restore_basic_function" ||
-      organismUrgencyLevel === "critical" ||
-      organismUrgencyLevel === "high" ||
-      organismUrgencyLevel === "moderate";
+      organismIsBodyFunction &&
+      (
+        summary.organismNeedsStabilization === true ||
+        summary.organismRecommendedMode === "stabilize_body_first" ||
+        summary.organismRecommendedMode === "restore_basic_function" ||
+        organismUrgencyLevel === "critical" ||
+        organismUrgencyLevel === "high" ||
+        organismUrgencyLevel === "moderate"
+      );
 
     const bodyNeedActive =
       need === "body" ||
       summary.needResponseMode === "stabilize_body_first" ||
-      summary.needRecommendedLeadOrgan === "safety" ||
-      summary.organismPrimaryFunction ||
+      (
+        summary.needRecommendedLeadOrgan === "safety" &&
+        organismIsBodyFunction
+      ) ||
       organismNeedsStabilization;
 
     const rebirthResolvedEnough =
@@ -91,9 +120,14 @@ window.AriResponseIntentEngine = {
       Number(summary.confidenceScore || 0) >= 75;
 
     const strongLifeChapterActive =
-      Boolean(summary.primaryLifeChapter) ||
+      Boolean(
+        summary.primaryLifeChapter &&
+        summary.primaryLifeChapter !== "unclear_chapter"
+      ) ||
       summary.primarySalienceName === "fatherhood_transition" ||
+      summary.primarySalienceName === "family_transition" ||
       summary.strongestSignal === "fatherhood_transition" ||
+      summary.strongestSignal === "family_transition" ||
       summary.salienceRecommendedLead === "life_chapter" ||
       leadOrgan === "meaning";
 
@@ -103,6 +137,7 @@ window.AriResponseIntentEngine = {
       primaryPriority === "family" ||
       primaryPriority === "safety";
 
+    // 1. True urgent safety always wins.
     if (
       safetyTriggered ||
       executiveDecision === "protect_safety_first" ||
@@ -121,15 +156,38 @@ window.AriResponseIntentEngine = {
       );
     }
 
+    // 2. Relational organism functions are NOT body stabilization.
+    if (
+      organismIsRelationalFunction ||
+      need === "connection" ||
+      need === "belonging" ||
+      summary.needResponseMode === "restore_connection"
+    ) {
+      return this.intent(
+        "offer_connection",
+        "comfort_then_question",
+        "Connection or attachment rupture is active. Ari should restore connection before analysis, not treat it like body stabilization.",
+        {
+          shouldAskQuestion: true,
+          recommendedQuestion:
+            observerQuestion ||
+            "What feels most lonely about this right now?",
+          sourceLayer: "organism_connection"
+        }
+      );
+    }
+
+    // 3. True body/survival stabilization.
     if (bodyNeedActive) {
       return this.intent(
         "stabilize_organism_function",
         "body_truth_then_action",
-        "A basic organism function is active or disrupted. Ari should stabilize the body before meaning, identity, wisdom, or deeper interpretation.",
+        "A basic body function is active or disrupted. Ari should stabilize the body before meaning, identity, wisdom, or deeper interpretation.",
         {
           shouldAskQuestion: false,
           recommendedQuestion:
             summary.organismRecommendedQuestion ||
+            summary.organismRecommendedAction ||
             summary.synthesisRecommendedQuestion ||
             summary.salienceQuestion ||
             observerQuestion ||
@@ -173,7 +231,7 @@ window.AriResponseIntentEngine = {
       return this.intent(
         "protect_family_presence",
         "meaning_truth_then_action",
-        "Family or fatherhood is the leading executive priority. Ari should protect presence and avoid treating all goals equally.",
+        "Family or parenthood is the leading executive priority. Ari should protect presence and avoid treating all goals equally.",
         {
           shouldAskQuestion: false,
           recommendedQuestion:
