@@ -1,9 +1,14 @@
 // ari/language/ari-opening-engine.js
 // Ari Opening Engine
 // Purpose: Generate the first emotional contact.
-// V2.0
+// V2.1
+// Fixes:
+// - Separates body stabilization openings from true safety override openings.
+// - Makes body-first responses warmer and less alarming.
 
 window.AriOpeningEngine = {
+  version: "2.1.0",
+
   create(summary = {}) {
     const opening = this.generate(summary);
 
@@ -38,6 +43,26 @@ window.AriOpeningEngine = {
     const chapter = summary.primaryLifeChapter || null;
     const wisdomTension = summary.wisdomTension || null;
 
+    // ===================================
+    // BODY STABILIZATION
+    // ===================================
+    // Body-first is not always a safety override.
+    // It should sound warm, practical, and non-alarming.
+    if (
+      mode === "stabilize_body_first" ||
+      intent === "stabilize_organism_function" ||
+      need === "body"
+    ) {
+      return this.pick([
+        "Your body is the priority right now.",
+        "Your body may need some attention before anything else.",
+        "Before we interpret this, let's make sure your body is okay."
+      ]);
+    }
+
+    // ===================================
+    // DIGNITY / WORTH
+    // ===================================
     if (
       mode === "restore_dignity" ||
       intent === "protect_dignity" ||
@@ -52,6 +77,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // CONNECTION
+    // ===================================
     if (
       mode === "emotional_connection" ||
       intent === "offer_connection" ||
@@ -66,6 +94,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // TRUE SAFETY OVERRIDE
+    // ===================================
     if (
       mode === "safety_override" ||
       intent === "protect_safety" ||
@@ -80,6 +111,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // UNCERTAINTY
+    // ===================================
     if (
       lead === "uncertainty" ||
       intent === "clarify_before_interpreting" ||
@@ -94,6 +128,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // LIFE CHAPTERS
+    // ===================================
     if (chapter === "fatherhood_transition") {
       return this.pick([
         "Something important is changing.",
@@ -114,6 +151,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // IDENTITY
+    // ===================================
     if (lead === "identity") {
       return this.pick([
         "This may be about who is trying to lead inside you right now.",
@@ -124,6 +164,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // MEANING
+    // ===================================
     if (lead === "meaning") {
       return this.pick([
         "Something important about this season is trying to reveal itself.",
@@ -134,6 +177,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // WISDOM
+    // ===================================
     if (
       lead === "wisdom" ||
       (wisdomTension && wisdomTension !== "unclear")
@@ -147,6 +193,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // STEWARDSHIP
+    // ===================================
     if (lead === "stewardship") {
       return this.pick([
         "This sounds more like responsibility than fear.",
@@ -157,6 +206,9 @@ window.AriOpeningEngine = {
       ]);
     }
 
+    // ===================================
+    // EMOTION
+    // ===================================
     if (lead === "emotion") {
       return this.pick([
         "Something underneath the surface seems to be asking for attention.",
