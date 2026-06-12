@@ -1,12 +1,12 @@
 // ari/language-system/ari-language-reflection-questions.js
 // Ari Reflection Question Engine
 // Purpose: Select the best question when Ari needs deeper signal.
-// V1.1
+// V1.2
 
 window.Ari = window.Ari || {};
 
 window.Ari.languageReflectionQuestions = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   generate(analysis = {}) {
     const wisdomRecovery = analysis.wisdomQuestionRecovery || {};
@@ -51,6 +51,67 @@ window.Ari.languageReflectionQuestions = {
       return emotionRecovery.primaryQuestion;
     }
 
+    // --------------------------------------------------
+    // HUMAN NEED RECOVERY
+    // --------------------------------------------------
+
+    if (rootNeed === "worth") {
+      return this.pick([
+        "What happened that made you feel disrespected?",
+        "Where are you feeling the loss of respect most strongly?",
+        "What would feeling respected look like in this situation?",
+        "Has this feeling been building for a while or did something specific trigger it?",
+        "Whose opinion seems to carry the most weight here?"
+      ]);
+    }
+
+    if (rootNeed === "connection") {
+      return this.pick([
+        "Where are you feeling most disconnected right now?",
+        "What kind of connection feels missing?",
+        "Who do you wish understood this better?",
+        "What would feeling understood look like?",
+        "Is the pain coming more from being alone or from feeling unseen?"
+      ]);
+    }
+
+    if (
+      rootNeed === "security" ||
+      rootNeed === "body"
+    ) {
+      return this.pick([
+        "What feels most uncertain right now?",
+        "What are you trying to protect?",
+        "What would help you feel safer in this situation?",
+        "What outcome worries you most?",
+        "If things went well, what would stability look like?"
+      ]);
+    }
+
+    if (rootNeed === "meaning") {
+      return this.pick([
+        "Why does this matter so much to you?",
+        "What feels meaningful about this moment?",
+        "What larger story does this seem connected to?",
+        "What do you think life may be asking from you here?",
+        "What would make this experience feel worthwhile?"
+      ]);
+    }
+
+    if (rootNeed === "understanding") {
+      return this.pick([
+        "What feels most unclear right now?",
+        "What information do you feel is missing?",
+        "What are you trying hardest to understand?",
+        "If you could know one thing with certainty, what would it be?",
+        "What question keeps returning to you?"
+      ]);
+    }
+
+    // --------------------------------------------------
+    // UNDERLYING EMOTION QUESTIONS
+    // --------------------------------------------------
+
     if (emotionDepth === "fear_of_losing_identity") {
       return "Who would you be if that identity had to change shape without disappearing?";
     }
@@ -71,11 +132,21 @@ window.Ari.languageReflectionQuestions = {
       return "What would need to change before capacity becomes protected instead of borrowed from?";
     }
 
-    if (lead === "life_chapter" || lifeChapter === "career_and_identity_transition") {
+    // --------------------------------------------------
+    // LIFE CHAPTER QUESTIONS
+    // --------------------------------------------------
+
+    if (
+      lead === "life_chapter" ||
+      lifeChapter === "career_and_identity_transition"
+    ) {
       return "What part of you are you afraid will not survive this transition?";
     }
 
-    if (lifeChapter === "entering_fatherhood" || lifeChapter === "fatherhood_transition") {
+    if (
+      lifeChapter === "entering_fatherhood" ||
+      lifeChapter === "fatherhood_transition"
+    ) {
       return "What kind of father are you trying to become before you feel fully ready?";
     }
 
@@ -86,6 +157,10 @@ window.Ari.languageReflectionQuestions = {
     if (lifeChapter === "builder_development") {
       return "What would it look like to build with discipline instead of urgency?";
     }
+
+    // --------------------------------------------------
+    // BELIEF QUESTIONS
+    // --------------------------------------------------
 
     if (primaryBelief === "slowing_down_means_falling_behind") {
       return "What would change if slowing down was discipline instead of failure?";
@@ -102,6 +177,10 @@ window.Ari.languageReflectionQuestions = {
     if (primaryBelief === "achievement_creates_security") {
       return "What kind of security are you trying to earn through achievement?";
     }
+
+    // --------------------------------------------------
+    // CONFLICT QUESTIONS
+    // --------------------------------------------------
 
     if (hiddenConflict === "identity_vs_transition") {
       return "What old identity are you trying to protect, and what new identity is trying to form?";
@@ -169,5 +248,14 @@ window.Ari.languageReflectionQuestions = {
     }
 
     return "What part of this feels most true?";
+  },
+
+  pick(options = []) {
+    if (!Array.isArray(options) || !options.length) {
+      return null;
+    }
+
+    const index = Math.floor(Math.random() * options.length);
+    return options[index];
   }
 };
