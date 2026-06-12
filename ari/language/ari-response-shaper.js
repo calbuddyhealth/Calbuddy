@@ -1,10 +1,11 @@
 // ari/language/ari-response-shaper.js
 // Ari Response Shaper
 // Purpose: Organize final responses into human-readable flow.
-// V1.1
+// V1.2
 // Fixes:
-// - Adds polish() for AriLanguageComposer compatibility.
-// - Keeps shape() and getMode() for backward compatibility.
+// - polish() only cleans spacing.
+// - Does not compress/remove truth, emotion, wisdom, or action.
+// - shape() now supports finalResponse passthrough.
 
 window.AriResponseShaper = {
 
@@ -24,48 +25,43 @@ window.AriResponseShaper = {
     };
   },
 
-  shape({
-    opening = null,
-    truth = null,
-    body = null,
-    wisdom = null,
-    action = null,
-    question = null
-  } = {}) {
+  shape(input = {}) {
+    if (input.finalResponse) {
+      return this.polish(input);
+    }
+
+    const {
+      opening = null,
+      truth = null,
+      body = null,
+      emotion = null,
+      wisdom = null,
+      action = null,
+      question = null
+    } = input;
 
     const sections = [];
 
-    if (opening) {
-      sections.push(opening.trim());
-    }
+    if (opening) sections.push(opening.trim());
+    if (truth) sections.push(truth.trim());
+    if (body) sections.push(body.trim());
+    if (emotion) sections.push(emotion.trim());
+    if (wisdom) sections.push(wisdom.trim());
+    if (action) sections.push(action.trim());
+    if (question) sections.push(question.trim());
 
-    if (truth) {
-      sections.push(truth.trim());
-    }
-
-    if (body) {
-      sections.push(body.trim());
-    }
-
-    if (wisdom) {
-      sections.push(wisdom.trim());
-    }
-
-    if (action) {
-      sections.push(action.trim());
-    }
-
-    if (question) {
-      sections.push(question.trim());
-    }
-
-    return sections
-      .filter(Boolean)
-      .join("\n\n");
+    return {
+      finalResponse: sections
+        .filter(Boolean)
+        .join("\n\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim(),
+      source: "ari-response-shaper"
+    };
   },
 
   getMode(summary = {}) {
-
     if (
       summary.primaryLifeChapter ||
       summary.salienceLeadOrgan === "meaning"
@@ -73,21 +69,15 @@ window.AriResponseShaper = {
       return "life_chapter";
     }
 
-    if (
-      summary.salienceLeadOrgan === "emotion"
-    ) {
+    if (summary.salienceLeadOrgan === "emotion") {
       return "emotion";
     }
 
-    if (
-      summary.salienceLeadOrgan === "executive"
-    ) {
+    if (summary.salienceLeadOrgan === "executive") {
       return "decision";
     }
 
-    if (
-      summary.salienceLeadOrgan === "insight"
-    ) {
+    if (summary.salienceLeadOrgan === "insight") {
       return "insight";
     }
 
