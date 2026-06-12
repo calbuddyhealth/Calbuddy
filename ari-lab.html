@@ -143,6 +143,7 @@
   <script src="ari/integration/ari-salience-governor.js"></script>
   <script src="ari/integration/ari-synthesis-engine.js"></script>
 
+  <!-- ARI REBIRTH MOUTH -->
   <script src="ari/language/ari-opening-engine.js"></script>
   <script src="ari/language/ari-truth-engine.js"></script>
   <script src="ari/language/ari-emotional-naming-engine.js"></script>
@@ -152,6 +153,7 @@
   <script src="ari/language/ari-response-shape-engine.js"></script>
   <script src="ari/language/ari-response-shaper.js"></script>
   <script src="ari/language/ari-response-intent-engine.js"></script>
+  <script src="ari/language/ari-mouth-director.js"></script>
   <script src="ari/language/ari-language-composer.js"></script>
 
   <!-- SAFETY / NEEDS / REBIRTH PIPELINE -->
@@ -190,6 +192,7 @@
       summary.userMessage = message;
       summary.message = message;
       summary.input = message;
+      summary.normalizedMessage = String(message || "").toLowerCase().trim();
 
       if (
         window.AriRebirthPipeline &&
@@ -291,6 +294,40 @@ ${summary.emotionalClassification || "none"}
 
 ==================================================
 
+===== MOUTH DIRECTOR =====
+
+Mouth Director Source:
+${summary.mouthDirectorSource || "none"}
+
+Mouth Pattern:
+${summary.mouthResponsePattern || "none"}
+
+Mouth Explanation:
+${summary.mouthExplanationLevel || "none"}
+
+Mouth Max Sections:
+${summary.mouthMaxBodySections || "none"}
+
+Ask Before Teaching:
+${summary.mouthAskBeforeTeaching === true ? "yes" : summary.mouthAskBeforeTeaching === false ? "no" : "none"}
+
+Allows Meaning:
+${summary.mouthAllows?.meaning === true ? "yes" : summary.mouthAllows?.meaning === false ? "no" : "none"}
+
+Allows Emotion:
+${summary.mouthAllows?.emotion === true ? "yes" : summary.mouthAllows?.emotion === false ? "no" : "none"}
+
+Allows Truth:
+${summary.mouthAllows?.truth === true ? "yes" : summary.mouthAllows?.truth === false ? "no" : "none"}
+
+Allows Wisdom:
+${summary.mouthAllows?.wisdom === true ? "yes" : summary.mouthAllows?.wisdom === false ? "no" : "none"}
+
+Allows Action:
+${summary.mouthAllows?.action === true ? "yes" : summary.mouthAllows?.action === false ? "no" : "none"}
+
+==================================================
+
 ===== OLD LANGUAGE ROUTE =====
 
 ${run.languageRoute}
@@ -334,6 +371,12 @@ ${summary.needEngineRan ? "yes" : "no"}
 
 Need Engine Source:
 ${summary.needEngineSource || "none"}
+
+Mouth Director Ran:
+${summary.mouthDirectorRan ? "yes" : "no"}
+
+Mouth Director Source:
+${summary.mouthDirectorSource || "none"}
 
 Language Source:
 ${summary.source || "none"}
