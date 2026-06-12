@@ -1,14 +1,17 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.4
+// V1.5
 // Fixes:
-// - Human Needs Network can override uncertainty when the need is strong.
-// - Worth/connection needs route to emotion instead of uncertainty.
-// - Security/body needs route to safety/executive.
-// - Keeps true uncertainty override intact when no strong human need exists.
+// - Adds Organism Function Engine priority.
+// - Organism stabilization can override uncertainty, meaning, wisdom, values, and abstract interpretation.
+// - Body/security survival needs route to safety.
+// - Keeps Human Needs Network override behavior.
+// - Keeps true uncertainty override intact when no strong human/organism need exists.
 
 window.AriSalienceGovernor = {
+  version: "1.5.0",
+
   govern(input = {}) {
     const summary = input.summary || input || {};
 
@@ -21,6 +24,14 @@ window.AriSalienceGovernor = {
     const primaryHumanNeedScoreRaw = Number(summary.primaryHumanNeedScore || 0);
     const needRecommendedLeadOrgan = summary.needRecommendedLeadOrgan || null;
     const needResponseMode = summary.needResponseMode || null;
+
+    const organismNeedsStabilization = Boolean(summary.organismNeedsStabilization);
+    const organismPrimaryFunction = summary.organismPrimaryFunction || null;
+    const organismPrimaryFunctionScoreRaw = Number(summary.organismPrimaryFunctionScore || 0);
+    const organismUrgency = summary.organismUrgency || {};
+    const organismUrgencyLevel = organismUrgency.level || null;
+    const organismRecommendedMode = summary.organismRecommendedMode || null;
+    const organismRecommendedAction = summary.organismRecommendedAction || null;
 
     const primaryLifeChapter = summary.primaryLifeChapter || null;
     const lifeChapterStrengthRaw = Number(summary.lifeChapterStrength || 0);
@@ -59,6 +70,7 @@ window.AriSalienceGovernor = {
 
     const uncertaintyConfidence = clampScore(uncertaintyConfidenceRaw, 0, 100);
     const primaryHumanNeedScore = clampScore(primaryHumanNeedScoreRaw, 0, 100);
+    const organismPrimaryFunctionScore = clampScore(organismPrimaryFunctionScoreRaw, 0, 100);
     const lifeChapterStrength = clampScore(lifeChapterStrengthRaw, 0, 100);
     const leadIdentityScore = clampScore(leadIdentityScoreRaw, 0, 100);
     const stewardshipScore = clampScore(stewardshipScoreRaw, 0, 100);
@@ -68,6 +80,12 @@ window.AriSalienceGovernor = {
       primaryHumanNeed &&
       primaryHumanNeed !== "understanding" &&
       primaryHumanNeedScore >= 80;
+
+    const strongOrganismNeed =
+      organismNeedsStabilization ||
+      organismUrgencyLevel === "critical" ||
+      organismUrgencyLevel === "high" ||
+      organismUrgencyLevel === "moderate";
 
     const emotionHumanNeed =
       strongHumanNeed &&
@@ -93,7 +111,8 @@ window.AriSalienceGovernor = {
       noHypothesis &&
       noEvidence &&
       strongestSignalCategory !== "underlying_emotion" &&
-      !strongHumanNeed;
+      !strongHumanNeed &&
+      !strongOrganismNeed;
 
     const defaultMissingInformationQuestion =
       "What feels important here that has not been said out loud yet?";
@@ -137,7 +156,18 @@ window.AriSalienceGovernor = {
       });
     }
 
-    // 0. Human Need Network should influence salience before uncertainty.
+    // 0. Organism Function Engine should lead before uncertainty, meaning, wisdom, or values.
+    if (strongOrganismNeed) {
+      addCandidate(
+        "safety",
+        organismUrgencyLevel === "critical" ? 120 : 115,
+        `Organism function '${organismPrimaryFunction || "unknown"}' needs stabilization before interpretation.`,
+        organismRecommendedMode || "stabilize_body_first",
+        organismRecommendedAction || "What does your body need first right now?"
+      );
+    }
+
+    // 1. Human Need Network should influence salience before uncertainty.
     if (securityHumanNeed) {
       addCandidate(
         needRecommendedLeadOrgan === "safety" ? "safety" : "executive",
@@ -192,13 +222,13 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 1. Uncertainty should lead when Ari lacks enough evidence AND no strong human need is active.
+    // 2. Uncertainty should lead when Ari lacks evidence AND no strong human/organism need is active.
     if (
       uncertaintyType === "missing_information" ||
       uncertaintyType === "understanding_uncertainty" ||
       shouldUncertaintyOverride
     ) {
-      if (!strongHumanNeed) {
+      if (!strongHumanNeed && !strongOrganismNeed) {
         addCandidate(
           "uncertainty",
           Math.max(
@@ -213,9 +243,10 @@ window.AriSalienceGovernor = {
       }
     }
 
-    // 2. Major life chapters should lead when a real chapter is active.
+    // 3. Major life chapters should lead when a real chapter is active.
     if (
       !shouldUncertaintyOverride &&
+      !strongOrganismNeed &&
       primaryLifeChapter &&
       primaryLifeChapter !== "unclear_chapter" &&
       lifeChapterStrength >= 70
@@ -230,9 +261,10 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 3. Identity should lead when a clear role has priority.
+    // 4. Identity should lead when a clear role has priority.
     if (
       !shouldUncertaintyOverride &&
+      !strongOrganismNeed &&
       leadIdentity &&
       leadIdentity !== "observer" &&
       leadIdentityScore >= 70
@@ -248,9 +280,10 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 4. Values can lead when integration is meaningful.
+    // 5. Values can lead when integration is meaningful.
     if (
       !shouldUncertaintyOverride &&
+      !strongOrganismNeed &&
       (valueIntegrationDetected || integratedValue)
     ) {
       addCandidate(
@@ -263,9 +296,10 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 5. Stewardship should beat fear when responsibility is dominant.
+    // 6. Stewardship should beat fear when responsibility is dominant.
     if (
       !shouldUncertaintyOverride &&
+      !strongOrganismNeed &&
       (
         emotionalClassification === "stewardship" ||
         stewardshipScore >= fearScore + 15
@@ -280,10 +314,13 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 6. Emotion leads when emotion is clearly central.
+    // 7. Emotion leads when emotion is clearly central.
     if (
-      uncertaintyType === "emotion_uncertainty" ||
-      strongestSignalCategory === "underlying_emotion"
+      !strongOrganismNeed &&
+      (
+        uncertaintyType === "emotion_uncertainty" ||
+        strongestSignalCategory === "underlying_emotion"
+      )
     ) {
       const emotionHasOverrideStrength =
         strongestSignalCategory === "underlying_emotion" &&
@@ -300,9 +337,10 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 7. Wisdom leads only when there is a real, named tension.
+    // 8. Wisdom leads only when there is a real, named tension.
     if (
       !shouldUncertaintyOverride &&
+      !strongOrganismNeed &&
       wisdomTension &&
       wisdomTension !== "unclear" &&
       wisdomConfidence !== "low"
@@ -316,9 +354,10 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 8. Highest good / leading good can support wisdom, but not when evidence is absent.
+    // 9. Highest good / leading good can support wisdom, but not when evidence is absent.
     if (
       !shouldUncertaintyOverride &&
+      !strongOrganismNeed &&
       !noEvidence &&
       (highestGood || wisdomLeadingGood)
     ) {
@@ -331,8 +370,8 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 9. Strongest signal category fallback.
-    if (!shouldUncertaintyOverride && strongestSignalCategory === "life") {
+    // 10. Strongest signal category fallback.
+    if (!shouldUncertaintyOverride && !strongOrganismNeed && strongestSignalCategory === "life") {
       addCandidate(
         "meaning",
         86,
@@ -342,7 +381,7 @@ window.AriSalienceGovernor = {
       );
     }
 
-    if (!shouldUncertaintyOverride && strongestSignalCategory === "belief") {
+    if (!shouldUncertaintyOverride && !strongOrganismNeed && strongestSignalCategory === "belief") {
       addCandidate(
         "belief",
         84,
@@ -352,7 +391,7 @@ window.AriSalienceGovernor = {
       );
     }
 
-    if (!shouldUncertaintyOverride && strongestSignalCategory === "identity") {
+    if (!shouldUncertaintyOverride && !strongOrganismNeed && strongestSignalCategory === "identity") {
       addCandidate(
         "identity",
         86,
@@ -364,6 +403,7 @@ window.AriSalienceGovernor = {
 
     if (
       !shouldUncertaintyOverride &&
+      !strongOrganismNeed &&
       strongestSignalCategory === "highest_good"
     ) {
       addCandidate(
@@ -422,6 +462,10 @@ window.AriSalienceGovernor = {
         uncertaintyConfidence,
         primaryHumanNeedScoreRaw,
         primaryHumanNeedScore,
+        organismPrimaryFunctionScoreRaw,
+        organismPrimaryFunctionScore,
+        organismUrgencyLevel,
+        strongOrganismNeed,
         lifeChapterStrengthRaw,
         lifeChapterStrength,
         leadIdentityScoreRaw,
