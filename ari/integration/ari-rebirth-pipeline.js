@@ -1,12 +1,13 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.4
+// V1.5
 // Fixes:
 // - Safety Override runs first and can stop the pipeline.
 // - Ari Human Needs Network runs immediately after safety.
-// - Needs become foundational context for identity, emotion, meaning, wisdom, uncertainty, and salience.
-// - Preserves existing Rebirth organ order after safety clears.
+// - Response Intent runs after synthesis.
+// - Mouth Director runs before Language Composer.
+// - Composer now receives intent/director instructions before final language.
 
 window.AriRebirthPipeline = {
   run(systemSummary = {}) {
@@ -20,7 +21,6 @@ window.AriRebirthPipeline = {
       "";
 
     // 0. SAFETY OVERRIDE
-    // Safety outranks every other organ.
     if (
       window.Ari &&
       window.Ari.safetyClassifier &&
@@ -43,33 +43,9 @@ window.AriRebirthPipeline = {
           primaryHumanNeedScore: 100,
           primaryHumanNeedReason:
             "Safety override triggered. Security need must lead.",
-          secondaryHumanNeed: "body",
-          secondaryHumanNeedScore: 100,
-          secondaryHumanNeedReason:
-            "Physical/medical stability may be threatened.",
 
           needRecommendedLeadOrgan: "safety",
           needResponseMode: "protect_safety_first",
-          humanNeedsMap: {
-            body: 100,
-            security: 100
-          },
-          rankedHumanNeeds: [
-            {
-              name: "security",
-              score: 100,
-              reasons: ["Safety override triggered."],
-              leadOrgan: "safety",
-              responseMode: "protect_safety_first"
-            },
-            {
-              name: "body",
-              score: 100,
-              reasons: ["Physical/medical stability may be threatened."],
-              leadOrgan: "safety",
-              responseMode: "stabilize_body_first"
-            }
-          ],
 
           salienceLeadOrgan: "safety",
           salienceMode: "safety_override",
@@ -98,17 +74,13 @@ window.AriRebirthPipeline = {
     };
 
     // 1. HUMAN NEEDS NETWORK
-    // Needs should be known before identity, wisdom, meaning, or uncertainty try to lead.
     if (
       window.Ari &&
       window.Ari.needEngine &&
       typeof window.Ari.needEngine.evaluate === "function"
     ) {
       const needResult = window.Ari.needEngine.evaluate(summary) || {};
-      summary = {
-        ...summary,
-        ...needResult
-      };
+      summary = { ...summary, ...needResult };
     } else {
       summary = {
         ...summary,
@@ -150,7 +122,13 @@ window.AriRebirthPipeline = {
     // 10. Synthesize final interpretation.
     runStep(window.AriSynthesisEngine, "synthesize");
 
-    // 11. Compose final language.
+    // 11. Decide response intent.
+    runStep(window.AriResponseIntentEngine, "evaluate");
+
+    // 12. Direct the mouth.
+    runStep(window.AriMouthDirector, "direct");
+
+    // 13. Compose final language.
     runStep(window.AriLanguageComposer, "compose");
 
     summary.rebirthPipelineRan = true;
