@@ -1,15 +1,17 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.2
+// V3.3
 // Fixes:
+// - Suppresses closing for body_truth_then_action / calm_health_step.
+// - Prevents body-first responses from ending with repeated action/question.
 // - Adds safety/body gate so physical health responses do not pull abstract synthesis, meaning, wisdom, or value text.
 // - Suppresses unclear placeholder text from meaning/synthesis/value systems.
 // - Keeps mouth debug sources.
 // - Composer remains an assembler, not a writer.
 
 window.AriLanguageComposer = {
-  version: "3.2.0",
+  version: "3.3.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
@@ -28,12 +30,12 @@ window.AriLanguageComposer = {
     const responseIntent = summary.responseIntent || null;
 
     const isSafetyOrBody =
-  leadOrgan === "safety" ||
-  salienceMode === "stabilize_body_first" ||
-  primaryHumanNeed === "body" ||
-  responseIntent === "stabilize_health" ||
-  responseIntent === "stabilize_organism_function";
-    
+      leadOrgan === "safety" ||
+      salienceMode === "stabilize_body_first" ||
+      primaryHumanNeed === "body" ||
+      responseIntent === "stabilize_health" ||
+      responseIntent === "stabilize_organism_function";
+
     const hasUnclearLifeChapter =
       summary.primaryLifeChapter === "unclear_chapter" ||
       summary.personLifeChapter === "unclear";
@@ -90,61 +92,25 @@ window.AriLanguageComposer = {
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
 
-    // ===================================
-    // HARD GATE: SAFETY / BODY
-    // ===================================
-    // Body-first responses should not sound philosophical or diagnostic.
-    // The user needs stabilization, not meaning-making.
     if (isSafetyOrBody) {
       synthesisText = null;
       meaningText = null;
       wisdomText = null;
 
-      // Keep emotion only if it is simple and not abstract/system language.
-      if (this.isAbstractOrDiagnosticText(emotionText)) {
-        emotionText = null;
-      }
+      if (this.isAbstractOrDiagnosticText(emotionText)) emotionText = null;
+      if (this.isAbstractOrDiagnosticText(truthText)) truthText = "A body signal should be stabilized before it is interpreted.";
+      if (this.isAbstractOrDiagnosticText(actionText)) actionText = "Stabilize first, then interpret later.";
 
-      if (this.isAbstractOrDiagnosticText(truthText)) {
-        truthText = "Stability comes before interpretation.";
-      }
-
-      if (this.isAbstractOrDiagnosticText(actionText)) {
-        actionText = "Stabilize first, then interpret later.";
-      }
-
-      if (!truthText) {
-        truthText = "Stability comes before interpretation.";
-      }
-
-      if (!actionText) {
-        actionText = "Sit down, sip water, and try a few small bites of something gentle if you can tolerate it.";
-      }
+      if (!truthText) truthText = "A body signal should be stabilized before it is interpreted.";
+      if (!actionText) actionText = "Sit down, sip water, and try a few small bites of something gentle if you can tolerate it.";
     }
 
-    // ===================================
-    // UNCLEAR SIGNAL SUPPRESSION
-    // ===================================
-    // Unknowns should be acknowledged in diagnostics, not treated as content.
-    if (hasUnclearLifeChapter) {
-      meaningText = null;
-    }
+    if (hasUnclearLifeChapter) meaningText = null;
+    if (hasUnclearConflict) wisdomText = null;
 
-    if (hasUnclearConflict) {
-      wisdomText = null;
-    }
-
-    if (this.isPlaceholderOrUnclearText(synthesisText)) {
-      synthesisText = null;
-    }
-
-    if (this.isPlaceholderOrUnclearText(meaningText)) {
-      meaningText = null;
-    }
-
-    if (this.isPlaceholderOrUnclearText(wisdomText)) {
-      wisdomText = null;
-    }
+    if (this.isPlaceholderOrUnclearText(synthesisText)) synthesisText = null;
+    if (this.isPlaceholderOrUnclearText(meaningText)) meaningText = null;
+    if (this.isPlaceholderOrUnclearText(wisdomText)) wisdomText = null;
 
     if (director.allowMeaning === false) {
       meaningText = null;
@@ -187,16 +153,25 @@ window.AriLanguageComposer = {
 
     const body = bodyParts.join("\n\n");
 
-    const closing =
+    let closing =
       this.readText(shapeResult, ["closing", "question", "finalQuestion"]) ||
       recommendedQuestion;
+
+    if (
+      director.responsePattern === "body_truth_then_action" ||
+      director.responsePattern === "calm_health_step" ||
+      responseIntent === "stabilize_organism_function" ||
+      isSafetyOrBody
+    ) {
+      closing = null;
+    }
 
     let finalResponse = this.buildFinalResponse(opening, body, closing);
 
     const shapedResponse = this.safeRunAny(
       shaperEngine,
       ["polish", "shape", "compose", "generate", "run"],
-      { finalResponse },
+      { finalResponse, summary },
       { finalResponse }
     );
 
@@ -244,6 +219,7 @@ window.AriLanguageComposer = {
         isSafetyOrBody,
         hasUnclearLifeChapter,
         hasUnclearConflict,
+        closingSuppressed: !closing,
         director,
 
         sources: {
@@ -286,54 +262,15 @@ window.AriLanguageComposer = {
     const mouthAllows = summary.mouthAllows || {};
 
     return {
-      explanationLevel:
-        summary.mouthExplanationLevel ||
-        summary.explanationLevel ||
-        "standard",
-
-      responsePattern:
-        summary.mouthResponsePattern ||
-        summary.responsePattern ||
-        "reflection_then_question",
-
-      maxBodySections:
-        Number(
-          summary.mouthMaxBodySections ??
-          summary.maxBodySections ??
-          3
-        ),
-
-      askBeforeTeaching:
-        Boolean(
-          summary.mouthAskBeforeTeaching ??
-          summary.askBeforeTeaching ??
-          false
-        ),
-
-      allowMeaning:
-        mouthAllows.meaning ??
-        summary.allowMeaning ??
-        true,
-
-      allowEmotion:
-        mouthAllows.emotion ??
-        summary.allowEmotion ??
-        true,
-
-      allowTruth:
-        mouthAllows.truth ??
-        summary.allowTruth ??
-        true,
-
-      allowWisdom:
-        mouthAllows.wisdom ??
-        summary.allowWisdom ??
-        true,
-
-      allowAction:
-        mouthAllows.action ??
-        summary.allowAction ??
-        true
+      explanationLevel: summary.mouthExplanationLevel || summary.explanationLevel || "standard",
+      responsePattern: summary.mouthResponsePattern || summary.responsePattern || "reflection_then_question",
+      maxBodySections: Number(summary.mouthMaxBodySections ?? summary.maxBodySections ?? 3),
+      askBeforeTeaching: Boolean(summary.mouthAskBeforeTeaching ?? summary.askBeforeTeaching ?? false),
+      allowMeaning: mouthAllows.meaning ?? summary.allowMeaning ?? true,
+      allowEmotion: mouthAllows.emotion ?? summary.allowEmotion ?? true,
+      allowTruth: mouthAllows.truth ?? summary.allowTruth ?? true,
+      allowWisdom: mouthAllows.wisdom ?? summary.allowWisdom ?? true,
+      allowAction: mouthAllows.action ?? summary.allowAction ?? true
     };
   },
 
@@ -348,82 +285,28 @@ window.AriLanguageComposer = {
     wisdomText,
     actionText
   } = {}) {
-    if (isSafetyOrBody) {
-      return [emotionText, truthText, actionText].filter(Boolean);
-    }
+    if (isSafetyOrBody) return [emotionText, truthText, actionText].filter(Boolean);
 
-    if (responsePattern === "validate_then_question") {
-      return [emotionText, truthText].filter(Boolean);
-    }
+    if (responsePattern === "validate_then_question") return [emotionText, truthText].filter(Boolean);
+    if (responsePattern === "comfort_then_question") return [emotionText, truthText].filter(Boolean);
+    if (responsePattern === "observe_then_question") return [truthText || synthesisText || meaningText].filter(Boolean);
+    if (responsePattern === "validate_then_next_step") return [emotionText, truthText, actionText].filter(Boolean);
+    if (responsePattern === "calm_health_step") return [truthText, actionText].filter(Boolean);
+    if (responsePattern === "body_truth_then_action") return [truthText, actionText].filter(Boolean);
+    if (responsePattern === "comfort_bridge_then_one_step") return [emotionText, truthText, actionText].filter(Boolean);
+    if (responsePattern === "principle_then_choice") return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
+    if (responsePattern === "meaning_then_guidance") return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
+    if (responsePattern === "meaning_truth_then_action") return [meaningText || synthesisText, truthText, wisdomText, actionText].filter(Boolean);
+    if (responsePattern === "insight_then_guidance") return [truthText || synthesisText, wisdomText, actionText].filter(Boolean);
 
-    if (responsePattern === "comfort_then_question") {
-      return [emotionText, truthText].filter(Boolean);
-    }
+    if (leadOrgan === "safety") return [truthText, actionText].filter(Boolean);
+    if (leadOrgan === "emotion") return [emotionText, truthText || synthesisText, actionText].filter(Boolean);
+    if (leadOrgan === "meaning") return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
+    if (leadOrgan === "uncertainty") return [truthText || synthesisText || meaningText, actionText].filter(Boolean);
+    if (leadOrgan === "wisdom") return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
+    if (leadOrgan === "identity") return [truthText || synthesisText || meaningText, wisdomText, actionText].filter(Boolean);
 
-    if (responsePattern === "observe_then_question") {
-      return [truthText || synthesisText || meaningText].filter(Boolean);
-    }
-
-    if (responsePattern === "validate_then_next_step") {
-      return [emotionText, truthText, actionText].filter(Boolean);
-    }
-
-    if (responsePattern === "calm_health_step") {
-      return [truthText, actionText].filter(Boolean);
-    }
-
-    if (responsePattern === "comfort_bridge_then_one_step") {
-      return [emotionText, truthText, actionText].filter(Boolean);
-    }
-
-    if (responsePattern === "principle_then_choice") {
-      return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
-    }
-
-    if (responsePattern === "meaning_then_guidance") {
-      return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
-    }
-
-    if (responsePattern === "meaning_truth_then_action") {
-      return [meaningText || synthesisText, truthText, wisdomText, actionText].filter(Boolean);
-    }
-
-    if (responsePattern === "insight_then_guidance") {
-      return [truthText || synthesisText, wisdomText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "safety") {
-      return [truthText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "emotion") {
-      return [emotionText, truthText || synthesisText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "meaning") {
-      return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "uncertainty") {
-      return [truthText || synthesisText || meaningText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "wisdom") {
-      return [wisdomText, truthText || synthesisText, actionText].filter(Boolean);
-    }
-
-    if (leadOrgan === "identity") {
-      return [truthText || synthesisText || meaningText, wisdomText, actionText].filter(Boolean);
-    }
-
-    return [
-      synthesisText,
-      meaningText,
-      emotionText,
-      truthText,
-      wisdomText,
-      actionText
-    ].filter(Boolean);
+    return [synthesisText, meaningText, emotionText, truthText, wisdomText, actionText].filter(Boolean);
   },
 
   buildFinalResponse(opening, body, closing) {
@@ -479,9 +362,7 @@ window.AriLanguageComposer = {
   readText(result, keys = []) {
     if (!result) return null;
 
-    if (typeof result === "string") {
-      return result.trim() || null;
-    }
+    if (typeof result === "string") return result.trim() || null;
 
     for (const key of keys) {
       if (typeof result[key] === "string" && result[key].trim()) {
