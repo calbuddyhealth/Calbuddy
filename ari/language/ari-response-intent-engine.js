@@ -1,15 +1,13 @@
 // ari/language/ari-response-intent-engine.js
 // Ari Response Intent Engine
 // Purpose: Decide what kind of conversational move Ari should make before composing words.
-// V1.2
+// V1.3
 // Fixes:
-// - Adds evaluate() alias so pipeline can call this engine consistently.
-// - Keeps decide() as the main logic.
-// - Produces responseIntent + responseShape before Mouth Director / Composer.
-// - Adds Executive V1.3, Observer Hierarchy, and Dual Salience integration.
+// - Prevents low-confidence Observer Hierarchy from overriding high-confidence Rebirth / Executive signals.
+// - Keeps Executive V1.3, Observer Hierarchy, and Dual Salience integration.
 
 window.AriResponseIntentEngine = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   evaluate(input = {}) {
     return this.decide(input);
@@ -46,7 +44,6 @@ window.AriResponseIntentEngine = {
     const observerQuestion =
       summary.observerHierarchyRecommendedQuestion || null;
 
-    const dualLead = summary.dualSalienceLead || null;
     const dualMode = summary.dualSalienceMode || null;
     const dualClarityAction = summary.dualSalienceClarityAction || null;
 
@@ -65,6 +62,25 @@ window.AriResponseIntentEngine = {
     const uncertaintyType = summary.uncertaintyType || null;
     const safetyTriggered = Boolean(summary.safetyTriggered);
 
+    const rebirthResolvedEnough =
+      summary.uncertaintyType === "resolved_enough" ||
+      summary.calibratedConfidence === "high" ||
+      summary.metaConfidence === "high" ||
+      Number(summary.confidenceScore || 0) >= 75;
+
+    const strongLifeChapterActive =
+      Boolean(summary.primaryLifeChapter) ||
+      summary.primarySalienceName === "fatherhood_transition" ||
+      summary.strongestSignal === "fatherhood_transition" ||
+      summary.salienceRecommendedLead === "life_chapter" ||
+      leadOrgan === "meaning";
+
+    const executiveClear =
+      executiveDecision === "protect_family_first" ||
+      executiveDecision === "protect_safety_first" ||
+      primaryPriority === "family" ||
+      primaryPriority === "safety";
+
     if (
       safetyTriggered ||
       executiveDecision === "protect_safety_first" ||
@@ -82,12 +98,19 @@ window.AriResponseIntentEngine = {
       );
     }
 
+    // Clarify should only win when Ari does NOT already have a grounded,
+    // high-confidence life/executive read.
     if (
-      observerShouldAsk ||
-      dualClarityAction === "ask_one_clarifying_question" ||
-      executiveDecision === "ask_before_directing" ||
-      primaryPriority === "clarify-before-directing" ||
-      strategyMode === "clarify_before_advising"
+      !rebirthResolvedEnough &&
+      !strongLifeChapterActive &&
+      !executiveClear &&
+      (
+        observerShouldAsk ||
+        dualClarityAction === "ask_one_clarifying_question" ||
+        executiveDecision === "ask_before_directing" ||
+        primaryPriority === "clarify-before-directing" ||
+        strategyMode === "clarify_before_advising"
+      )
     ) {
       return this.intent(
         "clarify_before_advising",
@@ -98,6 +121,25 @@ window.AriResponseIntentEngine = {
           recommendedQuestion:
             observerQuestion || "What feels most important about this?",
           sourceLayer: "observer_hierarchy"
+        }
+      );
+    }
+
+    if (
+      executiveDecision === "protect_family_first" ||
+      primaryPriority === "family" ||
+      observerPrimary === "provider_vs_present_parent" ||
+      observerPrimary === "fatherhood_transition"
+    ) {
+      return this.intent(
+        "protect_family_presence",
+        "meaning_truth_then_action",
+        "Family or fatherhood is the leading executive priority. Ari should protect presence and avoid treating all goals equally.",
+        {
+          shouldAskQuestion: false,
+          recommendedQuestion:
+            observerQuestion || "What does your family most need from you in this season?",
+          sourceLayer: "executive_family"
         }
       );
     }
@@ -151,25 +193,6 @@ window.AriResponseIntentEngine = {
           shouldAskQuestion: false,
           recommendedQuestion: null,
           sourceLayer: "dual_salience"
-        }
-      );
-    }
-
-    if (
-      executiveDecision === "protect_family_first" ||
-      primaryPriority === "family" ||
-      observerPrimary === "provider_vs_present_parent" ||
-      observerPrimary === "fatherhood_transition"
-    ) {
-      return this.intent(
-        "protect_family_presence",
-        "meaning_truth_then_action",
-        "Family or fatherhood is the leading executive priority. Ari should protect presence and avoid treating all goals equally.",
-        {
-          shouldAskQuestion: true,
-          recommendedQuestion:
-            observerQuestion || "What does your family most need from you in this season?",
-          sourceLayer: "executive_family"
         }
       );
     }
@@ -281,8 +304,6 @@ window.AriResponseIntentEngine = {
       );
     }
 
-    // Existing Rebirth organ logic preserved below.
-
     if (
       mode === "restore_dignity" ||
       need === "worth" ||
@@ -340,7 +361,7 @@ window.AriResponseIntentEngine = {
         "meaning_wisdom_action",
         "A life chapter is active. Ari should name the chapter and protect what matters.",
         {
-          shouldAskQuestion: true,
+          shouldAskQuestion: false,
           recommendedQuestion:
             observerQuestion || "What is this season really asking of you?",
           sourceLayer: "rebirth_meaning"
