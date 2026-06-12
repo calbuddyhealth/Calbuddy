@@ -1,40 +1,33 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.3
-// Fixes:
-// - Suppresses closing for body_truth_then_action / calm_health_step.
-// - Prevents body-first responses from ending with repeated action/question.
-// - Adds safety/body gate so physical health responses do not pull abstract synthesis, meaning, wisdom, or value text.
-// - Suppresses unclear placeholder text from meaning/synthesis/value systems.
-// - Keeps mouth debug sources.
-// - Composer remains an assembler, not a writer.
+// V3.4
 
 window.AriLanguageComposer = {
-  version: "3.3.0",
+  version: "3.4.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
 
-    const leadOrgan =
-      summary.synthesisLeadOrgan ||
-      summary.salienceLeadOrgan ||
-      "observer";
-
-    const salienceMode =
-      summary.synthesisMode ||
-      summary.salienceMode ||
-      "continue_observing";
-
+    const leadOrgan = summary.synthesisLeadOrgan || summary.salienceLeadOrgan || "observer";
+    const salienceMode = summary.synthesisMode || summary.salienceMode || "continue_observing";
     const primaryHumanNeed = summary.primaryHumanNeed || null;
     const responseIntent = summary.responseIntent || null;
+
+    const organismNeed = summary.organismNeed || null;
+    const organismFunction = summary.organismFunction || summary.organismPrimaryFunction || null;
+
+    const isBodyOrganism =
+      ["food", "water", "sleep", "pain_protection", "vital_safety", "felt_safety"].includes(organismNeed) ||
+      ["energy_intake", "hydration", "rest_recovery", "injury_protection", "vital_stability", "threat_regulation"].includes(organismFunction);
 
     const isSafetyOrBody =
       leadOrgan === "safety" ||
       salienceMode === "stabilize_body_first" ||
       primaryHumanNeed === "body" ||
       responseIntent === "stabilize_health" ||
-      responseIntent === "stabilize_organism_function";
+      responseIntent === "stabilize_organism_function" ||
+      isBodyOrganism;
 
     const hasUnclearLifeChapter =
       summary.primaryLifeChapter === "unclear_chapter" ||
@@ -77,16 +70,8 @@ window.AriLanguageComposer = {
       this.readText(openingResult, ["opening", "text", "line"]) ||
       this.createFallbackOpening(summary, leadOrgan, salienceMode);
 
-    let synthesisText =
-      typeof summary.synthesisStatement === "string" && summary.synthesisStatement.trim()
-        ? summary.synthesisStatement.trim()
-        : null;
-
-    let meaningText =
-      typeof summary.meaningStatement === "string" && summary.meaningStatement.trim()
-        ? summary.meaningStatement.trim()
-        : null;
-
+    let synthesisText = typeof summary.synthesisStatement === "string" ? summary.synthesisStatement.trim() : null;
+    let meaningText = typeof summary.meaningStatement === "string" ? summary.meaningStatement.trim() : null;
     let emotionText = this.readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
     let truthText = this.readText(truthResult, ["truth", "text", "line"]);
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
@@ -102,7 +87,7 @@ window.AriLanguageComposer = {
       if (this.isAbstractOrDiagnosticText(actionText)) actionText = "Stabilize first, then interpret later.";
 
       if (!truthText) truthText = "A body signal should be stabilized before it is interpreted.";
-      if (!actionText) actionText = "Sit down, sip water, and try a few small bites of something gentle if you can tolerate it.";
+      if (!actionText) actionText = "Stabilize the body first, then interpret later.";
     }
 
     if (hasUnclearLifeChapter) meaningText = null;
@@ -134,7 +119,6 @@ window.AriLanguageComposer = {
 
     let bodyParts = this.chooseBodyParts({
       leadOrgan,
-      salienceMode,
       responsePattern: director.responsePattern,
       isSafetyOrBody,
       synthesisText,
@@ -175,9 +159,7 @@ window.AriLanguageComposer = {
       { finalResponse }
     );
 
-    if (shapedResponse?.finalResponse) {
-      finalResponse = shapedResponse.finalResponse;
-    }
+    if (shapedResponse?.finalResponse) finalResponse = shapedResponse.finalResponse;
 
     return {
       languageMode,
@@ -185,7 +167,6 @@ window.AriLanguageComposer = {
       languageBody: body,
       languageClosing: closing,
       finalResponse,
-
       mouthUsed: {
         opening: Boolean(opening),
         synthesis: Boolean(synthesisText && bodyParts.includes(synthesisText)),
@@ -198,7 +179,6 @@ window.AriLanguageComposer = {
         shape: Boolean(shapeResult),
         shaper: Boolean(shapedResponse?.finalResponse)
       },
-
       mouthEnginesFound: {
         opening: Boolean(openingEngine),
         meaning: Boolean(summary.meaningStatement),
@@ -210,18 +190,19 @@ window.AriLanguageComposer = {
         shape: Boolean(shapeEngine),
         shaper: Boolean(shaperEngine)
       },
-
       mouthTextDebug: {
         leadOrgan,
         salienceMode,
         primaryHumanNeed,
         responseIntent,
+        organismFunction,
+        organismNeed,
+        isBodyOrganism,
         isSafetyOrBody,
         hasUnclearLifeChapter,
         hasUnclearConflict,
         closingSuppressed: !closing,
         director,
-
         sources: {
           opening: openingResult?.source || "composer-fallback",
           emotion: emotionResult?.source || "none",
@@ -232,7 +213,6 @@ window.AriLanguageComposer = {
           shape: shapeResult?.source || "none",
           shaper: shapedResponse?.source || "none"
         },
-
         opening,
         synthesisText,
         meaningText,
@@ -241,26 +221,14 @@ window.AriLanguageComposer = {
         wisdomText,
         actionText,
         closing,
-        selectedBodyParts: bodyParts,
-
-        bodyAssemblyOrder: bodyParts.map(part => {
-          if (part === emotionText) return "emotion";
-          if (part === truthText) return "truth";
-          if (part === wisdomText) return "wisdom";
-          if (part === actionText) return "action";
-          if (part === meaningText) return "meaning";
-          if (part === synthesisText) return "synthesis";
-          return "unknown";
-        })
+        selectedBodyParts: bodyParts
       },
-
       source: "ari-language-composer"
     };
   },
 
   readDirector(summary = {}) {
     const mouthAllows = summary.mouthAllows || {};
-
     return {
       explanationLevel: summary.mouthExplanationLevel || summary.explanationLevel || "standard",
       responsePattern: summary.mouthResponsePattern || summary.responsePattern || "reflection_then_question",
@@ -287,6 +255,7 @@ window.AriLanguageComposer = {
   } = {}) {
     if (isSafetyOrBody) return [emotionText, truthText, actionText].filter(Boolean);
 
+    if (responsePattern === "comfort_then_truth") return [emotionText, truthText].filter(Boolean);
     if (responsePattern === "validate_then_question") return [emotionText, truthText].filter(Boolean);
     if (responsePattern === "comfort_then_question") return [emotionText, truthText].filter(Boolean);
     if (responsePattern === "observe_then_question") return [truthText || synthesisText || meaningText].filter(Boolean);
@@ -317,6 +286,7 @@ window.AriLanguageComposer = {
 
   getLanguageMode(leadOrgan = "observer", salienceMode = null) {
     if (salienceMode === "restore_dignity") return "restore_dignity";
+    if (salienceMode === "restore_connection") return "emotional_connection";
     if (salienceMode === "emotional_connection") return "emotional_connection";
     if (salienceMode === "stabilize_body_first") return "safety";
 
@@ -345,7 +315,6 @@ window.AriLanguageComposer = {
   safeRunAny(engine, methods = [], arg = {}, fallback = null) {
     try {
       if (!engine) return fallback;
-
       for (const method of methods) {
         if (typeof engine[method] === "function") {
           const result = engine[method](arg);
@@ -355,13 +324,11 @@ window.AriLanguageComposer = {
     } catch (error) {
       console.warn("[AriLanguageComposer] mouth engine failed", error);
     }
-
     return fallback;
   },
 
   readText(result, keys = []) {
     if (!result) return null;
-
     if (typeof result === "string") return result.trim() || null;
 
     for (const key of keys) {
@@ -378,12 +345,10 @@ window.AriLanguageComposer = {
 
     for (const line of lines) {
       if (!line || typeof line !== "string") continue;
-
       const normalized = this.normalizeText(line);
 
       const duplicate = cleaned.some(existing => {
         const existingNormalized = this.normalizeText(existing);
-
         return (
           existingNormalized === normalized ||
           existingNormalized.includes(normalized) ||
@@ -407,7 +372,6 @@ window.AriLanguageComposer = {
 
   isPlaceholderOrUnclearText(text = "") {
     if (!text || typeof text !== "string") return false;
-
     const normalized = this.normalizeText(text);
 
     return (
@@ -423,7 +387,6 @@ window.AriLanguageComposer = {
 
   isAbstractOrDiagnosticText(text = "") {
     if (!text || typeof text !== "string") return false;
-
     const normalized = this.normalizeText(text);
 
     return (
@@ -435,7 +398,6 @@ window.AriLanguageComposer = {
       normalized.includes("synthesis") ||
       normalized.includes("life chapter") ||
       normalized.includes("meaningful priority") ||
-      normalized.includes("interpretation") ||
       normalized.includes("system may be asking") ||
       normalized.includes("understanding the feeling underneath") ||
       normalized.includes("clarity")
@@ -444,6 +406,7 @@ window.AriLanguageComposer = {
 
   createFallbackOpening(summary = {}, leadOrgan = "observer", salienceMode = null) {
     if (salienceMode === "restore_dignity") return "That sounds disrespectful and frustrating.";
+    if (salienceMode === "restore_connection") return "That sounds lonely.";
     if (salienceMode === "emotional_connection") return "That sounds lonely.";
     if (salienceMode === "stabilize_body_first") return "Your body is the priority right now.";
 
