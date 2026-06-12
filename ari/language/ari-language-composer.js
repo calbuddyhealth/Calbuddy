@@ -28,11 +28,12 @@ window.AriLanguageComposer = {
     const responseIntent = summary.responseIntent || null;
 
     const isSafetyOrBody =
-      leadOrgan === "safety" ||
-      salienceMode === "stabilize_body_first" ||
-      primaryHumanNeed === "body" ||
-      responseIntent === "stabilize_health";
-
+  leadOrgan === "safety" ||
+  salienceMode === "stabilize_body_first" ||
+  primaryHumanNeed === "body" ||
+  responseIntent === "stabilize_health" ||
+  responseIntent === "stabilize_organism_function";
+    
     const hasUnclearLifeChapter =
       summary.primaryLifeChapter === "unclear_chapter" ||
       summary.personLifeChapter === "unclear";
