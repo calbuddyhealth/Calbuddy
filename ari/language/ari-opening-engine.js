@@ -1,9 +1,25 @@
 // ari/language/ari-opening-engine.js
 // Ari Opening Engine
 // Purpose: Generate context-aware openings.
-// V1.0
+// V1.1
+// Fixes:
+// - Adds create() for AriLanguageComposer compatibility.
+// - Returns { opening } object.
+// - Keeps generate() for backward compatibility.
 
 window.AriOpeningEngine = {
+
+  create(summary = {}) {
+
+    const opening = this.generate(summary);
+
+    if (!opening) return null;
+
+    return {
+      opening,
+      source: "ari-opening-engine"
+    };
+  },
 
   generate(summary = {}) {
 
@@ -32,5 +48,4 @@ window.AriOpeningEngine = {
 
     return "Something feels worth paying attention to here.";
   }
-
 };
