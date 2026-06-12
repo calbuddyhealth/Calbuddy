@@ -1,10 +1,13 @@
 // ari/integration/ari-synthesis-engine.js
 // Ari Synthesis Engine
 // Purpose: Combine organ outputs into one coherent interpretation.
-// V1.1
+// V1.2
 // Fixes:
-// - Updates weak missing-information question.
-// - Prevents synthesis from reintroducing old recovery wording.
+// - Adds Human Needs Network awareness.
+// - Adds dignity/worth synthesis for restore_dignity.
+// - Adds connection synthesis for restore_connection.
+// - Adds security/body synthesis.
+// - Prevents generic uncertainty language from overriding strong human needs.
 
 window.AriSynthesisEngine = {
   synthesize(input = {}) {
@@ -16,6 +19,11 @@ window.AriSynthesisEngine = {
     const salienceLeadOrgan = summary.salienceLeadOrgan || "observer";
     const salienceMode = summary.salienceMode || "continue_observing";
     const salienceQuestion = summary.salienceQuestion || null;
+
+    const primaryHumanNeed = summary.primaryHumanNeed || null;
+    const primaryHumanNeedScore = Number(summary.primaryHumanNeedScore || 0);
+    const primaryHumanNeedReason = summary.primaryHumanNeedReason || null;
+    const needResponseMode = summary.needResponseMode || null;
 
     const uncertaintyType = summary.uncertaintyType || null;
     const uncertaintyReason = summary.uncertaintyReason || null;
@@ -74,7 +82,13 @@ window.AriSynthesisEngine = {
       return question;
     }
 
+    const strongHumanNeed =
+      primaryHumanNeed &&
+      primaryHumanNeed !== "understanding" &&
+      primaryHumanNeedScore >= 80;
+
     // 1. Start with the leading organ.
+
     if (salienceLeadOrgan === "uncertainty") {
       addPart(
         "Ari does not have enough grounded evidence yet, so the wisest move is to clarify before interpreting."
@@ -121,8 +135,63 @@ window.AriSynthesisEngine = {
     }
 
     if (salienceLeadOrgan === "emotion") {
+      if (needResponseMode === "restore_dignity" || primaryHumanNeed === "worth") {
+        addPart(
+          "The central need here appears to be worth, dignity, and respect."
+        );
+        addPart(
+          "Ari should respond by protecting the user's dignity first, not by treating this as a vague uncertainty problem."
+        );
+        addAction(
+          "Validate the wound, separate the user's worth from other people's behavior, then ask what happened."
+        );
+      } else if (
+        needResponseMode === "restore_connection" ||
+        primaryHumanNeed === "connection"
+      ) {
+        addPart(
+          "The central need here appears to be connection, belonging, or feeling emotionally alone."
+        );
+        addPart(
+          "Ari should respond with warmth and presence before trying to explain or solve."
+        );
+        addAction(
+          "Name the loneliness gently, offer emotional grounding, then ask what made the user feel disconnected."
+        );
+      } else {
+        addPart(
+          "An emotional signal appears central, but Ari should still keep the interpretation calibrated."
+        );
+        addAction(
+          "Respond with emotional attunement before offering interpretation."
+        );
+      }
+    }
+
+    if (salienceLeadOrgan === "executive") {
+      if (primaryHumanNeed === "security") {
+        addPart(
+          "The central need appears to be security, stability, or protection."
+        );
+        addAction(
+          "Help the user identify the first stabilizing step before exploring deeper meaning."
+        );
+      } else {
+        addPart(
+          "The situation appears to need practical organization before deeper interpretation."
+        );
+        addAction(
+          "Clarify the decision, constraints, and next step."
+        );
+      }
+    }
+
+    if (salienceLeadOrgan === "safety") {
       addPart(
-        "An emotional signal appears central, but Ari should still keep the interpretation calibrated."
+        "Safety or body stability appears to be the highest priority."
+      );
+      addAction(
+        "Prioritize immediate safety, medical guidance, or stabilization before meaning-making."
       );
     }
 
@@ -136,7 +205,22 @@ window.AriSynthesisEngine = {
       addCaution("The current evidence is too thin for a confident interpretation.");
     }
 
-    // 2. Add important supporting context.
+    // 2. Add strong human need context.
+    if (strongHumanNeed && salienceLeadOrgan !== "uncertainty") {
+      addPart(`The active human need is '${primaryHumanNeed}'.`);
+      if (primaryHumanNeedReason) addPart(primaryHumanNeedReason);
+    }
+
+    if (
+      strongHumanNeed &&
+      salienceLeadOrgan === "uncertainty"
+    ) {
+      addCaution(
+        "A strong human need is active, so uncertainty should not flatten the response into generic clarification."
+      );
+    }
+
+    // 3. Add important supporting context.
     if (
       salienceLeadOrgan !== "meaning" &&
       primaryLifeChapter &&
@@ -172,7 +256,7 @@ window.AriSynthesisEngine = {
       addPart(`A wisdom tension is present: '${wisdomTension}'.`);
     }
 
-    // 3. Hypothesis handling.
+    // 4. Hypothesis handling.
     if (hypothesis) {
       addPart(`Ari's current working hypothesis is '${hypothesis}'.`);
 
@@ -187,23 +271,24 @@ window.AriSynthesisEngine = {
           "This hypothesis should be spoken gently because confidence is not high."
         );
       }
-    } else {
+    } else if (!strongHumanNeed) {
       addCaution(
         "No grounded hypothesis exists yet, so Ari should ask a recovery question instead of presenting a conclusion."
       );
     }
 
-    // 4. Prevent emotion hijack.
+    // 5. Prevent emotion hijack, but allow emotion when human need demands it.
     if (
       strongestSignalCategory !== "underlying_emotion" &&
-      salienceLeadOrgan !== "emotion"
+      salienceLeadOrgan !== "emotion" &&
+      !["worth", "connection"].includes(primaryHumanNeed)
     ) {
       addCaution(
         "Do not default to 'What feeling is hardest to admit?' unless emotion is actually the leading domain."
       );
     }
 
-    // 5. Action guidance.
+    // 6. Action guidance.
     if (salienceMode === "continue_observing") {
       addAction("Ask one clarifying question before offering insight.");
     }
@@ -229,6 +314,30 @@ window.AriSynthesisEngine = {
     if (salienceMode === "emotion_depth") {
       addAction(
         "Ask an emotional depth question, but keep it specific to the detected emotion."
+      );
+    }
+
+    if (salienceMode === "restore_dignity") {
+      addAction(
+        "Protect dignity first. Do not make the user prove why feeling disrespected matters."
+      );
+    }
+
+    if (salienceMode === "restore_connection") {
+      addAction(
+        "Offer connection and warmth first. Do not jump immediately into analysis."
+      );
+    }
+
+    if (salienceMode === "protect_security") {
+      addAction(
+        "Stabilize the practical risk before deeper reflection."
+      );
+    }
+
+    if (salienceMode === "stabilize_body_first") {
+      addAction(
+        "Address body stability before interpretation."
       );
     }
 
@@ -265,6 +374,9 @@ window.AriSynthesisEngine = {
         strongestSignal,
         strongestSignalCategory,
         uncertaintyType,
+        primaryHumanNeed,
+        primaryHumanNeedScore,
+        needResponseMode,
         primaryLifeChapter,
         leadIdentity,
         supportIdentity,
