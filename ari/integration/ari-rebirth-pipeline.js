@@ -1,13 +1,11 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.5
+// V1.6
 // Fixes:
-// - Safety Override runs first and can stop the pipeline.
-// - Ari Human Needs Network runs immediately after safety.
-// - Response Intent runs after synthesis.
-// - Mouth Director runs before Language Composer.
-// - Composer now receives intent/director instructions before final language.
+// - Uses AriResponseIntentEngine.decide(), not evaluate().
+// - Wraps Mouth Director output so diagnostics show Mouth Director Ran: yes.
+// - Passes mouthDirector fields into composer correctly.
 
 window.AriRebirthPipeline = {
   run(systemSummary = {}) {
@@ -50,6 +48,9 @@ window.AriRebirthPipeline = {
           salienceLeadOrgan: "safety",
           salienceMode: "safety_override",
           salienceReason: safety.reason,
+
+          mouthDirectorRan: false,
+          mouthDirectorSource: "skipped-safety-override",
 
           rebirthPipelineRan: true,
           rebirthPipelineSource: "ari-rebirth-pipeline",
@@ -123,10 +124,69 @@ window.AriRebirthPipeline = {
     runStep(window.AriSynthesisEngine, "synthesize");
 
     // 11. Decide response intent.
-    runStep(window.AriResponseIntentEngine, "evaluate");
+    if (
+      window.AriResponseIntentEngine &&
+      typeof window.AriResponseIntentEngine.decide === "function"
+    ) {
+      const intent = window.AriResponseIntentEngine.decide(summary) || {};
+      summary = {
+        ...summary,
+        ...intent
+      };
+    } else {
+      summary = {
+        ...summary,
+        responseIntentSource: "not-loaded"
+      };
+    }
 
     // 12. Direct the mouth.
-    runStep(window.AriMouthDirector, "direct");
+    if (
+      window.AriMouthDirector &&
+      typeof window.AriMouthDirector.direct === "function"
+    ) {
+      const mouthDirector = window.AriMouthDirector.direct(summary) || {};
+
+      summary = {
+        ...summary,
+        mouthDirector,
+        mouthDirectorRan: true,
+        mouthDirectorSource: "ari-mouth-director",
+
+        mouthExplanationLevel: mouthDirector.explanationLevel || null,
+        mouthResponsePattern: mouthDirector.responsePattern || null,
+        mouthMaxBodySections: mouthDirector.maxBodySections ?? null,
+        mouthAskBeforeTeaching: Boolean(mouthDirector.askBeforeTeaching),
+
+        mouthAllows: {
+          meaning: mouthDirector.allowMeaning,
+          emotion: mouthDirector.allowEmotion,
+          truth: mouthDirector.allowTruth,
+          wisdom: mouthDirector.allowWisdom,
+          action: mouthDirector.allowAction
+        }
+      };
+    } else {
+      summary = {
+        ...summary,
+        mouthDirector: {},
+        mouthDirectorRan: false,
+        mouthDirectorSource: "not-loaded",
+
+        mouthExplanationLevel: null,
+        mouthResponsePattern: null,
+        mouthMaxBodySections: null,
+        mouthAskBeforeTeaching: null,
+
+        mouthAllows: {
+          meaning: null,
+          emotion: null,
+          truth: null,
+          wisdom: null,
+          action: null
+        }
+      };
+    }
 
     // 13. Compose final language.
     runStep(window.AriLanguageComposer, "compose");
