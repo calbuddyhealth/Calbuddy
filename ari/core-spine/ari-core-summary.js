@@ -1,18 +1,19 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V2.2
+// V2.3
 // Fixes:
 // - Preserves raw user message for Safety + Human Needs Network.
 // - Adds response intent placeholders.
 // - Adds Mouth Director placeholders/debug fields.
 // - Adds Dual Salience debug fields.
+// - Adds Observer Hierarchy debug fields.
 // - Keeps Rebirth pipeline outside this file to prevent duplicate execution.
 
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "2.2.0",
+  version: "2.3.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -25,9 +26,17 @@ window.Ari.coreSummary = {
       : null;
 
     const observation = analysis.observation || {};
+
     const dualSalience =
       analysis.dualSalience ||
       observation.dualSalience ||
+      {};
+
+    const observerHierarchy =
+      analysis.observerHierarchy ||
+      analysis.hierarchy ||
+      observation.observerHierarchy ||
+      observation.hierarchy ||
       {};
 
     const values = analysis.values || {};
@@ -148,41 +157,47 @@ window.Ari.coreSummary = {
           reason: item.reason
         })) || [],
 
-      dualSalienceAvailable:
-        dualSalience.available ?? null,
+      dualSalienceAvailable: dualSalience.available ?? null,
+      dualSalienceObjective: dualSalience.objective || {},
+      dualSalienceSubjective: dualSalience.subjective || {},
+      dualSalienceGaps: dualSalience.gaps || [],
+      dualSalienceLead: dualSalience.priority?.lead || null,
+      dualSalienceMode: dualSalience.priority?.mode || null,
+      dualSalienceObjectiveLead: dualSalience.priority?.objectiveLead || null,
+      dualSalienceSubjectiveLead: dualSalience.priority?.subjectiveLead || null,
+      dualSalienceReason: dualSalience.priority?.reason || null,
+      dualSalienceClarityConfidence: dualSalience.clarity?.confidence || null,
+      dualSalienceClarityAction: dualSalience.clarity?.action || null,
+      dualSalienceRecommendedMove: dualSalience.recommendedMove || null,
 
-      dualSalienceObjective:
-        dualSalience.objective || {},
-
-      dualSalienceSubjective:
-        dualSalience.subjective || {},
-
-      dualSalienceGaps:
-        dualSalience.gaps || [],
-
-      dualSalienceLead:
-        dualSalience.priority?.lead || null,
-
-      dualSalienceMode:
-        dualSalience.priority?.mode || null,
-
-      dualSalienceObjectiveLead:
-        dualSalience.priority?.objectiveLead || null,
-
-      dualSalienceSubjectiveLead:
-        dualSalience.priority?.subjectiveLead || null,
-
-      dualSalienceReason:
-        dualSalience.priority?.reason || null,
-
-      dualSalienceClarityConfidence:
-        dualSalience.clarity?.confidence || null,
-
-      dualSalienceClarityAction:
-        dualSalience.clarity?.action || null,
-
-      dualSalienceRecommendedMove:
-        dualSalience.recommendedMove || null,
+      observerHierarchyPrimaryObservation:
+        observerHierarchy.primaryObservation || null,
+      observerHierarchyPrimaryCategory:
+        observerHierarchy.primaryCategory || null,
+      observerHierarchyPrimaryReason:
+        observerHierarchy.primaryReason || null,
+      observerHierarchyPrimaryConfidence:
+        observerHierarchy.primaryConfidence || null,
+      observerHierarchySupportingObservations:
+        observerHierarchy.supportingObservations || [],
+      observerHierarchyDominantTension:
+        observerHierarchy.dominantTension || null,
+      observerHierarchyLifeChapter:
+        observerHierarchy.lifeChapter || null,
+      observerHierarchyObjectiveLead:
+        observerHierarchy.objectiveLead || null,
+      observerHierarchySubjectiveLead:
+        observerHierarchy.subjectiveLead || null,
+      observerHierarchyDualSalienceMode:
+        observerHierarchy.dualSalienceMode || null,
+      observerHierarchyExecutiveInstruction:
+        observerHierarchy.recommendedExecutiveInstruction || null,
+      observerHierarchyShouldAskClarifyingQuestion:
+        observerHierarchy.shouldAskClarifyingQuestion ?? null,
+      observerHierarchyRecommendedQuestion:
+        observerHierarchy.recommendedQuestion || null,
+      observerHierarchyRankedObservations:
+        observerHierarchy.rankedObservations?.slice(0, 8) || [],
 
       focusType: attention.focusType || "unknown",
       focusReason: attention.focusReason || "No focus reason.",
@@ -349,6 +364,7 @@ window.Ari.coreSummary = {
       emotionalIntelligenceSource: emotionalIntelligence.source || "unknown",
       memorySource: memory.source || "unknown",
       dualSalienceSource: dualSalience.system || "unknown",
+      observerHierarchySource: observerHierarchy.system || "unknown",
 
       authorityHierarchy: window.Ari.authority
         ? window.Ari.authority.hierarchy
