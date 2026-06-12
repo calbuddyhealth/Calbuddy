@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.0
+// V3.1
 // Fixes:
-// - Composer no longer writes emotion/truth/action content.
-// - Emotion, Truth, Wisdom, Action engines own content.
-// - Composer only gathers, filters, orders, dedupes, limits, and assembles.
-// - Fully obeys Ari Mouth Director.
+// - Adds mouth debug sources.
+// - Shows which engine generated each line.
+// - Shows body assembly order.
+// - Composer remains an assembler, not a writer.
 
 window.AriLanguageComposer = {
   compose(input = {}) {
@@ -160,6 +160,18 @@ window.AriLanguageComposer = {
         leadOrgan,
         salienceMode,
         director,
+
+        sources: {
+          opening: openingResult?.source || "composer-fallback",
+          emotion: emotionResult?.source || "none",
+          truth: truthResult?.source || "none",
+          wisdom: wisdomResult?.source || "none",
+          action: actionResult?.source || "none",
+          voice: voiceResult?.source || "none",
+          shape: shapeResult?.source || "none",
+          shaper: shapedResponse?.source || "none"
+        },
+
         opening,
         synthesisText,
         meaningText,
@@ -168,7 +180,17 @@ window.AriLanguageComposer = {
         wisdomText,
         actionText,
         closing,
-        selectedBodyParts: bodyParts
+        selectedBodyParts: bodyParts,
+
+        bodyAssemblyOrder: bodyParts.map(part => {
+          if (part === emotionText) return "emotion";
+          if (part === truthText) return "truth";
+          if (part === wisdomText) return "wisdom";
+          if (part === actionText) return "action";
+          if (part === meaningText) return "meaning";
+          if (part === synthesisText) return "synthesis";
+          return "unknown";
+        })
       },
 
       source: "ari-language-composer"
@@ -232,7 +254,6 @@ window.AriLanguageComposer = {
 
   chooseBodyParts({
     leadOrgan,
-    salienceMode,
     responsePattern,
     synthesisText,
     meaningText,
