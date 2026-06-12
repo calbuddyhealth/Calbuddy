@@ -1,13 +1,11 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.2
+// V1.3
 // Fixes:
-// - Caps inflated upstream scores.
-// - Prevents identity/life chapter score explosions.
-// - Adds deterministic tie-breaking.
+// - Updates missing_information question.
+// - Prevents salience from reintroducing weak “missing information” wording.
 // - Keeps uncertainty override intact.
-// - Keeps emotion from hijacking when meaning/identity has stronger context.
 
 window.AriSalienceGovernor = {
   govern(input = {}) {
@@ -52,6 +50,9 @@ window.AriSalienceGovernor = {
       noHypothesis &&
       noEvidence &&
       strongestSignalCategory !== "underlying_emotion";
+
+    const defaultMissingInformationQuestion =
+      "What feels important here that has not been said out loud yet?";
 
     function clampScore(value, min = 0, max = 100) {
       const n = Number(value || 0);
@@ -116,7 +117,7 @@ window.AriSalienceGovernor = {
         "Ari lacks a grounded hypothesis and evidence, so uncertainty must lead before interpretation.",
         "continue_observing",
         summary.recommendedRecoveryQuestion ||
-          "What information feels most missing right now?"
+          defaultMissingInformationQuestion
       );
     }
 
@@ -173,8 +174,10 @@ window.AriSalienceGovernor = {
     // 5. Stewardship should beat fear when responsibility is dominant.
     if (
       !shouldUncertaintyOverride &&
-      (emotionalClassification === "stewardship" ||
-        stewardshipScore >= fearScore + 15)
+      (
+        emotionalClassification === "stewardship" ||
+        stewardshipScore >= fearScore + 15
+      )
     ) {
       addCandidate(
         "stewardship",
