@@ -1,11 +1,12 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.3
+// V1.4
 // Fixes:
-// - Updates missing_information question.
-// - Prevents salience from reintroducing weak “missing information” wording.
-// - Keeps uncertainty override intact.
+// - Human Needs Network can override uncertainty when the need is strong.
+// - Worth/connection needs route to emotion instead of uncertainty.
+// - Security/body needs route to safety/executive.
+// - Keeps true uncertainty override intact when no strong human need exists.
 
 window.AriSalienceGovernor = {
   govern(input = {}) {
@@ -15,6 +16,11 @@ window.AriSalienceGovernor = {
 
     const uncertaintyType = summary.uncertaintyType || null;
     const uncertaintyConfidenceRaw = Number(summary.uncertaintyConfidence || 0);
+
+    const primaryHumanNeed = summary.primaryHumanNeed || null;
+    const primaryHumanNeedScoreRaw = Number(summary.primaryHumanNeedScore || 0);
+    const needRecommendedLeadOrgan = summary.needRecommendedLeadOrgan || null;
+    const needResponseMode = summary.needResponseMode || null;
 
     const primaryLifeChapter = summary.primaryLifeChapter || null;
     const lifeChapterStrengthRaw = Number(summary.lifeChapterStrength || 0);
@@ -46,34 +52,63 @@ window.AriSalienceGovernor = {
       evidenceStrength === "none" ||
       evidenceStrength === "unknown";
 
-    const shouldUncertaintyOverride =
-      noHypothesis &&
-      noEvidence &&
-      strongestSignalCategory !== "underlying_emotion";
-
-    const defaultMissingInformationQuestion =
-      "What feels important here that has not been said out loud yet?";
-
     function clampScore(value, min = 0, max = 100) {
       const n = Number(value || 0);
       return Math.max(min, Math.min(max, n));
     }
 
     const uncertaintyConfidence = clampScore(uncertaintyConfidenceRaw, 0, 100);
+    const primaryHumanNeedScore = clampScore(primaryHumanNeedScoreRaw, 0, 100);
     const lifeChapterStrength = clampScore(lifeChapterStrengthRaw, 0, 100);
     const leadIdentityScore = clampScore(leadIdentityScoreRaw, 0, 100);
     const stewardshipScore = clampScore(stewardshipScoreRaw, 0, 100);
     const fearScore = clampScore(fearScoreRaw, 0, 100);
 
+    const strongHumanNeed =
+      primaryHumanNeed &&
+      primaryHumanNeed !== "understanding" &&
+      primaryHumanNeedScore >= 80;
+
+    const emotionHumanNeed =
+      strongHumanNeed &&
+      ["connection", "worth"].includes(primaryHumanNeed);
+
+    const identityHumanNeed =
+      strongHumanNeed &&
+      primaryHumanNeed === "identity";
+
+    const purposeHumanNeed =
+      strongHumanNeed &&
+      primaryHumanNeed === "purpose";
+
+    const wisdomHumanNeed =
+      strongHumanNeed &&
+      primaryHumanNeed === "wisdom";
+
+    const securityHumanNeed =
+      strongHumanNeed &&
+      ["body", "security"].includes(primaryHumanNeed);
+
+    const shouldUncertaintyOverride =
+      noHypothesis &&
+      noEvidence &&
+      strongestSignalCategory !== "underlying_emotion" &&
+      !strongHumanNeed;
+
+    const defaultMissingInformationQuestion =
+      "What feels important here that has not been said out loud yet?";
+
     function priorityForLead(lead) {
       const priority = {
+        safety: 110,
         uncertainty: 100,
         meaning: 90,
         identity: 85,
         wisdom: 80,
         values: 75,
+        executive: 72,
         stewardship: 70,
-        emotion: 60,
+        emotion: 68,
         belief: 55,
         observer: 10
       };
@@ -102,23 +137,80 @@ window.AriSalienceGovernor = {
       });
     }
 
-    // 1. Uncertainty should lead when Ari lacks enough evidence.
+    // 0. Human Need Network should influence salience before uncertainty.
+    if (securityHumanNeed) {
+      addCandidate(
+        needRecommendedLeadOrgan === "safety" ? "safety" : "executive",
+        primaryHumanNeedScore + 10,
+        `Strong human need '${primaryHumanNeed}' detected, so protection/stability should lead.`,
+        needResponseMode || "protect_security",
+        primaryHumanNeed === "body"
+          ? "What does your body need first right now?"
+          : "What needs to be protected first?"
+      );
+    }
+
+    if (emotionHumanNeed) {
+      addCandidate(
+        "emotion",
+        primaryHumanNeedScore + 12,
+        `Strong human need '${primaryHumanNeed}' detected, so emotion should lead instead of uncertainty.`,
+        needResponseMode || "restore_dignity",
+        primaryHumanNeed === "worth"
+          ? "What happened that made you feel disrespected?"
+          : "What made you feel alone or disconnected?"
+      );
+    }
+
+    if (identityHumanNeed) {
+      addCandidate(
+        "identity",
+        primaryHumanNeedScore + 8,
+        "A strong identity need is active, so identity should guide the response.",
+        needResponseMode || "clarify_identity",
+        "Who are you trying to become in this moment?"
+      );
+    }
+
+    if (purposeHumanNeed) {
+      addCandidate(
+        "meaning",
+        primaryHumanNeedScore + 8,
+        "A strong purpose need is active, so meaning should guide the response.",
+        needResponseMode || "clarify_purpose",
+        "What purpose feels like it is asking for your attention?"
+      );
+    }
+
+    if (wisdomHumanNeed) {
+      addCandidate(
+        "wisdom",
+        primaryHumanNeedScore + 8,
+        "A strong wisdom need is active, so wisdom should guide the response.",
+        needResponseMode || "choose_what_leads",
+        "Which good thing should lead right now?"
+      );
+    }
+
+    // 1. Uncertainty should lead when Ari lacks enough evidence AND no strong human need is active.
     if (
       uncertaintyType === "missing_information" ||
       uncertaintyType === "understanding_uncertainty" ||
       shouldUncertaintyOverride
     ) {
-      addCandidate(
-        "uncertainty",
-        Math.max(
-          uncertaintyConfidence,
-          shouldUncertaintyOverride ? 112 : 92
-        ),
-        "Ari lacks a grounded hypothesis and evidence, so uncertainty must lead before interpretation.",
-        "continue_observing",
-        summary.recommendedRecoveryQuestion ||
-          defaultMissingInformationQuestion
-      );
+      if (!strongHumanNeed) {
+        addCandidate(
+          "uncertainty",
+          Math.max(
+            uncertaintyConfidence,
+            shouldUncertaintyOverride ? 112 : 92
+          ),
+          "Ari lacks a grounded hypothesis and evidence, so uncertainty must lead before interpretation.",
+          "continue_observing",
+          summary.recommendedRecoveryQuestion ||
+            defaultMissingInformationQuestion
+        );
+      }
     }
 
     // 2. Major life chapters should lead when a real chapter is active.
@@ -188,7 +280,7 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 6. Emotion leads only when emotion is clearly central.
+    // 6. Emotion leads when emotion is clearly central.
     if (
       uncertaintyType === "emotion_uncertainty" ||
       strongestSignalCategory === "underlying_emotion"
@@ -328,6 +420,8 @@ window.AriSalienceGovernor = {
       salienceScoreNormalization: {
         uncertaintyConfidenceRaw,
         uncertaintyConfidence,
+        primaryHumanNeedScoreRaw,
+        primaryHumanNeedScore,
         lifeChapterStrengthRaw,
         lifeChapterStrength,
         leadIdentityScoreRaw,
