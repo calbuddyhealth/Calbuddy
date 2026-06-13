@@ -426,15 +426,17 @@ window.AriUniversalDomainGovernor = {
           "pain"
         ],
         signals: [
-          "medical",
-          "body",
-          "pain",
-          "vital",
-          "pregnancy",
-          "health",
-          "urgent",
-          "physical health"
-        ],
+  "medical",
+  "body",
+  "body signal",
+  "pain",
+  "vital",
+  "pregnancy",
+  "urgent",
+  "symptom",
+  "illness",
+  "infection"
+],
         leadOrgan: "safety",
         mode: "medical_or_body_first",
         question: "What body signal needs attention first?",
