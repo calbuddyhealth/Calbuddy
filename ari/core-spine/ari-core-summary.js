@@ -27,6 +27,12 @@ window.Ari.coreSummary = {
 
     const observation = analysis.observation || {};
 
+const domainGovernor =
+  analysis.domainGovernor ||
+  analysis.universalDomainGovernor ||
+  analysis.domainDecision ||
+  {};
+
     const dualSalience =
       analysis.dualSalience ||
       observation.dualSalience ||
