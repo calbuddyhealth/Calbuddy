@@ -1,12 +1,19 @@
 // ari/values/ari-value-integration-engine.js
 // Ari Value Integration Engine
 // Purpose: Detect shared deeper values underneath apparent conflicts.
-// V1.0
+// V1.1
+// Fixes:
+// - Makes value integration universal instead of family-specific.
+// - Adds broad value conflict templates.
+// - Deduplicates values/reasons/serves.
+// - Caps score inflation.
+// - Supports domains: body, safety, connection, worth, identity, family, career, purpose, growth, truth, peace, freedom, responsibility.
 
 window.AriValueIntegrationEngine = {
+  version: "1.1.0",
+
   integrate(input = {}) {
     const summary = input.summary || input || {};
-
     const candidates = [];
 
     const wisdomTension = summary.wisdomTension || null;
@@ -14,45 +21,113 @@ window.AriValueIntegrationEngine = {
     const wisdomLeadingGood = summary.wisdomLeadingGood || null;
     const wisdomSupportingGood = summary.wisdomSupportingGood || null;
     const dominantValue = summary.dominantValue || null;
-    const primaryPriority = summary.primaryPriority || null;
+
+    const primaryPriority =
+      typeof summary.primaryPriority === "object"
+        ? summary.primaryPriority?.name
+        : summary.primaryPriority || null;
+
     const rootNeed = summary.rootNeed || summary.primaryNeed || null;
+    const primaryHumanNeed = summary.primaryHumanNeed || null;
+    const secondaryHumanNeed = summary.secondaryHumanNeed || null;
+    const needResponseMode = summary.needResponseMode || null;
     const protecting = summary.protecting || null;
 
     const leadIdentity = summary.resolvedLeadIdentity || summary.leadIdentity || null;
     const supportIdentity = summary.resolvedSupportingIdentity || null;
+
     const rankedIdentities = Array.isArray(summary.rankedIdentities)
       ? summary.rankedIdentities
       : [];
 
     const lifeSignals = Array.isArray(summary.lifeSignals) ? summary.lifeSignals : [];
+    const rankedLifeSignals = Array.isArray(summary.rankedLifeSignals)
+      ? summary.rankedLifeSignals
+      : [];
+
     const primaryLifeSignal = summary.primaryLifeSignal || null;
+    const primaryWeightedLifeSignal = summary.primaryWeightedLifeSignal || null;
+    const primaryLifeChapter = summary.primaryLifeChapter || null;
     const primaryEmotion = summary.primaryEmotion || summary.surfaceEmotion || null;
+    const underlyingEmotion = summary.underlyingEmotion || null;
+
+    const organismFunction =
+      summary.organismPrimaryFunction ||
+      summary.organismFunction ||
+      null;
+
+    const organismNeed = summary.organismNeed || null;
+
+    const rankedSignals = Array.isArray(summary.rankedSignals)
+      ? summary.rankedSignals
+      : [];
+
+    const rankedSalience = Array.isArray(summary.rankedSalience)
+      ? summary.rankedSalience
+      : [];
+
+    function normalizeKey(value = "") {
+      return String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/-/g, "_");
+    }
+
+    function displayValue(value = "") {
+      return normalizeKey(value);
+    }
+
+    function cap(value, max = 120) {
+      return Math.min(Number(value || 0), max);
+    }
 
     function addValue(name, score, reason, serves = []) {
       if (!name) return;
 
-      const existing = candidates.find(v => v.name === name);
+      const normalizedName = displayValue(name);
+      const existing = candidates.find(v => v.name === normalizedName);
+      const safeScore = Number(score || 0);
 
       if (existing) {
-        existing.score += score;
-        existing.reasons.push(reason);
+        if (reason && !existing.reasons.includes(reason)) {
+          existing.score += safeScore;
+          existing.reasons.push(reason);
+        }
+
         serves.forEach(item => {
-          if (item && !existing.serves.includes(item)) existing.serves.push(item);
+          const normalizedServe = displayValue(item);
+          if (normalizedServe && !existing.serves.includes(normalizedServe)) {
+            existing.serves.push(normalizedServe);
+          }
         });
+
+        existing.score = cap(existing.score);
         return;
       }
 
       candidates.push({
-        name,
-        score,
-        reasons: [reason],
-        serves: serves.filter(Boolean)
+        name: normalizedName,
+        score: cap(safeScore),
+        reasons: reason ? [reason] : [],
+        serves: serves.map(displayValue).filter(Boolean)
+      });
+    }
+
+    function addValues(values = [], score = 16, reasonPrefix = "Signal", serves = []) {
+      values.forEach(value => {
+        addValue(value, score, `${reasonPrefix} points toward '${value}'.`, serves);
       });
     }
 
     const identityValueMap = {
       father: ["love", "presence", "stewardship", "protection"],
+      mother: ["love", "presence", "stewardship", "protection"],
+      parent: ["love", "presence", "stewardship", "protection"],
       husband: ["love", "commitment", "relationship", "presence"],
+      wife: ["love", "commitment", "relationship", "presence"],
+      spouse: ["love", "commitment", "relationship", "presence"],
+      partner: ["love", "commitment", "relationship", "presence"],
       "family-protector": ["love", "protection", "stability", "belonging"],
       builder: ["purpose", "meaning", "contribution", "growth"],
       creator: ["purpose", "meaning", "expression", "contribution"],
@@ -63,11 +138,17 @@ window.AriValueIntegrationEngine = {
       teacher: ["understanding", "growth", "wisdom"],
       observer: ["understanding", "clarity", "humility"],
       "present-self": ["presence", "love", "peace"],
-      "emerging-self": ["growth", "integration", "meaning"]
+      "emerging-self": ["growth", "integration", "meaning"],
+      protector: ["safety", "protection", "stability"],
+      leader: ["responsibility", "clarity", "service"],
+      survivor: ["safety", "dignity", "stability"],
+      advocate: ["justice", "truth", "dignity"],
+      healer: ["repair", "care", "wholeness"]
     };
 
     function addValuesFromIdentity(identity, baseScore, reasonPrefix) {
-      const values = identityValueMap[identity] || [];
+      const key = normalizeKey(identity);
+      const values = identityValueMap[key] || [];
 
       values.forEach(value => {
         addValue(
@@ -79,16 +160,12 @@ window.AriValueIntegrationEngine = {
       });
     }
 
-    if (leadIdentity) {
-      addValuesFromIdentity(leadIdentity, 28, "Lead identity");
-    }
-
-    if (supportIdentity) {
-      addValuesFromIdentity(supportIdentity, 22, "Supporting identity");
-    }
+    if (leadIdentity) addValuesFromIdentity(leadIdentity, 28, "Lead identity");
+    if (supportIdentity) addValuesFromIdentity(supportIdentity, 22, "Supporting identity");
 
     rankedIdentities.forEach(identity => {
       if (!identity || !identity.name) return;
+
       addValuesFromIdentity(
         identity.name,
         Math.max(8, Math.round((identity.score || 40) * 0.12)),
@@ -96,59 +173,100 @@ window.AriValueIntegrationEngine = {
       );
     });
 
-    // Direct value signals
+    const directValueMap = {
+      body: ["health", "stability", "survival"],
+      safety: ["safety", "protection", "stability"],
+      connection: ["belonging", "love", "attachment"],
+      belonging: ["belonging", "connection", "love"],
+      worth: ["dignity", "self_worth", "respect"],
+      esteem: ["dignity", "competence", "respect"],
+      identity: ["integration", "selfhood", "clarity"],
+      understanding: ["clarity", "truth", "understanding"],
+      clarity: ["clarity", "truth", "direction"],
+      family: ["love", "belonging", "presence"],
+      purpose: ["purpose", "meaning", "contribution"],
+      stability: ["stability", "security", "responsibility"],
+      growth: ["growth", "becoming", "possibility"],
+      freedom: ["freedom", "agency", "self_direction"],
+      responsibility: ["responsibility", "stewardship", "care"],
+      truth: ["truth", "honesty", "clarity"],
+      peace: ["peace", "stability", "non_harm"],
+      justice: ["justice", "dignity", "truth"],
+      health: ["health", "stability", "survival"]
+    };
+
     [
       dominantValue,
       primaryPriority,
       rootNeed,
+      primaryHumanNeed,
+      secondaryHumanNeed,
       protecting,
       highestGood,
       wisdomLeadingGood,
-      wisdomSupportingGood
+      wisdomSupportingGood,
+      organismNeed,
+      needResponseMode
     ].forEach(value => {
       if (!value) return;
 
-      const normalized = String(value)
-        .replace("protect_", "")
-        .replace("_", "-");
+      const normalized = normalizeKey(value).replace(/^protect_/, "");
 
       addValue(
         normalized,
-        24,
+        20,
         `Direct value signal '${value}' was detected.`,
         ["direct_signal"]
       );
+
+      if (directValueMap[normalized]) {
+        addValues(
+          directValueMap[normalized],
+          14,
+          `Direct value signal '${value}'`,
+          ["direct_signal"]
+        );
+      }
     });
 
-    // Life signal mapping
     const lifeValueMap = {
       fatherhood_transition: ["love", "presence", "stewardship", "protection"],
+      motherhood_transition: ["love", "presence", "stewardship", "protection"],
+      parenthood_transition: ["love", "presence", "stewardship", "protection"],
       family_transition: ["love", "belonging", "stability", "presence"],
-      marriage_transition: ["commitment", "relationship", "love"],
+      relationship_rupture_chapter: ["connection", "dignity", "repair", "emotional_stability"],
+      marriage_transition: ["commitment", "relationship", "love", "communication"],
       creative_mission: ["purpose", "meaning", "contribution", "growth"],
       purpose_signal: ["purpose", "meaning", "contribution"],
-      identity_transition: ["growth", "integration", "meaning"],
-      career_transition: ["stability", "responsibility", "future"],
+      identity_transition: ["growth", "integration", "meaning", "selfhood"],
+      career_transition: ["stability", "responsibility", "future", "competence"],
+      military_transition: ["identity", "service", "stability", "belonging"],
       builder_development: ["purpose", "growth", "contribution"],
-      planner_development: ["clarity", "responsibility", "stability"]
+      planner_development: ["clarity", "responsibility", "stability"],
+      healing_chapter: ["repair", "health", "honesty", "stability"]
     };
 
-    const lifeKeys = [primaryLifeSignal, ...lifeSignals].filter(Boolean);
+    const lifeKeys = [
+      primaryLifeSignal,
+      primaryWeightedLifeSignal,
+      primaryLifeChapter,
+      ...lifeSignals,
+      ...rankedLifeSignals.map(item => item?.name)
+    ].filter(Boolean);
 
-    lifeKeys.forEach(signal => {
+    [...new Set(lifeKeys.map(normalizeKey))].forEach(signal => {
       const values = lifeValueMap[signal] || [];
 
       values.forEach(value => {
         addValue(
           value,
-          24,
+          22,
           `Life signal '${signal}' points toward '${value}'.`,
           [signal]
         );
       });
     });
 
-    // Emotion mapping
     const emotionValueMap = {
       stewardship: ["responsibility", "care", "protection"],
       responsibility: ["stability", "care", "protection"],
@@ -157,89 +275,249 @@ window.AriValueIntegrationEngine = {
       hope: ["future", "meaning", "possibility"],
       concern: ["care", "protection"],
       fear: ["safety", "protection"],
-      guilt: ["repair", "relationship"],
+      anxiety: ["safety", "certainty", "stability"],
+      guilt: ["repair", "relationship", "responsibility"],
+      shame: ["dignity", "self_worth", "belonging"],
       grief: ["love", "loss", "meaning"],
-      determination: ["purpose", "discipline", "future"]
+      loneliness: ["connection", "belonging", "attachment"],
+      anger: ["boundary", "justice", "dignity"],
+      sadness: ["care", "connection", "loss"],
+      determination: ["purpose", "discipline", "future"],
+      identity_instability: ["identity", "integration", "stability"]
     };
 
-    const emotionValues = emotionValueMap[primaryEmotion] || [];
+    [primaryEmotion, underlyingEmotion].filter(Boolean).forEach(emotion => {
+      const values = emotionValueMap[normalizeKey(emotion)] || [];
 
-    emotionValues.forEach(value => {
-      addValue(
-        value,
-        18,
-        `Primary emotion '${primaryEmotion}' points toward '${value}'.`,
-        [primaryEmotion]
-      );
+      values.forEach(value => {
+        addValue(
+          value,
+          18,
+          `Emotion '${emotion}' points toward '${value}'.`,
+          [emotion]
+        );
+      });
     });
 
-    // Tension-specific integration
+    const organismValueMap = {
+      energy_intake: ["health", "stability", "survival"],
+      hydration: ["health", "stability", "survival"],
+      rest_recovery: ["health", "recovery", "stability"],
+      injury_protection: ["health", "protection", "stability"],
+      vital_stability: ["survival", "safety", "urgent_protection"],
+      waste_elimination: ["health", "relief", "stability"],
+      temperature_regulation: ["health", "stability", "safety"],
+      movement_mobility: ["mobility", "agency", "safety"],
+      threat_regulation: ["safety", "calm", "protection"],
+      connection: ["connection", "belonging", "attachment"]
+    };
+
+    if (organismFunction && organismValueMap[normalizeKey(organismFunction)]) {
+      addValues(
+        organismValueMap[normalizeKey(organismFunction)],
+        20,
+        `Organism function '${organismFunction}'`,
+        [organismFunction]
+      );
+    }
+
+    rankedSignals.forEach(signal => {
+      if (!signal || !signal.name) return;
+
+      const name = normalizeKey(signal.name);
+      const category = normalizeKey(signal.category || "unknown");
+      const strength = Number(signal.strength || 0);
+
+      if (directValueMap[name]) {
+        addValues(
+          directValueMap[name],
+          Math.max(8, Math.round(strength * 0.1)),
+          `Ranked signal '${signal.name}'`,
+          [category]
+        );
+      }
+    });
+
+    rankedSalience.forEach(signal => {
+      if (!signal || !signal.name) return;
+
+      const name = normalizeKey(signal.name);
+      const category = normalizeKey(signal.category || "unknown");
+      const strength = Number(signal.strength || 0);
+
+      if (directValueMap[name]) {
+        addValues(
+          directValueMap[name],
+          Math.max(8, Math.round(strength * 0.08)),
+          `Salience signal '${signal.name}'`,
+          [category]
+        );
+      }
+    });
+
+    const conflictTemplates = {
+      family_vs_purpose: {
+        integratedValue: "meaningful_love",
+        statement:
+          "Family and purpose may not be enemies. Both may be trying to protect a meaningful life rooted in love, service, and contribution.",
+        question:
+          "How can your purpose serve your family instead of competing with it?",
+        values: [
+          ["love", 36, "Family side of the tension protects love.", ["family"]],
+          ["purpose", 36, "Purpose side of the tension protects meaning.", ["purpose"]],
+          ["contribution", 28, "Purpose often points toward contribution.", ["purpose"]],
+          ["stewardship", 28, "Both family and purpose require stewardship.", ["family", "purpose"]]
+        ]
+      },
+
+      presence_vs_achievement: {
+        integratedValue: "meaningful_presence",
+        statement:
+          "Presence and achievement may not be enemies. Achievement should create a life worth being present for, not replace presence itself.",
+        question:
+          "What achievement would actually deepen presence instead of stealing from it?",
+        values: [
+          ["presence", 36, "Presence side of the tension protects irreplaceable moments.", ["presence"]],
+          ["purpose", 28, "Achievement side may protect purpose.", ["achievement"]],
+          ["love", 28, "Presence often protects love.", ["presence"]],
+          ["meaning", 28, "Healthy achievement should protect meaning.", ["achievement"]]
+        ]
+      },
+
+      certainty_vs_growth: {
+        integratedValue: "secure_growth",
+        statement:
+          "Certainty and growth may both be trying to create safety. The deeper need may be secure movement, not perfect predictability.",
+        question:
+          "What would make growth feel safe enough without needing full certainty?",
+        values: [
+          ["safety", 34, "Certainty often protects safety.", ["certainty"]],
+          ["growth", 34, "Growth protects becoming.", ["growth"]],
+          ["trust", 26, "Secure growth requires trust.", ["certainty", "growth"]]
+        ]
+      },
+
+      truth_vs_peace: {
+        integratedValue: "honest_peace",
+        statement:
+          "Truth and peace do not have to be enemies. The deeper goal is honest peace, not silence and not unnecessary harm.",
+        question:
+          "What truth needs to be spoken in the most peace-protecting way?",
+        values: [
+          ["truth", 34, "Truth protects honesty and reality.", ["truth"]],
+          ["peace", 34, "Peace protects stability and non-harm.", ["peace"]],
+          ["dignity", 26, "Honest peace protects dignity.", ["truth", "peace"]]
+        ]
+      },
+
+      freedom_vs_responsibility: {
+        integratedValue: "responsible_freedom",
+        statement:
+          "Freedom and responsibility may be trying to protect the same thing: a life where agency does not abandon what matters.",
+        question:
+          "What would freedom look like if it still protected your responsibilities?",
+        values: [
+          ["freedom", 34, "Freedom protects agency.", ["freedom"]],
+          ["responsibility", 34, "Responsibility protects what is entrusted.", ["responsibility"]],
+          ["stewardship", 26, "Responsible freedom requires stewardship.", ["freedom", "responsibility"]]
+        ]
+      },
+
+      safety_vs_love: {
+        integratedValue: "protected_love",
+        statement:
+          "Love and safety both matter. The deeper good is protected love, not unsafe closeness or loveless protection.",
+        question:
+          "What kind of closeness would still protect safety?",
+        values: [
+          ["love", 34, "Love protects connection.", ["love"]],
+          ["safety", 34, "Safety protects survival and stability.", ["safety"]],
+          ["boundary", 26, "Protected love often requires boundaries.", ["love", "safety"]]
+        ]
+      },
+
+      connection_vs_dignity: {
+        integratedValue: "dignified_connection",
+        statement:
+          "Connection and dignity should not compete. The deeper need is closeness that does not require self-abandonment.",
+        question:
+          "What connection would let you stay close without losing self-respect?",
+        values: [
+          ["connection", 34, "Connection protects belonging.", ["connection"]],
+          ["dignity", 34, "Dignity protects self-worth.", ["dignity"]],
+          ["boundary", 26, "Dignified connection may require boundaries.", ["connection", "dignity"]]
+        ]
+      },
+
+      purpose_vs_health: {
+        integratedValue: "sustainable_purpose",
+        statement:
+          "Purpose and health should work together. Purpose that destroys the body eventually loses the life it was meant to serve.",
+        question:
+          "What version of your purpose can your body actually sustain?",
+        values: [
+          ["purpose", 34, "Purpose protects meaning.", ["purpose"]],
+          ["health", 34, "Health protects capacity and life.", ["health"]],
+          ["sustainability", 28, "Sustainable purpose protects both.", ["purpose", "health"]]
+        ]
+      },
+
+      stability_vs_growth: {
+        integratedValue: "stable_growth",
+        statement:
+          "Stability and growth are not enemies. The deeper goal is growth with enough structure to hold it.",
+        question:
+          "What structure would make growth safer and more sustainable?",
+        values: [
+          ["stability", 34, "Stability protects security.", ["stability"]],
+          ["growth", 34, "Growth protects becoming.", ["growth"]],
+          ["structure", 26, "Stable growth requires structure.", ["stability", "growth"]]
+        ]
+      }
+    };
+
     let apparentConflict = wisdomTension || "none_detected";
     let integratedValue = null;
     let integrationStatement = null;
     let integrationQuestion = "What deeper good are both sides trying to protect?";
 
-    if (wisdomTension === "family_vs_purpose") {
-      apparentConflict = "family_vs_purpose";
-      integratedValue = "meaningful_love";
-      integrationStatement =
-        "Family and purpose may not be enemies. Both may be trying to protect a meaningful life rooted in love, service, and contribution.";
-      integrationQuestion =
-        "How can your purpose serve your family instead of competing with it?";
+    const normalizedTension = normalizeKey(wisdomTension);
 
-      addValue("love", 36, "Family side of the tension protects love.", ["family"]);
-      addValue("purpose", 36, "Purpose side of the tension protects meaning.", ["purpose"]);
-      addValue("contribution", 28, "Purpose often points toward contribution.", ["purpose"]);
-      addValue("stewardship", 28, "Both family and purpose require stewardship.", ["family", "purpose"]);
+    if (conflictTemplates[normalizedTension]) {
+      const template = conflictTemplates[normalizedTension];
+
+      apparentConflict = normalizedTension;
+      integratedValue = template.integratedValue;
+      integrationStatement = template.statement;
+      integrationQuestion = template.question;
+
+      template.values.forEach(([name, score, reason, serves]) => {
+        addValue(name, score, reason, serves);
+      });
     }
 
-    if (wisdomTension === "presence_vs_achievement") {
-      apparentConflict = "presence_vs_achievement";
-      integratedValue = "meaningful_presence";
-      integrationStatement =
-        "Presence and achievement may not be enemies. Achievement should create a life worth being present for, not replace presence itself.";
-      integrationQuestion =
-        "What achievement would actually deepen presence instead of stealing from it?";
+    candidates.forEach(candidate => {
+      candidate.score = cap(candidate.score);
+    });
 
-      addValue("presence", 36, "Presence side of the tension protects irreplaceable moments.", ["presence"]);
-      addValue("purpose", 28, "Achievement side may protect purpose.", ["achievement"]);
-      addValue("love", 28, "Presence often protects love.", ["presence"]);
-      addValue("meaning", 28, "Healthy achievement should protect meaning.", ["achievement"]);
-    }
-
-    if (wisdomTension === "certainty_vs_growth") {
-      apparentConflict = "certainty_vs_growth";
-      integratedValue = "secure_growth";
-      integrationStatement =
-        "Certainty and growth may both be trying to create safety. The deeper need may be secure movement, not perfect predictability.";
-      integrationQuestion =
-        "What would make growth feel safe enough without needing full certainty?";
-
-      addValue("safety", 34, "Certainty often protects safety.", ["certainty"]);
-      addValue("growth", 34, "Growth protects becoming.", ["growth"]);
-      addValue("trust", 26, "Secure growth requires trust.", ["certainty", "growth"]);
-    }
-
-    // If no explicit tension exists, infer integration from top values.
     candidates.sort((a, b) => b.score - a.score);
 
     const topValues = candidates.slice(0, 5);
+    const sharedValues = candidates.filter(value => value.serves.length > 1);
 
     if (!integratedValue && topValues.length > 0) {
       integratedValue = topValues[0].name;
 
       integrationStatement =
-        `The strongest deeper value appears to be '${integratedValue}'. Ari should ask how the active identities can serve that value together.`;
+        `The strongest deeper value appears to be '${integratedValue}'. Ari should ask how the active parts can serve that value together.`;
 
       integrationQuestion =
-        `How can the active parts of you serve '${integratedValue}' together instead of competing?`;
+        `How can the active parts serve '${integratedValue}' together instead of competing?`;
     }
-
-    const sharedValues = candidates.filter(value => value.serves.length > 1);
 
     const hasIntegration =
       Boolean(integratedValue) ||
-      Boolean(sharedValues.length) ||
+      sharedValues.length > 0 ||
       apparentConflict !== "none_detected";
 
     return {
@@ -269,6 +547,19 @@ window.AriValueIntegrationEngine = {
         serves: value.serves,
         reasons: value.reasons
       })),
+
+      valueIntegrationDebug: {
+        wisdomTension,
+        normalizedTension,
+        organismFunction,
+        organismNeed,
+        primaryHumanNeed,
+        secondaryHumanNeed,
+        leadIdentity,
+        supportIdentity,
+        candidateCount: candidates.length,
+        source: "ari-value-integration-engine-normalization"
+      },
 
       source: "ari-value-integration-engine"
     };
