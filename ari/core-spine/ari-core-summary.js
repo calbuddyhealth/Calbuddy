@@ -45,6 +45,11 @@ const domainGovernor =
       observation.hierarchy ||
       {};
 
+const observationLedger =
+  analysis.observationLedger ||
+  observation.observationLedger ||
+  [];
+
     const values = analysis.values || {};
     const identity = analysis.identity || {};
     const conflicts = analysis.conflicts || {};
@@ -210,6 +215,32 @@ const salienceGovernor =
       dualSalienceClarityConfidence: dualSalience.clarity?.confidence || null,
       dualSalienceClarityAction: dualSalience.clarity?.action || null,
       dualSalienceRecommendedMove: dualSalience.recommendedMove || null,
+
+// Observation Ledger
+
+observationLedgerRan:
+  Array.isArray(observationLedger),
+
+observationLedgerCount:
+  observationLedger.length || 0,
+
+strongestObservation:
+  observationLedger[0]?.signal || null,
+
+strongestObservationCategory:
+  observationLedger[0]?.category || null,
+
+strongestObservationType:
+  observationLedger[0]?.observationType || null,
+
+strongestObservationConfidence:
+  observationLedger[0]?.confidence || 0,
+
+strongestObservationWeight:
+  observationLedger[0]?.weight || 0,
+
+rankedLedgerObservations:
+  observationLedger.slice(0, 10),
 
       observerHierarchyPrimaryObservation:
         observerHierarchy.primaryObservation || null,
