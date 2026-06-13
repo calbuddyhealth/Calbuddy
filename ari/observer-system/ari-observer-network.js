@@ -826,6 +826,128 @@ window.Ari.observerNetwork = {
     return [...new Set(topics)];
   },
 
+  buildObservationLedger(text = "") {
+    const ledgerSystem = window.Ari.observationLedger;
+
+    if (!ledgerSystem || typeof ledgerSystem.create !== "function") {
+      return [];
+    }
+
+    const ledger = ledgerSystem.create();
+
+    const addObservation = (observation = {}) => {
+      ledgerSystem.add(
+        ledger,
+        ledgerSystem.createObservation(observation)
+      );
+    };
+
+    // Direct teaching request
+    if (this.containsAny(text, ["explain", "teach", "how does", "how do", "what does"])) {
+      addObservation({
+        signal: "teaching_request",
+        category: "intent",
+        observationType: "direct_text",
+        confidence: 95,
+        source: "ari-observer-network",
+        evidence: ["User asked for explanation or teaching."]
+      });
+    }
+
+    // Direct body / medical signal
+    if (this.containsAny(text, [
+      "diarrhea", "vomiting", "can't keep water down", "cant keep water down",
+      "chest pain", "can't breathe", "cant breathe", "fainted", "passed out",
+      "severe pain", "fever", "bleeding"
+    ])) {
+      addObservation({
+        signal: "body_or_medical_signal",
+        category: "body",
+        observationType: "direct_text",
+        confidence: 98,
+        source: "ari-observer-network",
+        evidence: ["User described a body or medical signal."]
+      });
+    }
+
+    // Direct relationship / connection signal
+    if (this.containsAny(text, [
+      "lonely", "alone", "disconnected", "haven't connected", "havent connected",
+      "wife", "husband", "girlfriend", "boyfriend", "partner", "relationship"
+    ])) {
+      addObservation({
+        signal: "connection_need",
+        category: "relationship",
+        observationType: "direct_text",
+        confidence: 90,
+        source: "ari-observer-network",
+        evidence: ["User described loneliness, disconnection, or relationship strain."]
+      });
+    }
+
+    // Direct parenthood / family transition signal
+    if (this.containsAny(text, [
+      "becoming a father", "become a father", "father",
+      "becoming a mother", "become a mother", "mother",
+      "first child", "my daughter", "my son", "baby"
+    ])) {
+      addObservation({
+        signal: "parenthood_transition",
+        category: "life_transition",
+        observationType: "direct_text",
+        confidence: 95,
+        source: "ari-observer-network",
+        evidence: ["User directly referenced parenthood, child, or baby."]
+      });
+    }
+
+    // Direct identity signal
+    if (this.containsAny(text, [
+      "who i am", "identity", "role", "becoming", "rethink who i am"
+    ])) {
+      addObservation({
+        signal: "identity_transition",
+        category: "identity",
+        observationType: "direct_text",
+        confidence: 90,
+        source: "ari-observer-network",
+        evidence: ["User directly referenced identity, role, or becoming."]
+      });
+    }
+
+    // Direct planning / decision signal
+    if (this.containsAny(text, [
+      "what should i do", "should i", "plan", "roadmap",
+      "next step", "prioritize", "focus on", "decision"
+    ])) {
+      addObservation({
+        signal: "planning_or_decision_need",
+        category: "planning",
+        observationType: "direct_text",
+        confidence: 88,
+        source: "ari-observer-network",
+        evidence: ["User asked for planning, prioritization, or decision help."]
+      });
+    }
+
+    // Inferred hypothesis only — not direct fact
+    if (
+      this.containsAny(text, ["promotion", "income", "career", "job", "opportunity"]) &&
+      this.containsAny(text, ["family", "wife", "husband", "daughter", "son", "baby"])
+    ) {
+      addObservation({
+        signal: "presence_vs_achievement_possible",
+        category: "wisdom_tension",
+        observationType: "hypothesis",
+        confidence: 55,
+        source: "ari-observer-network",
+        evidence: ["Career/achievement language appears near family language."]
+      });
+    }
+
+    return ledgerSystem.rank(ledger);
+  },
+
   observe(message = "", context = {}) {
     const text = this.normalize(message);
     const lifeTransitions = this.observeLifeTransitions(text);
@@ -833,9 +955,12 @@ window.Ari.observerNetwork = {
     const valuesAndConflicts = this.observeValuesAndConflicts(text, humanPatterns);
     const dualSalience = this.observeDualSalience(message, context);
 
+const observationLedger = this.buildObservationLedger(text);
+
     const baseObservation = {
       message,
       normalizedMessage: text,
+      observationLedger,
       conversation: this.observeConversation(text),
       emotion: this.observeEmotion(text),
       intent: this.observeIntent(text),
