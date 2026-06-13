@@ -335,17 +335,26 @@ window.AriUniversalDomainGovernor = {
     return null;
   },
 
-  hasSurvivalOverride(ranked = []) {
-    const lead = ranked[0];
+ hasSurvivalOverride(ranked = []) {
+  const lead = ranked[0];
 
-    if (!lead) return false;
+  if (!lead) return false;
 
-    return (
-      lead.name === "critical_safety_domain" ||
-      lead.name === "medical_body_domain" ||
-      lead.name === "sleep_recovery_domain"
-    );
-  },
+  const isSurvivalDomain =
+    lead.name === "critical_safety_domain" ||
+    lead.name === "medical_body_domain" ||
+    lead.name === "sleep_recovery_domain";
+
+  if (!isSurvivalDomain) return false;
+
+  // Critical safety always overrides.
+  if (lead.name === "critical_safety_domain") {
+    return true;
+  }
+
+  // Medical and sleep only override when evidence is strong.
+  return lead.score >= 180;
+},
 
   getDomains() {
     return [
