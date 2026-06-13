@@ -382,7 +382,7 @@ window.AriMouthDirector = {
       director.allowMeaning = true;
       director.allowEmotion = true;
       director.allowTruth = true;
-      director.allowWisdom = true;
+      director.allowWisdom = false;
       director.allowAction = true;
 
       return director;
