@@ -1,7 +1,7 @@
 // ari/observer-system/ari-observer-hierarchy-engine.js
 // Ari Observer Hierarchy Engine
 // Purpose: Decide which observation deserves the microphone.
-// V1.3
+// V1.4
 // Fixes:
 // - Unknown / placeholder signals cannot win primary observation.
 // - Adds knowns vs unknowns separation.
@@ -12,7 +12,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.observerHierarchyEngine = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   placeholderSignals: new Set([
     "unclear",
@@ -60,18 +60,23 @@ window.Ari.observerHierarchyEngine = {
     const valuesAndConflicts = observation.valuesAndConflicts || {};
     const risk = observation.risk || {};
     const summary = observation.summary || observation || {};
+const observationLedger =
+  summary.observationLedger ||
+  observation.observationLedger ||
+  [];
 
-    const candidateBundle = this.buildCandidates({
-      dual,
-      conversation,
-      emotion,
-      goals,
-      lifeTransitions,
-      humanPatterns,
-      valuesAndConflicts,
-      risk,
-      summary
-    });
+   const candidateBundle = this.buildCandidates({
+  dual,
+  conversation,
+  emotion,
+  goals,
+  lifeTransitions,
+  humanPatterns,
+  valuesAndConflicts,
+  risk,
+  summary,
+  observationLedger
+});
 
     const knowns = this.rankCandidates(candidateBundle.knowns || []);
     const unknowns = this.rankCandidates(candidateBundle.unknowns || []);
@@ -158,16 +163,17 @@ window.Ari.observerHierarchyEngine = {
 
   buildCandidates(parts = {}) {
     const {
-      dual,
-      conversation,
-      emotion,
-      goals,
-      lifeTransitions,
-      humanPatterns,
-      valuesAndConflicts,
-      risk,
-      summary = {}
-    } = parts;
+  dual,
+  conversation,
+  emotion,
+  goals,
+  lifeTransitions,
+  humanPatterns,
+  valuesAndConflicts,
+  risk,
+  summary = {},
+  observationLedger = []
+} = parts;
 
     const knowns = [];
     const unknowns = [];
@@ -187,6 +193,63 @@ window.Ari.observerHierarchyEngine = {
       if (!candidate || !candidate.name) return;
       unknowns.push(candidate);
     };
+
+    // ===================================
+    // OBSERVATION LEDGER
+    // Direct observations get first authority.
+    // This prevents late-stage meaning/life systems from hijacking
+    // direct user intent such as teaching, coding, body, or relationship requests.
+    // ===================================
+
+    if (Array.isArray(observationLedger) && observationLedger.length) {
+      observationLedger.forEach((entry) => {
+        if (!entry || !entry.signal) return;
+
+        const isDirect =
+          entry.observationType === "direct_text" ||
+          entry.observationType === "direct_request";
+
+        const isHypothesis =
+          entry.observationType === "hypothesis";
+
+        const baseWeight =
+          entry.category === "safety" ? 105 :
+          entry.category === "body" ? 102 :
+          entry.category === "intent" ? 100 :
+          entry.category === "request" ? 98 :
+          entry.category === "relationship" ? 94 :
+          entry.category === "life_transition" ? 90 :
+          entry.category === "identity" ? 86 :
+          entry.category === "planning" ? 84 :
+          entry.category === "wisdom_tension" ? 76 :
+          70;
+
+        const directBoost = isDirect ? 10 : 0;
+
+const directAuthorityBoost =
+  isDirect && ["safety", "body", "intent", "request", "relationship"].includes(entry.category)
+    ? 20
+    : 0;
+        
+        const hypothesisPenalty = isHypothesis ? -20 : 0;
+
+        addKnown({
+          name: entry.signal,
+          category: entry.category || "observation",
+          observationType: entry.observationType || "unknown",
+          weight: Math.max(40, baseWeight + directBoost + directAuthorityBoost + hypothesisPenalty),
+          confidence: Math.min(
+            0.99,
+            Math.max(0.45, Number(entry.confidence || 70) / 100)
+          ),
+          reason:
+            entry.reason ||
+            entry.evidence?.join(" ") ||
+            "Observation Ledger identified this as an important direct signal.",
+          ledgerEntry: entry
+        });
+      });
+    }
 
     // ===================================
     // UNKNOWN / PLACEHOLDER TRACKING
