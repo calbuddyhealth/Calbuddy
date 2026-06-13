@@ -283,7 +283,7 @@ window.AriMouthDirector = {
       director.askBeforeTeaching = false;
 
       director.allowMeaning = true;
-      director.allowEmotion = false;
+      director.allowEmotion = true;
       director.allowTruth = true;
       director.allowWisdom = true;
       director.allowAction = true;
