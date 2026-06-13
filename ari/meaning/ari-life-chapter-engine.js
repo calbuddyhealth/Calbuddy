@@ -1,409 +1,90 @@
 // ari/meaning/ari-life-chapter-engine.js
 // Ari Life Chapter Engine
-// Purpose: Detect the user's major life chapter and guide meaning-level interpretation.
-// V1.3
-// Fixes:
-// - Adds relationship_rupture_chapter.
-// - Prevents loneliness / abandonment from being misread as family-achievement transition.
-// - Requires stronger family/fatherhood signals before family_transition dominates.
-// - Deduplicates direct, ranked, and salience signals.
-// - Caps final chapter strength.
-// - Keeps normalization debug.
+// Purpose: Detect universal life chapters without overfitting to one person's life.
+// V2.0
 
 window.AriLifeChapterEngine = {
-  version: "1.3.0",
+  version: "2.0.0",
 
   detect(input = {}) {
     const summary = input.summary || input || {};
 
-    const rawText = String(
+    const rawText = this.normalize(
       summary.userMessage ||
       summary.message ||
       summary.input ||
       summary.normalizedMessage ||
       ""
-    ).toLowerCase();
+    );
 
-    const lifeSignals = Array.isArray(summary.lifeSignals) ? summary.lifeSignals : [];
-    const rankedSignals = Array.isArray(summary.rankedSignals) ? summary.rankedSignals : [];
-    const rankedSalience = Array.isArray(summary.rankedSalience) ? summary.rankedSalience : [];
-
-    const strongestSignal = summary.strongestSignal || null;
-    const primaryLifeSignal = summary.primaryLifeSignal || null;
-    const primaryWeightedLifeSignal = summary.primaryWeightedLifeSignal || null;
-    const lifePriorityClass = summary.lifePriorityClass || "none";
-
-    const dominantIdentity = summary.dominantIdentity || null;
-    const personPrimaryRole = summary.personPrimaryRole || null;
-    const leadIdentity = summary.resolvedLeadIdentity || summary.leadIdentity || null;
-
-    const primaryPriority =
-      typeof summary.primaryPriority === "object"
-        ? summary.primaryPriority?.name
-        : summary.primaryPriority || null;
-
-    const dominantValue = summary.dominantValue || null;
-    const protecting = summary.protecting || null;
-    const highestGood = summary.highestGood || null;
-    const wisdomTension = summary.wisdomTension || null;
-    const rootNeed = summary.rootNeed || summary.primaryNeed || null;
-    const primaryHumanNeed = summary.primaryHumanNeed || null;
-    const needResponseMode = summary.needResponseMode || null;
-    const organismFunction = summary.organismPrimaryFunction || summary.organismFunction || null;
-
+    const signals = this.collectSignals(summary);
     const candidates = [];
 
-    const normalizeKey = value =>
-      String(value || "").toLowerCase().trim();
-
-    const uniqueArray = items =>
-      [...new Set(items.filter(Boolean).map(normalizeKey))];
-
-    const capScore = (value, max = 120) =>
-      Math.min(Number(value || 0), max);
-
-    const containsAny = (text, phrases = []) =>
-      phrases.some(phrase => text.includes(phrase));
-
-    const relationshipRuptureActive =
-      primaryHumanNeed === "connection" ||
-      needResponseMode === "restore_connection" ||
-      organismFunction === "connection" ||
-      containsAny(rawText, [
-        "left me",
-        "wife left",
-        "husband left",
-        "girlfriend left",
-        "boyfriend left",
-        "broke up",
-        "breakup",
-        "divorce",
-        "separated",
-        "alone",
-        "lonely",
-        "abandoned",
-        "rejected"
-      ]);
-
-    const explicitFamilyTransitionActive =
-      containsAny(rawText, [
-        "baby",
-        "pregnant",
-        "pregnancy",
-        "father",
-        "mother",
-        "parent",
-        "parenthood",
-        "newborn",
-        "child",
-        "daughter",
-        "son",
-        "family needs",
-        "provide for my family",
-        "work life balance",
-        "missing family moments"
-      ]);
-
-    const explicitAchievementPresenceActive =
-      wisdomTension === "presence_vs_achievement" ||
-      containsAny(rawText, [
-        "career",
-        "achievement",
-        "work too much",
-        "working too much",
-        "success",
-        "goals",
-        "milestones",
-        "provide",
-        "building",
-        "business",
-        "mission"
-      ]);
-
-    function addChapter(name, score, reason, question, focus = null) {
+    const add = (name, score, reason, question, focus) => {
       if (!name) return;
 
       const existing = candidates.find(c => c.name === name);
-      const safeScore = Number(score || 0);
 
       if (existing) {
         if (reason && !existing.reasons.includes(reason)) {
-          existing.score += safeScore;
+          existing.score += score;
           existing.reasons.push(reason);
         }
-
-        existing.score = capScore(existing.score);
+        existing.score = this.cap(existing.score);
         return;
       }
 
       candidates.push({
         name,
-        score: capScore(safeScore),
+        score: this.cap(score),
         reasons: reason ? [reason] : [],
         question,
         focus
       });
-    }
-
-    const chapterMap = {
-      relationship_rupture: {
-        chapter: "relationship_rupture_chapter",
-        question: "What part of this feels most alone right now?",
-        focus: "Restore connection, dignity, and emotional stability before deeper interpretation."
-      },
-      fatherhood_transition: {
-        chapter: "fatherhood_transition",
-        question: "What kind of father does this season ask you to become?",
-        focus: "Protect presence, family stability, and identity transition."
-      },
-      family_transition: {
-        chapter: "family_transition",
-        question: "What does your family need from you in this season?",
-        focus: "Protect family, relationship, and presence."
-      },
-      marriage_transition: {
-        chapter: "marriage_transition",
-        question: "What kind of spouse does this chapter require?",
-        focus: "Protect commitment, communication, and shared life."
-      },
-      creative_mission: {
-        chapter: "creative_mission_chapter",
-        question: "What future are you trying to create?",
-        focus: "Protect purpose without letting it consume everything."
-      },
-      purpose_signal: {
-        chapter: "purpose_chapter",
-        question: "What part of your purpose needs to stay alive in this season?",
-        focus: "Keep meaning connected to life, not separated from it."
-      },
-      builder_development: {
-        chapter: "builder_development",
-        question: "What are you building, and what kind of builder do you need to become?",
-        focus: "Build sustainably, not compulsively."
-      },
-      planner_development: {
-        chapter: "planner_development",
-        question: "What clarity do you need before moving forward?",
-        focus: "Use planning to serve action, not replace it."
-      },
-      identity_transition: {
-        chapter: "identity_transition",
-        question: "What identity is changing that you do not fully understand yet?",
-        focus: "Let the old identity adapt to the new season."
-      },
-      career_transition: {
-        chapter: "career_transition",
-        question: "What future stability are you trying to protect?",
-        focus: "Protect transition, responsibility, and long-term stability."
-      },
-      healing_chapter: {
-        chapter: "healing_chapter",
-        question: "What part of you needs repair before more pressure is added?",
-        focus: "Protect recovery, honesty, and nervous system stability."
-      }
     };
 
-    if (relationshipRuptureActive) {
-      addChapter(
-        "relationship_rupture_chapter",
-        96,
-        "Relationship rupture, loneliness, abandonment, or connection pain is active.",
-        "What part of this feels most alone right now?",
-        "Restore connection, dignity, and emotional stability before deeper interpretation."
+    const domains = this.getUniversalDomains();
+
+    domains.forEach(domain => {
+      let score = 0;
+      const reasons = [];
+
+      const textHits = domain.text.some(term => rawText.includes(term));
+      const signalHits = signals.some(signal =>
+        domain.signals.some(term => signal.includes(term))
       );
-    }
 
-    const directSignals = uniqueArray([
-      strongestSignal,
-      primaryLifeSignal,
-      primaryWeightedLifeSignal,
-      ...lifeSignals,
-      dominantIdentity,
-      personPrimaryRole,
-      leadIdentity,
-      primaryPriority,
-      dominantValue,
-      protecting,
-      highestGood,
-      wisdomTension,
-      rootNeed
-    ]);
-
-    directSignals.forEach(key => {
-      if (chapterMap[key]) {
-        addChapter(
-          chapterMap[key].chapter,
-          key === normalizeKey(primaryWeightedLifeSignal) ? 34 : 26,
-          `Direct signal '${key}' maps to chapter '${chapterMap[key].chapter}'.`,
-          chapterMap[key].question,
-          chapterMap[key].focus
-        );
+      if (textHits) {
+        score += domain.textWeight;
+        reasons.push(`Text matches ${domain.name}.`);
       }
 
-      if (key.includes("father") && explicitFamilyTransitionActive) {
-        addChapter(
-          "fatherhood_transition",
-          32,
-          `Signal '${key}' points toward fatherhood transition.`,
-          "What kind of father does this season ask you to become?",
-          "Protect presence, family stability, and identity transition."
-        );
+      if (signalHits) {
+        score += domain.signalWeight;
+        reasons.push(`System signals match ${domain.name}.`);
       }
 
-      if (key.includes("family") && explicitFamilyTransitionActive) {
-        addChapter(
-          "family_transition",
-          28,
-          `Signal '${key}' points toward family transition.`,
-          "What does your family need from you in this season?",
-          "Protect family, relationship, and presence."
-        );
+      if (domain.shouldBoost?.(summary, rawText, signals)) {
+        score += domain.boostWeight || 20;
+        reasons.push(`Context boost supports ${domain.name}.`);
       }
 
-      if (
-        (key.includes("husband") || key.includes("wife") || key.includes("marriage")) &&
-        !relationshipRuptureActive
-      ) {
-        addChapter(
-          "marriage_transition",
-          28,
-          `Signal '${key}' points toward marriage transition.`,
-          "What kind of spouse does this chapter require?",
-          "Protect commitment, communication, and shared life."
-        );
-      }
-
-      if (
-        key.includes("builder") ||
-        key.includes("creation") ||
-        key.includes("mission")
-      ) {
-        addChapter(
-          "builder_development",
-          22,
-          `Signal '${key}' points toward builder development.`,
-          "What are you building, and what kind of builder do you need to become?",
-          "Build sustainably, not compulsively."
-        );
-      }
-
-      if (key.includes("purpose") || key.includes("calling")) {
-        addChapter(
-          "purpose_chapter",
-          24,
-          `Signal '${key}' points toward purpose chapter.`,
-          "What part of your purpose needs to stay alive in this season?",
-          "Keep meaning connected to life, not separated from it."
-        );
-      }
-
-      if (key.includes("career") || key.includes("transition")) {
-        addChapter(
-          "career_transition",
-          18,
-          `Signal '${key}' may point toward career or transition themes.`,
-          "What future stability are you trying to protect?",
-          "Protect transition, responsibility, and long-term stability."
+      if (score > 0) {
+        add(
+          domain.name,
+          score,
+          reasons.join(" "),
+          domain.question,
+          domain.focus
         );
       }
     });
 
-    const seenRankedSignals = new Set();
-
-    rankedSignals.forEach(signal => {
-      if (!signal || !signal.name) return;
-
-      const key = normalizeKey(signal.name);
-      const category = normalizeKey(signal.category || "unknown");
-      const strength = Number(signal.strength || 0);
-      const seenKey = `${key}:${category}`;
-
-      if (seenRankedSignals.has(seenKey)) return;
-      seenRankedSignals.add(seenKey);
-
-      if (chapterMap[key]) {
-        const mapped = chapterMap[key];
-
-        addChapter(
-          mapped.chapter,
-          Math.round(strength * 0.14),
-          `Ranked signal '${key}' supports chapter '${mapped.chapter}'.`,
-          mapped.question,
-          mapped.focus
-        );
-      }
-    });
-
-    const seenSalienceSignals = new Set();
-
-    rankedSalience.forEach(signal => {
-      if (!signal || !signal.name) return;
-
-      const key = normalizeKey(signal.name);
-      const category = normalizeKey(signal.category || "unknown");
-      const strength = Number(signal.strength || 0);
-      const seenKey = `${key}:${category}`;
-
-      if (seenSalienceSignals.has(seenKey)) return;
-      seenSalienceSignals.add(seenKey);
-
-      if (chapterMap[key]) {
-        const mapped = chapterMap[key];
-
-        addChapter(
-          mapped.chapter,
-          Math.round(strength * 0.12),
-          `Salience signal '${key}' supports chapter '${mapped.chapter}'.`,
-          mapped.question,
-          mapped.focus
-        );
-      }
-    });
-
-    if (
-      lifePriorityClass === "major_life_priority" &&
-      explicitFamilyTransitionActive
-    ) {
-      const key = normalizeKey(primaryWeightedLifeSignal);
-
-      if (key && chapterMap[key]) {
-        const mapped = chapterMap[key];
-
-        addChapter(
-          mapped.chapter,
-          32,
-          "Major life priority detected; this chapter receives extra weight.",
-          mapped.question,
-          mapped.focus
-        );
-      }
-    }
-
-    if (
-      wisdomTension === "presence_vs_achievement" &&
-      explicitAchievementPresenceActive
-    ) {
-      addChapter(
-        "presence_reordering_chapter",
-        36,
-        "Presence versus achievement tension suggests the chapter is asking for reordered priorities.",
-        "What moment of presence needs protection before achievement gets more attention?",
-        "Put irreplaceable moments before replaceable milestones."
-      );
-    }
-
-    if (wisdomTension === "family_vs_purpose") {
-      addChapter(
-        "family_purpose_integration_chapter",
-        36,
-        "Family versus purpose tension suggests integration, not abandonment.",
-        "How can your purpose serve your family instead of competing with it?",
-        "Let purpose deepen love instead of competing with it."
-      );
-    }
+    this.applyTensionChapters(summary, rawText, signals, add);
+    this.applyPriorityBoosts(summary, signals, candidates);
 
     if (candidates.length === 0) {
-      addChapter(
+      add(
         "unclear_chapter",
         50,
         "No clear life chapter was detected.",
@@ -412,10 +93,7 @@ window.AriLifeChapterEngine = {
       );
     }
 
-    candidates.forEach(candidate => {
-      candidate.score = capScore(candidate.score);
-    });
-
+    candidates.forEach(c => c.score = this.cap(c.score));
     candidates.sort((a, b) => b.score - a.score);
 
     const winner = candidates[0];
@@ -430,26 +108,203 @@ window.AriLifeChapterEngine = {
       lifeChapterQuestion: winner.question,
       lifeChapterFocus: winner.focus,
 
-      rankedLifeChapters: candidates.map(item => ({
-        name: item.name,
-        score: item.score,
-        focus: item.focus,
-        question: item.question,
-        reasons: item.reasons
+      rankedLifeChapters: candidates.map(c => ({
+        name: c.name,
+        score: c.score,
+        focus: c.focus,
+        question: c.question,
+        reasons: c.reasons
       })),
 
       lifeChapterScoreNormalization: {
         maxScore: 120,
-        directSignals,
-        rankedSignalCount: seenRankedSignals.size,
-        salienceSignalCount: seenSalienceSignals.size,
-        relationshipRuptureActive,
-        explicitFamilyTransitionActive,
-        explicitAchievementPresenceActive,
+        detectedDomains: candidates.map(c => c.name),
+        directSignals: signals,
         source: "ari-life-chapter-engine-normalization"
       },
 
       source: "ari-life-chapter-engine"
     };
+  },
+
+  getUniversalDomains() {
+    return [
+      {
+        name: "body_health_chapter",
+        textWeight: 90,
+        signalWeight: 90,
+        boostWeight: 25,
+        text: ["pain", "dizzy", "sick", "fever", "sleep", "hungry", "dehydrated", "chest pain", "can't breathe"],
+        signals: ["body", "health", "sleep", "food", "hydration", "vital", "pain"],
+        question: "What does your body need before anything else?",
+        focus: "Stabilize the body before deeper interpretation.",
+        shouldBoost: s => s.primaryHumanNeed === "body" || s.salienceLeadOrgan === "safety"
+      },
+      {
+        name: "relationship_rupture_chapter",
+        textWeight: 88,
+        signalWeight: 82,
+        text: ["left me", "broke up", "divorce", "separated", "alone", "lonely", "abandoned", "rejected"],
+        signals: ["connection", "attachment", "relationship_rupture", "belonging"],
+        question: "What part of this feels most alone right now?",
+        focus: "Restore connection, dignity, and emotional stability."
+      },
+      {
+        name: "family_parenthood_chapter",
+        textWeight: 86,
+        signalWeight: 84,
+        text: ["baby", "pregnant", "father", "mother", "parent", "daughter", "son", "child", "family"],
+        signals: ["fatherhood", "parenthood", "family_transition", "family"],
+        question: "What does your family need from you in this season?",
+        focus: "Protect family, presence, and stability."
+      },
+      {
+        name: "career_transition_chapter",
+        textWeight: 78,
+        signalWeight: 78,
+        text: ["job", "career", "interview", "military", "retire", "resign", "promotion", "new role", "work"],
+        signals: ["career", "military_transition", "role_transition", "work"],
+        question: "What future stability are you trying to protect?",
+        focus: "Protect transition, competence, and long-term stability."
+      },
+      {
+        name: "identity_transition_chapter",
+        textWeight: 76,
+        signalWeight: 82,
+        text: ["who am i", "useless", "failure", "not enough", "identity", "lost", "becoming"],
+        signals: ["identity", "worth", "self_concept", "role"],
+        question: "Which part of your identity feels unstable right now?",
+        focus: "Separate worth from performance and let identity adapt."
+      },
+      {
+        name: "capacity_burnout_chapter",
+        textWeight: 78,
+        signalWeight: 80,
+        text: ["overwhelmed", "burned out", "too much", "can't keep up", "exhausted", "breaking"],
+        signals: ["capacity", "burnout", "overload", "stress"],
+        question: "What demand needs to be reduced first?",
+        focus: "Protect capacity before adding more responsibility."
+      },
+      {
+        name: "grief_loss_chapter",
+        textWeight: 82,
+        signalWeight: 78,
+        text: ["died", "death", "loss", "lost", "grief", "miss them", "gone"],
+        signals: ["grief", "loss", "mourning"],
+        question: "What part of this loss feels hardest to carry?",
+        focus: "Honor grief before forcing meaning."
+      },
+      {
+        name: "purpose_mission_chapter",
+        textWeight: 70,
+        signalWeight: 76,
+        text: ["purpose", "mission", "calling", "build", "create", "future", "dream"],
+        signals: ["purpose", "mission", "builder", "creative"],
+        question: "What future are you trying to create?",
+        focus: "Protect purpose without letting it consume the person."
+      }
+    ];
+  },
+
+  applyTensionChapters(summary, rawText, signals, add) {
+    const tension = summary.wisdomTension || summary.apparentConflict || null;
+
+    if (
+      tension === "presence_vs_achievement" ||
+      (rawText.includes("family") && rawText.includes("career"))
+    ) {
+      add(
+        "presence_reordering_chapter",
+        72,
+        "Presence versus achievement tension detected.",
+        "What moment of presence needs protection before achievement gets more attention?",
+        "Put irreplaceable moments before replaceable milestones."
+      );
+    }
+
+    if (
+      tension === "worth_vs_performance" ||
+      rawText.includes("if i fail") ||
+      rawText.includes("useless")
+    ) {
+      add(
+        "worth_separation_chapter",
+        84,
+        "Worth appears tied to performance.",
+        "What would still be true about your worth even if this goes badly?",
+        "Separate human worth from outcome."
+      );
+    }
+  },
+
+  applyPriorityBoosts(summary, signals, candidates) {
+    const priority = summary.lifePriorityClass;
+    const weighted = this.normalize(summary.primaryWeightedLifeSignal || "");
+
+    if (priority !== "major_life_priority" || !weighted) return;
+
+    candidates.forEach(c => {
+      if (weighted.includes("father") && c.name === "family_parenthood_chapter") c.score += 24;
+      if (weighted.includes("family") && c.name === "family_parenthood_chapter") c.score += 20;
+      if (weighted.includes("career") && c.name === "career_transition_chapter") c.score += 20;
+      c.score = this.cap(c.score);
+    });
+  },
+
+  collectSignals(summary = {}) {
+    const list = [];
+
+    const push = value => {
+      if (!value) return;
+      if (typeof value === "string") list.push(this.normalize(value));
+      if (Array.isArray(value)) value.forEach(push);
+    };
+
+    push(summary.strongestSignal);
+    push(summary.primaryLifeSignal);
+    push(summary.primaryWeightedLifeSignal);
+    push(summary.primaryHumanNeed);
+    push(summary.secondaryHumanNeed);
+    push(summary.needResponseMode);
+    push(summary.rootNeed);
+    push(summary.primaryNeed);
+    push(summary.dominantValue);
+    push(summary.protecting);
+    push(summary.highestGood);
+    push(summary.wisdomTension);
+    push(summary.apparentConflict);
+    push(summary.primaryConflict);
+    push(summary.dominantIdentity);
+    push(summary.personPrimaryRole);
+    push(summary.leadIdentity);
+    push(summary.resolvedLeadIdentity);
+    push(summary.organismNeed);
+    push(summary.organismFunction);
+    push(summary.organismPrimaryFunction);
+    push(summary.lifeSignals);
+
+    if (Array.isArray(summary.rankedSignals)) {
+      summary.rankedSignals.forEach(s => push(s.name));
+    }
+
+    if (Array.isArray(summary.rankedSalience)) {
+      summary.rankedSalience.forEach(s => push(s.name));
+    }
+
+    return [...new Set(list.filter(Boolean))];
+  },
+
+  normalize(text = "") {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[_-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
+
+  cap(value, max = 120) {
+    return Math.min(Number(value || 0), max);
   }
 };
