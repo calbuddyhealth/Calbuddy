@@ -218,6 +218,9 @@ const salienceGovernor =
 
 // Observation Ledger
 
+observationLedger:
+  observationLedger,
+
 observationLedgerRan:
   Array.isArray(observationLedger),
 
