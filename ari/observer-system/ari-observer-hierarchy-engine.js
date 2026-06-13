@@ -62,7 +62,9 @@ window.Ari.observerHierarchyEngine = {
     const summary = observation.summary || observation || {};
 const observationLedger =
   summary.observationLedger ||
+  summary.rankedLedgerObservations ||
   observation.observationLedger ||
+  observation.rankedLedgerObservations ||
   [];
 
    const candidateBundle = this.buildCandidates({
