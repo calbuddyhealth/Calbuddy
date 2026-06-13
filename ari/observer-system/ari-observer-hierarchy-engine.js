@@ -110,6 +110,18 @@ const observationLedger =
       system: "ari-observer-hierarchy-engine",
       version: this.version,
 
+ledgerAvailable:
+  Array.isArray(observationLedger),
+
+ledgerCount:
+  observationLedger.length || 0,
+
+ledgerPrimary:
+  observationLedger[0]?.signal || null,
+
+ledgerPrimaryCategory:
+  observationLedger[0]?.category || null,
+
       primaryObservation: primary.name,
       primaryCategory: primary.category,
       primaryReason: primary.reason,
