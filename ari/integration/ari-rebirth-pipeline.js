@@ -1,7 +1,7 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.8
+// V1.9
 // Fixes:
 // - Adds Organism Function Engine before Human Needs.
 // - Lets Ari understand survival/body functions before meaning, identity, wisdom, or advice.
@@ -66,6 +66,38 @@ window.AriRebirthPipeline = {
         safetyReason: safety.reason
       };
     }
+
+// 0.25. UNIVERSAL DOMAIN GOVERNOR
+if (
+  window.AriUniversalDomainGovernor &&
+  typeof window.AriUniversalDomainGovernor.govern === "function"
+) {
+  const domainGovernor =
+    window.AriUniversalDomainGovernor.govern(summary) || {};
+
+  summary = {
+    ...summary,
+    domainGovernor,
+    universalDomainGovernor: domainGovernor,
+    ...domainGovernor
+  };
+} else {
+  summary = {
+    ...summary,
+    universalDomainGovernorRan: false,
+    domainGovernorSource: "not-loaded",
+    domainLead: null,
+    domainSuperLead: null,
+    domainLeadScore: 0,
+    domainAuthority: 0,
+    domainLeadOrgan: null,
+    domainMode: null,
+    domainQuestion: null,
+    domainPermissions: {},
+    domainBlockedPermissions: [],
+    rankedUniversalDomains: []
+  };
+}
 
     // 0.5. ORGANISM FUNCTION ENGINE
     if (
