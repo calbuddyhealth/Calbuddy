@@ -1,10 +1,15 @@
 // ari/meaning/ari-life-chapter-engine.js
 // Ari Life Chapter Engine
 // Purpose: Detect universal life chapters without overfitting to one person's life.
-// V2.0
+// V2.1
+// Fixes:
+// - Prevents direct teaching questions from being misread as life chapters.
+// - Blocks generic signals like clarity, curiosity, understanding, observer, and continue_observing from creating fake chapters.
+// - Stops existing primaryLifeChapter from feeding back into itself.
+// - Keeps real life-transition, body, family, career, grief, identity, stewardship, and purpose chapters.
 
 window.AriLifeChapterEngine = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   detect(input = {}) {
     const summary = input.summary || input || {};
@@ -16,6 +21,27 @@ window.AriLifeChapterEngine = {
       summary.normalizedMessage ||
       ""
     );
+
+    const isDirectTeaching = this.isDirectTeachingRequest(rawText);
+
+    if (isDirectTeaching) {
+      return {
+        primaryLifeChapter: null,
+        lifeChapterStrength: 0,
+        lifeChapterStatement:
+          "No life chapter detected. This is a direct teaching request.",
+        lifeChapterQuestion: null,
+        lifeChapterFocus: "Answer the user's teaching request directly.",
+        rankedLifeChapters: [],
+        lifeChapterScoreNormalization: {
+          maxScore: 120,
+          detectedDomains: [],
+          directSignals: [],
+          source: "ari-life-chapter-engine-normalization"
+        },
+        source: "ari-life-chapter-engine"
+      };
+    }
 
     const signals = this.collectSignals(summary);
     const candidates = [];
@@ -127,6 +153,22 @@ window.AriLifeChapterEngine = {
     };
   },
 
+  isDirectTeachingRequest(text = "") {
+    const normalized = this.normalize(text);
+
+    return (
+      /^(how|what|why)\s+(does|do|is|are|can|would|could|should)\b/.test(normalized) ||
+      normalized.startsWith("explain ") ||
+      normalized.startsWith("teach me ") ||
+      normalized.includes("how does ") ||
+      normalized.includes("how do ") ||
+      normalized.includes("what does ") ||
+      normalized.includes("what is ") ||
+      normalized.includes("why does ") ||
+      normalized.includes("why do ")
+    );
+  },
+
   getUniversalDomains() {
     return [
       {
@@ -134,205 +176,269 @@ window.AriLifeChapterEngine = {
         textWeight: 90,
         signalWeight: 90,
         boostWeight: 25,
-        text: ["pain", "dizzy", "sick", "fever", "sleep", "hungry", "dehydrated", "chest pain", "can't breathe"],
+        text: [
+          "pain",
+          "dizzy",
+          "sick",
+          "fever",
+          "sleep",
+          "hungry",
+          "dehydrated",
+          "chest pain",
+          "can't breathe"
+        ],
         signals: ["body", "health", "sleep", "food", "hydration", "vital", "pain"],
         question: "What does your body need before anything else?",
         focus: "Stabilize the body before deeper interpretation.",
-        shouldBoost: s => s.primaryHumanNeed === "body" || s.salienceLeadOrgan === "safety"
+        shouldBoost: s =>
+          s.primaryHumanNeed === "body" ||
+          s.salienceLeadOrgan === "safety"
       },
-      
+
       {
-  name: "stewardship_chapter",
-  textWeight: 82,
-  signalWeight: 86,
-  boostWeight: 20,
+        name: "stewardship_chapter",
+        textWeight: 82,
+        signalWeight: 86,
+        boostWeight: 20,
+        text: [
+          "responsibility",
+          "protect",
+          "care for",
+          "take care of",
+          "provide",
+          "steward",
+          "guardian",
+          "depend on me"
+        ],
+        signals: [
+          "stewardship",
+          "protector",
+          "caregiving",
+          "responsibility",
+          "provision"
+        ],
+        question: "What are you trying to protect right now?",
+        focus: "Identify what requires stewardship before pursuing expansion."
+      },
 
-  text: [
-    "responsibility",
-    "protect",
-    "care for",
-    "take care of",
-    "provide",
-    "steward",
-    "guardian",
-    "depend on me"
-  ],
-
-  signals: [
-    "stewardship",
-    "protector",
-    "caregiving",
-    "responsibility",
-    "provision"
-  ],
-
-  question:
-    "What are you trying to protect right now?",
-
-  focus:
-    "Identify what requires stewardship before pursuing expansion."
-},
-      
       {
         name: "relationship_rupture_chapter",
         textWeight: 88,
         signalWeight: 82,
-        text: ["left me", "broke up", "divorce", "separated", "alone", "lonely", "abandoned", "rejected"],
-        signals: ["connection", "attachment", "relationship_rupture", "belonging"],
+        text: [
+          "left me",
+          "broke up",
+          "divorce",
+          "separated",
+          "alone",
+          "lonely",
+          "abandoned",
+          "rejected"
+        ],
+        signals: [
+          "connection",
+          "attachment",
+          "relationship_rupture",
+          "belonging"
+        ],
         question: "What part of this feels most alone right now?",
         focus: "Restore connection, dignity, and emotional stability."
       },
+
       {
         name: "family_parenthood_chapter",
         textWeight: 86,
         signalWeight: 84,
-        text: ["baby", "pregnant", "father", "mother", "parent", "daughter", "son", "child", "family"],
+        text: [
+          "baby",
+          "pregnant",
+          "father",
+          "mother",
+          "parent",
+          "daughter",
+          "son",
+          "child",
+          "family"
+        ],
         signals: ["fatherhood", "parenthood", "family_transition", "family"],
         question: "What does your family need from you in this season?",
         focus: "Protect family, presence, and stability."
       },
+
       {
         name: "career_transition_chapter",
         textWeight: 78,
         signalWeight: 78,
-        text: ["job", "career", "interview", "military", "retire", "resign", "promotion", "new role", "work"],
-        signals: ["career", "military_transition", "role_transition", "work"],
+        text: [
+          "job",
+          "career",
+          "interview",
+          "military",
+          "retire",
+          "resign",
+          "promotion",
+          "new role",
+          "work"
+        ],
+        signals: [
+          "career",
+          "military_transition",
+          "role_transition",
+          "work"
+        ],
         question: "What future stability are you trying to protect?",
         focus: "Protect transition, competence, and long-term stability."
       },
+
       {
         name: "identity_transition_chapter",
         textWeight: 76,
         signalWeight: 82,
-        text: ["who am i", "useless", "failure", "not enough", "identity", "lost", "becoming"],
+        text: [
+          "who am i",
+          "useless",
+          "failure",
+          "not enough",
+          "identity",
+          "lost",
+          "becoming"
+        ],
         signals: ["identity", "worth", "self_concept", "role"],
         question: "Which part of your identity feels unstable right now?",
         focus: "Separate worth from performance and let identity adapt."
       },
+
       {
         name: "capacity_burnout_chapter",
         textWeight: 78,
         signalWeight: 80,
-        text: ["overwhelmed", "burned out", "too much", "can't keep up", "exhausted", "breaking"],
+        text: [
+          "overwhelmed",
+          "burned out",
+          "too much",
+          "can't keep up",
+          "exhausted",
+          "breaking"
+        ],
         signals: ["capacity", "burnout", "overload", "stress"],
         question: "What demand needs to be reduced first?",
         focus: "Protect capacity before adding more responsibility."
       },
+
       {
-  name: "uncertainty_transition_chapter",
-  textWeight: 75,
-  signalWeight: 80,
-  boostWeight: 20,
+        name: "uncertainty_transition_chapter",
+        textWeight: 75,
+        signalWeight: 80,
+        boostWeight: 20,
+        text: [
+          "don't know",
+          "dont know",
+          "uncertain",
+          "unsure",
+          "stuck",
+          "confused",
+          "which path",
+          "what should i do",
+          "what do i do",
+          "lost direction",
+          "crossroads"
+        ],
+        signals: [
+          "uncertainty",
+          "missing_information",
+          "decision",
+          "crossroads",
+          "understanding_uncertainty"
+        ],
+        question: "What feels most uncertain right now?",
+        focus: "Create clarity before committing to direction.",
+        shouldBoost: summary =>
+          summary.uncertaintyType === "missing_information" ||
+          summary.uncertaintyType === "understanding_uncertainty"
+      },
 
-  text: [
-    "don't know",
-    "dont know",
-    "uncertain",
-    "unsure",
-    "stuck",
-    "confused",
-    "which path",
-    "what should i do",
-    "what do i do",
-    "lost direction",
-    "crossroads"
-  ],
-
-  signals: [
-    "uncertainty",
-    "missing_information",
-    "decision",
-    "crossroads",
-    "understanding_uncertainty"
-  ],
-
-  question:
-    "What feels most uncertain right now?",
-
-  focus:
-    "Create clarity before committing to direction.",
-
-  shouldBoost: (summary) =>
-    summary.uncertaintyType === "missing_information" ||
-    summary.uncertaintyType === "understanding_uncertainty"
-},
       {
-  name: "recovery_rebuilding_chapter",
-  textWeight: 80,
-  signalWeight: 80,
-  boostWeight: 20,
+        name: "recovery_rebuilding_chapter",
+        textWeight: 80,
+        signalWeight: 80,
+        boostWeight: 20,
+        text: [
+          "starting over",
+          "rebuild",
+          "rebuilding",
+          "recovering",
+          "getting my life together",
+          "trying again",
+          "fresh start",
+          "second chance",
+          "bounce back",
+          "come back"
+        ],
+        signals: [
+          "recovery",
+          "rebuilding",
+          "renewal",
+          "restart",
+          "adaptation"
+        ],
+        question: "What are you trying to rebuild right now?",
+        focus: "Support recovery before demanding acceleration."
+      },
 
-  text: [
-    "starting over",
-    "rebuild",
-    "rebuilding",
-    "recovering",
-    "getting my life together",
-    "trying again",
-    "fresh start",
-    "second chance",
-    "bounce back",
-    "come back"
-  ],
-
-  signals: [
-    "recovery",
-    "rebuilding",
-    "renewal",
-    "restart",
-    "adaptation"
-  ],
-
-  question:
-    "What are you trying to rebuild right now?",
-
-  focus:
-    "Support recovery before demanding acceleration."
-},
-      
       {
         name: "grief_loss_chapter",
         textWeight: 82,
         signalWeight: 78,
-        text: ["died", "death", "loss", "lost", "grief", "miss them", "gone"],
+        text: [
+          "died",
+          "death",
+          "loss",
+          "lost",
+          "grief",
+          "miss them",
+          "gone"
+        ],
         signals: ["grief", "loss", "mourning"],
         question: "What part of this loss feels hardest to carry?",
         focus: "Honor grief before forcing meaning."
       },
-      
-        {
-  name: "meaning_crisis_chapter",
-  textWeight: 80,
-  signalWeight: 82,
-  boostWeight: 20,
 
-  text: [
-    "what's the point",
-    "nothing matters",
-    "meaningless",
-    "empty",
-    "why am i doing this",
-    "lost purpose"
-  ],
+      {
+        name: "meaning_crisis_chapter",
+        textWeight: 80,
+        signalWeight: 82,
+        boostWeight: 20,
+        text: [
+          "what's the point",
+          "nothing matters",
+          "meaningless",
+          "empty",
+          "why am i doing this",
+          "lost purpose"
+        ],
+        signals: [
+          "meaning",
+          "existential",
+          "purpose_confusion",
+          "life_meaning"
+        ],
+        question: "What feels meaningless or disconnected right now?",
+        focus: "Restore meaning before demanding motivation."
+      },
 
-  signals: [
-    "meaning",
-    "existential",
-    "purpose_confusion",
-    "life_meaning"
-  ],
-
-  question:
-    "What feels meaningless or disconnected right now?",
-
-  focus:
-    "Restore meaning before demanding motivation."
-},
-        {
+      {
         name: "purpose_mission_chapter",
         textWeight: 70,
         signalWeight: 76,
-        text: ["purpose", "mission", "calling", "build", "create", "future", "dream"],
+        text: [
+          "purpose",
+          "mission",
+          "calling",
+          "build",
+          "create",
+          "future",
+          "dream"
+        ],
         signals: ["purpose", "mission", "builder", "creative"],
         question: "What future are you trying to create?",
         focus: "Protect purpose without letting it consume the person."
@@ -356,24 +462,24 @@ window.AriLifeChapterEngine = {
       );
     }
 
-if (
-  tension === "certainty_vs_action" ||
-  rawText.includes("what if i choose wrong") ||
-rawText.includes("afraid to decide") ||
-rawText.includes("can't decide") ||
-rawText.includes("cant decide") ||
-rawText.includes("stuck between") ||
-rawText.includes("which path") ||
-rawText.includes("which option")
-) {
-  add(
-    "decision_uncertainty_chapter",
-    80,
-    "Decision paralysis or uncertainty detected.",
-    "What decision feels hardest to commit to right now?",
-    "Create enough clarity to move forward without waiting for perfect certainty."
-  );
-}
+    if (
+      tension === "certainty_vs_action" ||
+      rawText.includes("what if i choose wrong") ||
+      rawText.includes("afraid to decide") ||
+      rawText.includes("can't decide") ||
+      rawText.includes("cant decide") ||
+      rawText.includes("stuck between") ||
+      rawText.includes("which path") ||
+      rawText.includes("which option")
+    ) {
+      add(
+        "decision_uncertainty_chapter",
+        80,
+        "Decision paralysis or uncertainty detected.",
+        "What decision feels hardest to commit to right now?",
+        "Create enough clarity to move forward without waiting for perfect certainty."
+      );
+    }
 
     if (
       tension === "worth_vs_performance" ||
@@ -397,25 +503,49 @@ rawText.includes("which option")
     if (priority !== "major_life_priority" || !weighted) return;
 
     candidates.forEach(c => {
-      if (weighted.includes("father") && c.name === "family_parenthood_chapter") c.score += 24;
-      if (weighted.includes("family") && c.name === "family_parenthood_chapter") c.score += 20;
-      if (weighted.includes("career") && c.name === "career_transition_chapter") c.score += 20;
-     if (
-  weighted.includes("steward") &&
-  c.name === "stewardship_chapter"
-) c.score += 20;
+      if (
+        weighted.includes("father") &&
+        c.name === "family_parenthood_chapter"
+      ) {
+        c.score += 24;
+      }
 
-if (
-  weighted.includes("meaning") &&
-  c.name === "meaning_crisis_chapter"
-) c.score += 20;
+      if (
+        weighted.includes("family") &&
+        c.name === "family_parenthood_chapter"
+      ) {
+        c.score += 20;
+      }
 
-if (
-  weighted.includes("adapt") &&
-  c.name === "recovery_rebuilding_chapter"
-) c.score += 20;
-      
-       c.score = this.cap(c.score);
+      if (
+        weighted.includes("career") &&
+        c.name === "career_transition_chapter"
+      ) {
+        c.score += 20;
+      }
+
+      if (
+        weighted.includes("steward") &&
+        c.name === "stewardship_chapter"
+      ) {
+        c.score += 20;
+      }
+
+      if (
+        weighted.includes("meaning") &&
+        c.name === "meaning_crisis_chapter"
+      ) {
+        c.score += 20;
+      }
+
+      if (
+        weighted.includes("adapt") &&
+        c.name === "recovery_rebuilding_chapter"
+      ) {
+        c.score += 20;
+      }
+
+      c.score = this.cap(c.score);
     });
   },
 
@@ -424,21 +554,26 @@ if (
 
     const push = value => {
       if (!value) return;
-      if (typeof value === "string") list.push(this.normalize(value));
-      if (Array.isArray(value)) value.forEach(push);
+
+      if (typeof value === "string") {
+        const normalized = this.normalize(value);
+
+        if (!this.isBlockedGenericSignal(normalized)) {
+          list.push(normalized);
+        }
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(push);
+      }
     };
 
-    push(summary.strongestSignal);
     push(summary.primaryLifeSignal);
     push(summary.primaryWeightedLifeSignal);
     push(summary.primaryHumanNeed);
     push(summary.secondaryHumanNeed);
-    push(summary.needResponseMode);
     push(summary.rootNeed);
     push(summary.primaryNeed);
-    push(summary.dominantValue);
-    push(summary.protecting);
-    push(summary.highestGood);
     push(summary.wisdomTension);
     push(summary.apparentConflict);
     push(summary.primaryConflict);
@@ -450,19 +585,69 @@ if (
     push(summary.organismFunction);
     push(summary.organismPrimaryFunction);
     push(summary.lifeSignals);
-push(summary.primaryLifeChapter);
-push(summary.lifeChapter);
-push(summary.integratedValue);
-push(summary.emotionalClassification);
+
     if (Array.isArray(summary.rankedSignals)) {
-      summary.rankedSignals.forEach(s => push(s.name));
+      summary.rankedSignals.forEach(signal => {
+        const category = this.normalize(signal.category || "");
+
+        if (
+          category === "life" ||
+          category === "life signal" ||
+          category === "life_signal" ||
+          category === "transition" ||
+          category === "role" ||
+          category === "family" ||
+          category === "career" ||
+          category === "body" ||
+          category === "health" ||
+          category === "relationship"
+        ) {
+          push(signal.name);
+        }
+      });
     }
 
-    if (Array.isArray(summary.rankedSalience)) {
-      summary.rankedSalience.forEach(s => push(s.name));
+    if (Array.isArray(summary.rankedLifeSignals)) {
+      summary.rankedLifeSignals.forEach(signal => push(signal.name));
     }
 
     return [...new Set(list.filter(Boolean))];
+  },
+
+  isBlockedGenericSignal(signal = "") {
+    const normalized = this.normalize(signal);
+
+    const blocked = new Set([
+      "understanding",
+      "teaching",
+      "curiosity",
+      "clarity",
+      "protect clarity",
+      "continue observing",
+      "continue_observing",
+      "missing information",
+      "missing_information",
+      "understanding uncertainty",
+      "understanding_uncertainty",
+      "general priority",
+      "general-priority",
+      "general_priority",
+      "prioritize with caution",
+      "prioritize_with_caution",
+      "observer",
+      "teacher",
+      "unknown",
+      "unclear",
+      "none",
+      "the other meaningful priority",
+      "chosen sacrifice",
+      "chosen_sacrifice",
+      "protect clarity",
+      "reflect and clarify",
+      "reflect_and_clarify"
+    ]);
+
+    return blocked.has(normalized);
   },
 
   normalize(text = "") {
