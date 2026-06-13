@@ -68,6 +68,17 @@ window.Ari.coreSummary = {
    const organism = analysis.organism || {};
      const responseIntent = analysis.responseIntent || {};
     const mouthDirector = analysis.mouthDirector || {};
+const stewardshipFear =
+  analysis.stewardshipFear ||
+  analysis.stewardshipFearDifferentiator ||
+  analysis.emotionalClassification ||
+  {};
+
+const emotionIntegrator =
+  analysis.emotionIntegrator ||
+  analysis.emotionIntegration ||
+  analysis.integratedEmotion ||
+  {};
 
 const lifeChapter =
   analysis.lifeChapter ||
@@ -346,12 +357,66 @@ const salienceGovernor =
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
 
-      primaryEmotion: emotion.primaryEmotion || "curiosity",
-      secondaryEmotions: emotion.secondaryEmotions || [],
-      surfaceEmotion: emotionalIntelligence.surfaceEmotion?.name || null,
-      underlyingEmotion: emotionalIntelligence.underlyingEmotion?.name || null,
-      rootNeed: emotionalIntelligence.rootNeed?.name || null,
-      protecting: emotionalIntelligence.protecting?.name || null,
+primaryEmotion:
+  emotionIntegrator.primaryEmotion ||
+  emotionalIntelligence.primaryEmotion ||
+  emotion.primaryEmotion ||
+  "curiosity",
+
+secondaryEmotions:
+  emotion.secondaryEmotions || [],
+
+surfaceEmotion:
+  emotionalIntelligence.surfaceEmotion?.name ||
+  emotionIntegrator.surfaceEmotion ||
+  null,
+
+underlyingEmotion:
+  emotionalIntelligence.underlyingEmotion?.name ||
+  underlyingEmotionDepth.primaryUnderlyingEmotion?.name ||
+  emotionIntegrator.underlyingEmotion ||
+  null,
+
+rootNeed:
+  emotionIntegrator.rootNeed ||
+  emotionalIntelligence.rootNeed?.name ||
+  null,
+
+protecting:
+  emotionIntegrator.protecting ||
+  emotionalIntelligence.protecting?.name ||
+  null,
+
+emotionalClassification:
+  emotionIntegrator.emotionalClassification ||
+  stewardshipFear.emotionalClassification ||
+  emotionalIntelligence.emotionalClassification ||
+  null,
+
+emotionalIntegratedValue:
+  emotionIntegrator.integratedValue ||
+  emotionalIntelligence.integratedValue ||
+  null,
+
+communicationStyle:
+  emotionIntegrator.communicationStyle ||
+  emotionalIntelligence.communicationStyle ||
+  null,
+
+integratedEmotion:
+  emotionIntegrator.integratedEmotion || null,
+
+integratedEmotionMode:
+  emotionIntegrator.integratedEmotionMode || null,
+
+integratedEmotionReason:
+  emotionIntegrator.integratedEmotionReason || null,
+
+recommendedEmotionResponseMode:
+  emotionIntegrator.recommendedEmotionResponseMode || null,
+
+rankedIntegratedEmotions:
+  emotionIntegrator.rankedIntegratedEmotions || [],
 
       memoryCandidate: memory.shouldRemember ? memory : null,
 
@@ -525,6 +590,11 @@ salienceGovernorSource:
       attentionSource: attention.source || "unknown",
       emotionSource: emotion.source || "unknown",
       emotionalIntelligenceSource: emotionalIntelligence.source || "unknown",
+      stewardshipFearSource:    
+  stewardshipFear.source || "unknown",
+
+emotionIntegratorSource:
+  emotionIntegrator.source || "unknown",
       memorySource: memory.source || "unknown",
       dualSalienceSource: dualSalience.system || "unknown",
       observerHierarchySource: observerHierarchy.system || "unknown",
