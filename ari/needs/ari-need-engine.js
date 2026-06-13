@@ -343,6 +343,47 @@ const domainPermissions = summary.domainPermissions || {};
       );
     }
 
+    // 14. DOMAIN GOVERNOR PERMISSION CORRECTIONS
+    if (domainLead === "teaching" || domainPermissions.preferTeaching) {
+      needs.length = 0;
+
+      add(
+        "understanding",
+        95,
+        "Teaching domain detected by Universal Domain Governor. Explanation should lead instead of emotional, identity, or life-chapter interpretation.",
+        "teacher",
+        "teach_clearly"
+      );
+    }
+
+    if (domainPermissions.blockLifeChapter || summary.shouldBlockLifeChapter) {
+      needs.forEach((need) => {
+        if (need.leadOrgan === "meaning") {
+          need.score = Math.min(need.score, 50);
+          need.reasons.push("Life-chapter interpretation reduced by Universal Domain Governor.");
+        }
+      });
+    }
+
+    if (domainPermissions.blockEmotionRecovery || summary.shouldBlockEmotionRecovery) {
+      needs.forEach((need) => {
+        if (need.leadOrgan === "emotion" && need.name !== "connection" && need.name !== "grief") {
+          need.score = Math.min(need.score, 50);
+          need.reasons.push("Emotion recovery reduced by Universal Domain Governor.");
+        }
+      });
+    }
+
+    if (domainLead === "body" || domainPermissions.preferBodyStabilization) {
+      add(
+        "body",
+        100,
+        "Body domain detected by Universal Domain Governor. Stabilization should lead.",
+        "safety",
+        "stabilize_body_first"
+      );
+    }
+
     if (!needs.length) {
       add(
         "understanding",
