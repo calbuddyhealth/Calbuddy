@@ -1,19 +1,13 @@
 // ari/needs/ari-need-engine.js
 // Ari Human Needs Network
 // Purpose: Identify the user's active human needs before Ari chooses wisdom, meaning, emotion, identity, or action.
-// Replaces Maslow-style hierarchy with Ari's need network.
-// V2.1
-// Fixes:
-// - Adds organism-function awareness.
-// - Detects when basic survival functions are blocked.
-// - Strengthens body need detection for food, nausea, dizziness, hydration, sleep, pain.
-// - Allows humans to go against their own living functions through worry, fear, shame, conflict, or cognition.
-// - Sends body/security needs to safety before meaning, wisdom, or identity.
+// V2.2
+// Universal Need Network
 
 window.Ari = window.Ari || {};
 
 window.Ari.needEngine = {
-  version: "2.1.0",
+  version: "2.2.0",
 
   evaluate(summary = {}) {
     const text = String(
@@ -22,7 +16,11 @@ window.Ari.needEngine = {
       summary.normalizedMessage ||
       summary.input ||
       ""
-    ).toLowerCase();
+    )
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, '"')
+      .trim();
 
     const needs = [];
 
@@ -33,12 +31,30 @@ window.Ari.needEngine = {
     const organismDisruption = summary.organismDisruption || {};
     const organismHasDisruption = Boolean(organismDisruption.hasDisruption);
 
+    const bodyOrganismFunctions = [
+      "energy_intake",
+      "hydration",
+      "rest_recovery",
+      "injury_protection",
+      "vital_stability",
+      "waste_elimination",
+      "temperature_regulation",
+      "movement_mobility"
+    ];
+
+    const relationalOrganismFunctions = ["connection"];
+
+    const isBodyOrganism = bodyOrganismFunctions.includes(organismPrimaryFunction);
+    const isRelationalOrganism = relationalOrganismFunctions.includes(organismPrimaryFunction);
+
+    const has = (phrases = []) => phrases.some((p) => text.includes(p));
+
     const add = (name, score, reason, leadOrgan, responseMode) => {
       const existing = needs.find((need) => need.name === name);
 
       if (existing) {
         existing.score = Math.max(existing.score, score);
-        existing.reasons.push(reason);
+        if (!existing.reasons.includes(reason)) existing.reasons.push(reason);
         return;
       }
 
@@ -51,94 +67,258 @@ window.Ari.needEngine = {
       });
     };
 
-    const has = (phrases = []) => phrases.some((p) => text.includes(p));
-
-    // 0. ORGANISM FUNCTION OVERRIDE
-    // Basic living functions must be understood before abstract interpretation.
+    // 0. TRUE BODY ORGANISM OVERRIDE
     if (
-      organismNeedsStabilization ||
-      organismUrgencyLevel === "critical" ||
-      organismUrgencyLevel === "high" ||
-      organismUrgencyLevel === "moderate"
+      isBodyOrganism &&
+      (
+        organismNeedsStabilization ||
+        organismUrgencyLevel === "critical" ||
+        organismUrgencyLevel === "high" ||
+        organismUrgencyLevel === "moderate"
+      )
     ) {
       add(
         "body",
         organismUrgencyLevel === "critical" ? 100 : 98,
-        `Organism function need detected: '${organismPrimaryFunction || "unknown"}' may need stabilization before interpretation.`,
+        `Organism function need detected: '${organismPrimaryFunction}' may need stabilization before interpretation.`,
         "safety",
-        organismUrgencyLevel === "critical"
-          ? "urgent_safety"
-          : "stabilize_body_first"
+        organismUrgencyLevel === "critical" ? "urgent_safety" : "stabilize_body_first"
       );
     }
 
     // 1. BODY
-    // Sleep, food, pain, hydration, exhaustion, nausea, dizziness, body stability.
     if (
       has([
-        "haven't slept",
-        "have not slept",
-        "can't sleep",
-        "cannot sleep",
-        "no sleep",
-        "insomnia",
-        "hungry",
-        "starving",
-        "haven't eaten",
-        "have not eaten",
-        "havent eaten",
-        "didn't eat",
-        "didnt eat",
-        "haven't eaten all day",
-        "havent eaten all day",
-        "can't eat",
-        "cannot eat",
-        "cant eat",
-        "too nauseous",
-        "nauseous",
-        "nausea",
-        "dizzy",
-        "lightheaded",
-        "blood sugar",
-        "dehydrated",
-        "thirsty",
-        "dry mouth",
-        "dark urine",
-        "exhausted",
-        "fatigued",
-        "severe pain",
-        "worst pain",
-        "sharp pain",
-        "constant pain",
-        "fainted",
-        "passed out"
+        "haven't slept", "havent slept", "have not slept", "can't sleep", "cant sleep",
+        "no sleep", "insomnia", "awake all night", "sleep deprived",
+        "hungry", "starving", "haven't eaten", "havent eaten", "have not eaten",
+        "didn't eat", "didnt eat", "can't eat", "cant eat", "cannot eat",
+        "nauseous", "nausea", "dizzy", "lightheaded", "blood sugar",
+        "dehydrated", "thirsty", "dry mouth", "dark urine",
+        "exhausted", "fatigued", "severe pain", "worst pain", "sharp pain",
+        "constant pain", "fainted", "passed out", "vomiting", "diarrhea",
+        "fever", "chills", "can't walk", "cant walk", "numbness", "weakness"
       ])
     ) {
       add(
         "body",
         100,
-        "Body-level need detected: sleep, food, hydration, nausea, dizziness, pain, energy, or physical stability.",
+        "Body-level need detected: sleep, food, hydration, nausea, dizziness, pain, elimination, fever, energy, or physical stability.",
         "safety",
         "stabilize_body_first"
       );
     }
 
-    // 1.5 BODY OVERRIDE / SELF-REGULATION DISRUPTION
-    // Humans can know what keeps them alive and still be unable to act on it.
+    // 2. SAFETY / SECURITY
     if (
       has([
-        "i should eat but",
-        "i know i should eat but",
-        "i should sleep but",
-        "i know i should sleep but",
-        "i know but",
-        "i should but",
-        "can't stop worrying",
-        "cant stop worrying",
-        "too anxious to eat",
-        "too stressed to eat",
-        "too nauseous to eat",
-        "i can't make myself eat",
+        "unsafe", "danger", "emergency", "can't breathe", "cant breathe",
+        "short of breath", "chest pain", "stroke", "seizure", "overdose",
+        "bleeding", "hurt myself", "kill myself", "suicidal",
+        "scared for my safety", "panic", "abuse", "threatened",
+        "homeless", "evicted", "rent", "money", "bills", "debt",
+        "job", "career", "housing", "insurance", "legal", "court",
+        "custody", "pregnant", "pregnancy"
+      ])
+    ) {
+      add(
+        "security",
+        96,
+        "Security need detected: safety, health, money, housing, legal stability, responsibility, or protection.",
+        "executive",
+        "protect_security"
+      );
+    }
+
+    // 3. CONNECTION / ATTACHMENT
+    if (
+      isRelationalOrganism ||
+      has([
+        "alone", "lonely", "nobody cares", "no one cares", "left out",
+        "ignored", "abandoned", "unloved", "disconnected", "rejected",
+        "wife left", "husband left", "girlfriend left", "boyfriend left",
+        "left me", "broke up", "breakup", "divorce", "separated",
+        "relationship", "friend", "family", "partner", "miss them"
+      ])
+    ) {
+      add(
+        "connection",
+        90,
+        "Connection need detected: belonging, love, attachment, relationship repair, or being seen.",
+        "emotion",
+        "restore_connection"
+      );
+    }
+
+    // 4. WORTH / DIGNITY
+    if (
+      has([
+        "nobody respects me", "no one respects me", "disrespected",
+        "worthless", "not good enough", "i failed", "failure",
+        "embarrassed", "ashamed", "humiliated", "look down on me",
+        "useless", "stupid", "incompetent", "i don't matter",
+        "i do not matter", "loser", "pathetic"
+      ])
+    ) {
+      add(
+        "worth",
+        88,
+        "Worth need detected: dignity, respect, competence, confidence, or self-value.",
+        "emotion",
+        "restore_dignity"
+      );
+    }
+
+    // 5. IDENTITY
+    if (
+      has([
+        "who am i", "identity", "role", "become", "becoming",
+        "father", "mother", "parent", "husband", "wife", "leader",
+        "nurse", "marine", "teacher", "student", "developer",
+        "builder", "protector", "provider", "artist", "creator"
+      ])
+    ) {
+      add(
+        "identity",
+        84,
+        "Identity need detected: role, self-concept, transition, or who the user is becoming.",
+        "identity",
+        "clarify_identity"
+      );
+    }
+
+    // 6. AUTONOMY
+    if (
+      has([
+        "trapped", "stuck", "forced", "controlled", "no choice",
+        "can't choose", "cant choose", "not allowed", "pressure",
+        "they want me to", "i don't want to", "i do not want to"
+      ])
+    ) {
+      add(
+        "autonomy",
+        82,
+        "Autonomy need detected: agency, freedom, consent, choice, or self-direction.",
+        "executive",
+        "restore_agency"
+      );
+    }
+
+    // 7. COMPETENCE / MASTERY
+    if (
+      has([
+        "can't do this", "cant do this", "i don't know how",
+        "i do not know how", "confused", "overwhelmed", "unprepared",
+        "interview", "exam", "test", "performance", "skill",
+        "learn", "practice", "improve", "mistake"
+      ])
+    ) {
+      add(
+        "competence",
+        80,
+        "Competence need detected: ability, preparation, learning, performance, or confidence in action.",
+        "executive",
+        "build_capability"
+      );
+    }
+
+    // 8. CLARITY
+    if (
+      has([
+        "confused", "unclear", "i don't understand", "i do not understand",
+        "what does this mean", "what's going on", "whats going on",
+        "explain", "help me understand", "not sure", "uncertain"
+      ])
+    ) {
+      add(
+        "clarity",
+        78,
+        "Clarity need detected: understanding, orientation, explanation, or reducing confusion.",
+        "observer",
+        "clarify_understanding"
+      );
+    }
+
+    // 9. PURPOSE / MEANING
+    if (
+      has([
+        "meaning", "purpose", "what am i supposed to do", "why am i here",
+        "mission", "calling", "legacy", "contribution", "impact",
+        "what is my life", "what should i do with my life"
+      ])
+    ) {
+      add(
+        "purpose",
+        80,
+        "Purpose need detected: meaning, mission, contribution, or legacy.",
+        "meaning",
+        "clarify_purpose"
+      );
+    }
+
+    // 10. GRIEF / LOSS
+    if (
+      has([
+        "died", "death", "lost someone", "grief", "grieving",
+        "mourning", "miss them", "gone forever", "can't get them back",
+        "cant get them back", "funeral"
+      ])
+    ) {
+      add(
+        "grief",
+        86,
+        "Grief need detected: loss, mourning, love, memory, or emotional processing.",
+        "emotion",
+        "hold_grief"
+      );
+    }
+
+    // 11. REPAIR
+    if (
+      has([
+        "apologize", "sorry", "make it right", "repair",
+        "fix this relationship", "forgive", "forgiveness",
+        "i hurt them", "they hurt me", "betrayed", "trust"
+      ])
+    ) {
+      add(
+        "repair",
+        82,
+        "Repair need detected: apology, forgiveness, trust, honesty, or relational repair.",
+        "wisdom",
+        "repair_or_boundary"
+      );
+    }
+
+    // 12. WISDOM / TRADEOFF
+    if (
+      has([
+        "what should i do", "should i", "wise", "wisdom",
+        "right thing", "wrong thing", "tradeoff", "balance",
+        "priority", "prioritize", "what matters most",
+        "what good should lead", "uncomfortable truth",
+        "what am i avoiding"
+      ])
+    ) {
+      add(
+        "wisdom",
+        76,
+        "Wisdom need detected: tradeoff, priority, values, or choosing what should lead.",
+        "wisdom",
+        "choose_what_leads"
+      );
+    }
+
+    // 13. BODY OVERRIDE / SELF-REGULATION DISRUPTION
+    if (
+      organismHasDisruption ||
+      has([
+        "i should eat but", "i know i should eat but",
+        "i should sleep but", "i know i should sleep but",
+        "i know but", "i should but",
+        "can't stop worrying", "cant stop worrying",
+        "too anxious to eat", "too stressed to eat",
+        "too nauseous to eat", "i can't make myself eat",
         "i cant make myself eat"
       ])
     ) {
@@ -153,208 +333,9 @@ window.Ari.needEngine = {
       add(
         "security",
         90,
-        "Self-regulation disruption detected: the user may know the survival need but cannot easily follow it.",
+        "Self-regulation disruption detected: the user may know the basic need but cannot easily follow it.",
         "executive",
         "restore_basic_function"
-      );
-    }
-
-    // 2. SECURITY
-    // Protection, medical danger, money, shelter, stability, predictability.
-    if (
-      has([
-        "unsafe",
-        "danger",
-        "emergency",
-        "can't breathe",
-        "cannot breathe",
-        "cant breathe",
-        "short of breath",
-        "chest pain",
-        "stroke",
-        "seizure",
-        "pregnant",
-        "severe pain",
-        "bleeding",
-        "hurt myself",
-        "kill myself",
-        "suicidal",
-        "scared for my safety",
-        "panic",
-        "rent",
-        "money",
-        "bills",
-        "job",
-        "career",
-        "housing",
-        "insurance",
-        "debt",
-        "provider",
-        "responsibility",
-        "family needs",
-        "baby coming",
-        "pregnancy",
-        "marriage"
-      ])
-    ) {
-      add(
-        "security",
-        96,
-        "Security need detected: safety, health, money, responsibility, stability, or protection.",
-        "executive",
-        "protect_security"
-      );
-    }
-
-    // 3. CONNECTION
-    if (
-      has([
-        "alone",
-        "lonely",
-        "nobody cares",
-        "no one cares",
-        "left out",
-        "ignored",
-        "abandoned",
-        "unloved",
-        "disconnected",
-        "my family needs me",
-        "family needs more of me",
-        "relationship",
-        "wife",
-        "fiance",
-        "fiancé",
-        "girlfriend",
-        "baby",
-        "daughter",
-        "son"
-      ])
-    ) {
-      add(
-        "connection",
-        90,
-        "Connection need detected: belonging, love, family, attachment, or being seen.",
-        "emotion",
-        "restore_connection"
-      );
-    }
-
-    // 4. WORTH
-    if (
-      has([
-        "nobody respects me",
-        "no one respects me",
-        "disrespected",
-        "worthless",
-        "not good enough",
-        "i failed",
-        "failure",
-        "embarrassed",
-        "ashamed",
-        "humiliated",
-        "look down on me",
-        "useless",
-        "stupid",
-        "incompetent",
-        "i don't matter",
-        "i do not matter"
-      ])
-    ) {
-      add(
-        "worth",
-        88,
-        "Worth need detected: respect, dignity, competence, confidence, or self-value.",
-        "emotion",
-        "restore_dignity"
-      );
-    }
-
-    // 5. IDENTITY
-    if (
-      has([
-        "who am i",
-        "become",
-        "becoming",
-        "better father",
-        "better mother",
-        "better husband",
-        "better wife",
-        "better leader",
-        "better nurse",
-        "identity",
-        "role",
-        "father",
-        "mother",
-        "husband",
-        "wife",
-        "leader",
-        "nurse",
-        "marine",
-        "builder",
-        "developer",
-        "protector"
-      ])
-    ) {
-      add(
-        "identity",
-        84,
-        "Identity need detected: role, self-concept, or who the user is becoming.",
-        "identity",
-        "clarify_identity"
-      );
-    }
-
-    // 6. PURPOSE
-    if (
-      has([
-        "meaning",
-        "purpose",
-        "what am i supposed to do",
-        "why am i here",
-        "mission",
-        "calling",
-        "legacy",
-        "build something great",
-        "contribution",
-        "impact",
-        "what is my life",
-        "what should i do with my life"
-      ])
-    ) {
-      add(
-        "purpose",
-        80,
-        "Purpose need detected: meaning, mission, contribution, or legacy.",
-        "meaning",
-        "clarify_purpose"
-      );
-    }
-
-    // 7. WISDOM
-    if (
-      has([
-        "what should i do",
-        "should i",
-        "wise",
-        "wisdom",
-        "right thing",
-        "wrong thing",
-        "tradeoff",
-        "balance",
-        "priority",
-        "prioritize",
-        "what matters most",
-        "what good should lead",
-        "uncomfortable truth",
-        "what am i avoiding"
-      ])
-    ) {
-      add(
-        "wisdom",
-        76,
-        "Wisdom need detected: tradeoff, priority, integration, or values in conflict.",
-        "wisdom",
-        "choose_what_leads"
       );
     }
 
