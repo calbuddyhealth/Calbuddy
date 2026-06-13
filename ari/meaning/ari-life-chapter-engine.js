@@ -140,6 +140,39 @@ window.AriLifeChapterEngine = {
         focus: "Stabilize the body before deeper interpretation.",
         shouldBoost: s => s.primaryHumanNeed === "body" || s.salienceLeadOrgan === "safety"
       },
+      
+      {
+  name: "stewardship_chapter",
+  textWeight: 82,
+  signalWeight: 86,
+  boostWeight: 20,
+
+  text: [
+    "responsibility",
+    "protect",
+    "care for",
+    "take care of",
+    "provide",
+    "steward",
+    "guardian",
+    "depend on me"
+  ],
+
+  signals: [
+    "stewardship",
+    "protector",
+    "caregiving",
+    "responsibility",
+    "provision"
+  ],
+
+  question:
+    "What are you trying to protect right now?",
+
+  focus:
+    "Identify what requires stewardship before pursuing expansion."
+},
+      
       {
         name: "relationship_rupture_chapter",
         textWeight: 88,
@@ -266,7 +299,36 @@ window.AriLifeChapterEngine = {
         question: "What part of this loss feels hardest to carry?",
         focus: "Honor grief before forcing meaning."
       },
-      {
+      
+        {
+  name: "meaning_crisis_chapter",
+  textWeight: 80,
+  signalWeight: 82,
+  boostWeight: 20,
+
+  text: [
+    "what's the point",
+    "nothing matters",
+    "meaningless",
+    "empty",
+    "why am i doing this",
+    "lost purpose"
+  ],
+
+  signals: [
+    "meaning",
+    "existential",
+    "purpose_confusion",
+    "life_meaning"
+  ],
+
+  question:
+    "What feels meaningless or disconnected right now?",
+
+  focus:
+    "Restore meaning before demanding motivation."
+},
+        {
         name: "purpose_mission_chapter",
         textWeight: 70,
         signalWeight: 76,
@@ -297,7 +359,12 @@ window.AriLifeChapterEngine = {
 if (
   tension === "certainty_vs_action" ||
   rawText.includes("what if i choose wrong") ||
-  rawText.includes("afraid to decide")
+rawText.includes("afraid to decide") ||
+rawText.includes("can't decide") ||
+rawText.includes("cant decide") ||
+rawText.includes("stuck between") ||
+rawText.includes("which path") ||
+rawText.includes("which option")
 ) {
   add(
     "decision_uncertainty_chapter",
@@ -333,7 +400,22 @@ if (
       if (weighted.includes("father") && c.name === "family_parenthood_chapter") c.score += 24;
       if (weighted.includes("family") && c.name === "family_parenthood_chapter") c.score += 20;
       if (weighted.includes("career") && c.name === "career_transition_chapter") c.score += 20;
-      c.score = this.cap(c.score);
+     if (
+  weighted.includes("steward") &&
+  c.name === "stewardship_chapter"
+) c.score += 20;
+
+if (
+  weighted.includes("meaning") &&
+  c.name === "meaning_crisis_chapter"
+) c.score += 20;
+
+if (
+  weighted.includes("adapt") &&
+  c.name === "recovery_rebuilding_chapter"
+) c.score += 20;
+      
+       c.score = this.cap(c.score);
     });
   },
 
@@ -368,7 +450,10 @@ if (
     push(summary.organismFunction);
     push(summary.organismPrimaryFunction);
     push(summary.lifeSignals);
-
+push(summary.primaryLifeChapter);
+push(summary.lifeChapter);
+push(summary.integratedValue);
+push(summary.emotionalClassification);
     if (Array.isArray(summary.rankedSignals)) {
       summary.rankedSignals.forEach(s => push(s.name));
     }
