@@ -3,10 +3,11 @@
 // Purpose: Run all Rebirth organs in correct order.
 // V1.9
 // Fixes:
+// - Adds Universal Domain Governor after Safety and before all interpretation organs.
 // - Adds Organism Function Engine before Human Needs.
-// - Lets Ari understand survival/body functions before meaning, identity, wisdom, or advice.
+// - Lets Ari rank universal domains before meaning, identity, emotion, wisdom, or advice.
 // - Keeps late-stage Observer Hierarchy pass after synthesis.
-// - Response Intent and Mouth Director receive organism + hierarchy context.
+// - Response Intent and Mouth Director receive domain + organism + hierarchy context.
 
 window.AriRebirthPipeline = {
   run(systemSummary = {}) {
@@ -81,21 +82,40 @@ if (
     universalDomainGovernor: domainGovernor,
     ...domainGovernor
   };
+
 } else {
   summary = {
     ...summary,
+
     universalDomainGovernorRan: false,
+    universalDomainGovernorVersion: null,
+
     domainGovernorSource: "not-loaded",
+
     domainLead: null,
     domainSuperLead: null,
     domainLeadScore: 0,
     domainAuthority: 0,
+
     domainLeadOrgan: null,
     domainMode: null,
     domainQuestion: null,
+
+    domainReasons: [],
+
     domainPermissions: {},
     domainBlockedPermissions: [],
-    rankedUniversalDomains: []
+
+    rankedUniversalDomains: [],
+
+    shouldBlockLifeChapter: false,
+    shouldBlockIdentity: false,
+    shouldBlockEmotionRecovery: false,
+    shouldBlockMeaningProjection: false,
+
+    shouldPreferTeaching: false,
+    shouldPreferBodyStabilization: false,
+    shouldPreferSafety: false
   };
 }
 
