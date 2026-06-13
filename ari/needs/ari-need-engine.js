@@ -22,6 +22,10 @@ window.Ari.needEngine = {
       .replace(/[“”]/g, '"')
       .trim();
 
+const domainLead = summary.domainLead || null;
+const domainMode = summary.domainMode || null;
+const domainPermissions = summary.domainPermissions || {};
+
     const needs = [];
 
     const organismPrimaryFunction = summary.organismPrimaryFunction || null;
