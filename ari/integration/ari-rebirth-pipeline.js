@@ -148,11 +148,14 @@ window.AriRebirthPipeline = {
     // 7. Integrate values after resolved identity and needs exist.
     runStep(window.AriValueIntegrationEngine, "integrate");
 
-    // 8. Re-check life chapter after resolved identity/value integration.
-    runStep(window.AriLifeChapterEngine, "detect");
+   // 8. Re-check life chapter after resolved identity/value integration.
+runStep(window.AriLifeChapterEngine, "detect");
 
-    // 9. Decide lead organ.
-    runStep(window.AriSalienceGovernor, "govern");
+// 8.5. Integrate emotional signals after life chapter, identity, values, and stewardship are known.
+runStep(window.Ari.emotionIntegrator, "integrate");
+
+// 9. Decide lead organ.
+runStep(window.AriSalienceGovernor, "govern");
 
     // 10. Synthesize final interpretation.
     runStep(window.AriSynthesisEngine, "synthesize");
