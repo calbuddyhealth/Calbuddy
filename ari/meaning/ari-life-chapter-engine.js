@@ -186,6 +186,78 @@ window.AriLifeChapterEngine = {
         focus: "Protect capacity before adding more responsibility."
       },
       {
+  name: "uncertainty_transition_chapter",
+  textWeight: 75,
+  signalWeight: 80,
+  boostWeight: 20,
+
+  text: [
+    "don't know",
+    "dont know",
+    "uncertain",
+    "unsure",
+    "stuck",
+    "confused",
+    "which path",
+    "what should i do",
+    "what do i do",
+    "lost direction",
+    "crossroads"
+  ],
+
+  signals: [
+    "uncertainty",
+    "missing_information",
+    "decision",
+    "crossroads",
+    "understanding_uncertainty"
+  ],
+
+  question:
+    "What feels most uncertain right now?",
+
+  focus:
+    "Create clarity before committing to direction.",
+
+  shouldBoost: (summary) =>
+    summary.uncertaintyType === "missing_information" ||
+    summary.uncertaintyType === "understanding_uncertainty"
+},
+      {
+  name: "recovery_rebuilding_chapter",
+  textWeight: 80,
+  signalWeight: 80,
+  boostWeight: 20,
+
+  text: [
+    "starting over",
+    "rebuild",
+    "rebuilding",
+    "recovering",
+    "getting my life together",
+    "trying again",
+    "fresh start",
+    "second chance",
+    "bounce back",
+    "come back"
+  ],
+
+  signals: [
+    "recovery",
+    "rebuilding",
+    "renewal",
+    "restart",
+    "adaptation"
+  ],
+
+  question:
+    "What are you trying to rebuild right now?",
+
+  focus:
+    "Support recovery before demanding acceleration."
+},
+      
+      {
         name: "grief_loss_chapter",
         textWeight: 82,
         signalWeight: 78,
@@ -221,6 +293,20 @@ window.AriLifeChapterEngine = {
         "Put irreplaceable moments before replaceable milestones."
       );
     }
+
+if (
+  tension === "certainty_vs_action" ||
+  rawText.includes("what if i choose wrong") ||
+  rawText.includes("afraid to decide")
+) {
+  add(
+    "decision_uncertainty_chapter",
+    80,
+    "Decision paralysis or uncertainty detected.",
+    "What decision feels hardest to commit to right now?",
+    "Create enough clarity to move forward without waiting for perfect certainty."
+  );
+}
 
     if (
       tension === "worth_vs_performance" ||
