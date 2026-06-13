@@ -67,10 +67,10 @@ window.AriMouthDirector = {
       maxBodySections: 3,
       askBeforeTeaching: false,
 
-      allowMeaning: true,
+      allowMeaning: false,
       allowEmotion: true,
       allowTruth: true,
-      allowWisdom: true,
+      allowWisdom: false,
       allowAction: true,
 
       source: "ari-mouth-director",
@@ -301,7 +301,7 @@ window.AriMouthDirector = {
       director.maxBodySections = 3;
       director.askBeforeTeaching = false;
 
-      director.allowMeaning = true;
+      director.allowMeaning = false;
       director.allowEmotion = true;
       director.allowTruth = true;
       director.allowWisdom = true;
@@ -445,11 +445,20 @@ window.AriMouthDirector = {
       director.maxBodySections = 4;
       director.askBeforeTeaching = false;
 
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
+      director.allowMeaning =
+  intent === "name_life_chapter" ||
+  intent === "support_stewardship" ||
+  intent === "integrate_values";
+
+director.allowEmotion = true;
+director.allowTruth = true;
+
+director.allowWisdom =
+  intent === "resolve_tension" ||
+  intent === "name_life_chapter" ||
+  intent === "integrate_values";
+
+director.allowAction = true;
 
       return director;
     }
