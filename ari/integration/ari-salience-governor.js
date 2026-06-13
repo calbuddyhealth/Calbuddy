@@ -1,19 +1,42 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.5
+// V1.6
 // Fixes:
-// - Adds Organism Function Engine priority.
-// - Organism stabilization can override uncertainty, meaning, wisdom, values, and abstract interpretation.
-// - Body/security survival needs route to safety.
-// - Keeps Human Needs Network override behavior.
-// - Keeps true uncertainty override intact when no strong human/organism need exists.
+// - Split helper logic into ari-salience-governor-core.js.
+// - Separates body organism needs from relational organism needs.
+// - Body survival needs route to safety.
+// - Connection/loneliness routes to emotion instead of safety.
+// - Prevents body stabilization from being triggered by attachment pain.
+// - Keeps uncertainty override only when no strong human/organism need exists.
 
 window.AriSalienceGovernor = {
-  version: "1.5.0",
+  version: "1.6.0",
 
   govern(input = {}) {
     const summary = input.summary || input || {};
+    const core = window.AriSalienceGovernorCore;
+
+    if (!core) {
+      console.warn("[AriSalienceGovernor] Missing AriSalienceGovernorCore.");
+    }
+
+    const helper = core || {
+      clampScore: (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value || 0))),
+      priorityForLead: () => 0,
+      isBodyOrganismFunction: () => false,
+      isRelationalOrganismFunction: () => false,
+      addCandidate: (candidates, lead, score, reason, mode, question = null) => {
+        candidates.push({
+          lead,
+          score,
+          reasons: [reason],
+          mode,
+          question,
+          priority: 0
+        });
+      }
+    };
 
     const candidates = [];
 
@@ -26,18 +49,37 @@ window.AriSalienceGovernor = {
     const needResponseMode = summary.needResponseMode || null;
 
     const organismNeedsStabilization = Boolean(summary.organismNeedsStabilization);
-    const organismPrimaryFunction = summary.organismPrimaryFunction || null;
-    const organismPrimaryFunctionScoreRaw = Number(summary.organismPrimaryFunctionScore || 0);
+    const organismPrimaryFunction =
+      summary.organismPrimaryFunction ||
+      summary.organismFunction ||
+      null;
+
+    const organismPrimaryFunctionScoreRaw =
+      Number(summary.organismPrimaryFunctionScore || 0);
+
     const organismUrgency = summary.organismUrgency || {};
-    const organismUrgencyLevel = organismUrgency.level || null;
+    const organismUrgencyLevel =
+      organismUrgency.level ||
+      summary.organismUrgencyLevel ||
+      null;
+
     const organismRecommendedMode = summary.organismRecommendedMode || null;
     const organismRecommendedAction = summary.organismRecommendedAction || null;
+
+    const organismIsBodyFunction =
+      helper.isBodyOrganismFunction(organismPrimaryFunction);
+
+    const organismIsRelationalFunction =
+      helper.isRelationalOrganismFunction(organismPrimaryFunction);
 
     const primaryLifeChapter = summary.primaryLifeChapter || null;
     const lifeChapterStrengthRaw = Number(summary.lifeChapterStrength || 0);
 
     const leadIdentity =
-      summary.resolvedLeadIdentity || summary.leadIdentity || null;
+      summary.resolvedLeadIdentity ||
+      summary.leadIdentity ||
+      null;
+
     const leadIdentityScoreRaw = Number(summary.leadIdentityScore || 0);
 
     const valueIntegrationDetected = Boolean(summary.valueIntegrationDetected);
@@ -63,33 +105,35 @@ window.AriSalienceGovernor = {
       evidenceStrength === "none" ||
       evidenceStrength === "unknown";
 
-    function clampScore(value, min = 0, max = 100) {
-      const n = Number(value || 0);
-      return Math.max(min, Math.min(max, n));
-    }
-
-    const uncertaintyConfidence = clampScore(uncertaintyConfidenceRaw, 0, 100);
-    const primaryHumanNeedScore = clampScore(primaryHumanNeedScoreRaw, 0, 100);
-    const organismPrimaryFunctionScore = clampScore(organismPrimaryFunctionScoreRaw, 0, 100);
-    const lifeChapterStrength = clampScore(lifeChapterStrengthRaw, 0, 100);
-    const leadIdentityScore = clampScore(leadIdentityScoreRaw, 0, 100);
-    const stewardshipScore = clampScore(stewardshipScoreRaw, 0, 100);
-    const fearScore = clampScore(fearScoreRaw, 0, 100);
+    const uncertaintyConfidence = helper.clampScore(uncertaintyConfidenceRaw, 0, 100);
+    const primaryHumanNeedScore = helper.clampScore(primaryHumanNeedScoreRaw, 0, 100);
+    const organismPrimaryFunctionScore = helper.clampScore(organismPrimaryFunctionScoreRaw, 0, 100);
+    const lifeChapterStrength = helper.clampScore(lifeChapterStrengthRaw, 0, 100);
+    const leadIdentityScore = helper.clampScore(leadIdentityScoreRaw, 0, 100);
+    const stewardshipScore = helper.clampScore(stewardshipScoreRaw, 0, 100);
+    const fearScore = helper.clampScore(fearScoreRaw, 0, 100);
 
     const strongHumanNeed =
       primaryHumanNeed &&
       primaryHumanNeed !== "understanding" &&
       primaryHumanNeedScore >= 80;
 
-    const strongOrganismNeed =
-      organismNeedsStabilization ||
-      organismUrgencyLevel === "critical" ||
-      organismUrgencyLevel === "high" ||
-      organismUrgencyLevel === "moderate";
+    const strongBodyOrganismNeed =
+      organismIsBodyFunction &&
+      (
+        organismNeedsStabilization ||
+        organismUrgencyLevel === "critical" ||
+        organismUrgencyLevel === "high" ||
+        organismUrgencyLevel === "moderate"
+      );
+
+    const strongRelationalOrganismNeed =
+      organismIsRelationalFunction &&
+      primaryHumanNeedScore >= 75;
 
     const emotionHumanNeed =
       strongHumanNeed &&
-      ["connection", "worth"].includes(primaryHumanNeed);
+      ["connection", "worth", "belonging"].includes(primaryHumanNeed);
 
     const identityHumanNeed =
       strongHumanNeed &&
@@ -112,64 +156,45 @@ window.AriSalienceGovernor = {
       noEvidence &&
       strongestSignalCategory !== "underlying_emotion" &&
       !strongHumanNeed &&
-      !strongOrganismNeed;
+      !strongBodyOrganismNeed &&
+      !strongRelationalOrganismNeed;
 
     const defaultMissingInformationQuestion =
       "What feels important here that has not been said out loud yet?";
 
-    function priorityForLead(lead) {
-      const priority = {
-        safety: 110,
-        uncertainty: 100,
-        meaning: 90,
-        identity: 85,
-        wisdom: 80,
-        values: 75,
-        executive: 72,
-        stewardship: 70,
-        emotion: 68,
-        belief: 55,
-        observer: 10
-      };
-
-      return priority[lead] || 0;
-    }
-
-    function addCandidate(lead, score, reason, mode, question = null) {
-      const normalizedScore = clampScore(score, 0, 120);
-      const existing = candidates.find(c => c.lead === lead);
-
-      if (existing) {
-        existing.score = Math.max(existing.score, normalizedScore);
-        existing.reasons.push(reason);
-        if (!existing.question && question) existing.question = question;
-        return;
-      }
-
-      candidates.push({
-        lead,
-        score: normalizedScore,
-        reasons: [reason],
-        mode,
-        question,
-        priority: priorityForLead(lead)
-      });
-    }
-
-    // 0. Organism Function Engine should lead before uncertainty, meaning, wisdom, or values.
-    if (strongOrganismNeed) {
-      addCandidate(
+    // 0. True body organism functions lead safety.
+    if (strongBodyOrganismNeed) {
+      helper.addCandidate(
+        candidates,
         "safety",
         organismUrgencyLevel === "critical" ? 120 : 115,
-        `Organism function '${organismPrimaryFunction || "unknown"}' needs stabilization before interpretation.`,
+        `Body organism function '${organismPrimaryFunction || "unknown"}' needs stabilization before interpretation.`,
         organismRecommendedMode || "stabilize_body_first",
         organismRecommendedAction || "What does your body need first right now?"
       );
     }
 
-    // 1. Human Need Network should influence salience before uncertainty.
+    // 1. Relational organism functions lead emotion/connection, not safety.
+    if (
+      strongRelationalOrganismNeed ||
+      primaryHumanNeed === "connection" ||
+      primaryHumanNeed === "belonging" ||
+      needResponseMode === "restore_connection"
+    ) {
+      helper.addCandidate(
+        candidates,
+        "emotion",
+        Math.max(primaryHumanNeedScore + 10, 92),
+        "Connection or attachment rupture is active, so Ari should restore connection before analysis.",
+        "restore_connection",
+        "What feels most lonely about this right now?"
+      );
+    }
+
+    // 2. Human Need Network.
     if (securityHumanNeed) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         needRecommendedLeadOrgan === "safety" ? "safety" : "executive",
         primaryHumanNeedScore + 10,
         `Strong human need '${primaryHumanNeed}' detected, so protection/stability should lead.`,
@@ -181,7 +206,8 @@ window.AriSalienceGovernor = {
     }
 
     if (emotionHumanNeed) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "emotion",
         primaryHumanNeedScore + 12,
         `Strong human need '${primaryHumanNeed}' detected, so emotion should lead instead of uncertainty.`,
@@ -193,7 +219,8 @@ window.AriSalienceGovernor = {
     }
 
     if (identityHumanNeed) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "identity",
         primaryHumanNeedScore + 8,
         "A strong identity need is active, so identity should guide the response.",
@@ -203,7 +230,8 @@ window.AriSalienceGovernor = {
     }
 
     if (purposeHumanNeed) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "meaning",
         primaryHumanNeedScore + 8,
         "A strong purpose need is active, so meaning should guide the response.",
@@ -213,7 +241,8 @@ window.AriSalienceGovernor = {
     }
 
     if (wisdomHumanNeed) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "wisdom",
         primaryHumanNeedScore + 8,
         "A strong wisdom need is active, so wisdom should guide the response.",
@@ -222,14 +251,19 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 2. Uncertainty should lead when Ari lacks evidence AND no strong human/organism need is active.
+    // 3. Uncertainty only leads when no strong need is active.
     if (
       uncertaintyType === "missing_information" ||
       uncertaintyType === "understanding_uncertainty" ||
       shouldUncertaintyOverride
     ) {
-      if (!strongHumanNeed && !strongOrganismNeed) {
-        addCandidate(
+      if (
+        !strongHumanNeed &&
+        !strongBodyOrganismNeed &&
+        !strongRelationalOrganismNeed
+      ) {
+        helper.addCandidate(
+          candidates,
           "uncertainty",
           Math.max(
             uncertaintyConfidence,
@@ -243,15 +277,16 @@ window.AriSalienceGovernor = {
       }
     }
 
-    // 3. Major life chapters should lead when a real chapter is active.
+    // 4. Life chapter.
     if (
       !shouldUncertaintyOverride &&
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       primaryLifeChapter &&
       primaryLifeChapter !== "unclear_chapter" &&
       lifeChapterStrength >= 70
     ) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "meaning",
         lifeChapterStrength + 10,
         "A strong life chapter is active, so meaning/life chapter should lead.",
@@ -261,15 +296,16 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 4. Identity should lead when a clear role has priority.
+    // 5. Identity.
     if (
       !shouldUncertaintyOverride &&
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       leadIdentity &&
       leadIdentity !== "observer" &&
       leadIdentityScore >= 70
     ) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "identity",
         leadIdentityScore + 6,
         "A clear lead identity is active, so identity should guide the response.",
@@ -280,13 +316,14 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 5. Values can lead when integration is meaningful.
+    // 6. Values.
     if (
       !shouldUncertaintyOverride &&
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       (valueIntegrationDetected || integratedValue)
     ) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "values",
         82,
         "Ari detected a deeper value integration opportunity.",
@@ -296,16 +333,17 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 6. Stewardship should beat fear when responsibility is dominant.
+    // 7. Stewardship.
     if (
       !shouldUncertaintyOverride &&
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       (
         emotionalClassification === "stewardship" ||
         stewardshipScore >= fearScore + 15
       )
     ) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "stewardship",
         84,
         "The emotional pattern looks more like stewardship than fear.",
@@ -314,9 +352,9 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 7. Emotion leads when emotion is clearly central.
+    // 8. Emotion.
     if (
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       (
         uncertaintyType === "emotion_uncertainty" ||
         strongestSignalCategory === "underlying_emotion"
@@ -327,7 +365,8 @@ window.AriSalienceGovernor = {
         !primaryLifeChapter &&
         !leadIdentity;
 
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "emotion",
         emotionHasOverrideStrength ? 96 : 90,
         "An underlying emotion appears central enough to guide the response.",
@@ -337,15 +376,16 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 8. Wisdom leads only when there is a real, named tension.
+    // 9. Wisdom.
     if (
       !shouldUncertaintyOverride &&
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       wisdomTension &&
       wisdomTension !== "unclear" &&
       wisdomConfidence !== "low"
     ) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "wisdom",
         80,
         "A real wisdom tension is present and should guide resolution.",
@@ -354,14 +394,14 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 9. Highest good / leading good can support wisdom, but not when evidence is absent.
     if (
       !shouldUncertaintyOverride &&
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       !noEvidence &&
       (highestGood || wisdomLeadingGood)
     ) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "wisdom",
         98,
         "Highest good or leading good signal supports wisdom leadership.",
@@ -370,9 +410,14 @@ window.AriSalienceGovernor = {
       );
     }
 
-    // 10. Strongest signal category fallback.
-    if (!shouldUncertaintyOverride && !strongOrganismNeed && strongestSignalCategory === "life") {
-      addCandidate(
+    // 10. Strongest signal fallback.
+    if (
+      !shouldUncertaintyOverride &&
+      !strongBodyOrganismNeed &&
+      strongestSignalCategory === "life"
+    ) {
+      helper.addCandidate(
+        candidates,
         "meaning",
         86,
         `Strongest signal '${strongestSignal}' is life-related.`,
@@ -381,8 +426,13 @@ window.AriSalienceGovernor = {
       );
     }
 
-    if (!shouldUncertaintyOverride && !strongOrganismNeed && strongestSignalCategory === "belief") {
-      addCandidate(
+    if (
+      !shouldUncertaintyOverride &&
+      !strongBodyOrganismNeed &&
+      strongestSignalCategory === "belief"
+    ) {
+      helper.addCandidate(
+        candidates,
         "belief",
         84,
         `Strongest signal '${strongestSignal}' is belief-related.`,
@@ -391,8 +441,13 @@ window.AriSalienceGovernor = {
       );
     }
 
-    if (!shouldUncertaintyOverride && !strongOrganismNeed && strongestSignalCategory === "identity") {
-      addCandidate(
+    if (
+      !shouldUncertaintyOverride &&
+      !strongBodyOrganismNeed &&
+      strongestSignalCategory === "identity"
+    ) {
+      helper.addCandidate(
+        candidates,
         "identity",
         86,
         `Strongest signal '${strongestSignal}' is identity-related.`,
@@ -403,21 +458,22 @@ window.AriSalienceGovernor = {
 
     if (
       !shouldUncertaintyOverride &&
-      !strongOrganismNeed &&
+      !strongBodyOrganismNeed &&
       strongestSignalCategory === "highest_good"
     ) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "wisdom",
         88,
-        `Strongest signal '${strongestSignal}' points toward a highest-good question, but should not override missing evidence.`,
+        `Strongest signal '${strongestSignal}' points toward a highest-good question.`,
         "wisdom_clarity",
         "What good are you trying to protect most right now?"
       );
     }
 
-    // Fallback
     if (candidates.length === 0) {
-      addCandidate(
+      helper.addCandidate(
+        candidates,
         "observer",
         50,
         "No system has enough salience to lead confidently.",
@@ -462,10 +518,14 @@ window.AriSalienceGovernor = {
         uncertaintyConfidence,
         primaryHumanNeedScoreRaw,
         primaryHumanNeedScore,
+        organismPrimaryFunction,
         organismPrimaryFunctionScoreRaw,
         organismPrimaryFunctionScore,
         organismUrgencyLevel,
-        strongOrganismNeed,
+        organismIsBodyFunction,
+        organismIsRelationalFunction,
+        strongBodyOrganismNeed,
+        strongRelationalOrganismNeed,
         lifeChapterStrengthRaw,
         lifeChapterStrength,
         leadIdentityScoreRaw,
