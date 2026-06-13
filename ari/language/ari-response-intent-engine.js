@@ -1,15 +1,15 @@
 // ari/language/ari-response-intent-engine.js
 // Ari Response Intent Engine
-// Purpose: Decide what kind of conversational move Ari should make before composing words.
-// V1.5
-// Fixes:
-// - Separates true body organism functions from relational organism functions.
-// - Prevents connection/attachment signals from triggering body stabilization.
-// - Routes loneliness, abandonment, relationship rupture, and attachment pain to connection support.
-// - Keeps body/survival functions protected before meaning, wisdom, identity, or interpretation.
+// Purpose: Decide what conversational move Ari should make before composing words.
+// V1.6
+// Universalized:
+// - Removes Jose-specific/family-only priority assumptions.
+// - Uses broad human domains: safety, body, connection, worth, identity, responsibility, purpose, planning, conflict, wisdom, values.
+// - Keeps body/survival stabilization above meaning, identity, wisdom, and interpretation.
+// - Keeps relational pain separate from body stabilization.
 
 window.AriResponseIntentEngine = {
-  version: "1.5.0",
+  version: "1.6.0",
 
   evaluate(input = {}) {
     return this.decide(input);
@@ -80,7 +80,11 @@ window.AriResponseIntentEngine = {
       "hydration",
       "rest_recovery",
       "injury_protection",
-      "vital_stability"
+      "vital_stability",
+      "waste_elimination",
+      "temperature_regulation",
+      "movement_mobility",
+      "threat_regulation"
     ];
 
     const relationalOrganismFunctions = [
@@ -113,6 +117,19 @@ window.AriResponseIntentEngine = {
       ) ||
       organismNeedsStabilization;
 
+    const connectionNeedActive =
+      organismIsRelationalFunction ||
+      need === "connection" ||
+      need === "belonging" ||
+      summary.needResponseMode === "restore_connection";
+
+    const dignityNeedActive =
+      mode === "restore_dignity" ||
+      need === "worth" ||
+      need === "esteem" ||
+      summary.needResponseMode === "restore_dignity" ||
+      needScore >= 75 && ["worth", "esteem", "respect", "competence"].includes(need);
+
     const rebirthResolvedEnough =
       summary.uncertaintyType === "resolved_enough" ||
       summary.calibratedConfidence === "high" ||
@@ -124,20 +141,21 @@ window.AriResponseIntentEngine = {
         summary.primaryLifeChapter &&
         summary.primaryLifeChapter !== "unclear_chapter"
       ) ||
-      summary.primarySalienceName === "fatherhood_transition" ||
-      summary.primarySalienceName === "family_transition" ||
-      summary.strongestSignal === "fatherhood_transition" ||
-      summary.strongestSignal === "family_transition" ||
+      observerCategory === "life_chapter" ||
       summary.salienceRecommendedLead === "life_chapter" ||
       leadOrgan === "meaning";
 
     const executiveClear =
-      executiveDecision === "protect_family_first" ||
       executiveDecision === "protect_safety_first" ||
-      primaryPriority === "family" ||
-      primaryPriority === "safety";
+      executiveDecision === "protect_relationship_first" ||
+      executiveDecision === "protect_responsibility_first" ||
+      executiveDecision === "protect_capacity_first" ||
+      primaryPriority === "safety" ||
+      primaryPriority === "relationship" ||
+      primaryPriority === "responsibility" ||
+      primaryPriority === "capacity";
 
-    // 1. True urgent safety always wins.
+    // 1. Urgent safety always wins.
     if (
       safetyTriggered ||
       executiveDecision === "protect_safety_first" ||
@@ -156,28 +174,7 @@ window.AriResponseIntentEngine = {
       );
     }
 
-    // 2. Relational organism functions are NOT body stabilization.
-    if (
-      organismIsRelationalFunction ||
-      need === "connection" ||
-      need === "belonging" ||
-      summary.needResponseMode === "restore_connection"
-    ) {
-      return this.intent(
-        "offer_connection",
-        "comfort_then_question",
-        "Connection or attachment rupture is active. Ari should restore connection before analysis, not treat it like body stabilization.",
-        {
-          shouldAskQuestion: true,
-          recommendedQuestion:
-            observerQuestion ||
-            "What feels most lonely about this right now?",
-          sourceLayer: "organism_connection"
-        }
-      );
-    }
-
-    // 3. True body/survival stabilization.
+    // 2. Body/survival stabilization before interpretation.
     if (bodyNeedActive) {
       return this.intent(
         "stabilize_organism_function",
@@ -197,6 +194,39 @@ window.AriResponseIntentEngine = {
       );
     }
 
+    // 3. Connection pain is relational, not body stabilization.
+    if (connectionNeedActive) {
+      return this.intent(
+        "offer_connection",
+        "comfort_then_truth",
+        "Connection, loneliness, abandonment, or attachment pain is active. Ari should restore connection before analysis.",
+        {
+          shouldAskQuestion: false,
+          recommendedQuestion:
+            observerQuestion ||
+            "What feels most alone about this right now?",
+          sourceLayer: "connection_need"
+        }
+      );
+    }
+
+    // 4. Dignity / worth repair.
+    if (dignityNeedActive) {
+      return this.intent(
+        "protect_dignity",
+        "validate_then_truth",
+        "Worth, respect, shame, or self-value is active. Ari should protect dignity before giving advice.",
+        {
+          shouldAskQuestion: false,
+          recommendedQuestion:
+            observerQuestion ||
+            "What happened that made you feel this way?",
+          sourceLayer: "human_dignity"
+        }
+      );
+    }
+
+    // 5. Clarify when evidence is not strong enough.
     if (
       !rebirthResolvedEnough &&
       !strongLifeChapterActive &&
@@ -212,7 +242,7 @@ window.AriResponseIntentEngine = {
       return this.intent(
         "clarify_before_advising",
         "brief_reflect_then_question",
-        "Observer hierarchy or executive strategy says Ari needs one focused question before advising.",
+        "Ari needs one focused question before advising.",
         {
           shouldAskQuestion: true,
           recommendedQuestion:
@@ -222,21 +252,25 @@ window.AriResponseIntentEngine = {
       );
     }
 
+    // 6. Protect relationship / responsibility / caregiving.
     if (
-      executiveDecision === "protect_family_first" ||
-      primaryPriority === "family" ||
-      observerPrimary === "provider_vs_present_parent" ||
-      observerPrimary === "fatherhood_transition"
+      executiveDecision === "protect_relationship_first" ||
+      executiveDecision === "protect_responsibility_first" ||
+      primaryPriority === "relationship" ||
+      primaryPriority === "responsibility" ||
+      primaryPriority === "caregiving" ||
+      observerPrimary === "relationship_transition" ||
+      observerPrimary === "caregiving_transition"
     ) {
       return this.intent(
-        "protect_family_presence",
+        "protect_relationship_responsibility",
         "meaning_truth_then_action",
-        "Family or parenthood is the leading executive priority. Ari should protect presence and avoid treating all goals equally.",
+        "A relationship, responsibility, or caregiving domain is leading. Ari should protect what is entrusted before treating every goal equally.",
         {
           shouldAskQuestion: false,
           recommendedQuestion:
-            observerQuestion || "What does your family most need from you in this season?",
-          sourceLayer: "executive_family"
+            observerQuestion || "What needs protection first in this situation?",
+          sourceLayer: "executive_relationship_responsibility"
         }
       );
     }
@@ -351,6 +385,7 @@ window.AriResponseIntentEngine = {
     if (
       executiveDecision === "reduce_load_immediately" ||
       primaryPriority === "capacity-protection" ||
+      primaryPriority === "capacity" ||
       strategyMode === "reduce_load"
     ) {
       return this.intent(
@@ -397,40 +432,6 @@ window.AriResponseIntentEngine = {
           recommendedQuestion:
             observerQuestion || "What kind of person is this season asking you to become?",
           sourceLayer: "observer_life_chapter"
-        }
-      );
-    }
-
-    if (
-      mode === "restore_dignity" ||
-      need === "worth" ||
-      (need === "esteem" && needScore >= 75)
-    ) {
-      return this.intent(
-        "protect_dignity",
-        "validate_then_ask",
-        "Worth/respect need is active. Ari should validate dignity, avoid overexplaining, then ask what happened.",
-        {
-          shouldAskQuestion: true,
-          recommendedQuestion: "What happened that made you feel this way?",
-          sourceLayer: "human_needs"
-        }
-      );
-    }
-
-    if (
-      mode === "emotional_connection" ||
-      need === "connection" ||
-      need === "belonging"
-    ) {
-      return this.intent(
-        "offer_connection",
-        "comfort_then_ask",
-        "Connection need is active. Ari should offer warmth before analysis.",
-        {
-          shouldAskQuestion: true,
-          recommendedQuestion: "What feels most lonely about this right now?",
-          sourceLayer: "human_needs"
         }
       );
     }
@@ -484,11 +485,11 @@ window.AriResponseIntentEngine = {
       return this.intent(
         "clarify_identity",
         "identity_then_question",
-        "Identity is active. Ari should name the role and ask what it protects.",
+        "Identity is active. Ari should name the active role or self-state and ask what it protects.",
         {
           shouldAskQuestion: true,
           recommendedQuestion:
-            observerQuestion || "Which role in you is trying to speak right now?",
+            observerQuestion || "Which part of you is trying to lead right now?",
           sourceLayer: "rebirth_identity"
         }
       );
