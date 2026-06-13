@@ -268,8 +268,14 @@ ${summary.salienceLeadOrgan || "none"}
 Mode:
 ${summary.salienceMode || "none"}
 
+Life Chapter Strength:
+${summary.lifeChapterStrength || 0}
+
 Lead Identity:
 ${summary.resolvedLeadIdentity || summary.leadIdentity || "none"}
+
+Lead Identity Score:
+${summary.leadIdentityScore || 0}
 
 Primary Life Chapter:
 ${summary.primaryLifeChapter || "none"}
@@ -285,6 +291,18 @@ ${summary.uncertaintyType || "none"}
 
 Integrated Value:
 ${summary.integratedValue || "none"}
+
+Value Integration:
+${summary.valueIntegrationDetected ? "yes" : "no"}
+
+Salience Lead Score:
+${summary.salienceLeadScore || 0}
+
+Organism Function:
+${summary.organismPrimaryFunction || summary.organismFunction || "none"}
+
+Organism Needs Stabilization:
+${summary.organismNeedsStabilization ? "yes" : "no"}
 
 Emotional Classification:
 ${summary.emotionalClassification || "none"}
@@ -448,6 +466,73 @@ ${summary.mouthDirectorSource || "none"}
 
 Language Source:
 ${summary.source || "none"}
+
+==================================================
+
+===== LIFE CHAPTER =====
+
+Primary Chapter:
+${summary.primaryLifeChapter || "none"}
+
+Strength:
+${summary.lifeChapterStrength || 0}
+
+Statement:
+${summary.lifeChapterStatement || "none"}
+
+Question:
+${summary.lifeChapterQuestion || "none"}
+
+==================================================
+
+===== IDENTITY PRIORITY =====
+
+Lead Identity:
+${summary.leadIdentity || "none"}
+
+Score:
+${summary.leadIdentityScore || 0}
+
+Leadership Mode:
+${summary.identityLeadershipMode || "none"}
+
+Summary:
+${summary.identityPrioritySummary || "none"}
+
+==================================================
+
+===== VALUE INTEGRATION =====
+
+Integrated Value:
+${summary.integratedValue || "none"}
+
+Conflict:
+${summary.apparentConflict || "none"}
+
+Statement:
+${summary.integrationStatement || "none"}
+
+Question:
+${summary.valueIntegrationQuestion || "none"}
+
+==================================================
+
+===== SALIENCE GOVERNOR =====
+
+Lead Organ:
+${summary.salienceLeadOrgan || "none"}
+
+Lead Score:
+${summary.salienceLeadScore || 0}
+
+Mode:
+${summary.salienceMode || "none"}
+
+Question:
+${summary.salienceQuestion || "none"}
+
+Reason:
+${summary.salienceReason || "none"}
 
 ==================================================
 
