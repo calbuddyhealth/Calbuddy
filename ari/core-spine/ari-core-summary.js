@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V2.4
+// V2.5
 // Fixes:
 // - Preserves raw user message for Safety + Human Needs Network.
 // - Adds response intent placeholders.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "2.4.0",
+  version: "2.5.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -553,9 +553,74 @@ supportingSalienceOrgans:
 
 rankedSalienceDecisions:
   salienceGovernor.rankedSalienceDecisions || [],
-      
-      lifeChapterSource:
+              
+      // Universal Domain Governor
+
+universalDomainGovernorRan:
+  domainGovernor.universalDomainGovernorRan ?? null,
+
+universalDomainGovernorVersion:
+  domainGovernor.universalDomainGovernorVersion || null,
+
+domainLead:
+  domainGovernor.domainLead || null,
+
+domainSuperLead:
+  domainGovernor.domainSuperLead || null,
+
+domainLeadScore:
+  domainGovernor.domainLeadScore || 0,
+
+domainAuthority:
+  domainGovernor.domainAuthority || 0,
+
+domainLeadOrgan:
+  domainGovernor.domainLeadOrgan || null,
+
+domainMode:
+  domainGovernor.domainMode || null,
+
+domainQuestion:
+  domainGovernor.domainQuestion || null,
+
+domainReasons:
+  domainGovernor.domainReasons || [],
+
+domainPermissions:
+  domainGovernor.domainPermissions || {},
+
+domainBlockedPermissions:
+  domainGovernor.domainBlockedPermissions || [],
+
+rankedUniversalDomains:
+  domainGovernor.rankedUniversalDomains || [],
+
+shouldBlockLifeChapter:
+  Boolean(domainGovernor.shouldBlockLifeChapter),
+
+shouldBlockIdentity:
+  Boolean(domainGovernor.shouldBlockIdentity),
+
+shouldBlockEmotionRecovery:
+  Boolean(domainGovernor.shouldBlockEmotionRecovery),
+
+shouldBlockMeaningProjection:
+  Boolean(domainGovernor.shouldBlockMeaningProjection),
+
+shouldPreferTeaching:
+  Boolean(domainGovernor.shouldPreferTeaching),
+
+shouldPreferBodyStabilization:
+  Boolean(domainGovernor.shouldPreferBodyStabilization),
+
+shouldPreferSafety:
+  Boolean(domainGovernor.shouldPreferSafety),
+  
+  lifeChapterSource:
   lifeChapter.source || "unknown",
+
+domainGovernorSource:
+  domainGovernor.source || "unknown",
 
 identityPrioritySource:
   identityPriority.source || "unknown",
