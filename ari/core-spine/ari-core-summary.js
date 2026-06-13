@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V2.3
+// V2.4
 // Fixes:
 // - Preserves raw user message for Safety + Human Needs Network.
 // - Adds response intent placeholders.
@@ -69,6 +69,29 @@ window.Ari.coreSummary = {
      const responseIntent = analysis.responseIntent || {};
     const mouthDirector = analysis.mouthDirector || {};
 
+const lifeChapter =
+  analysis.lifeChapter ||
+  analysis.meaningChapter ||
+  analysis.chapter ||
+  {};
+
+const identityPriority =
+  analysis.identityPriority ||
+  analysis.identityLeadership ||
+  analysis.identity ||
+  {};
+
+const valueIntegration =
+  analysis.valueIntegration ||
+  analysis.valuesIntegration ||
+  analysis.values ||
+  {};
+
+const salienceGovernor =
+  analysis.salienceGovernor ||
+  analysis.governor ||
+  analysis.salienceDecision ||
+  {};
     const rawUserMessage =
       analysis.userMessage ||
       analysis.message ||
@@ -338,8 +361,139 @@ organismNeedBlocked: organism.organismNeedBlocked ?? null,
 organismUrgency: organism.organismUrgency || null,
 organismRecommendedMode: organism.organismRecommendedMode || null,
 organismReason: organism.organismReason || null,
-organismSource: organism.source || "unknown",
+organismSource:
+  organism.organismSource ||
+  organism.source ||
+  "unknown",
+  organismEngineRan:
+  organism.organismEngineRan ?? null,
+
+organismEngineVersion:
+  organism.organismEngineVersion || null,
+
+organismPrimaryFunction:
+  organism.organismPrimaryFunction || null,
+
+organismPrimaryFunctionScore:
+  organism.organismPrimaryFunctionScore || 0,
+
+organismFunctions:
+  organism.organismFunctions || [],
+
+organismDisruption:
+  organism.organismDisruption || null,
+
+organismNeedsStabilization:
+  organism.organismNeedsStabilization ?? null,
+
+organismRecommendedAction:
+  organism.organismRecommendedAction || null,
+      // Life Chapter
+
+primaryLifeChapter:
+  lifeChapter.primaryLifeChapter || null,
+
+lifeChapterStrength:
+  lifeChapter.lifeChapterStrength || 0,
+
+lifeChapterStatement:
+  lifeChapter.lifeChapterStatement || null,
+
+lifeChapterQuestion:
+  lifeChapter.lifeChapterQuestion || null,
+
+lifeChapterFocus:
+  lifeChapter.lifeChapterFocus || null,
+
+rankedLifeChapters:
+  lifeChapter.rankedLifeChapters || [],
+
+// Identity Priority
+
+leadIdentity:
+  identityPriority.leadIdentity || null,
+
+leadIdentityScore:
+  identityPriority.leadIdentityScore || 0,
+
+leadIdentityProtects:
+  identityPriority.leadIdentityProtects || [],
+
+leadIdentityMotivations:
+  identityPriority.leadIdentityMotivations || [],
+
+supportingIdentities:
+  identityPriority.supportingIdentities || [],
+
+identityLeadershipMode:
+  identityPriority.identityLeadershipMode || null,
+
+identityPrioritySummary:
+  identityPriority.identityPrioritySummary || null,
+
+identityRecoveryQuestion:
+  identityPriority.identityRecoveryQuestion || null,
+
+rankedIdentities:
+  identityPriority.rankedIdentities || [],
+
+// Value Integration
+
+valueIntegrationDetected:
+  valueIntegration.valueIntegrationDetected || false,
+
+apparentConflict:
+  valueIntegration.apparentConflict || null,
+
+integratedValue:
+  valueIntegration.integratedValue || null,
+
+integrationStatement:
+  valueIntegration.integrationStatement || null,
+
+valueIntegrationQuestion:
+  valueIntegration.valueIntegrationQuestion || null,
+
+topValues:
+  valueIntegration.topValues || [],
+
+sharedValues:
+  valueIntegration.sharedValues || [],
+
+// Salience Governor
+
+salienceLeadOrgan:
+  salienceGovernor.salienceLeadOrgan || null,
+
+salienceLeadScore:
+  salienceGovernor.salienceLeadScore || 0,
+
+salienceMode:
+  salienceGovernor.salienceMode || null,
+
+salienceQuestion:
+  salienceGovernor.salienceQuestion || null,
+
+salienceReason:
+  salienceGovernor.salienceReason || null,
+
+supportingSalienceOrgans:
+  salienceGovernor.supportingSalienceOrgans || [],
+
+rankedSalienceDecisions:
+  salienceGovernor.rankedSalienceDecisions || [],
       
+      lifeChapterSource:
+  lifeChapter.source || "unknown",
+
+identityPrioritySource:
+  identityPriority.source || "unknown",
+
+valueIntegrationSource:
+  valueIntegration.source || values.source || "unknown",
+
+salienceGovernorSource:
+  salienceGovernor.source || "unknown",
       lifeSignalSource: lifeSignals.source || "unknown",
       lifeSignalWeightingSource: lifeSignalWeighting.source || "unknown",
       signalSystemSource: signals.source || "unknown",
