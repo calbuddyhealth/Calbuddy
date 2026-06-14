@@ -1,7 +1,7 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.9
+// V1.9 
 // Fixes:
 // - Adds Universal Domain Governor after Safety and before all interpretation organs.
 // - Adds Organism Function Engine before Human Needs.
