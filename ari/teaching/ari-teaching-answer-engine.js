@@ -1,7 +1,7 @@
 // ari/teaching/ari-teaching-answer-engine.js
 // Ari Teaching Answer Engine
 // Purpose: Turn retrieved knowledge into a clear teaching answer.
-// V1.0
+// V1.0 
 
 window.AriTeachingAnswerEngine = {
   version: "1.0.0",
