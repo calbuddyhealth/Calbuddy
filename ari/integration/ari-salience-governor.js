@@ -1,17 +1,13 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.7
+// V1.8
 // Fixes:
-// - Split helper logic into ari-salience-governor-core.js.
-// - Separates body organism needs from relational organism needs.
-// - Body survival needs route to safety.
-// - Connection/loneliness routes to emotion instead of safety.
-// - Prevents body stabilization from being triggered by attachment pain.
-// - Keeps uncertainty override only when no strong human/organism need exists.
+// - Direct intent now leads by domain while uncertainty supports.
+// - Values only become support when valueIntegrationDetected is true.
 
 window.AriSalienceGovernor = {
-  version: "1.7.0",
+  version: "1.8.0",
 
   govern(input = {}) {
     const summary = input.summary || input || {};
@@ -83,7 +79,7 @@ window.AriSalienceGovernor = {
     const leadIdentityScoreRaw = Number(summary.leadIdentityScore || 0);
 
     const valueIntegrationDetected = Boolean(summary.valueIntegrationDetected);
-    const integratedValue = summary.integratedValue || null;
+    
 
     const emotionalClassification = summary.emotionalClassification || null;
     const stewardshipScoreRaw = Number(summary.stewardshipScore || 0);
@@ -353,21 +349,21 @@ if (directIntentSupported) {
     }
 
     // 6. Values.
-    if (
-      !shouldUncertaintyOverride &&
-      !strongBodyOrganismNeed &&
-      (valueIntegrationDetected || integratedValue)
-    ) {
-      helper.addCandidate(
-        candidates,
-        "values",
-        82,
-        "Ari detected a deeper value integration opportunity.",
-        "integrate_values",
-        summary.valueIntegrationQuestion ||
-          "What deeper good are both sides trying to protect?"
-      );
-    }
+if (
+  !shouldUncertaintyOverride &&
+  !strongBodyOrganismNeed &&
+  valueIntegrationDetected === true
+) {
+  helper.addCandidate(
+    candidates,
+    "values",
+    82,
+    "Ari detected a real value integration opportunity.",
+    "integrate_values",
+    summary.valueIntegrationQuestion ||
+      "What deeper good are both sides trying to protect?"
+  );
+}
 
     // 7. Stewardship.
     if (
