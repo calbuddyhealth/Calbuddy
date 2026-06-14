@@ -10,7 +10,7 @@
 // - Response Intent and Mouth Director receive domain + organism + hierarchy context.
 
 window.AriRebirthPipeline = {
-  run(systemSummary = {}) {
+  async run(systemSummary = {}) {
     let summary = { ...systemSummary };
 
     const userMessage =
@@ -125,7 +125,7 @@ if (
       typeof window.AriOrganismFunctionEngine.evaluate === "function"
     ) {
       const organismResult =
-        window.AriOrganismFunctionEngine.evaluate(summary) || {};
+        await window.AriOrganismFunctionEngine.evaluate(summary) || {};
 
       summary = {
         ...summary,
@@ -153,9 +153,9 @@ if (
       };
     }
 
-    const runStep = (engine, method) => {
+    const runStep = async (engine, method) => {
       if (engine && typeof engine[method] === "function") {
-        const result = engine[method](summary) || {};
+        const result = await engine[method](summary);
         summary = { ...summary, ...result };
       }
     };
@@ -166,7 +166,7 @@ if (
       window.Ari.needEngine &&
       typeof window.Ari.needEngine.evaluate === "function"
     ) {
-      const needResult = window.Ari.needEngine.evaluate(summary) || {};
+      const needResult = await window.Ari.needEngine.evaluate(summary) || {};
       summary = { ...summary, ...needResult };
     } else {
       summary = {
@@ -183,34 +183,34 @@ if (
     }
 
     // 2. Build identity signals with need context available.
-    runStep(window.AriIdentityPriorityEngine, "evaluate");
+   await runStep(window.AriIdentityPriorityEngine, "evaluate");
 
     // 3. Add emotional/stewardship correction with need context available.
-    runStep(window.AriStewardshipFearDifferentiator, "evaluate");
+    await runStep(window.AriStewardshipFearDifferentiator, "evaluate");
 
     // 4. Detect life chapter after identity + needs + stewardship are known.
-    runStep(window.AriLifeChapterEngine, "detect");
+    await runStep(window.AriLifeChapterEngine, "detect");
 
     // 5. Classify uncertainty after need/life/identity context exists.
-    runStep(window.AriUncertaintyClassificationEngine, "classify");
+    await runStep(window.AriUncertaintyClassificationEngine, "classify");
 
     // 6. Resolve identity conflict AFTER uncertainty.
-    runStep(window.AriIdentityConflictResolver, "resolve");
+    await runStep(window.AriIdentityConflictResolver, "resolve");
 
     // 7. Integrate values after resolved identity and needs exist.
-    runStep(window.AriValueIntegrationEngine, "integrate");
+    await runStep(window.AriValueIntegrationEngine, "integrate");
 
    // 8. Re-check life chapter after resolved identity/value integration.
-runStep(window.AriLifeChapterEngine, "detect");
+await runStep(window.AriLifeChapterEngine, "detect");
 
 // 8.5. Integrate emotional signals after life chapter, identity, values, and stewardship are known.
-runStep(window.Ari.emotionIntegrator, "integrate");
+await runStep(window.Ari.emotionIntegrator, "integrate");
 
 // 9. Decide lead organ.
-runStep(window.AriSalienceGovernor, "govern");
+await runStep(window.AriSalienceGovernor, "govern");
 
     // 10. Synthesize final interpretation.
-    runStep(window.AriSynthesisEngine, "synthesize");
+    await runStep(window.AriSynthesisEngine, "synthesize");
 
     // 10.5. Late Observer Hierarchy pass.
     if (
@@ -292,6 +292,20 @@ runStep(window.AriSalienceGovernor, "govern");
       };
     }
 
+// 11.5 Teaching Answer Engine
+if (
+  window.AriTeachingAnswerEngine &&
+  typeof window.AriTeachingAnswerEngine.teach === "function"
+) {
+  const teachingResult =
+    await window.AriTeachingAnswerEngine.teach(summary);
+
+  summary = {
+    ...summary,
+    ...(teachingResult || {})
+  };
+}
+
     // 12. Direct the mouth.
     if (
       window.AriMouthDirector &&
@@ -341,7 +355,7 @@ runStep(window.AriSalienceGovernor, "govern");
     }
 
     // 13. Compose final language.
-    runStep(window.AriLanguageComposer, "compose");
+    await runStep(window.AriLanguageComposer, "compose");
 
     summary.rebirthPipelineRan = true;
     summary.rebirthPipelineSource = "ari-rebirth-pipeline";
