@@ -38,6 +38,21 @@ const authorityMap =
   analysis.authority ||
   {};
 
+const situationMap =
+  analysis.situationMap ||
+  analysis.situation ||
+  {};
+
+const multiLanePlan =
+  analysis.multiLanePlan ||
+  analysis.multiLanePlanner ||
+  {};
+
+const situationReview =
+  analysis.situationReview ||
+  analysis.situationReviewConsole ||
+  {};
+
 const knowledge =
   analysis.knowledge ||
   analysis.knowledgeRouter ||
@@ -666,7 +681,151 @@ teachingSource:
 
 teachingCitations:
   teaching.teachingCitations || [],        
-                       
+
+   // Situation Map
+
+situationMap,
+
+situationMapRan:
+  situationMap.situationMapRan ?? null,
+
+situationMapVersion:
+  situationMap.situationMapVersion || null,
+
+situationMapSource:
+  situationMap.source || "not-yet-run",
+
+situationMapDomains:
+  situationMap.domains || [],
+
+situationMapSituations:
+  situationMap.situations || [],
+
+situationMapNeeds:
+  situationMap.needs || [],
+
+situationMapRisks:
+  situationMap.risks || [],
+
+situationMapQuestions:
+  situationMap.questions || [],
+
+situationMapResponseRequirements:
+  situationMap.responseRequirements || [],
+
+situationMapGravity:
+  situationMap.gravity ?? null,
+
+situationMapUrgency:
+  situationMap.urgency || null,
+
+situationMapComplexity:
+  situationMap.complexity || null,
+
+situationMapHorizon:
+  situationMap.horizon || null,
+
+situationMapPrimaryLaneSuggestion:
+  situationMap.primaryLaneSuggestion || null,
+
+situationMapSupportLaneSuggestions:
+  situationMap.supportLaneSuggestions || [],
+
+situationMapDeferredLaneSuggestions:
+  situationMap.deferredLaneSuggestions || [],
+
+// Multi-Lane Response Planner
+
+multiLanePlan,
+
+multiLanePlannerRan:
+  multiLanePlan.multiLanePlannerRan ?? null,
+
+multiLanePlannerVersion:
+  multiLanePlan.multiLanePlannerVersion || null,
+
+multiLanePlannerSource:
+  multiLanePlan.source || "not-yet-run",
+
+multiLanePrimaryLane:
+  multiLanePlan.primaryLane || null,
+
+multiLaneLanes:
+  multiLanePlan.lanes || [],
+
+multiLaneSupportLanes:
+  multiLanePlan.supportLanes || [],
+
+multiLaneBriefLanes:
+  multiLanePlan.briefLanes || [],
+
+multiLaneDeferredLanes:
+  multiLanePlan.deferredLanes || [],
+
+multiLaneBlockedLanes:
+  multiLanePlan.blockedLanes || [],
+
+multiLaneWeights:
+  multiLanePlan.laneWeights || {},
+
+multiLaneBudgets:
+  multiLanePlan.laneBudgets || {},
+
+multiLaneRoles:
+  multiLanePlan.laneRoles || {},
+
+multiLaneResponseOrder:
+  multiLanePlan.responseOrder || [],
+
+multiLaneResponseShape:
+  multiLanePlan.responseShape || null,
+
+multiLaneConflictRules:
+  multiLanePlan.conflictRules || [],
+
+multiLaneBlindSpots:
+  multiLanePlan.blindSpots || [],
+
+multiLaneComposerDirective:
+  multiLanePlan.composerDirective || {},
+
+// Situation Review Console
+
+situationReview,
+
+situationReviewConsoleRan:
+  situationReview.situationReviewConsoleRan ?? null,
+
+situationReviewConsoleVersion:
+  situationReview.situationReviewConsoleVersion || null,
+
+situationReviewSource:
+  situationReview.source || "not-yet-run",
+
+situationReviewScores:
+  situationReview.scores || {},
+
+situationReviewPassFail:
+  situationReview.passFail || null,
+
+situationReviewPossibleInterpretations:
+  situationReview.possibleInterpretations || [],
+
+situationReviewUncertaintyAreas:
+  situationReview.uncertaintyAreas || [],
+
+situationReviewBlindSpots:
+  situationReview.blindSpots || [],
+
+situationReviewWarnings:
+  situationReview.warnings || [],
+
+situationReviewLikelyFailurePoints:
+  situationReview.likelyFailurePoints || [],
+
+situationReviewSuggestedFixes:
+  situationReview.suggestedFixes || [],                  
+                                                                                                                                                       
       // Universal Domain Governor
 
 universalDomainGovernorRan:
