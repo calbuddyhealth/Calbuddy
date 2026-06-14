@@ -21,7 +21,7 @@ window.AriOpenAIKnowledgeClient = {
     }
 
     try {
-      const response = await fetch("/api/ari-knowledge", {
+      const response = await fetch("/api/knowledge", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
