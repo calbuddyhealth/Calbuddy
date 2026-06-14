@@ -1,7 +1,7 @@
 // ari/integration/ari-salience-governor.js
 // Ari Salience Governor
 // Purpose: Decide which organ/system should lead the response.
-// V1.6
+// V1.7
 // Fixes:
 // - Split helper logic into ari-salience-governor-core.js.
 // - Separates body organism needs from relational organism needs.
@@ -151,13 +151,28 @@ window.AriSalienceGovernor = {
       strongHumanNeed &&
       ["body", "security"].includes(primaryHumanNeed);
 
-    const shouldUncertaintyOverride =
-      noHypothesis &&
-      noEvidence &&
-      strongestSignalCategory !== "underlying_emotion" &&
-      !strongHumanNeed &&
-      !strongBodyOrganismNeed &&
-      !strongRelationalOrganismNeed;
+    const directIntentSupported =
+  summary.shouldSuppressUncertainty === true ||
+  uncertaintyType === "direct_intent_supported" ||
+  ["knowledge_teaching_domain", "planning_domain", "building_domain", "wisdom_domain"].includes(summary.domainLead) ||
+  ["teach_clearly", "plan_next_step", "build_or_debug", "wisdom_resolution", "wisdom_clarity"].includes(summary.domainMode) ||
+  ["teach_clearly", "create_priority_structure", "build_or_debug", "reflect_wisely"].includes(summary.responseIntent);
+
+const shouldUncertaintyOverride =
+
+  !directIntentSupported &&
+
+  noHypothesis &&
+
+  noEvidence &&
+
+  strongestSignalCategory !== "underlying_emotion" &&
+
+  !strongHumanNeed &&
+
+  !strongBodyOrganismNeed &&
+
+  !strongRelationalOrganismNeed;
 
     const defaultMissingInformationQuestion =
       "What feels important here that has not been said out loud yet?";
@@ -250,6 +265,27 @@ window.AriSalienceGovernor = {
         "Which good thing should lead right now?"
       );
     }
+
+// 2.5. Direct intent should lead by domain, with uncertainty supporting.
+if (directIntentSupported) {
+  helper.addCandidate(
+    candidates,
+    summary.domainLeadOrgan ||
+      (summary.responseIntent === "build_or_debug" ? "builder" :
+       summary.responseIntent === "create_priority_structure" ? "planner" :
+       summary.responseIntent === "reflect_wisely" ? "wisdom" :
+       "teacher"),
+    125,
+    "Direct user intent is clear, so the relevant domain should lead while uncertainty supports.",
+    summary.domainMode ||
+      (summary.responseIntent === "build_or_debug" ? "build_or_debug" :
+       summary.responseIntent === "create_priority_structure" ? "plan_next_step" :
+       summary.responseIntent === "reflect_wisely" ? "wisdom_clarity" :
+       "teach_clearly"),
+    null
+  );
+}
+
 
     // 3. Uncertainty only leads when no strong need is active.
     if (
