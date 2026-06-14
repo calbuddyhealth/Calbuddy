@@ -33,6 +33,20 @@ const domainGovernor =
   analysis.domainDecision ||
   {};
 
+const knowledge =
+  analysis.knowledge ||
+  analysis.knowledgeRouter ||
+  analysis.knowledgeResult ||
+  analysis ||
+  {};
+
+const teaching =
+  analysis.teaching ||
+  analysis.teachingAnswer ||
+  analysis.teachingResult ||
+  analysis ||
+  {};
+
     const dualSalience =
       analysis.dualSalience ||
       observation.dualSalience ||
@@ -587,7 +601,67 @@ supportingSalienceOrgans:
 
 rankedSalienceDecisions:
   salienceGovernor.rankedSalienceDecisions || [],
-              
+         
+    // Knowledge Router / Teaching Engine
+
+knowledgeRouterRan:
+  knowledge.knowledgeRouterRan ?? null,
+
+knowledgeRouterSource:
+  knowledge.knowledgeRouterSource ||
+  knowledge.source ||
+  "not-yet-run",
+
+knowledgeSource:
+  knowledge.knowledgeSource || null,
+
+knowledgeProvider:
+  knowledge.knowledgeProvider || null,
+
+knowledgeAnswer:
+  knowledge.knowledgeAnswer || null,
+
+knowledgeConfidence:
+  knowledge.knowledgeConfidence || null,
+
+knowledgeCitations:
+  knowledge.knowledgeCitations || [],
+
+knowledgeError:
+  knowledge.knowledgeError || null,
+
+openAIKnowledgeUsed:
+  Boolean(knowledge.openAIKnowledgeUsed),
+
+openAIKnowledgeSource:
+  knowledge.openAIKnowledgeSource || null,
+
+teachingAnswerEngineRan:
+  teaching.teachingAnswerEngineRan ?? null,
+
+teachingAnswerEngineSource:
+  teaching.teachingAnswerEngineSource ||
+  teaching.source ||
+  "not-yet-run",
+
+teachingMode:
+  teaching.teachingMode || null,
+
+teachingTopic:
+  teaching.teachingTopic || null,
+
+teachingAnswer:
+  teaching.teachingAnswer || null,
+
+teachingConfidence:
+  teaching.teachingConfidence || null,
+
+teachingSource:
+  teaching.teachingSource || null,
+
+teachingCitations:
+  teaching.teachingCitations || [],        
+                       
       // Universal Domain Governor
 
 universalDomainGovernorRan:
