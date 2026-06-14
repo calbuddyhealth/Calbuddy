@@ -1,43 +1,30 @@
 // ari/language/ari-truth-engine.js
 // Ari Truth Engine
 // Purpose: Compress complex analysis into a memorable human truth.
-// V2.1
-// Upgrade:
-// - Adds organism/body stabilization truth.
-// - Recognizes stabilize_organism_function.
-// - Keeps body-first responses practical instead of abstract.
-// - Template-driven + mode-driven.
-// - Returns metadata: truthType, patternUsed, confidence, avoid.
-// - Separates situation from identity.
+// V2.2
+// Fixes:
+// - Prevents internal phrases like "Ari should..." from reaching the user.
+// - Does not pretend to teach/build when no teaching/build content exists.
+// - Supports direct teaching/building only when answer content is provided.
+// - Keeps body/safety stabilization practical.
 // - Respects Mouth Director truth permission.
-
 window.AriTruthEngine = {
-  version: "2.1.0",
-
+  version: "2.2.0",
   extract(summary = {}) {
     const result = this.generateDetailed(summary);
-
     if (!result?.truth) return null;
-
     return result;
   },
-
   generate(summary = {}) {
     return this.generateDetailed(summary)?.truth || null;
   },
-
   generateDetailed(summary = {}) {
     if (!this.allowsTruth(summary)) return null;
-
     const context = this.readContext(summary);
     const pattern = this.choosePattern(context);
-
     if (!pattern) return null;
-
     const truth = this.chooseLine(pattern, context);
-
-    if (!truth) return null;
-
+    if (!truth || this.isBadUserFacingText(truth)) return null;
     return {
       truth,
       truthType: pattern.truthType,
@@ -47,68 +34,72 @@ window.AriTruthEngine = {
       source: "ari-truth-engine"
     };
   },
-
   allowsTruth(summary = {}) {
     const director = summary.mouthDirector || {};
-
     return (
       summary.mouthAllows?.truth !== false &&
       director.allowTruth !== false &&
       summary.allowTruth !== false
     );
   },
-
   readContext(summary = {}) {
     return {
+      message:
+        summary.userMessage ||
+        summary.message ||
+        summary.input ||
+        summary.normalizedMessage ||
+        "",
       mode:
         summary.synthesisMode ||
         summary.salienceMode ||
         summary.needResponseMode ||
         null,
-
       responseIntent: summary.responseIntent || null,
-
+      responseShape: summary.responseShape || null,
+      directAnswer:
+        summary.directAnswer ||
+        summary.teachingAnswer ||
+        summary.buildAnswer ||
+        summary.answer ||
+        null,
       primaryHumanNeed: summary.primaryHumanNeed || null,
       primaryHumanNeedScore: Number(summary.primaryHumanNeedScore || 0),
-
-      organismPrimaryFunction: summary.organismPrimaryFunction || null,
+      organismPrimaryFunction:
+        summary.organismPrimaryFunction ||
+        summary.organismFunction ||
+        null,
       organismNeedsStabilization: Boolean(summary.organismNeedsStabilization),
       organismUrgency: summary.organismUrgency || {},
       organismRecommendedMode: summary.organismRecommendedMode || null,
-
       conflict: summary.primaryConflict || null,
       chapter: summary.primaryLifeChapter || null,
-
       identity:
         summary.resolvedLeadIdentity ||
         summary.leadIdentity ||
         summary.dominantIdentity ||
         null,
-
       highestGood: summary.highestGood || null,
       wisdomTension: summary.wisdomTension || null,
       pattern: summary.pattern || null,
       hypothesis: summary.hypothesis || null,
       integratedValue: summary.integratedValue || null,
       executiveDecision: summary.executiveDecision || null,
-
       dominantTheme: summary.dominantTheme || null,
-
       oneLineInsight: summary.oneLineInsight || null,
       metaConclusion: summary.metaConclusion || null,
       humanTruth: summary.humanTruth || null,
-
       confidence:
         summary.calibratedConfidence ||
         summary.metaConfidence ||
         "unknown"
     };
   },
-
   choosePattern(context = {}) {
     const {
       mode,
       responseIntent,
+      directAnswer,
       primaryHumanNeed,
       primaryHumanNeedScore,
       organismNeedsStabilization,
@@ -126,9 +117,19 @@ window.AriTruthEngine = {
       dominantTheme,
       confidence
     } = context;
-
     const organismUrgencyLevel = organismUrgency?.level || null;
-
+    if (
+      responseIntent === "teach_clearly" ||
+      responseIntent === "build_or_debug"
+    ) {
+      if (!directAnswer) return null;
+      return this.pattern(
+        responseIntent,
+        "direct_answer",
+        "high",
+        ["avoid_uncertainty_question", "avoid_emotional_interpretation"]
+      );
+    }
     if (
       organismNeedsStabilization ||
       organismUrgencyLevel === "critical" ||
@@ -145,7 +146,6 @@ window.AriTruthEngine = {
         ["avoid_analysis_first", "avoid_abstract_meaning", "avoid_identity_interpretation"]
       );
     }
-
     if (
       mode === "restore_dignity" ||
       responseIntent === "protect_dignity" ||
@@ -158,9 +158,9 @@ window.AriTruthEngine = {
         ["do_not_define_user_by_others", "avoid_moralizing", "avoid_overexplaining"]
       );
     }
-
     if (
       mode === "emotional_connection" ||
+      mode === "restore_connection" ||
       responseIntent === "offer_connection" ||
       primaryHumanNeed === "connection"
     ) {
@@ -171,7 +171,6 @@ window.AriTruthEngine = {
         ["avoid_false_reassurance", "avoid_fixing_too_fast"]
       );
     }
-
     if (
       mode === "safety_override" ||
       mode === "stabilize_body_first" ||
@@ -187,7 +186,6 @@ window.AriTruthEngine = {
         ["avoid_analysis_first", "avoid_abstract_meaning"]
       );
     }
-
     if (
       mode === "continue_observing" ||
       confidence === "unknown" ||
@@ -200,19 +198,12 @@ window.AriTruthEngine = {
         ["avoid_certainty", "avoid_big_claims"]
       );
     }
-
     if (
       chapter === "fatherhood_transition" &&
       highestGood === "protect_family"
     ) {
-      return this.pattern(
-        "fatherhood_protect_family",
-        "family_presence",
-        "high",
-        ["avoid_perfectionism", "avoid_guilt"]
-      );
+      return this.pattern("fatherhood_protect_family", "family_presence", "high", ["avoid_perfectionism", "avoid_guilt"]);
     }
-
     if (
       chapter === "fatherhood_transition" &&
       (
@@ -221,92 +212,38 @@ window.AriTruthEngine = {
         wisdomTension === "presence_vs_achievement"
       )
     ) {
-      return this.pattern(
-        "fatherhood_presence_vs_achievement",
-        "competing_goods",
-        "high",
-        ["avoid_shaming_ambition", "avoid_false_binary"]
-      );
+      return this.pattern("fatherhood_presence_vs_achievement", "competing_goods", "high", ["avoid_shaming_ambition", "avoid_false_binary"]);
     }
-
     if (identity === "father") {
-      return this.pattern(
-        "father_identity",
-        "identity_priority",
-        "medium",
-        ["avoid_pressure", "avoid_perfectionism"]
-      );
+      return this.pattern("father_identity", "identity_priority", "medium", ["avoid_pressure", "avoid_perfectionism"]);
     }
-
     if (
       conflict === "presence_vs_achievement" ||
       wisdomTension === "presence_vs_achievement"
     ) {
-      return this.pattern(
-        "presence_vs_achievement",
-        "irreversible_moments",
-        "high",
-        ["avoid_shaming_achievement"]
-      );
+      return this.pattern("presence_vs_achievement", "irreversible_moments", "high", ["avoid_shaming_achievement"]);
     }
-
     if (conflict === "family_vs_creation") {
-      return this.pattern(
-        "family_vs_creation",
-        "role_ordering",
-        "high",
-        ["avoid_killing_builder_identity"]
-      );
+      return this.pattern("family_vs_creation", "role_ordering", "high", ["avoid_killing_builder_identity"]);
     }
-
     if (conflict === "growth_vs_stability") {
-      return this.pattern(
-        "growth_vs_stability",
-        "seasonal_pacing",
-        "medium",
-        ["avoid_stagnation_framing"]
-      );
+      return this.pattern("growth_vs_stability", "seasonal_pacing", "medium", ["avoid_stagnation_framing"]);
     }
-
     if (
       dominantTheme === "identity_overload" ||
       pattern === "too_many_primary_roles"
     ) {
-      return this.pattern(
-        "identity_overload",
-        "priority_ordering",
-        "high",
-        ["avoid_calling_responsibility_bad"]
-      );
+      return this.pattern("identity_overload", "priority_ordering", "high", ["avoid_calling_responsibility_bad"]);
     }
-
     if (hypothesis === "presence_must_be_earned") {
-      return this.pattern(
-        "presence_must_be_earned",
-        "presence_not_reward",
-        "high",
-        ["avoid_productivity_worship"]
-      );
+      return this.pattern("presence_must_be_earned", "presence_not_reward", "high", ["avoid_productivity_worship"]);
     }
-
     if (integratedValue === "meaningful_presence") {
-      return this.pattern(
-        "meaningful_presence",
-        "future_and_present",
-        "high",
-        ["avoid_false_binary"]
-      );
+      return this.pattern("meaningful_presence", "future_and_present", "high", ["avoid_false_binary"]);
     }
-
     if (executiveDecision === "protect_family_first") {
-      return this.pattern(
-        "protect_family_first",
-        "ambition_ordering",
-        "high",
-        ["avoid_abandoning_ambition"]
-      );
+      return this.pattern("protect_family_first", "ambition_ordering", "high", ["avoid_abandoning_ambition"]);
     }
-
     return this.pattern(
       "fallback_truth",
       "summary_truth",
@@ -314,110 +251,118 @@ window.AriTruthEngine = {
       ["avoid_overclaiming"]
     );
   },
-
   chooseLine(pattern = {}, context = {}) {
+    if (
+      pattern.name === "teach_clearly" ||
+      pattern.name === "build_or_debug"
+    ) {
+      return context.directAnswer || null;
+    }
     const lines = {
       organism_stabilization: [
         "A body signal should be stabilized before it is interpreted.",
         "When a basic body function is struggling, the first move is support, not meaning-making.",
         "The body does not need a theory first. It needs stabilization first."
       ],
-
       restore_dignity_worth: [
         "Being disrespected is information about the situation, not proof about your worth.",
         "Someone failing to respect you may reveal something about the interaction, but it does not get to define your value.",
         "Disrespect can tell you something needs attention, but it should not be allowed to rewrite who you are."
       ],
-
       emotional_connection: [
         "Feeling alone does not mean you are without value or without people who care.",
         "Loneliness is a signal for connection, not proof that you are unwanted.",
         "The feeling is real, but it should not be treated as final evidence that no one cares."
       ],
-
       safety_body_security: [
         "Stability comes before interpretation.",
         "When safety is active, the first job is to steady the situation, not explain it.",
         "The body needs safety before the mind can make meaning clearly."
       ],
-
       uncertainty_truth: [
-        "Ari should not force a conclusion before the evidence is clear.",
+        "The honest move is to understand one more detail before interpreting.",
         "Not every important moment is ready to be named immediately.",
-        "The honest move here is to understand one more detail before interpreting."
+        "A clearer answer needs one clearer signal first."
       ],
-
       fatherhood_protect_family: [
         "Your child will not need a perfect father. They will need a present one.",
         "The goal is not to become flawless. The goal is to become steady and present.",
         "Fatherhood will ask for presence more often than perfection."
       ],
-
       fatherhood_presence_vs_achievement: [
-        "You are standing between two good things: building a future for your family and being present with them while that future is unfolding.",
         "Providing matters, but presence is also part of provision.",
-        "The future you are building should not cost the family you are building it for."
+        "The future you are building should not cost the family you are building it for.",
+        "You are standing between two good things: building a future and being present while that future is unfolding."
       ],
-
       father_identity: [
         "The way you spend your time will teach more than the goals you achieve.",
         "A father’s presence becomes part of the child’s sense of safety.",
         "Your role is not only to provide. It is also to be known."
       ],
-
       presence_vs_achievement: [
         "Achievement can be recovered later. Some moments cannot.",
         "Success loses meaning if it quietly consumes what it was supposed to protect.",
         "Some goals can wait. Some moments cannot return."
       ],
-
       family_vs_creation: [
         "The builder does not need to disappear, but he should serve the family instead of competing with it.",
         "Creation is good, but it should not make your family feel like an obstacle.",
         "The builder in you needs order, not exile."
       ],
-
       growth_vs_stability: [
         "Not every season is asking you to accelerate.",
         "Sometimes wisdom is not more speed. Sometimes it is steadier footing.",
         "Growth that destroys stability is not always progress."
       ],
-
       identity_overload: [
         "The problem is not that you have too many responsibilities. The problem is that too many things are trying to be first.",
         "You may not need fewer values. You may need a clearer order.",
         "When every role tries to lead, even good responsibilities can become chaos."
       ],
-
       presence_must_be_earned: [
         "Presence should not become the reward you only allow yourself after every goal is finished.",
         "You should not have to earn the right to be present with the people you love.",
         "If presence always waits until achievement is complete, it may never get protected."
       ],
-
       meaningful_presence: [
         "The future matters, but so does who you are while you are building it.",
         "The life you are building should still feel like a life while you build it.",
         "Meaning is not only in the outcome. It is also in how you live on the way there."
       ],
-
       protect_family_first: [
         "This season does not require you to abandon ambition. It requires ambition to know its place.",
         "Family first does not mean ambition dies. It means ambition serves the right thing.",
         "The issue is not whether ambition matters. The issue is whether it knows what it serves."
       ],
-
       fallback_truth: [
         context.oneLineInsight,
         context.metaConclusion,
         context.humanTruth
       ].filter(Boolean)
     };
-
     const options = lines[pattern.name] || [];
-    return options[0] || null;
+    return options.find((line) => !this.isBadUserFacingText(line)) || null;
   },
-
+  isBadUserFacingText(text = "") {
+    if (!text || typeof text !== "string") return false;
+    const normalized = String(text)
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return (
+      normalized.includes("ari should") ||
+      normalized.includes("ari does not have enough") ||
+      normalized.includes("response intent") ||
+      normalized.includes("mouth director") ||
+      normalized.includes("lead organ") ||
+      normalized.includes("salience") ||
+      normalized.includes("synthesis") ||
+      normalized.includes("source layer") ||
+      normalized.includes("domain governor") ||
+      normalized.includes("observer hierarchy")
+    );
+  },
   pattern(name, truthType, confidence, avoid = []) {
     return {
       name,
