@@ -353,28 +353,28 @@ ${summary.mouthAllows?.action === true ? "yes" : summary.mouthAllows?.action ===
 ===== AUTHORITY MAP =====
 
 Allow Teaching:
-${summary.allowTeaching === true ? "yes" : summary.allowTeaching === false ? "no" : "none"}
+${summary.authorityAllows?.teaching === true ? "yes" : summary.authorityAllows?.teaching === false ? "no" : "none"}
 
 Allow Emotion:
-${summary.allowEmotion === true ? "yes" : summary.allowEmotion === false ? "no" : "none"}
+${summary.authorityAllows?.emotion === true ? "yes" : summary.authorityAllows?.emotion === false ? "no" : "none"}
 
 Allow Meaning:
-${summary.allowMeaning === true ? "yes" : summary.allowMeaning === false ? "no" : "none"}
+${summary.authorityAllows?.meaning === true ? "yes" : summary.authorityAllows?.meaning === false ? "no" : "none"}
 
 Allow Identity:
-${summary.allowIdentity === true ? "yes" : summary.allowIdentity === false ? "no" : "none"}
+${summary.authorityAllows?.identity === true ? "yes" : summary.authorityAllows?.identity === false ? "no" : "none"}
 
 Allow Wisdom:
-${summary.allowWisdom === true ? "yes" : summary.allowWisdom === false ? "no" : "none"}
+${summary.authorityAllows?.wisdom === true ? "yes" : summary.authorityAllows?.wisdom === false ? "no" : "none"}
 
 Allow Action:
-${summary.allowAction === true ? "yes" : summary.allowAction === false ? "no" : "none"}
+${summary.authorityAllows?.action === true ? "yes" : summary.authorityAllows?.action === false ? "no" : "none"}
 
 Authority Reason:
 ${summary.authorityReason || "none"}
 
 Authority Source:
-${summary.authoritySource || "none"}
+${summary.authorityMap?.source || summary.authoritySource || "none"}
 
 ==================================================
 
