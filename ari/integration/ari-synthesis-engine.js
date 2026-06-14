@@ -12,7 +12,17 @@
 window.AriSynthesisEngine = {
   synthesize(input = {}) {
     const summary = input.summary || input || {};
+const authorityAllows = summary.authorityAllows || {};
+const authorityForceDirectAnswer = Boolean(summary.authorityForceDirectAnswer);
+const authoritySuppressRecoveryQuestion = Boolean(summary.authoritySuppressRecoveryQuestion);
 
+const allowTeaching = summary.allowTeaching ?? authorityAllows.teaching ?? true;
+const allowEmotion = summary.allowEmotion ?? authorityAllows.emotion ?? true;
+const allowMeaning = summary.allowMeaning ?? authorityAllows.meaning ?? true;
+const allowIdentity = summary.allowIdentity ?? authorityAllows.identity ?? true;
+const allowWisdom = summary.allowWisdom ?? authorityAllows.wisdom ?? true;
+const allowAction = summary.allowAction ?? authorityAllows.action ?? true;
+    
     const defaultMissingInformationQuestion =
       "What feels important here that has not been said out loud yet?";
 
@@ -350,6 +360,44 @@ window.AriSynthesisEngine = {
         ? synthesisParts.join(" ")
         : "Ari should continue observing until a clearer synthesis emerges.";
 
+if (authorityForceDirectAnswer || authoritySuppressRecoveryQuestion) {
+  return {
+    synthesisStatement: null,
+    synthesisCautions: [],
+    synthesisActionGuidance: [],
+    synthesisRecommendedQuestion: null,
+
+    synthesisLeadOrgan: salienceLeadOrgan,
+    synthesisMode: salienceMode,
+
+    synthesisDebug: {
+      strongestSignal,
+      strongestSignalCategory,
+      uncertaintyType,
+      primaryHumanNeed,
+      primaryHumanNeedScore,
+      needResponseMode,
+      primaryLifeChapter,
+      leadIdentity,
+      supportIdentity,
+      integratedValue,
+      emotionalClassification,
+      wisdomTension,
+      hypothesis,
+      counterHypothesis,
+      confidence,
+      authorityForceDirectAnswer,
+      authoritySuppressRecoveryQuestion,
+      allowTeaching,
+      allowEmotion,
+      allowMeaning,
+      allowIdentity,
+      allowWisdom,
+      allowAction
+    },
+    source: "ari-synthesis-engine"
+  };
+}
     const recommendedQuestion =
       cleanQuestion(salienceQuestion) ||
       cleanQuestion(summary.identityConflictQuestion) ||
