@@ -10,7 +10,7 @@
 // - Adds Observer Hierarchy debug fields.
 // - Keeps Rebirth pipeline outside this file to prevent duplicate execution.
 
-window.Ari = window.Ari || {};
+window.Ari = window.Ari || {}; 
 
 window.Ari.coreSummary = {
   version: "2.5.0",
