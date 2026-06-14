@@ -1,8 +1,8 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.5.1
-// Fixes:
+// V3.5.2
+// Fixes: 
 // - Adds Response Intent Authority so teaching/building/planning cannot be hijacked by uncertainty.
 // - Makes Composer obey Mouth Director more strictly.
 // - Prevents uncertainty/life-chapter/emotion recovery questions from leaking into direct teaching.
