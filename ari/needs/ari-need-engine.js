@@ -1,13 +1,13 @@
 // ari/needs/ari-need-engine.js
 // Ari Human Needs Network
 // Purpose: Identify the user's active human needs before Ari chooses wisdom, meaning, emotion, identity, or action.
-// V2.2
+// V2.3
 // Universal Need Network
 
 window.Ari = window.Ari || {};
 
 window.Ari.needEngine = {
-  version: "2.2.0",
+  version: "2.3.0",
 
   evaluate(summary = {}) {
     const text = String(
@@ -343,8 +343,14 @@ const domainPermissions = summary.domainPermissions || {};
       );
     }
 
-    // 14. DOMAIN GOVERNOR PERMISSION CORRECTIONS
-    if (domainLead === "teaching" || domainPermissions.preferTeaching) {
+        // 14. DOMAIN GOVERNOR PERMISSION CORRECTIONS
+    const teachingDomainActive =
+      domainLead === "knowledge_teaching_domain" ||
+      domainMode === "teach_clearly" ||
+      domainPermissions.teaching === true ||
+      summary.shouldPreferTeaching === true;
+
+    if (teachingDomainActive) {
       needs.length = 0;
 
       add(
@@ -356,7 +362,7 @@ const domainPermissions = summary.domainPermissions || {};
       );
     }
 
-    if (domainPermissions.blockLifeChapter || summary.shouldBlockLifeChapter) {
+    if (domainPermissions.lifeChapter === false || summary.shouldBlockLifeChapter) {
       needs.forEach((need) => {
         if (need.leadOrgan === "meaning") {
           need.score = Math.min(need.score, 50);
@@ -365,7 +371,7 @@ const domainPermissions = summary.domainPermissions || {};
       });
     }
 
-    if (domainPermissions.blockEmotionRecovery || summary.shouldBlockEmotionRecovery) {
+    if (domainPermissions.emotionRecovery === false || summary.shouldBlockEmotionRecovery) {
       needs.forEach((need) => {
         if (need.leadOrgan === "emotion" && need.name !== "connection" && need.name !== "grief") {
           need.score = Math.min(need.score, 50);
@@ -374,7 +380,12 @@ const domainPermissions = summary.domainPermissions || {};
       });
     }
 
-    if (domainLead === "body" || domainPermissions.preferBodyStabilization) {
+    if (
+      domainLead === "body_domain" ||
+      domainMode === "stabilize_body_first" ||
+      domainPermissions.body === true ||
+      summary.shouldPreferBodyStabilization === true
+    ) {
       add(
         "body",
         100,
@@ -390,7 +401,7 @@ const domainPermissions = summary.domainPermissions || {};
         55,
         "No strong need detected. Defaulting to understanding.",
         "observer",
-        "continue_observing"
+        "seek_clarity"
       );
     }
 
