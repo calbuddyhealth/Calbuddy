@@ -85,7 +85,9 @@ window.AriLanguageComposer = {
     let synthesisText = typeof summary.synthesisStatement === "string" ? summary.synthesisStatement.trim() : null;
     let meaningText = typeof summary.meaningStatement === "string" ? summary.meaningStatement.trim() : null;
     let emotionText = this.readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
-    let truthText = this.readText(truthResult, ["truth", "text", "line"]);
+   let truthText =
+  this.readDirectKnowledgeText(summary) ||
+  this.readText(truthResult, ["truth", "text", "line"]);
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
     if (intentAuthority.forceDirectAnswer) {
@@ -419,7 +421,26 @@ window.AriLanguageComposer = {
     }
     return "I can answer this directly, but I need the answer content to generate the full response.";
   },
-  buildFinalResponse(opening, body, closing) {
+ 
+  readDirectKnowledgeText(summary = {}) {
+  if (
+    summary.responseIntent === "teach_clearly" ||
+    summary.domainLead === "knowledge_teaching_domain" ||
+    summary.shouldPreferTeaching === true
+  ) {
+    return (
+      summary.teachingAnswer ||
+      summary.knowledgeAnswer ||
+      summary.humanTruth ||
+      summary.oneLineInsight ||
+      null
+    );
+  }
+
+  return null;
+},
+  
+   buildFinalResponse(opening, body, closing) {
     return [opening, body, closing]
       .filter((part) => typeof part === "string" && part.trim())
       .join("\n\n");
