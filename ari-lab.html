@@ -159,8 +159,11 @@
   <script src="ari/safety/ari-safety-classifier.js"></script>
   <script src="ari/organism-system/ari-organism-function-engine.js"></script>
   <script src="ari/needs/ari-need-engine.js"></script>
-  <script src="ari/governance/ari-universal-domain-governor.js"></script>
-  <script src="ari/governance/ari-authority-map-engine.js"></script>
+  <script src="ari/meaning/ari-situation-map-engine.js"></script>
+<script src="ari/governance/ari-multi-lane-response-planner.js"></script>
+<script src="ari/governance/ari-universal-domain-governor.js"></script>
+<script src="ari/governance/ari-authority-map-engine.js"></script>
+<script src="ari/governance/ari-situation-review-console.js"></script>
   <script src="ari/knowledge/ari-openai-knowledge-client.js"></script>
 <script src="ari/knowledge/ari-knowledge-router.js"></script>
 <script src="ari/teaching/ari-teaching-answer-engine.js"></script>
@@ -375,6 +378,120 @@ ${summary.authorityReason || "none"}
 
 Authority Source:
 ${summary.authorityMap?.source || summary.authoritySource || "none"}
+
+==================================================
+
+===== SITUATION MAP =====
+
+Situation Map Ran:
+${summary.situationMapRan ? "yes" : "no"}
+
+Domains:
+${summary.situationMap?.domains?.join(", ") || "none"}
+
+Situations:
+${summary.situationMap?.situations?.join(", ") || "none"}
+
+Needs:
+${summary.situationMap?.needs?.join(", ") || "none"}
+
+Risks:
+${summary.situationMap?.risks?.join(", ") || "none"}
+
+Questions:
+${summary.situationMap?.questions?.join(", ") || "none"}
+
+Complexity:
+${summary.situationMap?.complexity || "none"}
+
+Urgency:
+${summary.situationMap?.urgency || "none"}
+
+Gravity:
+${summary.situationMap?.gravity ?? "none"}
+
+Primary Lane Suggestion:
+${summary.situationMap?.primaryLaneSuggestion || "none"}
+
+Support Lane Suggestions:
+${summary.situationMap?.supportLaneSuggestions?.join(", ") || "none"}
+
+Deferred Lane Suggestions:
+${summary.situationMap?.deferredLaneSuggestions?.join(", ") || "none"}
+
+==================================================
+
+===== MULTI-LANE PLAN =====
+
+Planner Ran:
+${summary.multiLanePlannerRan ? "yes" : "no"}
+
+Primary Lane:
+${summary.multiLanePlan?.primaryLane || "none"}
+
+Response Shape:
+${summary.multiLanePlan?.responseShape || "none"}
+
+Response Order:
+${summary.multiLanePlan?.responseOrder?.join(", ") || "none"}
+
+Support Lanes:
+${summary.multiLanePlan?.supportLanes?.join(", ") || "none"}
+
+Brief Lanes:
+${summary.multiLanePlan?.briefLanes?.join(", ") || "none"}
+
+Deferred Lanes:
+${summary.multiLanePlan?.deferredLanes?.join(", ") || "none"}
+
+Blocked Lanes:
+${summary.multiLanePlan?.blockedLanes?.join(", ") || "none"}
+
+Lane Weights:
+${JSON.stringify(summary.multiLanePlan?.laneWeights || {}, null, 2)}
+
+Lane Roles:
+${JSON.stringify(summary.multiLanePlan?.laneRoles || {}, null, 2)}
+
+Conflict Rules:
+${summary.multiLanePlan?.conflictRules?.join(", ") || "none"}
+
+Blind Spots:
+${summary.multiLanePlan?.blindSpots?.join(", ") || "none"}
+
+Composer Directive:
+${JSON.stringify(summary.multiLanePlan?.composerDirective || {}, null, 2)}
+
+==================================================
+
+===== SITUATION REVIEW CONSOLE =====
+
+Console Ran:
+${summary.situationReviewConsoleRan ? "yes" : "no"}
+
+Pass/Fail:
+${summary.situationReview?.passFail || "none"}
+
+Scores:
+${JSON.stringify(summary.situationReview?.scores || {}, null, 2)}
+
+Possible Interpretations:
+${JSON.stringify(summary.situationReview?.possibleInterpretations || [], null, 2)}
+
+Uncertainty Areas:
+${summary.situationReview?.uncertaintyAreas?.join(", ") || "none"}
+
+Blind Spots:
+${summary.situationReview?.blindSpots?.join(", ") || "none"}
+
+Warnings:
+${summary.situationReview?.warnings?.join(", ") || "none"}
+
+Likely Failure Points:
+${summary.situationReview?.likelyFailurePoints?.join(", ") || "none"}
+
+Suggested Fixes:
+${summary.situationReview?.suggestedFixes?.join("\n") || "none"}
 
 ==================================================
 
