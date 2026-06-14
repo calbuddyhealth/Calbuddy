@@ -11,7 +11,7 @@
 // - Keeps uncertainty override only when no strong human/organism need exists.
 
 window.AriSalienceGovernor = {
-  version: "1.6.0",
+  version: "1.7.0",
 
   govern(input = {}) {
     const summary = input.summary || input || {};
