@@ -1,7 +1,7 @@
 // ari/observer-system/ari-observer-hierarchy-engine.js
 // Ari Observer Hierarchy Engine
 // Purpose: Decide which observation deserves the microphone.
-// V1.4
+// V1.5
 // Fixes:
 // - Unknown / placeholder signals cannot win primary observation.
 // - Adds knowns vs unknowns separation.
@@ -12,42 +12,53 @@
 window.Ari = window.Ari || {};
 
 window.Ari.observerHierarchyEngine = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   placeholderSignals: new Set([
-    "unclear",
-    "unknown",
-    "none",
-    "general",
-    "general-priority",
-    "general_understanding",
-    "unclear_chapter",
-    "unclear_regret",
-    "unclear_path",
-    "continue_observing",
-    "prioritize_with_caution",
-    "chosen_sacrifice",
-    "the other meaningful priority"
-  ]),
+  "unclear",
+  "unknown",
+  "none",
+  "none_detected",
+  "general",
+  "general-priority",
+  "general_understanding",
+  "unclear_chapter",
+  "unclear_regret",
+  "unclear_path",
+  "continue_observing",
+  "prioritize_with_caution",
+  "chosen_sacrifice",
+  "the other meaningful priority"
+]),
+
+    normalizeSignal(value = "") {
+    return String(value || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[_-]/g, " ")
+      .replace(/\s+/g, " ");
+  },
 
   isRealSignal(value) {
     if (value === null || value === undefined) return false;
 
-    const text = String(value).trim();
-
+    const text = this.normalizeSignal(value);
     if (!text) return false;
 
-    return !this.placeholderSignals.has(text);
+    return !this.placeholderSignals.has(text) &&
+      !this.placeholderSignals.has(text.replace(/\s+/g, "_")) &&
+      !this.placeholderSignals.has(text.replace(/\s+/g, "-"));
   },
 
   isPlaceholderSignal(value) {
     if (value === null || value === undefined) return true;
 
-    const text = String(value).trim();
-
+    const text = this.normalizeSignal(value);
     if (!text) return true;
 
-    return this.placeholderSignals.has(text);
+    return this.placeholderSignals.has(text) ||
+      this.placeholderSignals.has(text.replace(/\s+/g, "_")) ||
+      this.placeholderSignals.has(text.replace(/\s+/g, "-"));
   },
 
   analyze(observation = {}) {
@@ -357,6 +368,34 @@ const directAuthorityBoost =
       });
     }
 
+const directTeachingActive =
+
+  summary.responseIntent === "teach_clearly" ||
+
+  summary.domainLead === "knowledge_teaching_domain" ||
+
+  summary.domainMode === "teach_clearly" ||
+
+  summary.shouldPreferTeaching === true;
+
+if (directTeachingActive) {
+
+  addKnown({
+
+    name: "teaching_request",
+
+    category: "intent",
+
+    weight: 110,
+
+    confidence: 0.98,
+
+    reason: "Direct teaching intent is active, so observer should recognize teaching as the primary observation."
+
+  });
+
+}
+
     const primaryNeed = summary.primaryHumanNeed || null;
     const primaryNeedScore = Number(summary.primaryHumanNeedScore || 0);
 
@@ -469,15 +508,18 @@ const directAuthorityBoost =
       });
     }
 
-    if (this.isRealSignal(summary.apparentConflict)) {
-      addKnown({
-        name: summary.apparentConflict,
-        category: "core_conflict",
-        weight: 91,
-        confidence: 0.9,
-        reason: "Value integration detected an apparent conflict."
-      });
-    }
+    if (
+  summary.valueIntegrationDetected === true &&
+  this.isRealSignal(summary.apparentConflict)
+) {
+  addKnown({
+    name: summary.apparentConflict,
+    category: "core_conflict",
+    weight: 91,
+    confidence: 0.9,
+    reason: "Value integration detected a real apparent conflict."
+  });
+}
 
     if (this.isRealSignal(summary.highestGood)) {
       addKnown({
