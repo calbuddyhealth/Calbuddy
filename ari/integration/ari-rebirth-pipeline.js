@@ -167,6 +167,35 @@ window.AriRebirthPipeline = {
       };
     }
 
+    // 0.45. GOVERNOR EXPLANATION
+    summary.governorExplanation = {
+      source: "ari-rebirth-pipeline",
+      domainLead: summary.domainLead || null,
+      domainLeadOrgan: summary.domainLeadOrgan || null,
+      domainMode: summary.domainMode || null,
+
+      primaryLane: summary.multiLanePlan?.primaryLane || null,
+      supportLanes: summary.multiLanePlan?.supportLanes || [],
+      briefLanes: summary.multiLanePlan?.briefLanes || [],
+      deferredLanes: summary.multiLanePlan?.deferredLanes || [],
+      blockedLanes: summary.multiLanePlan?.blockedLanes || [],
+
+      laneWeights: summary.multiLanePlan?.laneWeights || {},
+      laneRoles: summary.multiLanePlan?.laneRoles || {},
+      responseShape: summary.multiLanePlan?.responseShape || null,
+
+      reason:
+        summary.domainReasons?.join(" ") ||
+        summary.domainForceReason ||
+        summary.salienceReason ||
+        "No governor reason available.",
+
+      warning:
+        summary.domainForced && summary.multiLanePlan?.responseShape?.includes("multi")
+          ? "Governor forced one domain during a multi-lane situation."
+          : null
+    };
+
     // 0.50. AUTHORITY MAP
     const authorityMap =
       window.AriAuthorityMapEngine?.decide?.(summary) || {};
@@ -449,6 +478,9 @@ window.AriRebirthPipeline = {
 
     console.log("===== MULTI-LANE PLAN =====");
     console.log(summary.multiLanePlan);
+
+console.log("===== GOVERNOR EXPLANATION =====");
+console.log(summary.governorExplanation);
 
     console.log("===== AUTHORITY MAP =====");
     console.log(summary.authorityMap);
