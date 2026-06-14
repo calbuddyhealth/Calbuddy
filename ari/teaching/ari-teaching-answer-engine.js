@@ -1,6 +1,6 @@
 // ari/teaching/ari-teaching-answer-engine.js
 // Ari Teaching Answer Engine
-// Purpose: Turn retrieved knowledge into a clear human explanation.
+// Purpose: Turn retrieved knowledge into a clear teaching answer.
 // V1.0
 
 window.AriTeachingAnswerEngine = {
@@ -9,65 +9,95 @@ window.AriTeachingAnswerEngine = {
   async teach(input = {}) {
     const summary = input.summary || input || {};
 
-    const router = window.AriKnowledgeRouter;
+    const shouldTeach =
+      summary.responseIntent === "teach_clearly" ||
+      summary.domainLead === "knowledge_teaching_domain" ||
+      summary.shouldPreferTeaching === true;
 
-    if (!router?.route) {
-      return this.fail("Knowledge router unavailable.");
-    }
-
-    const knowledge = await router.route({ summary });
-
-    if (!knowledge.shouldUseKnowledge) {
+    if (!shouldTeach) {
       return {
         teachingAnswerEngineRan: true,
         teachingAnswerEngineVersion: this.version,
         teachingAnswerEngineSource: "ari-teaching-answer-engine",
+        teachingMode: "not_needed",
+        teachingTopic: null,
         teachingAnswer: null,
         teachingConfidence: "none",
-        teachingReason:
-          knowledge.knowledgeReason || "No teaching answer required."
+        teachingSource: null,
+        teachingCitations: []
       };
     }
 
-    if (!knowledge.knowledgeAnswer) {
-      return this.fail(
-        knowledge.knowledgeError ||
-        "Knowledge answer unavailable."
-      );
+    const knowledgeResult =
+      window.AriKnowledgeRouter &&
+      typeof window.AriKnowledgeRouter.route === "function"
+        ? await window.AriKnowledgeRouter.route(summary)
+        : null;
+
+    const knowledgeAnswer = knowledgeResult?.knowledgeAnswer || null;
+
+    if (!knowledgeAnswer) {
+      return {
+        ...(knowledgeResult || {}),
+
+        teachingAnswerEngineRan: true,
+        teachingAnswerEngineVersion: this.version,
+        teachingAnswerEngineSource: "ari-teaching-answer-engine",
+
+        teachingMode: "knowledge_unavailable",
+        teachingTopic: this.extractTopic(summary),
+        teachingAnswer:
+          "I can explain this clearly, but I need the teaching content to generate the full answer.",
+        teachingConfidence: "none",
+        teachingSource: "none",
+        teachingCitations: []
+      };
     }
 
+    const teachingAnswer = this.shapeTeachingAnswer(knowledgeAnswer, summary);
+
     return {
+      ...(knowledgeResult || {}),
+
       teachingAnswerEngineRan: true,
       teachingAnswerEngineVersion: this.version,
       teachingAnswerEngineSource: "ari-teaching-answer-engine",
 
-      teachingAnswer: knowledge.knowledgeAnswer,
+      teachingMode: "teach_from_knowledge",
+      teachingTopic: this.extractTopic(summary),
+      teachingAnswer,
+      teachingConfidence: knowledgeResult.knowledgeConfidence || "medium",
+      teachingSource: knowledgeResult.knowledgeProvider || "knowledge-router",
+      teachingCitations: knowledgeResult.knowledgeSources || [],
 
-      teachingConfidence:
-        knowledge.knowledgeConfidence || "medium",
-
-      teachingSources:
-        knowledge.knowledgeSources || [],
-
-      teachingModel:
-        knowledge.knowledgeModel || null,
-
-      teachingReason:
-        "Teaching answer generated from knowledge system."
+      // Let the mouth/truth engine see the actual answer.
+      knowledgeAnswer: teachingAnswer,
+      humanTruth: teachingAnswer,
+      oneLineInsight: teachingAnswer
     };
   },
 
-  fail(reason = "Teaching engine failed.") {
-    return {
-      teachingAnswerEngineRan: true,
-      teachingAnswerEngineVersion: this.version,
-      teachingAnswerEngineSource: "ari-teaching-answer-engine",
+  shapeTeachingAnswer(answer = "", summary = {}) {
+    const clean = String(answer || "").trim();
 
-      teachingAnswer: null,
-      teachingConfidence: "none",
-      teachingSources: [],
-      teachingModel: null,
-      teachingReason: reason
-    };
+    if (!clean) return null;
+
+    // Keep OpenAI answer intact for now.
+    // Later we can add grade level, analogies, examples, math formatting, etc.
+    return clean;
+  },
+
+  extractTopic(summary = {}) {
+    const text =
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      summary.normalizedMessage ||
+      "";
+
+    return String(text || "")
+      .replace(/^(what is|what are|how does|how do|why does|explain|teach me about)\s+/i, "")
+      .replace(/[?.!]+$/g, "")
+      .trim();
   }
 };
