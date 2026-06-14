@@ -1,20 +1,29 @@
 // ari/values/ari-value-integration-engine.js
 // Ari Value Integration Engine
 // Purpose: Detect shared deeper values underneath apparent conflicts.
-// V1.1
+// V1.2
 // Fixes:
-// - Makes value integration universal instead of family-specific.
-// - Adds broad value conflict templates.
-// - Deduplicates values/reasons/serves.
-// - Caps score inflation.
-// - Supports domains: body, safety, connection, worth, identity, family, career, purpose, growth, truth, peace, freedom, responsibility.
+// - Prevents simple teaching requests from creating fake value-integration conflicts.
+// - Only integrates values when there is a real conflict, wisdom/tradeoff need, or multi-source value tension.
+// - Keeps value detection available without forcing valueIntegrationDetected = true.
+// - Deduplicates shared values more safely.
 
 window.AriValueIntegrationEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   integrate(input = {}) {
     const summary = input.summary || input || {};
     const candidates = [];
+
+    const domainLead = summary.domainLead || null;
+    const domainMode = summary.domainMode || null;
+    const responseIntent = summary.responseIntent || null;
+
+    const directTeachingActive =
+      domainLead === "knowledge_teaching_domain" ||
+      domainMode === "teach_clearly" ||
+      responseIntent === "teach_clearly" ||
+      summary.shouldPreferTeaching === true;
 
     const wisdomTension = summary.wisdomTension || null;
     const highestGood = summary.highestGood || null;
@@ -128,7 +137,7 @@ window.AriValueIntegrationEngine = {
       wife: ["love", "commitment", "relationship", "presence"],
       spouse: ["love", "commitment", "relationship", "presence"],
       partner: ["love", "commitment", "relationship", "presence"],
-      "family-protector": ["love", "protection", "stability", "belonging"],
+      family_protector: ["love", "protection", "stability", "belonging"],
       builder: ["purpose", "meaning", "contribution", "growth"],
       creator: ["purpose", "meaning", "expression", "contribution"],
       planner: ["clarity", "stability", "responsibility"],
@@ -137,8 +146,8 @@ window.AriValueIntegrationEngine = {
       caregiver: ["service", "care", "love"],
       teacher: ["understanding", "growth", "wisdom"],
       observer: ["understanding", "clarity", "humility"],
-      "present-self": ["presence", "love", "peace"],
-      "emerging-self": ["growth", "integration", "meaning"],
+      present_self: ["presence", "love", "peace"],
+      emerging_self: ["growth", "integration", "meaning"],
       protector: ["safety", "protection", "stability"],
       leader: ["responsibility", "clarity", "service"],
       survivor: ["safety", "dignity", "stability"],
@@ -503,29 +512,61 @@ window.AriValueIntegrationEngine = {
     candidates.sort((a, b) => b.score - a.score);
 
     const topValues = candidates.slice(0, 5);
-    const sharedValues = candidates.filter(value => value.serves.length > 1);
 
-    if (!integratedValue && topValues.length > 0) {
+    const sharedValues = candidates.filter(value => {
+      const uniqueServes = [...new Set(value.serves || [])];
+      return (
+        uniqueServes.length > 1 &&
+        !uniqueServes.every(item => item === "direct_signal")
+      );
+    });
+
+    const hasExplicitConflict =
+      apparentConflict &&
+      apparentConflict !== "none_detected" &&
+      apparentConflict !== "unclear";
+
+    const hasSharedMultiSourceValue =
+      sharedValues.some(value => {
+        const uniqueServes = [...new Set(value.serves || [])];
+        return uniqueServes.length > 1;
+      });
+
+    const shouldAutoIntegrate =
+      !directTeachingActive &&
+      !summary.shouldBlockMeaningProjection &&
+      !summary.shouldBlockLifeChapter &&
+      (
+        hasExplicitConflict ||
+        hasSharedMultiSourceValue ||
+        primaryHumanNeed === "wisdom" ||
+        needResponseMode === "choose_what_leads"
+      );
+
+    if (!integratedValue && shouldAutoIntegrate && topValues.length > 0) {
       integratedValue = topValues[0].name;
 
       integrationStatement =
-        `The strongest deeper value appears to be '${integratedValue}'. Ari should ask how the active parts can serve that value together.`;
+        `The strongest deeper value appears to be '${integratedValue}'. Ari should help the active parts serve that value together.`;
 
       integrationQuestion =
         `How can the active parts serve '${integratedValue}' together instead of competing?`;
     }
 
     const hasIntegration =
-      Boolean(integratedValue) ||
-      sharedValues.length > 0 ||
-      apparentConflict !== "none_detected";
+      !directTeachingActive &&
+      (
+        Boolean(integratedValue) ||
+        hasExplicitConflict ||
+        hasSharedMultiSourceValue
+      );
 
     return {
       valueIntegrationDetected: hasIntegration,
       apparentConflict,
-      integratedValue,
-      integrationStatement,
-      valueIntegrationQuestion: integrationQuestion,
+      integratedValue: hasIntegration ? integratedValue : null,
+      integrationStatement: hasIntegration ? integrationStatement : null,
+      valueIntegrationQuestion: hasIntegration ? integrationQuestion : null,
 
       topValues: topValues.map(value => ({
         name: value.name,
@@ -549,14 +590,22 @@ window.AriValueIntegrationEngine = {
       })),
 
       valueIntegrationDebug: {
+        domainLead,
+        domainMode,
+        responseIntent,
+        directTeachingActive,
         wisdomTension,
         normalizedTension,
         organismFunction,
         organismNeed,
         primaryHumanNeed,
         secondaryHumanNeed,
+        needResponseMode,
         leadIdentity,
         supportIdentity,
+        hasExplicitConflict,
+        hasSharedMultiSourceValue,
+        shouldAutoIntegrate,
         candidateCount: candidates.length,
         source: "ari-value-integration-engine-normalization"
       },
