@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ari Lab</title>
-</head> 
+</head>
 
 <body>
   <main style="max-width: 720px; margin: 40px auto; padding: 20px; font-family: system-ui;">
@@ -41,13 +41,16 @@
   <script src="ari/system/ari-loader.js"></script>
   <script src="ari/system/ari-authority.js"></script>
 
-<script src="ari/safety/ari-safety-context-gate.js"></script>
+  <!-- NEW CORE CHAIN -->
+  <script src="ari/safety/ari-safety-context-gate.js"></script>
+  <script src="ari/observer-system/ari-observer-network.js"></script>
+  <script src="ari/meaning/ari-situation-map-engine.js"></script>
+  <script src="ari/governance/ari-situation-contract.js"></script>
 
-  <!-- OBSERVER -->
+  <!-- OBSERVER LEGACY / SUPPORT -->
   <script src="ari/observer-system/ari-dual-salience-system.js"></script>
   <script src="ari/observer-system/ari-observer-hierarchy-engine.js"></script>
   <script src="ari/observer-system/ari-observation-ledger.js"></script>
-  <script src="ari/observer-system/ari-observer-network.js"></script>
   <script src="ari/observer-system/ari-question-understanding.js"></script>
   <script src="ari/observer-system/ari-life-signal-extractor.js"></script>
 
@@ -72,8 +75,8 @@
   <script src="ari/emotion-system/ari-emotional-intelligence.js"></script>
   <script src="ari/emotion-system/ari-underlying-emotion-engine.js"></script>
   <script src="ari/emotion-system/ari-emotion-recovery-questions.js"></script>
-<script src="ari/emotion-system/ari-emotion-integrator.js"></script>
-  
+  <script src="ari/emotion-system/ari-emotion-integrator.js"></script>
+
   <!-- MEANING / PERSON / BELIEF / SIMULATION -->
   <script src="ari/meaning-engine/ari-meaning-engine.js"></script>
   <script src="ari/person-model/ari-person-model.js"></script>
@@ -157,19 +160,20 @@
   <script src="ari/language/ari-mouth-director.js"></script>
   <script src="ari/language/ari-language-composer.js"></script>
 
-  <!-- SAFETY / NEEDS / REBIRTH PIPELINE -->
+  <!-- SAFETY / NEEDS / LEGACY GOVERNANCE / PIPELINE -->
   <script src="ari/safety/ari-safety-classifier.js"></script>
   <script src="ari/organism-system/ari-organism-function-engine.js"></script>
   <script src="ari/needs/ari-need-engine.js"></script>
-  <script src="ari/meaning/ari-situation-map-engine.js"></script>
-<script src="ari/governance/ari-situation-contract.js"></script>
-<script src="ari/governance/ari-multi-lane-response-planner.js"></script>
-<script src="ari/governance/ari-universal-domain-governor.js"></script>
-<script src="ari/governance/ari-authority-map-engine.js"></script>
-<script src="ari/governance/ari-situation-review-console.js"></script>
+
+  <!-- LEGACY - keep loaded for comparison only; pipeline should no longer depend on these -->
+  <script src="ari/governance/ari-multi-lane-response-planner.js"></script>
+  <script src="ari/governance/ari-universal-domain-governor.js"></script>
+  <script src="ari/governance/ari-authority-map-engine.js"></script>
+  <script src="ari/governance/ari-situation-review-console.js"></script>
+
   <script src="ari/knowledge/ari-openai-knowledge-client.js"></script>
-<script src="ari/knowledge/ari-knowledge-router.js"></script>
-<script src="ari/teaching/ari-teaching-answer-engine.js"></script>
+  <script src="ari/knowledge/ari-knowledge-router.js"></script>
+  <script src="ari/teaching/ari-teaching-answer-engine.js"></script>
   <script src="ari/integration/ari-rebirth-pipeline.js"></script>
 
   <!-- MEMORY -->
@@ -221,6 +225,7 @@
 
       const rebirthResponse =
         summary.finalResponse ||
+        summary.situationContract?.clarity?.question ||
         summary.synthesisRecommendedQuestion ||
         summary.salienceQuestion ||
         summary.recommendedRecoveryQuestion ||
@@ -271,6 +276,154 @@ ${run.oldResponse}
 ===== ARI REBIRTH RESPONSE =====
 
 ${run.rebirthResponse}
+
+==================================================
+
+===== SAFETY CONTEXT GATE =====
+
+Gate Ran:
+${summary.safetyContextGateRan ? "yes" : "no"}
+
+Override:
+${summary.safetyContextGate?.override || summary.override || "none"}
+
+Risk Level:
+${summary.safetyContextGate?.riskLevel || summary.riskLevel || "none"}
+
+Risk Type:
+${summary.safetyContextGate?.riskType || summary.riskType || "none"}
+
+Follow Up Needed:
+${summary.safetyContextGate?.followUpNeeded ? "yes" : "no"}
+
+Follow Up Question:
+${summary.safetyContextGate?.followUpQuestion || summary.followUpQuestion || "none"}
+
+Should Stop Normal Response:
+${summary.safetyContextGate?.shouldStopNormalResponse ? "yes" : "no"}
+
+Reasons:
+${summary.safetyContextGate?.reasons?.join("\\n") || "none"}
+
+Evidence:
+${summary.safetyContextGate?.evidence?.join("\\n") || "none"}
+
+==================================================
+
+===== OBSERVER EVIDENCE =====
+
+Observer Ran:
+${summary.observerEvidenceRan ? "yes" : "no"}
+
+Evidence Count:
+${summary.observationCount || 0}
+
+Observed Types:
+${summary.observedTypes?.join(", ") || "none"}
+
+Observed Values:
+${summary.observedValues?.join(", ") || "none"}
+
+Strongest Observation:
+${summary.strongestObservation || "none"}
+
+Strongest Observation Category:
+${summary.strongestObservationCategory || "none"}
+
+Observations:
+${JSON.stringify(summary.observations || [], null, 2)}
+
+==================================================
+
+===== SITUATION MAP =====
+
+Situation Map Ran:
+${summary.situationMapRan ? "yes" : "no"}
+
+Domains:
+${summary.situationMap?.domains?.join(", ") || "none"}
+
+Situations:
+${summary.situationMap?.situations?.join(", ") || "none"}
+
+Needs:
+${summary.situationMap?.needs?.join(", ") || "none"}
+
+Risks:
+${summary.situationMap?.risks?.join(", ") || "none"}
+
+Questions:
+${summary.situationMap?.questions?.join(", ") || "none"}
+
+Complexity:
+${summary.situationMap?.complexity || "none"}
+
+Urgency:
+${summary.situationMap?.urgency || "none"}
+
+Gravity:
+${summary.situationMap?.gravity ?? "none"}
+
+Primary Lane Suggestion:
+${summary.situationMap?.primaryLaneSuggestion || "none"}
+
+Support Lane Suggestions:
+${summary.situationMap?.supportLaneSuggestions?.join(", ") || "none"}
+
+Brief Lane Suggestions:
+${summary.situationMap?.briefLaneSuggestions?.join(", ") || "none"}
+
+Context Lane Suggestions:
+${summary.situationMap?.contextLaneSuggestions?.join(", ") || "none"}
+
+Deferred Lane Suggestions:
+${summary.situationMap?.deferredLaneSuggestions?.join(", ") || "none"}
+
+Recommended Question:
+${summary.situationMap?.recommendedQuestion || "none"}
+
+==================================================
+
+===== SITUATION CONTRACT =====
+
+Contract Ran:
+${summary.situationContractRan ? "yes" : "no"}
+
+Primary:
+${summary.situationContract?.primary || "none"}
+
+Support:
+${summary.situationContract?.support?.join(", ") || "none"}
+
+Brief:
+${summary.situationContract?.brief?.join(", ") || "none"}
+
+Context:
+${summary.situationContract?.context?.join(", ") || "none"}
+
+Deferred:
+${summary.situationContract?.deferred?.join(", ") || "none"}
+
+Blocked:
+${summary.situationContract?.blocked?.join(", ") || "none"}
+
+Risk:
+${JSON.stringify(summary.situationContract?.risk || {}, null, 2)}
+
+Clarity:
+${JSON.stringify(summary.situationContract?.clarity || {}, null, 2)}
+
+Response Shape:
+${summary.situationContract?.responseShape || "none"}
+
+Response Rules:
+${summary.situationContract?.responseRules?.join(", ") || "none"}
+
+Mouth Directive:
+${JSON.stringify(summary.situationContract?.mouthDirective || {}, null, 2)}
+
+Reasons:
+${summary.situationContract?.reasons?.join("\\n") || "none"}
 
 ==================================================
 
@@ -356,75 +509,7 @@ ${summary.mouthAllows?.action === true ? "yes" : summary.mouthAllows?.action ===
 
 ==================================================
 
-===== AUTHORITY MAP =====
-
-Allow Teaching:
-${summary.authorityAllows?.teaching === true ? "yes" : summary.authorityAllows?.teaching === false ? "no" : "none"}
-
-Allow Emotion:
-${summary.authorityAllows?.emotion === true ? "yes" : summary.authorityAllows?.emotion === false ? "no" : "none"}
-
-Allow Meaning:
-${summary.authorityAllows?.meaning === true ? "yes" : summary.authorityAllows?.meaning === false ? "no" : "none"}
-
-Allow Identity:
-${summary.authorityAllows?.identity === true ? "yes" : summary.authorityAllows?.identity === false ? "no" : "none"}
-
-Allow Wisdom:
-${summary.authorityAllows?.wisdom === true ? "yes" : summary.authorityAllows?.wisdom === false ? "no" : "none"}
-
-Allow Action:
-${summary.authorityAllows?.action === true ? "yes" : summary.authorityAllows?.action === false ? "no" : "none"}
-
-Authority Reason:
-${summary.authorityReason || "none"}
-
-Authority Source:
-${summary.authorityMap?.source || summary.authoritySource || "none"}
-
-==================================================
-
-===== SITUATION MAP =====
-
-Situation Map Ran:
-${summary.situationMapRan ? "yes" : "no"}
-
-Domains:
-${summary.situationMap?.domains?.join(", ") || "none"}
-
-Situations:
-${summary.situationMap?.situations?.join(", ") || "none"}
-
-Needs:
-${summary.situationMap?.needs?.join(", ") || "none"}
-
-Risks:
-${summary.situationMap?.risks?.join(", ") || "none"}
-
-Questions:
-${summary.situationMap?.questions?.join(", ") || "none"}
-
-Complexity:
-${summary.situationMap?.complexity || "none"}
-
-Urgency:
-${summary.situationMap?.urgency || "none"}
-
-Gravity:
-${summary.situationMap?.gravity ?? "none"}
-
-Primary Lane Suggestion:
-${summary.situationMap?.primaryLaneSuggestion || "none"}
-
-Support Lane Suggestions:
-${summary.situationMap?.supportLaneSuggestions?.join(", ") || "none"}
-
-Deferred Lane Suggestions:
-${summary.situationMap?.deferredLaneSuggestions?.join(", ") || "none"}
-
-==================================================
-
-===== MULTI-LANE PLAN =====
+===== LEGACY MULTI-LANE PLAN =====
 
 Planner Ran:
 ${summary.multiLanePlannerRan ? "yes" : "no"}
@@ -450,51 +535,33 @@ ${summary.multiLanePlan?.deferredLanes?.join(", ") || "none"}
 Blocked Lanes:
 ${summary.multiLanePlan?.blockedLanes?.join(", ") || "none"}
 
-Lane Weights:
-${JSON.stringify(summary.multiLanePlan?.laneWeights || {}, null, 2)}
-
-Lane Roles:
-${JSON.stringify(summary.multiLanePlan?.laneRoles || {}, null, 2)}
-
-Conflict Rules:
-${summary.multiLanePlan?.conflictRules?.join(", ") || "none"}
-
-Blind Spots:
-${summary.multiLanePlan?.blindSpots?.join(", ") || "none"}
-
-Composer Directive:
-${JSON.stringify(summary.multiLanePlan?.composerDirective || {}, null, 2)}
-
 ==================================================
 
-===== SITUATION REVIEW CONSOLE =====
+===== LEGACY AUTHORITY MAP =====
 
-Console Ran:
-${summary.situationReviewConsoleRan ? "yes" : "no"}
+Allow Teaching:
+${summary.authorityAllows?.teaching === true ? "yes" : summary.authorityAllows?.teaching === false ? "no" : "none"}
 
-Pass/Fail:
-${summary.situationReview?.passFail || "none"}
+Allow Emotion:
+${summary.authorityAllows?.emotion === true ? "yes" : summary.authorityAllows?.emotion === false ? "no" : "none"}
 
-Scores:
-${JSON.stringify(summary.situationReview?.scores || {}, null, 2)}
+Allow Meaning:
+${summary.authorityAllows?.meaning === true ? "yes" : summary.authorityAllows?.meaning === false ? "no" : "none"}
 
-Possible Interpretations:
-${JSON.stringify(summary.situationReview?.possibleInterpretations || [], null, 2)}
+Allow Identity:
+${summary.authorityAllows?.identity === true ? "yes" : summary.authorityAllows?.identity === false ? "no" : "none"}
 
-Uncertainty Areas:
-${summary.situationReview?.uncertaintyAreas?.join(", ") || "none"}
+Allow Wisdom:
+${summary.authorityAllows?.wisdom === true ? "yes" : summary.authorityAllows?.wisdom === false ? "no" : "none"}
 
-Blind Spots:
-${summary.situationReview?.blindSpots?.join(", ") || "none"}
+Allow Action:
+${summary.authorityAllows?.action === true ? "yes" : summary.authorityAllows?.action === false ? "no" : "none"}
 
-Warnings:
-${summary.situationReview?.warnings?.join(", ") || "none"}
+Authority Reason:
+${summary.authorityReason || "none"}
 
-Likely Failure Points:
-${summary.situationReview?.likelyFailurePoints?.join(", ") || "none"}
-
-Suggested Fixes:
-${summary.situationReview?.suggestedFixes?.join("\n") || "none"}
+Authority Source:
+${summary.authorityMap?.source || summary.authoritySource || "none"}
 
 ==================================================
 
@@ -568,34 +635,54 @@ ${summary.observerHierarchyRecommendedQuestion || "none"}
 
 ==================================================
 
-===== DUAL SALIENCE =====
+===== LIFE CHAPTER =====
 
-Available:
-${summary.dualSalienceAvailable === true ? "yes" : summary.dualSalienceAvailable === false ? "no" : "none"}
+Primary Chapter:
+${summary.primaryLifeChapter || "none"}
 
-Lead:
-${summary.dualSalienceLead || "none"}
+Strength:
+${summary.lifeChapterStrength || 0}
 
-Mode:
-${summary.dualSalienceMode || "none"}
+Statement:
+${summary.lifeChapterStatement || "none"}
 
-Objective Lead:
-${summary.dualSalienceObjectiveLead || "none"}
+Question:
+${summary.lifeChapterQuestion || "none"}
 
-Subjective Lead:
-${summary.dualSalienceSubjectiveLead || "none"}
+==================================================
 
-Reason:
-${summary.dualSalienceReason || "none"}
+===== VALUE INTEGRATION =====
 
-Clarity Confidence:
-${summary.dualSalienceClarityConfidence ?? "none"}
+Integrated Value:
+${summary.integratedValue || "none"}
 
-Clarity Action:
-${summary.dualSalienceClarityAction || "none"}
+Conflict:
+${summary.apparentConflict || "none"}
 
-Recommended Move:
-${summary.dualSalienceRecommendedMove || "none"}
+Statement:
+${summary.integrationStatement || "none"}
+
+Question:
+${summary.valueIntegrationQuestion || "none"}
+
+==================================================
+
+===== SITUATION REVIEW CONSOLE =====
+
+Console Ran:
+${summary.situationReviewConsoleRan ? "yes" : "no"}
+
+Pass/Fail:
+${summary.situationReview?.passFail || "none"}
+
+Scores:
+${JSON.stringify(summary.situationReview?.scores || {}, null, 2)}
+
+Warnings:
+${summary.situationReview?.warnings?.join(", ") || "none"}
+
+Suggested Fixes:
+${summary.situationReview?.suggestedFixes?.join("\\n") || "none"}
 
 ==================================================
 
@@ -621,73 +708,6 @@ ${summary.mouthDirectorSource || "none"}
 
 Language Source:
 ${summary.source || "none"}
-
-==================================================
-
-===== LIFE CHAPTER =====
-
-Primary Chapter:
-${summary.primaryLifeChapter || "none"}
-
-Strength:
-${summary.lifeChapterStrength || 0}
-
-Statement:
-${summary.lifeChapterStatement || "none"}
-
-Question:
-${summary.lifeChapterQuestion || "none"}
-
-==================================================
-
-===== IDENTITY PRIORITY =====
-
-Lead Identity:
-${summary.leadIdentity || "none"}
-
-Score:
-${summary.leadIdentityScore || 0}
-
-Leadership Mode:
-${summary.identityLeadershipMode || "none"}
-
-Summary:
-${summary.identityPrioritySummary || "none"}
-
-==================================================
-
-===== VALUE INTEGRATION =====
-
-Integrated Value:
-${summary.integratedValue || "none"}
-
-Conflict:
-${summary.apparentConflict || "none"}
-
-Statement:
-${summary.integrationStatement || "none"}
-
-Question:
-${summary.valueIntegrationQuestion || "none"}
-
-==================================================
-
-===== SALIENCE GOVERNOR =====
-
-Lead Organ:
-${summary.salienceLeadOrgan || "none"}
-
-Lead Score:
-${summary.salienceLeadScore || 0}
-
-Mode:
-${summary.salienceMode || "none"}
-
-Question:
-${summary.salienceQuestion || "none"}
-
-Reason:
-${summary.salienceReason || "none"}
 
 ==================================================
 
@@ -723,7 +743,7 @@ ${error.stack}
         const fullRuns = [];
 
         for (const testCase of window.Ari.readinessDiagnostic.testCases) {
-  const run = await runAriOnce(testCase.prompt);
+          const run = await runAriOnce(testCase.prompt);
 
           responseMap[testCase.id] = run.rebirthResponse;
 
