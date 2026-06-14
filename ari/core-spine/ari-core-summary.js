@@ -711,12 +711,35 @@ rankedUniversalDomains:
 // Authority Map
 authorityMap,
 
-allowTeaching: analysis.allowTeaching ?? authorityMap.allowTeaching ?? true,
-allowEmotion: analysis.allowEmotion ?? authorityMap.allowEmotion ?? true,
-allowMeaning: analysis.allowMeaning ?? authorityMap.allowMeaning ?? true,
-allowIdentity: analysis.allowIdentity ?? authorityMap.allowIdentity ?? true,
-allowWisdom: analysis.allowWisdom ?? authorityMap.allowWisdom ?? true,
-allowAction: analysis.allowAction ?? authorityMap.allowAction ?? true,
+allowTeaching:
+  analysis.allowTeaching ??
+  authorityMap.authorityAllows?.teaching ??
+  true,
+
+allowEmotion:
+  analysis.allowEmotion ??
+  authorityMap.authorityAllows?.emotion ??
+  true,
+
+allowMeaning:
+  analysis.allowMeaning ??
+  authorityMap.authorityAllows?.meaning ??
+  true,
+
+allowIdentity:
+  analysis.allowIdentity ??
+  authorityMap.authorityAllows?.identity ??
+  true,
+
+allowWisdom:
+  analysis.allowWisdom ??
+  authorityMap.authorityAllows?.wisdom ??
+  true,
+
+allowAction:
+  analysis.allowAction ??
+  authorityMap.authorityAllows?.action ??
+  true,
 
 authorityReason:
   analysis.authorityReason ||
