@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.5.2
+// V3.5.3
 // Fixes: 
 // - Adds Response Intent Authority so teaching/building/planning cannot be hijacked by uncertainty.
 // - Makes Composer obey Mouth Director more strictly.
@@ -10,7 +10,7 @@
 // - Keeps safety/body stabilization protected.
 // - Fixes broken createDirectAnswerPlaceholder syntax.
 window.AriLanguageComposer = {
-  version: "3.5.2",
+  version: "3.5.3",
   compose(input = {}) {
     const summary = input.summary || input || {};
     const responseIntent = summary.responseIntent || "respond_normally";
@@ -152,7 +152,14 @@ if (
     if (this.isBadUserFacingText(synthesisText)) synthesisText = null;
     if (this.isBadUserFacingText(meaningText)) meaningText = null;
     if (this.isBadUserFacingText(emotionText)) emotionText = null;
-    if (this.isBadUserFacingText(truthText)) truthText = null;
+   const isDirectTeaching =
+  responseIntent === "teach_clearly" ||
+  summary.domainLead === "knowledge_teaching_domain" ||
+  summary.shouldPreferTeaching === true;
+
+if (!isDirectTeaching && this.isBadUserFacingText(truthText)) {
+  truthText = null;
+}
     if (this.isBadUserFacingText(wisdomText)) wisdomText = null;
     if (this.isBadUserFacingText(actionText)) actionText = null;
     if (director.allowMeaning === false) {
@@ -282,6 +289,7 @@ if (
         closing,
         selectedBodyParts: bodyParts
       },
+            composerVersion: this.version,
       source: "ari-language-composer"
     };
   },
