@@ -1,6 +1,6 @@
 // ari/knowledge/ari-openai-knowledge-client.js
 // Ari OpenAI Knowledge Client
-// Purpose: Ask the secure backend for knowledge answers.
+// Purpose: Browser-side client that asks the server API for outside knowledge.
 // V1.0
 
 window.AriOpenAIKnowledgeClient = {
@@ -8,65 +8,65 @@ window.AriOpenAIKnowledgeClient = {
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
-    const question = this.getQuestion(summary);
 
-    if (!question) {
+    const question =
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      summary.normalizedMessage ||
+      "";
+
+    if (!question || !String(question).trim()) {
       return this.fail("No question provided.");
     }
 
     try {
-      const response = await fetch("/api/ari-knowledge-openai", {
+      const response = await fetch("/api/ari-openai-knowledge", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
           question,
-          summary
+          topic: summary.teachingTopic || null,
+          domainLead: summary.domainLead || null,
+          responseIntent: summary.responseIntent || null
         })
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        return this.fail(data.error || "Knowledge request failed.");
+        return this.fail(data.error || "OpenAI knowledge request failed.");
       }
 
       return {
-        knowledgeClientRan: true,
-        knowledgeClientSource: "ari-openai-knowledge-client",
-        knowledgeClientVersion: this.version,
-        answer: data.answer || null,
-        confidence: data.confidence || "medium",
-        sources: data.sources || [],
-        model: data.model || null,
-        error: null
+        openAIKnowledgeUsed: true,
+        openAIKnowledgeSource: "api/ari-openai-knowledge",
+        knowledgeProvider: "openai",
+        knowledgeSource: data.source || "openai",
+        knowledgeAnswer: data.answer || null,
+        knowledgeConfidence: data.confidence || "medium",
+        knowledgeCitations: data.citations || [],
+        knowledgeError: null,
+        source: "ari-openai-knowledge-client"
       };
     } catch (error) {
       return this.fail(error.message || "OpenAI knowledge client failed.");
     }
   },
 
-  getQuestion(summary = {}) {
-    return (
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      summary.normalizedMessage ||
-      ""
-    ).trim();
-  },
-
-  fail(reason = "Unknown knowledge client failure.") {
+  fail(message = "Knowledge request failed.") {
     return {
-      knowledgeClientRan: true,
-      knowledgeClientSource: "ari-openai-knowledge-client",
-      knowledgeClientVersion: this.version,
-      answer: null,
-      confidence: "none",
-      sources: [],
-      model: null,
-      error: reason
+      openAIKnowledgeUsed: false,
+      openAIKnowledgeSource: "api/ari-openai-knowledge",
+      knowledgeProvider: "openai",
+      knowledgeSource: null,
+      knowledgeAnswer: null,
+      knowledgeConfidence: "none",
+      knowledgeCitations: [],
+      knowledgeError: message,
+      source: "ari-openai-knowledge-client"
     };
   }
 };
