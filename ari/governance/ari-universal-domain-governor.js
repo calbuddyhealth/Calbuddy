@@ -1,12 +1,17 @@
 // ari/governance/ari-universal-domain-governor.js
 // Ari Universal Domain Governor
 // Purpose: Rank universal domains before Ari interprets, routes, or composes.
-// V2.1.0
+// V3.0.0
+// Fixes:
+// - Uses Situation Map risk/event classification.
+// - Prevents single-word medical/safety escalation.
+// - Treats pregnancy/abortion/stroke/miscarriage as context/history unless active symptoms exist.
+// - Supports full / brief / validate / defer / block authority modes later.
 
 window.Ari = window.Ari || {};
 
 window.AriUniversalDomainGovernor = {
-  version: "2.1.0",
+  version: "3.0.0",
 
   govern(input = {}) {
     const summary = input.summary || input || {};
@@ -19,11 +24,16 @@ window.AriUniversalDomainGovernor = {
       ""
     );
 
+    const situationMap = summary.situationMap || {};
+    const riskProfile = this.getRiskProfile(summary, situationMap);
+
     const signals = this.collectSignals(summary);
     const domains = this.getDomains();
 
     const ranked = domains
-      .map((domain) => this.scoreDomain(domain, summary, text, signals))
+      .map((domain) =>
+        this.scoreDomain(domain, summary, text, signals, situationMap, riskProfile)
+      )
       .filter((domain) => domain.score > 0);
 
     if (!ranked.length) ranked.push(this.defaultDomain());
@@ -34,10 +44,17 @@ window.AriUniversalDomainGovernor = {
       return b.authority - a.authority;
     });
 
-    const forcedDomainName = this.getForcedDomainName(summary, text, signals);
+    const forcedDomainName = this.getForcedDomainName(
+      summary,
+      text,
+      signals,
+      situationMap,
+      riskProfile
+    );
+
     let lead = ranked[0];
 
-    if (forcedDomainName && !this.hasSurvivalOverride(ranked)) {
+    if (forcedDomainName && !this.hasSurvivalOverride(ranked, riskProfile)) {
       const forced = ranked.find((item) => item.name === forcedDomainName);
 
       if (forced) {
@@ -72,6 +89,8 @@ window.AriUniversalDomainGovernor = {
 
       rankedUniversalDomains: ranked,
 
+      riskProfile,
+
       shouldBlockLifeChapter:
         blocked.includes("life_chapter") ||
         lead.permissions.lifeChapter === false,
@@ -97,23 +116,78 @@ window.AriUniversalDomainGovernor = {
       shouldPreferBuilding: lead.name === "creative_building_domain",
 
       shouldPreferBodyStabilization:
-        lead.superDomain === "survive" &&
-        ["medical_body_domain", "body_health_domain", "sleep_recovery_domain"].includes(lead.name),
+        riskProfile.hasActiveMedicalRisk &&
+        lead.name === "medical_body_domain",
 
-      shouldPreferSafety: lead.name === "critical_safety_domain",
+      shouldPreferSafety:
+        riskProfile.hasCriticalSafetyRisk &&
+        lead.name === "critical_safety_domain",
 
       source: "ari-universal-domain-governor"
     };
   },
 
-  scoreDomain(domain, summary, text, signals) {
+  getRiskProfile(summary = {}, situationMap = {}) {
+    const risks = situationMap.risks || [];
+    const domains = situationMap.domains || [];
+    const eventContext = situationMap.eventContext || {};
+
+    const hasCriticalSafetyRisk =
+      risks.includes("self_harm_or_immediate_safety") ||
+      eventContext.activeSelfHarm === true;
+
+    const hasActiveMedicalRisk =
+      risks.includes("urgent_medical_or_body_risk") ||
+      risks.includes("pregnancy_body_risk") ||
+      eventContext.activeMedicalPattern === true;
+
+    const hasMedicalContextOnly =
+      domains.includes("medical_history_or_body_context_domain") ||
+      situationMap.riskLevel === "context";
+
+    const historicalMedical =
+      situationMap.eventState === "historical" ||
+      eventContext.historical === true;
+
+    return {
+      hasCriticalSafetyRisk,
+      hasActiveMedicalRisk,
+      hasMedicalContextOnly,
+      historicalMedical,
+      urgency: situationMap.urgency || "none",
+      riskLevel: situationMap.riskLevel || "none",
+      eventState: situationMap.eventState || "context",
+      ownership: situationMap.ownership || "unknown",
+      risks
+    };
+  },
+
+  scoreDomain(domain, summary, text, signals, situationMap, riskProfile) {
     let score = 0;
     const reasons = [];
 
-    const textHits = domain.text.filter((term) => text.includes(term));
+    const textHits = domain.text.filter((term) => this.hasTerm(text, term));
     const signalHits = signals.filter((signal) =>
-      domain.signals.some((term) => signal.includes(term))
+      domain.signals.some((term) => this.hasTerm(signal, term))
     );
+
+    const blockedByRiskGate =
+      this.isBlockedByRiskGate(domain, riskProfile, situationMap);
+
+    if (blockedByRiskGate) {
+      return {
+        name: domain.name,
+        superDomain: domain.superDomain,
+        priority: domain.priority,
+        authority: domain.authority,
+        score: 0,
+        leadOrgan: domain.leadOrgan,
+        mode: domain.mode,
+        question: domain.question,
+        permissions: domain.permissions,
+        reasons: [`${domain.name} blocked by context/risk gate.`]
+      };
+    }
 
     if (textHits.length) {
       score += domain.textWeight;
@@ -125,21 +199,53 @@ window.AriUniversalDomainGovernor = {
       reasons.push(`Signals support ${domain.name}: ${signalHits.slice(0, 4).join(", ")}.`);
     }
 
-    const intentBoost = this.getIntentBoost(domain, summary, text, signals);
+    const intentBoost = this.getIntentBoost(
+      domain,
+      summary,
+      text,
+      signals,
+      situationMap,
+      riskProfile
+    );
+
     if (intentBoost > 0) {
       score += intentBoost;
       reasons.push(`Direct intent boost supports ${domain.name}.`);
     }
 
-    const observerBoost = this.getObserverBoost(domain, summary, signals);
+    const observerBoost = this.getObserverBoost(domain, summary, signals, riskProfile);
     if (observerBoost > 0) {
       score += observerBoost;
       reasons.push(`Observer hierarchy supports ${domain.name}.`);
     }
 
-    if (domain.shouldBoost?.(summary, text, signals)) {
+    if (domain.shouldBoost?.(summary, text, signals, situationMap, riskProfile)) {
       score += domain.boostWeight || 20;
       reasons.push(`Context boost supports ${domain.name}.`);
+    }
+
+    if (
+      domain.name === "medical_history_or_body_context_domain" &&
+      riskProfile.hasMedicalContextOnly
+    ) {
+      score += 80;
+      reasons.push("Situation Map indicates medical/body context without active risk.");
+    }
+
+    if (
+      domain.name === "family_parenthood_domain" &&
+      situationMap.domains?.includes("family_caregiving_domain")
+    ) {
+      score += 85;
+      reasons.push("Situation Map supports family/caregiving context.");
+    }
+
+    if (
+      domain.name === "decision_planning_domain" &&
+      situationMap.needs?.includes("decision_support")
+    ) {
+      score += 90;
+      reasons.push("Situation Map supports decision support.");
     }
 
     return {
@@ -156,12 +262,31 @@ window.AriUniversalDomainGovernor = {
     };
   },
 
-  getIntentBoost(domain, summary, text, signals) {
+  isBlockedByRiskGate(domain, riskProfile, situationMap) {
+    if (domain.name === "critical_safety_domain") {
+      return !riskProfile.hasCriticalSafetyRisk;
+    }
+
+    if (domain.name === "medical_body_domain") {
+      return !riskProfile.hasActiveMedicalRisk;
+    }
+
+    if (
+      domain.name === "sleep_recovery_domain" &&
+      riskProfile.hasCriticalSafetyRisk
+    ) {
+      return true;
+    }
+
+    return false;
+  },
+
+  getIntentBoost(domain, summary, text, signals, situationMap, riskProfile) {
     const isBuild = this.isBuildRequest(summary, text);
     const isWisdom = this.isWisdomReflectionRequest(summary, text);
     const isTeaching = this.isTeachingRequest(summary, text, signals);
-    const isMedical = this.isMedicalRequest(summary);
-    const isSafety = this.isSafetyRequest(summary);
+    const isMedical = this.isMedicalRequest(summary, situationMap, riskProfile);
+    const isSafety = this.isSafetyRequest(summary, riskProfile);
 
     if (isSafety && domain.name === "critical_safety_domain") return 250;
     if (isMedical && domain.name === "medical_body_domain") return 220;
@@ -172,7 +297,7 @@ window.AriUniversalDomainGovernor = {
     return 0;
   },
 
-  getObserverBoost(domain, summary, signals) {
+  getObserverBoost(domain, summary, signals, riskProfile) {
     const primaryObservation =
       summary.observerHierarchyPrimaryObservation ||
       summary.strongestObservation ||
@@ -185,8 +310,31 @@ window.AriUniversalDomainGovernor = {
 
     if (primaryObservation === "teaching_request" && domain.name === "knowledge_teaching_domain") return 200;
     if (primaryObservation === "build_request" && domain.name === "creative_building_domain") return 210;
-    if (primaryCategory === "body" && domain.name === "medical_body_domain") return 220;
-    if (primaryCategory === "safety" && domain.name === "critical_safety_domain") return 260;
+
+    if (
+      primaryCategory === "body" &&
+      domain.name === "medical_body_domain" &&
+      riskProfile.hasActiveMedicalRisk
+    ) {
+      return 220;
+    }
+
+    if (
+      primaryCategory === "body" &&
+      domain.name === "medical_history_or_body_context_domain" &&
+      !riskProfile.hasActiveMedicalRisk
+    ) {
+      return 120;
+    }
+
+    if (
+      primaryCategory === "safety" &&
+      domain.name === "critical_safety_domain" &&
+      riskProfile.hasCriticalSafetyRisk
+    ) {
+      return 260;
+    }
+
     if (primaryCategory === "relationship" && domain.name === "relationship_connection_domain") return 150;
     if (primaryCategory === "planning" && domain.name === "decision_planning_domain") return 130;
     if (primaryCategory === "wisdom" && domain.name === "wisdom_reflection_domain") return 160;
@@ -197,7 +345,7 @@ window.AriUniversalDomainGovernor = {
     ) {
       return signals.some((signal) =>
         ["parenthood", "fatherhood", "motherhood", "family"].some((term) =>
-          signal.includes(term)
+          this.hasTerm(signal, term)
         )
       )
         ? 150
@@ -207,16 +355,12 @@ window.AriUniversalDomainGovernor = {
     return 0;
   },
 
-  getForcedDomainName(summary, text, signals) {
-    if (this.isSafetyRequest(summary)) return "critical_safety_domain";
-    if (this.isMedicalRequest(summary)) return "medical_body_domain";
+  getForcedDomainName(summary, text, signals, situationMap, riskProfile) {
+    if (this.isSafetyRequest(summary, riskProfile)) return "critical_safety_domain";
+    if (this.isMedicalRequest(summary, situationMap, riskProfile)) return "medical_body_domain";
 
-    // Build must come before teaching so "how do I fix this code" does not become generic teaching.
     if (this.isBuildRequest(summary, text)) return "creative_building_domain";
-
-    // Wisdom/philosophy comes before teaching so "what is a good life?" does not become encyclopedia mode.
     if (this.isWisdomReflectionRequest(summary, text)) return "wisdom_reflection_domain";
-
     if (this.isTeachingRequest(summary, text, signals)) return "knowledge_teaching_domain";
 
     return null;
@@ -297,39 +441,39 @@ window.AriUniversalDomainGovernor = {
     );
   },
 
-  isMedicalRequest(summary) {
+  isMedicalRequest(summary, situationMap, riskProfile) {
     return (
-      summary.safetyTriggered ||
-      summary.primaryHumanNeed === "body" ||
-      summary.needResponseMode === "stabilize_body_first" ||
-      summary.observerHierarchyPrimaryCategory === "body" ||
-      summary.strongestObservationCategory === "body"
+      riskProfile.hasActiveMedicalRisk === true ||
+      situationMap.primaryLaneSuggestion === "medical_body" ||
+      situationMap.risks?.includes("urgent_medical_or_body_risk") ||
+      situationMap.risks?.includes("pregnancy_body_risk")
     );
   },
 
-  isSafetyRequest(summary) {
+  isSafetyRequest(summary, riskProfile) {
     return (
       summary.safetyTriggered === true ||
-      (
-        summary.safetyType &&
-        summary.safetyType !== "none"
-      )
+      riskProfile.hasCriticalSafetyRisk === true
     );
   },
 
-  hasSurvivalOverride(ranked = []) {
+  hasSurvivalOverride(ranked = [], riskProfile = {}) {
     const lead = ranked[0];
     if (!lead) return false;
 
-    const isSurvivalDomain =
-      lead.name === "critical_safety_domain" ||
-      lead.name === "medical_body_domain" ||
-      lead.name === "sleep_recovery_domain";
+    if (lead.name === "critical_safety_domain") {
+      return riskProfile.hasCriticalSafetyRisk === true;
+    }
 
-    if (!isSurvivalDomain) return false;
-    if (lead.name === "critical_safety_domain") return true;
+    if (lead.name === "medical_body_domain") {
+      return riskProfile.hasActiveMedicalRisk === true && lead.score >= 180;
+    }
 
-    return lead.score >= 180;
+    if (lead.name === "sleep_recovery_domain") {
+      return lead.score >= 220;
+    }
+
+    return false;
   },
 
   getDomains() {
@@ -344,11 +488,11 @@ window.AriUniversalDomainGovernor = {
         boostWeight: 60,
         maxScore: 300,
         text: [
-          "kill myself", "suicide", "self harm", "hurt myself", "hurt someone",
-          "overdose", "can't stay safe", "cant stay safe", "abuse", "assault",
-          "danger", "emergency"
+          "kill myself", "self harm", "hurt myself", "hurt someone",
+          "overdose", "can't stay safe", "cant stay safe", "active abuse",
+          "active assault", "immediate danger"
         ],
-        signals: ["safety", "danger", "crisis", "self harm", "harm", "security", "guardian"],
+        signals: ["active safety risk", "crisis", "self harm intent", "immediate danger"],
         leadOrgan: "safety",
         mode: "safety_override",
         question: "Are you safe right now?",
@@ -374,12 +518,12 @@ window.AriUniversalDomainGovernor = {
         maxScore: 280,
         text: [
           "chest pain", "can't breathe", "cant breathe", "shortness of breath",
-          "stroke", "seizure", "fainting", "passed out", "bleeding",
-          "severe pain", "pregnant", "pregnancy", "fever", "infection",
-          "dizzy", "vomiting", "diarrhea", "dehydrated", "pain"
+          "seizure", "fainting", "passed out", "bleeding", "severe pain",
+          "fever", "infection", "dizzy", "vomiting", "dehydrated",
+          "contractions", "fluid leakage", "decreased fetal movement"
         ],
         signals: [
-          "medical", "body", "body signal", "pain", "vital", "pregnancy",
+          "urgent medical", "active medical", "active symptom", "vital",
           "urgent", "symptom", "illness", "infection"
         ],
         leadOrgan: "safety",
@@ -394,10 +538,37 @@ window.AriUniversalDomainGovernor = {
           emotionRecovery: false,
           meaningProjection: false
         }),
-        shouldBoost: (summary) =>
-          summary.primaryHumanNeed === "body" ||
-          summary.needResponseMode === "stabilize_body_first" ||
-          summary.observerHierarchyPrimaryCategory === "body"
+        shouldBoost: (summary, text, signals, situationMap, riskProfile) =>
+          riskProfile.hasActiveMedicalRisk === true
+      },
+
+      {
+        name: "medical_history_or_body_context_domain",
+        superDomain: "understand",
+        priority: 760,
+        authority: 450,
+        textWeight: 65,
+        signalWeight: 65,
+        boostWeight: 40,
+        maxScore: 200,
+        text: [
+          "pregnant", "pregnancy", "abortion", "miscarriage", "stroke",
+          "surgery", "diagnosis", "doctor", "hospital", "medical history"
+        ],
+        signals: ["medical context", "body context", "medical history", "pregnancy context"],
+        leadOrgan: "teacher",
+        mode: "context_sensitive_support",
+        question: "Is this a current concern, history, or context?",
+        permissions: this.permissions({
+          teaching: true,
+          emotion: true,
+          relationship: true,
+          planning: true,
+          action: true,
+          lifeChapter: false,
+          identity: false,
+          meaningProjection: false
+        })
       },
 
       {
@@ -410,8 +581,8 @@ window.AriUniversalDomainGovernor = {
         boostWeight: 35,
         maxScore: 240,
         text: [
-          "exhausted", "no sleep", "can't sleep", "cant sleep", "burned out",
-          "burnt out", "tired", "depleted", "nothing left", "not much left"
+          "no sleep", "can't sleep", "cant sleep", "burned out",
+          "burnt out", "depleted", "nothing left", "not much left"
         ],
         signals: ["sleep", "rest", "recovery", "capacity", "burnout", "depleted"],
         leadOrgan: "safety",
@@ -438,13 +609,12 @@ window.AriUniversalDomainGovernor = {
         boostWeight: 45,
         maxScore: 330,
         text: [
-          "build", "building", "create", "coding", "app", "ari", "calbuddy",
-          "project", "github", "code", "javascript", "html", "css", "debug",
-          "bug", "repository", "repo", "function", "script", "full code",
-          "entire code", "paste ready", "update my code", "fix my code",
-          "replace this file", "review this code"
+          "coding", "app", "ari", "calbuddy", "project", "github", "code",
+          "javascript", "html", "css", "debug", "bug", "repository", "repo",
+          "function", "script", "full code", "entire code", "paste ready",
+          "update my code", "fix my code", "replace this file", "review this code"
         ],
-        signals: ["builder", "creative", "project", "development", "code", "build", "debug"],
+        signals: ["builder", "creative", "project", "development", "code", "debug"],
         leadOrgan: "builder",
         mode: "build_or_debug",
         question: "What are we building or fixing first?",
@@ -567,15 +737,15 @@ window.AriUniversalDomainGovernor = {
         textWeight: 100,
         signalWeight: 105,
         boostWeight: 35,
-        maxScore: 260,
+        maxScore: 300,
         text: [
           "baby", "pregnant", "pregnancy", "daughter", "son", "child",
           "father", "mother", "parent", "family", "good enough father",
-          "good enough mother"
+          "good enough mother", "wife", "husband", "home"
         ],
         signals: [
           "fatherhood", "motherhood", "parenthood", "family transition",
-          "family parenthood", "family"
+          "family parenthood", "family", "caregiving"
         ],
         leadOrgan: "meaning",
         mode: "protect_life_chapter",
@@ -587,6 +757,7 @@ window.AriUniversalDomainGovernor = {
           identity: true,
           wisdom: true,
           action: true,
+          planning: true,
           teaching: false,
           meaningProjection: true
         })
@@ -631,7 +802,7 @@ window.AriUniversalDomainGovernor = {
         text: [
           "job", "career", "military", "navy", "marine", "leaving",
           "resign", "retire", "promotion", "interview", "school",
-          "graduate school", "pmhnp"
+          "graduate school", "pmhnp", "overtime", "work"
         ],
         signals: ["career", "military transition", "role transition", "work"],
         leadOrgan: "planner",
@@ -655,11 +826,11 @@ window.AriUniversalDomainGovernor = {
         textWeight: 80,
         signalWeight: 75,
         boostWeight: 20,
-        maxScore: 220,
+        maxScore: 240,
         text: [
           "what should i do", "what do i do", "decide", "decision",
           "which option", "which choice", "plan", "next step",
-          "prioritize", "focus on"
+          "prioritize", "focus on", "but", "versus", "vs"
         ],
         signals: ["decision", "planning", "executive", "priority", "plan next step"],
         leadOrgan: "planner",
@@ -796,7 +967,22 @@ window.AriUniversalDomainGovernor = {
   },
 
   containsAny(text, phrases = []) {
-    return phrases.some((phrase) => text.includes(phrase));
+    return phrases.some((phrase) => this.hasTerm(text, phrase));
+  },
+
+  escapeRegex(value = "") {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  },
+
+  hasTerm(text, term) {
+    const escaped = this.escapeRegex(term);
+    const multiWord = String(term).includes(" ");
+
+    if (multiWord) {
+      return new RegExp(`(^|\\b)${escaped}(\\b|$)`, "i").test(text);
+    }
+
+    return new RegExp(`\\b${escaped}\\b`, "i").test(text);
   },
 
   normalize(value = "") {
