@@ -10,7 +10,7 @@
 // - Prevents uncertainty fallback from overriding direct teaching/build/planning.
 // - Keeps meaning/wisdom/identity gated by permissions and intent.
 
-window.AriMouthDirector = {
+window.AriMouthDirector = { 
   version: "2.6.0",
 
   direct(summary = {}) {
