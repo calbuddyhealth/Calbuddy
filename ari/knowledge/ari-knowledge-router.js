@@ -1,7 +1,7 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide when Ari should retrieve outside knowledge.
-// V1.0
+// V1.0 
 
 window.AriKnowledgeRouter = {
   version: "1.0.0",
