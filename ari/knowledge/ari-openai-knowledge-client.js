@@ -27,12 +27,16 @@ window.AriOpenAIKnowledgeClient = {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          question,
-          topic: summary.teachingTopic || null,
-          domainLead: summary.domainLead || null,
-          responseIntent: summary.responseIntent || null
-        })
-      });
+  action: "openai_knowledge",
+  question,
+  summary: {
+    topic: summary.teachingTopic || null,
+    domainLead: summary.domainLead || null,
+    responseIntent: summary.responseIntent || null,
+    primaryHumanNeed: summary.primaryHumanNeed || null
+  }
+})
+});
 
       const data = await response.json();
 
@@ -42,12 +46,12 @@ window.AriOpenAIKnowledgeClient = {
 
       return {
         openAIKnowledgeUsed: true,
-        openAIKnowledgeSource: "api/ari-openai-knowledge",
+        openAIKnowledgeSource: "api/knowledge",
         knowledgeProvider: "openai",
         knowledgeSource: data.source || "openai",
         knowledgeAnswer: data.answer || null,
         knowledgeConfidence: data.confidence || "medium",
-        knowledgeCitations: data.citations || [],
+        knowledgeCitations: data.sources || [],
         knowledgeError: null,
         source: "ari-openai-knowledge-client"
       };
@@ -59,7 +63,7 @@ window.AriOpenAIKnowledgeClient = {
   fail(message = "Knowledge request failed.") {
     return {
       openAIKnowledgeUsed: false,
-      openAIKnowledgeSource: "api/ari-openai-knowledge",
+      openAIKnowledgeSource: "api/knowledge",
       knowledgeProvider: "openai",
       knowledgeSource: null,
       knowledgeAnswer: null,
