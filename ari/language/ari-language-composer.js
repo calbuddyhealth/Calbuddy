@@ -10,7 +10,7 @@
 // - Keeps safety/body stabilization protected.
 // - Fixes broken createDirectAnswerPlaceholder syntax.
 window.AriLanguageComposer = {
-  version: "3.5.1",
+  version: "3.5.2",
   compose(input = {}) {
     const summary = input.summary || input || {};
     const responseIntent = summary.responseIntent || "respond_normally";
@@ -102,17 +102,37 @@ if (
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
     if (intentAuthority.forceDirectAnswer) {
-      opening = "";
-      synthesisText = null;
-      meaningText = null;
-      emotionText = null;
-      wisdomText = null;
-      if (this.isBadUserFacingText(truthText)) truthText = null;
-      if (this.isBadUserFacingText(actionText)) actionText = null;
-      if (!truthText && !actionText) {
-        truthText = this.createDirectAnswerPlaceholder(summary, responseIntent);
-      }
-    }
+  opening = "";
+  synthesisText = null;
+  meaningText = null;
+  emotionText = null;
+  wisdomText = null;
+
+  const directTeachingText =
+    summary.teachingAnswer ||
+    summary.knowledgeAnswer ||
+    summary.humanTruth ||
+    summary.oneLineInsight ||
+    null;
+
+  if (
+    responseIntent === "teach_clearly" ||
+    summary.domainLead === "knowledge_teaching_domain" ||
+    summary.shouldPreferTeaching === true
+  ) {
+    truthText = directTeachingText || truthText;
+  }
+
+  if (!directTeachingText && this.isBadUserFacingText(truthText)) {
+    truthText = null;
+  }
+
+  if (this.isBadUserFacingText(actionText)) actionText = null;
+
+  if (!truthText && !actionText) {
+    truthText = this.createDirectAnswerPlaceholder(summary, responseIntent);
+  }
+}
     if (isSafetyOrBody) {
       synthesisText = null;
       meaningText = null;
