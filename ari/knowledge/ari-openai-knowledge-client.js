@@ -4,7 +4,7 @@
 // V1.0
 
 window.AriOpenAIKnowledgeClient = {
-  version: "1.0.0",
+  version: "1.0.0", 
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
