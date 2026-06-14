@@ -1,45 +1,81 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.4
+// V3.5
+// Fixes:
+// - Adds Response Intent Authority so teaching/building/planning/etc. cannot be hijacked by uncertainty.
+// - Makes Composer obey Mouth Director more strictly.
+// - Prevents uncertainty/life-chapter/emotion recovery questions from leaking into direct teaching.
+// - Prevents internal diagnostic phrases like "Ari should..." from reaching the user.
+// - Keeps safety/body stabilization protected.
+// - Keeps connection, dignity, planning, identity, wisdom, stewardship, and life chapter routes intact.
 
 window.AriLanguageComposer = {
-  version: "3.4.0",
+  version: "3.5.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
 
-    const leadOrgan = summary.synthesisLeadOrgan || summary.salienceLeadOrgan || "observer";
-    const salienceMode = summary.synthesisMode || summary.salienceMode || "continue_observing";
+    const responseIntent = summary.responseIntent || "respond_normally";
+    const responseShape = summary.responseShape || null;
+
+    const intentAuthority = this.getIntentAuthority(summary);
+
+    let leadOrgan =
+      intentAuthority.leadOrgan ||
+      summary.synthesisLeadOrgan ||
+      summary.salienceLeadOrgan ||
+      "observer";
+
+    let salienceMode =
+      intentAuthority.salienceMode ||
+      summary.synthesisMode ||
+      summary.salienceMode ||
+      "continue_observing";
+
     const primaryHumanNeed = summary.primaryHumanNeed || null;
-    const responseIntent = summary.responseIntent || null;
 
     const organismNeed = summary.organismNeed || null;
-    const organismFunction = summary.organismFunction || summary.organismPrimaryFunction || null;
+    const organismFunction =
+      summary.organismFunction ||
+      summary.organismPrimaryFunction ||
+      null;
 
     const isBodyOrganism =
       ["food", "water", "sleep", "pain_protection", "vital_safety", "felt_safety"].includes(organismNeed) ||
-      ["energy_intake", "hydration", "rest_recovery", "injury_protection", "vital_stability", "threat_regulation"].includes(organismFunction);
+      [
+        "energy_intake",
+        "hydration",
+        "rest_recovery",
+        "injury_protection",
+        "vital_stability",
+        "threat_regulation",
+        "waste_elimination",
+        "temperature_regulation",
+        "movement_mobility"
+      ].includes(organismFunction);
 
     const isSafetyOrBody =
+      responseIntent === "protect_safety" ||
+      responseIntent === "stabilize_health" ||
+      responseIntent === "stabilize_organism_function" ||
       leadOrgan === "safety" ||
       salienceMode === "stabilize_body_first" ||
       primaryHumanNeed === "body" ||
-      responseIntent === "stabilize_health" ||
-      responseIntent === "stabilize_organism_function" ||
       isBodyOrganism;
 
     const hasUnclearLifeChapter =
       summary.primaryLifeChapter === "unclear_chapter" ||
-      summary.personLifeChapter === "unclear";
+      summary.personLifeChapter === "unclear" ||
+      summary.primaryLifeChapter === null;
 
     const hasUnclearConflict =
       summary.apparentConflict === "unclear" ||
       summary.wisdomTension === "unclear" ||
       summary.primaryConflict === "unclear";
 
-    const director = this.readDirector(summary);
-    const languageMode = this.getLanguageMode(leadOrgan, salienceMode);
+    const director = this.readDirector(summary, intentAuthority);
+    const languageMode = this.getLanguageMode(leadOrgan, salienceMode, responseIntent);
 
     const openingEngine = this.getEngine("AriMouthOpeningEngine", "AriOpeningEngine");
     const truthEngine = this.getEngine("AriMouthTruthEngine", "AriTruthEngine");
@@ -58,17 +94,11 @@ window.AriLanguageComposer = {
     const voiceResult = this.safeRunAny(voiceEngine, ["blend", "generate", "compose", "choose", "run"], summary);
     const shapeResult = this.safeRunAny(shapeEngine, ["shape", "generate", "compose", "structure", "run"], summary);
 
-    const recommendedQuestion =
-      summary.recommendedQuestion ||
-      summary.observerHierarchyRecommendedQuestion ||
-      summary.synthesisRecommendedQuestion ||
-      summary.salienceQuestion ||
-      summary.recommendedRecoveryQuestion ||
-      "What feels most important about this right now?";
+    const recommendedQuestion = this.getRecommendedQuestion(summary, intentAuthority);
 
     let opening =
       this.readText(openingResult, ["opening", "text", "line"]) ||
-      this.createFallbackOpening(summary, leadOrgan, salienceMode);
+      this.createFallbackOpening(summary, leadOrgan, salienceMode, responseIntent);
 
     let synthesisText = typeof summary.synthesisStatement === "string" ? summary.synthesisStatement.trim() : null;
     let meaningText = typeof summary.meaningStatement === "string" ? summary.meaningStatement.trim() : null;
@@ -76,6 +106,21 @@ window.AriLanguageComposer = {
     let truthText = this.readText(truthResult, ["truth", "text", "line"]);
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
+
+    if (intentAuthority.forceDirectAnswer) {
+      synthesisText = null;
+      meaningText = null;
+      emotionText = null;
+      wisdomText = null;
+      actionText = null;
+
+      if (this.isBadUserFacingText(opening)) opening = this.createFallbackOpening(summary, leadOrgan, salienceMode, responseIntent);
+      if (this.isBadUserFacingText(truthText)) truthText = null;
+
+      if (!truthText) {
+        truthText = this.createDirectAnswerPlaceholder(summary, responseIntent);
+      }
+    }
 
     if (isSafetyOrBody) {
       synthesisText = null;
@@ -90,12 +135,20 @@ window.AriLanguageComposer = {
       if (!actionText) actionText = "Stabilize the body first, then interpret later.";
     }
 
-    if (hasUnclearLifeChapter) meaningText = null;
-    if (hasUnclearConflict) wisdomText = null;
+    if (hasUnclearLifeChapter && !intentAuthority.allowUnclearLifeChapterText) meaningText = null;
+    if (hasUnclearConflict && !intentAuthority.allowUnclearConflictText) wisdomText = null;
 
     if (this.isPlaceholderOrUnclearText(synthesisText)) synthesisText = null;
     if (this.isPlaceholderOrUnclearText(meaningText)) meaningText = null;
     if (this.isPlaceholderOrUnclearText(wisdomText)) wisdomText = null;
+
+    if (this.isBadUserFacingText(opening)) opening = "";
+    if (this.isBadUserFacingText(synthesisText)) synthesisText = null;
+    if (this.isBadUserFacingText(meaningText)) meaningText = null;
+    if (this.isBadUserFacingText(emotionText)) emotionText = null;
+    if (this.isBadUserFacingText(truthText)) truthText = null;
+    if (this.isBadUserFacingText(wisdomText)) wisdomText = null;
+    if (this.isBadUserFacingText(actionText)) actionText = null;
 
     if (director.allowMeaning === false) {
       meaningText = null;
@@ -119,6 +172,8 @@ window.AriLanguageComposer = {
 
     let bodyParts = this.chooseBodyParts({
       leadOrgan,
+      responseIntent,
+      responseShape,
       responsePattern: director.responsePattern,
       isSafetyOrBody,
       synthesisText,
@@ -142,13 +197,18 @@ window.AriLanguageComposer = {
       recommendedQuestion;
 
     if (
+      intentAuthority.suppressRecoveryQuestion ||
       director.responsePattern === "body_truth_then_action" ||
       director.responsePattern === "calm_health_step" ||
       responseIntent === "stabilize_organism_function" ||
+      responseIntent === "teach_clearly" ||
+      responseIntent === "build_or_debug" ||
       isSafetyOrBody
     ) {
       closing = null;
     }
+
+    if (this.isBadUserFacingText(closing)) closing = null;
 
     let finalResponse = this.buildFinalResponse(opening, body, closing);
 
@@ -159,7 +219,9 @@ window.AriLanguageComposer = {
       { finalResponse }
     );
 
-    if (shapedResponse?.finalResponse) finalResponse = shapedResponse.finalResponse;
+    if (shapedResponse?.finalResponse && !this.isBadUserFacingText(shapedResponse.finalResponse)) {
+      finalResponse = shapedResponse.finalResponse;
+    }
 
     return {
       languageMode,
@@ -195,12 +257,14 @@ window.AriLanguageComposer = {
         salienceMode,
         primaryHumanNeed,
         responseIntent,
+        responseShape,
         organismFunction,
         organismNeed,
         isBodyOrganism,
         isSafetyOrBody,
         hasUnclearLifeChapter,
         hasUnclearConflict,
+        intentAuthority,
         closingSuppressed: !closing,
         director,
         sources: {
@@ -227,9 +291,80 @@ window.AriLanguageComposer = {
     };
   },
 
-  readDirector(summary = {}) {
-    const mouthAllows = summary.mouthAllows || {};
+  getIntentAuthority(summary = {}) {
+    const intent = summary.responseIntent || null;
+    const domainLead = summary.domainLead || summary.domainGovernor?.domainLead || null;
+    const shouldPreferTeaching =
+      summary.shouldPreferTeaching === true ||
+      summary.domainGovernor?.shouldPreferTeaching === true ||
+      domainLead === "knowledge_teaching_domain";
+
+    if (intent === "protect_safety") {
+      return {
+        level: "critical",
+        leadOrgan: "safety",
+        salienceMode: "safety_override",
+        suppressRecoveryQuestion: true,
+        forceDirectAnswer: false
+      };
+    }
+
+    if (intent === "stabilize_organism_function" || intent === "stabilize_health") {
+      return {
+        level: "survival",
+        leadOrgan: "safety",
+        salienceMode: "stabilize_body_first",
+        suppressRecoveryQuestion: true,
+        forceDirectAnswer: false
+      };
+    }
+
+    if (intent === "teach_clearly" || shouldPreferTeaching) {
+      return {
+        level: "direct_intent",
+        leadOrgan: "teacher",
+        salienceMode: "teach_clearly",
+        suppressRecoveryQuestion: true,
+        forceDirectAnswer: true,
+        allowUnclearLifeChapterText: false,
+        allowUnclearConflictText: false
+      };
+    }
+
+    if (intent === "build_or_debug") {
+      return {
+        level: "direct_intent",
+        leadOrgan: "builder",
+        salienceMode: "build_or_debug",
+        suppressRecoveryQuestion: true,
+        forceDirectAnswer: true
+      };
+    }
+
+    if (intent === "create_priority_structure") {
+      return {
+        level: "executive",
+        leadOrgan: "planner",
+        salienceMode: "plan_next_step",
+        suppressRecoveryQuestion: true,
+        forceDirectAnswer: false
+      };
+    }
+
     return {
+      level: "normal",
+      leadOrgan: null,
+      salienceMode: null,
+      suppressRecoveryQuestion: false,
+      forceDirectAnswer: false,
+      allowUnclearLifeChapterText: false,
+      allowUnclearConflictText: false
+    };
+  },
+
+  readDirector(summary = {}, intentAuthority = {}) {
+    const mouthAllows = summary.mouthAllows || {};
+    const director = {
       explanationLevel: summary.mouthExplanationLevel || summary.explanationLevel || "standard",
       responsePattern: summary.mouthResponsePattern || summary.responsePattern || "reflection_then_question",
       maxBodySections: Number(summary.mouthMaxBodySections ?? summary.maxBodySections ?? 3),
@@ -240,10 +375,50 @@ window.AriLanguageComposer = {
       allowWisdom: mouthAllows.wisdom ?? summary.allowWisdom ?? true,
       allowAction: mouthAllows.action ?? summary.allowAction ?? true
     };
+
+    if (intentAuthority.level === "direct_intent") {
+      director.askBeforeTeaching = false;
+      director.allowMeaning = false;
+      director.allowEmotion = false;
+      director.allowWisdom = false;
+
+      if (intentAuthority.leadOrgan === "teacher") {
+        director.explanationLevel = "clear";
+        director.responsePattern = "explain_then_example";
+        director.maxBodySections = 3;
+        director.allowTruth = true;
+        director.allowAction = false;
+      }
+
+      if (intentAuthority.leadOrgan === "builder") {
+        director.explanationLevel = "clear";
+        director.responsePattern = "direct_code_or_steps";
+        director.maxBodySections = 4;
+        director.allowTruth = true;
+        director.allowAction = true;
+      }
+    }
+
+    return director;
+  },
+
+  getRecommendedQuestion(summary = {}, intentAuthority = {}) {
+    if (intentAuthority.suppressRecoveryQuestion) return null;
+
+    return (
+      summary.recommendedQuestion ||
+      summary.observerHierarchyRecommendedQuestion ||
+      summary.synthesisRecommendedQuestion ||
+      summary.salienceQuestion ||
+      summary.recommendedRecoveryQuestion ||
+      "What feels most important about this right now?"
+    );
   },
 
   chooseBodyParts({
     leadOrgan,
+    responseIntent,
+    responseShape,
     responsePattern,
     isSafetyOrBody,
     synthesisText,
@@ -254,6 +429,12 @@ window.AriLanguageComposer = {
     actionText
   } = {}) {
     if (isSafetyOrBody) return [emotionText, truthText, actionText].filter(Boolean);
+
+    if (responseIntent === "teach_clearly") return [truthText].filter(Boolean);
+    if (responseIntent === "build_or_debug") return [truthText, actionText].filter(Boolean);
+
+    if (responsePattern === "explain_then_example") return [truthText, actionText].filter(Boolean);
+    if (responsePattern === "direct_code_or_steps") return [truthText, actionText].filter(Boolean);
 
     if (responsePattern === "comfort_then_truth") return [emotionText, truthText].filter(Boolean);
     if (responsePattern === "validate_then_question") return [emotionText, truthText].filter(Boolean);
@@ -269,6 +450,9 @@ window.AriLanguageComposer = {
     if (responsePattern === "insight_then_guidance") return [truthText || synthesisText, wisdomText, actionText].filter(Boolean);
 
     if (leadOrgan === "safety") return [truthText, actionText].filter(Boolean);
+    if (leadOrgan === "teacher") return [truthText, actionText].filter(Boolean);
+    if (leadOrgan === "builder") return [truthText, actionText].filter(Boolean);
+    if (leadOrgan === "planner") return [truthText, actionText].filter(Boolean);
     if (leadOrgan === "emotion") return [emotionText, truthText || synthesisText, actionText].filter(Boolean);
     if (leadOrgan === "meaning") return [meaningText || synthesisText || truthText, wisdomText, actionText].filter(Boolean);
     if (leadOrgan === "uncertainty") return [truthText || synthesisText || meaningText, actionText].filter(Boolean);
@@ -278,17 +462,43 @@ window.AriLanguageComposer = {
     return [synthesisText, meaningText, emotionText, truthText, wisdomText, actionText].filter(Boolean);
   },
 
+  createDirectAnswerPlaceholder(summary = {}, responseIntent = null) {
+    const message =
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      summary.normalizedMessage ||
+      "";
+
+    if (responseIntent === "teach_clearly") {
+      return `Here is the clearest way to understand it: ${message}`;
+    }
+
+    if (responseIntent === "build_or_debug") {
+      return "Here is the cleanest way to build or fix it.";
+    }
+
+    return "Here is the direct answer.";
+  },
+
   buildFinalResponse(opening, body, closing) {
     return [opening, body, closing]
       .filter(part => typeof part === "string" && part.trim())
       .join("\n\n");
   },
 
-  getLanguageMode(leadOrgan = "observer", salienceMode = null) {
+  getLanguageMode(leadOrgan = "observer", salienceMode = null, responseIntent = null) {
+    if (responseIntent === "teach_clearly") return "teaching";
+    if (responseIntent === "build_or_debug") return "building";
+    if (responseIntent === "create_priority_structure") return "planning";
+
     if (salienceMode === "restore_dignity") return "restore_dignity";
     if (salienceMode === "restore_connection") return "emotional_connection";
     if (salienceMode === "emotional_connection") return "emotional_connection";
     if (salienceMode === "stabilize_body_first") return "safety";
+    if (salienceMode === "teach_clearly") return "teaching";
+    if (salienceMode === "build_or_debug") return "building";
+    if (salienceMode === "plan_next_step") return "planning";
 
     const modeMap = {
       meaning: "life_chapter",
@@ -299,7 +509,10 @@ window.AriLanguageComposer = {
       wisdom: "wisdom",
       uncertainty: "uncertainty",
       observer: "observer",
-      safety: "safety"
+      safety: "safety",
+      teacher: "teaching",
+      builder: "building",
+      planner: "planning"
     };
 
     return modeMap[leadOrgan] || "reflection";
@@ -404,11 +617,38 @@ window.AriLanguageComposer = {
     );
   },
 
-  createFallbackOpening(summary = {}, leadOrgan = "observer", salienceMode = null) {
+  isBadUserFacingText(text = "") {
+    if (!text || typeof text !== "string") return false;
+    const normalized = this.normalizeText(text);
+
+    return (
+      normalized.includes("ari should") ||
+      normalized.includes("ari does not have enough") ||
+      normalized.includes("response intent") ||
+      normalized.includes("mouth director") ||
+      normalized.includes("lead organ") ||
+      normalized.includes("salience") ||
+      normalized.includes("synthesis") ||
+      normalized.includes("source layer") ||
+      normalized.includes("domain governor") ||
+      normalized.includes("observer hierarchy") ||
+      normalized.includes("not force a conclusion before the evidence is clear")
+    );
+  },
+
+  createFallbackOpening(summary = {}, leadOrgan = "observer", salienceMode = null, responseIntent = null) {
+    if (responseIntent === "teach_clearly") return "";
+    if (responseIntent === "build_or_debug") return "";
+    if (responseIntent === "create_priority_structure") return "Let’s organize this clearly.";
+
     if (salienceMode === "restore_dignity") return "That sounds disrespectful and frustrating.";
     if (salienceMode === "restore_connection") return "That sounds lonely.";
     if (salienceMode === "emotional_connection") return "That sounds lonely.";
     if (salienceMode === "stabilize_body_first") return "Your body is the priority right now.";
+
+    if (leadOrgan === "teacher") return "";
+    if (leadOrgan === "builder") return "";
+    if (leadOrgan === "planner") return "Let’s make this clear.";
 
     if (leadOrgan === "meaning") return "Something feels important about this chapter.";
     if (leadOrgan === "identity") return "This may be more about identity than circumstance.";
