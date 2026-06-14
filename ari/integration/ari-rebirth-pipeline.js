@@ -119,6 +119,16 @@ if (
   };
 }
 
+// 0.3. AUTHORITY MAP
+const authorityMap =
+  window.AriAuthorityMapEngine?.decide(summary) || {};
+
+summary = {
+  ...summary,
+  authorityMap,
+  ...authorityMap
+};
+
     // 0.5. ORGANISM FUNCTION ENGINE
     if (
       window.AriOrganismFunctionEngine &&
