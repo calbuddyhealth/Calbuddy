@@ -1,13 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run all Rebirth organs in correct order.
-// V1.9 
-// Fixes:
-// - Adds Universal Domain Governor after Safety and before all interpretation organs.
-// - Adds Organism Function Engine before Human Needs.
-// - Lets Ari rank universal domains before meaning, identity, emotion, wisdom, or advice.
-// - Keeps late-stage Observer Hierarchy pass after synthesis.
-// - Response Intent and Mouth Director receive domain + organism + hierarchy context.
+// V2.0
+// Adds:
+// - Situation Map before Governor.
+// - Multi-Lane Response Planner before Governor.
+// - Advanced Situation Review Console after final composition.
+// - Keeps console diagnostic-only.
 
 window.AriRebirthPipeline = {
   async run(systemSummary = {}) {
@@ -68,68 +67,117 @@ window.AriRebirthPipeline = {
       };
     }
 
-// 0.25. UNIVERSAL DOMAIN GOVERNOR
-if (
-  window.AriUniversalDomainGovernor &&
-  typeof window.AriUniversalDomainGovernor.govern === "function"
-) {
-  const domainGovernor =
-    window.AriUniversalDomainGovernor.govern(summary) || {};
+    // 0.20. SITUATION MAP
+    if (
+      window.AriSituationMapEngine &&
+      typeof window.AriSituationMapEngine.build === "function"
+    ) {
+      const situationMap =
+        window.AriSituationMapEngine.build(summary) || {};
 
-  summary = {
-    ...summary,
-    domainGovernor,
-    universalDomainGovernor: domainGovernor,
-    ...domainGovernor
-  };
+      summary = {
+        ...summary,
+        situationMap,
+        ...situationMap
+      };
+    } else {
+      summary = {
+        ...summary,
+        situationMap: {
+          situationMapRan: false,
+          source: "not-loaded"
+        },
+        situationMapRan: false,
+        situationMapVersion: null
+      };
+    }
 
-} else {
-  summary = {
-    ...summary,
+    // 0.30. MULTI-LANE RESPONSE PLANNER
+    if (
+      window.AriMultiLaneResponsePlanner &&
+      typeof window.AriMultiLaneResponsePlanner.plan === "function"
+    ) {
+      const multiLanePlan =
+        window.AriMultiLaneResponsePlanner.plan(summary) || {};
 
-    universalDomainGovernorRan: false,
-    universalDomainGovernorVersion: null,
+      summary = {
+        ...summary,
+        multiLanePlan,
+        ...multiLanePlan
+      };
+    } else {
+      summary = {
+        ...summary,
+        multiLanePlan: {
+          multiLanePlannerRan: false,
+          source: "not-loaded"
+        },
+        multiLanePlannerRan: false,
+        multiLanePlannerVersion: null
+      };
+    }
 
-    domainGovernorSource: "not-loaded",
+    // 0.40. UNIVERSAL DOMAIN GOVERNOR
+    if (
+      window.AriUniversalDomainGovernor &&
+      typeof window.AriUniversalDomainGovernor.govern === "function"
+    ) {
+      const domainGovernor =
+        window.AriUniversalDomainGovernor.govern(summary) || {};
 
-    domainLead: null,
-    domainSuperLead: null,
-    domainLeadScore: 0,
-    domainAuthority: 0,
+      summary = {
+        ...summary,
+        domainGovernor,
+        universalDomainGovernor: domainGovernor,
+        ...domainGovernor
+      };
+    } else {
+      summary = {
+        ...summary,
 
-    domainLeadOrgan: null,
-    domainMode: null,
-    domainQuestion: null,
+        universalDomainGovernorRan: false,
+        universalDomainGovernorVersion: null,
 
-    domainReasons: [],
+        domainGovernorSource: "not-loaded",
 
-    domainPermissions: {},
-    domainBlockedPermissions: [],
+        domainLead: null,
+        domainSuperLead: null,
+        domainLeadScore: 0,
+        domainAuthority: 0,
 
-    rankedUniversalDomains: [],
+        domainLeadOrgan: null,
+        domainMode: null,
+        domainQuestion: null,
 
-    shouldBlockLifeChapter: false,
-    shouldBlockIdentity: false,
-    shouldBlockEmotionRecovery: false,
-    shouldBlockMeaningProjection: false,
+        domainReasons: [],
 
-    shouldPreferTeaching: false,
-    shouldPreferBodyStabilization: false,
-    shouldPreferSafety: false
-  };
-}
+        domainPermissions: {},
+        domainBlockedPermissions: [],
 
-// 0.3. AUTHORITY MAP
-const authorityMap =
-  window.AriAuthorityMapEngine?.decide(summary) || {};
+        rankedUniversalDomains: [],
 
-summary = {
-  ...summary,
-  authorityMap,
-  ...authorityMap
-};
+        shouldBlockLifeChapter: false,
+        shouldBlockIdentity: false,
+        shouldBlockEmotionRecovery: false,
+        shouldBlockMeaningProjection: false,
 
-    // 0.5. ORGANISM FUNCTION ENGINE
+        shouldPreferTeaching: false,
+        shouldPreferBodyStabilization: false,
+        shouldPreferSafety: false
+      };
+    }
+
+    // 0.50. AUTHORITY MAP
+    const authorityMap =
+      window.AriAuthorityMapEngine?.decide?.(summary) || {};
+
+    summary = {
+      ...summary,
+      authorityMap,
+      ...authorityMap
+    };
+
+    // 0.60. ORGANISM FUNCTION ENGINE
     if (
       window.AriOrganismFunctionEngine &&
       typeof window.AriOrganismFunctionEngine.evaluate === "function"
@@ -166,7 +214,7 @@ summary = {
     const runStep = async (engine, method) => {
       if (engine && typeof engine[method] === "function") {
         const result = await engine[method](summary);
-        summary = { ...summary, ...result };
+        summary = { ...summary, ...(result || {}) };
       }
     };
 
@@ -193,7 +241,7 @@ summary = {
     }
 
     // 2. Build identity signals with need context available.
-   await runStep(window.AriIdentityPriorityEngine, "evaluate");
+    await runStep(window.AriIdentityPriorityEngine, "evaluate");
 
     // 3. Add emotional/stewardship correction with need context available.
     await runStep(window.AriStewardshipFearDifferentiator, "evaluate");
@@ -210,14 +258,14 @@ summary = {
     // 7. Integrate values after resolved identity and needs exist.
     await runStep(window.AriValueIntegrationEngine, "integrate");
 
-   // 8. Re-check life chapter after resolved identity/value integration.
-await runStep(window.AriLifeChapterEngine, "detect");
+    // 8. Re-check life chapter after resolved identity/value integration.
+    await runStep(window.AriLifeChapterEngine, "detect");
 
-// 8.5. Integrate emotional signals after life chapter, identity, values, and stewardship are known.
-await runStep(window.Ari.emotionIntegrator, "integrate");
+    // 8.5. Integrate emotional signals after life chapter, identity, values, and stewardship are known.
+    await runStep(window.Ari?.emotionIntegrator, "integrate");
 
-// 9. Decide lead organ.
-await runStep(window.AriSalienceGovernor, "govern");
+    // 9. Decide lead organ.
+    await runStep(window.AriSalienceGovernor, "govern");
 
     // 10. Synthesize final interpretation.
     await runStep(window.AriSynthesisEngine, "synthesize");
@@ -302,19 +350,19 @@ await runStep(window.AriSalienceGovernor, "govern");
       };
     }
 
-// 11.5 Teaching Answer Engine
-if (
-  window.AriTeachingAnswerEngine &&
-  typeof window.AriTeachingAnswerEngine.teach === "function"
-) {
-  const teachingResult =
-    await window.AriTeachingAnswerEngine.teach(summary);
+    // 11.5 Teaching Answer Engine
+    if (
+      window.AriTeachingAnswerEngine &&
+      typeof window.AriTeachingAnswerEngine.teach === "function"
+    ) {
+      const teachingResult =
+        await window.AriTeachingAnswerEngine.teach(summary);
 
-  summary = {
-    ...summary,
-    ...(teachingResult || {})
-  };
-}
+      summary = {
+        ...summary,
+        ...(teachingResult || {})
+      };
+    }
 
     // 12. Direct the mouth.
     if (
@@ -366,16 +414,56 @@ if (
 
     // 13. Compose final language.
     await runStep(window.AriLanguageComposer, "compose");
-console.log("===== AUTHORITY MAP =====");
-console.log(summary.authorityMap);
 
-console.log("allowTeaching:", summary.allowTeaching);
-console.log("allowEmotion:", summary.allowEmotion);
-console.log("allowMeaning:", summary.allowMeaning);
-console.log("allowIdentity:", summary.allowIdentity);
-console.log("allowWisdom:", summary.allowWisdom);
-console.log("allowAction:", summary.allowAction);
-console.log("finalResponse:", summary.finalResponse);
+    // 13.5. SITUATION REVIEW CONSOLE
+    // Diagnostic only. Does not change Ari's response.
+    if (
+      window.AriSituationReviewConsole &&
+      typeof window.AriSituationReviewConsole.review === "function"
+    ) {
+      const situationReview =
+        window.AriSituationReviewConsole.review(summary) || {};
+
+      summary = {
+        ...summary,
+        situationReview,
+        situationReviewConsoleRan:
+          situationReview.situationReviewConsoleRan || true,
+        situationReviewConsoleVersion:
+          situationReview.situationReviewConsoleVersion || null
+      };
+    } else {
+      summary = {
+        ...summary,
+        situationReview: {
+          situationReviewConsoleRan: false,
+          source: "not-loaded"
+        },
+        situationReviewConsoleRan: false,
+        situationReviewConsoleVersion: null
+      };
+    }
+
+    console.log("===== SITUATION MAP =====");
+    console.log(summary.situationMap);
+
+    console.log("===== MULTI-LANE PLAN =====");
+    console.log(summary.multiLanePlan);
+
+    console.log("===== AUTHORITY MAP =====");
+    console.log(summary.authorityMap);
+
+    console.log("===== SITUATION REVIEW =====");
+    console.log(summary.situationReview);
+
+    console.log("allowTeaching:", summary.allowTeaching);
+    console.log("allowEmotion:", summary.allowEmotion);
+    console.log("allowMeaning:", summary.allowMeaning);
+    console.log("allowIdentity:", summary.allowIdentity);
+    console.log("allowWisdom:", summary.allowWisdom);
+    console.log("allowAction:", summary.allowAction);
+    console.log("finalResponse:", summary.finalResponse);
+
     summary.rebirthPipelineRan = true;
     summary.rebirthPipelineSource = "ari-rebirth-pipeline";
 
