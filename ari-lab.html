@@ -160,7 +160,7 @@
   <script src="ari/organism-system/ari-organism-function-engine.js"></script>
   <script src="ari/needs/ari-need-engine.js"></script>
   <script src="ari/governance/ari-universal-domain-governor.js"></script>
-  
+  <script src="ari/governance/ari-authority-map-engine.js"></script>
   <script src="ari/knowledge/ari-openai-knowledge-client.js"></script>
 <script src="ari/knowledge/ari-knowledge-router.js"></script>
 <script src="ari/teaching/ari-teaching-answer-engine.js"></script>
@@ -347,6 +347,34 @@ ${summary.mouthAllows?.wisdom === true ? "yes" : summary.mouthAllows?.wisdom ===
 
 Allows Action:
 ${summary.mouthAllows?.action === true ? "yes" : summary.mouthAllows?.action === false ? "no" : "none"}
+
+==================================================
+
+===== AUTHORITY MAP =====
+
+Allow Teaching:
+${summary.allowTeaching === true ? "yes" : summary.allowTeaching === false ? "no" : "none"}
+
+Allow Emotion:
+${summary.allowEmotion === true ? "yes" : summary.allowEmotion === false ? "no" : "none"}
+
+Allow Meaning:
+${summary.allowMeaning === true ? "yes" : summary.allowMeaning === false ? "no" : "none"}
+
+Allow Identity:
+${summary.allowIdentity === true ? "yes" : summary.allowIdentity === false ? "no" : "none"}
+
+Allow Wisdom:
+${summary.allowWisdom === true ? "yes" : summary.allowWisdom === false ? "no" : "none"}
+
+Allow Action:
+${summary.allowAction === true ? "yes" : summary.allowAction === false ? "no" : "none"}
+
+Authority Reason:
+${summary.authorityReason || "none"}
+
+Authority Source:
+${summary.authoritySource || "none"}
 
 ==================================================
 
