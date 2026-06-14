@@ -366,7 +366,16 @@ if (
 
     // 13. Compose final language.
     await runStep(window.AriLanguageComposer, "compose");
+console.log("===== AUTHORITY MAP =====");
+console.log(summary.authorityMap);
 
+console.log("allowTeaching:", summary.allowTeaching);
+console.log("allowEmotion:", summary.allowEmotion);
+console.log("allowMeaning:", summary.allowMeaning);
+console.log("allowIdentity:", summary.allowIdentity);
+console.log("allowWisdom:", summary.allowWisdom);
+console.log("allowAction:", summary.allowAction);
+console.log("finalResponse:", summary.finalResponse);
     summary.rebirthPipelineRan = true;
     summary.rebirthPipelineSource = "ari-rebirth-pipeline";
 
