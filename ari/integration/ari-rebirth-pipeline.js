@@ -1,14 +1,16 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.0
+// V3.1
 // New Core Chain:
 // 1. Safety Context Gate
 // 2. Observer Evidence
 // 3. Situation Map
 // 4. Situation Contract
-// 5. Legacy organs temporarily
-// 6. Mouth / Composer
+// 5. Contract Bridge
+// 6. Legacy helper organs temporarily
+// 7. Contract Authority Reassertion
+// 8. Mouth / Composer
 
 window.AriRebirthPipeline = {
   async run(systemSummary = {}) {
@@ -33,7 +35,9 @@ window.AriRebirthPipeline = {
         source: "not-loaded",
         override: null,
         riskLevel: "none",
-        riskType: "none"
+        riskType: "none",
+        followUpNeeded: false,
+        followUpQuestion: null
       };
 
     summary = {
@@ -48,13 +52,23 @@ window.AriRebirthPipeline = {
         observerEvidenceRan: false,
         observerEvidenceSource: "not-loaded",
         observations: [],
-        observationLedger: []
+        observationLedger: [],
+        observedTypes: [],
+        observedValues: [],
+        observationCount: 0
       };
 
     summary = {
       ...summary,
       observerEvidence: observerResult,
-      ...observerResult
+      ...observerResult,
+
+      // Explicit fields for Situation Map compatibility
+      observations: observerResult.observations || [],
+      observationLedger: observerResult.observationLedger || observerResult.observations || [],
+      observedTypes: observerResult.observedTypes || [],
+      observedValues: observerResult.observedValues || [],
+      observationCount: observerResult.observationCount || 0
     };
 
     // 0.30 SITUATION MAP
@@ -65,7 +79,13 @@ window.AriRebirthPipeline = {
         situations: [],
         domains: [],
         needs: [],
-        risks: []
+        risks: [],
+        questions: [],
+        primaryLaneSuggestion: null,
+        supportLaneSuggestions: [],
+        briefLaneSuggestions: [],
+        contextLaneSuggestions: [],
+        deferredLaneSuggestions: []
       };
 
     summary = {
@@ -111,7 +131,7 @@ window.AriRebirthPipeline = {
       }
     };
 
-    // LEGACY SYSTEMS — TEMPORARY UNTIL COMPOSER FULLY USES SITUATION CONTRACT
+    // LEGACY HELPERS — TEMPORARY UNTIL COMPOSER FULLY USES SITUATION CONTRACT
 
     // 1. HUMAN NEEDS NETWORK
     if (
@@ -143,10 +163,15 @@ window.AriRebirthPipeline = {
     await runStep(window.AriValueIntegrationEngine, "integrate");
     await runStep(window.AriLifeChapterEngine, "detect");
     await runStep(window.Ari?.emotionIntegrator, "integrate");
+
+    // LEGACY DECISION SYSTEMS STILL RUNNING FOR NOW
     await runStep(window.AriSalienceGovernor, "govern");
     await runStep(window.AriSynthesisEngine, "synthesize");
 
-    // 10.5 LATE OBSERVER HIERARCHY PASS
+    // Reassert contract authority after old decision systems.
+    summary = this.reassertContractAuthority(summary);
+
+    // 10.5 LATE OBSERVER HIERARCHY PASS — diagnostic/support only
     if (
       window.Ari &&
       window.Ari.observerHierarchyEngine &&
@@ -208,6 +233,9 @@ window.AriRebirthPipeline = {
       };
     }
 
+    // Reassert again after hierarchy, just in case.
+    summary = this.reassertContractAuthority(summary);
+
     // 11 RESPONSE INTENT
     if (
       window.AriResponseIntentEngine &&
@@ -221,6 +249,9 @@ window.AriRebirthPipeline = {
         responseIntentSource: "not-loaded"
       };
     }
+
+    // Reassert after response intent too.
+    summary = this.reassertContractAuthority(summary);
 
     // 11.5 TEACHING ANSWER ENGINE
     if (
@@ -250,7 +281,11 @@ window.AriRebirthPipeline = {
         mouthDirectorSource: "ari-mouth-director",
 
         mouthExplanationLevel: mouthDirector.explanationLevel || null,
-        mouthResponsePattern: mouthDirector.responsePattern || null,
+        mouthResponsePattern:
+          summary.responseShape ||
+          mouthDirector.responsePattern ||
+          null,
+
         mouthMaxBodySections: mouthDirector.maxBodySections ?? null,
         mouthAskBeforeTeaching: Boolean(mouthDirector.askBeforeTeaching),
 
@@ -270,7 +305,7 @@ window.AriRebirthPipeline = {
         mouthDirectorSource: "not-loaded",
 
         mouthExplanationLevel: null,
-        mouthResponsePattern: null,
+        mouthResponsePattern: summary.responseShape || null,
         mouthMaxBodySections: null,
         mouthAskBeforeTeaching: null,
 
@@ -283,6 +318,9 @@ window.AriRebirthPipeline = {
         }
       };
     }
+
+    // Final reassert before composer.
+    summary = this.reassertContractAuthority(summary);
 
     // 13 COMPOSE FINAL LANGUAGE
     await runStep(window.AriLanguageComposer, "compose");
@@ -327,6 +365,16 @@ window.AriRebirthPipeline = {
     console.log("===== SITUATION CONTRACT =====");
     console.log(summary.situationContract);
 
+    console.log("===== CONTRACT AUTHORITY =====");
+    console.log({
+      contractAuthorityReasserted: summary.contractAuthorityReasserted,
+      situationContractPrimary: summary.situationContractPrimary,
+      salienceLeadOrgan: summary.salienceLeadOrgan,
+      salienceMode: summary.salienceMode,
+      responseIntent: summary.responseIntent,
+      responseShape: summary.responseShape
+    });
+
     console.log("===== FINAL RESPONSE =====");
     console.log(summary.finalResponse);
 
@@ -345,52 +393,84 @@ window.AriRebirthPipeline = {
       contractBridgeSource: "ari-rebirth-pipeline"
     };
 
+    const apply = (data = {}) => Object.assign(bridge, data);
+
     if (primary === "safety") {
-      bridge.salienceLeadOrgan = "safety";
-      bridge.salienceMode = "safety_override";
-      bridge.responseIntent = "protect_safety_first";
-      bridge.primaryHumanNeed = "security";
-      bridge.needResponseMode = "protect_safety_first";
+      apply({
+        contractBridgeLeadOrgan: "safety",
+        contractBridgeMode: "safety_override",
+        contractBridgeResponseIntent: "protect_safety_first",
+        salienceLeadOrgan: "safety",
+        salienceMode: "safety_override",
+        responseIntent: "protect_safety_first",
+        primaryHumanNeed: "security",
+        needResponseMode: "protect_safety_first"
+      });
     }
 
     if (primary === "medical_body") {
-      bridge.salienceLeadOrgan = "safety";
-      bridge.salienceMode = "medical_or_body_first";
-      bridge.responseIntent = "stabilize_organism_function";
-      bridge.primaryHumanNeed = "body";
-      bridge.needResponseMode = "stabilize_body_first";
+      apply({
+        contractBridgeLeadOrgan: "safety",
+        contractBridgeMode: "medical_or_body_first",
+        contractBridgeResponseIntent: "stabilize_organism_function",
+        salienceLeadOrgan: "safety",
+        salienceMode: "medical_or_body_first",
+        responseIntent: "stabilize_organism_function",
+        primaryHumanNeed: "body",
+        needResponseMode: "stabilize_body_first"
+      });
     }
 
     if (primary === "executive_decision") {
-      bridge.salienceLeadOrgan = "executive";
-      bridge.salienceMode = "plan_next_step";
-      bridge.responseIntent = "decision_support";
-      bridge.primaryHumanNeed = "clarity";
-      bridge.needResponseMode = "choose_next_step";
+      apply({
+        contractBridgeLeadOrgan: "executive",
+        contractBridgeMode: "plan_next_step",
+        contractBridgeResponseIntent: "decision_support",
+        salienceLeadOrgan: "executive",
+        salienceMode: "plan_next_step",
+        responseIntent: "decision_support",
+        primaryHumanNeed: "clarity",
+        needResponseMode: "choose_next_step"
+      });
     }
 
     if (primary === "builder") {
-      bridge.salienceLeadOrgan = "builder";
-      bridge.salienceMode = "build_or_debug";
-      bridge.responseIntent = "build_or_fix";
-      bridge.primaryHumanNeed = "execution";
-      bridge.needResponseMode = "step_by_step_action";
+      apply({
+        contractBridgeLeadOrgan: "builder",
+        contractBridgeMode: "build_or_debug",
+        contractBridgeResponseIntent: "build_or_fix",
+        salienceLeadOrgan: "builder",
+        salienceMode: "build_or_debug",
+        responseIntent: "build_or_fix",
+        primaryHumanNeed: "execution",
+        needResponseMode: "step_by_step_action"
+      });
     }
 
     if (primary === "emotion") {
-      bridge.salienceLeadOrgan = "emotion";
-      bridge.salienceMode = "restore_connection";
-      bridge.responseIntent = "offer_connection";
-      bridge.primaryHumanNeed = "connection";
-      bridge.needResponseMode = "restore_connection";
+      apply({
+        contractBridgeLeadOrgan: "emotion",
+        contractBridgeMode: "restore_connection",
+        contractBridgeResponseIntent: "offer_connection",
+        salienceLeadOrgan: "emotion",
+        salienceMode: "restore_connection",
+        responseIntent: "offer_connection",
+        primaryHumanNeed: "connection",
+        needResponseMode: "restore_connection"
+      });
     }
 
     if (primary === "teacher") {
-      bridge.salienceLeadOrgan = "teacher";
-      bridge.salienceMode = "teach_clearly";
-      bridge.responseIntent = "teach";
-      bridge.primaryHumanNeed = "understanding";
-      bridge.needResponseMode = "teach_clearly";
+      apply({
+        contractBridgeLeadOrgan: "teacher",
+        contractBridgeMode: "teach_clearly",
+        contractBridgeResponseIntent: "teach",
+        salienceLeadOrgan: "teacher",
+        salienceMode: "teach_clearly",
+        responseIntent: "teach",
+        primaryHumanNeed: "understanding",
+        needResponseMode: "teach_clearly"
+      });
     }
 
     return {
@@ -419,6 +499,127 @@ window.AriRebirthPipeline = {
 
       situationContractBlocked:
         contract.blocked || []
+    };
+  },
+
+  reassertContractAuthority(summary = {}) {
+    const contract = summary.situationContract || null;
+    if (!contract || !contract.primary) return summary;
+
+    const primary = contract.primary;
+
+    const authority = {
+      contractAuthorityReasserted: true,
+      contractAuthoritySource: "ari-rebirth-pipeline",
+
+      situationContractPrimary: primary,
+      situationContractSupport: contract.support || [],
+      situationContractBrief: contract.brief || [],
+      situationContractContext: contract.context || [],
+      situationContractDeferred: contract.deferred || [],
+      situationContractBlocked: contract.blocked || [],
+
+      responseShape:
+        contract.responseShape ||
+        summary.responseShape ||
+        null
+    };
+
+    const apply = (data = {}) => Object.assign(authority, data);
+
+    if (primary === "safety") {
+      apply({
+        salienceLeadOrgan: "safety",
+        salienceMode: "safety_override",
+        responseIntent: "protect_safety_first",
+        primaryHumanNeed: "security",
+        needResponseMode: "protect_safety_first"
+      });
+    }
+
+    if (primary === "medical_body") {
+      apply({
+        salienceLeadOrgan: "safety",
+        salienceMode: "medical_or_body_first",
+        responseIntent: "stabilize_organism_function",
+        primaryHumanNeed: "body",
+        needResponseMode: "stabilize_body_first"
+      });
+    }
+
+    if (primary === "risk_clarification") {
+      apply({
+        salienceLeadOrgan: "safety",
+        salienceMode: "clarify_risk",
+        responseIntent: "clarify_risk",
+        primaryHumanNeed: "security",
+        needResponseMode: "clarify_before_answer"
+      });
+    }
+
+    if (primary === "executive_decision") {
+      apply({
+        salienceLeadOrgan: "executive",
+        salienceMode: "plan_next_step",
+        responseIntent: "decision_support",
+        primaryHumanNeed: "clarity",
+        needResponseMode: "choose_next_step"
+      });
+    }
+
+    if (primary === "builder") {
+      apply({
+        salienceLeadOrgan: "builder",
+        salienceMode: "build_or_debug",
+        responseIntent: "build_or_fix",
+        primaryHumanNeed: "execution",
+        needResponseMode: "step_by_step_action"
+      });
+    }
+
+    if (primary === "emotion") {
+      apply({
+        salienceLeadOrgan: "emotion",
+        salienceMode: "restore_connection",
+        responseIntent: "offer_connection",
+        primaryHumanNeed: "connection",
+        needResponseMode: "restore_connection"
+      });
+    }
+
+    if (primary === "teacher") {
+      apply({
+        salienceLeadOrgan: "teacher",
+        salienceMode: "teach_clearly",
+        responseIntent: "teach",
+        primaryHumanNeed: "understanding",
+        needResponseMode: "teach_clearly"
+      });
+    }
+
+    if (primary === "family") {
+      apply({
+        salienceLeadOrgan: "meaning",
+        salienceMode: "protect_family_presence",
+        responseIntent: "family_context_support",
+        primaryHumanNeed: "connection",
+        needResponseMode: "protect_relationships"
+      });
+    }
+
+    if (primary === "general_understanding") {
+      apply({
+        salienceLeadOrgan: "observer",
+        salienceMode: "continue_observing",
+        responseIntent: "understand_context",
+        primaryHumanNeed: "understanding",
+        needResponseMode: "continue_observing"
+      });
+    }
+
+    return {
+      ...summary,
+      ...authority
     };
   }
 };
