@@ -1,71 +1,87 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V2.5
-// Fixes:
-// - Preserves raw user message for Safety + Human Needs Network.
-// - Adds response intent placeholders.
-// - Adds Mouth Director placeholders/debug fields.
-// - Adds Dual Salience debug fields.
-// - Adds Observer Hierarchy debug fields.
+// V3.0
+// Adds:
+// - Safety Context Gate placeholders/debug fields.
+// - Observer Evidence placeholders/debug fields.
+// - Situation Contract placeholders/debug fields.
+// - Contract Bridge / Contract Authority placeholders.
+// - Keeps legacy governor / multi-lane / authority fields for comparison only.
 // - Keeps Rebirth pipeline outside this file to prevent duplicate execution.
 
-window.Ari = window.Ari || {}; 
+window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "2.5.0",
+  version: "3.0.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
     const signals = analysis.signals || {};
     const lifeSignalWeighting = analysis.lifeSignalWeighting || {};
     const salience = analysis.salience || {};
+    const observation = analysis.observation || {};
 
     const languageRoute = window.Ari.languageRouter
       ? window.Ari.languageRouter.route(analysis)
       : null;
 
-    const observation = analysis.observation || {};
+    const safetyContextGate =
+      analysis.safetyContextGate ||
+      analysis.safetyGate ||
+      {};
 
-const domainGovernor =
-  analysis.domainGovernor ||
-  analysis.universalDomainGovernor ||
-  analysis.domainDecision ||
-  {};
+    const observerEvidence =
+      analysis.observerEvidence ||
+      analysis.observer ||
+      {};
 
-const authorityMap =
-  analysis.authorityMap ||
-  analysis.authority ||
-  {};
+    const situationMap =
+      analysis.situationMap ||
+      analysis.situation ||
+      {};
 
-const situationMap =
-  analysis.situationMap ||
-  analysis.situation ||
-  {};
+    const situationContract =
+      analysis.situationContract ||
+      analysis.contract ||
+      {};
 
-const multiLanePlan =
-  analysis.multiLanePlan ||
-  analysis.multiLanePlanner ||
-  {};
+    const contractBridge =
+      analysis.contractBridge ||
+      {};
 
-const situationReview =
-  analysis.situationReview ||
-  analysis.situationReviewConsole ||
-  {};
+    const domainGovernor =
+      analysis.domainGovernor ||
+      analysis.universalDomainGovernor ||
+      analysis.domainDecision ||
+      {};
 
-const knowledge =
-  analysis.knowledge ||
-  analysis.knowledgeRouter ||
-  analysis.knowledgeResult ||
-  analysis ||
-  {};
+    const authorityMap =
+      analysis.authorityMap ||
+      analysis.authority ||
+      {};
 
-const teaching =
-  analysis.teaching ||
-  analysis.teachingAnswer ||
-  analysis.teachingResult ||
-  analysis ||
-  {};
+    const multiLanePlan =
+      analysis.multiLanePlan ||
+      analysis.multiLanePlanner ||
+      {};
+
+    const situationReview =
+      analysis.situationReview ||
+      analysis.situationReviewConsole ||
+      {};
+
+    const knowledge =
+      analysis.knowledge ||
+      analysis.knowledgeRouter ||
+      analysis.knowledgeResult ||
+      {};
+
+    const teaching =
+      analysis.teaching ||
+      analysis.teachingAnswer ||
+      analysis.teachingResult ||
+      {};
 
     const dualSalience =
       analysis.dualSalience ||
@@ -79,10 +95,12 @@ const teaching =
       observation.hierarchy ||
       {};
 
-const observationLedger =
-  analysis.observationLedger ||
-  observation.observationLedger ||
-  [];
+    const observationLedger =
+      analysis.observationLedger ||
+      observerEvidence.observationLedger ||
+      observerEvidence.observations ||
+      observation.observationLedger ||
+      [];
 
     const values = analysis.values || {};
     const identity = analysis.identity || {};
@@ -110,44 +128,46 @@ const observationLedger =
     const selfReflection = analysis.selfReflection || {};
     const voice = analysis.voice || {};
     const memory = analysis.memory || {};
-   const organism = analysis.organism || {};
-     const responseIntent = analysis.responseIntent || {};
+    const organism = analysis.organism || {};
+    const responseIntent = analysis.responseIntent || {};
     const mouthDirector = analysis.mouthDirector || {};
-const stewardshipFear =
-  analysis.stewardshipFear ||
-  analysis.stewardshipFearDifferentiator ||
-  analysis.emotionalClassification ||
-  {};
 
-const emotionIntegrator =
-  analysis.emotionIntegrator ||
-  analysis.emotionIntegration ||
-  analysis.integratedEmotion ||
-  {};
+    const stewardshipFear =
+      analysis.stewardshipFear ||
+      analysis.stewardshipFearDifferentiator ||
+      analysis.emotionalClassification ||
+      {};
 
-const lifeChapter =
-  analysis.lifeChapter ||
-  analysis.meaningChapter ||
-  analysis.chapter ||
-  {};
+    const emotionIntegrator =
+      analysis.emotionIntegrator ||
+      analysis.emotionIntegration ||
+      analysis.integratedEmotion ||
+      {};
 
-const identityPriority =
-  analysis.identityPriority ||
-  analysis.identityLeadership ||
-  analysis.identity ||
-  {};
+    const lifeChapter =
+      analysis.lifeChapter ||
+      analysis.meaningChapter ||
+      analysis.chapter ||
+      {};
 
-const valueIntegration =
-  analysis.valueIntegration ||
-  analysis.valuesIntegration ||
-  analysis.values ||
-  {};
+    const identityPriority =
+      analysis.identityPriority ||
+      analysis.identityLeadership ||
+      analysis.identity ||
+      {};
 
-const salienceGovernor =
-  analysis.salienceGovernor ||
-  analysis.governor ||
-  analysis.salienceDecision ||
-  {};
+    const valueIntegration =
+      analysis.valueIntegration ||
+      analysis.valuesIntegration ||
+      analysis.values ||
+      {};
+
+    const salienceGovernor =
+      analysis.salienceGovernor ||
+      analysis.governor ||
+      analysis.salienceDecision ||
+      {};
+
     const rawUserMessage =
       analysis.userMessage ||
       analysis.message ||
@@ -169,29 +189,450 @@ const salienceGovernor =
       normalizedMessage: normalizedUserMessage,
 
       questionType: analysis.questionType || "unknown",
-
       languageRoute,
       recommendedLanguageLead: signals.recommendedLanguageLead || null,
 
-      responseIntent: responseIntent.responseIntent || null,
-      responseShape: responseIntent.responseShape || null,
-      responseIntentReason: responseIntent.responseIntentReason || null,
-      responseIntentSource: responseIntent.responseIntentSource || "not-yet-run",
+      // ==================================================
+      // NEW CORE CHAIN: SAFETY CONTEXT GATE
+      // ==================================================
+
+      safetyContextGate,
+
+      safetyContextGateRan:
+        safetyContextGate.safetyContextGateRan ??
+        analysis.safetyContextGateRan ??
+        null,
+
+      safetyContextGateVersion:
+        safetyContextGate.safetyContextGateVersion ||
+        analysis.safetyContextGateVersion ||
+        null,
+
+      safetyContextGateSource:
+        safetyContextGate.source ||
+        analysis.safetyContextGateSource ||
+        "not-yet-run",
+
+      safetyOverride:
+        safetyContextGate.override ??
+        analysis.override ??
+        null,
+
+      safetyRiskLevel:
+        safetyContextGate.riskLevel ||
+        analysis.riskLevel ||
+        "none",
+
+      safetyRiskType:
+        safetyContextGate.riskType ||
+        analysis.riskType ||
+        "none",
+
+      safetyFollowUpNeeded:
+        safetyContextGate.followUpNeeded ??
+        analysis.followUpNeeded ??
+        false,
+
+      safetyFollowUpQuestion:
+        safetyContextGate.followUpQuestion ||
+        analysis.followUpQuestion ||
+        null,
+
+      safetyShouldStopNormalResponse:
+        safetyContextGate.shouldStopNormalResponse ??
+        analysis.shouldStopNormalResponse ??
+        false,
+
+      safetyGateReasons:
+        safetyContextGate.reasons ||
+        analysis.safetyGateReasons ||
+        [],
+
+      safetyGateEvidence:
+        safetyContextGate.evidence ||
+        analysis.safetyGateEvidence ||
+        [],
+
+      // ==================================================
+      // NEW CORE CHAIN: OBSERVER EVIDENCE
+      // ==================================================
+
+      observerEvidence,
+
+      observerEvidenceRan:
+        observerEvidence.observerEvidenceRan ??
+        analysis.observerEvidenceRan ??
+        null,
+
+      observerEvidenceVersion:
+        observerEvidence.observerEvidenceVersion ||
+        analysis.observerEvidenceVersion ||
+        null,
+
+      observerEvidenceSource:
+        observerEvidence.observerEvidenceSource ||
+        observerEvidence.source ||
+        analysis.observerEvidenceSource ||
+        "not-yet-run",
+
+      rawUserMessage:
+        observerEvidence.rawUserMessage ||
+        rawUserMessage,
+
+      normalizedObservedText:
+        observerEvidence.normalizedObservedText ||
+        normalizedUserMessage,
+
+      observations:
+        observerEvidence.observations ||
+        analysis.observations ||
+        [],
+
+      observationCount:
+        observerEvidence.observationCount ??
+        analysis.observationCount ??
+        0,
+
+      observedTypes:
+        observerEvidence.observedTypes ||
+        analysis.observedTypes ||
+        [],
+
+      observedValues:
+        observerEvidence.observedValues ||
+        analysis.observedValues ||
+        [],
+
+      // Compatibility with older lab/debug outputs
+      observationLedger,
+      observationLedgerRan: Array.isArray(observationLedger),
+      observationLedgerCount: observationLedger.length || 0,
+
+      strongestObservation:
+        analysis.strongestObservation ||
+        observationLedger[0]?.signal ||
+        observationLedger[0]?.value ||
+        null,
+
+      strongestObservationCategory:
+        analysis.strongestObservationCategory ||
+        observationLedger[0]?.category ||
+        observationLedger[0]?.type ||
+        null,
+
+      strongestObservationType:
+        analysis.strongestObservationType ||
+        observationLedger[0]?.observationType ||
+        observationLedger[0]?.type ||
+        null,
+
+      strongestObservationConfidence:
+        analysis.strongestObservationConfidence ||
+        observationLedger[0]?.confidence ||
+        0,
+
+      strongestObservationWeight:
+        analysis.strongestObservationWeight ||
+        observationLedger[0]?.weight ||
+        0,
+
+      rankedLedgerObservations:
+        observationLedger.slice(0, 10),
+
+      // ==================================================
+      // NEW CORE CHAIN: SITUATION MAP
+      // ==================================================
+
+      situationMap,
+
+      situationMapRan:
+        situationMap.situationMapRan ??
+        analysis.situationMapRan ??
+        null,
+
+      situationMapVersion:
+        situationMap.situationMapVersion ||
+        analysis.situationMapVersion ||
+        null,
+
+      situationMapSource:
+        situationMap.source ||
+        analysis.situationMapSource ||
+        "not-yet-run",
+
+      situationMapDomains:
+        situationMap.domains ||
+        analysis.domains ||
+        [],
+
+      situationMapSituations:
+        situationMap.situations ||
+        analysis.situations ||
+        [],
+
+      situationMapNeeds:
+        situationMap.needs ||
+        analysis.needs ||
+        [],
+
+      situationMapRisks:
+        situationMap.risks ||
+        analysis.risks ||
+        [],
+
+      situationMapQuestions:
+        situationMap.questions ||
+        analysis.questions ||
+        [],
+
+      situationMapResponseRequirements:
+        situationMap.responseRequirements ||
+        analysis.responseRequirements ||
+        [],
+
+      situationMapEventContext:
+        situationMap.eventContext ||
+        analysis.eventContext ||
+        {},
+
+      situationMapEventState:
+        situationMap.eventState ||
+        analysis.eventState ||
+        null,
+
+      situationMapOwnership:
+        situationMap.ownership ||
+        analysis.ownership ||
+        null,
+
+      situationMapRiskLevel:
+        situationMap.riskLevel ||
+        analysis.riskLevel ||
+        null,
+
+      situationMapGravity:
+        situationMap.gravity ??
+        analysis.gravity ??
+        null,
+
+      situationMapUrgency:
+        situationMap.urgency ||
+        analysis.urgency ||
+        null,
+
+      situationMapComplexity:
+        situationMap.complexity ||
+        analysis.complexity ||
+        null,
+
+      situationMapHorizon:
+        situationMap.horizon ||
+        analysis.horizon ||
+        null,
+
+      situationMapPrimaryLaneSuggestion:
+        situationMap.primaryLaneSuggestion ||
+        analysis.primaryLaneSuggestion ||
+        null,
+
+      situationMapSupportLaneSuggestions:
+        situationMap.supportLaneSuggestions ||
+        analysis.supportLaneSuggestions ||
+        [],
+
+      situationMapBriefLaneSuggestions:
+        situationMap.briefLaneSuggestions ||
+        analysis.briefLaneSuggestions ||
+        [],
+
+      situationMapContextLaneSuggestions:
+        situationMap.contextLaneSuggestions ||
+        analysis.contextLaneSuggestions ||
+        [],
+
+      situationMapDeferredLaneSuggestions:
+        situationMap.deferredLaneSuggestions ||
+        analysis.deferredLaneSuggestions ||
+        [],
+
+      situationMapShouldUseMultiLaneResponse:
+        situationMap.shouldUseMultiLaneResponse ??
+        analysis.shouldUseMultiLaneResponse ??
+        false,
+
+      situationMapShouldAskClarifyingQuestion:
+        situationMap.shouldAskClarifyingQuestion ??
+        analysis.shouldAskClarifyingQuestion ??
+        false,
+
+      situationMapRecommendedQuestion:
+        situationMap.recommendedQuestion ||
+        analysis.recommendedQuestion ||
+        null,
+
+      // ==================================================
+      // NEW CORE CHAIN: SITUATION CONTRACT
+      // ==================================================
+
+      situationContract,
+
+      situationContractRan:
+        situationContract.situationContractRan ??
+        analysis.situationContractRan ??
+        null,
+
+      situationContractVersion:
+        situationContract.situationContractVersion ||
+        analysis.situationContractVersion ||
+        null,
+
+      situationContractSource:
+        situationContract.source ||
+        analysis.situationContractSource ||
+        "not-yet-run",
+
+      situationContractPrimary:
+        analysis.situationContractPrimary ||
+        situationContract.primary ||
+        null,
+
+      situationContractSupport:
+        analysis.situationContractSupport ||
+        situationContract.support ||
+        [],
+
+      situationContractBrief:
+        analysis.situationContractBrief ||
+        situationContract.brief ||
+        [],
+
+      situationContractContext:
+        analysis.situationContractContext ||
+        situationContract.context ||
+        [],
+
+      situationContractDeferred:
+        analysis.situationContractDeferred ||
+        situationContract.deferred ||
+        [],
+
+      situationContractBlocked:
+        analysis.situationContractBlocked ||
+        situationContract.blocked ||
+        [],
+
+      situationContractRisk:
+        situationContract.risk ||
+        analysis.situationContractRisk ||
+        {},
+
+      situationContractClarity:
+        situationContract.clarity ||
+        analysis.situationContractClarity ||
+        {},
+
+      situationContractResponseShape:
+        situationContract.responseShape ||
+        analysis.responseShape ||
+        null,
+
+      situationContractResponseRules:
+        situationContract.responseRules ||
+        analysis.situationContractResponseRules ||
+        [],
+
+      situationContractMouthDirective:
+        situationContract.mouthDirective ||
+        analysis.situationContractMouthDirective ||
+        {},
+
+      situationContractReasons:
+        situationContract.reasons ||
+        analysis.situationContractReasons ||
+        [],
+
+      // ==================================================
+      // NEW CORE CHAIN: CONTRACT BRIDGE / AUTHORITY
+      // ==================================================
+
+      contractBridge,
+
+      contractBridgeRan:
+        analysis.contractBridgeRan ??
+        contractBridge.contractBridgeRan ??
+        null,
+
+      contractBridgeSource:
+        analysis.contractBridgeSource ||
+        contractBridge.contractBridgeSource ||
+        "not-yet-run",
+
+      contractBridgeLeadOrgan:
+        analysis.contractBridgeLeadOrgan ||
+        contractBridge.contractBridgeLeadOrgan ||
+        null,
+
+      contractBridgeMode:
+        analysis.contractBridgeMode ||
+        contractBridge.contractBridgeMode ||
+        null,
+
+      contractBridgeResponseIntent:
+        analysis.contractBridgeResponseIntent ||
+        contractBridge.contractBridgeResponseIntent ||
+        null,
+
+      contractAuthorityReasserted:
+        analysis.contractAuthorityReasserted ??
+        false,
+
+      contractAuthoritySource:
+        analysis.contractAuthoritySource ||
+        "not-yet-run",
+
+      // ==================================================
+      // RESPONSE INTENT / MOUTH
+      // ==================================================
+
+      responseIntent:
+        analysis.responseIntent ||
+        responseIntent.responseIntent ||
+        null,
+
+      responseShape:
+        analysis.responseShape ||
+        situationContract.responseShape ||
+        responseIntent.responseShape ||
+        null,
+
+      responseIntentReason:
+        analysis.responseIntentReason ||
+        responseIntent.responseIntentReason ||
+        null,
+
+      responseIntentSource:
+        analysis.responseIntentSource ||
+        responseIntent.responseIntentSource ||
+        "not-yet-run",
 
       mouthDirector: mouthDirector || null,
-      mouthDirectorSource: mouthDirector.source || "not-yet-run",
-      mouthExplanationLevel: mouthDirector.explanationLevel || null,
-      mouthResponsePattern: mouthDirector.responsePattern || null,
-      mouthMaxBodySections: mouthDirector.maxBodySections || null,
-      mouthAskBeforeTeaching: mouthDirector.askBeforeTeaching ?? null,
+      mouthDirectorSource: mouthDirector.source || analysis.mouthDirectorSource || "not-yet-run",
+      mouthExplanationLevel: mouthDirector.explanationLevel || analysis.mouthExplanationLevel || null,
+      mouthResponsePattern: mouthDirector.responsePattern || analysis.mouthResponsePattern || null,
+      mouthMaxBodySections: mouthDirector.maxBodySections || analysis.mouthMaxBodySections || null,
+      mouthAskBeforeTeaching: mouthDirector.askBeforeTeaching ?? analysis.mouthAskBeforeTeaching ?? null,
 
       mouthAllows: {
-        meaning: mouthDirector.allowMeaning ?? null,
-        emotion: mouthDirector.allowEmotion ?? null,
-        truth: mouthDirector.allowTruth ?? null,
-        wisdom: mouthDirector.allowWisdom ?? null,
-        action: mouthDirector.allowAction ?? null
+        meaning: mouthDirector.allowMeaning ?? analysis.mouthAllows?.meaning ?? null,
+        emotion: mouthDirector.allowEmotion ?? analysis.mouthAllows?.emotion ?? null,
+        truth: mouthDirector.allowTruth ?? analysis.mouthAllows?.truth ?? null,
+        wisdom: mouthDirector.allowWisdom ?? analysis.mouthAllows?.wisdom ?? null,
+        action: mouthDirector.allowAction ?? analysis.mouthAllows?.action ?? null
       },
+
+      // ==================================================
+      // LEGACY / SUPPORT DEBUG FIELDS
+      // ==================================================
 
       lifeSignals: lifeSignals.signalNames || [],
       primaryLifeSignal: lifeSignals.primarySignal?.name || null,
@@ -249,35 +690,6 @@ const salienceGovernor =
       dualSalienceClarityConfidence: dualSalience.clarity?.confidence || null,
       dualSalienceClarityAction: dualSalience.clarity?.action || null,
       dualSalienceRecommendedMove: dualSalience.recommendedMove || null,
-
-// Observation Ledger
-
-observationLedger:
-  observationLedger,
-
-observationLedgerRan:
-  Array.isArray(observationLedger),
-
-observationLedgerCount:
-  observationLedger.length || 0,
-
-strongestObservation:
-  observationLedger[0]?.signal || null,
-
-strongestObservationCategory:
-  observationLedger[0]?.category || null,
-
-strongestObservationType:
-  observationLedger[0]?.observationType || null,
-
-strongestObservationConfidence:
-  observationLedger[0]?.confidence || 0,
-
-strongestObservationWeight:
-  observationLedger[0]?.weight || 0,
-
-rankedLedgerObservations:
-  observationLedger.slice(0, 10),
 
       observerHierarchyPrimaryObservation:
         observerHierarchy.primaryObservation || null,
@@ -431,520 +843,478 @@ rankedLedgerObservations:
       primaryOrgan: route.primaryOrgan || "companion",
       supportingOrgans: route.supportingOrgans || [],
 
-primaryEmotion:
-  emotionIntegrator.primaryEmotion ||
-  emotionalIntelligence.primaryEmotion ||
-  emotion.primaryEmotion ||
-  "curiosity",
+      primaryEmotion:
+        emotionIntegrator.primaryEmotion ||
+        emotionalIntelligence.primaryEmotion ||
+        emotion.primaryEmotion ||
+        "curiosity",
 
-secondaryEmotions:
-  emotion.secondaryEmotions || [],
+      secondaryEmotions:
+        emotion.secondaryEmotions || [],
 
-surfaceEmotion:
-  emotionalIntelligence.surfaceEmotion?.name ||
-  emotionIntegrator.surfaceEmotion ||
-  null,
+      surfaceEmotion:
+        emotionalIntelligence.surfaceEmotion?.name ||
+        emotionIntegrator.surfaceEmotion ||
+        null,
 
-underlyingEmotion:
-  emotionalIntelligence.underlyingEmotion?.name ||
-  underlyingEmotionDepth.primaryUnderlyingEmotion?.name ||
-  emotionIntegrator.underlyingEmotion ||
-  null,
+      underlyingEmotion:
+        emotionalIntelligence.underlyingEmotion?.name ||
+        underlyingEmotionDepth.primaryUnderlyingEmotion?.name ||
+        emotionIntegrator.underlyingEmotion ||
+        null,
 
-rootNeed:
-  emotionIntegrator.rootNeed ||
-  emotionalIntelligence.rootNeed?.name ||
-  null,
+      rootNeed:
+        emotionIntegrator.rootNeed ||
+        emotionalIntelligence.rootNeed?.name ||
+        null,
 
-protecting:
-  emotionIntegrator.protecting ||
-  emotionalIntelligence.protecting?.name ||
-  null,
+      protecting:
+        emotionIntegrator.protecting ||
+        emotionalIntelligence.protecting?.name ||
+        null,
 
-emotionalClassification:
-  emotionIntegrator.emotionalClassification ||
-  stewardshipFear.emotionalClassification ||
-  emotionalIntelligence.emotionalClassification ||
-  null,
+      emotionalClassification:
+        emotionIntegrator.emotionalClassification ||
+        stewardshipFear.emotionalClassification ||
+        emotionalIntelligence.emotionalClassification ||
+        null,
 
-emotionalIntegratedValue:
-  emotionIntegrator.integratedValue ||
-  emotionalIntelligence.integratedValue ||
-  null,
+      emotionalIntegratedValue:
+        emotionIntegrator.integratedValue ||
+        emotionalIntelligence.integratedValue ||
+        null,
 
-communicationStyle:
-  emotionIntegrator.communicationStyle ||
-  emotionalIntelligence.communicationStyle ||
-  null,
+      communicationStyle:
+        emotionIntegrator.communicationStyle ||
+        emotionalIntelligence.communicationStyle ||
+        null,
 
-integratedEmotion:
-  emotionIntegrator.integratedEmotion || null,
+      integratedEmotion:
+        emotionIntegrator.integratedEmotion || null,
 
-integratedEmotionMode:
-  emotionIntegrator.integratedEmotionMode || null,
+      integratedEmotionMode:
+        emotionIntegrator.integratedEmotionMode || null,
 
-integratedEmotionReason:
-  emotionIntegrator.integratedEmotionReason || null,
+      integratedEmotionReason:
+        emotionIntegrator.integratedEmotionReason || null,
 
-recommendedEmotionResponseMode:
-  emotionIntegrator.recommendedEmotionResponseMode || null,
+      recommendedEmotionResponseMode:
+        emotionIntegrator.recommendedEmotionResponseMode || null,
 
-rankedIntegratedEmotions:
-  emotionIntegrator.rankedIntegratedEmotions || [],
+      rankedIntegratedEmotions:
+        emotionIntegrator.rankedIntegratedEmotions || [],
 
       memoryCandidate: memory.shouldRemember ? memory : null,
 
-organismFunction: organism.organismFunction || null,
-organismNeed: organism.organismNeed || null,
-organismNeedBlocked: organism.organismNeedBlocked ?? null,
-organismUrgency: organism.organismUrgency || null,
-organismRecommendedMode: organism.organismRecommendedMode || null,
-organismReason: organism.organismReason || null,
-organismSource:
-  organism.organismSource ||
-  organism.source ||
-  "unknown",
-  organismEngineRan:
-  organism.organismEngineRan ?? null,
+      organismFunction: organism.organismFunction || null,
+      organismNeed: organism.organismNeed || null,
+      organismNeedBlocked: organism.organismNeedBlocked ?? null,
+      organismUrgency: organism.organismUrgency || null,
+      organismRecommendedMode: organism.organismRecommendedMode || null,
+      organismReason: organism.organismReason || null,
+      organismSource:
+        organism.organismSource ||
+        organism.source ||
+        "unknown",
 
-organismEngineVersion:
-  organism.organismEngineVersion || null,
+      organismEngineRan:
+        organism.organismEngineRan ?? null,
 
-organismPrimaryFunction:
-  organism.organismPrimaryFunction || null,
+      organismEngineVersion:
+        organism.organismEngineVersion || null,
 
-organismPrimaryFunctionScore:
-  organism.organismPrimaryFunctionScore || 0,
+      organismPrimaryFunction:
+        organism.organismPrimaryFunction || null,
 
-organismFunctions:
-  organism.organismFunctions || [],
+      organismPrimaryFunctionScore:
+        organism.organismPrimaryFunctionScore || 0,
 
-organismDisruption:
-  organism.organismDisruption || null,
+      organismFunctions:
+        organism.organismFunctions || [],
 
-organismNeedsStabilization:
-  organism.organismNeedsStabilization ?? null,
+      organismDisruption:
+        organism.organismDisruption || null,
 
-organismRecommendedAction:
-  organism.organismRecommendedAction || null,
+      organismNeedsStabilization:
+        organism.organismNeedsStabilization ?? null,
+
+      organismRecommendedAction:
+        organism.organismRecommendedAction || null,
+
       // Life Chapter
+      primaryLifeChapter:
+        lifeChapter.primaryLifeChapter || null,
 
-primaryLifeChapter:
-  lifeChapter.primaryLifeChapter || null,
+      lifeChapterStrength:
+        lifeChapter.lifeChapterStrength || 0,
 
-lifeChapterStrength:
-  lifeChapter.lifeChapterStrength || 0,
+      lifeChapterStatement:
+        lifeChapter.lifeChapterStatement || null,
 
-lifeChapterStatement:
-  lifeChapter.lifeChapterStatement || null,
+      lifeChapterQuestion:
+        lifeChapter.lifeChapterQuestion || null,
 
-lifeChapterQuestion:
-  lifeChapter.lifeChapterQuestion || null,
+      lifeChapterFocus:
+        lifeChapter.lifeChapterFocus || null,
 
-lifeChapterFocus:
-  lifeChapter.lifeChapterFocus || null,
+      rankedLifeChapters:
+        lifeChapter.rankedLifeChapters || [],
 
-rankedLifeChapters:
-  lifeChapter.rankedLifeChapters || [],
+      // Identity Priority
+      leadIdentity:
+        identityPriority.leadIdentity || null,
 
-// Identity Priority
+      leadIdentityScore:
+        identityPriority.leadIdentityScore || 0,
 
-leadIdentity:
-  identityPriority.leadIdentity || null,
+      leadIdentityProtects:
+        identityPriority.leadIdentityProtects || [],
 
-leadIdentityScore:
-  identityPriority.leadIdentityScore || 0,
+      leadIdentityMotivations:
+        identityPriority.leadIdentityMotivations || [],
 
-leadIdentityProtects:
-  identityPriority.leadIdentityProtects || [],
+      supportingIdentities:
+        identityPriority.supportingIdentities || [],
 
-leadIdentityMotivations:
-  identityPriority.leadIdentityMotivations || [],
+      identityLeadershipMode:
+        identityPriority.identityLeadershipMode || null,
 
-supportingIdentities:
-  identityPriority.supportingIdentities || [],
+      identityPrioritySummary:
+        identityPriority.identityPrioritySummary || null,
 
-identityLeadershipMode:
-  identityPriority.identityLeadershipMode || null,
+      identityRecoveryQuestion:
+        identityPriority.identityRecoveryQuestion || null,
 
-identityPrioritySummary:
-  identityPriority.identityPrioritySummary || null,
+      rankedIdentities:
+        identityPriority.rankedIdentities || [],
 
-identityRecoveryQuestion:
-  identityPriority.identityRecoveryQuestion || null,
+      // Value Integration
+      valueIntegrationDetected:
+        valueIntegration.valueIntegrationDetected || false,
 
-rankedIdentities:
-  identityPriority.rankedIdentities || [],
+      apparentConflict:
+        valueIntegration.apparentConflict || null,
 
-// Value Integration
+      integratedValue:
+        valueIntegration.integratedValue || null,
 
-valueIntegrationDetected:
-  valueIntegration.valueIntegrationDetected || false,
+      integrationStatement:
+        valueIntegration.integrationStatement || null,
 
-apparentConflict:
-  valueIntegration.apparentConflict || null,
+      valueIntegrationQuestion:
+        valueIntegration.valueIntegrationQuestion || null,
 
-integratedValue:
-  valueIntegration.integratedValue || null,
+      topValues:
+        valueIntegration.topValues || [],
 
-integrationStatement:
-  valueIntegration.integrationStatement || null,
+      sharedValues:
+        valueIntegration.sharedValues || [],
 
-valueIntegrationQuestion:
-  valueIntegration.valueIntegrationQuestion || null,
+      // Salience Governor
+      salienceLeadOrgan:
+        salienceGovernor.salienceLeadOrgan ||
+        analysis.salienceLeadOrgan ||
+        null,
 
-topValues:
-  valueIntegration.topValues || [],
+      salienceLeadScore:
+        salienceGovernor.salienceLeadScore ||
+        analysis.salienceLeadScore ||
+        0,
 
-sharedValues:
-  valueIntegration.sharedValues || [],
+      salienceMode:
+        salienceGovernor.salienceMode ||
+        analysis.salienceMode ||
+        null,
 
-// Salience Governor
+      salienceQuestion:
+        salienceGovernor.salienceQuestion ||
+        analysis.salienceQuestion ||
+        null,
 
-salienceLeadOrgan:
-  salienceGovernor.salienceLeadOrgan || null,
+      salienceReason:
+        salienceGovernor.salienceReason ||
+        analysis.salienceReason ||
+        null,
 
-salienceLeadScore:
-  salienceGovernor.salienceLeadScore || 0,
+      supportingSalienceOrgans:
+        salienceGovernor.supportingSalienceOrgans ||
+        analysis.supportingSalienceOrgans ||
+        [],
 
-salienceMode:
-  salienceGovernor.salienceMode || null,
+      rankedSalienceDecisions:
+        salienceGovernor.rankedSalienceDecisions ||
+        analysis.rankedSalienceDecisions ||
+        [],
 
-salienceQuestion:
-  salienceGovernor.salienceQuestion || null,
+      // Knowledge Router / Teaching Engine
+      knowledgeRouterRan:
+        knowledge.knowledgeRouterRan ?? null,
 
-salienceReason:
-  salienceGovernor.salienceReason || null,
+      knowledgeRouterSource:
+        knowledge.knowledgeRouterSource ||
+        knowledge.source ||
+        "not-yet-run",
 
-supportingSalienceOrgans:
-  salienceGovernor.supportingSalienceOrgans || [],
+      knowledgeSource:
+        knowledge.knowledgeSource || null,
 
-rankedSalienceDecisions:
-  salienceGovernor.rankedSalienceDecisions || [],
-         
-    // Knowledge Router / Teaching Engine
+      knowledgeProvider:
+        knowledge.knowledgeProvider || null,
 
-knowledgeRouterRan:
-  knowledge.knowledgeRouterRan ?? null,
+      knowledgeAnswer:
+        knowledge.knowledgeAnswer || null,
 
-knowledgeRouterSource:
-  knowledge.knowledgeRouterSource ||
-  knowledge.source ||
-  "not-yet-run",
+      knowledgeConfidence:
+        knowledge.knowledgeConfidence || null,
 
-knowledgeSource:
-  knowledge.knowledgeSource || null,
+      knowledgeCitations:
+        knowledge.knowledgeCitations || [],
 
-knowledgeProvider:
-  knowledge.knowledgeProvider || null,
+      knowledgeError:
+        knowledge.knowledgeError || null,
 
-knowledgeAnswer:
-  knowledge.knowledgeAnswer || null,
+      openAIKnowledgeUsed:
+        Boolean(knowledge.openAIKnowledgeUsed),
 
-knowledgeConfidence:
-  knowledge.knowledgeConfidence || null,
+      openAIKnowledgeSource:
+        knowledge.openAIKnowledgeSource || null,
 
-knowledgeCitations:
-  knowledge.knowledgeCitations || [],
+      teachingAnswerEngineRan:
+        teaching.teachingAnswerEngineRan ?? null,
 
-knowledgeError:
-  knowledge.knowledgeError || null,
+      teachingAnswerEngineSource:
+        teaching.teachingAnswerEngineSource ||
+        teaching.source ||
+        "not-yet-run",
 
-openAIKnowledgeUsed:
-  Boolean(knowledge.openAIKnowledgeUsed),
+      teachingMode:
+        teaching.teachingMode || null,
 
-openAIKnowledgeSource:
-  knowledge.openAIKnowledgeSource || null,
+      teachingTopic:
+        teaching.teachingTopic || null,
 
-teachingAnswerEngineRan:
-  teaching.teachingAnswerEngineRan ?? null,
+      teachingAnswer:
+        teaching.teachingAnswer || null,
 
-teachingAnswerEngineSource:
-  teaching.teachingAnswerEngineSource ||
-  teaching.source ||
-  "not-yet-run",
+      teachingConfidence:
+        teaching.teachingConfidence || null,
 
-teachingMode:
-  teaching.teachingMode || null,
+      teachingSource:
+        teaching.teachingSource || null,
 
-teachingTopic:
-  teaching.teachingTopic || null,
+      teachingCitations:
+        teaching.teachingCitations || [],
 
-teachingAnswer:
-  teaching.teachingAnswer || null,
+      // Legacy Multi-Lane Response Planner
+      multiLanePlan,
 
-teachingConfidence:
-  teaching.teachingConfidence || null,
+      multiLanePlannerRan:
+        multiLanePlan.multiLanePlannerRan ?? null,
 
-teachingSource:
-  teaching.teachingSource || null,
+      multiLanePlannerVersion:
+        multiLanePlan.multiLanePlannerVersion || null,
 
-teachingCitations:
-  teaching.teachingCitations || [],        
+      multiLanePlannerSource:
+        multiLanePlan.source || "not-yet-run",
 
-   // Situation Map
+      multiLanePrimaryLane:
+        multiLanePlan.primaryLane || null,
 
-situationMap,
+      multiLaneLanes:
+        multiLanePlan.lanes || [],
 
-situationMapRan:
-  situationMap.situationMapRan ?? null,
+      multiLaneSupportLanes:
+        multiLanePlan.supportLanes || [],
 
-situationMapVersion:
-  situationMap.situationMapVersion || null,
+      multiLaneBriefLanes:
+        multiLanePlan.briefLanes || [],
 
-situationMapSource:
-  situationMap.source || "not-yet-run",
+      multiLaneDeferredLanes:
+        multiLanePlan.deferredLanes || [],
 
-situationMapDomains:
-  situationMap.domains || [],
+      multiLaneBlockedLanes:
+        multiLanePlan.blockedLanes || [],
 
-situationMapSituations:
-  situationMap.situations || [],
+      multiLaneWeights:
+        multiLanePlan.laneWeights || {},
 
-situationMapNeeds:
-  situationMap.needs || [],
+      multiLaneBudgets:
+        multiLanePlan.laneBudgets || {},
 
-situationMapRisks:
-  situationMap.risks || [],
+      multiLaneRoles:
+        multiLanePlan.laneRoles || {},
 
-situationMapQuestions:
-  situationMap.questions || [],
+      multiLaneResponseOrder:
+        multiLanePlan.responseOrder || [],
 
-situationMapResponseRequirements:
-  situationMap.responseRequirements || [],
+      multiLaneResponseShape:
+        multiLanePlan.responseShape || null,
 
-situationMapGravity:
-  situationMap.gravity ?? null,
+      multiLaneConflictRules:
+        multiLanePlan.conflictRules || [],
 
-situationMapUrgency:
-  situationMap.urgency || null,
+      multiLaneBlindSpots:
+        multiLanePlan.blindSpots || [],
 
-situationMapComplexity:
-  situationMap.complexity || null,
+      multiLaneComposerDirective:
+        multiLanePlan.composerDirective || {},
 
-situationMapHorizon:
-  situationMap.horizon || null,
+      // Situation Review Console
+      situationReview,
 
-situationMapPrimaryLaneSuggestion:
-  situationMap.primaryLaneSuggestion || null,
+      situationReviewConsoleRan:
+        situationReview.situationReviewConsoleRan ?? null,
 
-situationMapSupportLaneSuggestions:
-  situationMap.supportLaneSuggestions || [],
+      situationReviewConsoleVersion:
+        situationReview.situationReviewConsoleVersion || null,
 
-situationMapDeferredLaneSuggestions:
-  situationMap.deferredLaneSuggestions || [],
+      situationReviewSource:
+        situationReview.source || "not-yet-run",
 
-// Multi-Lane Response Planner
+      situationReviewScores:
+        situationReview.scores || {},
 
-multiLanePlan,
+      situationReviewPassFail:
+        situationReview.passFail || null,
 
-multiLanePlannerRan:
-  multiLanePlan.multiLanePlannerRan ?? null,
+      situationReviewPossibleInterpretations:
+        situationReview.possibleInterpretations || [],
 
-multiLanePlannerVersion:
-  multiLanePlan.multiLanePlannerVersion || null,
+      situationReviewUncertaintyAreas:
+        situationReview.uncertaintyAreas || [],
 
-multiLanePlannerSource:
-  multiLanePlan.source || "not-yet-run",
+      situationReviewBlindSpots:
+        situationReview.blindSpots || [],
 
-multiLanePrimaryLane:
-  multiLanePlan.primaryLane || null,
+      situationReviewWarnings:
+        situationReview.warnings || [],
 
-multiLaneLanes:
-  multiLanePlan.lanes || [],
+      situationReviewLikelyFailurePoints:
+        situationReview.likelyFailurePoints || [],
 
-multiLaneSupportLanes:
-  multiLanePlan.supportLanes || [],
+      situationReviewSuggestedFixes:
+        situationReview.suggestedFixes || [],
 
-multiLaneBriefLanes:
-  multiLanePlan.briefLanes || [],
+      // Legacy Universal Domain Governor
+      universalDomainGovernorRan:
+        domainGovernor.universalDomainGovernorRan ?? null,
 
-multiLaneDeferredLanes:
-  multiLanePlan.deferredLanes || [],
+      universalDomainGovernorVersion:
+        domainGovernor.universalDomainGovernorVersion || null,
 
-multiLaneBlockedLanes:
-  multiLanePlan.blockedLanes || [],
+      domainLead:
+        domainGovernor.domainLead || null,
 
-multiLaneWeights:
-  multiLanePlan.laneWeights || {},
+      domainSuperLead:
+        domainGovernor.domainSuperLead || null,
 
-multiLaneBudgets:
-  multiLanePlan.laneBudgets || {},
+      domainLeadScore:
+        domainGovernor.domainLeadScore || 0,
 
-multiLaneRoles:
-  multiLanePlan.laneRoles || {},
+      domainAuthority:
+        domainGovernor.domainAuthority || 0,
 
-multiLaneResponseOrder:
-  multiLanePlan.responseOrder || [],
+      domainLeadOrgan:
+        domainGovernor.domainLeadOrgan || null,
 
-multiLaneResponseShape:
-  multiLanePlan.responseShape || null,
+      domainMode:
+        domainGovernor.domainMode || null,
 
-multiLaneConflictRules:
-  multiLanePlan.conflictRules || [],
+      domainQuestion:
+        domainGovernor.domainQuestion || null,
 
-multiLaneBlindSpots:
-  multiLanePlan.blindSpots || [],
+      domainReasons:
+        domainGovernor.domainReasons || [],
 
-multiLaneComposerDirective:
-  multiLanePlan.composerDirective || {},
+      domainPermissions:
+        domainGovernor.domainPermissions || {},
 
-// Situation Review Console
+      domainBlockedPermissions:
+        domainGovernor.domainBlockedPermissions || [],
 
-situationReview,
+      rankedUniversalDomains:
+        domainGovernor.rankedUniversalDomains || [],
 
-situationReviewConsoleRan:
-  situationReview.situationReviewConsoleRan ?? null,
+      // Legacy Authority Map
+      authorityMap,
 
-situationReviewConsoleVersion:
-  situationReview.situationReviewConsoleVersion || null,
+      allowTeaching:
+        analysis.allowTeaching ??
+        authorityMap.authorityAllows?.teaching ??
+        true,
 
-situationReviewSource:
-  situationReview.source || "not-yet-run",
+      allowEmotion:
+        analysis.allowEmotion ??
+        authorityMap.authorityAllows?.emotion ??
+        true,
 
-situationReviewScores:
-  situationReview.scores || {},
+      allowMeaning:
+        analysis.allowMeaning ??
+        authorityMap.authorityAllows?.meaning ??
+        true,
 
-situationReviewPassFail:
-  situationReview.passFail || null,
+      allowIdentity:
+        analysis.allowIdentity ??
+        authorityMap.authorityAllows?.identity ??
+        true,
 
-situationReviewPossibleInterpretations:
-  situationReview.possibleInterpretations || [],
+      allowWisdom:
+        analysis.allowWisdom ??
+        authorityMap.authorityAllows?.wisdom ??
+        true,
 
-situationReviewUncertaintyAreas:
-  situationReview.uncertaintyAreas || [],
+      allowAction:
+        analysis.allowAction ??
+        authorityMap.authorityAllows?.action ??
+        true,
 
-situationReviewBlindSpots:
-  situationReview.blindSpots || [],
+      authorityReason:
+        analysis.authorityReason ||
+        authorityMap.authorityReason ||
+        null,
 
-situationReviewWarnings:
-  situationReview.warnings || [],
+      authoritySource:
+        analysis.authoritySource ||
+        authorityMap.source ||
+        "ari-authority-map-engine",
 
-situationReviewLikelyFailurePoints:
-  situationReview.likelyFailurePoints || [],
+      shouldBlockLifeChapter:
+        Boolean(domainGovernor.shouldBlockLifeChapter),
 
-situationReviewSuggestedFixes:
-  situationReview.suggestedFixes || [],                  
-                                                                                                                                                       
-      // Universal Domain Governor
+      shouldBlockIdentity:
+        Boolean(domainGovernor.shouldBlockIdentity),
 
-universalDomainGovernorRan:
-  domainGovernor.universalDomainGovernorRan ?? null,
+      shouldBlockEmotionRecovery:
+        Boolean(domainGovernor.shouldBlockEmotionRecovery),
 
-universalDomainGovernorVersion:
-  domainGovernor.universalDomainGovernorVersion || null,
+      shouldBlockMeaningProjection:
+        Boolean(domainGovernor.shouldBlockMeaningProjection),
 
-domainLead:
-  domainGovernor.domainLead || null,
+      shouldPreferTeaching:
+        Boolean(domainGovernor.shouldPreferTeaching),
 
-domainSuperLead:
-  domainGovernor.domainSuperLead || null,
+      shouldPreferBodyStabilization:
+        Boolean(domainGovernor.shouldPreferBodyStabilization),
 
-domainLeadScore:
-  domainGovernor.domainLeadScore || 0,
+      shouldPreferSafety:
+        Boolean(domainGovernor.shouldPreferSafety),
 
-domainAuthority:
-  domainGovernor.domainAuthority || 0,
+      // Sources
+      lifeChapterSource:
+        lifeChapter.source || "unknown",
 
-domainLeadOrgan:
-  domainGovernor.domainLeadOrgan || null,
+      domainGovernorSource:
+        domainGovernor.source || "unknown",
 
-domainMode:
-  domainGovernor.domainMode || null,
+      identityPrioritySource:
+        identityPriority.source || "unknown",
 
-domainQuestion:
-  domainGovernor.domainQuestion || null,
+      valueIntegrationSource:
+        valueIntegration.source || values.source || "unknown",
 
-domainReasons:
-  domainGovernor.domainReasons || [],
+      salienceGovernorSource:
+        salienceGovernor.source || "unknown",
 
-domainPermissions:
-  domainGovernor.domainPermissions || {},
-
-domainBlockedPermissions:
-  domainGovernor.domainBlockedPermissions || [],
-
-rankedUniversalDomains:
-  domainGovernor.rankedUniversalDomains || [],
-
-// Authority Map
-authorityMap,
-
-allowTeaching:
-  analysis.allowTeaching ??
-  authorityMap.authorityAllows?.teaching ??
-  true,
-
-allowEmotion:
-  analysis.allowEmotion ??
-  authorityMap.authorityAllows?.emotion ??
-  true,
-
-allowMeaning:
-  analysis.allowMeaning ??
-  authorityMap.authorityAllows?.meaning ??
-  true,
-
-allowIdentity:
-  analysis.allowIdentity ??
-  authorityMap.authorityAllows?.identity ??
-  true,
-
-allowWisdom:
-  analysis.allowWisdom ??
-  authorityMap.authorityAllows?.wisdom ??
-  true,
-
-allowAction:
-  analysis.allowAction ??
-  authorityMap.authorityAllows?.action ??
-  true,
-
-authorityReason:
-  analysis.authorityReason ||
-  authorityMap.authorityReason ||
-  null,
-
-authoritySource:
-  analysis.authoritySource ||
-  authorityMap.source ||
-  "ari-authority-map-engine",
-
-shouldBlockLifeChapter:
-  Boolean(domainGovernor.shouldBlockLifeChapter),
-
-shouldBlockIdentity:
-  Boolean(domainGovernor.shouldBlockIdentity),
-
-shouldBlockEmotionRecovery:
-  Boolean(domainGovernor.shouldBlockEmotionRecovery),
-
-shouldBlockMeaningProjection:
-  Boolean(domainGovernor.shouldBlockMeaningProjection),
-
-shouldPreferTeaching:
-  Boolean(domainGovernor.shouldPreferTeaching),
-
-shouldPreferBodyStabilization:
-  Boolean(domainGovernor.shouldPreferBodyStabilization),
-
-shouldPreferSafety:
-  Boolean(domainGovernor.shouldPreferSafety),
-  
-  lifeChapterSource:
-  lifeChapter.source || "unknown",
-
-domainGovernorSource:
-  domainGovernor.source || "unknown",
-
-identityPrioritySource:
-  identityPriority.source || "unknown",
-
-valueIntegrationSource:
-  valueIntegration.source || values.source || "unknown",
-
-salienceGovernorSource:
-  salienceGovernor.source || "unknown",
       lifeSignalSource: lifeSignals.source || "unknown",
       lifeSignalWeightingSource: lifeSignalWeighting.source || "unknown",
       signalSystemSource: signals.source || "unknown",
@@ -976,11 +1346,8 @@ salienceGovernorSource:
       attentionSource: attention.source || "unknown",
       emotionSource: emotion.source || "unknown",
       emotionalIntelligenceSource: emotionalIntelligence.source || "unknown",
-      stewardshipFearSource:    
-  stewardshipFear.source || "unknown",
-
-emotionIntegratorSource:
-  emotionIntegrator.source || "unknown",
+      stewardshipFearSource: stewardshipFear.source || "unknown",
+      emotionIntegratorSource: emotionIntegrator.source || "unknown",
       memorySource: memory.source || "unknown",
       dualSalienceSource: dualSalience.system || "unknown",
       observerHierarchySource: observerHierarchy.system || "unknown",
