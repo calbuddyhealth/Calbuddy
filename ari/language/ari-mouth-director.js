@@ -1,19 +1,297 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide HOW Ari communicates.
-// V2.6
-// Upgrades:
-// - Makes responseIntent + domain governor authoritative for mouth shape.
-// - Fixes teaching requests getting swallowed by uncertainty.
-// - Adds clear handling for build/code requests.
-// - Keeps safety/body above everything.
-// - Prevents uncertainty fallback from overriding direct teaching/build/planning.
-// - Keeps meaning/wisdom/identity gated by permissions and intent.
+// V3.0
+// Rule:
+// - Situation Contract is authoritative.
+// - Mouth Director may shape communication.
+// - Mouth Director may NOT change primary/support/brief/context/deferred.
+// - Legacy systems are fallback only.
 
-window.AriMouthDirector = { 
-  version: "2.6.0",
+window.AriMouthDirector = {
+  version: "3.0.0",
 
   direct(summary = {}) {
+    const contract =
+      summary.situationContract || {};
+
+    const primary =
+      summary.situationContractPrimary ||
+      contract.primary ||
+      null;
+
+    const responseShape =
+      summary.responseShape ||
+      contract.responseShape ||
+      "balanced";
+
+    const safetyRiskLevel =
+      summary.safetyRiskLevel ||
+      summary.safetyContextGate?.riskLevel ||
+      summary.riskLevel ||
+      "none";
+
+    const clarityNeeded =
+      summary.safetyFollowUpNeeded === true ||
+      contract.clarity?.needed === true ||
+      primary === "risk_clarification";
+
+    const director = {
+      mouthDirectorRan: true,
+      mouthDirectorVersion: this.version,
+      source: "ari-mouth-director",
+
+      contractPrimary: primary,
+      responseShape,
+      safetyRiskLevel,
+
+      explanationLevel: "standard",
+      responsePattern: responseShape || "balanced",
+      maxBodySections: 3,
+      askBeforeTeaching: false,
+
+      allowMeaning: false,
+      allowEmotion: true,
+      allowTruth: true,
+      allowWisdom: false,
+      allowAction: true,
+
+      mouthRules: [
+        "Situation Contract is authoritative.",
+        "Mouth Director may shape response format only.",
+        "Mouth Director must not change the primary lane.",
+        "Legacy systems are fallback only when no Situation Contract exists."
+      ]
+    };
+
+    // 1. Risk clarification must be one clear question.
+    if (clarityNeeded) {
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "risk_clarification_question",
+        maxBodySections: 1,
+        askBeforeTeaching: true,
+
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: false,
+
+        mouthRules: [
+          ...director.mouthRules,
+          "Ask one clear risk clarification question.",
+          "Do not assume emergency if context is unclear.",
+          "Do not answer lower-priority lanes until risk is clarified."
+        ]
+      };
+    }
+
+    // 2. Contract primary lanes.
+    if (primary === "safety") {
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "urgent_support",
+        maxBodySections: 2,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
+    }
+
+    if (primary === "medical_body") {
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "body_truth_then_action",
+        maxBodySections: 2,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
+    }
+
+    if (primary === "executive_decision") {
+      return {
+        ...director,
+        explanationLevel: "standard",
+        responsePattern: "prioritize_then_plan",
+        maxBodySections: 4,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: true,
+        allowAction: true
+      };
+    }
+
+    if (primary === "builder") {
+      return {
+        ...director,
+        explanationLevel: "clear",
+        responsePattern: "code_then_explain",
+        maxBodySections: 4,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
+    }
+
+    if (primary === "teacher") {
+      return {
+        ...director,
+        explanationLevel: "clear",
+        responsePattern: "explain_then_example",
+        maxBodySections: 3,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: false
+      };
+    }
+
+    if (primary === "emotion") {
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "comfort_then_truth",
+        maxBodySections: 3,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: false
+      };
+    }
+
+    if (primary === "family") {
+      return {
+        ...director,
+        explanationLevel: "standard",
+        responsePattern: "family_truth_then_next_step",
+        maxBodySections: 4,
+        askBeforeTeaching: false,
+
+        allowMeaning: true,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: true,
+        allowAction: true
+      };
+    }
+
+    if (primary === "relationship") {
+      return {
+        ...director,
+        explanationLevel: "standard",
+        responsePattern: "relationship_truth_then_repair",
+        maxBodySections: 3,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
+    }
+
+    if (primary === "wisdom") {
+      return {
+        ...director,
+        explanationLevel: "deep",
+        responsePattern: "principle_then_choice",
+        maxBodySections: 4,
+        askBeforeTeaching: false,
+
+        allowMeaning: true,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: true,
+        allowAction: true
+      };
+    }
+
+    if (primary === "memory") {
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "acknowledge_memory_request",
+        maxBodySections: 1,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: false
+      };
+    }
+
+    if (primary === "general_understanding") {
+      return {
+        ...director,
+        explanationLevel: "standard",
+        responsePattern: "observe_then_answer",
+        maxBodySections: 3,
+        askBeforeTeaching: false,
+
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
+    }
+
+    // 3. Response shape override, only when contract primary did not match.
+    if (responseShape === "multi_question_triage") {
+      return {
+        ...director,
+        explanationLevel: "standard",
+        responsePattern: "primary_support_brief_context_deferred",
+        maxBodySections: 5,
+        askBeforeTeaching: false,
+
+        allowMeaning: true,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: true,
+        allowAction: true,
+
+        mouthRules: [
+          ...director.mouthRules,
+          "Use primary/support/brief/context/deferred structure when useful."
+        ]
+      };
+    }
+
+    // 4. Legacy fallback.
+    return this.legacyFallback(summary, director);
+  },
+
+  legacyFallback(summary = {}, director = {}) {
     const mode =
       summary.synthesisMode ||
       summary.salienceMode ||
@@ -34,53 +312,6 @@ window.AriMouthDirector = {
       summary.responseShape ||
       "balanced";
 
-    const domainLead =
-      summary.domainLead ||
-      summary.domainGovernor?.domainLead ||
-      summary.universalDomainGovernor?.domainLead ||
-      null;
-
-    const domainMode =
-      summary.domainMode ||
-      summary.domainGovernor?.domainMode ||
-      summary.universalDomainGovernor?.domainMode ||
-      null;
-
-    const shouldPreferTeaching =
-      summary.shouldPreferTeaching === true ||
-      summary.domainGovernor?.shouldPreferTeaching === true ||
-      summary.universalDomainGovernor?.shouldPreferTeaching === true;
-
-    const shouldPreferSafety =
-      summary.shouldPreferSafety === true ||
-      summary.domainGovernor?.shouldPreferSafety === true ||
-      summary.universalDomainGovernor?.shouldPreferSafety === true;
-
-    const shouldPreferBodyStabilization =
-      summary.shouldPreferBodyStabilization === true ||
-      summary.domainGovernor?.shouldPreferBodyStabilization === true ||
-      summary.universalDomainGovernor?.shouldPreferBodyStabilization === true;
-
-    const executiveDecision =
-      summary.executiveDecision || null;
-
-    const primaryPriority =
-      typeof summary.primaryPriority === "object"
-        ? summary.primaryPriority?.name
-        : summary.primaryPriority || null;
-
-    const dualMode = summary.dualSalienceMode || null;
-
-    const organismUrgencyLevel =
-      summary.organismUrgency?.level ||
-      summary.organismUrgencyLevel ||
-      "none";
-
-    const organismFunction =
-      summary.organismPrimaryFunction ||
-      summary.organismFunction ||
-      null;
-
     const observerPrimary =
       summary.observerHierarchyPrimaryObservation ||
       summary.strongestObservation ||
@@ -91,20 +322,10 @@ window.AriMouthDirector = {
       summary.strongestObservationCategory ||
       null;
 
-    const isConnectionWound =
-      intent === "offer_connection" ||
-      mode === "restore_connection" ||
-      mode === "emotional_connection" ||
-      need === "connection" ||
-      need === "belonging" ||
-      organismFunction === "connection";
-
     const isTeachingRequest =
       intent === "teach_clearly" ||
+      intent === "teach" ||
       shape === "clear_explanation" ||
-      domainLead === "knowledge_teaching_domain" ||
-      domainMode === "teach_clearly" ||
-      shouldPreferTeaching ||
       observerPrimary === "teaching_request" ||
       summary.questionType === "teaching" ||
       summary.focusType === "teaching" ||
@@ -112,453 +333,162 @@ window.AriMouthDirector = {
 
     const isBuildRequest =
       intent === "build_or_debug" ||
+      intent === "build_or_fix" ||
       intent === "generate_code" ||
       shape === "code_then_explain" ||
-      domainLead === "creative_building_domain" ||
-      domainMode === "build_or_debug" ||
       observerPrimary === "build_request" ||
       summary.focusType === "build" ||
       summary.primaryNeed === "build";
 
-    const director = {
-      explanationLevel: "standard",
-      responsePattern: "reflection_then_question",
-      maxBodySections: 3,
-      askBeforeTeaching: false,
+    const isConnectionWound =
+      intent === "offer_connection" ||
+      mode === "restore_connection" ||
+      mode === "emotional_connection" ||
+      need === "connection" ||
+      need === "belonging";
 
-      allowMeaning: false,
-      allowEmotion: true,
-      allowTruth: true,
-      allowWisdom: false,
-      allowAction: true,
+    if (intent === "protect_safety" || intent === "protect_safety_first") {
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "urgent_support",
+        maxBodySections: 2,
+        askBeforeTeaching: false,
 
-      source: "ari-mouth-director",
-      mouthDirectorRan: true
-    };
-
-    // 1. Safety override.
-    if (
-      shouldPreferSafety ||
-      intent === "protect_safety" ||
-      executiveDecision === "protect_safety_first" ||
-      primaryPriority === "safety" ||
-      organismUrgencyLevel === "critical"
-    ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "urgent_support";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = true;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
     }
 
-    // 2. Body / medical / organism stabilization.
     if (
-      shouldPreferBodyStabilization ||
       intent === "stabilize_organism_function" ||
       shape === "body_truth_then_action" ||
       mode === "stabilize_body_first" ||
       need === "body"
     ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "body_truth_then_action";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = false;
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "body_truth_then_action",
+        maxBodySections: 2,
+        askBeforeTeaching: false,
 
-      director.allowMeaning = false;
-      director.allowEmotion = false;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = true;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
     }
 
-    // 3. Direct teaching must beat uncertainty.
     if (isTeachingRequest) {
-      director.explanationLevel = "clear";
-      director.responsePattern = "explain_then_example";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
+      return {
+        ...director,
+        explanationLevel: "clear",
+        responsePattern: "explain_then_example",
+        maxBodySections: 3,
+        askBeforeTeaching: false,
 
-      director.allowMeaning = false;
-      director.allowEmotion = false;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: false
+      };
     }
 
-    // 4. Build/code/debug requests.
     if (isBuildRequest) {
-      director.explanationLevel = "clear";
-      director.responsePattern = "code_then_explain";
-      director.maxBodySections = 4;
-      director.askBeforeTeaching = false;
+      return {
+        ...director,
+        explanationLevel: "clear",
+        responsePattern: "code_then_explain",
+        maxBodySections: 4,
+        askBeforeTeaching: false,
 
-      director.allowMeaning = false;
-      director.allowEmotion = false;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = true;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: false,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: true
+      };
     }
 
     if (
       intent === "clarify_before_advising" ||
       intent === "clarify_before_interpreting" ||
-      shape === "brief_reflect_then_question" ||
-      executiveDecision === "ask_before_directing"
+      shape === "brief_reflect_then_question"
     ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "question_only";
-      director.maxBodySections = 1;
-      director.askBeforeTeaching = true;
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "question_only",
+        maxBodySections: 1,
+        askBeforeTeaching: true,
 
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = false;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: false,
+        allowWisdom: false,
+        allowAction: false
+      };
     }
 
     if (isConnectionWound) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "comfort_then_truth";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "comfort_then_truth",
+        maxBodySections: 3,
+        askBeforeTeaching: false,
 
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    if (
-      intent === "protect_relationship_responsibility" ||
-      intent === "protect_family_presence" ||
-      executiveDecision === "protect_family_first" ||
-      primaryPriority === "family" ||
-      primaryPriority === "responsibility" ||
-      primaryPriority === "caregiving"
-    ) {
-      director.explanationLevel = "deep";
-      director.responsePattern = "meaning_truth_then_action";
-      director.maxBodySections = 4;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (
-      intent === "bridge_subjective_to_objective" ||
-      shape === "acknowledge_then_gently_redirect" ||
-      executiveDecision === "bridge_before_advising" ||
-      primaryPriority === "bridge-objective-and-subjective" ||
-      dualMode === "acknowledge_gap_then_gently_redirect"
-    ) {
-      director.explanationLevel = "standard";
-      director.responsePattern = "acknowledge_then_gently_redirect";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (
-      intent === "follow_subjective_salience" ||
-      shape === "comfort_then_explore" ||
-      executiveDecision === "follow_subjective_salience_first" ||
-      primaryPriority === "follow-human-attention" ||
-      dualMode === "follow_user_attention_first"
-    ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "comfort_then_question";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = true;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    if (
-      intent === "validate_then_act" ||
-      shape === "validate_then_next_step"
-    ) {
-      director.explanationLevel = "standard";
-      director.responsePattern = "validate_then_next_step";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (
-      intent === "protect_dignity" ||
-      mode === "restore_dignity" ||
-      need === "worth"
-    ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "validate_then_question";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = true;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    if (
-      intent === "stabilize_health" ||
-      executiveDecision === "stabilize_health_first" ||
-      primaryPriority === "health-stabilization"
-    ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "calm_health_step";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = true;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: false,
+        allowAction: false
+      };
     }
 
     if (
       intent === "create_priority_structure" ||
-      executiveDecision === "create_priority_structure" ||
-      primaryPriority === "planning" ||
+      intent === "decision_support" ||
       observerCategory === "planning"
     ) {
-      director.explanationLevel = "deep";
-      director.responsePattern = "prioritize_then_plan";
-      director.maxBodySections = 4;
-      director.askBeforeTeaching = false;
+      return {
+        ...director,
+        explanationLevel: "standard",
+        responsePattern: "prioritize_then_plan",
+        maxBodySections: 4,
+        askBeforeTeaching: false,
 
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: true,
+        allowWisdom: true,
+        allowAction: true
+      };
     }
 
-    if (
-      intent === "protect_capacity" ||
-      executiveDecision === "reduce_load_immediately" ||
-      primaryPriority === "capacity-protection"
-    ) {
-      director.explanationLevel = "standard";
-      director.responsePattern = "truth_then_boundary";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (
-      intent === "name_conflict" ||
-      shape === "conflict_then_choice"
-    ) {
-      director.explanationLevel = "deep";
-      director.responsePattern = "conflict_then_choice";
-      director.maxBodySections = 4;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (intent === "resolve_tension") {
-      director.explanationLevel = "deep";
-      director.responsePattern = "principle_then_choice";
-      director.maxBodySections = 4;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (intent === "name_life_chapter") {
-      director.explanationLevel = "deep";
-      director.responsePattern = "meaning_then_guidance";
-      director.maxBodySections = 4;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (intent === "clarify_identity") {
-      director.explanationLevel = "standard";
-      director.responsePattern = "identity_then_question";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    if (intent === "support_stewardship") {
-      director.explanationLevel = "standard";
-      director.responsePattern = "steady_then_next_step";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = true;
-
-      return director;
-    }
-
-    if (intent === "name_emotion") {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "emotion_then_question";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = true;
-
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    if (intent === "integrate_values") {
-      director.explanationLevel = "standard";
-      director.responsePattern = "value_then_question";
-      director.maxBodySections = 3;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning = true;
-      director.allowEmotion = true;
-      director.allowTruth = true;
-      director.allowWisdom = true;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    // Last-resort uncertainty fallback.
-    // This must stay AFTER teaching/build/planning so it does not hijack direct requests.
     if (
       confidence === "unknown" ||
       confidence === "low"
     ) {
-      director.explanationLevel = "minimal";
-      director.responsePattern = "observe_then_question";
-      director.maxBodySections = 2;
-      director.askBeforeTeaching = true;
+      return {
+        ...director,
+        explanationLevel: "minimal",
+        responsePattern: "observe_then_question",
+        maxBodySections: 2,
+        askBeforeTeaching: true,
 
-      director.allowMeaning = false;
-      director.allowEmotion = true;
-      director.allowTruth = false;
-      director.allowWisdom = false;
-      director.allowAction = false;
-
-      return director;
-    }
-
-    if (
-      confidence === "high" ||
-      confidence === "very_high"
-    ) {
-      director.explanationLevel = "deep";
-      director.responsePattern = "insight_then_guidance";
-      director.maxBodySections = 4;
-      director.askBeforeTeaching = false;
-
-      director.allowMeaning =
-        intent === "name_life_chapter" ||
-        intent === "support_stewardship" ||
-        intent === "integrate_values";
-
-      director.allowEmotion = true;
-      director.allowTruth = true;
-
-      director.allowWisdom =
-        intent === "resolve_tension" ||
-        intent === "name_life_chapter" ||
-        intent === "integrate_values";
-
-      director.allowAction = true;
-
-      return director;
+        allowMeaning: false,
+        allowEmotion: true,
+        allowTruth: false,
+        allowWisdom: false,
+        allowAction: false
+      };
     }
 
     return director;
