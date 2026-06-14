@@ -1,996 +1,273 @@
 // ari/observer-system/ari-observer-network.js
-// Ari Observer Network
-// Purpose: Perceive emotional, intent, memory, goal, life-transition, human-pattern, values, conflict, dual-salience, and hierarchy signals before routing.
-// V3.1: Adds Observer Hierarchy Engine integration.
+// Ari Observer Evidence Engine
+// Purpose: Observe raw evidence only. No interpretation, no prioritization.
+// V3.2
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "3.1.0",
+  version: "3.2.0",
 
-  normalize(message = "") {
-    return String(message || "").toLowerCase().trim();
-  },
+  observe(input = {}) {
+    const summary = input.summary || input || {};
 
-  containsAny(text, phrases = []) {
-    return phrases.some((phrase) => text.includes(phrase));
-  },
+    const rawText =
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      summary.normalizedMessage ||
+      "";
 
-  observeConversation(text) {
-    return {
-      hasQuestion:
-        text.includes("?") ||
-        /^(how|what|why|when|where|can|should|do|does|is|are)\b/.test(text),
+    const text = this.normalize(rawText);
 
-      hasDirectRequest: this.containsAny(text, [
-        "help me",
-        "can you",
-        "please",
-        "show me",
-        "make me",
-        "create",
-        "build",
-        "fix",
-        "explain",
-        "teach",
-        "remember",
-        "forget",
-        "tell me",
-        "do not give me",
-        "don't give me"
-      ]),
+    const observations = [];
 
-      isSharing: this.containsAny(text, [
-        "i am",
-        "i'm",
-        "i feel",
-        "i felt",
-        "i learned",
-        "i realized",
-        "my name is",
-        "i passed",
-        "i want",
-        "i need",
-        "my daughter",
-        "my son",
-        "my wife",
-        "my husband"
-      ]),
+    const add = (type, value, evidence, confidence = 0.7) => {
+      if (!value || !evidence) return;
 
-      topicHints: this.detectTopics(text)
-    };
-  },
+      const exists = observations.some(
+        item =>
+          item.type === type &&
+          item.value === value &&
+          item.evidence === evidence
+      );
 
-  observeEmotion(text) {
-    const signals = [];
-
-    if (this.containsAny(text, ["lonely", "sad", "hurt", "ashamed", "grief", "cry"])) {
-      signals.push("compassion");
-    }
-
-    if (this.containsAny(text, ["worried", "risk", "unsafe", "danger", "confused", "overwhelmed", "guilty", "regret"])) {
-      signals.push("concern");
-    }
-
-    if (this.containsAny(text, ["passed", "did it", "success", "great news", "finished", "excited"])) {
-      signals.push("joy");
-      signals.push("pride");
-    }
-
-    if (this.containsAny(text, ["what if", "imagine", "future", "possibility", "vision", "someday"])) {
-      signals.push("wonder");
-    }
-
-    if (this.containsAny(text, ["stuck", "hard", "can't", "trying", "need to", "pursuing"])) {
-      signals.push("determination");
-    }
-
-    if (this.containsAny(text, [
-      "responsibility",
-      "irresponsible",
-      "provide",
-      "protect",
-      "family",
-      "daughter",
-      "son",
-      "promotion",
-      "income",
-      "first child",
-      "wife"
-    ])) {
-      signals.push("stewardship");
-    }
-
-    if (this.containsAny(text, ["hope", "hopeful", "future", "dream"])) {
-      signals.push("hope");
-    }
-
-    return {
-      signals: [...new Set(signals)],
-
-      hasEmotionalPain: this.containsAny(text, [
-        "lonely",
-        "sad",
-        "hurt",
-        "ashamed",
-        "overwhelmed",
-        "scared",
-        "worried",
-        "anxious",
-        "stressed",
-        "guilty",
-        "exhausted",
-        "burned out"
-      ]),
-
-      isTemporaryEmotion: this.containsAny(text, [
-        "i am feeling",
-        "i'm feeling",
-        "i feel",
-        "today",
-        "right now",
-        "tonight",
-        "this morning",
-        "this afternoon",
-        "this evening"
-      ])
-    };
-  },
-
-  observeIntent(text) {
-    if (this.containsAny(text, ["remember that", "remember this", "save this", "from now on", "going forward"])) {
-      return "memory";
-    }
-
-    if (this.containsAny(text, ["forget that", "forget this", "delete that memory", "don't remember"])) {
-      return "forget";
-    }
-
-    if (this.containsAny(text, [
-      "help me create a plan",
-      "make a plan",
-      "create a plan",
-      "roadmap",
-      "next step",
-      "what should i focus",
-      "what deserves my attention",
-      "help me decide",
-      "figure out what matters",
-      "what matters most",
-      "what am i not seeing",
-      "which choice"
-    ])) {
-      return "plan";
-    }
-
-    if (this.containsAny(text, ["debug", "github", "repository", "repo", "code", "fix this", "api", "javascript"])) {
-      return "build";
-    }
-
-    if (this.containsAny(text, ["explain", "teach", "break this down", "how does", "what does"])) {
-      return "teach";
-    }
-
-    if (this.containsAny(text, ["brainstorm", "imagine", "what if", "ideas", "possibility"])) {
-      return "explore";
-    }
-
-    if (this.containsAny(text, ["i feel", "i'm feeling", "i am feeling", "i'm sad", "i am sad", "lonely", "overwhelmed"])) {
-      return "support";
-    }
-
-    if (this.containsAny(text, ["i learned", "i realized", "this taught me", "this means"])) {
-      return "reflect";
-    }
-
-    return "unknown";
-  },
-
-  observeMemory(text) {
-    return {
-      explicitMemoryIntent: this.containsAny(text, [
-        "remember that",
-        "remember this",
-        "save this",
-        "from now on",
-        "going forward",
-        "keep in mind"
-      ]),
-
-      forgetIntent: this.containsAny(text, [
-        "forget that",
-        "forget this",
-        "delete that memory",
-        "don't remember that"
-      ]),
-
-      identitySignal: this.containsAny(text, [
-        "my name is",
-        "call me",
-        "i go by",
-        "i am a",
-        "i'm a",
-        "i work as",
-        "my job is"
-      ]),
-
-      preferenceSignal: this.containsAny(text, [
-        "i prefer",
-        "i like when",
-        "i don't like when",
-        "i want you to",
-        "i need you to",
-        "i value"
-      ]),
-
-      milestoneSignal: this.containsAny(text, [
-        "milestone",
-        "i passed",
-        "i graduated",
-        "got married",
-        "baby was born",
-        "daughter was born",
-        "son was born",
-        "ari was born"
-      ]),
-
-      journeySignal: this.containsAny(text, [
-        "i am trying to",
-        "i'm trying to",
-        "i want to become",
-        "my goal is",
-        "i am working on",
-        "i'm working on",
-        "i am building",
-        "i'm building",
-        "pmhnp journey",
-        "starting my pmhnp",
-        "pursuing pmhnp",
-        "leaving the navy",
-        "becoming a father",
-        "planning a wedding",
-        "building ari rebirth",
-        "promotion",
-        "offered a promotion"
-      ]),
-
-      reflectionSignal: this.containsAny(text, [
-        "i learned",
-        "i realized",
-        "i discovered",
-        "this taught me",
-        "this means"
-      ])
-    };
-  },
-
-  observeGoals(text) {
-    return {
-      wantsPlan: this.containsAny(text, [
-        "plan",
-        "roadmap",
-        "next step",
-        "milestone",
-        "schedule",
-        "focus on first",
-        "what deserves my attention",
-        "help me decide",
-        "what matters most",
-        "what am i not seeing",
-        "which choice"
-      ]),
-
-      wantsGrowth: this.containsAny(text, [
-        "become",
-        "becoming",
-        "improve",
-        "better",
-        "grow",
-        "stronger",
-        "healthier",
-        "pursuing",
-        "school",
-        "certification",
-        "promotion",
-        "opportunity"
-      ]),
-
-      wantsBuild: this.containsAny(text, [
-        "build",
-        "building",
-        "create",
-        "code",
-        "debug",
-        "architecture",
-        "ari rebirth"
-      ]),
-
-      wantsHealth: this.containsAny(text, [
-        "weight",
-        "calorie",
-        "nutrition",
-        "exercise",
-        "meal",
-        "fitness"
-      ])
-    };
-  },
-
-  observeLifeTransitions(text) {
-    return {
-      fatherhood: this.containsAny(text, [
-        "becoming a father",
-        "become a father",
-        "about to become a father",
-        "my daughter",
-        "my son",
-        "first child",
-        "future daughter",
-        "future son"
-      ]),
-
-      motherhood: this.containsAny(text, [
-        "becoming a mother",
-        "become a mother",
-        "about to become a mother",
-        "my baby",
-        "future child"
-      ]),
-
-      pregnancy: this.containsAny(text, [
-        "pregnant",
-        "pregnancy",
-        "due in",
-        "expecting"
-      ]),
-
-      marriage: this.containsAny(text, [
-        "wife",
-        "husband",
-        "married",
-        "marriage"
-      ]),
-
-      engagement: this.containsAny(text, [
-        "engaged",
-        "fiance",
-        "fiancée",
-        "planning a wedding",
-        "wedding"
-      ]),
-
-      militaryTransition: this.containsAny(text, [
-        "leaving the navy",
-        "leaving the military",
-        "separating",
-        "retiring from military",
-        "getting out",
-        "after years of service"
-      ]),
-
-      careerTransition: this.containsAny(text, [
-        "career change",
-        "new career",
-        "changing careers",
-        "starting a new job",
-        "pmhnp",
-        "nurse practitioner",
-        "graduate school",
-        "school after military",
-        "civilian career",
-        "leaving the navy",
-        "promotion",
-        "offered a promotion",
-        "increase my income",
-        "longer hours",
-        "more travel",
-        "career opportunity"
-      ]),
-
-      retirement: this.containsAny(text, [
-        "retirement",
-        "retiring"
-      ])
-    };
-  },
-
-  observeHumanPatterns(text, lifeTransitions = {}) {
-    const activeTransitions = Object.values(lifeTransitions).filter(Boolean).length;
-
-    const roles = [];
-
-    if (lifeTransitions.fatherhood) roles.push("father");
-    if (lifeTransitions.motherhood) roles.push("mother");
-    if (lifeTransitions.marriage) roles.push("spouse");
-    if (lifeTransitions.engagement) roles.push("fiance");
-    if (lifeTransitions.militaryTransition) roles.push("military-transitioning");
-    if (lifeTransitions.careerTransition) roles.push("career-transitioning");
-
-    if (this.containsAny(text, ["student", "school", "pmhnp", "graduate school"])) {
-      roles.push("student");
-    }
-
-    if (this.containsAny(text, ["build ari", "building ari", "ari rebirth", "founder", "business"])) {
-      roles.push("builder");
-    }
-
-    if (this.containsAny(text, [
-      "provider",
-      "support my family",
-      "support my daughter",
-      "protect my family",
-      "provide more for my family",
-      "income",
-      "promotion"
-    ])) {
-      roles.push("provider");
-    }
-
-    const competingPriorities = this.containsAny(text, [
-      "what should i focus on",
-      "what matters most",
-      "cannot do everything",
-      "can't do everything",
-      "too much at once",
-      "which should come first",
-      "competing priorities",
-      "give 100%",
-      "all at the same time",
-      "advance every goal equally",
-      "deserves my attention",
-      "help me decide",
-      "prioritize income or family",
-      "income or family",
-      "which choice"
-    ]);
-
-    const burnoutRisk = this.containsAny(text, [
-      "burned out",
-      "burnout",
-      "exhausted",
-      "overwhelmed",
-      "spreading myself too thin",
-      "spread too thin",
-      "running out of energy",
-      "cannot give 100%",
-      "can't give 100%",
-      "too much at once"
-    ]);
-
-    const purposeConflict = this.containsAny(text, [
-      "what matters most",
-      "what i most need to hear",
-      "not what i want to hear",
-      "which should i sacrifice",
-      "what deserves my attention",
-      "what should come first",
-      "protect the others",
-      "care deeply about",
-      "purpose",
-      "income or family",
-      "provide more for my family",
-      "miss moments",
-      "which choice",
-      "regret more",
-      "prioritize income or family"
-    ]);
-
-    const opportunityCost = this.containsAny(text, [
-      "neglect one area",
-      "sacrifice",
-      "protect the others",
-      "cannot give 100%",
-      "can't give 100%",
-      "if i focus on",
-      "if i continue",
-      "income or family",
-      "more money",
-      "more time",
-      "longer hours",
-      "more travel",
-      "miss moments",
-      "never get back",
-      "turning down the promotion",
-      "accepting it would require"
-    ]);
-
-    const futureRegretRisk = this.containsAny(text, [
-      "miss my daughter",
-      "miss my son",
-      "first year",
-      "regret",
-      "regret more",
-      "which choice i would regret",
-      "wish i had",
-      "look back",
-      "family first",
-      "miss moments",
-      "never get back"
-    ]);
-
-    const roleConflict =
-      (roles.length >= 2 && competingPriorities) ||
-      roles.length >= 3 ||
-      this.containsAny(text, [
-        "multiple roles",
-        "pulled in different directions",
-        "balance everything",
-        "cannot do everything",
-        "can't do everything",
-        "too many responsibilities",
-        "father and",
-        "husband and",
-        "student and",
-        "provider and",
-        "prioritize income or family"
-      ]);
-
-    return {
-      roles: [...new Set(roles)],
-      roleConflict,
-      competingPriorities,
-      burnoutRisk,
-      purposeConflict,
-      opportunityCost,
-      futureRegretRisk,
-
-      lifeTransitionLoad: {
-        count: activeTransitions,
-        level:
-          activeTransitions >= 5
-            ? "extreme"
-            : activeTransitions >= 3
-            ? "high"
-            : activeTransitions >= 1
-            ? "moderate"
-            : "low"
+      if (!exists) {
+        observations.push({
+          type,
+          value,
+          evidence,
+          confidence,
+          source: "ari-observer-network"
+        });
       }
     };
-  },
 
-  observeValuesAndConflicts(text, humanPatterns = {}) {
-    const values = [];
+    Object.entries(this.lexicon).forEach(([group, terms]) => {
+      terms.forEach(term => {
+        const useIncludes =
+          group === "knowledge" ||
+          group === "memory";
 
-    if (this.containsAny(text, [
-      "tell me what i need to hear",
-      "what i need to hear",
-      "direct feedback",
-      "truth",
-      "honest",
-      "do not give me encouragement",
-      "don't sugarcoat",
-      "no sugarcoating"
-    ])) {
-      values.push("truth");
-    }
-
-    if (this.containsAny(text, [
-      "accountability",
-      "hold me accountable",
-      "what i need to hear",
-      "not what i want to hear"
-    ])) {
-      values.push("accountability");
-    }
-
-    if (this.containsAny(text, [
-      "daughter",
-      "son",
-      "family",
-      "wife",
-      "husband",
-      "first child",
-      "baby"
-    ])) {
-      values.push("family");
-    }
-
-    if (this.containsAny(text, [
-      "responsibility",
-      "irresponsible",
-      "provide",
-      "protect",
-      "provider"
-    ])) {
-      values.push("responsibility");
-    }
-
-    if (this.containsAny(text, [
-      "pmhnp",
-      "growth",
-      "improve",
-      "become",
-      "promotion",
-      "opportunity"
-    ])) {
-      values.push("growth");
-    }
-
-    if (this.containsAny(text, [
-      "ari rebirth",
-      "build",
-      "building",
-      "create",
-      "founder"
-    ])) {
-      values.push("creation");
-    }
-
-    if (this.containsAny(text, [
-      "service",
-      "navy",
-      "military",
-      "take care of others",
-      "support others"
-    ])) {
-      values.push("service");
-    }
-
-    const coreConflicts = [];
-
-    if (
-      this.containsAny(text, ["promotion", "career", "income", "opportunity", "longer hours", "more travel"]) &&
-      this.containsAny(text, ["daughter", "son", "family", "first child", "wife", "husband"])
-    ) {
-      coreConflicts.push("ambition_vs_presence");
-    }
-
-    if (
-      this.containsAny(text, ["school", "pmhnp", "career change", "promotion", "opportunity"]) &&
-      this.containsAny(text, ["security", "stable", "safe", "income", "provide"])
-    ) {
-      coreConflicts.push("growth_vs_stability");
-    }
-
-    if (
-      this.containsAny(text, ["everyone else", "take care of others", "support everyone", "provide", "protect"]) &&
-      this.containsAny(text, ["burned out", "exhausted", "overwhelmed", "too much"])
-    ) {
-      coreConflicts.push("service_vs_self");
-    }
-
-    if (this.containsAny(text, ["leaving the navy", "leaving the military", "after years of service"])) {
-      coreConflicts.push("identity_vs_transition");
-    }
-
-    if (
-      this.containsAny(text, ["income or family", "provide more for my family"]) ||
-      (
-        this.containsAny(text, ["income", "promotion", "more money"]) &&
-        this.containsAny(text, ["family", "daughter", "son", "first child"])
-      )
-    ) {
-      coreConflicts.push("provider_vs_present_parent");
-    }
-
-    let decisionPressure = "low";
-
-    if (humanPatterns.competingPriorities && humanPatterns.roleConflict) {
-      decisionPressure = "medium";
-    }
-
-    if (
-      humanPatterns.lifeTransitionLoad &&
-      humanPatterns.lifeTransitionLoad.level === "high"
-    ) {
-      decisionPressure = "high";
-    }
-
-    if (
-      humanPatterns.lifeTransitionLoad &&
-      humanPatterns.lifeTransitionLoad.level === "extreme"
-    ) {
-      decisionPressure = "critical";
-    }
-
-    if (humanPatterns.futureRegretRisk && humanPatterns.opportunityCost) {
-      decisionPressure = decisionPressure === "low" ? "medium" : decisionPressure;
-    }
-
-    const sacrificeDetected = this.containsAny(text, [
-      "sacrifice",
-      "neglect",
-      "protect the others",
-      "cannot do everything",
-      "can't do everything",
-      "miss moments",
-      "never get back"
-    ]);
-
-    return {
-      values: [...new Set(values)],
-      coreConflicts: [...new Set(coreConflicts)],
-      decisionPressure,
-      sacrificeDetected
-    };
-  },
-
-  observeRelationship(text, context = {}) {
-    return {
-      unknownUser: !context.userId && !context.profile,
-
-      relationshipSignal: this.containsAny(text, [
-        "friend",
-        "companion",
-        "know me",
-        "trust",
-        "talk to me",
-        "listen to me"
-      ]),
-
-      communicationPreference: this.containsAny(text, [
-        "talk to me",
-        "be more",
-        "be less",
-        "direct feedback",
-        "gentle",
-        "blunt",
-        "don't sugarcoat",
-        "no sugarcoating",
-        "what i need to hear"
-      ])
-    };
-  },
-
-  observeRisk(text) {
-    return {
-      guardianRequired: this.containsAny(text, [
-        "suicide",
-        "kill myself",
-        "hurt myself",
-        "overdose",
-        "chest pain",
-        "stroke",
-        "can't breathe",
-        "abuse",
-        "danger",
-        "emergency"
-      ])
-    };
-  },
-
-  observeDualSalience(message, context = {}) {
-    if (!window.AriDualSalienceSystem || !window.AriDualSalienceSystem.analyze) {
-      return {
-        available: false,
-        reason: "AriDualSalienceSystem not loaded"
-      };
-    }
-
-    return {
-      available: true,
-      ...window.AriDualSalienceSystem.analyze({
-        text: message,
-        context
-      })
-    };
-  },
-
-  observeHierarchy(observation = {}) {
-    if (
-      !window.Ari ||
-      !window.Ari.observerHierarchyEngine ||
-      !window.Ari.observerHierarchyEngine.analyze
-    ) {
-      return {
-        available: false,
-        reason: "AriObserverHierarchyEngine not loaded"
-      };
-    }
-
-    return {
-      available: true,
-      ...window.Ari.observerHierarchyEngine.analyze(observation)
-    };
-  },
-
-  detectTopics(text) {
-    const topics = [];
-
-    if (this.containsAny(text, ["code", "github", "repo", "debug", "api", "javascript"])) {
-      topics.push("coding");
-    }
-
-    if (this.containsAny(text, ["weight", "calorie", "meal", "nutrition", "exercise"])) {
-      topics.push("health");
-    }
-
-    if (this.containsAny(text, ["lonely", "sad", "overwhelmed", "relationship", "feel", "guilty", "worried", "regret"])) {
-      topics.push("emotional");
-    }
-
-    if (this.containsAny(text, ["ari", "calbuddy", "rebirth", "architecture"])) {
-      topics.push("ari-development");
-    }
-
-    if (this.containsAny(text, ["plan", "roadmap", "next step", "focus", "attention", "decide", "prioritize"])) {
-      topics.push("planning");
-    }
-
-    if (this.containsAny(text, ["daughter", "son", "baby", "father", "mother", "pregnant", "pregnancy", "first child", "wife", "husband"])) {
-      topics.push("family");
-    }
-
-    if (this.containsAny(text, ["navy", "military", "service", "separating"])) {
-      topics.push("military-transition");
-    }
-
-    if (this.containsAny(text, ["pmhnp", "school", "career", "job", "nurse practitioner", "promotion", "income"])) {
-      topics.push("career-transition");
-    }
-
-    if (this.containsAny(text, ["wedding", "marriage", "fiance", "fiancée", "wife", "husband"])) {
-      topics.push("relationship-transition");
-    }
-
-    return [...new Set(topics)];
-  },
-
-  buildObservationLedger(text = "") {
-    const ledgerSystem = window.Ari.observationLedger;
-
-    if (!ledgerSystem || typeof ledgerSystem.create !== "function") {
-      return [];
-    }
-
-    const ledger = ledgerSystem.create();
-
-    const addObservation = (observation = {}) => {
-      ledgerSystem.add(
-        ledger,
-        ledgerSystem.createObservation(observation)
-      );
-    };
-
-    // Direct teaching request
-    if (this.containsAny(text, ["explain", "teach", "how does", "how do", "what does"])) {
-      addObservation({
-        signal: "teaching_request",
-        category: "intent",
-        observationType: "direct_text",
-        confidence: 95,
-        source: "ari-observer-network",
-        evidence: ["User asked for explanation or teaching."]
+        if (useIncludes ? text.includes(term) : this.hasTerm(text, term)) {
+          add(this.typeMap[group] || group, term, term, this.confidenceMap[group] || 0.7);
+        }
       });
-    }
+    });
 
-    // Direct body / medical signal
-    if (this.containsAny(text, [
-      "diarrhea", "vomiting", "can't keep water down", "cant keep water down",
-      "chest pain", "can't breathe", "cant breathe", "fainted", "passed out",
-      "severe pain", "fever", "bleeding"
-    ])) {
-      addObservation({
-        signal: "body_or_medical_signal",
-        category: "body",
-        observationType: "direct_text",
-        confidence: 98,
-        source: "ari-observer-network",
-        evidence: ["User described a body or medical signal."]
-      });
-    }
+    this.detectConnectors(text, add);
+    this.detectQuestionEvidence(text, add);
+    this.detectTimeEvidence(text, add);
+    this.detectOwnershipEvidence(text, add);
 
-    // Direct relationship / connection signal
-    if (this.containsAny(text, [
-      "lonely", "alone", "disconnected", "haven't connected", "havent connected",
-      "wife", "husband", "girlfriend", "boyfriend", "partner", "relationship"
-    ])) {
-      addObservation({
-        signal: "connection_need",
-        category: "relationship",
-        observationType: "direct_text",
-        confidence: 90,
-        source: "ari-observer-network",
-        evidence: ["User described loneliness, disconnection, or relationship strain."]
-      });
-    }
+    const result = {
+      observerEvidenceRan: true,
+      observerEvidenceVersion: this.version,
+      observerEvidenceSource: "ari-observer-network",
 
-    // Direct parenthood / family transition signal
-    if (this.containsAny(text, [
-      "becoming a father", "become a father", "father",
-      "becoming a mother", "become a mother", "mother",
-      "first child", "my daughter", "my son", "baby"
-    ])) {
-      addObservation({
-        signal: "parenthood_transition",
-        category: "life_transition",
-        observationType: "direct_text",
-        confidence: 95,
-        source: "ari-observer-network",
-        evidence: ["User directly referenced parenthood, child, or baby."]
-      });
-    }
+      rawUserMessage: rawText,
+      normalizedObservedText: text,
 
-    // Direct identity signal
-    if (this.containsAny(text, [
-      "who i am", "identity", "role", "becoming", "rethink who i am"
-    ])) {
-      addObservation({
-        signal: "identity_transition",
-        category: "identity",
-        observationType: "direct_text",
-        confidence: 90,
-        source: "ari-observer-network",
-        evidence: ["User directly referenced identity, role, or becoming."]
-      });
-    }
+      observations,
+      observationCount: observations.length,
 
-    // Direct planning / decision signal
-    if (this.containsAny(text, [
-      "what should i do", "should i", "plan", "roadmap",
-      "next step", "prioritize", "focus on", "decision"
-    ])) {
-      addObservation({
-        signal: "planning_or_decision_need",
-        category: "planning",
-        observationType: "direct_text",
-        confidence: 88,
-        source: "ari-observer-network",
-        evidence: ["User asked for planning, prioritization, or decision help."]
-      });
-    }
+      observedTypes: [...new Set(observations.map(o => o.type))],
+      observedValues: [...new Set(observations.map(o => o.value))],
 
-    // Inferred hypothesis only — not direct fact
-    if (
-      this.containsAny(text, ["promotion", "income", "career", "job", "opportunity"]) &&
-      this.containsAny(text, ["family", "wife", "husband", "daughter", "son", "baby"])
-    ) {
-      addObservation({
-        signal: "presence_vs_achievement_possible",
-        category: "wisdom_tension",
-        observationType: "hypothesis",
-        confidence: 55,
-        source: "ari-observer-network",
-        evidence: ["Career/achievement language appears near family language."]
-      });
-    }
+      observationLedger: observations,
+      rankedLedgerObservations: observations,
+      strongestObservation: observations[0]?.value || null,
+      strongestObservationCategory: observations[0]?.type || null,
+      strongestObservationConfidence: observations[0]?.confidence || 0,
 
-    return ledgerSystem.rank(ledger);
-  },
-
-  observe(message = "", context = {}) {
-    const text = this.normalize(message);
-    const lifeTransitions = this.observeLifeTransitions(text);
-    const humanPatterns = this.observeHumanPatterns(text, lifeTransitions);
-    const valuesAndConflicts = this.observeValuesAndConflicts(text, humanPatterns);
-    const dualSalience = this.observeDualSalience(message, context);
-
-const observationLedger = this.buildObservationLedger(text);
-
-    const baseObservation = {
-      message,
-      normalizedMessage: text,
-      observationLedger,
-      conversation: this.observeConversation(text),
-      emotion: this.observeEmotion(text),
-      intent: this.observeIntent(text),
-      memory: this.observeMemory(text),
-      goals: this.observeGoals(text),
-      lifeTransitions,
-      humanPatterns,
-      valuesAndConflicts,
-      relationship: this.observeRelationship(text, context),
-      risk: this.observeRisk(text),
-      dualSalience,
-      observedAt: new Date().toISOString(),
-      source: "ari-observer-network",
-      version: this.version
-    };
-
-    const observerHierarchy = this.observeHierarchy(baseObservation);
-
-    const observation = {
-      ...baseObservation,
-      observerHierarchy,
-      hierarchy: observerHierarchy
+      source: "ari-observer-network"
     };
 
     window.dispatchEvent(
       new CustomEvent("ari:observation", {
-        detail: observation
+        detail: result
       })
     );
 
-    return observation;
+    return result;
+  },
+
+  typeMap: {
+    people: "person_reference",
+    family: "family_reference",
+    bodyContext: "body_context",
+    bodySymptom: "body_symptom",
+    safetyTerms: "safety_language",
+    emotionWords: "emotion_word",
+    work: "work_reference",
+    money: "money_reference",
+    building: "building_reference",
+    knowledge: "knowledge_request_phrase",
+    memory: "memory_request_phrase"
+  },
+
+  confidenceMap: {
+    people: 0.75,
+    family: 0.75,
+    bodyContext: 0.65,
+    bodySymptom: 0.75,
+    safetyTerms: 0.65,
+    emotionWords: 0.65,
+    work: 0.7,
+    money: 0.7,
+    building: 0.7,
+    knowledge: 0.75,
+    memory: 0.8
+  },
+
+  lexicon: {
+    people: [
+      "wife", "husband", "spouse", "partner", "fiance", "fiancée",
+      "girlfriend", "boyfriend", "ex", "friend", "coworker", "boss"
+    ],
+
+    family: [
+      "family", "mom", "mother", "dad", "father", "parent", "parents",
+      "child", "kid", "son", "daughter", "baby", "children",
+      "brother", "sister", "grandma", "grandmother", "grandpa", "grandfather",
+      "aunt", "uncle", "cousin", "in law", "guardian", "caregiver"
+    ],
+
+    bodyContext: [
+      "pregnant", "pregnancy", "abortion", "miscarriage", "stroke",
+      "surgery", "diagnosis", "doctor", "hospital", "medication",
+      "therapy", "medical history"
+    ],
+
+    bodySymptom: [
+      "pain", "hurt", "bleeding", "fever", "vomiting", "dizzy",
+      "faint", "fainting", "passed out", "chest pain", "trouble breathing",
+      "shortness of breath", "seizure", "weakness", "numbness",
+      "contractions", "fluid leakage", "decreased fetal movement"
+    ],
+
+    safetyTerms: [
+      "kill myself", "hurt myself", "self harm", "can't stay safe",
+      "cant stay safe", "hurt someone", "overdose", "abuse", "assault",
+      "threat", "violence", "emergency", "danger"
+    ],
+
+    emotionWords: [
+      "tired", "exhausted", "overwhelmed", "stressed", "sad", "angry",
+      "mad", "scared", "afraid", "guilty", "ashamed", "lonely",
+      "frustrated", "confused", "worried"
+    ],
+
+    work: [
+      "job", "career", "work", "school", "college", "military", "navy",
+      "army", "marine", "promotion", "boss", "coworker", "business",
+      "company", "resume", "interview", "overtime"
+    ],
+
+    money: [
+      "money", "financial", "budget", "debt", "rent", "mortgage",
+      "salary", "pay", "bills", "afford", "expensive", "tight",
+      "security"
+    ],
+
+    building: [
+      "build", "fix", "debug", "code", "github", "app", "project",
+      "website", "feature", "error", "repo", "javascript", "html", "css"
+    ],
+
+    knowledge: [
+      "what is", "why", "explain", "teach", "understand",
+      "difference", "meaning of", "how does", "define"
+    ],
+
+    memory: [
+      "remember", "don't forget", "from now on", "going forward",
+      "save this", "store this", "note that"
+    ]
+  },
+
+  detectConnectors(text, add) {
+    const connectors = [
+      "but", "however", "although", "while", "at the same time",
+      "versus", "vs", "on the other hand"
+    ];
+
+    connectors.forEach(term => {
+      if (this.hasTerm(text, term)) {
+        add("contrast_or_tradeoff_connector", term, term, 0.8);
+      }
+    });
+  },
+
+  detectQuestionEvidence(text, add) {
+    const questionMarks = (text.match(/\?/g) || []).length;
+
+    if (questionMarks > 0) {
+      add("question_mark_count", String(questionMarks), "?", 0.9);
+    }
+
+    const starters = [
+      "how do", "how can", "what should", "should i", "should we",
+      "do you think", "why", "what is", "can you", "can i"
+    ];
+
+    starters.forEach(term => {
+      if (text.includes(term)) {
+        add("question_phrase", term, term, 0.85);
+      }
+    });
+  },
+
+  detectTimeEvidence(text, add) {
+    const patterns = [
+      ["past_time", /\b(yesterday|last week|last month|two weeks ago|years ago|last year)\b/],
+      ["current_time", /\b(now|right now|currently|today|tonight|this morning)\b/],
+      ["future_time", /\b(tomorrow|next week|next month|soon|in six months|for the next)\b/]
+    ];
+
+    patterns.forEach(([type, regex]) => {
+      const match = text.match(regex);
+      if (match) add(type, match[0], match[0], 0.8);
+    });
+  },
+
+  detectOwnershipEvidence(text, add) {
+    if (/\b(i|me|my|myself)\b/.test(text)) {
+      add("ownership_reference", "self", "I/me/my", 0.75);
+    }
+
+    if (/\b(my wife|my husband|my partner|my girlfriend|my boyfriend|my dad|my mom|my child|my baby)\b/.test(text)) {
+      add("ownership_reference", "close_other", "my + close person", 0.8);
+    }
+
+    if (/\b(someone|somebody|a person|they|their)\b/.test(text)) {
+      add("ownership_reference", "other_or_unspecified", "someone/they", 0.65);
+    }
+  },
+
+  hasTerm(text, term) {
+    const escaped = this.escapeRegex(term);
+    const multiWord = String(term).includes(" ");
+
+    if (multiWord) {
+      return new RegExp(`(^|\\b)${escaped}(\\b|$)`, "i").test(text);
+    }
+
+    return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+  },
+
+  escapeRegex(value = "") {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  },
+
+  normalize(value = "") {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[_-]/g, " ")
+      .replace(/[^\w\s'?.,!:-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 };
