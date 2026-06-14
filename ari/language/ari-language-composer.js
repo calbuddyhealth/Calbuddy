@@ -85,9 +85,20 @@ window.AriLanguageComposer = {
     let synthesisText = typeof summary.synthesisStatement === "string" ? summary.synthesisStatement.trim() : null;
     let meaningText = typeof summary.meaningStatement === "string" ? summary.meaningStatement.trim() : null;
     let emotionText = this.readText(emotionResult, ["emotionalName", "emotion", "text", "line"]);
-   let truthText =
-  this.readDirectKnowledgeText(summary) ||
-  this.readText(truthResult, ["truth", "text", "line"]);
+   let truthText = this.readText(truthResult, ["truth", "text", "line"]);
+
+if (
+  responseIntent === "teach_clearly" ||
+  summary.domainLead === "knowledge_teaching_domain" ||
+  summary.shouldPreferTeaching === true
+) {
+  truthText =
+    summary.teachingAnswer ||
+    summary.knowledgeAnswer ||
+    summary.humanTruth ||
+    summary.oneLineInsight ||
+    truthText;
+}
     let wisdomText = this.readText(wisdomResult, ["principle", "wisdom", "text", "line"]);
     let actionText = this.readText(actionResult, ["guidance", "action", "text", "line"]);
     if (intentAuthority.forceDirectAnswer) {
