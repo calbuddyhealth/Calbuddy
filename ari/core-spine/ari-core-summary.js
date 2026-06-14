@@ -33,6 +33,11 @@ const domainGovernor =
   analysis.domainDecision ||
   {};
 
+const authorityMap =
+  analysis.authorityMap ||
+  analysis.authority ||
+  {};
+
 const knowledge =
   analysis.knowledge ||
   analysis.knowledgeRouter ||
@@ -702,6 +707,26 @@ domainBlockedPermissions:
 
 rankedUniversalDomains:
   domainGovernor.rankedUniversalDomains || [],
+
+// Authority Map
+authorityMap,
+
+allowTeaching: analysis.allowTeaching ?? authorityMap.allowTeaching ?? true,
+allowEmotion: analysis.allowEmotion ?? authorityMap.allowEmotion ?? true,
+allowMeaning: analysis.allowMeaning ?? authorityMap.allowMeaning ?? true,
+allowIdentity: analysis.allowIdentity ?? authorityMap.allowIdentity ?? true,
+allowWisdom: analysis.allowWisdom ?? authorityMap.allowWisdom ?? true,
+allowAction: analysis.allowAction ?? authorityMap.allowAction ?? true,
+
+authorityReason:
+  analysis.authorityReason ||
+  authorityMap.authorityReason ||
+  null,
+
+authoritySource:
+  analysis.authoritySource ||
+  authorityMap.source ||
+  "ari-authority-map-engine",
 
 shouldBlockLifeChapter:
   Boolean(domainGovernor.shouldBlockLifeChapter),
