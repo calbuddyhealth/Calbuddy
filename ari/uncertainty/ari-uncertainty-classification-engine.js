@@ -1,18 +1,36 @@
 // ari/uncertainty/ari-uncertainty-classification-engine.js
 // Ari Uncertainty Classification Engine
 // Purpose: Determine WHY Ari is uncertain before choosing a recovery question.
-// V1.5
+// V1.6
 // Fixes:
-// - Adds Human Needs Network awareness.
-// - Prevents missing_information from overriding strong human needs.
-// - Adds human_need_leads classification for worth, connection, security, body, identity, purpose, and wisdom needs.
+// - Adds Direct Intent Support Mode.
+// - Prevents teaching/building/planning requests from being hijacked by missing_information.
+// - Allows uncertainty to support direct answers instead of stealing the lead.
+// - Keeps Human Needs Network awareness.
 // - Keeps resolved_enough protection for high-evidence interpretations.
 
 window.AriUncertaintyClassificationEngine = {
-  version: "1.5.0",
+  version: "1.6.0",
 
   classify(input = {}) {
     const summary = input.summary || input || {};
+
+    const domainLead =
+      summary.domainLead ||
+      summary.domainGovernor?.domainLead ||
+      null;
+
+    const responseIntent = summary.responseIntent || null;
+
+    const shouldPreferTeaching =
+      summary.shouldPreferTeaching === true ||
+      summary.domainGovernor?.shouldPreferTeaching === true ||
+      domainLead === "knowledge_teaching_domain" ||
+      responseIntent === "teach_clearly";
+
+    const directKnowledgeRequest =
+      shouldPreferTeaching ||
+      ["build_or_debug", "create_priority_structure"].includes(responseIntent);
 
     const primaryHumanNeed = summary.primaryHumanNeed || null;
     const primaryHumanNeedScore = Number(summary.primaryHumanNeedScore || 0);
@@ -91,7 +109,22 @@ window.AriUncertaintyClassificationEngine = {
       });
     }
 
-    // 0. If Ari already has a grounded hypothesis, uncertainty should not lead.
+    // 0. Direct intent support mode.
+    if (directKnowledgeRequest) {
+      addCandidate(
+        "direct_intent_supported",
+        120,
+        "Ari detected a direct teaching/building/planning request, so uncertainty should support the answer instead of leading.",
+        null,
+        {
+          domainLead,
+          responseIntent,
+          supportMode: "answer_directly"
+        }
+      );
+    }
+
+    // 1. If Ari already has a grounded hypothesis, uncertainty should not lead.
     if (hasGroundedInterpretation) {
       addCandidate(
         "resolved_enough",
@@ -107,7 +140,7 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 1. Strong human needs should prevent generic uncertainty from leading.
+    // 2. Strong human needs should prevent generic uncertainty from leading.
     if (!hasGroundedInterpretation && !hypothesis && weakEvidence && strongHumanNeed) {
       addCandidate(
         "human_need_leads",
@@ -122,8 +155,8 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 2. Missing information only leads when no strong human need is active.
-    if (!hypothesis && weakEvidence && !strongHumanNeed) {
+    // 3. Missing information only leads when no stronger domain is active.
+    if (!hypothesis && weakEvidence && !strongHumanNeed && !directKnowledgeRequest) {
       addCandidate(
         "missing_information",
         92,
@@ -132,12 +165,13 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 3. Understanding / curiosity uncertainty
+    // 4. Understanding / curiosity uncertainty.
     if (
       primaryEmotion === "curiosity" &&
       rootNeed === "understanding" &&
       !hypothesis &&
-      !strongHumanNeed
+      !strongHumanNeed &&
+      !directKnowledgeRequest
     ) {
       addCandidate(
         "understanding_uncertainty",
@@ -147,9 +181,10 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 4. Emotion uncertainty
+    // 5. Emotion uncertainty.
     if (
       !hasGroundedInterpretation &&
+      !directKnowledgeRequest &&
       strongestSignalCategory === "underlying_emotion" &&
       strongestSignal &&
       strongestSignal !== "unclear"
@@ -165,6 +200,7 @@ window.AriUncertaintyClassificationEngine = {
 
     if (
       !hasGroundedInterpretation &&
+      !directKnowledgeRequest &&
       underlyingEmotion &&
       underlyingEmotion !== "unclear" &&
       underlyingEmotionDepth &&
@@ -179,10 +215,11 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 5. Belief uncertainty
+    // 6. Belief uncertainty.
     if (
       !hasGroundedInterpretation &&
       !strongHumanNeed &&
+      !directKnowledgeRequest &&
       (
         strongestSignalCategory === "belief" ||
         primaryBelief ||
@@ -199,10 +236,11 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 6. Identity uncertainty
+    // 7. Identity uncertainty.
     if (
       !hasGroundedInterpretation &&
       !strongHumanNeed &&
+      !directKnowledgeRequest &&
       (
         strongestSignalCategory === "identity" ||
         dominantIdentity ||
@@ -219,10 +257,11 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 7. Life chapter uncertainty
+    // 8. Life chapter uncertainty.
     if (
       !hasGroundedInterpretation &&
       !strongHumanNeed &&
+      !directKnowledgeRequest &&
       (
         strongestSignalCategory === "life" ||
         primaryLifeSignal ||
@@ -254,10 +293,11 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 8. Value / wisdom uncertainty
+    // 9. Value / wisdom uncertainty.
     if (
       !hasGroundedInterpretation &&
       !strongHumanNeed &&
+      !directKnowledgeRequest &&
       (
         strongestSignalCategory === "highest_good" ||
         (wisdomTension && wisdomTension !== "unclear") ||
@@ -275,10 +315,11 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 9. Conflict uncertainty
+    // 10. Conflict uncertainty.
     if (
       !hasGroundedInterpretation &&
       !strongHumanNeed &&
+      !directKnowledgeRequest &&
       (
         summary.primaryConflict ||
         summary.hiddenConflict ||
@@ -297,10 +338,11 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 10. Mission / purpose uncertainty
+    // 11. Mission / purpose uncertainty.
     if (
       !hasGroundedInterpretation &&
       !strongHumanNeed &&
+      !directKnowledgeRequest &&
       (
         strongestSignal === "creative_mission" ||
         primaryLifeSignal === "creative_mission" ||
@@ -318,7 +360,7 @@ window.AriUncertaintyClassificationEngine = {
       );
     }
 
-    // 11. Fallback
+    // 12. Fallback.
     if (candidates.length === 0) {
       addCandidate(
         "general_uncertainty",
@@ -342,9 +384,13 @@ window.AriUncertaintyClassificationEngine = {
 
     const shouldSuppressUncertainty =
       winner.type === "resolved_enough" ||
-      winner.type === "human_need_leads";
+      winner.type === "human_need_leads" ||
+      winner.type === "direct_intent_supported";
 
     return {
+      uncertaintyEngineRan: true,
+      uncertaintyEngineVersion: this.version,
+
       uncertaintyType: winner.type,
       uncertaintyConfidence: winner.score,
       uncertaintyReason: winner.reason,
@@ -353,6 +399,8 @@ window.AriUncertaintyClassificationEngine = {
       shouldUseEmotionRecovery,
       shouldContinueObserving,
       shouldSuppressUncertainty,
+
+      uncertaintySupportMode: winner.supportMode || null,
 
       winningCandidate: winner,
 
@@ -376,7 +424,10 @@ window.AriUncertaintyClassificationEngine = {
         hypothesis: candidate.hypothesis || null,
         evidenceStrength: candidate.evidenceStrength || null,
         calibratedConfidence: candidate.calibratedConfidence || null,
-        confidenceScore: candidate.confidenceScore || null
+        confidenceScore: candidate.confidenceScore || null,
+        domainLead: candidate.domainLead || null,
+        responseIntent: candidate.responseIntent || null,
+        supportMode: candidate.supportMode || null
       })),
 
       source: "ari-uncertainty-classification-engine"
