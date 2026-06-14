@@ -1,16 +1,17 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide HOW Ari communicates.
-// V2.5 
-// Fixes:
-// - Keeps organism/body stabilization short, practical, and non-abstract.
-// - Prevents meaning/wisdom/identity leakage into body-first responses.
-// - Softens connection support so Ari does not over-question loneliness.
-// - Adds comfort_then_truth pattern for connection wounds.
-// - Prevents family-priority wisdom from hijacking connection/attachment wounds.
+// V2.6
+// Upgrades:
+// - Makes responseIntent + domain governor authoritative for mouth shape.
+// - Fixes teaching requests getting swallowed by uncertainty.
+// - Adds clear handling for build/code requests.
+// - Keeps safety/body above everything.
+// - Prevents uncertainty fallback from overriding direct teaching/build/planning.
+// - Keeps meaning/wisdom/identity gated by permissions and intent.
 
 window.AriMouthDirector = {
-  version: "2.5.0",
+  version: "2.6.0",
 
   direct(summary = {}) {
     const mode =
@@ -33,6 +34,33 @@ window.AriMouthDirector = {
       summary.responseShape ||
       "balanced";
 
+    const domainLead =
+      summary.domainLead ||
+      summary.domainGovernor?.domainLead ||
+      summary.universalDomainGovernor?.domainLead ||
+      null;
+
+    const domainMode =
+      summary.domainMode ||
+      summary.domainGovernor?.domainMode ||
+      summary.universalDomainGovernor?.domainMode ||
+      null;
+
+    const shouldPreferTeaching =
+      summary.shouldPreferTeaching === true ||
+      summary.domainGovernor?.shouldPreferTeaching === true ||
+      summary.universalDomainGovernor?.shouldPreferTeaching === true;
+
+    const shouldPreferSafety =
+      summary.shouldPreferSafety === true ||
+      summary.domainGovernor?.shouldPreferSafety === true ||
+      summary.universalDomainGovernor?.shouldPreferSafety === true;
+
+    const shouldPreferBodyStabilization =
+      summary.shouldPreferBodyStabilization === true ||
+      summary.domainGovernor?.shouldPreferBodyStabilization === true ||
+      summary.universalDomainGovernor?.shouldPreferBodyStabilization === true;
+
     const executiveDecision =
       summary.executiveDecision || null;
 
@@ -53,6 +81,16 @@ window.AriMouthDirector = {
       summary.organismFunction ||
       null;
 
+    const observerPrimary =
+      summary.observerHierarchyPrimaryObservation ||
+      summary.strongestObservation ||
+      null;
+
+    const observerCategory =
+      summary.observerHierarchyPrimaryCategory ||
+      summary.strongestObservationCategory ||
+      null;
+
     const isConnectionWound =
       intent === "offer_connection" ||
       mode === "restore_connection" ||
@@ -60,6 +98,27 @@ window.AriMouthDirector = {
       need === "connection" ||
       need === "belonging" ||
       organismFunction === "connection";
+
+    const isTeachingRequest =
+      intent === "teach_clearly" ||
+      shape === "clear_explanation" ||
+      domainLead === "knowledge_teaching_domain" ||
+      domainMode === "teach_clearly" ||
+      shouldPreferTeaching ||
+      observerPrimary === "teaching_request" ||
+      summary.questionType === "teaching" ||
+      summary.focusType === "teaching" ||
+      summary.primaryNeed === "teaching";
+
+    const isBuildRequest =
+      intent === "build_or_debug" ||
+      intent === "generate_code" ||
+      shape === "code_then_explain" ||
+      domainLead === "creative_building_domain" ||
+      domainMode === "build_or_debug" ||
+      observerPrimary === "build_request" ||
+      summary.focusType === "build" ||
+      summary.primaryNeed === "build";
 
     const director = {
       explanationLevel: "standard",
@@ -77,7 +136,9 @@ window.AriMouthDirector = {
       mouthDirectorRan: true
     };
 
+    // 1. Safety override.
     if (
+      shouldPreferSafety ||
       intent === "protect_safety" ||
       executiveDecision === "protect_safety_first" ||
       primaryPriority === "safety" ||
@@ -97,7 +158,9 @@ window.AriMouthDirector = {
       return director;
     }
 
+    // 2. Body / medical / organism stabilization.
     if (
+      shouldPreferBodyStabilization ||
       intent === "stabilize_organism_function" ||
       shape === "body_truth_then_action" ||
       mode === "stabilize_body_first" ||
@@ -106,6 +169,38 @@ window.AriMouthDirector = {
       director.explanationLevel = "minimal";
       director.responsePattern = "body_truth_then_action";
       director.maxBodySections = 2;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = false;
+      director.allowEmotion = false;
+      director.allowTruth = true;
+      director.allowWisdom = false;
+      director.allowAction = true;
+
+      return director;
+    }
+
+    // 3. Direct teaching must beat uncertainty.
+    if (isTeachingRequest) {
+      director.explanationLevel = "clear";
+      director.responsePattern = "explain_then_example";
+      director.maxBodySections = 3;
+      director.askBeforeTeaching = false;
+
+      director.allowMeaning = false;
+      director.allowEmotion = false;
+      director.allowTruth = true;
+      director.allowWisdom = false;
+      director.allowAction = false;
+
+      return director;
+    }
+
+    // 4. Build/code/debug requests.
+    if (isBuildRequest) {
+      director.explanationLevel = "clear";
+      director.responsePattern = "code_then_explain";
+      director.maxBodySections = 4;
       director.askBeforeTeaching = false;
 
       director.allowMeaning = false;
@@ -153,12 +248,12 @@ window.AriMouthDirector = {
     }
 
     if (
-      !isConnectionWound &&
-      (
-        intent === "protect_family_presence" ||
-        executiveDecision === "protect_family_first" ||
-        primaryPriority === "family"
-      )
+      intent === "protect_relationship_responsibility" ||
+      intent === "protect_family_presence" ||
+      executiveDecision === "protect_family_first" ||
+      primaryPriority === "family" ||
+      primaryPriority === "responsibility" ||
+      primaryPriority === "caregiving"
     ) {
       director.explanationLevel = "deep";
       director.responsePattern = "meaning_truth_then_action";
@@ -275,7 +370,8 @@ window.AriMouthDirector = {
     if (
       intent === "create_priority_structure" ||
       executiveDecision === "create_priority_structure" ||
-      primaryPriority === "planning"
+      primaryPriority === "planning" ||
+      observerCategory === "planning"
     ) {
       director.explanationLevel = "deep";
       director.responsePattern = "prioritize_then_plan";
@@ -418,6 +514,8 @@ window.AriMouthDirector = {
       return director;
     }
 
+    // Last-resort uncertainty fallback.
+    // This must stay AFTER teaching/build/planning so it does not hijack direct requests.
     if (
       confidence === "unknown" ||
       confidence === "low"
@@ -446,19 +544,19 @@ window.AriMouthDirector = {
       director.askBeforeTeaching = false;
 
       director.allowMeaning =
-  intent === "name_life_chapter" ||
-  intent === "support_stewardship" ||
-  intent === "integrate_values";
+        intent === "name_life_chapter" ||
+        intent === "support_stewardship" ||
+        intent === "integrate_values";
 
-director.allowEmotion = true;
-director.allowTruth = true;
+      director.allowEmotion = true;
+      director.allowTruth = true;
 
-director.allowWisdom =
-  intent === "resolve_tension" ||
-  intent === "name_life_chapter" ||
-  intent === "integrate_values";
+      director.allowWisdom =
+        intent === "resolve_tension" ||
+        intent === "name_life_chapter" ||
+        intent === "integrate_values";
 
-director.allowAction = true;
+      director.allowAction = true;
 
       return director;
     }
