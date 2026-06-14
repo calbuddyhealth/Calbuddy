@@ -43,17 +43,36 @@ window.AriKnowledgeRouter = {
     const result = await client.ask({ summary });
 
     return {
-      knowledgeRouterRan: true,
-      knowledgeRouterVersion: this.version,
-      knowledgeRouterSource: "ari-knowledge-router",
-      shouldUseKnowledge: true,
-      knowledgeAnswer: result.answer || null,
-      knowledgeConfidence: result.confidence || "medium",
-      knowledgeSources: result.sources || [],
-      knowledgeModel: result.model || null,
-      knowledgeError: result.error || null,
-      knowledgeReason: "Question requires outside knowledge."
-    };
+  knowledgeRouterRan: true,
+  knowledgeRouterVersion: this.version,
+  knowledgeRouterSource: "ari-knowledge-router",
+
+  shouldUseKnowledge: true,
+
+  knowledgeAnswer:
+    result.knowledgeAnswer || null,
+
+  knowledgeConfidence:
+    result.knowledgeConfidence || "medium",
+
+  knowledgeSources:
+    result.knowledgeCitations || [],
+
+  knowledgeProvider:
+    result.knowledgeProvider || "openai",
+
+  knowledgeError:
+    result.knowledgeError || null,
+
+  openAIKnowledgeUsed:
+    result.openAIKnowledgeUsed || false,
+
+  openAIKnowledgeSource:
+    result.openAIKnowledgeSource || null,
+
+  knowledgeReason:
+    "Question requires outside knowledge."
+};
   },
 
   shouldUseKnowledge(summary = {}, question = "") {
