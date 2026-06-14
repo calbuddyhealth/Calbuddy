@@ -160,6 +160,10 @@
   <script src="ari/organism-system/ari-organism-function-engine.js"></script>
   <script src="ari/needs/ari-need-engine.js"></script>
   <script src="ari/governance/ari-universal-domain-governor.js"></script>
+  
+  <script src="ari/knowledge/ari-openai-knowledge-client.js"></script>
+<script src="ari/knowledge/ari-knowledge-router.js"></script>
+<script src="ari/teaching/ari-teaching-answer-engine.js"></script>
   <script src="ari/integration/ari-rebirth-pipeline.js"></script>
 
   <!-- MEMORY -->
@@ -184,7 +188,7 @@
   <script src="ari/testing/ari-readiness-diagnostic.js"></script>
 
   <script>
-    function runAriOnce(message) {
+    async function runAriOnce(message) {
       const analysis = window.Ari.core.analyzeMessage(message, {});
 
       let summary = window.Ari.core.createSystemSummary(analysis);
@@ -198,7 +202,7 @@
         window.AriRebirthPipeline &&
         typeof window.AriRebirthPipeline.run === "function"
       ) {
-        summary = window.AriRebirthPipeline.run(summary);
+        summary = await window.AriRebirthPipeline.run(summary);
       }
 
       const languageRoute = window.Ari.languageRouter
@@ -225,7 +229,7 @@
       };
     }
 
-    document.getElementById("ariAnalyzeBtn").addEventListener("click", () => {
+    document.getElementById("ariAnalyzeBtn").addEventListener("click", async () => {
       const output = document.getElementById("ariOutput");
 
       try {
@@ -236,7 +240,7 @@
           return;
         }
 
-        const run = runAriOnce(message);
+        const run = await runAriOnce(message);
         const summary = run.summary;
 
         const primaryPriority =
@@ -558,7 +562,7 @@ ${error.stack}
       }
     });
 
-    document.getElementById("ariDiagnosticBtn").addEventListener("click", () => {
+    document.getElementById("ariDiagnosticBtn").addEventListener("click", async () => {
       const output = document.getElementById("ariOutput");
 
       try {
@@ -570,8 +574,8 @@ ${error.stack}
         const responseMap = {};
         const fullRuns = [];
 
-        window.Ari.readinessDiagnostic.testCases.forEach((testCase) => {
-          const run = runAriOnce(testCase.prompt);
+        for (const testCase of window.Ari.readinessDiagnostic.testCases) {
+  const run = await runAriOnce(testCase.prompt);
 
           responseMap[testCase.id] = run.rebirthResponse;
 
@@ -584,7 +588,7 @@ ${error.stack}
             languageRoute: run.languageRoute,
             summary: run.summary
           });
-        });
+        }
 
         const results = window.Ari.readinessDiagnostic.testCases.map((testCase) => {
           return window.Ari.readinessDiagnostic.analyzeResponse(
