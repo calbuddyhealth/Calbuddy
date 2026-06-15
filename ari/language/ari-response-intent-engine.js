@@ -15,7 +15,51 @@ window.AriResponseIntentEngine = {
   },
   decide(input = {}) {
     const summary = input.summary || input || {};
-    const domainLead = summary.domainLead || summary.domainGovernor?.domainLead || null;
+   const contract =
+  summary.situationContract || {};
+
+const contractPrimary =
+  summary.situationContractPrimary ||
+  contract.primary ||
+  null;
+
+const contractShape =
+  summary.responseShape ||
+  contract.responseShape ||
+  null;
+
+if (contractPrimary) {
+  const contractIntentMap = {
+    safety: ["protect_safety_first", "urgent_support"],
+    risk_clarification: ["clarify_risk", "risk_clarification_question"],
+    medical_body: ["stabilize_organism_function", "body_truth_then_action"],
+    builder: ["build_or_fix", "build_steps"],
+    teacher: ["teach_clearly", "clear_explanation"],
+    executive_decision: ["create_priority_structure", "prioritize_then_plan"],
+    emotion: ["offer_connection", "comfort_then_truth"],
+    family: ["protect_family_presence", "family_truth_then_next_step"],
+    relationship: ["protect_relationship_responsibility", "relationship_truth_then_repair"],
+    wisdom: ["resolve_tension", "principle_then_choice"],
+    memory: ["acknowledge_memory", "acknowledge_memory_request"],
+    general_understanding: ["respond_normally", "balanced"]
+  };
+
+  const mapped = contractIntentMap[contractPrimary];
+
+  if (mapped) {
+    return this.intent(
+      mapped[0],
+      contractShape || mapped[1],
+      `Situation Contract is authoritative. Primary lane: ${contractPrimary}.`,
+      {
+        shouldAskQuestion: contract.clarity?.needed === true,
+        recommendedQuestion: contract.clarity?.question || null,
+        sourceLayer: "situation_contract"
+      }
+    );
+  }
+}
+     const domainLead = summary.domainLead || summary.domainGovernor?.domainLead || null;
     const domainMode = summary.domainMode || summary.domainGovernor?.domainMode || null;
     const domainQuestion = summary.domainQuestion || summary.domainGovernor?.domainQuestion || null;
     const domainPermissions =
