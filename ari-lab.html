@@ -45,7 +45,8 @@
   <script src="ari/safety/ari-safety-context-gate.js"></script>
   <script src="ari/observer-system/ari-observer-network.js"></script>
   <script src="ari/meaning/ari-situation-map-engine.js"></script>
-  <script src="ari/governance/ari-situation-contract.js"></script>
+<script src="ari/governance/ari-triage-engine.js"></script>
+    <script src="ari/governance/ari-situation-contract.js"></script>
 
   <!-- OBSERVER LEGACY / SUPPORT -->
   <script src="ari/observer-system/ari-dual-salience-system.js"></script>
@@ -381,6 +382,34 @@ ${summary.situationMap?.deferredLaneSuggestions?.join(", ") || "none"}
 
 Recommended Question:
 ${summary.situationMap?.recommendedQuestion || "none"}
+
+==================================================
+
+===== TRIAGE ENGINE =====
+
+Triage Ran:
+${summary.triageEngineRan ? "yes" : "no"}
+
+Primary Lane:
+${summary.triage?.primaryLane || summary.triagePrimaryLane || "none"}
+
+Priority Class:
+${summary.triage?.priorityClass || summary.triagePriorityClass || "none"}
+
+Confidence:
+${summary.triage?.confidence ?? summary.triageConfidence ?? "none"}
+
+Blocked Lanes:
+${summary.triage?.blockedLanes?.join(", ") || summary.triageBlockedLanes?.join(", ") || "none"}
+
+Deferred Lanes:
+${summary.triage?.deferredLanes?.join(", ") || summary.triageDeferredLanes?.join(", ") || "none"}
+
+Response Constraints:
+${summary.triage?.responseConstraints?.join(", ") || summary.triageResponseConstraints?.join(", ") || "none"}
+
+Reason:
+${summary.triage?.reason || summary.triageReason || "none"}
 
 ==================================================
 
