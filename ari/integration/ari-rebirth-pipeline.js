@@ -290,9 +290,33 @@ summary = {
     }
 
     // Reassert after response intent too.
-    summary = this.reassertContractAuthority(summary);
+summary = this.reassertContractAuthority(summary);
 
-    // 11.5 TEACHING ANSWER ENGINE
+// 11.25 EXECUTIVE FUNCTION
+if (
+  window.Ari &&
+  window.Ari.executiveFunction &&
+  typeof window.Ari.executiveFunction.evaluate === "function"
+) {
+  const executiveResult =
+    await window.Ari.executiveFunction.evaluate(summary);
+
+  summary = {
+    ...summary,
+    ...(executiveResult || {})
+  };
+} else {
+  summary = {
+    ...summary,
+    executiveFunctionRan: false,
+    executiveFunctionSource: "not-loaded"
+  };
+}
+
+// Reassert after Executive Function.
+summary = this.reassertContractAuthority(summary);
+
+// 11.5 TEACHING ANSWER ENGINE
     if (
       window.AriTeachingAnswerEngine &&
       typeof window.AriTeachingAnswerEngine.teach === "function"
