@@ -1,12 +1,12 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Decide what gets priority before Situation Contract.
-// V1.0.0
+// V1.1.0
 
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   run(input = {}) {
     const summary = input.summary || input || {};
