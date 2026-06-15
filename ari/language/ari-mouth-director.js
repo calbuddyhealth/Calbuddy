@@ -1,19 +1,21 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
-// Purpose: Decide HOW Ari communicates.
-// V3.0
-// Rule:
+// Purpose: Decide HOW Ari communicates, not WHAT Ari is allowed to say.
+// V4.0.0
+// Core rule:
 // - Situation Contract is authoritative.
-// - Mouth Director may shape communication.
-// - Mouth Director may NOT change primary/support/brief/context/deferred.
-// - Legacy systems are fallback only.
+// - Mouth Director has no executive authority.
+// - Mouth Director cannot change primary/support/brief/context/deferred lanes.
+// - Mouth Director cannot block truth/action/wisdom/emotion/meaning.
+// - Composer must obey Situation Contract first, then use Mouth Director only for style/format.
+
+window.Ari = window.Ari || {};
 
 window.AriMouthDirector = {
-  version: "3.0.0",
+  version: "4.0.0",
 
   direct(summary = {}) {
-    const contract =
-      summary.situationContract || {};
+    const contract = summary.situationContract || {};
 
     const primary =
       summary.situationContractPrimary ||
@@ -23,12 +25,13 @@ window.AriMouthDirector = {
     const responseShape =
       summary.responseShape ||
       contract.responseShape ||
-      "balanced";
+      "standard";
 
     const safetyRiskLevel =
       summary.safetyRiskLevel ||
       summary.safetyContextGate?.riskLevel ||
       summary.riskLevel ||
+      contract.risk?.level ||
       "none";
 
     const clarityNeeded =
@@ -36,7 +39,67 @@ window.AriMouthDirector = {
       contract.clarity?.needed === true ||
       primary === "risk_clarification";
 
-    const director = {
+    const base = this.baseDirector({
+      primary,
+      responseShape,
+      safetyRiskLevel,
+      contract,
+      clarityNeeded
+    });
+
+    if (clarityNeeded) {
+      return this.riskClarification(base, contract);
+    }
+
+    if (primary === "safety") {
+      return this.safety(base);
+    }
+
+    if (primary === "medical_body") {
+      return this.medicalBody(base);
+    }
+
+    if (primary === "medical_context") {
+      return this.medicalContext(base);
+    }
+
+    if (primary === "builder") {
+      return this.builder(base);
+    }
+
+    if (primary === "teacher") {
+      return this.teacher(base);
+    }
+
+    if (primary === "executive_decision") {
+      return this.executiveDecision(base);
+    }
+
+    if (primary === "emotion") {
+      return this.emotion(base);
+    }
+
+    if (primary === "family") {
+      return this.family(base);
+    }
+
+    if (primary === "relationship") {
+      return this.relationship(base);
+    }
+
+    if (primary === "wisdom") {
+      return this.wisdom(base);
+    }
+
+    if (primary === "memory") {
+      return this.memory(base);
+    }
+
+    return this.general(base);
+  },
+
+  baseDirector({ primary, responseShape, safetyRiskLevel, contract, clarityNeeded }) {
+    return {
       mouthDirectorRan: true,
       mouthDirectorVersion: this.version,
       source: "ari-mouth-director",
@@ -45,452 +108,329 @@ window.AriMouthDirector = {
       responseShape,
       safetyRiskLevel,
 
+      responsePattern: responseShape || "standard",
       explanationLevel: "standard",
-      responsePattern: responseShape || "balanced",
       maxBodySections: 3,
-      askBeforeTeaching: false,
 
-      allowMeaning: false,
+      tone: "calm",
+      pace: "normal",
+      directness: "medium",
+      warmth: "medium",
+
+      formatHints: [],
+      styleRules: [],
+
+      contractOrder:
+        contract.mouthDirective?.order ||
+        [
+          primary,
+          ...(contract.support || []),
+          ...(contract.brief || []).map(lane => `brief_${lane}`),
+          ...(contract.context || []).map(lane => `context_${lane}`),
+          ...(contract.deferred || []).map(lane => `defer_${lane}`)
+        ].filter(Boolean),
+
+      contractRequired: contract.mouthDirective?.required || [],
+      contractAvoid: contract.mouthDirective?.avoid || [],
+      contractClosing: contract.mouthDirective?.closing || null,
+
+      // Backward compatibility only.
+      // These are NOT permission gates anymore.
+      // Composer should stop using these as authority.
+      allowMeaning: true,
       allowEmotion: true,
       allowTruth: true,
-      allowWisdom: false,
+      allowWisdom: true,
       allowAction: true,
+      askBeforeTeaching: false,
+
+      mouthAuthority: "style_only",
 
       mouthRules: [
         "Situation Contract is authoritative.",
-        "Mouth Director may shape response format only.",
-        "Mouth Director must not change the primary lane.",
-        "Legacy systems are fallback only when no Situation Contract exists."
+        "Mouth Director controls style and format only.",
+        "Mouth Director must not change primary/support/brief/context/deferred lanes.",
+        "Mouth Director must not suppress content lanes.",
+        "Composer must obey Situation Contract before Mouth Director."
       ]
     };
-
-    // 1. Risk clarification must be one clear question.
-    if (clarityNeeded) {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "risk_clarification_question",
-        maxBodySections: 1,
-        askBeforeTeaching: true,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: false,
-
-        mouthRules: [
-          ...director.mouthRules,
-          "Ask one clear risk clarification question.",
-          "Do not assume emergency if context is unclear.",
-          "Do not answer lower-priority lanes until risk is clarified."
-        ]
-      };
-    }
-
-    // 2. Contract primary lanes.
-    if (primary === "safety") {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "urgent_support",
-        maxBodySections: 2,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
-
-    if (primary === "medical_body") {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "body_truth_then_action",
-        maxBodySections: 2,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
-
-    if (primary === "executive_decision") {
-      return {
-        ...director,
-        explanationLevel: "standard",
-        responsePattern: "prioritize_then_plan",
-        maxBodySections: 4,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: true,
-        allowAction: true
-      };
-    }
-
-    if (primary === "builder") {
-      return {
-        ...director,
-        explanationLevel: "clear",
-        responsePattern: "code_then_explain",
-        maxBodySections: 4,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
-
-    if (primary === "teacher") {
-      return {
-        ...director,
-        explanationLevel: "clear",
-        responsePattern: "explain_then_example",
-        maxBodySections: 3,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: false
-      };
-    }
-
-    if (primary === "emotion") {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "comfort_then_truth",
-        maxBodySections: 3,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: false
-      };
-    }
-
-    if (primary === "family") {
-      return {
-        ...director,
-        explanationLevel: "standard",
-        responsePattern: "family_truth_then_next_step",
-        maxBodySections: 4,
-        askBeforeTeaching: false,
-
-        allowMeaning: true,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: true,
-        allowAction: true
-      };
-    }
-
-    if (primary === "relationship") {
-      return {
-        ...director,
-        explanationLevel: "standard",
-        responsePattern: "relationship_truth_then_repair",
-        maxBodySections: 3,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
-
-    if (primary === "wisdom") {
-      return {
-        ...director,
-        explanationLevel: "deep",
-        responsePattern: "principle_then_choice",
-        maxBodySections: 4,
-        askBeforeTeaching: false,
-
-        allowMeaning: true,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: true,
-        allowAction: true
-      };
-    }
-
-    if (primary === "memory") {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "acknowledge_memory_request",
-        maxBodySections: 1,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: false
-      };
-    }
-
-    if (primary === "general_understanding") {
-      return {
-        ...director,
-        explanationLevel: "standard",
-        responsePattern: "observe_then_answer",
-        maxBodySections: 3,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
-
-    // 3. Response shape override, only when contract primary did not match.
-    if (responseShape === "multi_question_triage") {
-      return {
-        ...director,
-        explanationLevel: "standard",
-        responsePattern: "primary_support_brief_context_deferred",
-        maxBodySections: 5,
-        askBeforeTeaching: false,
-
-        allowMeaning: true,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: true,
-        allowAction: true,
-
-        mouthRules: [
-          ...director.mouthRules,
-          "Use primary/support/brief/context/deferred structure when useful."
-        ]
-      };
-    }
-
-    // 4. Legacy fallback.
-    return this.legacyFallback(summary, director);
   },
 
-  legacyFallback(summary = {}, director = {}) {
-    const mode =
-      summary.synthesisMode ||
-      summary.salienceMode ||
-      "observe";
+  riskClarification(base, contract = {}) {
+    return {
+      ...base,
+      responsePattern: "risk_clarification_question",
+      explanationLevel: "minimal",
+      maxBodySections: 1,
+      tone: "calm",
+      pace: "slow",
+      directness: "high",
+      warmth: "low",
+      formatHints: [
+        "Ask one direct risk clarification question.",
+        "Do not add extra interpretation."
+      ],
+      styleRules: [
+        "Use one clear question.",
+        "Avoid long explanation."
+      ],
+      contractClosing:
+        contract.clarity?.question ||
+        base.contractClosing ||
+        "Are you safe right now?"
+    };
+  },
 
-    const need = summary.primaryHumanNeed || null;
+  safety(base) {
+    return {
+      ...base,
+      responsePattern: "urgent_safety",
+      explanationLevel: "minimal",
+      maxBodySections: 2,
+      tone: "steady",
+      pace: "slow",
+      directness: "high",
+      warmth: "low",
+      formatHints: [
+        "Lead with immediate safety.",
+        "Use short direct steps."
+      ],
+      styleRules: [
+        "No philosophy.",
+        "No life-chapter framing.",
+        "No over-explaining."
+      ]
+    };
+  },
 
-    const confidence =
-      summary.calibratedConfidence ||
-      summary.metaConfidence ||
-      "unknown";
+  medicalBody(base) {
+    return {
+      ...base,
+      responsePattern: "body_truth_then_action",
+      explanationLevel: "minimal",
+      maxBodySections: 2,
+      tone: "calm",
+      pace: "slow",
+      directness: "high",
+      warmth: "low",
+      formatHints: [
+        "Lead with medical/body priority.",
+        "Give practical next step.",
+        "State urgent thresholds if needed."
+      ],
+      styleRules: [
+        "Do not emotionally interpret before medical guidance.",
+        "Do not over-reflect."
+      ]
+    };
+  },
 
-    const intent =
-      summary.responseIntent ||
-      "respond_normally";
+  medicalContext(base) {
+    return {
+      ...base,
+      responsePattern: "medical_context_then_next_step",
+      explanationLevel: "minimal",
+      maxBodySections: 3,
+      tone: "calm",
+      pace: "normal",
+      directness: "high",
+      warmth: "medium",
+      formatHints: [
+        "Treat medical context as important but not automatically urgent.",
+        "Give practical next step.",
+        "Name red flags briefly if useful."
+      ],
+      styleRules: [
+        "Do not escalate without red flags.",
+        "Do not use generic uncertainty recovery questions.",
+        "Do not frame medical context as a life chapter."
+      ]
+    };
+  },
 
-    const shape =
-      summary.responseShape ||
-      "balanced";
+  builder(base) {
+    return {
+      ...base,
+      responsePattern: "build_steps",
+      explanationLevel: "clear",
+      maxBodySections: 4,
+      tone: "practical",
+      pace: "normal",
+      directness: "high",
+      warmth: "low",
+      formatHints: [
+        "Give concrete steps.",
+        "Use exact replacement instructions when possible.",
+        "Ask for code/error only if needed."
+      ],
+      styleRules: [
+        "Do not over-reflect.",
+        "Do not use life-chapter framing.",
+        "Do not ask vague emotional questions."
+      ]
+    };
+  },
 
-    const observerPrimary =
-      summary.observerHierarchyPrimaryObservation ||
-      summary.strongestObservation ||
-      null;
+  teacher(base) {
+    return {
+      ...base,
+      responsePattern: "clear_explanation",
+      explanationLevel: "clear",
+      maxBodySections: 3,
+      tone: "clear",
+      pace: "normal",
+      directness: "medium",
+      warmth: "medium",
+      formatHints: [
+        "Explain directly.",
+        "Use simple structure.",
+        "Give example if useful."
+      ],
+      styleRules: [
+        "Do not ask before teaching unless the contract asks for clarity."
+      ]
+    };
+  },
 
-    const observerCategory =
-      summary.observerHierarchyPrimaryCategory ||
-      summary.strongestObservationCategory ||
-      null;
+  executiveDecision(base) {
+    return {
+      ...base,
+      responsePattern: "prioritize_then_plan",
+      explanationLevel: "standard",
+      maxBodySections: 4,
+      tone: "grounded",
+      pace: "normal",
+      directness: "high",
+      warmth: "medium",
+      formatHints: [
+        "Name the priority.",
+        "Separate primary from secondary issues.",
+        "Give the next step."
+      ],
+      styleRules: [
+        "Do not treat all lanes as equal."
+      ]
+    };
+  },
 
-    const isTeachingRequest =
-      intent === "teach_clearly" ||
-      intent === "teach" ||
-      shape === "clear_explanation" ||
-      observerPrimary === "teaching_request" ||
-      summary.questionType === "teaching" ||
-      summary.focusType === "teaching" ||
-      summary.primaryNeed === "teaching";
+  emotion(base) {
+    return {
+      ...base,
+      responsePattern: "comfort_then_truth",
+      explanationLevel: "minimal",
+      maxBodySections: 3,
+      tone: "warm",
+      pace: "slow",
+      directness: "medium",
+      warmth: "high",
+      formatHints: [
+        "Name the emotional signal.",
+        "Ground gently.",
+        "Avoid over-analysis."
+      ],
+      styleRules: [
+        "Do not rush into advice."
+      ]
+    };
+  },
 
-    const isBuildRequest =
-      intent === "build_or_debug" ||
-      intent === "build_or_fix" ||
-      intent === "generate_code" ||
-      shape === "code_then_explain" ||
-      observerPrimary === "build_request" ||
-      summary.focusType === "build" ||
-      summary.primaryNeed === "build";
+  family(base) {
+    return {
+      ...base,
+      responsePattern: "family_truth_then_next_step",
+      explanationLevel: "standard",
+      maxBodySections: 4,
+      tone: "protective",
+      pace: "normal",
+      directness: "high",
+      warmth: "high",
+      formatHints: [
+        "Name what needs protection.",
+        "Give one stabilizing next step."
+      ],
+      styleRules: [
+        "Avoid generic motivation."
+      ]
+    };
+  },
 
-    const isConnectionWound =
-      intent === "offer_connection" ||
-      mode === "restore_connection" ||
-      mode === "emotional_connection" ||
-      need === "connection" ||
-      need === "belonging";
+  relationship(base) {
+    return {
+      ...base,
+      responsePattern: "relationship_truth_then_repair",
+      explanationLevel: "standard",
+      maxBodySections: 3,
+      tone: "warm",
+      pace: "slow",
+      directness: "medium",
+      warmth: "high",
+      formatHints: [
+        "Name the relationship truth.",
+        "Offer one repair move."
+      ],
+      styleRules: [
+        "Do not turn relationship pain into abstract analysis."
+      ]
+    };
+  },
 
-    if (intent === "protect_safety" || intent === "protect_safety_first") {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "urgent_support",
-        maxBodySections: 2,
-        askBeforeTeaching: false,
+  wisdom(base) {
+    return {
+      ...base,
+      responsePattern: "principle_then_choice",
+      explanationLevel: "deep",
+      maxBodySections: 4,
+      tone: "reflective",
+      pace: "slow",
+      directness: "medium",
+      warmth: "medium",
+      formatHints: [
+        "Name the principle.",
+        "Name the tradeoff.",
+        "Help choose what should lead."
+      ],
+      styleRules: [
+        "Do not become vague or mystical."
+      ]
+    };
+  },
 
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
+  memory(base) {
+    return {
+      ...base,
+      responsePattern: "acknowledge_memory_request",
+      explanationLevel: "minimal",
+      maxBodySections: 1,
+      tone: "simple",
+      pace: "normal",
+      directness: "high",
+      warmth: "medium",
+      formatHints: [
+        "Acknowledge the memory/preference action clearly."
+      ],
+      styleRules: [
+        "Do not over-explain."
+      ]
+    };
+  },
 
-    if (
-      intent === "stabilize_organism_function" ||
-      shape === "body_truth_then_action" ||
-      mode === "stabilize_body_first" ||
-      need === "body"
-    ) {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "body_truth_then_action",
-        maxBodySections: 2,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
-
-    if (isTeachingRequest) {
-      return {
-        ...director,
-        explanationLevel: "clear",
-        responsePattern: "explain_then_example",
-        maxBodySections: 3,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: false
-      };
-    }
-
-    if (isBuildRequest) {
-      return {
-        ...director,
-        explanationLevel: "clear",
-        responsePattern: "code_then_explain",
-        maxBodySections: 4,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: false,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: true
-      };
-    }
-
-    if (
-      intent === "clarify_before_advising" ||
-      intent === "clarify_before_interpreting" ||
-      shape === "brief_reflect_then_question"
-    ) {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "question_only",
-        maxBodySections: 1,
-        askBeforeTeaching: true,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: false,
-        allowWisdom: false,
-        allowAction: false
-      };
-    }
-
-    if (isConnectionWound) {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "comfort_then_truth",
-        maxBodySections: 3,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: false,
-        allowAction: false
-      };
-    }
-
-    if (
-      intent === "create_priority_structure" ||
-      intent === "decision_support" ||
-      observerCategory === "planning"
-    ) {
-      return {
-        ...director,
-        explanationLevel: "standard",
-        responsePattern: "prioritize_then_plan",
-        maxBodySections: 4,
-        askBeforeTeaching: false,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: true,
-        allowWisdom: true,
-        allowAction: true
-      };
-    }
-
-    if (
-      confidence === "unknown" ||
-      confidence === "low"
-    ) {
-      return {
-        ...director,
-        explanationLevel: "minimal",
-        responsePattern: "observe_then_question",
-        maxBodySections: 2,
-        askBeforeTeaching: true,
-
-        allowMeaning: false,
-        allowEmotion: true,
-        allowTruth: false,
-        allowWisdom: false,
-        allowAction: false
-      };
-    }
-
-    return director;
+  general(base) {
+    return {
+      ...base,
+      responsePattern: base.responseShape || "standard",
+      explanationLevel: "standard",
+      maxBodySections: 3,
+      tone: "balanced",
+      pace: "normal",
+      directness: "medium",
+      warmth: "medium",
+      formatHints: [
+        "Answer normally.",
+        "Use the Situation Contract order if present."
+      ],
+      styleRules: [
+        "Do not invent a deeper signal when the contract does not require one."
+      ]
+    };
   }
 };
