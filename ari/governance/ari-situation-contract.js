@@ -1,7 +1,7 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Create the authoritative response contract from Safety Gate + Observer + Situation Map.
-// V2.0.0
+// V2.1.0
 // Upgrades:
 // - Adds contract authority levels.
 // - Adds executive fields for next-step control.
@@ -12,13 +12,16 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
     const map = summary.situationMap || summary || {};
     const safety = summary.safetyContextGate || {};
-
+const triage =
+  summary.triage ||
+  summary.ariTriage ||
+  {};
     const contract = {
       situationContractRan: true,
       situationContractVersion: this.version,
@@ -66,6 +69,13 @@ window.AriSituationContract = {
       },
 
       debug: {
+        triagePrimaryLane: triage.primaryLane || summary.triagePrimaryLane || null,
+
+  triageConfidence: triage.confidence ?? summary.triageConfidence ?? null,
+
+  triageResponseShape: triage.responseShape || summary.triageResponseShape || null,
+
+  triageReasons: triage.reasons || summary.triageReasons || [],
         mapPrimaryLane: map.primaryLaneSuggestion || null,
         mapDomains: map.domains || [],
         mapSituations: map.situations || [],
@@ -79,9 +89,9 @@ window.AriSituationContract = {
       reasons: []
     };
 
-    this.applyRiskPriority(contract, safety, map);
-    this.applyPrimaryFromMap(contract, map);
-    this.applySupportFromMap(contract, map);
+    this.applyRiskPriority(contract, safety, map, triage);
+this.applyPrimaryFromTriage(contract, triage, map);
+this.applySupportFromTriage(contract, triage, map);
     this.applyClarity(contract, safety, map);
     this.applyAuthority(contract);
     this.applyResponseShape(contract);
@@ -95,11 +105,11 @@ window.AriSituationContract = {
     };
   },
 
-  applyRiskPriority(contract, safety, map) {
+  applyRiskPriority(contract, safety, map, triage) {
     if (
       safety.override === "safety_emergency" ||
       safety.shouldUseSafetyResponse === true ||
-      map.primaryLaneSuggestion === "safety"
+      triage.primaryLane === "safety" || map.primaryLaneSuggestion === "safety"
     ) {
       contract.primary = "safety";
       contract.authority = "absolute";
@@ -142,6 +152,57 @@ window.AriSituationContract = {
       contract.reasons.push("Risk is ambiguous, so clarification leads.");
     }
   },
+
+applyPrimaryFromTriage(contract, triage, map) {
+  if (["safety", "medical_body", "risk_clarification"].includes(contract.primary)) {
+    return;
+  }
+
+  const triagePrimary =
+    triage.primaryLane ||
+    null;
+
+  if (triagePrimary) {
+    contract.primary = triagePrimary;
+    contract.reasons.push(`Primary came from Triage Engine: ${contract.primary}.`);
+    return;
+  }
+
+  this.applyPrimaryFromMap(contract, map);
+},
+
+applySupportFromTriage(contract, triage, map) {
+  const hasTriage =
+    triage &&
+    (
+      triage.primaryLane ||
+      Array.isArray(triage.supportLanes) ||
+      Array.isArray(triage.deferredLanes)
+    );
+
+  if (!hasTriage) {
+    this.applySupportFromMap(contract, map);
+    return;
+  }
+
+  const support = [...(triage.supportLanes || [])];
+  const brief = [...(triage.briefLanes || [])];
+  const context = [...(triage.contextLanes || [])];
+  const deferred = [...(triage.deferredLanes || [])];
+  const blocked = [...(triage.blockedLanes || [])];
+
+  support.forEach(lane => this.add(contract.support, lane));
+  brief.forEach(lane => this.add(contract.brief, lane));
+  context.forEach(lane => this.add(contract.context, lane));
+  deferred.forEach(lane => this.add(contract.deferred, lane));
+  blocked.forEach(lane => this.add(contract.blocked, lane));
+
+  contract.support = contract.support.filter(lane => lane !== contract.primary);
+  contract.brief = contract.brief.filter(lane => lane !== contract.primary);
+  contract.context = contract.context.filter(lane => lane !== contract.primary);
+  contract.deferred = contract.deferred.filter(lane => lane !== contract.primary);
+  contract.blocked = contract.blocked.filter(lane => lane !== contract.primary);
+},
 
   applyPrimaryFromMap(contract, map) {
     if (["safety", "medical_body", "risk_clarification"].includes(contract.primary)) {
