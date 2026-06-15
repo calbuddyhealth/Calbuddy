@@ -148,18 +148,10 @@
   <script src="ari/integration/ari-salience-governor.js"></script>
   <script src="ari/integration/ari-synthesis-engine.js"></script>
 
-  <!-- ARI REBIRTH MOUTH -->
-  <script src="ari/language/ari-opening-engine.js"></script>
-  <script src="ari/language/ari-truth-engine.js"></script>
-  <script src="ari/language/ari-emotional-naming-engine.js"></script>
-  <script src="ari/language/ari-wisdom-principle-engine.js"></script>
-  <script src="ari/language/ari-action-guidance-engine.js"></script>
-  <script src="ari/language/ari-voice-blend-engine.js"></script>
-  <script src="ari/language/ari-response-shape-engine.js"></script>
-  <script src="ari/language/ari-response-shaper.js"></script>
-  <script src="ari/language/ari-response-intent-engine.js"></script>
-  <script src="ari/language/ari-mouth-director.js"></script>
-  <script src="ari/language/ari-language-composer.js"></script>
+<!-- ARI REBIRTH MOUTH -->
+<script src="ari/language/ari-human-language-engine.js"></script>
+<script src="ari/language/ari-mouth-director.js"></script>
+<script src="ari/language/ari-language-composer.js"></script>
 
   <!-- SAFETY / NEEDS / LEGACY GOVERNANCE / PIPELINE -->
   <script src="ari/safety/ari-safety-classifier.js"></script>
@@ -453,6 +445,52 @@ ${JSON.stringify(summary.situationContract?.mouthDirective || {}, null, 2)}
 
 Reasons:
 ${summary.situationContract?.reasons?.join("\\n") || "none"}
+
+==================================================
+
+===== HUMAN LANGUAGE ENGINE =====
+
+Human Language Ran:
+${summary.humanLanguageEngineRan ? "yes" : "no"}
+
+Source:
+${summary.humanLanguageSource || "none"}
+
+Domain:
+${summary.humanLanguageDomain || "none"}
+
+Tone:
+${summary.humanLanguageTone || "none"}
+
+Warmth:
+${summary.humanLanguageWarmth ?? "none"}
+
+Directness:
+${summary.humanLanguageDirectness ?? "none"}
+
+Validation Level:
+${summary.humanLanguageValidationLevel || "none"}
+
+Humor:
+${summary.humanLanguageHumor ?? "none"}
+
+Sarcasm:
+${summary.humanLanguageSarcasm ?? "none"}
+
+Profanity:
+${summary.humanLanguageProfanity ?? "none"}
+
+Challenge:
+${summary.humanLanguageChallenge ?? "none"}
+
+Preferred Moves:
+${summary.humanLanguagePreferredMoves?.join(", ") || "none"}
+
+Banned Phrases:
+${summary.humanLanguageBannedPhrases?.join(", ") || "none"}
+
+Reasons:
+${summary.humanLanguageReasons?.join("\\n") || "none"}
 
 ==================================================
 
