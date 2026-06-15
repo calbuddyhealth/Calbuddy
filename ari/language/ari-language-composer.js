@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.7.0
+// V3.8.0
 // Fixes:
 // - Situation Contract is authoritative.
 // - Supports build_or_fix and build_steps.
@@ -10,7 +10,7 @@
 // - Legacy systems are fallback only.
 
 window.AriLanguageComposer = {
-  version: "3.7.0",
+  version: "3.8.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
@@ -167,8 +167,19 @@ window.AriLanguageComposer = {
     const recommendedQuestion = this.getRecommendedQuestion(summary, intentAuthority);
 
     let opening =
-      this.readText(openingResult, ["opening", "text", "line"]) ||
-      this.createFallbackOpening(summary, leadOrgan, salienceMode, responseIntent, contractPrimary);
+  this.readText(openingResult, ["opening", "text", "line"]) ||
+  this.createFallbackOpening(summary, leadOrgan, salienceMode, responseIntent, contractPrimary);
+
+if (
+  this.isTeachingIntent(responseIntent, contractPrimary) ||
+  this.isBuilderIntent(responseIntent, contractPrimary, responseShape)
+) {
+  opening = "";
+}
+
+if (this.isUncertaintyText(opening)) {
+  opening = "";
+}
 
     let synthesisText =
       typeof summary.synthesisStatement === "string"
@@ -1125,7 +1136,11 @@ isUncertaintyText(text = "") {
     normalized.includes("something is unclear") ||
     normalized.includes("continue observing") ||
     normalized.includes("what feels most uncertain") ||
-    normalized.includes("what feels important here")
+    normalized.includes("what feels important here") ||
+    normalized.includes("something important may be present") ||
+    normalized.includes("something important missing from the picture") ||
+    normalized.includes("important missing from the picture") ||
+    normalized.includes("there may be something important missing")
   );
 },
   createFallbackOpening(
