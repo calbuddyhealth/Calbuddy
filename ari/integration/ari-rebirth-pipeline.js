@@ -316,6 +316,40 @@ if (
 // Reassert after Executive Function.
 summary = this.reassertContractAuthority(summary);
 
+// 11.35 REASONING ENGINE V2
+if (
+  window.AriReasoningEngine &&
+  typeof window.AriReasoningEngine.create === "function"
+) {
+  const reasoningResult =
+    window.AriReasoningEngine.create(summary) || {};
+
+  summary = {
+    ...summary,
+    ...reasoningResult,
+    reasoning:
+      reasoningResult.reasoning ||
+      summary.reasoning ||
+      {},
+    reasoningAnswer:
+      reasoningResult.reasoningAnswer ||
+      summary.reasoningAnswer ||
+      null
+  };
+} else {
+  summary = {
+    ...summary,
+    reasoningEngineRan: false,
+    reasoningSource: "not-loaded",
+    reasoning: {},
+    reasoningAnswer: null
+  };
+}
+
+// Reassert after Reasoning Engine.
+// Reasoning is not allowed to override contract.
+summary = this.reassertContractAuthority(summary);
+
 // 11.5 TEACHING ANSWER ENGINE
     if (
       window.AriTeachingAnswerEngine &&
@@ -456,6 +490,9 @@ summary = this.reassertContractAuthority(summary);
 
     console.log("===== SITUATION CONTRACT =====");
     console.log(summary.situationContract);
+
+console.log("===== REASONING ENGINE V2 =====");
+console.log(summary.reasoning);
 
 console.log("===== HUMAN LANGUAGE ENGINE =====");
 console.log(summary.humanLanguageProfile);
