@@ -41,6 +41,12 @@ window.Ari.coreSummary = {
       analysis.situation ||
       {};
 
+const triage =
+  analysis.triage ||
+  analysis.triageEngine ||
+  analysis.triageResult ||
+  {};
+
     const situationContract =
       analysis.situationContract ||
       analysis.contract ||
@@ -469,6 +475,82 @@ window.Ari.coreSummary = {
         situationMap.recommendedQuestion ||
         analysis.recommendedQuestion ||
         null,
+
+// ==================================================
+// NEW CORE CHAIN: TRIAGE ENGINE
+// ==================================================
+
+triage,
+
+triageEngineRan:
+  triage.triageEngineRan ??
+  analysis.triageEngineRan ??
+  null,
+
+triageEngineVersion:
+  triage.triageEngineVersion ||
+  analysis.triageEngineVersion ||
+  null,
+
+triageEngineSource:
+  triage.source ||
+  triage.triageEngineSource ||
+  analysis.triageEngineSource ||
+  "not-yet-run",
+
+triagePrimaryLane:
+  triage.primaryLane ||
+  analysis.triagePrimaryLane ||
+  situationMap.primaryLane ||
+  situationMap.primaryLaneSuggestion ||
+  null,
+
+triagePriorityClass:
+  triage.priorityClass ||
+  analysis.triagePriorityClass ||
+  null,
+
+triageConfidence:
+  triage.confidence ??
+  analysis.triageConfidence ??
+  null,
+
+triageBlockedLanes:
+  triage.blockedLanes ||
+  analysis.triageBlockedLanes ||
+  situationMap.blockedLanes ||
+  [],
+
+triageDeferredLanes:
+  triage.deferredLanes ||
+  analysis.triageDeferredLanes ||
+  situationMap.deferredLaneSuggestions ||
+  [],
+
+triageSupportLanes:
+  triage.supportLanes ||
+  analysis.triageSupportLanes ||
+  situationMap.supportLanes ||
+  situationMap.supportLaneSuggestions ||
+  [],
+
+triageResponseConstraints:
+  triage.responseConstraints ||
+  analysis.triageResponseConstraints ||
+  situationMap.responseConstraints ||
+  [],
+
+triageCandidates:
+  triage.candidates ||
+  triage.triageCandidates ||
+  analysis.triageCandidates ||
+  situationMap.triageCandidates ||
+  [],
+
+triageReason:
+  triage.reason ||
+  analysis.triageReason ||
+  null,
 
       // ==================================================
       // NEW CORE CHAIN: SITUATION CONTRACT
