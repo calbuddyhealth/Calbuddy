@@ -122,7 +122,7 @@ this.applySupportFromTriage(contract, triage, map);
     if (
       safety.override === "medical_urgent" ||
       safety.shouldUseMedicalResponse === true ||
-      map.primaryLaneSuggestion === "medical_body"
+      triage.primaryLane === "medical_body" || map.primaryLaneSuggestion === "medical_body"
     ) {
       contract.primary = "medical_body";
       contract.authority = "absolute";
@@ -135,7 +135,7 @@ this.applySupportFromTriage(contract, triage, map);
     if (
       safety.override === "clarify_risk" ||
       safety.shouldAskRiskClarification === true ||
-      map.primaryLaneSuggestion === "risk_clarification"
+      triage.primaryLane === "risk_clarification" || map.primaryLaneSuggestion === "risk_clarification"
     ) {
       contract.primary = "risk_clarification";
       contract.authority = "absolute";
