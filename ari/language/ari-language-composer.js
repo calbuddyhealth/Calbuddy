@@ -207,22 +207,32 @@ window.AriLanguageComposer = {
     }
 
     if (this.isBuilderIntent(responseIntent, contractPrimary, responseShape)) {
-      opening = "";
+  opening = "";
 
-      truthText =
-        summary.builderAnswer ||
-        summary.codeAnswer ||
-        summary.implementationAnswer ||
-        summary.humanTruth ||
-        truthText ||
-        "I can help debug this. Start by checking the login flow in this order: auth config, redirect URL, callback handling, session storage, then the UI error message.";
+  truthText =
+    summary.builderAnswer ||
+    summary.codeAnswer ||
+    summary.implementationAnswer ||
+    summary.humanTruth ||
+    truthText ||
+    "I can help debug this. Start by checking the login flow in this order: auth config, redirect URL, callback handling, session storage, then the UI error message.";
 
-      actionText =
-        summary.builderSteps ||
-        summary.actionText ||
-        actionText ||
-        "Send me the login page code, Supabase/Firebase/Auth config if used, and the exact error you see. Then I can tell you what block to replace.";
-    }
+  if (this.isUncertaintyText(truthText)) {
+    truthText =
+      "I can help debug this. Start by checking the login flow in this order: auth config, redirect URL, callback handling, session storage, then the UI error message.";
+  }
+
+  actionText =
+    summary.builderSteps ||
+    summary.actionText ||
+    actionText ||
+    "Send me the login page code, Supabase/Firebase/Auth config if used, and the exact error you see. Then I can tell you what block to replace.";
+
+  if (this.isUncertaintyText(actionText)) {
+    actionText =
+      "Send me the login page code, Supabase/Firebase/Auth config if used, and the exact error you see. Then I can tell you what block to replace.";
+  }
+}
 
     if (contractPrimary === "risk_clarification") {
       opening = "";
@@ -1102,7 +1112,22 @@ window.AriLanguageComposer = {
       normalized.includes("not force a conclusion before the evidence is clear")
     );
   },
+isUncertaintyText(text = "") {
+  if (!text || typeof text !== "string") return false;
 
+  const normalized = this.normalizeText(text);
+
+  return (
+    normalized.includes("understand one more detail") ||
+    normalized.includes("before interpreting") ||
+    normalized.includes("guess too fast") ||
+    normalized.includes("not enough evidence") ||
+    normalized.includes("something is unclear") ||
+    normalized.includes("continue observing") ||
+    normalized.includes("what feels most uncertain") ||
+    normalized.includes("what feels important here")
+  );
+},
   createFallbackOpening(
     summary = {},
     leadOrgan = "observer",
