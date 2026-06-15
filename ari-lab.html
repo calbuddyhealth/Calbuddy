@@ -449,6 +449,49 @@ ${summary.situationContract?.reasons?.join("\\n") || "none"}
 
 ==================================================
 
+===== REASONING ENGINE V2 =====
+
+Reasoning Ran:
+${summary.reasoningEngineRan ? "yes" : "no"}
+
+Source:
+${summary.reasoningSource || "none"}
+
+Relevant Facts:
+${JSON.stringify(summary.reasoning?.relevantFacts || [], null, 2)}
+
+Assumptions:
+${JSON.stringify(summary.reasoning?.assumptions || [], null, 2)}
+
+Tradeoffs:
+${JSON.stringify(summary.reasoning?.tradeoffs || [], null, 2)}
+
+Counterfactuals:
+${JSON.stringify(summary.reasoning?.counterfactuals || [], null, 2)}
+
+Likely Outcomes:
+${JSON.stringify(summary.reasoning?.likelyOutcomes || [], null, 2)}
+
+Value Conflicts:
+${JSON.stringify(summary.reasoning?.valueConflicts || [], null, 2)}
+
+Systems View:
+${JSON.stringify(summary.reasoning?.systemsView || {}, null, 2)}
+
+Regret Lens:
+${JSON.stringify(summary.reasoning?.regretLens || {}, null, 2)}
+
+Recommendation:
+${summary.reasoning?.recommendation || "none"}
+
+Reasoning Answer:
+${summary.reasoningAnswer || "none"}
+
+Confidence:
+${summary.reasoning?.confidence ?? "none"}
+
+==================================================
+
 ===== HUMAN LANGUAGE ENGINE =====
 
 Human Language Ran:
