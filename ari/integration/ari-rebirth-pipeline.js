@@ -160,20 +160,9 @@ summary = {
     // 0.45 BRIDGE CONTRACT INTO LEGACY SYSTEMS
     summary = this.applyContractBridge(summary);
 
-    // 0.50 DIRECT RISK CLARIFICATION RESPONSE
-    if (summary.situationContract?.primary === "risk_clarification") {
-      summary.finalResponse =
-        summary.situationContract?.clarity?.question ||
-        summary.followUpQuestion ||
-        "Are you safe right now, or are you saying you feel overwhelmed?";
-
-      summary.rebirthPipelineRan = true;
-      summary.rebirthPipelineSource = "ari-rebirth-pipeline";
-      summary.source = "ari-situation-contract";
-
-      return summary;
-    }
-
+    // 0.50 RISK CLARIFICATION STAYS CONTRACT-LED,
+// but still flows through Human Language + Mouth + Composer.
+   
     const runStep = async (engine, method) => {
       if (engine && typeof engine[method] === "function") {
         const result = await engine[method](summary);
@@ -317,6 +306,35 @@ summary = {
       };
     }
 
+// 11.75 HUMAN LANGUAGE ENGINE
+if (
+  window.AriHumanLanguageEngine &&
+  typeof window.AriHumanLanguageEngine.create === "function"
+) {
+  const humanLanguageResult =
+    window.AriHumanLanguageEngine.create(summary) || {};
+
+  summary = {
+    ...summary,
+    ...humanLanguageResult,
+    humanLanguage: humanLanguageResult,
+    humanLanguageProfile:
+      humanLanguageResult.humanLanguageProfile ||
+      summary.humanLanguageProfile ||
+      {}
+  };
+} else {
+  summary = {
+    ...summary,
+    humanLanguageEngineRan: false,
+    humanLanguageSource: "not-loaded",
+    humanLanguageProfile: {}
+  };
+}
+
+// Reassert after Human Language, just in case.
+summary = this.reassertContractAuthority(summary);
+
     // 12 MOUTH DIRECTOR
     if (
       window.AriMouthDirector &&
@@ -414,6 +432,9 @@ summary = {
 
     console.log("===== SITUATION CONTRACT =====");
     console.log(summary.situationContract);
+
+console.log("===== HUMAN LANGUAGE ENGINE =====");
+console.log(summary.humanLanguageProfile);
 
     console.log("===== CONTRACT AUTHORITY =====");
     console.log({
