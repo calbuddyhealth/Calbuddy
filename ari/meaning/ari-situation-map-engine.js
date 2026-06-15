@@ -153,7 +153,9 @@ window.AriSituationMapEngine = {
     if (this.hasType(observations, "building_reference")) {
       this.add(map.situations, "building_or_debugging_context");
     }
-
+    if (this.hasType(observations, "knowledge_request_phrase")) {
+  this.add(map.situations, "teaching_or_explanation_request");
+    }
     if (this.hasType(observations, "emotion_word")) {
       this.add(map.situations, "emotion_language_present");
     }
