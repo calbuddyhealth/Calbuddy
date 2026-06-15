@@ -1,16 +1,27 @@
 // ari/teaching/ari-teaching-answer-engine.js
 // Ari Teaching Answer Engine
-// Purpose: Turn retrieved knowledge into a clear teaching answer.
-// V1.0 
+// Purpose: Convert teaching requests into direct explanations.
+// V2.0.0
 
 window.AriTeachingAnswerEngine = {
-  version: "1.0.0",
+  version: "2.0.0",
 
   async teach(input = {}) {
     const summary = input.summary || input || {};
 
+    const contractPrimary =
+      summary.contractPrimary ||
+      summary.primary ||
+      summary.situationContractPrimary ||
+      summary.situationContract?.primary;
+
+    const responseIntent =
+      summary.responseIntent || "";
+
     const shouldTeach =
-      summary.responseIntent === "teach_clearly" ||
+      responseIntent === "teach" ||
+      responseIntent === "teach_clearly" ||
+      contractPrimary === "teacher" ||
       summary.domainLead === "knowledge_teaching_domain" ||
       summary.shouldPreferTeaching === true;
 
@@ -28,33 +39,30 @@ window.AriTeachingAnswerEngine = {
       };
     }
 
+    const topic = this.extractTopic(summary);
+
     const knowledgeResult =
       window.AriKnowledgeRouter &&
       typeof window.AriKnowledgeRouter.route === "function"
         ? await window.AriKnowledgeRouter.route(summary)
         : null;
 
-    const knowledgeAnswer = knowledgeResult?.knowledgeAnswer || null;
+    const knowledgeAnswer =
+      knowledgeResult?.knowledgeAnswer ||
+      summary.knowledgeAnswer ||
+      null;
 
-    if (!knowledgeAnswer) {
-      return {
-        ...(knowledgeResult || {}),
+    let finalAnswer = null;
 
-        teachingAnswerEngineRan: true,
-        teachingAnswerEngineVersion: this.version,
-        teachingAnswerEngineSource: "ari-teaching-answer-engine",
-
-        teachingMode: "knowledge_unavailable",
-        teachingTopic: this.extractTopic(summary),
-        teachingAnswer:
-          "I can explain this clearly, but I need the teaching content to generate the full answer.",
-        teachingConfidence: "none",
-        teachingSource: "none",
-        teachingCitations: []
-      };
+    if (knowledgeAnswer) {
+      finalAnswer = this.shapeTeachingAnswer(
+        knowledgeAnswer,
+        summary
+      );
+    } else {
+      finalAnswer =
+        this.buildFallbackTeachingAnswer(topic);
     }
-
-    const teachingAnswer = this.shapeTeachingAnswer(knowledgeAnswer, summary);
 
     return {
       ...(knowledgeResult || {}),
@@ -63,17 +71,25 @@ window.AriTeachingAnswerEngine = {
       teachingAnswerEngineVersion: this.version,
       teachingAnswerEngineSource: "ari-teaching-answer-engine",
 
-      teachingMode: "teach_from_knowledge",
-      teachingTopic: this.extractTopic(summary),
-      teachingAnswer,
-      teachingConfidence: knowledgeResult.knowledgeConfidence || "medium",
-      teachingSource: knowledgeResult.knowledgeProvider || "knowledge-router",
-      teachingCitations: knowledgeResult.knowledgeSources || [],
+      teachingMode: "teach_directly",
+      teachingTopic: topic,
+      teachingAnswer: finalAnswer,
+      teachingConfidence:
+        knowledgeResult?.knowledgeConfidence ||
+        "medium",
+      teachingSource:
+        knowledgeResult?.knowledgeProvider ||
+        "teaching-engine",
+      teachingCitations:
+        knowledgeResult?.knowledgeSources || [],
 
-      // Let the mouth/truth engine see the actual answer.
-      knowledgeAnswer: teachingAnswer,
-      humanTruth: teachingAnswer,
-      oneLineInsight: teachingAnswer
+      knowledgeAnswer: finalAnswer,
+      humanTruth: finalAnswer,
+      oneLineInsight: finalAnswer,
+
+      forceTeachingAnswer: true,
+      suppressUncertaintyRecovery: true,
+      suppressReflectionQuestions: true
     };
   },
 
@@ -82,9 +98,15 @@ window.AriTeachingAnswerEngine = {
 
     if (!clean) return null;
 
-    // Keep OpenAI answer intact for now.
-    // Later we can add grade level, analogies, examples, math formatting, etc.
     return clean;
+  },
+
+  buildFallbackTeachingAnswer(topic = "") {
+    if (!topic) {
+      return "I need a topic before I can teach it.";
+    }
+
+    return `Here is a simple explanation of ${topic}.`;
   },
 
   extractTopic(summary = {}) {
@@ -96,7 +118,10 @@ window.AriTeachingAnswerEngine = {
       "";
 
     return String(text || "")
-      .replace(/^(what is|what are|how does|how do|why does|explain|teach me about)\s+/i, "")
+      .replace(
+        /^(what is|what are|how does|how do|why does|explain|teach me about)\s+/i,
+        ""
+      )
       .replace(/[?.!]+$/g, "")
       .trim();
   }
