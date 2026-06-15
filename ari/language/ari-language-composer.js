@@ -143,6 +143,7 @@ window.AriLanguageComposer = {
 
     if (primary === "safety") {
       return (
+        summary.reasoningAnswer ||
         summary.safetyAnswer ||
         "Safety comes first. If there is immediate danger, contact emergency services now."
       );
@@ -150,47 +151,61 @@ window.AriLanguageComposer = {
 
     if (primary === "medical_body") {
       return (
+        summary.reasoningAnswer ||
         summary.medicalAnswer ||
         "This deserves medical attention first. If symptoms are severe, worsening, or involve red flags, get urgent care now."
       );
     }
 
     if (primary === "medical_context") {
-      return (
-        summary.medicalAnswer ||
-        summary.teachingAnswer ||
-        "This sounds medically relevant, but not automatically an emergency based on what you described."
-      );
-    }
+  return (
+    summary.reasoningAnswer ||
+    summary.medicalAnswer ||
+    summary.teachingAnswer ||
+    "This sounds medically relevant, but not automatically an emergency based on what you described."
+  );
+}
 
     if (primary === "builder") {
-      return (
-        summary.builderAnswer ||
-        summary.codeAnswer ||
-        summary.implementationAnswer ||
-        "Here’s the practical fix."
-      );
-    }
+
+  return (
+
+    summary.reasoningAnswer ||
+
+    summary.builderAnswer ||
+
+    summary.codeAnswer ||
+
+    summary.implementationAnswer ||
+
+    "Here’s the practical fix."
+
+  );
+
+}
 
     if (primary === "teacher") {
-      return (
-        summary.teachingAnswer ||
-        summary.knowledgeAnswer ||
-        summary.humanTruth ||
-        "Here’s the clear explanation."
-      );
-    }
+  return (
+    summary.reasoningAnswer ||
+    summary.teachingAnswer ||
+    summary.knowledgeAnswer ||
+    summary.humanTruth ||
+    "Here’s the clear explanation."
+  );
+}
 
     if (primary === "executive_decision") {
-      return (
-        summary.executiveAnswer ||
-        summary.actionText ||
-        "The priority is to separate what matters first from what can wait."
-      );
-    }
+  return (
+    summary.reasoningAnswer ||
+    summary.executiveAnswer ||
+    summary.actionText ||
+    "The priority is to separate what matters first from what can wait."
+  );
+}
 
     if (primary === "emotion") {
       return (
+        summary.reasoningAnswer ||
         summary.emotionAnswer ||
         "That sounds genuinely heavy."
       );
@@ -198,6 +213,7 @@ window.AriLanguageComposer = {
 
     if (primary === "wisdom") {
       return (
+        summary.reasoningAnswer ||
         summary.wisdomAnswer ||
         summary.wisdomText ||
         "The wiser move is to name the tradeoff clearly before choosing."
@@ -206,6 +222,7 @@ window.AriLanguageComposer = {
 
     if (primary === "relationship") {
       return (
+        summary.reasoningAnswer ||
         summary.relationshipAnswer ||
         "The relationship piece needs honesty without turning it into a fight."
       );
@@ -213,6 +230,7 @@ window.AriLanguageComposer = {
 
     if (primary === "family") {
       return (
+        summary.reasoningAnswer ||
         summary.familyAnswer ||
         "The family priority needs to be protected before everything else gets loud."
       );
@@ -220,12 +238,14 @@ window.AriLanguageComposer = {
 
     if (primary === "memory") {
       return (
+        summary.reasoningAnswer ||
         summary.memoryAnswer ||
         "Got it."
       );
     }
 
     return (
+  summary.reasoningAnswer ||
       summary.directAnswer ||
       summary.humanTruth ||
       summary.oneLineInsight ||
