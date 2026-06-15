@@ -96,8 +96,11 @@ window.AriRebirthPipeline = {
     };
 
 // 0.35 TRIAGE ENGINE — BOSS OF ROUTING
+const triageOutput =
+  window.AriTriageEngine?.run?.(summary) || {};
+
 const triageResult =
-  window.AriTriageEngine?.triage?.(summary) || {
+  triageOutput.ariTriage || {
     triageEngineRan: false,
     triageEngineSource: "not-loaded",
     primaryLane: summary.primaryLaneSuggestion || null,
@@ -111,6 +114,7 @@ const triageResult =
 
 summary = {
   ...summary,
+  ...triageOutput,
   triage: triageResult,
   ...triageResult,
 
