@@ -790,6 +790,84 @@ humanLanguageReasons:
   humanLanguage.reasons ||
   [],
 
+// ==================================================
+// REASONING ENGINE V2
+// ==================================================
+
+reasoning:
+  analysis.reasoning ||
+  {},
+
+reasoningEngineRan:
+  analysis.reasoningEngineRan ??
+  analysis.reasoning?.reasoningEngineRan ??
+  null,
+
+reasoningEngineVersion:
+  analysis.reasoningEngineVersion ||
+  analysis.reasoning?.reasoningEngineVersion ||
+  null,
+
+reasoningSource:
+  analysis.reasoningSource ||
+  analysis.reasoning?.source ||
+  "not-yet-run",
+
+reasoningRelevantFacts:
+  analysis.reasoning?.relevantFacts ||
+  analysis.reasoningRelevantFacts ||
+  [],
+
+reasoningAssumptions:
+  analysis.reasoning?.assumptions ||
+  analysis.reasoningAssumptions ||
+  [],
+
+reasoningTradeoffs:
+  analysis.reasoning?.tradeoffs ||
+  analysis.reasoningTradeoffs ||
+  [],
+
+reasoningCounterfactuals:
+  analysis.reasoning?.counterfactuals ||
+  analysis.reasoningCounterfactuals ||
+  [],
+
+reasoningLikelyOutcomes:
+  analysis.reasoning?.likelyOutcomes ||
+  analysis.reasoningLikelyOutcomes ||
+  [],
+
+reasoningValueConflicts:
+  analysis.reasoning?.valueConflicts ||
+  analysis.reasoningValueConflicts ||
+  [],
+
+reasoningSystemsView:
+  analysis.reasoning?.systemsView ||
+  analysis.reasoningSystemsView ||
+  {},
+
+reasoningRegretLens:
+  analysis.reasoning?.regretLens ||
+  analysis.reasoningRegretLens ||
+  {},
+
+reasoningRecommendation:
+  analysis.reasoning?.recommendation ||
+  analysis.reasoningRecommendation ||
+  null,
+
+reasoningAnswer:
+  analysis.reasoningAnswer ||
+  analysis.reasoning?.answer ||
+  null,
+
+reasoningConfidence:
+  analysis.reasoning?.confidence ??
+  analysis.reasoningConfidence ??
+  null,
+
       // ==================================================
       // RESPONSE INTENT / MOUTH
       // ==================================================
