@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final mouth assembler for Ari Rebirth.
-// V3.6.0
+// V3.7.0
 // Fixes:
 // - Situation Contract is authoritative.
 // - Supports build_or_fix and build_steps.
@@ -10,7 +10,7 @@
 // - Legacy systems are fallback only.
 
 window.AriLanguageComposer = {
-  version: "3.6.0",
+  version: "3.7.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
