@@ -326,11 +326,15 @@ window.AriSituationReviewConsole = {
     review.scores.observerEvidence = this.clamp(observerScore);
 
     let mapScore = 0;
-    if (map.situationMapRan) mapScore += 35;
-    mapScore += Math.min(25, (map.domains || []).length * 8);
-    mapScore += Math.min(25, (map.situations || []).length * 8);
-    mapScore += Math.min(15, (map.needs || []).length * 5);
-    review.scores.situationMap = this.clamp(mapScore);
+
+if (map.situationMapRan) mapScore += 40;
+if (map.primaryLaneSuggestion || map.primaryLane) mapScore += 25;
+if (map.responseRequirements?.length) mapScore += 15;
+if (map.confidence >= 80) mapScore += 10;
+if ((map.domains || []).length) mapScore += 5;
+if ((map.situations || []).length) mapScore += 5;
+
+review.scores.situationMap = this.clamp(mapScore);
 
     let triageScore = 0;
     if (review.triage.ran) triageScore += 35;
