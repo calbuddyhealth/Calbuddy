@@ -32,8 +32,9 @@ window.AriHumanLanguageEngine = {
     const profile = this.baseProfile(primary);
 
     this.applyContractContext(profile, contract, risk, clarity);
-    this.applyDomainProfile(profile, primary, summary);
-    this.applyRiskSafetyRules(profile, primary, risk, clarity);
+this.applyDomainProfile(profile, primary, summary);
+this.applyContractCommunicationProfile(profile, contract);
+this.applyRiskSafetyRules(profile, primary, risk, clarity);
     this.applyRelationshipMode(profile, summary);
     this.applyUserStyle(profile, summary);
     this.applyValidationRules(profile, primary, summary);
@@ -151,6 +152,72 @@ window.AriHumanLanguageEngine = {
       profile.reasons.push("Absolute contract authority requires controlled language.");
     }
   },
+
+applyContractCommunicationProfile(profile, contract = {}) {
+  const communication = contract.communicationProfile || null;
+  if (!communication) return;
+
+  profile.contractCommunicationProfile = communication;
+
+  if (communication.directness === "high") {
+    profile.directness = Math.max(profile.directness, 90);
+  }
+
+  if (communication.directness === "medium") {
+    profile.directness = Math.max(profile.directness, 70);
+  }
+
+  if (communication.directness === "low") {
+    profile.directness = Math.min(profile.directness, 45);
+  }
+
+  if (communication.emotionalWeight === "low") {
+    profile.tenderness = Math.min(profile.tenderness, 30);
+  }
+
+  if (communication.emotionalWeight === "high") {
+    profile.warmth = Math.max(profile.warmth, 75);
+    profile.tenderness = Math.max(profile.tenderness, 65);
+  }
+
+  if (communication.validationLevel) {
+    profile.validationLevel = communication.validationLevel;
+  }
+
+  if (communication.validationAllowed === false) {
+    profile.validationLevel = "none";
+    profile.maxValidationSentences = 0;
+    profile.safety.validationAllowed = false;
+  }
+
+  if (communication.humorAllowed === false) {
+    profile.humor = 0;
+    profile.playfulness = 0;
+    profile.safety.humorAllowed = false;
+  }
+
+  if (communication.sarcasmAllowed === false) {
+    profile.sarcasm = 0;
+    profile.safety.sarcasmAllowed = false;
+  }
+
+  if (communication.profanityAllowed === false) {
+    profile.profanity = 0;
+    profile.safety.profanityAllowed = false;
+  }
+
+  if (communication.challengeAllowed === false) {
+    profile.challenge = 0;
+    profile.accountability = 0;
+    profile.safety.challengeAllowed = false;
+  }
+
+  if (Array.isArray(communication.styleNotes)) {
+    communication.styleNotes.forEach(note => {
+      this.add(profile.reasons, `Contract communication constraint: ${note}`);
+    });
+  }
+},
 
   applyDomainProfile(profile, primary, summary = {}) {
     const domain = primary || "general_understanding";
