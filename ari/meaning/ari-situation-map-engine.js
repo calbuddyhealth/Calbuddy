@@ -309,7 +309,9 @@ window.AriSituationMapEngine = {
     if (map.needs.includes("action_or_build_help")) {
       this.add(map.responseRequirements, "step_by_step_action");
     }
-
+   if (map.needs.includes("understanding")) {
+  this.add(map.responseRequirements, "clear_explanation");
+    }
     if (map.needs.includes("emotional_attunement")) {
       this.add(map.responseRequirements, "brief_emotional_attunement");
     }
