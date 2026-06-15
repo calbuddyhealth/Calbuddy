@@ -29,9 +29,10 @@ window.AriSituationContract = {
     this.applyClarity(contract, safety, map);
     this.applyAuthority(contract);
     this.applyResponseShape(contract);
-    this.applyExecutive(contract);
-    this.applyMouthDirective(contract);
-    this.applyLegacyProtection(contract);
+this.applyExecutive(contract);
+this.applyCommunicationProfile(contract);
+this.applyMouthDirective(contract);
+this.applyLegacyProtection(contract);
     this.cleanContract(contract);
 
     return {
@@ -70,7 +71,17 @@ window.AriSituationContract = {
 
       responseShape: null,
       responseRules: [],
-
+communicationProfile: {
+  emotionalWeight: "normal",
+  directness: "normal",
+  humorAllowed: true,
+  sarcasmAllowed: true,
+  profanityAllowed: true,
+  challengeAllowed: true,
+  validationAllowed: true,
+  validationLevel: "light",
+  styleNotes: []
+},
       requiredBehaviors: [],
       forbiddenBehaviors: [],
 
@@ -308,6 +319,64 @@ window.AriSituationContract = {
       ...(profile.executive || {})
     };
   },
+
+applyCommunicationProfile(contract) {
+  const profile = contract.communicationProfile;
+
+  const strictDomains = [
+    "safety",
+    "medical_body",
+    "medical_context",
+    "risk_clarification"
+  ];
+
+  if (strictDomains.includes(contract.primary)) {
+    profile.emotionalWeight = "low";
+    profile.directness = "high";
+    profile.humorAllowed = false;
+    profile.sarcasmAllowed = false;
+    profile.profanityAllowed = false;
+    profile.challengeAllowed = false;
+    profile.validationAllowed = contract.primary === "medical_context";
+    profile.validationLevel =
+      contract.primary === "medical_context" ? "light" : "none";
+    profile.styleNotes.push("Sensitive safety/medical context requires calm, direct language.");
+  }
+
+  if (contract.primary === "builder") {
+    profile.emotionalWeight = "low";
+    profile.directness = "high";
+    profile.validationLevel = "none";
+    profile.styleNotes.push("Builder requests should prioritize useful steps over emotional validation.");
+  }
+
+  if (contract.primary === "teacher") {
+    profile.emotionalWeight = "low";
+    profile.directness = "medium";
+    profile.validationLevel = "none";
+    profile.styleNotes.push("Teaching requests should explain before validating.");
+  }
+
+  if (contract.primary === "emotion") {
+    profile.emotionalWeight = "high";
+    profile.directness = "medium";
+    profile.validationLevel = "moderate";
+    profile.humorAllowed = false;
+    profile.sarcasmAllowed = false;
+    profile.styleNotes.push("Emotion-led response should use attunement without over-validating.");
+  }
+
+  if (contract.primary === "executive_decision") {
+    profile.emotionalWeight = "low";
+    profile.directness = "high";
+    profile.validationLevel = "none";
+    profile.challengeAllowed = true;
+    profile.styleNotes.push("Decision support should organize and recommend without over-validating.");
+  }
+
+  this.add(contract.responseRules, `communication_${profile.directness}_directness`);
+  this.add(contract.responseRules, `validation_${profile.validationLevel}`);
+},
 
   applyMouthDirective(contract) {
     contract.mouthDirective.order = [
