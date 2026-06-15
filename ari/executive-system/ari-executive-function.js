@@ -1,255 +1,259 @@
 // ari/executive-system/ari-executive-function.js
 // Ari Executive Function
-// Purpose: Decide what deserves priority based on observation, hierarchy, dual salience, life signals, values, identity, conflict, and emotion.
-// V1.3: Adds Observer Hierarchy + Dual Salience integration.
+// Purpose: Convert situation understanding into priority, goal, obstacle, next action, and completion criteria.
+// V2.0
+// Upgrades:
+// - Situation Contract aware.
+// - Safety/body always override.
+// - Builder/teacher/planning cannot be hijacked by uncertainty.
+// - Adds executiveState.
+// - Preserves legacy fields for old lab/debug compatibility.
 
 window.Ari = window.Ari || {};
 
 window.Ari.executiveFunction = {
-  version: "1.3.0",
+  version: "2.0.0",
 
-  decide({
-    observation = {},
-    lifeSignals = {},
-    values = {},
-    identity = {},
-    conflicts = {},
-    emotion = {}
-  } = {}) {
+  evaluate(input = {}) {
+    return this.decide(input);
+  },
+
+  decide(input = {}) {
+    const summary = input.summary || input || {};
+
+    const contract =
+      summary.situationContract || {};
+
+    const contractPrimary =
+      summary.situationContractPrimary ||
+      contract.primary ||
+      summary.primaryLaneSuggestion ||
+      null;
+
+    const map =
+      summary.situationMap || {};
+
+    const riskLevel =
+      summary.riskLevel ||
+      contract.risk?.level ||
+      map.riskLevel ||
+      "none";
+
+    const riskType =
+      summary.riskType ||
+      contract.risk?.type ||
+      map.riskType ||
+      "none";
+
+    const responseShape =
+      summary.responseShape ||
+      contract.responseShape ||
+      null;
+
+    const clarityNeeded =
+      contract.clarity?.needed === true ||
+      summary.followUpNeeded === true ||
+      map.shouldAskClarifyingQuestion === true;
+
     const priorities = [];
 
     const addPriority = (name, score, reason) => {
-      const existing = priorities.find((item) => item.name === name);
+      if (!name) return;
+
+      const existing = priorities.find(item => item.name === name);
 
       if (existing) {
         existing.score += score;
-        existing.reasons.push(reason);
+        if (reason && !existing.reasons.includes(reason)) {
+          existing.reasons.push(reason);
+        }
         return;
       }
 
       priorities.push({
         name,
         score,
-        reasons: [reason]
+        reasons: reason ? [reason] : []
       });
     };
 
+    // 1. Situation Contract gets first vote.
+    if (contractPrimary) {
+      addPriority(
+        this.priorityFromContract(contractPrimary),
+        100,
+        `Situation Contract selected '${contractPrimary}' as the primary lane.`
+      );
+    }
+
+    // 2. Safety/body override.
+    if (
+      contractPrimary === "safety" ||
+      riskLevel === "critical" ||
+      summary.shouldUseSafetyResponse === true
+    ) {
+      addPriority(
+        "safety",
+        1000,
+        "Safety risk is active and overrides all other priorities."
+      );
+    }
+
+    if (
+      contractPrimary === "medical_body" ||
+      summary.shouldUseMedicalResponse === true ||
+      riskType === "medical" ||
+      riskType === "pregnancy"
+    ) {
+      addPriority(
+        "medical-body",
+        900,
+        "Body or medical stability must lead before interpretation."
+      );
+    }
+
+    // 3. Situation Map support.
+    (map.needs || []).forEach(need => {
+      const mapped = this.priorityFromNeed(need);
+      if (mapped) addPriority(mapped, 35, `Situation Map need detected: ${need}.`);
+    });
+
+    (map.domains || []).forEach(domain => {
+      const mapped = this.priorityFromDomain(domain);
+      if (mapped) addPriority(mapped, 30, `Situation Map domain detected: ${domain}.`);
+    });
+
+    (map.situations || []).forEach(situation => {
+      const mapped = this.priorityFromSituation(situation);
+      if (mapped) addPriority(mapped, 25, `Situation Map situation detected: ${situation}.`);
+    });
+
+    // 4. Legacy support signals.
+    const observation = summary.observation || {};
     const life = observation.lifeTransitions || {};
     const patterns = observation.humanPatterns || {};
-    const dualSalience = observation.dualSalience || {};
+    const values = summary.values || {};
+    const identity = summary.identity || {};
+    const conflicts = summary.conflicts || {};
+
     const observerHierarchy =
+      summary.observerHierarchy ||
+      summary.hierarchy ||
       observation.observerHierarchy ||
       observation.hierarchy ||
       {};
 
-    const dominantValue = values.dominantValue;
-    const valueList = values.values || [];
+    const dualSalience =
+      summary.dualSalience ||
+      observation.dualSalience ||
+      {};
 
-    const dominantIdentity = identity.dominantIdentity?.name;
-    const conflictIntensity = conflicts.conflictIntensity;
-    const primaryConflict =
-      conflicts.primaryConflict?.name ||
-      observerHierarchy.dominantTension ||
-      "";
-    const conflictNames = [
-      ...(conflicts.conflicts || []).map((item) => item.name),
-      ...(observation.valuesAndConflicts?.coreConflicts || [])
-    ];
+    const hierarchyPrimary =
+      summary.observerHierarchyPrimaryObservation ||
+      observerHierarchy.primaryObservation ||
+      null;
 
-    const signalNames = lifeSignals.signalNames || [];
-    const primaryLifeSignal = lifeSignals.primarySignal?.name || null;
+    const hierarchyCategory =
+      summary.observerHierarchyPrimaryCategory ||
+      observerHierarchy.primaryCategory ||
+      null;
 
-    const hierarchyPrimary = observerHierarchy.primaryObservation || null;
-    const hierarchyCategory = observerHierarchy.primaryCategory || null;
     const hierarchyInstruction =
-      observerHierarchy.recommendedExecutiveInstruction || null;
+      summary.observerHierarchyExecutiveInstruction ||
+      observerHierarchy.recommendedExecutiveInstruction ||
+      null;
 
-    const dualLead = dualSalience.priority?.lead || null;
-    const dualMode = dualSalience.priority?.mode || null;
-    const objectiveLead = dualSalience.priority?.objectiveLead || null;
-    const subjectiveLead = dualSalience.priority?.subjectiveLead || null;
-
-    const familyConflictActive =
-      primaryConflict === "family_vs_creation" ||
-      primaryConflict === "provider_vs_present_parent" ||
-      hierarchyPrimary === "provider_vs_present_parent" ||
-      conflictNames.includes("family_vs_creation") ||
-      conflictNames.includes("family_vs_achievement") ||
-      conflictNames.includes("provider_vs_present_parent");
-
-    const familySignalActive =
-      life.fatherhood ||
-      life.pregnancy ||
-      life.familyTransition ||
-      observerHierarchy.lifeChapter === "fatherhood_transition" ||
-      observerHierarchy.lifeChapter === "pregnancy_transition" ||
-      primaryLifeSignal === "family_transition" ||
-      signalNames.includes("family_transition") ||
-      dominantValue === "family" ||
-      valueList.includes("family");
-
-    const regretSignalActive =
-      patterns.futureRegretRisk ||
-      primaryConflict === "presence_vs_achievement" ||
-      hierarchyPrimary === "future_regret_risk" ||
-      conflictNames.includes("presence_vs_achievement") ||
-      conflictNames.includes("family_vs_achievement");
-
-    // 1. Safety always overrides.
-    if (
-      observation.risk?.guardianRequired ||
-      dualLead === "safety" ||
-      hierarchyCategory === "safety"
-    ) {
-      addPriority(
-        "safety",
-        120,
-        "Safety or urgent risk signal overrides all other priorities."
-      );
-    }
-
-    // 2. Observer Hierarchy gets a strong vote because it decides what deserves the microphone.
-    if (hierarchyPrimary) {
+    if (hierarchyPrimary && !contractPrimary) {
       addPriority(
         this.mapHierarchyToPriority(hierarchyPrimary, hierarchyCategory),
         45,
-        `Observer hierarchy identified '${hierarchyPrimary}' as the primary observation.`
+        `Observer hierarchy identified '${hierarchyPrimary}' as primary.`
       );
     }
 
-    // 3. Dual Salience shapes priority when objective and subjective needs diverge.
-    if (dualLead === "integrated") {
-      addPriority(
-        this.mapDualLeadToPriority(objectiveLead, subjectiveLead),
-        35,
-        "Dual salience found both objective and subjective importance are high."
-      );
-    }
+    const dominantValue =
+      values.dominantValue ||
+      summary.integratedValue ||
+      null;
 
-    if (dualLead === "bridge") {
-      addPriority(
-        "bridge-objective-and-subjective",
-        35,
-        "Objective need is high, but the user’s attention is elsewhere; bridge before advising."
-      );
-    }
-
-    if (dualLead === "subjective_salience") {
-      addPriority(
-        "follow-human-attention",
-        30,
-        "The user's emotional focus is the doorway to helping."
-      );
-    }
-
-    if (dualLead === "balanced") {
-      addPriority(
-        "clarify-before-directing",
-        25,
-        "No dominant signal is strong enough; clarification is needed."
-      );
-    }
-
-    // 4. Existing family-first correction preserved.
-    if (familySignalActive) {
-      addPriority(
-        "family",
-        60,
-        "Family or major family transition is active and should organize the executive priority."
-      );
-    }
-
-    if (familyConflictActive) {
-      addPriority(
-        "family",
-        40,
-        "Family is competing with creation, achievement, or provision, so family should lead this season."
-      );
-    }
-
-    if (life.fatherhood || dominantIdentity === "father") {
-      addPriority("family", 40, "Fatherhood or child-related transition is active.");
-    }
-
-    if (life.pregnancy) {
-      addPriority("family", 35, "Pregnancy or incoming child transition is active.");
-    }
-
-    if (life.engagement || life.marriage) {
-      addPriority("relationship", 25, "Marriage, wedding, or spouse transition is active.");
-    }
-
-    if (life.militaryTransition) {
-      addPriority("military-transition", 25, "Military transition requires stability and planning.");
-    }
-
-    if (life.careerTransition || valueList.includes("growth")) {
-      addPriority("career-development", 20, "Career or education growth is active.");
-    }
-
-    if (valueList.includes("creation")) {
-      addPriority("creation", 15, "Creative mission or Ari Rebirth is active.");
-    }
-
-    if (valueList.includes("service")) {
-      addPriority("service", 15, "Service/helping value is active.");
-    }
+    const dominantIdentity =
+      identity.dominantIdentity?.name ||
+      summary.resolvedLeadIdentity ||
+      summary.leadIdentity ||
+      null;
 
     if (
-      patterns.burnoutRisk ||
-      conflictIntensity === "critical" ||
-      hierarchyPrimary === "burnout_risk"
+      life.fatherhood ||
+      life.pregnancy ||
+      dominantIdentity === "father" ||
+      dominantValue === "family"
     ) {
-      addPriority("capacity-protection", 35, "Burnout risk or critical conflict detected.");
+      addPriority("family", 60, "Family or fatherhood transition is active.");
     }
 
-    // Future regret supports family when family is already active.
-    if (regretSignalActive && familySignalActive) {
-      addPriority(
-        "family",
-        30,
-        "Future regret risk points toward protecting irreplaceable family presence."
-      );
-    } else if (regretSignalActive) {
-      addPriority("regret-protection", 25, "Future regret risk detected.");
-    }
-
-    if (dominantValue === "family") {
-      addPriority("family", 25, "Family is the dominant value.");
+    if (patterns.burnoutRisk) {
+      addPriority("capacity-protection", 45, "Burnout/capacity risk detected.");
     }
 
     priorities.sort((a, b) => b.score - a.score);
 
-    const primaryPriority = priorities[0] || null;
+    const primaryPriority = priorities[0] || {
+      name: "general-priority",
+      score: 10,
+      reasons: ["No strong executive priority emerged."]
+    };
+
     const secondaryPriorities = priorities.slice(1, 4);
+
+    const executiveState = this.buildExecutiveState({
+      summary,
+      contract,
+      contractPrimary,
+      primaryPriority,
+      responseShape,
+      clarityNeeded,
+      riskLevel,
+      riskType
+    });
 
     const thingsToDelay = this.getThingsToDelay({
       primaryPriority,
-      priorities,
-      values,
-      identity,
-      conflicts,
-      observation,
-      observerHierarchy,
-      dualSalience
+      contractPrimary,
+      summary,
+      map,
+      observerHierarchy
     });
 
     const responseStrategy = this.getResponseStrategy({
       primaryPriority,
-      observation,
-      observerHierarchy,
-      dualSalience
+      executiveState,
+      contractPrimary,
+      clarityNeeded,
+      responseShape
     });
 
     return {
+      executiveFunctionRan: true,
+      executiveFunctionVersion: this.version,
+
       primaryPriority,
       secondaryPriorities,
       thingsToDelay,
 
-      executiveDecision: this.getExecutiveDecision(primaryPriority),
-      recommendedFocus: this.getRecommendedFocus(primaryPriority, thingsToDelay),
+      executiveState,
+
+      executiveGoal: executiveState.goal,
+      executiveObstacle: executiveState.obstacle,
+      executiveNextAction: executiveState.nextAction,
+      executiveCompletionCriteria: executiveState.completionCriteria,
+      executivePhase: executiveState.phase,
+
+      executiveDecision: this.getExecutiveDecision(primaryPriority, contractPrimary),
+      recommendedFocus: this.getRecommendedFocus(primaryPriority, executiveState, thingsToDelay),
 
       responseStrategy,
+      responseStrategyMode: responseStrategy.mode,
+
       shouldAskClarifyingQuestion: responseStrategy.shouldAskClarifyingQuestion,
       shouldComfort: responseStrategy.shouldComfort,
       shouldTeach: responseStrategy.shouldTeach,
@@ -260,19 +264,12 @@ window.Ari.executiveFunction = {
       hierarchyInstruction,
       hierarchyPrimaryObservation: hierarchyPrimary,
       hierarchyCategory,
-      dualSalienceLead: dualLead,
-      dualSalienceMode: dualMode,
-      objectiveLead,
-      subjectiveLead,
 
       reasoning: this.getReasoning({
         primaryPriority,
         priorities,
-        conflicts,
-        identity,
-        values,
-        observerHierarchy,
-        dualSalience
+        contractPrimary,
+        executiveState
       }),
 
       source: "ari-executive-function",
@@ -280,167 +277,279 @@ window.Ari.executiveFunction = {
     };
   },
 
-  mapHierarchyToPriority(primaryObservation, category) {
+  priorityFromContract(primary = null) {
     const map = {
-      safety_or_urgent_risk: "safety",
-      provider_vs_present_parent: "family",
-      ambition_vs_presence: "family",
-      future_regret_risk: "regret-protection",
-      opportunity_cost: "prioritize-tradeoff",
-      burnout_risk: "capacity-protection",
-      emotional_pain: "emotional-support",
-      needs_plan_or_priority: "planning",
-      fatherhood_transition: "family",
-      pregnancy_transition: "family",
-      engagement_and_wedding_transition: "relationship",
-      marriage_transition: "relationship",
-      military_to_civilian_transition: "military-transition",
-      career_transition: "career-development",
-      builder_founder_transition: "creation"
-    };
-
-    if (map[primaryObservation]) return map[primaryObservation];
-
-    const categoryMap = {
       safety: "safety",
-      core_conflict: "prioritize-conflict",
-      long_term_consequence: "regret-protection",
-      tradeoff: "prioritize-tradeoff",
-      capacity: "capacity-protection",
-      life_chapter: "life-chapter",
+      risk_clarification: "risk-clarification",
+      medical_body: "medical-body",
+      builder: "direct-build-help",
+      teacher: "direct-teaching",
+      executive_decision: "planning",
       emotion: "emotional-support",
-      planning: "planning",
-      request: "direct-help"
+      family: "family",
+      relationship: "relationship",
+      wisdom: "wisdom",
+      memory: "memory-update",
+      general_understanding: "general-priority"
     };
 
-    return categoryMap[category] || "general-priority";
+    return map[primary] || "general-priority";
   },
 
-  mapDualLeadToPriority(objectiveLead, subjectiveLead) {
-    if (objectiveLead === "safety") return "safety";
+  priorityFromNeed(need = "") {
+    const map = {
+      stabilization: "safety",
+      action_or_build_help: "direct-build-help",
+      understanding: "direct-teaching",
+      decision_support: "planning",
+      emotional_attunement: "emotional-support",
+      protection_of_relationships: "family",
+      memory_acknowledgment: "memory-update",
+      wisdom_or_value_clarity: "wisdom"
+    };
 
-    if (
-      objectiveLead === "physical_health" ||
-      objectiveLead === "nutrition" ||
-      objectiveLead === "sleep"
-    ) {
-      return "health-stabilization";
-    }
+    return map[need] || null;
+  },
 
-    if (objectiveLead === "relationship") return "relationship";
-    if (objectiveLead === "purpose") return "meaning";
+  priorityFromDomain(domain = "") {
+    const map = {
+      builder_domain: "direct-build-help",
+      creative_building_domain: "direct-build-help",
+      knowledge_learning_domain: "direct-teaching",
+      teacher_domain: "direct-teaching",
+      medical_body_domain: "medical-body",
+      safety_domain: "safety",
+      emotion_domain: "emotional-support",
+      family_caregiving_domain: "family",
+      relationship_connection_domain: "relationship",
+      wisdom_values_domain: "wisdom",
+      memory_preference_domain: "memory-update",
+      money_resources_domain: "resources",
+      career_contribution_domain: "career-development"
+    };
 
-    if (
-      subjectiveLead === "anxiety" ||
-      subjectiveLead === "fear" ||
-      subjectiveLead === "sadness" ||
-      subjectiveLead === "shame"
-    ) {
-      return "emotional-support";
-    }
+    return map[domain] || null;
+  },
 
-    return "integrated-support";
+  priorityFromSituation(situation = "") {
+    const map = {
+      building_or_debugging_context: "direct-build-help",
+      body_or_health_concern: "medical-body",
+      active_risk_context: "safety",
+      emotional_state_or_regulation_need: "emotional-support",
+      decision_or_tradeoff: "planning",
+      competing_priorities: "planning",
+      family_or_caregiving_context: "family",
+      close_relationship_context: "relationship",
+      memory_or_preference_update: "memory-update",
+      values_or_philosophy_question: "wisdom",
+      work_or_role_context: "career-development"
+    };
+
+    return map[situation] || null;
+  },
+
+  buildExecutiveState({
+    summary = {},
+    contract = {},
+    contractPrimary = null,
+    primaryPriority = {},
+    responseShape = null,
+    clarityNeeded = false,
+    riskLevel = "none",
+    riskType = "none"
+  } = {}) {
+    const clarityQuestion =
+      contract.clarity?.question ||
+      summary.followUpQuestion ||
+      summary.recommendedQuestion ||
+      null;
+
+    const templates = {
+      safety: {
+        goal: "Protect immediate safety.",
+        obstacle: "Risk may require urgent stabilization before normal conversation.",
+        nextAction: "Give a calm safety-first response and direct toward immediate support.",
+        completionCriteria: "User has a clear immediate safety step.",
+        phase: "stabilize"
+      },
+
+      "risk-clarification": {
+        goal: "Clarify whether the language means real danger or casual distress.",
+        obstacle: "Ari cannot safely interpret ambiguous risk language.",
+        nextAction:
+          clarityQuestion ||
+          "Ask one direct safety clarification question.",
+        completionCriteria: "User clarifies whether there is immediate danger.",
+        phase: "clarify"
+      },
+
+      "medical-body": {
+        goal: "Stabilize body or medical risk before interpretation.",
+        obstacle: "Advice could be unsafe if urgent symptoms are underweighted.",
+        nextAction: "Give body-first guidance and a concrete medical next step.",
+        completionCriteria: "User knows whether to monitor, call a clinician, or seek urgent care.",
+        phase: "stabilize"
+      },
+
+      "direct-build-help": {
+        goal: "Help the user build, fix, or debug the thing directly.",
+        obstacle: "Ari needs the relevant code, error, screenshot, or file context to be exact.",
+        nextAction: "Ask for the exact code/error or give the next debugging step.",
+        completionCriteria: "User has a concrete block to inspect, replace, or test.",
+        phase: "execute"
+      },
+
+      "direct-teaching": {
+        goal: "Explain the topic clearly.",
+        obstacle: "Ari must answer directly instead of drifting into reflection.",
+        nextAction: "Give a clear explanation with a simple example.",
+        completionCriteria: "User understands the concept well enough to use it.",
+        phase: "teach"
+      },
+
+      planning: {
+        goal: "Create order and identify the next step.",
+        obstacle: "Too many moving parts may blur the priority.",
+        nextAction: "Sort the issue into priority, tradeoff, and next action.",
+        completionCriteria: "User knows what to do first.",
+        phase: "organize"
+      },
+
+      "emotional-support": {
+        goal: "Reduce emotional load enough for the user to think clearly.",
+        obstacle: "Advice too early may feel disconnected.",
+        nextAction: "Validate the emotional signal, then ask or offer one grounded step.",
+        completionCriteria: "User feels understood and has one stabilizing next move.",
+        phase: "attune"
+      },
+
+      family: {
+        goal: "Protect family, caregiving, or relational responsibility.",
+        obstacle: "Achievement, urgency, or self-pressure may compete with what cannot be replaced.",
+        nextAction: "Name the protected priority and give one practical next step.",
+        completionCriteria: "The response protects the relationship without ignoring reality.",
+        phase: "protect"
+      },
+
+      relationship: {
+        goal: "Protect connection and repair clarity.",
+        obstacle: "Misunderstanding or emotional threat may escalate if handled coldly.",
+        nextAction: "Acknowledge the relationship signal and guide one repair-oriented move.",
+        completionCriteria: "User has a relationally safe next step.",
+        phase: "repair"
+      },
+
+      wisdom: {
+        goal: "Clarify the principle that should lead.",
+        obstacle: "The user may be caught between competing goods.",
+        nextAction: "Name the tension and identify the higher-order value.",
+        completionCriteria: "User sees what principle should guide the choice.",
+        phase: "discern"
+      },
+
+      "memory-update": {
+        goal: "Preserve or update the user's stated preference/context.",
+        obstacle: "Memory requests should not be treated like normal advice.",
+        nextAction: "Acknowledge the memory/preference update.",
+        completionCriteria: "The user's preference is recognized and handled.",
+        phase: "remember"
+      },
+
+      "general-priority": {
+        goal: "Respond to the user’s actual request without over-interpreting.",
+        obstacle: "Ari may not have enough signal for a deeper interpretation.",
+        nextAction: clarityNeeded
+          ? clarityQuestion || "Ask one focused clarifying question."
+          : "Give a direct, useful response.",
+        completionCriteria: "User gets either a useful answer or the one missing detail needed.",
+        phase: clarityNeeded ? "clarify" : "respond"
+      }
+    };
+
+    const priorityName = primaryPriority?.name || "general-priority";
+    const base = templates[priorityName] || templates["general-priority"];
+
+    return {
+      goal: base.goal,
+      obstacle: base.obstacle,
+      nextAction: base.nextAction,
+      completionCriteria: base.completionCriteria,
+      followUpNeeded: Boolean(clarityNeeded),
+      phase: base.phase,
+
+      priority: priorityName,
+      contractPrimary,
+      responseShape,
+      riskLevel,
+      riskType,
+
+      source: "ari-executive-function"
+    };
   },
 
   getThingsToDelay({
     primaryPriority = null,
-    values = {},
-    identity = {},
-    conflicts = {},
-    observation = {},
-    observerHierarchy = {},
-    dualSalience = {}
+    contractPrimary = null,
+    summary = {},
+    map = {},
+    observerHierarchy = {}
   } = {}) {
     const delay = [];
-    const life = observation.lifeTransitions || {};
-    const patterns = observation.humanPatterns || {};
-    const primaryConflict =
-      conflicts.primaryConflict?.name ||
-      observerHierarchy.dominantTension ||
-      "";
-    const conflictNames = [
-      ...(conflicts.conflicts || []).map((item) => item.name),
-      ...(observation.valuesAndConflicts?.coreConflicts || [])
-    ];
 
     const addDelay = (name, reason) => {
-      if (!delay.some((item) => item.name === name)) {
+      if (!delay.some(item => item.name === name)) {
         delay.push({ name, reason });
       }
     };
 
-    if (
-      primaryPriority?.name === "family" &&
-      (
-        primaryConflict === "provider_vs_present_parent" ||
-        primaryConflict === "family_vs_creation" ||
-        conflictNames.includes("provider_vs_present_parent") ||
-        conflictNames.includes("family_vs_achievement") ||
-        conflictNames.includes("family_vs_creation") ||
-        patterns.opportunityCost
-      )
-    ) {
+    if (["safety", "medical-body"].includes(primaryPriority?.name)) {
       addDelay(
-        "career-or-creation-acceleration",
-        "Protect family presence during a major life transition instead of maximizing career, creation, or achievement."
+        "meaning-making",
+        "Do not interpret deeply until safety/body stability is addressed."
+      );
+      addDelay(
+        "teaching-or-coaching",
+        "Do not teach broadly before urgent stabilization."
       );
     }
 
-    if (
-      primaryPriority?.name === "family" &&
-      (identity.dominantIdentity?.name === "father" || life.fatherhood || life.pregnancy)
-    ) {
+    if (primaryPriority?.name === "direct-build-help") {
+      addDelay(
+        "life-chapter-interpretation",
+        "Do not let uncertainty, identity, or life-chapter engines hijack a build/debug request."
+      );
+      addDelay(
+        "emotional-processing",
+        "Do not process emotion unless the user asks for it or emotion is explicitly active."
+      );
+    }
+
+    if (primaryPriority?.name === "direct-teaching") {
+      addDelay(
+        "reflective-questioning",
+        "Do not ask a recovery question when the user asked to learn something."
+      );
+    }
+
+    if (primaryPriority?.name === "family") {
       addDelay(
         "nonessential-expansion",
-        "Avoid adding major new commitments during this family transition season."
+        "Avoid adding major new commitments while family/caregiving is primary."
       );
     }
 
-    if (
-      values.values?.includes("creation") &&
-      (life.fatherhood || life.pregnancy) &&
-      (
-        patterns.lifeTransitionLoad?.level === "extreme" ||
-        conflictNames.includes("family_vs_creation")
-      )
-    ) {
+    if (primaryPriority?.name === "capacity-protection") {
       addDelay(
-        "creation-scaling",
-        "Keep Ari Rebirth alive, but avoid large-scale expansion during a family transition season."
-      );
-    }
-
-    if (
-      values.values?.includes("growth") &&
-      patterns.lifeTransitionLoad?.level === "extreme"
-    ) {
-      addDelay(
-        "career-acceleration",
-        "Career growth should continue, but not at full acceleration during extreme transition load."
-      );
-    }
-
-    if (
-      patterns.burnoutRisk ||
-      primaryPriority?.name === "capacity-protection"
-    ) {
-      addDelay(
-        "nonessential-expansion",
-        "Avoid expanding optional goals while burnout risk is active."
-      );
-    }
-
-    if (dualSalience.priority?.mode === "acknowledge_gap_then_gently_redirect") {
-      addDelay(
-        "direct-advice-too-soon",
-        "Do not jump straight to advice before bridging from the user's subjective focus."
+        "extra-goals",
+        "Reduce load before adding more ambition."
       );
     }
 
     if (observerHierarchy.shouldAskClarifyingQuestion) {
       addDelay(
         "overconfident-answer",
-        "Ask a clarifying question before acting too confidently."
+        "Ask one clarifying question before strong direction."
       );
     }
 
@@ -449,9 +558,10 @@ window.Ari.executiveFunction = {
 
   getResponseStrategy({
     primaryPriority = null,
-    observation = {},
-    observerHierarchy = {},
-    dualSalience = {}
+    executiveState = {},
+    contractPrimary = null,
+    clarityNeeded = false,
+    responseShape = null
   } = {}) {
     const strategy = {
       mode: "respond_to_priority",
@@ -461,11 +571,13 @@ window.Ari.executiveFunction = {
       shouldChallenge: false,
       shouldCreatePlan: false,
       recommendedQuestion: null,
-      firstMove: "name_the_priority",
+      firstMove: "answer_primary_lane",
       tone: "steady"
     };
 
-    if (primaryPriority?.name === "safety") {
+    const name = primaryPriority?.name;
+
+    if (name === "safety") {
       return {
         ...strategy,
         mode: "urgent_safety_support",
@@ -475,182 +587,192 @@ window.Ari.executiveFunction = {
       };
     }
 
-    if (
-      observerHierarchy.shouldAskClarifyingQuestion ||
-      dualSalience.clarity?.action === "ask_one_clarifying_question" ||
-      primaryPriority?.name === "clarify-before-directing"
-    ) {
-      strategy.shouldAskClarifyingQuestion = true;
-      strategy.recommendedQuestion =
-        observerHierarchy.recommendedQuestion ||
-        "What feels most important about this?";
-      strategy.mode = "clarify_before_advising";
-      strategy.firstMove = "ask_one_focused_question";
-      strategy.tone = "curious";
-      return strategy;
+    if (name === "risk-clarification") {
+      return {
+        ...strategy,
+        mode: "risk_clarification",
+        shouldAskClarifyingQuestion: true,
+        recommendedQuestion: executiveState.nextAction,
+        firstMove: "ask_direct_safety_question",
+        tone: "calm_direct"
+      };
     }
 
-    if (dualSalience.priority?.mode === "acknowledge_gap_then_gently_redirect") {
-      strategy.mode = "bridge_subjective_to_objective";
-      strategy.shouldComfort = true;
-      strategy.firstMove = "acknowledge_what_feels_loud";
-      strategy.tone = "warm_grounded";
-      return strategy;
+    if (name === "medical-body") {
+      return {
+        ...strategy,
+        mode: "stabilize_body_first",
+        shouldComfort: true,
+        firstMove: "body_truth_then_action",
+        tone: "calm_practical"
+      };
     }
 
-    if (dualSalience.priority?.mode === "follow_user_attention_first") {
-      strategy.mode = "follow_subjective_salience";
-      strategy.shouldComfort = true;
-      strategy.firstMove = "start_with_user_attention";
-      strategy.tone = "warm";
-      return strategy;
+    if (name === "direct-build-help") {
+      return {
+        ...strategy,
+        mode: "build_or_debug",
+        shouldCreatePlan: true,
+        firstMove: "give_debug_path_or_request_code",
+        tone: "direct_practical"
+      };
     }
 
-    if (dualSalience.priority?.mode === "validate_then_act") {
-      strategy.mode = "validate_then_act";
-      strategy.shouldComfort = true;
-      strategy.firstMove = "validate_then_give_next_step";
-      strategy.tone = "steady_warm";
-      return strategy;
+    if (name === "direct-teaching") {
+      return {
+        ...strategy,
+        mode: "teach_clearly",
+        shouldTeach: true,
+        firstMove: "explain_directly",
+        tone: "clear"
+      };
     }
 
-    if (primaryPriority?.name === "family") {
-      strategy.mode = "protect_family_first";
-      strategy.shouldComfort = true;
-      strategy.shouldChallenge = true;
-      strategy.firstMove = "name_family_as_lead_priority";
-      strategy.tone = "warm_direct";
-      return strategy;
+    if (name === "planning") {
+      return {
+        ...strategy,
+        mode: "create_priority_structure",
+        shouldCreatePlan: true,
+        firstMove: "organize_next_steps",
+        tone: "clear"
+      };
     }
 
-    if (primaryPriority?.name === "planning") {
-      strategy.mode = "create_priority_structure";
-      strategy.shouldCreatePlan = true;
-      strategy.firstMove = "organize_next_steps";
-      strategy.tone = "clear";
-      return strategy;
+    if (name === "emotional-support") {
+      return {
+        ...strategy,
+        mode: "support_before_solution",
+        shouldComfort: true,
+        firstMove: "validate_emotional_signal",
+        tone: "gentle"
+      };
     }
 
-    if (primaryPriority?.name === "emotional-support") {
-      strategy.mode = "support_before_solution";
-      strategy.shouldComfort = true;
-      strategy.firstMove = "name_emotional_weight";
-      strategy.tone = "gentle";
-      return strategy;
+    if (name === "family") {
+      return {
+        ...strategy,
+        mode: "protect_family_first",
+        shouldComfort: true,
+        shouldChallenge: true,
+        firstMove: "name_protected_priority",
+        tone: "warm_direct"
+      };
     }
 
-    if (primaryPriority?.name === "health-stabilization") {
-      strategy.mode = "stabilize_health";
-      strategy.shouldComfort = true;
-      strategy.shouldTeach = true;
-      strategy.firstMove = "address_health_need_calmly";
-      strategy.tone = "calm_practical";
-      return strategy;
+    if (name === "relationship") {
+      return {
+        ...strategy,
+        mode: "protect_relationship_stability",
+        shouldComfort: true,
+        firstMove: "protect_connection",
+        tone: "warm_grounded"
+      };
     }
 
-    if (primaryPriority?.name === "capacity-protection") {
-      strategy.mode = "reduce_load";
-      strategy.shouldChallenge = true;
-      strategy.firstMove = "protect_capacity";
-      strategy.tone = "direct_protective";
-      return strategy;
+    if (name === "wisdom") {
+      return {
+        ...strategy,
+        mode: "clarify_guiding_principle",
+        shouldChallenge: true,
+        firstMove: "name_tension",
+        tone: "wise_direct"
+      };
+    }
+
+    if (clarityNeeded) {
+      return {
+        ...strategy,
+        mode: "clarify_before_advising",
+        shouldAskClarifyingQuestion: true,
+        recommendedQuestion: executiveState.nextAction,
+        firstMove: "ask_one_focused_question",
+        tone: "curious"
+      };
     }
 
     return strategy;
   },
 
-  getExecutiveDecision(primaryPriority = null) {
-    if (!primaryPriority) {
-      return "continue_observing";
-    }
+  getExecutiveDecision(primaryPriority = null, contractPrimary = null) {
+    const name = primaryPriority?.name;
 
     const decisions = {
       safety: "protect_safety_first",
-      family: "protect_family_first",
-      relationship: "protect_relationship_stability",
-      "military-transition": "stabilize_transition",
-      "career-development": "continue_growth_with_limits",
-      creation: "build_slowly_without_overextending",
-      service: "serve_without_self-erasure",
-      "capacity-protection": "reduce_load_immediately",
-      "regret-protection": "protect_irreplaceable_moments",
-      "bridge-objective-and-subjective": "bridge_before_advising",
-      "follow-human-attention": "follow_subjective_salience_first",
-      "clarify-before-directing": "ask_before_directing",
+      "risk-clarification": "ask_risk_clarification_first",
+      "medical-body": "stabilize_body_first",
+      "direct-build-help": "help_directly_with_build_or_debug",
+      "direct-teaching": "teach_directly",
       planning: "create_priority_structure",
       "emotional-support": "support_before_solution",
-      "health-stabilization": "stabilize_health_first",
-      "prioritize-conflict": "name_conflict_and_choose_lead",
-      "prioritize-tradeoff": "clarify_tradeoff",
-      "life-chapter": "frame_as_life_chapter",
-      "direct-help": "help_directly",
+      family: "protect_family_first",
+      relationship: "protect_relationship_stability",
+      wisdom: "clarify_guiding_principle",
+      "memory-update": "acknowledge_memory_request",
+      "capacity-protection": "reduce_load_immediately",
+      "career-development": "continue_growth_with_limits",
+      resources: "protect_resources",
       "general-priority": "prioritize_with_caution"
     };
 
-    return decisions[primaryPriority.name] || "prioritize_with_caution";
+    return decisions[name] || "prioritize_with_caution";
   },
 
-  getRecommendedFocus(primaryPriority = null, thingsToDelay = []) {
+  getRecommendedFocus(primaryPriority = null, executiveState = {}, thingsToDelay = []) {
     if (!primaryPriority) {
       return "Gather more context before making a decision.";
     }
 
-    if (primaryPriority.name === "safety") {
-      return "Prioritize immediate safety, stabilization, and urgent support.";
-    }
+    return `${executiveState.goal} Next action: ${executiveState.nextAction}`;
+  },
 
-    if (primaryPriority.name === "family") {
-      return "Make family the primary focus for this season. Keep other identities alive, but do not let them compete equally.";
-    }
+  mapHierarchyToPriority(primaryObservation, category) {
+    const map = {
+      safety_or_urgent_risk: "safety",
+      provider_vs_present_parent: "family",
+      ambition_vs_presence: "family",
+      future_regret_risk: "regret-protection",
+      opportunity_cost: "planning",
+      burnout_risk: "capacity-protection",
+      emotional_pain: "emotional-support",
+      needs_plan_or_priority: "planning",
+      fatherhood_transition: "family",
+      pregnancy_transition: "family",
+      engagement_and_wedding_transition: "relationship",
+      marriage_transition: "relationship",
+      military_to_civilian_transition: "career-development",
+      career_transition: "career-development",
+      builder_founder_transition: "direct-build-help"
+    };
 
-    if (primaryPriority.name === "bridge-objective-and-subjective") {
-      return "Start where the user’s attention is, then gently bridge toward the objective need.";
-    }
+    if (map[primaryObservation]) return map[primaryObservation];
 
-    if (primaryPriority.name === "follow-human-attention") {
-      return "Follow the user's lived emotional focus first; advice comes after connection.";
-    }
+    const categoryMap = {
+      safety: "safety",
+      core_conflict: "wisdom",
+      long_term_consequence: "wisdom",
+      tradeoff: "planning",
+      capacity: "capacity-protection",
+      life_chapter: "wisdom",
+      emotion: "emotional-support",
+      planning: "planning",
+      request: "direct-build-help"
+    };
 
-    if (primaryPriority.name === "clarify-before-directing") {
-      return "Ask one focused question before giving strong direction.";
-    }
-
-    if (primaryPriority.name === "capacity-protection") {
-      return "Reduce load before adding ambition. Protect energy, sleep, relationships, and follow-through.";
-    }
-
-    if (primaryPriority.name === "regret-protection") {
-      return "Prioritize choices that protect irreplaceable time and reduce future regret.";
-    }
-
-    return `Prioritize ${primaryPriority.name} while delaying: ${
-      thingsToDelay.map((item) => item.name).join(", ") || "nothing major"
-    }.`;
+    return categoryMap[category] || "general-priority";
   },
 
   getReasoning({
     primaryPriority = null,
     priorities = [],
-    conflicts = {},
-    identity = {},
-    values = {},
-    observerHierarchy = {},
-    dualSalience = {}
+    contractPrimary = null,
+    executiveState = {}
   } = {}) {
     if (!primaryPriority) {
       return "No clear executive priority emerged.";
     }
 
-    return `Ari identified ${primaryPriority.name} as the leading priority because it scored highest against hierarchy, dual salience, values, identities, and conflicts. Hierarchy primary: ${
-      observerHierarchy.primaryObservation || "unknown"
-    }. Dual salience lead: ${
-      dualSalience.priority?.lead || "unknown"
-    }. Dominant value: ${
-      values.dominantValue || "unknown"
-    }. Dominant identity: ${
-      identity.dominantIdentity?.name || "unknown"
-    }. Conflict intensity: ${
-      conflicts.conflictIntensity || "unknown"
-    }.`;
+    return `Ari selected '${primaryPriority.name}' because it scored highest. Contract primary: ${
+      contractPrimary || "none"
+    }. Executive goal: ${executiveState.goal}`;
   }
 };
