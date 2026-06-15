@@ -6,6 +6,7 @@
 // 1. Safety Context Gate
 // 2. Observer Evidence
 // 3. Situation Map
+// 3.5 Triage Engine
 // 4. Situation Contract
 // 5. Contract Bridge
 // 6. Legacy helper organs temporarily
@@ -93,6 +94,51 @@ window.AriRebirthPipeline = {
       situationMap,
       ...situationMap
     };
+
+// 0.35 TRIAGE ENGINE — BOSS OF ROUTING
+const triageResult =
+  window.AriTriageEngine?.triage?.(summary) || {
+    triageEngineRan: false,
+    triageEngineSource: "not-loaded",
+    primaryLane: summary.primaryLaneSuggestion || null,
+    supportLanes: summary.supportLaneSuggestions || [],
+    deferredLanes: summary.deferredLaneSuggestions || [],
+    blockedLanes: summary.blockedLanes || [],
+    responseConstraints: summary.responseConstraints || [],
+    confidence: summary.confidence || null,
+    reason: "Triage engine not loaded. Falling back to Situation Map."
+  };
+
+summary = {
+  ...summary,
+  triage: triageResult,
+  ...triageResult,
+
+  // Make triage authoritative for contract
+  primaryLaneSuggestion:
+    triageResult.primaryLane ||
+    summary.primaryLaneSuggestion,
+
+  supportLaneSuggestions:
+    triageResult.supportLanes ||
+    summary.supportLaneSuggestions ||
+    [],
+
+  deferredLaneSuggestions:
+    triageResult.deferredLanes ||
+    summary.deferredLaneSuggestions ||
+    [],
+
+  blockedLanes:
+    triageResult.blockedLanes ||
+    summary.blockedLanes ||
+    [],
+
+  responseConstraints:
+    triageResult.responseConstraints ||
+    summary.responseConstraints ||
+    []
+};
 
     // 0.40 SITUATION CONTRACT
     const situationContractResult =
