@@ -114,7 +114,11 @@ window.AriLanguageComposer = {
     }
 
     if (contract.context?.includes("medical_context")) {
-      parts.context_medical_context = this.medicalContextText(summary, language);
+      parts.context_medical_context = this.medicalContextText(
+  summary,
+  language,
+  primary
+);
     }
 
     if (contract.deferred?.includes("life_chapter")) {
@@ -239,12 +243,16 @@ window.AriLanguageComposer = {
     );
   },
 
-  medicalContextText(summary, language) {
-    return (
-      summary.medicalContextText ||
-      "Watch for red flags, and use medical support sooner rather than trying to tough it out."
-    );
-  },
+  medicalContextText(summary, language, primary = null) {
+  if (primary !== "medical_context" && primary !== "medical_body") {
+    return null;
+  }
+
+  return (
+    summary.medicalContextText ||
+    "Watch for red flags, and use medical support sooner rather than trying to tough it out."
+  );
+},
 
   orderParts(parts, sectionOrder, primary) {
     const ordered = [];
