@@ -109,23 +109,30 @@ window.AriTriageEngine = {
     this.addMany(triage.responseConstraints, map.responseConstraints || []);
   },
 
-  applyPriorityRules(map = {}, triage = {}) {
+    applyPriorityRules(map = {}, triage = {}) {
     const needs = map.needs || [];
     const domains = map.domains || [];
     const situations = map.situations || [];
 
+    const wisdomDetected =
+      needs.includes("wisdom_support") ||
+      needs.includes("principle_clarity") ||
+      domains.includes("wisdom_domain") ||
+      situations.includes("wisdom_or_values_tension") ||
+      situations.includes("principle_or_long_term_consequence");
+
     if (needs.includes("understanding") || domains.includes("knowledge_domain")) {
       this.choose(triage, "teacher", 92, "Understanding/knowledge request should be answered directly.");
-      this.addMany(triage.deferredLanes, ["uncertainty", "life_chapter", "deep_emotion"]);
+      this.addMany(triage.deferredLanes, ["uncertainty", "life_chapter", "deep_emotion", "wisdom"]);
       this.addMany(triage.blockedLanes, ["deep_emotion"]);
-      this.addMany(triage.responseConstraints, ["answer_directly", "do_not_ask_uncertainty_question"]);
+      this.addMany(triage.responseConstraints, ["answer_directly", "do_not_ask_uncertainty_question", "do_not_ask_wisdom_question"]);
       triage.responseShape = triage.responseShape || "clear_explanation";
     }
 
     if (needs.includes("action_or_build_help") || domains.includes("builder_domain")) {
       this.choose(triage, "builder", 94, "Build/debug request needs practical steps before reflection.");
       this.addMany(triage.deferredLanes, ["emotion", "life_chapter", "wisdom"]);
-      this.addMany(triage.responseConstraints, ["give_steps_or_code", "do_not_over_reflect"]);
+      this.addMany(triage.responseConstraints, ["give_steps_or_code", "do_not_over_reflect", "do_not_ask_wisdom_question"]);
       triage.responseShape = "build_steps";
     }
 
@@ -134,6 +141,18 @@ window.AriTriageEngine = {
       this.addMany(triage.briefLanes, ["emotion"]);
       this.addMany(triage.responseConstraints, ["organize_options", "name_tradeoff"]);
       triage.responseShape = "decision_first_layered";
+    }
+
+    if (
+      wisdomDetected &&
+      !["teacher", "builder", "safety", "medical_body", "risk_clarification"].includes(triage.primaryLane)
+    ) {
+      this.choose(triage, "wisdom", 84, "Wisdom/principle tension appears central.");
+      this.addMany(triage.responseConstraints, ["principle_then_choice", "avoid_generic_uncertainty_question"]);
+      triage.responseShape = triage.responseShape || "principle_then_choice";
+    } else if (wisdomDetected) {
+      this.add(triage.briefLanes, "wisdom");
+      this.add(triage.responseConstraints, "preserve_brief_wisdom_without_hijack");
     }
 
     if (needs.includes("emotional_attunement") || domains.includes("emotion_context_domain")) {
