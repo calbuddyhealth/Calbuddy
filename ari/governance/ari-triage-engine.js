@@ -199,30 +199,60 @@ window.AriTriageEngine = {
   },
 
   choose(triage = {}, lane, score = 50, reason = "") {
-    if (!lane) return;
+  if (!lane) return;
 
-    triage.candidates.push({
-      lane,
-      score,
-      reasons: reason ? [reason] : []
-    });
+  triage.candidates.push({
+    lane,
+    score,
+    reasons: reason ? [reason] : []
+  });
 
-    const currentScore =
-      triage.candidates
-        .filter(c => c.lane === triage.primaryLane)
-        .sort((a, b) => b.score - a.score)[0]?.score || 0;
+  const currentLane = triage.primaryLane;
 
-    if (!triage.primaryLane || score >= currentScore) {
-      triage.primaryLane = lane;
-      triage.confidence = Math.max(triage.confidence || 0, score);
-      if (reason) triage.reasons.push(reason);
-    }
-  },
+  const currentScore =
+    triage.candidates
+      .filter(c => c.lane === currentLane)
+      .sort((a, b) => b.score - a.score)[0]?.score || 0;
+
+  const shouldReplace =
+    !currentLane ||
+    score > currentScore ||
+    (score === currentScore && this.breakTie(lane, currentLane));
+
+  if (shouldReplace) {
+    triage.primaryLane = lane;
+    triage.confidence = Math.max(triage.confidence || 0, score);
+    if (reason) triage.reasons.push(reason);
+  }
+},
+
+breakTie(candidateLane, currentLane) {
+  const priority = {
+    safety: 100,
+    medical_body: 95,
+    risk_clarification: 90,
+    medical_context: 85,
+    executive_decision: 70,
+    builder: 65,
+    teacher: 60,
+    memory: 55,
+    family: 50,
+    relationship: 50,
+    wisdom: 45,
+    emotion: 40,
+    life_chapter: 30,
+    deep_emotion: 25,
+    general_understanding: 10
+  };
+
+  return (priority[candidateLane] || 0) > (priority[currentLane] || 0);
+},
 
   shapeFromPrimary(primary) {
     const map = {
       safety: "urgent_safety",
       medical_body: "medical_boundary_then_action",
+      medical_context: "medical_context_then_next_step",
       risk_clarification: "clarify_risk_only",
       teacher: "clear_explanation",
       builder: "build_steps",
