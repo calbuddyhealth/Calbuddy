@@ -508,7 +508,7 @@ window.AriSituationMapEngine = {
       return;
     }
 
-    if (map.domains.includes("builder_domain")) {
+        if (map.domains.includes("builder_domain")) {
       this.setSituation(map, {
         type: "build_or_fix_request",
         family: "builder",
@@ -533,6 +533,19 @@ window.AriSituationMapEngine = {
       return;
     }
 
+    if (map.situations.includes("tradeoff_or_competing_priorities")) {
+      this.setSituation(map, {
+        type: "decision_or_tradeoff",
+        family: "executive",
+        need: "decision_support",
+        confidence: 90,
+        primaryLane: "executive_decision",
+        support: ["financial", "family", "emotion", "medical_context"],
+        blocked: ["life_chapter", "deep_emotion"]
+      });
+      return;
+    }
+
     if (
       map.domains.includes("medical_context_domain") ||
       map.domains.includes("body_signal_domain")
@@ -544,18 +557,6 @@ window.AriSituationMapEngine = {
         confidence: 88,
         primaryLane: "medical_context",
         blocked: ["life_chapter", "deep_emotion"]
-      });
-      return;
-    }
-
-    if (map.situations.includes("tradeoff_or_competing_priorities")) {
-      this.setSituation(map, {
-        type: "decision_or_tradeoff",
-        family: "executive",
-        need: "decision_support",
-        confidence: 86,
-        primaryLane: "executive_decision",
-        support: ["teacher"]
       });
       return;
     }
