@@ -482,14 +482,16 @@ Regret Lens:
 ${JSON.stringify(summary.reasoning?.regretLens || {}, null, 2)}
 
 Recommendation:
-${summary.reasoning?.recommendation || "none"}
+${summary.reasoningRecommendation || summary.reasoning?.recommendation?.summary || "none"}
 
 Reasoning Answer:
 ${summary.reasoningAnswer || "none"}
 
 Confidence:
-${summary.reasoning?.confidence ?? "none"}
+${summary.reasoningConfidence ?? summary.reasoning?.confidence?.score ?? "none"}
 
+Confidence Level:
+${summary.reasoning?.confidence?.level || "none"}
 ==================================================
 
 ===== HUMAN LANGUAGE ENGINE =====
