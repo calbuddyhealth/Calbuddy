@@ -138,6 +138,12 @@ const triage =
     const responseIntent = analysis.responseIntent || {};
     const mouthDirector = analysis.mouthDirector || {};
 
+const humanLanguage =
+  analysis.humanLanguage ||
+  analysis.humanLanguageProfile ||
+  analysis.languageProfile ||
+  {};
+  
     const stewardshipFear =
       analysis.stewardshipFear ||
       analysis.stewardshipFearDifferentiator ||
@@ -623,6 +629,21 @@ triageReason:
         analysis.situationContractResponseRules ||
         [],
 
+situationContractCommunicationProfile:
+  situationContract.communicationProfile ||
+  analysis.situationContractCommunicationProfile ||
+  {},
+
+situationContractCommunicationDirectness:
+  situationContract.communicationProfile?.directness ||
+  analysis.situationContractCommunicationDirectness ||
+  null,
+
+situationContractValidationLevel:
+  situationContract.communicationProfile?.validationLevel ||
+  analysis.situationContractValidationLevel ||
+  null,
+
       situationContractMouthDirective:
         situationContract.mouthDirective ||
         analysis.situationContractMouthDirective ||
@@ -671,6 +692,103 @@ triageReason:
       contractAuthoritySource:
         analysis.contractAuthoritySource ||
         "not-yet-run",
+
+// ==================================================
+// HUMAN LANGUAGE ENGINE
+// ==================================================
+
+humanLanguageProfile:
+  analysis.humanLanguageProfile ||
+  humanLanguage.humanLanguageProfile ||
+  humanLanguage.profile ||
+  {},
+
+humanLanguageEngineRan:
+  analysis.humanLanguageEngineRan ??
+  humanLanguage.humanLanguageEngineRan ??
+  null,
+
+humanLanguageEngineVersion:
+  analysis.humanLanguageEngineVersion ||
+  humanLanguage.humanLanguageEngineVersion ||
+  null,
+
+humanLanguageSource:
+  analysis.humanLanguageSource ||
+  humanLanguage.source ||
+  "not-yet-run",
+
+humanLanguageDomain:
+  analysis.humanLanguageDomain ||
+  humanLanguage.humanLanguageDomain ||
+  humanLanguage.domain ||
+  null,
+
+humanLanguageTone:
+  analysis.humanLanguageTone ||
+  humanLanguage.humanLanguageTone ||
+  humanLanguage.tone ||
+  null,
+
+humanLanguageWarmth:
+  analysis.humanLanguageWarmth ??
+  humanLanguage.humanLanguageWarmth ??
+  humanLanguage.warmth ??
+  null,
+
+humanLanguageDirectness:
+  analysis.humanLanguageDirectness ??
+  humanLanguage.humanLanguageDirectness ??
+  humanLanguage.directness ??
+  null,
+
+humanLanguageValidationLevel:
+  analysis.humanLanguageValidationLevel ||
+  humanLanguage.humanLanguageValidationLevel ||
+  humanLanguage.validationLevel ||
+  null,
+
+humanLanguageHumor:
+  analysis.humanLanguageHumor ??
+  humanLanguage.humanLanguageHumor ??
+  humanLanguage.humor ??
+  null,
+
+humanLanguageSarcasm:
+  analysis.humanLanguageSarcasm ??
+  humanLanguage.humanLanguageSarcasm ??
+  humanLanguage.sarcasm ??
+  null,
+
+humanLanguageProfanity:
+  analysis.humanLanguageProfanity ??
+  humanLanguage.humanLanguageProfanity ??
+  humanLanguage.profanity ??
+  null,
+
+humanLanguageChallenge:
+  analysis.humanLanguageChallenge ??
+  humanLanguage.humanLanguageChallenge ??
+  humanLanguage.challenge ??
+  null,
+
+humanLanguagePreferredMoves:
+  analysis.humanLanguagePreferredMoves ||
+  humanLanguage.humanLanguagePreferredMoves ||
+  humanLanguage.preferredMoves ||
+  [],
+
+humanLanguageBannedPhrases:
+  analysis.humanLanguageBannedPhrases ||
+  humanLanguage.humanLanguageBannedPhrases ||
+  humanLanguage.bannedPhrases ||
+  [],
+
+humanLanguageReasons:
+  analysis.humanLanguageReasons ||
+  humanLanguage.humanLanguageReasons ||
+  humanLanguage.reasons ||
+  [],
 
       // ==================================================
       // RESPONSE INTENT / MOUTH
