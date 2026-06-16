@@ -791,7 +791,7 @@ humanLanguageReasons:
   [],
 
 // ==================================================
-// REASONING ENGINE V2
+// REASONING ENGINE
 // ==================================================
 
 reasoning:
@@ -800,18 +800,42 @@ reasoning:
 
 reasoningEngineRan:
   analysis.reasoningEngineRan ??
-  analysis.reasoning?.reasoningEngineRan ??
   null,
 
 reasoningEngineVersion:
   analysis.reasoningEngineVersion ||
-  analysis.reasoning?.reasoningEngineVersion ||
+  analysis.reasoning?.version ||
   null,
 
 reasoningSource:
   analysis.reasoningSource ||
   analysis.reasoning?.source ||
   "not-yet-run",
+
+reasoningUniversalSignals:
+  analysis.reasoning?.universalSignals ||
+  analysis.reasoningUniversalSignals ||
+  {},
+
+reasoningDecisionPattern:
+  analysis.reasoning?.decisionPattern ||
+  analysis.reasoningDecisionPattern ||
+  null,
+
+reasoningKnownFacts:
+  analysis.reasoning?.knownFacts ||
+  analysis.reasoningKnownFacts ||
+  [],
+
+reasoningInferredFacts:
+  analysis.reasoning?.inferredFacts ||
+  analysis.reasoningInferredFacts ||
+  [],
+
+reasoningUnknowns:
+  analysis.reasoning?.unknowns ||
+  analysis.reasoningUnknowns ||
+  [],
 
 reasoningRelevantFacts:
   analysis.reasoning?.relevantFacts ||
@@ -821,6 +845,26 @@ reasoningRelevantFacts:
 reasoningAssumptions:
   analysis.reasoning?.assumptions ||
   analysis.reasoningAssumptions ||
+  [],
+
+reasoningPriorityStack:
+  analysis.reasoning?.priorityStack ||
+  analysis.reasoningPriorityStack ||
+  [],
+
+reasoningProtectedObligations:
+  analysis.reasoning?.protectedObligations ||
+  analysis.reasoningProtectedObligations ||
+  [],
+
+reasoningDelayOrDecline:
+  analysis.reasoning?.delayOrDecline ||
+  analysis.reasoningDelayOrDecline ||
+  [],
+
+reasoningRejectedAlternatives:
+  analysis.reasoning?.rejectedAlternatives ||
+  analysis.reasoningRejectedAlternatives ||
   [],
 
 reasoningTradeoffs:
@@ -857,6 +901,11 @@ reasoningRecommendation:
   analysis.reasoning?.recommendation ||
   analysis.reasoningRecommendation ||
   null,
+
+reasoningExecutiveConclusion:
+  analysis.reasoning?.executiveConclusion ||
+  analysis.reasoningExecutiveConclusion ||
+  {},
 
 reasoningAnswer:
   analysis.reasoningAnswer ||
