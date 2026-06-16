@@ -1,12 +1,12 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
-// Purpose: Structured judgment only. Composer owns final wording.
-// V6.0.0 — Judgment Engine
+// Purpose: Universal case-model reasoning. Composer owns final wording.
+// V7.0.0 — Universal Case Builder
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "6.0.0",
+  version: "7.0.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -23,21 +23,15 @@ window.AriReasoningEngine = {
     const reasoning = this.blankReasoning({ primary, contract, executive });
 
     this.addRelevantFacts(reasoning, summary, observations);
-    this.detectUniversalSignals(reasoning, summary);
-    this.extractDecisionFacts(reasoning, summary, primary);
-    this.detectDecisionPattern(reasoning, summary, primary);
-    this.addAssumptions(reasoning, summary, primary);
-    this.buildPriorityStack(reasoning, summary, primary);
+    this.buildUniversalCaseModel(reasoning, summary, primary);
+    this.buildKnownInferredUnknown(reasoning, summary, primary);
     this.buildOptions(reasoning, summary, primary);
+    this.buildConsequences(reasoning, summary, primary);
     this.addTradeoffs(reasoning, summary, primary);
     this.addCounterfactuals(reasoning, summary, primary);
-    this.addLikelyOutcomes(reasoning, summary, primary);
-    this.buildRejectedAlternatives(reasoning, summary, primary);
     this.addSystemsView(reasoning, summary, primary);
-    this.addValueConflicts(reasoning, summary, primary);
     this.addRegretLens(reasoning, summary, primary);
-    this.buildKnownInferredUnknown(reasoning, summary, primary);
-    this.buildChangeConditions(reasoning, summary, primary);
+    this.buildRejectedAlternatives(reasoning, summary, primary);
     this.synthesizeRecommendation(reasoning, summary, primary);
     this.buildCoreJudgment(reasoning, summary, primary);
     this.buildExecutiveConclusion(reasoning, summary, primary, contract);
@@ -64,6 +58,26 @@ window.AriReasoningEngine = {
       primary,
       contractPrimary: contract.primary || primary,
       responseShape: contract.responseShape || null,
+
+      reasoningMode: "universal_case_builder",
+
+      caseModel: {
+        situation: null,
+        userGoal: null,
+        currentState: null,
+        desiredState: null,
+        obstacle: null,
+        constraints: [],
+        resources: [],
+        timeline: null,
+        risks: [],
+        unknowns: [],
+        tensions: [],
+        priorities: [],
+        options: [],
+        consequences: [],
+        nextAction: null
+      },
 
       universalSignals: {},
       decisionPattern: null,
@@ -143,153 +157,385 @@ window.AriReasoningEngine = {
     };
   },
 
-  detectUniversalSignals(reasoning, summary) {
+  buildUniversalCaseModel(reasoning, summary, primary) {
     const text = this.getText(summary);
+    const observations = reasoning.relevantFacts || [];
+    const model = reasoning.caseModel;
 
-    reasoning.universalSignals = {
-      householdStability: this.hasAny(text, [
-        "wife", "husband", "spouse", "partner", "pregnant", "pregnancy",
-        "baby", "newborn", "induction", "family", "sole provider",
-        "only income earner", "household"
-      ]),
+    model.situation = this.describeSituation(summary, primary);
+    model.userGoal = this.inferGoal(text, observations, primary);
+    model.currentState = this.inferCurrentState(text, observations, primary);
+    model.desiredState = this.inferDesiredState(text, observations, primary);
+    model.obstacle = this.inferObstacle(text, observations, primary);
+    model.constraints = this.inferConstraints(text, observations, primary);
+    model.resources = this.inferResources(text, observations, primary);
+    model.timeline = this.inferTimeline(text, observations, primary);
+    model.risks = this.inferRisks(text, observations, primary);
+    model.unknowns = this.inferUnknowns(text, observations, primary, model);
+    model.tensions = this.inferTensions(text, observations, primary, model);
+    model.priorities = this.inferPriorities(text, observations, primary, model);
+    model.options = this.inferUniversalOptions(text, observations, primary, model);
+    model.consequences = this.inferUniversalConsequences(text, observations, primary, model);
+    model.nextAction = this.inferNextAction(text, observations, primary, model);
 
-      newbornOrPregnancyTiming: this.hasAny(text, [
-        "pregnant", "pregnancy", "newborn", "baby", "induction",
-        "birth", "hospitalized", "complications", "37 weeks", "36 weeks"
-      ]),
-
-      higherPayOpportunity: this.hasAny(text, [
-        "higher paying job", "higher-paying job", "pays more", "pay more",
-        "more money", "higher salary", "raise", "promotion", "doubling",
-        "double my salary", "45% raise"
-      ]),
-
-      majorCareerOpportunity: this.hasAny(text, [
-        "promotion", "director", "job offer", "offer", "new role",
-        "salary", "higher-paying job", "higher paying job", "raise",
-        "contract", "relocate", "relocating", "moving across the country"
-      ]),
-
-      familyTimeCost: this.hasAny(text, [
-        "less time with my wife", "less time with wife",
-        "less time with my newborn", "less time with newborn",
-        "spending much less time", "away from my family",
-        "away from wife", "away from newborn", "70-hour weeks",
-        "70 hour weeks"
-      ]),
-
-      majorDisruptionCost: this.hasAny(text, [
-        "relocate", "relocating", "moving", "move across the country",
-        "five year contract", "five-year contract", "within a month",
-        "within 30 days", "within six weeks", "impossible if i relocate"
-      ]),
-
-      dependentCare: this.hasAny(text, [
-        "father", "mother", "parent", "dementia", "assisted living",
-        "lives alone", "caregiver", "depends on me", "stay independent"
-      ]),
-
-      optionalFinancialRisk: this.hasAny(text, [
-        "co-sign", "cosign", "loan", "lend", "borrow", "bankruptcy",
-        "savings", "40,000", "$40,000", "25k", "$25k"
-      ]),
-
-      socialObligationConflict: this.hasAny(text, [
-        "wedding", "best man", "baby shower", "friend", "no replacement"
-      ]),
-
-      professionalDuty: this.hasAny(text, [
-        "current employer", "short-staffed", "short staffed", "coworkers",
-        "patients", "additional strain"
-      ]),
-
-      educationPath: this.hasAny(text, [
-        "graduate school", "accepted into graduate school", "degree", "program"
-      ]),
-
-      explicitNoAssumptionsRequest: this.hasAny(text, [
-        "without assuming facts", "distinguish", "what we know",
-        "what you're inferring", "what you’re inferring",
-        "what could change", "rejected the alternatives"
-      ]),
-
-      financialBuffer: this.hasAny(text, [
-        "six months", "savings", "survive for about six months",
-        "enough savings"
-      ])
-    };
+    this.mirrorCaseModelToLegacyFields(reasoning, model, primary);
   },
 
-  extractDecisionFacts(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
+  describeSituation(summary, primary) {
+    const text = this.getOriginalText(summary);
 
-    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
-      this.add(reasoning.knownFacts, "The user is considering a higher-paying career opportunity.");
-    }
+    if (primary === "teacher") return "The user wants to understand or learn something.";
+    if (primary === "builder") return "The user wants to build, fix, debug, or improve something.";
+    if (primary === "medical_body") return "The user is asking about a body or health-related concern.";
+    if (primary === "safety") return "The user may be dealing with a safety-critical situation.";
+    if (primary === "emotion") return "The user is expressing an emotional state or relational need.";
+    if (primary === "executive_decision") return "The user is trying to choose what to do under constraints.";
 
-    if (s.familyTimeCost) {
-      this.add(reasoning.knownFacts, "Accepting the opportunity would reduce time with wife/newborn or family.");
-    }
-
-    if (s.householdStability) {
-      this.add(reasoning.knownFacts, "Family stability and presence are part of the decision.");
-    }
-
-    if (s.majorDisruptionCost) {
-      this.add(reasoning.knownFacts, "The opportunity has a major disruption cost.");
-    }
-
-    if (s.dependentCare) {
-      this.add(reasoning.knownFacts, "A dependent parent or family-care issue is part of the decision.");
-    }
-
-    if (s.optionalFinancialRisk) {
-      this.add(reasoning.knownFacts, "There is a large optional financial request or risk.");
-    }
-
-    if (s.socialObligationConflict) {
-      this.add(reasoning.knownFacts, "There is a social obligation competing with family timing.");
-    }
-
-    if (s.educationPath) {
-      this.add(reasoning.knownFacts, "An education path may be affected by the decision.");
-    }
-
-    if (s.explicitNoAssumptionsRequest) {
-      this.add(reasoning.knownFacts, "The user asked to separate known facts, inferences, uncertainty, and rejected alternatives.");
-    }
+    return text ? `The user is asking about: ${text}` : "The user is asking for help.";
   },
 
-  detectDecisionPattern(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
+  inferGoal(text, observations, primary) {
+    if (primary === "teacher") return "understand the topic clearly";
+    if (primary === "builder") return "make the thing work or improve it";
+    if (primary === "medical_body") return "protect health and decide the safest next step";
+    if (primary === "safety") return "reduce immediate danger";
+    if (primary === "emotion") return "feel understood, grounded, or less alone";
+    if (primary === "executive_decision") return "choose the best next move";
 
-    if (s.householdStability && s.majorCareerOpportunity && (s.majorDisruptionCost || s.familyTimeCost)) {
-      reasoning.decisionPattern = "career_growth_vs_family_presence";
-      return;
-    }
-
-    if (s.householdStability && (s.higherPayOpportunity || s.majorCareerOpportunity)) {
-      reasoning.decisionPattern = "money_vs_family_time";
-      return;
-    }
-
-    if (s.dependentCare || s.optionalFinancialRisk || s.socialObligationConflict) {
-      reasoning.decisionPattern = "competing_obligations_under_limited_capacity";
-      return;
-    }
-
-    if (s.majorCareerOpportunity) {
-      reasoning.decisionPattern = "career_opportunity_with_tradeoffs";
-      return;
-    }
-
-    reasoning.decisionPattern = "general_executive_decision";
+    if (this.hasQuestionIntent(text)) return "get a clear answer";
+    return "make sense of the situation";
   },
 
-  addAssumptions(reasoning, summary, primary) {
-    const s = reasoning.universalSignals || {};
+  inferCurrentState(text, observations, primary) {
+    const facts = observations.map(o => o.fact).filter(Boolean).slice(0, 5);
+    if (facts.length) return `Known signals: ${facts.join(", ")}`;
+    return primary === "general_understanding"
+      ? "not enough specific context yet"
+      : `active lane: ${primary}`;
+  },
+
+  inferDesiredState(text, observations, primary) {
+    if (primary === "executive_decision") return "a decision that protects the highest-priority constraint while preserving useful options";
+    if (primary === "builder") return "a working, testable fix";
+    if (primary === "teacher") return "clear understanding";
+    if (primary === "emotion") return "emotional grounding";
+    if (primary === "medical_body" || primary === "safety") return "stabilization and appropriate escalation";
+    return "clarity";
+  },
+
+  inferObstacle(text, observations, primary) {
+    if (primary === "executive_decision") {
+      if (this.hasTradeoffShape(text)) return "competing goals under limited resources or capacity";
+      return "not enough information to compare options fully";
+    }
+
+    if (primary === "builder") return "a failure, missing step, unclear implementation, or broken behavior";
+    if (primary === "teacher") return "knowledge gap";
+    if (primary === "emotion") return "emotional load or unclear underlying need";
+    if (primary === "medical_body" || primary === "safety") return "possible risk that should not be minimized";
+
+    return "missing information or unclear goal";
+  },
+
+  inferConstraints(text, observations, primary) {
+    const constraints = [];
+
+    if (this.hasTimeline(text)) constraints.push("time constraint");
+    if (this.hasResourceLimit(text)) constraints.push("limited resources");
+    if (this.hasObligationLanguage(text)) constraints.push("existing obligation");
+    if (this.hasRiskLanguage(text)) constraints.push("risk exposure");
+    if (this.hasCapacityLanguage(text)) constraints.push("limited personal capacity");
+    if (primary === "medical_body" || primary === "safety") constraints.push("safety must outrank convenience");
+
+    return constraints;
+  },
+
+  inferResources(text, observations, primary) {
+    const resources = [];
+
+    if (this.hasMoneyLanguage(text)) resources.push("money or budget");
+    if (this.hasTimeLanguage(text)) resources.push("time");
+    if (this.hasPeopleLanguage(text)) resources.push("support from other people");
+    if (primary === "builder") resources.push("code, tools, logs, screenshots, tests");
+    if (primary === "teacher") resources.push("explanation, examples, analogies");
+
+    return resources;
+  },
+
+  inferTimeline(text, observations, primary) {
+    if (this.hasAny(text, ["today", "tonight", "now", "right now", "urgent", "immediately"])) return "immediate";
+    if (this.hasAny(text, ["tomorrow", "this week", "next week"])) return "near_term";
+    if (this.hasAny(text, ["next month", "in a month", "within a month", "30 days"])) return "next_month";
+    if (this.hasAny(text, ["this year", "next year", "long term", "eventually"])) return "longer_term";
+    return null;
+  },
+
+  inferRisks(text, observations, primary) {
+    const risks = [];
+
+    if (primary === "medical_body") risks.push("health risk if symptoms are severe, worsening, or high-risk");
+    if (primary === "safety") risks.push("immediate harm or escalation");
+    if (this.hasMoneyLanguage(text)) risks.push("financial strain");
+    if (this.hasRelationshipLanguage(text)) risks.push("relationship strain");
+    if (this.hasWorkLanguage(text)) risks.push("career or work consequences");
+    if (this.hasHealthLanguage(text)) risks.push("health or body consequences");
+    if (this.hasDeadlineLanguage(text)) risks.push("missed deadline or reduced options");
+
+    return risks;
+  },
+
+  inferUnknowns(text, observations, primary, model) {
+    const unknowns = [];
+
+    if (primary === "executive_decision") {
+      unknowns.push("exact cost or benefit of each option");
+      unknowns.push("which constraints are flexible versus non-negotiable");
+      unknowns.push("what outcome matters most to the user");
+    }
+
+    if (primary === "builder") {
+      unknowns.push("exact failure point");
+      unknowns.push("current code or environment details");
+    }
+
+    if (primary === "medical_body") {
+      unknowns.push("severity, duration, associated symptoms, and risk factors");
+    }
+
+    if (primary === "emotion") {
+      unknowns.push("whether the feeling is physical, emotional, situational, or relational");
+    }
+
+    return unknowns;
+  },
+
+  inferTensions(text, observations, primary, model) {
+    const tensions = [];
+
+    if (this.hasTradeoffShape(text)) {
+      tensions.push({
+        name: "competing_priorities",
+        sideA: "one desired outcome",
+        sideB: "another important need or constraint",
+        meaning: "the user cannot optimize both without choosing a priority or redesigning the plan"
+      });
+    }
+
+    if (this.hasMoneyLanguage(text) && this.hasEnjoymentLanguage(text)) {
+      tensions.push({
+        name: "enjoyment_now_vs_financial_preparation",
+        sideA: "enjoyment or optional spending now",
+        sideB: "preserving money for a near-term practical goal",
+        meaning: "pleasure must be sized around the necessary financial target"
+      });
+    }
+
+    if (this.hasTimeLanguage(text) && this.hasObligationLanguage(text)) {
+      tensions.push({
+        name: "available_time_vs_obligation",
+        sideA: "what the user wants to do",
+        sideB: "what the user needs to protect or complete",
+        meaning: "time-sensitive obligations should usually be protected first"
+      });
+    }
+
+    if (!tensions.length && primary === "executive_decision") {
+      tensions.push({
+        name: "choice_under_uncertainty",
+        sideA: "acting now",
+        sideB: "waiting for more clarity",
+        meaning: "the best move should preserve options while reducing risk"
+      });
+    }
+
+    return tensions;
+  },
+
+  inferPriorities(text, observations, primary, model) {
+    const priorities = [];
+
+    if (primary === "safety") {
+      priorities.push({
+        priority: "immediate_safety",
+        label: "immediate safety",
+        reason: "harm prevention outranks comfort, convenience, or deeper interpretation"
+      });
+      return priorities;
+    }
+
+    if (primary === "medical_body") {
+      priorities.push({
+        priority: "health_stabilization",
+        label: "health and body safety",
+        reason: "possible medical risk should be ruled out before treating it like a normal decision"
+      });
+      return priorities;
+    }
+
+    if (model.timeline === "immediate" || model.timeline === "near_term" || model.timeline === "next_month") {
+      priorities.push({
+        priority: "time_sensitive_goal",
+        label: "the time-sensitive goal",
+        reason: "near-term deadlines reduce flexibility and should be protected first"
+      });
+    }
+
+    if (this.hasMoneyLanguage(text)) {
+      priorities.push({
+        priority: "financial_stability",
+        label: "financial stability",
+        reason: "money constraints can limit future options if ignored"
+      });
+    }
+
+    if (this.hasObligationLanguage(text)) {
+      priorities.push({
+        priority: "existing_obligation",
+        label: "the existing obligation",
+        reason: "something already committed or necessary usually outranks optional additions"
+      });
+    }
+
+    if (!priorities.length && primary === "executive_decision") {
+      priorities.push({
+        priority: "option_preservation",
+        label: "preserving options",
+        reason: "when facts are incomplete, the first move should reduce risk without closing doors too early"
+      });
+    }
+
+    return priorities;
+  },
+
+  inferUniversalOptions(text, observations, primary, model) {
+    if (primary === "teacher") {
+      return [
+        { option: "Explain simply", pros: ["clear understanding"], cons: [], reversibility: "high", judgment: "best default" }
+      ];
+    }
+
+    if (primary === "emotion") {
+      return [
+        { option: "Validate and ground", pros: ["helps the user feel steadier"], cons: ["may not solve the practical issue yet"], reversibility: "high", judgment: "best first move" }
+      ];
+    }
+
+    if (primary === "medical_body" || primary === "safety") {
+      return [
+        { option: "Escalate if red flags are present", pros: ["protects safety"], cons: ["may feel inconvenient"], reversibility: "high", judgment: "best when risk is uncertain or severe" },
+        { option: "Monitor only", pros: ["less disruption"], cons: ["could miss serious risk"], reversibility: "medium", judgment: "only reasonable when symptoms are mild and clearly improving" }
+      ];
+    }
+
+    if (primary === "builder") {
+      return [
+        { option: "Inspect the failure point", pros: ["finds the actual bug"], cons: ["takes a little more work"], reversibility: "high", judgment: "best first step" },
+        { option: "Patch based on guess", pros: ["fast"], cons: ["may create new bugs"], reversibility: "medium", judgment: "weaker unless evidence is strong" }
+      ];
+    }
+
+    if (primary === "executive_decision") {
+      return [
+        {
+          option: "Proceed fully",
+          pros: ["gets the desired benefit now"],
+          cons: ["may strain the limiting constraint"],
+          reversibility: "variable",
+          judgment: "only best if it does not violate the top priority"
+        },
+        {
+          option: "Delay or pause",
+          pros: ["protects resources and reduces risk"],
+          cons: ["may lose some opportunity or enjoyment"],
+          reversibility: "medium",
+          judgment: "best when the constraint is serious and near-term"
+        },
+        {
+          option: "Resize or modify the plan",
+          pros: ["preserves part of the benefit while protecting the constraint"],
+          cons: ["requires compromise"],
+          reversibility: "high",
+          judgment: "often the best first move when both sides matter"
+        },
+        {
+          option: "Protect the top priority first, then use leftover capacity",
+          pros: ["prevents the most costly failure"],
+          cons: ["may limit the optional goal"],
+          reversibility: "high",
+          judgment: "best default when one goal is time-sensitive or necessary"
+        }
+      ];
+    }
+
+    return [
+      {
+        option: "Answer directly with current information",
+        pros: ["useful now"],
+        cons: ["may miss hidden context"],
+        reversibility: "high",
+        judgment: "reasonable default"
+      }
+    ];
+  },
+
+  inferUniversalConsequences(text, observations, primary, model) {
+    return (model.options || []).map(option => ({
+      option: option.option,
+      likelyOutcome: this.predictOutcome(option, model, primary),
+      riskLevel: this.estimateOptionRisk(option, model, primary)
+    }));
+  },
+
+  inferNextAction(text, observations, primary, model) {
+    if (primary === "executive_decision") {
+      if (this.hasMoneyLanguage(text)) {
+        return "Calculate the required amount for the time-sensitive goal first, then cap the optional plan using only what safely remains.";
+      }
+
+      return "Identify the top constraint, then choose the option that protects it while preserving the most flexibility.";
+    }
+
+    if (primary === "builder") return "Find the exact failure point first, then make the smallest targeted fix.";
+    if (primary === "teacher") return "Give a clear explanation with an example.";
+    if (primary === "emotion") return "Name the feeling briefly, ground the user, then ask one useful question.";
+    if (primary === "medical_body") return "Check for red flags and escalate if symptoms are severe, worsening, or high-risk.";
+    if (primary === "safety") return "Move toward immediate safety and get help if there is active danger.";
+
+    return "Answer the main question directly.";
+  },
+
+  mirrorCaseModelToLegacyFields(reasoning, model, primary) {
+    if (model.userGoal) this.add(reasoning.knownFacts, `Goal: ${model.userGoal}`);
+    if (model.currentState) this.add(reasoning.knownFacts, `Current state: ${model.currentState}`);
+    if (model.obstacle) this.add(reasoning.inferredFacts, `Obstacle: ${model.obstacle}`);
+
+    model.constraints.forEach(item => this.add(reasoning.knownFacts, `Constraint: ${item}`));
+    model.resources.forEach(item => this.add(reasoning.knownFacts, `Resource: ${item}`));
+    model.risks.forEach(item => this.add(reasoning.knownFacts, `Risk: ${item}`));
+    model.unknowns.forEach(item => this.add(reasoning.unknowns, item));
+
+    model.priorities.forEach(item => this.add(reasoning.priorityStack, item));
+    model.options.forEach(item => this.add(reasoning.options, item));
+
+    model.consequences.forEach(item => {
+      this.add(reasoning.likelyOutcomes, {
+        outcome: `${item.option}: ${item.likelyOutcome}`,
+        probability: item.riskLevel === "high" ? "medium_high" : "medium"
+      });
+    });
+
+    model.tensions.forEach(item => {
+      this.add(reasoning.tradeoffs, {
+        name: item.name,
+        sideA: item.sideA,
+        sideB: item.sideB,
+        likelyWinner: model.priorities?.[0]?.priority || "depends_on_constraints"
+      });
+    });
+  },
+
+  buildKnownInferredUnknown(reasoning, summary, primary) {
+    const model = reasoning.caseModel || {};
 
     if (primary === "executive_decision") {
       this.add(reasoning.assumptions, {
@@ -298,322 +544,240 @@ window.AriReasoningEngine = {
         risk: "low",
         because: ["The prompt asks what to do."]
       });
+
+      this.add(reasoning.changeConditions, "The recommendation changes if the top constraint is more flexible than it appears.");
+      this.add(reasoning.changeConditions, "The recommendation changes if the optional choice has a deadline or consequence not yet mentioned.");
     }
 
-    if (s.householdStability || s.familyTimeCost) {
-      this.add(reasoning.assumptions, {
-        assumption: "Family stability and presence matter heavily in this decision.",
-        confidence: 0.82,
-        risk: "low",
-        because: ["The user explicitly named wife/newborn or household consequences."]
-      });
+    if (primary === "builder") {
+      this.add(reasoning.changeConditions, "The recommendation changes if the actual error appears in a different file or layer.");
     }
 
-    if (s.majorCareerOpportunity || s.higherPayOpportunity) {
-      this.add(reasoning.assumptions, {
-        assumption: "The opportunity has real upside, but the upside must be weighed against disruption.",
-        confidence: 0.78,
-        risk: "medium",
-        because: ["The opportunity improves pay or career position."]
-      });
-    }
-  },
-
-  buildPriorityStack(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
-
-    if (s.householdStability || s.familyTimeCost) {
-      this.add(reasoning.priorityStack, {
-        priority: "family_presence_and_household_stability",
-        label: "wife, newborn, and household stability",
-        reason: "newborn/family presence is time-sensitive and harder to recover than many career options"
-      });
+    if (primary === "medical_body") {
+      this.add(reasoning.changeConditions, "The recommendation changes based on severity, duration, pregnancy status, bleeding, fever, fainting, chest pain, breathing trouble, or worsening symptoms.");
     }
 
-    if (s.newbornOrPregnancyTiming) {
-      this.add(reasoning.protectedObligations, {
-        obligation: "newborn_or_pregnancy_timing",
-        reason: "birth, late pregnancy, and early newborn support are time-sensitive"
-      });
-    }
-
-    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
-      this.add(reasoning.priorityStack, {
-        priority: "financial_and_career_growth",
-        label: "income and career growth",
-        reason: "money matters, especially if it is needed for household security"
-      });
-    }
-
-    if (s.dependentCare) {
-      this.add(reasoning.priorityStack, {
-        priority: "dependent_care_plan",
-        label: "dependent family care",
-        reason: "care needs matter, but they may need a support system rather than only direct sacrifice"
-      });
-    }
-
-    if (s.optionalFinancialRisk) {
-      this.add(reasoning.delayOrDecline, {
-        item: "large_optional_financial_risk",
-        recommendation: "Delay or decline large optional financial exposure.",
-        reason: "protecting the household comes before rescuing someone else financially"
-      });
-    }
+    reasoning.changeConditions.forEach(item => this.add(reasoning.unknowns, item));
   },
 
   buildOptions(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
+    // Options are now created by the universal case model.
+    // This method remains for pipeline compatibility.
+  },
 
-    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
-      this.add(reasoning.options, {
-        option: "Accept immediately",
-        pros: ["higher income", "career growth"],
-        cons: ["less family time", "possible disruption to household stability"],
-        reversibility: s.majorDisruptionCost ? "low" : "medium",
-        judgment: "weak unless the money is urgently needed or the role can protect family time"
-      });
-
-      this.add(reasoning.options, {
-        option: "Reject immediately",
-        pros: ["protects family time", "reduces disruption"],
-        cons: ["may lose income/career upside"],
-        reversibility: "medium",
-        judgment: "reasonable if the role cannot be restructured, but premature if negotiation is possible"
-      });
-
-      this.add(reasoning.options, {
-        option: "Negotiate delay or structure",
-        pros: ["preserves the opportunity while protecting family stability"],
-        cons: ["employer may say no"],
-        reversibility: "high",
-        judgment: "best first move when both opportunity and family stability matter"
-      });
-    }
+  buildConsequences(reasoning, summary, primary) {
+    // Consequences are now created by the universal case model.
+    // This method remains for clarity and future expansion.
   },
 
   addTradeoffs(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
-
-    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
+    // Tradeoffs are mirrored from caseModel.tensions.
+    // Add one universal fallback if executive decision has no tradeoff.
+    if (primary === "executive_decision" && reasoning.tradeoffs.length === 0) {
       this.add(reasoning.tradeoffs, {
-        name: "higher_pay_vs_family_presence",
-        sideA: "higher pay and career growth",
-        sideB: "time with wife, newborn, and family stability",
-        likelyWinner: "family_presence_unless_money_is_needed_for_security"
-      });
-    }
-
-    if (s.majorCareerOpportunity && s.majorDisruptionCost) {
-      this.add(reasoning.tradeoffs, {
-        name: "career_growth_vs_disruption",
-        sideA: "career advancement",
-        sideB: "timing, relocation, and life disruption",
-        likelyWinner: "delay_or_negotiate_first"
-      });
-    }
-
-    if (s.optionalFinancialRisk) {
-      this.add(reasoning.tradeoffs, {
-        name: "helping_family_vs_household_risk",
-        sideA: "helping a family member financially",
-        sideB: "protecting household security",
-        likelyWinner: "household_risk_protection"
+        name: "benefit_vs_constraint",
+        sideA: "the desired benefit",
+        sideB: "the limiting constraint",
+        likelyWinner: "protect_the_constraint_first"
       });
     }
   },
 
   addCounterfactuals(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-
     reasoning.options.forEach(option => {
       this.add(reasoning.counterfactuals, {
         option: option.option,
-        benefits: option.pros,
-        costs: option.cons,
-        reversibility: option.reversibility,
-        bestWhen: option.judgment
+        benefits: option.pros || [],
+        costs: option.cons || [],
+        reversibility: option.reversibility || "unknown",
+        bestWhen: option.judgment || "depends on constraints"
       });
     });
   },
 
-  addLikelyOutcomes(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
+  addSystemsView(reasoning, summary, primary) {
+    if (primary === "executive_decision") {
+      reasoning.systemsView.upstream.push(
+        "The decision is shaped by goals, constraints, timeline, and available resources."
+      );
 
-    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
-      this.add(reasoning.likelyOutcomes, {
-        outcome: "Accepting immediately may improve money while increasing regret or strain around family presence.",
-        probability: "medium_high"
-      });
+      reasoning.systemsView.downstream.push(
+        "Choosing one option changes what remains possible for the others."
+      );
 
-      this.add(reasoning.likelyOutcomes, {
-        outcome: "Negotiating structure first preserves optionality better than a simple yes or no.",
-        probability: "medium_high"
-      });
+      if (reasoning.caseModel?.constraints?.length) {
+        reasoning.systemsView.secondOrderEffects.push(
+          "Ignoring the main constraint can create follow-on stress or reduce future options."
+        );
+      }
+    }
+
+    if (primary === "builder") {
+      reasoning.systemsView.upstream.push(
+        "A visible bug usually comes from an earlier mismatch in data, state, rendering, or control flow."
+      );
+
+      reasoning.systemsView.downstream.push(
+        "A broad patch can hide the bug temporarily while creating later instability."
+      );
+    }
+  },
+
+  addRegretLens(reasoning, summary, primary) {
+    const model = reasoning.caseModel || {};
+
+    if (primary === "executive_decision") {
+      reasoning.regretLens.shortTerm =
+        "Choosing the disciplined option may feel disappointing in the moment.";
+
+      reasoning.regretLens.longTerm =
+        "The bigger regret risk is usually failing the time-sensitive or necessary goal for an optional benefit that could be resized.";
+
+      reasoning.regretLens.regretRisk =
+        "sacrificing_a_higher_priority_constraint_for_a_lower_priority_benefit";
+
+      if (model.timeline) {
+        reasoning.regretLens.irreversibleLosses.push(
+          "A near-term deadline can reduce flexibility if missed."
+        );
+      }
+
+      reasoning.regretLens.reversibleLosses.push(
+        "Optional plans can often be resized, delayed, or redesigned."
+      );
     }
   },
 
   buildRejectedAlternatives(reasoning, summary, primary) {
     if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
 
-    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Accept immediately",
-        rejectedBecause: "higher income does not automatically outrank time with wife/newborn unless the money is needed for immediate household security."
-      });
+    reasoning.options.forEach(option => {
+      if (option.option === "Proceed fully") {
+        this.add(reasoning.rejectedAlternatives, {
+          alternative: option.option,
+          rejectedBecause: "it may violate the top constraint if done before protecting the necessary goal."
+        });
+      }
 
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Reject immediately",
-        rejectedBecause: "the opportunity may still be worth negotiating if the schedule, start date, workload, or location can protect family time."
-      });
-    }
-
-    if (s.optionalFinancialRisk) {
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Take on the large financial request",
-        rejectedBecause: "it adds optional financial risk while the household already has uncertainty."
-      });
-    }
-
-    if (s.socialObligationConflict) {
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Prioritize the social obligation",
-        rejectedBecause: "friend disappointment is usually more repairable than missing a high-stakes family moment."
-      });
-    }
-  },
-
-  addSystemsView(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-
-    reasoning.systemsView.upstream.push(
-      "The decision is not only about one benefit; it affects the whole family system."
-    );
-
-    reasoning.systemsView.downstream.push(
-      "Choosing the option with the biggest upside can still be wrong if it destabilizes the system that has the highest cost of failure."
-    );
-
-    if (reasoning.universalSignals.familyTimeCost) {
-      reasoning.systemsView.secondOrderEffects.push(
-        "Less family time can create stress, resentment, or missed support during a time-sensitive life stage."
-      );
-    }
-  },
-
-  addValueConflicts(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
-
-    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && (s.householdStability || s.familyTimeCost)) {
-      this.add(reasoning.valueConflicts, {
-        conflict: "growth_vs_presence",
-        valueA: "income and career growth",
-        valueB: "presence, stability, and family support",
-        resolutionHint: "pursue growth only in a structure that does not sacrifice the highest-cost family obligation"
-      });
-    }
-  },
-
-  addRegretLens(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
-
-    reasoning.regretLens.shortTerm =
-      "Delaying or negotiating may feel like risking a good opportunity.";
-
-    reasoning.regretLens.longTerm =
-      "The bigger regret risk is trading away hard-to-replace family presence for a benefit that may be negotiable or replaceable.";
-
-    if (s.familyTimeCost || s.newbornOrPregnancyTiming) {
-      reasoning.regretLens.irreversibleLosses.push(
-        "Early newborn time and family support windows are time-sensitive."
-      );
-    }
-
-    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
-      reasoning.regretLens.reversibleLosses.push(
-        "Some career opportunities can be delayed, renegotiated, or replaced later."
-      );
-    }
-
-    reasoning.regretLens.regretRisk = "sacrificing_irreplaceable_presence_for_replaceable_gain";
-  },
-
-  buildKnownInferredUnknown(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
-
-    if (s.familyTimeCost) {
-      this.add(reasoning.inferredFacts, "The real tradeoff is probably not just money versus comfort; it is money versus presence.");
-    }
-
-    if (s.householdStability) {
-      this.add(reasoning.inferredFacts, "Family stability likely carries more weight than optional or negotiable gains.");
-    }
-
-    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
-      this.add(reasoning.unknowns, "Whether the increased income is necessary for immediate household security.");
-      this.add(reasoning.unknowns, "Whether the role can be delayed, phased, remote, or restructured.");
-      this.add(reasoning.unknowns, "Whether the workload would still allow meaningful family presence.");
-    }
-  },
-
-  buildChangeConditions(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
-
-    this.add(reasoning.changeConditions, "The recommendation changes if the higher income is necessary to keep the household safe or financially stable.");
-    this.add(reasoning.changeConditions, "The recommendation changes if the employer can protect family time through delayed start, reduced hours, remote work, or phased transition.");
-    this.add(reasoning.changeConditions, "The recommendation changes if the partner explicitly prefers the financial upside despite the time cost.");
-
-    reasoning.unknowns.push(...reasoning.changeConditions);
+      if (option.option === "Delay or pause") {
+        this.add(reasoning.rejectedAlternatives, {
+          alternative: option.option,
+          rejectedBecause: "it may be too conservative if the plan can be resized instead of canceled."
+        });
+      }
+    });
   },
 
   synthesizeRecommendation(reasoning, summary, primary) {
-    if (primary !== "executive_decision") {
-      reasoning.recommendation.summary = "Answer the primary lane directly.";
+    const model = reasoning.caseModel || {};
+    const topPriority = model.priorities?.[0];
+
+    if (primary === "teacher") {
+      reasoning.recommendation.summary = "teach the topic directly and simply.";
+      reasoning.recommendation.alternatives = ["Define it first, then explain the steps with an example."];
       return;
     }
 
-    const s = reasoning.universalSignals || {};
-
-    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
+    if (primary === "builder") {
       reasoning.recommendation.summary =
-        "do not accept immediately; negotiate the role first, and only take it if the money is necessary or the structure still protects time with your wife and newborn.";
-
+        "find the exact failure point first, then make the smallest targeted fix.";
       reasoning.recommendation.alternatives = [
-        "Ask for a delayed start, reduced hours, remote days, or a phased transition.",
-        "Calculate whether the higher income is necessary for immediate household security.",
-        "Discuss with your partner what level of absence is acceptable during the newborn period."
+        "Check inputs, state, console errors, and the last layer that produces the visible output."
       ];
       return;
     }
 
-    reasoning.recommendation.summary =
-      "protect the highest-cost obligation first, delay optional risks, and choose the next step that preserves stability.";
+    if (primary === "medical_body") {
+      reasoning.recommendation.summary =
+        "treat safety as the first priority and escalate if symptoms are severe, worsening, or high-risk.";
+      reasoning.recommendation.alternatives = [
+        "Check red flags first, then decide whether home care is appropriate."
+      ];
+      return;
+    }
 
-    reasoning.recommendation.alternatives = [
-      "Ask whether the option can be delayed, phased, remote, or renegotiated."
-    ];
+    if (primary === "safety") {
+      reasoning.recommendation.summary =
+        "prioritize immediate safety before explanation, debate, or long-term planning.";
+      reasoning.recommendation.alternatives = [
+        "Move away from danger and contact appropriate help if there is active risk."
+      ];
+      return;
+    }
+
+    if (primary === "emotion") {
+      reasoning.recommendation.summary =
+        "validate briefly, name the signal, and help the user ground before solving.";
+      reasoning.recommendation.alternatives = [
+        "Ask one focused question if more context is needed."
+      ];
+      return;
+    }
+
+    if (primary === "executive_decision") {
+      if (this.hasMoneyLanguage(this.getText(summary)) && model.timeline) {
+        reasoning.recommendation.summary =
+          "protect the time-sensitive financial goal first, then resize the optional plan around what safely remains.";
+
+        reasoning.recommendation.alternatives = [
+          model.nextAction ||
+          "Calculate the required amount first, then cap the optional plan from leftover money."
+        ];
+        return;
+      }
+
+      reasoning.recommendation.summary =
+        topPriority
+          ? `protect ${topPriority.label} first, then choose the option that preserves the most flexibility.`
+          : "protect the main constraint first, then choose the option that preserves the most flexibility.";
+
+      reasoning.recommendation.alternatives = [
+        model.nextAction || "Identify the main constraint, compare options, and take the lowest-regret next step."
+      ];
+      return;
+    }
+
+    reasoning.recommendation.summary = "answer the user's main question directly.";
   },
 
   buildCoreJudgment(reasoning, summary, primary) {
-    if (primary !== "executive_decision") return;
+    const model = reasoning.caseModel || {};
+    const tension = model.tensions?.[0];
+    const priority = model.priorities?.[0];
 
-    reasoning.coreJudgment =
-      "Preserve the option if possible, but do not sacrifice the hardest-to-replace obligation unless the gain is necessary or the structure can protect it.";
+    if (primary === "executive_decision") {
+      reasoning.coreJudgment =
+        priority
+          ? `The deciding factor is ${priority.label}: ${priority.reason}.`
+          : "The deciding factor is the constraint that would be most costly to violate.";
+      return;
+    }
+
+    if (primary === "builder") {
+      reasoning.coreJudgment =
+        "Do not patch randomly; locate the exact layer where the expected output changes into the wrong output.";
+      return;
+    }
+
+    if (primary === "teacher") {
+      reasoning.coreJudgment =
+        "The user needs clear explanation, not reflection or decision support.";
+      return;
+    }
+
+    reasoning.coreJudgment = tension
+      ? `The central tension is ${tension.sideA} versus ${tension.sideB}.`
+      : null;
   },
 
   buildExecutiveConclusion(reasoning, summary, primary, contract = {}) {
     const rec = reasoning.recommendation || {};
     const firstPriority = reasoning.priorityStack?.[0] || null;
     const firstTradeoff = reasoning.tradeoffs?.[0] || null;
-    const nextStep = rec.alternatives?.[0] || null;
+    const nextStep =
+      reasoning.caseModel?.nextAction ||
+      rec.alternatives?.[0] ||
+      null;
 
     reasoning.executiveConclusion = {
       primary,
@@ -635,15 +799,16 @@ window.AriReasoningEngine = {
   },
 
   scoreConfidence(reasoning, summary, primary) {
-    let score = 58;
+    let score = 50;
 
-    if (reasoning.knownFacts.length >= 2) score += 10;
-    if (reasoning.tradeoffs.length > 0) score += 10;
+    if (reasoning.caseModel?.userGoal) score += 8;
+    if (reasoning.caseModel?.constraints?.length) score += 8;
+    if (reasoning.caseModel?.tensions?.length) score += 8;
     if (reasoning.options.length > 0) score += 8;
-    if (reasoning.rejectedAlternatives.length > 0) score += 8;
-    if (reasoning.priorityStack.length > 0) score += 7;
-    if (reasoning.changeConditions.length > 0) score += 4;
-    if (reasoning.unknowns.length > 0) score -= 5;
+    if (reasoning.tradeoffs.length > 0) score += 8;
+    if (reasoning.priorityStack.length > 0) score += 8;
+    if (reasoning.recommendation?.summary) score += 8;
+    if (reasoning.unknowns.length > 3) score -= 8;
 
     reasoning.confidence.score = this.clamp(score, 0, 100);
     reasoning.confidence.level =
@@ -651,7 +816,13 @@ window.AriReasoningEngine = {
       reasoning.confidence.score >= 65 ? "medium" :
       "low";
 
-    reasoning.confidence.reasons.push("Judgment was based on facts, tradeoffs, options, reversibility, and regret.");
+    reasoning.confidence.reasons.push(
+      "Judgment was based on universal case structure: goal, constraint, tension, options, consequences, priority, and next action."
+    );
+
+    if (reasoning.unknowns.length) {
+      reasoning.confidence.uncertaintyDrivers.push(...reasoning.unknowns.slice(0, 4));
+    }
   },
 
   finalize(reasoning) {
@@ -688,6 +859,150 @@ window.AriReasoningEngine = {
         confidence: obs.confidence ?? null
       });
     });
+  },
+
+  predictOutcome(option, model, primary) {
+    if (!option) return "unknown outcome";
+
+    if (option.option === "Protect the top priority first, then use leftover capacity") {
+      return "the highest-risk failure is avoided while preserving some flexibility for the secondary goal";
+    }
+
+    if (option.option === "Resize or modify the plan") {
+      return "both goals may be partly preserved with less risk";
+    }
+
+    if (option.option === "Proceed fully") {
+      return "the user gets the immediate benefit but may strain the main constraint";
+    }
+
+    if (option.option === "Delay or pause") {
+      return "risk decreases, but the desired benefit may be reduced or postponed";
+    }
+
+    return option.judgment || "outcome depends on the missing facts";
+  },
+
+  estimateOptionRisk(option, model, primary) {
+    if (!option) return "unknown";
+    if (option.option === "Proceed fully" && model.constraints?.length) return "high";
+    if (option.option === "Protect the top priority first, then use leftover capacity") return "low";
+    if (option.option === "Resize or modify the plan") return "low_medium";
+    if (option.option === "Delay or pause") return "medium";
+    return "medium";
+  },
+
+  hasQuestionIntent(text = "") {
+    return this.hasAny(text, [
+      "what should", "should i", "how do i", "what do i do",
+      "can you", "help me", "explain", "teach", "why"
+    ]);
+  },
+
+  hasTradeoffShape(text = "") {
+    return this.hasAny(text, [
+      "but", "however", "although", "while", "versus", "vs",
+      "on the other hand", "instead", "either", "or", "tradeoff"
+    ]);
+  },
+
+  hasTimeline(text = "") {
+    return this.hasAny(text, [
+      "today", "tonight", "tomorrow", "this week", "next week",
+      "next month", "deadline", "due", "soon", "urgent", "now"
+    ]);
+  },
+
+  hasDeadlineLanguage(text = "") {
+    return this.hasAny(text, [
+      "deadline", "due", "next month", "tomorrow", "soon", "within"
+    ]);
+  },
+
+  hasResourceLimit(text = "") {
+    return this.hasAny(text, [
+      "budget", "money", "cost", "expensive", "afford", "save",
+      "time", "energy", "capacity", "limited"
+    ]);
+  },
+
+  hasMoneyLanguage(text = "") {
+    return this.hasAny(text, [
+      "money", "budget", "cost", "afford", "save", "savings",
+      "debt", "loan", "rent", "payment", "buy", "car", "income"
+    ]);
+  },
+
+  hasEnjoymentLanguage(text = "") {
+    return this.hasAny(text, [
+      "vacation", "trip", "party", "fun", "enjoy", "want to go",
+      "celebrate", "travel"
+    ]);
+  },
+
+  hasTimeLanguage(text = "") {
+    return this.hasAny(text, [
+      "time", "schedule", "deadline", "next month", "today",
+      "tomorrow", "week", "month", "year"
+    ]);
+  },
+
+  hasObligationLanguage(text = "") {
+    return this.hasAny(text, [
+      "need to", "have to", "must", "responsible", "obligation",
+      "required", "supposed to", "committed"
+    ]);
+  },
+
+  hasRiskLanguage(text = "") {
+    return this.hasAny(text, [
+      "risk", "danger", "problem", "worry", "afraid", "severe",
+      "worse", "lose", "miss", "fail"
+    ]);
+  },
+
+  hasCapacityLanguage(text = "") {
+    return this.hasAny(text, [
+      "tired", "exhausted", "burned out", "overwhelmed",
+      "too much", "no time", "limited"
+    ]);
+  },
+
+  hasPeopleLanguage(text = "") {
+    return this.hasAny(text, [
+      "wife", "husband", "partner", "family", "friend",
+      "coworker", "boss", "parent", "child", "baby"
+    ]);
+  },
+
+  hasRelationshipLanguage(text = "") {
+    return this.hasAny(text, [
+      "relationship", "wife", "husband", "partner", "family",
+      "friend", "argument", "respect", "trust"
+    ]);
+  },
+
+  hasWorkLanguage(text = "") {
+    return this.hasAny(text, [
+      "job", "work", "career", "boss", "coworker",
+      "promotion", "salary", "quit", "hire"
+    ]);
+  },
+
+  hasHealthLanguage(text = "") {
+    return this.hasAny(text, [
+      "pain", "sick", "pregnant", "fever", "bleeding",
+      "chest", "breathing", "dizzy", "diarrhea", "vomit"
+    ]);
+  },
+
+  getOriginalText(summary = {}) {
+    return String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    ).trim();
   },
 
   getText(summary = {}) {
