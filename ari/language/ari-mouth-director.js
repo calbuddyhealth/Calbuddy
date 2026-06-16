@@ -43,6 +43,20 @@ window.AriMouthDirector = {
       formatHints: this.formatHints(primary),
       styleRules: this.styleRules(primary),
 
+compressionDirective: {
+  enabled: true,
+  preserve: [
+    "recommendation",
+    "known_inferred_unknown",
+    "key_reason",
+    "key_tradeoff",
+    "rejected_alternatives",
+    "next_step"
+  ],
+  maxSections: primary === "executive_decision" ? 5 : 3,
+  maxBulletsPerSection: primary === "executive_decision" ? 4 : 3,
+  style: "tight_but_complete"
+},
       contractRequired: contract.mouthDirective?.required || [],
       contractAvoid: contract.mouthDirective?.avoid || [],
       contractClosing: contract.mouthDirective?.closing || null,
