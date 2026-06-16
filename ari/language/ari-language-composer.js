@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V6.1.0 — Evidence-Based Executive Composer
+// V6.2.0 — Full Structure Composer, Compression-Aware
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "6.1.0",
+  version: "6.2.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
@@ -23,23 +23,14 @@ window.AriLanguageComposer = {
       summary.triagePrimaryLane ||
       "general_understanding";
 
-    const maxBodySections =
-  Number(mouth.maxBodySections || language.maxBodySections || 6);
-
-const responsePattern =
-  mouth.responsePattern ||
-  contract.responseShape ||
-  "standard";
-
-const sectionOrder =
-  mouth.sectionOrder ||
-  contract.mouthDirective?.order ||
-  [primary];
-
     let bodyParts = [];
 
     if (primary === "executive_decision") {
-      bodyParts = this.composeExecutiveDecision({ reasoning, conclusion, language });
+      bodyParts = this.composeExecutiveDecision({
+        reasoning,
+        conclusion,
+        language
+      });
     } else {
       bodyParts = [
         summary.directAnswer ||
@@ -51,7 +42,8 @@ const sectionOrder =
       ];
     }
 
-    bodyParts = this.cleanParts(bodyParts, language).slice(0, maxBodySections);
+    // Composer cleans only. It does NOT truncate anymore.
+    bodyParts = this.cleanParts(bodyParts, language);
 
     let finalResponse = bodyParts.join("\n\n");
     finalResponse = this.finalPolish(finalResponse, language);
@@ -60,43 +52,46 @@ const sectionOrder =
       languageMode: primary,
       languageOpening: bodyParts[0] || null,
       languageBody: bodyParts.join("\n\n"),
+      languageSections: bodyParts,
       languageClosing: null,
+
       finalResponse,
 
       composerVersion: this.version,
-source: "ari-language-composer",
+      source: "ari-language-composer",
 
-compressionDirective: mouth.compressionDirective || null,
-composerAllowsCompression: true,
+      composerAllowsCompression: true,
+      compressionDirective: mouth.compressionDirective || null,
 
       composerDebug: {
-  primary,
-  responsePattern,
-  sectionOrder,
-  maxBodySections,
-  humanLanguageTone: language.tone,
-  humanLanguageWarmth: language.warmth,
-  humanLanguageDirectness: language.directness,
-  mouthAuthority: mouth.mouthAuthority,
-  compressionDirective: mouth.compressionDirective || null,
-  usedParts: bodyParts
-}
+        primary,
+        responsePattern: mouth.responsePattern || null,
+        sectionOrder: mouth.sectionOrder || [],
+        humanLanguageTone: language.tone,
+        humanLanguageWarmth: language.warmth,
+        humanLanguageDirectness: language.directness,
+        mouthAuthority: mouth.mouthAuthority,
+        compressionDirective: mouth.compressionDirective || null,
+        usedParts: bodyParts
+      }
     };
   },
 
   composeExecutiveDecision({ reasoning = {}, conclusion = {}, language = {} }) {
     const rec = reasoning.recommendation || {};
+
     const known = reasoning.knownFacts || [];
+
     const inferred = [
       ...(reasoning.inferredFacts || []),
-      ...(reasoning.assumptions || []).map(a => a.assumption).filter(Boolean)
+      ...(reasoning.assumptions || [])
+        .map(a => a.assumption)
+        .filter(Boolean)
     ];
+
     const unknowns = reasoning.unknowns || [];
     const rejected = reasoning.rejectedAlternatives || [];
-    const tradeoff =
-  conclusion.keyTradeoff ||
-  reasoning.tradeoffs?.[0] ||
-  null;
+    const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
     const regret = reasoning.regretLens || {};
 
     const parts = [];
@@ -118,13 +113,14 @@ composerAllowsCompression: true,
     }
 
     if (unknowns.length) {
-      parts.push(`What could change the recommendation:\n${this.bullets(unknowns)}`);
+      parts.push(`What could change the answer:\n${this.bullets(unknowns)}`);
     }
 
     const reasoningLines = [];
 
     if (conclusion.framing) reasoningLines.push(conclusion.framing);
     if (conclusion.keyReason) reasoningLines.push(conclusion.keyReason);
+
     if (tradeoff) {
       reasoningLines.push(
         typeof tradeoff === "string"
@@ -132,10 +128,11 @@ composerAllowsCompression: true,
           : `The main tradeoff is ${tradeoff.sideA} versus ${tradeoff.sideB}.`
       );
     }
+
     if (regret.longTerm) reasoningLines.push(regret.longTerm);
 
     if (reasoningLines.length) {
-      parts.push(reasoningLines.join(" "));
+      parts.push(`Why:\n${reasoningLines.join(" ")}`);
     }
 
     if (rejected.length) {
@@ -152,8 +149,13 @@ composerAllowsCompression: true,
       parts.push(`Next step: ${conclusion.nextStep || rec.alternatives[0]}`);
     }
 
-    if ((language.validationLevel === "light" || language.warmth > 25) && regret.shortTerm) {
-      parts.push("This is heavy because every option disappoints someone. That does not mean every obligation has equal claim on you.");
+    if (
+      (language.validationLevel === "light" || language.warmth > 25) &&
+      regret.shortTerm
+    ) {
+      parts.push(
+        "This is heavy because every option disappoints someone. That does not mean every obligation has equal claim on you."
+      );
     }
 
     return parts;
