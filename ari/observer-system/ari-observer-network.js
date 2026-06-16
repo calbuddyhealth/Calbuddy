@@ -53,7 +53,10 @@ window.Ari.observerNetwork = {
     this.detectNegation(text, add);
     this.detectModalPressure(text, add);
 
-    return {
+        // Sort highest-confidence observations first
+    observations.sort((a, b) => b.confidence - a.confidence);
+
+    const result = {
       observerEvidenceRan: true,
       observerEvidenceVersion: this.version,
       observerEvidenceSource: "ari-observer-network",
@@ -75,8 +78,14 @@ window.Ari.observerNetwork = {
 
       source: "ari-observer-network"
     };
-  },
 
+   window.dispatchEvent(
+      new CustomEvent("ari:observation", {
+        detail: result
+      })
+    );
+    return result;
+  },
   scanLexicon(text, add) {
     Object.entries(this.lexicon).forEach(([group, config]) => {
       config.terms.forEach(term => {
