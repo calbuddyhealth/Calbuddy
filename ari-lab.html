@@ -148,6 +148,9 @@
   <script src="ari/integration/ari-salience-governor.js"></script>
   <script src="ari/integration/ari-synthesis-engine.js"></script>
 
+<!-- COMMUNICATION -->
+<script src="ari/language/ari-communication-planner.js"></script>
+
 <!-- ARI REBIRTH MOUTH -->
 <script src="ari/language/ari-human-language-engine.js"></script>
 <script src="ari/language/ari-mouth-director.js"></script>
@@ -538,6 +541,41 @@ ${summary.humanLanguageBannedPhrases?.join(", ") || "none"}
 
 Reasons:
 ${summary.humanLanguageReasons?.join("\\n") || "none"}
+
+==================================================
+
+===== COMMUNICATION PLANNER =====
+
+Planner Ran:
+${summary.communicationPlannerRan ? "yes" : "no"}
+
+Source:
+${summary.communicationPlannerSource || "none"}
+
+Human Move:
+${summary.communicationPlan?.humanMove || "none"}
+
+Opening Strategy:
+${summary.communicationPlan?.openingStrategy || "none"}
+
+Structure:
+${summary.communicationPlan?.structure || "none"}
+
+Priorities:
+${summary.communicationPlan?.priorities?.join(", ") || "none"}
+
+Should Use Headings:
+${summary.communicationPlan?.useHeadings === true
+  ? "yes"
+  : summary.communicationPlan?.useHeadings === false
+    ? "no"
+    : "none"}
+
+Target Style:
+${summary.communicationPlan?.targetStyle || "none"}
+
+Notes:
+${summary.communicationPlan?.notes?.join("\n") || "none"}
 
 ==================================================
 
