@@ -1,12 +1,12 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
-// Purpose: Structured thinking only. Composer owns final wording.
-// V5.0.0 — Universal Decision Reasoning
+// Purpose: Structured judgment only. Composer owns final wording.
+// V6.0.0 — Judgment Engine
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "5.0.0",
+  version: "6.0.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -24,18 +24,22 @@ window.AriReasoningEngine = {
 
     this.addRelevantFacts(reasoning, summary, observations);
     this.detectUniversalSignals(reasoning, summary);
+    this.extractDecisionFacts(reasoning, summary, primary);
     this.detectDecisionPattern(reasoning, summary, primary);
     this.addAssumptions(reasoning, summary, primary);
     this.buildPriorityStack(reasoning, summary, primary);
-    this.buildRejectedAlternatives(reasoning, summary, primary);
+    this.buildOptions(reasoning, summary, primary);
     this.addTradeoffs(reasoning, summary, primary);
     this.addCounterfactuals(reasoning, summary, primary);
     this.addLikelyOutcomes(reasoning, summary, primary);
+    this.buildRejectedAlternatives(reasoning, summary, primary);
     this.addSystemsView(reasoning, summary, primary);
     this.addValueConflicts(reasoning, summary, primary);
     this.addRegretLens(reasoning, summary, primary);
     this.buildKnownInferredUnknown(reasoning, summary, primary);
+    this.buildChangeConditions(reasoning, summary, primary);
     this.synthesizeRecommendation(reasoning, summary, primary);
+    this.buildCoreJudgment(reasoning, summary, primary);
     this.buildExecutiveConclusion(reasoning, summary, primary, contract);
     this.scoreConfidence(reasoning, summary, primary);
     this.finalize(reasoning);
@@ -67,10 +71,13 @@ window.AriReasoningEngine = {
       knownFacts: [],
       inferredFacts: [],
       unknowns: [],
+      changeConditions: [],
 
       relevantFacts: [],
       assumptions: [],
       missingInformation: [],
+
+      options: [],
       tradeoffs: [],
       counterfactuals: [],
       likelyOutcomes: [],
@@ -93,8 +100,11 @@ window.AriReasoningEngine = {
         shortTerm: null,
         longTerm: null,
         irreversibleLosses: [],
+        reversibleLosses: [],
         regretRisk: "unknown"
       },
+
+      coreJudgment: null,
 
       recommendation: {
         summary: null,
@@ -133,100 +143,74 @@ window.AriReasoningEngine = {
     };
   },
 
-  addRelevantFacts(reasoning, summary, observations = []) {
-    observations.forEach(obs => {
-      if (!obs?.value) return;
-
-      this.add(reasoning.relevantFacts, {
-        fact: String(obs.value),
-        evidence: obs.evidence || obs.value,
-        type: obs.type || "observation",
-        confidence: obs.confidence ?? null
-      });
-    });
-
-    if (summary.situationContract?.risk?.type === "medical") {
-      this.add(reasoning.relevantFacts, {
-        fact: "Medical or body context is present.",
-        evidence: "situation contract risk type",
-        type: "contract_context",
-        confidence: 0.9
-      });
-    }
-
-    if (summary.executiveGoal) {
-      this.add(reasoning.relevantFacts, {
-        fact: summary.executiveGoal,
-        evidence: "executive function",
-        type: "executive_goal",
-        confidence: 0.85
-      });
-    }
-  },
-
   detectUniversalSignals(reasoning, summary) {
     const text = this.getText(summary);
 
     reasoning.universalSignals = {
       householdStability: this.hasAny(text, [
         "wife", "husband", "spouse", "partner", "pregnant", "pregnancy",
-        "baby", "newborn", "induction", "hospitalized", "discharged",
-        "complications", "only income earner", "sole provider", "family"
+        "baby", "newborn", "induction", "family", "sole provider",
+        "only income earner", "household"
       ]),
 
-      medicalContext: this.hasAny(text, [
-        "pregnant", "pregnancy", "hospitalized", "discharged", "stable",
-        "doctor", "hospital", "complications", "induction", "medical"
+      newbornOrPregnancyTiming: this.hasAny(text, [
+        "pregnant", "pregnancy", "newborn", "baby", "induction",
+        "birth", "hospitalized", "complications", "37 weeks", "36 weeks"
+      ]),
+
+      higherPayOpportunity: this.hasAny(text, [
+        "higher paying job", "higher-paying job", "pays more", "pay more",
+        "more money", "higher salary", "raise", "promotion", "doubling",
+        "double my salary", "45% raise"
       ]),
 
       majorCareerOpportunity: this.hasAny(text, [
         "promotion", "director", "job offer", "offer", "new role",
-        "salary", "doubling", "double my salary", "contract",
-        "five year contract", "five-year contract", "relocate",
-        "relocating", "moving across the country", "move across the country"
+        "salary", "higher-paying job", "higher paying job", "raise",
+        "contract", "relocate", "relocating", "moving across the country"
+      ]),
+
+      familyTimeCost: this.hasAny(text, [
+        "less time with my wife", "less time with wife",
+        "less time with my newborn", "less time with newborn",
+        "spending much less time", "away from my family",
+        "away from wife", "away from newborn", "70-hour weeks",
+        "70 hour weeks"
       ]),
 
       majorDisruptionCost: this.hasAny(text, [
         "relocate", "relocating", "moving", "move across the country",
         "five year contract", "five-year contract", "within a month",
-        "within six weeks", "delay graduate school", "impossible if i relocate"
+        "within 30 days", "within six weeks", "impossible if i relocate"
       ]),
 
       dependentCare: this.hasAny(text, [
         "father", "mother", "parent", "dementia", "assisted living",
-        "lives alone", "appointments", "caregiver", "depends on me",
-        "stay independent"
+        "lives alone", "caregiver", "depends on me", "stay independent"
       ]),
 
       optionalFinancialRisk: this.hasAny(text, [
         "co-sign", "cosign", "loan", "lend", "borrow", "bankruptcy",
-        "savings", "business loan", "40,000", "$40,000"
+        "savings", "40,000", "$40,000", "25k", "$25k"
       ]),
 
       socialObligationConflict: this.hasAny(text, [
-        "wedding", "best man", "baby shower", "induction",
-        "no replacement", "friend"
+        "wedding", "best man", "baby shower", "friend", "no replacement"
       ]),
 
       professionalDuty: this.hasAny(text, [
         "current employer", "short-staffed", "short staffed", "coworkers",
-        "patients", "leaving would place", "additional strain"
+        "patients", "additional strain"
       ]),
 
       educationPath: this.hasAny(text, [
-        "graduate school", "accepted into graduate school", "school",
-        "degree", "program"
+        "graduate school", "accepted into graduate school", "degree", "program"
       ]),
 
       explicitNoAssumptionsRequest: this.hasAny(text, [
-        "without assuming facts", "distinguish between what you know",
+        "without assuming facts", "distinguish", "what we know",
         "what you're inferring", "what you’re inferring",
-        "uncertainty could change", "rejected the alternatives"
-      ]),
-
-      limitedCapacity: this.hasAny(text, [
-        "only one", "one or two", "can't do everything", "cannot do everything",
-        "limited", "no choice", "realistically", "only"
+        "what could change", "rejected the alternatives"
       ]),
 
       financialBuffer: this.hasAny(text, [
@@ -236,21 +220,62 @@ window.AriReasoningEngine = {
     };
   },
 
-  detectDecisionPattern(reasoning, summary, primary) {
+  extractDecisionFacts(reasoning, summary, primary) {
     if (primary !== "executive_decision") return;
-
     const s = reasoning.universalSignals || {};
 
-    if (
-      s.householdStability &&
-      s.majorCareerOpportunity &&
-      s.majorDisruptionCost
-    ) {
-      reasoning.decisionPattern = "high_opportunity_vs_family_stability";
+    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
+      this.add(reasoning.knownFacts, "The user is considering a higher-paying career opportunity.");
+    }
+
+    if (s.familyTimeCost) {
+      this.add(reasoning.knownFacts, "Accepting the opportunity would reduce time with wife/newborn or family.");
+    }
+
+    if (s.householdStability) {
+      this.add(reasoning.knownFacts, "Family stability and presence are part of the decision.");
+    }
+
+    if (s.majorDisruptionCost) {
+      this.add(reasoning.knownFacts, "The opportunity has a major disruption cost.");
+    }
+
+    if (s.dependentCare) {
+      this.add(reasoning.knownFacts, "A dependent parent or family-care issue is part of the decision.");
+    }
+
+    if (s.optionalFinancialRisk) {
+      this.add(reasoning.knownFacts, "There is a large optional financial request or risk.");
+    }
+
+    if (s.socialObligationConflict) {
+      this.add(reasoning.knownFacts, "There is a social obligation competing with family timing.");
+    }
+
+    if (s.educationPath) {
+      this.add(reasoning.knownFacts, "An education path may be affected by the decision.");
+    }
+
+    if (s.explicitNoAssumptionsRequest) {
+      this.add(reasoning.knownFacts, "The user asked to separate known facts, inferences, uncertainty, and rejected alternatives.");
+    }
+  },
+
+  detectDecisionPattern(reasoning, summary, primary) {
+    if (primary !== "executive_decision") return;
+    const s = reasoning.universalSignals || {};
+
+    if (s.householdStability && s.majorCareerOpportunity && (s.majorDisruptionCost || s.familyTimeCost)) {
+      reasoning.decisionPattern = "career_growth_vs_family_presence";
       return;
     }
 
-    if (s.limitedCapacity && (s.dependentCare || s.optionalFinancialRisk)) {
+    if (s.householdStability && (s.higherPayOpportunity || s.majorCareerOpportunity)) {
+      reasoning.decisionPattern = "money_vs_family_time";
+      return;
+    }
+
+    if (s.dependentCare || s.optionalFinancialRisk || s.socialObligationConflict) {
       reasoning.decisionPattern = "competing_obligations_under_limited_capacity";
       return;
     }
@@ -269,35 +294,27 @@ window.AriReasoningEngine = {
     if (primary === "executive_decision") {
       this.add(reasoning.assumptions, {
         assumption: "The user wants a recommendation, not just reflection.",
-        risk: "low"
+        confidence: 0.9,
+        risk: "low",
+        because: ["The prompt asks what to do."]
       });
     }
 
-    if (s.householdStability) {
+    if (s.householdStability || s.familyTimeCost) {
       this.add(reasoning.assumptions, {
-        assumption: "Household stability matters more than optional commitments.",
-        risk: "low"
+        assumption: "Family stability and presence matter heavily in this decision.",
+        confidence: 0.82,
+        risk: "low",
+        because: ["The user explicitly named wife/newborn or household consequences."]
       });
     }
 
-    if (s.majorCareerOpportunity) {
+    if (s.majorCareerOpportunity || s.higherPayOpportunity) {
       this.add(reasoning.assumptions, {
-        assumption: "The career opportunity has real upside, but its disruption cost must be weighed.",
-        risk: "medium"
-      });
-    }
-
-    if (s.dependentCare) {
-      this.add(reasoning.assumptions, {
-        assumption: "A dependent parent may need a support plan, but the exact care burden is unknown.",
-        risk: "medium"
-      });
-    }
-
-    if (s.financialBuffer) {
-      this.add(reasoning.assumptions, {
-        assumption: "Savings reduce immediate pressure, but do not remove future uncertainty.",
-        risk: "medium"
+        assumption: "The opportunity has real upside, but the upside must be weighed against disruption.",
+        confidence: 0.78,
+        risk: "medium",
+        because: ["The opportunity improves pay or career position."]
       });
     }
   },
@@ -306,101 +323,73 @@ window.AriReasoningEngine = {
     if (primary !== "executive_decision") return;
     const s = reasoning.universalSignals || {};
 
-    if (s.householdStability) {
+    if (s.householdStability || s.familyTimeCost) {
       this.add(reasoning.priorityStack, {
-        priority: "household_stability",
-        label: "wife, baby, and household stability",
-        reason: "it is time-sensitive, high-responsibility, and difficult to repair if destabilized"
-      });
-
-      this.add(reasoning.protectedObligations, {
-        obligation: "household_stability",
-        reason: "late pregnancy, newborn transition, and sole-provider status raise the cost of disruption"
+        priority: "family_presence_and_household_stability",
+        label: "wife, newborn, and household stability",
+        reason: "newborn/family presence is time-sensitive and harder to recover than many career options"
       });
     }
 
-    if (s.financialBuffer || s.majorCareerOpportunity) {
+    if (s.newbornOrPregnancyTiming) {
+      this.add(reasoning.protectedObligations, {
+        obligation: "newborn_or_pregnancy_timing",
+        reason: "birth, late pregnancy, and early newborn support are time-sensitive"
+      });
+    }
+
+    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
       this.add(reasoning.priorityStack, {
-        priority: "financial_security",
-        label: "household financial security",
-        reason: "income matters, but financial upside should not automatically outrank stability"
+        priority: "financial_and_career_growth",
+        label: "income and career growth",
+        reason: "money matters, especially if it is needed for household security"
       });
     }
 
     if (s.dependentCare) {
       this.add(reasoning.priorityStack, {
-        priority: "dependent_parent_care_plan",
-        label: "father care coverage",
-        reason: "the care need matters, but it may require a backup system rather than only your direct presence"
-      });
-    }
-
-    if (s.educationPath) {
-      this.add(reasoning.priorityStack, {
-        priority: "education_path",
-        label: "graduate school path",
-        reason: "it may be a long-term identity and career investment that becomes hard to recover if abandoned"
-      });
-    }
-
-    if (s.professionalDuty) {
-      this.add(reasoning.priorityStack, {
-        priority: "professional_duty",
-        label: "professional duty to coworkers and patients",
-        reason: "it matters ethically, but it should not outrank direct family responsibilities"
+        priority: "dependent_care_plan",
+        label: "dependent family care",
+        reason: "care needs matter, but they may need a support system rather than only direct sacrifice"
       });
     }
 
     if (s.optionalFinancialRisk) {
       this.add(reasoning.delayOrDecline, {
-        item: "optional_family_financial_risk",
-        recommendation: "Do not lend or co-sign large money right now unless your own household remains fully protected.",
-        reason: "optional financial rescue can transfer instability into your own household"
-      });
-    }
-
-    if (s.socialObligationConflict) {
-      this.add(reasoning.delayOrDecline, {
-        item: "social_obligation_conflict",
-        recommendation: "Choose the pregnancy or induction-related obligation over the wedding conflict.",
-        reason: "friend disappointment can be repaired more easily than missing a high-stakes family moment"
+        item: "large_optional_financial_risk",
+        recommendation: "Delay or decline large optional financial exposure.",
+        reason: "protecting the household comes before rescuing someone else financially"
       });
     }
   },
 
-  buildRejectedAlternatives(reasoning, summary, primary) {
+  buildOptions(reasoning, summary, primary) {
     if (primary !== "executive_decision") return;
     const s = reasoning.universalSignals || {};
 
-    if (s.majorCareerOpportunity) {
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Accept the role immediately",
-        rejectedBecause:
-          "the upside is real, but immediate relocation and a long contract could destabilize family support, dependent care, and graduate school."
+    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
+      this.add(reasoning.options, {
+        option: "Accept immediately",
+        pros: ["higher income", "career growth"],
+        cons: ["less family time", "possible disruption to household stability"],
+        reversibility: s.majorDisruptionCost ? "low" : "medium",
+        judgment: "weak unless the money is urgently needed or the role can protect family time"
       });
-    }
 
-    if (s.optionalFinancialRisk) {
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Lend or guarantee the large family money request",
-        rejectedBecause:
-          "it creates optional financial exposure while the household is entering a high-uncertainty baby season."
+      this.add(reasoning.options, {
+        option: "Reject immediately",
+        pros: ["protects family time", "reduces disruption"],
+        cons: ["may lose income/career upside"],
+        reversibility: "medium",
+        judgment: "reasonable if the role cannot be restructured, but premature if negotiation is possible"
       });
-    }
 
-    if (s.socialObligationConflict) {
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Prioritize the wedding role",
-        rejectedBecause:
-          "the social obligation matters, but it should not outrank an induction or immediate family event."
-      });
-    }
-
-    if (s.professionalDuty) {
-      this.add(reasoning.rejectedAlternatives, {
-        alternative: "Stay only because the current employer is short-staffed",
-        rejectedBecause:
-          "professional loyalty matters, but the hospital’s staffing burden cannot become the user’s highest family obligation."
+      this.add(reasoning.options, {
+        option: "Negotiate delay or structure",
+        pros: ["preserves the opportunity while protecting family stability"],
+        cons: ["employer may say no"],
+        reversibility: "high",
+        judgment: "best first move when both opportunity and family stability matter"
       });
     }
   },
@@ -409,12 +398,21 @@ window.AriReasoningEngine = {
     if (primary !== "executive_decision") return;
     const s = reasoning.universalSignals || {};
 
-    if (s.majorCareerOpportunity && s.householdStability) {
+    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
       this.add(reasoning.tradeoffs, {
-        name: "career_growth_vs_household_stability",
-        sideA: "major career and income growth",
-        sideB: "wife, baby, household stability, local support, and timing",
-        likelyWinner: "household_stability_unless_money_is_necessary"
+        name: "higher_pay_vs_family_presence",
+        sideA: "higher pay and career growth",
+        sideB: "time with wife, newborn, and family stability",
+        likelyWinner: "family_presence_unless_money_is_needed_for_security"
+      });
+    }
+
+    if (s.majorCareerOpportunity && s.majorDisruptionCost) {
+      this.add(reasoning.tradeoffs, {
+        name: "career_growth_vs_disruption",
+        sideA: "career advancement",
+        sideB: "timing, relocation, and life disruption",
+        likelyWinner: "delay_or_negotiate_first"
       });
     }
 
@@ -422,97 +420,88 @@ window.AriReasoningEngine = {
       this.add(reasoning.tradeoffs, {
         name: "helping_family_vs_household_risk",
         sideA: "helping a family member financially",
-        sideB: "protecting the household from large optional financial exposure",
+        sideB: "protecting household security",
         likelyWinner: "household_risk_protection"
-      });
-    }
-
-    if (s.professionalDuty) {
-      this.add(reasoning.tradeoffs, {
-        name: "professional_duty_vs_family_duty",
-        sideA: "protecting coworkers and patients from added strain",
-        sideB: "protecting direct family stability",
-        likelyWinner: "direct_family_duty"
       });
     }
   },
 
   addCounterfactuals(reasoning, summary, primary) {
     if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
 
-    if (s.majorCareerOpportunity) {
+    reasoning.options.forEach(option => {
       this.add(reasoning.counterfactuals, {
-        option: "Accept the new role immediately",
-        benefits: ["major income growth", "career advancement"],
-        costs: [
-          "relocation pressure",
-          "possible loss of local support",
-          "less stability around pregnancy or newborn transition",
-          "possible damage to graduate school path",
-          "more complexity around dependent parent care"
-        ],
-        bestWhen:
-          "the income is necessary for immediate household security or the role can be delayed or restructured"
+        option: option.option,
+        benefits: option.pros,
+        costs: option.cons,
+        reversibility: option.reversibility,
+        bestWhen: option.judgment
       });
-
-      this.add(reasoning.counterfactuals, {
-        option: "Decline or delay the new role",
-        benefits: [
-          "protects household stability",
-          "preserves local support",
-          "keeps graduate school possible",
-          "allows a clearer plan for father care"
-        ],
-        costs: ["lost income upside", "possible slower career advancement"],
-        bestWhen:
-          "current savings and income are enough to safely get through the baby transition"
-      });
-    }
+    });
   },
 
   addLikelyOutcomes(reasoning, summary, primary) {
     if (primary !== "executive_decision") return;
     const s = reasoning.universalSignals || {};
 
-    if (s.majorCareerOpportunity && s.majorDisruptionCost) {
+    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
       this.add(reasoning.likelyOutcomes, {
-        outcome:
-          "Taking the role immediately may improve money but create cascading instability across family, care, education, and support systems.",
+        outcome: "Accepting immediately may improve money while increasing regret or strain around family presence.",
+        probability: "medium_high"
+      });
+
+      this.add(reasoning.likelyOutcomes, {
+        outcome: "Negotiating structure first preserves optionality better than a simple yes or no.",
         probability: "medium_high"
       });
     }
+  },
 
-    if (s.financialBuffer) {
-      this.add(reasoning.likelyOutcomes, {
-        outcome:
-          "Having several months of savings makes delay or negotiation more realistic.",
-        probability: "medium"
+  buildRejectedAlternatives(reasoning, summary, primary) {
+    if (primary !== "executive_decision") return;
+    const s = reasoning.universalSignals || {};
+
+    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
+      this.add(reasoning.rejectedAlternatives, {
+        alternative: "Accept immediately",
+        rejectedBecause: "higher income does not automatically outrank time with wife/newborn unless the money is needed for immediate household security."
+      });
+
+      this.add(reasoning.rejectedAlternatives, {
+        alternative: "Reject immediately",
+        rejectedBecause: "the opportunity may still be worth negotiating if the schedule, start date, workload, or location can protect family time."
+      });
+    }
+
+    if (s.optionalFinancialRisk) {
+      this.add(reasoning.rejectedAlternatives, {
+        alternative: "Take on the large financial request",
+        rejectedBecause: "it adds optional financial risk while the household already has uncertainty."
+      });
+    }
+
+    if (s.socialObligationConflict) {
+      this.add(reasoning.rejectedAlternatives, {
+        alternative: "Prioritize the social obligation",
+        rejectedBecause: "friend disappointment is usually more repairable than missing a high-stakes family moment."
       });
     }
   },
 
   addSystemsView(reasoning, summary, primary) {
     if (primary !== "executive_decision") return;
-    const s = reasoning.universalSignals || {};
 
     reasoning.systemsView.upstream.push(
-      "Several people and institutions are placing demands on the same limited person."
+      "The decision is not only about one benefit; it affects the whole family system."
     );
 
     reasoning.systemsView.downstream.push(
-      "Trying to satisfy every demand risks failing the obligations with the highest cost of failure."
+      "Choosing the option with the biggest upside can still be wrong if it destabilizes the system that has the highest cost of failure."
     );
 
-    if (s.majorDisruptionCost) {
+    if (reasoning.universalSignals.familyTimeCost) {
       reasoning.systemsView.secondOrderEffects.push(
-        "Relocation could affect household support, newborn stability, dependent parent care, graduate school, and local relationships at the same time."
-      );
-    }
-
-    if (s.optionalFinancialRisk) {
-      reasoning.systemsView.secondOrderEffects.push(
-        "A large loan or gift could reduce the household's ability to absorb baby-related surprises."
+        "Less family time can create stress, resentment, or missed support during a time-sensitive life stage."
       );
     }
   },
@@ -521,23 +510,12 @@ window.AriReasoningEngine = {
     if (primary !== "executive_decision") return;
     const s = reasoning.universalSignals || {};
 
-    if (s.majorCareerOpportunity && s.householdStability) {
+    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && (s.householdStability || s.familyTimeCost)) {
       this.add(reasoning.valueConflicts, {
-        conflict: "growth_vs_stability",
-        valueA: "career and income growth",
-        valueB: "family stability and timing",
-        resolutionHint:
-          "growth should be pursued only if it does not destabilize the family system or if the income is truly necessary"
-      });
-    }
-
-    if (s.optionalFinancialRisk) {
-      this.add(reasoning.valueConflicts, {
-        conflict: "generosity_vs_boundary",
-        valueA: "helping family",
-        valueB: "protecting household security",
-        resolutionHint:
-          "generosity should not create preventable instability for spouse and child"
+        conflict: "growth_vs_presence",
+        valueA: "income and career growth",
+        valueB: "presence, stability, and family support",
+        resolutionHint: "pursue growth only in a structure that does not sacrifice the highest-cost family obligation"
       });
     }
   },
@@ -547,100 +525,105 @@ window.AriReasoningEngine = {
     const s = reasoning.universalSignals || {};
 
     reasoning.regretLens.shortTerm =
-      "Saying no or delaying decisions may create guilt and disappointment.";
+      "Delaying or negotiating may feel like risking a good opportunity.";
 
     reasoning.regretLens.longTerm =
-      "The bigger regret risk is accepting too much disruption at the exact moment household stability matters most.";
+      "The bigger regret risk is trading away hard-to-replace family presence for a benefit that may be negotiable or replaceable.";
 
-    if (s.householdStability) {
+    if (s.familyTimeCost || s.newbornOrPregnancyTiming) {
       reasoning.regretLens.irreversibleLosses.push(
-        "Pregnancy, birth, and early newborn support are time-sensitive."
+        "Early newborn time and family support windows are time-sensitive."
       );
     }
 
-    if (s.optionalFinancialRisk) {
-      reasoning.regretLens.irreversibleLosses.push(
-        "Large financial commitments can create long-term consequences."
+    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
+      reasoning.regretLens.reversibleLosses.push(
+        "Some career opportunities can be delayed, renegotiated, or replaced later."
       );
     }
 
-    reasoning.regretLens.regretRisk = "destabilizing_highest_priority_obligations";
+    reasoning.regretLens.regretRisk = "sacrificing_irreplaceable_presence_for_replaceable_gain";
   },
 
   buildKnownInferredUnknown(reasoning, summary, primary) {
+    if (primary !== "executive_decision") return;
     const s = reasoning.universalSignals || {};
 
+    if (s.familyTimeCost) {
+      this.add(reasoning.inferredFacts, "The real tradeoff is probably not just money versus comfort; it is money versus presence.");
+    }
+
     if (s.householdStability) {
-      this.add(reasoning.knownFacts, "Wife/baby/household stability is part of the decision.");
+      this.add(reasoning.inferredFacts, "Family stability likely carries more weight than optional or negotiable gains.");
     }
 
-    if (s.majorCareerOpportunity) {
-      this.add(reasoning.knownFacts, "There is a major career or income opportunity.");
+    if (s.higherPayOpportunity || s.majorCareerOpportunity) {
+      this.add(reasoning.unknowns, "Whether the increased income is necessary for immediate household security.");
+      this.add(reasoning.unknowns, "Whether the role can be delayed, phased, remote, or restructured.");
+      this.add(reasoning.unknowns, "Whether the workload would still allow meaningful family presence.");
     }
+  },
 
-    if (s.majorDisruptionCost) {
-      this.add(reasoning.knownFacts, "The opportunity carries a major timing or relocation cost.");
-    }
+  buildChangeConditions(reasoning, summary, primary) {
+    if (primary !== "executive_decision") return;
 
-    if (s.financialBuffer) {
-      this.add(reasoning.knownFacts, "There is some savings buffer.");
-    }
+    this.add(reasoning.changeConditions, "The recommendation changes if the higher income is necessary to keep the household safe or financially stable.");
+    this.add(reasoning.changeConditions, "The recommendation changes if the employer can protect family time through delayed start, reduced hours, remote work, or phased transition.");
+    this.add(reasoning.changeConditions, "The recommendation changes if the partner explicitly prefers the financial upside despite the time cost.");
 
-    if (s.dependentCare) {
-      this.add(reasoning.inferredFacts, "A parent care plan may be needed if the user relocates or becomes less available.");
-    }
-
-    if (s.professionalDuty) {
-      this.add(reasoning.inferredFacts, "Professional duty matters, but may not be the highest obligation.");
-    }
-
-    this.add(reasoning.unknowns, "Whether the increased income is necessary for immediate household security.");
-    this.add(reasoning.unknowns, "Whether the new role can be delayed, phased, remote, or renegotiated.");
-    this.add(reasoning.unknowns, "How much support the pregnant partner wants or needs right now.");
+    reasoning.unknowns.push(...reasoning.changeConditions);
   },
 
   synthesizeRecommendation(reasoning, summary, primary) {
+    if (primary !== "executive_decision") {
+      reasoning.recommendation.summary = "Answer the primary lane directly.";
+      return;
+    }
+
     const s = reasoning.universalSignals || {};
 
-    if (primary === "executive_decision") {
+    if ((s.higherPayOpportunity || s.majorCareerOpportunity) && s.familyTimeCost) {
       reasoning.recommendation.summary =
-        s.majorCareerOpportunity
-          ? "Do not accept the disruptive opportunity immediately; negotiate delay or structure first, protect household stability, avoid optional financial risk, and prioritize family medical/timing obligations over social and institutional pressure."
-          : "Protect the highest-cost obligation first, delay optional risks, and choose the next step that preserves stability.";
-
-      reasoning.recommendation.rationale = [
-        "The highest priority is the obligation with the greatest cost if it fails.",
-        "Household stability is harder to repair than disappointment from optional obligations.",
-        "Major career upside matters, but disruption timing matters too.",
-        "Optional financial risk should not be added during a high-uncertainty family period."
-      ];
+        "do not accept immediately; negotiate the role first, and only take it if the money is necessary or the structure still protects time with your wife and newborn.";
 
       reasoning.recommendation.alternatives = [
-        "Ask whether the role can be delayed, phased, remote, or reconsidered after the baby transition.",
-        "Create a concrete father-care backup plan before making any relocation decision.",
-        "Decline or reduce the large family money request unless it does not threaten household security.",
-        "Tell the friend early that the family medical/timing conflict has to come first."
+        "Ask for a delayed start, reduced hours, remote days, or a phased transition.",
+        "Calculate whether the higher income is necessary for immediate household security.",
+        "Discuss with your partner what level of absence is acceptable during the newborn period."
       ];
       return;
     }
 
-    reasoning.recommendation.summary = "Answer the primary lane directly.";
+    reasoning.recommendation.summary =
+      "protect the highest-cost obligation first, delay optional risks, and choose the next step that preserves stability.";
+
+    reasoning.recommendation.alternatives = [
+      "Ask whether the option can be delayed, phased, remote, or renegotiated."
+    ];
+  },
+
+  buildCoreJudgment(reasoning, summary, primary) {
+    if (primary !== "executive_decision") return;
+
+    reasoning.coreJudgment =
+      "Preserve the option if possible, but do not sacrifice the hardest-to-replace obligation unless the gain is necessary or the structure can protect it.";
   },
 
   buildExecutiveConclusion(reasoning, summary, primary, contract = {}) {
     const rec = reasoning.recommendation || {};
     const firstPriority = reasoning.priorityStack?.[0] || null;
     const firstTradeoff = reasoning.tradeoffs?.[0] || null;
-    const missing = reasoning.missingInformation?.[0] || reasoning.unknowns?.[0] || null;
     const nextStep = rec.alternatives?.[0] || null;
 
-    const conclusion = {
+    reasoning.executiveConclusion = {
       primary,
-      framing: null,
+      framing: reasoning.coreJudgment,
       recommendation: rec.summary || null,
-      keyReason: null,
-      keyTradeoff: null,
-      uncertainty: typeof missing === "string" ? missing : missing?.item || null,
+      keyReason: firstPriority
+        ? `${firstPriority.label} comes first because ${firstPriority.reason}.`
+        : null,
+      keyTradeoff: firstTradeoff || null,
+      uncertainty: reasoning.changeConditions?.[0] || reasoning.unknowns?.[0] || null,
       nextStep,
       mustInclude: [
         ...(contract.responseRules || []),
@@ -649,65 +632,32 @@ window.AriReasoningEngine = {
       mustAvoid: [...(contract.blocked || [])],
       obeysContract: true
     };
-
-    if (primary === "executive_decision") {
-      conclusion.framing =
-        "Separate the obligation that cannot safely fail from the ones that can be delayed, negotiated, or declined.";
-
-      if (firstPriority) {
-        conclusion.keyReason =
-          `${firstPriority.label || firstPriority.priority} matters first because ${firstPriority.reason}.`;
-      }
-
-      if (firstTradeoff) {
-        conclusion.keyTradeoff =
-          `${firstTradeoff.sideA} versus ${firstTradeoff.sideB}`;
-      }
-    }
-
-    reasoning.executiveConclusion = conclusion;
   },
 
   scoreConfidence(reasoning, summary, primary) {
-    let score = 60;
+    let score = 58;
 
-    if (reasoning.relevantFacts.length >= 3) {
-      score += 10;
-      reasoning.confidence.reasons.push("Multiple relevant facts are available.");
-    }
-
-    if (Object.values(reasoning.universalSignals || {}).some(Boolean)) {
-      score += 10;
-      reasoning.confidence.reasons.push("Universal decision signals were detected.");
-    }
-
-    if (reasoning.tradeoffs.length > 0) {
-      score += 8;
-      reasoning.confidence.reasons.push("A clear tradeoff was identified.");
-    }
-
-    if (reasoning.priorityStack.length > 0) {
-      score += 7;
-      reasoning.confidence.reasons.push("A priority stack was identified.");
-    }
-
-    if (reasoning.unknowns.length > 0) {
-      score -= 8;
-      reasoning.confidence.uncertaintyDrivers.push(
-        "Some decision-relevant information is unknown."
-      );
-    }
+    if (reasoning.knownFacts.length >= 2) score += 10;
+    if (reasoning.tradeoffs.length > 0) score += 10;
+    if (reasoning.options.length > 0) score += 8;
+    if (reasoning.rejectedAlternatives.length > 0) score += 8;
+    if (reasoning.priorityStack.length > 0) score += 7;
+    if (reasoning.changeConditions.length > 0) score += 4;
+    if (reasoning.unknowns.length > 0) score -= 5;
 
     reasoning.confidence.score = this.clamp(score, 0, 100);
     reasoning.confidence.level =
       reasoning.confidence.score >= 85 ? "high" :
       reasoning.confidence.score >= 65 ? "medium" :
       "low";
+
+    reasoning.confidence.reasons.push("Judgment was based on facts, tradeoffs, options, reversibility, and regret.");
   },
 
   finalize(reasoning) {
     reasoning.relevantFacts = this.uniqueObjects(reasoning.relevantFacts, "fact");
     reasoning.assumptions = this.uniqueObjects(reasoning.assumptions, "assumption");
+    reasoning.options = this.uniqueObjects(reasoning.options, "option");
     reasoning.tradeoffs = this.uniqueObjects(reasoning.tradeoffs, "name");
     reasoning.counterfactuals = this.uniqueObjects(reasoning.counterfactuals, "option");
     reasoning.likelyOutcomes = this.uniqueObjects(reasoning.likelyOutcomes, "outcome");
@@ -720,10 +670,24 @@ window.AriReasoningEngine = {
     reasoning.knownFacts = [...new Set(reasoning.knownFacts)];
     reasoning.inferredFacts = [...new Set(reasoning.inferredFacts)];
     reasoning.unknowns = [...new Set(reasoning.unknowns)];
+    reasoning.changeConditions = [...new Set(reasoning.changeConditions)];
 
     reasoning.answer = null;
     reasoning.obeyedContract = true;
     reasoning.contractViolations = [];
+  },
+
+  addRelevantFacts(reasoning, summary, observations = []) {
+    observations.forEach(obs => {
+      if (!obs?.value) return;
+
+      this.add(reasoning.relevantFacts, {
+        fact: String(obs.value),
+        evidence: obs.evidence || obs.value,
+        type: obs.type || "observation",
+        confidence: obs.confidence ?? null
+      });
+    });
   },
 
   getText(summary = {}) {
