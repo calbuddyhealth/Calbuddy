@@ -957,6 +957,27 @@ reasoningConfidence:
         action: mouthDirector.allowAction ?? analysis.mouthAllows?.action ?? null
       },
 
+
+// ==================================================
+// RESPONSE COMPRESSOR
+// ==================================================
+
+responseCompressorRan:
+  analysis.responseCompressorRan ??
+  null,
+
+responseCompressorVersion:
+  analysis.responseCompressorVersion ||
+  null,
+
+responseCompressorSource:
+  analysis.responseCompressorSource ||
+  "not-yet-run",
+
+compressedResponse:
+  analysis.compressedResponse ||
+  null,
+  
       // ==================================================
       // LEGACY / SUPPORT DEBUG FIELDS
       // ==================================================
