@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V7.1.0 — Communication-Plan-Aware Natural Composer
+// V7.2.0 — Communication-Plan-Aware Natural Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "7.1.0",
+  version: "7.2.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
@@ -33,19 +33,19 @@ window.AriLanguageComposer = {
         reasoning,
         conclusion,
         language,
-        mouth,
         communicationPlan
       });
     } else {
-      bodyParts = this.composeDefault({
-        summary,
-        communicationPlan
-      });
+      bodyParts = this.composeDefault({ summary });
     }
 
     bodyParts = this.cleanParts(bodyParts, language);
 
-    let finalResponse = bodyParts.join("\n\n");
+    let finalResponse = this.renderByPresentationStyle(
+      bodyParts,
+      communicationPlan
+    );
+
     finalResponse = this.finalPolish(finalResponse, language);
 
     return {
@@ -66,13 +66,10 @@ window.AriLanguageComposer = {
       composerDebug: {
         primary,
         communicationPlan,
-        responsePattern: mouth.responsePattern || null,
-        sectionOrder: mouth.sectionOrder || [],
-        humanLanguageTone: language.tone,
-        humanLanguageWarmth: language.warmth,
-        humanLanguageDirectness: language.directness,
-        mouthAuthority: mouth.mouthAuthority,
-        compressionDirective: mouth.compressionDirective || null,
+        presentationStyle: communicationPlan.presentationStyle || null,
+        useHeadings: communicationPlan.useHeadings ?? null,
+        sectionPlan: communicationPlan.sectionPlan || [],
+        sentenceRules: communicationPlan.sentenceRules || {},
         usedParts: bodyParts
       }
     };
@@ -83,22 +80,31 @@ window.AriLanguageComposer = {
     reasoning = {},
     conclusion = {},
     language = {},
-    mouth = {},
     communicationPlan = {}
   }) {
     const rec = reasoning.recommendation || {};
-    const preserve = communicationPlan.preserve || [];
+    const sectionPlan = communicationPlan.sectionPlan || [];
+    const sentenceRules = communicationPlan.sentenceRules || {};
+    const preserve = communicationPlan.preserve || sectionPlan || [];
     const required = communicationPlan.required || [];
     const userAsked = this.detectUserAsked(summary);
 
-    const known = reasoning.knownFacts || [];
-    const inferred = [
+    const maxBullets = sentenceRules.maxBulletsPerSection || 4;
+
+    const known = this.limitList(reasoning.knownFacts || [], maxBullets);
+
+    const inferred = this.limitList([
       ...(reasoning.inferredFacts || []),
       ...(reasoning.assumptions || [])
         .map(a => a.assumption)
         .filter(Boolean)
-    ];
-    const unknowns = reasoning.unknowns || [];
+    ], maxBullets);
+
+    const unknowns = this.limitList(
+      reasoning.unknowns || [],
+      Math.min(maxBullets, 3)
+    );
+
     const rejected = reasoning.rejectedAlternatives || [];
     const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
     const regret = reasoning.regretLens || {};
@@ -117,23 +123,26 @@ window.AriLanguageComposer = {
 
     const wantsKnownInferUnknown =
       userAsked.knownInferUnknown ||
+      preserve.includes("known") ||
       preserve.includes("known_facts") ||
+      preserve.includes("inferred") ||
       preserve.includes("inferences") ||
+      preserve.includes("could_change") ||
       preserve.includes("unknowns");
 
     if (wantsKnownInferUnknown) {
       const lines = [];
 
-      if (known.length && this.shouldInclude("known_facts", preserve, required, true)) {
-        lines.push(`What we know:\n${this.bullets(this.limitList(known, 4))}`);
+      if (known.length) {
+        lines.push(`What we know:\n${this.bullets(known)}`);
       }
 
-      if (inferred.length && this.shouldInclude("inferences", preserve, required, true)) {
-        lines.push(`What I’m inferring:\n${this.bullets(this.limitList(inferred, 4))}`);
+      if (inferred.length) {
+        lines.push(`What I’m inferring:\n${this.bullets(inferred)}`);
       }
 
-      if (unknowns.length && this.shouldInclude("unknowns", preserve, required, true)) {
-        lines.push(`What could change the answer:\n${this.bullets(this.limitList(unknowns, 3))}`);
+      if (unknowns.length) {
+        lines.push(`What could change the answer:\n${this.bullets(unknowns)}`);
       }
 
       if (lines.length) parts.push(lines.join("\n\n"));
@@ -143,14 +152,24 @@ window.AriLanguageComposer = {
 
     if (
       why &&
-      this.shouldIncludeAny(["key_reason", "key_tradeoff"], preserve, required, userAsked.why)
+      this.shouldIncludeAny(
+        ["reason", "key_reason", "tradeoff", "key_tradeoff"],
+        preserve,
+        required,
+        userAsked.why
+      )
     ) {
       parts.push(`Why:\n${why}`);
     }
 
     if (
       rejected.length &&
-      this.shouldInclude("rejected_alternatives", preserve, required, userAsked.rejectedAlternatives)
+      this.shouldInclude(
+        "rejected_alternatives",
+        preserve,
+        required,
+        userAsked.rejectedAlternatives
+      )
     ) {
       parts.push(
         `Why I’d reject the alternatives:\n${this.bullets(
@@ -158,7 +177,7 @@ window.AriLanguageComposer = {
             rejected.map(item =>
               `${item.alternative}: ${item.rejectedBecause}`
             ),
-            4
+            maxBullets
           )
         )}`
       );
@@ -172,7 +191,7 @@ window.AriLanguageComposer = {
     }
 
     if (
-      this.shouldInclude("brief_attunement", preserve, required, false) &&
+      communicationPlan.emotionalTouch === "brief" &&
       (language.validationLevel === "light" || language.warmth > 25) &&
       regret.shortTerm
     ) {
@@ -184,42 +203,51 @@ window.AriLanguageComposer = {
     return parts;
   },
 
+  renderByPresentationStyle(parts = [], communicationPlan = {}) {
+    const style = communicationPlan.presentationStyle || "structured";
+
+    if (style === "conversation") {
+      return parts.join(" ");
+    }
+
+    if (style === "mixed") {
+      return [
+        parts[0],
+        parts.slice(1).join("\n")
+      ].filter(Boolean).join("\n\n");
+    }
+
+    return parts.join("\n\n");
+  },
+
   buildNaturalWhy({ conclusion = {}, tradeoff = null, regret = {} }) {
     const lines = [];
 
-    if (conclusion.framing) {
-      lines.push(conclusion.framing);
-    }
-
-    if (conclusion.keyReason) {
-      lines.push(this.fixAwkwardGrammar(conclusion.keyReason));
-    }
+    if (conclusion.framing) lines.push(conclusion.framing);
+    if (conclusion.keyReason) lines.push(this.fixAwkwardGrammar(conclusion.keyReason));
 
     if (tradeoff) {
-      if (typeof tradeoff === "string") {
-        lines.push(`The main tradeoff is ${tradeoff}.`);
-      } else {
-        lines.push(`The main tradeoff is ${tradeoff.sideA} versus ${tradeoff.sideB}.`);
-      }
+      lines.push(
+        typeof tradeoff === "string"
+          ? `The main tradeoff is ${tradeoff}.`
+          : `The main tradeoff is ${tradeoff.sideA} versus ${tradeoff.sideB}.`
+      );
     }
 
-    if (regret.longTerm) {
-      lines.push(regret.longTerm);
-    }
+    if (regret.longTerm) lines.push(regret.longTerm);
 
     return lines.join(" ");
   },
 
-  composeDefault({ summary = {}, communicationPlan = {} }) {
-    const direct =
+  composeDefault({ summary = {} }) {
+    return [
       summary.directAnswer ||
       summary.teachingAnswer ||
       summary.builderAnswer ||
       summary.medicalAnswer ||
       summary.reasoningRecommendation ||
-      "Here’s the practical answer.";
-
-    return [direct];
+      "Here’s the practical answer."
+    ];
   },
 
   detectUserAsked(summary = {}) {
@@ -235,12 +263,11 @@ window.AriLanguageComposer = {
       knownInferUnknown:
         text.includes("what we know") ||
         text.includes("what you infer") ||
-        text.includes("what im inferring") ||
-        text.includes("what i m inferring") ||
-        text.includes("what could change"),
+        text.includes("what could change") ||
+        text.includes("distinguish") ||
+        text.includes("separate"),
 
       rejectedAlternatives:
-        text.includes("reject alternatives") ||
         text.includes("rejected alternatives") ||
         text.includes("why you rejected") ||
         text.includes("why id reject") ||
@@ -249,12 +276,7 @@ window.AriLanguageComposer = {
       why:
         text.includes("why") ||
         text.includes("explain") ||
-        text.includes("reason"),
-
-      concise:
-        text.includes("concise") ||
-        text.includes("short") ||
-        text.includes("brief")
+        text.includes("reason")
     };
   },
 
@@ -289,9 +311,7 @@ window.AriLanguageComposer = {
   cleanText(text, language = {}) {
     if (!text || typeof text !== "string") return null;
 
-    let cleaned = text.trim();
-
-    cleaned = cleaned
+    let cleaned = text.trim()
       .replace(/^let'?s organize this clearly\.?\s*/i, "")
       .replace(/^here'?s the practical answer\.?\s*/i, "")
       .replace(/^here'?s the practical move\.?\s*/i, "")
