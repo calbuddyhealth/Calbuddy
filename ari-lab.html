@@ -149,12 +149,12 @@
   <script src="ari/integration/ari-synthesis-engine.js"></script>
 
 <!-- COMMUNICATION -->
+<script src="ari/language/ari-lexical-grounding-engine.js"></script>
 <script src="ari/language/ari-communication-planner.js"></script>
 
 <!-- ARI REBIRTH MOUTH -->
 <script src="ari/language/ari-human-language-engine.js"></script>
 <script src="ari/language/ari-mouth-director.js"></script>
-<script src="ari/language/ari-lexical-grounding-engine.js"></script>
 <script src="ari/language/ari-response-compressor.js"></script>
 <script src="ari/language/ari-language-composer.js"></script>
 
@@ -577,6 +577,22 @@ ${summary.communicationPlan?.targetStyle || "none"}
 
 Notes:
 ${summary.communicationPlan?.notes?.join("\n") || "none"}
+
+==================================================
+
+===== LEXICAL GROUNDING =====
+
+Grounding Ran:
+${summary.lexicalGroundingRan ? "yes" : "no"}
+
+Source:
+${summary.lexicalGroundingSource || "none"}
+
+Preferred Terms:
+${JSON.stringify(summary.preferredTerms || {}, null, 2)}
+
+Concept Map:
+${JSON.stringify(summary.conceptMap || {}, null, 2)}
 
 ==================================================
 
