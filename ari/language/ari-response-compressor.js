@@ -1,11 +1,11 @@
 // ari/language/ari-response-compressor.js
 // Purpose: Compress final response without changing meaning or contract.
-// V1.2.0 — Sentence-aware contract compression
+// V1.3.0 — Selective compressor, composer-safe
 
 window.Ari = window.Ari || {};
 
 window.AriResponseCompressor = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   compress(input = {}) {
     const summary = input.summary || input || {};
@@ -21,7 +21,10 @@ window.AriResponseCompressor = {
     }
 
     if (directive.enabled === false) {
-      return this.result(text);
+      return this.result(text, {
+        responseCompressorSkipped: true,
+        responseCompressorSkipReason: "compression disabled by directive"
+      });
     }
 
     const primary =
@@ -29,6 +32,35 @@ window.AriResponseCompressor = {
       summary.situationContract?.primary ||
       summary.triagePrimaryLane ||
       "general_understanding";
+
+    // Do not undo smart composer wording.
+    if (summary.composerUsedLexicalGrounding) {
+      return this.result(text, {
+        responseCompressorSkipped: true,
+        responseCompressorSkipReason: "composer already applied lexical grounding"
+      });
+    }
+
+    // Do not compress safety/body/emotion unless explicitly allowed.
+    if (
+      primary === "safety" ||
+      primary === "medical_body" ||
+      primary === "emotion" ||
+      primary === "risk_clarification"
+    ) {
+      return this.result(text, {
+        responseCompressorSkipped: true,
+        responseCompressorSkipReason: "protected lane"
+      });
+    }
+
+    // If already short, leave it alone.
+    if (this.wordCount(text) <= 95 && this.sectionCount(text) <= 3) {
+      return this.result(text, {
+        responseCompressorSkipped: true,
+        responseCompressorSkipReason: "response already within budget"
+      });
+    }
 
     let compressed = text.trim();
 
@@ -38,6 +70,8 @@ window.AriResponseCompressor = {
 
     if (primary === "executive_decision") {
       compressed = this.compressExecutiveDecision(compressed, summary);
+    } else {
+      compressed = this.keepBestSentences(compressed, 5);
     }
 
     compressed = this.finalClean(compressed);
@@ -46,8 +80,13 @@ window.AriResponseCompressor = {
   },
 
   compressExecutiveDecision(text = "", summary = {}) {
+    // Important:
+    // Only rebuild from reasoning if composer did NOT already create grounded wording.
+    // This avoids reverting to abstract phrases like "time-sensitive financial goal."
+
     const reasoning = summary.reasoning || {};
     const conclusion = reasoning.executiveConclusion || {};
+
     const rec =
       conclusion.recommendation ||
       reasoning.recommendation?.summary ||
@@ -80,6 +119,8 @@ window.AriResponseCompressor = {
   cleanReason(reason = "") {
     return String(reason || "")
       .replace(/^the deciding factor is\s+/i, "")
+      .replace(/\bthe time-sensitive goal comes first because\s+/i, "")
+      .replace(/\bthe time sensitive goal comes first because\s+/i, "")
       .replace(/\s+/g, " ")
       .trim();
   },
@@ -99,7 +140,6 @@ window.AriResponseCompressor = {
 
       if (!key) return;
 
-      // remove near duplicate “comes first because…” repeats
       const simplified = key
         .replace(/the deciding factor is/g, "")
         .replace(/comes first because/g, "")
@@ -154,6 +194,21 @@ window.AriResponseCompressor = {
       .filter(Boolean);
   },
 
+  wordCount(text = "") {
+    return String(text || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .length;
+  },
+
+  sectionCount(text = "") {
+    return String(text || "")
+      .split(/\n{2,}/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .length;
+  },
+
   finalClean(text = "") {
     return String(text || "")
       .replace(/\s+\./g, ".")
@@ -163,13 +218,14 @@ window.AriResponseCompressor = {
       .trim();
   },
 
-  result(finalResponse = "") {
+  result(finalResponse = "", extra = {}) {
     return {
       responseCompressorRan: true,
       responseCompressorVersion: this.version,
       responseCompressorSource: "ari-response-compressor",
       compressedResponse: finalResponse,
-      finalResponse
+      finalResponse,
+      ...extra
     };
   },
 
@@ -187,3 +243,5 @@ window.AriResponseCompressor = {
       .trim();
   }
 };
+
+console.log("ARI RESPONSE COMPRESSOR LOADED:", window.AriResponseCompressor?.version);
