@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V7.4.0 — Budget-Obedient Composer
+// V7.5.0 — Budget + Lexical-Grounded Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "7.4.0",
+  version: "7.5.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -74,12 +74,15 @@ window.AriLanguageComposer = {
       source: "ari-language-composer",
 
       composerUsedCommunicationPlan: Boolean(communicationPlan),
+      composerUsedLexicalGrounding: Boolean(summary.preferredTerms),
       composerUsedAI: primary !== "executive_decision",
       composerAllowsCompression: true,
       compressionDirective: mouth.compressionDirective || null,
 
       composerDebug: {
         primary,
+        preferredTerms: summary.preferredTerms || {},
+        conceptMap: summary.conceptMap || {},
         communicationPlan,
         languageBudget: communicationPlan.languageBudget || null,
         informationBudget: communicationPlan.informationBudget || null,
@@ -107,23 +110,32 @@ window.AriLanguageComposer = {
       "next_step"
     ];
 
-    const recommendation =
+    const grounded = this.getGroundedTerms(summary);
+
+    const rawRecommendation =
       conclusion.recommendation ||
       rec.summary ||
       "protect the main priority first, then choose the option with the least unnecessary risk.";
 
-    const reason =
-      this.bestExecutiveReason({
-        summary,
-        reasoning,
-        conclusion
-      });
+    const recommendation = this.groundExecutiveRecommendation(
+      rawRecommendation,
+      grounded
+    );
 
-    const nextStep =
+    const reason = this.bestExecutiveReason({
+      summary,
+      reasoning,
+      conclusion,
+      grounded
+    });
+
+    const rawNextStep =
       conclusion.nextStep ||
       reasoning.caseModel?.nextAction ||
       rec.alternatives?.[0] ||
       null;
+
+    const nextStep = this.groundExecutiveNextStep(rawNextStep, grounded);
 
     const wantsSeparated = communicationPlan.wantsSeparatedReasoning;
     const parts = [];
@@ -133,7 +145,8 @@ window.AriLanguageComposer = {
         reasoning,
         conclusion,
         rec,
-        communicationPlan
+        communicationPlan,
+        grounded
       });
     }
 
@@ -163,29 +176,232 @@ window.AriLanguageComposer = {
     return parts;
   },
 
+  getGroundedTerms(summary = {}) {
+    const preferred = summary.preferredTerms || {};
+    const conceptMap = summary.conceptMap || {};
+
+    return {
+      primaryGoal:
+        preferred.primaryGoal ||
+        conceptMap.primary_goal?.phrase ||
+        conceptMap.time_sensitive_financial_goal?.phrase ||
+        "the main goal",
+
+      optionalPlan:
+        preferred.optionalPlan ||
+        conceptMap.optional_plan?.phrase ||
+        conceptMap.discretionary_activity?.phrase ||
+        "the optional plan",
+
+      deadline:
+        preferred.deadline ||
+        conceptMap.deadline?.phrase ||
+        "the deadline",
+
+      limitingResource:
+        preferred.limitingResource ||
+        conceptMap.limiting_resource?.phrase ||
+        "your budget",
+
+      centralTradeoff:
+        preferred.centralTradeoff ||
+        conceptMap.central_tradeoff?.phrase ||
+        null
+    };
+  },
+
+  groundExecutiveRecommendation(text = "", grounded = {}) {
+    const primary = this.cleanUserPhrase(grounded.primaryGoal);
+    const optional = this.cleanUserPhrase(grounded.optionalPlan);
+
+    const normalized = this.normalize(text);
+
+    if (
+      normalized.includes("time sensitive financial goal") ||
+      normalized.includes("financial goal") ||
+      normalized.includes("main priority") ||
+      normalized.includes("top priority")
+    ) {
+      if (primary && optional) {
+        return `protect ${primary} first, then resize ${optional} around what safely remains.`;
+      }
+
+      if (primary) {
+        return `protect ${primary} first, then use what remains for lower-priority options.`;
+      }
+    }
+
+    return this.replaceAbstractTerms(text, grounded);
+  },
+
+  groundExecutiveNextStep(text = "", grounded = {}) {
+    if (!text) return null;
+
+    const primary = this.cleanUserPhrase(grounded.primaryGoal);
+    const optional = this.cleanUserPhrase(grounded.optionalPlan);
+
+    const normalized = this.normalize(text);
+
+    if (
+      primary &&
+      optional &&
+      (
+        normalized.includes("calculate the required amount") ||
+        normalized.includes("cap the optional plan") ||
+        normalized.includes("time sensitive goal")
+      )
+    ) {
+      return `figure out the exact amount you need for ${primary}, set it aside, then plan ${optional} with the remaining money.`;
+    }
+
+    return this.replaceAbstractTerms(text, grounded);
+  },
+
+  replaceAbstractTerms(text = "", grounded = {}) {
+    let output = String(text || "");
+
+    const primary = this.cleanUserPhrase(grounded.primaryGoal);
+    const optional = this.cleanUserPhrase(grounded.optionalPlan);
+    const deadline = this.cleanUserPhrase(grounded.deadline);
+    const resource = this.cleanUserPhrase(grounded.limitingResource);
+
+    if (primary) {
+      output = output
+        .replace(/\bthe time-sensitive financial goal\b/gi, primary)
+        .replace(/\bthe time sensitive financial goal\b/gi, primary)
+        .replace(/\bthe time-sensitive goal\b/gi, primary)
+        .replace(/\bthe time sensitive goal\b/gi, primary)
+        .replace(/\bthe main goal\b/gi, primary)
+        .replace(/\bthe main priority\b/gi, primary)
+        .replace(/\bthe top priority\b/gi, primary);
+    }
+
+    if (optional) {
+      output = output
+        .replace(/\bthe optional plan\b/gi, optional)
+        .replace(/\bthe optional goal\b/gi, optional)
+        .replace(/\bthe discretionary activity\b/gi, optional)
+        .replace(/\boptional benefit\b/gi, optional);
+    }
+
+    if (deadline) {
+      output = output
+        .replace(/\bthe deadline\b/gi, deadline);
+    }
+
+    if (resource) {
+      output = output
+        .replace(/\bthe limiting resource\b/gi, resource);
+    }
+
+    return output;
+  },
+
+  bestExecutiveReason({ summary = {}, reasoning = {}, conclusion = {}, grounded = {} }) {
+    const text = this.normalize(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    );
+
+    const specific = this.specificReasonFromGrounding(text, grounded);
+    if (specific) return specific;
+
+    if (conclusion.keyReason) {
+      return this.replaceAbstractTerms(this.cleanReason(conclusion.keyReason), grounded);
+    }
+
+    if (reasoning.coreJudgment) {
+      return this.replaceAbstractTerms(this.cleanReason(reasoning.coreJudgment), grounded);
+    }
+
+    const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
+
+    if (tradeoff?.sideA && tradeoff?.sideB) {
+      const sideA = this.replaceAbstractTerms(tradeoff.sideA, grounded);
+      const sideB = this.replaceAbstractTerms(tradeoff.sideB, grounded);
+      return `${sideB} matters more right now than ${sideA}.`;
+    }
+
+    return null;
+  },
+
+  specificReasonFromGrounding(text = "", grounded = {}) {
+    const primary = this.cleanUserPhrase(grounded.primaryGoal);
+    const optional = this.cleanUserPhrase(grounded.optionalPlan);
+    const deadline = this.cleanUserPhrase(grounded.deadline);
+
+    if (primary && optional && deadline) {
+      return `${this.upperFirst(primary)} is tied to ${deadline}, while ${optional} can be adjusted.`;
+    }
+
+    if (primary && optional) {
+      return `${this.upperFirst(primary)} is the more important constraint, while ${optional} has more flexibility.`;
+    }
+
+    return null;
+  },
+
+  cleanUserPhrase(phrase = "") {
+    let text = String(phrase || "").trim();
+    if (!text) return "";
+
+    text = text
+      .replace(/^i\s+/i, "")
+      .replace(/^we\s+/i, "")
+      .replace(/^my\s+/i, "your ")
+      .replace(/^our\s+/i, "your ")
+      .replace(/^want to\s+/i, "")
+      .replace(/^would like to\s+/i, "")
+      .replace(/^planning to\s+/i, "")
+      .replace(/^plan to\s+/i, "")
+      .replace(/^hope to\s+/i, "")
+      .replace(/^need to\s+/i, "")
+      .replace(/^have to\s+/i, "")
+      .replace(/^must\s+/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return text;
+  },
+
   composeSeparatedExecutiveDecision({
     reasoning = {},
     conclusion = {},
     rec = {},
-    communicationPlan = {}
+    communicationPlan = {},
+    grounded = {}
   }) {
     const sentenceRules = communicationPlan.sentenceRules || {};
     const maxBullets = sentenceRules.maxBulletsPerSection || 3;
 
-    const known = this.limitList(reasoning.knownFacts || [], maxBullets);
-    const inferred = this.limitList(reasoning.inferredFacts || [], maxBullets);
-    const unknowns = this.limitList(reasoning.unknowns || [], maxBullets);
+    const known = this.limitList(reasoning.knownFacts || [], maxBullets)
+      .map(item => this.replaceAbstractTerms(item, grounded));
 
-    const recommendation =
+    const inferred = this.limitList(reasoning.inferredFacts || [], maxBullets)
+      .map(item => this.replaceAbstractTerms(item, grounded));
+
+    const unknowns = this.limitList(reasoning.unknowns || [], maxBullets)
+      .map(item => this.replaceAbstractTerms(item, grounded));
+
+    const rawRecommendation =
       conclusion.recommendation ||
       rec.summary ||
       "protect the main priority first.";
 
-    const nextStep =
+    const recommendation = this.groundExecutiveRecommendation(
+      rawRecommendation,
+      grounded
+    );
+
+    const rawNextStep =
       conclusion.nextStep ||
       reasoning.caseModel?.nextAction ||
       rec.alternatives?.[0] ||
       null;
+
+    const nextStep = this.groundExecutiveNextStep(rawNextStep, grounded);
 
     const parts = [
       `My recommendation: ${this.upperFirst(recommendation)}`
@@ -199,59 +415,12 @@ window.AriLanguageComposer = {
     return parts;
   },
 
-  bestExecutiveReason({ summary = {}, reasoning = {}, conclusion = {} }) {
-    const text = this.normalize(
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      ""
-    );
-
-    const specific = this.specificReasonFromUserText(text, reasoning);
-    if (specific) return specific;
-
-    if (conclusion.keyReason) {
-      return this.cleanReason(conclusion.keyReason);
-    }
-
-    if (reasoning.coreJudgment) {
-      return this.cleanReason(reasoning.coreJudgment);
-    }
-
-    const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
-
-    if (tradeoff?.sideA && tradeoff?.sideB) {
-      return `${tradeoff.sideB} matters more right now than ${tradeoff.sideA}.`;
-    }
-
-    return null;
-  },
-
-  specificReasonFromUserText(text = "", reasoning = {}) {
-    const hasCar = text.includes("car");
-    const hasVacation = text.includes("vacation") || text.includes("trip");
-    const hasNextMonth = text.includes("next month");
-    const hasBudget = text.includes("budget") || text.includes("save");
-
-    if (hasCar && hasVacation && (hasNextMonth || hasBudget)) {
-      return "The car goal has a near deadline, while the vacation can be resized.";
-    }
-
-    const model = reasoning.caseModel || {};
-    const priority = model.priorities?.[0];
-
-    if (priority?.label && priority?.reason) {
-      return `${priority.label} matters most because ${priority.reason}.`;
-    }
-
-    return null;
-  },
-
   cleanReason(reason = "") {
     return String(reason || "")
       .replace(/^the deciding factor is\s+/i, "")
       .replace(/^why:\s*/i, "")
       .replace(/\bthe time-sensitive goal comes first because\s+/i, "")
+      .replace(/\bthe time sensitive goal comes first because\s+/i, "")
       .replace(/\s+/g, " ")
       .trim();
   },
@@ -259,7 +428,6 @@ window.AriLanguageComposer = {
   applyCommunicationBudget(parts = [], communicationPlan = {}) {
     const budget = communicationPlan.languageBudget || {};
     const maxSections = budget.maxSections || communicationPlan.sentenceRules?.maxSections || parts.length;
-
     return parts.slice(0, maxSections);
   },
 
@@ -279,13 +447,8 @@ window.AriLanguageComposer = {
 
     let result = String(text || "").trim();
 
-    if (maxSentences) {
-      result = this.limitSentences(result, maxSentences);
-    }
-
-    if (maxWords) {
-      result = this.limitWords(result, maxWords);
-    }
+    if (maxSentences) result = this.limitSentences(result, maxSentences);
+    if (maxWords) result = this.limitWords(result, maxWords);
 
     return result.trim();
   },
@@ -366,6 +529,7 @@ window.AriLanguageComposer = {
     const mustDo = communicationPlan.mustDo || [];
     const budget = communicationPlan.languageBudget || {};
     const sentenceRules = communicationPlan.sentenceRules || {};
+    const preferredTerms = summary.preferredTerms || {};
 
     return `
 You are Ari.
@@ -386,6 +550,9 @@ LANGUAGE BUDGET:
 - Max sentences: ${sentenceRules.maxSentences || budget.maxSentences || 4}
 - Max words: ${sentenceRules.maxWords || budget.maxWords || 100}
 - Stop when answered: ${communicationPlan.stopRules?.stopWhenAnswered !== false}
+
+PREFERRED USER TERMS:
+${Object.keys(preferredTerms).length ? JSON.stringify(preferredTerms, null, 2) : "Use the user's own words when possible."}
 
 REQUIRED BEHAVIORS:
 ${required.length ? required.map(x => "- " + x).join("\n") : "- Answer directly."}
@@ -419,6 +586,7 @@ LANE RULES:
 - If mission is safety, be direct and protective.
 
 ABSOLUTE RULES:
+- Prefer the user's concrete terms over abstract labels.
 - Do not say "Answer the primary lane directly."
 - Do not output internal labels like Situation Contract, Lead Organ, Salience, Observer Hierarchy, or Mouth Director.
 - Do not explain the pipeline.
@@ -486,46 +654,6 @@ ABSOLUTE RULES:
     return parts.join("\n\n");
   },
 
-  detectUserAsked(summary = {}) {
-    const text = this.normalize(
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      summary.normalizedMessage ||
-      ""
-    );
-
-    return {
-      knownInferUnknown:
-        text.includes("what we know") ||
-        text.includes("what you infer") ||
-        text.includes("what could change") ||
-        text.includes("distinguish") ||
-        text.includes("separate"),
-
-      rejectedAlternatives:
-        text.includes("rejected alternatives") ||
-        text.includes("why you rejected") ||
-        text.includes("why id reject") ||
-        text.includes("why i d reject"),
-
-      why:
-        text.includes("why") ||
-        text.includes("explain") ||
-        text.includes("reason")
-    };
-  },
-
-  shouldInclude(key, preserve = [], required = [], fallback = false) {
-    if (required.includes(key)) return true;
-    if (preserve.includes(key)) return true;
-    return Boolean(fallback);
-  },
-
-  shouldIncludeAny(keys = [], preserve = [], required = [], fallback = false) {
-    return keys.some(key => this.shouldInclude(key, preserve, required, false)) || Boolean(fallback);
-  },
-
   bullets(items = []) {
     return items
       .filter(Boolean)
@@ -565,8 +693,6 @@ ABSOLUTE RULES:
 
   fixAwkwardGrammar(text = "") {
     return String(text || "")
-      .replace(/\bwife, baby, and household stability matters\b/gi, "wife, baby, and household stability matter")
-      .replace(/\bhousehold stability matters first because it is\b/gi, "household stability comes first because it is")
       .replace(/\s+\./g, ".")
       .replace(/\s+,/g, ",")
       .replace(/\n{3,}/g, "\n\n")
@@ -616,12 +742,6 @@ ABSOLUTE RULES:
     }
 
     return polished;
-  },
-
-  lowerFirst(value = "") {
-    const text = String(value || "").trim();
-    if (!text) return "";
-    return text.charAt(0).toLowerCase() + text.slice(1);
   },
 
   upperFirst(value = "") {
