@@ -464,8 +464,9 @@ if (
     ...summary,
     ...compressionResult,
     finalResponse:
-      compressionResult.finalResponse ||
-      summary.finalResponse
+  compressionResult.finalResponse ||
+  compressionResult.compressedResponse ||
+  summary.finalResponse
   };
 }
 
