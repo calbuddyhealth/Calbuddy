@@ -255,15 +255,20 @@ window.AriLanguageComposer = {
     if (priorityStack.length) {
       const first = priorityStack[0];
       lines.push(
-        `The first priority is ${this.humanizePriority(first.priority)} because ${this.lowerFirst(first.reason)}`
+        `The first priority is ${first.label || this.humanizePriority(first.priority)} because ${this.lowerFirst(first.reason)}.`
       );
     } else if (rec.summary) {
       lines.push(rec.summary);
     }
 
     if (delayOrDecline.length) {
-      lines.push(`What I would decline or delay: ${delayOrDecline.join(" ")}`);
-    }
+  lines.push(
+    `What I would decline or delay: ${delayOrDecline
+      .map(item => item.recommendation || item.item)
+      .filter(Boolean)
+      .join(" ")}`
+  );
+}
 
     if (counterfactuals.length) {
       const strongest = counterfactuals[0];
@@ -336,7 +341,7 @@ window.AriLanguageComposer = {
 
     if (primary === "executive_decision") {
       if (priorityStack.length) {
-        return `The decision starts with ${this.humanizePriority(priorityStack[0].priority)}.`;
+        return `The decision starts with ${priorityStack[0].label || this.humanizePriority(priorityStack[0].priority)}.`;
       }
 
       if (tradeoff?.sideA && tradeoff?.sideB) {
