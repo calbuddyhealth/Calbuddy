@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.1
+// V3.2
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.1.0",
+  version: "3.2.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -142,6 +142,11 @@ const humanLanguage =
   analysis.humanLanguage ||
   analysis.humanLanguageProfile ||
   analysis.languageProfile ||
+  {};
+  
+  const communicationPlan =
+  analysis.communicationPlan ||
+  analysis.communicationPlanner ||
   {};
   
     const stewardshipFear =
@@ -788,6 +793,107 @@ humanLanguageReasons:
   analysis.humanLanguageReasons ||
   humanLanguage.humanLanguageReasons ||
   humanLanguage.reasons ||
+  [],
+
+// ==================================================
+// COMMUNICATION PLANNER
+// ==================================================
+
+communicationPlan,
+
+communicationPlannerRan:
+  analysis.communicationPlannerRan ??
+  communicationPlan.communicationPlannerRan ??
+  null,
+
+communicationPlannerVersion:
+  analysis.communicationPlannerVersion ||
+  communicationPlan.communicationPlannerVersion ||
+  null,
+
+communicationPlannerSource:
+  analysis.communicationPlannerSource ||
+  communicationPlan.source ||
+  "not-yet-run",
+
+communicationPrimary:
+  analysis.communicationPrimary ||
+  communicationPlan.primary ||
+  null,
+
+communicationAnswerMode:
+  analysis.communicationAnswerMode ||
+  communicationPlan.answerMode ||
+  null,
+
+communicationHumanFeel:
+  analysis.communicationHumanFeel ||
+  communicationPlan.humanFeel ||
+  null,
+
+communicationReasoningStyle:
+  analysis.communicationReasoningStyle ||
+  communicationPlan.reasoningStyle ||
+  null,
+
+communicationStructureStyle:
+  analysis.communicationStructureStyle ||
+  communicationPlan.structureStyle ||
+  null,
+
+communicationPresentationStyle:
+  analysis.communicationPresentationStyle ||
+  communicationPlan.presentationStyle ||
+  null,
+
+communicationUseHeadings:
+  analysis.communicationUseHeadings ??
+  communicationPlan.useHeadings ??
+  null,
+
+communicationEmotionalTouch:
+  analysis.communicationEmotionalTouch ||
+  communicationPlan.emotionalTouch ||
+  null,
+
+communicationChallengeLevel:
+  analysis.communicationChallengeLevel ||
+  communicationPlan.challengeLevel ||
+  null,
+
+communicationEndingStyle:
+  analysis.communicationEndingStyle ||
+  communicationPlan.endingStyle ||
+  null,
+
+communicationWantsConcise:
+  analysis.communicationWantsConcise ??
+  communicationPlan.wantsConcise ??
+  null,
+
+communicationWantsSeparatedReasoning:
+  analysis.communicationWantsSeparatedReasoning ??
+  communicationPlan.wantsSeparatedReasoning ??
+  null,
+
+communicationSectionPlan:
+  analysis.communicationSectionPlan ||
+  communicationPlan.sectionPlan ||
+  [],
+
+communicationSentenceRules:
+  analysis.communicationSentenceRules ||
+  communicationPlan.sentenceRules ||
+  {},
+
+communicationAvoid:
+  analysis.communicationAvoid ||
+  communicationPlan.avoid ||
+  [],
+
+communicationMustDo:
+  analysis.communicationMustDo ||
+  communicationPlan.mustDo ||
   [],
 
 // ==================================================
