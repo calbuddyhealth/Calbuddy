@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V5.0.0 — Structured Reasoning Composer
+// V5.1.0 — Natural Response Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "5.0.0",
+  version: "5.1.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
@@ -22,11 +22,6 @@ window.AriLanguageComposer = {
       summary.triagePrimaryLane ||
       "general_understanding";
 
-    const responsePattern =
-      mouth.responsePattern ||
-      contract.responseShape ||
-      "standard";
-
     const sectionOrder =
       mouth.sectionOrder ||
       contract.mouthDirective?.order ||
@@ -39,31 +34,16 @@ window.AriLanguageComposer = {
       summary,
       contract,
       language,
-      mouth,
       reasoning,
-      primary,
-      responsePattern,
-      sectionOrder
+      primary
     });
 
     let bodyParts = this.orderParts(parts, sectionOrder, primary);
     bodyParts = this.cleanParts(bodyParts, language);
     bodyParts = bodyParts.slice(0, maxBodySections);
 
-    let opening = this.createOpening({
-      summary,
-      reasoning,
-      language,
-      primary
-    });
-
-    let closing = this.createClosing({
-      summary,
-      contract,
-      mouth,
-      language,
-      primary
-    });
+    let opening = this.createOpening({ summary, reasoning, language, primary });
+    let closing = this.createClosing({ summary, contract, mouth, language, primary });
 
     opening = this.cleanText(opening, language);
     closing = this.cleanText(closing, language);
@@ -91,7 +71,6 @@ window.AriLanguageComposer = {
 
       composerDebug: {
         primary,
-        responsePattern,
         sectionOrder,
         maxBodySections,
         humanLanguageTone: language.tone,
@@ -116,24 +95,15 @@ window.AriLanguageComposer = {
       parts.context_medical_context = this.medicalContextText(summary, language, primary);
     }
 
-    if (contract.deferred?.includes("life_chapter")) {
-      parts.defer_life_chapter = null;
-    }
-
-    if (contract.deferred?.includes("deep_emotion")) {
-      parts.defer_deep_emotion = null;
-    }
+    parts.defer_life_chapter = null;
+    parts.defer_deep_emotion = null;
 
     return parts;
   },
 
   primaryText(primary, summary, contract, language, reasoning = {}) {
     if (primary === "risk_clarification") {
-      return (
-        contract.clarity?.question ||
-        summary.followUpQuestion ||
-        "Are you safe right now?"
-      );
+      return contract.clarity?.question || summary.followUpQuestion || "Are you safe right now?";
     }
 
     if (primary === "executive_decision") {
@@ -141,29 +111,24 @@ window.AriLanguageComposer = {
         this.composeExecutiveDecision(summary, reasoning) ||
         summary.executiveAnswer ||
         summary.actionText ||
-        summary.reasoningAnswer ||
         "Separate what is urgent, what is important, and what can safely wait."
       );
     }
 
     if (primary === "builder") {
       return (
-        this.composeBuilder(summary, reasoning) ||
         summary.builderAnswer ||
         summary.codeAnswer ||
         summary.implementationAnswer ||
-        summary.reasoningAnswer ||
         "Start with the specific failing file, function, or error message."
       );
     }
 
     if (primary === "teacher") {
       return (
-        this.composeTeacher(summary, reasoning) ||
         summary.teachingAnswer ||
         summary.knowledgeAnswer ||
         summary.humanTruth ||
-        summary.reasoningAnswer ||
         "The simplest way to understand it is to start with the core idea."
       );
     }
@@ -171,121 +136,106 @@ window.AriLanguageComposer = {
     if (primary === "medical_body") {
       return (
         summary.medicalAnswer ||
-        summary.reasoningAnswer ||
         "If symptoms are severe, worsening, or involve red flags, get urgent care now."
       );
     }
 
     if (primary === "medical_context") {
       return (
-        this.composeMedicalContext(summary, reasoning) ||
         summary.medicalAnswer ||
-        summary.teachingAnswer ||
-        summary.reasoningAnswer ||
         "This sounds medically relevant, but not automatically an emergency based on what you described."
       );
     }
 
     if (primary === "safety") {
-      return (
-        summary.safetyAnswer ||
-        summary.reasoningAnswer ||
-        "If there is immediate danger, contact emergency services now."
-      );
+      return summary.safetyAnswer || "If there is immediate danger, contact emergency services now.";
     }
 
     if (primary === "emotion") {
-      return (
-        summary.emotionAnswer ||
-        summary.reasoningAnswer ||
-        "That sounds heavy."
-      );
+      return summary.emotionAnswer || "That sounds heavy.";
     }
 
     if (primary === "wisdom") {
-      return (
-        summary.wisdomAnswer ||
-        summary.wisdomText ||
-        summary.reasoningAnswer ||
-        "The wiser move is to name the tradeoff clearly before choosing."
-      );
+      return summary.wisdomAnswer || summary.wisdomText || "The wiser move is to name the tradeoff clearly before choosing.";
     }
 
     if (primary === "relationship") {
-      return (
-        summary.relationshipAnswer ||
-        summary.reasoningAnswer ||
-        "The relationship piece needs honesty without turning it into a fight."
-      );
+      return summary.relationshipAnswer || "The relationship piece needs honesty without turning it into a fight.";
     }
 
     if (primary === "family") {
-      return (
-        summary.familyAnswer ||
-        summary.reasoningAnswer ||
-        "The family priority needs to be protected before everything else gets loud."
-      );
+      return summary.familyAnswer || "The family priority needs to be protected before everything else gets loud.";
     }
 
     if (primary === "memory") {
-      return summary.memoryAnswer || summary.reasoningAnswer || "Got it.";
+      return summary.memoryAnswer || "Got it.";
     }
 
     return (
       summary.directAnswer ||
       summary.humanTruth ||
       summary.oneLineInsight ||
-      summary.reasoningAnswer ||
       "Here’s the practical answer."
     );
   },
 
   composeExecutiveDecision(summary, reasoning = {}) {
     const rec = reasoning.recommendation || {};
-    const priorityStack = reasoning.priorityStack || [];
+    const priorities = reasoning.priorityStack || [];
     const delayOrDecline = reasoning.delayOrDecline || [];
     const tradeoffs = reasoning.tradeoffs || [];
     const counterfactuals = reasoning.counterfactuals || [];
     const regret = reasoning.regretLens || {};
+    const missing = reasoning.missingInformation || [];
 
-    if (!rec.summary && !priorityStack.length && !tradeoffs.length) return null;
+    if (!rec.summary && !priorities.length && !tradeoffs.length) return null;
 
     const lines = [];
 
-    if (priorityStack.length) {
-      const first = priorityStack[0];
+    const first = priorities[0];
+    if (first) {
       lines.push(
-        `The first priority is ${first.label || this.humanizePriority(first.priority)} because ${this.lowerFirst(first.reason)}.`
+        `I’d anchor the decision around ${first.label || this.humanizePriority(first.priority)} first. ${this.capitalize(first.reason)}.`
       );
     } else if (rec.summary) {
       lines.push(rec.summary);
     }
 
     if (delayOrDecline.length) {
-  lines.push(
-    `What I would decline or delay: ${delayOrDecline
-      .map(item => item.recommendation || item.item)
-      .filter(Boolean)
-      .join(" ")}`
-  );
-}
+      const declineLines = delayOrDecline
+        .map(item => item.recommendation || item.item)
+        .filter(Boolean);
 
-    if (counterfactuals.length) {
-      const strongest = counterfactuals[0];
+      if (declineLines.length) {
+        lines.push(declineLines.join(" "));
+      }
+    }
+
+    const promotionOption = counterfactuals.find(item =>
+      this.normalize(item.option).includes("accept the promotion")
+    );
+
+    if (promotionOption) {
       lines.push(
-        `If you choose "${strongest.option}", the upside is ${this.joinList(strongest.benefits)}. The cost is ${this.joinList(strongest.costs)}.`
+        `For the promotion, I wouldn’t give an automatic yes. It has real upside — ${this.joinList(promotionOption.benefits)} — but the cost is also real: ${this.joinList(promotionOption.costs)}.`
       );
     }
 
-    if (tradeoffs.length) {
-      const tradeoff = tradeoffs[0];
+    const mainTradeoff = tradeoffs[0];
+    if (mainTradeoff) {
       lines.push(
-        `The central tradeoff is ${tradeoff.sideA} versus ${tradeoff.sideB}`
+        `The hard balance is between ${mainTradeoff.sideA} and ${mainTradeoff.sideB}.`
       );
     }
 
     if (rec.alternatives?.length) {
-      lines.push(`The practical next step is: ${rec.alternatives[0]}`);
+      lines.push(`A practical next move would be to ${this.lowerFirst(rec.alternatives[0])}`);
+    }
+
+    if (missing.length) {
+      lines.push(
+        `The one thing that could change the answer is ${this.lowerFirst(missing[0].item)}`
+      );
     }
 
     if (regret.longTerm) {
@@ -295,57 +245,30 @@ window.AriLanguageComposer = {
     return lines.filter(Boolean).join("\n\n");
   },
 
-  composeBuilder(summary, reasoning = {}) {
-    const rec = reasoning.recommendation || {};
-    if (rec.summary) return rec.summary;
-    return null;
-  },
-
-  composeTeacher(summary, reasoning = {}) {
-    const rec = reasoning.recommendation || {};
-    if (rec.summary) return rec.summary;
-    return null;
-  },
-
-  composeMedicalContext(summary, reasoning = {}) {
-    const rec = reasoning.recommendation || {};
-    if (rec.summary) return rec.summary;
-    return null;
-  },
-
   createOpening({ summary, reasoning = {}, language, primary }) {
     if (language.openingStyle === "no_opening") return "";
 
     const text = summary.normalizedMessage || "";
-    const priorityStack = reasoning.priorityStack || [];
+    const priorities = reasoning.priorityStack || [];
     const tradeoff = reasoning.tradeoffs?.[0];
 
     if (["risk_clarification", "memory", "builder", "teacher", "emotion"].includes(primary)) {
       return "";
     }
 
-    if (primary === "safety") {
-      return "The immediate priority is safety.";
-    }
-
-    if (primary === "medical_body") {
-      return "The body concern comes first here.";
-    }
+    if (primary === "safety") return "The immediate priority is safety.";
+    if (primary === "medical_body") return "The body concern comes first here.";
 
     if (primary === "medical_context") {
       if (text.includes("stable now") || text.includes("monitored") || text.includes("evaluated")) {
-        return "Based on what you described, the medical piece matters, but it does not need to hijack the whole decision.";
+        return "Based on what you described, the medical piece matters, but it does not need to take over the whole answer.";
       }
       return "Based on what you described, handle the medical piece calmly and practically.";
     }
 
     if (primary === "executive_decision") {
-      if (priorityStack.length) {
-        return `The decision starts with ${priorityStack[0].label || this.humanizePriority(priorityStack[0].priority)}.`;
-      }
-
-      if (tradeoff?.sideA && tradeoff?.sideB) {
-        return "The decision is really about which cost is harder to reverse.";
+      if (priorities.length || tradeoff) {
+        return "This gets clearer once you separate the obligation you cannot afford to fail from the ones you can delay, negotiate, or decline.";
       }
 
       return "The first step is deciding what cannot safely be postponed.";
@@ -368,22 +291,15 @@ window.AriLanguageComposer = {
 
   emotionText(summary, language) {
     if ((language.maxValidationSentences || 0) <= 0) return null;
-
-    return (
-      summary.briefEmotionText ||
-      summary.emotionText ||
-      "I get why that would feel heavy."
-    );
+    return summary.briefEmotionText || summary.emotionText || "I get why that would feel heavy.";
   },
 
   medicalContextText(summary, language, primary = null) {
-    if (primary !== "medical_context" && primary !== "medical_body") {
-      return null;
-    }
+    if (primary !== "medical_context" && primary !== "medical_body") return null;
 
     return (
       summary.medicalContextText ||
-      "Watch for red flags, and use medical support sooner rather than trying to tough it out."
+      "If new red flags show up or anything worsens, medical care moves back to the front."
     );
   },
 
@@ -450,10 +366,7 @@ window.AriLanguageComposer = {
   isBanned(text, language = {}) {
     const normalized = this.normalize(text);
     const banned = language.bannedPhrases || [];
-
-    return banned.some(phrase =>
-      normalized.includes(this.normalize(phrase))
-    );
+    return banned.some(phrase => normalized.includes(this.normalize(phrase)));
   },
 
   isSystemText(text = "") {
@@ -478,6 +391,7 @@ window.AriLanguageComposer = {
     let polished = response
       .replace(/\n{3,}/g, "\n\n")
       .replace(/[ \t]+$/gm, "")
+      .replace(/\s+\./g, ".")
       .trim();
 
     if (language.polish?.preferNaturalContractions) {
@@ -511,6 +425,12 @@ window.AriLanguageComposer = {
     const text = String(value || "").trim();
     if (!text) return "";
     return text.charAt(0).toLowerCase() + text.slice(1);
+  },
+
+  capitalize(value = "") {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    return text.charAt(0).toUpperCase() + text.slice(1);
   },
 
   joinList(items = []) {
