@@ -1,12 +1,12 @@
 // ari/language/ari-communication-planner.js
 // Ari Communication Planner
 // Purpose: Decide how Ari should sound like a human before final composition.
-// V1.0.0
+// V1.1.0
 
 window.Ari = window.Ari || {};
 
 window.AriCommunicationPlanner = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   plan(input = {}) {
     const summary = input.summary || input || {};
@@ -21,21 +21,35 @@ window.AriCommunicationPlanner = {
       "general_understanding";
 
     const userText = this.getText(summary);
+
     const wantsConcise = this.hasAny(userText, [
       "keep it concise",
+      "concise",
       "short",
       "brief",
       "quick",
-      "summarize"
+      "summarize",
+      "simple"
     ]);
 
     const wantsSeparatedReasoning = this.hasAny(userText, [
       "what we know",
       "what you infer",
+      "what i'm inferring",
       "what could change",
       "why you rejected",
-      "distinguish"
+      "distinguish",
+      "separate"
     ]);
+
+    const structureStyle =
+      this.structureStyle(primary, wantsConcise, wantsSeparatedReasoning);
+
+    const presentationStyle =
+      this.presentationStyle(primary, wantsConcise, wantsSeparatedReasoning);
+
+    const useHeadings =
+      this.useHeadings(primary, wantsSeparatedReasoning);
 
     const plan = {
       communicationPlannerRan: true,
@@ -47,7 +61,10 @@ window.AriCommunicationPlanner = {
       answerMode: this.answerMode(primary, wantsSeparatedReasoning),
       humanFeel: this.humanFeel(primary, language),
       reasoningStyle: this.reasoningStyle(primary, wantsSeparatedReasoning),
-      structureStyle: this.structureStyle(primary, wantsConcise, wantsSeparatedReasoning),
+      structureStyle,
+      presentationStyle,
+      useHeadings,
+
       emotionalTouch: this.emotionalTouch(primary, language),
       challengeLevel: this.challengeLevel(primary, language),
       endingStyle: this.endingStyle(primary),
@@ -87,7 +104,11 @@ window.AriCommunicationPlanner = {
       communicationPlan: plan,
       communicationPlannerRan: true,
       communicationPlannerVersion: this.version,
-      communicationPlannerSource: "ari-communication-planner"
+      communicationPlannerSource: "ari-communication-planner",
+
+      communicationPresentationStyle: presentationStyle,
+      communicationUseHeadings: useHeadings,
+      communicationStructureStyle: structureStyle
     };
   },
 
@@ -96,12 +117,15 @@ window.AriCommunicationPlanner = {
     if (primary === "risk_clarification") return "one_question_only";
     if (primary === "builder") return "steps_first";
     if (primary === "teacher") return "clear_explanation";
+
     if (primary === "executive_decision") {
       return wantsSeparatedReasoning
         ? "recommendation_then_evidence"
         : "direct_then_context";
     }
+
     if (primary === "emotion") return "attune_then_truth";
+
     return "direct_then_context";
   },
 
@@ -111,6 +135,7 @@ window.AriCommunicationPlanner = {
     if (primary === "builder") return "focused_practical";
     if (primary === "teacher") return "clear_patient";
     if (primary === "safety" || primary === "medical_body") return "calm_direct";
+
     return language.tone || "natural_direct";
   },
 
@@ -118,8 +143,10 @@ window.AriCommunicationPlanner = {
     if (primary === "executive_decision") {
       return wantsSeparatedReasoning ? "separated_but_plain" : "woven";
     }
+
     if (primary === "teacher") return "stepwise";
     if (primary === "builder") return "procedural";
+
     return "woven";
   },
 
@@ -128,13 +155,32 @@ window.AriCommunicationPlanner = {
     if (wantsConcise) return "tight_paragraphs";
     if (wantsSeparatedReasoning) return "light_labeled_sections";
     if (primary === "builder") return "steps";
+    if (primary === "safety" || primary === "medical_body") return "direct_action";
     return "light_sections";
+  },
+
+  presentationStyle(primary, wantsConcise, wantsSeparatedReasoning) {
+    if (primary === "risk_clarification") return "single_question";
+    if (primary === "builder") return "structured";
+    if (primary === "safety" || primary === "medical_body") return "structured";
+    if (wantsSeparatedReasoning) return "structured";
+    if (wantsConcise) return "mixed";
+    return "conversation";
+  },
+
+  useHeadings(primary, wantsSeparatedReasoning) {
+    if (primary === "risk_clarification") return false;
+    if (primary === "builder") return true;
+    if (primary === "safety" || primary === "medical_body") return true;
+    if (wantsSeparatedReasoning) return true;
+    return false;
   },
 
   emotionalTouch(primary, language = {}) {
     if (primary === "safety" || primary === "risk_clarification") return "none";
     if (primary === "executive_decision") return "brief";
     if (primary === "emotion") return "primary";
+
     return language.validationLevel === "none" ? "none" : "brief";
   },
 
@@ -142,6 +188,7 @@ window.AriCommunicationPlanner = {
     if (primary === "executive_decision") return "protective";
     if (primary === "builder") return "direct";
     if (primary === "emotion") return "gentle";
+
     return language.challenge > 50 ? "firm" : "light";
   },
 
@@ -150,10 +197,15 @@ window.AriCommunicationPlanner = {
     if (primary === "builder") return "next_action";
     if (primary === "executive_decision") return "next_step";
     if (primary === "emotion") return "grounding";
+
     return "clean_close";
   },
 
   sectionPlan({ primary, wantsConcise, wantsSeparatedReasoning, reasoning }) {
+    if (primary === "risk_clarification") {
+      return ["question"];
+    }
+
     if (primary === "executive_decision" && wantsSeparatedReasoning) {
       return [
         "recommendation",
