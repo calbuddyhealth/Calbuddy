@@ -897,6 +897,43 @@ communicationMustDo:
   [],
 
 // ==================================================
+// LEXICAL GROUNDING
+// ==================================================
+
+lexicalGrounding:
+  analysis.lexicalGrounding || {},
+
+lexicalGroundingRan:
+  analysis.lexicalGroundingRan ??
+  analysis.lexicalGrounding?.lexicalGroundingRan ??
+  null,
+
+lexicalGroundingVersion:
+  analysis.lexicalGroundingVersion ||
+  analysis.lexicalGrounding?.lexicalGroundingVersion ||
+  null,
+
+lexicalGroundingSource:
+  analysis.lexicalGroundingSource ||
+  analysis.lexicalGrounding?.source ||
+  "not-yet-run",
+
+userTerms:
+  analysis.userTerms ||
+  analysis.lexicalGrounding?.userTerms ||
+  [],
+
+conceptMap:
+  analysis.conceptMap ||
+  analysis.lexicalGrounding?.conceptMap ||
+  {},
+
+preferredTerms:
+  analysis.preferredTerms ||
+  analysis.lexicalGrounding?.preferredTerms ||
+  {},
+
+// ==================================================
 // REASONING ENGINE
 // ==================================================
 
