@@ -418,6 +418,32 @@ if (
 // Reassert after Communication Planner.
 summary = this.reassertContractAuthority(summary);
 
+// 11.95 LEXICAL GROUNDING
+if (
+  window.AriLexicalGroundingEngine &&
+  typeof window.AriLexicalGroundingEngine.ground === "function"
+) {
+  const lexicalGroundingResult =
+    window.AriLexicalGroundingEngine.ground(summary) || {};
+
+  summary = {
+    ...summary,
+    ...lexicalGroundingResult
+  };
+} else {
+  summary = {
+    ...summary,
+    lexicalGroundingRan: false,
+    lexicalGroundingSource: "not-loaded",
+    lexicalGrounding: null,
+    preferredTerms: {},
+    conceptMap: {}
+  };
+}
+
+// Reassert after Lexical Grounding.
+summary = this.reassertContractAuthority(summary);
+
     // 12 MOUTH DIRECTOR
     if (
       window.AriMouthDirector &&
