@@ -452,6 +452,23 @@ summary = this.reassertContractAuthority(summary);
     // 13 COMPOSE FINAL LANGUAGE
     await runStep(window.AriLanguageComposer, "compose");
 
+// 13.25 COMPRESS FINAL RESPONSE
+if (
+  window.AriResponseCompressor &&
+  typeof window.AriResponseCompressor.compress === "function"
+) {
+  const compressionResult =
+    window.AriResponseCompressor.compress(summary) || {};
+
+  summary = {
+    ...summary,
+    ...compressionResult,
+    finalResponse:
+      compressionResult.finalResponse ||
+      summary.finalResponse
+  };
+}
+
     // 13.5 SITUATION REVIEW CONSOLE — DIAGNOSTIC ONLY
     if (
       window.AriSituationReviewConsole &&
