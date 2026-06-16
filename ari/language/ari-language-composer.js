@@ -758,3 +758,5 @@ ABSOLUTE RULES:
       .trim();
   }
 };
+
+console.log("ARI LANGUAGE COMPOSER LOADED:", window.AriLanguageComposer?.version);
