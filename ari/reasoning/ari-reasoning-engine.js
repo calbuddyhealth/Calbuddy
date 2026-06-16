@@ -1,12 +1,12 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
 // Purpose: Structured thinking only. Composer owns final wording.
-// V4.0.0 — Structured Reasoning Only
+// V4.1.0 — Structured Reasoning + Executive Conclusion
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "4.0.0",
+  version: "4.1.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -32,6 +32,7 @@ window.AriReasoningEngine = {
     this.addValueConflicts(reasoning, summary, primary);
     this.addRegretLens(reasoning, summary, primary);
     this.synthesizeRecommendation(reasoning, summary, primary);
+    this.buildExecutiveConclusion(reasoning, summary, primary, contract);
     this.scoreConfidence(reasoning, summary, primary);
     this.finalize(reasoning);
 
@@ -93,6 +94,19 @@ window.AriReasoningEngine = {
         rationale: [],
         alternatives: []
       },
+
+executiveConclusion: {
+  primary: primary,
+  framing: null,
+  recommendation: null,
+  keyReason: null,
+  keyTradeoff: null,
+  uncertainty: null,
+  nextStep: null,
+  mustInclude: [],
+  mustAvoid: [],
+  obeysContract: true
+},
 
       confidence: {
         score: 0,
@@ -456,6 +470,55 @@ window.AriReasoningEngine = {
     reasoning.recommendation.summary =
       "Answer the primary lane directly.";
   },
+
+buildExecutiveConclusion(reasoning, summary, primary, contract = {}) {
+  const rec = reasoning.recommendation || {};
+  const firstPriority = reasoning.priorityStack?.[0] || null;
+  const firstTradeoff = reasoning.tradeoffs?.[0] || null;
+  const missing = reasoning.missingInformation?.[0] || null;
+  const nextStep = rec.alternatives?.[0] || null;
+
+  const conclusion = {
+    primary,
+    framing: null,
+    recommendation: rec.summary || null,
+    keyReason: null,
+    keyTradeoff: null,
+    uncertainty: missing?.item || null,
+    nextStep,
+    mustInclude: [],
+    mustAvoid: [],
+    obeysContract: true
+  };
+
+  if (primary === "executive_decision") {
+    conclusion.framing =
+      "Separate the obligation that cannot safely fail from the ones that can be delayed, negotiated, or declined.";
+
+    if (firstPriority) {
+      conclusion.keyReason =
+        `${firstPriority.label || firstPriority.priority} matters first because ${firstPriority.reason}.`;
+    }
+
+    if (firstTradeoff) {
+      conclusion.keyTradeoff =
+        `${firstTradeoff.sideA} versus ${firstTradeoff.sideB}`;
+    }
+  }
+
+  if (contract.responseRules?.length) {
+    conclusion.mustInclude = [
+  ...(contract.responseRules || []),
+  ...(contract.mouthDirective?.required || [])
+];
+  }
+
+  if (contract.blocked?.length) {
+    conclusion.mustAvoid = [...contract.blocked];
+  }
+
+  reasoning.executiveConclusion = conclusion;
+},
 
   scoreConfidence(reasoning, summary, primary) {
     let score = 60;
