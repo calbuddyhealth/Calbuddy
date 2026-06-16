@@ -316,13 +316,14 @@ if (
 // Reassert after Executive Function.
 summary = this.reassertContractAuthority(summary);
 
-// 11.35 REASONING ENGINE V2
+let reasoningResult = {};
+// 11.35 REASONING ENGINE
 if (
   window.AriReasoningEngine &&
   typeof window.AriReasoningEngine.create === "function"
 ) {
-  const reasoningResult =
-    window.AriReasoningEngine.create(summary) || {};
+reasoningResult =
+  window.AriReasoningEngine.create(summary) || {};
 
   summary = {
     ...summary,
@@ -491,9 +492,12 @@ summary = this.reassertContractAuthority(summary);
     console.log("===== SITUATION CONTRACT =====");
     console.log(summary.situationContract);
 
-console.log("===== REASONING ENGINE V2 =====");
+console.log(`===== REASONING ENGINE ${summary.reasoningEngineVersion || "UNKNOWN"} =====`);
 console.log(summary.reasoning);
-
+console.log("Loaded Reasoning Version:", window.AriReasoningEngine?.version);
+console.log("Reasoning Result Version:", reasoningResult.reasoningEngineVersion);
+console.log("Universal Signals:", reasoningResult.reasoning?.universalSignals);
+console.log("Executive Conclusion:", reasoningResult.reasoning?.executiveConclusion);
 console.log("===== HUMAN LANGUAGE ENGINE =====");
 console.log(summary.humanLanguageProfile);
 
