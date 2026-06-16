@@ -24,7 +24,17 @@ window.AriLanguageComposer = {
       "general_understanding";
 
     const maxBodySections =
-      Number(mouth.maxBodySections || language.maxBodySections || 6);
+  Number(mouth.maxBodySections || language.maxBodySections || 6);
+
+const responsePattern =
+  mouth.responsePattern ||
+  contract.responseShape ||
+  "standard";
+
+const sectionOrder =
+  mouth.sectionOrder ||
+  contract.mouthDirective?.order ||
+  [primary];
 
     let bodyParts = [];
 
@@ -54,18 +64,23 @@ window.AriLanguageComposer = {
       finalResponse,
 
       composerVersion: this.version,
-      source: "ari-language-composer",
+source: "ari-language-composer",
+
+compressionDirective: mouth.compressionDirective || null,
+composerAllowsCompression: true,
 
       composerDebug: {
-        primary,
-        maxBodySections,
-        usedExecutiveConclusion: Boolean(conclusion?.recommendation),
-        usedKnownFacts: reasoning.knownFacts || [],
-        usedUnknowns: reasoning.unknowns || [],
-        humanLanguageTone: language.tone,
-        humanLanguageWarmth: language.warmth,
-        humanLanguageDirectness: language.directness
-      }
+  primary,
+  responsePattern,
+  sectionOrder,
+  maxBodySections,
+  humanLanguageTone: language.tone,
+  humanLanguageWarmth: language.warmth,
+  humanLanguageDirectness: language.directness,
+  mouthAuthority: mouth.mouthAuthority,
+  compressionDirective: mouth.compressionDirective || null,
+  usedParts: bodyParts
+}
     };
   },
 
@@ -78,7 +93,10 @@ window.AriLanguageComposer = {
     ];
     const unknowns = reasoning.unknowns || [];
     const rejected = reasoning.rejectedAlternatives || [];
-    const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
+    const tradeoff =
+  conclusion.keyTradeoff ||
+  reasoning.tradeoffs?.[0] ||
+  null;
     const regret = reasoning.regretLens || {};
 
     const parts = [];
