@@ -1,24 +1,26 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V7.0.0 — Natural Reasoning Composer
+// V7.1.0 — Communication-Plan-Aware Natural Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "7.0.0",
+  version: "7.1.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
     const contract = summary.situationContract || {};
     const language = summary.humanLanguageProfile || {};
     const mouth = summary.mouthDirector || {};
+    const communicationPlan = summary.communicationPlan || {};
     const reasoning = summary.reasoning || {};
     const conclusion = reasoning.executiveConclusion || {};
 
     const primary =
       summary.situationContractPrimary ||
       contract.primary ||
+      communicationPlan.primary ||
       mouth.contractPrimary ||
       summary.triagePrimaryLane ||
       "general_understanding";
@@ -27,14 +29,18 @@ window.AriLanguageComposer = {
 
     if (primary === "executive_decision") {
       bodyParts = this.composeExecutiveDecision({
+        summary,
         reasoning,
         conclusion,
         language,
         mouth,
-        summary
+        communicationPlan
       });
     } else {
-      bodyParts = this.composeDefault(summary);
+      bodyParts = this.composeDefault({
+        summary,
+        communicationPlan
+      });
     }
 
     bodyParts = this.cleanParts(bodyParts, language);
@@ -53,11 +59,13 @@ window.AriLanguageComposer = {
       composerVersion: this.version,
       source: "ari-language-composer",
 
+      composerUsedCommunicationPlan: Boolean(communicationPlan),
       composerAllowsCompression: true,
       compressionDirective: mouth.compressionDirective || null,
 
       composerDebug: {
         primary,
+        communicationPlan,
         responsePattern: mouth.responsePattern || null,
         sectionOrder: mouth.sectionOrder || [],
         humanLanguageTone: language.tone,
@@ -70,8 +78,19 @@ window.AriLanguageComposer = {
     };
   },
 
-  composeExecutiveDecision({ reasoning = {}, conclusion = {}, language = {}, mouth = {}, summary = {} }) {
+  composeExecutiveDecision({
+    summary = {},
+    reasoning = {},
+    conclusion = {},
+    language = {},
+    mouth = {},
+    communicationPlan = {}
+  }) {
     const rec = reasoning.recommendation || {};
+    const preserve = communicationPlan.preserve || [];
+    const required = communicationPlan.required || [];
+    const userAsked = this.detectUserAsked(summary);
+
     const known = reasoning.knownFacts || [];
     const inferred = [
       ...(reasoning.inferredFacts || []),
@@ -85,48 +104,54 @@ window.AriLanguageComposer = {
     const regret = reasoning.regretLens || {};
     const nextStep = conclusion.nextStep || rec.alternatives?.[0] || null;
 
-    const parts = [];
-
     const recommendation =
       conclusion.recommendation ||
       rec.summary ||
       "protect the highest-cost obligation first and delay optional risks.";
 
-    parts.push(`My recommendation: ${this.lowerFirst(recommendation)}`);
+    const parts = [];
 
-    const knownTight = this.limitList(known, 4);
-    const inferredTight = this.limitList(inferred, 4);
-    const unknownTight = this.limitList(unknowns, 3);
-
-    if (knownTight.length || inferredTight.length || unknownTight.length) {
-      const lines = [];
-
-      if (knownTight.length) {
-        lines.push(`What we know:\n${this.bullets(knownTight)}`);
-      }
-
-      if (inferredTight.length) {
-        lines.push(`What I’m inferring:\n${this.bullets(inferredTight)}`);
-      }
-
-      if (unknownTight.length) {
-        lines.push(`What could change the answer:\n${this.bullets(unknownTight)}`);
-      }
-
-      parts.push(lines.join("\n\n"));
+    if (this.shouldInclude("recommendation", preserve, required, true)) {
+      parts.push(`My recommendation: ${this.lowerFirst(recommendation)}`);
     }
 
-    const why = this.buildNaturalWhy({
-      conclusion,
-      tradeoff,
-      regret
-    });
+    const wantsKnownInferUnknown =
+      userAsked.knownInferUnknown ||
+      preserve.includes("known_facts") ||
+      preserve.includes("inferences") ||
+      preserve.includes("unknowns");
 
-    if (why) {
+    if (wantsKnownInferUnknown) {
+      const lines = [];
+
+      if (known.length && this.shouldInclude("known_facts", preserve, required, true)) {
+        lines.push(`What we know:\n${this.bullets(this.limitList(known, 4))}`);
+      }
+
+      if (inferred.length && this.shouldInclude("inferences", preserve, required, true)) {
+        lines.push(`What I’m inferring:\n${this.bullets(this.limitList(inferred, 4))}`);
+      }
+
+      if (unknowns.length && this.shouldInclude("unknowns", preserve, required, true)) {
+        lines.push(`What could change the answer:\n${this.bullets(this.limitList(unknowns, 3))}`);
+      }
+
+      if (lines.length) parts.push(lines.join("\n\n"));
+    }
+
+    const why = this.buildNaturalWhy({ conclusion, tradeoff, regret });
+
+    if (
+      why &&
+      this.shouldIncludeAny(["key_reason", "key_tradeoff"], preserve, required, userAsked.why)
+    ) {
       parts.push(`Why:\n${why}`);
     }
 
-    if (rejected.length) {
+    if (
+      rejected.length &&
+      this.shouldInclude("rejected_alternatives", preserve, required, userAsked.rejectedAlternatives)
+    ) {
       parts.push(
         `Why I’d reject the alternatives:\n${this.bullets(
           this.limitList(
@@ -139,11 +164,15 @@ window.AriLanguageComposer = {
       );
     }
 
-    if (nextStep) {
+    if (
+      nextStep &&
+      this.shouldInclude("next_step", preserve, required, true)
+    ) {
       parts.push(`Next step: ${nextStep}`);
     }
 
     if (
+      this.shouldInclude("brief_attunement", preserve, required, false) &&
       (language.validationLevel === "light" || language.warmth > 25) &&
       regret.shortTerm
     ) {
@@ -181,15 +210,62 @@ window.AriLanguageComposer = {
     return lines.join(" ");
   },
 
-  composeDefault(summary = {}) {
-    return [
+  composeDefault({ summary = {}, communicationPlan = {} }) {
+    const direct =
       summary.directAnswer ||
       summary.teachingAnswer ||
       summary.builderAnswer ||
       summary.medicalAnswer ||
       summary.reasoningRecommendation ||
-      "Here’s the practical answer."
-    ];
+      "Here’s the practical answer.";
+
+    return [direct];
+  },
+
+  detectUserAsked(summary = {}) {
+    const text = this.normalize(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      summary.normalizedMessage ||
+      ""
+    );
+
+    return {
+      knownInferUnknown:
+        text.includes("what we know") ||
+        text.includes("what you infer") ||
+        text.includes("what im inferring") ||
+        text.includes("what i m inferring") ||
+        text.includes("what could change"),
+
+      rejectedAlternatives:
+        text.includes("reject alternatives") ||
+        text.includes("rejected alternatives") ||
+        text.includes("why you rejected") ||
+        text.includes("why id reject") ||
+        text.includes("why i d reject"),
+
+      why:
+        text.includes("why") ||
+        text.includes("explain") ||
+        text.includes("reason"),
+
+      concise:
+        text.includes("concise") ||
+        text.includes("short") ||
+        text.includes("brief")
+    };
+  },
+
+  shouldInclude(key, preserve = [], required = [], fallback = false) {
+    if (required.includes(key)) return true;
+    if (preserve.includes(key)) return true;
+    return Boolean(fallback);
+  },
+
+  shouldIncludeAny(keys = [], preserve = [], required = [], fallback = false) {
+    return keys.some(key => this.shouldInclude(key, preserve, required, false)) || Boolean(fallback);
   },
 
   bullets(items = []) {
@@ -235,8 +311,10 @@ window.AriLanguageComposer = {
     return String(text || "")
       .replace(/\bwife, baby, and household stability matters\b/gi, "wife, baby, and household stability matter")
       .replace(/\bhousehold stability matters first because it is\b/gi, "household stability comes first because it is")
-      .replace(/\s+/g, " ")
-      .replace(/\n /g, "\n")
+      .replace(/\s+\./g, ".")
+      .replace(/\s+,/g, ",")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]+$/gm, "")
       .trim();
   },
 
@@ -288,9 +366,9 @@ window.AriLanguageComposer = {
   },
 
   normalize(text = "") {
-    return String(text)
+    return String(text || "")
       .toLowerCase()
-      .replace(/[^\w\s]/g, "")
+      .replace(/[^\w\s]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }
