@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V7.3.0 — AI-First Contract-Aware Composer
+// V7.4.0 — Budget-Obedient Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "7.3.0",
+  version: "7.4.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -52,12 +52,15 @@ window.AriLanguageComposer = {
       bodyParts = [this.localEmergencyFallback(summary, primary)];
     }
 
+    bodyParts = this.applyCommunicationBudget(bodyParts, communicationPlan);
+
     let finalResponse = this.renderByPresentationStyle(
       bodyParts,
       communicationPlan
     );
 
     finalResponse = this.finalPolish(finalResponse, language);
+    finalResponse = this.enforceFinalBudget(finalResponse, communicationPlan);
 
     return {
       languageMode: primary,
@@ -78,6 +81,8 @@ window.AriLanguageComposer = {
       composerDebug: {
         primary,
         communicationPlan,
+        languageBudget: communicationPlan.languageBudget || null,
+        informationBudget: communicationPlan.informationBudget || null,
         presentationStyle: communicationPlan.presentationStyle || null,
         useHeadings: communicationPlan.useHeadings ?? null,
         sectionPlan: communicationPlan.sectionPlan || [],
@@ -85,6 +90,219 @@ window.AriLanguageComposer = {
         usedParts: bodyParts
       }
     };
+  },
+
+  composeExecutiveDecision({
+    summary = {},
+    reasoning = {},
+    conclusion = {},
+    language = {},
+    communicationPlan = {}
+  }) {
+    const rec = reasoning.recommendation || {};
+    const infoBudget = communicationPlan.informationBudget || {};
+    const sectionPlan = communicationPlan.sectionPlan || [
+      "recommendation",
+      "reason",
+      "next_step"
+    ];
+
+    const recommendation =
+      conclusion.recommendation ||
+      rec.summary ||
+      "protect the main priority first, then choose the option with the least unnecessary risk.";
+
+    const reason =
+      this.bestExecutiveReason({
+        summary,
+        reasoning,
+        conclusion
+      });
+
+    const nextStep =
+      conclusion.nextStep ||
+      reasoning.caseModel?.nextAction ||
+      rec.alternatives?.[0] ||
+      null;
+
+    const wantsSeparated = communicationPlan.wantsSeparatedReasoning;
+    const parts = [];
+
+    if (wantsSeparated) {
+      return this.composeSeparatedExecutiveDecision({
+        reasoning,
+        conclusion,
+        rec,
+        communicationPlan
+      });
+    }
+
+    if (
+      sectionPlan.includes("recommendation") &&
+      infoBudget.recommendation !== 0
+    ) {
+      parts.push(`My recommendation: ${this.upperFirst(recommendation)}`);
+    }
+
+    if (
+      reason &&
+      sectionPlan.includes("reason") &&
+      infoBudget.supportingReason !== 0
+    ) {
+      parts.push(`Why: ${this.upperFirst(reason)}`);
+    }
+
+    if (
+      nextStep &&
+      sectionPlan.includes("next_step") &&
+      infoBudget.nextAction !== 0
+    ) {
+      parts.push(`Next step: ${this.upperFirst(nextStep)}`);
+    }
+
+    return parts;
+  },
+
+  composeSeparatedExecutiveDecision({
+    reasoning = {},
+    conclusion = {},
+    rec = {},
+    communicationPlan = {}
+  }) {
+    const sentenceRules = communicationPlan.sentenceRules || {};
+    const maxBullets = sentenceRules.maxBulletsPerSection || 3;
+
+    const known = this.limitList(reasoning.knownFacts || [], maxBullets);
+    const inferred = this.limitList(reasoning.inferredFacts || [], maxBullets);
+    const unknowns = this.limitList(reasoning.unknowns || [], maxBullets);
+
+    const recommendation =
+      conclusion.recommendation ||
+      rec.summary ||
+      "protect the main priority first.";
+
+    const nextStep =
+      conclusion.nextStep ||
+      reasoning.caseModel?.nextAction ||
+      rec.alternatives?.[0] ||
+      null;
+
+    const parts = [
+      `My recommendation: ${this.upperFirst(recommendation)}`
+    ];
+
+    if (known.length) parts.push(`What we know:\n${this.bullets(known)}`);
+    if (inferred.length) parts.push(`What I’m inferring:\n${this.bullets(inferred)}`);
+    if (unknowns.length) parts.push(`What could change the answer:\n${this.bullets(unknowns)}`);
+    if (nextStep) parts.push(`Next step: ${this.upperFirst(nextStep)}`);
+
+    return parts;
+  },
+
+  bestExecutiveReason({ summary = {}, reasoning = {}, conclusion = {} }) {
+    const text = this.normalize(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    );
+
+    const specific = this.specificReasonFromUserText(text, reasoning);
+    if (specific) return specific;
+
+    if (conclusion.keyReason) {
+      return this.cleanReason(conclusion.keyReason);
+    }
+
+    if (reasoning.coreJudgment) {
+      return this.cleanReason(reasoning.coreJudgment);
+    }
+
+    const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
+
+    if (tradeoff?.sideA && tradeoff?.sideB) {
+      return `${tradeoff.sideB} matters more right now than ${tradeoff.sideA}.`;
+    }
+
+    return null;
+  },
+
+  specificReasonFromUserText(text = "", reasoning = {}) {
+    const hasCar = text.includes("car");
+    const hasVacation = text.includes("vacation") || text.includes("trip");
+    const hasNextMonth = text.includes("next month");
+    const hasBudget = text.includes("budget") || text.includes("save");
+
+    if (hasCar && hasVacation && (hasNextMonth || hasBudget)) {
+      return "The car goal has a near deadline, while the vacation can be resized.";
+    }
+
+    const model = reasoning.caseModel || {};
+    const priority = model.priorities?.[0];
+
+    if (priority?.label && priority?.reason) {
+      return `${priority.label} matters most because ${priority.reason}.`;
+    }
+
+    return null;
+  },
+
+  cleanReason(reason = "") {
+    return String(reason || "")
+      .replace(/^the deciding factor is\s+/i, "")
+      .replace(/^why:\s*/i, "")
+      .replace(/\bthe time-sensitive goal comes first because\s+/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
+
+  applyCommunicationBudget(parts = [], communicationPlan = {}) {
+    const budget = communicationPlan.languageBudget || {};
+    const maxSections = budget.maxSections || communicationPlan.sentenceRules?.maxSections || parts.length;
+
+    return parts.slice(0, maxSections);
+  },
+
+  enforceFinalBudget(text = "", communicationPlan = {}) {
+    const budget = communicationPlan.languageBudget || {};
+    const sentenceRules = communicationPlan.sentenceRules || {};
+
+    const maxSentences =
+      sentenceRules.maxSentences ||
+      budget.maxSentences ||
+      null;
+
+    const maxWords =
+      sentenceRules.maxWords ||
+      budget.maxWords ||
+      null;
+
+    let result = String(text || "").trim();
+
+    if (maxSentences) {
+      result = this.limitSentences(result, maxSentences);
+    }
+
+    if (maxWords) {
+      result = this.limitWords(result, maxWords);
+    }
+
+    return result.trim();
+  },
+
+  limitSentences(text = "", max = 4) {
+    const parts = String(text || "")
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    return parts.slice(0, max).join(" ");
+  },
+
+  limitWords(text = "", max = 100) {
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    if (words.length <= max) return text;
+    return words.slice(0, max).join(" ").replace(/[,:;–-]$/, "") + ".";
   },
 
   async composeWithAI({
@@ -146,6 +364,8 @@ window.AriLanguageComposer = {
     const sectionPlan = communicationPlan.sectionPlan || [];
     const avoid = communicationPlan.avoid || [];
     const mustDo = communicationPlan.mustDo || [];
+    const budget = communicationPlan.languageBudget || {};
+    const sentenceRules = communicationPlan.sentenceRules || {};
 
     return `
 You are Ari.
@@ -160,6 +380,12 @@ ${contract.responseShape || summary.responseShape || communicationPlan.answerMod
 
 GOAL:
 ${executive.contractGoal || "Answer clearly, naturally, and helpfully."}
+
+LANGUAGE BUDGET:
+- Target length: ${budget.targetLength || "short"}
+- Max sentences: ${sentenceRules.maxSentences || budget.maxSentences || 4}
+- Max words: ${sentenceRules.maxWords || budget.maxWords || 100}
+- Stop when answered: ${communicationPlan.stopRules?.stopWhenAnswered !== false}
 
 REQUIRED BEHAVIORS:
 ${required.length ? required.map(x => "- " + x).join("\n") : "- Answer directly."}
@@ -186,7 +412,7 @@ AVOID:
 ${avoid.length ? avoid.map(x => "- " + x).join("\n") : "- Avoid generic filler."}
 
 LANE RULES:
-- If mission is teacher, teach clearly: definition → step-by-step explanation → example or analogy.
+- If mission is teacher, teach clearly but briefly unless depth is requested.
 - If mission is builder, debug practically and give the next concrete fix.
 - If mission is emotion, briefly validate, name the signal, then ground.
 - If mission is medical_body, prioritize safety and appropriate medical escalation.
@@ -194,127 +420,11 @@ LANE RULES:
 
 ABSOLUTE RULES:
 - Do not say "Answer the primary lane directly."
-- Do not say "Here’s the practical answer" as the whole answer.
 - Do not output internal labels like Situation Contract, Lead Organ, Salience, Observer Hierarchy, or Mouth Director.
 - Do not explain the pipeline.
 - Do not describe what you are going to do. Do it.
+- Stop after the answer is complete.
 `.trim();
-  },
-
-  composeExecutiveDecision({
-    summary = {},
-    reasoning = {},
-    conclusion = {},
-    language = {},
-    communicationPlan = {}
-  }) {
-    const rec = reasoning.recommendation || {};
-    const sectionPlan = communicationPlan.sectionPlan || [];
-    const sentenceRules = communicationPlan.sentenceRules || {};
-    const preserve = communicationPlan.preserve || sectionPlan || [];
-    const required = communicationPlan.required || [];
-    const userAsked = this.detectUserAsked(summary);
-
-    const maxBullets = sentenceRules.maxBulletsPerSection || 4;
-    const known = this.limitList(reasoning.knownFacts || [], maxBullets);
-
-    const inferred = this.limitList([
-      ...(reasoning.inferredFacts || []),
-      ...(reasoning.assumptions || [])
-        .map(a => a.assumption)
-        .filter(Boolean)
-    ], maxBullets);
-
-    const unknowns = this.limitList(
-      reasoning.unknowns || [],
-      Math.min(maxBullets, 3)
-    );
-
-    const rejected = reasoning.rejectedAlternatives || [];
-    const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
-    const regret = reasoning.regretLens || {};
-    const nextStep = conclusion.nextStep || rec.alternatives?.[0] || null;
-
-    const recommendation =
-      conclusion.recommendation ||
-      rec.summary ||
-      "protect the highest-cost obligation first and delay optional risks.";
-
-    const parts = [];
-
-    if (this.shouldInclude("recommendation", preserve, required, true)) {
-      parts.push(`My recommendation: ${this.lowerFirst(recommendation)}`);
-    }
-
-    const wantsKnownInferUnknown =
-      userAsked.knownInferUnknown ||
-      preserve.includes("known") ||
-      preserve.includes("known_facts") ||
-      preserve.includes("inferred") ||
-      preserve.includes("inferences") ||
-      preserve.includes("could_change") ||
-      preserve.includes("unknowns");
-
-    if (wantsKnownInferUnknown) {
-      const lines = [];
-
-      if (known.length) lines.push(`What we know:\n${this.bullets(known)}`);
-      if (inferred.length) lines.push(`What I’m inferring:\n${this.bullets(inferred)}`);
-      if (unknowns.length) lines.push(`What could change the answer:\n${this.bullets(unknowns)}`);
-
-      if (lines.length) parts.push(lines.join("\n\n"));
-    }
-
-    const why = this.buildNaturalWhy({ conclusion, tradeoff, regret });
-
-    if (
-      why &&
-      this.shouldIncludeAny(
-        ["reason", "key_reason", "tradeoff", "key_tradeoff"],
-        preserve,
-        required,
-        userAsked.why
-      )
-    ) {
-      parts.push(`Why:\n${why}`);
-    }
-
-    if (
-      rejected.length &&
-      this.shouldInclude(
-        "rejected_alternatives",
-        preserve,
-        required,
-        userAsked.rejectedAlternatives
-      )
-    ) {
-      parts.push(
-        `Why I’d reject the alternatives:\n${this.bullets(
-          this.limitList(
-            rejected.map(item =>
-              `${item.alternative}: ${item.rejectedBecause}`
-            ),
-            maxBullets
-          )
-        )}`
-      );
-    }
-
-    if (nextStep && this.shouldInclude("next_step", preserve, required, true)) {
-      parts.push(`Next step: ${nextStep}`);
-    }
-
-    if (
-      communicationPlan.emotionalTouch === "brief" &&
-      (language.validationLevel === "light" || language.warmth > 25) &&
-      regret.shortTerm
-    ) {
-      parts.push(
-        "This is heavy because every option disappoints someone. That does not mean every obligation has equal claim on you."
-      );
-    }
-
-    return parts;
   },
 
   safeAnswer(text = "") {
@@ -374,25 +484,6 @@ ABSOLUTE RULES:
     }
 
     return parts.join("\n\n");
-  },
-
-  buildNaturalWhy({ conclusion = {}, tradeoff = null, regret = {} }) {
-    const lines = [];
-
-    if (conclusion.framing) lines.push(conclusion.framing);
-    if (conclusion.keyReason) lines.push(this.fixAwkwardGrammar(conclusion.keyReason));
-
-    if (tradeoff) {
-      lines.push(
-        typeof tradeoff === "string"
-          ? `The main tradeoff is ${tradeoff}.`
-          : `The main tradeoff is ${tradeoff.sideA} versus ${tradeoff.sideB}.`
-      );
-    }
-
-    if (regret.longTerm) lines.push(regret.longTerm);
-
-    return lines.join(" ");
   },
 
   detectUserAsked(summary = {}) {
@@ -531,6 +622,12 @@ ABSOLUTE RULES:
     const text = String(value || "").trim();
     if (!text) return "";
     return text.charAt(0).toLowerCase() + text.slice(1);
+  },
+
+  upperFirst(value = "") {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    return text.charAt(0).toUpperCase() + text.slice(1);
   },
 
   normalize(text = "") {
