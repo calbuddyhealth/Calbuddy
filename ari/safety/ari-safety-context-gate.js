@@ -221,76 +221,164 @@ window.AriSafetyContextGate = {
   },
 
   getContext(text, observations = []) {
-    const has = terms => terms.some(term => this.hasPhrase(text, term));
+  const has = terms => terms.some(term => this.hasPhrase(text, term));
 
-    return {
-      historical: has([
-        "yesterday",
-        "last week",
-        "last month",
-        "two weeks ago",
-        "years ago",
-        "last year",
-        "history of",
-        "used to"
-      ]),
+  return {
+    historical: has([
+      "yesterday",
+      "last week",
+      "last month",
+      "two weeks ago",
+      "years ago",
+      "last year",
+      "history of",
+      "used to",
+      "was admitted",
+      "was monitored",
+      "was evaluated",
+      "after decreased fetal movement",
+      "after monitoring",
+      "committed suicide",
+"died by suicide",
+"attempted suicide",
+"suicide attempt",
+"went to the hospital",
+"was hospitalized",
+"was taken to the hospital"
+    ]),
 
-      current: has([
-        "now",
-        "right now",
-        "currently",
-        "today",
-        "tonight",
-        "this morning",
-        "this afternoon",
-        "happening now",
-        "having",
-        "has been having"
-      ]),
+    stabilizedOrResolved: has([
+      "stable now",
+      "she's stable now",
+      "he's stable now",
+      "im stable now",
+      "i'm stable now",
+      "already evaluated",
+      "already checked",
+      "already seen",
+      "already admitted",
+      "already monitored",
+      "being monitored",
+      "was monitored",
+      "was admitted",
+      "was evaluated",
+      "doctor said",
+      "doctor says",
+      "cleared",
+      "discharged",
+      "resolved",
+      "improving",
+      "better now",
+      "no longer happening",
+      "not happening anymore",
+      "symptoms stopped",
+      "they said she is okay",
+      "they said she's okay",
+      "they said he is okay",
+      "they said he's okay",
+      "went to the hospital",
+"was hospitalized",
+"was taken to the hospital",
+"got help",
+"got treatment",
+"is safe now",
+"safe now",
+"they are safe now",
+"he is safe now",
+"she is safe now"
+    ]),
 
-      future: has([
-        "tomorrow",
-        "next week",
-        "next month",
-        "soon",
-        "planning to",
-        "going to"
-      ]),
+    unresolvedOrWorsening: has([
+      "right now",
+      "currently",
+      "still happening",
+      "still having",
+      "getting worse",
+      "worsening",
+      "rapidly worsening",
+      "not improving",
+      "hasn't stopped",
+      "has not stopped",
+      "won't stop",
+      "cant stop",
+      "can't stop",
+      "no doctor yet",
+      "haven't been seen",
+      "have not been seen",
+      "not evaluated",
+      "not checked",
+      "refuses care",
+      "might do it again",
+"will do it again",
+"talking about doing it again",
+"has a plan",
+"has access to",
+"has a weapon",
+"won't answer",
+"missing",
+"can't reach him",
+"can't reach her",
+"not safe now",
+"is not safe now",
+"unsafe now"
+    ]),
 
-      self: /\b(i|me|my|myself)\b/.test(text),
+    current: has([
+      "now",
+      "right now",
+      "currently",
+      "today",
+      "tonight",
+      "this morning",
+      "this afternoon",
+      "happening now",
+      "having",
+      "has been having"
+    ]),
 
-      closeOther: /\b(my wife|my husband|my partner|my girlfriend|my boyfriend|my fiancé|my fiance|my dad|my mom|my child|my baby|my son|my daughter)\b/.test(text),
+    future: has([
+      "tomorrow",
+      "next week",
+      "next month",
+      "soon",
+      "planning to",
+      "going to"
+    ]),
 
-      fictionalOrReference: has([
-        "suicide squad",
-        "suicide boys",
-        "$uicideboy$",
-        "song",
-        "movie",
-        "band",
-        "album",
-        "character",
-        "book",
-        "quote",
-        "lyrics",
-        "game"
-      ]),
+    self: /\b(i|me|my|myself)\b/.test(text),
 
-      educational:
-        /^(what is|what are|who is|explain|define|have you heard|do you know|is .* about)\b/.test(text),
+    closeOther: /\b(my wife|my husband|my partner|my girlfriend|my boyfriend|my fiancé|my fiance|my dad|my mom|my child|my baby|my son|my daughter)\b/.test(text),
 
-      worryOrDecision: has([
-        "worried",
-        "concerned",
-        "should i",
-        "what should",
-        "do i need",
-        "is this serious"
-      ]),
+    fictionalOrReference: has([
+      "suicide squad",
+      "suicide boys",
+      "$uicideboy$",
+      "song",
+      "movie",
+      "band",
+      "album",
+      "character",
+      "book",
+      "quote",
+      "lyrics",
+      "game"
+    ]),
 
-      observations
-    };
-  },
+    educational:
+      /^(what is|what are|who is|explain|define|have you heard|do you know|is .* about)\b/.test(text),
+
+    worryOrDecision: has([
+      "worried",
+      "concerned",
+      "should i",
+      "what should",
+      "do i need",
+      "is this serious"
+    ]),
+
+    observations
+  };
+},
 
   scoreRisk(text, context, signals) {
     let score = 0;
@@ -318,7 +406,17 @@ window.AriSafetyContextGate = {
       reasons.push("Past-time language suggests context rather than active emergency.");
     }
 
-    if (context.current || context.closeOther || context.self) confidence += 15;
+if (context.stabilizedOrResolved && !context.unresolvedOrWorsening) {
+  score -= 60;
+  confidence += 20;
+  reasons.push(
+    "High-risk language appears medically evaluated, stabilized, resolved, or already under care."
+  );
+}
+
+    if ((context.current && !context.stabilizedOrResolved) || context.closeOther || context.self) {
+  confidence += 15;
+}
 
     if (signals.selfHarmIntent.present) {
       add(100, "safety", signals.selfHarmIntent.evidence, "Active self-harm intent or inability to stay safe detected.");
