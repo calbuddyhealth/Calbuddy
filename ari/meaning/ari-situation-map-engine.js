@@ -272,9 +272,12 @@ window.AriSituationMapEngine = {
       this.add(map.needs, "risk_clarification");
     }
 
-    if (map.situations.includes("tradeoff_or_competing_priorities")) {
-      this.add(map.needs, "decision_support");
-    }
+    if (
+  map.situations.includes("tradeoff_or_competing_priorities") ||
+  map.questions.includes("decision_question")
+) {
+  this.add(map.needs, "decision_support");
+}
 
     if (map.domains.includes("builder_domain")) {
       this.add(map.needs, "action_or_build_help");
@@ -508,6 +511,9 @@ window.AriSituationMapEngine = {
       return;
     }
 
+// Decision questions should become the primary situation unless there is
+// an active emergency.
+
         if (map.domains.includes("builder_domain")) {
       this.setSituation(map, {
         type: "build_or_fix_request",
@@ -532,6 +538,42 @@ window.AriSituationMapEngine = {
       });
       return;
     }
+
+if (
+  map.questions.includes("decision_question") &&
+  !map.domains.includes("builder_domain") &&
+  !map.domains.includes("knowledge_domain")
+) {
+  this.setSituation(map, {
+    type: "decision_request_with_context",
+    family: "executive",
+    need: "decision_support",
+    confidence: 92,
+    primaryLane: "executive_decision",
+    support: [
+      ...(map.domains.includes("medical_context_domain")
+        ? ["medical_context"]
+        : []),
+      ...(map.domains.includes("relationship_context_domain")
+        ? ["relationship"]
+        : []),
+      ...(map.domains.includes("family_context_domain")
+        ? ["family"]
+        : []),
+      ...(map.domains.includes("career_work_domain")
+        ? ["career"]
+        : []),
+      ...(map.domains.includes("financial_resource_domain")
+        ? ["financial"]
+        : []),
+      ...(map.domains.includes("emotion_context_domain")
+        ? ["emotion"]
+        : [])
+    ],
+    blocked: ["life_chapter", "deep_emotion"]
+  });
+  return;
+}
 
     if (map.situations.includes("tradeoff_or_competing_priorities")) {
       this.setSituation(map, {
