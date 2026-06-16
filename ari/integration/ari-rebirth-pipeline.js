@@ -394,6 +394,30 @@ if (
 // Reassert after Human Language, just in case.
 summary = this.reassertContractAuthority(summary);
 
+// 11.9 COMMUNICATION PLANNER
+if (
+  window.AriCommunicationPlanner &&
+  typeof window.AriCommunicationPlanner.plan === "function"
+) {
+  const communicationPlanResult =
+    window.AriCommunicationPlanner.plan(summary) || {};
+
+  summary = {
+    ...summary,
+    ...communicationPlanResult
+  };
+} else {
+  summary = {
+    ...summary,
+    communicationPlannerRan: false,
+    communicationPlannerSource: "not-loaded",
+    communicationPlan: null
+  };
+}
+
+// Reassert after Communication Planner.
+summary = this.reassertContractAuthority(summary);
+
     // 12 MOUTH DIRECTOR
     if (
       window.AriMouthDirector &&
