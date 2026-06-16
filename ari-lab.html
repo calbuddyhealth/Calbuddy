@@ -879,6 +879,15 @@ ${summary.mouthDirectorSource || "none"}
 Language Source:
 ${summary.source || "none"}
 
+Composer Version:
+${summary.composerVersion || "none"}
+
+Composer Used Lexical Grounding:
+${summary.composerUsedLexicalGrounding ? "yes" : "no"}
+
+Composer Debug:
+${JSON.stringify(summary.composerDebug || {}, null, 2)}
+
 ==================================================
 
 ===== REBIRTH SYSTEM SUMMARY =====
