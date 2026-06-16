@@ -1,12 +1,12 @@
 // ari/language/ari-communication-planner.js
 // Ari Communication Planner
-// Purpose: Decide how Ari should sound like a human before final composition.
-// V1.1.0
+// Purpose: Decide how Ari should speak before final composition.
+// V1.2.0 — Language Budget + Stop Discipline
 
 window.Ari = window.Ari || {};
 
 window.AriCommunicationPlanner = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   plan(input = {}) {
     const summary = input.summary || input || {};
@@ -23,33 +23,36 @@ window.AriCommunicationPlanner = {
     const userText = this.getText(summary);
 
     const wantsConcise = this.hasAny(userText, [
-      "keep it concise",
-      "concise",
-      "short",
-      "brief",
-      "quick",
-      "summarize",
-      "simple"
+      "keep it concise", "concise", "short", "brief", "quick",
+      "summarize", "simple", "straight to the point"
+    ]);
+
+    const wantsDepth = this.hasAny(userText, [
+      "deep", "detailed", "full", "thorough", "explain everything",
+      "break it down", "step by step", "why exactly"
     ]);
 
     const wantsSeparatedReasoning = this.hasAny(userText, [
-      "what we know",
-      "what you infer",
-      "what i'm inferring",
-      "what could change",
-      "why you rejected",
-      "distinguish",
-      "separate"
+      "what we know", "what you infer", "what i'm inferring",
+      "what could change", "why you rejected", "distinguish", "separate"
     ]);
+
+    const budget = this.languageBudget({
+      primary,
+      wantsConcise,
+      wantsDepth,
+      wantsSeparatedReasoning,
+      reasoning
+    });
 
     const structureStyle =
       this.structureStyle(primary, wantsConcise, wantsSeparatedReasoning);
 
     const presentationStyle =
-      this.presentationStyle(primary, wantsConcise, wantsSeparatedReasoning);
+      this.presentationStyle(primary, wantsConcise, wantsSeparatedReasoning, budget);
 
     const useHeadings =
-      this.useHeadings(primary, wantsSeparatedReasoning);
+      this.useHeadings(primary, wantsSeparatedReasoning, budget);
 
     const plan = {
       communicationPlannerRan: true,
@@ -65,21 +68,36 @@ window.AriCommunicationPlanner = {
       presentationStyle,
       useHeadings,
 
-      emotionalTouch: this.emotionalTouch(primary, language),
+      emotionalTouch: this.emotionalTouch(primary, language, budget),
       challengeLevel: this.challengeLevel(primary, language),
       endingStyle: this.endingStyle(primary),
 
       wantsConcise,
+      wantsDepth,
       wantsSeparatedReasoning,
+
+      languageBudget: budget,
 
       sectionPlan: this.sectionPlan({
         primary,
         wantsConcise,
+        wantsDepth,
         wantsSeparatedReasoning,
         reasoning
       }),
 
-      sentenceRules: this.sentenceRules(primary, wantsConcise),
+      sentenceRules: this.sentenceRules(primary, wantsConcise, wantsDepth, budget),
+
+      informationBudget: this.informationBudget(primary, budget),
+
+      stopRules: {
+        stopWhenAnswered: true,
+        stopAfterNextStep: primary !== "teacher" || !wantsDepth,
+        oneQuestionMax: true,
+        noSecondSummary: true,
+        noGenericCloser: true,
+        noExtraWisdomAfterAction: true
+      },
 
       avoid: [
         "template_dumping",
@@ -88,14 +106,20 @@ window.AriCommunicationPlanner = {
         "generic_questions",
         "overexplaining",
         "robotic_section_labels",
-        "repeating_the_same_reason"
+        "repeating_the_same_reason",
+        "abstract_tradeoff_labels",
+        "restating_the_recommendation",
+        "emotional_padding_when_validation_none"
       ],
 
       mustDo: [
         "answer_first",
-        "name_the_priority",
+        "use_user_concrete_terms",
+        "one_idea_per_sentence",
+        "one_reason_per_recommendation",
         "explain_without_padding",
         "sound_like_a_person",
+        "stop_when_answered",
         "preserve_user_requested_distinctions"
       ]
     };
@@ -108,7 +132,89 @@ window.AriCommunicationPlanner = {
 
       communicationPresentationStyle: presentationStyle,
       communicationUseHeadings: useHeadings,
-      communicationStructureStyle: structureStyle
+      communicationStructureStyle: structureStyle,
+      communicationLanguageBudget: budget
+    };
+  },
+
+  languageBudget({ primary, wantsConcise, wantsDepth, wantsSeparatedReasoning }) {
+    if (primary === "risk_clarification") {
+      return { targetLength: "tiny", maxSentences: 1, maxWords: 25, maxSections: 1 };
+    }
+
+    if (wantsDepth || wantsSeparatedReasoning) {
+      return { targetLength: "medium", maxSentences: 10, maxWords: 220, maxSections: 6 };
+    }
+
+    if (wantsConcise) {
+      return { targetLength: "tiny", maxSentences: 3, maxWords: 70, maxSections: 2 };
+    }
+
+    if (primary === "executive_decision") {
+      return { targetLength: "short", maxSentences: 4, maxWords: 95, maxSections: 3 };
+    }
+
+    if (primary === "builder") {
+      return { targetLength: "short", maxSentences: 6, maxWords: 130, maxSections: 4 };
+    }
+
+    if (primary === "teacher") {
+      return { targetLength: "short", maxSentences: 6, maxWords: 140, maxSections: 3 };
+    }
+
+    if (primary === "emotion") {
+      return { targetLength: "short", maxSentences: 3, maxWords: 75, maxSections: 2 };
+    }
+
+    if (primary === "safety" || primary === "medical_body") {
+      return { targetLength: "short", maxSentences: 5, maxWords: 110, maxSections: 3 };
+    }
+
+    return { targetLength: "short", maxSentences: 4, maxWords: 90, maxSections: 3 };
+  },
+
+  informationBudget(primary, budget = {}) {
+    if (primary === "executive_decision") {
+      return {
+        recommendation: 1,
+        supportingReason: 1,
+        tradeoff: 0,
+        nextAction: 1,
+        caveat: 0,
+        emotionalValidation: 0
+      };
+    }
+
+    if (primary === "teacher") {
+      return {
+        definition: 1,
+        explanation: 2,
+        example: 1,
+        summary: 0
+      };
+    }
+
+    if (primary === "builder") {
+      return {
+        diagnosis: 1,
+        fix: 1,
+        steps: 3,
+        check: 1
+      };
+    }
+
+    if (primary === "emotion") {
+      return {
+        validation: 1,
+        grounding: 1,
+        question: 1
+      };
+    }
+
+    return {
+      answer: 1,
+      context: 1,
+      nextAction: 1
     };
   },
 
@@ -121,10 +227,10 @@ window.AriCommunicationPlanner = {
     if (primary === "executive_decision") {
       return wantsSeparatedReasoning
         ? "recommendation_then_evidence"
-        : "direct_then_context";
+        : "recommendation_reason_next_step";
     }
 
-    if (primary === "emotion") return "attune_then_truth";
+    if (primary === "emotion") return "attune_then_ground";
 
     return "direct_then_context";
   },
@@ -141,7 +247,7 @@ window.AriCommunicationPlanner = {
 
   reasoningStyle(primary, wantsSeparatedReasoning) {
     if (primary === "executive_decision") {
-      return wantsSeparatedReasoning ? "separated_but_plain" : "woven";
+      return wantsSeparatedReasoning ? "separated_but_plain" : "compressed";
     }
 
     if (primary === "teacher") return "stepwise";
@@ -156,29 +262,32 @@ window.AriCommunicationPlanner = {
     if (wantsSeparatedReasoning) return "light_labeled_sections";
     if (primary === "builder") return "steps";
     if (primary === "safety" || primary === "medical_body") return "direct_action";
+    if (primary === "executive_decision") return "recommendation_reason_action";
     return "light_sections";
   },
 
-  presentationStyle(primary, wantsConcise, wantsSeparatedReasoning) {
+  presentationStyle(primary, wantsConcise, wantsSeparatedReasoning, budget = {}) {
     if (primary === "risk_clarification") return "single_question";
+    if (wantsSeparatedReasoning) return "structured";
     if (primary === "builder") return "structured";
     if (primary === "safety" || primary === "medical_body") return "structured";
-    if (wantsSeparatedReasoning) return "structured";
-    if (wantsConcise) return "mixed";
+    if (primary === "executive_decision") return "mixed";
+    if (wantsConcise || budget.targetLength === "tiny") return "mixed";
     return "conversation";
   },
 
-  useHeadings(primary, wantsSeparatedReasoning) {
+  useHeadings(primary, wantsSeparatedReasoning, budget = {}) {
     if (primary === "risk_clarification") return false;
+    if (wantsSeparatedReasoning) return true;
     if (primary === "builder") return true;
     if (primary === "safety" || primary === "medical_body") return true;
-    if (wantsSeparatedReasoning) return true;
+    if (budget.targetLength === "tiny" || budget.targetLength === "short") return false;
     return false;
   },
 
-  emotionalTouch(primary, language = {}) {
+  emotionalTouch(primary, language = {}, budget = {}) {
     if (primary === "safety" || primary === "risk_clarification") return "none";
-    if (primary === "executive_decision") return "brief";
+    if (primary === "executive_decision") return "none";
     if (primary === "emotion") return "primary";
 
     return language.validationLevel === "none" ? "none" : "brief";
@@ -195,61 +304,63 @@ window.AriCommunicationPlanner = {
   endingStyle(primary) {
     if (primary === "risk_clarification") return "question";
     if (primary === "builder") return "next_action";
-    if (primary === "executive_decision") return "next_step";
+    if (primary === "executive_decision") return "next_step_then_stop";
     if (primary === "emotion") return "grounding";
 
     return "clean_close";
   },
 
-  sectionPlan({ primary, wantsConcise, wantsSeparatedReasoning, reasoning }) {
-    if (primary === "risk_clarification") {
-      return ["question"];
-    }
+  sectionPlan({ primary, wantsConcise, wantsDepth, wantsSeparatedReasoning }) {
+    if (primary === "risk_clarification") return ["question"];
 
     if (primary === "executive_decision" && wantsSeparatedReasoning) {
-      return [
-        "recommendation",
-        "known",
-        "inferred",
-        "could_change",
-        "rejected_alternatives",
-        "next_step"
-      ];
+      return ["recommendation", "known", "inferred", "could_change", "next_step"];
     }
 
     if (primary === "executive_decision") {
-      return [
-        "recommendation",
-        "reason",
-        "tradeoff",
-        "next_step"
-      ];
+      return ["recommendation", "reason", "next_step"];
     }
 
     if (primary === "builder") {
-      return ["answer", "steps", "check"];
+      return wantsDepth
+        ? ["diagnosis", "fix", "steps", "check"]
+        : ["fix", "steps", "check"];
     }
 
     if (primary === "teacher") {
-      return ["answer", "explanation", "example"];
+      return wantsDepth
+        ? ["answer", "explanation", "example", "summary"]
+        : ["answer", "explanation", "example"];
+    }
+
+    if (primary === "emotion") {
+      return ["validation", "grounding", "question"];
     }
 
     return ["answer", "context", "next_step"];
   },
 
-  sentenceRules(primary, wantsConcise) {
+  sentenceRules(primary, wantsConcise, wantsDepth, budget = {}) {
     return {
-      maxAverageSentenceLength: wantsConcise ? 18 : 24,
+      maxAverageSentenceLength: wantsConcise ? 16 : 20,
+      maxWordsPerSentence: wantsConcise ? 18 : 24,
+      maxSentences: budget.maxSentences || 4,
+      maxWords: budget.maxWords || 90,
+
       preferPlainWords: true,
+      preferConcreteUserTerms: true,
       avoidStackedClauses: true,
       avoidRepeatingOpening: true,
+      avoidDoubleExplanations: true,
+      avoidAbstractTradeoffLabels: true,
+      avoidGenericWisdom: true,
+      noRepeatedJustifications: true,
+      noMetaCommentary: true,
+
       allowBullets: true,
       maxBulletsPerSection:
         primary === "executive_decision" ? 3 : 4,
-      maxSections:
-        primary === "executive_decision"
-          ? wantsConcise ? 6 : 7
-          : wantsConcise ? 3 : 5
+      maxSections: budget.maxSections || 3
     };
   },
 
