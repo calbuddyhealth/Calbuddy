@@ -1,12 +1,12 @@
 // ari/language/ari-mouth-director.js
 // Ari Mouth Director
 // Purpose: Decide response order/format only.
-// V4.1.0
+// V4.2.0 — Communication Plan + Compression Directive
 
 window.Ari = window.Ari || {};
 
 window.AriMouthDirector = {
-  version: "4.1.0",
+  version: "4.2.0",
 
   direct(input = {}) {
     const summary = input.summary || input || {};
@@ -20,20 +20,21 @@ window.AriMouthDirector = {
 
     const pattern = this.patternFromPrimary(primary, contract);
     const order = this.orderFromContract(contract, primary);
+    const communicationPlan = this.buildCommunicationPlan(primary, contract, language);
 
     const director = {
       mouthDirectorRan: true,
       mouthDirectorVersion: this.version,
       source: "ari-mouth-director",
 
-      mouthAuthority: "structure_only",
+      mouthAuthority: "communication_plan_only",
 
       contractPrimary: primary,
       responsePattern: pattern,
       responseShape: contract.responseShape || pattern,
 
       sectionOrder: order,
-      maxBodySections: this.maxSections(primary, language),
+      maxBodySections: communicationPlan.compression.maxSections,
 
       openingStyle: language.openingStyle || "direct",
       closingStyle: language.closingStyle || "optional",
@@ -41,29 +42,16 @@ window.AriMouthDirector = {
       depth: language.depth || "practical",
 
       formatHints: this.formatHints(primary),
-styleRules: this.styleRules(primary),
+      styleRules: this.styleRules(primary),
 
-compressionDirective: {
-  enabled: true,
-  preserve: [
-    "recommendation",
-    "known_inferred_unknown",
-    "key_reason",
-    "key_tradeoff",
-    "rejected_alternatives",
-    "next_step"
-  ],
-  maxSections: primary === "executive_decision" ? 6 : 3,
-  maxBulletsPerSection: primary === "executive_decision" ? 4 : 3,
-  style: "tight_but_complete"
-},
+      communicationPlan,
+      compressionDirective: communicationPlan.compression,
 
-contractRequired: contract.mouthDirective?.required || [],
+      contractRequired: contract.mouthDirective?.required || [],
       contractAvoid: contract.mouthDirective?.avoid || [],
       contractClosing: contract.mouthDirective?.closing || null,
 
       // Backward compatibility only.
-      // Composer V4 should not treat these as authority.
       allowMeaning: true,
       allowEmotion: true,
       allowTruth: true,
@@ -74,13 +62,149 @@ contractRequired: contract.mouthDirective?.required || [],
       mouthRules: [
         "Situation Contract decides what must happen.",
         "Human Language Engine decides how Ari should sound.",
-        "Mouth Director decides only order, format, and pacing.",
-        "Mouth Director cannot block content lanes.",
-        "Mouth Director cannot change the primary lane."
+        "Mouth Director decides communication plan, order, format, and pacing.",
+        "Mouth Director cannot change the primary lane.",
+        "Mouth Director cannot override the Situation Contract.",
+        "Compressor may shorten wording but must preserve the communication plan."
       ]
     };
 
     return director;
+  },
+
+  buildCommunicationPlan(primary, contract = {}, language = {}) {
+    const preserveMap = {
+      executive_decision: [
+        "recommendation",
+        "known_facts",
+        "inferences",
+        "unknowns",
+        "key_reason",
+        "key_tradeoff",
+        "rejected_alternatives",
+        "next_step"
+      ],
+
+      safety: [
+        "urgent_action",
+        "safety_boundary",
+        "next_step"
+      ],
+
+      risk_clarification: [
+        "single_clarifying_question"
+      ],
+
+      medical_body: [
+        "medical_boundary",
+        "practical_action",
+        "red_flags"
+      ],
+
+      medical_context: [
+        "medical_context",
+        "practical_action",
+        "red_flags"
+      ],
+
+      builder: [
+        "direct_fix",
+        "replacement_code",
+        "implementation_step",
+        "test_step"
+      ],
+
+      teacher: [
+        "direct_answer",
+        "plain_explanation",
+        "example"
+      ],
+
+      emotion: [
+        "brief_attunement",
+        "grounding_truth",
+        "practical_support"
+      ],
+
+      family: [
+        "family_priority",
+        "boundary",
+        "next_step"
+      ],
+
+      relationship: [
+        "relationship_truth",
+        "repair_move",
+        "next_step"
+      ],
+
+      wisdom: [
+        "principle",
+        "tradeoff",
+        "choice"
+      ],
+
+      memory: [
+        "acknowledgement"
+      ],
+
+      general_understanding: [
+        "direct_answer"
+      ]
+    };
+
+    const preserve = preserveMap[primary] || preserveMap.general_understanding;
+
+    const required = preserve.filter(item =>
+      [
+        "recommendation",
+        "direct_answer",
+        "direct_fix",
+        "urgent_action",
+        "single_clarifying_question",
+        "next_step"
+      ].includes(item)
+    );
+
+    const optional = preserve.filter(item => !required.includes(item));
+
+    const maxSections =
+      Number.isFinite(Number(language.maxBodySections))
+        ? Number(language.maxBodySections)
+        : primary === "executive_decision"
+          ? 6
+          : this.maxSections(primary, language);
+
+    const maxBulletsPerSection =
+      primary === "executive_decision" ? 4 : 3;
+
+    return {
+      source: "ari-mouth-director",
+      primary,
+      preserve,
+      required,
+      optional,
+
+      suppress: [
+        ...(contract.blocked || []),
+        ...(contract.mouthDirective?.avoid || [])
+      ],
+
+      merge: [
+        ["key_reason", "key_tradeoff"],
+        ["medical_context", "practical_action"],
+        ["brief_attunement", "grounding_truth"]
+      ],
+
+      compression: {
+        enabled: true,
+        preserve,
+        required,
+        maxSections,
+        maxBulletsPerSection,
+        style: "tight_but_complete"
+      }
+    };
   },
 
   patternFromPrimary(primary, contract = {}) {
@@ -133,7 +257,7 @@ contractRequired: contract.mouthDirective?.required || [],
       medical_context: 3,
       builder: 4,
       teacher: 3,
-      executive_decision: 4,
+      executive_decision: 6,
       emotion: 3,
       family: 4,
       relationship: 3,
@@ -174,7 +298,8 @@ contractRequired: contract.mouthDirective?.required || [],
       executive_decision: [
         "Name priority.",
         "Organize options.",
-        "Give next step."
+        "Give next step.",
+        "Preserve known, inferred, unknown, rejected alternatives."
       ],
       emotion: [
         "Brief attunement.",
@@ -194,7 +319,8 @@ contractRequired: contract.mouthDirective?.required || [],
     const shared = [
       "Do not invent a deeper signal.",
       "Do not use generic uncertainty questions.",
-      "Do not override the Situation Contract."
+      "Do not override the Situation Contract.",
+      "Do not expose internal system names in the final response."
     ];
 
     const map = {
@@ -217,6 +343,11 @@ contractRequired: contract.mouthDirective?.required || [],
       risk_clarification: [
         "No extra explanation.",
         "No lower-priority lanes."
+      ],
+      executive_decision: [
+        "Do not treat all concerns as equal.",
+        "Do not over-explain when the user asked for concise.",
+        "Preserve the recommendation and next step."
       ]
     };
 
