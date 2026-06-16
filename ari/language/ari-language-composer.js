@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V6.0.0 — Contract-Aware Structured Renderer
+// V6.1.0 — Evidence-Based Executive Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "6.0.0",
+  version: "6.1.0",
 
   compose(input = {}) {
     const summary = input.summary || input || {};
@@ -21,35 +21,35 @@ window.AriLanguageComposer = {
       contract.primary ||
       mouth.contractPrimary ||
       summary.triagePrimaryLane ||
-      reasoning.primary ||
       "general_understanding";
 
-    let finalResponse = "";
+    const maxBodySections =
+      Number(mouth.maxBodySections || language.maxBodySections || 6);
+
+    let bodyParts = [];
 
     if (primary === "executive_decision") {
-      finalResponse = this.renderExecutiveDecision({
-        summary,
-        contract,
-        language,
-        reasoning,
-        conclusion
-      });
+      bodyParts = this.composeExecutiveDecision({ reasoning, conclusion, language });
     } else {
-      finalResponse = this.renderStandard({
-        summary,
-        contract,
-        language,
-        reasoning,
-        primary
-      });
+      bodyParts = [
+        summary.directAnswer ||
+        summary.teachingAnswer ||
+        summary.builderAnswer ||
+        summary.medicalAnswer ||
+        summary.reasoningRecommendation ||
+        "Here’s the practical answer."
+      ];
     }
 
+    bodyParts = this.cleanParts(bodyParts, language).slice(0, maxBodySections);
+
+    let finalResponse = bodyParts.join("\n\n");
     finalResponse = this.finalPolish(finalResponse, language);
 
     return {
       languageMode: primary,
-      languageOpening: null,
-      languageBody: finalResponse,
+      languageOpening: bodyParts[0] || null,
+      languageBody: bodyParts.join("\n\n"),
       languageClosing: null,
       finalResponse,
 
@@ -58,201 +58,114 @@ window.AriLanguageComposer = {
 
       composerDebug: {
         primary,
+        maxBodySections,
         usedExecutiveConclusion: Boolean(conclusion?.recommendation),
-        usedKnownInferredUnknown: Boolean(
-          reasoning.knownFacts?.length ||
-          reasoning.inferredFacts?.length ||
-          reasoning.unknowns?.length
-        ),
-        contractRules: contract.responseRules || [],
-        blocked: contract.blocked || []
+        usedKnownFacts: reasoning.knownFacts || [],
+        usedUnknowns: reasoning.unknowns || [],
+        humanLanguageTone: language.tone,
+        humanLanguageWarmth: language.warmth,
+        humanLanguageDirectness: language.directness
       }
     };
   },
 
-  renderExecutiveDecision({ summary, contract, language, reasoning, conclusion }) {
-    const wantsEvidenceSplit = this.userAskedForEvidenceSplit(summary);
-    const wantsRejectedAlternatives = this.userAskedForRejectedAlternatives(summary);
-
-    const sections = [];
-
-    sections.push(
-      this.renderRecommendation(reasoning, conclusion)
-    );
-
-    if (wantsEvidenceSplit) {
-      sections.push(this.renderKnownFacts(reasoning));
-      sections.push(this.renderInferences(reasoning));
-      sections.push(this.renderUncertainty(reasoning, conclusion));
-    }
-
-    sections.push(this.renderReasoning(reasoning, conclusion));
-
-    if (wantsRejectedAlternatives || reasoning.rejectedAlternatives?.length) {
-      sections.push(this.renderRejectedAlternatives(reasoning));
-    }
-
-    sections.push(this.renderNextStep(reasoning, conclusion));
-
-    if (language.validationLevel === "light") {
-      sections.push("This is heavy because every option disappoints someone. That does not mean every obligation has equal claim on you.");
-    }
-
-    return sections
-      .filter(Boolean)
-      .map(section => this.cleanText(section, language))
-      .filter(Boolean)
-      .join("\n\n");
-  },
-
-  renderRecommendation(reasoning = {}, conclusion = {}) {
-    const rec =
-      conclusion.recommendation ||
-      reasoning.recommendation?.summary ||
-      null;
-
-    if (!rec) return null;
-
-    return `My recommendation: ${this.lowerFirst(rec)}`;
-  },
-
-  renderKnownFacts(reasoning = {}) {
-    const facts = reasoning.knownFacts || [];
-    if (!facts.length) return null;
-
-    return `What we know:\n${facts.map(item => `- ${item}`).join("\n")}`;
-  },
-
-  renderInferences(reasoning = {}) {
-    const inferred = reasoning.inferredFacts || [];
-    const assumptions = reasoning.assumptions || [];
-
-    const lines = [
-      ...inferred,
-      ...assumptions.map(a => a.assumption).filter(Boolean)
+  composeExecutiveDecision({ reasoning = {}, conclusion = {}, language = {} }) {
+    const rec = reasoning.recommendation || {};
+    const known = reasoning.knownFacts || [];
+    const inferred = [
+      ...(reasoning.inferredFacts || []),
+      ...(reasoning.assumptions || []).map(a => a.assumption).filter(Boolean)
     ];
-
-    if (!lines.length) return null;
-
-    return `What I’m inferring:\n${[...new Set(lines)].map(item => `- ${item}`).join("\n")}`;
-  },
-
-  renderUncertainty(reasoning = {}, conclusion = {}) {
     const unknowns = reasoning.unknowns || [];
-    const uncertainty = conclusion.uncertainty;
+    const rejected = reasoning.rejectedAlternatives || [];
+    const tradeoff = conclusion.keyTradeoff || reasoning.tradeoffs?.[0];
+    const regret = reasoning.regretLens || {};
 
-    const lines = [
-      uncertainty,
-      ...unknowns
-    ].filter(Boolean);
-
-    if (!lines.length) return null;
-
-    return `What could change the recommendation:\n${[...new Set(lines)].map(item => `- ${item}`).join("\n")}`;
-  },
-
-  renderReasoning(reasoning = {}, conclusion = {}) {
     const parts = [];
 
-    if (conclusion.framing) {
-      parts.push(conclusion.framing);
-    }
-
-    if (conclusion.keyReason) {
-      parts.push(conclusion.keyReason);
-    }
-
-    if (conclusion.keyTradeoff) {
-      parts.push(`The main tradeoff is ${conclusion.keyTradeoff}.`);
-    }
-
-    if (reasoning.regretLens?.longTerm) {
-      parts.push(reasoning.regretLens.longTerm);
-    }
-
-    if (!parts.length && reasoning.recommendation?.rationale?.length) {
-      parts.push(...reasoning.recommendation.rationale);
-    }
-
-    if (!parts.length) return null;
-
-    return parts.join(" ");
-  },
-
-  renderRejectedAlternatives(reasoning = {}) {
-    const rejected = reasoning.rejectedAlternatives || [];
-    if (!rejected.length) return null;
-
-    return `Why I’d reject the alternatives:\n${rejected
-      .map(item => `- ${item.alternative}: ${this.lowerFirst(item.rejectedBecause || "")}`)
-      .join("\n")}`;
-  },
-
-  renderNextStep(reasoning = {}, conclusion = {}) {
-    const next =
-      conclusion.nextStep ||
-      reasoning.recommendation?.alternatives?.[0] ||
-      null;
-
-    if (!next) return null;
-
-    return `Next step: ${next}`;
-  },
-
-  renderStandard({ summary, reasoning, primary }) {
-    if (primary === "risk_clarification") {
-      return summary.followUpQuestion || "Are you safe right now?";
-    }
-
-    if (primary === "safety") {
-      return summary.safetyAnswer || "Safety comes first. If there is immediate danger, contact emergency services now.";
-    }
-
-    if (primary === "medical_body") {
-      return summary.medicalAnswer || "The body concern comes first here. If symptoms are severe, worsening, or involve red flags, get urgent care now.";
-    }
-
-    if (primary === "teacher") {
-      return summary.teachingAnswer || summary.knowledgeAnswer || "Here’s the clear explanation.";
-    }
-
-    if (primary === "builder") {
-      return summary.builderAnswer || summary.codeAnswer || summary.implementationAnswer || "Here’s the practical fix.";
-    }
-
-    return (
-      summary.directAnswer ||
-      summary.humanTruth ||
-      reasoning.recommendation?.summary ||
-      "Here’s the practical answer."
+    parts.push(
+      `My recommendation: ${this.lowerFirst(
+        conclusion.recommendation ||
+        rec.summary ||
+        "protect the highest-cost obligation first and delay optional risks."
+      )}`
     );
+
+    if (known.length) {
+      parts.push(`What we know:\n${this.bullets(known)}`);
+    }
+
+    if (inferred.length) {
+      parts.push(`What I’m inferring:\n${this.bullets(inferred)}`);
+    }
+
+    if (unknowns.length) {
+      parts.push(`What could change the recommendation:\n${this.bullets(unknowns)}`);
+    }
+
+    const reasoningLines = [];
+
+    if (conclusion.framing) reasoningLines.push(conclusion.framing);
+    if (conclusion.keyReason) reasoningLines.push(conclusion.keyReason);
+    if (tradeoff) {
+      reasoningLines.push(
+        typeof tradeoff === "string"
+          ? `The main tradeoff is ${tradeoff}.`
+          : `The main tradeoff is ${tradeoff.sideA} versus ${tradeoff.sideB}.`
+      );
+    }
+    if (regret.longTerm) reasoningLines.push(regret.longTerm);
+
+    if (reasoningLines.length) {
+      parts.push(reasoningLines.join(" "));
+    }
+
+    if (rejected.length) {
+      parts.push(
+        `Why I’d reject the alternatives:\n${this.bullets(
+          rejected.map(item =>
+            `${item.alternative}: ${item.rejectedBecause}`
+          )
+        )}`
+      );
+    }
+
+    if (conclusion.nextStep || rec.alternatives?.[0]) {
+      parts.push(`Next step: ${conclusion.nextStep || rec.alternatives[0]}`);
+    }
+
+    if ((language.validationLevel === "light" || language.warmth > 25) && regret.shortTerm) {
+      parts.push("This is heavy because every option disappoints someone. That does not mean every obligation has equal claim on you.");
+    }
+
+    return parts;
   },
 
-  userAskedForEvidenceSplit(summary = {}) {
-    const text = this.getText(summary);
-    return (
-      text.includes("what you know") ||
-      text.includes("what you're inferring") ||
-      text.includes("what you’re inferring") ||
-      text.includes("without assuming facts") ||
-      text.includes("distinguish between")
-    );
+  bullets(items = []) {
+    return items
+      .filter(Boolean)
+      .map(item => `- ${String(item).trim()}`)
+      .join("\n");
   },
 
-  userAskedForRejectedAlternatives(summary = {}) {
-    const text = this.getText(summary);
-    return (
-      text.includes("rejected the alternatives") ||
-      text.includes("why you rejected") ||
-      text.includes("why reject") ||
-      text.includes("alternatives")
-    );
+  cleanParts(parts, language = {}) {
+    return (parts || [])
+      .filter(Boolean)
+      .map(text => this.cleanText(text, language))
+      .filter(Boolean);
   },
 
   cleanText(text, language = {}) {
     if (!text || typeof text !== "string") return null;
 
     let cleaned = text.trim();
+
+    cleaned = cleaned
+      .replace(/^let'?s organize this clearly\.?\s*/i, "")
+      .replace(/^here'?s the practical answer\.?\s*/i, "")
+      .replace(/^here'?s the practical move\.?\s*/i, "")
+      .replace(/^something feels important here\.?\s*/i, "")
+      .trim();
 
     if (!cleaned) return null;
     if (this.isBanned(cleaned, language)) return null;
@@ -290,7 +203,6 @@ window.AriLanguageComposer = {
     let polished = response
       .replace(/\n{3,}/g, "\n\n")
       .replace(/[ \t]+$/gm, "")
-      .replace(/\bdon’t\b/g, "don’t")
       .trim();
 
     if (language.polish?.preferNaturalContractions !== false) {
@@ -307,16 +219,6 @@ window.AriLanguageComposer = {
     const text = String(value || "").trim();
     if (!text) return "";
     return text.charAt(0).toLowerCase() + text.slice(1);
-  },
-
-  getText(summary = {}) {
-    return String(
-      summary.normalizedMessage ||
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      ""
-    ).toLowerCase();
   },
 
   normalize(text = "") {
