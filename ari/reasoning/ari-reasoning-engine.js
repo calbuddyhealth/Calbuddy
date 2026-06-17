@@ -1011,174 +1011,207 @@ if (reasoningFrame === "relationship_or_family_reasoning") {
   },
 
   buildRelationshipFamilyCaseModel(reasoning, summary, primary) {
-    const text = this.getText(summary);
-    const model = reasoning.caseModel;
+  const text = this.getText(summary);
+  const model = reasoning.caseModel;
 
-    reasoning.reasoningMode = "relationship_family_case_builder";
+  reasoning.reasoningMode = "relationship_family_case_builder";
 
-    model.situation =
-      "The user is trying to understand a relationship or family reaction, not only make a practical decision.";
+  const hasTruthIssue = this.hasAny(text, [
+    "honest", "honesty", "lied", "lie", "truth", "told", "haven't told",
+    "didn't tell", "secret", "hide", "hiding", "withheld"
+  ]);
 
-    model.userGoal =
-      "understand what may be causing the other person's reaction and choose a repair-oriented next step";
+  const hasDecisionIssue = this.hasAny(text, [
+    "move", "promotion", "job", "career", "money", "leave", "stay",
+    "choose", "decision", "should i", "what should"
+  ]);
 
-    model.currentState =
-      "there is uncertainty about whether the reaction is about the external event, the communication around it, or both";
+  const hasEmotionIssue = this.hasAny(text, [
+    "upset", "hurt", "angry", "mad", "sad", "scared", "worried",
+    "distant", "quiet", "cold", "avoid"
+  ]);
 
-    model.desiredState =
-      "respond in a way that protects trust, reduces defensiveness, and opens honest conversation";
+  model.situation =
+    "The user is trying to understand a relationship or family reaction and choose a response that protects trust.";
 
-    model.obstacle =
-      "the user does not know whether the other person is reacting to the event itself or to feeling excluded, surprised, or not fully informed";
+  model.userGoal =
+    "understand what may be driving the other person's reaction without assuming certainty";
 
-    model.constraints = [
-      "do not assume another person's internal state with certainty",
-      "trust usually matters more than winning the explanation",
-      "repair works better when the user owns their part first"
-    ];
+  model.currentState =
+    "there is incomplete information about the other person's inner state.";
 
-    model.resources = [
-      "honest conversation",
-      "taking responsibility",
-      "asking instead of assuming",
-      "naming both possible causes"
-    ];
+  model.desiredState =
+    "respond with honesty, accountability, and curiosity instead of defensiveness.";
 
-    model.risks = [
-      "over-focusing on the practical issue may miss the trust injury",
-      "defending the decision too early may make the other person feel unheard",
-      "assuming only one cause may oversimplify the relationship"
-    ];
+  model.obstacle =
+    "the visible issue may not be the only issue; the reaction may involve fear, trust, timing, control, respect, or feeling excluded.";
 
-    model.unknowns = [
-      "what the other person has actually said",
-      "whether they feel hurt, scared, excluded, blindsided, or opposed to the event itself",
-      "how long they have known or suspected something was being withheld"
-    ];
+  model.constraints = [
+    "do not claim certainty about another person's feelings",
+    "protect trust before trying to win the argument",
+    "separate the practical issue from the emotional impact",
+    "own the user's part without taking responsibility for everything"
+  ];
 
-    model.tensions = [
-      {
-        name: "event_reaction_vs_trust_reaction",
-        sideA: "they may be upset about the event itself",
-        sideB: "they may be upset about not being told or not being included",
-        meaning:
-          "the visible event may be the trigger, but the deeper injury may be trust or honesty"
-      }
-    ];
+  model.resources = [
+    "honest conversation",
+    "asking directly",
+    "naming uncertainty",
+    "taking responsibility where appropriate",
+    "listening before defending"
+  ];
 
-    model.priorities = [
-      {
-        priority: "trust_repair",
-        label: "trust repair",
-        reason:
-          "when honesty is part of the question, repairing trust should come before defending the decision"
-      }
-    ];
+  model.risks = [
+    "assuming one cause too quickly",
+    "defending the practical decision before repairing trust",
+    "minimizing the other person's reaction",
+    "turning a relationship question into only a logic problem"
+  ];
 
-    model.options = [
-      {
-        option: "Assume it is only about the event",
-        pros: ["keeps the issue practical"],
-        cons: ["may ignore the trust injury"],
-        reversibility: "medium",
-        judgment: "too narrow if honesty or secrecy is involved"
-      },
-      {
-        option: "Assume it is only about honesty",
-        pros: ["takes responsibility"],
-        cons: ["may ignore real fear or disagreement about the event"],
-        reversibility: "medium",
-        judgment: "closer, but still incomplete"
-      },
-      {
-        option: "Name both possibilities and own the honesty piece first",
-        pros: ["protects trust", "reduces defensiveness", "invites the truth"],
-        cons: ["requires vulnerability"],
-        reversibility: "high",
-        judgment: "best default when both event and honesty may matter"
-      }
-    ];
+  model.unknowns = [
+    "what the other person has actually said",
+    "what emotion is strongest for them",
+    "whether they are reacting to the event, the timing, the communication, or feeling excluded",
+    "what repair would make them feel respected"
+  ];
 
-    model.consequences = [
-      {
-        option: "Assume it is only about the event",
-        likelyOutcome:
-          "the conversation may become defensive and miss the emotional injury",
-        riskLevel: "medium_high"
-      },
-      {
-        option: "Assume it is only about honesty",
-        likelyOutcome:
-          "the user may repair trust but still need to address the practical concern",
-        riskLevel: "medium"
-      },
-      {
-        option: "Name both possibilities and own the honesty piece first",
-        likelyOutcome:
-          "the other person is more likely to feel respected and clarify what is actually bothering them",
-        riskLevel: "low"
-      }
-    ];
+  model.tensions = [
+    {
+      name: "surface_issue_vs_relationship_impact",
+      sideA: "the visible practical issue",
+      sideB: "the emotional or trust impact underneath it",
+      meaning:
+        "the practical issue may be real, but the relationship impact often determines how the conversation goes"
+    }
+  ];
 
-    model.nextAction =
-      "Say something like: 'I may be wrong, but I’m wondering if this is less about the move itself and more about feeling like I kept you out of it. I should have been more honest sooner.'";
+  model.priorities = [
+    {
+      priority: "relationship_repair",
+      label: "relationship repair",
+      reason:
+        "when another person's reaction is unclear, trust and understanding should come before explanation or defense"
+    }
+  ];
 
-    reasoning.knownFacts.push("The user is asking about a possible relationship or family reaction.");
-    reasoning.inferredFacts.push("The issue may involve both the event and the trust impact of delayed honesty.");
-    reasoning.unknowns.push(...model.unknowns);
+  if (hasTruthIssue) {
+    model.priorities.unshift({
+      priority: "truth_and_accountability",
+      label: "truth and accountability",
+      reason:
+        "when honesty is involved, owning the communication gap is usually the safest first move"
+    });
+  }
 
-    reasoning.priorityStack.push(...model.priorities);
-    reasoning.options.push(...model.options);
-    reasoning.likelyOutcomes.push(
-      ...model.consequences.map(item => ({
-        outcome: `${item.option}: ${item.likelyOutcome}`,
-        probability: item.riskLevel === "low" ? "medium_high" : "medium"
-      }))
-    );
+  model.options = [
+    {
+      option: "Assume the reaction is only about the practical issue",
+      pros: ["keeps the conversation simple"],
+      cons: ["may miss the emotional or trust injury"],
+      reversibility: "medium",
+      judgment: "too narrow unless they clearly say that is the only issue"
+    },
+    {
+      option: "Assume the reaction is only emotional",
+      pros: ["acknowledges feelings"],
+      cons: ["may ignore a real practical concern"],
+      reversibility: "medium",
+      judgment: "incomplete if there is a real decision or consequence involved"
+    },
+    {
+      option: "Name both possibilities and ask directly",
+      pros: ["reduces guessing", "protects trust", "invites clarity"],
+      cons: ["requires humility and patience"],
+      reversibility: "high",
+      judgment: "best default when the cause is unclear"
+    }
+  ];
 
-    reasoning.tradeoffs.push(...model.tensions.map(item => ({
-      name: item.name,
-      sideA: item.sideA,
-      sideB: item.sideB,
-      likelyWinner: "trust_repair"
-    })));
+  model.consequences = [
+    {
+      option: "Assume the reaction is only about the practical issue",
+      likelyOutcome:
+        "the user may solve the wrong layer and make the other person feel unheard",
+      riskLevel: "medium_high"
+    },
+    {
+      option: "Assume the reaction is only emotional",
+      likelyOutcome:
+        "the user may validate feelings but still miss the practical concern",
+      riskLevel: "medium"
+    },
+    {
+      option: "Name both possibilities and ask directly",
+      likelyOutcome:
+        "the other person is more likely to clarify what is actually bothering them",
+      riskLevel: "low"
+    }
+  ];
 
-    reasoning.recommendation.summary =
-      "it is probably not just the event; the honesty and trust piece is likely a major part of why they are upset.";
+  model.nextAction = hasTruthIssue
+    ? "Own the honesty piece first, then ask what part hurt most: the situation itself, the timing, or feeling left out."
+    : "Name what you are noticing, admit you may be wrong, and ask what part is bothering them most.";
 
-    reasoning.recommendation.rationale = [
-      "People can often process hard news better than feeling excluded from it.",
-      "The event may be the trigger, but delayed honesty can become the deeper injury."
-    ];
+  reasoning.knownFacts.push("The user is asking about a relationship or family reaction.");
+  reasoning.inferredFacts.push(
+    "The cause may include both the visible issue and the relationship impact around it."
+  );
 
-    reasoning.recommendation.alternatives = [
-      model.nextAction
-    ];
+  reasoning.unknowns.push(...model.unknowns);
+  reasoning.priorityStack.push(...model.priorities);
+  reasoning.options.push(...model.options);
 
-    reasoning.coreJudgment =
-      "The safer read is that the event may matter, but the honesty/trust piece should be repaired first.";
+  reasoning.tradeoffs.push({
+    name: "practical_explanation_vs_relationship_repair",
+    sideA: "explaining the situation",
+    sideB: "repairing trust and understanding first",
+    likelyWinner: model.priorities[0]?.priority || "relationship_repair"
+  });
 
-    reasoning.changeConditions.push(
-      "This changes if they clearly say they are not upset about honesty and are only opposed to the event itself."
-    );
+  reasoning.likelyOutcomes.push(
+    ...model.consequences.map(item => ({
+      outcome: `${item.option}: ${item.likelyOutcome}`,
+      probability: item.riskLevel === "low" ? "medium_high" : "medium"
+    }))
+  );
 
-    reasoning.systemsView.upstream.push(
-      "The reaction is shaped by both the practical event and the communication process around it."
-    );
+  reasoning.recommendation.summary =
+    hasTruthIssue
+      ? "the honesty or communication piece is likely important, but you should ask instead of assuming it is the only issue."
+      : "do not assume one cause; name both the practical issue and the emotional impact, then ask what is really bothering them.";
 
-    reasoning.systemsView.downstream.push(
-      "Repairing trust first makes the practical conversation less defensive."
-    );
+  reasoning.recommendation.rationale = [
+    "Relationship reactions often have more than one layer.",
+    "Asking directly is safer than mind-reading.",
+    "Repair usually works better when accountability comes before defense."
+  ];
 
-    reasoning.regretLens.shortTerm =
-      "Owning the honesty piece may feel uncomfortable.";
+  reasoning.recommendation.alternatives = [model.nextAction];
 
-    reasoning.regretLens.longTerm =
-      "The bigger regret risk is defending the decision while the other person feels excluded or misled.";
+  reasoning.coreJudgment =
+    "The safest relationship move is to stop guessing, own your part, and invite the other person to clarify the real injury.";
 
-    reasoning.regretLens.regretRisk =
-      "missing_the_trust_injury_under_the_surface_issue";
-  },
+  reasoning.changeConditions.push(
+    "This changes if the other person clearly states the reaction is only about the practical issue."
+  );
+
+  reasoning.systemsView.upstream.push(
+    "The reaction is shaped by the event, timing, communication, trust, and prior expectations."
+  );
+
+  reasoning.systemsView.downstream.push(
+    "Repairing trust first makes the practical conversation less defensive."
+  );
+
+  reasoning.regretLens.shortTerm =
+    "Owning your part may feel uncomfortable.";
+
+  reasoning.regretLens.longTerm =
+    "The bigger regret risk is defending yourself before understanding what actually hurt them.";
+
+  reasoning.regretLens.regretRisk =
+    "solving_the_surface_issue_while_missing_the_relationship_injury";
+},
 
   hasQuestionIntent(text = "") {
     return this.hasAny(text, [
