@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.2
+// V3.3
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.2.0",
+  version: "3.3.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -495,6 +495,160 @@ memoryCandidateEngineRan:
 
 memoryCandidates:
   analysis.memoryCandidates || [],
+ 
+  
+   
+  // ==================================================
+
+// THREAD UNDERSTANDING / ENTITY REFERENCE RESOLVER
+
+// ==================================================
+
+threadUnderstanding:
+
+  analysis.threadUnderstanding || {},
+
+threadUnderstandingRan:
+
+  analysis.threadUnderstandingRan ??
+
+  analysis.threadUnderstanding?.threadUnderstandingRan ??
+
+  false,
+
+threadUnderstandingVersion:
+
+  analysis.threadUnderstandingVersion ||
+
+  analysis.threadUnderstanding?.threadUnderstandingVersion ||
+
+  null,
+
+threadUnderstandingSource:
+
+  analysis.threadUnderstandingSource ||
+
+  analysis.threadUnderstanding?.source ||
+
+  "not-yet-run",
+
+threadSubject:
+
+  analysis.threadSubject ||
+
+  analysis.threadUnderstanding?.subject ||
+
+  null,
+
+threadDomain:
+
+  analysis.threadDomain ||
+
+  analysis.threadUnderstanding?.domain ||
+
+  null,
+
+threadLaneHint:
+
+  analysis.threadLaneHint ||
+
+  analysis.threadUnderstanding?.laneHint ||
+
+  null,
+
+threadConfidence:
+
+  analysis.threadConfidence ??
+
+  analysis.threadUnderstanding?.confidence ??
+
+  null,
+
+threadRecentMessages:
+  analysis.threadRecentMessages ||
+  analysis.threadUnderstanding?.recentMessages ||
+  analysis.threadUnderstanding?.lastMessages ||
+  analysis.continuityState?.lastMessages ||
+  [],
+
+subjectGraph:
+  analysis.subjectGraph ||
+  analysis.threadUnderstanding?.subjectGraph ||
+  analysis.entityReference?.subjectGraph ||
+  {},
+
+subjectGraphRan:
+  analysis.subjectGraphRan ??
+  analysis.subjectGraph?.subjectGraphRan ??
+  analysis.threadUnderstanding?.subjectGraphRan ??
+  false,
+
+entityReferenceResolverRan:
+
+  analysis.entityReferenceResolverRan ??
+
+  analysis.entityReference?.entityReferenceResolverRan ??
+
+  false,
+
+entityReferenceResolverVersion:
+
+  analysis.entityReferenceResolverVersion ||
+
+  analysis.entityReference?.entityReferenceResolverVersion ||
+
+  null,
+
+entityReferenceResolverSource:
+
+  analysis.entityReferenceResolverSource ||
+
+  analysis.entityReference?.source ||
+
+  "not-yet-run",
+
+entityReference:
+
+  analysis.entityReference || {},
+
+resolvedPrimarySubject:
+
+  analysis.resolvedPrimarySubject ||
+
+  analysis.entityReference?.resolvedPrimarySubject ||
+
+  null,
+
+resolvedSubjectType:
+
+  analysis.resolvedSubjectType ||
+
+  analysis.entityReference?.resolvedSubjectType ||
+
+  null,
+
+resolvedSubjectDomain:
+
+  analysis.resolvedSubjectDomain ||
+
+  analysis.entityReference?.resolvedSubjectDomain ||
+
+  null,
+
+resolvedEntities:
+  analysis.resolvedEntities ||
+  analysis.entityReference?.resolvedEntities ||
+  [],
+
+resolvedReferenceConfidence:
+
+  analysis.resolvedReferenceConfidence ??
+
+  analysis.entityReference?.confidence ??
+
+  null,
+  
+
   
       // ==================================================
       // NEW CORE CHAIN: SITUATION MAP
