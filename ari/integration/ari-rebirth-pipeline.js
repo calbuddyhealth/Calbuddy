@@ -105,9 +105,9 @@ if (
 
 if (window.AriConversationContinuityEngine) {
   const continuityResult =
-    window.AriConversationContinuityEngine.analyze?.(summary) ||
-    window.AriConversationContinuityEngine.evaluate?.(summary) ||
-    window.AriConversationContinuityEngine.create?.(summary) ||
+   await window.AriConversationContinuityEngine.analyze?.(summary) ||
+    await window.AriConversationContinuityEngine.evaluate?.(summary) ||
+    await window.AriConversationContinuityEngine.create?.(summary) ||
     {};
 
   summary = { ...summary, ...continuityResult };
@@ -115,9 +115,9 @@ if (window.AriConversationContinuityEngine) {
 
 if (window.AriMemoryRetrievalEngine) {
   const memoryResult =
-    window.AriMemoryRetrievalEngine.retrieve?.(summary) ||
-    window.AriMemoryRetrievalEngine.search?.(summary) ||
-    window.AriMemoryRetrievalEngine.create?.(summary) ||
+    await window.AriMemoryRetrievalEngine.retrieve?.(summary) ||
+    await window.AriMemoryRetrievalEngine.search?.(summary) ||
+    await window.AriMemoryRetrievalEngine.create?.(summary) ||
     {};
 
   summary = { ...summary, ...memoryResult };
@@ -125,9 +125,9 @@ if (window.AriMemoryRetrievalEngine) {
 
 if (window.AriRelationshipEngine) {
   const relationshipResult =
-    window.AriRelationshipEngine.analyze?.(summary) ||
-    window.AriRelationshipEngine.evaluate?.(summary) ||
-    window.AriRelationshipEngine.create?.(summary) ||
+    await window.AriRelationshipEngine.analyze?.(summary) ||
+    await window.AriRelationshipEngine.evaluate?.(summary) ||
+    await window.AriRelationshipEngine.create?.(summary) ||
     {};
 
   summary = { ...summary, ...relationshipResult };
@@ -135,8 +135,8 @@ if (window.AriRelationshipEngine) {
 
 if (window.AriContextAssembler) {
   const contextResult =
-    window.AriContextAssembler.assemble?.(summary) ||
-    window.AriContextAssembler.create?.(summary) ||
+    await window.AriContextAssembler.assemble?.(summary) ||
+    await window.AriContextAssembler.create?.(summary) ||
     {};
 
   summary = { ...summary, ...contextResult };
@@ -623,9 +623,9 @@ if (
 // 13.4 MEMORY CANDIDATE ENGINE — after final response exists
 if (window.AriMemoryCandidateEngine) {
   const memoryCandidateResult =
-    window.AriMemoryCandidateEngine.detect?.(summary) ||
-    window.AriMemoryCandidateEngine.create?.(summary) ||
-    window.AriMemoryCandidateEngine.evaluate?.(summary) ||
+    await window.AriMemoryCandidateEngine.detect?.(summary) ||
+    await window.AriMemoryCandidateEngine.create?.(summary) ||
+    await window.AriMemoryCandidateEngine.evaluate?.(summary) ||
     {};
 
   summary = {
