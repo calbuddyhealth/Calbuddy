@@ -1,12 +1,12 @@
 // ari/context/ari-entity-reference-resolver.js
 // Ari Subject Graph / Entity & Reference Resolver
-// Purpose: Track conversational actors, issues, actions, pressures, and references.
-// V5.0.0 — Universal Context Resolver
+// Purpose: Resolve who/what the user is referring to across turns.
+// V5.1.0 — Reference Resolver / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriEntityReferenceResolver = {
-  version: "5.0.0",
+  version: "5.1.0",
 
   resolve(input = {}) {
     const summary = input.summary || input || {};
@@ -23,36 +23,23 @@ window.AriEntityReferenceResolver = {
 
     const recentMessages = this.getRecentMessages(summary, currentText);
 
-    const candidates = [
-      ...this.extractActorsAndSubjects(recentMessages),
-      ...this.extractIssues(recentMessages),
-      ...this.extractPressures(recentMessages),
-      ...this.subjectsFromThread(thread)
-    ];
-
-    const subjects = this.mergeSubjects([
+    const candidates = this.mergeSubjects([
       ...(priorState.subjects || []),
-      ...candidates
+      ...this.extractEntitiesFromMessages(recentMessages),
+      ...this.entitiesFromThread(thread)
     ]);
-
-    const activeProblem = this.resolveActiveProblem({
-      currentText,
-      recentMessages,
-      subjects,
-      thread,
-      priorState
-    });
 
     const references = this.resolveReferences({
       currentText,
-      subjects,
-      thread,
-      activeProblem
+      candidates,
+      thread
     });
 
-    const activeSubject =
-      this.chooseActiveSubject(subjects, references, thread, activeProblem) ||
-      null;
+    const activeEntity = this.chooseActiveEntity({
+      candidates,
+      references,
+      thread
+    });
 
     const state = {
       entityReferenceResolverRan: true,
@@ -65,14 +52,19 @@ window.AriEntityReferenceResolver = {
 
       currentText,
       recentMessages,
-      subjects,
-      references,
-      activeSubject,
-      activeEntity: activeSubject,
-      activeProblem,
-      activeIssue: activeProblem,
 
-      confidence: this.scoreConfidence(subjects, references, activeSubject, activeProblem),
+      subjects: candidates,
+      entities: candidates,
+      references,
+
+      activeSubject: activeEntity,
+      activeEntity,
+
+      confidence: this.scoreConfidence({
+        candidates,
+        references,
+        activeEntity
+      }),
 
       authority: "advisory_context_only",
 
@@ -84,7 +76,9 @@ window.AriEntityReferenceResolver = {
         "riskLevel",
         "override",
         "finalResponse",
-        "medicalEscalation"
+        "medicalEscalation",
+        "situationType",
+        "recommendation"
       ]
     };
 
@@ -102,18 +96,18 @@ window.AriEntityReferenceResolver = {
       entityReferenceState: state,
       subjectGraphState: state,
 
-      activeSubjects: subjects,
-      activeEntities: subjects,
+      activeSubjects: candidates,
+      activeEntities: candidates,
 
       resolvedReferences: references,
 
-      activeSubject,
-      activeEntity: activeSubject,
+      activeSubject: activeEntity,
+      activeEntity,
 
-      activeProblem,
-      activeIssue: activeProblem,
+      activeReference: references[0] || null,
 
-      activeReference: references[0] || null
+      confidence: state.confidence,
+      authority: "advisory_context_only"
     };
   },
 
@@ -128,7 +122,9 @@ window.AriEntityReferenceResolver = {
       .filter(Boolean);
 
     const threadTimeline =
-      summary.threadUnderstanding?.workingContext?.timeline || [];
+      summary.threadUnderstanding?.workingContext?.timeline ||
+      summary.threadWorkingContext?.timeline ||
+      [];
 
     const fromTimeline = threadTimeline
       .map(item => this.clean(item.text || item.claim || ""))
@@ -136,394 +132,303 @@ window.AriEntityReferenceResolver = {
 
     return [...fromFacts, ...fromTimeline, currentText]
       .filter(Boolean)
-      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .filter((value, index, list) => list.indexOf(value) === index)
       .slice(-12);
   },
 
-  extractActorsAndSubjects(messages = []) {
-    const subjects = [];
+  extractEntitiesFromMessages(messages = []) {
+    const entities = [];
 
     messages.forEach((message, index) => {
       const text = this.clean(message);
 
-      const actorPatterns = [
-        /\b(my|our)\s+(spouse|wife|husband|partner|fiance|fiancé|girlfriend|boyfriend|kids|children|family|friend|coworker|boss|team|leadership|manager|dad|father|mom|mother)\b/gi,
-        /\b(they|them|their|he|him|his|she|her)\b/gi,
-        /\b(coworker|boss|team|leadership|manager|spouse|wife|husband|partner|kids|children|family|friend)\b/gi
-      ];
-
-      actorPatterns.forEach(pattern => {
-        for (const match of text.matchAll(pattern)) {
-          subjects.push(this.makeSubject({
-            surface: match[0],
-            kind: "actor",
-            evidence: match[0],
-            messageIndex: index,
-            source: "actor_extraction",
-            attributes: {
-              role: this.classifyRole(match[0])
-            }
-          }));
-        }
-      });
-
-      for (const match of text.matchAll(/\b(my|our)\s+([a-zA-Z][a-zA-Z'_-]{1,40})\b/g)) {
-        subjects.push(this.makeSubject({
-          surface: `${match[1]} ${match[2]}`,
-          kind: "possessive_subject",
-          relationToUser: match[1],
-          evidence: match[0],
-          messageIndex: index,
-          source: "structural_possessive"
-        }));
-      }
-
-      for (const match of text.matchAll(/\b(the|this|that)\s+([a-zA-Z][a-zA-Z'_-]{1,40})\b/g)) {
-        subjects.push(this.makeSubject({
-          surface: `${match[1]} ${match[2]}`,
-          kind: "referenced_subject",
-          evidence: match[0],
-          messageIndex: index,
-          source: "structural_reference"
-        }));
-      }
-
-      for (const match of text.matchAll(/\b[A-Z][a-zA-Z'_-]{2,}(?:\s+[A-Z][a-zA-Z'_-]{2,})?\b/g)) {
-        const surface = match[0];
-        if (this.isCommonSentenceStarter(surface)) continue;
-
-        subjects.push(this.makeSubject({
-          surface,
-          kind: "named_subject",
-          evidence: surface,
-          messageIndex: index,
-          source: "structural_named_subject"
-        }));
-      }
+      this.extractPossessiveEntities(text, index, entities);
+      this.extractDefiniteEntities(text, index, entities);
+      this.extractPronounMentions(text, index, entities);
+      this.extractNamedEntities(text, index, entities);
+      this.extractRoleEntities(text, index, entities);
     });
 
-    return subjects;
+    return entities;
   },
 
-  extractIssues(messages = []) {
-    const issues = [];
-
-    messages.forEach((message, index) => {
-      const text = this.clean(message);
-      const lower = text.toLowerCase();
-
-      const issueSignals = [
-        "cutting corners",
-        "rushing",
-        "reporting",
-        "hate me",
-        "honest",
-        "haven't told",
-        "didn't tell",
-        "upset",
-        "move",
-        "promotion",
-        "pressure",
-        "deadline",
-        "unsafe",
-        "mistake",
-        "conflict",
-        "problem"
-      ];
-
-      issueSignals.forEach(signal => {
-        if (!lower.includes(signal)) return;
-
-        issues.push(this.makeSubject({
-          surface: signal,
-          kind: "active_issue",
-          evidence: signal,
-          messageIndex: index,
-          source: "issue_extraction",
-          salienceBoost: 0.25,
-          attributes: {
-            issueType: this.classifyIssue(signal)
-          }
-        }));
-      });
-    });
-
-    return issues;
-  },
-
-  extractPressures(messages = []) {
-    const pressures = [];
-
-    messages.forEach((message, index) => {
-      const text = this.clean(message);
-      const lower = text.toLowerCase();
-
-      const pressureSignals = [
-        "rushing",
-        "pressure",
-        "only doing it because",
-        "because leadership",
-        "deadline",
-        "understaffed",
-        "short staffed",
-        "too much",
-        "no time",
-        "forced",
-        "required",
-        "have to",
-        "must"
-      ];
-
-      pressureSignals.forEach(signal => {
-        if (!lower.includes(signal)) return;
-
-        pressures.push(this.makeSubject({
-          surface: signal,
-          kind: "pressure_or_constraint",
-          evidence: signal,
-          messageIndex: index,
-          source: "pressure_extraction",
-          salienceBoost: 0.22,
-          attributes: {
-            pressureType: "system_pressure"
-          }
-        }));
-      });
-    });
-
-    return pressures;
-  },
-
-  subjectsFromThread(thread = {}) {
-    const subjects = [];
-
-    if (thread.activeSubject && thread.activeSubject.type !== "unknown") {
-      subjects.push(this.makeSubject({
-        surface:
-          thread.activeSubject.label ||
-          thread.activeSubject.evidence ||
-          "active subject",
-        kind: "thread_active_subject",
-        evidence: thread.activeSubject.evidence || null,
-        source: "thread_understanding",
-        salienceBoost: 0.35,
-        attributes: {
-          threadSubject: thread.activeSubject
-        }
+  extractPossessiveEntities(text = "", index = 0, entities = []) {
+    for (const match of text.matchAll(/\b(my|our)\s+([a-zA-Z][a-zA-Z'_-]{1,40})\b/g)) {
+      entities.push(this.makeEntity({
+        surface: `${match[1]} ${match[2]}`,
+        kind: "possessive_entity",
+        relationToUser: match[1],
+        evidence: match[0],
+        messageIndex: index,
+        source: "possessive_entity_extraction"
       }));
     }
+  },
 
-    if (thread.activeIssue && thread.activeIssue.type !== "unknown") {
-      subjects.push(this.makeSubject({
-        surface:
-          thread.activeIssue.label ||
-          thread.activeIssue.evidence ||
-          "active issue",
-        kind: "thread_active_issue",
-        evidence: thread.activeIssue.evidence || null,
-        source: "thread_understanding",
-        salienceBoost: 0.35,
-        attributes: {
-          threadIssue: thread.activeIssue
-        }
+  extractDefiniteEntities(text = "", index = 0, entities = []) {
+    for (const match of text.matchAll(/\b(the|this|that)\s+([a-zA-Z][a-zA-Z'_-]{1,40})\b/g)) {
+      entities.push(this.makeEntity({
+        surface: `${match[1]} ${match[2]}`,
+        kind: "referenced_entity",
+        evidence: match[0],
+        messageIndex: index,
+        source: "definite_entity_extraction"
       }));
     }
-
-    return subjects;
   },
 
-  resolveActiveProblem({ currentText = "", recentMessages = [], subjects = [], thread = {}, priorState = {} } = {}) {
-    const text = this.clean(currentText).toLowerCase();
-    const allText = recentMessages.join(" ").toLowerCase();
-
-    const priorProblem = priorState.activeProblem || priorState.activeIssue || null;
-
-    const problem = {
-      type: "active_problem",
-      label: null,
-      evidence: [],
-      actors: [],
-      pressures: [],
-      issueType: "unknown",
-      confidence: 0.45,
-      source: "ari-subject-graph"
-    };
-
-    if (allText.includes("cutting corners")) {
-      problem.label = "coworker cutting corners under possible pressure";
-      problem.issueType = "work_ethics_or_safety";
-      problem.evidence.push("cutting corners");
-      problem.confidence += 0.2;
+  extractPronounMentions(text = "", index = 0, entities = []) {
+    for (const match of text.matchAll(/\b(he|him|his|she|her|hers|they|them|their|theirs|it|its|this|that)\b/gi)) {
+      entities.push(this.makeEntity({
+        surface: match[0],
+        kind: "pronoun_mention",
+        evidence: match[0],
+        messageIndex: index,
+        source: "pronoun_mention_extraction",
+        salience: 0.35,
+        confidence: 0.45
+      }));
     }
+  },
 
-    if (allText.includes("leadership") && allText.includes("rushing")) {
-      problem.pressures.push("leadership rushing everyone");
-      problem.evidence.push("leadership keeps rushing everyone");
-      problem.confidence += 0.25;
+  extractNamedEntities(text = "", index = 0, entities = []) {
+    for (const match of text.matchAll(/\b[A-Z][a-zA-Z'_-]{2,}(?:\s+[A-Z][a-zA-Z'_-]{2,})?\b/g)) {
+      const surface = match[0];
+      if (this.isCommonSentenceStarter(surface)) continue;
+
+      entities.push(this.makeEntity({
+        surface,
+        kind: "named_entity",
+        evidence: surface,
+        messageIndex: index,
+        source: "named_entity_extraction",
+        confidence: 0.7
+      }));
     }
+  },
 
-    if (allText.includes("reporting") || allText.includes("report a coworker")) {
-      problem.evidence.push("considering reporting a coworker");
-      problem.issueType = "workplace_reporting_decision";
-      problem.confidence += 0.15;
-    }
+  extractRoleEntities(text = "", index = 0, entities = []) {
+    const roles = [
+      "coworker",
+      "boss",
+      "manager",
+      "leadership",
+      "team",
+      "employee",
+      "staff",
+      "friend",
+      "wife",
+      "husband",
+      "spouse",
+      "partner",
+      "girlfriend",
+      "boyfriend",
+      "fiance",
+      "fiancé",
+      "father",
+      "dad",
+      "mother",
+      "mom",
+      "child",
+      "kid",
+      "baby",
+      "cat",
+      "dog",
+      "pet"
+    ];
 
-    if (allText.includes("hate me") || allText.includes("team hate")) {
-      problem.evidence.push("fear of team backlash");
-      problem.actors.push("team");
-      problem.confidence += 0.15;
-    }
+    roles.forEach(role => {
+      const regex = new RegExp(`\\b${this.escapeRegex(role)}\\b`, "i");
+      if (!regex.test(text)) return;
 
-    if (this.hasAny(allText, ["honest", "honesty", "haven't told", "didn't tell", "secret", "withheld"])) {
-      problem.label = problem.label || "trust and honesty concern";
-      problem.issueType = "trust_or_communication";
-      problem.evidence.push("honesty or communication concern");
-      problem.confidence += 0.15;
-    }
+      entities.push(this.makeEntity({
+        surface: role,
+        kind: "role_entity",
+        evidence: role,
+        messageIndex: index,
+        source: "role_entity_extraction",
+        confidence: 0.75,
+        attributes: {
+          role
+        }
+      }));
+    });
+  },
 
-    subjects.forEach(subject => {
-      if (subject.kind === "actor") problem.actors.push(subject.surface);
-      if (subject.kind === "pressure_or_constraint") problem.pressures.push(subject.surface);
+  entitiesFromThread(thread = {}) {
+    const entities = [];
+
+    const possibleThreadEntities = [
+      thread.activeSubject,
+      thread.activeObject,
+      thread.activeEntity,
+      thread.resolvedMeaning?.resolvedSubject,
+      thread.resolvedMeaning?.resolvedObject
+    ].filter(Boolean);
+
+    possibleThreadEntities.forEach(item => {
+      if (!item || item.type === "unknown") return;
+
+      entities.push(this.makeEntity({
+        surface:
+          item.label ||
+          item.surface ||
+          item.evidence ||
+          item.kind ||
+          "thread entity",
+        kind: "thread_entity",
+        evidence: item.evidence || item.label || null,
+        source: "thread_understanding",
+        salienceBoost: 0.3,
+        confidence: item.confidence ?? 0.72,
+        attributes: {
+          threadEntity: item
+        }
+      }));
     });
 
-    problem.actors = [...new Set(problem.actors)].slice(0, 6);
-    problem.pressures = [...new Set(problem.pressures)].slice(0, 6);
-    problem.evidence = [...new Set(problem.evidence)].slice(0, 8);
-
-    if (!problem.label && priorProblem?.label) {
-      return {
-        ...priorProblem,
-        carriedForward: true,
-        confidence: Math.min(0.82, priorProblem.confidence || 0.65)
-      };
-    }
-
-    if (!problem.label && problem.evidence.length) {
-      problem.label = problem.evidence[0];
-    }
-
-    if (!problem.label) return null;
-
-    problem.confidence = Math.min(0.95, problem.confidence);
-
-    return problem;
+    return entities;
   },
 
-  resolveReferences({ currentText = "", subjects = [], thread = {}, activeProblem = null } = {}) {
+  resolveReferences({ currentText = "", candidates = [], thread = {} } = {}) {
     const text = this.clean(currentText).toLowerCase();
-    const refs = [];
+    const references = [];
 
     const pronouns = [
-      "it",
-      "this",
-      "that",
-      "this one",
-      "that one",
       "he",
       "him",
       "his",
       "she",
       "her",
+      "hers",
       "they",
       "them",
-      "their"
+      "their",
+      "theirs",
+      "it",
+      "its",
+      "this",
+      "that",
+      "this one",
+      "that one"
     ];
 
     pronouns.forEach(term => {
       const regex = new RegExp(`\\b${term.replace(" ", "\\s+")}\\b`, "i");
       if (!regex.test(text)) return;
 
-      const target =
-        this.resolvePronounTarget(term, subjects, activeProblem) ||
-        subjects[0] ||
-        activeProblem ||
-        null;
+      const target = this.resolveReferenceTarget(term, candidates, thread);
 
-      refs.push({
+      references.push({
         reference: term,
         resolvedTo: target,
-        reason: "Resolved by actor salience, active problem, recency, and thread focus.",
-        confidence: target ? 0.78 : 0.2,
+        reason: target
+          ? "Resolved by entity salience, recency, and thread context."
+          : "No reliable target found.",
+        confidence: target ? 0.76 : 0.25,
         source: "ari-subject-graph"
       });
     });
 
-    if (this.isImplicitFollowUpQuestion(text, thread, activeProblem)) {
-      refs.push({
-        reference: "implicit_current_problem",
-        resolvedTo: activeProblem || subjects[0] || null,
-        reason: "Follow-up question depends on the active problem from the prior turn.",
-        confidence: activeProblem ? 0.86 : subjects[0] ? 0.72 : 0.25,
+    if (this.isImplicitFollowUp(text, thread)) {
+      const target =
+        candidates.find(item => item.kind !== "pronoun_mention") ||
+        candidates[0] ||
+        null;
+
+      references.push({
+        reference: "implicit_active_context",
+        resolvedTo: target,
+        reason: target
+          ? "Short follow-up appears to depend on the active context."
+          : "Short follow-up detected, but no active entity was available.",
+        confidence: target ? 0.78 : 0.25,
         source: "ari-subject-graph"
       });
     }
 
-    if (thread.activeIssue && thread.activeIssue.type !== "unknown") {
-      refs.push({
-        reference: "implicit_current_issue",
-        resolvedTo: thread.activeIssue,
-        reason: "Thread Understanding identified an active issue.",
-        confidence: thread.activeIssue.confidence || 0.75,
-        source: "thread_understanding"
-      });
-    }
-
-    return refs.slice(0, 10);
+    return references.slice(0, 10);
   },
 
-  resolvePronounTarget(term = "", subjects = [], activeProblem = null) {
+  resolveReferenceTarget(term = "", candidates = [], thread = {}) {
     const lower = term.toLowerCase();
 
-    if (["they", "them", "their"].includes(lower)) {
-      const groupActor = subjects.find(s =>
-        ["team", "leadership", "coworker", "family", "kids", "children"].includes(
-          this.key(s.surface)
-        )
+    const nonPronounCandidates = candidates.filter(
+      item => item.kind !== "pronoun_mention"
+    );
+
+    if (["he", "him", "his", "she", "her", "hers"].includes(lower)) {
+      return (
+        nonPronounCandidates.find(item =>
+          this.isLikelyPersonEntity(item)
+        ) ||
+        nonPronounCandidates[0] ||
+        null
       );
-
-      return groupActor || activeProblem || subjects[0] || null;
     }
 
-    if (["it", "this", "that"].includes(lower)) {
-      return activeProblem || subjects.find(s => s.kind === "active_issue") || subjects[0] || null;
+    if (["they", "them", "their", "theirs"].includes(lower)) {
+      return (
+        nonPronounCandidates.find(item =>
+          this.isLikelyGroupEntity(item)
+        ) ||
+        nonPronounCandidates.find(item =>
+          this.isLikelyPersonEntity(item)
+        ) ||
+        nonPronounCandidates[0] ||
+        null
+      );
     }
 
-    return subjects[0] || activeProblem || null;
+    if (["it", "its", "this", "that", "this one", "that one"].includes(lower)) {
+      return (
+        nonPronounCandidates.find(item =>
+          this.isLikelyObjectOrIssueEntity(item)
+        ) ||
+        nonPronounCandidates[0] ||
+        null
+      );
+    }
+
+    return nonPronounCandidates[0] || null;
   },
 
-  isImplicitFollowUpQuestion(text = "", thread = {}, activeProblem = null) {
+  isImplicitFollowUp(text = "", thread = {}) {
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const hasQuestion = text.includes("?");
 
-    return (
+    return Boolean(
       hasQuestion &&
       wordCount <= 18 &&
       (
-        activeProblem ||
-        thread.continuityUsed === true ||
+        thread.resolvedMeaning?.isContextual ||
         thread.impliedQuestion?.type ||
-        thread.activeSubject?.type
+        thread.workingContext?.activeSubject ||
+        thread.workingContext?.activeObject ||
+        thread.workingContext?.activeIssue
       )
     );
   },
 
-  chooseActiveSubject(subjects = [], references = [], thread = {}, activeProblem = null) {
-    const refTarget = references.find(r => r.resolvedTo)?.resolvedTo;
-    if (refTarget?.surface || refTarget?.label) return refTarget;
+  chooseActiveEntity({ candidates = [], references = [], thread = {} } = {}) {
+    const referenced = references.find(ref => ref.resolvedTo)?.resolvedTo;
+    if (referenced) return referenced;
 
-    const actor = subjects.find(s => s.kind === "actor");
-    if (actor) return actor;
+    const threadEntity = candidates.find(item =>
+      item.source === "thread_understanding" &&
+      item.kind !== "pronoun_mention"
+    );
 
-    if (activeProblem) return activeProblem;
+    if (threadEntity) return threadEntity;
 
-    return subjects[0] || null;
+    return candidates.find(item => item.kind !== "pronoun_mention") || candidates[0] || null;
   },
 
-  makeSubject(data = {}) {
+  makeEntity(data = {}) {
     return {
-      id: data.id || this.createId("subject"),
-      surface: data.surface || data.evidence || "unknown subject",
-      kind: data.kind || "subject",
+      id: data.id || this.createId("entity"),
+      surface: data.surface || data.evidence || "unknown entity",
+      kind: data.kind || "entity",
       relationToUser: data.relationToUser || null,
       evidence: data.evidence || null,
       aliases: data.aliases || [],
@@ -545,7 +450,7 @@ window.AriEntityReferenceResolver = {
       if (!subject?.surface) return;
 
       const key = this.key(subject.surface);
-      const existing = merged.find(s => this.key(s.surface) === key);
+      const existing = merged.find(item => this.key(item.surface) === key);
 
       if (existing) {
         existing.mentions += subject.mentions || 1;
@@ -553,7 +458,7 @@ window.AriEntityReferenceResolver = {
         existing.confidence = Math.max(existing.confidence || 0, subject.confidence || 0);
         existing.salience = Math.min(
           1,
-          (existing.salience || 0.5) + 0.1 + (subject.salienceBoost || 0)
+          (existing.salience || 0.5) + 0.08 + (subject.salienceBoost || 0)
         );
         existing.aliases = [...new Set([...(existing.aliases || []), ...(subject.aliases || [])])];
         existing.sources = [...new Set([...(existing.sources || []), subject.source])];
@@ -575,80 +480,123 @@ window.AriEntityReferenceResolver = {
     });
 
     return merged
-      .map(s => ({
-        ...s,
-        score: this.subjectScore(s)
+      .map(item => ({
+        ...item,
+        score: this.entityScore(item)
       }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 16);
   },
 
-  subjectScore(subject = {}) {
+  entityScore(entity = {}) {
     const kindBoost =
-      subject.kind === "active_issue" ? 0.14 :
-      subject.kind === "pressure_or_constraint" ? 0.12 :
-      subject.kind === "actor" ? 0.1 :
+      entity.kind === "thread_entity" ? 0.14 :
+      entity.kind === "role_entity" ? 0.1 :
+      entity.kind === "named_entity" ? 0.08 :
+      entity.kind === "possessive_entity" ? 0.06 :
+      entity.kind === "referenced_entity" ? 0.04 :
+      entity.kind === "pronoun_mention" ? -0.12 :
       0;
 
     return (
-      (subject.salience || 0) * 0.4 +
-      Math.min(1, (subject.mentions || 1) / 4) * 0.2 +
-      (subject.recency || 0.5) * 0.2 +
-      (subject.confidence || 0.5) * 0.15 +
+      (entity.salience || 0) * 0.4 +
+      Math.min(1, (entity.mentions || 1) / 4) * 0.2 +
+      (entity.recency || 0.5) * 0.2 +
+      (entity.confidence || 0.5) * 0.15 +
       kindBoost
     );
   },
 
-  scoreConfidence(subjects = [], references = [], activeSubject = null, activeProblem = null) {
+  scoreConfidence({ candidates = [], references = [], activeEntity = null } = {}) {
     let score = 25;
-    if (subjects.length) score += 25;
-    if (references.length) score += 20;
-    if (activeSubject) score += 15;
-    if (activeProblem) score += 20;
-    if (subjects[0]?.score >= 0.7) score += 10;
+
+    if (candidates.length) score += 25;
+    if (references.length) score += 25;
+    if (activeEntity) score += 15;
+    if (candidates[0]?.score >= 0.7) score += 10;
+
     return Math.min(95, score);
   },
 
-  classifyRole(value = "") {
-    const key = this.key(value);
+  isLikelyPersonEntity(entity = {}) {
+    const value = this.key(entity.surface);
+    const role = entity.attributes?.role;
 
-    if (["wife", "husband", "spouse", "partner", "girlfriend", "boyfriend", "fiance", "fiancé"].includes(key)) {
-      return "close_partner";
-    }
-
-    if (["kids", "children", "family", "dad", "father", "mom", "mother"].includes(key)) {
-      return "family";
-    }
-
-    if (["coworker", "boss", "team", "leadership", "manager"].includes(key)) {
-      return "work_actor";
-    }
-
-    return "actor";
+    return [
+      "coworker",
+      "boss",
+      "manager",
+      "leadership",
+      "team",
+      "employee",
+      "staff",
+      "friend",
+      "wife",
+      "husband",
+      "spouse",
+      "partner",
+      "girlfriend",
+      "boyfriend",
+      "fiance",
+      "fiancé",
+      "father",
+      "dad",
+      "mother",
+      "mom",
+      "child",
+      "kid",
+      "baby"
+    ].includes(value) || Boolean(role);
   },
 
-  classifyIssue(value = "") {
-    const key = this.key(value);
+  isLikelyGroupEntity(entity = {}) {
+    const value = this.key(entity.surface);
 
-    if (["cutting corners", "unsafe", "mistake"].includes(key)) return "quality_or_safety";
-    if (["rushing", "pressure", "deadline"].includes(key)) return "system_pressure";
-    if (["honest", "honesty", "haven't told", "didn't tell"].includes(key)) return "trust_or_communication";
-    if (["promotion", "move", "job", "career"].includes(key)) return "life_or_work_decision";
+    return [
+      "team",
+      "leadership",
+      "family",
+      "kids",
+      "children",
+      "staff",
+      "employees",
+      "coworkers"
+    ].includes(value);
+  },
 
-    return "general_issue";
+  isLikelyObjectOrIssueEntity(entity = {}) {
+    return [
+      "referenced_entity",
+      "thread_entity",
+      "possessive_entity"
+    ].includes(entity.kind);
   },
 
   isCommonSentenceStarter(surface = "") {
     return [
-      "What", "Why", "How", "When", "Where", "Should",
-      "Can", "Do", "Does", "Is", "Are", "Will", "Would",
-      "Okay", "Yes", "No", "Done", "Next", "If"
+      "What",
+      "Why",
+      "How",
+      "When",
+      "Where",
+      "Should",
+      "Can",
+      "Do",
+      "Does",
+      "Is",
+      "Are",
+      "Will",
+      "Would",
+      "Okay",
+      "Yes",
+      "No",
+      "Done",
+      "Next",
+      "If",
+      "And",
+      "But",
+      "So"
     ].includes(surface);
-  },
-
-  hasAny(text = "", terms = []) {
-    const lower = String(text || "").toLowerCase();
-    return terms.some(term => lower.includes(String(term).toLowerCase()));
   },
 
   key(value = "") {
@@ -660,6 +608,10 @@ window.AriEntityReferenceResolver = {
 
   createId(prefix = "id") {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  },
+
+  escapeRegex(value = "") {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   },
 
   clean(value = "") {
