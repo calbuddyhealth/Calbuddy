@@ -103,44 +103,43 @@ if (
 
 // 0.27 CONTINUITY / MEMORY / RELATIONSHIP CONTEXT
 
-if (window.AriConversationContinuityEngine?.analyze) {
+if (window.AriConversationContinuityEngine) {
   const continuityResult =
-    window.AriConversationContinuityEngine.analyze(summary) || {};
+    window.AriConversationContinuityEngine.analyze?.(summary) ||
+    window.AriConversationContinuityEngine.evaluate?.(summary) ||
+    window.AriConversationContinuityEngine.create?.(summary) ||
+    {};
 
-  summary = {
-    ...summary,
-    ...continuityResult
-  };
+  summary = { ...summary, ...continuityResult };
 }
 
-if (window.AriMemoryRetrievalEngine?.retrieve) {
+if (window.AriMemoryRetrievalEngine) {
   const memoryResult =
-    window.AriMemoryRetrievalEngine.retrieve(summary) || {};
+    window.AriMemoryRetrievalEngine.retrieve?.(summary) ||
+    window.AriMemoryRetrievalEngine.search?.(summary) ||
+    window.AriMemoryRetrievalEngine.create?.(summary) ||
+    {};
 
-  summary = {
-    ...summary,
-    ...memoryResult
-  };
+  summary = { ...summary, ...memoryResult };
 }
 
-if (window.AriRelationshipEngine?.analyze) {
+if (window.AriRelationshipEngine) {
   const relationshipResult =
-    window.AriRelationshipEngine.analyze(summary) || {};
+    window.AriRelationshipEngine.analyze?.(summary) ||
+    window.AriRelationshipEngine.evaluate?.(summary) ||
+    window.AriRelationshipEngine.create?.(summary) ||
+    {};
 
-  summary = {
-    ...summary,
-    ...relationshipResult
-  };
+  summary = { ...summary, ...relationshipResult };
 }
 
-if (window.AriContextAssembler?.assemble) {
+if (window.AriContextAssembler) {
   const contextResult =
-    window.AriContextAssembler.assemble(summary) || {};
+    window.AriContextAssembler.assemble?.(summary) ||
+    window.AriContextAssembler.create?.(summary) ||
+    {};
 
-  summary = {
-    ...summary,
-    ...contextResult
-  };
+  summary = { ...summary, ...contextResult };
 }
 
     // 0.30 SITUATION MAP
@@ -622,9 +621,12 @@ if (
 }
 
 // 13.4 MEMORY CANDIDATE ENGINE — after final response exists
-if (window.AriMemoryCandidateEngine?.detect) {
+if (window.AriMemoryCandidateEngine) {
   const memoryCandidateResult =
-    window.AriMemoryCandidateEngine.detect(summary) || {};
+    window.AriMemoryCandidateEngine.detect?.(summary) ||
+    window.AriMemoryCandidateEngine.create?.(summary) ||
+    window.AriMemoryCandidateEngine.evaluate?.(summary) ||
+    {};
 
   summary = {
     ...summary,
