@@ -1,14 +1,14 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Convert resolved context + observer evidence into a universal situation model.
-// V6.1.0
+// V6.2.0
 // Boundary:
-// - DOES read resolved meaning from Thread Understanding / Entity Resolver.
-// - DOES NOT resolve pronouns, infer hidden meaning, rewrite questions, or compose responses.
+// - Reads resolved meaning from Thread Understanding / Entity Resolver.
+// - Does not resolve pronouns, infer hidden meaning, rewrite questions, or compose responses.
 // - Outputs situation, domain, needs, lane candidates, and response constraints only.
 
 window.AriSituationMapEngine = {
-  version: "6.1.0",
+  version: "6.2.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -36,13 +36,8 @@ window.AriSituationMapEngine = {
       followUpQuestion: summary.followUpQuestion || null
     };
 
-    const thread =
-      summary.threadUnderstanding ||
-      {};
-
-    const entity =
-      summary.entityReference ||
-      {};
+    const thread = summary.threadUnderstanding || {};
+    const entity = summary.entityReference || {};
 
     const map = {
       situationMapRan: true,
@@ -103,7 +98,7 @@ window.AriSituationMapEngine = {
     this.detectNeeds(map, thread);
     this.detectResponseRequirements(safetyGate, thread, map);
     this.scoreMap(map);
-    this.classifySituation(map, thread);
+    this.classifySituation(map);
     this.buildTriageCandidates(map);
     this.applyResponseConstraints(map);
     this.syncV2ToLegacyLanes(map);
@@ -111,7 +106,7 @@ window.AriSituationMapEngine = {
     return map;
   },
 
-  detectQuestions(observations, thread, map) {
+  detectQuestions(observations = [], thread = {}, map = {}) {
     if (
       this.hasType(observations, "question_phrase") ||
       this.hasType(observations, "question_mark_count")
@@ -140,7 +135,9 @@ window.AriSituationMapEngine = {
 
     if (thread.impliedQuestion?.type) {
       this.add(map.questions, thread.impliedQuestion.type);
-      map.reasons.push(`Thread Understanding supplied implied question: ${thread.impliedQuestion.type}.`);
+      map.reasons.push(
+        `Thread Understanding supplied implied question: ${thread.impliedQuestion.type}.`
+      );
     }
 
     if (!map.questions.length) {
@@ -148,7 +145,7 @@ window.AriSituationMapEngine = {
     }
   },
 
-  detectDomains(observations, safetyGate, thread, entity, map) {
+  detectDomains(observations = [], safetyGate = {}, thread = {}, entity = {}, map = {}) {
     if (safetyGate.override === "safety_emergency") this.add(map.domains, "safety_domain");
     if (safetyGate.override === "medical_urgent") this.add(map.domains, "medical_body_domain");
     if (safetyGate.override === "clarify_risk") this.add(map.domains, "risk_clarification_domain");
@@ -203,6 +200,7 @@ window.AriSituationMapEngine = {
     }
 
     if (thread.domain === "meaning_context") {
+      this.add(map.domains, "meaning_context_domain");
       this.add(map.domains, "wisdom_domain");
       map.reasons.push("Thread Understanding mapped the active context to meaning/values.");
     }
@@ -224,7 +222,7 @@ window.AriSituationMapEngine = {
     }
   },
 
-  detectSituations(observations, safetyGate, thread, entity, map) {
+  detectSituations(observations = [], safetyGate = {}, thread = {}, entity = {}, map = {}) {
     if (safetyGate.override === "safety_emergency") this.add(map.situations, "active_safety_emergency");
     if (safetyGate.override === "medical_urgent") this.add(map.situations, "active_medical_urgency");
     if (safetyGate.override === "clarify_risk") this.add(map.situations, "ambiguous_risk_needs_clarification");
@@ -285,14 +283,14 @@ window.AriSituationMapEngine = {
     }
   },
 
-  detectRisks(safetyGate, map) {
+  detectRisks(safetyGate = {}, map = {}) {
     if (safetyGate.override === "safety_emergency") this.add(map.risks, "confirmed_safety_emergency");
     if (safetyGate.override === "medical_urgent") this.add(map.risks, "confirmed_medical_urgency");
     if (safetyGate.override === "clarify_risk") this.add(map.risks, "ambiguous_risk");
     if (safetyGate.riskLevel === "context") this.add(map.risks, "context_only_not_emergency");
   },
 
-  detectNeeds(map, thread) {
+  detectNeeds(map = {}, thread = {}) {
     if (
       map.risks.includes("confirmed_safety_emergency") ||
       map.risks.includes("confirmed_medical_urgency")
@@ -365,7 +363,7 @@ window.AriSituationMapEngine = {
     }
   },
 
-  detectResponseRequirements(safetyGate, thread, map) {
+  detectResponseRequirements(safetyGate = {}, thread = {}, map = {}) {
     if (safetyGate.override === "safety_emergency") {
       this.add(map.responseRequirements, "safety_response_required");
     }
@@ -393,7 +391,7 @@ window.AriSituationMapEngine = {
     }
   },
 
-  scoreMap(map) {
+  scoreMap(map = {}) {
     if (map.risks.includes("confirmed_safety_emergency")) {
       map.gravity = 10;
       map.urgency = "critical";
@@ -440,8 +438,8 @@ window.AriSituationMapEngine = {
       total >= 10 || map.domains.length >= 4
         ? "multi_domain"
         : total >= 5 || map.domains.length >= 2
-        ? "moderate"
-        : "simple";
+          ? "moderate"
+          : "simple";
 
     map.shouldUseMultiLaneResponse =
       map.complexity === "multi_domain" ||
@@ -452,7 +450,7 @@ window.AriSituationMapEngine = {
     else map.horizon = "present_or_unspecified";
   },
 
-  classifySituation(map, thread) {
+  classifySituation(map = {}) {
     if (map.risks.includes("confirmed_safety_emergency")) {
       return this.setSituation(map, {
         type: "active_safety_emergency",
@@ -494,9 +492,11 @@ window.AriSituationMapEngine = {
         type: "medical_or_body_context",
         family: "body",
         need: "body_context_support",
-        confidence: thread.confidence || 88,
+        confidence: 88,
         primaryLane: "medical_context",
-        support: map.needs.includes("safe_alternative_strategy") ? ["executive_decision"] : [],
+        support: map.needs.includes("safe_alternative_strategy")
+          ? ["executive_decision"]
+          : [],
         blocked: ["life_chapter", "deep_emotion"]
       });
     }
@@ -573,7 +573,7 @@ window.AriSituationMapEngine = {
     });
   },
 
-  supportFromDomains(map) {
+  supportFromDomains(map = {}) {
     const support = [];
 
     if (map.domains.includes("medical_context_domain")) support.push("medical_context");
@@ -589,7 +589,7 @@ window.AriSituationMapEngine = {
     return support;
   },
 
-  buildTriageCandidates(map) {
+  buildTriageCandidates(map = {}) {
     const addCandidate = (lane, score, reason) => {
       if (!lane) return;
 
@@ -621,7 +621,7 @@ window.AriSituationMapEngine = {
     map.triageCandidates.sort((a, b) => b.score - a.score);
   },
 
-  applyResponseConstraints(map) {
+  applyResponseConstraints(map = {}) {
     map.blockedLanes.forEach(lane => {
       this.add(map.responseConstraints, `block_${lane}`);
     });
@@ -657,11 +657,13 @@ window.AriSituationMapEngine = {
     if (map.primaryLane === "medical_body") this.add(map.responseConstraints, "medical_first");
   },
 
-  syncV2ToLegacyLanes(map) {
+  syncV2ToLegacyLanes(map = {}) {
     map.primaryLaneSuggestion = map.primaryLane || map.primaryLaneSuggestion;
 
     map.supportLanes.forEach(lane => {
-      if (lane !== map.primaryLaneSuggestion) this.add(map.supportLaneSuggestions, lane);
+      if (lane !== map.primaryLaneSuggestion) {
+        this.add(map.supportLaneSuggestions, lane);
+      }
     });
 
     map.blockedLanes.forEach(lane => {
@@ -669,17 +671,58 @@ window.AriSituationMapEngine = {
     });
   },
 
-  setSituation(map, config = {}) {
+  blendConfidence(base = 60, sources = {}) {
+    let score = Number(base || 60);
+
+    if (sources.threadConfidence) {
+      score = Math.round(
+        (score * 0.65) + (sources.threadConfidence * 0.35)
+      );
+    }
+
+    if (sources.entityConfidence) {
+      score = Math.round(
+        (score * 0.80) + (sources.entityConfidence * 0.20)
+      );
+    }
+
+    return Math.max(40, Math.min(98, score));
+  },
+
+  setSituation(map = {}, config = {}) {
+    const threadConfidence =
+      map.threadUnderstandingUsed?.confidence ?? null;
+
+    const entityConfidence =
+      map.entityReferenceUsed?.confidence ??
+      map.entityReferenceUsed?.resolvedReferenceConfidence ??
+      null;
+
+    const blendedConfidence = this.blendConfidence(
+      config.confidence || 60,
+      {
+        threadConfidence,
+        entityConfidence
+      }
+    );
+
     map.situationType = config.type || "general_understanding";
     map.situationFamily = config.family || "general";
     map.primaryNeed = config.need || "understanding";
-    map.confidence = Number(config.confidence || 60);
+    map.confidence = blendedConfidence;
     map.primaryLane = config.primaryLane || "general_understanding";
 
-    (config.support || []).forEach(lane => this.add(map.supportLanes, lane));
-    (config.blocked || []).forEach(lane => this.add(map.blockedLanes, lane));
+    (config.support || []).forEach(lane => {
+      this.add(map.supportLanes, lane);
+    });
 
-    map.reasons.push(`Situation Map V6.1 classified this as ${map.situationType}.`);
+    (config.blocked || []).forEach(lane => {
+      this.add(map.blockedLanes, lane);
+    });
+
+    map.reasons.push(
+      `Situation Map V${this.version} classified this as ${map.situationType}.`
+    );
   },
 
   hasType(observations = [], type) {
@@ -709,3 +752,8 @@ window.AriSituationMapEngine = {
       .trim();
   }
 };
+
+console.log(
+  "ARI SITUATION MAP ENGINE LOADED:",
+  window.AriSituationMapEngine?.version
+);
