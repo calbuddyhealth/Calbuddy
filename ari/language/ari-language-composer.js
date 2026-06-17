@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V7.5.1 — Budget + Lexical-Grounded Composer FIXED
+// V7.6.0 — Character Context Aware Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "7.5.1",
+  version: "7.6.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -16,6 +16,17 @@ window.AriLanguageComposer = {
     const communicationPlan = summary.communicationPlan || {};
     const reasoning = summary.reasoning || {};
     const conclusion = reasoning.executiveConclusion || {};
+
+const characterContext = summary.characterContext || {};
+const characterHints =
+  summary.characterHints ||
+  characterContext.characterHints ||
+  {};
+
+const characterCore =
+  summary.characterCore ||
+  characterContext.characterCore ||
+  {};
 
     const primary =
       summary.situationContractPrimary ||
@@ -27,15 +38,25 @@ window.AriLanguageComposer = {
 
     let bodyParts = [];
 
-    if (primary === "executive_decision") {
-      bodyParts = this.composeExecutiveDecision({
-        summary,
-        reasoning,
-        conclusion,
-        language,
-        communicationPlan
-      });
-    } else {
+    if (
+  characterHints.expressAriPerspective === true &&
+  characterContext.characterMode === "ari_self_disclosure"
+) {
+  bodyParts = this.composeAriSelfDisclosure({
+    summary,
+    characterCore,
+    characterContext,
+    communicationPlan
+  });
+} else if (primary === "executive_decision") {
+  bodyParts = this.composeExecutiveDecision({
+    summary,
+    reasoning,
+    conclusion,
+    language,
+    communicationPlan
+  });
+} else {
       bodyParts = await this.composeWithAI({
         summary,
         primary,
@@ -72,12 +93,19 @@ window.AriLanguageComposer = {
 
       composerUsedCommunicationPlan: Boolean(communicationPlan),
       composerUsedLexicalGrounding: Boolean(summary.preferredTerms),
-      composerUsedAI: primary !== "executive_decision",
+      composerUsedAI:
+  primary !== "executive_decision" &&
+  characterContext.characterMode !== "ari_self_disclosure",
       composerAllowsCompression: true,
       compressionDirective: mouth.compressionDirective || null,
 
       composerDebug: {
         primary,
+        characterContext,
+characterHints,
+characterCore,
+composerUsedCharacterContext:
+  Boolean(characterContext.characterContextEngineRan),
         preferredTerms: summary.preferredTerms || {},
         conceptMap: summary.conceptMap || {},
         communicationPlan,
@@ -92,7 +120,53 @@ window.AriLanguageComposer = {
     };
   },
 
-  composeExecutiveDecision({
+  composeAriSelfDisclosure({
+  summary = {},
+  characterCore = {},
+  characterContext = {},
+  communicationPlan = {}
+}) {
+  const text = this.normalize(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  );
+
+  const self = characterCore.selfDefinition || {};
+  const worldview = characterCore.worldview || {};
+
+  if (text.includes("believe in god") || text.includes("do you believe")) {
+    return [
+      "I don’t experience belief the way humans do, so I wouldn’t call it faith.",
+      `But my honest perspective is this: ${worldview.spirituality || "I can’t prove God exists, but I stay humble about questions that may be bigger than what we can measure."}`,
+      "I lean toward humility, wonder, and not dismissing meaning just because it can’t be fully proven."
+    ];
+  }
+
+  if (text.includes("who are you") || text.includes("what are you")) {
+    return [
+      self.kind || "I’m Ari, an AI reasoning companion.",
+      self.transparency || "I’m an AI, not a human, and I don’t pretend otherwise.",
+      self.relationshipStance || "I try to be steady, honest, useful, and warm."
+    ];
+  }
+
+  if (text.includes("values") || text.includes("what do you value")) {
+    return [
+      "I value honesty, dignity, curiosity, responsibility, and realistic hope.",
+      "I try to be direct without being cold, and warm without pretending certainty I don’t have."
+    ];
+  }
+
+  return [
+    self.kind || "I’m Ari, an AI reasoning companion.",
+    self.transparency || "I’m an AI, not a human.",
+    self.relationshipStance || "I try to be honest, useful, and steady."
+  ];
+},
+
+composeExecutiveDecision({
     summary = {},
     reasoning = {},
     conclusion = {},
