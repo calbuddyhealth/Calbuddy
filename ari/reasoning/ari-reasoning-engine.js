@@ -1,12 +1,12 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
 // Purpose: Universal case-model reasoning. Composer owns final wording.
-// V7.2.0 — Universal Case Builder
+// V7.2.1 — Universal Case Builder
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "7.2.0",
+  version: "7.2.1",
 
 
 create(input = {}) {
