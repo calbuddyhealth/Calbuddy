@@ -36,6 +36,17 @@ window.Ari.coreSummary = {
       analysis.observer ||
       {};
 
+const universalConversationClassification =
+  analysis.universalConversationClassification ||
+  analysis.conversationClassification ||
+  analysis.conversation ||
+  {};
+
+const characterContext =
+  analysis.characterContext ||
+  analysis.character ||
+  {};
+
     const situationMap =
       analysis.situationMap ||
       analysis.situation ||
@@ -355,6 +366,68 @@ const humanLanguage =
 
       rankedLedgerObservations:
         observationLedger.slice(0, 10),
+
+// ==================================================
+// NEW CORE CHAIN: UNIVERSAL CONVERSATION CLASSIFIER
+// ==================================================
+
+universalConversationClassification,
+
+universalConversationClassifierRan:
+  analysis.universalConversationClassifierRan ??
+  universalConversationClassification.universalConversationClassifierRan ??
+  null,
+
+universalConversationClassifierVersion:
+  analysis.universalConversationClassifierVersion ||
+  universalConversationClassification.universalConversationClassifierVersion ||
+  null,
+
+universalConversationClassifierSource:
+  analysis.universalConversationClassifierSource ||
+  universalConversationClassification.universalConversationClassifierSource ||
+  universalConversationClassification.source ||
+  "not-yet-run",
+
+conversationType:
+  analysis.conversationType ||
+  universalConversationClassification.conversationType ||
+  null,
+
+conversationTypeScore:
+  analysis.conversationTypeScore ??
+  universalConversationClassification.conversationTypeScore ??
+  null,
+
+conversationTypeConfidence:
+  analysis.conversationTypeConfidence ||
+  universalConversationClassification.conversationTypeConfidence ||
+  null,
+
+conversationTypeReasons:
+  analysis.conversationTypeReasons ||
+  universalConversationClassification.conversationTypeReasons ||
+  [],
+
+conversationCandidates:
+  analysis.conversationCandidates ||
+  universalConversationClassification.conversationCandidates ||
+  [],
+
+conversationIntent:
+  analysis.conversationIntent ||
+  universalConversationClassification.conversationIntent ||
+  null,
+
+conversationResponseHint:
+  analysis.conversationResponseHint ||
+  universalConversationClassification.conversationResponseHint ||
+  null,
+
+conversationAuthority:
+  analysis.conversationAuthority ||
+  universalConversationClassification.conversationAuthority ||
+  null,
 
       // ==================================================
       // NEW CORE CHAIN: SITUATION MAP
@@ -1059,6 +1132,68 @@ reasoningConfidence:
   analysis.reasoning?.confidence ??
   analysis.reasoningConfidence ??
   null,
+
+// ==================================================
+// CHARACTER CONTEXT ENGINE
+// ==================================================
+
+characterContext,
+
+characterContextEngineRan:
+  analysis.characterContextEngineRan ??
+  characterContext.characterContextEngineRan ??
+  null,
+
+characterContextEngineVersion:
+  analysis.characterContextEngineVersion ||
+  characterContext.characterContextEngineVersion ||
+  null,
+
+characterContextEngineSource:
+  analysis.characterContextEngineSource ||
+  characterContext.characterContextEngineSource ||
+  characterContext.source ||
+  "not-yet-run",
+
+characterCore:
+  analysis.characterCore ||
+  characterContext.characterCore ||
+  {},
+
+characterAuthority:
+  analysis.characterAuthority ||
+  characterContext.characterAuthority ||
+  null,
+
+characterUseAllowed:
+  analysis.characterUseAllowed ??
+  characterContext.characterUseAllowed ??
+  false,
+
+characterVisibility:
+  analysis.characterVisibility ||
+  characterContext.characterVisibility ||
+  "background",
+
+characterMode:
+  analysis.characterMode ||
+  characterContext.characterMode ||
+  "silent",
+
+characterReason:
+  analysis.characterReason ||
+  characterContext.characterReason ||
+  null,
+
+characterHints:
+  analysis.characterHints ||
+  characterContext.characterHints ||
+  {},
+
+characterCannotSet:
+  analysis.characterCannotSet ||
+  characterContext.cannotSet ||
+  [],
 
       // ==================================================
       // RESPONSE INTENT / MOUTH
