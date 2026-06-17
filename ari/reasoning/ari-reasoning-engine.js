@@ -1,12 +1,12 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
 // Purpose: Universal case-model reasoning. Composer owns final wording.
-// V7.1.0 — Universal Case Builder
+// V7.2.0 — Universal Case Builder
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "7.1.0",
+  version: "7.2.0",
 
 
 create(input = {}) {
@@ -64,7 +64,14 @@ create(input = {}) {
   const reasoning = this.blankReasoning({ primary, contract, executive });
 
     this.addRelevantFacts(reasoning, summary, observations);
-    this.buildUniversalCaseModel(reasoning, summary, primary);
+    const reasoningFrame = this.resolveReasoningFrame(summary, primary);
+reasoning.reasoningFrame = reasoningFrame;
+
+if (reasoningFrame === "relationship_or_family_reasoning") {
+  this.buildRelationshipFamilyCaseModel(reasoning, summary, primary);
+} else {
+  this.buildUniversalCaseModel(reasoning, summary, primary);
+}
     this.buildKnownInferredUnknown(reasoning, summary, primary);
     this.buildOptions(reasoning, summary, primary);
     this.buildConsequences(reasoning, summary, primary);
@@ -73,6 +80,7 @@ create(input = {}) {
     this.addSystemsView(reasoning, summary, primary);
     this.addRegretLens(reasoning, summary, primary);
     this.buildRejectedAlternatives(reasoning, summary, primary);
+    
     this.synthesizeRecommendation(reasoning, summary, primary);
     this.buildCoreJudgment(reasoning, summary, primary);
     this.buildExecutiveConclusion(reasoning, summary, primary, contract);
@@ -931,6 +939,237 @@ create(input = {}) {
     if (option.option === "Resize or modify the plan") return "low_medium";
     if (option.option === "Delay or pause") return "medium";
     return "medium";
+  },
+
+  resolveReasoningFrame(summary = {}, primary = "") {
+    const contract = summary.situationContract || {};
+    const map = summary.situationMap || {};
+
+    const domains = [
+      ...(map.domains || []),
+      ...(summary.situationMapDomains || [])
+    ];
+
+    const support = [
+      ...(contract.support || []),
+      ...(summary.situationContractSupport || []),
+      ...(map.supportLanes || []),
+      ...(map.supportLaneSuggestions || [])
+    ];
+
+    const conversationType = summary.conversationType || "";
+    const text = this.getText(summary);
+
+    const relationshipCluster =
+      domains.includes("relationship_context_domain") ||
+      domains.includes("family_context_domain") ||
+      support.includes("relationship") ||
+      support.includes("family") ||
+      conversationType === "relationship_or_family_context" ||
+      this.hasRelationshipMeaning(text);
+
+    if (
+      primary === "executive_decision" &&
+      relationshipCluster
+    ) {
+      return "relationship_or_family_reasoning";
+    }
+
+    return "universal_case_builder";
+  },
+
+  hasRelationshipMeaning(text = "") {
+    return this.hasAny(text, [
+      "spouse",
+      "wife",
+      "husband",
+      "partner",
+      "girlfriend",
+      "boyfriend",
+      "kids",
+      "children",
+      "family",
+      "honest",
+      "honesty",
+      "trust",
+      "upset",
+      "hurt",
+      "angry at me",
+      "mad at me",
+      "tell them",
+      "haven't told",
+      "didn't tell"
+    ]);
+  },
+
+  buildRelationshipFamilyCaseModel(reasoning, summary, primary) {
+    const text = this.getText(summary);
+    const model = reasoning.caseModel;
+
+    reasoning.reasoningMode = "relationship_family_case_builder";
+
+    model.situation =
+      "The user is trying to understand a relationship or family reaction, not only make a practical decision.";
+
+    model.userGoal =
+      "understand what may be causing the other person's reaction and choose a repair-oriented next step";
+
+    model.currentState =
+      "there is uncertainty about whether the reaction is about the external event, the communication around it, or both";
+
+    model.desiredState =
+      "respond in a way that protects trust, reduces defensiveness, and opens honest conversation";
+
+    model.obstacle =
+      "the user does not know whether the other person is reacting to the event itself or to feeling excluded, surprised, or not fully informed";
+
+    model.constraints = [
+      "do not assume another person's internal state with certainty",
+      "trust usually matters more than winning the explanation",
+      "repair works better when the user owns their part first"
+    ];
+
+    model.resources = [
+      "honest conversation",
+      "taking responsibility",
+      "asking instead of assuming",
+      "naming both possible causes"
+    ];
+
+    model.risks = [
+      "over-focusing on the practical issue may miss the trust injury",
+      "defending the decision too early may make the other person feel unheard",
+      "assuming only one cause may oversimplify the relationship"
+    ];
+
+    model.unknowns = [
+      "what the other person has actually said",
+      "whether they feel hurt, scared, excluded, blindsided, or opposed to the event itself",
+      "how long they have known or suspected something was being withheld"
+    ];
+
+    model.tensions = [
+      {
+        name: "event_reaction_vs_trust_reaction",
+        sideA: "they may be upset about the event itself",
+        sideB: "they may be upset about not being told or not being included",
+        meaning:
+          "the visible event may be the trigger, but the deeper injury may be trust or honesty"
+      }
+    ];
+
+    model.priorities = [
+      {
+        priority: "trust_repair",
+        label: "trust repair",
+        reason:
+          "when honesty is part of the question, repairing trust should come before defending the decision"
+      }
+    ];
+
+    model.options = [
+      {
+        option: "Assume it is only about the event",
+        pros: ["keeps the issue practical"],
+        cons: ["may ignore the trust injury"],
+        reversibility: "medium",
+        judgment: "too narrow if honesty or secrecy is involved"
+      },
+      {
+        option: "Assume it is only about honesty",
+        pros: ["takes responsibility"],
+        cons: ["may ignore real fear or disagreement about the event"],
+        reversibility: "medium",
+        judgment: "closer, but still incomplete"
+      },
+      {
+        option: "Name both possibilities and own the honesty piece first",
+        pros: ["protects trust", "reduces defensiveness", "invites the truth"],
+        cons: ["requires vulnerability"],
+        reversibility: "high",
+        judgment: "best default when both event and honesty may matter"
+      }
+    ];
+
+    model.consequences = [
+      {
+        option: "Assume it is only about the event",
+        likelyOutcome:
+          "the conversation may become defensive and miss the emotional injury",
+        riskLevel: "medium_high"
+      },
+      {
+        option: "Assume it is only about honesty",
+        likelyOutcome:
+          "the user may repair trust but still need to address the practical concern",
+        riskLevel: "medium"
+      },
+      {
+        option: "Name both possibilities and own the honesty piece first",
+        likelyOutcome:
+          "the other person is more likely to feel respected and clarify what is actually bothering them",
+        riskLevel: "low"
+      }
+    ];
+
+    model.nextAction =
+      "Say something like: 'I may be wrong, but I’m wondering if this is less about the move itself and more about feeling like I kept you out of it. I should have been more honest sooner.'";
+
+    reasoning.knownFacts.push("The user is asking about a possible relationship or family reaction.");
+    reasoning.inferredFacts.push("The issue may involve both the event and the trust impact of delayed honesty.");
+    reasoning.unknowns.push(...model.unknowns);
+
+    reasoning.priorityStack.push(...model.priorities);
+    reasoning.options.push(...model.options);
+    reasoning.likelyOutcomes.push(
+      ...model.consequences.map(item => ({
+        outcome: `${item.option}: ${item.likelyOutcome}`,
+        probability: item.riskLevel === "low" ? "medium_high" : "medium"
+      }))
+    );
+
+    reasoning.tradeoffs.push(...model.tensions.map(item => ({
+      name: item.name,
+      sideA: item.sideA,
+      sideB: item.sideB,
+      likelyWinner: "trust_repair"
+    })));
+
+    reasoning.recommendation.summary =
+      "it is probably not just the event; the honesty and trust piece is likely a major part of why they are upset.";
+
+    reasoning.recommendation.rationale = [
+      "People can often process hard news better than feeling excluded from it.",
+      "The event may be the trigger, but delayed honesty can become the deeper injury."
+    ];
+
+    reasoning.recommendation.alternatives = [
+      model.nextAction
+    ];
+
+    reasoning.coreJudgment =
+      "The safer read is that the event may matter, but the honesty/trust piece should be repaired first.";
+
+    reasoning.changeConditions.push(
+      "This changes if they clearly say they are not upset about honesty and are only opposed to the event itself."
+    );
+
+    reasoning.systemsView.upstream.push(
+      "The reaction is shaped by both the practical event and the communication process around it."
+    );
+
+    reasoning.systemsView.downstream.push(
+      "Repairing trust first makes the practical conversation less defensive."
+    );
+
+    reasoning.regretLens.shortTerm =
+      "Owning the honesty piece may feel uncomfortable.";
+
+    reasoning.regretLens.longTerm =
+      "The bigger regret risk is defending the decision while the other person feels excluded or misled.";
+
+    reasoning.regretLens.regretRisk =
+      "missing_the_trust_injury_under_the_surface_issue";
   },
 
   hasQuestionIntent(text = "") {
