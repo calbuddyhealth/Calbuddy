@@ -429,6 +429,73 @@ conversationAuthority:
   universalConversationClassification.conversationAuthority ||
   null,
 
+// ==================================================
+// CONTINUITY / MEMORY / RELATIONSHIP
+// ==================================================
+
+conversationContinuityEngineRan:
+  analysis.conversationContinuityEngineRan ?? false,
+
+continuityState:
+  analysis.continuityState || {},
+
+memoryRetrievalEngineRan:
+  analysis.memoryRetrievalEngineRan ?? false,
+
+rawMemoryCount:
+  analysis.rawMemoryCount ?? 0,
+
+retrievedMemories:
+  analysis.retrievedMemories || [],
+
+memoryContext:
+  analysis.memoryContext || {},
+
+relationshipEngineRan:
+  analysis.relationshipEngineRan ?? false,
+
+relationshipProfile:
+  analysis.relationshipProfile || {},
+
+preferredCommunicationStyle:
+  analysis.preferredCommunicationStyle || null,
+
+preferredDepth:
+  analysis.preferredDepth || null,
+
+collaborationMode:
+  analysis.collaborationMode || null,
+
+challengeTolerance:
+  analysis.challengeTolerance || null,
+
+contextAssemblerRan:
+  analysis.contextAssemblerRan ?? false,
+
+advisoryFacts:
+  analysis.advisoryFacts || [],
+
+styleHints:
+  analysis.styleHints || {},
+
+projectContext:
+  analysis.projectContext || {},
+
+priorDecisions:
+  analysis.priorDecisions || [],
+
+activeThreadFacts:
+  analysis.activeThreadFacts || [],
+
+contextConflicts:
+  analysis.contextConflicts || [],
+
+memoryCandidateEngineRan:
+  analysis.memoryCandidateEngineRan ?? false,
+
+memoryCandidates:
+  analysis.memoryCandidates || [],
+  
       // ==================================================
       // NEW CORE CHAIN: SITUATION MAP
       // ==================================================
