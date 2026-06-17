@@ -45,7 +45,10 @@
   <!-- NEW CORE CHAIN -->
   <script src="ari/safety/ari-safety-context-gate.js"></script>
   <script src="ari/observer-system/ari-observer-network.js"></script>
-  <script src="ari/meaning/ari-situation-map-engine.js"></script>
+<script src="ari/conversation/ari-universal-conversation-classifier.js"></script>
+<script src="ari/character/ari-character-core.js"></script>
+<script src="ari/character/ari-character-context-engine.js"></script>
+    <script src="ari/meaning/ari-situation-map-engine.js"></script>
 <script src="ari/governance/ari-triage-engine.js"></script>
     <script src="ari/governance/ari-situation-contract.js"></script>
 
@@ -335,6 +338,37 @@ ${JSON.stringify(summary.observations || [], null, 2)}
 
 ==================================================
 
+===== UNIVERSAL CONVERSATION CLASSIFIER =====
+
+Classifier Ran:
+${summary.universalConversationClassifierRan ? "yes" : "no"}
+
+Source:
+${summary.universalConversationClassifierSource || "none"}
+
+Conversation Type:
+${summary.conversationType || "none"}
+
+Score:
+${summary.conversationTypeScore ?? "none"}
+
+Confidence:
+${summary.conversationTypeConfidence || "none"}
+
+Intent:
+${summary.conversationIntent || "none"}
+
+Response Hint:
+${summary.conversationResponseHint || "none"}
+
+Reasons:
+${summary.conversationTypeReasons?.join("\\n") || "none"}
+
+Candidates:
+${JSON.stringify(summary.conversationCandidates || [], null, 2)}
+
+==================================================
+
 ===== SITUATION MAP =====
 
 Situation Map Ran:
@@ -498,6 +532,34 @@ ${summary.reasoningConfidence ?? summary.reasoning?.confidence?.score ?? "none"}
 
 Confidence Level:
 ${summary.reasoning?.confidence?.level || "none"}
+
+==================================================
+
+===== CHARACTER CONTEXT =====
+
+Character Context Ran:
+${summary.characterContextEngineRan ? "yes" : "no"}
+
+Source:
+${summary.characterContextEngineSource || "none"}
+
+Use Allowed:
+${summary.characterUseAllowed ? "yes" : "no"}
+
+Visibility:
+${summary.characterVisibility || "none"}
+
+Mode:
+${summary.characterMode || "none"}
+
+Reason:
+${summary.characterReason || "none"}
+
+Hints:
+${JSON.stringify(summary.characterHints || {}, null, 2)}
+
+Character Core:
+${JSON.stringify(summary.characterCore || summary.characterContext?.characterCore || {}, null, 2)}
 ==================================================
 
 ===== HUMAN LANGUAGE ENGINE =====
