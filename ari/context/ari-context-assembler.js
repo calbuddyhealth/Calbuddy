@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
-// Purpose: Safely assemble continuity, memory, and relationship context.
-// V1.0.0
+// Purpose: Safely assemble continuity, memory, relationship, thread, and entity context.
+// V1.1.0
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -17,13 +17,10 @@ window.AriContextAssembler = {
       summary.threadState ||
       {};
 
-    const memoryContext =
-      summary.memoryContext ||
-      {};
-
-    const relationshipProfile =
-      summary.relationshipProfile ||
-      {};
+    const memoryContext = summary.memoryContext || {};
+    const relationshipProfile = summary.relationshipProfile || {};
+    const thread = summary.threadUnderstanding || {};
+    const entity = summary.entityReference || summary.entityReferenceState || {};
 
     const assembledContext = {
       contextAssemblerRan: true,
@@ -33,12 +30,16 @@ window.AriContextAssembler = {
       continuity: this.cleanContinuity(continuity),
       memory: this.cleanMemory(memoryContext),
       relationship: this.cleanRelationship(relationshipProfile),
+      thread: this.cleanThread(thread),
+      entity: this.cleanEntity(entity),
 
       advisoryFacts: [],
       styleHints: {},
       projectContext: {},
       priorDecisions: [],
       activeThreadFacts: [],
+      activeEntities: [],
+      activeProblems: [],
       conflicts: [],
 
       authority: "advisory_context_only",
@@ -56,6 +57,8 @@ window.AriContextAssembler = {
     };
 
     this.addContinuityFacts(assembledContext);
+    this.addThreadFacts(assembledContext);
+    this.addEntityFacts(assembledContext);
     this.addMemoryFacts(assembledContext);
     this.addRelationshipHints(assembledContext);
 
@@ -72,6 +75,8 @@ window.AriContextAssembler = {
       projectContext: assembledContext.projectContext,
       priorDecisions: assembledContext.priorDecisions,
       activeThreadFacts: assembledContext.activeThreadFacts,
+      activeEntities: assembledContext.activeEntities,
+      activeProblems: assembledContext.activeProblems,
       contextConflicts: assembledContext.conflicts,
 
       authority: "advisory_context_only"
@@ -90,9 +95,9 @@ window.AriContextAssembler = {
         : [],
       nextStep: continuity.nextStep || null,
       previousAnswerSummary: continuity.previousAnswerSummary || null,
-lastMessages: Array.isArray(continuity.lastMessages)
-  ? continuity.lastMessages.slice(-8)
-  : []
+      lastMessages: Array.isArray(continuity.lastMessages)
+        ? continuity.lastMessages.slice(-8)
+        : []
     };
   },
 
@@ -137,6 +142,39 @@ lastMessages: Array.isArray(continuity.lastMessages)
     };
   },
 
+  cleanThread(thread = {}) {
+    return {
+      domain: thread.domain || null,
+      laneHint: thread.laneHint || null,
+      confidence: thread.confidence ?? null,
+      activeSubject: thread.activeSubject || null,
+      activeIssue: thread.activeIssue || null,
+      activeProblem: thread.activeProblem || null,
+      impliedQuestion: thread.impliedQuestion || null,
+      resolvedMeaning: thread.resolvedMeaning || null,
+      workingContext: thread.workingContext || null,
+      continuityUsed: Boolean(thread.continuityUsed)
+    };
+  },
+
+  cleanEntity(entity = {}) {
+    return {
+      activeSubject: entity.activeSubject || entity.activeEntity || null,
+      activeEntity: entity.activeEntity || entity.activeSubject || null,
+      activeReference: entity.activeReference || null,
+      resolvedReferences: Array.isArray(entity.resolvedReferences)
+        ? entity.resolvedReferences.slice(0, 8)
+        : [],
+      activeSubjects: Array.isArray(entity.activeSubjects)
+        ? entity.activeSubjects.slice(0, 8)
+        : [],
+      activeEntities: Array.isArray(entity.activeEntities)
+        ? entity.activeEntities.slice(0, 8)
+        : [],
+      confidence: entity.confidence ?? null
+    };
+  },
+
   addContinuityFacts(context = {}) {
     const c = context.continuity || {};
 
@@ -148,16 +186,18 @@ lastMessages: Array.isArray(continuity.lastMessages)
         source: "continuity"
       });
     }
-(c.lastMessages || []).slice(-4).forEach(message => {
-  if (!message?.text) return;
 
-  context.activeThreadFacts.push({
-    type: "recent_message",
-    claim: message.text,
-    confidence: 0.82,
-    source: "continuity"
-  });
-});
+    (c.lastMessages || []).slice(-4).forEach(message => {
+      const text = typeof message === "string" ? message : message?.text;
+      if (!text) return;
+
+      context.activeThreadFacts.push({
+        type: "recent_message",
+        claim: text,
+        confidence: 0.82,
+        source: "continuity"
+      });
+    });
 
     if (c.followUpDetected) {
       context.advisoryFacts.push({
@@ -183,6 +223,109 @@ lastMessages: Array.isArray(continuity.lastMessages)
         claim: item,
         confidence: 0.75,
         source: "continuity"
+      });
+    });
+  },
+
+  addThreadFacts(context = {}) {
+    const t = context.thread || {};
+    const wc = t.workingContext || {};
+
+    if (t.domain) {
+      context.activeThreadFacts.push({
+        type: "thread_domain",
+        claim: t.domain,
+        confidence: t.confidence ?? 0.7,
+        source: "thread_understanding"
+      });
+    }
+
+    if (t.laneHint) {
+      context.activeThreadFacts.push({
+        type: "thread_lane_hint",
+        claim: t.laneHint,
+        confidence: t.confidence ?? 0.7,
+        source: "thread_understanding"
+      });
+    }
+
+    if (t.activeSubject) {
+      context.activeEntities.push({
+        type: "active_subject",
+        claim: t.activeSubject.label || t.activeSubject.evidence || "active subject",
+        confidence: t.activeSubject.confidence ?? t.confidence ?? 0.7,
+        source: "thread_understanding",
+        raw: t.activeSubject
+      });
+    }
+
+    if (t.activeIssue) {
+      context.activeProblems.push({
+        type: "active_issue",
+        claim: t.activeIssue.label || t.activeIssue.evidence || t.activeIssue.type || "active issue",
+        confidence: t.activeIssue.confidence ?? t.confidence ?? 0.7,
+        source: "thread_understanding",
+        raw: t.activeIssue
+      });
+    }
+
+    if (t.activeProblem) {
+      context.activeProblems.push({
+        type: "active_problem",
+        claim: t.activeProblem.label || t.activeProblem.evidence || t.activeProblem.type || "active problem",
+        confidence: t.activeProblem.confidence ?? t.confidence ?? 0.7,
+        source: "thread_understanding",
+        raw: t.activeProblem
+      });
+    }
+
+    if (t.impliedQuestion?.resolvedText) {
+      context.activeThreadFacts.push({
+        type: "implied_question",
+        claim: t.impliedQuestion.resolvedText,
+        confidence: t.impliedQuestion.confidence ?? t.confidence ?? 0.65,
+        source: "thread_understanding"
+      });
+    }
+
+    (wc.timeline || []).slice(-5).forEach(item => {
+      if (!item?.text) return;
+
+      context.activeThreadFacts.push({
+        type: "recent_message",
+        claim: item.text,
+        confidence: 0.82,
+        source: "thread_working_context"
+      });
+    });
+  },
+
+  addEntityFacts(context = {}) {
+    const e = context.entity || {};
+
+    if (e.activeSubject || e.activeEntity) {
+      const active = e.activeSubject || e.activeEntity;
+
+      context.activeEntities.push({
+        type: "entity_active_subject",
+        claim: active.surface || active.label || active.evidence || "active entity",
+        confidence: active.confidence ?? e.confidence ?? 0.7,
+        source: "entity_reference_resolver",
+        raw: active
+      });
+    }
+
+    e.resolvedReferences.forEach(ref => {
+      context.activeThreadFacts.push({
+        type: "resolved_reference",
+        claim: `${ref.reference || "reference"} -> ${
+          ref.resolvedTo?.surface ||
+          ref.resolvedTo?.label ||
+          ref.resolvedTo?.evidence ||
+          "unresolved"
+        }`,
+        confidence: ref.confidence ?? 0.6,
+        source: ref.source || "entity_reference_resolver"
       });
     });
   },
