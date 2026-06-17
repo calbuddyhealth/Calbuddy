@@ -58,8 +58,10 @@
 <script src="ari/memory/ari-memory-candidate-engine.js"></script>
 
 <script src="ari/relationship/ari-relationship-engine.js"></script>
-
 <script src="ari/context/ari-context-assembler.js"></script>
+<script src="ari/context/ari-thread-understanding-engine.js"></script>
+<script src="ari/context/ari-entity-reference-resolver.js"></script>
+
 <script src="ari/character/ari-character-core.js"></script>
 <script src="ari/character/ari-character-context-engine.js"></script>
     <script src="ari/meaning/ari-situation-map-engine.js"></script>
@@ -492,6 +494,62 @@ ${JSON.stringify(summary.activeThreadFacts || [], null, 2)}
 Context Conflicts:
 
 ${JSON.stringify(summary.contextConflicts || [], null, 2)}
+
+==================================================
+
+===== THREAD UNDERSTANDING =====
+
+Thread Understanding Ran:
+${summary.threadUnderstandingRan ? "yes" : "no"}
+
+Source:
+${summary.threadUnderstandingSource || "none"}
+
+Subject:
+${summary.threadSubject || "none"}
+
+Domain:
+${summary.threadDomain || "none"}
+
+Lane Hint:
+${summary.threadLaneHint || "none"}
+
+Confidence:
+${summary.threadConfidence ?? "none"}
+
+Recent Messages:
+${JSON.stringify(summary.threadRecentMessages || [], null, 2)}
+
+Subject Graph:
+${JSON.stringify(summary.subjectGraph || {}, null, 2)}
+
+==================================================
+
+===== ENTITY REFERENCE RESOLVER =====
+
+Entity Resolver Ran:
+${summary.entityReferenceResolverRan ? "yes" : "no"}
+
+Source:
+${summary.entityReferenceResolverSource || "none"}
+
+Resolved Primary Subject:
+${summary.resolvedPrimarySubject || "none"}
+
+Resolved Subject Type:
+${summary.resolvedSubjectType || "none"}
+
+Resolved Subject Domain:
+${summary.resolvedSubjectDomain || "none"}
+
+Resolved Reference Confidence:
+${summary.resolvedReferenceConfidence ?? "none"}
+
+Resolved Entities:
+${JSON.stringify(summary.resolvedEntities || [], null, 2)}
+
+Entity Reference:
+${JSON.stringify(summary.entityReference || {}, null, 2)}
 
 ==================================================
 
