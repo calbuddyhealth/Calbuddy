@@ -142,6 +142,16 @@ if (window.AriContextAssembler) {
   summary = { ...summary, ...contextResult };
 }
 
+if (window.AriThreadUnderstandingEngine) {
+  const threadUnderstandingResult =
+    await window.AriThreadUnderstandingEngine.understand(summary) || {};
+
+  summary = {
+    ...summary,
+    ...threadUnderstandingResult
+  };
+}
+
     // 0.30 SITUATION MAP
     const situationMap =
       window.AriSituationMapEngine?.build?.(summary) || {
