@@ -977,11 +977,16 @@ if (reasoningFrame === "relationship_or_family_reasoning") {
       this.hasRelationshipMeaning(text);
 
     if (
-      primary === "executive_decision" &&
-      relationshipCluster
-    ) {
-      return "relationship_or_family_reasoning";
-    }
+  relationshipCluster &&
+  [
+    "executive_decision",
+    "relationship",
+    "family",
+    "general_understanding"
+  ].includes(primary)
+) {
+  return "relationship_or_family_reasoning";
+}
 
     return "universal_case_builder";
   },
