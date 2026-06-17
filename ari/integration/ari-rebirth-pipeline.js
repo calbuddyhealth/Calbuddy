@@ -101,6 +101,48 @@ if (
   };
 }
 
+// 0.27 CONTINUITY / MEMORY / RELATIONSHIP CONTEXT
+
+if (window.AriConversationContinuityEngine?.analyze) {
+  const continuityResult =
+    window.AriConversationContinuityEngine.analyze(summary) || {};
+
+  summary = {
+    ...summary,
+    ...continuityResult
+  };
+}
+
+if (window.AriMemoryRetrievalEngine?.retrieve) {
+  const memoryResult =
+    window.AriMemoryRetrievalEngine.retrieve(summary) || {};
+
+  summary = {
+    ...summary,
+    ...memoryResult
+  };
+}
+
+if (window.AriRelationshipEngine?.analyze) {
+  const relationshipResult =
+    window.AriRelationshipEngine.analyze(summary) || {};
+
+  summary = {
+    ...summary,
+    ...relationshipResult
+  };
+}
+
+if (window.AriContextAssembler?.assemble) {
+  const contextResult =
+    window.AriContextAssembler.assemble(summary) || {};
+
+  summary = {
+    ...summary,
+    ...contextResult
+  };
+}
+
     // 0.30 SITUATION MAP
     const situationMap =
       window.AriSituationMapEngine?.build?.(summary) || {
@@ -576,6 +618,17 @@ if (
   compressionResult.finalResponse ||
   compressionResult.compressedResponse ||
   summary.finalResponse
+  };
+}
+
+// 13.4 MEMORY CANDIDATE ENGINE — after final response exists
+if (window.AriMemoryCandidateEngine?.detect) {
+  const memoryCandidateResult =
+    window.AriMemoryCandidateEngine.detect(summary) || {};
+
+  summary = {
+    ...summary,
+    ...memoryCandidateResult
   };
 }
 
