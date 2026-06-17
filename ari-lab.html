@@ -505,9 +505,6 @@ ${summary.threadUnderstandingRan ? "yes" : "no"}
 Source:
 ${summary.threadUnderstandingSource || "none"}
 
-Subject:
-${summary.threadSubject || "none"}
-
 Domain:
 ${summary.threadDomain || "none"}
 
@@ -515,13 +512,37 @@ Lane Hint:
 ${summary.threadLaneHint || "none"}
 
 Confidence:
-${summary.threadConfidence ?? "none"}
+${summary.threadUnderstanding?.confidence ?? summary.threadConfidence ?? "none"}
+
+Active Subject:
+${JSON.stringify(summary.threadUnderstanding?.activeSubject || summary.threadSubject || {}, null, 2)}
+
+Active Issue:
+${JSON.stringify(summary.threadUnderstanding?.activeIssue || summary.threadActiveIssue || {}, null, 2)}
+
+Active Problem:
+${JSON.stringify(summary.threadUnderstanding?.activeProblem || summary.threadProblem || {}, null, 2)}
+
+Implied Question:
+${JSON.stringify(summary.threadUnderstanding?.impliedQuestion || summary.threadImpliedQuestion || {}, null, 2)}
+
+Resolved Meaning:
+${JSON.stringify(summary.threadUnderstanding?.resolvedMeaning || summary.threadResolvedMeaning || {}, null, 2)}
+
+State Change:
+${JSON.stringify(summary.threadUnderstanding?.stateChange || summary.threadStateChange || {}, null, 2)}
+
+Topic Transition:
+${JSON.stringify(summary.threadUnderstanding?.topicTransition || summary.threadTopicTransition || {}, null, 2)}
+
+Unresolved Problems:
+${JSON.stringify(summary.threadUnderstanding?.unresolvedProblems || summary.threadUnresolvedProblems || [], null, 2)}
+
+Working Context:
+${JSON.stringify(summary.threadUnderstanding?.workingContext || summary.threadWorkingContext || {}, null, 2)}
 
 Recent Messages:
 ${JSON.stringify(summary.threadRecentMessages || [], null, 2)}
-
-Subject Graph:
-${JSON.stringify(summary.subjectGraph || {}, null, 2)}
 
 ==================================================
 
