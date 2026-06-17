@@ -46,6 +46,20 @@
   <script src="ari/safety/ari-safety-context-gate.js"></script>
   <script src="ari/observer-system/ari-observer-network.js"></script>
 <script src="ari/conversation/ari-universal-conversation-classifier.js"></script>
+
+<!-- CONTINUITY / MEMORY / RELATIONSHIP -->
+<script src="ari/storage/ari-thread-store.js"></script>
+<script src="ari/storage/ari-memory-store.js"></script>
+
+<script src="ari/continuity/ari-conversation-continuity-engine.js"></script>
+
+<script src="ari/memory/ari-memory-ranking-engine.js"></script>
+<script src="ari/memory/ari-memory-retrieval-engine.js"></script>
+<script src="ari/memory/ari-memory-candidate-engine.js"></script>
+
+<script src="ari/relationship/ari-relationship-engine.js"></script>
+
+<script src="ari/context/ari-context-assembler.js"></script>
 <script src="ari/character/ari-character-core.js"></script>
 <script src="ari/character/ari-character-context-engine.js"></script>
     <script src="ari/meaning/ari-situation-map-engine.js"></script>
@@ -366,6 +380,130 @@ ${summary.conversationTypeReasons?.join("\\n") || "none"}
 
 Candidates:
 ${JSON.stringify(summary.conversationCandidates || [], null, 2)}
+
+==================================================
+
+===== CONVERSATION CONTINUITY =====
+
+Continuity Ran:
+
+${summary.conversationContinuityEngineRan ? "yes" : "no"}
+
+Current Topic:
+
+${summary.continuityState?.currentTopic || "none"}
+
+Follow Up Detected:
+
+${summary.continuityState?.followUpDetected ? "yes" : "no"}
+
+Follow Up Type:
+
+${summary.continuityState?.followUpType || "none"}
+
+Should Reuse Prior Context:
+
+${summary.continuityState?.shouldReusePriorContext ? "yes" : "no"}
+
+Unresolved Items:
+
+${summary.continuityState?.unresolvedItems?.join("\\n") || "none"}
+
+Next Step:
+
+${summary.continuityState?.nextStep || "none"}
+
+==================================================
+
+===== MEMORY RETRIEVAL =====
+
+Memory Retrieval Ran:
+
+${summary.memoryRetrievalEngineRan ? "yes" : "no"}
+
+Raw Memory Count:
+
+${summary.rawMemoryCount ?? "none"}
+
+Retrieved Memories:
+
+${JSON.stringify(summary.retrievedMemories || [], null, 2)}
+
+Memory Context:
+
+${JSON.stringify(summary.memoryContext || {}, null, 2)}
+
+==================================================
+
+===== RELATIONSHIP ENGINE =====
+
+Relationship Ran:
+
+${summary.relationshipEngineRan ? "yes" : "no"}
+
+Communication Style:
+
+${summary.preferredCommunicationStyle || "none"}
+
+Preferred Depth:
+
+${summary.preferredDepth || "none"}
+
+Collaboration Mode:
+
+${summary.collaborationMode || "none"}
+
+Challenge Tolerance:
+
+${summary.challengeTolerance || "none"}
+
+Relationship Profile:
+
+${JSON.stringify(summary.relationshipProfile || {}, null, 2)}
+
+==================================================
+
+===== CONTEXT ASSEMBLER =====
+
+Context Assembler Ran:
+
+${summary.contextAssemblerRan ? "yes" : "no"}
+
+Advisory Facts:
+
+${JSON.stringify(summary.advisoryFacts || [], null, 2)}
+
+Style Hints:
+
+${JSON.stringify(summary.styleHints || {}, null, 2)}
+
+Project Context:
+
+${JSON.stringify(summary.projectContext || {}, null, 2)}
+
+Prior Decisions:
+
+${JSON.stringify(summary.priorDecisions || [], null, 2)}
+
+Active Thread Facts:
+
+${JSON.stringify(summary.activeThreadFacts || [], null, 2)}
+
+Context Conflicts:
+
+${JSON.stringify(summary.contextConflicts || [], null, 2)}
+
+==================================================
+
+===== MEMORY CANDIDATES =====
+
+Memory Candidate Ran:
+
+${summary.memoryCandidateEngineRan ? "yes" : "no"}
+
+Memory Candidates:
+
+${JSON.stringify(summary.memoryCandidates || [], null, 2)}
 
 ==================================================
 
