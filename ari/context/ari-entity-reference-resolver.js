@@ -481,7 +481,7 @@ window.AriEntityReferenceResolver = {
     return entities;
   },
 
-  resolveReferences({ currentText = "", candidates = [], thread = {} } = {}) {
+  resolveReferences({ currentText = "", candidates = [], thread = {}, activeProblem = null } = {}) {
     const text = this.clean(currentText).toLowerCase();
     const references = [];
 
@@ -500,7 +500,8 @@ window.AriEntityReferenceResolver = {
       const target = this.resolveReferenceTarget(
         word,
         candidates,
-        thread
+        thread,
+        activeProblem
       );
 
       references.push({
@@ -533,7 +534,7 @@ window.AriEntityReferenceResolver = {
     return references;
   },
 
-  resolveReferenceTarget(term = "", candidates = [], thread = {}) {
+  resolveReferenceTarget(term = "", candidates = [], thread = {}, activeProblem = null) {
     const lower = term.toLowerCase();
 
     const usable = candidates.filter(
@@ -542,20 +543,28 @@ window.AriEntityReferenceResolver = {
 
     // they/them usually refers to active person
     if (
-      lower === "they" ||
-      lower === "them" ||
-      lower === "their"
-    ) {
-      const threadPerson =
-        usable.find(
-          x =>
-            x.kind === "thread_entity" &&
-            this.isLikelyPersonEntity(x)
-        ) ||
-        usable.find(x => this.isLikelyPersonEntity(x));
+  lower === "they" ||
+  lower === "them" ||
+  lower === "their"
+) {
+  if (activeProblem?.actor) {
+    const actorEntity = usable.find(
+      x => this.key(x.surface) === this.key(activeProblem.actor)
+    );
 
-      if (threadPerson) return threadPerson;
-    }
+    if (actorEntity) return actorEntity;
+  }
+
+  const threadPerson =
+    usable.find(
+      x =>
+        x.kind === "thread_entity" &&
+        this.isLikelyPersonEntity(x)
+    ) ||
+    usable.find(x => this.isLikelyPersonEntity(x));
+
+  if (threadPerson) return threadPerson;
+}
 
     if (
       ["he","him","his","she","her","hers"].includes(lower)
@@ -571,6 +580,7 @@ window.AriEntityReferenceResolver = {
       ["it","its","this","that"].includes(lower)
     ) {
       return (
+        activeProblem ||
         usable.find(
           x =>
             x.kind === "issue_entity" ||
