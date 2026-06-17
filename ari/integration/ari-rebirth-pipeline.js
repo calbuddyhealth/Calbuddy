@@ -1,17 +1,21 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.1
-// New Core Chain:
+// V3.2
+// Core Chain:
 // 1. Safety Context Gate
 // 2. Observer Evidence
+// 2.5 Universal Conversation Classifier
 // 3. Situation Map
 // 3.5 Triage Engine
 // 4. Situation Contract
 // 5. Contract Bridge
 // 6. Legacy helper organs temporarily
-// 7. Contract Authority Reassertion
-// 8. Mouth / Composer
+// 7. Reasoning Engine
+// 7.5 Character Context Engine
+// 8. Human Language / Communication Planner / Lexical Grounding
+// 9. Mouth / Composer
+// 10. Response Compressor
 
 window.AriRebirthPipeline = {
   async run(systemSummary = {}) {
@@ -71,6 +75,31 @@ window.AriRebirthPipeline = {
       observedValues: observerResult.observedValues || [],
       observationCount: observerResult.observationCount || 0
     };
+
+// 0.25 UNIVERSAL CONVERSATION CLASSIFIER — advisory only
+if (
+  window.AriUniversalConversationClassifier &&
+  typeof window.AriUniversalConversationClassifier.classify === "function"
+) {
+  const conversationResult =
+    window.AriUniversalConversationClassifier.classify(summary) || {};
+
+  summary = {
+    ...summary,
+    ...conversationResult,
+    universalConversationClassification: conversationResult
+  };
+} else {
+  summary = {
+    ...summary,
+    universalConversationClassifierRan: false,
+    universalConversationClassifierSource: "not-loaded",
+    conversationType: "unknown",
+    conversationIntent: "unknown",
+    conversationResponseHint: null,
+    conversationCandidates: []
+  };
+}
 
     // 0.30 SITUATION MAP
     const situationMap =
@@ -351,6 +380,36 @@ reasoningResult =
 // Reasoning is not allowed to override contract.
 summary = this.reassertContractAuthority(summary);
 
+// 11.45 CHARACTER CONTEXT ENGINE — advisory only
+if (
+  window.AriCharacterContextEngine &&
+  typeof window.AriCharacterContextEngine.create === "function"
+) {
+  const characterContextResult =
+    window.AriCharacterContextEngine.create(summary) || {};
+
+  summary = {
+    ...summary,
+    ...characterContextResult,
+    characterContext: characterContextResult
+  };
+} else {
+  summary = {
+    ...summary,
+    characterContextEngineRan: false,
+    characterContextEngineSource: "not-loaded",
+    characterUseAllowed: false,
+    characterVisibility: "background",
+    characterMode: "silent",
+    characterReason: "Character context engine not loaded.",
+    characterHints: {}
+  };
+}
+
+// Reassert after Character Context.
+// Character cannot override contract.
+summary = this.reassertContractAuthority(summary);
+
 // 11.5 TEACHING ANSWER ENGINE
     if (
       window.AriTeachingAnswerEngine &&
@@ -554,6 +613,13 @@ if (
     console.log("===== OBSERVER EVIDENCE =====");
     console.log(summary.observerEvidence);
 
+console.log("===== UNIVERSAL CONVERSATION CLASSIFIER =====");
+console.log(summary.universalConversationClassification || {
+  ran: summary.universalConversationClassifierRan,
+  type: summary.conversationType,
+  intent: summary.conversationIntent
+});
+    
     console.log("===== SITUATION MAP =====");
     console.log(summary.situationMap);
 
@@ -566,6 +632,16 @@ console.log("Loaded Reasoning Version:", window.AriReasoningEngine?.version);
 console.log("Reasoning Result Version:", reasoningResult.reasoningEngineVersion);
 console.log("Universal Signals:", reasoningResult.reasoning?.universalSignals);
 console.log("Executive Conclusion:", reasoningResult.reasoning?.executiveConclusion);
+
+console.log("===== CHARACTER CONTEXT =====");
+console.log(summary.characterContext || {
+  ran: summary.characterContextEngineRan,
+  mode: summary.characterMode,
+  visibility: summary.characterVisibility,
+  reason: summary.characterReason,
+  hints: summary.characterHints
+});
+
 console.log("===== HUMAN LANGUAGE ENGINE =====");
 console.log(summary.humanLanguageProfile);
 
