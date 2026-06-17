@@ -1,26 +1,67 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
 // Purpose: Universal case-model reasoning. Composer owns final wording.
-// V7.0.0 — Universal Case Builder
+// V7.1.0 — Universal Case Builder
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "7.0.0",
+  version: "7.1.0",
 
-  create(input = {}) {
-    const summary = input.summary || input || {};
-    const contract = summary.situationContract || {};
-    const executive = summary.executiveState || {};
-    const observations = summary.observations || summary.observationLedger || [];
 
-    const primary =
-      summary.situationContractPrimary ||
-      contract.primary ||
-      summary.triagePrimaryLane ||
-      "general_understanding";
+create(input = {}) {
+  const summary = input.summary || input || {};
+  const contract = summary.situationContract || {};
+  const executive = summary.executiveState || {};
+  const observations = summary.observations || summary.observationLedger || [];
 
-    const reasoning = this.blankReasoning({ primary, contract, executive });
+  const primary =
+    summary.situationContractPrimary ||
+    contract.primary ||
+    summary.triagePrimaryLane ||
+    "general_understanding";
+
+  // CHARACTER SELF-DISCLOSURE GUARDRAIL
+  // Reasoning does not answer Ari-self / belief / identity questions.
+  // Character Context owns that lane.
+  if (
+    summary.characterContext?.characterMode === "ari_self_disclosure" ||
+    summary.characterMode === "ari_self_disclosure" ||
+    summary.conversationType === "ari_self_or_perspective_question"
+  ) {
+    return {
+      reasoningEngineRan: true,
+      reasoningEngineVersion: this.version,
+      reasoningSource: "ari-reasoning-engine",
+      reasoning: {
+        version: this.version,
+        source: "ari-reasoning-engine",
+        primary,
+        role: "defer_to_character_context",
+        reason:
+          "User is asking Ari about Ari. Character Context owns self-disclosure.",
+        relevantFacts: [],
+        assumptions: [],
+        tradeoffs: [],
+        counterfactuals: [],
+        likelyOutcomes: [],
+        valueConflicts: [],
+        systemsView: {},
+        regretLens: {},
+        recommendation: null,
+        confidence: { score: 95, level: "high" },
+        answer: null,
+        obeyedContract: true,
+        contractViolations: []
+      },
+      reasoningAnswer: null,
+      reasoningRecommendation: null,
+      reasoningConfidence: 95,
+      reasoningPrimary: primary
+    };
+  }
+
+  const reasoning = this.blankReasoning({ primary, contract, executive });
 
     this.addRelevantFacts(reasoning, summary, observations);
     this.buildUniversalCaseModel(reasoning, summary, primary);
