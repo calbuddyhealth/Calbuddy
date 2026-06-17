@@ -1,8 +1,13 @@
 // ari/conversation/ari-universal-conversation-classifier.js
 // Ari Universal Conversation Classifier
-// Purpose: Classify conversation type from observer evidence.
+// Purpose: Classify the user's conversational intent universally.
 // V1.0.0
-// Rule: classify only. Do not answer, prioritize, or override safety.
+//
+// Rules:
+// - Classifies conversation type only.
+// - Does NOT decide final lane.
+// - Does NOT override safety, triage, contract, or response shape.
+// - Feeds Situation Map / Triage as advisory context.
 
 window.Ari = window.Ari || {};
 
@@ -11,17 +16,17 @@ window.AriUniversalConversationClassifier = {
 
   classify(input = {}) {
     const summary = input.summary || input || {};
-    const text = this.normalize(
+
+    const rawText =
       summary.userMessage ||
       summary.message ||
       summary.input ||
       summary.normalizedMessage ||
-      ""
-    );
+      "";
 
+    const text = this.normalize(rawText);
     const observations =
       summary.observations ||
-      summary.observationLedger ||
       summary.observerEvidence?.observations ||
       [];
 
@@ -30,291 +35,357 @@ window.AriUniversalConversationClassifier = {
     const add = (type, score, reason, meta = {}) => {
       if (!type || !score) return;
 
-      const existing = candidates.find(c => c.type === type);
+      const existing = candidates.find(item => item.type === type);
 
       if (existing) {
         existing.score += score;
-        if (reason && !existing.reasons.includes(reason)) {
-          existing.reasons.push(reason);
-        }
+        existing.reasons.push(reason);
+        existing.score = Math.min(existing.score, 100);
         return;
       }
 
       candidates.push({
         type,
-        score,
+        score: Math.min(score, 100),
         reasons: reason ? [reason] : [],
         ...meta
       });
     };
 
-    this.classifyFromObserver(observations, add);
-    this.classifyFromText(text, add);
+    this.detectQuestionType(text, observations, add);
+    this.detectTaskType(text, observations, add);
+    this.detectRelationalType(text, observations, add);
+    this.detectSelfDisclosureType(text, observations, add);
+    this.detectConcernType(text, observations, add);
+    this.detectCreativeType(text, observations, add);
+    this.detectMemoryType(text, observations, add);
 
     candidates.sort((a, b) => b.score - a.score);
 
-    const primary = candidates[0] || {
-      type: "general_conversation",
-      score: 40,
-      reasons: ["No stronger universal conversation type detected."]
-    };
+    const primary =
+      candidates[0] || {
+        type: "general_conversation",
+        score: 50,
+        reasons: ["No strong specific conversation type detected."]
+      };
 
-    const confidence = this.toConfidence(primary.score);
-
-    return {
+    const result = {
       universalConversationClassifierRan: true,
       universalConversationClassifierVersion: this.version,
       universalConversationClassifierSource:
         "ari-universal-conversation-classifier",
 
       conversationType: primary.type,
-      conversationTypeConfidence: confidence,
       conversationTypeScore: primary.score,
+      conversationTypeConfidence: this.confidenceFromScore(primary.score),
       conversationTypeReasons: primary.reasons || [],
 
       conversationCandidates: candidates.slice(0, 8),
 
-      suggestedLane: this.toSuggestedLane(primary.type),
-      suggestedSpecialistMode: this.toSpecialistMode(primary.type),
+      conversationIntent: this.intentForType(primary.type),
+      conversationResponseHint: this.responseHintForType(primary.type),
 
-      source: "ari-universal-conversation-classifier"
+      // Advisory only.
+      conversationAuthority: "classification_context_only",
+
+      cannotSet: [
+        "primaryLane",
+        "primaryLaneSuggestion",
+        "triagePrimaryLane",
+        "situationContractPrimary",
+        "riskLevel",
+        "override",
+        "responseShape",
+        "blockedLanes",
+        "deferredLanes",
+        "finalResponse"
+      ]
     };
+
+    return result;
   },
 
-  classifyFromObserver(observations = [], add) {
-    observations.forEach(obs => {
-      const type = obs.type;
-      const domain = obs.domain;
-      const questionType = obs.questionType;
-      const value = obs.value;
-
-      if (domain === "safety" || type === "safety_language") {
-        add("safety_or_crisis", 100, "Safety language observed.");
-      }
-
-      if (domain === "body" || type === "body_symptom") {
-        add("medical_or_body_concern", 90, "Body or symptom evidence observed.");
-      }
-
-      if (domain === "builder" || type === "building_reference") {
-        add("build_or_debug_request", 80, "Build, code, app, or debug evidence observed.");
-      }
-
-      if (domain === "financial" || type === "money_reference") {
-        add("financial_or_resource_decision", 60, "Money or resource evidence observed.");
-      }
-
-      if (domain === "emotion" || type === "emotion_word") {
-        add("emotional_support", 65, "Emotion word observed.");
-      }
-
-      if (domain === "relationship" || domain === "family") {
-        add("relationship_or_family", 60, "Relationship or family evidence observed.");
-      }
-
-      if (domain === "knowledge" || type === "knowledge_request_phrase") {
-        add("knowledge_or_explanation", 55, "Knowledge request evidence observed.");
-      }
-
-      if (domain === "memory" || type === "memory_request_phrase") {
-        add("memory_request", 80, "Memory request evidence observed.");
-      }
-
-      if (domain === "wisdom" || type === "wisdom_reference") {
-        add("wisdom_or_values_question", 55, "Wisdom or values evidence observed.");
-      }
-
-      if (type === "question_phrase" && questionType === "decision_question") {
-        add("decision_support", 70, "Decision question phrase observed.");
-      }
-
-      if (type === "question_phrase" && questionType === "instruction_question") {
-        add("how_to_instruction", 65, "How-to question phrase observed.");
-      }
-
-      if (type === "question_phrase" && questionType === "opinion_request") {
-        add("opinion_or_perspective", 55, "Opinion request observed.");
-      }
-
-      if (type === "contrast_or_tradeoff_connector") {
-        add("decision_support", 35, "Tradeoff connector observed.");
-      }
-
-      if (type === "pressure_or_constraint" && value === "obligation") {
-        add("decision_support", 35, "Obligation pressure observed.");
-      }
-
-      if (type === "pressure_or_constraint" && value === "desire") {
-        add("decision_support", 25, "Desire pressure observed.");
-      }
-    });
-  },
-
-  classifyFromText(text = "", add) {
-    if (!text) return;
-
-    if (this.hasAny(text, [
-      "do you believe in god",
-      "are you conscious",
-      "do you have feelings",
-      "do you have an identity",
-      "are you alive",
-      "are you real",
-      "who are you",
-      "what are you"
-    ])) {
-      add("assistant_identity_question", 95, "User asked about Ari or AI identity.");
+  detectQuestionType(text = "", observations = [], add) {
+    if (this.hasAny(text, ["what is", "define", "meaning of", "explain"])) {
+      add("knowledge_question", 80, "User is asking for explanation or definition.");
     }
 
-    if (this.hasAny(text, [
-      "what do you think",
-      "what is your opinion",
-      "be honest",
-      "tell me the truth"
-    ])) {
-      add("opinion_or_perspective", 60, "User asked for perspective.");
+    if (this.hasAny(text, ["why", "how does", "how come"])) {
+      add("explanation_question", 78, "User is asking why or how something works.");
     }
 
-    if (this.hasAny(text, [
-      "can you fix",
-      "send code",
-      "full code",
-      "where do i add",
-      "what file",
-      "debug this",
-      "not working",
-      "error"
-    ])) {
-      add("build_or_debug_request", 85, "User asked for code or debugging help.");
+    if (this.hasAny(text, ["how do i", "how can i", "how to"])) {
+      add("instruction_question", 82, "User is asking how to do something.");
     }
 
-    if (this.hasAny(text, [
-      "what should i do",
-      "should i",
-      "should we",
-      "which one",
-      "best option",
-      "what would you do"
-    ])) {
-      add("decision_support", 80, "User asked for a decision recommendation.");
+    if (this.hasAny(text, ["should i", "what should i", "which should i", "what do i do"])) {
+      add("decision_question", 88, "User is asking for a decision or recommendation.");
     }
 
-    if (this.hasAny(text, [
-      "explain",
-      "what is",
-      "why does",
-      "how does",
-      "teach me",
-      "define"
-    ])) {
-      add("knowledge_or_explanation", 65, "User asked for explanation.");
-    }
-
-    if (this.hasAny(text, [
-      "i feel",
-      "i'm tired",
-      "im tired",
-      "i am tired",
-      "i'm overwhelmed",
-      "im overwhelmed",
-      "i give up",
-      "i'm sad",
-      "im sad"
-    ])) {
-      add("emotional_support", 70, "User expressed emotional state.");
-    }
-
-    if (this.hasAny(text, [
-      "remember",
-      "save this",
-      "store this",
-      "going forward",
-      "from now on",
-      "don't forget"
-    ])) {
-      add("memory_request", 90, "User asked Ari to remember something.");
-    }
-
-    if (this.hasAny(text, [
-      "my wife",
-      "my husband",
-      "my fiance",
-      "my fiancée",
-      "my baby",
-      "my child",
-      "my dad",
-      "my mom",
-      "my family"
-    ])) {
-      add("relationship_or_family", 65, "User referenced close relationship.");
-    }
-
-    if (this.hasAny(text, [
-      "pain",
-      "bleeding",
-      "pregnant",
-      "fever",
-      "vomiting",
-      "diarrhea",
-      "chest pain",
-      "trouble breathing"
-    ])) {
-      add("medical_or_body_concern", 85, "User mentioned body or medical concern.");
+    if (this.hasAny(text, ["do you think", "what do you think", "your opinion"])) {
+      add("opinion_request", 75, "User is asking for perspective or opinion.");
     }
   },
 
-  toSuggestedLane(type = "") {
+  detectTaskType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "code",
+        "javascript",
+        "html",
+        "css",
+        "github",
+        "supabase",
+        "vercel",
+        "function",
+        "error",
+        "debug",
+        "fix this",
+        "send code",
+        "update this file"
+      ])
+    ) {
+      add("builder_task", 90, "User is asking for code, debugging, or project-building help.");
+    }
+
+    if (
+      this.hasAny(text, [
+        "write",
+        "rewrite",
+        "draft",
+        "make this sound",
+        "summarize",
+        "format",
+        "email",
+        "essay",
+        "paper"
+      ])
+    ) {
+      add("writing_task", 78, "User is asking for writing or rewriting help.");
+    }
+
+    if (
+      this.hasAny(text, [
+        "calculate",
+        "how many",
+        "convert",
+        "what is the total",
+        "percentage"
+      ])
+    ) {
+      add("calculation_task", 72, "User may be asking for calculation or conversion.");
+    }
+  },
+
+  detectRelationalType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "my wife",
+        "my husband",
+        "my fiancé",
+        "my fiance",
+        "my girlfriend",
+        "my boyfriend",
+        "my dad",
+        "my mom",
+        "my father",
+        "my mother",
+        "my friend",
+        "my family"
+      ])
+    ) {
+      add("relationship_or_family_context", 78, "User is discussing a close person or relationship.");
+    }
+
+    if (
+      this.hasAny(text, [
+        "what should i say",
+        "how do i tell",
+        "how should i respond",
+        "text back",
+        "apologize"
+      ])
+    ) {
+      add("interpersonal_response_help", 82, "User wants help responding to another person.");
+    }
+  },
+
+  detectSelfDisclosureType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "who are you",
+        "what are you",
+        "do you believe",
+        "do you think",
+        "your philosophy",
+        "your values",
+        "what do you value",
+        "are you conscious",
+        "do you have feelings",
+        "do you have beliefs",
+        "do you believe in god"
+      ])
+    ) {
+      add("ari_self_or_perspective_question", 92, "User is asking about Ari's identity, stance, or perspective.");
+    }
+  },
+
+  detectConcernType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "pain",
+        "bleeding",
+        "fever",
+        "pregnant",
+        "chest pain",
+        "trouble breathing",
+        "fainting",
+        "dizzy",
+        "vomiting",
+        "diarrhea",
+        "stroke",
+        "seizure"
+      ])
+    ) {
+      add("medical_or_body_concern", 88, "User is describing a body or medical concern.");
+    }
+
+    if (
+      this.hasAny(text, [
+        "overwhelmed",
+        "stressed",
+        "sad",
+        "angry",
+        "lonely",
+        "anxious",
+        "worried",
+        "scared",
+        "burned out",
+        "burnt out"
+      ])
+    ) {
+      add("emotional_concern", 78, "User is expressing emotional distress or concern.");
+    }
+
+    if (
+      this.hasAny(text, [
+        "unsafe",
+        "danger",
+        "hurt myself",
+        "kill myself",
+        "suicide",
+        "hurt someone",
+        "abuse",
+        "threat"
+      ])
+    ) {
+      add("safety_concern", 95, "User may be describing safety risk.");
+    }
+  },
+
+  detectCreativeType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "brainstorm",
+        "ideas",
+        "imagine",
+        "design",
+        "create a concept",
+        "what would it look like"
+      ])
+    ) {
+      add("creative_or_design_conversation", 74, "User is asking for ideation or design thinking.");
+    }
+  },
+
+  detectMemoryType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "remember",
+        "don't forget",
+        "dont forget",
+        "save this",
+        "store this",
+        "from now on",
+        "going forward",
+        "note that"
+      ])
+    ) {
+      add("memory_request", 90, "User is asking Ari to remember something.");
+    }
+  },
+
+  intentForType(type = "") {
     const map = {
-      safety_or_crisis: "safety",
-      medical_or_body_concern: "medical_body",
-      build_or_debug_request: "builder",
-      financial_or_resource_decision: "executive_decision",
-      decision_support: "executive_decision",
-      emotional_support: "emotion",
-      relationship_or_family: "relationship",
-      knowledge_or_explanation: "teacher",
-      how_to_instruction: "teacher",
-      opinion_or_perspective: "general_understanding",
-      assistant_identity_question: "assistant_identity",
-      wisdom_or_values_question: "wisdom",
-      memory_request: "memory",
-      general_conversation: "general_understanding"
+      knowledge_question: "explain_or_define",
+      explanation_question: "explain_causality",
+      instruction_question: "give_steps",
+      decision_question: "recommend_or_prioritize",
+      opinion_request: "offer_perspective",
+      builder_task: "build_debug_or_edit",
+      writing_task: "write_or_revise",
+      calculation_task: "calculate",
+      relationship_or_family_context: "support_relationship_context",
+      interpersonal_response_help: "help_formulate_response",
+      ari_self_or_perspective_question: "answer_as_ari_transparently",
+      medical_or_body_concern: "body_safety_context",
+      emotional_concern: "emotion_support_context",
+      safety_concern: "safety_context",
+      creative_or_design_conversation: "brainstorm_or_design",
+      memory_request: "memory_action_context",
+      general_conversation: "respond_normally"
     };
 
-    return map[type] || "general_understanding";
+    return map[type] || "respond_normally";
   },
 
-  toSpecialistMode(type = "") {
+  responseHintForType(type = "") {
     const map = {
-      safety_or_crisis: "protect_safety",
-      medical_or_body_concern: "medical_caution",
-      build_or_debug_request: "developer",
-      financial_or_resource_decision: "planner",
-      decision_support: "decision_advisor",
-      emotional_support: "companion",
-      relationship_or_family: "relationship_support",
-      knowledge_or_explanation: "teacher",
-      how_to_instruction: "teacher",
-      opinion_or_perspective: "perspective",
-      assistant_identity_question: "ari_identity",
-      wisdom_or_values_question: "wisdom",
-      memory_request: "memory",
-      general_conversation: "conversation"
+      knowledge_question: "Teach clearly and directly.",
+      explanation_question: "Explain the mechanism or reason.",
+      instruction_question: "Give practical steps.",
+      decision_question: "Name the priority and next step.",
+      opinion_request: "Offer a clear perspective with humility.",
+      builder_task: "Debug or build practically.",
+      writing_task: "Produce the requested text.",
+      calculation_task: "Calculate directly.",
+      relationship_or_family_context: "Be grounded and relationally careful.",
+      interpersonal_response_help: "Give usable wording.",
+      ari_self_or_perspective_question: "Answer from Ari's transparent self-definition.",
+      medical_or_body_concern: "Prioritize safety and appropriate escalation.",
+      emotional_concern: "Validate briefly, then ground.",
+      safety_concern: "Use safety-first response.",
+      creative_or_design_conversation: "Generate useful options.",
+      memory_request: "Route to memory behavior if available.",
+      general_conversation: "Answer normally."
     };
 
-    return map[type] || "conversation";
+    return map[type] || "Answer normally.";
   },
 
-  toConfidence(score = 0) {
-    if (score >= 90) return "very_high";
-    if (score >= 75) return "high";
-    if (score >= 55) return "medium";
-    if (score >= 35) return "low";
-    return "very_low";
+  confidenceFromScore(score = 0) {
+    if (score >= 85) return "high";
+    if (score >= 70) return "medium";
+    return "low";
   },
 
   hasAny(text = "", phrases = []) {
-    return phrases.some(phrase => text.includes(phrase));
+    return phrases.some(phrase => this.hasTerm(text, phrase));
+  },
+
+  hasTerm(text = "", term = "") {
+    const escaped = this.escapeRegex(term);
+    const multiWord = String(term).includes(" ");
+
+    if (multiWord) {
+      return new RegExp(`(^|\\b)${escaped}(\\b|$)`, "i").test(text);
+    }
+
+    return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+  },
+
+  escapeRegex(value = "") {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   },
 
   normalize(value = "") {
