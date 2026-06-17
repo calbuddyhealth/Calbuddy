@@ -72,17 +72,18 @@ if (reasoningFrame === "relationship_or_family_reasoning") {
 } else {
   this.buildUniversalCaseModel(reasoning, summary, primary);
 }
-    this.buildKnownInferredUnknown(reasoning, summary, primary);
-    this.buildOptions(reasoning, summary, primary);
-    this.buildConsequences(reasoning, summary, primary);
-    this.addTradeoffs(reasoning, summary, primary);
-    this.addCounterfactuals(reasoning, summary, primary);
-    this.addSystemsView(reasoning, summary, primary);
-    this.addRegretLens(reasoning, summary, primary);
-    this.buildRejectedAlternatives(reasoning, summary, primary);
-    
-    this.synthesizeRecommendation(reasoning, summary, primary);
-    this.buildCoreJudgment(reasoning, summary, primary);
+    if (reasoningFrame !== "relationship_or_family_reasoning") {
+  this.buildKnownInferredUnknown(reasoning, summary, primary);
+  this.buildOptions(reasoning, summary, primary);
+  this.buildConsequences(reasoning, summary, primary);
+  this.addTradeoffs(reasoning, summary, primary);
+  this.addCounterfactuals(reasoning, summary, primary);
+  this.addSystemsView(reasoning, summary, primary);
+  this.addRegretLens(reasoning, summary, primary);
+  this.buildRejectedAlternatives(reasoning, summary, primary);
+  this.synthesizeRecommendation(reasoning, summary, primary);
+  this.buildCoreJudgment(reasoning, summary, primary);
+}
     this.buildExecutiveConclusion(reasoning, summary, primary, contract);
     this.scoreConfidence(reasoning, summary, primary);
     this.finalize(reasoning);
@@ -718,6 +719,10 @@ if (reasoningFrame === "relationship_or_family_reasoning") {
   },
 
   synthesizeRecommendation(reasoning, summary, primary) {
+    if (reasoning.reasoningFrame === "relationship_or_family_reasoning") {
+
+    return;
+    }
     const model = reasoning.caseModel || {};
     const topPriority = model.priorities?.[0];
 
@@ -790,6 +795,9 @@ if (reasoningFrame === "relationship_or_family_reasoning") {
   },
 
   buildCoreJudgment(reasoning, summary, primary) {
+    if (reasoning.reasoningFrame === "relationship_or_family_reasoning") {
+    return;
+  }
     const model = reasoning.caseModel || {};
     const tension = model.tensions?.[0];
     const priority = model.priorities?.[0];
