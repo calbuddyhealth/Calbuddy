@@ -89,7 +89,10 @@ window.AriContextAssembler = {
         ? continuity.unresolvedItems.slice(0, 8)
         : [],
       nextStep: continuity.nextStep || null,
-      previousAnswerSummary: continuity.previousAnswerSummary || null
+      previousAnswerSummary: continuity.previousAnswerSummary || null,
+lastMessages: Array.isArray(continuity.lastMessages)
+  ? continuity.lastMessages.slice(-8)
+  : []
     };
   },
 
@@ -145,6 +148,16 @@ window.AriContextAssembler = {
         source: "continuity"
       });
     }
+(c.lastMessages || []).slice(-4).forEach(message => {
+  if (!message?.text) return;
+
+  context.activeThreadFacts.push({
+    type: "recent_message",
+    claim: message.text,
+    confidence: 0.82,
+    source: "continuity"
+  });
+});
 
     if (c.followUpDetected) {
       context.advisoryFacts.push({
