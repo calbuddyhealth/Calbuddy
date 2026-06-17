@@ -1,11 +1,11 @@
 // ari/language/ari-response-compressor.js
 // Purpose: Compress final response without changing meaning or contract.
-// V1.3.0 — Selective compressor, composer-safe
+// V1.4.0 — Character-safe compressor
 
 window.Ari = window.Ari || {};
 
 window.AriResponseCompressor = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   compress(input = {}) {
     const summary = input.summary || input || {};
@@ -26,6 +26,18 @@ window.AriResponseCompressor = {
         responseCompressorSkipReason: "compression disabled by directive"
       });
     }
+
+// Do not compress Ari self-disclosure.
+// Character answers are intentionally shaped by the composer.
+if (
+  summary.characterContext?.characterMode === "ari_self_disclosure" ||
+  summary.characterMode === "ari_self_disclosure"
+) {
+  return this.result(text, {
+    responseCompressorSkipped: true,
+    responseCompressorSkipReason: "character self-disclosure protected"
+  });
+}
 
     const primary =
       summary.situationContractPrimary ||
