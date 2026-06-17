@@ -47,6 +47,14 @@ continuityEngineSource: "ari-conversation-continuity-engine",
       threadId: prior.threadId || null,
       currentTopic: topic,
       previousTopic: prior.currentTopic || null,
+lastMessages: [
+  ...(prior.lastMessages || []),
+  {
+    role: "user",
+    text: summary.userMessage || summary.message || summary.input || "",
+    createdAt: new Date().toISOString()
+  }
+].slice(-8),
 
       followUpDetected: followUp.detected,
       followUpType: followUp.type,
