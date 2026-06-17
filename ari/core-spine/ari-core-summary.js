@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.3
+// V3.4
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.3.0",
+  version: "3.4.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -533,11 +533,9 @@ threadUnderstandingSource:
   "not-yet-run",
 
 threadSubject:
-
   analysis.threadSubject ||
-
+  analysis.threadUnderstanding?.activeSubject ||
   analysis.threadUnderstanding?.subject ||
-
   null,
 
 threadDomain:
@@ -570,6 +568,59 @@ threadRecentMessages:
   analysis.threadUnderstanding?.lastMessages ||
   analysis.continuityState?.lastMessages ||
   [],
+
+threadActiveSubject:
+  analysis.threadActiveSubject ||
+  analysis.threadUnderstanding?.activeSubject ||
+  analysis.threadUnderstanding?.subject ||
+  null,
+
+threadActiveIssue:
+  analysis.threadActiveIssue ||
+  analysis.threadUnderstanding?.activeIssue ||
+  null,
+
+threadActiveProblem:
+  analysis.threadActiveProblem ||
+  analysis.threadUnderstanding?.activeProblem ||
+  analysis.threadUnderstanding?.problem ||
+  null,
+
+threadActiveGoal:
+  analysis.threadActiveGoal ||
+  analysis.threadUnderstanding?.activeGoal ||
+  analysis.threadUnderstanding?.goal ||
+  null,
+
+threadImpliedQuestion:
+  analysis.threadImpliedQuestion ||
+  analysis.threadUnderstanding?.impliedQuestion ||
+  null,
+
+threadResolvedMeaning:
+  analysis.threadResolvedMeaning ||
+  analysis.threadUnderstanding?.resolvedMeaning ||
+  {},
+
+threadStateChange:
+  analysis.threadStateChange ||
+  analysis.threadUnderstanding?.stateChange ||
+  {},
+
+threadTopicTransition:
+  analysis.threadTopicTransition ||
+  analysis.threadUnderstanding?.topicTransition ||
+  {},
+
+threadUnresolvedProblems:
+  analysis.threadUnresolvedProblems ||
+  analysis.threadUnderstanding?.unresolvedProblems ||
+  [],
+
+threadWorkingContext:
+  analysis.threadWorkingContext ||
+  analysis.threadUnderstanding?.workingContext ||
+  {},
 
 subjectGraph:
   analysis.subjectGraph ||
