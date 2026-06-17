@@ -1,12 +1,15 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Maintain active working context across turns.
-// V2.0.0 — Working Context / Active Object Model
+// V2.1.0 — Working Context / Active Object Model
+// Boundary:
+// - Tracks active subject, object, problem, goal, attempts, constraints, state changes, unresolved problems, and topic transitions.
+// - Does NOT choose final route, score medical risk, compose answers, or create long-term memories.
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -26,21 +29,36 @@ window.AriThreadUnderstandingEngine = {
     const currentTurn = this.interpretCurrentTurn(currentText);
     const priorContext = this.rebuildContextFromMessages(recentMessages);
 
+    const topicTransition = this.detectTopicTransition({
+      previousWorkingContext,
+      priorContext,
+      currentTurn
+    });
+
     const workingContext = this.mergeWorkingContext({
       previousWorkingContext,
       priorContext,
       currentTurn,
-      currentText
+      currentText,
+      topicTransition
     });
+
+    const stateChange = this.detectStateChange(currentTurn, workingContext);
+
+    this.updateUnresolvedProblems(workingContext, currentTurn, stateChange);
 
     const resolvedMeaning = this.resolveMeaning({
       currentText,
       currentTurn,
-      workingContext
+      workingContext,
+      stateChange
     });
 
     const domain = this.resolveDomain(workingContext, resolvedMeaning);
     const laneHint = this.resolveLaneHint(domain, resolvedMeaning, summary);
+
+    const activeIssue = this.toSituationMapIssue(workingContext.activeProblem);
+    const impliedQuestion = this.toSituationMapQuestion(resolvedMeaning);
 
     const threadUnderstanding = {
       threadUnderstandingRan: true,
@@ -54,10 +72,23 @@ window.AriThreadUnderstandingEngine = {
       workingContext,
       resolvedMeaning,
 
+      stateChange,
+      topicTransition,
+
+      unresolvedProblems: workingContext.unresolvedProblems || [],
+
       subject: workingContext.activeSubject,
       object: workingContext.activeObject,
       problem: workingContext.activeProblem,
       goal: workingContext.activeGoal,
+
+      activeSubject: workingContext.activeSubject,
+      activeObject: workingContext.activeObject,
+      activeIssue,
+      activeProblem: workingContext.activeProblem,
+      activeGoal: workingContext.activeGoal,
+
+      impliedQuestion,
 
       domain,
       laneHint,
@@ -65,7 +96,9 @@ window.AriThreadUnderstandingEngine = {
       confidence: this.scoreConfidence({
         recentMessages,
         workingContext,
-        resolvedMeaning
+        resolvedMeaning,
+        stateChange,
+        topicTransition
       }),
 
       authority: "advisory_context_only",
@@ -99,6 +132,15 @@ window.AriThreadUnderstandingEngine = {
       threadObject: workingContext.activeObject,
       threadProblem: workingContext.activeProblem,
       threadGoal: workingContext.activeGoal,
+
+      threadActiveSubject: workingContext.activeSubject,
+      threadActiveIssue: activeIssue,
+      threadActiveProblem: workingContext.activeProblem,
+      threadImpliedQuestion: impliedQuestion,
+
+      threadStateChange: stateChange,
+      threadTopicTransition: topicTransition,
+      threadUnresolvedProblems: workingContext.unresolvedProblems || [],
 
       threadDomain: domain,
       threadLaneHint: laneHint,
@@ -141,17 +183,16 @@ window.AriThreadUnderstandingEngine = {
     return {
       raw: text,
       clean,
+      lower,
       wordCount: words.length,
 
       isQuestion:
         lower.includes("?") ||
         /^(what|why|how|when|where|should|can|could|do|does|is|are|will|would)\b/.test(lower),
 
-      isShortFollowUp:
-        words.length <= 12,
+      isShortFollowUp: words.length <= 12,
 
-      hasSelfReference:
-        /\b(i|me|my|myself)\b/.test(lower),
+      hasSelfReference: /\b(i|me|my|myself)\b/.test(lower),
 
       hasOtherPersonReference:
         /\b(he|she|they|him|her|them|my father|my dad|my mom|my mother|my fiancee|my fiancée|my wife|my husband|my baby|my child)\b/.test(lower),
@@ -169,7 +210,16 @@ window.AriThreadUnderstandingEngine = {
         /\b(i don't want|i do not want|avoid|without|don't let|prevent)\b/.test(lower),
 
       expressesFailedAttempt:
-        /\b(tried|already did|did that|not working|still|hasn't worked|haven't worked)\b/.test(lower),
+        /\b(tried|already did|did that|not working|still|hasn't worked|haven't worked|didn't work|doesn't work)\b/.test(lower),
+
+      expressesWorsening:
+        /\b(worse|worsening|getting worse|more painful|more severe|spreading|can't|cannot)\b/.test(lower),
+
+      expressesImprovement:
+        /\b(better|improved|worked|helped|fixed|resolved|went away)\b/.test(lower),
+
+      expressesAbandonment:
+        /\b(nevermind|never mind|forget it|different topic|new question|unrelated)\b/.test(lower),
 
       rawSignals: this.extractUniversalSignals(lower)
     };
@@ -194,11 +244,11 @@ window.AriThreadUnderstandingEngine = {
       add("subject_reference", "animal", "animal/pet reference", 0.85);
     }
 
-    if (/\b(hurt|pain|sick|symptom|breathing|bleeding|fever|vomit|diarrhea|constipation|poop|cough|swallow|dizzy|faint)\b/.test(text)) {
+    if (/\b(hurt|pain|sick|symptom|breathing|bleeding|fever|vomit|diarrhea|constipation|poop|cough|swallow|dizzy|faint|nausea|rash|itch)\b/.test(text)) {
       add("problem_frame", "body_function_or_symptom", "body/symptom language", 0.82);
     }
 
-    if (/\b(code|file|html|script|pipeline|engine|bug|error|github|supabase)\b/.test(text)) {
+    if (/\b(code|file|html|script|pipeline|engine|bug|error|github|supabase|function|console)\b/.test(text)) {
       add("problem_frame", "build_or_system_issue", "build/system language", 0.82);
     }
 
@@ -232,10 +282,19 @@ window.AriThreadUnderstandingEngine = {
     return context;
   },
 
-  mergeWorkingContext({ previousWorkingContext = {}, priorContext = {}, currentTurn = {}, currentText = "" }) {
+  mergeWorkingContext({
+    previousWorkingContext = {},
+    priorContext = {},
+    currentTurn = {},
+    currentText = "",
+    topicTransition = {}
+  }) {
     const merged = this.emptyWorkingContext();
 
-    this.copyContextInto(merged, previousWorkingContext);
+    if (!topicTransition.switched) {
+      this.copyContextInto(merged, previousWorkingContext);
+    }
+
     this.copyContextInto(merged, priorContext);
     this.applyTurnToContext(merged, currentTurn);
 
@@ -244,25 +303,25 @@ window.AriThreadUnderstandingEngine = {
 
     merged.activeSubject = this.chooseBest(
       merged.activeSubject,
-      previousWorkingContext.activeSubject,
+      topicTransition.switched ? null : previousWorkingContext.activeSubject,
       priorContext.activeSubject
     );
 
     merged.activeObject = this.chooseBest(
       merged.activeObject,
-      previousWorkingContext.activeObject,
+      topicTransition.switched ? null : previousWorkingContext.activeObject,
       priorContext.activeObject
     );
 
     merged.activeProblem = this.chooseBest(
       merged.activeProblem,
-      previousWorkingContext.activeProblem,
+      topicTransition.switched ? null : previousWorkingContext.activeProblem,
       priorContext.activeProblem
     );
 
     merged.activeGoal = this.chooseBest(
       merged.activeGoal,
-      previousWorkingContext.activeGoal,
+      topicTransition.switched ? null : previousWorkingContext.activeGoal,
       priorContext.activeGoal
     );
 
@@ -277,6 +336,7 @@ window.AriThreadUnderstandingEngine = {
       activeGoal: null,
       activeConstraints: [],
       activeAttempts: [],
+      unresolvedProblems: [],
       timeline: [],
       lastUserText: null,
       updatedAt: null
@@ -291,25 +351,13 @@ window.AriThreadUnderstandingEngine = {
     target.activeProblem = this.chooseBest(target.activeProblem, source.activeProblem);
     target.activeGoal = this.chooseBest(target.activeGoal, source.activeGoal);
 
-    target.activeConstraints = this.mergeArrays(
-      target.activeConstraints,
-      source.activeConstraints
-    );
-
-    target.activeAttempts = this.mergeArrays(
-      target.activeAttempts,
-      source.activeAttempts
-    );
-
-    target.timeline = this.mergeArrays(
-      target.timeline,
-      source.timeline
-    ).slice(-10);
+    target.activeConstraints = this.mergeArrays(target.activeConstraints, source.activeConstraints);
+    target.activeAttempts = this.mergeArrays(target.activeAttempts, source.activeAttempts);
+    target.unresolvedProblems = this.mergeArrays(target.unresolvedProblems, source.unresolvedProblems);
+    target.timeline = this.mergeArrays(target.timeline, source.timeline).slice(-10);
   },
 
   applyTurnToContext(context = {}, turn = {}) {
-    const text = String(turn.clean || "").toLowerCase();
-
     if (turn.hasSelfReference) {
       context.activeSubject = this.makeNode("subject", "self", "the user", "first-person reference", 0.85);
     } else if (turn.hasAnimalReference) {
@@ -362,7 +410,122 @@ window.AriThreadUnderstandingEngine = {
     }
   },
 
-  resolveMeaning({ currentText = "", currentTurn = {}, workingContext = {} }) {
+  detectStateChange(turn = {}, workingContext = {}) {
+    if (turn.expressesAbandonment) {
+      return { type: "topic_abandoned_or_reset", confidence: 0.86 };
+    }
+
+    if (turn.expressesWorsening) {
+      return { type: "problem_worsened", confidence: 0.84 };
+    }
+
+    if (turn.expressesImprovement) {
+      return { type: "problem_improved_or_resolved", confidence: 0.82 };
+    }
+
+    if (turn.expressesFailedAttempt) {
+      return { type: "prior_attempt_failed_or_insufficient", confidence: 0.84 };
+    }
+
+    if (turn.expressesAvoidance) {
+      return { type: "constraint_added", confidence: 0.82 };
+    }
+
+    if (turn.asksForAction) {
+      return { type: "next_step_requested", confidence: 0.78 };
+    }
+
+    if (turn.asksForMonitoring) {
+      return { type: "monitoring_requested", confidence: 0.78 };
+    }
+
+    if (workingContext.activeProblem && turn.isShortFollowUp) {
+      return { type: "contextual_follow_up", confidence: 0.7 };
+    }
+
+    return { type: "none", confidence: 0.4 };
+  },
+
+  detectTopicTransition({ previousWorkingContext = {}, priorContext = {}, currentTurn = {} }) {
+    const previousProblem = previousWorkingContext.activeProblem?.kind || null;
+    const currentProblem =
+      priorContext.activeProblem?.kind ||
+      currentTurn.rawSignals?.find(s => s.type === "problem_frame")?.value ||
+      null;
+
+    const previousDomain = this.domainForProblem(previousProblem, previousWorkingContext.activeSubject?.kind);
+    const currentDomain = this.domainForProblem(currentProblem, priorContext.activeSubject?.kind);
+
+    if (currentTurn.expressesAbandonment) {
+      return {
+        switched: true,
+        from: previousDomain || "unknown",
+        to: "unknown",
+        reason: "User appears to reset or abandon the topic.",
+        confidence: 0.86
+      };
+    }
+
+    if (
+      previousDomain &&
+      currentDomain &&
+      previousDomain !== currentDomain &&
+      currentTurn.wordCount > 4
+    ) {
+      return {
+        switched: true,
+        from: previousDomain,
+        to: currentDomain,
+        reason: "Current turn introduced a different domain.",
+        confidence: 0.82
+      };
+    }
+
+    return {
+      switched: false,
+      from: previousDomain || null,
+      to: currentDomain || previousDomain || null,
+      reason: "No clear topic switch detected.",
+      confidence: 0.65
+    };
+  },
+
+  updateUnresolvedProblems(context = {}, turn = {}, stateChange = {}) {
+    if (!Array.isArray(context.unresolvedProblems)) {
+      context.unresolvedProblems = [];
+    }
+
+    if (context.activeProblem) {
+      const existing = context.unresolvedProblems.find(
+        p => p.kind === context.activeProblem.kind
+      );
+
+      if (existing) {
+        existing.status =
+          stateChange.type === "problem_improved_or_resolved"
+            ? "resolved_or_improving"
+            : "active";
+
+        existing.updatedAt = new Date().toISOString();
+        existing.lastMention = turn.clean || existing.lastMention;
+      } else {
+        context.unresolvedProblems.push({
+          ...context.activeProblem,
+          status:
+            stateChange.type === "problem_improved_or_resolved"
+              ? "resolved_or_improving"
+              : "active",
+          lastMention: turn.clean || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    }
+
+    context.unresolvedProblems = context.unresolvedProblems.slice(-6);
+  },
+
+  resolveMeaning({ currentText = "", currentTurn = {}, workingContext = {}, stateChange = {} }) {
     const subject = workingContext.activeSubject;
     const object = workingContext.activeObject;
     const problem = workingContext.activeProblem;
@@ -373,13 +536,20 @@ window.AriThreadUnderstandingEngine = {
       currentTurn.asksForAction ||
       currentTurn.asksForMonitoring ||
       currentTurn.expressesAvoidance ||
-      currentTurn.expressesFailedAttempt;
+      currentTurn.expressesFailedAttempt ||
+      Boolean(problem);
 
     let intent = "respond_normally";
+
     if (currentTurn.asksForAction) intent = "action_guidance";
     if (currentTurn.asksForMonitoring) intent = "monitoring_guidance";
-    if (currentTurn.expressesAvoidance && currentTurn.asksForAction) {
+
+    if (currentTurn.expressesAvoidance && (currentTurn.asksForAction || problem)) {
       intent = "safe_alternative_guidance";
+    }
+
+    if (stateChange.type === "prior_attempt_failed_or_insufficient" && problem) {
+      intent = "alternative_strategy";
     }
 
     const resolvedText = this.composeResolvedText({
@@ -389,7 +559,8 @@ window.AriThreadUnderstandingEngine = {
       problem,
       goal,
       intent,
-      isContextual
+      isContextual,
+      stateChange
     });
 
     return {
@@ -401,6 +572,7 @@ window.AriThreadUnderstandingEngine = {
       resolvedObject: object,
       resolvedProblem: problem,
       resolvedGoal: goal,
+      stateChange,
 
       confidence: this.meaningConfidence({
         isContextual,
@@ -408,14 +580,15 @@ window.AriThreadUnderstandingEngine = {
         object,
         problem,
         goal,
-        intent
+        intent,
+        stateChange
       }),
 
       authority: "advisory_context_only"
     };
   },
 
-  composeResolvedText({ currentText, subject, object, problem, goal, intent, isContextual }) {
+  composeResolvedText({ currentText, subject, object, problem, goal, intent, isContextual, stateChange }) {
     if (!isContextual) return currentText;
 
     const s = subject?.label || "the active subject";
@@ -424,7 +597,11 @@ window.AriThreadUnderstandingEngine = {
     const g = goal?.label || "the active goal";
 
     if (intent === "safe_alternative_guidance") {
-      return `User is asking what to do about ${p} affecting ${s}, while avoiding ${g || "an unwanted action"} related to ${o}.`;
+      return `User is asking what to do about ${p} affecting ${s}, while avoiding ${g} related to ${o}.`;
+    }
+
+    if (intent === "alternative_strategy") {
+      return `User reports prior advice was not enough and needs another strategy for ${p} affecting ${s}.`;
     }
 
     if (intent === "action_guidance") {
@@ -435,7 +612,7 @@ window.AriThreadUnderstandingEngine = {
       return `User is asking what to watch for regarding ${p} affecting ${s}.`;
     }
 
-    return `${currentText} Context: subject=${s}; object=${o}; problem=${p}; goal=${g}.`;
+    return `${currentText} Context: subject=${s}; object=${o}; problem=${p}; goal=${g}; state=${stateChange?.type || "none"}.`;
   },
 
   resolveDomain(workingContext = {}, resolvedMeaning = {}) {
@@ -466,6 +643,8 @@ window.AriThreadUnderstandingEngine = {
 
     if (resolvedMeaning.intent === "monitoring_guidance") return "medical_context";
     if (resolvedMeaning.intent === "safe_alternative_guidance") return "medical_context";
+    if (resolvedMeaning.intent === "alternative_strategy") return "medical_context";
+
     if (resolvedMeaning.intent === "action_guidance") {
       return summary.primaryLaneSuggestion || "executive_decision";
     }
@@ -473,35 +652,76 @@ window.AriThreadUnderstandingEngine = {
     return summary.primaryLaneSuggestion || "general_understanding";
   },
 
+  toSituationMapIssue(problem = null) {
+    if (!problem) return null;
+
+    if (problem.kind === "body_function_or_symptom") {
+      return {
+        ...problem,
+        type: "health_symptom"
+      };
+    }
+
+    if (problem.kind === "build_or_system_issue") {
+      return {
+        ...problem,
+        type: "implementation_step"
+      };
+    }
+
+    if (problem.kind === "object_or_vehicle_issue") {
+      return {
+        ...problem,
+        type: "object_or_vehicle_issue"
+      };
+    }
+
+    return {
+      ...problem,
+      type: problem.type || problem.kind || "unknown"
+    };
+  },
+
+  toSituationMapQuestion(resolvedMeaning = {}) {
+    let type = resolvedMeaning.intent || "contextual_follow_up";
+
+    if (type === "safe_alternative_guidance") {
+      type = "alternative_strategy";
+    }
+
+    return {
+      type,
+      resolvedText: resolvedMeaning.resolvedText || null,
+      confidence: resolvedMeaning.confidence ?? null
+    };
+  },
+
+  domainForProblem(problemKind = "", subjectKind = "") {
+    if (!problemKind) return null;
+
+    if (problemKind === "body_function_or_symptom") {
+      return subjectKind === "animal"
+        ? "animal_health_context"
+        : "human_health_context";
+    }
+
+    if (problemKind === "build_or_system_issue") return "builder_context";
+    if (problemKind === "object_or_vehicle_issue") return "object_or_vehicle_context";
+
+    return "general_context";
+  },
+
   objectForProblem(problemKind = "") {
     if (problemKind === "body_function_or_symptom") {
-      return this.makeNode(
-        "object",
-        "body_function",
-        "the body function or symptom being discussed",
-        "body/symptom frame",
-        0.78
-      );
+      return this.makeNode("object", "body_function", "the body function or symptom being discussed", "body/symptom frame", 0.78);
     }
 
     if (problemKind === "build_or_system_issue") {
-      return this.makeNode(
-        "object",
-        "system_or_code",
-        "the system, file, or code being discussed",
-        "build/system frame",
-        0.78
-      );
+      return this.makeNode("object", "system_or_code", "the system, file, or code being discussed", "build/system frame", 0.78);
     }
 
     if (problemKind === "object_or_vehicle_issue") {
-      return this.makeNode(
-        "object",
-        "physical_object_or_vehicle",
-        "the object or vehicle being discussed",
-        "object/vehicle frame",
-        0.72
-      );
+      return this.makeNode("object", "physical_object_or_vehicle", "the object or vehicle being discussed", "object/vehicle frame", 0.72);
     }
 
     return null;
@@ -548,7 +768,11 @@ window.AriThreadUnderstandingEngine = {
   },
 
   mergeArrays(a = [], b = []) {
-    const combined = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
+    const combined = [
+      ...(Array.isArray(a) ? a : []),
+      ...(Array.isArray(b) ? b : [])
+    ];
+
     const seen = new Set();
 
     return combined.filter(item => {
@@ -556,7 +780,8 @@ window.AriThreadUnderstandingEngine = {
         type: item?.type,
         kind: item?.kind,
         label: item?.label,
-        evidence: item?.evidence
+        evidence: item?.evidence,
+        status: item?.status
       });
 
       if (seen.has(key)) return false;
@@ -565,7 +790,7 @@ window.AriThreadUnderstandingEngine = {
     });
   },
 
-  scoreConfidence({ recentMessages = [], workingContext = {}, resolvedMeaning = {} }) {
+  scoreConfidence({ recentMessages = [], workingContext = {}, resolvedMeaning = {}, stateChange = {}, topicTransition = {} }) {
     let score = 35;
 
     if (recentMessages.length >= 2) score += 15;
@@ -574,11 +799,13 @@ window.AriThreadUnderstandingEngine = {
     if (workingContext.activeProblem) score += 15;
     if (resolvedMeaning.isContextual) score += 10;
     if (resolvedMeaning.intent !== "respond_normally") score += 10;
+    if (stateChange.type && stateChange.type !== "none") score += 5;
+    if (topicTransition.switched) score -= 10;
 
-    return Math.min(95, score);
+    return Math.max(25, Math.min(95, score));
   },
 
-  meaningConfidence({ isContextual, subject, object, problem, goal, intent }) {
+  meaningConfidence({ isContextual, subject, object, problem, goal, intent, stateChange }) {
     let score = 40;
 
     if (isContextual) score += 15;
@@ -587,6 +814,7 @@ window.AriThreadUnderstandingEngine = {
     if (problem) score += 12;
     if (goal) score += 8;
     if (intent && intent !== "respond_normally") score += 10;
+    if (stateChange?.type && stateChange.type !== "none") score += 5;
 
     return Math.min(95, score);
   },
