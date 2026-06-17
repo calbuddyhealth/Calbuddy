@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-network.js
 // Ari Observer Evidence Engine
 // Purpose: Observe raw evidence only. No interpretation, no prioritization.
-// V4.0.0 — Universal Evidence Engine
+// V5.0.0 — Universal Conversation Evidence Engine
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "4.0.0",
+  version: "5.0.0",
 
   observe(input = {}) {
     const summary = input.summary || input || {};
@@ -22,7 +22,7 @@ window.Ari.observerNetwork = {
     const observations = [];
 
     const add = (type, value, evidence, confidence = 0.7, meta = {}) => {
-      if (!type || !value || !evidence) return;
+      if (!type || value === undefined || value === null || !evidence) return;
 
       const exists = observations.some(
         item =>
@@ -45,6 +45,9 @@ window.Ari.observerNetwork = {
 
     this.scanLexicon(text, add);
     this.detectQuestions(text, add);
+    this.detectSpeechActs(text, add);
+    this.detectConversationStyle(text, add);
+    this.detectAnswerExpectation(text, add);
     this.detectTime(text, add);
     this.detectOwnership(text, add);
     this.detectConnectors(text, add);
@@ -52,8 +55,8 @@ window.Ari.observerNetwork = {
     this.detectCertainty(text, add);
     this.detectNegation(text, add);
     this.detectModalPressure(text, add);
+    this.detectConversationTarget(text, add);
 
-        // Sort highest-confidence observations first
     observations.sort((a, b) => b.confidence - a.confidence);
 
     const result = {
@@ -79,30 +82,20 @@ window.Ari.observerNetwork = {
       source: "ari-observer-network"
     };
 
-   window.dispatchEvent(
+    window.dispatchEvent(
       new CustomEvent("ari:observation", {
         detail: result
       })
     );
+
     return result;
-  },
-  scanLexicon(text, add) {
-    Object.entries(this.lexicon).forEach(([group, config]) => {
-      config.terms.forEach(term => {
-        if (this.hasTerm(text, term)) {
-          add(config.type, term, term, config.confidence || 0.7, {
-            domain: config.domain || null
-          });
-        }
-      });
-    });
   },
 
   lexicon: {
     safety: {
       type: "safety_language",
       domain: "safety",
-      confidence: 0.7,
+      confidence: 0.82,
       terms: [
         "emergency", "danger", "unsafe", "not safe", "can't stay safe",
         "cant stay safe", "kill myself", "hurt myself", "self harm",
@@ -114,7 +107,7 @@ window.Ari.observerNetwork = {
     body: {
       type: "body_context",
       domain: "body",
-      confidence: 0.7,
+      confidence: 0.76,
       terms: [
         "pregnant", "pregnancy", "doctor", "hospital", "medication",
         "diagnosis", "surgery", "therapy", "medical history", "stroke",
@@ -125,7 +118,7 @@ window.Ari.observerNetwork = {
     symptoms: {
       type: "body_symptom",
       domain: "body",
-      confidence: 0.78,
+      confidence: 0.8,
       terms: [
         "pain", "hurt", "bleeding", "fever", "vomiting", "dizzy",
         "faint", "fainting", "passed out", "chest pain",
@@ -135,8 +128,8 @@ window.Ari.observerNetwork = {
       ]
     },
 
-    people: {
-      type: "person_reference",
+    relationship: {
+      type: "relationship_reference",
       domain: "relationship",
       confidence: 0.75,
       terms: [
@@ -162,12 +155,12 @@ window.Ari.observerNetwork = {
     emotion: {
       type: "emotion_word",
       domain: "emotion",
-      confidence: 0.7,
+      confidence: 0.72,
       terms: [
         "tired", "exhausted", "overwhelmed", "stressed", "sad",
         "angry", "mad", "scared", "afraid", "guilty", "ashamed",
         "lonely", "frustrated", "confused", "worried", "anxious",
-        "resentful", "hurt", "disappointed"
+        "resentful", "hurt", "disappointed", "burned out", "burnt out"
       ]
     },
 
@@ -186,32 +179,45 @@ window.Ari.observerNetwork = {
     money: {
       type: "money_reference",
       domain: "financial",
-      confidence: 0.72,
+      confidence: 0.74,
       terms: [
         "money", "financial", "budget", "debt", "rent", "mortgage",
         "salary", "pay", "bills", "afford", "expensive", "tight",
-        "security", "income", "loan", "co-sign", "cosign"
+        "security", "income", "loan", "co-sign", "cosign", "save",
+        "saving"
       ]
     },
 
     builder: {
       type: "building_reference",
       domain: "builder",
-      confidence: 0.75,
+      confidence: 0.78,
       terms: [
         "build", "fix", "debug", "code", "github", "app", "project",
         "website", "feature", "error", "repo", "javascript", "html",
-        "css", "file", "function", "replace", "update"
+        "css", "file", "function", "replace", "update", "composer",
+        "pipeline", "observer", "engine"
       ]
     },
 
     knowledge: {
       type: "knowledge_request_phrase",
       domain: "knowledge",
-      confidence: 0.75,
+      confidence: 0.76,
       terms: [
         "what is", "why", "explain", "teach", "understand",
         "difference", "meaning of", "how does", "define"
+      ]
+    },
+
+    identityConversation: {
+      type: "identity_or_personhood_reference",
+      domain: "identity",
+      confidence: 0.78,
+      terms: [
+        "who are you", "do you believe", "do you think", "are you alive",
+        "are you conscious", "identity", "personhood", "personality",
+        "self", "yourself", "ai", "artificial intelligence"
       ]
     },
 
@@ -237,6 +243,19 @@ window.Ari.observerNetwork = {
     }
   },
 
+  scanLexicon(text, add) {
+    Object.entries(this.lexicon).forEach(([group, config]) => {
+      config.terms.forEach(term => {
+        if (this.hasTerm(text, term)) {
+          add(config.type, term, term, config.confidence || 0.7, {
+            domain: config.domain || null,
+            lexiconGroup: group
+          });
+        }
+      });
+    });
+  },
+
   detectQuestions(text, add) {
     const questionMarks = (text.match(/\?/g) || []).length;
 
@@ -251,6 +270,9 @@ window.Ari.observerNetwork = {
       ["instruction_question", "how do"],
       ["instruction_question", "how can"],
       ["opinion_request", "do you think"],
+      ["self_disclosure_question", "do you believe"],
+      ["self_disclosure_question", "do you have"],
+      ["self_disclosure_question", "are you"],
       ["knowledge_question", "what is"],
       ["knowledge_question", "why"],
       ["permission_question", "can i"],
@@ -260,6 +282,61 @@ window.Ari.observerNetwork = {
     phrases.forEach(([type, phrase]) => {
       if (text.includes(phrase)) {
         add("question_phrase", phrase, phrase, 0.85, { questionType: type });
+      }
+    });
+  },
+
+  detectSpeechActs(text, add) {
+    const acts = [
+      ["greeting", /\b(hi|hello|hey|good morning|good afternoon|good evening)\b/],
+      ["thanks", /\b(thank you|thanks|appreciate it)\b/],
+      ["request", /\b(can you|could you|please|send me|give me|show me|help me)\b/],
+      ["clarification_request", /\b(what do you mean|where exactly|is this right|is this useful|are you sure)\b/],
+      ["feedback", /\b(this worked|that worked|done|it worked|still broken|not working|confused)\b/],
+      ["preference", /\b(i like|i prefer|i want|i don't want|i hate|i love)\b/]
+    ];
+
+    acts.forEach(([value, regex]) => {
+      const match = text.match(regex);
+      if (match) {
+        add("speech_act", value, match[0], 0.78);
+      }
+    });
+  },
+
+  detectConversationStyle(text, add) {
+    if (text.length < 40) {
+      add("message_length", "short", text || "short message", 0.65);
+    } else if (text.length > 600) {
+      add("message_length", "long", "long message", 0.65);
+    }
+
+    if (/\b(quick|brief|short|simple|straight answer)\b/.test(text)) {
+      add("style_request", "concise", "quick/brief/short/simple", 0.82);
+    }
+
+    if (/\b(deep|detailed|explain more|break it down|full code|entire code)\b/.test(text)) {
+      add("style_request", "detailed", "deep/detailed/full", 0.82);
+    }
+
+    if (/\b(be honest|real answer|don't sugarcoat|blunt)\b/.test(text)) {
+      add("style_request", "blunt", "be honest/blunt", 0.82);
+    }
+  },
+
+  detectAnswerExpectation(text, add) {
+    const expectations = [
+      ["direct_answer", /\b(answer|tell me|what is|why|do you|does it|is it)\b/],
+      ["step_by_step", /\b(step by step|how do i|how to|walk me through)\b/],
+      ["code_output", /\b(send code|full code|entire code|replace file|copy paste)\b/],
+      ["opinion", /\b(what do you think|your opinion|do you think)\b/],
+      ["recommendation", /\b(what should i do|recommend|best option|should i)\b/]
+    ];
+
+    expectations.forEach(([value, regex]) => {
+      const match = text.match(regex);
+      if (match) {
+        add("answer_expectation", value, match[0], 0.8);
       }
     });
   },
@@ -289,6 +366,24 @@ window.Ari.observerNetwork = {
     if (/\b(someone|somebody|a person|they|their|friend)\b/.test(text)) {
       add("ownership_reference", "other_or_unspecified", "someone/they/friend", 0.65);
     }
+
+    if (/\b(you|your|yourself)\b/.test(text)) {
+      add("ownership_reference", "assistant_or_other", "you/your", 0.7);
+    }
+  },
+
+  detectConversationTarget(text, add) {
+    if (/\b(do you|are you|can you|would you|your opinion|your identity|yourself)\b/.test(text)) {
+      add("conversation_target", "assistant", "you/your/do you", 0.82);
+    }
+
+    if (/\b(i|me|my|myself)\b/.test(text)) {
+      add("conversation_target", "user", "I/me/my", 0.72);
+    }
+
+    if (/\b(people|someone|they|humans|users)\b/.test(text)) {
+      add("conversation_target", "general_people", "people/someone/they/users", 0.7);
+    }
   },
 
   detectConnectors(text, add) {
@@ -309,8 +404,8 @@ window.Ari.observerNetwork = {
       add("quantity_reference", num, num, 0.75);
     });
 
-    if (/\b(one|two|three|several|many|few|only one|only two)\b/.test(text)) {
-      const match = text.match(/\b(one|two|three|several|many|few|only one|only two)\b/);
+    const match = text.match(/\b(one|two|three|several|many|few|only one|only two)\b/);
+    if (match) {
       add("quantity_reference", match[0], match[0], 0.7);
     }
   },
@@ -328,7 +423,7 @@ window.Ari.observerNetwork = {
   },
 
   detectNegation(text, add) {
-    const match = text.match(/\b(no|not|never|without|denies|denied|isn't|isnt|wasn't|wasnt|aren't|arent)\b/);
+    const match = text.match(/\b(no|not|never|without|denies|denied|isn't|isnt|wasn't|wasnt|aren't|arent|don't|dont)\b/);
     if (match) {
       add("negation_marker", match[0], match[0], 0.75);
     }
@@ -373,3 +468,5 @@ window.Ari.observerNetwork = {
       .trim();
   }
 };
+
+console.log("ARI OBSERVER NETWORK LOADED:", window.Ari.observerNetwork?.version);
