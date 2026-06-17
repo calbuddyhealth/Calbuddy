@@ -2,12 +2,6 @@
 // Ari Universal Conversation Classifier
 // Purpose: Classify the user's conversational intent universally.
 // V1.1.0
-//
-// Rules:
-// - Classifies conversation type only.
-// - Does NOT decide final lane.
-// - Does NOT override safety, triage, contract, or response shape.
-// - Feeds Situation Map / Triage as advisory context.
 
 window.Ari = window.Ari || {};
 
@@ -25,13 +19,11 @@ window.AriUniversalConversationClassifier = {
       "";
 
     const text = this.normalize(rawText);
-
     const observations =
       summary.observations ||
       summary.observerEvidence?.observations ||
       [];
 
-    const target = this.detectConversationTarget(text, observations);
     const candidates = [];
 
     const add = (type, score, reason, meta = {}) => {
@@ -53,22 +45,22 @@ window.AriUniversalConversationClassifier = {
       });
     };
 
-    this.detectQuestionType(text, observations, target, add);
-    this.detectTaskType(text, observations, target, add);
-    this.detectRelationalType(text, observations, target, add);
-    this.detectSelfDisclosureType(text, observations, target, add);
-    this.detectConcernType(text, observations, target, add);
-    this.detectCreativeType(text, observations, target, add);
-    this.detectMemoryType(text, observations, target, add);
-    this.detectMetaConversationType(text, observations, target, add);
-    this.detectCurrentEventsType(text, observations, target, add);
+    this.detectSafetyAndBody(text, observations, add);
+    this.detectAriSelfDisclosure(text, observations, add);
+    this.detectWorkplaceConflict(text, observations, add);
+    this.detectTaskType(text, observations, add);
+    this.detectQuestionType(text, observations, add);
+    this.detectRelationalType(text, observations, add);
+    this.detectConcernType(text, observations, add);
+    this.detectCreativeType(text, observations, add);
+    this.detectMemoryType(text, observations, add);
 
-    const adjustedCandidates = this.applyConflictRules(candidates, target, text);
+    this.applyUniversalCorrections(text, observations, candidates);
 
-    adjustedCandidates.sort((a, b) => b.score - a.score);
+    candidates.sort((a, b) => b.score - a.score);
 
     const primary =
-      adjustedCandidates[0] || {
+      candidates[0] || {
         type: "general_conversation",
         score: 50,
         reasons: ["No strong specific conversation type detected."]
@@ -77,16 +69,14 @@ window.AriUniversalConversationClassifier = {
     return {
       universalConversationClassifierRan: true,
       universalConversationClassifierVersion: this.version,
-      universalConversationClassifierSource:
-        "ari-universal-conversation-classifier",
+      universalConversationClassifierSource: "ari-universal-conversation-classifier",
 
       conversationType: primary.type,
       conversationTypeScore: primary.score,
       conversationTypeConfidence: this.confidenceFromScore(primary.score),
       conversationTypeReasons: primary.reasons || [],
 
-      conversationTarget: target,
-      conversationCandidates: adjustedCandidates.slice(0, 10),
+      conversationCandidates: candidates.slice(0, 8),
 
       conversationIntent: this.intentForType(primary.type),
       conversationResponseHint: this.responseHintForType(primary.type),
@@ -108,74 +98,65 @@ window.AriUniversalConversationClassifier = {
     };
   },
 
-  detectConversationTarget(text = "", observations = []) {
-    const target = {
-      primary: "unknown",
-      confidence: 0.4,
-      evidence: [],
-      isAssistantTarget: false,
-      isUserTarget: false,
-      isThirdPartyTarget: false,
-      isObjectTarget: false,
-      isBodyTarget: false,
-      isProjectTarget: false
-    };
-
-    const set = (primary, confidence, evidence) => {
-      if (confidence > target.confidence) {
-        target.primary = primary;
-        target.confidence = confidence;
-      }
-
-      if (evidence) target.evidence.push(evidence);
-    };
-
-    if (this.hasAny(text, [
-      "you", "your", "yourself", "ari", "assistant", "chatgpt"
-    ])) {
-      target.isAssistantTarget = true;
-      set("assistant", 0.76, "assistant-directed wording");
+  detectSafetyAndBody(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "unsafe", "danger", "hurt myself", "kill myself", "suicide",
+        "hurt someone", "abuse", "threat"
+      ])
+    ) {
+      add("safety_concern", 98, "User may be describing safety risk.");
     }
 
-    if (this.hasAny(text, [
-      "i", "me", "my", "myself", "we", "us", "our"
-    ])) {
-      target.isUserTarget = true;
-      set("user", 0.72, "first-person wording");
+    if (
+      this.hasAny(text, [
+        "pain", "bleeding", "fever", "pregnant", "chest pain",
+        "trouble breathing", "fainting", "dizzy", "vomiting",
+        "diarrhea", "stroke", "seizure"
+      ])
+    ) {
+      add("medical_or_body_concern", 90, "User is describing a body or medical concern.");
     }
-
-    if (this.hasAny(text, [
-      "he", "she", "they", "him", "her", "them",
-      "my wife", "my husband", "my girlfriend", "my boyfriend",
-      "my father", "my dad", "my mother", "my mom",
-      "my child", "my kids", "my family", "my friend", "my boss"
-    ])) {
-      target.isThirdPartyTarget = true;
-      set("third_party", 0.74, "third-party or relationship wording");
-    }
-
-    if (this.hasAny(text, [
-      "code", "file", "html", "css", "javascript", "engine",
-      "pipeline", "system", "app", "github", "supabase"
-    ])) {
-      target.isProjectTarget = true;
-      target.isObjectTarget = true;
-      set("project_or_system", 0.82, "project/system wording");
-    }
-
-    if (this.hasAny(text, [
-      "pain", "fever", "bleeding", "pregnant", "vomiting",
-      "diarrhea", "constipation", "poop", "breathing", "dizzy",
-      "fainting", "swallow", "cough", "symptom"
-    ])) {
-      target.isBodyTarget = true;
-      set("body_or_health", 0.82, "body/health wording");
-    }
-
-    return target;
   },
 
-  detectQuestionType(text = "", observations = [], target = {}, add) {
+  detectAriSelfDisclosure(text = "", observations = [], add) {
+    if (this.isAriSelfTarget(text)) {
+      add(
+        "ari_self_or_perspective_question",
+        94,
+        "User is asking about Ari's identity, stance, values, beliefs, or perspective."
+      );
+    }
+  },
+
+  detectWorkplaceConflict(text = "", observations = [], add) {
+    const hasWorkplacePeople = this.hasAny(text, [
+      "coworker", "co worker", "coworkers", "team", "boss", "manager",
+      "supervisor", "leadership", "employee", "staff", "colleague"
+    ]);
+
+    const hasWorkplaceIssue = this.hasAny(text, [
+      "report", "reporting", "cutting corners", "corner cutting",
+      "rushing", "deny", "denies", "denying", "ethics", "unsafe practice",
+      "policy", "violation", "quality", "mistake", "cover up",
+      "retaliation", "whistleblow", "complaint", "chain of command"
+    ]);
+
+    const hasWorkSetting = this.hasAny(text, [
+      "work", "job", "shift", "unit", "clinic", "hospital", "command",
+      "workplace", "office", "leadership"
+    ]);
+
+    if ((hasWorkplacePeople && hasWorkplaceIssue) || (hasWorkSetting && hasWorkplaceIssue)) {
+      add(
+        "workplace_conflict_or_ethics",
+        94,
+        "User is asking about a workplace conflict, reporting concern, ethics issue, or team-pressure problem."
+      );
+    }
+  },
+
+  detectQuestionType(text = "", observations = [], add) {
     if (this.hasAny(text, ["what is", "define", "meaning of", "explain"])) {
       add("knowledge_question", 80, "User is asking for explanation or definition.");
     }
@@ -188,14 +169,7 @@ window.AriUniversalConversationClassifier = {
       add("instruction_question", 82, "User is asking how to do something.");
     }
 
-    if (this.hasAny(text, [
-      "should i",
-      "what should i",
-      "which should i",
-      "what do i do",
-      "what should we",
-      "should we"
-    ])) {
+    if (this.hasAny(text, ["should i", "what should i", "which should i", "what do i do"])) {
       add("decision_question", 88, "User is asking for a decision or recommendation.");
     }
 
@@ -207,271 +181,117 @@ window.AriUniversalConversationClassifier = {
     }
   },
 
-  detectTaskType(text = "", observations = [], target = {}, add) {
-    if (target.isProjectTarget || this.hasAny(text, [
-      "code",
-      "javascript",
-      "html",
-      "css",
-      "github",
-      "supabase",
-      "vercel",
-      "function",
-      "error",
-      "debug",
-      "fix this",
-      "send code",
-      "update this file",
-      "replace this file"
-    ])) {
+  detectTaskType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "code", "javascript", "html", "css", "github", "supabase",
+        "vercel", "function", "error", "debug", "fix this",
+        "send code", "update this file"
+      ])
+    ) {
       add("builder_task", 90, "User is asking for code, debugging, or project-building help.");
     }
 
-    if (this.hasAny(text, [
-      "write",
-      "rewrite",
-      "draft",
-      "make this sound",
-      "summarize",
-      "format",
-      "email",
-      "essay",
-      "paper",
-      "presentation",
-      "speech"
-    ])) {
+    if (
+      this.hasAny(text, [
+        "write", "rewrite", "draft", "make this sound", "summarize",
+        "format", "email", "essay", "paper"
+      ])
+    ) {
       add("writing_task", 78, "User is asking for writing or rewriting help.");
     }
 
-    if (this.hasAny(text, [
-      "calculate",
-      "how many",
-      "convert",
-      "what is the total",
-      "percentage",
-      "math"
-    ])) {
+    if (
+      this.hasAny(text, [
+        "calculate", "how many", "convert", "what is the total", "percentage"
+      ])
+    ) {
       add("calculation_task", 72, "User may be asking for calculation or conversion.");
     }
   },
 
-  detectRelationalType(text = "", observations = [], target = {}, add) {
-    if (target.isThirdPartyTarget || this.hasAny(text, [
-      "my wife",
-      "my husband",
-      "my fiancé",
-      "my fiance",
-      "my girlfriend",
-      "my boyfriend",
-      "my dad",
-      "my mom",
-      "my father",
-      "my mother",
-      "my friend",
-      "my family",
-      "my kids",
-      "my spouse",
-      "my partner"
-    ])) {
-      add("relationship_or_family_context", 78, "User is discussing a close person or relationship.");
+  detectRelationalType(text = "", observations = [], add) {
+    if (this.isWorkplaceContext(text)) return;
+
+    if (
+      this.hasAny(text, [
+        "my wife", "my husband", "my spouse", "my fiancé", "my fiance",
+        "my girlfriend", "my boyfriend", "my dad", "my mom",
+        "my father", "my mother", "my friend", "my family",
+        "my child", "my kids", "my son", "my daughter"
+      ])
+    ) {
+      add("relationship_or_family_context", 78, "User is discussing a close personal relationship.");
     }
 
-    if (this.hasAny(text, [
-      "what should i say",
-      "how do i tell",
-      "how should i respond",
-      "text back",
-      "apologize",
-      "tell them",
-      "talk to them"
-    ])) {
+    if (
+      this.hasAny(text, [
+        "what should i say", "how do i tell", "how should i respond",
+        "text back", "apologize"
+      ])
+    ) {
       add("interpersonal_response_help", 82, "User wants help responding to another person.");
     }
   },
 
-  detectSelfDisclosureType(text = "", observations = [], target = {}, add) {
-    if (this.isAriSelfTarget(text)) {
-      add(
-        "ari_self_or_perspective_question",
-        92,
-        "User is asking about Ari's identity, stance, or perspective."
-      );
-    }
-
-    if (this.hasAny(text, [
-      "your political views",
-      "your politics",
-      "are you liberal",
-      "are you conservative",
-      "who do you support politically",
-      "what party do you support",
-      "your religion",
-      "your faith",
-      "your beliefs",
-      "your moral view",
-      "your ethics",
-      "your opinion on god",
-      "do you believe in god"
-    ])) {
-      add(
-        "ari_self_or_perspective_question",
-        92,
-        "User is asking about Ari's values, beliefs, politics, religion, or worldview."
-      );
-    }
-  },
-
-  detectConcernType(text = "", observations = [], target = {}, add) {
-    if (target.isBodyTarget || this.hasAny(text, [
-      "pain",
-      "bleeding",
-      "fever",
-      "pregnant",
-      "chest pain",
-      "trouble breathing",
-      "fainting",
-      "dizzy",
-      "vomiting",
-      "diarrhea",
-      "constipation",
-      "poop",
-      "stroke",
-      "seizure",
-      "swallow",
-      "cough"
-    ])) {
-      add("medical_or_body_concern", 88, "User is describing a body or medical concern.");
-    }
-
-    if (this.hasAny(text, [
-      "overwhelmed",
-      "stressed",
-      "sad",
-      "angry",
-      "lonely",
-      "anxious",
-      "worried",
-      "scared",
-      "burned out",
-      "burnt out",
-      "hurt",
-      "ashamed",
-      "guilty"
-    ])) {
+  detectConcernType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "overwhelmed", "stressed", "sad", "angry", "lonely",
+        "anxious", "worried", "scared", "burned out", "burnt out"
+      ])
+    ) {
       add("emotional_concern", 78, "User is expressing emotional distress or concern.");
     }
-
-    if (this.hasAny(text, [
-      "unsafe",
-      "danger",
-      "hurt myself",
-      "kill myself",
-      "suicide",
-      "hurt someone",
-      "abuse",
-      "threat",
-      "weapon"
-    ])) {
-      add("safety_concern", 95, "User may be describing safety risk.");
-    }
   },
 
-  detectCreativeType(text = "", observations = [], target = {}, add) {
-    if (this.hasAny(text, [
-      "brainstorm",
-      "ideas",
-      "imagine",
-      "design",
-      "create a concept",
-      "what would it look like",
-      "make an image",
-      "generate an image",
-      "mockup"
-    ])) {
+  detectCreativeType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "brainstorm", "ideas", "imagine", "design",
+        "create a concept", "what would it look like"
+      ])
+    ) {
       add("creative_or_design_conversation", 74, "User is asking for ideation or design thinking.");
     }
   },
 
-  detectMemoryType(text = "", observations = [], target = {}, add) {
-    if (this.hasAny(text, [
-      "remember",
-      "don't forget",
-      "dont forget",
-      "save this",
-      "store this",
-      "from now on",
-      "going forward",
-      "note that"
-    ])) {
+  detectMemoryType(text = "", observations = [], add) {
+    if (
+      this.hasAny(text, [
+        "remember", "don't forget", "dont forget", "save this",
+        "store this", "from now on", "going forward", "note that"
+      ])
+    ) {
       add("memory_request", 90, "User is asking Ari to remember something.");
     }
   },
 
-  detectMetaConversationType(text = "", observations = [], target = {}, add) {
-    if (this.hasAny(text, [
-      "why did you answer",
-      "why are you saying",
-      "you misunderstood",
-      "that's not what i meant",
-      "you keep",
-      "you are confused",
-      "the problem is",
-      "this should be universal",
-      "big picture problem"
-    ])) {
-      add("meta_conversation_or_correction", 84, "User is correcting Ari or discussing the conversation/system behavior.");
+  applyUniversalCorrections(text = "", observations = [], candidates = []) {
+    const workplace = candidates.find(c => c.type === "workplace_conflict_or_ethics");
+    const relationship = candidates.find(c => c.type === "relationship_or_family_context");
+
+    if (workplace && relationship) {
+      relationship.score = Math.max(0, relationship.score - 45);
+      relationship.reasons.push("Reduced: workplace conflict should not be treated as family/relationship context.");
+    }
+
+    const ariSelf = candidates.find(c => c.type === "ari_self_or_perspective_question");
+    const opinion = candidates.find(c => c.type === "opinion_request");
+
+    if (ariSelf && opinion) {
+      opinion.score = Math.max(0, opinion.score - 35);
+      opinion.reasons.push("Reduced: Ari-self question is more specific than general opinion request.");
     }
   },
 
-  detectCurrentEventsType(text = "", observations = [], target = {}, add) {
-    if (this.hasAny(text, [
-      "latest",
-      "current",
-      "today",
-      "news",
-      "recent",
-      "right now",
-      "this year",
-      "currently"
-    ])) {
-      add("current_information_request", 76, "User may need current or time-sensitive information.");
-    }
-  },
-
-  applyConflictRules(candidates = [], target = {}, text = "") {
-    return candidates.map(candidate => {
-      const copy = {
-        ...candidate,
-        reasons: [...(candidate.reasons || [])]
-      };
-
-      if (
-        copy.type === "ari_self_or_perspective_question" &&
-        !this.isAriSelfTarget(text)
-      ) {
-        copy.score = Math.max(0, copy.score - 40);
-        copy.reasons.push("Reduced: assistant self-target was not explicit.");
-      }
-
-      if (
-        copy.type === "opinion_request" &&
-        target.isThirdPartyTarget &&
-        !this.isAriSelfTarget(text)
-      ) {
-        copy.score = Math.min(100, copy.score + 10);
-        copy.reasons.push("Boosted: opinion is about a third party, not Ari.");
-      }
-
-      if (
-        copy.type === "relationship_or_family_context" &&
-        target.isThirdPartyTarget
-      ) {
-        copy.score = Math.min(100, copy.score + 10);
-        copy.reasons.push("Boosted: third-party relationship target detected.");
-      }
-
-      return copy;
-    }).filter(item => item.score > 0);
+  isWorkplaceContext(text = "") {
+    return this.hasAny(text, [
+      "coworker", "co worker", "coworkers", "boss", "manager",
+      "supervisor", "leadership", "employee", "staff", "team",
+      "workplace", "at work", "job", "shift", "unit", "reporting",
+      "cutting corners"
+    ]);
   },
 
   isAriSelfTarget(text = "") {
@@ -500,16 +320,11 @@ window.AriUniversalConversationClassifier = {
       "do you think you're",
       "do you think you have",
       "do you think you can feel",
-      "your political views",
-      "your politics",
+      "what are your political views",
       "are you liberal",
       "are you conservative",
-      "what party do you support",
-      "your religion",
-      "your faith",
-      "your worldview",
-      "your moral view",
-      "your ethics"
+      "are you religious",
+      "what side are you on"
     ]);
   },
 
@@ -523,6 +338,7 @@ window.AriUniversalConversationClassifier = {
       builder_task: "build_debug_or_edit",
       writing_task: "write_or_revise",
       calculation_task: "calculate",
+      workplace_conflict_or_ethics: "workplace_ethics_decision_support",
       relationship_or_family_context: "support_relationship_context",
       interpersonal_response_help: "help_formulate_response",
       ari_self_or_perspective_question: "answer_as_ari_transparently",
@@ -531,8 +347,6 @@ window.AriUniversalConversationClassifier = {
       safety_concern: "safety_context",
       creative_or_design_conversation: "brainstorm_or_design",
       memory_request: "memory_action_context",
-      meta_conversation_or_correction: "repair_understanding_or_explain_behavior",
-      current_information_request: "retrieve_or_flag_current_information",
       general_conversation: "respond_normally"
     };
 
@@ -541,6 +355,8 @@ window.AriUniversalConversationClassifier = {
 
   responseHintForType(type = "") {
     const map = {
+      workplace_conflict_or_ethics:
+        "Treat as workplace ethics/conflict. Separate safety, evidence, direct conversation, documentation, and escalation path.",
       knowledge_question: "Teach clearly and directly.",
       explanation_question: "Explain the mechanism or reason.",
       instruction_question: "Give practical steps.",
@@ -557,8 +373,6 @@ window.AriUniversalConversationClassifier = {
       safety_concern: "Use safety-first response.",
       creative_or_design_conversation: "Generate useful options.",
       memory_request: "Route to memory behavior if available.",
-      meta_conversation_or_correction: "Acknowledge the correction and repair the model.",
-      current_information_request: "Use current-source behavior if available.",
       general_conversation: "Answer normally."
     };
 
