@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, and entity context.
-// V1.1.0
+// V1.2.0 — V3 Thread-Compatible / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -40,6 +40,11 @@ window.AriContextAssembler = {
       activeThreadFacts: [],
       activeEntities: [],
       activeProblems: [],
+      activeGoals: [],
+      activeConstraints: [],
+      activeAttempts: [],
+      domainSignals: [],
+      intentSignals: [],
       conflicts: [],
 
       authority: "advisory_context_only",
@@ -61,6 +66,7 @@ window.AriContextAssembler = {
     this.addEntityFacts(assembledContext);
     this.addMemoryFacts(assembledContext);
     this.addRelationshipHints(assembledContext);
+    this.finalize(assembledContext);
 
     return {
       contextAssemblerRan: true,
@@ -77,6 +83,11 @@ window.AriContextAssembler = {
       activeThreadFacts: assembledContext.activeThreadFacts,
       activeEntities: assembledContext.activeEntities,
       activeProblems: assembledContext.activeProblems,
+      activeGoals: assembledContext.activeGoals,
+      activeConstraints: assembledContext.activeConstraints,
+      activeAttempts: assembledContext.activeAttempts,
+      domainSignals: assembledContext.domainSignals,
+      intentSignals: assembledContext.intentSignals,
       contextConflicts: assembledContext.conflicts,
 
       authority: "advisory_context_only"
@@ -143,17 +154,47 @@ window.AriContextAssembler = {
   },
 
   cleanThread(thread = {}) {
+    const workingContext = thread.workingContext || {};
+
     return {
-      domain: thread.domain || null,
-      laneHint: thread.laneHint || null,
       confidence: thread.confidence ?? null,
-      activeSubject: thread.activeSubject || null,
-      activeIssue: thread.activeIssue || null,
-      activeProblem: thread.activeProblem || null,
+
+      activeSubject: thread.activeSubject || workingContext.activeSubject || null,
+      activeObject: thread.activeObject || workingContext.activeObject || null,
+      activeIssue: thread.activeIssue || workingContext.activeIssue || null,
+      activeGoal: thread.activeGoal || workingContext.activeGoal || null,
+
+      activeConstraints:
+        thread.activeConstraints ||
+        workingContext.activeConstraints ||
+        [],
+
+      activeAttempts:
+        thread.activeAttempts ||
+        workingContext.activeAttempts ||
+        [],
+
+      unresolvedItems:
+        thread.unresolvedItems ||
+        workingContext.unresolvedItems ||
+        [],
+
       impliedQuestion: thread.impliedQuestion || null,
       resolvedMeaning: thread.resolvedMeaning || null,
-      workingContext: thread.workingContext || null,
-      continuityUsed: Boolean(thread.continuityUsed)
+      workingContext,
+
+      domainSignals:
+        thread.domainSignals ||
+        workingContext.domainSignals ||
+        [],
+
+      intentSignals:
+        thread.intentSignals ||
+        workingContext.intentSignals ||
+        [],
+
+      stateChange: thread.stateChange || null,
+      topicTransition: thread.topicTransition || null
     };
   },
 
@@ -220,9 +261,10 @@ window.AriContextAssembler = {
     c.unresolvedItems.forEach(item => {
       context.activeThreadFacts.push({
         type: "unresolved_item",
-        claim: item,
-        confidence: 0.75,
-        source: "continuity"
+        claim: typeof item === "string" ? item : item.label || item.kind || "unresolved item",
+        confidence: item.confidence ?? 0.75,
+        source: "continuity",
+        raw: item
       });
     });
   },
@@ -230,24 +272,6 @@ window.AriContextAssembler = {
   addThreadFacts(context = {}) {
     const t = context.thread || {};
     const wc = t.workingContext || {};
-
-    if (t.domain) {
-      context.activeThreadFacts.push({
-        type: "thread_domain",
-        claim: t.domain,
-        confidence: t.confidence ?? 0.7,
-        source: "thread_understanding"
-      });
-    }
-
-    if (t.laneHint) {
-      context.activeThreadFacts.push({
-        type: "thread_lane_hint",
-        claim: t.laneHint,
-        confidence: t.confidence ?? 0.7,
-        source: "thread_understanding"
-      });
-    }
 
     if (t.activeSubject) {
       context.activeEntities.push({
@@ -259,25 +283,65 @@ window.AriContextAssembler = {
       });
     }
 
+    if (t.activeObject) {
+      context.activeEntities.push({
+        type: "active_object",
+        claim: t.activeObject.label || t.activeObject.evidence || "active object",
+        confidence: t.activeObject.confidence ?? t.confidence ?? 0.7,
+        source: "thread_understanding",
+        raw: t.activeObject
+      });
+    }
+
     if (t.activeIssue) {
       context.activeProblems.push({
         type: "active_issue",
-        claim: t.activeIssue.label || t.activeIssue.evidence || t.activeIssue.type || "active issue",
+        claim: t.activeIssue.label || t.activeIssue.evidence || t.activeIssue.kind || "active issue",
         confidence: t.activeIssue.confidence ?? t.confidence ?? 0.7,
         source: "thread_understanding",
         raw: t.activeIssue
       });
     }
 
-    if (t.activeProblem) {
-      context.activeProblems.push({
-        type: "active_problem",
-        claim: t.activeProblem.label || t.activeProblem.evidence || t.activeProblem.type || "active problem",
-        confidence: t.activeProblem.confidence ?? t.confidence ?? 0.7,
+    if (t.activeGoal) {
+      context.activeGoals.push({
+        type: "active_goal",
+        claim: t.activeGoal.label || t.activeGoal.evidence || t.activeGoal.kind || "active goal",
+        confidence: t.activeGoal.confidence ?? t.confidence ?? 0.7,
         source: "thread_understanding",
-        raw: t.activeProblem
+        raw: t.activeGoal
       });
     }
+
+    (t.activeConstraints || []).forEach(item => {
+      context.activeConstraints.push({
+        type: "active_constraint",
+        claim: item.label || item.evidence || item.kind || "active constraint",
+        confidence: item.confidence ?? 0.7,
+        source: "thread_understanding",
+        raw: item
+      });
+    });
+
+    (t.activeAttempts || []).forEach(item => {
+      context.activeAttempts.push({
+        type: "active_attempt",
+        claim: item.label || item.evidence || item.kind || "active attempt",
+        confidence: item.confidence ?? 0.7,
+        source: "thread_understanding",
+        raw: item
+      });
+    });
+
+    (t.unresolvedItems || []).forEach(item => {
+      context.activeProblems.push({
+        type: "unresolved_item",
+        claim: item.label || item.evidence || item.kind || "unresolved item",
+        confidence: item.confidence ?? 0.7,
+        source: "thread_understanding",
+        raw: item
+      });
+    });
 
     if (t.impliedQuestion?.resolvedText) {
       context.activeThreadFacts.push({
@@ -287,6 +351,29 @@ window.AriContextAssembler = {
         source: "thread_understanding"
       });
     }
+
+    if (t.resolvedMeaning?.resolvedText) {
+      context.activeThreadFacts.push({
+        type: "resolved_meaning",
+        claim: t.resolvedMeaning.resolvedText,
+        confidence: t.resolvedMeaning.confidence ?? t.confidence ?? 0.65,
+        source: "thread_understanding"
+      });
+    }
+
+    (t.domainSignals || []).forEach(signal => {
+      context.domainSignals.push({
+        ...signal,
+        source: signal.source || "thread_understanding"
+      });
+    });
+
+    (t.intentSignals || []).forEach(signal => {
+      context.intentSignals.push({
+        ...signal,
+        source: signal.source || "thread_understanding"
+      });
+    });
 
     (wc.timeline || []).slice(-5).forEach(item => {
       if (!item?.text) return;
@@ -325,7 +412,8 @@ window.AriContextAssembler = {
           "unresolved"
         }`,
         confidence: ref.confidence ?? 0.6,
-        source: ref.source || "entity_reference_resolver"
+        source: ref.source || "entity_reference_resolver",
+        raw: ref
       });
     });
   },
@@ -388,6 +476,40 @@ window.AriContextAssembler = {
         confidence: 0.7,
         source: "relationship"
       });
+    });
+  },
+
+  finalize(context = {}) {
+    context.activeThreadFacts = this.uniqueByClaim(context.activeThreadFacts);
+    context.advisoryFacts = this.uniqueByClaim(context.advisoryFacts);
+    context.activeEntities = this.uniqueByClaim(context.activeEntities);
+    context.activeProblems = this.uniqueByClaim(context.activeProblems);
+    context.activeGoals = this.uniqueByClaim(context.activeGoals);
+    context.activeConstraints = this.uniqueByClaim(context.activeConstraints);
+    context.activeAttempts = this.uniqueByClaim(context.activeAttempts);
+    context.domainSignals = this.uniqueSignals(context.domainSignals);
+    context.intentSignals = this.uniqueSignals(context.intentSignals);
+  },
+
+  uniqueByClaim(list = []) {
+    const seen = new Set();
+
+    return (list || []).filter(item => {
+      const key = `${item.type || ""}:${item.claim || ""}`.toLowerCase();
+      if (!item?.claim || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
+  uniqueSignals(list = []) {
+    const seen = new Set();
+
+    return (list || []).filter(item => {
+      const key = `${item.category || ""}:${item.type || ""}:${item.value || ""}`.toLowerCase();
+      if (!item?.value || seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   }
 };
