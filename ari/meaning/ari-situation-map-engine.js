@@ -1,10 +1,14 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
-// Purpose: Convert raw observer evidence into a universal situation model.
-// V6.0.0
+// Purpose: Convert resolved context + observer evidence into a universal situation model.
+// V6.1.0
+// Boundary:
+// - DOES read resolved meaning from Thread Understanding / Entity Resolver.
+// - DOES NOT resolve pronouns, infer hidden meaning, rewrite questions, or compose responses.
+// - Outputs situation, domain, needs, lane candidates, and response constraints only.
 
 window.AriSituationMapEngine = {
-  version: "6.0.0",
+  version: "6.1.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -32,6 +36,14 @@ window.AriSituationMapEngine = {
       followUpQuestion: summary.followUpQuestion || null
     };
 
+    const thread =
+      summary.threadUnderstanding ||
+      {};
+
+    const entity =
+      summary.entityReference ||
+      {};
+
     const map = {
       situationMapRan: true,
       situationMapVersion: this.version,
@@ -40,6 +52,8 @@ window.AriSituationMapEngine = {
       rawText: text,
       observationsUsed: observations,
       safetyGateUsed: safetyGate,
+      threadUnderstandingUsed: thread,
+      entityReferenceUsed: entity,
 
       questions: [],
       situations: [],
@@ -82,14 +96,14 @@ window.AriSituationMapEngine = {
       reasons: []
     };
 
-    this.detectQuestions(observations, map);
-    this.detectDomains(observations, safetyGate, map);
-    this.detectSituations(observations, safetyGate, map);
-    this.detectNeeds(map);
+    this.detectQuestions(observations, thread, map);
+    this.detectDomains(observations, safetyGate, thread, entity, map);
+    this.detectSituations(observations, safetyGate, thread, entity, map);
     this.detectRisks(safetyGate, map);
-    this.detectResponseRequirements(safetyGate, map);
+    this.detectNeeds(map, thread);
+    this.detectResponseRequirements(safetyGate, thread, map);
     this.scoreMap(map);
-    this.classifySituation(map);
+    this.classifySituation(map, thread);
     this.buildTriageCandidates(map);
     this.applyResponseConstraints(map);
     this.syncV2ToLegacyLanes(map);
@@ -97,8 +111,11 @@ window.AriSituationMapEngine = {
     return map;
   },
 
-  detectQuestions(observations, map) {
-    if (this.hasType(observations, "question_phrase") || this.hasType(observations, "question_mark_count")) {
+  detectQuestions(observations, thread, map) {
+    if (
+      this.hasType(observations, "question_phrase") ||
+      this.hasType(observations, "question_mark_count")
+    ) {
       this.add(map.questions, "explicit_question");
     }
 
@@ -110,7 +127,10 @@ window.AriSituationMapEngine = {
       this.add(map.questions, "instruction_question");
     }
 
-    if (this.hasQuestionType(observations, "knowledge_question") || this.hasType(observations, "knowledge_request_phrase")) {
+    if (
+      this.hasQuestionType(observations, "knowledge_question") ||
+      this.hasType(observations, "knowledge_request_phrase")
+    ) {
       this.add(map.questions, "knowledge_question");
     }
 
@@ -118,12 +138,17 @@ window.AriSituationMapEngine = {
       this.add(map.questions, "opinion_request");
     }
 
+    if (thread.impliedQuestion?.type) {
+      this.add(map.questions, thread.impliedQuestion.type);
+      map.reasons.push(`Thread Understanding supplied implied question: ${thread.impliedQuestion.type}.`);
+    }
+
     if (!map.questions.length) {
       this.add(map.questions, "implicit_question_or_statement");
     }
   },
 
-  detectDomains(observations, safetyGate, map) {
+  detectDomains(observations, safetyGate, thread, entity, map) {
     if (safetyGate.override === "safety_emergency") this.add(map.domains, "safety_domain");
     if (safetyGate.override === "medical_urgent") this.add(map.domains, "medical_body_domain");
     if (safetyGate.override === "clarify_risk") this.add(map.domains, "risk_clarification_domain");
@@ -148,11 +173,58 @@ window.AriSituationMapEngine = {
       }
     });
 
-    if (this.hasType(observations, "body_symptom")) this.add(map.domains, "body_signal_domain");
-    if (safetyGate.riskLevel === "context") this.add(map.domains, "medical_context_domain");
+    if (this.hasType(observations, "body_symptom")) {
+      this.add(map.domains, "medical_context_domain");
+    }
+
+    if (safetyGate.riskLevel === "context") {
+      this.add(map.domains, "medical_context_domain");
+    }
+
+    if (thread.domain === "human_health_context") {
+      this.add(map.domains, "medical_context_domain");
+      map.reasons.push("Thread Understanding mapped the active context to human health.");
+    }
+
+    if (thread.domain === "animal_health_context") {
+      this.add(map.domains, "animal_health_context_domain");
+      this.add(map.domains, "medical_context_domain");
+      map.reasons.push("Thread Understanding mapped the active context to animal health.");
+    }
+
+    if (thread.domain === "builder_context") {
+      this.add(map.domains, "builder_domain");
+      map.reasons.push("Thread Understanding mapped the active context to building/debugging.");
+    }
+
+    if (thread.domain === "decision_context") {
+      this.add(map.domains, "decision_context_domain");
+      map.reasons.push("Thread Understanding mapped the active context to decision support.");
+    }
+
+    if (thread.domain === "meaning_context") {
+      this.add(map.domains, "wisdom_domain");
+      map.reasons.push("Thread Understanding mapped the active context to meaning/values.");
+    }
+
+    if (entity.resolvedSubjectDomain === "human_health_context") {
+      this.add(map.domains, "medical_context_domain");
+      map.reasons.push("Entity Resolver linked the active subject to human health.");
+    }
+
+    if (entity.resolvedSubjectDomain === "animal_health_context") {
+      this.add(map.domains, "animal_health_context_domain");
+      this.add(map.domains, "medical_context_domain");
+      map.reasons.push("Entity Resolver linked the active subject to animal health.");
+    }
+
+    if (entity.resolvedSubjectDomain === "builder_context") {
+      this.add(map.domains, "builder_domain");
+      map.reasons.push("Entity Resolver linked the active subject to builder context.");
+    }
   },
 
-  detectSituations(observations, safetyGate, map) {
+  detectSituations(observations, safetyGate, thread, entity, map) {
     if (safetyGate.override === "safety_emergency") this.add(map.situations, "active_safety_emergency");
     if (safetyGate.override === "medical_urgent") this.add(map.situations, "active_medical_urgency");
     if (safetyGate.override === "clarify_risk") this.add(map.situations, "ambiguous_risk_needs_clarification");
@@ -180,33 +252,37 @@ window.AriSituationMapEngine = {
 
     if (this.hasType(observations, "future_time")) this.add(map.situations, "future_planning_context");
     if (this.hasType(observations, "past_time")) this.add(map.situations, "past_or_historical_context");
-  },
 
-  detectNeeds(map) {
-    if (map.risks.includes("confirmed_safety_emergency") || map.risks.includes("confirmed_medical_urgency")) {
-      this.add(map.needs, "urgent_protection");
+    const issueType =
+      thread.activeIssue?.type ||
+      entity.resolvedIssueType ||
+      null;
+
+    if (issueType === "health_symptom") {
+      this.add(map.situations, "body_symptom_mentioned");
+      this.add(map.situations, "active_problem_context");
     }
 
-    if (map.questions.includes("decision_question") || map.situations.includes("tradeoff_or_competing_priorities")) {
-      this.add(map.needs, "decision_support");
+    if (issueType === "code_placement" || issueType === "implementation_step") {
+      this.add(map.situations, "building_or_debugging_context");
+      this.add(map.situations, "active_problem_context");
     }
 
-    if (map.questions.includes("instruction_question") || map.domains.includes("builder_domain")) {
-      this.add(map.needs, "action_or_build_help");
+    if (thread.impliedQuestion?.type === "monitoring_guidance") {
+      this.add(map.situations, "monitoring_guidance_request");
     }
 
-    if (map.questions.includes("knowledge_question") || map.domains.includes("knowledge_domain")) {
-      this.add(map.needs, "understanding");
+    if (thread.impliedQuestion?.type === "alternative_strategy") {
+      this.add(map.situations, "alternative_strategy_request");
     }
 
-    if (map.domains.includes("emotion_context_domain")) this.add(map.needs, "emotional_attunement");
-    if (map.domains.includes("family_context_domain") || map.domains.includes("relationship_context_domain")) {
-      this.add(map.needs, "relationship_or_family_awareness");
+    if (thread.impliedQuestion?.type === "placement_guidance") {
+      this.add(map.situations, "placement_guidance_request");
     }
 
-    if (map.domains.includes("memory_preference_domain")) this.add(map.needs, "memory_acknowledgment");
-    if (map.domains.includes("medical_context_domain")) this.add(map.needs, "context_sensitive_support");
-    if (map.domains.includes("wisdom_domain")) this.add(map.needs, "wisdom_support");
+    if (thread.continuityUsed) {
+      this.add(map.situations, "follow_up_context_available");
+    }
   },
 
   detectRisks(safetyGate, map) {
@@ -216,9 +292,87 @@ window.AriSituationMapEngine = {
     if (safetyGate.riskLevel === "context") this.add(map.risks, "context_only_not_emergency");
   },
 
-  detectResponseRequirements(safetyGate, map) {
-    if (safetyGate.override === "safety_emergency") this.add(map.responseRequirements, "safety_response_required");
-    if (safetyGate.override === "medical_urgent") this.add(map.responseRequirements, "medical_urgent_response_required");
+  detectNeeds(map, thread) {
+    if (
+      map.risks.includes("confirmed_safety_emergency") ||
+      map.risks.includes("confirmed_medical_urgency")
+    ) {
+      this.add(map.needs, "urgent_protection");
+    }
+
+    if (
+      map.questions.includes("decision_question") ||
+      map.situations.includes("tradeoff_or_competing_priorities")
+    ) {
+      this.add(map.needs, "decision_support");
+    }
+
+    if (
+      map.questions.includes("instruction_question") ||
+      map.domains.includes("builder_domain") ||
+      map.situations.includes("placement_guidance_request")
+    ) {
+      this.add(map.needs, "action_or_build_help");
+    }
+
+    if (
+      map.questions.includes("knowledge_question") ||
+      map.domains.includes("knowledge_domain")
+    ) {
+      this.add(map.needs, "understanding");
+    }
+
+    if (
+      map.domains.includes("medical_context_domain") ||
+      map.situations.includes("body_symptom_mentioned")
+    ) {
+      this.add(map.needs, "context_sensitive_support");
+    }
+
+    if (map.situations.includes("monitoring_guidance_request")) {
+      this.add(map.needs, "monitoring_guidance");
+    }
+
+    if (map.situations.includes("alternative_strategy_request")) {
+      this.add(map.needs, "safe_alternative_strategy");
+    }
+
+    if (map.domains.includes("emotion_context_domain")) {
+      this.add(map.needs, "emotional_attunement");
+    }
+
+    if (
+      map.domains.includes("family_context_domain") ||
+      map.domains.includes("relationship_context_domain")
+    ) {
+      this.add(map.needs, "relationship_or_family_awareness");
+    }
+
+    if (map.domains.includes("memory_preference_domain")) {
+      this.add(map.needs, "memory_acknowledgment");
+    }
+
+    if (map.domains.includes("wisdom_domain")) {
+      this.add(map.needs, "wisdom_support");
+    }
+
+    if (thread.laneHint === "medical_context") {
+      this.add(map.needs, "context_sensitive_support");
+    }
+
+    if (thread.laneHint === "builder") {
+      this.add(map.needs, "action_or_build_help");
+    }
+  },
+
+  detectResponseRequirements(safetyGate, thread, map) {
+    if (safetyGate.override === "safety_emergency") {
+      this.add(map.responseRequirements, "safety_response_required");
+    }
+
+    if (safetyGate.override === "medical_urgent") {
+      this.add(map.responseRequirements, "medical_urgent_response_required");
+    }
 
     if (safetyGate.override === "clarify_risk") {
       this.add(map.responseRequirements, "ask_one_risk_clarification_question");
@@ -231,6 +385,12 @@ window.AriSituationMapEngine = {
     if (map.needs.includes("understanding")) this.add(map.responseRequirements, "clear_explanation");
     if (map.needs.includes("emotional_attunement")) this.add(map.responseRequirements, "brief_emotional_attunement");
     if (map.needs.includes("context_sensitive_support")) this.add(map.responseRequirements, "do_not_escalate_context_only_terms");
+    if (map.needs.includes("monitoring_guidance")) this.add(map.responseRequirements, "name_what_to_watch_for");
+    if (map.needs.includes("safe_alternative_strategy")) this.add(map.responseRequirements, "give_safe_alternatives");
+
+    if (thread.continuityUsed) {
+      this.add(map.responseRequirements, "reuse_prior_context_without_reasking");
+    }
   },
 
   scoreMap(map) {
@@ -255,12 +415,14 @@ window.AriSituationMapEngine = {
     let gravity = 0;
 
     if (map.needs.includes("decision_support")) gravity += 3;
+    if (map.needs.includes("context_sensitive_support")) gravity += 3;
+    if (map.needs.includes("monitoring_guidance")) gravity += 2;
+    if (map.needs.includes("safe_alternative_strategy")) gravity += 2;
     if (map.situations.includes("constraint_or_obligation_pressure")) gravity += 2;
     if (map.domains.includes("family_context_domain")) gravity += 2;
     if (map.domains.includes("financial_resource_domain")) gravity += 2;
     if (map.domains.includes("career_work_domain")) gravity += 1;
     if (map.domains.includes("emotion_context_domain")) gravity += 1;
-    if (map.domains.includes("medical_context_domain")) gravity += 1;
 
     map.gravity = Math.min(10, gravity);
 
@@ -290,7 +452,7 @@ window.AriSituationMapEngine = {
     else map.horizon = "present_or_unspecified";
   },
 
-  classifySituation(map) {
+  classifySituation(map, thread) {
     if (map.risks.includes("confirmed_safety_emergency")) {
       return this.setSituation(map, {
         type: "active_safety_emergency",
@@ -324,7 +486,25 @@ window.AriSituationMapEngine = {
       });
     }
 
-    if (map.needs.includes("action_or_build_help") && !map.needs.includes("decision_support")) {
+    if (
+      map.domains.includes("medical_context_domain") ||
+      map.needs.includes("context_sensitive_support")
+    ) {
+      return this.setSituation(map, {
+        type: "medical_or_body_context",
+        family: "body",
+        need: "body_context_support",
+        confidence: thread.confidence || 88,
+        primaryLane: "medical_context",
+        support: map.needs.includes("safe_alternative_strategy") ? ["executive_decision"] : [],
+        blocked: ["life_chapter", "deep_emotion"]
+      });
+    }
+
+    if (
+      map.needs.includes("action_or_build_help") &&
+      !map.needs.includes("decision_support")
+    ) {
       return this.setSituation(map, {
         type: "build_or_fix_request",
         family: "builder",
@@ -336,7 +516,10 @@ window.AriSituationMapEngine = {
       });
     }
 
-    if (map.needs.includes("understanding") && !map.needs.includes("decision_support")) {
+    if (
+      map.needs.includes("understanding") &&
+      !map.needs.includes("decision_support")
+    ) {
       return this.setSituation(map, {
         type: "direct_teaching_request",
         family: "knowledge",
@@ -355,17 +538,6 @@ window.AriSituationMapEngine = {
         confidence: 92,
         primaryLane: "executive_decision",
         support: this.supportFromDomains(map),
-        blocked: ["life_chapter", "deep_emotion"]
-      });
-    }
-
-    if (map.domains.includes("medical_context_domain") || map.domains.includes("body_signal_domain")) {
-      return this.setSituation(map, {
-        type: "medical_or_body_context",
-        family: "body",
-        need: "body_context_support",
-        confidence: 88,
-        primaryLane: "medical_context",
         blocked: ["life_chapter", "deep_emotion"]
       });
     }
@@ -436,10 +608,14 @@ window.AriSituationMapEngine = {
       });
     };
 
-    addCandidate(map.primaryLane, map.confidence, `Situation Model selected ${map.situationType}.`);
+    addCandidate(
+      map.primaryLane,
+      map.confidence,
+      `Situation Map selected ${map.situationType}.`
+    );
 
     map.supportLanes.forEach(lane => {
-      addCandidate(lane, 35, "Support lane from situation model.");
+      addCandidate(lane, 35, "Support lane from Situation Map.");
     });
 
     map.triageCandidates.sort((a, b) => b.score - a.score);
@@ -448,6 +624,10 @@ window.AriSituationMapEngine = {
   applyResponseConstraints(map) {
     map.blockedLanes.forEach(lane => {
       this.add(map.responseConstraints, `block_${lane}`);
+    });
+
+    map.responseRequirements.forEach(req => {
+      this.add(map.responseConstraints, req);
     });
 
     if (map.primaryLane === "teacher") {
@@ -464,6 +644,13 @@ window.AriSituationMapEngine = {
       this.add(map.responseConstraints, "organize_options");
       this.add(map.responseConstraints, "name_tradeoff");
       this.add(map.responseConstraints, "recommend_next_step");
+    }
+
+    if (map.primaryLane === "medical_context") {
+      this.add(map.responseConstraints, "medical_context_first");
+      this.add(map.responseConstraints, "give_practical_next_steps");
+      this.add(map.responseConstraints, "name_red_flags_if_relevant");
+      this.add(map.responseConstraints, "avoid_false_reassurance");
     }
 
     if (map.primaryLane === "safety") this.add(map.responseConstraints, "safety_first");
@@ -492,7 +679,7 @@ window.AriSituationMapEngine = {
     (config.support || []).forEach(lane => this.add(map.supportLanes, lane));
     (config.blocked || []).forEach(lane => this.add(map.blockedLanes, lane));
 
-    map.reasons.push(`Situation Model V6 classified this as ${map.situationType}.`);
+    map.reasons.push(`Situation Map V6.1 classified this as ${map.situationType}.`);
   },
 
   hasType(observations = [], type) {
@@ -500,7 +687,9 @@ window.AriSituationMapEngine = {
   },
 
   hasQuestionType(observations = [], questionType) {
-    return observations.some(o => o.type === "question_phrase" && o.questionType === questionType);
+    return observations.some(
+      o => o.type === "question_phrase" && o.questionType === questionType
+    );
   },
 
   add(list, item) {
