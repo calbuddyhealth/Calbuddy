@@ -8,7 +8,7 @@ window.Ari = window.Ari || {};
 window.AriConversationContinuityEngine = {
   version: "1.0.0",
 
-  analyze(input = {}) {
+  async analyze(input = {}) {
     const summary = input.summary || input || {};
     const text = this.normalize(
       summary.userMessage ||
@@ -17,11 +17,17 @@ window.AriConversationContinuityEngine = {
       ""
     );
 
-    const prior =
-      summary.conversationState ||
-      summary.threadState ||
-      window.Ari.conversationState ||
-      {};
+    const storedThread =
+  window.AriThreadStore?.load
+    ? await window.AriThreadStore.load(summary)
+    : {};
+
+const prior =
+  summary.conversationState ||
+  summary.threadState ||
+  storedThread.threadState ||
+  window.Ari.conversationState ||
+  {};
 
     const followUp = this.detectFollowUp(text);
     const topic = this.detectTopic(text, summary, prior);
@@ -30,9 +36,13 @@ window.AriConversationContinuityEngine = {
     const nextStep = this.detectNextStep(text, intent, prior);
 
     const continuityState = {
-      continuityEngineRan: true,
-      continuityEngineVersion: this.version,
-      continuityEngineSource: "ari-conversation-continuity-engine",
+      conversationContinuityEngineRan: true,
+conversationContinuityEngineVersion: this.version,
+conversationContinuityEngineSource: "ari-conversation-continuity-engine",
+
+continuityEngineRan: true,
+continuityEngineVersion: this.version,
+continuityEngineSource: "ari-conversation-continuity-engine",
 
       threadId: prior.threadId || null,
       currentTopic: topic,
@@ -67,18 +77,26 @@ window.AriConversationContinuityEngine = {
     };
 
     window.Ari.conversationState = {
-      ...prior,
-      ...continuityState
-    };
+  ...prior,
+  ...continuityState
+};
 
-    return {
-      continuityState,
+if (window.AriThreadStore?.save) {
+  await window.AriThreadStore.save(window.Ari.conversationState);
+}
+
+return {
+  continuityState,
       conversationContinuity: continuityState,
       threadState: continuityState,
 
-      continuityEngineRan: true,
-      continuityEngineVersion: this.version,
-      continuityEngineSource: "ari-conversation-continuity-engine",
+      conversationContinuityEngineRan: true,
+conversationContinuityEngineVersion: this.version,
+conversationContinuityEngineSource: "ari-conversation-continuity-engine",
+
+continuityEngineRan: true,
+continuityEngineVersion: this.version,
+continuityEngineSource: "ari-conversation-continuity-engine",
 
       currentTopic: continuityState.currentTopic,
       followUpDetected: continuityState.followUpDetected,
