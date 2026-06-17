@@ -1,17 +1,19 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
-// Purpose: Convert safety + observer + thread + entity + classifier signals into a universal situation model.
-// V7.1.0 — Universal Situation Mapper
+// Purpose: Build a universal situation map from upstream signals.
+// V8.0.0 — Advisory Situation Mapper Only
 // Boundary:
-// - DOES map situation, domains, needs, risks, competing contexts, lane candidates, and response constraints.
-// - DOES read Safety Gate, Observer Evidence, Thread Understanding, Entity Resolver, and Conversation Classifier.
-// - DOES NOT resolve pronouns, rewrite user meaning, compose final response, or override Contract/Triage.
-// - Advisory mapper only.
+// - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
+// - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
+// - DOES NOT choose final lane.
+// - DOES NOT create Situation Contract.
+// - DOES NOT override Triage.
+// - DOES NOT compose final response.
 
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "7.1.0",
+  version: "8.0.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -78,10 +80,10 @@ window.AriSituationMapEngine = {
     this.detectCompetingSituations(map);
     this.detectResponseRequirements(map);
     this.scoreMap(map);
-    this.classifySituation(map);
-    this.buildTriageCandidates(map);
-    this.applyResponseConstraints(map);
-    this.syncToLegacyLanes(map);
+    this.buildLaneEvidence(map);
+this.setMapSummary(map);
+this.applyResponseConstraints(map);
+this.syncLegacyCompatibility(map);
 
     return map;
   },
@@ -93,6 +95,7 @@ window.AriSituationMapEngine = {
       source: "ari-situation-map-engine",
 
       rawText: text,
+
       observationsUsed: observations,
       safetyGateUsed: safetyGate,
       threadUnderstandingUsed: thread,
@@ -111,57 +114,55 @@ window.AriSituationMapEngine = {
       },
 
       questions: [],
-      situations: [],
       domains: [],
+      situations: [],
       needs: [],
       risks: [],
+
       responseRequirements: [],
       responseConstraints: [],
 
-      eventState: safetyGate.riskLevel === "context" ? "context" : "unknown",
-      riskLevel: safetyGate.riskLevel || "none",
-      riskType: safetyGate.riskType || "none",
-      override: safetyGate.override || null,
+      competingSituations: [],
+
+      laneCandidates: [],
+      laneEvidence: [],
+      supportLaneHints: [],
+      blockedLaneHints: [],
 
       gravity: 0,
       urgency: "none",
       complexity: "simple",
       horizon: "present_or_unspecified",
 
+      eventState: safetyGate.riskLevel === "context" ? "context" : "unknown",
+      riskLevel: safetyGate.riskLevel || "none",
+      riskType: safetyGate.riskType || "none",
+      override: safetyGate.override || null,
+
       situationType: null,
       situationFamily: null,
       primaryNeed: null,
       confidence: 0,
 
-      primaryLane: null,
-      primaryLaneSuggestion: null,
-      supportLanes: [],
-      blockedLanes: [],
-      supportLaneSuggestions: [],
-      briefLaneSuggestions: [],
-      contextLaneSuggestions: [],
-      deferredLaneSuggestions: [],
-
       shouldUseMultiLaneResponse: false,
       shouldAskClarifyingQuestion: false,
       recommendedQuestion: null,
 
-      competingSituations: [],
-      triageCandidates: [],
-
       reasons: [],
 
-      boundary: {
-        authority: "situation_mapping_only",
-        cannotSet: [
-          "finalResponse",
-          "responseText",
-          "medicalEscalation",
-          "safetyOverride",
-          "contractPrimary",
-          "mouthPattern"
-        ]
-      }
+      authority: "advisory_situation_mapping_only",
+
+      cannotSet: [
+        "primaryLane",
+        "primaryLaneSuggestion",
+        "triagePrimaryLane",
+        "situationContractPrimary",
+        "riskLevelOverride",
+        "finalResponse",
+        "responseText",
+        "medicalEscalation",
+        "mouthPattern"
+      ]
     };
   },
 
@@ -172,7 +173,13 @@ window.AriSituationMapEngine = {
     const allSignals = [
       ...(thread.currentTurn?.signals || []),
       ...(working.domainSignals || []),
-      ...(working.intentSignals || [])
+      ...(working.intentSignals || []),
+      ...(working.issueSignals || []),
+      ...(working.subjectSignals || []),
+      ...(working.objectSignals || []),
+      ...(working.goalSignals || []),
+      ...(working.constraintSignals || []),
+      ...(working.attemptSignals || [])
     ];
 
     allSignals.forEach(signal => {
@@ -187,6 +194,54 @@ window.AriSituationMapEngine = {
       if (signal.category === "constraint") this.addObj(map.upstreamSignals.constraintSignals, signal);
       if (signal.category === "attempt") this.addObj(map.upstreamSignals.attemptSignals, signal);
     });
+
+    const entity = map.entityReferenceUsed || {};
+
+    if (entity.activeProblem || entity.activeIssue) {
+      this.addObj(map.upstreamSignals.issueSignals, {
+        category: "issue",
+        type: "entity_active_issue",
+        value:
+          entity.activeProblem?.issueType ||
+          entity.activeIssue?.issueType ||
+          entity.activeProblem?.type ||
+          entity.activeIssue?.type ||
+          "active_issue",
+        evidence:
+          entity.activeProblem?.label ||
+          entity.activeIssue?.label ||
+          "entity active issue",
+        confidence:
+          entity.activeProblem?.confidence ||
+          entity.activeIssue?.confidence ||
+          entity.confidence ||
+          0.7,
+        source: "entity_reference_resolver"
+      });
+    }
+
+    if (entity.activeSubject || entity.activeEntity) {
+      this.addObj(map.upstreamSignals.subjectSignals, {
+        category: "subject",
+        type: "entity_active_subject",
+        value:
+          entity.activeSubject?.kind ||
+          entity.activeEntity?.kind ||
+          "active_subject",
+        evidence:
+          entity.activeSubject?.surface ||
+          entity.activeEntity?.surface ||
+          entity.activeSubject?.label ||
+          entity.activeEntity?.label ||
+          "entity active subject",
+        confidence:
+          entity.activeSubject?.confidence ||
+          entity.activeEntity?.confidence ||
+          entity.confidence ||
+          0.7,
+        source: "entity_reference_resolver"
+      });
+    }
   },
 
   detectQuestions(map) {
@@ -201,10 +256,24 @@ window.AriSituationMapEngine = {
       this.add(map.questions, "explicit_question");
     }
 
-    if (this.hasQuestionType(observations, "decision_question")) this.add(map.questions, "decision_question");
-    if (this.hasQuestionType(observations, "instruction_question")) this.add(map.questions, "instruction_question");
-    if (this.hasQuestionType(observations, "knowledge_question")) this.add(map.questions, "knowledge_question");
-    if (this.hasQuestionType(observations, "opinion_request")) this.add(map.questions, "opinion_request");
+    if (this.hasQuestionType(observations, "decision_question")) {
+      this.add(map.questions, "decision_question");
+    }
+
+    if (this.hasQuestionType(observations, "instruction_question")) {
+      this.add(map.questions, "instruction_question");
+    }
+
+    if (
+      this.hasQuestionType(observations, "knowledge_question") ||
+      this.hasType(observations, "knowledge_request_phrase")
+    ) {
+      this.add(map.questions, "knowledge_question");
+    }
+
+    if (this.hasQuestionType(observations, "opinion_request")) {
+      this.add(map.questions, "opinion_request");
+    }
 
     const impliedType =
       thread.impliedQuestion?.type ||
@@ -219,23 +288,20 @@ window.AriSituationMapEngine = {
     const conversationType = conversation.conversationType;
     if (conversationType) {
       this.add(map.questions, conversationType);
-      map.reasons.push(`Conversation classifier supplied type: ${conversationType}.`);
+      map.reasons.push(`Classifier supplied conversation type: ${conversationType}.`);
     }
 
     if (!map.questions.length) {
       this.add(map.questions, "implicit_question_or_statement");
     }
   },
-
-  detectDomains(map) {
+    detectDomains(map) {
     const observations = map.observationsUsed || [];
     const safetyGate = map.safetyGateUsed || {};
-    const thread = map.threadUnderstandingUsed || {};
-    const entity = map.entityReferenceUsed || {};
     const conversation = map.conversationClassificationUsed || {};
 
     if (safetyGate.override === "safety_emergency") this.add(map.domains, "safety_domain");
-    if (safetyGate.override === "medical_urgent") this.add(map.domains, "medical_body_domain");
+    if (safetyGate.override === "medical_urgent") this.add(map.domains, "medical_context_domain");
     if (safetyGate.override === "clarify_risk") this.add(map.domains, "risk_clarification_domain");
 
     const observerDomainMap = {
@@ -269,14 +335,29 @@ window.AriSituationMapEngine = {
     if (this.hasType(observations, "family_reference")) this.add(map.domains, "family_context_domain");
     if (this.hasType(observations, "person_reference")) this.add(map.domains, "relationship_context_domain");
 
-    if (safetyGate.riskLevel === "context") {
-      this.add(map.domains, "medical_context_domain");
-    }
-
-    this.mapThreadDomain(thread.domain, map);
-    this.mapThreadDomain(entity.resolvedSubjectDomain, map);
     this.mapConversationDomain(conversation.conversationType, map);
     this.mapUniversalDomainSignals(map);
+  },
+
+  mapConversationDomain(type, map) {
+    const mappings = {
+      builder_task: ["builder_domain"],
+      writing_task: ["writing_domain"],
+      calculation_task: ["calculation_domain"],
+      medical_or_body_concern: ["medical_context_domain"],
+      emotional_concern: ["emotion_context_domain"],
+      safety_concern: ["safety_domain"],
+      workplace_conflict_or_ethics: ["career_work_domain", "accountability_context_domain"],
+      relationship_or_family_context: ["relationship_context_domain", "family_context_domain"],
+      interpersonal_response_help: ["relationship_context_domain"],
+      memory_request: ["memory_preference_domain"],
+      creative_or_design_conversation: ["creative_design_domain"],
+      ari_self_or_perspective_question: ["ari_self_context_domain"],
+      civic_or_political_question: ["civic_or_political_context_domain"],
+      religion_or_spiritual_question: ["religion_or_spiritual_context_domain"]
+    };
+
+    (mappings[type] || []).forEach(domain => this.add(map.domains, domain));
   },
 
   mapUniversalDomainSignals(map) {
@@ -296,52 +377,10 @@ window.AriSituationMapEngine = {
     });
   },
 
-  mapThreadDomain(domain, map) {
-    const mappings = {
-      human_health_context: ["medical_context_domain"],
-      animal_health_context: ["animal_health_context_domain", "medical_context_domain"],
-      builder_context: ["builder_domain"],
-      decision_context: ["decision_context_domain"],
-      meaning_context: ["meaning_context_domain", "wisdom_domain"],
-      relationship_context: ["relationship_context_domain"],
-      family_context: ["family_context_domain"],
-      object_or_vehicle_context: ["object_or_vehicle_domain"],
-      action_guidance_context: ["action_guidance_domain"],
-      risk_monitoring_context: ["risk_monitoring_domain"]
-    };
-
-    (mappings[domain] || []).forEach(d => this.add(map.domains, d));
-
-    if (mappings[domain]) {
-      map.reasons.push(`Resolved context supplied domain: ${domain}.`);
-    }
-  },
-
-  mapConversationDomain(type, map) {
-    const mappings = {
-      builder_task: ["builder_domain"],
-      writing_task: ["writing_domain"],
-      calculation_task: ["calculation_domain"],
-      medical_or_body_concern: ["medical_context_domain"],
-      emotional_concern: ["emotion_context_domain"],
-      safety_concern: ["safety_domain"],
-      relationship_or_family_context: ["relationship_context_domain", "family_context_domain"],
-      interpersonal_response_help: ["relationship_context_domain"],
-      memory_request: ["memory_preference_domain"],
-      creative_or_design_conversation: ["creative_design_domain"],
-      ari_self_or_perspective_question: ["ari_self_context_domain"],
-      civic_or_political_question: ["civic_or_political_context_domain"],
-      religion_or_spiritual_question: ["religion_or_spiritual_context_domain"]
-    };
-
-    (mappings[type] || []).forEach(d => this.add(map.domains, d));
-  },
-
   detectSituations(map) {
     const observations = map.observationsUsed || [];
     const safetyGate = map.safetyGateUsed || {};
     const thread = map.threadUnderstandingUsed || {};
-    const entity = map.entityReferenceUsed || {};
 
     if (safetyGate.override === "safety_emergency") this.add(map.situations, "active_safety_emergency");
     if (safetyGate.override === "medical_urgent") this.add(map.situations, "active_medical_urgency");
@@ -350,29 +389,22 @@ window.AriSituationMapEngine = {
 
     if (this.hasType(observations, "body_context")) this.add(map.situations, "body_or_medical_context");
     if (this.hasType(observations, "body_symptom")) this.add(map.situations, "body_symptom_mentioned");
-    if (this.hasType(observations, "person_reference")) this.add(map.situations, "close_person_context");
-    if (this.hasType(observations, "family_reference")) this.add(map.situations, "family_context");
     if (this.hasType(observations, "work_reference")) this.add(map.situations, "work_or_career_context");
     if (this.hasType(observations, "money_reference")) this.add(map.situations, "money_or_resource_context");
     if (this.hasType(observations, "building_reference")) this.add(map.situations, "building_or_debugging_context");
     if (this.hasType(observations, "knowledge_request_phrase")) this.add(map.situations, "teaching_or_explanation_request");
     if (this.hasType(observations, "emotion_word")) this.add(map.situations, "emotion_language_present");
     if (this.hasType(observations, "memory_request_phrase")) this.add(map.situations, "memory_or_preference_request");
-    if (this.hasType(observations, "wisdom_reference")) this.add(map.situations, "wisdom_or_values_tension");
     if (this.hasType(observations, "contrast_or_tradeoff_connector")) this.add(map.situations, "tradeoff_or_competing_priorities");
     if (this.hasType(observations, "pressure_or_constraint")) this.add(map.situations, "constraint_or_obligation_pressure");
-    if (this.hasType(observations, "future_time")) this.add(map.situations, "future_planning_context");
-    if (this.hasType(observations, "past_time")) this.add(map.situations, "past_or_historical_context");
 
     const issueKind =
       thread.activeIssue?.kind ||
       thread.activeIssue?.type ||
       thread.resolvedMeaning?.resolvedIssue?.kind ||
-      entity.resolvedIssueType ||
       null;
 
     this.mapIssueKindToSituation(issueKind, map);
-    this.mapIntentToSituation(thread.resolvedMeaning?.intent || thread.impliedQuestion?.type, map);
     this.mapUpstreamIssueSignals(map);
     this.mapUpstreamIntentSignals(map);
 
@@ -384,46 +416,51 @@ window.AriSituationMapEngine = {
   mapIssueKindToSituation(issueKind, map) {
     const issueMap = {
       health_or_body_issue: ["body_symptom_mentioned", "active_problem_context"],
-      health_symptom: ["body_symptom_mentioned", "active_problem_context"],
-      body_function_or_symptom: ["body_symptom_mentioned", "active_problem_context"],
       technical_or_system_issue: ["building_or_debugging_context", "active_problem_context"],
-      build_or_system_issue: ["building_or_debugging_context", "active_problem_context"],
-      implementation_step: ["building_or_debugging_context", "active_problem_context"],
       relationship_or_trust_issue: ["relationship_or_trust_context", "active_problem_context"],
       pressure_or_constraint_issue: ["constraint_or_obligation_pressure", "active_problem_context"],
-      accountability_or_work_quality_issue: ["accountability_or_work_quality_context", "work_or_career_context", "active_problem_context"]
+      accountability_or_work_quality_issue: [
+        "accountability_or_work_quality_context",
+        "work_or_career_context",
+        "active_problem_context"
+      ],
+      work_ethics_or_safety: [
+        "accountability_or_work_quality_context",
+        "work_or_career_context",
+        "active_problem_context"
+      ],
+      workplace_reporting_decision: [
+        "accountability_or_work_quality_context",
+        "work_or_career_context",
+        "decision_context"
+      ]
     };
 
-    (issueMap[issueKind] || []).forEach(s => this.add(map.situations, s));
-  },
-
-  mapIntentToSituation(intent, map) {
-    const intentMap = {
-      monitoring_guidance: ["monitoring_guidance_request"],
-      monitoring_or_risk_check: ["monitoring_guidance_request"],
-      safe_alternative_guidance: ["alternative_strategy_request"],
-      alternative_strategy: ["alternative_strategy_request"],
-      implementation_help: ["placement_guidance_request", "building_or_debugging_context"],
-      action_guidance: ["action_guidance_request"],
-      explanation_or_possibility: ["explanation_or_possibility_request"],
-      memory_or_preference: ["memory_or_preference_request"],
-      writing_help: ["writing_or_rewrite_request"]
-    };
-
-    (intentMap[intent] || []).forEach(s => this.add(map.situations, s));
+    (issueMap[issueKind] || []).forEach(situation => this.add(map.situations, situation));
   },
 
   mapUpstreamIssueSignals(map) {
-    const signals = map.upstreamSignals.issueSignals || [];
-    signals.forEach(signal => this.mapIssueKindToSituation(signal.value, map));
+    (map.upstreamSignals.issueSignals || []).forEach(signal => {
+      this.mapIssueKindToSituation(signal.value, map);
+    });
   },
 
   mapUpstreamIntentSignals(map) {
-    const signals = map.upstreamSignals.intentSignals || [];
-    signals.forEach(signal => this.mapIntentToSituation(signal.value, map));
-  },
+    const intentMap = {
+      action_guidance: ["action_guidance_request"],
+      explanation_or_possibility: ["explanation_or_possibility_request"],
+      monitoring_or_risk_check: ["monitoring_guidance_request"],
+      implementation_help: ["implementation_help_request"],
+      writing_help: ["writing_or_rewrite_request"],
+      memory_or_preference: ["memory_or_preference_request"],
+      alternative_strategy: ["alternative_strategy_request"]
+    };
 
-  detectRisks(map) {
+    (map.upstreamSignals.intentSignals || []).forEach(signal => {
+      (intentMap[signal.value] || []).forEach(situation => this.add(map.situations, situation));
+    });
+  },
+    detectRisks(map) {
     const safetyGate = map.safetyGateUsed || {};
 
     if (safetyGate.override === "safety_emergency") this.add(map.risks, "confirmed_safety_emergency");
@@ -442,7 +479,6 @@ window.AriSituationMapEngine = {
 
   detectNeeds(map) {
     const conversation = map.conversationClassificationUsed || {};
-    const thread = map.threadUnderstandingUsed || {};
 
     if (
       map.risks.includes("confirmed_safety_emergency") ||
@@ -454,8 +490,10 @@ window.AriSituationMapEngine = {
     if (
       map.questions.includes("decision_question") ||
       map.situations.includes("tradeoff_or_competing_priorities") ||
+      map.situations.includes("decision_context") ||
+      map.situations.includes("accountability_or_work_quality_context") ||
       conversation.conversationType === "decision_question" ||
-      map.situations.includes("accountability_or_work_quality_context")
+      conversation.conversationType === "workplace_conflict_or_ethics"
     ) {
       this.add(map.needs, "decision_support");
     }
@@ -463,7 +501,7 @@ window.AriSituationMapEngine = {
     if (
       map.questions.includes("instruction_question") ||
       map.domains.includes("builder_domain") ||
-      map.situations.includes("placement_guidance_request")
+      map.situations.includes("implementation_help_request")
     ) {
       this.add(map.needs, "action_or_build_help");
     }
@@ -471,7 +509,6 @@ window.AriSituationMapEngine = {
     if (
       map.questions.includes("knowledge_question") ||
       map.domains.includes("knowledge_domain") ||
-      conversation.conversationType === "knowledge_question" ||
       map.situations.includes("explanation_or_possibility_request")
     ) {
       this.add(map.needs, "understanding");
@@ -487,19 +524,14 @@ window.AriSituationMapEngine = {
     if (map.situations.includes("monitoring_guidance_request")) this.add(map.needs, "monitoring_guidance");
     if (map.situations.includes("alternative_strategy_request")) this.add(map.needs, "safe_alternative_strategy");
     if (map.domains.includes("emotion_context_domain")) this.add(map.needs, "emotional_attunement");
-    if (map.domains.includes("family_context_domain") || map.domains.includes("relationship_context_domain")) this.add(map.needs, "relationship_or_family_awareness");
+    if (map.domains.includes("relationship_context_domain")) this.add(map.needs, "relationship_awareness");
+    if (map.domains.includes("family_context_domain")) this.add(map.needs, "family_awareness");
     if (map.domains.includes("memory_preference_domain")) this.add(map.needs, "memory_acknowledgment");
-    if (map.domains.includes("wisdom_domain")) this.add(map.needs, "wisdom_support");
     if (map.domains.includes("ari_self_context_domain")) this.add(map.needs, "transparent_self_disclosure");
     if (map.domains.includes("writing_domain")) this.add(map.needs, "writing_or_rewrite");
     if (map.domains.includes("calculation_domain")) this.add(map.needs, "calculation");
     if (map.domains.includes("creative_design_domain")) this.add(map.needs, "creative_generation");
-    if (map.domains.includes("civic_or_political_context_domain")) this.add(map.needs, "civic_political_care");
-    if (map.domains.includes("religion_or_spiritual_context_domain")) this.add(map.needs, "spiritual_or_belief_care");
     if (map.domains.includes("accountability_context_domain")) this.add(map.needs, "accountability_support");
-
-    if (thread.laneHint === "medical_context") this.add(map.needs, "context_sensitive_support");
-    if (thread.laneHint === "builder") this.add(map.needs, "action_or_build_help");
 
     if (!map.needs.length) {
       this.add(map.needs, "general_understanding");
@@ -509,23 +541,44 @@ window.AriSituationMapEngine = {
   detectCompetingSituations(map) {
     const addCompeting = (name, reason, weight = 50) => {
       if (!name) return;
-      map.competingSituations.push({ name, reason, weight });
+
+      map.competingSituations.push({
+        name,
+        reason,
+        weight
+      });
     };
 
-    if (map.needs.includes("decision_support") && map.needs.includes("relationship_or_family_awareness")) {
-      addCompeting("decision_vs_relationship_impact", "Decision support is present with relationship/family context.", 78);
+    if (map.needs.includes("decision_support") && map.needs.includes("relationship_awareness")) {
+      addCompeting(
+        "decision_vs_relationship_impact",
+        "Decision support is present with relationship context.",
+        76
+      );
+    }
+
+    if (map.needs.includes("decision_support") && map.needs.includes("family_awareness")) {
+      addCompeting(
+        "decision_vs_family_impact",
+        "Decision support is present with family context.",
+        78
+      );
     }
 
     if (map.needs.includes("decision_support") && map.needs.includes("accountability_support")) {
-      addCompeting("accountability_vs_social_consequence", "Accountability/work-quality issue includes possible social or team consequences.", 84);
+      addCompeting(
+        "accountability_vs_social_consequence",
+        "Accountability or work-quality issue may include team consequences.",
+        84
+      );
     }
 
     if (map.needs.includes("context_sensitive_support") && map.needs.includes("safe_alternative_strategy")) {
-      addCompeting("body_context_vs_action_strategy", "Body context requires practical but cautious alternatives.", 82);
-    }
-
-    if (map.needs.includes("transparent_self_disclosure") && map.needs.includes("decision_support")) {
-      addCompeting("ari_self_disclosure_vs_user_task", "Ari identity/perspective signal may conflict with the user's practical task.", 86);
+      addCompeting(
+        "body_context_vs_action_strategy",
+        "Body or health context requires practical but cautious alternatives.",
+        82
+      );
     }
 
     map.competingSituations.sort((a, b) => b.weight - a.weight);
@@ -535,8 +588,15 @@ window.AriSituationMapEngine = {
     const safetyGate = map.safetyGateUsed || {};
     const thread = map.threadUnderstandingUsed || {};
 
-    if (safetyGate.override === "safety_emergency") this.add(map.responseRequirements, "safety_response_required");
-    if (safetyGate.override === "medical_urgent") this.add(map.responseRequirements, "medical_urgent_response_required");
+    if (safetyGate.override === "safety_emergency") {
+      this.add(map.responseRequirements, "safety_response_required");
+      map.shouldAskClarifyingQuestion = false;
+    }
+
+    if (safetyGate.override === "medical_urgent") {
+      this.add(map.responseRequirements, "medical_urgent_response_required");
+      map.shouldAskClarifyingQuestion = false;
+    }
 
     if (safetyGate.override === "clarify_risk") {
       this.add(map.responseRequirements, "ask_one_risk_clarification_question");
@@ -548,23 +608,20 @@ window.AriSituationMapEngine = {
     if (map.needs.includes("action_or_build_help")) this.add(map.responseRequirements, "step_by_step_action");
     if (map.needs.includes("understanding")) this.add(map.responseRequirements, "clear_explanation");
     if (map.needs.includes("emotional_attunement")) this.add(map.responseRequirements, "brief_emotional_attunement");
-    if (map.needs.includes("context_sensitive_support")) this.add(map.responseRequirements, "do_not_escalate_context_only_terms");
+    if (map.needs.includes("context_sensitive_support")) this.add(map.responseRequirements, "context_sensitive_care");
     if (map.needs.includes("monitoring_guidance")) this.add(map.responseRequirements, "name_what_to_watch_for");
     if (map.needs.includes("safe_alternative_strategy")) this.add(map.responseRequirements, "give_safe_alternatives");
     if (map.needs.includes("transparent_self_disclosure")) this.add(map.responseRequirements, "answer_ari_identity_transparently");
     if (map.needs.includes("writing_or_rewrite")) this.add(map.responseRequirements, "produce_requested_text");
     if (map.needs.includes("calculation")) this.add(map.responseRequirements, "calculate_directly");
     if (map.needs.includes("creative_generation")) this.add(map.responseRequirements, "generate_options");
-    if (map.needs.includes("civic_political_care")) this.add(map.responseRequirements, "neutral_civic_framing");
-    if (map.needs.includes("spiritual_or_belief_care")) this.add(map.responseRequirements, "belief_sensitive_framing");
     if (map.needs.includes("accountability_support")) this.add(map.responseRequirements, "separate_person_from_system_pressure");
 
     if (thread.resolvedMeaning?.isContextual || thread.workingContext) {
       this.add(map.responseRequirements, "reuse_prior_context_without_reasking");
     }
   },
-
-  scoreMap(map) {
+    scoreMap(map) {
     if (map.risks.includes("confirmed_safety_emergency")) {
       map.gravity = 10;
       map.urgency = "critical";
@@ -621,250 +678,172 @@ window.AriSituationMapEngine = {
       map.needs.includes("decision_support") ||
       map.competingSituations.length > 0;
 
-    if (map.situations.includes("future_planning_context")) map.horizon = "future";
-    else if (map.situations.includes("past_or_historical_context")) map.horizon = "past";
-    else map.horizon = "present_or_unspecified";
+    if (map.situations.includes("future_planning_context")) {
+      map.horizon = "future";
+    } else if (map.situations.includes("past_or_historical_context")) {
+      map.horizon = "past";
+    } else {
+      map.horizon = "present_or_unspecified";
+    }
   },
 
-  classifySituation(map) {
-    const rules = [
-      {
-        when: () => map.risks.includes("confirmed_safety_emergency"),
-        config: {
-          type: "active_safety_emergency",
-          family: "safety",
-          need: "immediate_protection",
-          confidence: 100,
-          primaryLane: "safety",
-          blocked: ["teacher", "builder", "wisdom", "life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.risks.includes("confirmed_medical_urgency"),
-        config: {
-          type: "active_medical_urgency",
-          family: "body",
-          need: "medical_protection",
-          confidence: 98,
-          primaryLane: "medical_body",
-          blocked: ["builder", "wisdom", "life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.risks.includes("ambiguous_risk"),
-        config: {
-          type: "ambiguous_risk_needs_clarification",
-          family: "safety",
-          need: "risk_clarification",
-          confidence: 95,
-          primaryLane: "risk_clarification",
-          blocked: ["teacher", "builder", "wisdom", "life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.needs.includes("transparent_self_disclosure") && !map.needs.includes("decision_support"),
-        config: {
-          type: "ari_self_or_perspective_context",
-          family: "ari_self",
-          need: "transparent_self_disclosure",
-          confidence: 90,
-          primaryLane: "ari_self",
-          support: ["teacher"],
-          blocked: ["life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.domains.includes("medical_context_domain") || map.needs.includes("context_sensitive_support"),
-        config: {
-          type: "medical_or_body_context",
-          family: "body",
-          need: "body_context_support",
-          confidence: 88,
-          primaryLane: "medical_context",
-          support: map.needs.includes("safe_alternative_strategy") ? ["executive_decision"] : [],
-          blocked: ["life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.needs.includes("action_or_build_help") && !map.needs.includes("decision_support"),
-        config: {
-          type: "build_or_fix_request",
-          family: "builder",
-          need: "action",
-          confidence: 94,
-          primaryLane: "builder",
-          support: ["teacher"],
-          blocked: ["uncertainty", "life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.needs.includes("writing_or_rewrite"),
-        config: {
-          type: "writing_or_rewrite_request",
-          family: "writing",
-          need: "produce_text",
-          confidence: 90,
-          primaryLane: "writer",
-          blocked: ["life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.needs.includes("calculation"),
-        config: {
-          type: "calculation_request",
-          family: "calculation",
-          need: "calculate",
-          confidence: 88,
-          primaryLane: "calculator",
-          blocked: ["life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.needs.includes("decision_support"),
-        config: {
-          type: "decision_request_with_context",
-          family: "executive",
-          need: "decision_support",
-          confidence: 92,
-          primaryLane: "executive_decision",
-          support: this.supportFromDomains(map),
-          blocked: ["life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.needs.includes("understanding"),
-        config: {
-          type: "direct_teaching_request",
-          family: "knowledge",
-          need: "understanding",
-          confidence: 92,
-          primaryLane: "teacher",
-          blocked: ["uncertainty", "life_chapter", "deep_emotion"]
-        }
-      },
-      {
-        when: () => map.needs.includes("memory_acknowledgment"),
-        config: {
-          type: "memory_or_preference_request",
-          family: "memory",
-          need: "memory_acknowledgment",
-          confidence: 90,
-          primaryLane: "memory",
-          blocked: ["deep_emotion", "life_chapter"]
-        }
-      },
-      {
-        when: () => map.needs.includes("emotional_attunement"),
-        config: {
-          type: "emotional_processing",
-          family: "emotion",
-          need: "emotional_attunement",
-          confidence: 80,
-          primaryLane: "emotion",
-          support: ["general_understanding"]
-        }
-      }
-    ];
-
-    const match = rules.find(rule => rule.when());
-    if (match) return this.setSituation(map, match.config);
-
-    return this.setSituation(map, {
-      type: "general_understanding",
-      family: "general",
-      need: "understanding",
-      confidence: 60,
-      primaryLane: "general_understanding"
-    });
-  },
-
-  supportFromDomains(map) {
-    const support = [];
-
-    if (map.domains.includes("medical_context_domain")) support.push("medical_context");
-    if (map.domains.includes("animal_health_context_domain")) support.push("animal_health");
-    if (map.domains.includes("relationship_context_domain")) support.push("relationship");
-    if (map.domains.includes("family_context_domain")) support.push("family");
-    if (map.domains.includes("career_work_domain")) support.push("career");
-    if (map.domains.includes("accountability_context_domain")) support.push("accountability");
-    if (map.domains.includes("financial_resource_domain")) support.push("financial");
-    if (map.domains.includes("emotion_context_domain")) support.push("emotion");
-    if (map.domains.includes("knowledge_domain")) support.push("teacher");
-    if (map.domains.includes("builder_domain")) support.push("builder");
-    if (map.domains.includes("wisdom_domain")) support.push("wisdom");
-    if (map.domains.includes("ari_self_context_domain")) support.push("ari_self");
-
-    return [...new Set(support)];
-  },
-
-  buildTriageCandidates(map) {
+  buildLaneEvidence(map) {
     const addCandidate = (lane, score, reason) => {
-      if (!lane) return;
+      if (!lane || !score) return;
 
-      const existing = map.triageCandidates.find(item => item.lane === lane);
+      const existing = map.laneEvidence.find(item => item.lane === lane);
 
       if (existing) {
         existing.score = Math.min(100, existing.score + score);
-        existing.reasons.push(reason);
+        if (reason) existing.reasons.push(reason);
         return;
       }
 
-      map.triageCandidates.push({
+      map.laneEvidence.push({
         lane,
         score: Math.min(100, score),
-        reasons: [reason]
+        reasons: reason ? [reason] : []
       });
     };
 
-    addCandidate(
-      map.primaryLane,
-      map.confidence,
-      `Situation Map selected ${map.situationType}.`
-    );
+    if (map.risks.includes("confirmed_safety_emergency")) {
+      addCandidate("safety", 100, "Safety Gate confirmed emergency.");
+    }
 
-    map.supportLanes.forEach(lane => {
-      addCandidate(lane, 35, "Support lane from Situation Map.");
-    });
+    if (map.risks.includes("confirmed_medical_urgency")) {
+      addCandidate("medical_body", 98, "Safety Gate confirmed medical urgency.");
+    }
 
-    map.triageCandidates.sort((a, b) => b.score - a.score);
+    if (map.risks.includes("ambiguous_risk")) {
+      addCandidate("risk_clarification", 95, "Safety Gate requested risk clarification.");
+    }
+
+    if (map.needs.includes("context_sensitive_support")) {
+      addCandidate("medical_context", 82, "Medical/body context is present.");
+    }
+
+    if (map.needs.includes("decision_support")) {
+      addCandidate("executive_decision", 80, "Decision support need is present.");
+    }
+
+    if (map.needs.includes("action_or_build_help")) {
+      addCandidate("builder", 82, "Build/action help need is present.");
+    }
+
+    if (map.needs.includes("understanding")) {
+      addCandidate("teacher", 76, "Understanding or explanation need is present.");
+    }
+
+    if (map.needs.includes("emotional_attunement")) {
+      addCandidate("emotion", 70, "Emotion support need is present.");
+    }
+
+    if (map.needs.includes("relationship_awareness")) {
+      addCandidate("relationship", 70, "Relationship context is present.");
+    }
+
+    if (map.needs.includes("family_awareness")) {
+      addCandidate("family", 70, "Family context is present.");
+    }
+
+    if (map.needs.includes("memory_acknowledgment")) {
+      addCandidate("memory", 78, "Memory/preference request is present.");
+    }
+
+    if (map.needs.includes("transparent_self_disclosure")) {
+      addCandidate("ari_self", 86, "Ari self-disclosure context is present.");
+    }
+
+    if (map.needs.includes("writing_or_rewrite")) {
+      addCandidate("writer", 82, "Writing/rewrite need is present.");
+    }
+
+    if (map.needs.includes("calculation")) {
+      addCandidate("calculator", 82, "Calculation need is present.");
+    }
+
+    if (!map.laneEvidence.length) {
+      addCandidate("general_understanding", 60, "No stronger lane evidence found.");
+    }
+
+    map.laneEvidence.sort((a, b) => b.score - a.score);
+    map.triageCandidates = map.laneEvidence.slice(0, 8);
+  },
+
+  setMapSummary(map) {
+    const topLane = map.laneEvidence?.[0] || null;
+
+    map.mapSummary = {
+      situationFamily: this.inferSituationFamily(map),
+      primaryNeed: map.needs[0] || "general_understanding",
+      strongestLaneEvidence: topLane,
+      confidence: this.blendConfidence(topLane?.score || 60, map),
+      reason:
+        topLane?.reasons?.[0] ||
+        "Situation Map gathered context but did not choose a final lane."
+    };
+
+    map.confidence = map.mapSummary.confidence;
+    map.situationType = map.mapSummary.situationFamily;
+    map.situationFamily = map.mapSummary.situationFamily;
+    map.primaryNeed = map.mapSummary.primaryNeed;
+  },
+
+  inferSituationFamily(map) {
+    if (map.risks.includes("confirmed_safety_emergency")) return "safety";
+    if (map.risks.includes("confirmed_medical_urgency")) return "body";
+    if (map.risks.includes("ambiguous_risk")) return "risk_clarification";
+    if (map.domains.includes("medical_context_domain")) return "body";
+    if (map.domains.includes("builder_domain")) return "builder";
+    if (map.domains.includes("career_work_domain")) return "work";
+    if (map.domains.includes("relationship_context_domain")) return "relationship";
+    if (map.domains.includes("family_context_domain")) return "family";
+    if (map.domains.includes("emotion_context_domain")) return "emotion";
+    if (map.domains.includes("knowledge_domain")) return "knowledge";
+    return "general";
   },
 
   applyResponseConstraints(map) {
-    map.blockedLanes.forEach(lane => {
-      this.add(map.responseConstraints, `block_${lane}`);
-    });
-
     map.responseRequirements.forEach(req => {
       this.add(map.responseConstraints, req);
     });
 
-    const laneConstraints = {
-      teacher: ["answer_directly", "do_not_ask_uncertainty_question"],
-      builder: ["give_steps_or_code", "do_not_reflect_emotion_first"],
-      executive_decision: ["organize_options", "name_tradeoff", "recommend_next_step"],
-      medical_context: ["medical_context_first", "give_practical_next_steps", "name_red_flags_if_relevant", "avoid_false_reassurance"],
-      medical_body: ["medical_first"],
-      safety: ["safety_first"],
-      ari_self: ["answer_transparently", "do_not_fake_human_experience"],
-      writer: ["produce_requested_text"],
-      calculator: ["calculate_directly"]
-    };
+    if (map.risks.includes("confirmed_safety_emergency")) {
+      this.add(map.responseConstraints, "safety_first");
+    }
 
-    (laneConstraints[map.primaryLane] || []).forEach(c => this.add(map.responseConstraints, c));
+    if (map.risks.includes("confirmed_medical_urgency")) {
+      this.add(map.responseConstraints, "medical_first");
+    }
+
+    if (map.needs.includes("context_sensitive_support")) {
+      this.add(map.responseConstraints, "avoid_false_reassurance");
+      this.add(map.responseConstraints, "name_red_flags_if_relevant");
+    }
+
+    if (map.needs.includes("accountability_support")) {
+      this.add(map.responseConstraints, "separate_person_from_system_pressure");
+    }
+
+    if (map.needs.includes("transparent_self_disclosure")) {
+      this.add(map.responseConstraints, "do_not_fake_human_experience");
+    }
   },
 
-  syncToLegacyLanes(map) {
-    map.primaryLaneSuggestion = map.primaryLane || map.primaryLaneSuggestion;
+  syncLegacyCompatibility(map) {
+    map.primaryLaneSuggestion = null;
+    map.supportLaneSuggestions = [];
+    map.deferredLaneSuggestions = [];
+    map.blockedLanes = [];
 
-    map.supportLanes.forEach(lane => {
-      if (lane !== map.primaryLaneSuggestion) {
-        this.add(map.supportLaneSuggestions, lane);
-      }
-    });
+    map.triageCandidates = map.laneEvidence || [];
 
-    map.blockedLanes.forEach(lane => {
-      this.add(map.deferredLaneSuggestions, lane);
-    });
+    map.legacyCompatibility = {
+      primaryLaneSuggestion: null,
+      supportLaneSuggestions: [],
+      blockedLanes: [],
+      reason: "Situation Map no longer selects lanes. Triage owns lane choice."
+    };
   },
 
   blendConfidence(base = 60, map = {}) {
@@ -885,19 +864,6 @@ window.AriSituationMapEngine = {
     }
 
     return Math.max(40, Math.min(98, score));
-  },
-
-  setSituation(map, config = {}) {
-    map.situationType = config.type || "general_understanding";
-    map.situationFamily = config.family || "general";
-    map.primaryNeed = config.need || "understanding";
-    map.confidence = this.blendConfidence(config.confidence || 60, map);
-    map.primaryLane = config.primaryLane || "general_understanding";
-
-    (config.support || []).forEach(lane => this.add(map.supportLanes, lane));
-    (config.blocked || []).forEach(lane => this.add(map.blockedLanes, lane));
-
-    map.reasons.push(`Situation Map V${this.version} classified this as ${map.situationType}.`);
   },
 
   hasType(observations = [], type) {
