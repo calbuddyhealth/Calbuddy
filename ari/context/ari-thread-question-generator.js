@@ -1,21 +1,15 @@
 // ari/context/ari-thread-question-generator.js
-// Purpose: Resolve short follow-up questions using thread context.
-// V1.1.1 — Prevents current-question self-poisoning
+// Purpose: Resolve short follow-up questions using prior conversation meaning.
+// V1.1.2 — Adds debug aliases + avoids current-turn self-poisoning
 
 window.Ari = window.Ari || {};
 
 window.Ari.threadQuestionGenerator = {
-  version: "1.1.1",
+  version: "1.1.2",
 
   generate(input = {}) {
     const summary = input.summary || input || {};
-
-    const raw =
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
-
+    const raw = summary.userMessage || summary.message || summary.input || "";
     const text = this.clean(raw);
 
     const packet = summary.continuityPacket || {};
@@ -54,6 +48,19 @@ window.Ari.threadQuestionGenerator = {
       rawUserMessage: raw,
       resolvedUserQuestion: resolvedQuestion,
 
+      currentTurnWasResolved: true,
+      usedThreadContext: true,
+      resolvedSubject: inheritedTopic,
+
+      resolutionType: "follow_up_question_resolved_from_prior_context",
+      confidence: 0.88,
+      reason: "Short follow-up question was resolved using prior non-current conversation meaning.",
+
+      // Lab/debug aliases
+      threadQuestionResolutionType: "follow_up_question_resolved_from_prior_context",
+      threadQuestionConfidence: 0.88,
+      threadQuestionReason: "Short follow-up question was resolved using prior non-current conversation meaning.",
+
       resolvedCurrentTurn: {
         rawText: raw,
         resolvedText: resolvedQuestion,
@@ -61,13 +68,6 @@ window.Ari.threadQuestionGenerator = {
         inheritedTopic,
         confidence: 0.88
       },
-
-      currentTurnWasResolved: true,
-      usedThreadContext: true,
-      resolvedSubject: inheritedTopic,
-      resolutionType: "follow_up_question_resolved_from_prior_context",
-      confidence: 0.88,
-      reason: "Short follow-up question was resolved using prior non-current context.",
 
       authority: {
         canChooseLane: false,
@@ -85,36 +85,22 @@ window.Ari.threadQuestionGenerator = {
       const text = this.extractText(value);
       if (!text) return;
       if (this.isBadTopic(text, currentText)) return;
-
       candidates.push({ text, source, score });
     };
 
-add(
-  summary.priorMeaningForFollowUp?.userText,
-  "prior_meaning_user_text",
-  1.0
-);
-
-add(
-  summary.priorMeaningForFollowUp?.resolvedUserQuestion,
-  "prior_meaning_resolved_question",
-  0.98
-);
-
-add(
-  summary.priorMeaningForFollowUp?.activeIssue,
-  "prior_meaning_active_issue",
-  0.94
-);
-
-add(
-  summary.latestConversationMeaning?.userText,
-  "latest_conversation_meaning_user_text",
-  0.92
-);
+    // Best source: last completed turn, loaded before current question.
+    add(summary.priorMeaningForFollowUp?.userText, "prior_meaning_user_text", 1.0);
+    add(summary.priorMeaningForFollowUp?.resolvedUserQuestion, "prior_meaning_resolved_question", 0.98);
+    add(summary.priorMeaningForFollowUp?.activeIssue, "prior_meaning_active_issue", 0.94);
+    add(summary.priorMeaningForFollowUp?.activeSubject, "prior_meaning_active_subject", 0.92);
+    add(summary.priorMeaningForFollowUp?.situationFamily, "prior_meaning_situation_family", 0.88);
 
     (packet.usableFacts || []).forEach(fact => {
-      add(fact.claim || fact.value || fact.label || fact.evidence || fact, "continuity_usable_fact", 0.95);
+      add(
+        fact.claim || fact.value || fact.label || fact.evidence || fact,
+        "continuity_usable_fact",
+        0.86
+      );
     });
 
     const previousMessages =
@@ -124,22 +110,18 @@ add(
       [];
 
     previousMessages.slice(-5).forEach(msg => {
-      add(msg, "previous_message", 0.9);
+      add(msg, "previous_message", 0.78);
     });
 
-    add(summary.workingContext, "working_context", 0.82);
-    add(summary.threadState?.previousAnswerSummary, "previous_answer_summary", 0.72);
-    add(summary.threadState?.continuitySummary, "continuity_summary", 0.7);
+    add(summary.workingContext, "working_context", 0.72);
+    add(summary.threadState?.previousAnswerSummary, "previous_answer_summary", 0.68);
+    add(summary.threadState?.continuitySummary, "continuity_summary", 0.65);
 
-    add(thread.activeSubject, "thread_active_subject", 0.78);
-    add(thread.activeIssue, "thread_active_issue", 0.74);
-    add(thread.currentTopic, "thread_current_topic", 0.68);
-
-    // Last resort only. This can be dangerous because activeSituation often becomes the current vague question.
-    add(thread.activeSituation?.value || thread.activeSituation?.label, "thread_active_situation", 0.45);
+    add(thread.activeSubject, "thread_active_subject", 0.62);
+    add(thread.activeIssue, "thread_active_issue", 0.6);
+    add(thread.currentTopic, "thread_current_topic", 0.55);
 
     candidates.sort((a, b) => b.score - a.score);
-
     return candidates[0]?.text || null;
   },
 
@@ -150,11 +132,8 @@ add(
     if (!cleanTopic) return true;
     if (cleanTopic === cleanCurrent) return true;
     if (cleanTopic.includes("[object object]")) return true;
-
-    // Do not use the current vague question as the inherited topic.
     if (this.isShortFollowUp(cleanTopic)) return true;
 
-    // Avoid generic situation labels.
     const badLabels = [
       "general understanding",
       "general_understanding",
@@ -164,14 +143,12 @@ add(
       "current situation"
     ];
 
-    if (badLabels.includes(cleanTopic)) return true;
-
-    return false;
+    return badLabels.includes(cleanTopic);
   },
 
   isShortFollowUp(text = "") {
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length > 11) return false;
+    const words = this.clean(text).split(/\s+/).filter(Boolean);
+    if (words.length > 12) return false;
 
     return (
       /^(why|how|what|what about|what if|then what|should i|do i|can i)\b/.test(text) ||
@@ -180,29 +157,12 @@ add(
   },
 
   resolveQuestion(text, topic) {
-    if (/^why\b/.test(text)) {
-      return `Why might ${topic}?`;
-    }
-
-    if (/^how\b/.test(text)) {
-      return `How should the user think about ${topic}?`;
-    }
-
-    if (/^what do you think is the most likely reason/.test(text)) {
-      return `What is the most likely reason for ${topic}?`;
-    }
-
-    if (/^what do you think/.test(text)) {
-      return `What do you think about ${topic}?`;
-    }
-
-    if (/^what is it|what it is|what do you think it is/.test(text)) {
-      return `What is likely causing ${topic}?`;
-    }
-
-    if (/^what should i do/.test(text)) {
-      return `What should the user do about ${topic}?`;
-    }
+    if (/^why\b/.test(text)) return `Why might ${topic}?`;
+    if (/^how\b/.test(text)) return `How should the user think about ${topic}?`;
+    if (/^what is the most likely cause/.test(text)) return `What is the most likely cause of ${topic}?`;
+    if (/^what do you think is the most likely reason/.test(text)) return `What is the most likely reason for ${topic}?`;
+    if (/^what do you think/.test(text)) return `What do you think about ${topic}?`;
+    if (/^what should i do/.test(text)) return `What should the user do about ${topic}?`;
 
     if (/\bit\b|\bthis\b|\bthat\b/.test(text)) {
       return text.replace(/\bit\b|\bthis\b|\bthat\b/g, topic);
@@ -213,22 +173,10 @@ add(
 
   extractText(value) {
     if (!value) return "";
-
-    if (typeof value === "string") {
-      return value;
-    }
+    if (typeof value === "string") return value;
 
     if (typeof value === "object") {
-      return (
-        value.text ||
-        value.claim ||
-        value.value ||
-        value.label ||
-        value.evidence ||
-        value.surface ||
-        value.summary ||
-        ""
-      );
+      return value.text || value.claim || value.value || value.label || value.evidence || value.surface || value.summary || "";
     }
 
     return String(value || "");
@@ -244,19 +192,24 @@ add(
       rawUserMessage: raw,
       resolvedUserQuestion: raw,
 
+      currentTurnWasResolved: false,
+      usedThreadContext: false,
+      resolvedSubject: null,
+
+      resolutionType: "none",
+      confidence: 1,
+      reason: "No safe prior context found or current turn did not need resolution.",
+
+      threadQuestionResolutionType: "none",
+      threadQuestionConfidence: 1,
+      threadQuestionReason: "No safe prior context found or current turn did not need resolution.",
+
       resolvedCurrentTurn: {
         rawText: raw,
         resolvedText: raw,
         usedThreadContext: false,
         confidence: 1
-      },
-
-      currentTurnWasResolved: false,
-      usedThreadContext: false,
-      resolvedSubject: null,
-      resolutionType: "none",
-      confidence: 1,
-      reason: "No safe prior context found or current turn did not need resolution."
+      }
     };
   },
 
