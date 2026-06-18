@@ -1,7 +1,7 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
 // Purpose: Build an evidence-based case model from upstream context.
-// V8.0.0 — Case Modeler Only / No Final Recommendation Authority
+// V8.2.0 — Case Modeler Only / No Final Recommendation Authority
 // Boundary:
 // - DOES organize known facts, inferred facts, unknowns, constraints, risks, options, tradeoffs, consequences, and confidence.
 // - DOES use groundedContext and preferredTerms when available.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "8.0.0",
+  version: "8.2.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -29,7 +29,8 @@ window.AriReasoningEngine = {
     const reasoning = this.blankReasoning({ primary, contract });
 
     this.loadGroundedInputs(reasoning, summary);
-    this.addRelevantFacts(reasoning, observations);
+this.loadActiveSituationInputs(reasoning, summary);
+this.addRelevantFacts(reasoning, observations);
     this.buildCaseModel(reasoning, summary, primary);
     this.buildOptionsAndConsequences(reasoning, summary, primary);
     this.buildTradeoffs(reasoning, summary, primary);
@@ -193,7 +194,71 @@ window.AriReasoningEngine = {
     addIfPresent(reasoning.knownFacts, groundedContext.decision, "Decision being considered");
     addIfPresent(reasoning.knownFacts, groundedContext.consequence, "Feared consequence");
   },
+loadActiveSituationInputs(reasoning, summary = {}) {
+  const activeSituation =
+    summary.activeSituation ||
+    summary.assembledContext?.activeSituation ||
+    summary.advisoryContext?.activeSituation ||
+    summary.threadUnderstanding?.activeSituation ||
+    summary.threadUnderstanding?.resolvedMeaning?.activeSituation ||
+    null;
 
+  const keyFacts =
+    this.collectKeyFacts(summary);
+
+  if (activeSituation) {
+    const situationText =
+      activeSituation.value ||
+      activeSituation.label ||
+      activeSituation.evidence ||
+      null;
+
+    if (situationText) {
+      this.add(reasoning.knownFacts, `Active situation: ${situationText}`);
+      reasoning.caseModel.situation = situationText;
+      reasoning.caseModel.userQuestion = this.getOriginalText(summary);
+    }
+  }
+
+  keyFacts.forEach(fact => {
+    this.add(reasoning.knownFacts, fact);
+  });
+
+  if (keyFacts.length) {
+    reasoning.decisionMemo.strongestFacts = [
+      ...keyFacts,
+      ...reasoning.decisionMemo.strongestFacts
+    ].slice(0, 5);
+
+    reasoning.confidence.reasons.push(
+      "Active situation key facts were provided by context assembler."
+    );
+  }
+},
+
+collectKeyFacts(summary = {}) {
+  const sources = [
+    summary.keyFacts,
+    summary.assembledContext?.keyFacts,
+    summary.advisoryContext?.keyFacts,
+    summary.threadUnderstanding?.keyFacts,
+    summary.threadUnderstanding?.resolvedMeaning?.keyFacts
+  ];
+
+  const facts = [];
+
+  sources.forEach(source => {
+    if (!Array.isArray(source)) return;
+
+    source.forEach(fact => {
+      if (typeof fact === "string" && fact.trim()) {
+        facts.push(fact.trim());
+      }
+    });
+  });
+
+  return [...new Set(facts)];
+},
   addRelevantFacts(reasoning, observations = []) {
     observations.forEach(obs => {
       if (!obs?.value) return;
@@ -451,12 +516,14 @@ window.AriReasoningEngine = {
   buildGeneralCase(reasoning, summary = {}, primary = "") {
     const model = reasoning.caseModel;
 
-    model.situation = "The user is asking for help or clarity.";
+    model.situation = model.situation || "The user is asking for help or clarity.";
     model.userQuestion = this.getOriginalText(summary);
     model.userGoal = "get a useful answer";
     model.currentState = `active lane: ${primary}`;
     model.desiredState = "clear next understanding or action";
-    model.obstacle = "not enough specific case context may be available";
+    model.obstacle = reasoning.knownFacts.length
+  ? "the decision needs to be prioritized using the known facts"
+  : "not enough specific case context may be available";
 
     model.constraints = [];
     model.risks = [];
@@ -577,13 +644,91 @@ window.AriReasoningEngine = {
   },
 
   buildGeneralOptions(reasoning) {
-    reasoning.caseModel.options = [];
-    reasoning.caseModel.nextActionCandidates = [
-      "Gather the missing facts.",
-      "Identify the primary constraint.",
-      "Choose the next concrete step."
+  const model = reasoning.caseModel;
+
+  const hasUsefulFacts = (reasoning.knownFacts || []).length > 0;
+
+  const hasKnownDecision =
+    Boolean(model.decision) ||
+    Boolean(model.activeProblem) ||
+    Boolean(model.issue) ||
+    hasUsefulFacts;
+
+  if (hasKnownDecision) {
+    model.options = [
+      {
+        option: "Clarify the objective",
+        benefits: ["prevents solving the wrong problem"],
+        risks: ["can feel slower than jumping into action"],
+        reversibility: "high"
+      },
+      {
+        option: "Identify the main constraint",
+        benefits: ["shows what is actually limiting the situation"],
+        risks: ["may miss secondary concerns if used alone"],
+        reversibility: "medium"
+      },
+      {
+        option: "Compare tradeoffs before acting",
+        benefits: ["reduces impulsive or anxiety-driven choices"],
+        risks: ["can delay action if overdone"],
+        reversibility: "medium"
+      },
+      {
+        option: "Choose the smallest useful next step",
+        benefits: ["creates progress while preserving flexibility"],
+        risks: ["may need adjustment as new facts appear"],
+        reversibility: "high"
+      }
     ];
-  },
+
+    model.tradeoffs = [
+      {
+        sideA: "acting quickly",
+        sideB: "protecting the outcome that matters most"
+      }
+    ];
+
+    model.nextActionCandidates = [
+      "Clarify what outcome matters most.",
+      "Identify the biggest constraint or risk.",
+      "Choose the smallest useful next step."
+    ];
+
+    reasoning.options.push(...model.options);
+    reasoning.tradeoffs = model.tradeoffs;
+    return;
+  }
+
+  model.options = [
+    {
+      option: "Gather the missing facts",
+      benefits: ["reduces guessing"],
+      risks: ["can delay action if overdone"],
+      reversibility: "high"
+    },
+    {
+      option: "Ask one clarifying question",
+      benefits: ["gets the minimum information needed"],
+      risks: ["may slow the conversation slightly"],
+      reversibility: "high"
+    },
+    {
+      option: "Give a cautious general answer",
+      benefits: ["still helps when details are limited"],
+      risks: ["may be less personalized"],
+      reversibility: "high"
+    }
+  ];
+
+  model.nextActionCandidates = [
+    "Gather the missing facts.",
+    "Ask one clarifying question.",
+    "Give a cautious general answer."
+  ];
+
+  reasoning.options.push(...model.options);
+},
 
   buildTradeoffs(reasoning) {
     const m = reasoning.caseModel;
@@ -601,7 +746,9 @@ window.AriReasoningEngine = {
       ];
     }
 
-    reasoning.tradeoffs = m.tradeoffs || [];
+    reasoning.tradeoffs = reasoning.tradeoffs.length
+  ? reasoning.tradeoffs
+  : (m.tradeoffs || []);
   },
 
   buildMissingInfo(reasoning) {
