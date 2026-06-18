@@ -1,20 +1,12 @@
 // ari/language/ari-lexical-grounding-engine.js
 // Ari Lexical Grounding Engine
-// Purpose: Map known upstream concepts back to the user's actual words.
-// V2.1.0 — Lexical Only / No Goal, Decision, Priority, or Recommendation Authority
-//
-// Boundary:
-// - DOES extract concrete user phrases.
-// - DOES preserve grounded terms from upstream entity/thread systems.
-// - DOES map concrete words to neutral concept labels.
-// - DOES NOT decide goals, priorities, lanes, risks, actions, or recommendations.
-// - DOES NOT turn generic questions like "what should I do" into a goal.
-// - DOES NOT create fake placeholders.
+// Purpose: Map user language into grounded, reusable phrases for downstream systems.
+// V3.0.0 — Universal Lexical Grounding / No Final Authority
 
 window.Ari = window.Ari || {};
 
 window.AriLexicalGroundingEngine = {
-  version: "2.1.0",
+  version: "3.0.0",
 
   ground(input = {}) {
     const summary = input.summary || input || {};
@@ -33,12 +25,10 @@ window.AriLexicalGroundingEngine = {
       lexicalGroundingVersion: this.version,
       lexicalGroundingSource: "ari-lexical-grounding-engine",
       source: "ari-lexical-grounding-engine",
-
       authority: "lexical_grounding_only",
 
       cannotSet: [
         "primaryLane",
-        "primaryLaneSuggestion",
         "triagePrimaryLane",
         "situationContractPrimary",
         "responseShape",
@@ -49,11 +39,7 @@ window.AriLexicalGroundingEngine = {
         "riskLevel",
         "riskType",
         "override",
-        "medicalEscalation",
-        "knownFacts",
-        "inferredFacts",
-        "decision",
-        "primaryGoal"
+        "medicalEscalation"
       ],
 
       userTerms: this.extractUserTerms(text),
@@ -67,8 +53,12 @@ window.AriLexicalGroundingEngine = {
     };
 
     this.mapGroundedContextTerms(grounding, groundedContext);
+    this.mapUniversalGoalTerms(grounding, text, normalized);
+    this.mapUniversalTransitionTerms(grounding, text, normalized);
+    this.mapUniversalTradeoffTerms(grounding, text, normalized);
     this.mapConcreteDecisionLanguage(grounding, text, normalized);
     this.mapConcreteConstraintTerms(grounding, text, normalized);
+    this.mapTimelineTerms(grounding, text, normalized);
     this.mapBodyTerms(grounding, text, normalized);
     this.mapBuilderTerms(grounding, text, normalized);
     this.mapRelationshipTerms(grounding, text, normalized);
@@ -96,15 +86,15 @@ window.AriLexicalGroundingEngine = {
 
   mapGroundedContextTerms(grounding, groundedContext = {}) {
     const safeMap = [
-      ["actor", groundedContext.actor, "Entity resolver identified the active actor.", 0.9],
-      ["issue", groundedContext.issue, "Entity resolver identified the active issue.", 0.9],
-      ["action", groundedContext.action, "Entity resolver identified the active action phrase.", 0.86],
-      ["pressure", groundedContext.pressure, "Entity resolver identified a pressure phrase.", 0.86],
-      ["decision_phrase", groundedContext.decision, "Entity resolver identified a decision phrase.", 0.84],
-      ["consequence", groundedContext.consequence, "Entity resolver identified a consequence phrase.", 0.84],
-      ["active_problem", groundedContext.activeProblemLabel, "Entity resolver identified the active problem phrase.", 0.9],
-      ["object", groundedContext.object, "Entity resolver identified an object phrase.", 0.84],
-      ["topic", groundedContext.topic, "Entity resolver identified a topic phrase.", 0.84]
+      ["actor", groundedContext.actor, "Upstream context identified the active actor.", 0.9],
+      ["issue", groundedContext.issue, "Upstream context identified the active issue.", 0.9],
+      ["action", groundedContext.action, "Upstream context identified the active action phrase.", 0.86],
+      ["pressure", groundedContext.pressure, "Upstream context identified a pressure phrase.", 0.86],
+      ["decision_phrase", groundedContext.decision, "Upstream context identified a decision phrase.", 0.84],
+      ["consequence", groundedContext.consequence, "Upstream context identified a consequence phrase.", 0.84],
+      ["active_problem", groundedContext.activeProblemLabel, "Upstream context identified the active problem phrase.", 0.9],
+      ["object", groundedContext.object, "Upstream context identified an object phrase.", 0.84],
+      ["topic", groundedContext.topic, "Upstream context identified a topic phrase.", 0.84]
     ];
 
     safeMap.forEach(([concept, phrase, reason, confidence]) => {
@@ -112,13 +102,97 @@ window.AriLexicalGroundingEngine = {
     });
   },
 
-  mapConcreteDecisionLanguage(grounding, text, normalized) {
-    const actionPhrase = this.findFirst(text, [
-      /\b(?:buy|lease|finance|refinance|sell|trade in|apply for|report|tell|ask|call|schedule|cancel|fix|build|replace|save for|pay for)\s+[^.?!,;]{2,70}/gi
+  mapUniversalGoalTerms(grounding, text) {
+    const goalPhrase = this.findFirst(text, [
+      /\b(?:i want to|i need to|i'm trying to|i am trying to|my goal is to|i plan to|i hope to)\s+[^.?!,;]{3,100}/gi,
+      /\b(?:go to|start|apply to|finish|complete|build|fix|become|move into|transition to)\s+[^.?!,;]{3,90}/gi
     ]);
 
-    const optionPhrase = this.findFirst(text, [
-      /\b(?:option|choice|route|path|plan|approach)\s+(?:is|would be|could be)?\s*[^.?!,;]{2,70}/gi
+    if (goalPhrase && !this.isGenericQuestionPhrase(goalPhrase)) {
+      this.setConcept(
+        grounding,
+        "primary_goal",
+        goalPhrase,
+        "User named a concrete desired outcome or direction.",
+        0.84
+      );
+    }
+  },
+
+  mapUniversalTransitionTerms(grounding, text) {
+    const transitionPhrase = this.findFirst(text, [
+      /\b(?:having a baby|becoming a parent|new baby|pregnant|pregnancy|moving|separating|leaving the military|starting school|starting a new job|getting married|retiring|transitioning|changing careers)\b[^.?!,;]{0,80}/gi
+    ]);
+
+    if (transitionPhrase) {
+      this.setConcept(
+        grounding,
+        "life_transition",
+        transitionPhrase,
+        "User named a life transition or major change.",
+        0.84
+      );
+    }
+  },
+
+  mapUniversalTradeoffTerms(grounding, text, normalized) {
+    const hasTradeoff =
+      /\bbut\b|\bat the same time\b|\bwhile\b|\bversus\b|\bvs\b|\bbetween\b|\bdon't know if\b|\bnot sure if\b/i.test(text);
+
+    if (!hasTradeoff) return;
+
+    const central = this.inferTradeoffPhrase(text, normalized);
+
+    if (central) {
+      this.setConcept(
+        grounding,
+        "central_tradeoff",
+        central,
+        "User language contains competing priorities, uncertainty, or timing tension.",
+        0.82
+      );
+    }
+  },
+
+  inferTradeoffPhrase(text, normalized) {
+    if (
+      /nurse practitioner|np school|practitioner school|school/i.test(text) &&
+      /baby|pregnan|child|parent/i.test(text)
+    ) {
+      return "school timing versus new baby transition";
+    }
+
+    if (
+      /friend/i.test(text) &&
+      /child|kid|son|daughter|school event/i.test(text)
+    ) {
+      return "friend obligation versus child presence";
+    }
+
+    if (
+      /work|job|career/i.test(text) &&
+      /family|baby|child|partner|wife|husband|fianc/i.test(text)
+    ) {
+      return "career demand versus family stability";
+    }
+
+    const split = text.split(/\bbut\b|\bat the same time\b|\bwhile\b|\bversus\b|\bvs\b/i);
+    if (split.length >= 2) {
+      const sideA = this.cleanPhrase(split[0]).slice(0, 90);
+      const sideB = this.cleanPhrase(split[1]).slice(0, 90);
+      if (sideA && sideB) return `${sideA} versus ${sideB}`;
+    }
+
+    return null;
+  },
+
+  mapConcreteDecisionLanguage(grounding, text) {
+    const actionPhrase = this.findFirst(text, [
+      /\b(?:buy|lease|finance|refinance|sell|trade in|apply for|report|tell|ask|call|schedule|cancel|fix|build|replace|save for|pay for|start|go to|move to|enroll in)\s+[^.?!,;]{2,90}/gi
+    ]);
+
+    const uncertaintyPhrase = this.findFirst(text, [
+      /\b(?:don't know if|do not know if|not sure if|unsure if|wondering if)\s+[^.?!,;]{2,100}/gi
     ]);
 
     if (actionPhrase && !this.isGenericQuestionPhrase(actionPhrase)) {
@@ -131,35 +205,21 @@ window.AriLexicalGroundingEngine = {
       );
     }
 
-    if (optionPhrase && !this.isGenericQuestionPhrase(optionPhrase)) {
+    if (uncertaintyPhrase) {
       this.setConcept(
         grounding,
-        "option_phrase",
-        optionPhrase,
-        "User named a concrete option or plan phrase.",
-        0.74
+        "decision_phrase",
+        uncertaintyPhrase,
+        "User expressed uncertainty about a choice or timing.",
+        0.8
       );
     }
   },
 
-  mapConcreteConstraintTerms(grounding, text, normalized) {
-    const timePhrase = this.findFirst(text, [
-      /\b(?:today|tonight|tomorrow|this week|next week|next month|soon|by [^.?!,;]{2,30}|before [^.?!,;]{2,30}|after [^.?!,;]{2,30})\b/gi
-    ]);
-
+  mapConcreteConstraintTerms(grounding, text) {
     const resourcePhrase = this.findFirst(text, [
-      /\b(?:bad credit|good credit|excellent credit|credit score|budget|money|savings|debt|loan|payment|apr|interest rate|down payment|understaffed|short staffed|short-staffed|limited time|time pressure)\b/gi
+      /\b(?:budget|money|savings|debt|loan|payment|limited time|time pressure|understaffed|short staffed|short-staffed|childcare|new baby|sleep|work schedule|night shift|family support)\b/gi
     ]);
-
-    if (timePhrase) {
-      this.setConcept(
-        grounding,
-        "time_phrase",
-        timePhrase,
-        "User mentioned a time phrase.",
-        0.76
-      );
-    }
 
     if (resourcePhrase) {
       this.setConcept(
@@ -172,6 +232,30 @@ window.AriLexicalGroundingEngine = {
     }
   },
 
+  mapTimelineTerms(grounding, text) {
+    const timelinePhrases = this.findPhrases(text, [
+      /\b(?:today|tonight|tomorrow|this week|next week|this month|next month|this fall|next fall|this winter|next winter|this spring|next spring|this summer|next summer|next year|in the fall|by [^.?!,;]{2,30}|before [^.?!,;]{2,30}|after [^.?!,;]{2,30})\b/gi
+    ]);
+
+    if (timelinePhrases.length) {
+      this.setConcept(
+        grounding,
+        "time_phrase",
+        timelinePhrases.join(" / "),
+        "User mentioned concrete timeline language.",
+        0.8
+      );
+
+      this.setConcept(
+        grounding,
+        "timeline",
+        timelinePhrases.join(" / "),
+        "User mentioned multiple timing anchors.",
+        0.78
+      );
+    }
+  },
+
   mapBodyTerms(grounding, text) {
     const bodyTerm = this.findFirst(text, [
       /my\s+[^.?!,;]{1,40}\s+(hurts|aches|is painful|is killing me)/gi,
@@ -179,78 +263,48 @@ window.AriLexicalGroundingEngine = {
     ]);
 
     if (bodyTerm) {
-      this.setConcept(
-        grounding,
-        "body_problem",
-        bodyTerm,
-        "User described a body or health phrase.",
-        0.82
-      );
+      this.setConcept(grounding, "body_problem", bodyTerm, "User described a body or health phrase.", 0.82);
     }
   },
 
   mapBuilderTerms(grounding, text) {
     const builderTerm = this.findFirst(text, [
-      /\b(login page|homepage|button|meter|composer|pipeline|reasoning engine|observer|contract|app|website|code|file|function|api|supabase|github|vercel|html|javascript|css)\b/gi,
+      /\b(login page|homepage|button|meter|composer|pipeline|reasoning engine|observer|contract|app|website|code|file|function|api|supabase|github|vercel|html|javascript|css|lexical grounding engine|thread understanding engine)\b/gi,
       /my\s+[^.?!,;]{1,40}\s+(is broken|is not working|keeps crashing|doesn't work|doesn’t work)/gi
     ]);
 
     if (builderTerm) {
-      this.setConcept(
-        grounding,
-        "thing_to_fix",
-        builderTerm,
-        "User named a concrete build or technical phrase.",
-        0.8
-      );
+      this.setConcept(grounding, "thing_to_fix", builderTerm, "User named a concrete build or technical phrase.", 0.8);
     }
   },
 
   mapRelationshipTerms(grounding, text) {
     const person = this.findFirst(text, [
-      /\b(wife|husband|fianc[eé]e|partner|girlfriend|boyfriend|mom|dad|father|mother|sister|brother|friend|boss|coworker|family|team|manager|leadership|management)\b/gi
+      /\b(wife|husband|fianc[eé]e|partner|girlfriend|boyfriend|mom|dad|father|mother|sister|brother|friend|boss|coworker|family|team|manager|leadership|management|baby|child|son|daughter)\b/gi
     ]);
 
     if (person && !grounding.conceptMap.actor) {
-      this.setConcept(
-        grounding,
-        "person_or_relationship",
-        person,
-        "User named a person or relationship phrase.",
-        0.72
-      );
+      this.setConcept(grounding, "person_or_relationship", person, "User named a person or relationship phrase.", 0.74);
     }
   },
 
   mapEmotionTerms(grounding, text) {
     const emotion = this.findFirst(text, [
-      /\b(tired|overwhelmed|embarrassed|angry|sad|lonely|stressed|burned out|burnt out|anxious|worried|scared|frustrated|done|give up|afraid|nervous)\b/gi
+      /\b(tired|overwhelmed|embarrassed|angry|sad|lonely|stressed|burned out|burnt out|anxious|worried|scared|frustrated|done|give up|afraid|nervous|unsure|uncertain)\b/gi
     ]);
 
     if (emotion) {
-      this.setConcept(
-        grounding,
-        "felt_state",
-        emotion,
-        "User named or implied an emotional phrase.",
-        0.75
-      );
+      this.setConcept(grounding, "felt_state", emotion, "User named or implied an emotional phrase.", 0.75);
     }
   },
 
-  mapObjectTerms(grounding, text, normalized) {
+  mapObjectTerms(grounding, text) {
     const object = this.findFirst(text, [
-      /\b(car|vehicle|truck|suv|house|apartment|job|school|program|ring|watch|phone|computer|cat|dog|pet)\b/gi
+      /\b(car|vehicle|truck|suv|house|apartment|job|school|program|nurse practitioner school|np school|ring|watch|phone|computer|cat|dog|pet)\b/gi
     ]);
 
     if (object && !grounding.conceptMap.object) {
-      this.setConcept(
-        grounding,
-        "object",
-        object,
-        "User named a concrete object or topic phrase.",
-        0.76
-      );
+      this.setConcept(grounding, "object", object, "User named a concrete object or topic phrase.", 0.76);
     }
   },
 
@@ -270,6 +324,7 @@ window.AriLexicalGroundingEngine = {
       topic: map.topic || null,
       optionPhrase: map.option_phrase || null,
       timePhrase: map.time_phrase || null,
+      timeline: map.timeline || null,
       constraintPhrase: map.constraint_phrase || null,
 
       bodyProblem: map.body_problem || null,
@@ -277,11 +332,12 @@ window.AriLexicalGroundingEngine = {
       personOrRelationship: map.person_or_relationship || null,
       feltState: map.felt_state || null,
 
-      primaryGoal: null,
-      optionalPlan: null,
-      deadline: null,
-      limitingResource: null,
-      centralTradeoff: null
+      primaryGoal: map.primary_goal || null,
+      optionalPlan: map.optional_plan || null,
+      lifeTransition: map.life_transition || null,
+      deadline: map.deadline || null,
+      limitingResource: map.limiting_resource || null,
+      centralTradeoff: map.central_tradeoff || null
     };
   },
 
@@ -340,25 +396,25 @@ window.AriLexicalGroundingEngine = {
   makeShortPhrase(phrase = "") {
     const text = this.cleanPhrase(phrase);
 
-    if (/documenting assessments/i.test(text)) return "the documentation issue";
-    if (/leadership|management/i.test(text)) return "leadership pressure";
-    if (/report/i.test(text)) return "reporting it";
-    if (/team.*hate me|backlash|retaliation/i.test(text)) return "team backlash";
-    if (/bad credit|good credit|excellent credit|credit score/i.test(text)) return "credit";
-    if (/car|vehicle|truck|suv/i.test(text)) return "the car";
-    if (/loan|payment|apr|interest rate|down payment/i.test(text)) return "the financing";
-    if (/cat|dog|pet/i.test(text)) return "the pet";
+    if (/nurse practitioner|np school/i.test(text)) return "NP school";
+    if (/having a baby|new baby|pregnan/i.test(text)) return "the baby transition";
+    if (/school timing versus new baby/i.test(text)) return "school vs baby timing";
+    if (/friend obligation versus child/i.test(text)) return "friend vs child";
+    if (/career demand versus family/i.test(text)) return "career vs family";
     if (/code|file|function|html|javascript|css/i.test(text)) return "the code";
     if (/app|website|homepage/i.test(text)) return "the app";
+    if (/cat|dog|pet/i.test(text)) return "the pet";
+    if (/car|vehicle|truck|suv/i.test(text)) return "the car";
 
     return text;
   },
 
   extractUserTerms(text = "") {
     const phrases = this.findPhrases(text, [
-      /\b(?:my|our|the)\s+[^.?!,;]{2,50}/gi,
-      /\b(?:buy|lease|finance|refinance|sell|trade in|apply for|report|fix|build|replace|save for|pay for)\s+[^.?!,;]{2,70}/gi,
-      /\b(?:bad credit|good credit|excellent credit|credit score|down payment|interest rate|auto loan|car loan|documenting assessments|cutting corners|leadership keeps rushing everyone|management has been pushing everyone|understaffed|reporting it|team will hate me)\b/gi
+      /\b(?:my|our|the)\s+[^.?!,;]{2,70}/gi,
+      /\b(?:i want to|i need to|i'm trying to|i am trying to|my goal is to|i plan to|i hope to)\s+[^.?!,;]{3,100}/gi,
+      /\b(?:go to|start|apply to|finish|complete|build|fix|become|move into|transition to)\s+[^.?!,;]{3,90}/gi,
+      /\b(?:nurse practitioner school|np school|having a baby|new baby|school next year|baby this fall|next fall|this fall)\b/gi
     ]);
 
     return [...new Set(
@@ -366,7 +422,7 @@ window.AriLexicalGroundingEngine = {
         .map(p => this.cleanPhrase(p))
         .filter(Boolean)
         .filter(p => !this.isGenericQuestionPhrase(p))
-    )].slice(0, 16);
+    )].slice(0, 20);
   },
 
   extractIgnoredGenericPhrases(text = "") {
@@ -379,18 +435,14 @@ window.AriLexicalGroundingEngine = {
 
   isGenericQuestionPhrase(value = "") {
     const text = this.normalize(value);
-
     if (!text) return true;
 
     const exactGeneric = new Set([
       "what should i do",
       "what do i do",
       "what kind of plan",
-      "what kind of plan do you think i should follow",
       "what plan should i follow",
       "should i",
-      "should i do",
-      "should follow",
       "do you think",
       "what would you do",
       "what do you recommend",
@@ -405,10 +457,6 @@ window.AriLexicalGroundingEngine = {
     if (/^(what|how|why|should|do you|can you|could you)\b/.test(text) && text.split(/\s+/).length <= 10) {
       return true;
     }
-
-    if (/^should\s+(i|we)\b/.test(text)) return true;
-    if (/^what\s+should\s+(i|we)\b/.test(text)) return true;
-    if (/^what\s+kind\s+of\s+plan\b/.test(text)) return true;
 
     return false;
   },
