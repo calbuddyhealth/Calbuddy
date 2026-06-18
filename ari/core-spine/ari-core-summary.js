@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.5.2 — Adds routing evidence, lane split, continuity results, continuity packet
+// V3.5.3 — Adds routing evidence, lane split, continuity results, continuity packet
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.5.2",
+  version: "3.5.3",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -51,6 +51,10 @@ const continuityResults =
 
 const continuityPacket =
   analysis.continuityPacket ||
+  {};
+
+const threadQuestion =
+  analysis.threadQuestion ||
   {};
 
 const universalConversationClassification =
@@ -563,6 +567,52 @@ continuityPacketConfidence:
 
 continuitySituationMapHandoff:
   continuityPacket.situationMapHandoff || {},
+
+// ==================================================
+// THREAD QUESTION GENERATOR
+// ==================================================
+
+threadQuestion,
+
+threadQuestionGeneratorRan:
+  analysis.threadQuestionGeneratorRan ??
+  threadQuestion.threadQuestionGeneratorRan ??
+  false,
+
+threadQuestionGeneratorVersion:
+  analysis.threadQuestionGeneratorVersion ||
+  threadQuestion.threadQuestionGeneratorVersion ||
+  null,
+
+threadQuestionGeneratorSource:
+  analysis.threadQuestionGeneratorSource ||
+  threadQuestion.source ||
+  "not-yet-run",
+
+resolvedUserQuestion:
+  analysis.resolvedUserQuestion ||
+  threadQuestion.resolvedUserQuestion ||
+  rawUserMessage,
+
+currentTurnWasResolved:
+  analysis.currentTurnWasResolved ??
+  threadQuestion.currentTurnWasResolved ??
+  false,
+
+threadQuestionResolutionType:
+  analysis.threadQuestionResolutionType ||
+  threadQuestion.resolutionType ||
+  null,
+
+threadQuestionConfidence:
+  analysis.threadQuestionConfidence ??
+  threadQuestion.confidence ??
+  null,
+
+threadQuestionReason:
+  analysis.threadQuestionReason ||
+  threadQuestion.reason ||
+  null,
 
 // ==================================================
 // CONTINUITY / MEMORY / RELATIONSHIP
