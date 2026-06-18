@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-routing-evidence.js
 // Ari Observer Routing Evidence
 // Purpose: Convert Observer evidence into routing pressures for the Lane Splitter.
-// V1.0.0 — Lossless / Additive / No Lane Authority / No Composer Authority
+// V1.1.0 — Lossless / Additive / No Lane Authority / No Composer Authority
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerRoutingEvidence = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
