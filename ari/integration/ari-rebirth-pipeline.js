@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.3 — Lane Splitter + Continuity Packet Routing
+// V3.5.4 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.3",
+  version: "3.5.4",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -103,6 +103,10 @@ window.AriRebirthPipeline = {
       universalConversationClassification: conversationResult
     };
 
+// 0.255 Load Thread State
+// Must run before Routing Evidence so short follow-ups like "Why?" can be routed correctly.
+summary = await this.loadThreadState(summary);
+    
     // 0.26 Observer Routing Evidence
     const routingEvidence =
       window.Ari?.observerRoutingEvidence?.analyze
@@ -118,10 +122,25 @@ window.AriRebirthPipeline = {
           };
 
     summary = {
-      ...summary,
-      routingEvidence,
-      observerRoutingEvidence: routingEvidence
-    };
+  ...summary,
+  routingEvidence,
+  observerRoutingEvidence: routingEvidence,
+
+  routingEvidenceRan:
+    routingEvidence.engine === "ari-observer-routing-evidence",
+
+  routingEvidenceSource:
+    routingEvidence.source || "not-loaded",
+
+  routingPressures:
+    routingEvidence.routingPressures || {},
+
+  preservedObserverEvidence:
+    routingEvidence.preservedObserverEvidence || [],
+
+  preservedObservationCount:
+    routingEvidence.preservedObservationCount ?? 0
+};
 
     // 0.27 Lane Splitter
     const laneSplit =
@@ -144,11 +163,23 @@ window.AriRebirthPipeline = {
           };
 
     summary = {
-      ...summary,
-      laneSplit,
-      lane: laneSplit.lane || "direct_current_turn",
-      routingDecision: laneSplit.routing || {}
-    };
+  ...summary,
+  laneSplit,
+  lane: laneSplit.lane || "direct_current_turn",
+  routingDecision: laneSplit.routing || {},
+
+  laneSplitterRan:
+    laneSplit.engine === "ari-lane-splitter-engine",
+
+  laneSplitterSource:
+    laneSplit.source || "not-loaded",
+
+  laneSplitterConfidence:
+    laneSplit.confidence || null,
+
+  laneSplitterScores:
+    laneSplit.scores || {}
+};
 
     // 0.28 Continuity Entry Point
     const continuityResults =
@@ -170,9 +201,27 @@ window.AriRebirthPipeline = {
           };
 
     summary = {
-      ...summary,
-      continuityResults
-    };
+  ...summary,
+  continuityResults,
+
+  continuityEntryPointRan:
+    continuityResults.ran ?? false,
+
+  continuityEntryPointSource:
+    continuityResults.source || "not-loaded",
+
+  continuityEntryPointReason:
+    continuityResults.reason || null,
+
+  continuityEntryPointUsed:
+    continuityResults.used || {},
+
+  continuityEntryPointOutputs:
+    continuityResults.outputs || {},
+
+  continuityEntryPointWarnings:
+    continuityResults.warnings || []
+};
 
     // 0.29 Continuity Packet
     const continuityPacket =
@@ -196,9 +245,45 @@ window.AriRebirthPipeline = {
           };
 
     summary = {
-      ...summary,
-      continuityPacket
-    };
+  ...summary,
+  continuityPacket,
+
+  continuityPacketRan:
+    continuityPacket.ran ?? false,
+
+  continuityPacketSource:
+    continuityPacket.source || "not-loaded",
+
+  continuityType:
+    continuityPacket.continuityType || null,
+
+  continuityCurrentTurn:
+    continuityPacket.currentTurn || {},
+
+  continuityActiveThread:
+    continuityPacket.activeThread || {},
+
+  continuityReferencedContext:
+    continuityPacket.referencedContext || {},
+
+  continuityUsableFacts:
+    continuityPacket.usableFacts || [],
+
+  continuityUsableFactCount:
+    continuityPacket.usableFactCount ?? 0,
+
+  continuityUnresolvedReferences:
+    continuityPacket.unresolvedReferences || [],
+
+  continuityUnresolvedReferenceCount:
+    continuityPacket.unresolvedReferenceCount ?? 0,
+
+  continuityPacketConfidence:
+    continuityPacket.confidence || null,
+
+  continuitySituationMapHandoff:
+    continuityPacket.situationMapHandoff || {}
+};
 
     // 0.30 Entity Reference Resolver
 // Only run for continuity routes. Direct current-turn messages do not need thread/entity resolution.
@@ -833,6 +918,44 @@ summary = this.reassertContractAuthority(summary);
       ...(laneMap[primary] || {})
     };
   },
+
+async loadThreadState(summary = {}) {
+  if (!window.AriThreadStore?.load) {
+    return {
+      ...summary,
+      threadStateLoaded: false,
+      threadStateLoadReason: "thread_store_load_not_available"
+    };
+  }
+
+  try {
+    const threadState = await window.AriThreadStore.load();
+
+    return {
+      ...summary,
+      threadStateLoaded: true,
+      threadState: threadState || {},
+
+      recentMessages:
+        threadState?.lastMessages || [],
+
+      workingContext:
+        threadState?.continuitySummary ||
+        threadState?.currentTopic ||
+        null,
+
+      activeTopic:
+        threadState?.currentTopic || null
+    };
+  } catch (error) {
+    return {
+      ...summary,
+      threadStateLoaded: false,
+      threadStateLoadReason: "thread_store_load_failed",
+      threadStateLoadError: error?.message || String(error)
+    };
+  }
+},
 
   debugLog(summary = {}, reasoningResult = {}) {
     console.log("===== ARI REBIRTH PIPELINE =====", this.version);
