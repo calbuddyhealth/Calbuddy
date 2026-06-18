@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
-// Purpose: Preserve active working context across turns.
-// V4.1.0 — Active Situation Promotion / Stale Context Suppression
+// Purpose: Convert user language into active situation context across turns.
+// V5.0.0 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "4.1.0",
+  version: "5.0.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -23,42 +23,32 @@ window.AriThreadUnderstandingEngine = {
 
     const recentMessages = this.getRecentMessages(summary, currentText);
     const currentTurn = this.readTurn(currentText);
-    const reconstructedContext = this.rebuildContextFromMessages(recentMessages);
+
+    const currentSituation = this.understandSituation(currentTurn, recentMessages);
 
     const topicTransition = this.detectTopicTransition({
       previousWorkingContext,
-      reconstructedContext,
-      currentTurn
+      currentTurn,
+      currentSituation
     });
 
     const workingContext = this.mergeWorkingContext({
       previousWorkingContext,
-      reconstructedContext,
       currentTurn,
+      currentSituation,
       currentText,
       topicTransition
     });
 
-    const stateChange = this.detectStateChange(currentTurn);
+    const stateChange = this.detectStateChange(currentTurn, currentSituation);
 
-    this.updateUnresolvedItems(workingContext, currentTurn, stateChange);
-
-    let resolvedMeaning = this.resolveMeaning({
-  currentText,
-  currentTurn,
-  workingContext,
-  stateChange
-});
-
-const activeSituationPatch = this.promoteActiveSituation({
-  currentText,
-  recentMessages,
-  workingContext,
-  resolvedMeaning,
-  topicTransition
-});
-
-resolvedMeaning = activeSituationPatch.resolvedMeaning;
+    const resolvedMeaning = this.resolveMeaning({
+      currentText,
+      currentTurn,
+      currentSituation,
+      workingContext,
+      stateChange
+    });
 
     const threadUnderstanding = {
       threadUnderstandingRan: true,
@@ -67,37 +57,39 @@ resolvedMeaning = activeSituationPatch.resolvedMeaning;
 
       currentText,
       recentMessages,
-
       currentTurn,
+
+      activeSituation: currentSituation.activeSituation,
+      situationFrame: currentSituation.situationFrame,
+      keyFacts: currentSituation.keyFacts,
+      decisionStructure: currentSituation.decisionStructure,
+      centralTradeoff: currentSituation.centralTradeoff,
+      hardConstraints: currentSituation.hardConstraints,
+      openQuestions: currentSituation.openQuestions,
+
       workingContext,
       resolvedMeaning,
-
-activeSituation: activeSituationPatch.activeSituation,
-keyFacts: activeSituationPatch.keyFacts,
-staleContextSuppressed: activeSituationPatch.staleContextSuppressed,
-suppressedTopics: activeSituationPatch.suppressedTopics,
-
-stateChange,
-topicTransition: activeSituationPatch.topicTransition || topicTransition,
+      stateChange,
+      topicTransition,
 
       activeSubject: workingContext.activeSubject,
       activeObject: workingContext.activeObject,
       activeIssue: workingContext.activeIssue,
       activeGoal: workingContext.activeGoal,
-
+      activeEntities: workingContext.activeEntities,
       activeConstraints: workingContext.activeConstraints,
       activeAttempts: workingContext.activeAttempts,
       unresolvedItems: workingContext.unresolvedItems,
-
       domainSignals: workingContext.domainSignals,
+      intentSignals: workingContext.intentSignals,
 
-      impliedQuestion: null,
+      staleContextSuppressed: topicTransition.switched === true,
+      suppressedTopics: topicTransition.suppressedTopics || [],
 
       confidence: this.scoreConfidence({
-        recentMessages,
+        currentSituation,
         workingContext,
         resolvedMeaning,
-        stateChange,
         topicTransition
       }),
 
@@ -131,15 +123,22 @@ topicTransition: activeSituationPatch.topicTransition || topicTransition,
       workingContext,
       threadWorkingContext: workingContext,
 
+      activeSituation: currentSituation.activeSituation,
+      situationFrame: currentSituation.situationFrame,
+      keyFacts: currentSituation.keyFacts,
+      decisionStructure: currentSituation.decisionStructure,
+      centralTradeoff: currentSituation.centralTradeoff,
+      hardConstraints: currentSituation.hardConstraints,
+      openQuestions: currentSituation.openQuestions,
+
       threadActiveSubject: workingContext.activeSubject,
       threadActiveObject: workingContext.activeObject,
       threadActiveIssue: workingContext.activeIssue,
       threadActiveGoal: workingContext.activeGoal,
 
       threadStateChange: stateChange,
-      threadTopicTransition: activeSituationPatch.topicTransition || topicTransition,
+      threadTopicTransition: topicTransition,
       threadResolvedMeaning: resolvedMeaning,
-      threadImpliedQuestion: null,
       threadRecentMessages: recentMessages,
 
       authority: "advisory_context_only"
@@ -153,12 +152,22 @@ topicTransition: activeSituationPatch.topicTransition || topicTransition,
       activeIssue: null,
       activeGoal: null,
 
+      activeEntities: [],
       activeConstraints: [],
       activeAttempts: [],
       unresolvedItems: [],
 
       domainSignals: [],
+      intentSignals: [],
       timeline: [],
+
+      activeSituation: null,
+      situationFrame: null,
+      keyFacts: [],
+      decisionStructure: null,
+      centralTradeoff: null,
+      hardConstraints: [],
+      openQuestions: [],
 
       lastUserText: null,
       updatedAt: null
@@ -211,230 +220,500 @@ topicTransition: activeSituationPatch.topicTransition || topicTransition,
         /\b(nevermind|never mind|forget it|different topic|new question|unrelated|switch topics|start over)\b/.test(lower),
 
       hasContinuationCue:
-        /\b(and|also|what if|but what if|still|then|so|okay but|what about|next|continue)\b/.test(lower),
+        /\b(and|also|what if|but what if|still|then|so|okay but|what about|next|continue|based on that|what matters|what should i do)\b/.test(lower),
 
       signals: this.extractSignals(lower, clean)
     };
   },
 
+  understandSituation(turn = {}, recentMessages = []) {
+    const text = turn.clean || "";
+    const lower = turn.lower || "";
+
+    const entities = this.extractEntities(text);
+    const domains = this.detectDomains(lower, entities);
+    const intentSignals = this.detectIntentSignals(lower);
+    const situationFrame = this.detectSituationFrame(lower, entities, intentSignals);
+    const decisionStructure = this.extractDecisionStructure(text, lower, entities);
+    const hardConstraints = this.extractHardConstraints(text, lower);
+    const centralTradeoff = this.extractCentralTradeoff({
+      text,
+      lower,
+      entities,
+      decisionStructure,
+      hardConstraints
+    });
+
+    const keyFacts = this.extractKeyFacts({
+      text,
+      lower,
+      entities,
+      situationFrame,
+      decisionStructure,
+      hardConstraints,
+      centralTradeoff
+    });
+
+    const activeSituation = this.makeActiveSituation({
+      text,
+      situationFrame,
+      decisionStructure,
+      centralTradeoff,
+      keyFacts
+    });
+
+    const openQuestions = this.extractOpenQuestions({
+      situationFrame,
+      decisionStructure,
+      hardConstraints,
+      keyFacts
+    });
+
+    return {
+      activeSituation,
+      situationFrame,
+      entities,
+      domains,
+      intentSignals,
+      decisionStructure,
+      centralTradeoff,
+      hardConstraints,
+      keyFacts,
+      openQuestions,
+      confidence: this.scoreSituationConfidence({
+        activeSituation,
+        situationFrame,
+        entities,
+        decisionStructure,
+        keyFacts,
+        hardConstraints
+      })
+    };
+  },
+
   extractSignals(lowerText = "", cleanText = "") {
-    const signals = [];
+    return [
+      ...this.detectDomains(lowerText, this.extractEntities(cleanText)),
+      ...this.detectIntentSignals(lowerText)
+    ];
+  },
 
-    const add = (category, type, value, evidence, confidence = 0.7, data = {}) => {
+  extractEntities(text = "") {
+    const lower = text.toLowerCase();
+    const entities = [];
+
+    const add = (type, value, label, evidence, confidence = 0.75) => {
       if (!value) return;
-
-      signals.push({
-        category,
+      entities.push({
         type,
         value,
-        evidence,
+        label: label || value,
+        evidence: evidence || value,
         confidence,
-        source: "ari-thread-understanding-engine",
-        ...data
+        source: "ari-thread-understanding-engine"
       });
     };
 
-    this.detectConcreteSubjects(lowerText, cleanText, add);
-    this.detectConcreteObjects(lowerText, cleanText, add);
-    this.detectConcreteIssues(lowerText, cleanText, add);
-    this.detectConcreteGoals(lowerText, cleanText, add);
-    this.detectConcreteConstraints(lowerText, cleanText, add);
-    this.detectConcreteAttempts(lowerText, cleanText, add);
-    this.detectDomainSignals(lowerText, cleanText, add);
-
-    return signals;
-  },
-    detectConcreteSubjects(lowerText = "", cleanText = "", add) {
-    const patterns = [
-      { regex: /\bmy father\b|\bmy dad\b/, label: "my father" },
-      { regex: /\bmy mother\b|\bmy mom\b/, label: "my mother" },
-      { regex: /\bmy wife\b/, label: "my wife" },
-      { regex: /\bmy husband\b/, label: "my husband" },
-      { regex: /\bmy fianc[eé]\b/, label: "my fiancé" },
-      { regex: /\bmy girlfriend\b/, label: "my girlfriend" },
-      { regex: /\bmy boyfriend\b/, label: "my boyfriend" },
-      { regex: /\bmy cat\b/, label: "my cat" },
-      { regex: /\bmy dog\b/, label: "my dog" }
+    const people = [
+      ["father", /\b(my father|my dad|dad)\b/, "my father"],
+      ["mother", /\b(my mother|my mom|mom)\b/, "my mother"],
+      ["partner", /\b(my wife|my husband|my fiancé|my fiance|my girlfriend|my boyfriend|partner)\b/, "my partner"],
+      ["child", /\b(my child|my kid|my son|my daughter|child|kid)\b/, "my child"],
+      ["friend", /\b(my friend|friend)\b/, "my friend"],
+      ["coworker", /\b(coworker|co-worker|colleague|staff|employee)\b/, "coworker"],
+      ["pet", /\b(my cat|my dog|cat|dog|pet)\b/, "pet"]
     ];
 
-    patterns.forEach(p => {
-      if (p.regex.test(lowerText)) {
-        add(
-          "subject",
-          "named_subject",
-          p.label,
-          p.label,
-          0.9,
-          { label: p.label }
-        );
-      }
+    people.forEach(([value, regex, label]) => {
+      if (regex.test(lower)) add("person", value, label, label, 0.84);
     });
 
-    if (/\b(i|me|my)\b/.test(lowerText)) {
-      add(
-        "subject",
-        "self_reference",
-        "self",
-        "first person",
-        0.8,
-        { label: "the user" }
-      );
+    if (/\b(i|me|my|i'm|i am)\b/.test(lower)) {
+      add("person", "self", "the user", "first person", 0.82);
     }
-  },
 
-  detectConcreteObjects(lowerText = "", cleanText = "", add) {
-    const objectWords = [
-      "car",
-      "engine",
-      "phone",
-      "computer",
-      "website",
-      "app",
-      "homepage",
-      "button",
-      "code",
-      "file",
-      "pipeline",
-      "github",
-      "supabase",
-      "vercel"
+    const objectPatterns = [
+      ["car", /\bcar|vehicle|truck|suv\b/],
+      ["code", /\bcode|file|javascript|html|css|github|supabase|vercel|engine|pipeline\b/],
+      ["school_event", /\bschool event|school performance|school meeting|school\b/],
+      ["money", /\bmoney|budget|payment|debt|cost|rent|salary\b/],
+      ["health_symptom", /\bpain|fever|bleeding|diarrhea|cough|itch|swallow|symptom\b/]
     ];
 
-    objectWords.forEach(word => {
-      if (lowerText.includes(word)) {
-        add(
-          "object",
-          "named_object",
-          word,
-          word,
-          0.82,
-          { label: word }
-        );
-      }
+    objectPatterns.forEach(([value, regex]) => {
+      if (regex.test(lower)) add("object", value, value, value, 0.78);
     });
+
+    return this.uniqueNodes(entities);
   },
 
-  detectConcreteIssues(lowerText = "", cleanText = "", add) {
-    const issuePatterns = [
-      "pain",
-      "error",
-      "bug",
-      "broken",
-      "not working",
-      "crash",
-      "bleeding",
-      "fever",
-      "diarrhea",
-      "cough",
-      "itch",
-      "swallow",
-      "problem"
-    ];
+  detectDomains(lower = "", entities = []) {
+    const domains = [];
 
-    issuePatterns.forEach(issue => {
-      if (lowerText.includes(issue)) {
-        add(
-          "issue",
-          "mentioned_issue",
-          issue,
-          issue,
-          0.82,
-          { label: issue }
-        );
+    const add = (value, evidence, confidence = 0.75) => {
+      domains.push({
+        category: "domain",
+        type: "domain",
+        value,
+        evidence,
+        confidence,
+        source: "ari-thread-understanding-engine"
+      });
+    };
+
+    if (entities.some(e => e.value === "child" || e.value === "father" || e.value === "mother" || e.value === "partner")) {
+      add("family", "family entity", 0.82);
+    }
+
+    if (entities.some(e => e.value === "friend" || e.value === "partner")) {
+      add("relationship", "relationship entity", 0.8);
+    }
+
+    if (/\bwork|job|career|promotion|salary|coworker|leadership|boss|school\b/.test(lower)) {
+      add("work_or_school", "work/school language", 0.76);
+    }
+
+    if (/\bcode|file|javascript|html|css|github|supabase|vercel|engine|pipeline\b/.test(lower)) {
+      add("software", "software language", 0.82);
+    }
+
+    if (/\bpain|fever|bleeding|diarrhea|cough|itch|swallow|symptom|pregnant|vitals|labs\b/.test(lower)) {
+      add("health", "health language", 0.84);
+    }
+
+    if (/\bmoney|budget|payment|debt|cost|salary|rent|afford\b/.test(lower)) {
+      add("finance", "finance language", 0.8);
+    }
+
+    return this.uniqueSignals(domains);
+  },
+
+  detectIntentSignals(lower = "") {
+    const signals = [];
+
+    const add = (value, evidence, confidence = 0.75) => {
+      signals.push({
+        category: "intent",
+        type: "intent",
+        value,
+        evidence,
+        confidence,
+        source: "ari-thread-understanding-engine"
+      });
+    };
+
+    if (/\bwhat should i do|should i|what do i do|recommend|decide|choose|only do one\b/.test(lower)) {
+      add("decision_support", "decision language", 0.86);
+    }
+
+    if (/\bwhy|how come|what causes\b/.test(lower)) {
+      add("explanation", "explanation language", 0.76);
+    }
+
+    if (/\bfix|debug|not working|broken|error|bug\b/.test(lower)) {
+      add("debugging", "debugging language", 0.82);
+    }
+
+    if (/\bwhat matters|what is more important|priority|prioritize\b/.test(lower)) {
+      add("prioritization", "priority language", 0.84);
+    }
+
+    return this.uniqueSignals(signals);
+  },
+
+  detectSituationFrame(lower = "", entities = [], intentSignals = []) {
+    const hasDecision = intentSignals.some(s => s.value === "decision_support" || s.value === "prioritization");
+
+    if (
+      hasDecision &&
+      /\bbut|however|at the same time|only do one|either|or|between|can't do both|cannot do both\b/.test(lower)
+    ) {
+      return {
+        value: "competing_obligations_or_tradeoff",
+        label: "competing obligations or tradeoff",
+        confidence: 0.9,
+        source: "ari-thread-understanding-engine"
+      };
+    }
+
+    if (hasDecision) {
+      return {
+        value: "decision_support",
+        label: "decision support",
+        confidence: 0.84,
+        source: "ari-thread-understanding-engine"
+      };
+    }
+
+    if (/\bfix|debug|not working|broken|error|bug\b/.test(lower)) {
+      return {
+        value: "debugging_problem",
+        label: "debugging problem",
+        confidence: 0.84,
+        source: "ari-thread-understanding-engine"
+      };
+    }
+
+    if (/\bpain|fever|bleeding|diarrhea|cough|itch|swallow|symptom|pregnant\b/.test(lower)) {
+      return {
+        value: "medical_or_body_concern",
+        label: "medical or body concern",
+        confidence: 0.84,
+        source: "ari-thread-understanding-engine"
+      };
+    }
+
+    if (entities.some(e => e.type === "person" && e.value !== "self")) {
+      return {
+        value: "relationship_or_people_context",
+        label: "relationship or people context",
+        confidence: 0.74,
+        source: "ari-thread-understanding-engine"
+      };
+    }
+
+    return {
+      value: "general_understanding",
+      label: "general understanding",
+      confidence: 0.6,
+      source: "ari-thread-understanding-engine"
+    };
+  },
+
+  extractDecisionStructure(text = "", lower = "", entities = []) {
+    const hasDecision =
+      /\bwhat should i do|should i|decide|choose|only do one|either|or|between|can't do both|cannot do both\b/.test(lower);
+
+    if (!hasDecision) return null;
+
+    const options = this.extractOptions(text, lower, entities);
+
+    return {
+      type: "decision_structure",
+      options,
+      optionCount: options.length,
+      mutuallyExclusive:
+        /\bonly do one|can't do both|cannot do both|at the same time|same time|either\b/.test(lower),
+      decisionQuestion:
+        /\bwhat should i do|should i|what do i do\b/.test(lower),
+      confidence: options.length >= 2 ? 0.86 : 0.68,
+      source: "ari-thread-understanding-engine"
+    };
+  },
+
+  extractOptions(text = "", lower = "", entities = []) {
+    const options = [];
+
+    const add = (label, evidence, confidence = 0.76) => {
+      if (!label) return;
+      options.push({
+        label,
+        evidence: evidence || label,
+        confidence,
+        source: "ari-thread-understanding-engine"
+      });
+    };
+
+    const promiseMatch = text.match(/\bpromised\s+([^.!?]{3,90})/i);
+    if (promiseMatch) {
+      add(this.clean(promiseMatch[0]), promiseMatch[0], 0.82);
+    }
+
+    const couldMatch = text.match(/\bcould\s+([^.!?]{3,90})/i);
+    if (couldMatch) {
+      const phrase = this.clean(couldMatch[0]);
+      if (phrase.includes(" or ")) {
+        phrase.split(/\s+or\s+/i).forEach(part => add(this.clean(part), part, 0.76));
+      } else {
+        add(phrase, phrase, 0.76);
       }
-    });
+    }
+
+    if (lower.includes("friend") && lower.includes("move")) {
+      add("help friend move", "friend + move", 0.86);
+    }
+
+    if (lower.includes("child") && lower.includes("school")) {
+      add("attend child's school event", "child + school event", 0.88);
+    }
+
+    if (lower.includes("repair") && lower.includes("car")) {
+      add("repair the car", "repair + car", 0.82);
+    }
+
+    if (lower.includes("course") || lower.includes("career")) {
+      add("invest in career opportunity", "course/career", 0.78);
+    }
+
+    return this.uniqueOptions(options).slice(0, 4);
   },
 
-  detectConcreteGoals(lowerText = "", cleanText = "", add) {
-    const match =
-      cleanText.match(
-        /\b(want to|need to|have to|must|plan to|trying to)\s+([^.!?]{1,80})/i
-      );
+  extractHardConstraints(text = "", lower = "") {
+    const constraints = [];
 
-    if (match) {
-      add(
-        "goal",
-        "stated_goal",
-        match[0],
-        match[0],
-        0.82,
-        { label: match[0] }
-      );
+    const add = (label, evidence, confidence = 0.78) => {
+      constraints.push({
+        type: "hard_constraint",
+        label,
+        value: label,
+        evidence,
+        confidence,
+        source: "ari-thread-understanding-engine"
+      });
+    };
+
+    if (/\bat the same time|same time\b/.test(lower)) {
+      add("two commitments happen at the same time", "same time", 0.86);
     }
+
+    if (/\bonly do one|can only do one|can't do both|cannot do both\b/.test(lower)) {
+      add("the user can only choose one option", "only do one", 0.9);
+    }
+
+    if (/\btomorrow|tonight|morning|deadline|due\b/.test(lower)) {
+      add("time pressure is present", "time phrase", 0.76);
+    }
+
+    if (/\bcan't afford both|cannot afford both|not enough money|budget\b/.test(lower)) {
+      add("limited money prevents doing both", "money constraint", 0.84);
+    }
+
+    if (/\bexhausted|tired|burned out|overwhelmed|stressed\b/.test(lower)) {
+      add("limited energy is affecting the decision", "energy state", 0.78);
+    }
+
+    return this.uniqueNodes(constraints);
   },
 
-  detectConcreteConstraints(lowerText = "", cleanText = "", add) {
-    const words = [
-      "deadline",
-      "budget",
-      "money",
-      "debt",
-      "payment",
-      "cost",
-      "time",
-      "understaffed"
-    ];
+  extractCentralTradeoff({ lower = "", entities = [], decisionStructure = null, hardConstraints = [] }) {
+    if (!decisionStructure) return null;
 
-    words.forEach(word => {
-      if (lowerText.includes(word)) {
-        add(
-          "constraint",
-          "constraint",
-          word,
-          word,
-          0.75,
-          { label: word }
-        );
-      }
-    });
+    const hasFriend = lower.includes("friend");
+    const hasChild = lower.includes("child") || lower.includes("kid") || lower.includes("son") || lower.includes("daughter");
+    const hasPromise = lower.includes("promised");
+    const hasSchool = lower.includes("school");
+
+    if (hasFriend && hasChild && hasPromise && hasSchool) {
+      return {
+        type: "central_tradeoff",
+        sideA: "honoring a promise to a friend",
+        sideB: "being present for the child’s school event",
+        label: "promise to friend vs presence for child",
+        confidence: 0.9,
+        source: "ari-thread-understanding-engine"
+      };
+    }
+
+    if (decisionStructure.options?.length >= 2) {
+      return {
+        type: "central_tradeoff",
+        sideA: decisionStructure.options[0].label,
+        sideB: decisionStructure.options[1].label,
+        label: `${decisionStructure.options[0].label} vs ${decisionStructure.options[1].label}`,
+        confidence: 0.78,
+        source: "ari-thread-understanding-engine"
+      };
+    }
+
+    return null;
   },
 
-  detectConcreteAttempts(lowerText = "", cleanText = "", add) {
-    const match =
-      cleanText.match(
-        /\b(tried|already|tested|replaced|checked|reported|called)\b/i
-      );
+  extractKeyFacts({
+    text = "",
+    lower = "",
+    entities = [],
+    situationFrame = {},
+    decisionStructure = null,
+    hardConstraints = [],
+    centralTradeoff = null
+  }) {
+    const facts = [];
 
-    if (match) {
-      add(
-        "attempt",
-        "prior_attempt",
-        match[0],
-        match[0],
-        0.75,
-        { label: match[0] }
-      );
+    const add = (fact, confidence = 0.82) => {
+      if (!fact) return;
+      facts.push({
+        type: "key_fact",
+        claim: fact,
+        confidence,
+        source: "ari-thread-understanding-engine"
+      });
+    };
+
+    if (lower.includes("promised") && lower.includes("friend") && lower.includes("move")) {
+      add("The user promised to help a friend move.", 0.9);
     }
+
+    if (lower.includes("tomorrow")) {
+      add("The conflict happens tomorrow.", 0.78);
+    }
+
+    if (lower.includes("child") && lower.includes("school")) {
+      add("The user's child has a school event.", 0.9);
+    }
+
+    if (/\bat the same time|same time\b/.test(lower)) {
+      add("The commitments happen at the same time.", 0.88);
+    }
+
+    if (/\bonly do one|can only do one|can't do both|cannot do both\b/.test(lower)) {
+      add("The user can only choose one commitment.", 0.9);
+    }
+
+    if (centralTradeoff) {
+      add(`The central tradeoff is ${centralTradeoff.sideA} versus ${centralTradeoff.sideB}.`, 0.86);
+    }
+
+    if (!facts.length && text) {
+      add(`The user's current situation: ${text}`, 0.68);
+    }
+
+    return this.uniqueFacts(facts).slice(0, 8);
   },
 
-  detectDomainSignals(lowerText = "", cleanText = "", add) {
-    if (/\b(cat|dog|pet)\b/.test(lowerText)) {
-      add("domain", "domain", "pet", "pet", 0.8);
-    }
+  makeActiveSituation({ text = "", situationFrame = {}, decisionStructure = null, centralTradeoff = null, keyFacts = [] }) {
+    const label =
+      centralTradeoff?.label ||
+      situationFrame?.label ||
+      "active situation";
 
-    if (/\b(code|javascript|html|css|github|supabase|pipeline|engine)\b/.test(lowerText)) {
-      add("domain", "domain", "software", "software", 0.8);
-    }
-
-    if (/\b(pain|fever|bleeding|symptom|cough|diarrhea)\b/.test(lowerText)) {
-      add("domain", "domain", "health", "health", 0.8);
-    }
+    return {
+      type: "active_situation",
+      value: text,
+      label,
+      evidence: text,
+      situationFrame: situationFrame?.value || null,
+      confidence: Math.max(
+        situationFrame?.confidence || 0.6,
+        decisionStructure?.confidence || 0,
+        centralTradeoff?.confidence || 0,
+        keyFacts.length ? 0.82 : 0
+      ),
+      source: "ari-thread-understanding-engine"
+    };
   },
-    rebuildContextFromMessages(messages = []) {
-    const context = this.emptyWorkingContext();
 
-    for (const message of messages || []) {
-      const turn = this.readTurn(message);
-      this.applyTurnToContext(context, turn);
+  extractOpenQuestions({ situationFrame = {}, decisionStructure = null, hardConstraints = [], keyFacts = [] }) {
+    const questions = [];
+
+    if (decisionStructure && decisionStructure.options?.length < 2) {
+      questions.push("What are the real options being compared?");
     }
 
-    return context;
+    if (decisionStructure && !hardConstraints.length) {
+      questions.push("What constraint prevents doing both?");
+    }
+
+    if (situationFrame?.value === "medical_or_body_concern") {
+      questions.push("Are there red flags, worsening symptoms, or high-risk features?");
+    }
+
+    return questions.slice(0, 3);
   },
 
   mergeWorkingContext({
     previousWorkingContext = {},
-    reconstructedContext = {},
     currentTurn = {},
+    currentSituation = {},
     currentText = "",
     topicTransition = {}
   }) {
@@ -444,13 +723,36 @@ topicTransition: activeSituationPatch.topicTransition || topicTransition,
       this.copyContextInto(merged, previousWorkingContext);
     }
 
-    this.copyContextInto(merged, reconstructedContext);
-    this.applyTurnToContext(merged, currentTurn);
+    merged.activeSituation = currentSituation.activeSituation || merged.activeSituation;
+    merged.situationFrame = currentSituation.situationFrame || merged.situationFrame;
+    merged.keyFacts = currentSituation.keyFacts || [];
+    merged.decisionStructure = currentSituation.decisionStructure || null;
+    merged.centralTradeoff = currentSituation.centralTradeoff || null;
+    merged.hardConstraints = currentSituation.hardConstraints || [];
+    merged.openQuestions = currentSituation.openQuestions || [];
+
+    currentSituation.entities?.forEach(entity => {
+      if (entity.value === "self") {
+        merged.activeSubject = this.chooseBest(merged.activeSubject, entity);
+      } else {
+        merged.activeEntities.push(entity);
+      }
+    });
+
+    currentSituation.hardConstraints?.forEach(c => merged.activeConstraints.push(c));
+    currentSituation.domains?.forEach(d => merged.domainSignals.push(d));
+    currentSituation.intentSignals?.forEach(i => merged.intentSignals.push(i));
+
+    merged.timeline.push({
+      text: currentText,
+      createdAt: new Date().toISOString(),
+      situationFrame: currentSituation.situationFrame?.value || null
+    });
 
     merged.lastUserText = currentText;
     merged.updatedAt = new Date().toISOString();
 
-    return merged;
+    return this.normalizeWorkingContext(merged);
   },
 
   copyContextInto(target = {}, source = {}) {
@@ -461,140 +763,89 @@ topicTransition: activeSituationPatch.topicTransition || topicTransition,
     target.activeIssue = this.chooseBest(target.activeIssue, source.activeIssue);
     target.activeGoal = this.chooseBest(target.activeGoal, source.activeGoal);
 
+    target.activeEntities = this.mergeArrays(target.activeEntities, source.activeEntities);
     target.activeConstraints = this.mergeArrays(target.activeConstraints, source.activeConstraints);
     target.activeAttempts = this.mergeArrays(target.activeAttempts, source.activeAttempts);
     target.unresolvedItems = this.mergeArrays(target.unresolvedItems, source.unresolvedItems);
     target.domainSignals = this.mergeArrays(target.domainSignals, source.domainSignals);
+    target.intentSignals = this.mergeArrays(target.intentSignals, source.intentSignals);
     target.timeline = this.mergeArrays(target.timeline, source.timeline).slice(-12);
   },
 
-  applyTurnToContext(context = {}, turn = {}) {
-    for (const signal of turn.signals || []) {
-      const node = this.makeNode(
-        signal.category,
-        signal.value,
-        signal.label || signal.value,
-        signal.evidence,
-        signal.confidence
-      );
-
-    if (signal.category === "subject") {
-  context.activeSubject = this.chooseBest(context.activeSubject, node);
-}
-
-if (signal.category === "object") {
-  context.activeObject = this.chooseBest(context.activeObject, node);
-}
-
-if (signal.category === "issue") {
-  context.activeIssue = this.chooseBest(context.activeIssue, node);
-}
-
-if (signal.category === "goal") {
-  context.activeGoal = this.chooseBest(context.activeGoal, node);
-}
-      if (signal.category === "constraint") context.activeConstraints.push(node);
-      if (signal.category === "attempt") context.activeAttempts.push(node);
-      if (signal.category === "domain") context.domainSignals.push(signal);
-    }
-
-    if (turn.clean) {
-      context.timeline.push({
-        text: turn.clean,
-        createdAt: new Date().toISOString()
-      });
-    }
+  normalizeWorkingContext(context = {}) {
+    context.activeEntities = this.uniqueNodes(context.activeEntities);
+    context.activeConstraints = this.uniqueNodes(context.activeConstraints);
+    context.domainSignals = this.uniqueSignals(context.domainSignals);
+    context.intentSignals = this.uniqueSignals(context.intentSignals);
+    context.timeline = (context.timeline || []).slice(-12);
+    return context;
   },
 
-  detectStateChange(turn = {}) {
+  detectStateChange(turn = {}, situation = {}) {
     if (turn.hasExplicitReset) {
-      return { type: "topic_reset", confidence: 0.88 };
+      return { type: "topic_reset", confidence: 0.9 };
     }
 
-    if (turn.hasContinuationCue || turn.isShortFollowUp) {
+    if (turn.isShortFollowUp || turn.hasContinuationCue) {
       return { type: "context_continued", confidence: 0.72 };
+    }
+
+    if (situation.activeSituation?.confidence >= 0.8) {
+      return { type: "new_active_situation", confidence: 0.82 };
     }
 
     return { type: "none", confidence: 0.4 };
   },
 
-  detectTopicTransition({
-    previousWorkingContext = {},
-    reconstructedContext = {},
-    currentTurn = {}
-  }) {
+  detectTopicTransition({ previousWorkingContext = {}, currentTurn = {}, currentSituation = {} }) {
     if (currentTurn.hasExplicitReset) {
       return {
         switched: true,
-        from: this.primaryDomain(previousWorkingContext),
-        to: this.primaryDomain(reconstructedContext),
+        from: previousWorkingContext.situationFrame?.value || null,
+        to: currentSituation.situationFrame?.value || null,
         reason: "User explicitly reset topic.",
-        confidence: 0.88
+        confidence: 0.9,
+        suppressedTopics: this.summarizeSuppressed(previousWorkingContext)
       };
     }
 
-    const previousDomain = this.primaryDomain(previousWorkingContext);
-    const currentDomain = this.primaryDomain(reconstructedContext);
+    const previousFrame = previousWorkingContext.situationFrame?.value || null;
+    const currentFrame = currentSituation.situationFrame?.value || null;
 
     if (
-      previousDomain &&
-      currentDomain &&
-      previousDomain !== currentDomain &&
+      previousFrame &&
+      currentFrame &&
+      previousFrame !== currentFrame &&
       !currentTurn.isShortFollowUp
     ) {
       return {
         switched: true,
-        from: previousDomain,
-        to: currentDomain,
-        reason: "New dominant domain appeared.",
-        confidence: 0.74
+        from: previousFrame,
+        to: currentFrame,
+        reason: "New active situation frame appeared.",
+        confidence: 0.78,
+        suppressedTopics: this.summarizeSuppressed(previousWorkingContext)
       };
     }
 
     return {
       switched: false,
-      from: previousDomain || null,
-      to: currentDomain || previousDomain || null,
+      from: previousFrame,
+      to: currentFrame || previousFrame,
       reason: "No clear topic switch.",
-      confidence: 0.65
+      confidence: 0.65,
+      suppressedTopics: []
     };
   },
 
-  updateUnresolvedItems(context = {}, turn = {}, stateChange = {}) {
-    if (!Array.isArray(context.unresolvedItems)) {
-      context.unresolvedItems = [];
-    }
-
-    if (!context.activeIssue) return;
-
-    const existing = context.unresolvedItems.find(
-      item => item.value === context.activeIssue.value
-    );
-
-    if (existing) {
-      existing.lastMention = turn.clean || existing.lastMention;
-      existing.updatedAt = new Date().toISOString();
-      existing.status = stateChange.type === "topic_reset" ? "abandoned" : "active";
-      return;
-    }
-
-    context.unresolvedItems.push({
-      ...context.activeIssue,
-      status: stateChange.type === "topic_reset" ? "abandoned" : "active",
-      lastMention: turn.clean || null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-
-    context.unresolvedItems = context.unresolvedItems.slice(-8);
+  summarizeSuppressed(context = {}) {
+    return (context.timeline || [])
+      .slice(-5)
+      .map(item => item.text)
+      .filter(Boolean);
   },
 
-  resolveMeaning({
-    currentText = "",
-    currentTurn = {},
-    workingContext = {},
-    stateChange = {}
-  }) {
+  resolveMeaning({ currentText = "", currentTurn = {}, currentSituation = {}, workingContext = {}, stateChange = {} }) {
     return {
       isContextual: Boolean(
         currentTurn.isShortFollowUp ||
@@ -604,6 +855,14 @@ if (signal.category === "goal") {
 
       currentText,
 
+      activeSituation: currentSituation.activeSituation || null,
+      situationFrame: currentSituation.situationFrame || null,
+      keyFacts: currentSituation.keyFacts || [],
+      decisionStructure: currentSituation.decisionStructure || null,
+      centralTradeoff: currentSituation.centralTradeoff || null,
+      hardConstraints: currentSituation.hardConstraints || [],
+      openQuestions: currentSituation.openQuestions || [],
+
       resolvedSubject: workingContext.activeSubject || null,
       resolvedObject: workingContext.activeObject || null,
       resolvedIssue: workingContext.activeIssue || null,
@@ -612,26 +871,37 @@ if (signal.category === "goal") {
       resolvedAttempts: workingContext.activeAttempts || [],
 
       stateChange,
-
-      confidence: this.meaningConfidence({
-        workingContext,
-        stateChange
-      }),
-
+      confidence: currentSituation.confidence || 0.5,
       authority: "advisory_context_only"
     };
   },
 
-  primaryDomain(context = {}) {
-    const signals = Array.isArray(context.domainSignals)
-      ? context.domainSignals
-      : [];
+  scoreSituationConfidence({ activeSituation, situationFrame, entities = [], decisionStructure, keyFacts = [], hardConstraints = [] }) {
+    let score = 0.35;
 
-    if (!signals.length) return null;
+    if (activeSituation) score += 0.12;
+    if (situationFrame?.confidence) score += 0.12;
+    if (entities.length) score += 0.08;
+    if (decisionStructure) score += 0.12;
+    if (keyFacts.length >= 2) score += 0.15;
+    if (hardConstraints.length) score += 0.08;
 
-    return [...signals].sort(
-      (a, b) => Number(b.confidence || 0) - Number(a.confidence || 0)
-    )[0]?.value || null;
+    return Math.min(0.95, score);
+  },
+
+  scoreConfidence({ currentSituation = {}, workingContext = {}, resolvedMeaning = {}, topicTransition = {} }) {
+    let score = 35;
+
+    if (currentSituation.activeSituation) score += 16;
+    if (currentSituation.situationFrame) score += 10;
+    if ((currentSituation.keyFacts || []).length) score += 14;
+    if (currentSituation.decisionStructure) score += 10;
+    if (currentSituation.centralTradeoff) score += 10;
+    if ((currentSituation.hardConstraints || []).length) score += 6;
+    if (resolvedMeaning.isContextual) score += 4;
+    if (topicTransition.switched) score += 2;
+
+    return Math.max(25, Math.min(95, score));
   },
 
   makeNode(type, value, label, evidence, confidence = 0.6) {
@@ -655,277 +925,56 @@ if (signal.category === "goal") {
     )[0];
   },
 
-  mergeArrays(a = [], b = []) {
-    const combined = [
-      ...(Array.isArray(a) ? a : []),
-      ...(Array.isArray(b) ? b : [])
-    ];
-
+  uniqueOptions(options = []) {
     const seen = new Set();
 
-    return combined.filter(item => {
-      const key = JSON.stringify({
-        type: item?.type,
-        value: item?.value,
-        label: item?.label,
-        evidence: item?.evidence
-      });
-
-      if (seen.has(key)) return false;
+    return options.filter(option => {
+      const key = String(option.label || "").toLowerCase();
+      if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     });
   },
 
-  scoreConfidence({
-    recentMessages = [],
-    workingContext = {},
-    resolvedMeaning = {},
-    stateChange = {},
-    topicTransition = {}
-  }) {
-    let score = 35;
+  uniqueFacts(facts = []) {
+    const seen = new Set();
 
-    if (recentMessages.length >= 2) score += 10;
-    if (workingContext.activeSubject) score += 10;
-    if (workingContext.activeObject) score += 10;
-    if (workingContext.activeIssue) score += 12;
-    if (workingContext.activeGoal) score += 8;
-    if ((workingContext.activeConstraints || []).length) score += 6;
-    if ((workingContext.activeAttempts || []).length) score += 6;
-    if (resolvedMeaning.isContextual) score += 6;
-    if (stateChange.type && stateChange.type !== "none") score += 4;
-    if (topicTransition.switched) score -= 8;
-
-    return Math.max(25, Math.min(95, score));
+    return facts.filter(fact => {
+      const key = String(fact.claim || fact).toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   },
 
-  meaningConfidence({ workingContext = {}, stateChange = {} }) {
-    let score = 40;
+  uniqueNodes(nodes = []) {
+    const seen = new Set();
 
-    if (workingContext.activeSubject) score += 10;
-    if (workingContext.activeObject) score += 10;
-    if (workingContext.activeIssue) score += 12;
-    if (workingContext.activeGoal) score += 8;
-    if ((workingContext.activeConstraints || []).length) score += 6;
-    if ((workingContext.activeAttempts || []).length) score += 6;
-    if (stateChange?.type && stateChange.type !== "none") score += 4;
-
-    return Math.max(25, Math.min(95, score));
+    return (nodes || []).filter(node => {
+      const key = `${node.type || ""}:${node.value || node.label || node.evidence || ""}`.toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   },
 
-promoteActiveSituation({
-  currentText = "",
-  recentMessages = [],
-  workingContext = {},
-  resolvedMeaning = {},
-  topicTransition = {}
-}) {
-  const lower = this.clean(currentText).toLowerCase();
+  uniqueSignals(signals = []) {
+    const seen = new Set();
 
-  const isContextual =
-    /\b(here|this|that|it|they|them|those|what matters|what about|do you still|based on|earlier|before)\b/i.test(lower) ||
-    resolvedMeaning?.isContextual === true;
+    return (signals || []).filter(signal => {
+      const key = `${signal.category || ""}:${signal.type || ""}:${signal.value || ""}`.toLowerCase();
+      if (!signal?.value || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
 
- if (!isContextual) {
-  const currentScenarioScore = this.scoreScenario(currentText);
-
-  if (currentScenarioScore >= 3) {
-    const activeSituation = this.makeNode(
-      "active_situation",
-      currentText,
-      currentText,
-      currentText,
-      0.88
-    );
-
-    const keyFacts = this.extractKeyFactsFromScenario(currentText);
-
-    workingContext.activeSubject = activeSituation;
-    workingContext.activeObject = null;
-    workingContext.activeIssue = null;
-    workingContext.activeGoal =
-      workingContext.activeGoal || this.extractGoalFromScenario(currentText);
-
-    return {
-      resolvedMeaning: {
-        ...resolvedMeaning,
-        activeSituation,
-        keyFacts,
-        resolvedSubject: activeSituation,
-        resolvedObject: null,
-        resolvedIssue: null,
-        resolvedGoal: workingContext.activeGoal,
-        staleContextSuppressed: false
-      },
-      activeSituation,
-      keyFacts,
-      staleContextSuppressed: false,
-      suppressedTopics: [],
-      topicTransition
-    };
-  }
-
-  return {
-    resolvedMeaning,
-    activeSituation: null,
-    keyFacts: [],
-    staleContextSuppressed: false,
-    suppressedTopics: [],
-    topicTransition
-  };
-}
-
-  const bestPriorScenario = this.findBestPriorScenario(recentMessages, currentText);
-
-  if (!bestPriorScenario) {
-    return {
-      resolvedMeaning,
-      activeSituation: null,
-      keyFacts: [],
-      staleContextSuppressed: false,
-      suppressedTopics: [],
-      topicTransition
-    };
-  }
-
-  const activeSituation = this.makeNode(
-    "active_situation",
-    bestPriorScenario,
-    bestPriorScenario,
-    bestPriorScenario,
-    0.9
-  );
-
-  const keyFacts = this.extractKeyFactsFromScenario(bestPriorScenario);
-
-  workingContext.activeSubject = activeSituation;
-  workingContext.activeObject = null;
-  workingContext.activeIssue = null;
-  workingContext.activeGoal =
-    workingContext.activeGoal || this.extractGoalFromScenario(bestPriorScenario);
-
-  const patchedResolvedMeaning = {
-    ...resolvedMeaning,
-    isContextual: true,
-    resolvedSubject: activeSituation,
-    resolvedObject: null,
-    resolvedIssue: null,
-    resolvedGoal:
-      workingContext.activeGoal || this.extractGoalFromScenario(bestPriorScenario),
-    activeSituation,
-    keyFacts,
-    staleContextSuppressed: true,
-    suppressedReason:
-      "Contextual follow-up was bound to stronger recent scenario."
-  };
-
-  return {
-    resolvedMeaning: patchedResolvedMeaning,
-    activeSituation,
-    keyFacts,
-    staleContextSuppressed: true,
-    suppressedTopics: this.findSuppressedTopics(recentMessages, bestPriorScenario),
-    topicTransition: {
-      switched: true,
-      from: topicTransition?.from || "stale_context",
-      to: "active_situation",
-      reason:
-        "Contextual follow-up promoted recent scenario and suppressed stale context.",
-      confidence: 0.9
-    }
-  };
-},
-
-findBestPriorScenario(recentMessages = [], currentText = "") {
-  const current = this.clean(currentText).toLowerCase();
-
-  const candidates = recentMessages
-    .filter(Boolean)
-    .filter(m => typeof m === "string")
-    .map(m => this.clean(m))
-    .filter(m => m && m.toLowerCase() !== current)
-    .filter(m => m.length > 25)
-    .filter(m => !/\b(what matters more here|what do you think|what about that|what about this)\b/i.test(m))
-    .map(m => ({
-      text: m,
-      score: this.scoreScenario(m)
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  return candidates[0]?.score >= 3 ? candidates[0].text : null;
-},
-
-scoreScenario(message = "") {
-  const text = this.clean(message).toLowerCase();
-  let score = 0;
-
-  if (/\b(decide|decision|choose|whether|should i|trying to)\b/.test(text)) score += 3;
-  if (/\b(but|however|although|torn|guilty|exhausted|conflict)\b/.test(text)) score += 2;
-  if (/\b(test|tomorrow|promotion|pregnant|dad|sleep|study|move|moving)\b/.test(text)) score += 2;
-  if (text.length > 60) score += 1;
-
-  return score;
-},
-
-extractGoalFromScenario(message = "") {
-  const text = this.clean(message).toLowerCase();
-
-  if (text.includes("study") && text.includes("sleep")) {
-    return this.makeNode(
-      "goal",
-      "decide between studying and sleeping",
-      "decide between studying and sleeping",
-      message,
-      0.88
-    );
-  }
-
-  if (text.includes("promotion") && (text.includes("move") || text.includes("moving"))) {
-    return this.makeNode(
-      "goal",
-      "decide whether to accept the promotion and move",
-      "decide whether to accept the promotion and move",
-      message,
-      0.88
-    );
-  }
-
-  return null;
-},
-
-extractKeyFactsFromScenario(message = "") {
-  const text = this.clean(message).toLowerCase();
-  const facts = [];
-
-  if (text.includes("test tomorrow")) facts.push("There is a test tomorrow.");
-  if (text.includes("exhausted")) facts.push("The user is exhausted.");
-  if (text.includes("study") && text.includes("sleep")) {
-    facts.push("The user is deciding between studying and sleeping.");
-  }
-
-  if (text.includes("promotion")) facts.push("The user was offered a promotion.");
-  if (text.includes("30%")) facts.push("The promotion increases salary by 30%.");
-  if (text.includes("move") || text.includes("moving")) {
-    facts.push("The promotion may require moving.");
-  }
-  if (text.includes("pregnant")) facts.push("The user's partner is pregnant.");
-  if (text.includes("dad")) facts.push("The user's dad recently had a health scare.");
-  if (text.includes("guilty")) {
-    facts.push("The user feels guilty about considering the move.");
-  }
-
-  return facts;
-},
-
-findSuppressedTopics(recentMessages = [], activeScenario = "") {
-  return recentMessages
-    .filter(Boolean)
-    .map(m => this.clean(m))
-    .filter(m => m && m !== activeScenario)
-    .filter(m => /cat|diarrhea|car|grocery|mexican store/i.test(m))
-    .slice(-5);
-},
+  mergeArrays(a = [], b = []) {
+    return this.uniqueNodes([
+      ...(Array.isArray(a) ? a : []),
+      ...(Array.isArray(b) ? b : [])
+    ]);
+  },
 
   clean(value = "") {
     return String(value || "")
