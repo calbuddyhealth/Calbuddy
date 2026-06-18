@@ -44,13 +44,18 @@ window.Ari.observerRoutingEvidence = {
     const messageShape = this.measureMessageShape(text);
     const observerShape = this.measureObserverShape(observations);
     const contextShape = this.measureContextShape(text, recentMessages, thread);
-    const memoryShape = this.measureMemoryShape(summary, memory, observerShape);
+   const followUpShape = this.measureFollowUpShape(text, recentMessages, summary);
+     const memoryShape = this.measureMemoryShape(summary, memory, observerShape);
     const revisionShape = this.measureRevisionShape(summary, observerShape);
     const relationshipShape = this.measureRelationshipShape(summary, relationship, observerShape);
-
+const followUpShape = this.measureFollowUpShape(text, recentMessages, summary);
     const pressures = {
       standaloneCompleteness: this.scoreStandaloneCompleteness(messageShape, contextShape, observerShape),
       contextDependency: this.scoreContextDependency(messageShape, contextShape, observerShape),
+      followUpPressure: this.scoreFollowUpPressure(
+  followUpShape,
+  contextShape
+),
       recallPressure: this.scoreRecallPressure(memoryShape, contextShape, observerShape),
       revisionPressure: this.scoreRevisionPressure(revisionShape, contextShape, observerShape),
       relationshipContinuity: this.scoreRelationshipContinuity(relationshipShape, contextShape, observerShape),
@@ -74,6 +79,7 @@ window.Ari.observerRoutingEvidence = {
         messageShape,
         observerShape,
         contextShape,
+        followUpShape,
         memoryShape,
         revisionShape,
         relationshipShape
@@ -160,6 +166,31 @@ window.Ari.observerRoutingEvidence = {
         : 0
     };
   },
+
+measureFollowUpShape(text = "", recentMessages = [], summary = {}) {
+  const normalized = this.normalize(text);
+  const hasThread = recentMessages.length > 0 || !!summary.threadState;
+
+  const startsAsFollowUp =
+    /^(why|how|what if|then what|after that|what about|and if|but|so|ok|okay)\b/i.test(normalized);
+
+  const hasReference =
+    this.measureReferenceLoad(normalized) > 0.08;
+
+  const shortQuestion =
+    normalized.endsWith("?") && normalized.split(/\s+/).filter(Boolean).length <= 14;
+
+  return {
+    hasThread,
+    startsAsFollowUp,
+    hasReference,
+    shortQuestion,
+    followUpSignal:
+      hasThread && (startsAsFollowUp || hasReference || shortQuestion)
+        ? 1
+        : 0
+  };
+},
 
   measureMemoryShape(summary, memory, observerShape) {
     return {
