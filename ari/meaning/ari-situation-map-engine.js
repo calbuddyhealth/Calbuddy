@@ -105,9 +105,11 @@ this.syncLegacyCompatibility(map);
       situationMapVersion: this.version,
       source: "ari-situation-map-engine",
 
-      rawText: text,
+      text,
+rawText: text,
 rawUserText,
 resolvedText,
+normalizedResolvedText: text,
 threadQuestionUsed: Boolean(resolvedText !== rawUserText),
 threadQuestion: {
   used: Boolean(resolvedText !== rawUserText),
@@ -358,7 +360,8 @@ threadQuestion: {
     if (this.hasType(observations, "person_reference")) this.add(map.domains, "relationship_context_domain");
 
     this.mapConversationDomain(conversation.conversationType, map);
-    this.mapUniversalDomainSignals(map);
+this.mapUniversalDomainSignals(map);
+this.mapTextDomainSignals(map);
   },
 
   mapConversationDomain(type, map) {
@@ -399,6 +402,53 @@ threadQuestion: {
     });
   },
 
+mapTextDomainSignals(map) {
+  const text = map.rawText || map.resolvedText || "";
+
+  if (/\b(cat|dog|pet|kitten|puppy|fleas?|ticks?|vet)\b/.test(text)) {
+    this.add(map.domains, "animal_health_context_domain");
+  }
+
+  if (/\b(sunburn|burned|burnt|blister|blisters|skin|pain|red|peeling)\b/.test(text)) {
+    this.add(map.domains, "medical_context_domain");
+  }
+
+  if (/\b(code|bug|error|file|function|engine|pipeline|javascript|github)\b/.test(text)) {
+    this.add(map.domains, "builder_domain");
+  }
+},
+
+mapTextSituationSignals(map) {
+  const text = map.rawText || map.resolvedText || "";
+
+  if (/\b(sunburn|burned|burnt)\b/.test(text)) {
+    this.add(map.situations, "sunburn_or_skin_irritation_context");
+  }
+
+  if (/\b(fleas?|ticks?)\b/.test(text)) {
+    this.add(map.situations, "pet_parasite_context");
+  }
+
+  if (/\bwhat else can i do|what should i do|can i|how do i\b/.test(text)) {
+    this.add(map.situations, "action_guidance_request");
+  }
+},
+
+mapTextNeedSignals(map) {
+  const text = map.rawText || map.resolvedText || "";
+
+  if (
+    /\b(sunburn|burned|burnt|blister|blisters|fleas?|ticks?)\b/.test(text)
+  ) {
+    this.add(map.needs, "context_sensitive_support");
+    this.add(map.needs, "action_or_build_help");
+  }
+
+  if (/\bwhat else can i do|what should i do|how do i\b/.test(text)) {
+    this.add(map.needs, "action_or_build_help");
+  }
+},
+
   detectSituations(map) {
     const observations = map.observationsUsed || [];
     const safetyGate = map.safetyGateUsed || {};
@@ -427,8 +477,9 @@ threadQuestion: {
       null;
 
     this.mapIssueKindToSituation(issueKind, map);
-    this.mapUpstreamIssueSignals(map);
-    this.mapUpstreamIntentSignals(map);
+this.mapUpstreamIssueSignals(map);
+this.mapUpstreamIntentSignals(map);
+this.mapTextSituationSignals(map);
 
     if (
   thread.workingContext ||
@@ -562,6 +613,7 @@ threadQuestion: {
     if (map.domains.includes("creative_design_domain")) this.add(map.needs, "creative_generation");
     if (map.domains.includes("accountability_context_domain")) this.add(map.needs, "accountability_support");
 
+this.mapTextNeedSignals(map);
     if (!map.needs.length) {
       this.add(map.needs, "general_understanding");
     }
