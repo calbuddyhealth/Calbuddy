@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, and entity context.
-// V1.3.0 — V3 Thread-Compatible / Advisory Only
+// V1.3.1 — V3 Thread-Compatible / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.3.0",
+  version: "1.3.1",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -294,9 +294,13 @@ addActiveSituationFacts(context = {}) {
   }
 
   if (keyFacts.length) {
-    context.keyFacts = keyFacts;
+  context.keyFacts = keyFacts.map(fact =>
+    typeof fact === "string"
+      ? fact
+      : fact.claim || fact.value || fact.label || fact.evidence || ""
+  ).filter(Boolean);
 
-    keyFacts.forEach(fact => {
+  context.keyFacts.forEach(fact => {
       context.advisoryFacts.unshift({
         type: "key_fact",
         claim: fact,
