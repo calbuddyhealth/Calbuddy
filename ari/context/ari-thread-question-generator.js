@@ -1,11 +1,11 @@
 // ari/context/ari-thread-question-generator.js
 // Purpose: Resolve short follow-up questions using thread context.
-// V1.1.0 — Prevents current-question self-poisoning
+// V1.1.1 — Prevents current-question self-poisoning
 
 window.Ari = window.Ari || {};
 
 window.Ari.threadQuestionGenerator = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   generate(input = {}) {
     const summary = input.summary || input || {};
@@ -88,6 +88,30 @@ window.Ari.threadQuestionGenerator = {
 
       candidates.push({ text, source, score });
     };
+
+add(
+  summary.priorMeaningForFollowUp?.userText,
+  "prior_meaning_user_text",
+  1.0
+);
+
+add(
+  summary.priorMeaningForFollowUp?.resolvedUserQuestion,
+  "prior_meaning_resolved_question",
+  0.98
+);
+
+add(
+  summary.priorMeaningForFollowUp?.activeIssue,
+  "prior_meaning_active_issue",
+  0.94
+);
+
+add(
+  summary.latestConversationMeaning?.userText,
+  "latest_conversation_meaning_user_text",
+  0.92
+);
 
     (packet.usableFacts || []).forEach(fact => {
       add(fact.claim || fact.value || fact.label || fact.evidence || fact, "continuity_usable_fact", 0.95);
