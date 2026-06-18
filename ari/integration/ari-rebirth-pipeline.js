@@ -287,6 +287,23 @@ window.AriRebirthPipeline = {
     continuityPacket.situationMapHandoff || {}
 };
 
+// 0.295 Thread Question Generator
+const threadQuestion =
+  window.Ari?.threadQuestionGenerator?.generate
+    ? await window.Ari.threadQuestionGenerator.generate({ summary })
+    : {
+        threadQuestionGeneratorRan: false,
+        source: "not-loaded",
+        resolvedUserQuestion: summary.userMessage,
+        currentTurnWasResolved: false
+      };
+
+summary = {
+  ...summary,
+  threadQuestion,
+  ...threadQuestion
+};
+
     // 0.30 Entity Reference Resolver
 // Only run for continuity routes. Direct current-turn messages do not need thread/entity resolution.
 const shouldRunEntityResolver =
