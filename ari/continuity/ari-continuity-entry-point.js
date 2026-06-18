@@ -1,17 +1,16 @@
 // ari/continuity/ari-continuity-entry-point.js
 // Ari Continuity Entry Point
 // Purpose: Start the continuity branch after Lane Splitter routing.
-// V1.0.0 — Orchestrator Only / No Answer Authority / No Route Authority
+// V1.1.0 — Orchestrator Only / Sends Results To Continuity Packet / No Answer Authority / No Route Authority
 
 window.Ari = window.Ari || {};
 
 window.Ari.continuityEntryPoint = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   enter(input = {}) {
     const summary = input.summary || input || {};
     const laneSplit = input.laneSplit || summary.laneSplit || {};
-
     const routing = laneSplit.routing || {};
 
     const shouldRun =
@@ -20,17 +19,68 @@ window.Ari.continuityEntryPoint = {
       routing.useRelationship;
 
     if (!shouldRun) {
-      return this.emptyPacket("direct_route_no_continuity_needed");
+      return this.emptyContinuityResults({
+        reason: "direct_route_no_continuity_needed",
+        summary,
+        laneSplit
+      });
     }
 
-    const packet = {
+    const continuityResults = this.createBaseResults({
+      summary,
+      laneSplit
+    });
+
+    if (routing.useThread) {
+      continuityResults.outputs.thread = this.runThreadUnderstanding(summary);
+      continuityResults.used.thread = this.outputSucceeded(
+        continuityResults.outputs.thread
+      );
+    }
+
+    if (routing.useMemory) {
+      continuityResults.outputs.memory = this.runMemory(summary);
+      continuityResults.used.memory = this.outputSucceeded(
+        continuityResults.outputs.memory
+      );
+    }
+
+    if (routing.useRelationship) {
+      continuityResults.outputs.relationship = this.runRelationship(summary);
+      continuityResults.used.relationship = this.outputSucceeded(
+        continuityResults.outputs.relationship
+      );
+    }
+
+    continuityResults.warnings = this.collectWarnings(continuityResults);
+    continuityResults.confidence = this.estimateConfidence(continuityResults);
+
+    return continuityResults;
+  },
+
+  createBaseResults({ summary, laneSplit }) {
+    return {
       engine: "ari-continuity-entry-point",
       version: this.version,
       source: "ari-continuity-entry-point",
 
+      ran: true,
+      reason: "continuity_route_selected",
+
       lane: laneSplit.lane || "unknown",
 
-      ran: true,
+      currentTurn: {
+        text: this.extractCurrentQuestion(summary),
+        lane: laneSplit.lane || null,
+        needsPriorContext: laneSplit.lane !== "direct_current_turn"
+      },
+
+      routing: {
+        useThread: !!laneSplit.routing?.useThread,
+        useMemory: !!laneSplit.routing?.useMemory,
+        useRelationship: !!laneSplit.routing?.useRelationship,
+        goStraightToSituationMap: !!laneSplit.routing?.goStraightToSituationMap
+      },
 
       used: {
         thread: false,
@@ -38,50 +88,29 @@ window.Ari.continuityEntryPoint = {
         relationship: false
       },
 
-      thread: null,
-      memory: null,
-      relationship: null,
+      outputs: {
+        thread: null,
+        memory: null,
+        relationship: null
+      },
 
-      activeTopic: null,
-      currentQuestion: this.extractCurrentQuestion(summary),
-      usableThreadFacts: [],
-      usableMemoryFacts: [],
-      usableRelationshipFacts: [],
-      unresolvedReferences: [],
-      continuityWarnings: [],
-
+      warnings: [],
       confidence: "low",
+
+      handoff: {
+        nextEngine: "ari-continuity-packet",
+        expectedMethod: "build",
+        shouldBuildPacket: true
+      },
 
       authority: {
         canChooseLane: false,
         canAnswerUser: false,
         canOverrideSafety: false,
+        canSetPriority: false,
         role: "continuity_orchestration_only"
       }
     };
-
-    if (routing.useThread) {
-      packet.thread = this.runThreadUnderstanding(summary);
-      packet.used.thread = !!packet.thread;
-    }
-
-    if (routing.useMemory) {
-      packet.memory = this.runMemory(summary);
-      packet.used.memory = !!packet.memory;
-    }
-
-    if (routing.useRelationship) {
-      packet.relationship = this.runRelationship(summary);
-      packet.used.relationship = !!packet.relationship;
-    }
-
-    this.mergeThread(packet);
-    this.mergeMemory(packet);
-    this.mergeRelationship(packet);
-
-    packet.confidence = this.estimateConfidence(packet);
-
-    return packet;
   },
 
   runThreadUnderstanding(summary) {
@@ -193,51 +222,38 @@ window.Ari.continuityEntryPoint = {
     }
   },
 
-  mergeThread(packet) {
-    const thread = packet.thread || {};
-
-    packet.activeTopic =
-      thread.activeTopic ||
-      thread.workingContext?.activeTopic ||
-      thread.threadTopic ||
-      packet.activeTopic;
-
-    packet.usableThreadFacts = this.arrayFrom(
-      thread.usableThreadFacts ||
-      thread.threadFacts ||
-      thread.reconstructedContext?.facts ||
-      thread.workingContext?.facts
-    );
-
-    packet.unresolvedReferences.push(
-      ...this.arrayFrom(
-        thread.unresolvedReferences ||
-        thread.unresolvedContext ||
-        thread.uncertainties
-      )
-    );
+  outputSucceeded(output) {
+    if (!output) return false;
+    if (output.error) return false;
+    if (output.ran === false) return false;
+    return true;
   },
 
-  mergeMemory(packet) {
-    const memory = packet.memory || {};
+  collectWarnings(results) {
+    const warnings = [];
 
-    packet.usableMemoryFacts = this.arrayFrom(
-      memory.usableMemoryFacts ||
-      memory.memoryFacts ||
-      memory.items ||
-      memory.relevantMemories
-    );
-  },
+    Object.entries(results.outputs || {}).forEach(([key, output]) => {
+      if (!output) return;
 
-  mergeRelationship(packet) {
-    const relationship = packet.relationship || {};
+      if (output.error) {
+        warnings.push({
+          type: "engine_error",
+          engine: key,
+          error: output.error,
+          message: output.message || null
+        });
+      }
 
-    packet.usableRelationshipFacts = this.arrayFrom(
-      relationship.usableRelationshipFacts ||
-      relationship.relationshipFacts ||
-      relationship.facts ||
-      relationship.context
-    );
+      if (output.ran === false && output.error) {
+        warnings.push({
+          type: "engine_not_run",
+          engine: key,
+          reason: output.error
+        });
+      }
+    });
+
+    return warnings;
   },
 
   extractCurrentQuestion(summary) {
@@ -250,27 +266,23 @@ window.Ari.continuityEntryPoint = {
     ).trim();
   },
 
-  estimateConfidence(packet) {
+  estimateConfidence(results) {
     let score = 0;
 
-    if (packet.used.thread) score += 35;
-    if (packet.used.memory) score += 25;
-    if (packet.used.relationship) score += 20;
-    if (packet.activeTopic) score += 10;
+    if (results.used.thread) score += 40;
+    if (results.used.memory) score += 25;
+    if (results.used.relationship) score += 20;
 
-    const totalFacts =
-      packet.usableThreadFacts.length +
-      packet.usableMemoryFacts.length +
-      packet.usableRelationshipFacts.length;
+    if (results.currentTurn?.text) score += 10;
 
-    if (totalFacts > 0) score += 10;
+    if ((results.warnings || []).length === 0) score += 5;
 
     if (score >= 70) return "high";
     if (score >= 40) return "medium";
     return "low";
   },
 
-  emptyPacket(reason = "not_needed") {
+  emptyContinuityResults({ reason = "not_needed", summary = {}, laneSplit = {} } = {}) {
     return {
       engine: "ari-continuity-entry-point",
       version: this.version,
@@ -279,34 +291,50 @@ window.Ari.continuityEntryPoint = {
       ran: false,
       reason,
 
+      lane: laneSplit.lane || "direct_current_turn",
+
+      currentTurn: {
+        text: this.extractCurrentQuestion(summary),
+        lane: laneSplit.lane || "direct_current_turn",
+        needsPriorContext: false
+      },
+
+      routing: {
+        useThread: false,
+        useMemory: false,
+        useRelationship: false,
+        goStraightToSituationMap: true
+      },
+
       used: {
         thread: false,
         memory: false,
         relationship: false
       },
 
-      activeTopic: null,
-      currentQuestion: null,
-      usableThreadFacts: [],
-      usableMemoryFacts: [],
-      usableRelationshipFacts: [],
-      unresolvedReferences: [],
-      continuityWarnings: [],
+      outputs: {
+        thread: null,
+        memory: null,
+        relationship: null
+      },
+
+      warnings: [],
       confidence: "none",
+
+      handoff: {
+        nextEngine: "ari-continuity-packet",
+        expectedMethod: "build",
+        shouldBuildPacket: false
+      },
 
       authority: {
         canChooseLane: false,
         canAnswerUser: false,
         canOverrideSafety: false,
+        canSetPriority: false,
         role: "continuity_orchestration_only"
       }
     };
-  },
-
-  arrayFrom(value) {
-    if (Array.isArray(value)) return value;
-    if (!value) return [];
-    return [value];
   }
 };
 
