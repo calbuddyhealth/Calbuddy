@@ -1,15 +1,20 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.4 — Lane Splitter + Continuity Packet Routing
+// V3.5.5 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.4",
+  version: "3.5.5",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
+    // 0.05 Load Thread State
+
+  // Runs first so Safety, Observer, Classifier, Routing Evidence, and Lane Splitter can see prior context.
+
+  summary = await this.loadThreadState(summary);
     let reasoningResult = {};
 
     const runEngine = async (engine, methods = [], fallback = {}) => {
@@ -103,9 +108,6 @@ window.AriRebirthPipeline = {
       universalConversationClassification: conversationResult
     };
 
-// 0.255 Load Thread State
-// Must run before Routing Evidence so short follow-ups like "Why?" can be routed correctly.
-summary = await this.loadThreadState(summary);
     
     // 0.26 Observer Routing Evidence
     const routingEvidence =
@@ -743,63 +745,51 @@ summary = this.reassertContractAuthority(summary);
     .filter(Boolean)
     .slice(-8);
 
-  const currentTopic =
-    summary.situationContractPrimary ||
-    summary.triagePrimaryLane ||
-    summary.triage?.primaryLane ||
+  const realTopic =
+    summary.resolvedPrimarySubject ||
+    summary.activeSubject ||
     summary.situationMap?.situations?.[0] ||
-    summary.conversationType ||
+    summary.continuityPacket?.activeThread?.activeTopic ||
+    userMessage ||
     previousThread.currentTopic ||
     "general_thread";
-
-  const continuitySummary =
-    summary.finalResponse
-      ? `User said: ${userMessage}. Ari answered: ${String(summary.finalResponse).slice(0, 300)}`
-      : previousThread.continuitySummary || null;
 
   const threadState = {
     ...previousThread,
 
-    currentTopic,
+    currentTopic: realTopic,
     lastMessages,
 
-    unresolvedItems:
-      summary.continuityPacket?.unresolvedReferences ||
-      summary.continuityState?.unresolvedItems ||
-      previousThread.unresolvedItems ||
-      [],
-
-    nextStep:
-      summary.continuityState?.nextStep ||
-      previousThread.nextStep ||
-      null,
+    continuitySummary: summary.finalResponse
+      ? `User said: ${userMessage}. Ari answered: ${String(summary.finalResponse).slice(0, 300)}`
+      : previousThread.continuitySummary || null,
 
     activeSubject:
       summary.resolvedPrimarySubject ||
-      summary.threadUnderstanding?.activeSubject ||
       summary.activeSubject ||
       previousThread.activeSubject ||
       null,
 
     activeIssue:
-      summary.threadUnderstanding?.activeIssue ||
       summary.activeIssue ||
+      summary.situationMap?.situations?.[0] ||
       previousThread.activeIssue ||
       null,
 
     activeGoal:
-      summary.threadUnderstanding?.activeGoal ||
       summary.activeGoal ||
       previousThread.activeGoal ||
       null,
 
     activeConstraints:
-      summary.threadUnderstanding?.activeConstraints ||
       summary.activeConstraints ||
       previousThread.activeConstraints ||
       [],
 
-    continuitySummary,
+    unresolvedItems:
+      summary.continuityPacket?.unresolvedReferences ||
+      previousThread.unresolvedItems ||
+      [],
 
     previousAnswerSummary:
       summary.finalResponse
