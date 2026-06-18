@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.1.0 — Adds thread-aware short follow-up routing
+// V1.2.0 — Adds thread-aware short follow-up routing
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -64,10 +64,11 @@ window.Ari.laneSplitterEngine = {
       (1 - p.ambiguityWithoutContext) * 15;
 
     const continuity =
-      p.contextDependency * 45 +
-      p.activeThreadMatch * 25 +
-      p.ambiguityWithoutContext * 20 +
-      p.directAnswerPressure * 10;
+  p.contextDependency * 30 +
+  (p.followUpPressure || 0) * 35 +
+  p.activeThreadMatch * 20 +
+  p.ambiguityWithoutContext * 10 +
+  p.directAnswerPressure * 5;
 
     const recall =
       p.recallPressure * 70 +
@@ -111,9 +112,15 @@ window.Ari.laneSplitterEngine = {
     const top = ranked[0];
     const second = ranked[1];
 
-    if (context.hasThread && context.isShortContextualFollowUp) {
-      return "continuity_follow_up";
-    }
+    if (
+  context.hasThread &&
+  (
+    context.isShortContextualFollowUp ||
+    (p.followUpPressure || 0) >= 0.6
+  )
+) {
+  return "continuity_follow_up";
+}
 
     if (!top || top.score < 35) {
       return "direct_current_turn";
@@ -183,7 +190,7 @@ window.Ari.laneSplitterEngine = {
     const wordCount = text.split(/\s+/).filter(Boolean).length;
 
     const startsWithContinuation =
-      /^(but|so|then|also|and|what about|why|how about|okay but|yeah but)\b/.test(text);
+  /^(but|so|then|also|and|what about|what if|after that|why|how|how about|okay|ok|yeah but)\b/.test(text);
 
     const hasQuestionFollowUp =
       /^(why|how|what about|what do you mean|explain|can you explain)\b/.test(text);
@@ -244,6 +251,7 @@ window.Ari.laneSplitterEngine = {
     return {
       standaloneCompleteness: 0.5,
       contextDependency: 0,
+      followUpPressure: 0,
       recallPressure: 0,
       revisionPressure: 0,
       relationshipContinuity: 0,
