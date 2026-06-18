@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.0.0 — Pure Router / Uses Routing Pressures Only / No Observer Authority / No Composer Authority
+// V1.1.0 — Adds thread-aware short follow-up routing
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -18,10 +18,11 @@ window.Ari.laneSplitterEngine = {
       this.emptyEvidence();
 
     const pressures = evidence.routingPressures || evidence;
+    const context = this.readContext(summary);
 
-    const scores = this.scoreLanes(pressures);
+    const scores = this.scoreLanes(pressures, context);
     const ranked = this.rankScores(scores);
-    const lane = this.chooseLane(ranked, pressures);
+    const lane = this.chooseLane(ranked, pressures, context);
 
     return {
       engine: "ari-lane-splitter-engine",
@@ -41,10 +42,9 @@ window.Ari.laneSplitterEngine = {
       scores,
       ranked,
       confidence: this.confidence(ranked),
-
       explanation: this.explain(lane),
-
       evidenceUsed: pressures,
+      contextUsed: context,
 
       authority: {
         canObserve: false,
@@ -56,7 +56,7 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  scoreLanes(p) {
+  scoreLanes(p, context = {}) {
     const direct =
       p.standaloneCompleteness * 35 +
       p.directAnswerPressure * 35 +
@@ -84,24 +84,41 @@ window.Ari.laneSplitterEngine = {
       p.contextDependency * 20 +
       p.activeThreadMatch * 10;
 
+    let continuityBoost = 0;
+
+    if (context.hasThread && context.isShortContextualFollowUp) {
+      continuityBoost += 35;
+    }
+
+    if (context.hasThread && context.startsWithContinuation) {
+      continuityBoost += 25;
+    }
+
+    if (context.hasThread && context.hasQuestionFollowUp) {
+      continuityBoost += 20;
+    }
+
     return {
       direct_current_turn: this.cap(direct),
-      continuity_follow_up: this.cap(continuity),
+      continuity_follow_up: this.cap(continuity + continuityBoost),
       recall_or_memory_request: this.cap(recall),
       correction_or_revision: this.cap(revision),
       relationship_continuity: this.cap(relationship)
     };
   },
 
-  chooseLane(ranked, p) {
+  chooseLane(ranked, p, context = {}) {
     const top = ranked[0];
     const second = ranked[1];
+
+    if (context.hasThread && context.isShortContextualFollowUp) {
+      return "continuity_follow_up";
+    }
 
     if (!top || top.score < 35) {
       return "direct_current_turn";
     }
 
-    // Strong standalone question override.
     if (
       p.standaloneCompleteness >= 0.70 &&
       p.directAnswerPressure >= 0.65 &&
@@ -112,9 +129,9 @@ window.Ari.laneSplitterEngine = {
       return "direct_current_turn";
     }
 
-    // If context route barely wins but message is complete, prefer direct.
     if (
       top.lane !== "direct_current_turn" &&
+      second &&
       top.score - second.score < 8 &&
       p.standaloneCompleteness >= 0.65 &&
       p.directAnswerPressure >= 0.55
@@ -142,6 +159,48 @@ window.Ari.laneSplitterEngine = {
 
   shouldUseRelationship(lane) {
     return lane === "relationship_continuity";
+  },
+
+  readContext(summary = {}) {
+    const text = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    ).toLowerCase().trim();
+
+    const threadState = summary.threadState || {};
+    const recentMessages = summary.recentMessages || threadState.lastMessages || [];
+
+    const hasThread =
+      Boolean(summary.threadStateLoaded) &&
+      (
+        recentMessages.length > 0 ||
+        Boolean(threadState.currentTopic) ||
+        Boolean(threadState.continuitySummary)
+      );
+
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+    const startsWithContinuation =
+      /^(but|so|then|also|and|what about|why|how about|okay but|yeah but)\b/.test(text);
+
+    const hasQuestionFollowUp =
+      /^(why|how|what about|what do you mean|explain|can you explain)\b/.test(text);
+
+    const isShortContextualFollowUp =
+      hasThread &&
+      wordCount <= 6 &&
+      startsWithContinuation;
+
+    return {
+      text,
+      wordCount,
+      hasThread,
+      startsWithContinuation,
+      hasQuestionFollowUp,
+      isShortContextualFollowUp
+    };
   },
 
   rankScores(scores) {
