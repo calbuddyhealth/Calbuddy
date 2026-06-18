@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.0.0 — Advisory Situation Mapper Only
+// V8.0.1 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.0.0",
+  version: "8.0.1",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -42,9 +42,13 @@ window.AriSituationMapEngine = {
     };
 
     const thread =
-      summary.threadUnderstanding ||
-      summary.threadUnderstandingState ||
-      {};
+  summary.continuityContext ||
+  summary.continuityPacket?.activeThread?.workingContext ||
+  summary.continuityPacket?.activeThread ||
+  summary.continuityResults?.outputs?.thread ||
+  summary.threadUnderstanding ||
+  summary.threadUnderstandingState ||
+  {};
 
     const entity =
       summary.entityReference ||
@@ -168,7 +172,10 @@ this.syncLegacyCompatibility(map);
 
   collectUpstreamSignals(map) {
     const thread = map.threadUnderstandingUsed || {};
-    const working = thread.workingContext || {};
+    const working =
+  thread.workingContext ||
+  thread ||
+  {};
 
     const allSignals = [
       ...(thread.currentTurn?.signals || []),
@@ -408,9 +415,16 @@ this.syncLegacyCompatibility(map);
     this.mapUpstreamIssueSignals(map);
     this.mapUpstreamIntentSignals(map);
 
-    if (thread.workingContext || thread.resolvedMeaning?.isContextual) {
-      this.add(map.situations, "follow_up_context_available");
-    }
+    if (
+  thread.workingContext ||
+  thread.shouldUseAsContext ||
+  thread.activeSituation ||
+  thread.keyFacts?.length ||
+  thread.activeThreadFacts?.length ||
+  thread.resolvedMeaning?.isContextual
+) {
+  this.add(map.situations, "follow_up_context_available");
+}
   },
 
   mapIssueKindToSituation(issueKind, map) {
@@ -617,9 +631,16 @@ this.syncLegacyCompatibility(map);
     if (map.needs.includes("creative_generation")) this.add(map.responseRequirements, "generate_options");
     if (map.needs.includes("accountability_support")) this.add(map.responseRequirements, "separate_person_from_system_pressure");
 
-    if (thread.resolvedMeaning?.isContextual || thread.workingContext) {
-      this.add(map.responseRequirements, "reuse_prior_context_without_reasking");
-    }
+    if (
+  thread.resolvedMeaning?.isContextual ||
+  thread.workingContext ||
+  thread.shouldUseAsContext ||
+  thread.activeSituation ||
+  thread.keyFacts?.length ||
+  thread.activeThreadFacts?.length
+) {
+  this.add(map.responseRequirements, "reuse_prior_context_without_reasking");
+}
   },
     scoreMap(map) {
     if (map.risks.includes("confirmed_safety_emergency")) {
