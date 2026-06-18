@@ -51,6 +51,7 @@
 <script src="ari/routing/ari-lane-splitter-engine.js"></script>
 <script src="ari/continuity/ari-continuity-entry-point.js"></script>
 <script src="ari/continuity/ari-continuity-packet.js"></script>
+<script src="ari/continuity/ari-conversation-meaning-history.js"></script>
 <script src="ari/context/ari-thread-question-generator.js"></script>
 
 <!-- CONTINUITY / MEMORY / RELATIONSHIP -->
@@ -495,6 +496,22 @@ ${summary.threadQuestionConfidence ?? "none"}
 
 Reason:
 ${summary.threadQuestionReason || "none"}
+
+==================================================
+
+===== CONVERSATION MEANING HISTORY =====
+
+Ran:
+${summary.conversationMeaningHistoryRan ? "yes" : "no"}
+
+Source:
+${summary.conversationMeaningHistorySource || "none"}
+
+Latest Meaning:
+${JSON.stringify(summary.latestConversationMeaning || {}, null, 2)}
+
+History:
+${JSON.stringify(summary.conversationMeaningHistory || [], null, 2)}
 
 ==================================================
 
