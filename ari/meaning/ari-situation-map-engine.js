@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.0.1 — Advisory Situation Mapper Only
+// V8.0.2 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,19 +13,24 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.0.1",
+  version: "8.0.2",
 
   build(input = {}) {
     const summary = input.summary || input || {};
 
-    const rawText =
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      summary.normalizedMessage ||
-      "";
+    const rawUserText =
+  summary.userMessage ||
+  summary.message ||
+  summary.input ||
+  summary.normalizedMessage ||
+  "";
 
-    const text = this.normalize(rawText);
+const resolvedText =
+  summary.resolvedUserQuestion ||
+  summary.threadQuestion?.resolvedUserQuestion ||
+  rawUserText;
+
+const text = this.normalize(resolvedText);
 
     const observations =
       summary.observations ||
@@ -67,13 +72,15 @@ window.AriSituationMapEngine = {
       };
 
     const map = this.createEmptyMap({
-      text,
-      observations,
-      safetyGate,
-      thread,
-      entity,
-      conversation
-    });
+  text,
+  rawUserText,
+  resolvedText,
+  observations,
+  safetyGate,
+  thread,
+  entity,
+  conversation
+});
 
     this.collectUpstreamSignals(map);
     this.detectQuestions(map);
@@ -92,13 +99,21 @@ this.syncLegacyCompatibility(map);
     return map;
   },
 
-  createEmptyMap({ text, observations, safetyGate, thread, entity, conversation }) {
+  createEmptyMap({ text, rawUserText, resolvedText, observations, safetyGate, thread, entity, conversation }) {
     return {
       situationMapRan: true,
       situationMapVersion: this.version,
       source: "ari-situation-map-engine",
 
       rawText: text,
+rawUserText,
+resolvedText,
+threadQuestionUsed: Boolean(resolvedText !== rawUserText),
+threadQuestion: {
+  used: Boolean(resolvedText !== rawUserText),
+  rawUserText,
+  resolvedText
+},
 
       observationsUsed: observations,
       safetyGateUsed: safetyGate,
