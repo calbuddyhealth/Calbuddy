@@ -724,96 +724,103 @@ summary = this.reassertContractAuthority(summary);
   },
 
   async saveFinalThreadState(summary = {}) {
-    if (!window.AriThreadStore?.save) {
-      summary.threadSaveRan = false;
-      return summary;
-    }
-
-    const previousThread = summary.threadState || {};
-
-    const threadState = {
-      ...previousThread,
-
-      currentTopic:
-        summary.continuityPacket?.activeThread?.activeTopic ||
-        summary.threadUnderstanding?.currentTopic ||
-        summary.continuityState?.currentTopic ||
-        summary.currentTopic ||
-        previousThread.currentTopic ||
-        "general_thread",
-
-      lastMessages:
-        summary.continuityState?.lastMessages ||
-        previousThread.lastMessages ||
-        [],
-
-      unresolvedItems:
-        summary.continuityPacket?.unresolvedReferences ||
-        summary.continuityState?.unresolvedItems ||
-        previousThread.unresolvedItems ||
-        [],
-
-      nextStep:
-        summary.continuityState?.nextStep ||
-        previousThread.nextStep ||
-        null,
-
-      activeSubject:
-        summary.threadUnderstanding?.activeSubject ||
-        summary.activeSubject ||
-        previousThread.activeSubject ||
-        null,
-
-      activeObject:
-        summary.threadUnderstanding?.activeObject ||
-        summary.activeObject ||
-        previousThread.activeObject ||
-        null,
-
-      activeIssue:
-        summary.threadUnderstanding?.activeIssue ||
-        summary.activeIssue ||
-        previousThread.activeIssue ||
-        null,
-
-      activeGoal:
-        summary.threadUnderstanding?.activeGoal ||
-        summary.activeGoal ||
-        previousThread.activeGoal ||
-        null,
-
-      activeConstraints:
-        summary.threadUnderstanding?.activeConstraints ||
-        summary.activeConstraints ||
-        previousThread.activeConstraints ||
-        [],
-
-      continuitySummary:
-        summary.continuitySummary ||
-        summary.continuityState?.continuitySummary ||
-        previousThread.continuitySummary ||
-        null,
-
-      previousAnswerSummary:
-        summary.finalResponse
-          ? String(summary.finalResponse).slice(0, 500)
-          : previousThread.previousAnswerSummary || null,
-
-      lastFinalResponse:
-        summary.finalResponse ||
-        previousThread.lastFinalResponse ||
-        null,
-
-      lastUpdatedAt: new Date().toISOString()
-    };
-
-    await window.AriThreadStore.save(threadState);
-
-    summary.threadSaveRan = true;
-    summary.threadState = threadState;
-
+  if (!window.AriThreadStore?.save) {
+    summary.threadSaveRan = false;
     return summary;
-  },
+  }
+
+  const previousThread = summary.threadState || {};
+  const userMessage = summary.userMessage || summary.message || summary.input || "";
+
+  const previousMessages = Array.isArray(previousThread.lastMessages)
+    ? previousThread.lastMessages
+    : [];
+
+  const lastMessages = [
+    ...previousMessages,
+    userMessage
+  ]
+    .filter(Boolean)
+    .slice(-8);
+
+  const currentTopic =
+    summary.situationContractPrimary ||
+    summary.triagePrimaryLane ||
+    summary.triage?.primaryLane ||
+    summary.situationMap?.situations?.[0] ||
+    summary.conversationType ||
+    previousThread.currentTopic ||
+    "general_thread";
+
+  const continuitySummary =
+    summary.finalResponse
+      ? `User said: ${userMessage}. Ari answered: ${String(summary.finalResponse).slice(0, 300)}`
+      : previousThread.continuitySummary || null;
+
+  const threadState = {
+    ...previousThread,
+
+    currentTopic,
+    lastMessages,
+
+    unresolvedItems:
+      summary.continuityPacket?.unresolvedReferences ||
+      summary.continuityState?.unresolvedItems ||
+      previousThread.unresolvedItems ||
+      [],
+
+    nextStep:
+      summary.continuityState?.nextStep ||
+      previousThread.nextStep ||
+      null,
+
+    activeSubject:
+      summary.resolvedPrimarySubject ||
+      summary.threadUnderstanding?.activeSubject ||
+      summary.activeSubject ||
+      previousThread.activeSubject ||
+      null,
+
+    activeIssue:
+      summary.threadUnderstanding?.activeIssue ||
+      summary.activeIssue ||
+      previousThread.activeIssue ||
+      null,
+
+    activeGoal:
+      summary.threadUnderstanding?.activeGoal ||
+      summary.activeGoal ||
+      previousThread.activeGoal ||
+      null,
+
+    activeConstraints:
+      summary.threadUnderstanding?.activeConstraints ||
+      summary.activeConstraints ||
+      previousThread.activeConstraints ||
+      [],
+
+    continuitySummary,
+
+    previousAnswerSummary:
+      summary.finalResponse
+        ? String(summary.finalResponse).slice(0, 500)
+        : previousThread.previousAnswerSummary || null,
+
+    lastFinalResponse:
+      summary.finalResponse ||
+      previousThread.lastFinalResponse ||
+      null,
+
+    lastUpdatedAt: new Date().toISOString()
+  };
+
+  await window.AriThreadStore.save(threadState);
+
+  summary.threadSaveRan = true;
+  summary.threadState = threadState;
+
+  return summary;
+},
 
   applyContractBridge(summary = {}) {
     const contract = summary.situationContract || {};
@@ -920,32 +927,47 @@ summary = this.reassertContractAuthority(summary);
   },
 
 async loadThreadState(summary = {}) {
-  if (!window.AriThreadStore?.load) {
+  const store = window.AriThreadStore;
+
+  if (!store) {
     return {
       ...summary,
       threadStateLoaded: false,
-      threadStateLoadReason: "thread_store_load_not_available"
+      threadStateLoadReason: "thread_store_not_available"
     };
   }
 
   try {
-    const threadState = await window.AriThreadStore.load();
+    const threadState =
+      typeof store.load === "function"
+        ? await store.load()
+        : typeof store.get === "function"
+          ? await store.get()
+          : typeof store.read === "function"
+            ? await store.read()
+            : null;
+
+    if (!threadState) {
+      return {
+        ...summary,
+        threadStateLoaded: false,
+        threadStateLoadReason: "no_thread_state_found"
+      };
+    }
 
     return {
       ...summary,
       threadStateLoaded: true,
-      threadState: threadState || {},
+      threadState,
 
-      recentMessages:
-        threadState?.lastMessages || [],
+      recentMessages: threadState.lastMessages || [],
 
       workingContext:
-        threadState?.continuitySummary ||
-        threadState?.currentTopic ||
+        threadState.continuitySummary ||
+        threadState.currentTopic ||
         null,
 
-      activeTopic:
-        threadState?.currentTopic || null
+      activeTopic: threadState.currentTopic || null
     };
   } catch (error) {
     return {
