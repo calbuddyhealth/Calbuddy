@@ -6,7 +6,7 @@
 window.Ari = window.Ari || {};
 
 window.AriConversationContinuityEngine = {
-  version: "2.0.0",
+  version: "2.0.0", 
 
   async analyze(input = {}) {
     const summary = input.summary || input || {};
