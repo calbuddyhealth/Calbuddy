@@ -51,6 +51,8 @@
 <script src="ari/routing/ari-lane-splitter-engine.js"></script>
 <script src="ari/continuity/ari-continuity-entry-point.js"></script>
 <script src="ari/continuity/ari-continuity-packet.js"></script>
+<script src="ari/context/ari-thread-question-generator.js"></script>
+
 <!-- CONTINUITY / MEMORY / RELATIONSHIP -->
 <script src="ari/storage/ari-thread-store.js"></script>
 <script src="ari/storage/ari-memory-store.js"></script>
@@ -465,6 +467,34 @@ ${JSON.stringify(summary.continuityUnresolvedReferences || [], null, 2)}
 
 Situation Map Handoff:
 ${JSON.stringify(summary.continuitySituationMapHandoff || {}, null, 2)}
+
+==================================================
+
+===== THREAD QUESTION GENERATOR =====
+
+Ran:
+${summary.threadQuestionGeneratorRan ? "yes" : "no"}
+
+Source:
+${summary.threadQuestionGeneratorSource || "none"}
+
+Resolved:
+${summary.currentTurnWasResolved ? "yes" : "no"}
+
+Raw:
+${summary.userMessage || "none"}
+
+Resolved Question:
+${summary.resolvedUserQuestion || "none"}
+
+Resolution Type:
+${summary.threadQuestionResolutionType || "none"}
+
+Confidence:
+${summary.threadQuestionConfidence ?? "none"}
+
+Reason:
+${summary.threadQuestionReason || "none"}
 
 ==================================================
 
