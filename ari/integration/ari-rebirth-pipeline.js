@@ -1,10 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.3.0 — Clean functional pipeline
+// V3.4.1 — Corrected Context + Persisted Thread State
+
+window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.3.0",
+  version: "3.4.1",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -23,8 +25,11 @@ window.AriRebirthPipeline = {
       return fallback;
     };
 
-    const merge = (result = {}) => {
-      summary = { ...summary, ...(result || {}) };
+    const merge = result => {
+      summary = {
+        ...summary,
+        ...(result || {})
+      };
     };
 
     // 0.10 Safety Context Gate
@@ -97,19 +102,35 @@ window.AriRebirthPipeline = {
       universalConversationClassification: conversationResult
     };
 
-    // 0.27 Continuity / Memory / Relationship / Context
+    // 0.27 Continuity / Memory / Relationship
     merge(await runEngine(window.AriConversationContinuityEngine, ["analyze", "evaluate", "create"]));
     merge(await runEngine(window.AriMemoryRetrievalEngine, ["retrieve", "search", "create"]));
     merge(await runEngine(window.AriRelationshipEngine, ["analyze", "evaluate", "create"]));
-    merge(await runEngine(window.AriContextAssembler, ["assemble", "create"]));
 
     // 0.28 Thread Understanding
     merge(await runEngine(window.AriThreadUnderstandingEngine, ["understand", "analyze", "create"]));
 
-    // 0.29 Subject Graph / Entity Reference Resolver
+    // 0.29 Entity Reference Resolver
     merge(await runEngine(window.AriEntityReferenceResolver, ["resolve"]));
 
-    // 0.30 Situation Map
+    // 0.30 Lexical Grounding
+    // Must run BEFORE Context Assembler, Situation Map, and Reasoning.
+    merge(await runEngine(
+      window.AriLexicalGroundingEngine,
+      ["ground"],
+      {
+        lexicalGroundingRan: false,
+        lexicalGroundingSource: "not-loaded",
+        lexicalGrounding: null,
+        preferredTerms: {},
+        conceptMap: {}
+      }
+    ));
+
+    // 0.31 Context Assembler
+    // Must run AFTER Thread Understanding, Entity Resolver, and Lexical Grounding.
+    merge(await runEngine(window.AriContextAssembler, ["assemble", "create"]));
+        // 0.35 Situation Map
     const situationMap = await runEngine(
       window.AriSituationMapEngine,
       ["build", "create"],
@@ -121,11 +142,9 @@ window.AriRebirthPipeline = {
         needs: [],
         risks: [],
         questions: [],
-        primaryLaneSuggestion: null,
-        supportLaneSuggestions: [],
-        briefLaneSuggestions: [],
-        contextLaneSuggestions: [],
-        deferredLaneSuggestions: []
+        laneCandidates: [],
+        responseRequirements: [],
+        responseConstraints: []
       }
     );
 
@@ -135,7 +154,7 @@ window.AriRebirthPipeline = {
       ...situationMap
     };
 
-    // 0.35 Triage Engine
+    // 0.40 Triage Engine
     const triageOutput = await runEngine(
       window.AriTriageEngine,
       ["run", "triage"],
@@ -146,13 +165,13 @@ window.AriRebirthPipeline = {
       triageOutput.ariTriage || {
         triageEngineRan: false,
         triageEngineSource: "not-loaded",
-        primaryLane: summary.primaryLaneSuggestion || null,
-        supportLanes: summary.supportLaneSuggestions || [],
-        deferredLanes: summary.deferredLaneSuggestions || [],
-        blockedLanes: summary.blockedLanes || [],
-        responseConstraints: summary.responseConstraints || [],
-        confidence: summary.confidence || null,
-        reason: "Triage engine not loaded. Falling back to Situation Map."
+        primaryLane: null,
+        supportLanes: [],
+        deferredLanes: [],
+        blockedLanes: [],
+        responseConstraints: [],
+        confidence: null,
+        reason: "Triage engine not loaded."
       };
 
     summary = {
@@ -161,32 +180,14 @@ window.AriRebirthPipeline = {
       triage: triageResult,
       ...triageResult,
 
-      primaryLaneSuggestion:
-        triageResult.primaryLane ||
-        summary.primaryLaneSuggestion,
-
-      supportLaneSuggestions:
-        triageResult.supportLanes ||
-        summary.supportLaneSuggestions ||
-        [],
-
-      deferredLaneSuggestions:
-        triageResult.deferredLanes ||
-        summary.deferredLaneSuggestions ||
-        [],
-
-      blockedLanes:
-        triageResult.blockedLanes ||
-        summary.blockedLanes ||
-        [],
-
-      responseConstraints:
-        triageResult.responseConstraints ||
-        summary.responseConstraints ||
-        []
+      primaryLaneSuggestion: triageResult.primaryLane || null,
+      supportLaneSuggestions: triageResult.supportLanes || [],
+      deferredLaneSuggestions: triageResult.deferredLanes || [],
+      blockedLanes: triageResult.blockedLanes || [],
+      responseConstraints: triageResult.responseConstraints || []
     };
 
-    // 0.40 Situation Contract
+    // 0.45 Situation Contract
     merge(await runEngine(
       window.AriSituationContract,
       ["create", "build"],
@@ -197,8 +198,9 @@ window.AriRebirthPipeline = {
       }
     ));
 
-    // 0.45 Bridge Contract
+    // 0.50 Bridge Contract
     summary = this.applyContractBridge(summary);
+    summary = this.reassertContractAuthority(summary);
 
     // 1.00 Human Needs
     merge(await runEngine(
@@ -216,6 +218,8 @@ window.AriRebirthPipeline = {
       }
     ));
 
+    summary = this.reassertContractAuthority(summary);
+
     // Legacy support organs
     merge(await runEngine(window.AriIdentityPriorityEngine, ["evaluate"]));
     merge(await runEngine(window.AriStewardshipFearDifferentiator, ["evaluate"]));
@@ -224,6 +228,8 @@ window.AriRebirthPipeline = {
     merge(await runEngine(window.AriIdentityConflictResolver, ["resolve"]));
     merge(await runEngine(window.AriValueIntegrationEngine, ["integrate"]));
     merge(await runEngine(window.Ari?.emotionIntegrator, ["integrate"]));
+
+    summary = this.reassertContractAuthority(summary);
 
     // Legacy decision support
     merge(await runEngine(window.AriSalienceGovernor, ["govern"]));
@@ -235,8 +241,7 @@ window.AriRebirthPipeline = {
     merge(await this.runObserverHierarchy(summary));
 
     summary = this.reassertContractAuthority(summary);
-
-    // Response Intent
+        // Response Intent
     merge(await runEngine(
       window.AriResponseIntentEngine,
       ["decide"],
@@ -257,6 +262,7 @@ window.AriRebirthPipeline = {
 
     summary = this.reassertContractAuthority(summary);
 
+
     // Reasoning Engine
     reasoningResult = await runEngine(
       window.AriReasoningEngine,
@@ -265,7 +271,8 @@ window.AriRebirthPipeline = {
         reasoningEngineRan: false,
         reasoningSource: "not-loaded",
         reasoning: {},
-        reasoningAnswer: null
+        reasoningAnswer: null,
+        reasoningRecommendation: null
       }
     );
 
@@ -273,10 +280,8 @@ window.AriRebirthPipeline = {
       ...summary,
       ...reasoningResult,
       reasoning: reasoningResult.reasoning || summary.reasoning || {},
-      reasoningAnswer:
-        reasoningResult.reasoningAnswer ||
-        summary.reasoningAnswer ||
-        null
+      reasoningAnswer: null,
+      reasoningRecommendation: null
     };
 
     summary = this.reassertContractAuthority(summary);
@@ -307,7 +312,8 @@ window.AriRebirthPipeline = {
     // Teaching Answer Engine
     merge(await runEngine(window.AriTeachingAnswerEngine, ["teach"]));
 
-    // Human Language Engine
+    summary = this.reassertContractAuthority(summary);
+        // Human Language Engine
     const humanLanguageResult = await runEngine(
       window.AriHumanLanguageEngine,
       ["create"],
@@ -343,21 +349,6 @@ window.AriRebirthPipeline = {
 
     summary = this.reassertContractAuthority(summary);
 
-    // Lexical Grounding
-    merge(await runEngine(
-      window.AriLexicalGroundingEngine,
-      ["ground"],
-      {
-        lexicalGroundingRan: false,
-        lexicalGroundingSource: "not-loaded",
-        lexicalGrounding: null,
-        preferredTerms: {},
-        conceptMap: {}
-      }
-    ));
-
-    summary = this.reassertContractAuthority(summary);
-
     // Mouth Director
     const mouthDirector = await runEngine(
       window.AriMouthDirector,
@@ -372,8 +363,7 @@ window.AriRebirthPipeline = {
       mouthDirectorSource: window.AriMouthDirector
         ? "ari-mouth-director"
         : "not-loaded",
-
-      mouthExplanationLevel: mouthDirector.explanationLevel || null,
+              mouthExplanationLevel: mouthDirector.explanationLevel || null,
       mouthResponsePattern:
         summary.responseShape ||
         mouthDirector.responsePattern ||
@@ -403,8 +393,7 @@ window.AriRebirthPipeline = {
       ["compress"],
       {}
     );
-
-    summary = {
+        summary = {
       ...summary,
       ...compressionResult,
       finalResponse:
@@ -457,7 +446,8 @@ window.AriRebirthPipeline = {
       ...summary,
       situationReview,
       situationReviewConsoleRan:
-        situationReview.situationReviewConsoleRan || Boolean(window.AriSituationReviewConsole),
+        situationReview.situationReviewConsoleRan ||
+        Boolean(window.AriSituationReviewConsole),
       situationReviewConsoleVersion:
         situationReview.situationReviewConsoleVersion || null
     };
@@ -470,8 +460,7 @@ window.AriRebirthPipeline = {
 
     return summary;
   },
-
-  normalizeInput(systemSummary = {}) {
+    normalizeInput(systemSummary = {}) {
     const userMessage =
       systemSummary.userMessage ||
       systemSummary.message ||
@@ -495,8 +484,7 @@ window.AriRebirthPipeline = {
     ) {
       return {};
     }
-
-    const lateHierarchy =
+        const lateHierarchy =
       window.Ari.observerHierarchyEngine.analyze({
         ...(summary.observation || {}),
         ...summary,
@@ -550,28 +538,84 @@ window.AriRebirthPipeline = {
         lateHierarchy.rankedUnknowns || []
     };
   },
-
-  async saveFinalThreadState(summary = {}) {
+    async saveFinalThreadState(summary = {}) {
     if (!window.AriThreadStore?.save) {
       summary.threadSaveRan = false;
       return summary;
     }
 
+    const previousThread = summary.threadState || {};
+
     const threadState = {
-      ...(summary.threadState || {}),
+      ...previousThread,
+
       currentTopic:
         summary.threadUnderstanding?.currentTopic ||
         summary.continuityState?.currentTopic ||
         summary.currentTopic ||
+        previousThread.currentTopic ||
         "general_thread",
+
+      lastMessages:
+        summary.continuityState?.lastMessages ||
+        previousThread.lastMessages ||
+        [],
+
+      unresolvedItems:
+        summary.continuityState?.unresolvedItems ||
+        previousThread.unresolvedItems ||
+        [],
+
+      nextStep:
+        summary.continuityState?.nextStep ||
+        previousThread.nextStep ||
+        null,
+
+      activeSubject:
+        summary.threadUnderstanding?.activeSubject ||
+        summary.activeSubject ||
+        previousThread.activeSubject ||
+        null,
+
+      activeObject:
+        summary.threadUnderstanding?.activeObject ||
+        summary.activeObject ||
+        previousThread.activeObject ||
+        null,
+
+      activeIssue:
+        summary.threadUnderstanding?.activeIssue ||
+        summary.activeIssue ||
+        previousThread.activeIssue ||
+        null,
+
+      activeGoal:
+        summary.threadUnderstanding?.activeGoal ||
+        summary.activeGoal ||
+        previousThread.activeGoal ||
+        null,
+
+      activeConstraints:
+        summary.threadUnderstanding?.activeConstraints ||
+        summary.activeConstraints ||
+        previousThread.activeConstraints ||
+        [],
+
+      continuitySummary:
+        summary.continuitySummary ||
+        summary.continuityState?.continuitySummary ||
+        previousThread.continuitySummary ||
+        null,
 
       previousAnswerSummary:
         summary.finalResponse
           ? String(summary.finalResponse).slice(0, 500)
-          : null,
+          : previousThread.previousAnswerSummary || null,
 
       lastFinalResponse:
-        summary.finalResponse || null,
+        summary.finalResponse ||
+        previousThread.lastFinalResponse ||
+        null,
 
       lastUpdatedAt: new Date().toISOString()
     };
@@ -588,120 +632,22 @@ window.AriRebirthPipeline = {
     const contract = summary.situationContract || {};
     const primary = contract.primary || summary.primaryLaneSuggestion;
 
-    const bridge = {
-      contractBridgeRan: true,
-      contractBridgeSource: "ari-rebirth-pipeline"
-    };
-
-    const apply = (data = {}) => Object.assign(bridge, data);
-
-    const laneMap = {
-      safety: {
-        contractBridgeLeadOrgan: "safety",
-        contractBridgeMode: "safety_override",
-        contractBridgeResponseIntent: "protect_safety_first",
-        salienceLeadOrgan: "safety",
-        salienceMode: "safety_override",
-        responseIntent: "protect_safety_first",
-        primaryHumanNeed: "security",
-        needResponseMode: "protect_safety_first"
-      },
-
-      medical_body: {
-        contractBridgeLeadOrgan: "safety",
-        contractBridgeMode: "medical_or_body_first",
-        contractBridgeResponseIntent: "stabilize_organism_function",
-        salienceLeadOrgan: "safety",
-        salienceMode: "medical_or_body_first",
-        responseIntent: "stabilize_organism_function",
-        primaryHumanNeed: "body",
-        needResponseMode: "stabilize_body_first"
-      },
-
-      risk_clarification: {
-        contractBridgeLeadOrgan: "safety",
-        contractBridgeMode: "clarify_risk",
-        contractBridgeResponseIntent: "clarify_risk",
-        salienceLeadOrgan: "safety",
-        salienceMode: "clarify_risk",
-        responseIntent: "clarify_risk",
-        primaryHumanNeed: "security",
-        needResponseMode: "clarify_before_answer"
-      },
-
-      executive_decision: {
-        contractBridgeLeadOrgan: "executive",
-        contractBridgeMode: "plan_next_step",
-        contractBridgeResponseIntent: "decision_support",
-        salienceLeadOrgan: "executive",
-        salienceMode: "plan_next_step",
-        responseIntent: "decision_support",
-        primaryHumanNeed: "clarity",
-        needResponseMode: "choose_next_step"
-      },
-
-      builder: {
-        contractBridgeLeadOrgan: "builder",
-        contractBridgeMode: "build_or_debug",
-        contractBridgeResponseIntent: "build_or_fix",
-        salienceLeadOrgan: "builder",
-        salienceMode: "build_or_debug",
-        responseIntent: "build_or_fix",
-        primaryHumanNeed: "execution",
-        needResponseMode: "step_by_step_action"
-      },
-
-      emotion: {
-        contractBridgeLeadOrgan: "emotion",
-        contractBridgeMode: "restore_connection",
-        contractBridgeResponseIntent: "offer_connection",
-        salienceLeadOrgan: "emotion",
-        salienceMode: "restore_connection",
-        responseIntent: "offer_connection",
-        primaryHumanNeed: "connection",
-        needResponseMode: "restore_connection"
-      },
-
-      teacher: {
-        contractBridgeLeadOrgan: "teacher",
-        contractBridgeMode: "teach_clearly",
-        contractBridgeResponseIntent: "teach",
-        salienceLeadOrgan: "teacher",
-        salienceMode: "teach_clearly",
-        responseIntent: "teach",
-        primaryHumanNeed: "understanding",
-        needResponseMode: "teach_clearly"
-      }
-    };
-
-    if (laneMap[primary]) apply(laneMap[primary]);
-
     return {
       ...summary,
-      ...bridge,
+      contractBridgeRan: true,
+      contractBridgeSource: "ari-rebirth-pipeline",
 
       responseShape:
         contract.responseShape ||
         summary.responseShape ||
         null,
 
-      situationContractPrimary:
-        contract.primary || null,
-
-      situationContractSupport:
-        contract.support || [],
-
-      situationContractBrief:
-        contract.brief || [],
-
-      situationContractContext:
-        contract.context || [],
-
-      situationContractDeferred:
-        contract.deferred || [],
-
-      situationContractBlocked:
-        contract.blocked || []
+      situationContractPrimary: primary || null,
+      situationContractSupport: contract.support || [],
+      situationContractBrief: contract.brief || [],
+      situationContractContext: contract.context || [],
+      situationContractDeferred: contract.deferred || [],
+      situationContractBlocked: contract.blocked || []
     };
   },
 
@@ -711,23 +657,6 @@ window.AriRebirthPipeline = {
 
     const primary = contract.primary;
 
-    const authority = {
-      contractAuthorityReasserted: true,
-      contractAuthoritySource: "ari-rebirth-pipeline",
-
-      situationContractPrimary: primary,
-      situationContractSupport: contract.support || [],
-      situationContractBrief: contract.brief || [],
-      situationContractContext: contract.context || [],
-      situationContractDeferred: contract.deferred || [],
-      situationContractBlocked: contract.blocked || [],
-
-      responseShape:
-        contract.responseShape ||
-        summary.responseShape ||
-        null
-    };
-
     const laneMap = {
       safety: {
         salienceLeadOrgan: "safety",
@@ -769,14 +698,6 @@ window.AriRebirthPipeline = {
         needResponseMode: "step_by_step_action"
       },
 
-      emotion: {
-        salienceLeadOrgan: "emotion",
-        salienceMode: "restore_connection",
-        responseIntent: "offer_connection",
-        primaryHumanNeed: "connection",
-        needResponseMode: "restore_connection"
-      },
-
       teacher: {
         salienceLeadOrgan: "teacher",
         salienceMode: "teach_clearly",
@@ -785,12 +706,12 @@ window.AriRebirthPipeline = {
         needResponseMode: "teach_clearly"
       },
 
-      family: {
-        salienceLeadOrgan: "meaning",
-        salienceMode: "protect_family_presence",
-        responseIntent: "family_context_support",
+      emotion: {
+        salienceLeadOrgan: "emotion",
+        salienceMode: "restore_connection",
+        responseIntent: "offer_connection",
         primaryHumanNeed: "connection",
-        needResponseMode: "protect_relationships"
+        needResponseMode: "restore_connection"
       },
 
       general_understanding: {
@@ -804,78 +725,40 @@ window.AriRebirthPipeline = {
 
     return {
       ...summary,
-      ...authority,
+
+      contractAuthorityReasserted: true,
+      contractAuthoritySource: "ari-rebirth-pipeline",
+
+      situationContractPrimary: primary,
+      situationContractSupport: contract.support || [],
+      situationContractBrief: contract.brief || [],
+      situationContractContext: contract.context || [],
+      situationContractDeferred: contract.deferred || [],
+      situationContractBlocked: contract.blocked || [],
+
+      responseShape:
+        contract.responseShape ||
+        summary.responseShape ||
+        null,
+
       ...(laneMap[primary] || {})
     };
   },
 
   debugLog(summary = {}, reasoningResult = {}) {
     console.log("===== ARI REBIRTH PIPELINE =====", this.version);
-
-    console.log("===== SAFETY CONTEXT GATE =====");
-    console.log(summary.safetyContextGate);
-
-    console.log("===== OBSERVER EVIDENCE =====");
-    console.log(summary.observerEvidence);
-
-    console.log("===== UNIVERSAL CONVERSATION CLASSIFIER =====");
-    console.log(summary.universalConversationClassification || {
-      ran: summary.universalConversationClassifierRan,
-      type: summary.conversationType,
-      intent: summary.conversationIntent
-    });
-
-    console.log("===== THREAD UNDERSTANDING =====");
-    console.log(summary.threadUnderstanding || {
-      ran: summary.threadUnderstandingRan,
-      activeSubject: summary.activeSubject,
-      activeIssue: summary.activeIssue,
-      impliedQuestion: summary.impliedQuestion
-    });
-
-    console.log("===== SUBJECT GRAPH =====");
-    console.log(summary.subjectGraphState || {
-      ran: summary.subjectGraphRan,
-      activeSubject: summary.activeSubject,
-      references: summary.resolvedReferences
-    });
-
-    console.log("===== SITUATION MAP =====");
-    console.log(summary.situationMap);
-
-    console.log("===== SITUATION CONTRACT =====");
-    console.log(summary.situationContract);
-
-    console.log(`===== REASONING ENGINE ${summary.reasoningEngineVersion || "UNKNOWN"} =====`);
-    console.log(summary.reasoning);
-    console.log("Loaded Reasoning Version:", window.AriReasoningEngine?.version);
-    console.log("Reasoning Result Version:", reasoningResult.reasoningEngineVersion);
-
-    console.log("===== CHARACTER CONTEXT =====");
-    console.log(summary.characterContext);
-
-    console.log("===== HUMAN LANGUAGE ENGINE =====");
-    console.log(summary.humanLanguageProfile);
-
-    console.log("===== CONTRACT AUTHORITY =====");
-    console.log({
-      contractAuthorityReasserted: summary.contractAuthorityReasserted,
-      situationContractPrimary: summary.situationContractPrimary,
-      salienceLeadOrgan: summary.salienceLeadOrgan,
-      salienceMode: summary.salienceMode,
-      responseIntent: summary.responseIntent,
-      responseShape: summary.responseShape
-    });
-
-    console.log("===== MEMORY SAVE =====");
-    console.log({
-      memorySaveRan: summary.memorySaveRan,
-      memoryCandidates: summary.memoryCandidates,
-      memorySaveResult: summary.memorySaveResult
-    });
-
-    console.log("===== FINAL RESPONSE =====");
-    console.log(summary.finalResponse);
+    console.log("===== SAFETY CONTEXT GATE =====", summary.safetyContextGate);
+    console.log("===== OBSERVER EVIDENCE =====", summary.observerEvidence);
+    console.log("===== CLASSIFIER =====", summary.universalConversationClassification);
+    console.log("===== CONTINUITY =====", summary.continuityState);
+    console.log("===== THREAD UNDERSTANDING =====", summary.threadUnderstanding);
+    console.log("===== ENTITY RESOLVER =====", summary.entityReferenceState || summary.subjectGraphState);
+    console.log("===== LEXICAL GROUNDING =====", summary.lexicalGrounding);
+    console.log("===== SITUATION MAP =====", summary.situationMap);
+    console.log("===== TRIAGE =====", summary.triage);
+    console.log("===== CONTRACT =====", summary.situationContract);
+    console.log("===== REASONING =====", reasoningResult);
+    console.log("===== FINAL RESPONSE =====", summary.finalResponse);
   }
 };
 
