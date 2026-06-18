@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, and entity context.
-// V1.3.1 — V3 Thread-Compatible / Advisory Only
+// V1.3.2 — V3 Thread-Compatible / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.3.1",
+  version: "1.3.2",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -19,7 +19,11 @@ window.AriContextAssembler = {
 
     const memoryContext = summary.memoryContext || {};
     const relationshipProfile = summary.relationshipProfile || {};
-    const thread = summary.threadUnderstanding || {};
+    const thread =
+  summary.continuityPacket?.activeThread ||
+  summary.continuityResults?.outputs?.thread ||
+  summary.threadUnderstanding ||
+  {};
     const entity = summary.entityReference || summary.entityReferenceState || {};
 
     const assembledContext = {
@@ -81,11 +85,14 @@ this.addThreadFacts(assembledContext);
 
       assembledContext,
       advisoryContext: assembledContext,
+continuityContext: this.buildContinuityContext(assembledContext),
+
 activeSituation: assembledContext.activeSituation,
 keyFacts: assembledContext.keyFacts,
 activeSituationSource: assembledContext.activeSituationSource,
 contextAuthority: assembledContext.contextAuthority,
-      advisoryFacts: assembledContext.advisoryFacts,
+     
+       advisoryFacts: assembledContext.advisoryFacts,
       styleHints: assembledContext.styleHints,
       projectContext: assembledContext.projectContext,
       priorDecisions: assembledContext.priorDecisions,
@@ -170,16 +177,19 @@ cleanThread(thread = {}) {
     confidence: thread.confidence ?? null,
 
     activeSituation:
-      thread.activeSituation ||
-      thread.resolvedMeaning?.activeSituation ||
-      null,
+  thread.activeSituation ||
+  workingContext.activeSituation ||
+  thread.resolvedMeaning?.activeSituation ||
+  null,
 
-    keyFacts:
-      Array.isArray(thread.keyFacts)
-        ? thread.keyFacts
-        : Array.isArray(thread.resolvedMeaning?.keyFacts)
-          ? thread.resolvedMeaning.keyFacts
-          : [],
+keyFacts:
+  Array.isArray(thread.keyFacts) && thread.keyFacts.length
+    ? thread.keyFacts
+    : Array.isArray(workingContext.keyFacts) && workingContext.keyFacts.length
+      ? workingContext.keyFacts
+      : Array.isArray(thread.resolvedMeaning?.keyFacts)
+        ? thread.resolvedMeaning.keyFacts
+        : [],
 
     staleContextSuppressed:
       Boolean(
@@ -579,6 +589,28 @@ addActiveSituationFacts(context = {}) {
       });
     });
   },
+
+buildContinuityContext(context = {}) {
+  return {
+    ready: true,
+    authority: "context_handoff_to_situation_map",
+    shouldUseAsContext: true,
+
+    activeSituation: context.activeSituation || null,
+    keyFacts: context.keyFacts || [],
+    activeThreadFacts: context.activeThreadFacts || [],
+
+    currentTopic: context.continuity?.currentTopic || null,
+    previousAnswerSummary:
+      context.continuity?.previousAnswerSummary || null,
+    lastMessages: context.continuity?.lastMessages || [],
+
+    domainSignals: context.domainSignals || [],
+    intentSignals: context.intentSignals || [],
+
+    source: "ari-context-assembler"
+  };
+},
 
   finalize(context = {}) {
     context.activeThreadFacts = this.uniqueByClaim(context.activeThreadFacts);
