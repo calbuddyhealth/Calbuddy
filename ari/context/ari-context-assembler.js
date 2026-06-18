@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, and entity context.
-// V1.2.0 — V3 Thread-Compatible / Advisory Only
+// V1.3.0 — V3 Thread-Compatible / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -33,7 +33,12 @@ window.AriContextAssembler = {
       thread: this.cleanThread(thread),
       entity: this.cleanEntity(entity),
 
-      advisoryFacts: [],
+      activeSituation: null,
+keyFacts: [],
+activeSituationSource: null,
+contextAuthority: "advisory_context_only",
+
+advisoryFacts: [],
       styleHints: {},
       projectContext: {},
       priorDecisions: [],
@@ -61,8 +66,9 @@ window.AriContextAssembler = {
       ]
     };
 
-    this.addContinuityFacts(assembledContext);
-    this.addThreadFacts(assembledContext);
+    this.addActiveSituationFacts(assembledContext);
+this.addContinuityFacts(assembledContext);
+this.addThreadFacts(assembledContext);
     this.addEntityFacts(assembledContext);
     this.addMemoryFacts(assembledContext);
     this.addRelationshipHints(assembledContext);
@@ -75,7 +81,10 @@ window.AriContextAssembler = {
 
       assembledContext,
       advisoryContext: assembledContext,
-
+activeSituation: assembledContext.activeSituation,
+keyFacts: assembledContext.keyFacts,
+activeSituationSource: assembledContext.activeSituationSource,
+contextAuthority: assembledContext.contextAuthority,
       advisoryFacts: assembledContext.advisoryFacts,
       styleHints: assembledContext.styleHints,
       projectContext: assembledContext.projectContext,
@@ -153,12 +162,37 @@ window.AriContextAssembler = {
     };
   },
 
-  cleanThread(thread = {}) {
-    const workingContext = thread.workingContext || {};
+  
+cleanThread(thread = {}) {
+  const workingContext = thread.workingContext || {};
 
-    return {
-      confidence: thread.confidence ?? null,
+  return {
+    confidence: thread.confidence ?? null,
 
+    activeSituation:
+      thread.activeSituation ||
+      thread.resolvedMeaning?.activeSituation ||
+      null,
+
+    keyFacts:
+      Array.isArray(thread.keyFacts)
+        ? thread.keyFacts
+        : Array.isArray(thread.resolvedMeaning?.keyFacts)
+          ? thread.resolvedMeaning.keyFacts
+          : [],
+
+    staleContextSuppressed:
+      Boolean(
+        thread.staleContextSuppressed ||
+        thread.resolvedMeaning?.staleContextSuppressed
+      ),
+
+    suppressedTopics:
+      Array.isArray(thread.suppressedTopics)
+        ? thread.suppressedTopics
+        : [],
+
+    
       activeSubject: thread.activeSubject || workingContext.activeSubject || null,
       activeObject: thread.activeObject || workingContext.activeObject || null,
       activeIssue: thread.activeIssue || workingContext.activeIssue || null,
@@ -215,7 +249,70 @@ window.AriContextAssembler = {
       confidence: entity.confidence ?? null
     };
   },
+addActiveSituationFacts(context = {}) {
+  const t = context.thread || {};
+  const activeSituation =
+    t.activeSituation ||
+    t.resolvedMeaning?.activeSituation ||
+    null;
 
+  const keyFacts =
+    Array.isArray(t.keyFacts) && t.keyFacts.length
+      ? t.keyFacts
+      : Array.isArray(t.resolvedMeaning?.keyFacts)
+        ? t.resolvedMeaning.keyFacts
+        : [];
+
+  if (activeSituation) {
+    context.activeSituation = activeSituation;
+    context.activeSituationSource = "thread_understanding";
+    context.contextAuthority = "active_situation_first";
+
+    context.advisoryFacts.unshift({
+      type: "active_situation",
+      claim:
+        activeSituation.value ||
+        activeSituation.label ||
+        activeSituation.evidence ||
+        "active situation",
+      confidence: activeSituation.confidence ?? t.confidence ?? 0.88,
+      source: "thread_understanding",
+      raw: activeSituation
+    });
+
+    context.activeThreadFacts.unshift({
+      type: "active_situation",
+      claim:
+        activeSituation.value ||
+        activeSituation.label ||
+        activeSituation.evidence ||
+        "active situation",
+      confidence: activeSituation.confidence ?? t.confidence ?? 0.88,
+      source: "thread_understanding",
+      raw: activeSituation
+    });
+  }
+
+  if (keyFacts.length) {
+    context.keyFacts = keyFacts;
+
+    keyFacts.forEach(fact => {
+      context.advisoryFacts.unshift({
+        type: "key_fact",
+        claim: fact,
+        confidence: 0.86,
+        source: "thread_understanding"
+      });
+
+      context.activeThreadFacts.unshift({
+        type: "key_fact",
+        claim: fact,
+        confidence: 0.86,
+        source: "thread_understanding"
+      });
+    });
+  }
+},
   addContinuityFacts(context = {}) {
     const c = context.continuity || {};
 
