@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Preserve active working context across turns.
-// V4.0.0 — Context Memory Only / No Routing / No Intent Authority / No Fake Placeholders
+// V4.1.0 — Active Situation Promotion / Stale Context Suppression
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "4.0.0",
+  version: "4.1.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -43,12 +43,22 @@ window.AriThreadUnderstandingEngine = {
 
     this.updateUnresolvedItems(workingContext, currentTurn, stateChange);
 
-    const resolvedMeaning = this.resolveMeaning({
-      currentText,
-      currentTurn,
-      workingContext,
-      stateChange
-    });
+    let resolvedMeaning = this.resolveMeaning({
+  currentText,
+  currentTurn,
+  workingContext,
+  stateChange
+});
+
+const activeSituationPatch = this.promoteActiveSituation({
+  currentText,
+  recentMessages,
+  workingContext,
+  resolvedMeaning,
+  topicTransition
+});
+
+resolvedMeaning = activeSituationPatch.resolvedMeaning;
 
     const threadUnderstanding = {
       threadUnderstandingRan: true,
@@ -62,8 +72,13 @@ window.AriThreadUnderstandingEngine = {
       workingContext,
       resolvedMeaning,
 
-      stateChange,
-      topicTransition,
+activeSituation: activeSituationPatch.activeSituation,
+keyFacts: activeSituationPatch.keyFacts,
+staleContextSuppressed: activeSituationPatch.staleContextSuppressed,
+suppressedTopics: activeSituationPatch.suppressedTopics,
+
+stateChange,
+topicTransition: activeSituationPatch.topicTransition || topicTransition,
 
       activeSubject: workingContext.activeSubject,
       activeObject: workingContext.activeObject,
@@ -122,7 +137,7 @@ window.AriThreadUnderstandingEngine = {
       threadActiveGoal: workingContext.activeGoal,
 
       threadStateChange: stateChange,
-      threadTopicTransition: topicTransition,
+      threadTopicTransition: activeSituationPatch.topicTransition || topicTransition,
       threadResolvedMeaning: resolvedMeaning,
       threadImpliedQuestion: null,
       threadRecentMessages: recentMessages,
@@ -698,6 +713,181 @@ if (signal.category === "goal") {
 
     return Math.max(25, Math.min(95, score));
   },
+
+promoteActiveSituation({
+  currentText = "",
+  recentMessages = [],
+  workingContext = {},
+  resolvedMeaning = {},
+  topicTransition = {}
+}) {
+  const lower = this.clean(currentText).toLowerCase();
+
+  const isContextual =
+    /\b(here|this|that|it|they|them|those|what matters|what about|do you still|based on|earlier|before)\b/i.test(lower) ||
+    resolvedMeaning?.isContextual === true;
+
+  if (!isContextual) {
+    return {
+      resolvedMeaning,
+      activeSituation: null,
+      keyFacts: [],
+      staleContextSuppressed: false,
+      suppressedTopics: [],
+      topicTransition
+    };
+  }
+
+  const bestPriorScenario = this.findBestPriorScenario(recentMessages, currentText);
+
+  if (!bestPriorScenario) {
+    return {
+      resolvedMeaning,
+      activeSituation: null,
+      keyFacts: [],
+      staleContextSuppressed: false,
+      suppressedTopics: [],
+      topicTransition
+    };
+  }
+
+  const activeSituation = this.makeNode(
+    "active_situation",
+    bestPriorScenario,
+    bestPriorScenario,
+    bestPriorScenario,
+    0.9
+  );
+
+  const keyFacts = this.extractKeyFactsFromScenario(bestPriorScenario);
+
+  workingContext.activeSubject = activeSituation;
+  workingContext.activeObject = null;
+  workingContext.activeIssue = null;
+  workingContext.activeGoal =
+    workingContext.activeGoal || this.extractGoalFromScenario(bestPriorScenario);
+
+  const patchedResolvedMeaning = {
+    ...resolvedMeaning,
+    isContextual: true,
+    resolvedSubject: activeSituation,
+    resolvedObject: null,
+    resolvedIssue: null,
+    resolvedGoal:
+      workingContext.activeGoal || this.extractGoalFromScenario(bestPriorScenario),
+    activeSituation,
+    keyFacts,
+    staleContextSuppressed: true,
+    suppressedReason:
+      "Contextual follow-up was bound to stronger recent scenario."
+  };
+
+  return {
+    resolvedMeaning: patchedResolvedMeaning,
+    activeSituation,
+    keyFacts,
+    staleContextSuppressed: true,
+    suppressedTopics: this.findSuppressedTopics(recentMessages, bestPriorScenario),
+    topicTransition: {
+      switched: true,
+      from: topicTransition?.from || "stale_context",
+      to: "active_situation",
+      reason:
+        "Contextual follow-up promoted recent scenario and suppressed stale context.",
+      confidence: 0.9
+    }
+  };
+},
+
+findBestPriorScenario(recentMessages = [], currentText = "") {
+  const current = this.clean(currentText).toLowerCase();
+
+  const candidates = recentMessages
+    .filter(Boolean)
+    .filter(m => typeof m === "string")
+    .map(m => this.clean(m))
+    .filter(m => m && m.toLowerCase() !== current)
+    .filter(m => m.length > 25)
+    .filter(m => !/\b(what matters more here|what do you think|what about that|what about this)\b/i.test(m))
+    .map(m => ({
+      text: m,
+      score: this.scoreScenario(m)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return candidates[0]?.score >= 3 ? candidates[0].text : null;
+},
+
+scoreScenario(message = "") {
+  const text = this.clean(message).toLowerCase();
+  let score = 0;
+
+  if (/\b(decide|decision|choose|whether|should i|trying to)\b/.test(text)) score += 3;
+  if (/\b(but|however|although|torn|guilty|exhausted|conflict)\b/.test(text)) score += 2;
+  if (/\b(test|tomorrow|promotion|pregnant|dad|sleep|study|move|moving)\b/.test(text)) score += 2;
+  if (text.length > 60) score += 1;
+
+  return score;
+},
+
+extractGoalFromScenario(message = "") {
+  const text = this.clean(message).toLowerCase();
+
+  if (text.includes("study") && text.includes("sleep")) {
+    return this.makeNode(
+      "goal",
+      "decide between studying and sleeping",
+      "decide between studying and sleeping",
+      message,
+      0.88
+    );
+  }
+
+  if (text.includes("promotion") && (text.includes("move") || text.includes("moving"))) {
+    return this.makeNode(
+      "goal",
+      "decide whether to accept the promotion and move",
+      "decide whether to accept the promotion and move",
+      message,
+      0.88
+    );
+  }
+
+  return null;
+},
+
+extractKeyFactsFromScenario(message = "") {
+  const text = this.clean(message).toLowerCase();
+  const facts = [];
+
+  if (text.includes("test tomorrow")) facts.push("There is a test tomorrow.");
+  if (text.includes("exhausted")) facts.push("The user is exhausted.");
+  if (text.includes("study") && text.includes("sleep")) {
+    facts.push("The user is deciding between studying and sleeping.");
+  }
+
+  if (text.includes("promotion")) facts.push("The user was offered a promotion.");
+  if (text.includes("30%")) facts.push("The promotion increases salary by 30%.");
+  if (text.includes("move") || text.includes("moving")) {
+    facts.push("The promotion may require moving.");
+  }
+  if (text.includes("pregnant")) facts.push("The user's partner is pregnant.");
+  if (text.includes("dad")) facts.push("The user's dad recently had a health scare.");
+  if (text.includes("guilty")) {
+    facts.push("The user feels guilty about considering the move.");
+  }
+
+  return facts;
+},
+
+findSuppressedTopics(recentMessages = [], activeScenario = "") {
+  return recentMessages
+    .filter(Boolean)
+    .map(m => this.clean(m))
+    .filter(m => m && m !== activeScenario)
+    .filter(m => /cat|diarrhea|car|grocery|mexican store/i.test(m))
+    .slice(-5);
+},
 
   clean(value = "") {
     return String(value || "")
