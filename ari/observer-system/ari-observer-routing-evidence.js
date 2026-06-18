@@ -48,7 +48,6 @@ window.Ari.observerRoutingEvidence = {
      const memoryShape = this.measureMemoryShape(summary, memory, observerShape);
     const revisionShape = this.measureRevisionShape(summary, observerShape);
     const relationshipShape = this.measureRelationshipShape(summary, relationship, observerShape);
-const followUpShape = this.measureFollowUpShape(text, recentMessages, summary);
     const pressures = {
       standaloneCompleteness: this.scoreStandaloneCompleteness(messageShape, contextShape, observerShape),
       contextDependency: this.scoreContextDependency(messageShape, contextShape, observerShape),
@@ -258,7 +257,17 @@ measureFollowUpShape(text = "", recentMessages = [], summary = {}) {
 
     return this.clamp01(score);
   },
+scoreFollowUpPressure(followUpShape = {}, contextShape = {}) {
+  let score = 0;
 
+  score += followUpShape.followUpSignal ? 0.55 : 0;
+  score += followUpShape.startsAsFollowUp ? 0.20 : 0;
+  score += followUpShape.hasReference ? 0.15 : 0;
+  score += followUpShape.shortQuestion ? 0.10 : 0;
+  score += contextShape.activeThreadAvailable ? 0.10 : 0;
+
+  return this.clamp01(score);
+},
   scoreRecallPressure(memoryShape, contextShape, observerShape) {
     let score = 0;
 
