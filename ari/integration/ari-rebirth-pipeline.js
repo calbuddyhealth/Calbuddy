@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.2 — Lane Splitter + Continuity Packet Routing
+// V3.5.3 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.2",
+  version: "3.5.3",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -211,20 +211,8 @@ if (shouldRunEntityResolver) {
   merge(await runEngine(window.AriEntityReferenceResolver, ["resolve"]));
 }
 
-    // 0.31 Lexical Grounding
-    merge(await runEngine(
-      window.AriLexicalGroundingEngine,
-      ["ground"],
-      {
-        lexicalGroundingRan: false,
-        lexicalGroundingSource: "not-loaded",
-        lexicalGrounding: null,
-        preferredTerms: {},
-        conceptMap: {}
-      }
-    ));
 
-    // 0.32 Context Assembler
+    // 0.31 Context Assembler
     merge(await runEngine(window.AriContextAssembler, ["assemble", "create"]));
 
     // 0.35 Situation Map
@@ -410,6 +398,29 @@ if (shouldRunEntityResolver) {
 
     summary = this.reassertContractAuthority(summary);
 
+// 1.85 Lexical Grounding
+// Runs downstream as expression support, not upstream situation authority.
+merge(await runEngine(
+  window.AriLexicalGroundingEngine,
+  ["ground"],
+  {
+    lexicalGroundingRan: false,
+    lexicalGroundingSource: "not-loaded",
+    lexicalGrounding: null,
+    preferredTerms: {},
+    conceptMap: {},
+    authority: {
+      canSetSituation: false,
+      canSetLane: false,
+      canSetContract: false,
+      canAnswerUser: false,
+      role: "expression_grounding_only"
+    }
+  }
+));
+
+summary = this.reassertContractAuthority(summary);
+    
     // Human Language Engine
     const humanLanguageResult = await runEngine(
       window.AriHumanLanguageEngine,
