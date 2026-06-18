@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V7.6.0 — Character Context Aware Composer
+// V7.7.0 — Character Context Aware Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "7.6.0",
+  version: "7.7.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -167,70 +167,138 @@ composerUsedCharacterContext:
 },
 
 composeExecutiveDecision({
-    summary = {},
-    reasoning = {},
-    conclusion = {},
-    language = {},
-    communicationPlan = {}
-  }) {
-    const rec = reasoning.recommendation || {};
-    const infoBudget = communicationPlan.informationBudget || {};
-    const sectionPlan = communicationPlan.sectionPlan || [
-      "recommendation",
-      "reason",
-      "next_step"
-    ];
+  summary = {},
+  reasoning = {},
+  conclusion = {},
+  language = {},
+  communicationPlan = {}
+}) {
+  const infoBudget = communicationPlan.informationBudget || {};
+  const sectionPlan = communicationPlan.sectionPlan || [
+    "recommendation",
+    "reason",
+    "next_step"
+  ];
 
-    const grounded = this.getGroundedTerms(summary);
+  const grounded = this.getGroundedTerms(summary);
 
-    const rawRecommendation =
-      conclusion.recommendation ||
-      rec.summary ||
-      "protect the main priority first, then choose the option with the least unnecessary risk.";
+  const relationshipAction = this.composeRelationshipActionDecision({
+    summary,
+    grounded,
+    sectionPlan,
+    infoBudget
+  });
 
-    const recommendation = this.groundExecutiveRecommendation(rawRecommendation, grounded);
+  if (relationshipAction?.length) {
+    return relationshipAction;
+  }
 
-    const reason = this.bestExecutiveReason({
-      summary,
+  const rec = reasoning.recommendation || {};
+
+  const rawRecommendation =
+    conclusion.recommendation ||
+    rec.summary ||
+    "protect the main priority first, then choose the option with the least unnecessary risk.";
+
+  const recommendation = this.groundExecutiveRecommendation(rawRecommendation, grounded);
+
+  const reason = this.bestExecutiveReason({
+    summary,
+    reasoning,
+    conclusion,
+    grounded
+  });
+
+  const rawNextStep =
+    conclusion.nextStep ||
+    reasoning.caseModel?.nextAction ||
+    rec.alternatives?.[0] ||
+    null;
+
+  const nextStep = this.groundExecutiveNextStep(rawNextStep, grounded);
+
+  if (communicationPlan.wantsSeparatedReasoning) {
+    return this.composeSeparatedExecutiveDecision({
       reasoning,
       conclusion,
+      rec,
+      communicationPlan,
       grounded
     });
+  }
 
-    const rawNextStep =
-      conclusion.nextStep ||
-      reasoning.caseModel?.nextAction ||
-      rec.alternatives?.[0] ||
-      null;
+  const parts = [];
 
-    const nextStep = this.groundExecutiveNextStep(rawNextStep, grounded);
+  if (sectionPlan.includes("recommendation") && infoBudget.recommendation !== 0) {
+    parts.push(`My recommendation: ${this.upperFirst(recommendation)}`);
+  }
 
-    if (communicationPlan.wantsSeparatedReasoning) {
-      return this.composeSeparatedExecutiveDecision({
-        reasoning,
-        conclusion,
-        rec,
-        communicationPlan,
-        grounded
-      });
-    }
+  if (reason && sectionPlan.includes("reason") && infoBudget.supportingReason !== 0) {
+    parts.push(`Why: ${this.upperFirst(reason)}`);
+  }
 
-    const parts = [];
+  if (nextStep && sectionPlan.includes("next_step") && infoBudget.nextAction !== 0) {
+    parts.push(`Next step: ${this.upperFirst(nextStep)}`);
+  }
 
-    if (sectionPlan.includes("recommendation") && infoBudget.recommendation !== 0) {
-      parts.push(`My recommendation: ${this.upperFirst(recommendation)}`);
-    }
+  return parts;
+},
 
-    if (reason && sectionPlan.includes("reason") && infoBudget.supportingReason !== 0) {
-      parts.push(`Why: ${this.upperFirst(reason)}`);
-    }
+composeRelationshipActionDecision({
+  summary = {},
+  grounded = {},
+  sectionPlan = [],
+  infoBudget = {}
+}) {
+  const person =
+    grounded.personOrRelationship?.short ||
+    grounded.personOrRelationship?.noun ||
+    "";
 
-    if (nextStep && sectionPlan.includes("next_step") && infoBudget.nextAction !== 0) {
-      parts.push(`Next step: ${this.upperFirst(nextStep)}`);
-    }
+  const action =
+    grounded.actionPhrase?.short ||
+    grounded.action?.short ||
+    "";
 
-    return parts;
-  },
+  if (!person && !action) return null;
+
+  const text = this.normalize(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  );
+
+  const involvesStolen =
+    text.includes("stole") ||
+    text.includes("stolen") ||
+    text.includes("took it") ||
+    text.includes("take it");
+
+  if (!involvesStolen) return null;
+
+  const parts = [];
+
+  if (sectionPlan.includes("recommendation") && infoBudget.recommendation !== 0) {
+    parts.push(
+      `My recommendation: Ask your ${person || "friend"} directly, but don’t accuse first.`
+    );
+  }
+
+  if (sectionPlan.includes("reason") && infoBudget.supportingReason !== 0) {
+    parts.push(
+      "Why: You heard something, but you don’t fully know yet, so the safest move is calm confrontation instead of an attack."
+    );
+  }
+
+  if (sectionPlan.includes("next_step") && infoBudget.nextAction !== 0) {
+    parts.push(
+      `Next step: Say, “I heard you may have taken it, and I want to ask you directly before I assume anything. Did you take it?”`
+    );
+  }
+
+  return parts;
+},
 
   getGroundedTerms(summary = {}) {
     const preferred = summary.preferredTerms || {};
@@ -290,6 +358,24 @@ composeExecutiveDecision({
       centralTradeoff: getTerm(
         "centralTradeoff",
         ["central_tradeoff"],
+        ""
+      ),
+        
+      action: getTerm(
+        "action",
+        ["action_phrase"],
+        ""
+      ),
+
+      actionPhrase: getTerm(
+        "actionPhrase",
+        ["action_phrase"],
+        ""
+      ),
+
+      personOrRelationship: getTerm(
+        "personOrRelationship",
+        ["person_or_relationship"],
         ""
       )
     };
