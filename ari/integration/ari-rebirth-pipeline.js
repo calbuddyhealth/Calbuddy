@@ -201,7 +201,15 @@ window.AriRebirthPipeline = {
     };
 
     // 0.30 Entity Reference Resolver
-    merge(await runEngine(window.AriEntityReferenceResolver, ["resolve"]));
+// Only run for continuity routes. Direct current-turn messages do not need thread/entity resolution.
+const shouldRunEntityResolver =
+  summary.laneSplit?.routing?.useThread ||
+  summary.laneSplit?.routing?.useMemory ||
+  summary.laneSplit?.routing?.useRelationship;
+
+if (shouldRunEntityResolver) {
+  merge(await runEngine(window.AriEntityReferenceResolver, ["resolve"]));
+}
 
     // 0.31 Lexical Grounding
     merge(await runEngine(
