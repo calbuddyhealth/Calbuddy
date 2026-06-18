@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.4
+// V3.5.2 — Adds routing evidence, lane split, continuity results, continuity packet
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.4.0",
+  version: "3.5.2",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -35,6 +35,23 @@ window.Ari.coreSummary = {
       analysis.observerEvidence ||
       analysis.observer ||
       {};
+
+const routingEvidence =
+  analysis.routingEvidence ||
+  analysis.observerRoutingEvidence ||
+  {};
+
+const laneSplit =
+  analysis.laneSplit ||
+  {};
+
+const continuityResults =
+  analysis.continuityResults ||
+  {};
+
+const continuityPacket =
+  analysis.continuityPacket ||
+  {};
 
 const universalConversationClassification =
   analysis.universalConversationClassification ||
@@ -428,6 +445,124 @@ conversationAuthority:
   analysis.conversationAuthority ||
   universalConversationClassification.conversationAuthority ||
   null,
+
+// ==================================================
+// NEW CORE CHAIN: ROUTING / LANE SPLITTER / CONTINUITY PACKET
+// ==================================================
+
+routingEvidence,
+observerRoutingEvidence: routingEvidence,
+
+routingEvidenceRan:
+  routingEvidence.engine === "ari-observer-routing-evidence",
+
+routingEvidenceSource:
+  routingEvidence.source || "not-yet-run",
+
+routingPressures:
+  routingEvidence.routingPressures || {},
+
+preservedObserverEvidence:
+  routingEvidence.preservedObserverEvidence || [],
+
+preservedObservationCount:
+  routingEvidence.preservedObservationCount ?? 0,
+
+laneSplit,
+
+lane:
+  analysis.lane ||
+  laneSplit.lane ||
+  "direct_current_turn",
+
+routingDecision:
+  analysis.routingDecision ||
+  laneSplit.routing ||
+  {
+    useCurrentTurn: true,
+    useThread: false,
+    useMemory: false,
+    useRelationship: false,
+    goStraightToSituationMap: true
+  },
+
+laneSplitterRan:
+  laneSplit.engine === "ari-lane-splitter-engine",
+
+laneSplitterSource:
+  laneSplit.source || "not-yet-run",
+
+laneSplitterConfidence:
+  laneSplit.confidence || null,
+
+laneSplitterScores:
+  laneSplit.scores || {},
+
+continuityResults,
+
+continuityEntryPointRan:
+  continuityResults.ran ?? false,
+
+continuityEntryPointSource:
+  continuityResults.source || "not-yet-run",
+
+continuityEntryPointReason:
+  continuityResults.reason || null,
+
+continuityEntryPointUsed:
+  continuityResults.used || {
+    thread: false,
+    memory: false,
+    relationship: false
+  },
+
+continuityEntryPointOutputs:
+  continuityResults.outputs || {
+    thread: null,
+    memory: null,
+    relationship: null
+  },
+
+continuityEntryPointWarnings:
+  continuityResults.warnings || [],
+
+continuityPacket,
+
+continuityPacketRan:
+  continuityPacket.ran ?? false,
+
+continuityPacketSource:
+  continuityPacket.source || "not-yet-run",
+
+continuityType:
+  continuityPacket.continuityType || null,
+
+continuityCurrentTurn:
+  continuityPacket.currentTurn || {},
+
+continuityActiveThread:
+  continuityPacket.activeThread || {},
+
+continuityReferencedContext:
+  continuityPacket.referencedContext || {},
+
+continuityUsableFacts:
+  continuityPacket.usableFacts || [],
+
+continuityUsableFactCount:
+  continuityPacket.usableFactCount ?? 0,
+
+continuityUnresolvedReferences:
+  continuityPacket.unresolvedReferences || [],
+
+continuityUnresolvedReferenceCount:
+  continuityPacket.unresolvedReferenceCount ?? 0,
+
+continuityPacketConfidence:
+  continuityPacket.confidence || null,
+
+continuitySituationMapHandoff:
+  continuityPacket.situationMapHandoff || {},
 
 // ==================================================
 // CONTINUITY / MEMORY / RELATIONSHIP
