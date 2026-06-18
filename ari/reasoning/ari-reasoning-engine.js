@@ -1,7 +1,7 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
 // Purpose: Build an evidence-based case model from upstream context.
-// V8.2.0 — Case Modeler Only / No Final Recommendation Authority
+// V8.3.0 — Case Modeler Only / No Final Recommendation Authority
 // Boundary:
 // - DOES organize known facts, inferred facts, unknowns, constraints, risks, options, tradeoffs, consequences, and confidence.
 // - DOES use groundedContext and preferredTerms when available.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "8.2.0",
+  version: "8.3.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -242,7 +242,8 @@ collectKeyFacts(summary = {}) {
     summary.assembledContext?.keyFacts,
     summary.advisoryContext?.keyFacts,
     summary.threadUnderstanding?.keyFacts,
-    summary.threadUnderstanding?.resolvedMeaning?.keyFacts
+    summary.threadUnderstanding?.resolvedMeaning?.keyFacts,
+    summary.threadUnderstanding?.workingContext?.keyFacts
   ];
 
   const facts = [];
@@ -251,8 +252,13 @@ collectKeyFacts(summary = {}) {
     if (!Array.isArray(source)) return;
 
     source.forEach(fact => {
-      if (typeof fact === "string" && fact.trim()) {
-        facts.push(fact.trim());
+      const text =
+        typeof fact === "string"
+          ? fact
+          : fact?.claim || fact?.value || fact?.label || fact?.evidence || "";
+
+      if (text && String(text).trim()) {
+        facts.push(String(text).trim());
       }
     });
   });
@@ -756,39 +762,60 @@ collectKeyFacts(summary = {}) {
       reasoning.caseModel.unknowns || [];
   },
 
-  buildConfidence(reasoning) {
+    buildConfidence(reasoning) {
+    const model = reasoning.caseModel || {};
+
     let score = 0.45;
 
-    if (reasoning.caseModel.issue) score += 0.15;
-    if (reasoning.caseModel.actor) score += 0.10;
-    if (reasoning.caseModel.decision) score += 0.10;
-    if (reasoning.caseModel.frame) score += 0.10;
-    if ((reasoning.caseModel.options || []).length) score += 0.10;
+    if (model.frame) score += 0.10;
+    if (model.situation) score += 0.10;
+    if ((reasoning.knownFacts || []).length) score += 0.15;
+    if ((model.constraints || []).length) score += 0.10;
+    if ((model.options || []).length) score += 0.10;
+    if ((model.nextActionCandidates || []).length) score += 0.10;
+    if ((model.tradeoffs || []).length) score += 0.10;
 
     reasoning.confidence.score = Math.min(0.95, score);
 
     reasoning.confidence.level =
-      score >= 0.80 ? "high" :
-      score >= 0.60 ? "medium" :
+      reasoning.confidence.score >= 0.80 ? "high" :
+      reasoning.confidence.score >= 0.60 ? "medium" :
       "low";
 
+    reasoning.confidence.reasons = [
+      ...(reasoning.confidence.reasons || []),
+      model.situation ? "A usable situation frame was available." : null,
+      (reasoning.knownFacts || []).length ? "Known facts were available." : null,
+      (model.options || []).length ? "Options were generated." : null,
+      (model.tradeoffs || []).length ? "Tradeoffs were identified." : null
+    ].filter(Boolean);
+
+    reasoning.confidence.uncertaintyDrivers =
+      model.unknowns || [];
+
     reasoning.decisionMemo.strongestFacts =
-      reasoning.knownFacts.slice(0, 5);
+      (reasoning.knownFacts || []).slice(0, 7);
+
+    reasoning.decisionMemo.materialUnknowns =
+      model.unknowns || [];
 
     reasoning.decisionMemo.safestAvailableActions =
-      reasoning.caseModel.nextActionCandidates.slice(0, 3);
+      (model.nextActionCandidates || []).slice(0, 4);
 
     reasoning.executiveConclusion.analysisSummary =
-      reasoning.caseModel.situation;
+      model.situation || null;
 
     reasoning.executiveConclusion.candidateActions =
-      reasoning.caseModel.nextActionCandidates;
+      model.nextActionCandidates || [];
+
+    reasoning.executiveConclusion.keyRisk =
+      (model.risks || [])[0] || null;
 
     reasoning.executiveConclusion.keyTradeoff =
-      (reasoning.caseModel.tradeoffs || [])[0] || null;
+      (model.tradeoffs || reasoning.tradeoffs || [])[0] || null;
 
     reasoning.executiveConclusion.uncertainty =
-      (reasoning.caseModel.unknowns || [])[0] || null;
+      (model.unknowns || [])[0] || null;
   },
 
   finalize(reasoning) {
