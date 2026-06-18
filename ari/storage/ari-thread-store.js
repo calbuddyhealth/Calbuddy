@@ -1,39 +1,42 @@
 // ari/storage/ari-thread-store.js
 // Ari Thread Store
 // Purpose: Persist conversation thread state.
-// V1.0.0
+// V1.0.1 — Returns raw thread state directly
 
 window.Ari = window.Ari || {};
 
 window.AriThreadStore = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   async load(summary = {}) {
-    // Placeholder implementation.
-    // Later this will load from Supabase for logged-in users.
+    try {
+      const cached =
+        window.Ari.threadState ||
+        JSON.parse(sessionStorage.getItem("ari_thread_state") || "null") ||
+        {};
 
-    const cached =
-      window.Ari.threadState ||
-      JSON.parse(sessionStorage.getItem("ari_thread_state") || "null") ||
-      {};
-
-    return {
-      threadStoreRan: true,
-      threadStoreVersion: this.version,
-      threadState: cached
-    };
+      return cached;
+    } catch (error) {
+      console.warn("Unable to load thread state:", error);
+      return {};
+    }
   },
 
   async save(threadState = {}) {
-    window.Ari.threadState = threadState;
+    const cleanThreadState = {
+      ...threadState,
+      lastUpdatedAt: threadState.lastUpdatedAt || new Date().toISOString()
+    };
+
+    window.Ari.threadState = cleanThreadState;
 
     try {
       sessionStorage.setItem(
         "ari_thread_state",
-        JSON.stringify(threadState)
+        JSON.stringify(cleanThreadState)
       );
-    } catch (e) {
-      console.warn("Unable to cache thread state:", e);
+    } catch (error) {
+      console.warn("Unable to cache thread state:", error);
     }
 
     return {
@@ -47,9 +50,14 @@ window.AriThreadStore = {
 
     try {
       sessionStorage.removeItem("ari_thread_state");
-    } catch (e) {}
+    } catch (error) {
+      console.warn("Unable to clear thread state:", error);
+    }
 
-    return { success: true };
+    return {
+      success: true,
+      version: this.version
+    };
   }
 };
 
