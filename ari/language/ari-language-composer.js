@@ -1,12 +1,12 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V7.7.0 — Character Context Aware Composer
+// V7.7.1 — Character Context Aware Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "7.7.0",
+  version: "7.7.1",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -646,12 +646,7 @@ composeRelationshipActionDecision({
   language,
   mouth,
   communicationPlan,
-  userQuestion:
-    summary.resolvedUserQuestion ||
-    summary.threadQuestion?.resolvedUserQuestion ||
-    summary.userMessage ||
-    summary.message ||
-    summary.input
+  userQuestion
 });
 
     try {
