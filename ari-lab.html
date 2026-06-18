@@ -47,6 +47,10 @@
   <script src="ari/observer-system/ari-observer-network.js"></script>
 <script src="ari/conversation/ari-universal-conversation-classifier.js"></script>
 
+<script src="ari/observer-system/ari-observer-routing-evidence.js"></script>
+<script src="ari/routing/ari-lane-splitter-engine.js"></script>
+<script src="ari/continuity/ari-continuity-entry-point.js"></script>
+<script src="ari/continuity/ari-continuity-packet.js"></script>
 <!-- CONTINUITY / MEMORY / RELATIONSHIP -->
 <script src="ari/storage/ari-thread-store.js"></script>
 <script src="ari/storage/ari-memory-store.js"></script>
@@ -382,6 +386,85 @@ ${summary.conversationTypeReasons?.join("\\n") || "none"}
 
 Candidates:
 ${JSON.stringify(summary.conversationCandidates || [], null, 2)}
+
+==================================================
+
+===== ROUTING EVIDENCE =====
+
+Routing Evidence Ran:
+${summary.routingEvidenceRan ? "yes" : "no"}
+
+Source:
+${summary.routingEvidenceSource || "none"}
+
+Routing Pressures:
+${JSON.stringify(summary.routingPressures || {}, null, 2)}
+
+Preserved Observation Count:
+${summary.preservedObservationCount ?? "none"}
+
+==================================================
+
+===== LANE SPLITTER =====
+
+Lane Splitter Ran:
+${summary.laneSplitterRan ? "yes" : "no"}
+
+Lane:
+${summary.lane || "none"}
+
+Confidence:
+${summary.laneSplitterConfidence || "none"}
+
+Routing Decision:
+${JSON.stringify(summary.routingDecision || {}, null, 2)}
+
+Scores:
+${JSON.stringify(summary.laneSplitterScores || {}, null, 2)}
+
+==================================================
+
+===== CONTINUITY ENTRY POINT =====
+
+Entry Point Ran:
+${summary.continuityEntryPointRan ? "yes" : "no"}
+
+Reason:
+${summary.continuityEntryPointReason || "none"}
+
+Used:
+${JSON.stringify(summary.continuityEntryPointUsed || {}, null, 2)}
+
+Warnings:
+${JSON.stringify(summary.continuityEntryPointWarnings || [], null, 2)}
+
+==================================================
+
+===== CONTINUITY PACKET =====
+
+Packet Ran:
+${summary.continuityPacketRan ? "yes" : "no"}
+
+Continuity Type:
+${summary.continuityType || "none"}
+
+Current Turn:
+${JSON.stringify(summary.continuityCurrentTurn || {}, null, 2)}
+
+Active Thread:
+${JSON.stringify(summary.continuityActiveThread || {}, null, 2)}
+
+Referenced Context:
+${JSON.stringify(summary.continuityReferencedContext || {}, null, 2)}
+
+Usable Facts:
+${JSON.stringify(summary.continuityUsableFacts || [], null, 2)}
+
+Unresolved References:
+${JSON.stringify(summary.continuityUnresolvedReferences || [], null, 2)}
+
+Situation Map Handoff:
+${JSON.stringify(summary.continuitySituationMapHandoff || {}, null, 2)}
 
 ==================================================
 
