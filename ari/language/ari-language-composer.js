@@ -10,6 +10,13 @@ window.AriLanguageComposer = {
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
+    const userQuestion =
+  summary.resolvedUserQuestion ||
+  summary.threadQuestion?.resolvedUserQuestion ||
+  summary.userMessage ||
+  summary.message ||
+  summary.input ||
+  "";
     const contract = summary.situationContract || {};
     const language = summary.humanLanguageProfile || {};
     const mouth = summary.mouthDirector || {};
@@ -58,15 +65,15 @@ const characterCore =
   });
 } else {
       bodyParts = await this.composeWithAI({
-        summary,
-        primary,
-        contract,
-        language,
-        mouth,
-        communicationPlan
-      });
-    }
-
+  summary,
+  primary,
+  contract,
+  language,
+  mouth,
+  communicationPlan,
+  userQuestion
+});
+}
     bodyParts = this.cleanParts(bodyParts, language);
 
     if (!bodyParts.length) {
@@ -624,21 +631,28 @@ composeRelationshipActionDecision({
   },
 
   async composeWithAI({
-    summary = {},
-    primary = "general_understanding",
-    contract = {},
-    language = {},
-    mouth = {},
-    communicationPlan = {}
-  }) {
+  summary = {},
+  primary = "general_understanding",
+  contract = {},
+  language = {},
+  mouth = {},
+  communicationPlan = {},
+  userQuestion = ""
+}) {
     const instruction = this.buildAIInstruction({
-      summary,
-      primary,
-      contract,
-      language,
-      mouth,
-      communicationPlan
-    });
+  summary,
+  primary,
+  contract,
+  language,
+  mouth,
+  communicationPlan,
+  userQuestion:
+    summary.resolvedUserQuestion ||
+    summary.threadQuestion?.resolvedUserQuestion ||
+    summary.userMessage ||
+    summary.message ||
+    summary.input
+});
 
     try {
       if (
@@ -668,13 +682,14 @@ composeRelationshipActionDecision({
   },
 
   buildAIInstruction({
-    summary = {},
-    primary = "general_understanding",
-    contract = {},
-    language = {},
-    mouth = {},
-    communicationPlan = {}
-  }) {
+  summary = {},
+  primary = "general_understanding",
+  contract = {},
+  language = {},
+  mouth = {},
+  communicationPlan = {},
+  userQuestion = ""
+}) {
     const required = contract.requiredBehaviors || [];
     const forbidden = contract.forbiddenBehaviors || [];
     const executive = contract.executive || {};
@@ -690,6 +705,12 @@ composeRelationshipActionDecision({
 You are Ari.
 
 Your job is to actually answer the user's message, not describe the internal process.
+
+USER QUESTION TO ANSWER:
+${userQuestion}
+
+IMPORTANT:
+If USER QUESTION TO ANSWER differs from the raw message because a follow-up was resolved from thread context, answer USER QUESTION TO ANSWER.
 
 PRIMARY MISSION:
 ${primary}
