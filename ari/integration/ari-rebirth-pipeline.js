@@ -804,9 +804,9 @@ summary = {
     summary.activeSubject ||
     summary.situationMap?.situations?.[0] ||
     summary.continuityPacket?.activeThread?.activeTopic ||
-    userMessage ||
     previousThread.currentTopic ||
-    "general_thread";
+userMessage ||
+"general_thread";
 
   const threadState = {
     ...previousThread,
@@ -865,10 +865,6 @@ conversationMeaningOpenLoops:
   previousThread.conversationMeaningOpenLoops ||
   [],
 
-priorMeaningForFollowUp:
-  summary.priorMeaningForFollowUp ||
-  previousThread.priorMeaningForFollowUp ||
-  null,
 
     activeConstraints:
       summary.activeConstraints ||
