@@ -727,16 +727,54 @@ promoteActiveSituation({
     /\b(here|this|that|it|they|them|those|what matters|what about|do you still|based on|earlier|before)\b/i.test(lower) ||
     resolvedMeaning?.isContextual === true;
 
-  if (!isContextual) {
+ if (!isContextual) {
+  const currentScenarioScore = this.scoreScenario(currentText);
+
+  if (currentScenarioScore >= 3) {
+    const activeSituation = this.makeNode(
+      "active_situation",
+      currentText,
+      currentText,
+      currentText,
+      0.88
+    );
+
+    const keyFacts = this.extractKeyFactsFromScenario(currentText);
+
+    workingContext.activeSubject = activeSituation;
+    workingContext.activeObject = null;
+    workingContext.activeIssue = null;
+    workingContext.activeGoal =
+      workingContext.activeGoal || this.extractGoalFromScenario(currentText);
+
     return {
-      resolvedMeaning,
-      activeSituation: null,
-      keyFacts: [],
+      resolvedMeaning: {
+        ...resolvedMeaning,
+        activeSituation,
+        keyFacts,
+        resolvedSubject: activeSituation,
+        resolvedObject: null,
+        resolvedIssue: null,
+        resolvedGoal: workingContext.activeGoal,
+        staleContextSuppressed: false
+      },
+      activeSituation,
+      keyFacts,
       staleContextSuppressed: false,
       suppressedTopics: [],
       topicTransition
     };
   }
+
+  return {
+    resolvedMeaning,
+    activeSituation: null,
+    keyFacts: [],
+    staleContextSuppressed: false,
+    suppressedTopics: [],
+    topicTransition
+  };
+}
 
   const bestPriorScenario = this.findBestPriorScenario(recentMessages, currentText);
 
