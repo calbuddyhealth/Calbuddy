@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.5.3 — Adds routing evidence, lane split, continuity results, continuity packet
+// V3.5.4 — Adds routing evidence, lane split, continuity results, continuity packet
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.5.3",
+  version: "3.5.4",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -55,6 +55,11 @@ const continuityPacket =
 
 const threadQuestion =
   analysis.threadQuestion ||
+  {};
+
+const conversationMeaningHistory =
+  analysis.conversationMeaningHistoryState ||
+  analysis.conversationMeaningHistory ||
   {};
 
 const universalConversationClassification =
@@ -613,6 +618,58 @@ threadQuestionReason:
   analysis.threadQuestionReason ||
   threadQuestion.reason ||
   null,
+
+// ==================================================
+// CONVERSATION MEANING HISTORY
+// ==================================================
+
+conversationMeaningHistoryState:
+  conversationMeaningHistory,
+
+conversationMeaningHistoryRan:
+  analysis.conversationMeaningHistoryRan ??
+  conversationMeaningHistory.conversationMeaningHistoryRan ??
+  false,
+
+conversationMeaningHistoryVersion:
+  analysis.conversationMeaningHistoryVersion ||
+  conversationMeaningHistory.conversationMeaningHistoryVersion ||
+  null,
+
+conversationMeaningHistorySource:
+  analysis.conversationMeaningHistorySource ||
+  conversationMeaningHistory.source ||
+  "not-yet-run",
+
+latestConversationMeaning:
+  analysis.latestConversationMeaning ||
+  conversationMeaningHistory.latestConversationMeaning ||
+  null,
+
+conversationMeaningHistory:
+  analysis.conversationMeaningHistory ||
+  conversationMeaningHistory.conversationMeaningHistory ||
+  [],
+
+activeSemanticTimeline:
+  analysis.activeSemanticTimeline ||
+  conversationMeaningHistory.activeSemanticTimeline ||
+  [],
+
+activeSemanticFrame:
+  analysis.activeSemanticFrame ||
+  conversationMeaningHistory.activeSemanticFrame ||
+  null,
+
+conversationMeaningFocus:
+  analysis.conversationMeaningFocus ||
+  conversationMeaningHistory.conversationMeaningFocus ||
+  null,
+
+conversationMeaningOpenLoops:
+  analysis.conversationMeaningOpenLoops ||
+  conversationMeaningHistory.conversationMeaningOpenLoops ||
+  [],
 
 // ==================================================
 // CONTINUITY / MEMORY / RELATIONSHIP
