@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.5 — Lane Splitter + Continuity Packet Routing
+// V3.5.6 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.5",
+  version: "3.5.6",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -285,6 +285,25 @@ window.AriRebirthPipeline = {
 
   continuitySituationMapHandoff:
     continuityPacket.situationMapHandoff || {}
+};
+
+// 0.292 Load Prior Conversation Meaning
+summary = {
+  ...summary,
+  priorMeaningForFollowUp:
+    summary.latestConversationMeaning ||
+    summary.threadState?.latestConversationMeaning ||
+    null,
+
+  conversationMeaningHistory:
+    summary.conversationMeaningHistory ||
+    summary.threadState?.conversationMeaningHistory ||
+    [],
+
+  activeSemanticTimeline:
+    summary.activeSemanticTimeline ||
+    summary.threadState?.activeSemanticTimeline ||
+    []
 };
 
 // 0.295 Thread Question Generator
@@ -613,6 +632,24 @@ summary = this.reassertContractAuthority(summary);
         summary.finalResponse
     };
 
+// Conversation Meaning History
+const conversationMeaningHistory =
+  window.Ari?.conversationMeaningHistory?.build
+    ? await window.Ari.conversationMeaningHistory.build(summary)
+    : {
+        conversationMeaningHistoryRan: false,
+        source: "not-loaded",
+        conversationMeaningHistory: summary.conversationMeaningHistory || [],
+        latestConversationMeaning: null,
+        priorMeaningForFollowUp: null
+      };
+
+summary = {
+  ...summary,
+  conversationMeaningHistoryState: conversationMeaningHistory,
+  ...conversationMeaningHistory
+};
+
     // Memory Candidate Detection
     merge(await runEngine(
       window.AriMemoryCandidateEngine,
@@ -798,6 +835,41 @@ summary = this.reassertContractAuthority(summary);
       previousThread.activeGoal ||
       null,
 
+conversationMeaningHistory:
+  summary.conversationMeaningHistory ||
+  previousThread.conversationMeaningHistory ||
+  [],
+
+latestConversationMeaning:
+  summary.latestConversationMeaning ||
+  previousThread.latestConversationMeaning ||
+  null,
+
+activeSemanticTimeline:
+  summary.activeSemanticTimeline ||
+  previousThread.activeSemanticTimeline ||
+  [],
+
+activeSemanticFrame:
+  summary.activeSemanticFrame ||
+  previousThread.activeSemanticFrame ||
+  null,
+
+conversationMeaningFocus:
+  summary.conversationMeaningFocus ||
+  previousThread.conversationMeaningFocus ||
+  null,
+
+conversationMeaningOpenLoops:
+  summary.conversationMeaningOpenLoops ||
+  previousThread.conversationMeaningOpenLoops ||
+  [],
+
+priorMeaningForFollowUp:
+  summary.priorMeaningForFollowUp ||
+  previousThread.priorMeaningForFollowUp ||
+  null,
+
     activeConstraints:
       summary.activeConstraints ||
       previousThread.activeConstraints ||
@@ -974,8 +1046,29 @@ async loadThreadState(summary = {}) {
         threadState.currentTopic ||
         null,
 
-      activeTopic: threadState.currentTopic || null
-    };
+      activeTopic: threadState.currentTopic || null,
+
+conversationMeaningHistory:
+  threadState.conversationMeaningHistory || [],
+ 
+latestConversationMeaning:
+  threadState.latestConversationMeaning || null,
+
+activeSemanticTimeline:
+  threadState.activeSemanticTimeline || [],
+
+activeSemanticFrame:
+  threadState.activeSemanticFrame || null,
+
+conversationMeaningFocus:
+  threadState.conversationMeaningFocus || null,
+
+conversationMeaningOpenLoops:
+  threadState.conversationMeaningOpenLoops || [],
+
+priorMeaningForFollowUp:
+  threadState.latestConversationMeaning || null,
+     };
   } catch (error) {
     return {
       ...summary,
@@ -990,6 +1083,7 @@ async loadThreadState(summary = {}) {
     console.log("===== ARI REBIRTH PIPELINE =====", this.version);
     console.log("===== SAFETY CONTEXT GATE =====", summary.safetyContextGate);
     console.log("===== OBSERVER EVIDENCE =====", summary.observerEvidence);
+    console.log("===== CONVERSATION MEANING HISTORY =====", summary.conversationMeaningHistoryState);
     console.log("===== CLASSIFIER =====", summary.universalConversationClassification);
     console.log("===== ROUTING EVIDENCE =====", summary.routingEvidence);
     console.log("===== LANE SPLIT =====", summary.laneSplit);
