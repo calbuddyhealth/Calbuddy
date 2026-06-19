@@ -187,7 +187,7 @@ window.Ari.laneSplitterEngine = {
       /^(but|so|then|also|and|what about|what if|after that|why|how|how about|okay|ok|yeah but|ideally|still)\b/.test(text);
 
     const hasPronounReference =
-      /\b(it|this|that|they|them|those|these|same|same thing|for me|my situation|my case|in this case)\b/.test(text);
+  /\b(it|this|that|they|them|those|these|same|same thing|one|which one|for me|my situation|my case|in this case)\b/.test(text);
 
     const requestedOperation = this.detectRequestedOperation(text);
 
@@ -257,9 +257,9 @@ window.Ari.laneSplitterEngine = {
   },
 
   detectRequestedOperation(text = "") {
-    if (/\b(recommend|suggest|best|choose|pick|prefer|what would you do)\b/.test(text)) {
-      return "recommendation";
-    }
+    if (/\b(recommend|suggest|best|healthiest|safest|choose|pick|prefer|which one|what would you do)\b/.test(text)) {
+  return "recommendation";
+}
 
     if (/\b(plan|strategy|approach|roadmap|steps)\b/.test(text)) {
       return "planning";
@@ -288,7 +288,7 @@ window.Ari.laneSplitterEngine = {
     const words = text.split(/\s+/).filter(Boolean);
 
     const hasNumberOrUnit = /\d/.test(text);
-    const hasQuotedOrNamedThing = /["“”']/.test(text) || /\b[A-Z][a-z]+\b/.test(text);
+    const hasQuotedOrNamedThing = /["“”']/.test(text);
     const concreteWords = words.filter(word => {
       const cleaned = word.replace(/[^\w]/g, "");
       if (!cleaned) return false;
