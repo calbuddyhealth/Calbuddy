@@ -80,14 +80,14 @@ const semanticSummary =
 
 const semanticContinuity =
   analysis.semanticContinuity ||
-  semanticFrameOutput.continuity ||
   semanticSummary.continuity ||
+  semanticFrameOutput.continuity ||
   {};
 
 const semanticResponseCharacteristics =
   analysis.semanticResponseCharacteristics ||
-  semanticFrameOutput.responseCharacteristics ||
   semanticSummary.responseCharacteristics ||
+  semanticFrameOutput.responseCharacteristics ||
   {};
 
 const semanticEmotionalOverlay =
@@ -515,7 +515,7 @@ semanticFrameOutput,
 semanticFrameBuilderRan:
   semanticFrameOutput.semanticFrameBuilderRan ??
   analysis.semanticFrameBuilderRan ??
-  false,
+  Boolean(semanticSummary.primaryMeaning),
 
 semanticFrameBuilderVersion:
   semanticFrameOutput.semanticFrameBuilderVersion ||
