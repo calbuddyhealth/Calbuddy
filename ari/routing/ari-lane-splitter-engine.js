@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.6.0 — Frame Consumer Routing / semantic-slot dependency model
+// V1.6.1 — Frame Consumer Routing / semantic-slot dependency model
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.6.0",
+  version: "1.6.1",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -18,7 +18,7 @@ window.Ari.laneSplitterEngine = {
       this.emptyEvidence();
 
     const pressures = evidence.routingPressures || evidence;
-    const context = this.readContext(summary);
+    const context = this.readContext(summary, evidence);
 
     const scores = this.scoreLanes(pressures, context);
     const ranked = this.rankScores(scores);
@@ -56,7 +56,7 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  readContext(summary = {}) {
+  readContext(summary = {}, evidence = {}) {
     const text = String(
       summary.userMessage ||
       summary.message ||
@@ -83,7 +83,7 @@ window.Ari.laneSplitterEngine = {
     const wordCount = words.length;
 
     const frame =
-      this.readProvidedFrame(summary) ||
+      this.readProvidedFrame(summary, evidence) ||
       this.buildFallbackFrame(text, hasThread);
 
     const hasReferenceLanguage = this.hasReferenceLanguage(text);
@@ -139,8 +139,10 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  readProvidedFrame(summary = {}) {
+  readProvidedFrame(summary = {}, evidence = {}) {
     const candidates = [
+      evidence.supportingEvidence?.semanticFrame,
+      evidence.semanticFrame,
       summary.semanticFrame,
       summary.currentFrame,
       summary.observerSemanticFrame,
@@ -213,13 +215,13 @@ window.Ari.laneSplitterEngine = {
         : requiredSlots.filter(slot => !slots[slot]);
 
     return {
-      source: "provided_semantic_frame",
+      source: found.source || "provided_semantic_frame",
       operation,
       slots,
       requiredSlots,
       missingSlots,
       isComplete: missingSlots.length === 0,
-      needsThread: Boolean(found.needsThread || found.requiresPriorContext)
+      needsThread: Boolean(found.needsThread || found.requiresPriorContext || found.needsPriorFrame)
     };
   },
 
