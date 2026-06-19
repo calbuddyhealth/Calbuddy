@@ -1,7 +1,7 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.3.0 — Respects routing guards / prevents false follow-up hijack
+// V1.3.0 — Semantic dependency routing / direct-vs-follow-up separation
 
 window.Ari = window.Ari || {};
 
@@ -18,12 +18,11 @@ window.Ari.laneSplitterEngine = {
       this.emptyEvidence();
 
     const pressures = evidence.routingPressures || evidence;
-    const guards = evidence.routingGuards || {};
-    const context = this.readContext(summary, guards);
+    const context = this.readContext(summary);
 
-    const scores = this.scoreLanes(pressures, context, guards);
+    const scores = this.scoreLanes(pressures, context);
     const ranked = this.rankScores(scores);
-    const lane = this.chooseLane(ranked, pressures, context, guards);
+    const lane = this.chooseLane(ranked, pressures, context);
 
     return {
       engine: "ari-lane-splitter-engine",
@@ -43,9 +42,8 @@ window.Ari.laneSplitterEngine = {
       scores,
       ranked,
       confidence: this.confidence(ranked),
-      explanation: this.explain(lane),
+      explanation: this.explain(lane, context),
       evidenceUsed: pressures,
-      routingGuardsUsed: guards,
       contextUsed: context,
 
       authority: {
@@ -58,7 +56,7 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  scoreLanes(p, context = {}, guards = {}) {
+  scoreLanes(p = {}, context = {}) {
     const direct =
       p.standaloneCompleteness * 35 +
       p.directAnswerPressure * 35 +
@@ -66,11 +64,11 @@ window.Ari.laneSplitterEngine = {
       (1 - p.ambiguityWithoutContext) * 15;
 
     const continuity =
-      p.contextDependency * 25 +
-      (p.followUpPressure || 0) * 35 +
-      p.activeThreadMatch * 20 +
-      p.ambiguityWithoutContext * 10 +
-      p.directAnswerPressure * 5;
+      p.contextDependency * 28 +
+      (p.followUpPressure || 0) * 30 +
+      p.activeThreadMatch * 18 +
+      p.ambiguityWithoutContext * 12 +
+      p.directAnswerPressure * 4;
 
     const recall =
       p.recallPressure * 70 +
@@ -87,25 +85,20 @@ window.Ari.laneSplitterEngine = {
       p.contextDependency * 20 +
       p.activeThreadMatch * 10;
 
-    let directBoost = 0;
     let continuityBoost = 0;
+    let directBoost = 0;
 
-    if (guards.shouldNotForceFollowUp || context.hasConcreteNewTopic) {
-      directBoost += 30;
-      continuityBoost -= 30;
-    }
+    if (context.hasThread && context.isTinyFollowUp) continuityBoost += 40;
+    if (context.hasThread && context.startsWithContinuation) continuityBoost += 25;
+    if (context.hasThread && context.hasPronounReference) continuityBoost += 25;
+    if (context.hasThread && context.personalizedButMissingTopic) continuityBoost += 38;
+    if (context.hasThread && context.recommendationNeedsPriorContext) continuityBoost += 42;
+    if (context.hasThread && context.semanticDependency) continuityBoost += 35;
 
-    if (context.hasThread && context.isTrueShortFollowUp) {
-      continuityBoost += 35;
-    }
-
-    if (context.hasThread && context.startsWithContinuation && !context.hasConcreteNewTopic) {
-      continuityBoost += 20;
-    }
-
-    if (context.hasThread && context.hasQuestionFollowUp && !context.hasConcreteNewTopic) {
-      continuityBoost += 20;
-    }
+    if (context.hasNewConcreteTopic) directBoost += 35;
+    if (context.isStandaloneActionQuestion) directBoost += 30;
+    if (context.hasConcreteGoal) directBoost += 25;
+    if (context.hasEnoughConcreteContent) directBoost += 20;
 
     return {
       direct_current_turn: this.cap(direct + directBoost),
@@ -116,25 +109,26 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  chooseLane(ranked, p, context = {}, guards = {}) {
+  chooseLane(ranked = [], p = {}, context = {}) {
     const top = ranked[0];
     const second = ranked[1];
 
-    if (guards.shouldNotForceFollowUp || context.hasConcreteNewTopic) {
-      if (
-        p.recallPressure < 0.55 &&
-        p.revisionPressure < 0.55 &&
-        p.relationshipContinuity < 0.65
-      ) {
-        return "direct_current_turn";
-      }
+    if (context.hasThread && context.mustUseThread) {
+      return "continuity_follow_up";
+    }
+
+    if (context.hasNewConcreteTopic && context.hasConcreteGoal) {
+      return "direct_current_turn";
     }
 
     if (
       context.hasThread &&
-      !context.hasConcreteNewTopic &&
       (
-        context.isTrueShortFollowUp ||
+        context.isTinyFollowUp ||
+        context.hasPronounReference ||
+        context.recommendationNeedsPriorContext ||
+        context.personalizedButMissingTopic ||
+        context.semanticDependency ||
         (p.followUpPressure || 0) >= 0.65
       )
     ) {
@@ -146,11 +140,12 @@ window.Ari.laneSplitterEngine = {
     }
 
     if (
-      p.standaloneCompleteness >= 0.60 &&
-      p.directAnswerPressure >= 0.55 &&
-      p.contextDependency < 0.55 &&
+      p.standaloneCompleteness >= 0.70 &&
+      p.directAnswerPressure >= 0.60 &&
+      p.contextDependency < 0.50 &&
       p.recallPressure < 0.50 &&
-      p.revisionPressure < 0.50
+      p.revisionPressure < 0.50 &&
+      !context.semanticDependency
     ) {
       return "direct_current_turn";
     }
@@ -159,8 +154,9 @@ window.Ari.laneSplitterEngine = {
       top.lane !== "direct_current_turn" &&
       second &&
       top.score - second.score < 8 &&
-      p.standaloneCompleteness >= 0.55 &&
-      p.directAnswerPressure >= 0.50
+      p.standaloneCompleteness >= 0.65 &&
+      p.directAnswerPressure >= 0.55 &&
+      !context.semanticDependency
     ) {
       return "direct_current_turn";
     }
@@ -168,7 +164,7 @@ window.Ari.laneSplitterEngine = {
     return top.lane;
   },
 
-  readContext(summary = {}, guards = {}) {
+  readContext(summary = {}) {
     const text = String(
       summary.userMessage ||
       summary.message ||
@@ -184,47 +180,92 @@ window.Ari.laneSplitterEngine = {
       (
         recentMessages.length > 0 ||
         Boolean(threadState.currentTopic) ||
-        Boolean(threadState.continuitySummary)
+        Boolean(threadState.continuitySummary) ||
+        Boolean(summary.workingContext)
       );
 
-    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const words = text.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
 
     const startsWithContinuation =
-      /^(but|so|then|also|and|what about|what if|after that|why|okay|ok|yeah but|really)\b/.test(text);
-
-    const hasQuestionFollowUp =
-      /^(why|what about|what do you mean|can you explain|explain)\b/.test(text);
-
-    const hasConcreteNewTopic =
-      Boolean(guards.hasConcreteNewTopic) ||
-      /\b\d+\s?(lbs?|pounds?|kg)\b/.test(text) ||
-      /\b(weight|calories|diet|fat|lose weight|gain weight|cut|bulk|protein|meal|workout|exercise)\b/.test(text) ||
-      /\b(code|file|bug|error|github|engine|function|pipeline|javascript)\b/.test(text) ||
-      /\b(sunburn|pain|fever|diarrhea|cough|pregnant|symptom|blister|bleeding)\b/.test(text);
-
-    const isBareFollowUp =
-      /^(why|how|really|then what|what else|what about that|what about this)\??$/.test(text);
+      /^(but|so|then|also|and|what about|what if|after that|why|how|how about|okay|ok|yeah but|ideally)\b/.test(text);
 
     const hasPronounReference =
-      /\b(it|this|that|they|them|same)\b/.test(text);
+      /\b(it|this|that|they|them|those|these|same thing|for me)\b/.test(text);
 
-    const isTrueShortFollowUp =
+    const hasConcreteGoal =
+      /\b\d+\s?(lbs?|pounds?|kg)\b/.test(text) ||
+      /\blose weight|gain weight|calories|diet|protein|workout|exercise|budget|code|bug|error|sunburn|pain|pregnant\b/.test(text);
+
+    const hasNewConcreteTopic =
+      this.hasNewConcreteTopic(text);
+
+    const isStandaloneActionQuestion =
+      /^(how do i|what should i do|what do i do|how can i|can you help me)\b/.test(text) &&
+      hasConcreteGoal;
+
+    const isTinyFollowUp =
       hasThread &&
-      wordCount <= 8 &&
-      !hasConcreteNewTopic &&
-      (isBareFollowUp || hasPronounReference || startsWithContinuation);
+      wordCount <= 6 &&
+      (
+        startsWithContinuation ||
+        /^(why|how|what|what else|really|then what)\??$/.test(text)
+      );
+
+    const recommendationNeedsPriorContext =
+      hasThread &&
+      /\b(recommend|suggest|ideally|best option|what would you do)\b/.test(text) &&
+      /\b(for me|for this|about this|in this case|ideally)\b/.test(text) &&
+      !hasNewConcreteTopic;
+
+    const personalizedButMissingTopic =
+      hasThread &&
+      /\b(for me|my situation|my case|what do you recommend|recommend for me)\b/.test(text) &&
+      !hasNewConcreteTopic;
+
+    const hasEnoughConcreteContent =
+      wordCount >= 7 && hasConcreteGoal;
+
+    const semanticDependency =
+      hasThread &&
+      !hasNewConcreteTopic &&
+      (
+        recommendationNeedsPriorContext ||
+        personalizedButMissingTopic ||
+        hasPronounReference ||
+        isTinyFollowUp
+      );
+
+    const mustUseThread =
+      semanticDependency &&
+      !hasNewConcreteTopic;
 
     return {
       text,
       wordCount,
       hasThread,
       startsWithContinuation,
-      hasQuestionFollowUp,
-      hasConcreteNewTopic,
-      isBareFollowUp,
       hasPronounReference,
-      isTrueShortFollowUp
+      hasConcreteGoal,
+      hasNewConcreteTopic,
+      isStandaloneActionQuestion,
+      isTinyFollowUp,
+      recommendationNeedsPriorContext,
+      personalizedButMissingTopic,
+      hasEnoughConcreteContent,
+      semanticDependency,
+      mustUseThread
     };
+  },
+
+  hasNewConcreteTopic(text = "") {
+    return (
+      /\b\d+\s?(lbs?|pounds?|kg)\b/.test(text) ||
+      /\b(weight|calories|diet|fat|lose weight|gain weight|cut|bulk|workout|exercise|meal|protein)\b/.test(text) ||
+      /\b(code|file|bug|error|github|engine|function|javascript|html|css)\b/.test(text) ||
+      /\b(sunburn|pain|fever|diarrhea|cough|pregnant|symptom|bleeding|swallow)\b/.test(text) ||
+      /\b(car|vehicle|money|budget|rent|debt|job|work|boss|school)\b/.test(text)
+    );
   },
 
   shouldUseThread(lane) {
@@ -262,10 +303,14 @@ window.Ari.laneSplitterEngine = {
     return "low";
   },
 
-  explain(lane) {
+  explain(lane, context = {}) {
+    if (lane === "continuity_follow_up" && context.semanticDependency) {
+      return "Current message is semantically dependent on prior context, so Thread Understanding should run before the Situation Map.";
+    }
+
     const explanations = {
       direct_current_turn:
-        "Current message can go directly to the Situation Map without thread reconstruction.",
+        "Current message has enough standalone meaning and can go directly to the Situation Map.",
 
       continuity_follow_up:
         "Current message depends on active thread context, so Thread Understanding should run before the Situation Map.",
@@ -293,8 +338,7 @@ window.Ari.laneSplitterEngine = {
       relationshipContinuity: 0,
       ambiguityWithoutContext: 0.2,
       activeThreadMatch: 0,
-      directAnswerPressure: 0.5,
-      routingGuards: {}
+      directAnswerPressure: 0.5
     };
   },
 
