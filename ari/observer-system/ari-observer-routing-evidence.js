@@ -1,16 +1,20 @@
 // ari/observer-system/ari-observer-routing-evidence.js
 // Ari Observer Routing Evidence
 // Purpose: Convert Observer evidence into routing pressures for the Lane Splitter.
-// V1.3.0 — Universal semantic frame evidence / follow-up discrimination / no lane authority
+// V1.4.0 — Evidence Translator Only / Semantic Clues / No Frame Building
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerRoutingEvidence = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
-    const observer = input.observer || summary.observer || summary.observerEvidence || {};
+    const observer =
+      input.observer ||
+      summary.observer ||
+      summary.observerEvidence ||
+      {};
 
     const rawText =
       observer.rawUserMessage ||
@@ -39,13 +43,13 @@ window.Ari.observerRoutingEvidence = {
 
     const messageShape = this.measureMessageShape(text);
     const observerShape = this.measureObserverShape(observations);
+    const semanticClues = this.measureSemanticClues(observations, text);
     const contextShape = this.measureContextShape(text, recentMessages, thread);
-    const semanticFrame = this.measureSemanticFrame(text, observerShape);
     const followUpShape = this.measureFollowUpShape(
       text,
       recentMessages,
       summary,
-      semanticFrame
+      semanticClues
     );
     const memoryShape = this.measureMemoryShape(summary, memory, observerShape);
     const revisionShape = this.measureRevisionShape(summary, observerShape);
@@ -60,21 +64,20 @@ window.Ari.observerRoutingEvidence = {
         messageShape,
         contextShape,
         observerShape,
-        semanticFrame
+        semanticClues
       ),
 
       contextDependency: this.scoreContextDependency(
         messageShape,
         contextShape,
-        observerShape,
-        semanticFrame,
+        semanticClues,
         followUpShape
       ),
 
       followUpPressure: this.scoreFollowUpPressure(
         followUpShape,
         contextShape,
-        semanticFrame
+        semanticClues
       ),
 
       recallPressure: this.scoreRecallPressure(
@@ -98,7 +101,7 @@ window.Ari.observerRoutingEvidence = {
       ambiguityWithoutContext: this.scoreAmbiguityWithoutContext(
         messageShape,
         contextShape,
-        semanticFrame,
+        semanticClues,
         followUpShape
       ),
 
@@ -106,9 +109,8 @@ window.Ari.observerRoutingEvidence = {
 
       directAnswerPressure: this.scoreDirectAnswerPressure(
         messageShape,
-        contextShape,
         observerShape,
-        semanticFrame
+        semanticClues
       )
     };
 
@@ -120,22 +122,25 @@ window.Ari.observerRoutingEvidence = {
       ...pressures,
       routingPressures: pressures,
 
+      semanticClues,
+
       routingGuards: {
-        hasStandaloneFrame: semanticFrame.hasStandaloneFrame,
-        hasNewFrame: semanticFrame.hasNewFrame,
-        needsPriorFrame: semanticFrame.needsPriorFrame,
-        missingFrameParts: semanticFrame.missingFrameParts,
+        hasOperationSignal: semanticClues.hasOperationSignal,
+        hasObjectSignal: semanticClues.hasObjectSignal,
+        hasReferenceSignal: semanticClues.hasReferenceSignal,
+        hasMissingAnchorSignal: semanticClues.hasMissingAnchorSignal,
+        likelyNeedsPriorContext: semanticClues.likelyNeedsPriorContext,
+        likelyStandalone: semanticClues.likelyStandalone,
         shouldNotForceFollowUp:
-          semanticFrame.hasStandaloneFrame && !followUpShape.hasStrongFollowUpSignal,
-        followUpStrength: followUpShape.followUpStrength,
-        followUpReason: followUpShape.reason
+          semanticClues.likelyStandalone &&
+          !semanticClues.hasMissingAnchorSignal
       },
 
       supportingEvidence: {
         messageShape,
         observerShape,
+        semanticClues,
         contextShape,
-        semanticFrame,
         followUpShape,
         memoryShape,
         revisionShape,
@@ -147,6 +152,7 @@ window.Ari.observerRoutingEvidence = {
 
       authority: {
         canChooseLane: false,
+        canBuildSemanticFrame: false,
         canAnswerUser: false,
         canOverrideSafety: false,
         role: "evidence_to_pressure_translation_only"
@@ -174,238 +180,6 @@ window.Ari.observerRoutingEvidence = {
     };
   },
 
-  measureSemanticFrame(text = "", observerShape = {}) {
-    const words = text.split(/\s+/).filter(Boolean);
-
-    const operation = this.detectOperation(text, observerShape);
-    const objectSignal = this.detectObjectSignal(text);
-    const criteriaSignal = this.detectCriteriaSignal(text);
-    const targetSignal = this.detectTargetSignal(text);
-    const contextSignal = this.detectContextSignal(text);
-
-    const hasOperation = operation !== "none";
-    const hasObject = objectSignal.score >= 0.45;
-    const hasCriteria = criteriaSignal.score >= 0.35;
-    const hasTarget = targetSignal.score >= 0.35;
-    const hasContext = contextSignal.score >= 0.35;
-
-    const hasDeicticReference = this.hasDeicticReference(text);
-    const hasComparativeReference = this.hasComparativeReference(text);
-    const hasPersonalizedReference = this.hasPersonalizedReference(text);
-
-    const missingFrameParts = [];
-
-    if (hasOperation && !hasObject) {
-      missingFrameParts.push("object");
-    }
-
-    if (
-      ["recommendation", "comparison", "decision"].includes(operation) &&
-      !hasCriteria &&
-      !hasObject
-    ) {
-      missingFrameParts.push("criteria_or_options");
-    }
-
-    if (hasPersonalizedReference && !hasContext && !hasObject) {
-      missingFrameParts.push("personal_context");
-    }
-
-    const frameCompleteness =
-      (hasOperation ? 0.25 : 0) +
-      (hasObject ? 0.35 : 0) +
-      (hasCriteria ? 0.15 : 0) +
-      (hasTarget ? 0.10 : 0) +
-      (hasContext ? 0.15 : 0);
-
-    const hasStandaloneFrame =
-      frameCompleteness >= 0.55 &&
-      hasObject &&
-      !(
-        hasDeicticReference &&
-        !hasObject
-      );
-
-    const needsPriorFrame =
-      (
-        hasDeicticReference ||
-        hasComparativeReference ||
-        hasPersonalizedReference ||
-        missingFrameParts.length > 0
-      ) &&
-      !hasStandaloneFrame;
-
-    const hasNewFrame =
-      hasStandaloneFrame ||
-      (
-        objectSignal.score >= 0.65 &&
-        words.length >= 6 &&
-        !needsPriorFrame
-      );
-
-    return {
-      operation,
-      hasOperation,
-      hasObject,
-      hasCriteria,
-      hasTarget,
-      hasContext,
-
-      objectSignal,
-      criteriaSignal,
-      targetSignal,
-      contextSignal,
-
-      hasDeicticReference,
-      hasComparativeReference,
-      hasPersonalizedReference,
-
-      missingFrameParts,
-      frameCompleteness: this.clamp01(frameCompleteness),
-
-      hasStandaloneFrame,
-      hasNewFrame,
-      needsPriorFrame,
-
-      source: "ari-observer-routing-evidence"
-    };
-  },
-
-  detectOperation(text = "", observerShape = {}) {
-    if (observerShape.hasStepByStepExpectation) return "planning";
-    if (observerShape.hasCodeOutputExpectation) return "repair_or_build";
-
-    if (/\b(recommend|suggest|pick|choose|prefer|best option|what would you do)\b/.test(text)) {
-      return "recommendation";
-    }
-
-    if (/\b(plan|steps|strategy|approach|roadmap|schedule|routine)\b/.test(text)) {
-      return "planning";
-    }
-
-    if (/\b(compare|difference|better|worse|versus|vs|which)\b/.test(text)) {
-      return "comparison";
-    }
-
-    if (/\b(fix|debug|repair|solve|update|rewrite|replace|build|create|make)\b/.test(text)) {
-      return "repair_or_build";
-    }
-
-    if (/\b(why|explain|how come|what does|break down|teach)\b/.test(text)) {
-      return "explanation";
-    }
-
-    if (/\b(should i|can i|do i|is it okay|would it be okay)\b/.test(text)) {
-      return "decision";
-    }
-
-    if (observerShape.hasQuestion) return "question";
-
-    return "none";
-  },
-
-  detectObjectSignal(text = "") {
-    const words = text.split(/\s+/).filter(Boolean);
-
-    const hasNumber = /\d/.test(text);
-    const hasQuotedText = /["“”']/.test(text);
-    const hasSpecificNounPhrase =
-      /\b(my|the|this|that|these|those|a|an)\s+\w{4,}/.test(text);
-
-    const concreteWords = words.filter(word => {
-      const cleaned = word.replace(/[^\w]/g, "");
-      if (!cleaned) return false;
-
-      const weak = [
-        "what", "when", "where", "why", "how", "should", "could", "would",
-        "recommend", "suggest", "choose", "which", "best", "better",
-        "plan", "strategy", "thing", "stuff", "something", "anything",
-        "me", "my", "you", "your", "for", "about", "this", "that",
-        "these", "those", "same", "one"
-      ];
-
-      return cleaned.length >= 6 && !weak.includes(cleaned);
-    }).length;
-
-    const score =
-      (hasNumber ? 0.35 : 0) +
-      (hasQuotedText ? 0.30 : 0) +
-      (hasSpecificNounPhrase ? 0.25 : 0) +
-      Math.min(0.45, concreteWords * 0.15);
-
-    return {
-      score: this.clamp01(score),
-      hasNumber,
-      hasQuotedText,
-      hasSpecificNounPhrase,
-      concreteWords
-    };
-  },
-
-  detectCriteriaSignal(text = "") {
-    const comparative =
-      /\b(best|better|worse|healthiest|safest|cheapest|fastest|easiest|most|least|ideal|worth|important)\b/.test(text);
-
-    const constraint =
-      /\b(budget|time|deadline|cost|risk|safe|healthy|easy|hard|urgent|long term|short term)\b/.test(text);
-
-    const preference =
-      /\b(i want|i need|i prefer|my goal|goal is|trying to|looking for)\b/.test(text);
-
-    const score =
-      (comparative ? 0.35 : 0) +
-      (constraint ? 0.30 : 0) +
-      (preference ? 0.35 : 0);
-
-    return {
-      score: this.clamp01(score),
-      comparative,
-      constraint,
-      preference
-    };
-  },
-
-  detectTargetSignal(text = "") {
-    const selfTarget = /\b(i|me|my|mine|myself|for me)\b/.test(text);
-    const otherTarget = /\b(he|she|they|my dad|my father|my mom|my wife|my fiance|my girlfriend|my kid|my child)\b/.test(text);
-    const objectTarget = /\b(for this|for that|about this|about that|in this case)\b/.test(text);
-
-    const score =
-      (selfTarget ? 0.25 : 0) +
-      (otherTarget ? 0.30 : 0) +
-      (objectTarget ? 0.35 : 0);
-
-    return {
-      score: this.clamp01(score),
-      selfTarget,
-      otherTarget,
-      objectTarget
-    };
-  },
-
-  detectContextSignal(text = "") {
-    const timeContext =
-      /\b(today|tomorrow|tonight|yesterday|now|later|recently|currently|before|after|again)\b/.test(text);
-
-    const situationContext =
-      /\b(because|since|while|during|after|before|when|if|unless|with|without)\b/.test(text);
-
-    const personalContext =
-      /\b(my situation|my case|for me|given that|based on)\b/.test(text);
-
-    const score =
-      (timeContext ? 0.25 : 0) +
-      (situationContext ? 0.30 : 0) +
-      (personalContext ? 0.35 : 0);
-
-    return {
-      score: this.clamp01(score),
-      timeContext,
-      situationContext,
-      personalContext
-    };
-  },
-
   measureObserverShape(observations = []) {
     const hasType = type => observations.some(o => o.type === type);
     const hasValue = value => observations.some(o => o.value === value);
@@ -420,17 +194,110 @@ window.Ari.observerRoutingEvidence = {
       hasRevisionSignal:
         observations.some(o => o.type === "speech_act" && o.value === "feedback") ||
         hasValue("correction"),
+
       hasRelationshipSignal:
         hasType("relationship_reference") ||
         hasType("family_reference") ||
         hasDomain("relationship"),
+
       hasMedicalSignal:
         hasType("body_context") ||
         hasType("body_symptom") ||
         hasDomain("body"),
+
       hasOwnershipSelf: hasValue("self"),
       hasOwnershipCloseOther: hasValue("close_other"),
       hasBuilderSignal: hasDomain("builder")
+    };
+  },
+
+  measureSemanticClues(observations = [], text = "") {
+    const byType = type => observations.filter(o => o.type === type);
+
+    const operationSignals = byType("operation_signal");
+    const referenceSignals = byType("reference_signal");
+    const slotSignals = byType("slot_signal");
+    const questionShapes = byType("question_shape");
+    const missingAnchors = byType("missing_anchor_signal");
+    const messyLanguageSignals = byType("messy_language_signal");
+
+    const operationConfidence = this.maxConfidence(operationSignals);
+    const referenceConfidence = this.maxConfidence(referenceSignals);
+    const slotConfidence = this.maxConfidence(slotSignals);
+    const missingAnchorConfidence = this.maxConfidence(missingAnchors);
+
+    const objectSlots = slotSignals.filter(s => s.slotCandidate === "object");
+    const goalSlots = slotSignals.filter(s => s.slotCandidate === "goal");
+    const problemSlots = slotSignals.filter(s => s.slotCandidate === "problem");
+    const optionSlots = slotSignals.filter(s => s.slotCandidate === "options");
+    const criteriaSlots = slotSignals.filter(s => s.slotCandidate === "criteria");
+    const audienceSlots = slotSignals.filter(s => s.slotCandidate === "audience");
+
+    const hasOperationSignal = operationSignals.length > 0;
+    const hasReferenceSignal = referenceSignals.length > 0;
+    const hasSlotSignal = slotSignals.length > 0;
+    const hasObjectSignal = objectSlots.length > 0;
+    const hasMissingAnchorSignal = missingAnchors.length > 0;
+
+    const likelyNeedsPriorContext =
+      hasMissingAnchorSignal ||
+      (
+        hasOperationSignal &&
+        hasReferenceSignal &&
+        !hasObjectSignal
+      ) ||
+      questionShapes.some(q =>
+        ["bare_why", "bare_how", "short_follow_up"].includes(q.value)
+      );
+
+    const likelyStandalone =
+      hasObjectSignal ||
+      goalSlots.length > 0 ||
+      problemSlots.length > 0 ||
+      (
+        hasSlotSignal &&
+        !hasReferenceSignal &&
+        !hasMissingAnchorSignal
+      );
+
+    const semanticDensity = this.clamp01(
+      operationConfidence * 0.25 +
+      slotConfidence * 0.35 +
+      referenceConfidence * 0.15 +
+      missingAnchorConfidence * 0.25
+    );
+
+    return {
+      operationSignals,
+      referenceSignals,
+      slotSignals,
+      questionShapes,
+      missingAnchors,
+      messyLanguageSignals,
+
+      hasOperationSignal,
+      hasReferenceSignal,
+      hasSlotSignal,
+      hasObjectSignal,
+      hasMissingAnchorSignal,
+
+      objectSlotCount: objectSlots.length,
+      goalSlotCount: goalSlots.length,
+      problemSlotCount: problemSlots.length,
+      optionSlotCount: optionSlots.length,
+      criteriaSlotCount: criteriaSlots.length,
+      audienceSlotCount: audienceSlots.length,
+
+      operationConfidence,
+      referenceConfidence,
+      slotConfidence,
+      missingAnchorConfidence,
+
+      likelyNeedsPriorContext,
+      likelyStandalone,
+      semanticDensity,
+
+      source: "ari-observer-routing-evidence"
     };
   },
 
@@ -439,66 +306,56 @@ window.Ari.observerRoutingEvidence = {
       recentMessages.length > 0 ||
       !!thread?.activeTopic ||
       !!thread?.workingContext ||
-      !!thread?.semanticState;
+      !!thread?.semanticState ||
+      !!thread?.activeSemanticFrame;
 
     return {
       activeThreadAvailable,
       recentMessageCount: recentMessages.length,
       referenceLoad: this.measureReferenceLoad(text),
       continuationLoad: this.measureContinuationLoad(text),
-      activeThreadMatch: activeThreadAvailable ? this.estimateThreadMatch(text, thread) : 0
+      activeThreadMatch: activeThreadAvailable
+        ? this.estimateThreadMatch(text, thread)
+        : 0
     };
   },
 
-  measureFollowUpShape(text = "", recentMessages = [], summary = {}, semanticFrame = {}) {
+  measureFollowUpShape(text = "", recentMessages = [], summary = {}, semanticClues = {}) {
     const normalized = this.normalize(text);
     const words = normalized.split(/\s+/).filter(Boolean);
     const hasThread = recentMessages.length > 0 || !!summary.threadState;
-
-    const strongBareFollowUp =
-      /^(why|how|really|then what|what else|what about that|what about this|and then)\??$/.test(normalized);
-
-    const startsAsFollowUp =
-      /^(why|what if|then what|after that|what about|and if|but|so|ok|okay|also|still)\b/.test(normalized);
-
-    const hasReference =
-      this.hasDeicticReference(normalized) ||
-      this.hasComparativeReference(normalized) ||
-      this.hasPersonalizedReference(normalized);
 
     const shortQuestion =
       normalized.endsWith("?") && words.length <= 8;
 
     const hasStrongFollowUpSignal =
-      strongBareFollowUp ||
-      semanticFrame.needsPriorFrame ||
-      (startsAsFollowUp && !semanticFrame.hasStandaloneFrame) ||
-      (hasReference && !semanticFrame.hasStandaloneFrame);
+      semanticClues.likelyNeedsPriorContext ||
+      semanticClues.hasMissingAnchorSignal ||
+      (
+        semanticClues.hasReferenceSignal &&
+        !semanticClues.hasObjectSignal
+      );
 
     const followUpSignal =
       hasThread && hasStrongFollowUpSignal ? 1 : 0;
 
     return {
       hasThread,
-      strongBareFollowUp,
-      startsAsFollowUp,
-      hasReference,
       shortQuestion,
-
       hasStrongFollowUpSignal,
       followUpSignal,
 
       followUpStrength: followUpSignal
         ? "strong"
-        : semanticFrame.hasStandaloneFrame
-          ? "blocked_by_standalone_frame"
+        : semanticClues.likelyStandalone
+          ? "blocked_by_standalone_evidence"
           : "weak",
 
       reason: followUpSignal
-        ? "Current message depends on a missing prior frame."
-        : semanticFrame.hasStandaloneFrame
-          ? "Current message has enough standalone frame information."
-          : "Weak or no follow-up signal."
+        ? "Observer evidence suggests the current turn is missing an anchor and needs prior context."
+        : semanticClues.likelyStandalone
+          ? "Observer evidence suggests the current turn has standalone semantic content."
+          : "Weak or no follow-up evidence."
     };
   },
 
@@ -544,20 +401,22 @@ window.Ari.observerRoutingEvidence = {
     };
   },
 
-  scoreStandaloneCompleteness(messageShape, contextShape, observerShape, semanticFrame) {
+  scoreStandaloneCompleteness(messageShape, contextShape, observerShape, semanticClues) {
     let score = 0;
 
     score += messageShape.hasEnoughContent ? 0.25 : 0;
-    score += messageShape.contentDensity * 0.25;
+    score += messageShape.contentDensity * 0.20;
     score += observerShape.hasQuestion ? 0.10 : 0;
     score += observerShape.hasDirectAnswerExpectation ? 0.10 : 0;
-    score += semanticFrame.frameCompleteness * 0.35;
-    score += semanticFrame.hasStandaloneFrame ? 0.20 : 0;
+    score += semanticClues.likelyStandalone ? 0.30 : 0;
+    score += semanticClues.semanticDensity * 0.20;
+
+    if (semanticClues.likelyNeedsPriorContext) score -= 0.25;
 
     return this.clamp01(score);
   },
 
-  scoreContextDependency(messageShape, contextShape, observerShape, semanticFrame, followUpShape) {
+  scoreContextDependency(messageShape, contextShape, semanticClues, followUpShape) {
     let score = 0;
 
     score += contextShape.activeThreadAvailable ? 0.10 : 0;
@@ -565,26 +424,25 @@ window.Ari.observerRoutingEvidence = {
     score += contextShape.continuationLoad * 0.20;
     score += messageShape.brevityPressure * 0.10;
     score += contextShape.activeThreadMatch * 0.10;
-    score += semanticFrame.needsPriorFrame ? 0.35 : 0;
+    score += semanticClues.likelyNeedsPriorContext ? 0.35 : 0;
     score += followUpShape.hasStrongFollowUpSignal ? 0.20 : 0;
 
-    if (semanticFrame.hasStandaloneFrame) score -= 0.35;
-    if (semanticFrame.hasNewFrame) score -= 0.20;
+    if (semanticClues.likelyStandalone) score -= 0.30;
 
     return this.clamp01(score);
   },
 
-  scoreFollowUpPressure(followUpShape = {}, contextShape = {}, semanticFrame = {}) {
+  scoreFollowUpPressure(followUpShape = {}, contextShape = {}, semanticClues = {}) {
     let score = 0;
 
     score += followUpShape.followUpSignal ? 0.65 : 0;
-    score += followUpShape.strongBareFollowUp ? 0.15 : 0;
-    score += followUpShape.hasReference ? 0.15 : 0;
-    score += semanticFrame.needsPriorFrame ? 0.30 : 0;
+    score += semanticClues.hasMissingAnchorSignal ? 0.30 : 0;
+    score += semanticClues.hasReferenceSignal ? 0.15 : 0;
+    score += semanticClues.likelyNeedsPriorContext ? 0.30 : 0;
     score += contextShape.activeThreadAvailable ? 0.10 : 0;
 
-    if (semanticFrame.hasStandaloneFrame && !followUpShape.strongBareFollowUp) {
-      score -= 0.50;
+    if (semanticClues.likelyStandalone && !semanticClues.hasMissingAnchorSignal) {
+      score -= 0.45;
     }
 
     return this.clamp01(score);
@@ -623,22 +481,22 @@ window.Ari.observerRoutingEvidence = {
     return this.clamp01(score);
   },
 
-  scoreAmbiguityWithoutContext(messageShape, contextShape, semanticFrame, followUpShape) {
+  scoreAmbiguityWithoutContext(messageShape, contextShape, semanticClues, followUpShape) {
     let score = 0;
 
     score += messageShape.contentDensity < 0.35 ? 0.20 : 0;
     score += messageShape.brevityPressure * 0.15;
     score += contextShape.referenceLoad * 0.20;
     score += contextShape.activeThreadAvailable ? 0.10 : 0;
-    score += semanticFrame.needsPriorFrame ? 0.35 : 0;
+    score += semanticClues.likelyNeedsPriorContext ? 0.35 : 0;
     score += followUpShape.hasStrongFollowUpSignal ? 0.15 : 0;
 
-    if (semanticFrame.hasStandaloneFrame) score -= 0.35;
+    if (semanticClues.likelyStandalone) score -= 0.30;
 
     return this.clamp01(score);
   },
 
-  scoreDirectAnswerPressure(messageShape, contextShape, observerShape, semanticFrame) {
+  scoreDirectAnswerPressure(messageShape, observerShape, semanticClues) {
     let score = 0;
 
     score += observerShape.hasDirectAnswerExpectation ? 0.20 : 0;
@@ -646,24 +504,12 @@ window.Ari.observerRoutingEvidence = {
     score += observerShape.hasQuestion ? 0.15 : 0;
     score += messageShape.hasEnoughContent ? 0.15 : 0;
     score += messageShape.contentDensity * 0.15;
-    score += semanticFrame.hasStandaloneFrame ? 0.25 : 0;
-    score += semanticFrame.hasNewFrame ? 0.15 : 0;
+    score += semanticClues.likelyStandalone ? 0.25 : 0;
+    score += semanticClues.semanticDensity * 0.15;
 
-    if (semanticFrame.needsPriorFrame) score -= 0.30;
+    if (semanticClues.likelyNeedsPriorContext) score -= 0.30;
 
     return this.clamp01(score);
-  },
-
-  hasDeicticReference(text = "") {
-    return /\b(it|this|that|these|those|they|them|same|same thing|one|ones|there|here)\b/.test(text);
-  },
-
-  hasComparativeReference(text = "") {
-    return /\b(which|which one|better|best|worse|most|least|healthiest|safest|cheapest|strongest|weakest)\b/.test(text);
-  },
-
-  hasPersonalizedReference(text = "") {
-    return /\b(for me|my situation|my case|in my case|given my|based on my|what do you recommend)\b/.test(text);
   },
 
   measureReferenceLoad(text) {
@@ -692,9 +538,6 @@ window.Ari.observerRoutingEvidence = {
     if (words.length <= 8) score += 0.20;
     if (text.length <= 60) score += 0.15;
     if (this.measureReferenceLoad(text) > 0.12) score += 0.30;
-    if (/^(why|what about|then what|what if|really|but|so|also|still)\b/.test(text)) {
-      score += 0.25;
-    }
 
     return this.clamp01(score);
   },
@@ -705,6 +548,7 @@ window.Ari.observerRoutingEvidence = {
       thread?.workingContext?.followUpAnchor ||
       thread?.workingContext?.activeClaim ||
       thread?.semanticState?.followUpAnchor ||
+      thread?.activeSemanticFrame?.slots?.object ||
       thread?.workingContext ||
       ""
     );
@@ -723,6 +567,14 @@ window.Ari.observerRoutingEvidence = {
     });
 
     return this.clamp01(overlap / Math.max(1, messageTokens.size));
+  },
+
+  maxConfidence(items = []) {
+    if (!Array.isArray(items) || !items.length) return 0;
+
+    return Math.max(
+      ...items.map(item => Number(item.confidence || 0))
+    );
   },
 
   tokenSet(text) {
