@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.2.0 — Adds thread-aware short follow-up routing
+// V1.3.0 — Respects routing guards / prevents false follow-up hijack
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -18,11 +18,12 @@ window.Ari.laneSplitterEngine = {
       this.emptyEvidence();
 
     const pressures = evidence.routingPressures || evidence;
-    const context = this.readContext(summary);
+    const guards = evidence.routingGuards || {};
+    const context = this.readContext(summary, guards);
 
-    const scores = this.scoreLanes(pressures, context);
+    const scores = this.scoreLanes(pressures, context, guards);
     const ranked = this.rankScores(scores);
-    const lane = this.chooseLane(ranked, pressures, context);
+    const lane = this.chooseLane(ranked, pressures, context, guards);
 
     return {
       engine: "ari-lane-splitter-engine",
@@ -44,6 +45,7 @@ window.Ari.laneSplitterEngine = {
       confidence: this.confidence(ranked),
       explanation: this.explain(lane),
       evidenceUsed: pressures,
+      routingGuardsUsed: guards,
       contextUsed: context,
 
       authority: {
@@ -56,7 +58,7 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  scoreLanes(p, context = {}) {
+  scoreLanes(p, context = {}, guards = {}) {
     const direct =
       p.standaloneCompleteness * 35 +
       p.directAnswerPressure * 35 +
@@ -64,11 +66,11 @@ window.Ari.laneSplitterEngine = {
       (1 - p.ambiguityWithoutContext) * 15;
 
     const continuity =
-  p.contextDependency * 30 +
-  (p.followUpPressure || 0) * 35 +
-  p.activeThreadMatch * 20 +
-  p.ambiguityWithoutContext * 10 +
-  p.directAnswerPressure * 5;
+      p.contextDependency * 25 +
+      (p.followUpPressure || 0) * 35 +
+      p.activeThreadMatch * 20 +
+      p.ambiguityWithoutContext * 10 +
+      p.directAnswerPressure * 5;
 
     const recall =
       p.recallPressure * 70 +
@@ -85,22 +87,28 @@ window.Ari.laneSplitterEngine = {
       p.contextDependency * 20 +
       p.activeThreadMatch * 10;
 
+    let directBoost = 0;
     let continuityBoost = 0;
 
-    if (context.hasThread && context.isShortContextualFollowUp) {
+    if (guards.shouldNotForceFollowUp || context.hasConcreteNewTopic) {
+      directBoost += 30;
+      continuityBoost -= 30;
+    }
+
+    if (context.hasThread && context.isTrueShortFollowUp) {
       continuityBoost += 35;
     }
 
-    if (context.hasThread && context.startsWithContinuation) {
-      continuityBoost += 25;
+    if (context.hasThread && context.startsWithContinuation && !context.hasConcreteNewTopic) {
+      continuityBoost += 20;
     }
 
-    if (context.hasThread && context.hasQuestionFollowUp) {
+    if (context.hasThread && context.hasQuestionFollowUp && !context.hasConcreteNewTopic) {
       continuityBoost += 20;
     }
 
     return {
-      direct_current_turn: this.cap(direct),
+      direct_current_turn: this.cap(direct + directBoost),
       continuity_follow_up: this.cap(continuity + continuityBoost),
       recall_or_memory_request: this.cap(recall),
       correction_or_revision: this.cap(revision),
@@ -108,27 +116,38 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  chooseLane(ranked, p, context = {}) {
+  chooseLane(ranked, p, context = {}, guards = {}) {
     const top = ranked[0];
     const second = ranked[1];
 
+    if (guards.shouldNotForceFollowUp || context.hasConcreteNewTopic) {
+      if (
+        p.recallPressure < 0.55 &&
+        p.revisionPressure < 0.55 &&
+        p.relationshipContinuity < 0.65
+      ) {
+        return "direct_current_turn";
+      }
+    }
+
     if (
-  context.hasThread &&
-  (
-    context.isShortContextualFollowUp ||
-    (p.followUpPressure || 0) >= 0.6
-  )
-) {
-  return "continuity_follow_up";
-}
+      context.hasThread &&
+      !context.hasConcreteNewTopic &&
+      (
+        context.isTrueShortFollowUp ||
+        (p.followUpPressure || 0) >= 0.65
+      )
+    ) {
+      return "continuity_follow_up";
+    }
 
     if (!top || top.score < 35) {
       return "direct_current_turn";
     }
 
     if (
-      p.standaloneCompleteness >= 0.70 &&
-      p.directAnswerPressure >= 0.65 &&
+      p.standaloneCompleteness >= 0.60 &&
+      p.directAnswerPressure >= 0.55 &&
       p.contextDependency < 0.55 &&
       p.recallPressure < 0.50 &&
       p.revisionPressure < 0.50
@@ -140,8 +159,8 @@ window.Ari.laneSplitterEngine = {
       top.lane !== "direct_current_turn" &&
       second &&
       top.score - second.score < 8 &&
-      p.standaloneCompleteness >= 0.65 &&
-      p.directAnswerPressure >= 0.55
+      p.standaloneCompleteness >= 0.55 &&
+      p.directAnswerPressure >= 0.50
     ) {
       return "direct_current_turn";
     }
@@ -149,26 +168,7 @@ window.Ari.laneSplitterEngine = {
     return top.lane;
   },
 
-  shouldUseThread(lane) {
-    return [
-      "continuity_follow_up",
-      "correction_or_revision",
-      "relationship_continuity"
-    ].includes(lane);
-  },
-
-  shouldUseMemory(lane) {
-    return [
-      "recall_or_memory_request",
-      "relationship_continuity"
-    ].includes(lane);
-  },
-
-  shouldUseRelationship(lane) {
-    return lane === "relationship_continuity";
-  },
-
-  readContext(summary = {}) {
+  readContext(summary = {}, guards = {}) {
     const text = String(
       summary.userMessage ||
       summary.message ||
@@ -190,15 +190,29 @@ window.Ari.laneSplitterEngine = {
     const wordCount = text.split(/\s+/).filter(Boolean).length;
 
     const startsWithContinuation =
-  /^(but|so|then|also|and|what about|what if|after that|why|how|how about|okay|ok|yeah but)\b/.test(text);
+      /^(but|so|then|also|and|what about|what if|after that|why|okay|ok|yeah but|really)\b/.test(text);
 
     const hasQuestionFollowUp =
-      /^(why|how|what about|what do you mean|explain|can you explain)\b/.test(text);
+      /^(why|what about|what do you mean|can you explain|explain)\b/.test(text);
 
-    const isShortContextualFollowUp =
+    const hasConcreteNewTopic =
+      Boolean(guards.hasConcreteNewTopic) ||
+      /\b\d+\s?(lbs?|pounds?|kg)\b/.test(text) ||
+      /\b(weight|calories|diet|fat|lose weight|gain weight|cut|bulk|protein|meal|workout|exercise)\b/.test(text) ||
+      /\b(code|file|bug|error|github|engine|function|pipeline|javascript)\b/.test(text) ||
+      /\b(sunburn|pain|fever|diarrhea|cough|pregnant|symptom|blister|bleeding)\b/.test(text);
+
+    const isBareFollowUp =
+      /^(why|how|really|then what|what else|what about that|what about this)\??$/.test(text);
+
+    const hasPronounReference =
+      /\b(it|this|that|they|them|same)\b/.test(text);
+
+    const isTrueShortFollowUp =
       hasThread &&
-      wordCount <= 6 &&
-      startsWithContinuation;
+      wordCount <= 8 &&
+      !hasConcreteNewTopic &&
+      (isBareFollowUp || hasPronounReference || startsWithContinuation);
 
     return {
       text,
@@ -206,8 +220,30 @@ window.Ari.laneSplitterEngine = {
       hasThread,
       startsWithContinuation,
       hasQuestionFollowUp,
-      isShortContextualFollowUp
+      hasConcreteNewTopic,
+      isBareFollowUp,
+      hasPronounReference,
+      isTrueShortFollowUp
     };
+  },
+
+  shouldUseThread(lane) {
+    return [
+      "continuity_follow_up",
+      "correction_or_revision",
+      "relationship_continuity"
+    ].includes(lane);
+  },
+
+  shouldUseMemory(lane) {
+    return [
+      "recall_or_memory_request",
+      "relationship_continuity"
+    ].includes(lane);
+  },
+
+  shouldUseRelationship(lane) {
+    return lane === "relationship_continuity";
   },
 
   rankScores(scores) {
@@ -229,7 +265,7 @@ window.Ari.laneSplitterEngine = {
   explain(lane) {
     const explanations = {
       direct_current_turn:
-        "Current message can go directly to the Situation Map with Observer evidence, without thread/memory reconstruction.",
+        "Current message can go directly to the Situation Map without thread reconstruction.",
 
       continuity_follow_up:
         "Current message depends on active thread context, so Thread Understanding should run before the Situation Map.",
@@ -257,7 +293,8 @@ window.Ari.laneSplitterEngine = {
       relationshipContinuity: 0,
       ambiguityWithoutContext: 0.2,
       activeThreadMatch: 0,
-      directAnswerPressure: 0.5
+      directAnswerPressure: 0.5,
+      routingGuards: {}
     };
   },
 
