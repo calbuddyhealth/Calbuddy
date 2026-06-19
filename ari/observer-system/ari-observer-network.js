@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-network.js
 // Ari Observer Evidence Engine
 // Purpose: Observe raw evidence only. No interpretation, no prioritization.
-// V5.0.0 — Universal Conversation Evidence Engine
+// V5.1.0 — Semantic Evidence Ready / Frame Builder Support / No Frame Authority
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerNetwork = {
-  version: "5.0.0",
+  version: "5.1.0",
 
   observe(input = {}) {
     const summary = input.summary || input || {};
@@ -43,6 +43,8 @@ window.Ari.observerNetwork = {
       }
     };
 
+    this.detectMessyLanguage(rawText, text, add);
+
     this.scanLexicon(text, add);
     this.detectQuestions(text, add);
     this.detectSpeechActs(text, add);
@@ -56,6 +58,15 @@ window.Ari.observerNetwork = {
     this.detectNegation(text, add);
     this.detectModalPressure(text, add);
     this.detectConversationTarget(text, add);
+
+    // New semantic evidence only.
+    // This does NOT build the semantic frame.
+    // It only gives the future Semantic Frame Builder better raw evidence.
+    this.detectOperationSignals(text, add);
+    this.detectReferenceSignals(text, add);
+    this.detectSlotSignals(text, add);
+    this.detectQuestionShape(text, add);
+    this.detectMissingAnchorSignals(text, add);
 
     observations.sort((a, b) => b.confidence - a.confidence);
 
@@ -78,6 +89,14 @@ window.Ari.observerNetwork = {
       strongestObservation: observations[0]?.value || null,
       strongestObservationCategory: observations[0]?.type || null,
       strongestObservationConfidence: observations[0]?.confidence || 0,
+
+      authority: {
+        canChooseLane: false,
+        canBuildSemanticFrame: false,
+        canAnswerUser: false,
+        canOverrideSafety: false,
+        role: "raw_evidence_observation_only"
+      },
 
       source: "ari-observer-network"
     };
@@ -256,6 +275,54 @@ window.Ari.observerNetwork = {
     });
   },
 
+  detectMessyLanguage(rawText = "", text = "", add) {
+    const raw = String(rawText || "");
+    const normalized = String(text || "");
+
+    if (!raw.trim()) return;
+
+    if (raw !== raw.trim()) {
+      add("messy_language_signal", "extra_spacing", "leading/trailing whitespace", 0.55);
+    }
+
+    if (/\s{2,}/.test(raw)) {
+      add("messy_language_signal", "irregular_spacing", "multiple spaces", 0.6);
+    }
+
+    if (/[^\w\s'?.,!:%-]/.test(raw)) {
+      add("messy_language_signal", "nonstandard_characters", "nonstandard characters", 0.55);
+    }
+
+    const lower = raw.toLowerCase();
+
+    const commonMisspellings = [
+      ["what", /\bwut\b|\bwat\b/],
+      ["should", /\bshud\b|\bshuld\b/],
+      ["because", /\bcuz\b|\bcause\b|\bcos\b/],
+      ["recommend", /\brecomend\b|\brecommendd\b|\brecc\b/],
+      ["different", /\bdiffrent\b|\bdiffernt\b/],
+      ["probably", /\bprobly\b|\bprolly\b/],
+      ["going to", /\bgonna\b/],
+      ["want to", /\bwanna\b/],
+      ["do not know", /\bidk\b/]
+    ];
+
+    commonMisspellings.forEach(([value, regex]) => {
+      const match = lower.match(regex);
+      if (match) {
+        add("messy_language_signal", value, match[0], 0.72, {
+          normalizedTo: value
+        });
+      }
+    });
+
+    const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+
+    if (wordCount > 0 && raw.length / Math.max(1, wordCount) < 3.2) {
+      add("messy_language_signal", "very_short_tokens", raw, 0.55);
+    }
+  },
+
   detectQuestions(text, add) {
     const questionMarks = (text.match(/\?/g) || []).length;
 
@@ -339,6 +406,175 @@ window.Ari.observerNetwork = {
         add("answer_expectation", value, match[0], 0.8);
       }
     });
+  },
+
+  detectOperationSignals(text, add) {
+    const operationPatterns = [
+      ["recommendation", /\b(recommend|suggest|choose|pick|which one|best option|what would you do)\b/],
+      ["comparison", /\b(compare|difference|versus|vs|better|worse|more|less|which is)\b/],
+      ["planning", /\b(plan|strategy|roadmap|steps|schedule|routine|how do i|how can i|what should i do)\b/],
+      ["explanation", /\b(why|how come|explain|teach|break down|what does|meaning of)\b/],
+      ["repair_or_build", /\b(fix|debug|repair|solve|update|rewrite|replace|build|create|make|not working|broken|error)\b/],
+      ["permission_or_decision", /\b(can i|should i|do i|is it okay|would it be okay)\b/],
+      ["recall_or_memory", /\b(remember|what did we|last time|previously|before|what was)\b/],
+      ["clarification", /\b(what do you mean|where exactly|are you sure|is this right)\b/]
+    ];
+
+    operationPatterns.forEach(([value, regex]) => {
+      const match = text.match(regex);
+      if (match) {
+        add("operation_signal", value, match[0], 0.78);
+      }
+    });
+  },
+
+  detectReferenceSignals(text, add) {
+    const references = [
+      ["deictic_reference", /\b(it|this|that|these|those|they|them|same|same thing|one|ones)\b/],
+      ["option_reference", /\b(which one|which option|the first one|the second one|the other one)\b/],
+      ["prior_context_reference", /\b(before|earlier|previously|last time|again|based on that|given that)\b/],
+      ["personalized_reference", /\b(for me|my situation|my case|in my case|for us)\b/]
+    ];
+
+    references.forEach(([value, regex]) => {
+      const match = text.match(regex);
+      if (match) {
+        add("reference_signal", value, match[0], 0.8);
+      }
+    });
+  },
+
+  detectSlotSignals(text, add) {
+    const numbers = text.match(/\b\d+(\.\d+)?%?\b/g) || [];
+    numbers.forEach(num => {
+      add("slot_signal", "quantity_or_measure", num, 0.78, {
+        slotCandidate: "quantity"
+      });
+    });
+
+    if (/["“”']/.test(text)) {
+      add("slot_signal", "quoted_content", "quoted text", 0.8, {
+        slotCandidate: "object"
+      });
+    }
+
+    const goalMatch = text.match(/\b(to|so i can|in order to|get back|trying to|want to|need to)\b/);
+    if (goalMatch) {
+      add("slot_signal", "goal_language", goalMatch[0], 0.78, {
+        slotCandidate: "goal"
+      });
+    }
+
+    const problemMatch = text.match(/\b(error|bug|broken|not working|issue|problem|wrong|failed|confused)\b/);
+    if (problemMatch) {
+      add("slot_signal", "problem_language", problemMatch[0], 0.8, {
+        slotCandidate: "problem"
+      });
+    }
+
+    const optionMatch = text.match(/\b(either|or|versus|vs|between|option|choice)\b/);
+    if (optionMatch) {
+      add("slot_signal", "option_language", optionMatch[0], 0.76, {
+        slotCandidate: "options"
+      });
+    }
+
+    const criteriaMatch = text.match(/\b(best|better|healthy|safe|cheap|cost|fast|easy|effective|reliable|important|worth it)\b/);
+    if (criteriaMatch) {
+      add("slot_signal", "criteria_language", criteriaMatch[0], 0.74, {
+        slotCandidate: "criteria"
+      });
+    }
+
+    const audienceMatch = text.match(/\b(for me|for us|my situation|my case|my dad|my wife|my girlfriend|my child|my baby)\b/);
+    if (audienceMatch) {
+      add("slot_signal", "audience_language", audienceMatch[0], 0.76, {
+        slotCandidate: "audience"
+      });
+    }
+
+    const objectCandidate = this.extractObjectCandidate(text);
+    if (objectCandidate) {
+      add("slot_signal", "object_candidate", objectCandidate, 0.7, {
+        slotCandidate: "object"
+      });
+    }
+  },
+
+  detectQuestionShape(text, add) {
+    const shapes = [
+      ["bare_why", /^why\??$/],
+      ["bare_how", /^how\??$/],
+      ["short_follow_up", /^(why|how|what about|what if|then what|really|and then)\b/],
+      ["choice_question", /\b(which|choose|pick|better|best|option)\b/],
+      ["action_question", /\b(what should i do|how do i|how can i|what do i do)\b/],
+      ["explanation_question", /\b(why|explain|what does|how come)\b/],
+      ["permission_question", /\b(can i|should i|do i|is it okay)\b/]
+    ];
+
+    shapes.forEach(([value, regex]) => {
+      const match = text.match(regex);
+      if (match) {
+        add("question_shape", value, match[0], 0.78);
+      }
+    });
+  },
+
+  detectMissingAnchorSignals(text, add) {
+    const hasOperation =
+      /\b(recommend|suggest|choose|pick|which|compare|explain|fix|debug|plan|should i|can i)\b/.test(text);
+
+    const hasReference =
+      /\b(it|this|that|they|them|same|one|which one|for me|my situation|based on that)\b/.test(text);
+
+    const objectCandidate = this.extractObjectCandidate(text);
+
+    if (hasOperation && hasReference && !objectCandidate) {
+      add(
+        "missing_anchor_signal",
+        "operation_without_standalone_object",
+        "operation + reference without clear object",
+        0.82
+      );
+    }
+
+    if (/^(why|how|what about|what if|then what|really)\b/.test(text) && !objectCandidate) {
+      add(
+        "missing_anchor_signal",
+        "short_follow_up_needs_prior_context",
+        "short follow-up without standalone object",
+        0.84
+      );
+    }
+
+    if (/\b(which one|which option|the best one|the other one)\b/.test(text)) {
+      add(
+        "missing_anchor_signal",
+        "option_reference_needs_options",
+        "which/one/option reference",
+        0.84
+      );
+    }
+  },
+
+  extractObjectCandidate(text = "") {
+    const cleaned = text
+      .replace(/\b(what|when|where|why|how|can|could|should|would|do|does|did|is|are|am)\b/g, " ")
+      .replace(/\b(i|me|my|you|your|we|us|our)\b/g, " ")
+      .replace(/\b(recommend|suggest|choose|pick|prefer|best|better|ideal|plan|explain|fix|debug)\b/g, " ")
+      .replace(/\b(it|this|that|they|them|one|same|thing|option|for|about)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const tokens = cleaned
+      .split(/\W+/)
+      .map(t => t.trim())
+      .filter(t => t.length >= 4);
+
+    if (/\d/.test(text)) return text.match(/.{0,30}\d.{0,30}/)?.[0]?.trim() || null;
+    if (tokens.length >= 2) return tokens.slice(0, 6).join(" ");
+
+    return null;
   },
 
   detectTime(text, add) {
