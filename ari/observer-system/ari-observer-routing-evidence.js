@@ -1,12 +1,12 @@
 // ari/observer-system/ari-observer-routing-evidence.js
 // Ari Observer Routing Evidence
 // Purpose: Convert Observer evidence into routing pressures for the Lane Splitter.
-// V1.2.0 — Better follow-up discrimination / new-topic protection / no lane authority
+// V1.2.1 — Better follow-up discrimination / new-topic protection / no lane authority
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerRoutingEvidence = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
@@ -194,6 +194,17 @@ window.Ari.observerRoutingEvidence = {
     const pronounReference =
       /\b(it|this|that|they|them|same)\b/.test(normalized);
 
+const hasOptionReference =
+  /\b(which one|which option|which is better|which is best|which is healthiest|which is safer|the healthiest|the best one|the safest one)\b/.test(normalized);
+
+const personalizedReference =
+  /\b(for me|my situation|my case|recommend for me|what do you recommend|which do you recommend)\b/.test(normalized);
+
+const missingAnchor =
+  hasOptionReference ||
+  personalizedReference ||
+  pronounReference;
+
     const startsAsFollowUp =
       /^(why|what if|then what|after that|what about|and if|but|so|ok|okay)\b/.test(normalized);
 
@@ -204,9 +215,9 @@ window.Ari.observerRoutingEvidence = {
       topicShape.hasConcreteNewTopic && words.length >= 5;
 
     const hasStrongFollowUpSignal =
-      strongBareFollowUp ||
-      pronounReference ||
-      (startsAsFollowUp && !concreteQuestion);
+  strongBareFollowUp ||
+  missingAnchor ||
+  (startsAsFollowUp && !concreteQuestion);
 
     const followUpSignal =
       hasThread && hasStrongFollowUpSignal ? 1 : 0;
@@ -218,6 +229,9 @@ window.Ari.observerRoutingEvidence = {
       startsAsFollowUp,
       shortQuestion,
       concreteQuestion,
+      hasOptionReference,
+personalizedReference,
+missingAnchor,
       hasStrongFollowUpSignal,
       followUpSignal,
       followUpStrength: followUpSignal ? "strong" : concreteQuestion ? "blocked_by_new_topic" : "weak",
@@ -304,6 +318,7 @@ window.Ari.observerRoutingEvidence = {
     score += followUpShape.followUpSignal ? 0.65 : 0;
     score += followUpShape.strongBareFollowUp ? 0.20 : 0;
     score += followUpShape.pronounReference ? 0.15 : 0;
+    score += followUpShape.missingAnchor ? 0.25 : 0;
     score += contextShape.activeThreadAvailable ? 0.10 : 0;
 
     if (topicShape.hasConcreteNewTopic && !followUpShape.hasStrongFollowUpSignal) {
