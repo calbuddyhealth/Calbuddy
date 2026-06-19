@@ -1,11 +1,11 @@
 // ari/context/ari-thread-question-generator.js
-// Purpose: Resolve short follow-up questions using prior conversation meaning.
-// V1.2.1 — Strong follow-up resolver / anti-self-poisoning / cleaner resolved questions
+// Purpose: Resolve true follow-up questions using prior conversation meaning.
+// V1.3.0 — Universal operation-based follow-up resolver / anti-self-poisoning
 
 window.Ari = window.Ari || {};
 
 window.Ari.threadQuestionGenerator = {
-  version: "1.2.1",
+  version: "1.3.0",
 
   generate(input = {}) {
     const summary = input.summary || input || {};
@@ -30,10 +30,11 @@ window.Ari.threadQuestionGenerator = {
       summary.lane === "continuity_follow_up" ||
       summary.laneSplit?.lane === "continuity_follow_up";
 
-    const followUpType = this.detectFollowUpType(text);
+    const operation = this.detectRequestedOperation(text);
+    const standalone = this.detectStandaloneQuestion(text);
 
-    if (!needsContext || followUpType === "none") {
-      return this.noResolution(raw, "Current turn does not safely require prior context.");
+    if (!needsContext || standalone.isStandalone || operation === "none") {
+      return this.noResolution(raw, standalone.reason || "Current turn does not safely require prior context.");
     }
 
     const inherited = this.findBestInheritedTopic({
@@ -47,10 +48,10 @@ window.Ari.threadQuestionGenerator = {
       return this.noResolution(raw, "No safe prior topic found.");
     }
 
-    const resolvedQuestion = this.resolveQuestion({
+    const resolvedQuestion = this.composeResolvedQuestion({
       text,
-      topic: inherited.text,
-      followUpType
+      operation,
+      anchor: inherited.text
     });
 
     return {
@@ -68,13 +69,15 @@ window.Ari.threadQuestionGenerator = {
       inheritedTopicSource: inherited.source,
       inheritedTopicScore: inherited.score,
 
+      operation,
+
       resolutionType: "follow_up_question_resolved_from_prior_context",
       confidence: inherited.confidence,
-      reason: "Short follow-up was resolved using prior non-current conversation meaning.",
+      reason: "Follow-up was resolved using prior non-current conversation meaning.",
 
       threadQuestionResolutionType: "follow_up_question_resolved_from_prior_context",
       threadQuestionConfidence: inherited.confidence,
-      threadQuestionReason: "Short follow-up was resolved using prior non-current conversation meaning.",
+      threadQuestionReason: "Follow-up was resolved using prior non-current conversation meaning.",
 
       resolvedCurrentTurn: {
         rawText: raw,
@@ -82,7 +85,7 @@ window.Ari.threadQuestionGenerator = {
         usedThreadContext: true,
         inheritedTopic: inherited.text,
         inheritedTopicSource: inherited.source,
-        followUpType,
+        operation,
         confidence: inherited.confidence
       },
 
@@ -93,6 +96,82 @@ window.Ari.threadQuestionGenerator = {
         role: "resolve_current_question_only"
       }
     };
+  },
+
+  detectStandaloneQuestion(text = "") {
+    const clean = this.clean(text);
+    const words = clean.split(/\s+/).filter(Boolean);
+
+    if (!clean) {
+      return { isStandalone: true, reason: "Empty text." };
+    }
+
+    if (this.hasNewConcreteTopic(clean)) {
+      return { isStandalone: true, reason: "Current turn contains a new concrete topic." };
+    }
+
+    if (words.length >= 12 && !this.hasReferenceWord(clean)) {
+      return { isStandalone: true, reason: "Current turn is detailed enough to stand alone." };
+    }
+
+    return { isStandalone: false, reason: null };
+  },
+
+  detectRequestedOperation(text = "") {
+    const clean = this.clean(text);
+    const words = clean.split(/\s+/).filter(Boolean);
+
+    if (!clean) return "none";
+    if (words.length > 22 && !this.hasReferenceWord(clean)) return "none";
+
+    if (/^why\b|how come|what caused|what causes/.test(clean)) return "explain_reason";
+    if (/recommend|suggest|what would you do|what do you recommend|ideally/.test(clean)) return "recommend";
+    if (/plan|steps|how do i|what should i do|what can i do|what else can i do/.test(clean)) return "action_plan";
+    if (/compare|better|difference|versus| vs |which one|which is/.test(clean)) return "compare";
+    if (/fix|debug|error|not working|broken|bug/.test(clean)) return "debug_fix";
+    if (/continue|next|go on|keep going|then what|what next/.test(clean)) return "continue";
+    if (/can i|should i|do i|is it okay|would it be okay/.test(clean)) return "permission_or_decision";
+    if (/what about|what if/.test(clean)) return "scenario_check";
+    if (this.hasReferenceWord(clean)) return "reference_resolution";
+
+    return "none";
+  },
+
+  composeResolvedQuestion({ text = "", operation = "none", anchor = "" }) {
+    const clean = this.clean(text);
+    const topic = this.trimEndingPunctuation(anchor);
+
+    switch (operation) {
+      case "explain_reason":
+        return `Why might ${topic}?`;
+
+      case "recommend":
+        return `What do you recommend for the user regarding ${topic}?`;
+
+      case "action_plan":
+        return `What plan should the user follow regarding ${topic}?`;
+
+      case "compare":
+        return `Compare the options or ideas in relation to ${topic}.`;
+
+      case "debug_fix":
+        return `How should the user fix or debug ${topic}?`;
+
+      case "continue":
+        return `Continue helping the user with ${topic}.`;
+
+      case "permission_or_decision":
+        return `${clean} — regarding ${topic}?`;
+
+      case "scenario_check":
+        return `${clean} — in the context of ${topic}?`;
+
+      case "reference_resolution":
+        return this.replaceReferenceWords(clean, topic);
+
+      default:
+        return `${clean} — regarding ${topic}?`;
+    }
   },
 
   findBestInheritedTopic({ summary = {}, packet = {}, thread = {}, currentText = "" }) {
@@ -113,23 +192,27 @@ window.Ari.threadQuestionGenerator = {
       });
     };
 
-    // Strongest source: completed meaning from the previous turn.
     add(summary.priorMeaningForFollowUp?.resolvedUserQuestion, "prior_meaning_resolved_question", 1.0);
     add(summary.priorMeaningForFollowUp?.userText, "prior_meaning_user_text", 0.98);
     add(summary.priorMeaningForFollowUp?.activeIssue, "prior_meaning_active_issue", 0.94);
     add(summary.priorMeaningForFollowUp?.activeSubject, "prior_meaning_active_subject", 0.9);
     add(summary.priorMeaningForFollowUp?.situationFamily, "prior_meaning_situation_family", 0.84);
 
-    // Good continuity facts, but weaker than prior meaning.
+    add(thread.semanticState?.followUpAnchor, "thread_semantic_follow_up_anchor", 0.93);
+    add(thread.semanticState?.activeClaim, "thread_semantic_active_claim", 0.9);
+    add(thread.semanticState?.activeQuestion, "thread_semantic_active_question", 0.88);
+    add(thread.followUpAnchor, "thread_follow_up_anchor", 0.86);
+    add(thread.activeClaim, "thread_active_claim", 0.84);
+    add(thread.activeQuestion, "thread_active_question", 0.82);
+
     (packet.usableFacts || []).forEach(fact => {
       add(
         fact.claim || fact.value || fact.label || fact.evidence || fact,
         "continuity_usable_fact",
-        0.82
+        0.78
       );
     });
 
-    // Prior messages are useful, but must never overpower prior meaning.
     const previousMessages =
       summary.threadState?.lastMessages ||
       summary.recentMessages ||
@@ -143,96 +226,37 @@ window.Ari.threadQuestionGenerator = {
         add(msg, `previous_message_${index}`, 0.72);
       });
 
-    add(summary.threadState?.previousAnswerSummary, "previous_answer_summary", 0.66);
-    add(summary.threadState?.continuitySummary, "continuity_summary", 0.64);
     add(summary.workingContext, "working_context", 0.62);
-
-    add(thread.activeIssue, "thread_active_issue", 0.58);
-    add(thread.activeSubject, "thread_active_subject", 0.54);
-    add(thread.currentTopic, "thread_current_topic", 0.48);
+    add(summary.threadState?.continuitySummary, "continuity_summary", 0.58);
+    add(summary.threadState?.previousAnswerSummary, "previous_answer_summary", 0.55);
 
     candidates.sort((a, b) => b.score - a.score);
-
     return candidates[0] || null;
   },
 
-  detectFollowUpType(text = "") {
-    const clean = this.clean(text);
-    const words = clean.split(/\s+/).filter(Boolean);
-
-    if (!clean) return "none";
-    if (words.length > 14) return "none";
-if (this.hasNewConcreteTopic(clean)) return "none";
-    if (/^why\??$/.test(clean)) return "why";
-    if (/^why\b/.test(clean)) return "why";
-
-    if (/^how\??$/.test(clean)) return "how";
-    if (/^how\b/.test(clean)) return "how";
-
-    if (/^what else can i do\??$/.test(clean)) return "more_actions";
-    if (/^what should i do\??$/.test(clean)) return "action_guidance";
-    if (/^what can i do\??$/.test(clean)) return "action_guidance";
-
-    if (/^what is the most likely cause\??$/.test(clean)) return "likely_cause";
-    if (/^what is the most likely reason\??$/.test(clean)) return "likely_reason";
-
-    if (/^what do you think\??$/.test(clean)) return "opinion";
-    if (/^what about\b/.test(clean)) return "what_about";
-    if (/^what if\b/.test(clean)) return "what_if";
-
-    if (/^(can i|should i|do i)\b/.test(clean)) return "permission_or_decision";
-
-    if (/\b(it|this|that|they|them)\b/.test(clean)) return "pronoun_reference";
-
-    return "none";
+  hasReferenceWord(text = "") {
+    return /\b(it|this|that|they|them|those|these|same|one|ones|there|here|that plan|that idea|that option)\b/.test(this.clean(text));
   },
 
-  resolveQuestion({ text = "", topic = "", followUpType = "none" }) {
-    const clean = this.clean(text);
-    const topicText = this.trimEndingPunctuation(topic);
+  replaceReferenceWords(text = "", topic = "") {
+    const replaced = text.replace(
+      /\b(it|this|that|they|them|those|these|same|one|ones)\b/g,
+      topic
+    );
 
-    switch (followUpType) {
-      case "why":
-        return `Why might ${topicText}?`;
-
-      case "how":
-        return `How should the user think about ${topicText}?`;
-
-      case "more_actions":
-        return `What else can the user do about ${topicText}?`;
-
-      case "action_guidance":
-        return `What should the user do about ${topicText}?`;
-
-      case "likely_cause":
-        return `What is the most likely cause of ${topicText}?`;
-
-      case "likely_reason":
-        return `What is the most likely reason for ${topicText}?`;
-
-      case "opinion":
-        return `What do you think about ${topicText}?`;
-
-      case "what_about":
-        return `${clean} — regarding ${topicText}?`;
-
-      case "what_if":
-        return `${clean} — in the context of ${topicText}?`;
-
-      case "permission_or_decision":
-        return `${clean} — regarding ${topicText}?`;
-
-      case "pronoun_reference":
-        return this.replacePronouns(clean, topicText);
-
-      default:
-        return `${clean} — regarding ${topicText}?`;
-    }
-  },
-
-  replacePronouns(text = "", topic = "") {
-    const replaced = text.replace(/\b(it|this|that|they|them)\b/g, topic);
     return this.ensureQuestionMark(replaced);
+  },
+
+  hasNewConcreteTopic(text = "") {
+    const clean = this.clean(text);
+
+    return (
+      /\b\d+\s?(lbs?|pounds?|kg|calories|cals?|weeks?|days?|months?|years?)\b/.test(clean) ||
+      /\b(weight|calories|diet|fat|lose weight|gain weight|cut|bulk|workout|exercise|meal|protein)\b/.test(clean) ||
+      /\b(code|file|bug|error|github|engine|function|javascript|html|css|supabase|vercel)\b/.test(clean) ||
+      /\b(sunburn|pain|fever|diarrhea|cough|pregnant|symptom|bleeding|chest pain|shortness of breath)\b/.test(clean) ||
+      /\b(car|vehicle|rent|money|budget|job|school|boss|work|relationship|girlfriend|wife|father|mother|cat|dog)\b/.test(clean)
+    );
   },
 
   isBadTopic(topic = "", currentText = "") {
@@ -242,9 +266,6 @@ if (this.hasNewConcreteTopic(clean)) return "none";
     if (!cleanTopic) return true;
     if (cleanTopic === cleanCurrent) return true;
     if (cleanTopic.includes("[object object]")) return true;
-
-    // Prevent current-turn self-poisoning.
-    if (this.detectFollowUpType(cleanTopic) !== "none") return true;
 
     const badExact = [
       "general understanding",
@@ -260,22 +281,8 @@ if (this.hasNewConcreteTopic(clean)) return "none";
 
     if (badExact.includes(cleanTopic)) return true;
 
-    const badStarts = [
-      "the user's current situation:",
-      "current topic:",
-      "current situation:"
-    ];
-
-    if (badStarts.some(prefix => cleanTopic.startsWith(prefix))) {
-      const stripped = cleanTopic
-        .replace(/^the user's current situation:\s*/i, "")
-        .replace(/^current topic:\s*/i, "")
-        .replace(/^current situation:\s*/i, "")
-        .trim();
-
-      if (!stripped || stripped === cleanCurrent || this.detectFollowUpType(stripped) !== "none") {
-        return true;
-      }
+    if (this.detectRequestedOperation(cleanTopic) !== "none" && cleanTopic.split(/\s+/).length <= 8) {
+      return true;
     }
 
     return false;
@@ -290,6 +297,9 @@ if (this.hasNewConcreteTopic(clean)) return "none";
       return (
         value.resolvedUserQuestion ||
         value.userText ||
+        value.followUpAnchor ||
+        value.activeClaim ||
+        value.activeQuestion ||
         value.text ||
         value.claim ||
         value.value ||
@@ -307,14 +317,14 @@ if (this.hasNewConcreteTopic(clean)) return "none";
   },
 
   cleanTopic(value = "") {
-    let text = String(value || "")
+    return String(value || "")
       .replace(/^the user's current situation:\s*/i, "")
       .replace(/^current topic:\s*/i, "")
       .replace(/^current situation:\s*/i, "")
+      .replace(/^user said:\s*/i, "")
+      .replace(/^ari answered:\s*/i, "")
       .replace(/\s+/g, " ")
       .trim();
-
-    return text;
   },
 
   trimEndingPunctuation(value = "") {
@@ -337,13 +347,6 @@ if (this.hasNewConcreteTopic(clean)) return "none";
     return 0.66;
   },
 
-hasNewConcreteTopic(text = "") {
-  return /\b\d+\s?(lbs?|pounds?|kg)\b/.test(text) ||
-    /\b(weight|calories|diet|fat|lose weight|gain weight|cut|bulk|workout|exercise|meal|protein)\b/.test(text) ||
-    /\b(code|file|bug|error|github|engine|function)\b/.test(text) ||
-    /\b(sunburn|pain|fever|diarrhea|cough|pregnant|symptom)\b/.test(text);
-},
-
   noResolution(raw, reason = "No safe prior context found.") {
     return {
       threadQuestionGeneratorRan: true,
@@ -357,6 +360,7 @@ hasNewConcreteTopic(text = "") {
       currentTurnWasResolved: false,
       usedThreadContext: false,
       resolvedSubject: null,
+      operation: "none",
 
       resolutionType: "none",
       confidence: 1,
@@ -370,6 +374,7 @@ hasNewConcreteTopic(text = "") {
         rawText: raw,
         resolvedText: raw,
         usedThreadContext: false,
+        operation: "none",
         confidence: 1
       }
     };
