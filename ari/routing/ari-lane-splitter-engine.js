@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.7.0 — Semantic Frame Consumer / minimal fallback / no primary keyword authority
+// V1.9.0 — Semantic-First Routing / Lexical Fallback Only
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.7.0",
+  version: "1.9.0",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -18,12 +18,12 @@ window.Ari.laneSplitterEngine = {
       this.emptyEvidence();
 
     const pressures = evidence.routingPressures || evidence;
-    const frame = this.readSemanticFrame(summary, evidence);
-    const context = this.readContext(summary, frame);
+    const semantic = this.readSemantic(summary, input);
+    const context = this.readContext(summary, semantic);
 
-    const scores = this.scoreLanes(pressures, context);
+    const scores = this.scoreLanes(pressures, context, semantic);
     const ranked = this.rankScores(scores);
-    const lane = this.chooseLane(ranked, pressures, context);
+    const lane = this.chooseLane(ranked, pressures, context, semantic);
 
     return {
       engine: "ari-lane-splitter-engine",
@@ -42,10 +42,20 @@ window.Ari.laneSplitterEngine = {
 
       scores,
       ranked,
-      confidence: this.confidence(ranked, context),
-      explanation: this.explain(lane, context),
+      confidence: this.confidence(ranked, context, semantic),
+      explanation: this.explain(lane, context, semantic),
 
-      semanticFrameUsed: frame,
+      semanticAware: semantic.available,
+      semanticFirst: true,
+      lexicalFallbackUsed: context.lexicalFallbackUsed,
+
+      semanticFrameUsed: Boolean(semantic.primaryFrame?.frameType),
+      semanticFrameType: semantic.primaryFrame?.frameType || null,
+      semanticIntent: semantic.primaryFrame?.intent || null,
+      semanticContinuity: semantic.continuity,
+      semanticResponseCharacteristics: semantic.response,
+      semanticAmbiguity: semantic.ambiguity,
+
       evidenceUsed: pressures,
       contextUsed: context,
 
@@ -59,144 +69,67 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  readSemanticFrame(summary = {}, evidence = {}) {
-    const candidates = [
-      evidence.supportingEvidence?.semanticFrame,
-      evidence.semanticFrame,
-      summary.semanticFrame,
-      summary.observerSemanticFrame,
-      summary.currentFrame,
-      summary.latestConversationMeaning?.semanticFrame,
-      summary.threadState?.activeSemanticFrame,
-      summary.threadUnderstanding?.resolvedMeaning?.semanticFrame,
-      summary.threadUnderstanding?.workingContext?.semanticState
-    ];
+  readSemantic(summary = {}, input = {}) {
+    const semanticFrameOutput =
+      input.semanticFrame ||
+      summary.semanticFrameOutput ||
+      summary.semanticFrame ||
+      {};
 
-    const found = candidates.find(x => x && typeof x === "object");
+    const primaryFrame =
+      input.primarySemanticFrame ||
+      summary.primarySemanticFrame ||
+      semanticFrameOutput.primaryFrame ||
+      summary.activeSemanticFrame ||
+      {};
 
-    if (found) {
-      return this.normalizeFrame(found, "provided_semantic_frame");
-    }
+    const semanticSummary =
+      input.semanticSummary ||
+      summary.semanticSummary ||
+      semanticFrameOutput.semanticSummary ||
+      {};
 
-    return this.fallbackFrame(summary);
-  },
+    const continuity =
+      summary.semanticContinuity ||
+      semanticFrameOutput.continuity ||
+      semanticSummary.continuity ||
+      {};
 
-  normalizeFrame(frame = {}, source = "semantic_frame") {
-    const operation =
-      frame.operation ||
-      frame.intent ||
-      frame.responseIntent ||
-      frame.questionType ||
-      frame.situationFrame ||
-      "unknown";
+    const response =
+      summary.semanticResponseCharacteristics ||
+      semanticFrameOutput.responseCharacteristics ||
+      semanticSummary.responseCharacteristics ||
+      {};
 
-    const slots = frame.slots || {
-      object:
-        frame.object ||
-        frame.topic ||
-        frame.subject ||
-        frame.activeObject ||
-        frame.resolvedObject ||
-        null,
+    const ambiguity =
+      summary.semanticAmbiguity ||
+      semanticFrameOutput.ambiguity ||
+      semanticSummary.ambiguity ||
+      {};
 
-      options:
-        frame.options ||
-        frame.choices ||
-        frame.alternatives ||
-        null,
-
-      goal:
-        frame.goal ||
-        frame.activeGoal ||
-        frame.resolvedGoal ||
-        null,
-
-      problem:
-        frame.problem ||
-        frame.issue ||
-        frame.activeIssue ||
-        frame.resolvedIssue ||
-        null,
-
-      criteria:
-        frame.criteria ||
-        frame.constraints ||
-        frame.values ||
-        null,
-
-      audience:
-        frame.audience ||
-        frame.target ||
-        null
-    };
-
-    const requiredSlots = Array.isArray(frame.requiredSlots)
-      ? frame.requiredSlots
-      : this.requiredSlotsFor(operation);
-
-    const missingSlots = Array.isArray(frame.missingSlots)
-      ? frame.missingSlots
-      : requiredSlots.filter(slot => !slots[slot]);
-
-    const frameComplete =
-      frame.frameComplete === true ||
-      frame.isComplete === true ||
-      missingSlots.length === 0;
-
-    const needsPriorFrame =
-      frame.needsPriorFrame === true ||
-      frame.needsThread === true ||
-      frame.requiresPriorContext === true ||
-      frame.requiresThread === true;
-
-    const confidence =
-      Number(frame.confidence ?? frame.frameConfidence ?? 0.5) || 0.5;
+    const emotionalOverlay =
+      summary.semanticEmotionalOverlay ||
+      semanticFrameOutput.emotionalOverlay ||
+      semanticSummary.emotionalOverlay ||
+      {};
 
     return {
-      source,
-      operation,
-      slots,
-      requiredSlots,
-      missingSlots,
-      frameComplete,
-      needsPriorFrame,
-      confidence,
-      raw: frame
+      semanticFrameOutput,
+      primaryFrame,
+      semanticSummary,
+      continuity,
+      response,
+      ambiguity,
+      emotionalOverlay,
+      available: Boolean(
+        semanticFrameOutput.semanticFrameBuilderRan ||
+        primaryFrame.frameType ||
+        semanticSummary.primaryMeaning
+      )
     };
   },
 
-  fallbackFrame(summary = {}) {
-    const text = String(
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      ""
-    ).toLowerCase().trim();
-
-    const tokens = this.meaningfulTokens(text);
-    const hasReference = this.hasReferenceLanguage(text);
-
-    return {
-      source: "minimal_fallback_frame",
-      operation: "unknown",
-      slots: {
-        object: tokens.length >= 2 && !hasReference ? tokens.join(" ") : null,
-        options: null,
-        goal: null,
-        problem: null,
-        criteria: null,
-        audience: null
-      },
-      requiredSlots: [],
-      missingSlots: [],
-      frameComplete: tokens.length >= 2 && !hasReference,
-      needsPriorFrame: hasReference && tokens.length < 3,
-      confidence: 0.45,
-      raw: { text }
-    };
-  },
-
-  readContext(summary = {}, frame = {}) {
+  readContext(summary = {}, semantic = {}) {
     const text = String(
       summary.userMessage ||
       summary.message ||
@@ -221,117 +154,221 @@ window.Ari.laneSplitterEngine = {
 
     const wordCount = text.split(/\s+/).filter(Boolean).length;
 
-    const hasReferenceLanguage = this.hasReferenceLanguage(text);
-    const hasCoreSlot = this.frameHasCoreSlot(frame);
+    const frameType =
+      semantic.primaryFrame?.frameType ||
+      semantic.semanticSummary?.primaryMeaning ||
+      "unknown";
 
-    const frameNeedsThread =
-      hasThread &&
-      (
-        frame.needsPriorFrame === true ||
-        (
-          !frame.frameComplete &&
-          hasReferenceLanguage &&
-          frame.missingSlots?.length > 0
-        )
-      );
+    const intent =
+      semantic.primaryFrame?.intent ||
+      semantic.semanticSummary?.intent ||
+      "unknown";
 
-    const semanticDependencyScore = this.scoreSemanticDependency({
-      hasThread,
-      frame,
-      frameNeedsThread,
-      hasReferenceLanguage,
-      hasCoreSlot,
-      wordCount
-    });
+    const expectsDirectAnswer =
+      semantic.response?.expectsDirectAnswer === true;
+
+    const expectsExplanation =
+      semantic.response?.expectsExplanation === true;
+
+    const expectsCollaboration =
+      semantic.response?.expectsCollaboration === true;
+
+    const expectsCodeOrArtifact =
+      semantic.response?.expectsCodeOrArtifact === true;
+
+    const expectsFollowUpContext =
+      semantic.response?.expectsFollowUpContext === true ||
+      semantic.continuity?.isContinuation === true;
+
+    const likelyWantsMinimalAnswer =
+      semantic.response?.likelyWantsMinimalAnswer === true;
+
+    const semanticContinuation =
+      semantic.continuity?.isContinuation === true;
+
+    const referencesPriorContext =
+      semantic.continuity?.referencesPriorContext === true;
+
+    const referencesPriorArtifact =
+      semantic.continuity?.referencesPriorArtifact === true;
+
+    const ambiguityPresent =
+      semantic.ambiguity?.present === true;
+
+    const semanticAvailable = semantic.available === true;
+
+    const lexicalFallback = semanticAvailable
+      ? this.emptyLexicalFallback()
+      : this.lexicalFallback(text);
+
+    const lexicalFallbackUsed = !semanticAvailable;
 
     const standaloneMeaningScore = this.scoreStandaloneMeaning({
-      frame,
-      hasReferenceLanguage,
-      hasCoreSlot,
-      wordCount
+      semanticAvailable,
+      wordCount,
+      frameType,
+      intent,
+      expectsDirectAnswer,
+      expectsExplanation,
+      expectsCollaboration,
+      expectsCodeOrArtifact,
+      semanticContinuation,
+      ambiguityPresent,
+      lexicalFallback
+    });
+
+    const semanticDependencyScore = this.scoreSemanticDependency({
+      semanticAvailable,
+      hasThread,
+      wordCount,
+      semanticContinuation,
+      expectsFollowUpContext,
+      referencesPriorContext,
+      referencesPriorArtifact,
+      ambiguityPresent,
+      frameType,
+      lexicalFallback
     });
 
     return {
       text,
       wordCount,
       hasThread,
-      frame,
-      frameNeedsThread,
-      hasReferenceLanguage,
-      hasCoreSlot,
-      semanticDependencyScore,
-      standaloneMeaningScore
+
+      frameType,
+      intent,
+
+      expectsDirectAnswer,
+      expectsExplanation,
+      expectsCollaboration,
+      expectsCodeOrArtifact,
+      expectsFollowUpContext,
+      likelyWantsMinimalAnswer,
+
+      semanticContinuation,
+      referencesPriorContext,
+      referencesPriorArtifact,
+      ambiguityPresent,
+
+      semanticAvailable,
+      lexicalFallbackUsed,
+      lexicalFallback,
+
+      standaloneMeaningScore,
+      semanticDependencyScore
     };
   },
 
-  scoreLanes(p = {}, context = {}) {
-    const direct =
-      p.standaloneCompleteness * 35 +
-      p.directAnswerPressure * 35 +
-      (1 - p.contextDependency) * 15 +
-      (1 - p.ambiguityWithoutContext) * 15;
+  scoreLanes(p = {}, context = {}, semantic = {}) {
+    const directBase =
+      (p.standaloneCompleteness || 0) * 30 +
+      (p.directAnswerPressure || 0) * 25 +
+      (1 - (p.contextDependency || 0)) * 15 +
+      (1 - (p.ambiguityWithoutContext || 0)) * 10;
 
-    const continuity =
-      p.contextDependency * 28 +
-      (p.followUpPressure || 0) * 28 +
-      p.activeThreadMatch * 18 +
-      p.ambiguityWithoutContext * 12 +
-      p.directAnswerPressure * 4;
+    const continuityBase =
+      (p.contextDependency || 0) * 25 +
+      (p.followUpPressure || 0) * 25 +
+      (p.activeThreadMatch || 0) * 20 +
+      (p.ambiguityWithoutContext || 0) * 15;
 
     const recall =
-      p.recallPressure * 70 +
-      p.contextDependency * 15 +
-      p.ambiguityWithoutContext * 15;
+      (p.recallPressure || 0) * 70 +
+      (p.contextDependency || 0) * 15 +
+      (p.ambiguityWithoutContext || 0) * 15;
 
     const revision =
-      p.revisionPressure * 75 +
-      p.contextDependency * 15 +
-      p.activeThreadMatch * 10;
+      (p.revisionPressure || 0) * 75 +
+      (p.contextDependency || 0) * 15 +
+      (p.activeThreadMatch || 0) * 10;
 
     const relationship =
-      p.relationshipContinuity * 70 +
-      p.contextDependency * 20 +
-      p.activeThreadMatch * 10;
+      (p.relationshipContinuity || 0) * 70 +
+      (p.contextDependency || 0) * 20 +
+      (p.activeThreadMatch || 0) * 10;
 
-    let directBoost = Math.round(context.standaloneMeaningScore * 55);
-    let continuityBoost = Math.round(context.semanticDependencyScore * 60);
+    let directBoost = Math.round(context.standaloneMeaningScore * 60);
+    let continuityBoost = Math.round(context.semanticDependencyScore * 65);
 
-    if (context.frame.frameComplete) directBoost += 35;
-    if (context.hasCoreSlot) directBoost += 20;
+    if (context.expectsDirectAnswer) directBoost += 35;
+    if (context.expectsExplanation) directBoost += 20;
 
-    if (context.frameNeedsThread) continuityBoost += 45;
-    if (context.frame.needsPriorFrame) continuityBoost += 35;
-    if (context.frame.missingSlots?.length) continuityBoost += 20;
+    if (context.semanticContinuation) continuityBoost += 40;
+    if (context.expectsFollowUpContext) continuityBoost += 35;
+    if (context.referencesPriorContext) continuityBoost += 25;
+    if (context.ambiguityPresent) continuityBoost += 25;
+
+    if (context.expectsCodeOrArtifact) {
+      directBoost += 12;
+      continuityBoost += context.semanticContinuation ? 18 : 8;
+    }
+
+    if (context.expectsCollaboration) {
+      directBoost += 8;
+      continuityBoost += context.hasThread ? 15 : 8;
+    }
+
+    if (context.frameType === "continuation") continuityBoost += 35;
+    if (context.frameType === "information_seeking") directBoost += 25;
+    if (context.frameType === "explanation_request") directBoost += 22;
+    if (context.frameType === "instruction_or_command") directBoost += 15;
+    if (context.frameType === "collaborative_software_build") {
+      directBoost += 10;
+      continuityBoost += context.hasThread ? 15 : 0;
+    }
 
     return {
-      direct_current_turn: this.cap(direct + directBoost),
-      continuity_follow_up: this.cap(continuity + continuityBoost),
+      direct_current_turn: this.cap(directBase + directBoost),
+      continuity_follow_up: this.cap(continuityBase + continuityBoost),
       recall_or_memory_request: this.cap(recall),
       correction_or_revision: this.cap(revision),
       relationship_continuity: this.cap(relationship)
     };
   },
 
-  chooseLane(ranked = [], p = {}, context = {}) {
+  chooseLane(ranked = [], p = {}, context = {}, semantic = {}) {
     const top = ranked[0];
     const second = ranked[1];
 
-    if (context.frameNeedsThread) {
+    if (
+      context.hasThread &&
+      context.semanticAvailable &&
+      (
+        context.semanticContinuation ||
+        context.expectsFollowUpContext ||
+        context.referencesPriorContext ||
+        context.ambiguityPresent
+      ) &&
+      !context.expectsDirectAnswer
+    ) {
       return "continuity_follow_up";
     }
 
     if (
       context.hasThread &&
-      context.semanticDependencyScore >= 0.7
+      context.expectsCodeOrArtifact &&
+      context.semanticContinuation
     ) {
       return "continuity_follow_up";
     }
 
     if (
-      context.frame.frameComplete &&
-      context.standaloneMeaningScore >= 0.6
+      context.expectsDirectAnswer &&
+      context.standaloneMeaningScore >= context.semanticDependencyScore
     ) {
       return "direct_current_turn";
+    }
+
+    if (
+      context.expectsExplanation &&
+      !context.semanticContinuation &&
+      !context.ambiguityPresent
+    ) {
+      return "direct_current_turn";
+    }
+
+    if (!context.semanticAvailable && context.lexicalFallback.needsThread) {
+      return "continuity_follow_up";
     }
 
     if (!top || top.score < 35) {
@@ -351,101 +388,102 @@ window.Ari.laneSplitterEngine = {
   },
 
   scoreSemanticDependency({
+    semanticAvailable = false,
     hasThread = false,
-    frame = {},
-    frameNeedsThread = false,
-    hasReferenceLanguage = false,
-    hasCoreSlot = false,
-    wordCount = 0
+    wordCount = 0,
+    semanticContinuation = false,
+    expectsFollowUpContext = false,
+    referencesPriorContext = false,
+    referencesPriorArtifact = false,
+    ambiguityPresent = false,
+    frameType = "unknown",
+    lexicalFallback = {}
   } = {}) {
     if (!hasThread) return 0;
 
     let score = 0;
 
-    if (frameNeedsThread) score += 0.5;
-    if (frame.needsPriorFrame) score += 0.35;
-    if (frame.missingSlots?.length) score += 0.25;
-    if (hasReferenceLanguage) score += 0.2;
-    if (wordCount <= 8 && !hasCoreSlot) score += 0.15;
-
-    if (frame.frameComplete) score -= 0.3;
-    if (hasCoreSlot && wordCount >= 7) score -= 0.2;
+    if (semanticAvailable) {
+      if (semanticContinuation) score += 0.45;
+      if (expectsFollowUpContext) score += 0.35;
+      if (referencesPriorContext) score += 0.25;
+      if (referencesPriorArtifact) score += 0.15;
+      if (ambiguityPresent) score += 0.25;
+      if (frameType === "continuation") score += 0.25;
+      if (wordCount <= 5 && semanticContinuation) score += 0.15;
+    } else {
+      if (lexicalFallback.needsThread) score += 0.45;
+      if (lexicalFallback.hasReferenceLanguage) score += 0.25;
+      if (wordCount <= 5) score += 0.15;
+    }
 
     return this.clamp01(score);
   },
 
   scoreStandaloneMeaning({
-    frame = {},
-    hasReferenceLanguage = false,
-    hasCoreSlot = false,
-    wordCount = 0
+    semanticAvailable = false,
+    wordCount = 0,
+    frameType = "unknown",
+    intent = "unknown",
+    expectsDirectAnswer = false,
+    expectsExplanation = false,
+    expectsCollaboration = false,
+    expectsCodeOrArtifact = false,
+    semanticContinuation = false,
+    ambiguityPresent = false,
+    lexicalFallback = {}
   } = {}) {
     let score = 0;
 
-    if (frame.frameComplete) score += 0.4;
-    if (hasCoreSlot) score += 0.25;
-    if (frame.operation && frame.operation !== "unknown") score += 0.15;
-    if (wordCount >= 7) score += 0.15;
-    if (frame.confidence >= 0.7) score += 0.1;
+    if (semanticAvailable) {
+      if (expectsDirectAnswer) score += 0.45;
+      if (expectsExplanation) score += 0.25;
+      if (expectsCodeOrArtifact) score += 0.18;
+      if (expectsCollaboration) score += 0.14;
+      if (frameType && frameType !== "unknown") score += 0.16;
+      if (intent && intent !== "unknown") score += 0.12;
+      if (wordCount >= 7) score += 0.1;
 
-    if (hasReferenceLanguage && !frame.frameComplete) score -= 0.25;
-    if (frame.needsPriorFrame) score -= 0.35;
+      if (semanticContinuation) score -= 0.3;
+      if (ambiguityPresent) score -= 0.25;
+    } else {
+      if (lexicalFallback.looksLikeQuestion) score += 0.35;
+      if (lexicalFallback.hasEnoughContent) score += 0.25;
+      if (wordCount >= 7) score += 0.15;
+      if (lexicalFallback.needsThread) score -= 0.3;
+    }
 
     return this.clamp01(score);
   },
 
-  requiredSlotsFor(operation = "unknown") {
-    const op = String(operation || "unknown").toLowerCase();
-
-    if (op.includes("recommend")) return ["object"];
-    if (op.includes("compare")) return ["options"];
-    if (op.includes("plan")) return ["goal"];
-    if (op.includes("explain")) return ["object"];
-    if (op.includes("repair")) return ["problem"];
-    if (op.includes("debug")) return ["problem"];
-    if (op.includes("revision")) return ["problem"];
-    if (op.includes("decision")) return ["object"];
-    if (op.includes("permission")) return ["object"];
-
-    return [];
+  emptyLexicalFallback() {
+    return {
+      used: false,
+      needsThread: false,
+      hasReferenceLanguage: false,
+      looksLikeQuestion: false,
+      hasEnoughContent: false
+    };
   },
 
-  frameHasCoreSlot(frame = {}) {
-    const slots = frame.slots || {};
+  lexicalFallback(text = "") {
+    const wordCount = String(text || "").split(/\s+/).filter(Boolean).length;
 
-    return Boolean(
-      slots.object ||
-      slots.options ||
-      slots.goal ||
-      slots.problem
-    );
-  },
+    const hasReferenceLanguage =
+      /\b(it|this|that|they|them|same|one|those|these)\b/.test(text) ||
+      /^(so|but|also|still|okay|then|next)\b/.test(text);
 
-  hasReferenceLanguage(text = "") {
-    return (
-      /\b(it|this|that|they|them|those|these|same|same thing|one|ones)\b/.test(text) ||
-      /\b(which one|which option|the first one|the second one|the other one)\b/.test(text) ||
-      /\b(for me|my situation|my case|in this case|based on that|given that)\b/.test(text) ||
-      /^(why|how|what about|what if|then what|really|okay but|so|but|also|still)\b/.test(text)
-    );
-  },
+    const looksLikeQuestion =
+      text.includes("?") ||
+      /^(what|why|how|when|where|who|which|is|are|do|does|can|should|would|will)\b/.test(text);
 
-  meaningfulTokens(text = "") {
-    const weak = new Set([
-      "what", "when", "where", "why", "how", "should", "could", "would",
-      "recommend", "suggest", "best", "better", "plan", "strategy",
-      "approach", "ideally", "really", "thing", "stuff", "something",
-      "anything", "me", "my", "you", "your", "for", "about", "this",
-      "that", "they", "them", "one", "same", "option", "the", "and",
-      "or", "but", "with", "from", "into", "onto", "have", "has", "had",
-      "do", "does", "did", "can", "will", "would", "there", "their"
-    ]);
-
-    return String(text || "")
-      .toLowerCase()
-      .split(/\W+/)
-      .map(t => t.trim())
-      .filter(t => t.length >= 4 && !weak.has(t));
+    return {
+      used: true,
+      needsThread: hasReferenceLanguage && wordCount <= 8,
+      hasReferenceLanguage,
+      looksLikeQuestion,
+      hasEnoughContent: wordCount >= 6
+    };
   },
 
   shouldUseThread(lane) {
@@ -473,44 +511,56 @@ window.Ari.laneSplitterEngine = {
       .sort((a, b) => b.score - a.score);
   },
 
-  confidence(ranked = [], context = {}) {
+  confidence(ranked = [], context = {}, semantic = {}) {
     const top = ranked[0]?.score || 0;
     const second = ranked[1]?.score || 0;
     const gap = top - second;
 
-    if (context.frameNeedsThread || context.frame.frameComplete) return "high";
+    if (context.semanticAvailable && gap >= 20) return "high";
+    if (context.semanticContinuation || context.expectsDirectAnswer) return "high";
+    if (!context.semanticAvailable && context.lexicalFallbackUsed) return "medium";
     if (gap >= 30) return "high";
     if (gap >= 15) return "medium";
     return "low";
   },
 
-  explain(lane, context = {}) {
-    if (lane === "continuity_follow_up" && context.frameNeedsThread) {
-      return "Semantic frame is incomplete and depends on prior thread context.";
+  explain(lane, context = {}, semantic = {}) {
+    if (context.lexicalFallbackUsed) {
+      return "Semantic frame unavailable; Lane Splitter used minimal lexical fallback.";
     }
 
-    if (lane === "direct_current_turn" && context.frame.frameComplete) {
-      return "Semantic frame is complete enough to route directly to the Situation Map.";
+    if (lane === "continuity_follow_up" && context.semanticContinuation) {
+      return "Semantic Frame Builder identified this as a continuation requiring prior thread context.";
     }
 
-    const explanations = {
+    if (lane === "continuity_follow_up" && context.ambiguityPresent) {
+      return "Semantic Frame Builder detected ambiguity that likely requires prior context.";
+    }
+
+    if (lane === "direct_current_turn" && context.expectsDirectAnswer) {
+      return "Semantic Frame Builder indicates the user expects a direct answer.";
+    }
+
+    if (lane === "direct_current_turn" && context.expectsExplanation) {
+      return "Semantic Frame Builder indicates the user expects an explanation.";
+    }
+
+    return {
       direct_current_turn:
-        "Current message can go directly to the Situation Map.",
+        "Current message is semantically complete enough to go directly to Situation Map.",
 
       continuity_follow_up:
-        "Current message depends on active thread context, so Thread Understanding should run first.",
+        "Current message semantically depends on active thread context.",
 
       recall_or_memory_request:
-        "Current message asks for stored or prior context, so Memory should run first.",
+        "Current message asks for stored or prior context.",
 
       correction_or_revision:
-        "Current message revises or corrects prior output, so Thread Understanding should run first.",
+        "Current message revises or corrects prior output.",
 
       relationship_continuity:
         "Current message depends on ongoing relationship context."
-    };
-
-    return explanations[lane] || "Lane selected from routing pressures.";
+    }[lane] || "Lane selected from semantic frame and routing pressures.";
   },
 
   emptyEvidence() {
