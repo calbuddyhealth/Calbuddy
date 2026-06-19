@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.6.1 — Frame Consumer Routing / semantic-slot dependency model
+// V1.7.0 — Semantic Frame Consumer / minimal fallback / no primary keyword authority
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.6.1",
+  version: "1.7.0",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -18,7 +18,8 @@ window.Ari.laneSplitterEngine = {
       this.emptyEvidence();
 
     const pressures = evidence.routingPressures || evidence;
-    const context = this.readContext(summary, evidence);
+    const frame = this.readSemanticFrame(summary, evidence);
+    const context = this.readContext(summary, frame);
 
     const scores = this.scoreLanes(pressures, context);
     const ranked = this.rankScores(scores);
@@ -41,8 +42,10 @@ window.Ari.laneSplitterEngine = {
 
       scores,
       ranked,
-      confidence: this.confidence(ranked),
+      confidence: this.confidence(ranked, context),
       explanation: this.explain(lane, context),
+
+      semanticFrameUsed: frame,
       evidenceUsed: pressures,
       contextUsed: context,
 
@@ -56,7 +59,144 @@ window.Ari.laneSplitterEngine = {
     };
   },
 
-  readContext(summary = {}, evidence = {}) {
+  readSemanticFrame(summary = {}, evidence = {}) {
+    const candidates = [
+      evidence.supportingEvidence?.semanticFrame,
+      evidence.semanticFrame,
+      summary.semanticFrame,
+      summary.observerSemanticFrame,
+      summary.currentFrame,
+      summary.latestConversationMeaning?.semanticFrame,
+      summary.threadState?.activeSemanticFrame,
+      summary.threadUnderstanding?.resolvedMeaning?.semanticFrame,
+      summary.threadUnderstanding?.workingContext?.semanticState
+    ];
+
+    const found = candidates.find(x => x && typeof x === "object");
+
+    if (found) {
+      return this.normalizeFrame(found, "provided_semantic_frame");
+    }
+
+    return this.fallbackFrame(summary);
+  },
+
+  normalizeFrame(frame = {}, source = "semantic_frame") {
+    const operation =
+      frame.operation ||
+      frame.intent ||
+      frame.responseIntent ||
+      frame.questionType ||
+      frame.situationFrame ||
+      "unknown";
+
+    const slots = frame.slots || {
+      object:
+        frame.object ||
+        frame.topic ||
+        frame.subject ||
+        frame.activeObject ||
+        frame.resolvedObject ||
+        null,
+
+      options:
+        frame.options ||
+        frame.choices ||
+        frame.alternatives ||
+        null,
+
+      goal:
+        frame.goal ||
+        frame.activeGoal ||
+        frame.resolvedGoal ||
+        null,
+
+      problem:
+        frame.problem ||
+        frame.issue ||
+        frame.activeIssue ||
+        frame.resolvedIssue ||
+        null,
+
+      criteria:
+        frame.criteria ||
+        frame.constraints ||
+        frame.values ||
+        null,
+
+      audience:
+        frame.audience ||
+        frame.target ||
+        null
+    };
+
+    const requiredSlots = Array.isArray(frame.requiredSlots)
+      ? frame.requiredSlots
+      : this.requiredSlotsFor(operation);
+
+    const missingSlots = Array.isArray(frame.missingSlots)
+      ? frame.missingSlots
+      : requiredSlots.filter(slot => !slots[slot]);
+
+    const frameComplete =
+      frame.frameComplete === true ||
+      frame.isComplete === true ||
+      missingSlots.length === 0;
+
+    const needsPriorFrame =
+      frame.needsPriorFrame === true ||
+      frame.needsThread === true ||
+      frame.requiresPriorContext === true ||
+      frame.requiresThread === true;
+
+    const confidence =
+      Number(frame.confidence ?? frame.frameConfidence ?? 0.5) || 0.5;
+
+    return {
+      source,
+      operation,
+      slots,
+      requiredSlots,
+      missingSlots,
+      frameComplete,
+      needsPriorFrame,
+      confidence,
+      raw: frame
+    };
+  },
+
+  fallbackFrame(summary = {}) {
+    const text = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    ).toLowerCase().trim();
+
+    const tokens = this.meaningfulTokens(text);
+    const hasReference = this.hasReferenceLanguage(text);
+
+    return {
+      source: "minimal_fallback_frame",
+      operation: "unknown",
+      slots: {
+        object: tokens.length >= 2 && !hasReference ? tokens.join(" ") : null,
+        options: null,
+        goal: null,
+        problem: null,
+        criteria: null,
+        audience: null
+      },
+      requiredSlots: [],
+      missingSlots: [],
+      frameComplete: tokens.length >= 2 && !hasReference,
+      needsPriorFrame: hasReference && tokens.length < 3,
+      confidence: 0.45,
+      raw: { text }
+    };
+  },
+
+  readContext(summary = {}, frame = {}) {
     const text = String(
       summary.userMessage ||
       summary.message ||
@@ -79,48 +219,36 @@ window.Ari.laneSplitterEngine = {
         Boolean(summary.workingContext)
       );
 
-    const words = text.split(/\s+/).filter(Boolean);
-    const wordCount = words.length;
-
-    const frame =
-      this.readProvidedFrame(summary, evidence) ||
-      this.buildFallbackFrame(text, hasThread);
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
 
     const hasReferenceLanguage = this.hasReferenceLanguage(text);
-    const hasStandaloneObject = this.frameHasFilledCoreSlot(frame);
-    const frameComplete = this.isFrameComplete(frame);
-    const frameNeedsThread = this.frameNeedsThread(frame, hasThread, hasReferenceLanguage);
+    const hasCoreSlot = this.frameHasCoreSlot(frame);
 
-    const hasEnoughConcreteContent =
-      wordCount >= 7 &&
-      hasStandaloneObject &&
-      frameComplete;
-
-    const isTinyFollowUp =
+    const frameNeedsThread =
       hasThread &&
-      wordCount <= 6 &&
       (
-        hasReferenceLanguage ||
-        frame.operation !== "unknown"
+        frame.needsPriorFrame === true ||
+        (
+          !frame.frameComplete &&
+          hasReferenceLanguage &&
+          frame.missingSlots?.length > 0
+        )
       );
 
     const semanticDependencyScore = this.scoreSemanticDependency({
       hasThread,
       frame,
       frameNeedsThread,
-      frameComplete,
       hasReferenceLanguage,
-      isTinyFollowUp,
-      hasStandaloneObject,
+      hasCoreSlot,
       wordCount
     });
 
     const standaloneMeaningScore = this.scoreStandaloneMeaning({
-      wordCount,
       frame,
-      frameComplete,
-      hasStandaloneObject,
-      hasReferenceLanguage
+      hasReferenceLanguage,
+      hasCoreSlot,
+      wordCount
     });
 
     return {
@@ -128,356 +256,12 @@ window.Ari.laneSplitterEngine = {
       wordCount,
       hasThread,
       frame,
-      frameComplete,
       frameNeedsThread,
       hasReferenceLanguage,
-      hasStandaloneObject,
-      hasEnoughConcreteContent,
-      isTinyFollowUp,
+      hasCoreSlot,
       semanticDependencyScore,
       standaloneMeaningScore
     };
-  },
-
-  readProvidedFrame(summary = {}, evidence = {}) {
-    const candidates = [
-      evidence.supportingEvidence?.semanticFrame,
-      evidence.semanticFrame,
-      summary.semanticFrame,
-      summary.currentFrame,
-      summary.observerSemanticFrame,
-      summary.situationFrame,
-      summary.threadUnderstanding?.resolvedMeaning,
-      summary.threadUnderstanding?.workingContext?.semanticState,
-      summary.threadState?.activeSemanticFrame,
-      summary.latestConversationMeaning
-    ];
-
-    const found = candidates.find(frame => frame && typeof frame === "object");
-    if (!found) return null;
-
-    const operation =
-      found.operation ||
-      found.intent ||
-      found.responseIntent ||
-      found.questionType ||
-      found.situationFrame ||
-      "unknown";
-
-    const slots = {
-      object:
-        found.object ||
-        found.activeObject ||
-        found.resolvedObject ||
-        found.topic ||
-        found.subject ||
-        null,
-
-      options:
-        found.options ||
-        found.choices ||
-        found.alternatives ||
-        null,
-
-      goal:
-        found.goal ||
-        found.activeGoal ||
-        found.resolvedGoal ||
-        null,
-
-      problem:
-        found.problem ||
-        found.issue ||
-        found.activeIssue ||
-        found.resolvedIssue ||
-        null,
-
-      criteria:
-        found.criteria ||
-        found.values ||
-        found.constraints ||
-        null,
-
-      audience:
-        found.audience ||
-        found.target ||
-        null
-    };
-
-    const requiredSlots =
-      Array.isArray(found.requiredSlots)
-        ? found.requiredSlots
-        : this.requiredSlotsFor(operation);
-
-    const missingSlots =
-      Array.isArray(found.missingSlots)
-        ? found.missingSlots
-        : requiredSlots.filter(slot => !slots[slot]);
-
-    return {
-      source: found.source || "provided_semantic_frame",
-      operation,
-      slots,
-      requiredSlots,
-      missingSlots,
-      isComplete: missingSlots.length === 0,
-      needsThread: Boolean(found.needsThread || found.requiresPriorContext || found.needsPriorFrame)
-    };
-  },
-
-  buildFallbackFrame(text = "", hasThread = false) {
-    const operation = this.detectFallbackOperation(text);
-    const slots = this.extractFallbackSlots(text);
-    const requiredSlots = this.requiredSlotsFor(operation);
-    const missingSlots = requiredSlots.filter(slot => !slots[slot]);
-
-    return {
-      source: "fallback_frame_builder",
-      operation,
-      slots,
-      requiredSlots,
-      missingSlots,
-      isComplete:
-        operation === "unknown"
-          ? this.meaningfulTokens(text).length >= 2
-          : missingSlots.length === 0,
-      needsThread:
-        hasThread &&
-        operation !== "unknown" &&
-        missingSlots.length > 0 &&
-        this.hasReferenceLanguage(text)
-    };
-  },
-
-  requiredSlotsFor(operation = "unknown") {
-    const op = String(operation || "unknown").toLowerCase();
-
-    if (op.includes("recommend")) return ["object"];
-    if (op.includes("compare")) return ["options"];
-    if (op.includes("plan")) return ["goal"];
-    if (op.includes("explain")) return ["object"];
-    if (op.includes("repair") || op.includes("debug") || op.includes("revision")) return ["problem"];
-    if (op.includes("decision") || op.includes("permission")) return ["object"];
-
-    return [];
-  },
-
-  detectFallbackOperation(text = "") {
-    const shape = this.questionShape(text);
-
-    if (shape.asksForChoice) return "recommendation";
-    if (shape.asksForComparison) return "comparison";
-    if (shape.asksForPlan) return "planning";
-    if (shape.asksForExplanation) return "explanation";
-    if (shape.asksForRepair) return "repair_or_revision";
-    if (shape.asksForPermission) return "permission_or_decision";
-
-    return "unknown";
-  },
-
-  questionShape(text = "") {
-    return {
-      asksForChoice:
-        /\b(which|choose|pick|recommend|suggest|prefer)\b/.test(text),
-
-      asksForComparison:
-        /\b(compare|difference|versus|vs|better|worse|more|less)\b/.test(text),
-
-      asksForPlan:
-        /\b(plan|strategy|roadmap|steps|schedule|routine)\b/.test(text) ||
-        /^(how do i|how can i|what should i do)\b/.test(text),
-
-      asksForExplanation:
-        /^(why|how come|explain|what does|break down)\b/.test(text),
-
-      asksForRepair:
-        /\b(fix|debug|repair|solve|update|rewrite|replace|broken|error|issue|problem)\b/.test(text),
-
-      asksForPermission:
-        /^(can i|should i|do i|is it okay|would it be okay)\b/.test(text)
-    };
-  },
-
-  extractFallbackSlots(text = "") {
-    return {
-      object: this.extractObject(text),
-      options: this.extractOptions(text),
-      goal: this.extractGoal(text),
-      problem: this.extractProblem(text),
-      criteria: this.extractCriteria(text),
-      audience: this.extractAudience(text)
-    };
-  },
-
-  extractObject(text = "") {
-    if (this.isOnlyReference(text)) return null;
-
-    const cleaned = this.removeQuestionScaffold(text);
-    const tokens = this.meaningfulTokens(cleaned);
-
-    if (/\d/.test(text)) return text;
-    if (tokens.length >= 2) return tokens.join(" ");
-
-    return null;
-  },
-
-  extractOptions(text = "") {
-    if (/\b(which one|which option|the first one|the second one|the other one)\b/.test(text)) {
-      return null;
-    }
-
-    const options = text
-      .split(/\s+or\s+|\s+vs\s+|\s+versus\s+|\s+between\s+/)
-      .map(x => x.trim())
-      .filter(Boolean);
-
-    return options.length >= 2 ? options : null;
-  },
-
-  extractGoal(text = "") {
-    if (
-      /\b(to|so i can|in order to)\b/.test(text) ||
-      /\b(lose|gain|build|make|create|fix|improve|reduce|increase|get back)\b/.test(text)
-    ) {
-      return text;
-    }
-
-    return null;
-  },
-
-  extractProblem(text = "") {
-    if (/\b(error|bug|broken|not working|issue|problem|fail|failed|wrong)\b/.test(text)) {
-      return text;
-    }
-
-    return null;
-  },
-
-  extractCriteria(text = "") {
-    const criteria = [];
-
-    if (/\b(best|ideal|recommend|prefer)\b/.test(text)) criteria.push("preference");
-    if (/\b(cheap|cost|budget|affordable)\b/.test(text)) criteria.push("cost");
-    if (/\b(fast|quick|soon|urgent)\b/.test(text)) criteria.push("speed");
-    if (/\b(safe|healthy|risk|danger)\b/.test(text)) criteria.push("safety_or_health");
-    if (/\b(reliable|effective|strong|quality)\b/.test(text)) criteria.push("quality");
-
-    return criteria;
-  },
-
-  extractAudience(text = "") {
-    if (/\b(for me|my situation|my case|in my case|for us)\b/.test(text)) {
-      return "user_specific";
-    }
-
-    return null;
-  },
-
-  isFrameComplete(frame = {}) {
-    if (!frame) return false;
-    if (frame.isComplete === true) return true;
-
-    const requiredSlots = Array.isArray(frame.requiredSlots)
-      ? frame.requiredSlots
-      : [];
-
-    const missingSlots = Array.isArray(frame.missingSlots)
-      ? frame.missingSlots
-      : [];
-
-    return requiredSlots.length === 0 || missingSlots.length === 0;
-  },
-
-  frameNeedsThread(frame = {}, hasThread = false, hasReferenceLanguage = false) {
-    if (!hasThread) return false;
-    if (frame.needsThread === true) return true;
-
-    const missingSlots = Array.isArray(frame.missingSlots)
-      ? frame.missingSlots
-      : [];
-
-    return (
-      frame.operation !== "unknown" &&
-      missingSlots.length > 0 &&
-      hasReferenceLanguage
-    );
-  },
-
-  frameHasFilledCoreSlot(frame = {}) {
-    const slots = frame.slots || {};
-
-    return Boolean(
-      slots.object ||
-      slots.options ||
-      slots.goal ||
-      slots.problem
-    );
-  },
-
-  hasReferenceLanguage(text = "") {
-    return (
-      /\b(it|this|that|they|them|those|these|same|same thing)\b/.test(text) ||
-      /\b(which one|which option|the first one|the second one|the other one)\b/.test(text) ||
-      /\b(for me|my situation|my case|in this case|based on that)\b/.test(text) ||
-      /^(why|how|what about|what if|then what|really|okay but|so)\b/.test(text)
-    );
-  },
-
-  isOnlyReference(text = "") {
-    const cleaned = text
-      .replace(/[?!.]/g, "")
-      .replace(/\b(what|which|is|the|do|you|recommend|should|i|can|me|for|best|better)\b/g, "")
-      .trim();
-
-    if (!cleaned) return true;
-
-    return /^(it|this|that|they|them|one|same|option)$/.test(cleaned);
-  },
-
-  scoreSemanticDependency({
-    hasThread = false,
-    frame = {},
-    frameNeedsThread = false,
-    frameComplete = false,
-    hasReferenceLanguage = false,
-    isTinyFollowUp = false,
-    hasStandaloneObject = false,
-    wordCount = 0
-  } = {}) {
-    if (!hasThread) return 0;
-
-    let score = 0;
-
-    if (frameNeedsThread) score += 0.5;
-    if (frame.missingSlots?.length) score += 0.25;
-    if (hasReferenceLanguage) score += 0.2;
-    if (isTinyFollowUp) score += 0.2;
-    if (wordCount <= 8 && !hasStandaloneObject) score += 0.15;
-
-    if (frameComplete) score -= 0.25;
-    if (hasStandaloneObject && wordCount >= 7) score -= 0.2;
-
-    return this.clamp01(score);
-  },
-
-  scoreStandaloneMeaning({
-    wordCount = 0,
-    frame = {},
-    frameComplete = false,
-    hasStandaloneObject = false,
-    hasReferenceLanguage = false
-  } = {}) {
-    let score = 0;
-
-    if (wordCount >= 7) score += 0.2;
-    if (wordCount >= 12) score += 0.15;
-    if (hasStandaloneObject) score += 0.3;
-    if (frameComplete) score += 0.3;
-    if (frame.operation !== "unknown") score += 0.1;
-
-    if (hasReferenceLanguage && !frameComplete) score -= 0.3;
-
-    return this.clamp01(score);
   },
 
   scoreLanes(p = {}, context = {}) {
@@ -509,20 +293,15 @@ window.Ari.laneSplitterEngine = {
       p.contextDependency * 20 +
       p.activeThreadMatch * 10;
 
-    let continuityBoost = 0;
-    let directBoost = 0;
+    let directBoost = Math.round(context.standaloneMeaningScore * 55);
+    let continuityBoost = Math.round(context.semanticDependencyScore * 60);
 
-    continuityBoost += Math.round(context.semanticDependencyScore * 55);
-    directBoost += Math.round(context.standaloneMeaningScore * 50);
+    if (context.frame.frameComplete) directBoost += 35;
+    if (context.hasCoreSlot) directBoost += 20;
 
-    if (context.frameNeedsThread) continuityBoost += 40;
-    if (context.frame?.missingSlots?.length) continuityBoost += 20;
-    if (context.isTinyFollowUp) continuityBoost += 25;
-    if (context.hasReferenceLanguage) continuityBoost += 15;
-
-    if (context.frameComplete) directBoost += 35;
-    if (context.hasStandaloneObject) directBoost += 25;
-    if (context.hasEnoughConcreteContent) directBoost += 15;
+    if (context.frameNeedsThread) continuityBoost += 45;
+    if (context.frame.needsPriorFrame) continuityBoost += 35;
+    if (context.frame.missingSlots?.length) continuityBoost += 20;
 
     return {
       direct_current_turn: this.cap(direct + directBoost),
@@ -537,28 +316,25 @@ window.Ari.laneSplitterEngine = {
     const top = ranked[0];
     const second = ranked[1];
 
-    if (context.frameNeedsThread && context.hasThread) {
+    if (context.frameNeedsThread) {
       return "continuity_follow_up";
-    }
-
-    if (context.frameComplete && context.standaloneMeaningScore >= 0.6) {
-      return "direct_current_turn";
-    }
-
-    if (context.hasThread && context.semanticDependencyScore >= 0.7) {
-      return "continuity_follow_up";
-    }
-
-    if (!top || top.score < 35) {
-      return "direct_current_turn";
     }
 
     if (
-      p.standaloneCompleteness >= 0.7 &&
-      p.directAnswerPressure >= 0.6 &&
-      p.contextDependency < 0.5 &&
-      context.semanticDependencyScore < 0.55
+      context.hasThread &&
+      context.semanticDependencyScore >= 0.7
     ) {
+      return "continuity_follow_up";
+    }
+
+    if (
+      context.frame.frameComplete &&
+      context.standaloneMeaningScore >= 0.6
+    ) {
+      return "direct_current_turn";
+    }
+
+    if (!top || top.score < 35) {
       return "direct_current_turn";
     }
 
@@ -574,14 +350,84 @@ window.Ari.laneSplitterEngine = {
     return top.lane;
   },
 
-  removeQuestionScaffold(text = "") {
-    return text
-      .replace(/\b(what|when|where|why|how|can|could|should|would|do|does|did|is|are|am)\b/g, " ")
-      .replace(/\b(i|me|my|you|your|we|us|our)\b/g, " ")
-      .replace(/\b(recommend|suggest|choose|pick|prefer|best|better|ideal|plan|explain|fix)\b/g, " ")
-      .replace(/\b(it|this|that|they|them|one|same|thing|option)\b/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+  scoreSemanticDependency({
+    hasThread = false,
+    frame = {},
+    frameNeedsThread = false,
+    hasReferenceLanguage = false,
+    hasCoreSlot = false,
+    wordCount = 0
+  } = {}) {
+    if (!hasThread) return 0;
+
+    let score = 0;
+
+    if (frameNeedsThread) score += 0.5;
+    if (frame.needsPriorFrame) score += 0.35;
+    if (frame.missingSlots?.length) score += 0.25;
+    if (hasReferenceLanguage) score += 0.2;
+    if (wordCount <= 8 && !hasCoreSlot) score += 0.15;
+
+    if (frame.frameComplete) score -= 0.3;
+    if (hasCoreSlot && wordCount >= 7) score -= 0.2;
+
+    return this.clamp01(score);
+  },
+
+  scoreStandaloneMeaning({
+    frame = {},
+    hasReferenceLanguage = false,
+    hasCoreSlot = false,
+    wordCount = 0
+  } = {}) {
+    let score = 0;
+
+    if (frame.frameComplete) score += 0.4;
+    if (hasCoreSlot) score += 0.25;
+    if (frame.operation && frame.operation !== "unknown") score += 0.15;
+    if (wordCount >= 7) score += 0.15;
+    if (frame.confidence >= 0.7) score += 0.1;
+
+    if (hasReferenceLanguage && !frame.frameComplete) score -= 0.25;
+    if (frame.needsPriorFrame) score -= 0.35;
+
+    return this.clamp01(score);
+  },
+
+  requiredSlotsFor(operation = "unknown") {
+    const op = String(operation || "unknown").toLowerCase();
+
+    if (op.includes("recommend")) return ["object"];
+    if (op.includes("compare")) return ["options"];
+    if (op.includes("plan")) return ["goal"];
+    if (op.includes("explain")) return ["object"];
+    if (op.includes("repair")) return ["problem"];
+    if (op.includes("debug")) return ["problem"];
+    if (op.includes("revision")) return ["problem"];
+    if (op.includes("decision")) return ["object"];
+    if (op.includes("permission")) return ["object"];
+
+    return [];
+  },
+
+  frameHasCoreSlot(frame = {}) {
+    const slots = frame.slots || {};
+
+    return Boolean(
+      slots.object ||
+      slots.options ||
+      slots.goal ||
+      slots.problem
+    );
+  },
+
+  hasReferenceLanguage(text = "") {
+    return (
+      /\b(it|this|that|they|them|those|these|same|same thing|one|ones)\b/.test(text) ||
+      /\b(which one|which option|the first one|the second one|the other one)\b/.test(text) ||
+      /\b(for me|my situation|my case|in this case|based on that|given that)\b/.test(text) ||
+      /^(why|how|what about|what if|then what|really|okay but|so|but|also|still)\b/.test(text)
+    );
   },
 
   meaningfulTokens(text = "") {
@@ -621,17 +467,18 @@ window.Ari.laneSplitterEngine = {
     return lane === "relationship_continuity";
   },
 
-  rankScores(scores) {
+  rankScores(scores = {}) {
     return Object.entries(scores)
       .map(([lane, score]) => ({ lane, score }))
       .sort((a, b) => b.score - a.score);
   },
 
-  confidence(ranked) {
+  confidence(ranked = [], context = {}) {
     const top = ranked[0]?.score || 0;
     const second = ranked[1]?.score || 0;
     const gap = top - second;
 
+    if (context.frameNeedsThread || context.frame.frameComplete) return "high";
     if (gap >= 30) return "high";
     if (gap >= 15) return "medium";
     return "low";
@@ -639,11 +486,11 @@ window.Ari.laneSplitterEngine = {
 
   explain(lane, context = {}) {
     if (lane === "continuity_follow_up" && context.frameNeedsThread) {
-      return "Current message has an operation but missing required semantic slots, so it needs active thread context.";
+      return "Semantic frame is incomplete and depends on prior thread context.";
     }
 
-    if (lane === "direct_current_turn" && context.frameComplete) {
-      return "Current message has enough filled semantic slots to go directly to the Situation Map.";
+    if (lane === "direct_current_turn" && context.frame.frameComplete) {
+      return "Semantic frame is complete enough to route directly to the Situation Map.";
     }
 
     const explanations = {
