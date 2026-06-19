@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
-// Purpose: Safely assemble continuity, memory, relationship, thread, and entity context.
-// V1.3.2 — V3 Thread-Compatible / Advisory Only
+// Purpose: Safely assemble continuity, memory, relationship, thread, entity, and semantic-frame context.
+// V1.4.0 — Semantic Frame Context Handoff / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.3.2",
+  version: "1.4.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -19,12 +19,20 @@ window.AriContextAssembler = {
 
     const memoryContext = summary.memoryContext || {};
     const relationshipProfile = summary.relationshipProfile || {};
+
     const thread =
-  summary.continuityPacket?.activeThread ||
-  summary.continuityResults?.outputs?.thread ||
-  summary.threadUnderstanding ||
-  {};
-    const entity = summary.entityReference || summary.entityReferenceState || {};
+      summary.continuityPacket?.activeThread ||
+      summary.continuityResults?.outputs?.thread ||
+      summary.threadUnderstanding ||
+      {};
+
+    const entity =
+      summary.entityReference ||
+      summary.entityReferenceState ||
+      {};
+
+    const semanticFrame =
+      this.readSemanticFrame(summary, thread, continuity);
 
     const assembledContext = {
       contextAssemblerRan: true,
@@ -37,12 +45,15 @@ window.AriContextAssembler = {
       thread: this.cleanThread(thread),
       entity: this.cleanEntity(entity),
 
-      activeSituation: null,
-keyFacts: [],
-activeSituationSource: null,
-contextAuthority: "advisory_context_only",
+      semanticFrame,
+      activeSemanticFrame: semanticFrame,
 
-advisoryFacts: [],
+      activeSituation: null,
+      keyFacts: [],
+      activeSituationSource: null,
+      contextAuthority: "advisory_context_only",
+
+      advisoryFacts: [],
       styleHints: {},
       projectContext: {},
       priorDecisions: [],
@@ -59,20 +70,23 @@ advisoryFacts: [],
       authority: "advisory_context_only",
 
       cannotSet: [
-        "primaryLane",
-        "primaryLaneSuggestion",
-        "triagePrimaryLane",
-        "situationContractPrimary",
-        "riskLevel",
-        "override",
-        "finalResponse",
-        "medicalEscalation"
-      ]
+  "primaryLane",
+  "primaryLaneSuggestion",
+  "triagePrimaryLane",
+  "situationContractPrimary",
+  "riskLevel",
+  "override",
+  "finalResponse",
+  "medicalEscalation",
+  "responseShape",
+  "recommendation"
+]
     };
 
+    this.addSemanticFrameFacts(assembledContext);
     this.addActiveSituationFacts(assembledContext);
-this.addContinuityFacts(assembledContext);
-this.addThreadFacts(assembledContext);
+    this.addContinuityFacts(assembledContext);
+    this.addThreadFacts(assembledContext);
     this.addEntityFacts(assembledContext);
     this.addMemoryFacts(assembledContext);
     this.addRelationshipHints(assembledContext);
@@ -85,14 +99,17 @@ this.addThreadFacts(assembledContext);
 
       assembledContext,
       advisoryContext: assembledContext,
-continuityContext: this.buildContinuityContext(assembledContext),
+      continuityContext: this.buildContinuityContext(assembledContext),
 
-activeSituation: assembledContext.activeSituation,
-keyFacts: assembledContext.keyFacts,
-activeSituationSource: assembledContext.activeSituationSource,
-contextAuthority: assembledContext.contextAuthority,
-     
-       advisoryFacts: assembledContext.advisoryFacts,
+      semanticFrame: assembledContext.semanticFrame,
+      activeSemanticFrame: assembledContext.activeSemanticFrame,
+
+      activeSituation: assembledContext.activeSituation,
+      keyFacts: assembledContext.keyFacts,
+      activeSituationSource: assembledContext.activeSituationSource,
+      contextAuthority: assembledContext.contextAuthority,
+
+      advisoryFacts: assembledContext.advisoryFacts,
       styleHints: assembledContext.styleHints,
       projectContext: assembledContext.projectContext,
       priorDecisions: assembledContext.priorDecisions,
@@ -109,19 +126,66 @@ contextAuthority: assembledContext.contextAuthority,
       authority: "advisory_context_only"
     };
   },
+    readSemanticFrame(summary = {}, thread = {}, continuity = {}) {
+    const workingContext = thread.workingContext || {};
+
+    const candidates = [
+      summary.semanticFrame,
+      summary.currentSemanticFrame,
+      summary.observerSemanticFrame,
+      summary.activeSemanticFrame,
+      summary.semanticFrameBuilder,
+      summary.semanticFrameResult,
+
+      thread.semanticFrame,
+      thread.activeSemanticFrame,
+      thread.resolvedMeaning?.semanticFrame,
+      workingContext.semanticFrame,
+      workingContext.activeSemanticFrame,
+      workingContext.semanticState?.semanticFrame,
+
+      continuity.semanticFrame,
+      continuity.activeSemanticFrame,
+      continuity.activeSemanticFrameState,
+      continuity.latestConversationMeaning?.semanticFrame,
+
+      summary.threadState?.semanticFrame,
+      summary.threadState?.activeSemanticFrame,
+      summary.threadState?.activeSemanticFrameState,
+      summary.threadState?.latestConversationMeaning?.semanticFrame
+    ];
+
+    const found = candidates.find(frame => frame && typeof frame === "object");
+    if (!found) return null;
+
+    return {
+      ...found,
+      source: found.source || "ari-context-assembler"
+    };
+  },
 
   cleanContinuity(continuity = {}) {
     return {
       currentTopic: continuity.currentTopic || null,
       previousTopic: continuity.previousTopic || null,
+
+      semanticFrame:
+        continuity.semanticFrame ||
+        continuity.activeSemanticFrame ||
+        continuity.activeSemanticFrameState ||
+        null,
+
       followUpDetected: Boolean(continuity.followUpDetected),
       followUpType: continuity.followUpType || "none",
       shouldReusePriorContext: Boolean(continuity.shouldReusePriorContext),
+
       unresolvedItems: Array.isArray(continuity.unresolvedItems)
         ? continuity.unresolvedItems.slice(0, 8)
         : [],
+
       nextStep: continuity.nextStep || null,
       previousAnswerSummary: continuity.previousAnswerSummary || null,
+
       lastMessages: Array.isArray(continuity.lastMessages)
         ? continuity.lastMessages.slice(-8)
         : []
@@ -133,20 +197,26 @@ contextAuthority: assembledContext.contextAuthority,
       relevantMemories: Array.isArray(memory.relevantMemories)
         ? memory.relevantMemories.slice(0, 7)
         : [],
+
       userPreferences: memory.userPreferences || {},
       projectContext: memory.projectContext || {},
+
       priorDecisions: Array.isArray(memory.priorDecisions)
         ? memory.priorDecisions.slice(0, 7)
         : [],
+
       relationshipPatterns: Array.isArray(memory.relationshipPatterns)
         ? memory.relationshipPatterns.slice(0, 7)
         : [],
+
       activeThreadFacts: Array.isArray(memory.activeThreadFacts)
         ? memory.activeThreadFacts.slice(0, 7)
         : [],
+
       conflicts: Array.isArray(memory.conflicts)
         ? memory.conflicts.slice(0, 5)
         : [],
+
       confidence: memory.confidence ?? 0
     };
   },
@@ -159,58 +229,93 @@ contextAuthority: assembledContext.contextAuthority,
       challengeTolerance: profile.challengeTolerance || "medium",
       technicalComfort: profile.technicalComfort || "unknown",
       preferredFormat: profile.preferredFormat || "clear_steps",
+
       activeProjects: Array.isArray(profile.activeProjects)
         ? profile.activeProjects.slice(0, 8)
         : [],
+
       stablePreferences: profile.stablePreferences || {},
+
       reasons: Array.isArray(profile.reasons)
         ? profile.reasons.slice(0, 8)
         : []
     };
   },
 
-  
-cleanThread(thread = {}) {
-  const workingContext = thread.workingContext || {};
+  cleanThread(thread = {}) {
+    const workingContext = thread.workingContext || {};
 
-  return {
-    confidence: thread.confidence ?? null,
+    const semanticFrame =
+      thread.semanticFrame ||
+      thread.activeSemanticFrame ||
+      thread.resolvedMeaning?.semanticFrame ||
+      workingContext.semanticFrame ||
+      workingContext.activeSemanticFrame ||
+      workingContext.semanticState?.semanticFrame ||
+      null;
 
-    activeSituation:
-  thread.activeSituation ||
-  workingContext.activeSituation ||
-  thread.resolvedMeaning?.activeSituation ||
-  null,
+    return {
+      confidence: thread.confidence ?? null,
 
-keyFacts:
-  Array.isArray(thread.keyFacts) && thread.keyFacts.length
-    ? thread.keyFacts
-    : Array.isArray(workingContext.keyFacts) && workingContext.keyFacts.length
-      ? workingContext.keyFacts
-      : Array.isArray(thread.resolvedMeaning?.keyFacts)
-        ? thread.resolvedMeaning.keyFacts
-        : [],
+      semanticFrame,
+      activeSemanticFrame: semanticFrame,
 
-    staleContextSuppressed:
-      Boolean(
-        thread.staleContextSuppressed ||
-        thread.resolvedMeaning?.staleContextSuppressed
-      ),
+      activeSituation:
+        thread.activeSituation ||
+        workingContext.activeSituation ||
+        thread.resolvedMeaning?.activeSituation ||
+        null,
 
-    suppressedTopics:
-      Array.isArray(thread.suppressedTopics)
-        ? thread.suppressedTopics
-        : [],
+      keyFacts:
+        Array.isArray(thread.keyFacts) && thread.keyFacts.length
+          ? thread.keyFacts
+          : Array.isArray(workingContext.keyFacts) && workingContext.keyFacts.length
+            ? workingContext.keyFacts
+            : Array.isArray(thread.resolvedMeaning?.keyFacts)
+              ? thread.resolvedMeaning.keyFacts
+              : [],
 
-    
-      activeSubject: thread.activeSubject || workingContext.activeSubject || null,
-      activeObject: thread.activeObject || workingContext.activeObject || null,
-      activeIssue: thread.activeIssue || workingContext.activeIssue || null,
-      activeGoal: thread.activeGoal || workingContext.activeGoal || null,
+      staleContextSuppressed:
+        Boolean(
+          thread.staleContextSuppressed ||
+          thread.resolvedMeaning?.staleContextSuppressed
+        ),
+
+      suppressedTopics:
+        Array.isArray(thread.suppressedTopics)
+          ? thread.suppressedTopics
+          : [],
+
+      activeSubject:
+        thread.activeSubject ||
+        workingContext.activeSubject ||
+        null,
+
+      activeObject:
+        thread.activeObject ||
+        workingContext.activeObject ||
+        thread.resolvedMeaning?.resolvedObject ||
+        semanticFrame?.slots?.object ||
+        null,
+
+      activeIssue:
+        thread.activeIssue ||
+        workingContext.activeIssue ||
+        thread.resolvedMeaning?.resolvedIssue ||
+        semanticFrame?.slots?.problem ||
+        null,
+
+      activeGoal:
+        thread.activeGoal ||
+        workingContext.activeGoal ||
+        thread.resolvedMeaning?.resolvedGoal ||
+        semanticFrame?.slots?.goal ||
+        null,
 
       activeConstraints:
         thread.activeConstraints ||
         workingContext.activeConstraints ||
+        semanticFrame?.slots?.constraints ||
         [],
 
       activeAttempts:
@@ -221,6 +326,7 @@ keyFacts:
       unresolvedItems:
         thread.unresolvedItems ||
         workingContext.unresolvedItems ||
+        semanticFrame?.missingSlots ||
         [],
 
       impliedQuestion: thread.impliedQuestion || null,
@@ -247,88 +353,203 @@ keyFacts:
       activeSubject: entity.activeSubject || entity.activeEntity || null,
       activeEntity: entity.activeEntity || entity.activeSubject || null,
       activeReference: entity.activeReference || null,
+
       resolvedReferences: Array.isArray(entity.resolvedReferences)
         ? entity.resolvedReferences.slice(0, 8)
         : [],
+
       activeSubjects: Array.isArray(entity.activeSubjects)
         ? entity.activeSubjects.slice(0, 8)
         : [],
+
       activeEntities: Array.isArray(entity.activeEntities)
         ? entity.activeEntities.slice(0, 8)
         : [],
+
       confidence: entity.confidence ?? null
     };
   },
-addActiveSituationFacts(context = {}) {
-  const t = context.thread || {};
-  const activeSituation =
-    t.activeSituation ||
-    t.resolvedMeaning?.activeSituation ||
-    null;
+    addSemanticFrameFacts(context = {}) {
+    const frame = context.semanticFrame || context.thread?.semanticFrame || null;
+    if (!frame) return;
 
-  const keyFacts =
-    Array.isArray(t.keyFacts) && t.keyFacts.length
-      ? t.keyFacts
-      : Array.isArray(t.resolvedMeaning?.keyFacts)
-        ? t.resolvedMeaning.keyFacts
-        : [];
-
-  if (activeSituation) {
-    context.activeSituation = activeSituation;
-    context.activeSituationSource = "thread_understanding";
-    context.contextAuthority = "active_situation_first";
+    context.semanticFrame = frame;
+    context.activeSemanticFrame = frame;
 
     context.advisoryFacts.unshift({
-      type: "active_situation",
+      type: "semantic_frame",
       claim:
-        activeSituation.value ||
-        activeSituation.label ||
-        activeSituation.evidence ||
-        "active situation",
-      confidence: activeSituation.confidence ?? t.confidence ?? 0.88,
-      source: "thread_understanding",
-      raw: activeSituation
+        frame.summary ||
+        frame.label ||
+        frame.operation ||
+        "semantic frame available",
+      confidence: frame.confidence ?? frame.frameConfidence ?? 0.86,
+      source: frame.source || "semantic_frame",
+      raw: frame
     });
 
     context.activeThreadFacts.unshift({
-      type: "active_situation",
+      type: "semantic_frame",
       claim:
-        activeSituation.value ||
-        activeSituation.label ||
-        activeSituation.evidence ||
-        "active situation",
-      confidence: activeSituation.confidence ?? t.confidence ?? 0.88,
-      source: "thread_understanding",
-      raw: activeSituation
+        frame.summary ||
+        frame.label ||
+        frame.operation ||
+        "semantic frame available",
+      confidence: frame.confidence ?? frame.frameConfidence ?? 0.86,
+      source: frame.source || "semantic_frame",
+      raw: frame
     });
-  }
 
-  if (keyFacts.length) {
-  context.keyFacts = keyFacts.map(fact =>
-    typeof fact === "string"
-      ? fact
-      : fact.claim || fact.value || fact.label || fact.evidence || ""
-  ).filter(Boolean);
+    if (frame.operation) {
+      context.intentSignals.push({
+        category: "intent",
+        type: "semantic_operation",
+        value: frame.operation,
+        evidence: frame.operation,
+        confidence: frame.confidence ?? frame.frameConfidence ?? 0.84,
+        source: frame.source || "semantic_frame"
+      });
+    }
 
-  context.keyFacts.forEach(fact => {
+    const slots = frame.slots || {};
+
+    if (slots.object) {
+      context.activeEntities.push({
+        type: "semantic_object",
+        claim: this.slotClaim(slots.object),
+        confidence: 0.84,
+        source: frame.source || "semantic_frame",
+        raw: slots.object
+      });
+    }
+
+    if (slots.goal) {
+      context.activeGoals.push({
+        type: "semantic_goal",
+        claim: this.slotClaim(slots.goal),
+        confidence: 0.84,
+        source: frame.source || "semantic_frame",
+        raw: slots.goal
+      });
+    }
+
+    if (slots.problem) {
+      context.activeProblems.push({
+        type: "semantic_problem",
+        claim: this.slotClaim(slots.problem),
+        confidence: 0.84,
+        source: frame.source || "semantic_frame",
+        raw: slots.problem
+      });
+    }
+
+    if (slots.criteria || slots.constraints) {
+      const items = []
+        .concat(slots.criteria || [])
+        .concat(slots.constraints || []);
+
+      items.forEach(item => {
+        context.activeConstraints.push({
+          type: "semantic_constraint",
+          claim: this.slotClaim(item),
+          confidence: item?.confidence ?? 0.78,
+          source: frame.source || "semantic_frame",
+          raw: item
+        });
+      });
+    }
+
+    if (Array.isArray(frame.missingSlots) && frame.missingSlots.length) {
+      frame.missingSlots.forEach(slot => {
+        context.activeProblems.push({
+          type: "missing_semantic_slot",
+          claim: `Missing semantic slot: ${slot}`,
+          confidence: 0.78,
+          source: frame.source || "semantic_frame"
+        });
+      });
+    }
+  },
+
+  addActiveSituationFacts(context = {}) {
+    const t = context.thread || {};
+
+    const activeSituation =
+      t.activeSituation ||
+      t.resolvedMeaning?.activeSituation ||
+      null;
+
+    const keyFacts =
+      Array.isArray(t.keyFacts) && t.keyFacts.length
+        ? t.keyFacts
+        : Array.isArray(t.resolvedMeaning?.keyFacts)
+          ? t.resolvedMeaning.keyFacts
+          : [];
+
+    if (activeSituation) {
+      context.activeSituation = activeSituation;
+      context.activeSituationSource = "thread_understanding";
+      context.contextAuthority = "active_situation_first";
+
       context.advisoryFacts.unshift({
-        type: "key_fact",
-        claim: fact,
-        confidence: 0.86,
-        source: "thread_understanding"
+        type: "active_situation",
+        claim:
+          activeSituation.value ||
+          activeSituation.label ||
+          activeSituation.evidence ||
+          "active situation",
+        confidence: activeSituation.confidence ?? t.confidence ?? 0.88,
+        source: "thread_understanding",
+        raw: activeSituation
       });
 
       context.activeThreadFacts.unshift({
-        type: "key_fact",
-        claim: fact,
-        confidence: 0.86,
-        source: "thread_understanding"
+        type: "active_situation",
+        claim:
+          activeSituation.value ||
+          activeSituation.label ||
+          activeSituation.evidence ||
+          "active situation",
+        confidence: activeSituation.confidence ?? t.confidence ?? 0.88,
+        source: "thread_understanding",
+        raw: activeSituation
       });
-    });
-  }
-},
+    }
+
+    if (keyFacts.length) {
+      context.keyFacts = keyFacts
+        .map(fact =>
+          typeof fact === "string"
+            ? fact
+            : fact.claim || fact.value || fact.label || fact.evidence || ""
+        )
+        .filter(Boolean);
+
+      context.keyFacts.forEach(fact => {
+        context.advisoryFacts.unshift({
+          type: "key_fact",
+          claim: fact,
+          confidence: 0.86,
+          source: "thread_understanding"
+        });
+
+        context.activeThreadFacts.unshift({
+          type: "key_fact",
+          claim: fact,
+          confidence: 0.86,
+          source: "thread_understanding"
+        });
+      });
+    }
+  },
+
   addContinuityFacts(context = {}) {
     const c = context.continuity || {};
+
+    if (c.semanticFrame && !context.semanticFrame) {
+      context.semanticFrame = c.semanticFrame;
+      context.activeSemanticFrame = c.semanticFrame;
+    }
 
     if (c.currentTopic) {
       context.activeThreadFacts.push({
@@ -372,22 +593,41 @@ addActiveSituationFacts(context = {}) {
     c.unresolvedItems.forEach(item => {
       context.activeThreadFacts.push({
         type: "unresolved_item",
-        claim: typeof item === "string" ? item : item.label || item.kind || "unresolved item",
+        claim:
+          typeof item === "string"
+            ? item
+            : item.label || item.kind || item.claim || "unresolved item",
         confidence: item.confidence ?? 0.75,
         source: "continuity",
         raw: item
       });
     });
   },
-
-  addThreadFacts(context = {}) {
+    addThreadFacts(context = {}) {
     const t = context.thread || {};
     const wc = t.workingContext || {};
+
+    const semanticFrame =
+      context.semanticFrame ||
+      t.semanticFrame ||
+      t.activeSemanticFrame ||
+      wc.semanticFrame ||
+      wc.activeSemanticFrame ||
+      null;
+
+    if (semanticFrame) {
+      context.semanticFrame = semanticFrame;
+      context.activeSemanticFrame = semanticFrame;
+    }
 
     if (t.activeSubject) {
       context.activeEntities.push({
         type: "active_subject",
-        claim: t.activeSubject.label || t.activeSubject.evidence || "active subject",
+        claim:
+          t.activeSubject.label ||
+          t.activeSubject.evidence ||
+          t.activeSubject.value ||
+          "active subject",
         confidence: t.activeSubject.confidence ?? t.confidence ?? 0.7,
         source: "thread_understanding",
         raw: t.activeSubject
@@ -397,7 +637,11 @@ addActiveSituationFacts(context = {}) {
     if (t.activeObject) {
       context.activeEntities.push({
         type: "active_object",
-        claim: t.activeObject.label || t.activeObject.evidence || "active object",
+        claim:
+          t.activeObject.label ||
+          t.activeObject.evidence ||
+          t.activeObject.value ||
+          "active object",
         confidence: t.activeObject.confidence ?? t.confidence ?? 0.7,
         source: "thread_understanding",
         raw: t.activeObject
@@ -407,7 +651,12 @@ addActiveSituationFacts(context = {}) {
     if (t.activeIssue) {
       context.activeProblems.push({
         type: "active_issue",
-        claim: t.activeIssue.label || t.activeIssue.evidence || t.activeIssue.kind || "active issue",
+        claim:
+          t.activeIssue.label ||
+          t.activeIssue.evidence ||
+          t.activeIssue.kind ||
+          t.activeIssue.value ||
+          "active issue",
         confidence: t.activeIssue.confidence ?? t.confidence ?? 0.7,
         source: "thread_understanding",
         raw: t.activeIssue
@@ -417,7 +666,12 @@ addActiveSituationFacts(context = {}) {
     if (t.activeGoal) {
       context.activeGoals.push({
         type: "active_goal",
-        claim: t.activeGoal.label || t.activeGoal.evidence || t.activeGoal.kind || "active goal",
+        claim:
+          t.activeGoal.label ||
+          t.activeGoal.evidence ||
+          t.activeGoal.kind ||
+          t.activeGoal.value ||
+          "active goal",
         confidence: t.activeGoal.confidence ?? t.confidence ?? 0.7,
         source: "thread_understanding",
         raw: t.activeGoal
@@ -427,7 +681,12 @@ addActiveSituationFacts(context = {}) {
     (t.activeConstraints || []).forEach(item => {
       context.activeConstraints.push({
         type: "active_constraint",
-        claim: item.label || item.evidence || item.kind || "active constraint",
+        claim:
+          item.label ||
+          item.evidence ||
+          item.kind ||
+          item.value ||
+          "active constraint",
         confidence: item.confidence ?? 0.7,
         source: "thread_understanding",
         raw: item
@@ -437,7 +696,12 @@ addActiveSituationFacts(context = {}) {
     (t.activeAttempts || []).forEach(item => {
       context.activeAttempts.push({
         type: "active_attempt",
-        claim: item.label || item.evidence || item.kind || "active attempt",
+        claim:
+          item.label ||
+          item.evidence ||
+          item.kind ||
+          item.value ||
+          "active attempt",
         confidence: item.confidence ?? 0.7,
         source: "thread_understanding",
         raw: item
@@ -447,7 +711,13 @@ addActiveSituationFacts(context = {}) {
     (t.unresolvedItems || []).forEach(item => {
       context.activeProblems.push({
         type: "unresolved_item",
-        claim: item.label || item.evidence || item.kind || "unresolved item",
+        claim:
+          item.label ||
+          item.evidence ||
+          item.kind ||
+          item.value ||
+          item ||
+          "unresolved item",
         confidence: item.confidence ?? 0.7,
         source: "thread_understanding",
         raw: item
@@ -470,6 +740,11 @@ addActiveSituationFacts(context = {}) {
         confidence: t.resolvedMeaning.confidence ?? t.confidence ?? 0.65,
         source: "thread_understanding"
       });
+    }
+
+    if (t.resolvedMeaning?.semanticFrame && !context.semanticFrame) {
+      context.semanticFrame = t.resolvedMeaning.semanticFrame;
+      context.activeSemanticFrame = t.resolvedMeaning.semanticFrame;
     }
 
     (t.domainSignals || []).forEach(signal => {
@@ -506,7 +781,12 @@ addActiveSituationFacts(context = {}) {
 
       context.activeEntities.push({
         type: "entity_active_subject",
-        claim: active.surface || active.label || active.evidence || "active entity",
+        claim:
+          active.surface ||
+          active.label ||
+          active.evidence ||
+          active.value ||
+          "active entity",
         confidence: active.confidence ?? e.confidence ?? 0.7,
         source: "entity_reference_resolver",
         raw: active
@@ -520,6 +800,7 @@ addActiveSituationFacts(context = {}) {
           ref.resolvedTo?.surface ||
           ref.resolvedTo?.label ||
           ref.resolvedTo?.evidence ||
+          ref.resolvedTo?.value ||
           "unresolved"
         }`,
         confidence: ref.confidence ?? 0.6,
@@ -535,10 +816,16 @@ addActiveSituationFacts(context = {}) {
     memory.relevantMemories.forEach(memoryItem => {
       context.advisoryFacts.push({
         type: memoryItem.type || "memory",
-        claim: memoryItem.claim,
+        claim:
+          memoryItem.claim ||
+          memoryItem.value ||
+          memoryItem.label ||
+          memoryItem.evidence ||
+          "",
         confidence: memoryItem.confidence ?? null,
         source: memoryItem.source || "memory",
-        retrievalScore: memoryItem.retrievalScore ?? null
+        retrievalScore: memoryItem.retrievalScore ?? null,
+        raw: memoryItem
       });
     });
 
@@ -589,28 +876,30 @@ addActiveSituationFacts(context = {}) {
       });
     });
   },
+    buildContinuityContext(context = {}) {
+    return {
+      ready: true,
+      authority: "context_handoff_to_situation_map",
+      shouldUseAsContext: true,
 
-buildContinuityContext(context = {}) {
-  return {
-    ready: true,
-    authority: "context_handoff_to_situation_map",
-    shouldUseAsContext: true,
+      semanticFrame: context.semanticFrame || null,
+      activeSemanticFrame: context.activeSemanticFrame || context.semanticFrame || null,
 
-    activeSituation: context.activeSituation || null,
-    keyFacts: context.keyFacts || [],
-    activeThreadFacts: context.activeThreadFacts || [],
+      activeSituation: context.activeSituation || null,
+      keyFacts: context.keyFacts || [],
+      activeThreadFacts: context.activeThreadFacts || [],
 
-    currentTopic: context.continuity?.currentTopic || null,
-    previousAnswerSummary:
-      context.continuity?.previousAnswerSummary || null,
-    lastMessages: context.continuity?.lastMessages || [],
+      currentTopic: context.continuity?.currentTopic || null,
+      previousAnswerSummary:
+        context.continuity?.previousAnswerSummary || null,
+      lastMessages: context.continuity?.lastMessages || [],
 
-    domainSignals: context.domainSignals || [],
-    intentSignals: context.intentSignals || [],
+      domainSignals: context.domainSignals || [],
+      intentSignals: context.intentSignals || [],
 
-    source: "ari-context-assembler"
-  };
-},
+      source: "ari-context-assembler"
+    };
+  },
 
   finalize(context = {}) {
     context.activeThreadFacts = this.uniqueByClaim(context.activeThreadFacts);
@@ -622,6 +911,33 @@ buildContinuityContext(context = {}) {
     context.activeAttempts = this.uniqueByClaim(context.activeAttempts);
     context.domainSignals = this.uniqueSignals(context.domainSignals);
     context.intentSignals = this.uniqueSignals(context.intentSignals);
+
+    if (!context.activeSemanticFrame && context.semanticFrame) {
+      context.activeSemanticFrame = context.semanticFrame;
+    }
+  },
+
+  slotClaim(slot) {
+    if (!slot) return "";
+
+    if (typeof slot === "string") return slot;
+
+    if (Array.isArray(slot)) {
+      return slot
+        .map(item => this.slotClaim(item))
+        .filter(Boolean)
+        .join(", ");
+    }
+
+    return (
+      slot.claim ||
+      slot.value ||
+      slot.label ||
+      slot.evidence ||
+      slot.text ||
+      slot.name ||
+      JSON.stringify(slot)
+    );
   },
 
   uniqueByClaim(list = []) {
