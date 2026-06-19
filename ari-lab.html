@@ -68,7 +68,7 @@
 <script src="ari/context/ari-context-assembler.js"></script>
 <script src="ari/context/ari-thread-understanding-engine.js"></script>
 <script src="ari/context/ari-entity-reference-resolver.js"></script>
-
+<script src="ari/meaning/ari-semantic-frame-builder.js"></script>
 <script src="ari/character/ari-character-core.js"></script>
 <script src="ari/character/ari-character-context-engine.js"></script>
     <script src="ari/meaning/ari-situation-map-engine.js"></script>
@@ -408,6 +408,73 @@ ${summary.preservedObservationCount ?? "none"}
 
 ==================================================
 
+===== SEMANTIC FRAME BUILDER =====
+
+Ran:
+${summary.semanticFrameBuilderRan ? "yes" : "no"}
+
+Source:
+${summary.semanticFrameSource || "none"}
+
+Primary Meaning:
+${summary.semanticPrimaryMeaning || "none"}
+
+Intent:
+${summary.semanticIntent || "none"}
+
+Domain:
+${summary.semanticDomain || "none"}
+
+Conversation Style:
+${summary.semanticConversationStyle || "none"}
+
+Is Continuation:
+${summary.semanticIsContinuation ? "yes" : "no"}
+
+References Prior Context:
+${summary.semanticReferencesPriorContext ? "yes" : "no"}
+
+References Prior Artifact:
+${summary.semanticReferencesPriorArtifact ? "yes" : "no"}
+
+Expects Direct Answer:
+${summary.semanticExpectsDirectAnswer ? "yes" : "no"}
+
+Expects Explanation:
+${summary.semanticExpectsExplanation ? "yes" : "no"}
+
+Expects Collaboration:
+${summary.semanticExpectsCollaboration ? "yes" : "no"}
+
+Expects Code/Artifact:
+${summary.semanticExpectsCodeOrArtifact ? "yes" : "no"}
+
+Expects Follow-Up Context:
+${summary.semanticExpectsFollowUpContext ? "yes" : "no"}
+
+Ambiguity Present:
+${summary.semanticAmbiguityPresent ? "yes" : "no"}
+
+Ambiguity Reason:
+${summary.semanticAmbiguityReason || "none"}
+
+Emotional Tone:
+${summary.semanticEmotionalTone || "none"}
+
+Semantic Summary:
+${JSON.stringify(summary.semanticSummary || {}, null, 2)}
+
+Normalized Semantic Frame:
+${JSON.stringify(summary.normalizedSemanticFrame || {}, null, 2)}
+
+Frame Complete:
+${summary.semanticFrameComplete === true ? "yes" : summary.semanticFrameComplete === false ? "no" : "none"}
+
+Needs Prior Frame:
+${summary.semanticNeedsPriorFrame === true ? "yes" : summary.semanticNeedsPriorFrame === false ? "no" : "none"}
+
+==================================================
+
 ===== LANE SPLITTER =====
 
 Lane Splitter Ran:
@@ -418,6 +485,24 @@ ${summary.lane || "none"}
 
 Confidence:
 ${summary.laneSplitterConfidence || "none"}
+
+Semantic Aware:
+${summary.laneSplitterSemanticAware ? "yes" : "no"}
+
+Semantic First:
+${summary.laneSplitterSemanticFirst ? "yes" : "no"}
+
+Lexical Fallback Used:
+${summary.laneSplitterLexicalFallbackUsed ? "yes" : "no"}
+
+Semantic Frame Type:
+${summary.laneSplitterSemanticFrameType || "none"}
+
+Semantic Intent:
+${summary.laneSplitterSemanticIntent || "none"}
+
+Explanation:
+${summary.laneSplitterExplanation || "none"}
 
 Routing Decision:
 ${JSON.stringify(summary.routingDecision || {}, null, 2)}
