@@ -1,11 +1,11 @@
 // ari/context/ari-thread-question-generator.js
 // Purpose: Resolve short follow-up questions using prior conversation meaning.
-// V1.2.0 — Strong follow-up resolver / anti-self-poisoning / cleaner resolved questions
+// V1.2.1 — Strong follow-up resolver / anti-self-poisoning / cleaner resolved questions
 
 window.Ari = window.Ari || {};
 
 window.Ari.threadQuestionGenerator = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   generate(input = {}) {
     const summary = input.summary || input || {};
@@ -162,7 +162,7 @@ window.Ari.threadQuestionGenerator = {
 
     if (!clean) return "none";
     if (words.length > 14) return "none";
-
+if (this.hasNewConcreteTopic(clean)) return "none";
     if (/^why\??$/.test(clean)) return "why";
     if (/^why\b/.test(clean)) return "why";
 
@@ -336,6 +336,13 @@ window.Ari.threadQuestionGenerator = {
     if (score >= 0.6) return 0.74;
     return 0.66;
   },
+
+hasNewConcreteTopic(text = "") {
+  return /\b\d+\s?(lbs?|pounds?|kg)\b/.test(text) ||
+    /\b(weight|calories|diet|fat|lose weight|gain weight|cut|bulk|workout|exercise|meal|protein)\b/.test(text) ||
+    /\b(code|file|bug|error|github|engine|function)\b/.test(text) ||
+    /\b(sunburn|pain|fever|diarrhea|cough|pregnant|symptom)\b/.test(text);
+},
 
   noResolution(raw, reason = "No safe prior context found.") {
     return {
