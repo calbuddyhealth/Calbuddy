@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Convert user language into active situation context across turns.
-// V5.0.0 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
+// V5.1.0 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "5.0.0",
+  version: "5.1.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -59,9 +59,9 @@ window.AriThreadUnderstandingEngine = {
       recentMessages,
       currentTurn,
 
-      activeSituation: currentSituation.activeSituation,
-      situationFrame: currentSituation.situationFrame,
-      keyFacts: currentSituation.keyFacts,
+     activeSituation: workingContext.activeSituation || currentSituation.activeSituation,
+situationFrame: workingContext.situationFrame || currentSituation.situationFrame,
+keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSituation.keyFacts,
       decisionStructure: currentSituation.decisionStructure,
       centralTradeoff: currentSituation.centralTradeoff,
       hardConstraints: currentSituation.hardConstraints,
@@ -123,9 +123,9 @@ window.AriThreadUnderstandingEngine = {
       workingContext,
       threadWorkingContext: workingContext,
 
-      activeSituation: currentSituation.activeSituation,
-      situationFrame: currentSituation.situationFrame,
-      keyFacts: currentSituation.keyFacts,
+      activeSituation: workingContext.activeSituation || currentSituation.activeSituation,
+situationFrame: workingContext.situationFrame || currentSituation.situationFrame,
+keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSituation.keyFacts,
       decisionStructure: currentSituation.decisionStructure,
       centralTradeoff: currentSituation.centralTradeoff,
       hardConstraints: currentSituation.hardConstraints,
@@ -151,7 +151,11 @@ window.AriThreadUnderstandingEngine = {
       activeObject: null,
       activeIssue: null,
       activeGoal: null,
-
+activeClaim: null,
+activeQuestion: null,
+followUpAnchor: null,
+lastResolvedAnswer: null,
+semanticState: null,
       activeEntities: [],
       activeConstraints: [],
       activeAttempts: [],
@@ -214,7 +218,9 @@ window.AriThreadUnderstandingEngine = {
         lower.includes("?") ||
         /^(what|why|how|when|where|should|can|could|do|does|is|are|will|would|who)\b/.test(lower),
 
-      isShortFollowUp: words.length <= 12,
+      isShortFollowUp:
+  words.length <= 12 &&
+  /^(why|how|what|what about|what else|then what|can i|should i|do i|does it|is it|are they|really)\b/.test(lower),
 
       hasExplicitReset:
         /\b(nevermind|never mind|forget it|different topic|new question|unrelated|switch topics|start over)\b/.test(lower),
@@ -710,6 +716,18 @@ window.AriThreadUnderstandingEngine = {
     return questions.slice(0, 3);
   },
 
+isLowInformationFollowUp(turn = {}) {
+  const text = turn.lower || "";
+  const words = text.split(/\s+/).filter(Boolean);
+
+  if (words.length > 8) return false;
+
+  return (
+    /^(why|how|what|what else|what about|then what|really|can i|should i|do i)\??$/.test(text) ||
+    /\b(it|this|that|they|them)\b/.test(text)
+  );
+},
+
   mergeWorkingContext({
     previousWorkingContext = {},
     currentTurn = {},
@@ -718,14 +736,38 @@ window.AriThreadUnderstandingEngine = {
     topicTransition = {}
   }) {
     const merged = this.emptyWorkingContext();
-
+const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
     if (!topicTransition.switched) {
       this.copyContextInto(merged, previousWorkingContext);
     }
 
-    merged.activeSituation = currentSituation.activeSituation || merged.activeSituation;
-    merged.situationFrame = currentSituation.situationFrame || merged.situationFrame;
-    merged.keyFacts = currentSituation.keyFacts || [];
+    if (lowInfoFollowUp && !topicTransition.switched) {
+  merged.activeSituation = previousWorkingContext.activeSituation || currentSituation.activeSituation;
+  merged.situationFrame = previousWorkingContext.situationFrame || currentSituation.situationFrame;
+  merged.keyFacts = previousWorkingContext.keyFacts?.length
+    ? previousWorkingContext.keyFacts
+    : currentSituation.keyFacts || [];
+
+  merged.activeClaim = previousWorkingContext.activeClaim || null;
+  merged.activeQuestion = previousWorkingContext.activeQuestion || null;
+  merged.followUpAnchor =
+    previousWorkingContext.followUpAnchor ||
+    previousWorkingContext.activeClaim ||
+    previousWorkingContext.lastUserText ||
+    null;
+} else {
+  merged.activeSituation = currentSituation.activeSituation || merged.activeSituation;
+  merged.situationFrame = currentSituation.situationFrame || merged.situationFrame;
+  merged.keyFacts = currentSituation.keyFacts || [];
+
+  merged.activeClaim = this.extractActiveClaim(currentText, currentSituation);
+  merged.activeQuestion = currentTurn.isQuestion ? currentText : null;
+  merged.followUpAnchor =
+    merged.activeClaim ||
+    merged.activeQuestion ||
+    currentSituation.activeSituation?.value ||
+    null;
+}
     merged.decisionStructure = currentSituation.decisionStructure || null;
     merged.centralTradeoff = currentSituation.centralTradeoff || null;
     merged.hardConstraints = currentSituation.hardConstraints || [];
@@ -762,6 +804,11 @@ window.AriThreadUnderstandingEngine = {
     target.activeObject = this.chooseBest(target.activeObject, source.activeObject);
     target.activeIssue = this.chooseBest(target.activeIssue, source.activeIssue);
     target.activeGoal = this.chooseBest(target.activeGoal, source.activeGoal);
+target.activeClaim = this.chooseBestText(target.activeClaim, source.activeClaim);
+target.activeQuestion = this.chooseBestText(target.activeQuestion, source.activeQuestion);
+target.followUpAnchor = this.chooseBestText(target.followUpAnchor, source.followUpAnchor);
+target.lastResolvedAnswer = this.chooseBestText(target.lastResolvedAnswer, source.lastResolvedAnswer);
+target.semanticState = source.semanticState || target.semanticState || null;
 
     target.activeEntities = this.mergeArrays(target.activeEntities, source.activeEntities);
     target.activeConstraints = this.mergeArrays(target.activeConstraints, source.activeConstraints);
@@ -845,6 +892,21 @@ window.AriThreadUnderstandingEngine = {
       .filter(Boolean);
   },
 
+extractActiveClaim(text = "", situation = {}) {
+  const clean = this.clean(text);
+  if (!clean) return null;
+
+  if (situation?.keyFacts?.length) {
+    return situation.keyFacts[0]?.claim || clean;
+  }
+
+  if (/^(why|how|what|can i|should i|do i)\b/i.test(clean)) {
+    return null;
+  }
+
+  return clean;
+},
+
   resolveMeaning({ currentText = "", currentTurn = {}, currentSituation = {}, workingContext = {}, stateChange = {} }) {
     return {
       isContextual: Boolean(
@@ -855,9 +917,9 @@ window.AriThreadUnderstandingEngine = {
 
       currentText,
 
-      activeSituation: currentSituation.activeSituation || null,
-      situationFrame: currentSituation.situationFrame || null,
-      keyFacts: currentSituation.keyFacts || [],
+      activeSituation: workingContext.activeSituation || currentSituation.activeSituation,
+situationFrame: workingContext.situationFrame || currentSituation.situationFrame,
+keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSituation.keyFacts,
       decisionStructure: currentSituation.decisionStructure || null,
       centralTradeoff: currentSituation.centralTradeoff || null,
       hardConstraints: currentSituation.hardConstraints || [],
