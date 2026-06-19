@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.4.0 — Generalized semantic dependency routing / scalable direct-vs-follow-up separation
+// V1.5.0 — Frame Slot Routing / universal semantic dependency detection
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -88,19 +88,18 @@ window.Ari.laneSplitterEngine = {
     let continuityBoost = 0;
     let directBoost = 0;
 
-    continuityBoost += Math.round(context.semanticDependencyScore * 45);
+    continuityBoost += Math.round(context.semanticDependencyScore * 50);
+    directBoost += Math.round(context.standaloneMeaningScore * 45);
 
-    if (context.hasThread && context.isTinyFollowUp) continuityBoost += 30;
-    if (context.hasThread && context.startsWithContinuation) continuityBoost += 18;
-    if (context.hasThread && context.hasPronounReference) continuityBoost += 20;
-    if (context.hasThread && context.missingObjectForRequestedOperation) continuityBoost += 35;
+    if (context.frame.needsThread) continuityBoost += 35;
+    if (context.frame.missingSlots.length) continuityBoost += 20;
+    if (context.isTinyFollowUp) continuityBoost += 25;
+    if (context.hasReferenceLanguage) continuityBoost += 18;
 
-    directBoost += Math.round(context.standaloneMeaningScore * 40);
-
-    if (context.hasNewConcreteTopic) directBoost += 25;
-    if (context.hasExplicitObject) directBoost += 20;
-    if (context.isStandaloneActionQuestion) directBoost += 25;
-    if (context.hasEnoughConcreteContent) directBoost += 18;
+    if (context.frame.isComplete) directBoost += 30;
+    if (context.hasStandaloneObject) directBoost += 25;
+    if (context.hasNewConcreteTopic) directBoost += 20;
+    if (context.hasEnoughConcreteContent) directBoost += 15;
 
     return {
       direct_current_turn: this.cap(direct + directBoost),
@@ -115,19 +114,15 @@ window.Ari.laneSplitterEngine = {
     const top = ranked[0];
     const second = ranked[1];
 
-    if (context.hasThread && context.semanticDependencyScore >= 0.75) {
+    if (context.frame.needsThread && context.hasThread) {
       return "continuity_follow_up";
     }
 
-    if (context.hasNewConcreteTopic && context.standaloneMeaningScore >= 0.65) {
+    if (context.frame.isComplete && context.standaloneMeaningScore >= 0.6) {
       return "direct_current_turn";
     }
 
-    if (
-      context.hasThread &&
-      context.semanticDependencyScore >= 0.6 &&
-      !context.hasExplicitObject
-    ) {
+    if (context.hasThread && context.semanticDependencyScore >= 0.7) {
       return "continuity_follow_up";
     }
 
@@ -136,11 +131,9 @@ window.Ari.laneSplitterEngine = {
     }
 
     if (
-      p.standaloneCompleteness >= 0.70 &&
-      p.directAnswerPressure >= 0.60 &&
-      p.contextDependency < 0.50 &&
-      p.recallPressure < 0.50 &&
-      p.revisionPressure < 0.50 &&
+      p.standaloneCompleteness >= 0.7 &&
+      p.directAnswerPressure >= 0.6 &&
+      p.contextDependency < 0.5 &&
       context.semanticDependencyScore < 0.55
     ) {
       return "direct_current_turn";
@@ -150,9 +143,7 @@ window.Ari.laneSplitterEngine = {
       top.lane !== "direct_current_turn" &&
       second &&
       top.score - second.score < 8 &&
-      p.standaloneCompleteness >= 0.65 &&
-      p.directAnswerPressure >= 0.55 &&
-      context.semanticDependencyScore < 0.55
+      context.standaloneMeaningScore >= context.semanticDependencyScore
     ) {
       return "direct_current_turn";
     }
@@ -183,156 +174,252 @@ window.Ari.laneSplitterEngine = {
     const words = text.split(/\s+/).filter(Boolean);
     const wordCount = words.length;
 
-    const startsWithContinuation =
-      /^(but|so|then|also|and|what about|what if|after that|why|how|how about|okay|ok|yeah but|ideally|still)\b/.test(text);
+    const frame = this.buildFrame(text, hasThread);
 
-    const hasPronounReference =
-  /\b(it|this|that|they|them|those|these|same|same thing|one|which one|for me|my situation|my case|in this case)\b/.test(text);
-
-    const requestedOperation = this.detectRequestedOperation(text);
-
-    const hasExplicitObject = this.hasExplicitObject(text);
+    const hasReferenceLanguage = this.hasReferenceLanguage(text);
+    const hasStandaloneObject = Boolean(frame.slots.object || frame.slots.options || frame.slots.problem || frame.slots.goal);
     const hasNewConcreteTopic = this.hasNewConcreteTopic(text);
-    const hasEnoughConcreteContent = wordCount >= 7 && hasExplicitObject;
-
-    const isStandaloneActionQuestion =
-      /^(how do i|what should i do|what do i do|how can i|can you help me|make me|create|build|fix)\b/.test(text) &&
-      hasExplicitObject;
+    const hasEnoughConcreteContent = wordCount >= 7 && hasStandaloneObject;
 
     const isTinyFollowUp =
       hasThread &&
       wordCount <= 6 &&
-      (
-        startsWithContinuation ||
-        /^(why|how|what|what else|really|then what|can i|should i|do i)\??$/.test(text)
-      );
-
-    const missingObjectForRequestedOperation =
-      hasThread &&
-      requestedOperation !== "none" &&
-      !hasExplicitObject &&
-      (
-        hasPronounReference ||
-        wordCount <= 10 ||
-        startsWithContinuation
-      );
+      (hasReferenceLanguage || frame.operation !== "unknown");
 
     const semanticDependencyScore = this.scoreSemanticDependency({
       hasThread,
-      startsWithContinuation,
-      hasPronounReference,
+      frame,
+      hasReferenceLanguage,
       isTinyFollowUp,
-      missingObjectForRequestedOperation,
-      requestedOperation,
-      hasExplicitObject,
+      hasStandaloneObject,
       hasNewConcreteTopic,
       wordCount
     });
 
     const standaloneMeaningScore = this.scoreStandaloneMeaning({
       wordCount,
-      hasExplicitObject,
+      frame,
+      hasStandaloneObject,
       hasNewConcreteTopic,
-      hasPronounReference,
-      startsWithContinuation,
-      requestedOperation
+      hasReferenceLanguage
     });
 
     return {
       text,
       wordCount,
       hasThread,
-      startsWithContinuation,
-      hasPronounReference,
-      requestedOperation,
-      hasExplicitObject,
+      frame,
+      hasReferenceLanguage,
+      hasStandaloneObject,
       hasNewConcreteTopic,
       hasEnoughConcreteContent,
-      isStandaloneActionQuestion,
       isTinyFollowUp,
-      missingObjectForRequestedOperation,
       semanticDependencyScore,
       standaloneMeaningScore
     };
   },
 
-  detectRequestedOperation(text = "") {
-    if (/\b(recommend|suggest|best|healthiest|safest|choose|pick|prefer|which one|what would you do)\b/.test(text)) {
-  return "recommendation";
-}
+  buildFrame(text = "", hasThread = false) {
+    const operation = this.detectOperation(text);
+    const slots = this.extractSlots(text);
+    const requiredSlots = this.requiredSlotsFor(operation);
 
-    if (/\b(plan|strategy|approach|roadmap|steps)\b/.test(text)) {
-      return "planning";
+    const missingSlots = requiredSlots.filter(slot => !slots[slot]);
+
+    const isComplete =
+      operation === "unknown"
+        ? this.hasNewConcreteTopic(text)
+        : missingSlots.length === 0;
+
+    const needsThread =
+      hasThread &&
+      operation !== "unknown" &&
+      missingSlots.length > 0 &&
+      this.hasReferenceLanguage(text);
+
+    return {
+      operation,
+      slots,
+      requiredSlots,
+      missingSlots,
+      isComplete,
+      needsThread
+    };
+  },
+
+  detectOperation(text = "") {
+    if (this.matchesAny(text, [
+      /\b(recommend|suggest|choose|pick|prefer)\b/,
+      /\b(which should|which one|which option)\b/,
+      /\b(best|better|safest|healthiest|cheapest|strongest|ideal)\b/
+    ])) {
+      return "recommendation";
     }
 
-    if (/\b(explain|why|how come|what does it mean|break down)\b/.test(text)) {
-      return "explanation";
-    }
-
-    if (/\b(fix|debug|repair|solve|update|rewrite|replace)\b/.test(text)) {
-      return "repair_or_revision";
-    }
-
-    if (/\b(compare|difference|better|worse|versus|vs)\b/.test(text)) {
+    if (this.matchesAny(text, [
+      /\b(compare|difference|versus|vs|better|worse)\b/,
+      /\b(which is more|which is less)\b/
+    ])) {
       return "comparison";
     }
 
-    if (/\b(can i|should i|do i|is it okay|would it be okay)\b/.test(text)) {
+    if (this.matchesAny(text, [
+      /\b(plan|strategy|roadmap|steps|schedule|routine)\b/,
+      /\b(how do i|how can i|what should i do)\b/
+    ])) {
+      return "planning";
+    }
+
+    if (this.matchesAny(text, [
+      /\b(why|how come|explain|break down|what does)\b/
+    ])) {
+      return "explanation";
+    }
+
+    if (this.matchesAny(text, [
+      /\b(fix|debug|repair|solve|update|rewrite|replace|broken|error)\b/
+    ])) {
+      return "repair_or_revision";
+    }
+
+    if (this.matchesAny(text, [
+      /\b(can i|should i|do i|is it okay|would it be okay)\b/
+    ])) {
       return "permission_or_decision";
     }
 
-    return "none";
+    return "unknown";
   },
 
-  hasExplicitObject(text = "") {
-    const words = text.split(/\s+/).filter(Boolean);
+  requiredSlotsFor(operation = "unknown") {
+    const map = {
+      recommendation: ["object"],
+      comparison: ["options"],
+      planning: ["goal"],
+      explanation: ["object"],
+      repair_or_revision: ["problem"],
+      permission_or_decision: ["object"],
+      unknown: []
+    };
 
-    const hasNumberOrUnit = /\d/.test(text);
-    const hasQuotedOrNamedThing = /["“”']/.test(text);
-    const concreteWords = words.filter(word => {
-      const cleaned = word.replace(/[^\w]/g, "");
-      if (!cleaned) return false;
+    return map[operation] || [];
+  },
 
-      const weakWords = [
-        "what", "when", "where", "why", "how", "should", "could", "would",
-        "recommend", "suggest", "best", "plan", "strategy", "approach",
-        "ideally", "really", "thing", "stuff", "something", "anything",
-        "me", "my", "you", "your", "for", "about", "this", "that"
-      ];
+  extractSlots(text = "") {
+    return {
+      object: this.extractObject(text),
+      options: this.extractOptions(text),
+      goal: this.extractGoal(text),
+      problem: this.extractProblem(text),
+      criteria: this.extractCriteria(text),
+      audience: this.extractAudience(text)
+    };
+  },
 
-      return cleaned.length >= 6 && !weakWords.includes(cleaned);
-    }).length;
+  extractObject(text = "") {
+    if (this.isOnlyReference(text)) return null;
 
-    return hasNumberOrUnit || hasQuotedOrNamedThing || concreteWords >= 2;
+    const cleaned = this.removeQuestionScaffold(text);
+    const concrete = this.meaningfulTokens(cleaned);
+
+    if (/\d/.test(text)) return text;
+    if (concrete.length >= 2) return concrete.join(" ");
+
+    return null;
+  },
+
+  extractOptions(text = "") {
+    if (/\b(a or b|either|between|versus|vs)\b/.test(text)) return text;
+    if (/\b(which one|which option|the best one|the healthiest one|the safer one)\b/.test(text)) return null;
+
+    const optionLike = text.split(/\s+or\s+|\s+vs\s+|\s+versus\s+/).filter(x => x.trim());
+    return optionLike.length >= 2 ? optionLike : null;
+  },
+
+  extractGoal(text = "") {
+    if (this.matchesAny(text, [
+      /\b(to|so i can|in order to)\b/,
+      /\b(lose|gain|build|make|create|fix|improve|reduce|increase|get back)\b/
+    ])) {
+      return text;
+    }
+
+    return null;
+  },
+
+  extractProblem(text = "") {
+    if (this.matchesAny(text, [
+      /\b(error|bug|broken|not working|issue|problem|fail|failed|wrong)\b/
+    ])) {
+      return text;
+    }
+
+    return null;
+  },
+
+  extractCriteria(text = "") {
+    const criteria = [];
+
+    const patterns = [
+      ["best", /\bbest|ideal|recommend\b/],
+      ["health", /\bhealthy|healthiest|safer|safest\b/],
+      ["cost", /\bcheap|cheapest|affordable|cost|budget\b/],
+      ["speed", /\bfast|quick|soon|urgent\b/],
+      ["quality", /\bbetter|stronger|reliable|effective\b/]
+    ];
+
+    patterns.forEach(([value, regex]) => {
+      if (regex.test(text)) criteria.push(value);
+    });
+
+    return criteria;
+  },
+
+  extractAudience(text = "") {
+    if (/\b(for me|my situation|my case|in my case|for us)\b/.test(text)) {
+      return "user_specific";
+    }
+
+    return null;
+  },
+
+  hasReferenceLanguage(text = "") {
+    return this.matchesAny(text, [
+      /\b(it|this|that|they|them|those|these|same|same thing)\b/,
+      /\b(which one|which option|the first one|the second one|the other one)\b/,
+      /\b(for me|my situation|my case|in this case|based on that)\b/,
+      /^(why|how|what about|what if|then what|really|okay but|so)\b/
+    ]);
+  },
+
+  isOnlyReference(text = "") {
+    const cleaned = text
+      .replace(/[?!.]/g, "")
+      .replace(/\b(what|which|is|the|do|you|recommend|should|i|can|me|for|best|better)\b/g, "")
+      .trim();
+
+    if (!cleaned) return true;
+
+    return /^(it|this|that|they|them|one|same|option)$/.test(cleaned);
   },
 
   hasNewConcreteTopic(text = "") {
-    const words = text.split(/\s+/).filter(Boolean);
+    const tokens = this.meaningfulTokens(text);
+    const reference = this.hasReferenceLanguage(text);
 
-    const hasNumbers = /\d/.test(text);
-    const longConcreteWords = words.filter(word => {
-      const cleaned = word.replace(/[^\w]/g, "");
-      return cleaned.length >= 6;
-    }).length;
+    if (/\d/.test(text)) return true;
+    if (tokens.length >= 3 && !reference) return true;
+    if (tokens.length >= 4) return true;
 
-    const references =
-      (text.match(/\b(it|this|that|they|them|those|these|same)\b/g) || []).length;
-
-    return (
-      hasNumbers ||
-      longConcreteWords >= 3 ||
-      (words.length >= 8 && references === 0 && this.hasExplicitObject(text))
-    );
+    return false;
   },
 
   scoreSemanticDependency({
     hasThread = false,
-    startsWithContinuation = false,
-    hasPronounReference = false,
+    frame = {},
+    hasReferenceLanguage = false,
     isTinyFollowUp = false,
-    missingObjectForRequestedOperation = false,
-    requestedOperation = "none",
-    hasExplicitObject = false,
+    hasStandaloneObject = false,
     hasNewConcreteTopic = false,
     wordCount = 0
   } = {}) {
@@ -340,39 +427,69 @@ window.Ari.laneSplitterEngine = {
 
     let score = 0;
 
-    if (isTinyFollowUp) score += 0.35;
-    if (startsWithContinuation) score += 0.20;
-    if (hasPronounReference) score += 0.20;
-    if (missingObjectForRequestedOperation) score += 0.35;
-    if (requestedOperation !== "none" && !hasExplicitObject) score += 0.20;
-    if (wordCount <= 8 && !hasExplicitObject) score += 0.15;
+    if (frame.needsThread) score += 0.45;
+    if (frame.missingSlots?.length) score += 0.25;
+    if (hasReferenceLanguage) score += 0.2;
+    if (isTinyFollowUp) score += 0.2;
+    if (wordCount <= 8 && !hasStandaloneObject) score += 0.15;
 
-    if (hasNewConcreteTopic) score -= 0.35;
-    if (hasExplicitObject && wordCount >= 7) score -= 0.20;
+    if (frame.isComplete) score -= 0.25;
+    if (hasNewConcreteTopic && hasStandaloneObject) score -= 0.25;
 
     return this.clamp01(score);
   },
 
   scoreStandaloneMeaning({
     wordCount = 0,
-    hasExplicitObject = false,
+    frame = {},
+    hasStandaloneObject = false,
     hasNewConcreteTopic = false,
-    hasPronounReference = false,
-    startsWithContinuation = false,
-    requestedOperation = "none"
+    hasReferenceLanguage = false
   } = {}) {
     let score = 0;
 
-    if (wordCount >= 7) score += 0.20;
+    if (wordCount >= 7) score += 0.2;
     if (wordCount >= 12) score += 0.15;
-    if (hasExplicitObject) score += 0.30;
+    if (hasStandaloneObject) score += 0.3;
     if (hasNewConcreteTopic) score += 0.25;
-    if (requestedOperation !== "none") score += 0.10;
+    if (frame.isComplete) score += 0.25;
+    if (frame.operation !== "unknown") score += 0.1;
 
-    if (hasPronounReference) score -= 0.15;
-    if (startsWithContinuation) score -= 0.10;
+    if (hasReferenceLanguage && !frame.isComplete) score -= 0.25;
 
     return this.clamp01(score);
+  },
+
+  removeQuestionScaffold(text = "") {
+    return text
+      .replace(/\b(what|when|where|why|how|can|could|should|would|do|does|did|is|are|am)\b/g, " ")
+      .replace(/\b(i|me|my|you|your|we|us|our)\b/g, " ")
+      .replace(/\b(recommend|suggest|choose|pick|prefer|best|better|ideal|plan|explain|fix)\b/g, " ")
+      .replace(/\b(it|this|that|they|them|one|same|thing|option)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
+
+  meaningfulTokens(text = "") {
+    const weak = new Set([
+      "what", "when", "where", "why", "how", "should", "could", "would",
+      "recommend", "suggest", "best", "better", "plan", "strategy",
+      "approach", "ideally", "really", "thing", "stuff", "something",
+      "anything", "me", "my", "you", "your", "for", "about", "this",
+      "that", "they", "them", "one", "same", "option", "the", "and",
+      "or", "but", "with", "from", "into", "onto", "have", "has", "had",
+      "do", "does", "did", "can", "will", "would", "there", "their"
+    ]);
+
+    return String(text || "")
+      .toLowerCase()
+      .split(/\W+/)
+      .map(t => t.trim())
+      .filter(t => t.length >= 4 && !weak.has(t));
+  },
+
+  matchesAny(text = "", patterns = []) {
+    return patterns.some(pattern => pattern.test(text));
   },
 
   shouldUseThread(lane) {
@@ -411,12 +528,12 @@ window.Ari.laneSplitterEngine = {
   },
 
   explain(lane, context = {}) {
-    if (lane === "continuity_follow_up" && context.semanticDependencyScore >= 0.6) {
-      return "Current message lacks enough standalone object/context and depends on the active thread.";
+    if (lane === "continuity_follow_up" && context.frame?.needsThread) {
+      return "Current message has an operation but is missing required slots, so it needs active thread context.";
     }
 
-    if (lane === "direct_current_turn" && context.standaloneMeaningScore >= 0.65) {
-      return "Current message has enough standalone meaning and should go directly to the Situation Map.";
+    if (lane === "direct_current_turn" && context.frame?.isComplete) {
+      return "Current message has enough filled frame slots to go directly to the Situation Map.";
     }
 
     const explanations = {
