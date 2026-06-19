@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Convert user language into active situation context across turns.
-// V5.1.1 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
+// V5.1.3 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "5.1.1",
+  version: "5.1.3",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -16,10 +16,11 @@ window.AriThreadUnderstandingEngine = {
     );
 
     const previousWorkingContext =
-      summary.workingContext ||
-      summary.threadUnderstanding?.workingContext ||
-      window.Ari.workingContext ||
-      this.emptyWorkingContext();
+  window.Ari.workingContext ||
+  summary.threadState?.workingContext ||
+  summary.threadUnderstanding?.workingContext ||
+  summary.workingContext ||
+  this.emptyWorkingContext();
 
     const recentMessages = this.getRecentMessages(summary, currentText);
     const currentTurn = this.readTurn(currentText);
@@ -750,11 +751,15 @@ const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
 
   merged.activeClaim = previousWorkingContext.activeClaim || null;
   merged.activeQuestion = previousWorkingContext.activeQuestion || null;
-  merged.followUpAnchor =
+    merged.followUpAnchor =
     previousWorkingContext.followUpAnchor ||
+    previousWorkingContext.semanticState?.followUpAnchor ||
     previousWorkingContext.activeClaim ||
+    previousWorkingContext.semanticState?.activeClaim ||
     previousWorkingContext.lastUserText ||
     null;
+
+  merged.semanticState = previousWorkingContext.semanticState || null;
 } else {
   merged.activeSituation = currentSituation.activeSituation || merged.activeSituation;
   merged.situationFrame = currentSituation.situationFrame || merged.situationFrame;
@@ -767,6 +772,12 @@ const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
     merged.activeQuestion ||
     currentSituation.activeSituation?.value ||
     null;
+      merged.semanticState = this.buildSemanticState({
+    currentText,
+    currentTurn,
+    currentSituation,
+    workingContext: merged
+  });
 }
     merged.decisionStructure = currentSituation.decisionStructure || null;
     merged.centralTradeoff = currentSituation.centralTradeoff || null;
@@ -891,6 +902,44 @@ target.semanticState = source.semanticState || target.semanticState || null;
       .map(item => item.text)
       .filter(Boolean);
   },
+
+buildSemanticState({
+  currentText = "",
+  currentTurn = {},
+  currentSituation = {},
+  workingContext = {}
+}) {
+  return {
+    lastUserText: currentText,
+    activeClaim: workingContext.activeClaim || null,
+    activeQuestion: workingContext.activeQuestion || null,
+    followUpAnchor: workingContext.followUpAnchor || null,
+
+    situationFrame:
+      workingContext.situationFrame?.value ||
+      currentSituation.situationFrame?.value ||
+      null,
+
+    keyFacts:
+      workingContext.keyFacts?.map(f => f.claim || f).filter(Boolean) ||
+      [],
+
+    intent:
+      currentSituation.intentSignals?.[0]?.value ||
+      null,
+
+    isQuestion: Boolean(currentTurn.isQuestion),
+    isLowInformationFollowUp: this.isLowInformationFollowUp(currentTurn),
+
+    confidence:
+      currentSituation.confidence ||
+      workingContext.activeSituation?.confidence ||
+      0.5,
+
+    updatedAt: new Date().toISOString(),
+    source: "ari-thread-understanding-engine"
+  };
+},
 
 extractActiveClaim(text = "", situation = {}) {
   const clean = this.clean(text);
