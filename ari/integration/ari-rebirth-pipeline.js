@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.6 — Lane Splitter + Continuity Packet Routing
+// V3.5.7 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.6",
+  version: "3.5.7",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -144,12 +144,54 @@ window.AriRebirthPipeline = {
     routingEvidence.preservedObservationCount ?? 0
 };
 
+// 0.265 Context Assembler - Early Pass
+merge(await runEngine(window.AriContextAssembler, ["assemble", "create"]));
+
+// 0.266 Semantic Frame Builder
+const semanticFrameOutput = await runEngine(
+  window.AriSemanticFrameBuilder,
+  ["build"],
+  {
+    semanticFrameBuilderRan: false,
+    semanticFrameBuilderVersion: null,
+    semanticFrameSource: "not-loaded",
+    advisoryOnly: true,
+    primaryFrame: null,
+    secondaryFrames: [],
+    allFrames: [],
+    continuity: {},
+    responseCharacteristics: {},
+    emotionalOverlay: {},
+    ambiguity: {},
+    semanticSummary: null
+  }
+);
+
+summary = {
+  ...summary,
+  semanticFrameOutput,
+  semanticFrame: semanticFrameOutput,
+  activeSemanticFrame: semanticFrameOutput.primaryFrame || null,
+  primarySemanticFrame: semanticFrameOutput.primaryFrame || null,
+  semanticSummary: semanticFrameOutput.semanticSummary || null,
+  semanticContinuity: semanticFrameOutput.continuity || {},
+  semanticResponseCharacteristics:
+    semanticFrameOutput.responseCharacteristics || {},
+  semanticEmotionalOverlay:
+    semanticFrameOutput.emotionalOverlay || {},
+  semanticAmbiguity:
+    semanticFrameOutput.ambiguity || {}
+};
+
     // 0.27 Lane Splitter
     const laneSplit =
       window.Ari?.laneSplitterEngine?.split
         ? await window.Ari.laneSplitterEngine.split({
             summary,
-            routingEvidence: summary.routingEvidence
+routingEvidence: summary.routingEvidence,
+semanticFrame: summary.semanticFrameOutput,
+primarySemanticFrame: summary.primarySemanticFrame,
+semanticSummary: summary.semanticSummary
           })
         : {
             engine: "ari-lane-splitter-engine",
@@ -180,7 +222,10 @@ window.AriRebirthPipeline = {
     laneSplit.confidence || null,
 
   laneSplitterScores:
-    laneSplit.scores || {}
+  laneSplit.scores || {},
+
+laneSplitterSemanticAware:
+  Boolean(summary.semanticFrameOutput?.semanticFrameBuilderRan)
 };
 
     // 0.28 Continuity Entry Point
@@ -334,9 +379,6 @@ if (shouldRunEntityResolver) {
   merge(await runEngine(window.AriEntityReferenceResolver, ["resolve"]));
 }
 
-
-    // 0.31 Context Assembler
-    merge(await runEngine(window.AriContextAssembler, ["assemble", "create"]));
 
     // 0.35 Situation Map
     const situationMap = await runEngine(
@@ -1082,6 +1124,7 @@ priorMeaningForFollowUp:
     console.log("===== CONVERSATION MEANING HISTORY =====", summary.conversationMeaningHistoryState);
     console.log("===== CLASSIFIER =====", summary.universalConversationClassification);
     console.log("===== ROUTING EVIDENCE =====", summary.routingEvidence);
+    console.log("===== SEMANTIC FRAME BUILDER =====", summary.semanticFrameOutput);
     console.log("===== LANE SPLIT =====", summary.laneSplit);
     console.log("===== CONTINUITY RESULTS =====", summary.continuityResults);
     console.log("===== CONTINUITY PACKET =====", summary.continuityPacket);
