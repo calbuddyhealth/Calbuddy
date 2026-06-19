@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
-// Purpose: Convert user language into active situation context across turns.
-// V5.1.3 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
+// Purpose: Preserve active situation context across turns.
+// V5.2.0 — Semantic Frame Consumer / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "5.1.3",
+  version: "5.2.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -16,21 +16,28 @@ window.AriThreadUnderstandingEngine = {
     );
 
     const previousWorkingContext =
-  window.Ari.workingContext ||
-  summary.threadState?.workingContext ||
-  summary.threadUnderstanding?.workingContext ||
-  summary.workingContext ||
-  this.emptyWorkingContext();
+      summary.threadState?.workingContext ||
+      summary.threadUnderstanding?.workingContext ||
+      summary.workingContext ||
+      window.Ari.workingContext ||
+      this.emptyWorkingContext();
 
     const recentMessages = this.getRecentMessages(summary, currentText);
     const currentTurn = this.readTurn(currentText);
 
-    const currentSituation = this.understandSituation(currentTurn, recentMessages);
+    const providedSemanticFrame = this.readProvidedSemanticFrame(summary);
+
+    const currentSituation = this.understandSituation(
+      currentTurn,
+      recentMessages,
+      providedSemanticFrame
+    );
 
     const topicTransition = this.detectTopicTransition({
       previousWorkingContext,
       currentTurn,
-      currentSituation
+      currentSituation,
+      providedSemanticFrame
     });
 
     const workingContext = this.mergeWorkingContext({
@@ -38,7 +45,8 @@ window.AriThreadUnderstandingEngine = {
       currentTurn,
       currentSituation,
       currentText,
-      topicTransition
+      topicTransition,
+      providedSemanticFrame
     });
 
     const stateChange = this.detectStateChange(currentTurn, currentSituation);
@@ -48,7 +56,8 @@ window.AriThreadUnderstandingEngine = {
       currentTurn,
       currentSituation,
       workingContext,
-      stateChange
+      stateChange,
+      providedSemanticFrame
     });
 
     const threadUnderstanding = {
@@ -60,9 +69,22 @@ window.AriThreadUnderstandingEngine = {
       recentMessages,
       currentTurn,
 
-     activeSituation: workingContext.activeSituation || currentSituation.activeSituation,
-situationFrame: workingContext.situationFrame || currentSituation.situationFrame,
-keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSituation.keyFacts,
+      semanticFrame: workingContext.semanticFrame || providedSemanticFrame || null,
+      activeSemanticFrame: workingContext.semanticFrame || providedSemanticFrame || null,
+
+      activeSituation:
+        workingContext.activeSituation ||
+        currentSituation.activeSituation,
+
+      situationFrame:
+        workingContext.situationFrame ||
+        currentSituation.situationFrame,
+
+      keyFacts:
+        workingContext.keyFacts?.length
+          ? workingContext.keyFacts
+          : currentSituation.keyFacts,
+
       decisionStructure: currentSituation.decisionStructure,
       centralTradeoff: currentSituation.centralTradeoff,
       hardConstraints: currentSituation.hardConstraints,
@@ -91,7 +113,8 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
         currentSituation,
         workingContext,
         resolvedMeaning,
-        topicTransition
+        topicTransition,
+        providedSemanticFrame
       }),
 
       authority: "advisory_context_only",
@@ -108,7 +131,8 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
         "medicalEscalation",
         "responseShape",
         "intent",
-        "conversationIntent"
+        "conversationIntent",
+        "semanticFrame"
       ]
     };
 
@@ -124,9 +148,22 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
       workingContext,
       threadWorkingContext: workingContext,
 
-      activeSituation: workingContext.activeSituation || currentSituation.activeSituation,
-situationFrame: workingContext.situationFrame || currentSituation.situationFrame,
-keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSituation.keyFacts,
+      semanticFrame: workingContext.semanticFrame || providedSemanticFrame || null,
+      activeSemanticFrame: workingContext.semanticFrame || providedSemanticFrame || null,
+
+      activeSituation:
+        workingContext.activeSituation ||
+        currentSituation.activeSituation,
+
+      situationFrame:
+        workingContext.situationFrame ||
+        currentSituation.situationFrame,
+
+      keyFacts:
+        workingContext.keyFacts?.length
+          ? workingContext.keyFacts
+          : currentSituation.keyFacts,
+
       decisionStructure: currentSituation.decisionStructure,
       centralTradeoff: currentSituation.centralTradeoff,
       hardConstraints: currentSituation.hardConstraints,
@@ -152,11 +189,16 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
       activeObject: null,
       activeIssue: null,
       activeGoal: null,
-activeClaim: null,
-activeQuestion: null,
-followUpAnchor: null,
-lastResolvedAnswer: null,
-semanticState: null,
+
+      activeClaim: null,
+      activeQuestion: null,
+      followUpAnchor: null,
+      lastResolvedAnswer: null,
+
+      semanticState: null,
+      semanticFrame: null,
+      activeSemanticFrame: null,
+
       activeEntities: [],
       activeConstraints: [],
       activeAttempts: [],
@@ -179,6 +221,28 @@ semanticState: null,
     };
   },
 
+  readProvidedSemanticFrame(summary = {}) {
+    const candidates = [
+      summary.semanticFrame,
+      summary.currentSemanticFrame,
+      summary.observerSemanticFrame,
+      summary.activeSemanticFrame,
+      summary.semanticFrameBuilder,
+      summary.semanticFrameResult,
+      summary.threadState?.activeSemanticFrame,
+      summary.threadState?.semanticFrame,
+      summary.latestConversationMeaning?.semanticFrame
+    ];
+
+    const found = candidates.find(frame => frame && typeof frame === "object");
+    if (!found) return null;
+
+    return {
+      ...found,
+      source: found.source || "provided_semantic_frame"
+    };
+  },
+
   getRecentMessages(summary = {}, currentText = "") {
     const continuityMessages =
       summary.continuityState?.lastMessages ||
@@ -186,7 +250,7 @@ semanticState: null,
       [];
 
     const fromContinuity = continuityMessages
-      .map(m => this.clean(m.text || m.claim || ""))
+      .map(m => this.clean(m.text || m.claim || m || ""))
       .filter(Boolean);
 
     const facts = Array.isArray(summary.activeThreadFacts)
@@ -220,8 +284,8 @@ semanticState: null,
         /^(what|why|how|when|where|should|can|could|do|does|is|are|will|would|who)\b/.test(lower),
 
       isShortFollowUp:
-  words.length <= 12 &&
-  /^(why|how|what|what about|what else|then what|can i|should i|do i|does it|is it|are they|really)\b/.test(lower),
+        words.length <= 12 &&
+        /^(why|how|what|what about|what else|then what|can i|should i|do i|does it|is it|are they|really)\b/.test(lower),
 
       hasExplicitReset:
         /\b(nevermind|never mind|forget it|different topic|new question|unrelated|switch topics|start over)\b/.test(lower),
@@ -233,15 +297,15 @@ semanticState: null,
     };
   },
 
-  understandSituation(turn = {}, recentMessages = []) {
+  understandSituation(turn = {}, recentMessages = [], semanticFrame = null) {
     const text = turn.clean || "";
     const lower = turn.lower || "";
 
     const entities = this.extractEntities(text);
     const domains = this.detectDomains(lower, entities);
-    const intentSignals = this.detectIntentSignals(lower);
-    const situationFrame = this.detectSituationFrame(lower, entities, intentSignals);
-    const decisionStructure = this.extractDecisionStructure(text, lower, entities);
+    const intentSignals = this.detectIntentSignals(lower, semanticFrame);
+    const situationFrame = this.detectSituationFrame(lower, entities, intentSignals, semanticFrame);
+    const decisionStructure = this.extractDecisionStructure(text, lower, entities, semanticFrame);
     const hardConstraints = this.extractHardConstraints(text, lower);
     const centralTradeoff = this.extractCentralTradeoff({
       text,
@@ -258,7 +322,8 @@ semanticState: null,
       situationFrame,
       decisionStructure,
       hardConstraints,
-      centralTradeoff
+      centralTradeoff,
+      semanticFrame
     });
 
     const activeSituation = this.makeActiveSituation({
@@ -266,19 +331,22 @@ semanticState: null,
       situationFrame,
       decisionStructure,
       centralTradeoff,
-      keyFacts
+      keyFacts,
+      semanticFrame
     });
 
     const openQuestions = this.extractOpenQuestions({
       situationFrame,
       decisionStructure,
       hardConstraints,
-      keyFacts
+      keyFacts,
+      semanticFrame
     });
 
     return {
       activeSituation,
       situationFrame,
+      semanticFrame,
       entities,
       domains,
       intentSignals,
@@ -293,7 +361,8 @@ semanticState: null,
         entities,
         decisionStructure,
         keyFacts,
-        hardConstraints
+        hardConstraints,
+        semanticFrame
       })
     };
   },
@@ -368,11 +437,11 @@ semanticState: null,
       });
     };
 
-    if (entities.some(e => e.value === "child" || e.value === "father" || e.value === "mother" || e.value === "partner")) {
+    if (entities.some(e => ["child", "father", "mother", "partner"].includes(e.value))) {
       add("family", "family entity", 0.82);
     }
 
-    if (entities.some(e => e.value === "friend" || e.value === "partner")) {
+    if (entities.some(e => ["friend", "partner"].includes(e.value))) {
       add("relationship", "relationship entity", 0.8);
     }
 
@@ -395,7 +464,7 @@ semanticState: null,
     return this.uniqueSignals(domains);
   },
 
-  detectIntentSignals(lower = "") {
+  detectIntentSignals(lower = "", semanticFrame = null) {
     const signals = [];
 
     const add = (value, evidence, confidence = 0.75) => {
@@ -408,6 +477,12 @@ semanticState: null,
         source: "ari-thread-understanding-engine"
       });
     };
+
+    const op = String(semanticFrame?.operation || "").toLowerCase();
+
+    if (op && op !== "unknown") {
+      add(op, "semantic frame operation", 0.86);
+    }
 
     if (/\bwhat should i do|should i|what do i do|recommend|decide|choose|only do one\b/.test(lower)) {
       add("decision_support", "decision language", 0.86);
@@ -428,8 +503,20 @@ semanticState: null,
     return this.uniqueSignals(signals);
   },
 
-  detectSituationFrame(lower = "", entities = [], intentSignals = []) {
-    const hasDecision = intentSignals.some(s => s.value === "decision_support" || s.value === "prioritization");
+  detectSituationFrame(lower = "", entities = [], intentSignals = [], semanticFrame = null) {
+    if (semanticFrame?.operation && semanticFrame.operation !== "unknown") {
+      return {
+        value: `semantic_${semanticFrame.operation}`,
+        label: `semantic ${semanticFrame.operation}`,
+        confidence: semanticFrame.confidence || semanticFrame.frameConfidence || 0.84,
+        source: "semantic_frame"
+      };
+    }
+
+    const hasDecision = intentSignals.some(s =>
+      s.value === "decision_support" ||
+      s.value === "prioritization"
+    );
 
     if (
       hasDecision &&
@@ -487,7 +574,30 @@ semanticState: null,
     };
   },
 
-  extractDecisionStructure(text = "", lower = "", entities = []) {
+  extractDecisionStructure(text = "", lower = "", entities = [], semanticFrame = null) {
+    const frameOptions =
+      semanticFrame?.slots?.options ||
+      semanticFrame?.options ||
+      semanticFrame?.choices ||
+      null;
+
+    if (Array.isArray(frameOptions) && frameOptions.length >= 2) {
+      return {
+        type: "decision_structure",
+        options: frameOptions.map(option => ({
+          label: this.clean(option.label || option.value || option),
+          evidence: this.clean(option.evidence || option.label || option.value || option),
+          confidence: option.confidence || 0.84,
+          source: "semantic_frame"
+        })),
+        optionCount: frameOptions.length,
+        mutuallyExclusive: true,
+        decisionQuestion: true,
+        confidence: 0.88,
+        source: "semantic_frame"
+      };
+    }
+
     const hasDecision =
       /\bwhat should i do|should i|decide|choose|only do one|either|or|between|can't do both|cannot do both\b/.test(lower);
 
@@ -508,7 +618,7 @@ semanticState: null,
     };
   },
 
-  extractOptions(text = "", lower = "", entities = []) {
+  extractOptions(text = "", lower = "") {
     const options = [];
 
     const add = (label, evidence, confidence = 0.76) => {
@@ -522,9 +632,7 @@ semanticState: null,
     };
 
     const promiseMatch = text.match(/\bpromised\s+([^.!?]{3,90})/i);
-    if (promiseMatch) {
-      add(this.clean(promiseMatch[0]), promiseMatch[0], 0.82);
-    }
+    if (promiseMatch) add(this.clean(promiseMatch[0]), promiseMatch[0], 0.82);
 
     const couldMatch = text.match(/\bcould\s+([^.!?]{3,90})/i);
     if (couldMatch) {
@@ -536,21 +644,10 @@ semanticState: null,
       }
     }
 
-    if (lower.includes("friend") && lower.includes("move")) {
-      add("help friend move", "friend + move", 0.86);
-    }
-
-    if (lower.includes("child") && lower.includes("school")) {
-      add("attend child's school event", "child + school event", 0.88);
-    }
-
-    if (lower.includes("repair") && lower.includes("car")) {
-      add("repair the car", "repair + car", 0.82);
-    }
-
-    if (lower.includes("course") || lower.includes("career")) {
-      add("invest in career opportunity", "course/career", 0.78);
-    }
+    if (lower.includes("friend") && lower.includes("move")) add("help friend move", "friend + move", 0.86);
+    if (lower.includes("child") && lower.includes("school")) add("attend child's school event", "child + school event", 0.88);
+    if (lower.includes("repair") && lower.includes("car")) add("repair the car", "repair + car", 0.82);
+    if (lower.includes("course") || lower.includes("career")) add("invest in career opportunity", "course/career", 0.78);
 
     return this.uniqueOptions(options).slice(0, 4);
   },
@@ -569,30 +666,16 @@ semanticState: null,
       });
     };
 
-    if (/\bat the same time|same time\b/.test(lower)) {
-      add("two commitments happen at the same time", "same time", 0.86);
-    }
-
-    if (/\bonly do one|can only do one|can't do both|cannot do both\b/.test(lower)) {
-      add("the user can only choose one option", "only do one", 0.9);
-    }
-
-    if (/\btomorrow|tonight|morning|deadline|due\b/.test(lower)) {
-      add("time pressure is present", "time phrase", 0.76);
-    }
-
-    if (/\bcan't afford both|cannot afford both|not enough money|budget\b/.test(lower)) {
-      add("limited money prevents doing both", "money constraint", 0.84);
-    }
-
-    if (/\bexhausted|tired|burned out|overwhelmed|stressed\b/.test(lower)) {
-      add("limited energy is affecting the decision", "energy state", 0.78);
-    }
+    if (/\bat the same time|same time\b/.test(lower)) add("two commitments happen at the same time", "same time", 0.86);
+    if (/\bonly do one|can only do one|can't do both|cannot do both\b/.test(lower)) add("the user can only choose one option", "only do one", 0.9);
+    if (/\btomorrow|tonight|morning|deadline|due\b/.test(lower)) add("time pressure is present", "time phrase", 0.76);
+    if (/\bcan't afford both|cannot afford both|not enough money|budget\b/.test(lower)) add("limited money prevents doing both", "money constraint", 0.84);
+    if (/\bexhausted|tired|burned out|overwhelmed|stressed\b/.test(lower)) add("limited energy is affecting the decision", "energy state", 0.78);
 
     return this.uniqueNodes(constraints);
   },
 
-  extractCentralTradeoff({ lower = "", entities = [], decisionStructure = null, hardConstraints = [] }) {
+  extractCentralTradeoff({ lower = "", decisionStructure = null }) {
     if (!decisionStructure) return null;
 
     const hasFriend = lower.includes("friend");
@@ -625,46 +708,24 @@ semanticState: null,
     return null;
   },
 
-  extractKeyFacts({
-    text = "",
-    lower = "",
-    entities = [],
-    situationFrame = {},
-    decisionStructure = null,
-    hardConstraints = [],
-    centralTradeoff = null
-  }) {
+  extractKeyFacts({ text = "", lower = "", centralTradeoff = null, semanticFrame = null }) {
     const facts = [];
 
-    const add = (fact, confidence = 0.82) => {
+    const add = (fact, confidence = 0.82, source = "ari-thread-understanding-engine") => {
       if (!fact) return;
-      facts.push({
-        type: "key_fact",
-        claim: fact,
-        confidence,
-        source: "ari-thread-understanding-engine"
-      });
+      facts.push({ type: "key_fact", claim: fact, confidence, source });
     };
 
-    if (lower.includes("promised") && lower.includes("friend") && lower.includes("move")) {
-      add("The user promised to help a friend move.", 0.9);
-    }
+    if (semanticFrame?.summary) add(semanticFrame.summary, 0.88, "semantic_frame");
+    if (semanticFrame?.slots?.object) add(`The active object is ${semanticFrame.slots.object}.`, 0.84, "semantic_frame");
+    if (semanticFrame?.slots?.goal) add(`The active goal is ${semanticFrame.slots.goal}.`, 0.84, "semantic_frame");
+    if (semanticFrame?.slots?.problem) add(`The active problem is ${semanticFrame.slots.problem}.`, 0.84, "semantic_frame");
 
-    if (lower.includes("tomorrow")) {
-      add("The conflict happens tomorrow.", 0.78);
-    }
-
-    if (lower.includes("child") && lower.includes("school")) {
-      add("The user's child has a school event.", 0.9);
-    }
-
-    if (/\bat the same time|same time\b/.test(lower)) {
-      add("The commitments happen at the same time.", 0.88);
-    }
-
-    if (/\bonly do one|can only do one|can't do both|cannot do both\b/.test(lower)) {
-      add("The user can only choose one commitment.", 0.9);
-    }
+    if (lower.includes("promised") && lower.includes("friend") && lower.includes("move")) add("The user promised to help a friend move.", 0.9);
+    if (lower.includes("tomorrow")) add("The conflict happens tomorrow.", 0.78);
+    if (lower.includes("child") && lower.includes("school")) add("The user's child has a school event.", 0.9);
+    if (/\bat the same time|same time\b/.test(lower)) add("The commitments happen at the same time.", 0.88);
+    if (/\bonly do one|can only do one|can't do both|cannot do both\b/.test(lower)) add("The user can only choose one commitment.", 0.9);
 
     if (centralTradeoff) {
       add(`The central tradeoff is ${centralTradeoff.sideA} versus ${centralTradeoff.sideB}.`, 0.86);
@@ -677,8 +738,10 @@ semanticState: null,
     return this.uniqueFacts(facts).slice(0, 8);
   },
 
-  makeActiveSituation({ text = "", situationFrame = {}, decisionStructure = null, centralTradeoff = null, keyFacts = [] }) {
+  makeActiveSituation({ text = "", situationFrame = {}, centralTradeoff = null, keyFacts = [], semanticFrame = null }) {
     const label =
+      semanticFrame?.label ||
+      semanticFrame?.operation ||
       centralTradeoff?.label ||
       situationFrame?.label ||
       "active situation";
@@ -689,18 +752,25 @@ semanticState: null,
       label,
       evidence: text,
       situationFrame: situationFrame?.value || null,
+      semanticFrame,
       confidence: Math.max(
+        semanticFrame?.confidence || semanticFrame?.frameConfidence || 0,
         situationFrame?.confidence || 0.6,
-        decisionStructure?.confidence || 0,
         centralTradeoff?.confidence || 0,
         keyFacts.length ? 0.82 : 0
       ),
-      source: "ari-thread-understanding-engine"
+      source: semanticFrame ? "semantic_frame_and_thread_understanding" : "ari-thread-understanding-engine"
     };
   },
 
-  extractOpenQuestions({ situationFrame = {}, decisionStructure = null, hardConstraints = [], keyFacts = [] }) {
+  extractOpenQuestions({ situationFrame = {}, decisionStructure = null, hardConstraints = [], semanticFrame = null }) {
     const questions = [];
+
+    if (Array.isArray(semanticFrame?.missingSlots)) {
+      semanticFrame.missingSlots.forEach(slot => {
+        questions.push(`What is the missing ${slot}?`);
+      });
+    }
 
     if (decisionStructure && decisionStructure.options?.length < 2) {
       questions.push("What are the real options being compared?");
@@ -717,68 +787,92 @@ semanticState: null,
     return questions.slice(0, 3);
   },
 
-isLowInformationFollowUp(turn = {}) {
-  const text = turn.lower || "";
-  const words = text.split(/\s+/).filter(Boolean);
+  isLowInformationFollowUp(turn = {}) {
+    const text = turn.lower || "";
+    const words = text.split(/\s+/).filter(Boolean);
 
-  if (words.length > 8) return false;
+    if (words.length > 8) return false;
 
-  return (
-    /^(why|how|what|what else|what about|then what|really|can i|should i|do i)\??$/.test(text) ||
-    /\b(it|this|that|they|them)\b/.test(text)
-  );
-},
+    return (
+      /^(why|how|what|what else|what about|then what|really|can i|should i|do i)\??$/.test(text) ||
+      /\b(it|this|that|they|them|one|same)\b/.test(text)
+    );
+  },
 
   mergeWorkingContext({
     previousWorkingContext = {},
     currentTurn = {},
     currentSituation = {},
     currentText = "",
-    topicTransition = {}
+    topicTransition = {},
+    providedSemanticFrame = null
   }) {
     const merged = this.emptyWorkingContext();
-const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
+    const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
+
     if (!topicTransition.switched) {
       this.copyContextInto(merged, previousWorkingContext);
     }
 
+    const currentFrame = providedSemanticFrame || currentSituation.semanticFrame || null;
+
     if (lowInfoFollowUp && !topicTransition.switched) {
-  merged.activeSituation = previousWorkingContext.activeSituation || currentSituation.activeSituation;
-  merged.situationFrame = previousWorkingContext.situationFrame || currentSituation.situationFrame;
-  merged.keyFacts = previousWorkingContext.keyFacts?.length
-    ? previousWorkingContext.keyFacts
-    : currentSituation.keyFacts || [];
+      merged.activeSituation = previousWorkingContext.activeSituation || currentSituation.activeSituation;
+      merged.situationFrame = previousWorkingContext.situationFrame || currentSituation.situationFrame;
+      merged.keyFacts = previousWorkingContext.keyFacts?.length
+        ? previousWorkingContext.keyFacts
+        : currentSituation.keyFacts || [];
 
-  merged.activeClaim = previousWorkingContext.activeClaim || null;
-  merged.activeQuestion = previousWorkingContext.activeQuestion || null;
-    merged.followUpAnchor =
-    previousWorkingContext.followUpAnchor ||
-    previousWorkingContext.semanticState?.followUpAnchor ||
-    previousWorkingContext.activeClaim ||
-    previousWorkingContext.semanticState?.activeClaim ||
-    previousWorkingContext.lastUserText ||
-    null;
+      merged.semanticFrame =
+        previousWorkingContext.semanticFrame ||
+        previousWorkingContext.activeSemanticFrame ||
+        currentFrame ||
+        null;
 
-  merged.semanticState = previousWorkingContext.semanticState || null;
-} else {
-  merged.activeSituation = currentSituation.activeSituation || merged.activeSituation;
-  merged.situationFrame = currentSituation.situationFrame || merged.situationFrame;
-  merged.keyFacts = currentSituation.keyFacts || [];
+      merged.activeSemanticFrame = merged.semanticFrame;
 
-  merged.activeClaim = this.extractActiveClaim(currentText, currentSituation);
-  merged.activeQuestion = currentTurn.isQuestion ? currentText : null;
-  merged.followUpAnchor =
-    merged.activeClaim ||
-    merged.activeQuestion ||
-    currentSituation.activeSituation?.value ||
-    null;
+      merged.activeClaim = previousWorkingContext.activeClaim || null;
+      merged.activeQuestion = previousWorkingContext.activeQuestion || null;
+
+      merged.followUpAnchor =
+        previousWorkingContext.followUpAnchor ||
+        previousWorkingContext.semanticState?.followUpAnchor ||
+        previousWorkingContext.semanticFrame?.slots?.object ||
+        previousWorkingContext.semanticFrame?.slots?.goal ||
+        previousWorkingContext.activeClaim ||
+        previousWorkingContext.semanticState?.activeClaim ||
+        previousWorkingContext.lastUserText ||
+        null;
+
+      merged.semanticState = previousWorkingContext.semanticState || null;
+    } else {
+      merged.activeSituation = currentSituation.activeSituation || merged.activeSituation;
+      merged.situationFrame = currentSituation.situationFrame || merged.situationFrame;
+      merged.keyFacts = currentSituation.keyFacts || [];
+
+      merged.semanticFrame = currentFrame || merged.semanticFrame || null;
+      merged.activeSemanticFrame = merged.semanticFrame;
+
+      merged.activeClaim = this.extractActiveClaim(currentText, currentSituation);
+      merged.activeQuestion = currentTurn.isQuestion ? currentText : null;
+
+      merged.followUpAnchor =
+        merged.semanticFrame?.slots?.object ||
+        merged.semanticFrame?.slots?.goal ||
+        merged.semanticFrame?.summary ||
+        merged.activeClaim ||
+        merged.activeQuestion ||
+        currentSituation.activeSituation?.value ||
+        null;
+
       merged.semanticState = this.buildSemanticState({
-    currentText,
-    currentTurn,
-    currentSituation,
-    workingContext: merged
-  });
-}
+        currentText,
+        currentTurn,
+        currentSituation,
+        workingContext: merged
+      });
+    }
+
     merged.decisionStructure = currentSituation.decisionStructure || null;
     merged.centralTradeoff = currentSituation.centralTradeoff || null;
     merged.hardConstraints = currentSituation.hardConstraints || [];
@@ -799,7 +893,8 @@ const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
     merged.timeline.push({
       text: currentText,
       createdAt: new Date().toISOString(),
-      situationFrame: currentSituation.situationFrame?.value || null
+      situationFrame: currentSituation.situationFrame?.value || null,
+      semanticFrameOperation: merged.semanticFrame?.operation || null
     });
 
     merged.lastUserText = currentText;
@@ -815,11 +910,15 @@ const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
     target.activeObject = this.chooseBest(target.activeObject, source.activeObject);
     target.activeIssue = this.chooseBest(target.activeIssue, source.activeIssue);
     target.activeGoal = this.chooseBest(target.activeGoal, source.activeGoal);
-target.activeClaim = this.chooseBestText(target.activeClaim, source.activeClaim);
-target.activeQuestion = this.chooseBestText(target.activeQuestion, source.activeQuestion);
-target.followUpAnchor = this.chooseBestText(target.followUpAnchor, source.followUpAnchor);
-target.lastResolvedAnswer = this.chooseBestText(target.lastResolvedAnswer, source.lastResolvedAnswer);
-target.semanticState = source.semanticState || target.semanticState || null;
+
+    target.activeClaim = this.chooseBestText(target.activeClaim, source.activeClaim);
+    target.activeQuestion = this.chooseBestText(target.activeQuestion, source.activeQuestion);
+    target.followUpAnchor = this.chooseBestText(target.followUpAnchor, source.followUpAnchor);
+    target.lastResolvedAnswer = this.chooseBestText(target.lastResolvedAnswer, source.lastResolvedAnswer);
+
+    target.semanticState = source.semanticState || target.semanticState || null;
+    target.semanticFrame = source.semanticFrame || source.activeSemanticFrame || target.semanticFrame || null;
+    target.activeSemanticFrame = target.semanticFrame;
 
     target.activeEntities = this.mergeArrays(target.activeEntities, source.activeEntities);
     target.activeConstraints = this.mergeArrays(target.activeConstraints, source.activeConstraints);
@@ -840,22 +939,13 @@ target.semanticState = source.semanticState || target.semanticState || null;
   },
 
   detectStateChange(turn = {}, situation = {}) {
-    if (turn.hasExplicitReset) {
-      return { type: "topic_reset", confidence: 0.9 };
-    }
-
-    if (turn.isShortFollowUp || turn.hasContinuationCue) {
-      return { type: "context_continued", confidence: 0.72 };
-    }
-
-    if (situation.activeSituation?.confidence >= 0.8) {
-      return { type: "new_active_situation", confidence: 0.82 };
-    }
-
+    if (turn.hasExplicitReset) return { type: "topic_reset", confidence: 0.9 };
+    if (turn.isShortFollowUp || turn.hasContinuationCue) return { type: "context_continued", confidence: 0.72 };
+    if (situation.activeSituation?.confidence >= 0.8) return { type: "new_active_situation", confidence: 0.82 };
     return { type: "none", confidence: 0.4 };
   },
 
-  detectTopicTransition({ previousWorkingContext = {}, currentTurn = {}, currentSituation = {} }) {
+  detectTopicTransition({ previousWorkingContext = {}, currentTurn = {}, currentSituation = {}, providedSemanticFrame = null }) {
     if (currentTurn.hasExplicitReset) {
       return {
         switched: true,
@@ -869,6 +959,26 @@ target.semanticState = source.semanticState || target.semanticState || null;
 
     const previousFrame = previousWorkingContext.situationFrame?.value || null;
     const currentFrame = currentSituation.situationFrame?.value || null;
+
+    const previousSemanticOp = previousWorkingContext.semanticFrame?.operation || null;
+    const currentSemanticOp = providedSemanticFrame?.operation || null;
+
+    if (
+      previousSemanticOp &&
+      currentSemanticOp &&
+      previousSemanticOp !== currentSemanticOp &&
+      !currentTurn.isShortFollowUp &&
+      providedSemanticFrame?.isComplete === true
+    ) {
+      return {
+        switched: true,
+        from: previousSemanticOp,
+        to: currentSemanticOp,
+        reason: "New complete semantic frame appeared.",
+        confidence: 0.82,
+        suppressedTopics: this.summarizeSuppressed(previousWorkingContext)
+      };
+    }
 
     if (
       previousFrame &&
@@ -888,8 +998,8 @@ target.semanticState = source.semanticState || target.semanticState || null;
 
     return {
       switched: false,
-      from: previousFrame,
-      to: currentFrame || previousFrame,
+      from: previousFrame || previousSemanticOp,
+      to: currentFrame || currentSemanticOp || previousFrame || previousSemanticOp,
       reason: "No clear topic switch.",
       confidence: 0.65,
       suppressedTopics: []
@@ -903,60 +1013,63 @@ target.semanticState = source.semanticState || target.semanticState || null;
       .filter(Boolean);
   },
 
-buildSemanticState({
-  currentText = "",
-  currentTurn = {},
-  currentSituation = {},
-  workingContext = {}
-}) {
-  return {
-    lastUserText: currentText,
-    activeClaim: workingContext.activeClaim || null,
-    activeQuestion: workingContext.activeQuestion || null,
-    followUpAnchor: workingContext.followUpAnchor || null,
+  buildSemanticState({ currentText = "", currentTurn = {}, currentSituation = {}, workingContext = {} }) {
+    return {
+      lastUserText: currentText,
+      activeClaim: workingContext.activeClaim || null,
+      activeQuestion: workingContext.activeQuestion || null,
+      followUpAnchor: workingContext.followUpAnchor || null,
 
-    situationFrame:
-      workingContext.situationFrame?.value ||
-      currentSituation.situationFrame?.value ||
-      null,
+      semanticFrame: workingContext.semanticFrame || null,
+      semanticFrameOperation: workingContext.semanticFrame?.operation || null,
 
-    keyFacts:
-      workingContext.keyFacts?.map(f => f.claim || f).filter(Boolean) ||
-      [],
+      situationFrame:
+        workingContext.situationFrame?.value ||
+        currentSituation.situationFrame?.value ||
+        null,
 
-    intent:
-      currentSituation.intentSignals?.[0]?.value ||
-      null,
+      keyFacts:
+        workingContext.keyFacts?.map(f => f.claim || f).filter(Boolean) ||
+        [],
 
-    isQuestion: Boolean(currentTurn.isQuestion),
-    isLowInformationFollowUp: this.isLowInformationFollowUp(currentTurn),
+      intent:
+        workingContext.semanticFrame?.operation ||
+        currentSituation.intentSignals?.[0]?.value ||
+        null,
 
-    confidence:
-      currentSituation.confidence ||
-      workingContext.activeSituation?.confidence ||
-      0.5,
+      isQuestion: Boolean(currentTurn.isQuestion),
+      isLowInformationFollowUp: this.isLowInformationFollowUp(currentTurn),
 
-    updatedAt: new Date().toISOString(),
-    source: "ari-thread-understanding-engine"
-  };
-},
+      confidence:
+        currentSituation.confidence ||
+        workingContext.activeSituation?.confidence ||
+        0.5,
 
-extractActiveClaim(text = "", situation = {}) {
-  const clean = this.clean(text);
-  if (!clean) return null;
+      updatedAt: new Date().toISOString(),
+      source: "ari-thread-understanding-engine"
+    };
+  },
 
-  if (situation?.keyFacts?.length) {
-    return situation.keyFacts[0]?.claim || clean;
-  }
+  extractActiveClaim(text = "", situation = {}) {
+    const clean = this.clean(text);
+    if (!clean) return null;
 
-  if (/^(why|how|what|can i|should i|do i)\b/i.test(clean)) {
-    return null;
-  }
+    if (situation?.semanticFrame?.summary) {
+      return situation.semanticFrame.summary;
+    }
 
-  return clean;
-},
+    if (situation?.keyFacts?.length) {
+      return situation.keyFacts[0]?.claim || clean;
+    }
 
-  resolveMeaning({ currentText = "", currentTurn = {}, currentSituation = {}, workingContext = {}, stateChange = {} }) {
+    if (/^(why|how|what|can i|should i|do i)\b/i.test(clean)) {
+      return null;
+    }
+
+    return clean;
+  },
+
+  resolveMeaning({ currentText = "", currentTurn = {}, currentSituation = {}, workingContext = {}, stateChange = {}, providedSemanticFrame = null }) {
     return {
       isContextual: Boolean(
         currentTurn.isShortFollowUp ||
@@ -966,18 +1079,21 @@ extractActiveClaim(text = "", situation = {}) {
 
       currentText,
 
+      semanticFrame: workingContext.semanticFrame || providedSemanticFrame || null,
+
       activeSituation: workingContext.activeSituation || currentSituation.activeSituation,
-situationFrame: workingContext.situationFrame || currentSituation.situationFrame,
-keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSituation.keyFacts,
+      situationFrame: workingContext.situationFrame || currentSituation.situationFrame,
+      keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSituation.keyFacts,
+
       decisionStructure: currentSituation.decisionStructure || null,
       centralTradeoff: currentSituation.centralTradeoff || null,
       hardConstraints: currentSituation.hardConstraints || [],
       openQuestions: currentSituation.openQuestions || [],
 
       resolvedSubject: workingContext.activeSubject || null,
-      resolvedObject: workingContext.activeObject || null,
-      resolvedIssue: workingContext.activeIssue || null,
-      resolvedGoal: workingContext.activeGoal || null,
+      resolvedObject: workingContext.semanticFrame?.slots?.object || workingContext.activeObject || null,
+      resolvedIssue: workingContext.semanticFrame?.slots?.problem || workingContext.activeIssue || null,
+      resolvedGoal: workingContext.semanticFrame?.slots?.goal || workingContext.activeGoal || null,
       resolvedConstraints: workingContext.activeConstraints || [],
       resolvedAttempts: workingContext.activeAttempts || [],
 
@@ -987,7 +1103,7 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
     };
   },
 
-  scoreSituationConfidence({ activeSituation, situationFrame, entities = [], decisionStructure, keyFacts = [], hardConstraints = [] }) {
+  scoreSituationConfidence({ activeSituation, situationFrame, entities = [], decisionStructure, keyFacts = [], hardConstraints = [], semanticFrame = null }) {
     let score = 0.35;
 
     if (activeSituation) score += 0.12;
@@ -996,11 +1112,12 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
     if (decisionStructure) score += 0.12;
     if (keyFacts.length >= 2) score += 0.15;
     if (hardConstraints.length) score += 0.08;
+    if (semanticFrame) score += 0.12;
 
     return Math.min(0.95, score);
   },
 
-  scoreConfidence({ currentSituation = {}, workingContext = {}, resolvedMeaning = {}, topicTransition = {} }) {
+  scoreConfidence({ currentSituation = {}, resolvedMeaning = {}, topicTransition = {}, providedSemanticFrame = null }) {
     let score = 35;
 
     if (currentSituation.activeSituation) score += 16;
@@ -1011,20 +1128,9 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
     if ((currentSituation.hardConstraints || []).length) score += 6;
     if (resolvedMeaning.isContextual) score += 4;
     if (topicTransition.switched) score += 2;
+    if (providedSemanticFrame) score += 8;
 
     return Math.max(25, Math.min(95, score));
-  },
-
-  makeNode(type, value, label, evidence, confidence = 0.6) {
-    return {
-      type,
-      value,
-      label: label || value,
-      evidence,
-      confidence,
-      updatedAt: new Date().toISOString(),
-      source: "ari-thread-understanding-engine"
-    };
   },
 
   chooseBest(...nodes) {
@@ -1036,9 +1142,9 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
     )[0];
   },
 
-chooseBestText(...values) {
-  return values.find(v => typeof v === "string" && v.trim()) || null;
-},
+  chooseBestText(...values) {
+    return values.find(v => typeof v === "string" && v.trim()) || null;
+  },
 
   uniqueOptions(options = []) {
     const seen = new Set();
@@ -1066,7 +1172,7 @@ chooseBestText(...values) {
     const seen = new Set();
 
     return (nodes || []).filter(node => {
-      const key = `${node.type || ""}:${node.value || node.label || node.evidence || ""}`.toLowerCase();
+      const key = `${node.type || ""}:${node.value || node.label || node.evidence || node.text || ""}`.toLowerCase();
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
