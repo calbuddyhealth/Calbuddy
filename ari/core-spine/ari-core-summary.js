@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.5.4 — Adds routing evidence, lane split, continuity results, continuity packet
+// V3.5.5 — Adds routing evidence, lane split, continuity results, continuity packet
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.5.4",
+  version: "3.5.5",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -67,6 +67,57 @@ const universalConversationClassification =
   analysis.conversationClassification ||
   analysis.conversation ||
   {};
+
+const semanticFrameOutput =
+  analysis.semanticFrameOutput ||
+  analysis.semanticFrame ||
+  {};
+
+const semanticSummary =
+  analysis.semanticSummary ||
+  semanticFrameOutput.semanticSummary ||
+  {};
+
+const semanticContinuity =
+  analysis.semanticContinuity ||
+  semanticFrameOutput.continuity ||
+  semanticSummary.continuity ||
+  {};
+
+const semanticResponseCharacteristics =
+  analysis.semanticResponseCharacteristics ||
+  semanticFrameOutput.responseCharacteristics ||
+  semanticSummary.responseCharacteristics ||
+  {};
+
+const semanticEmotionalOverlay =
+  analysis.semanticEmotionalOverlay ||
+  semanticFrameOutput.emotionalOverlay ||
+  semanticSummary.emotionalOverlay ||
+  {};
+
+const semanticAmbiguity =
+  analysis.semanticAmbiguity ||
+  semanticFrameOutput.ambiguity ||
+  semanticSummary.ambiguity ||
+  {};
+
+const normalizedSemanticFrame =
+  semanticFrameOutput.normalizedFrame ||
+  semanticFrameOutput.primaryFrame ||
+  analysis.normalizedSemanticFrame ||
+  analysis.primarySemanticFrame ||
+  {};
+
+const semanticFrameComplete =
+  normalizedSemanticFrame.frameComplete ??
+  semanticFrameOutput.primaryFrame?.frameComplete ??
+  null;
+
+const semanticNeedsPriorFrame =
+  normalizedSemanticFrame.needsPriorFrame ??
+  semanticFrameOutput.primaryFrame?.needsPriorFrame ??
+  null;
 
 const characterContext =
   analysis.characterContext ||
@@ -456,6 +507,121 @@ conversationAuthority:
   null,
 
 // ==================================================
+// SEMANTIC FRAME BUILDER
+// ==================================================
+
+semanticFrameOutput,
+
+semanticFrameBuilderRan:
+  semanticFrameOutput.semanticFrameBuilderRan ??
+  analysis.semanticFrameBuilderRan ??
+  false,
+
+semanticFrameBuilderVersion:
+  semanticFrameOutput.semanticFrameBuilderVersion ||
+  analysis.semanticFrameBuilderVersion ||
+  null,
+
+semanticFrameSource:
+  semanticFrameOutput.semanticFrameSource ||
+  analysis.semanticFrameSource ||
+  "not-yet-run",
+
+semanticFrame:
+  normalizedSemanticFrame || null,
+
+normalizedSemanticFrame:
+  normalizedSemanticFrame || null,
+
+primarySemanticFrame:
+  semanticFrameOutput.primaryFrame ||
+  analysis.primarySemanticFrame ||
+  null,
+
+semanticFrameComplete,
+
+semanticNeedsPriorFrame,
+
+secondarySemanticFrames:
+  semanticFrameOutput.secondaryFrames ||
+  analysis.secondarySemanticFrames ||
+  [],
+
+allSemanticFrames:
+  semanticFrameOutput.allFrames ||
+  analysis.allSemanticFrames ||
+  [],
+
+semanticSummary,
+
+semanticPrimaryMeaning:
+  semanticSummary.primaryMeaning ||
+  semanticFrameOutput.primaryFrame?.frameType ||
+  null,
+
+semanticIntent:
+  semanticSummary.intent ||
+  semanticFrameOutput.primaryFrame?.intent ||
+  null,
+
+semanticConversationStyle:
+  semanticSummary.conversationStyle ||
+  semanticFrameOutput.primaryFrame?.conversationStyle ||
+  null,
+
+semanticDomain:
+  semanticSummary.domain ||
+  semanticFrameOutput.primaryFrame?.domain ||
+  null,
+
+semanticContinuity,
+
+semanticIsContinuation:
+  semanticContinuity.isContinuation ?? false,
+
+semanticReferencesPriorContext:
+  semanticContinuity.referencesPriorContext ?? false,
+
+semanticReferencesPriorArtifact:
+  semanticContinuity.referencesPriorArtifact ?? false,
+
+semanticResponseCharacteristics,
+
+semanticExpectsDirectAnswer:
+  semanticResponseCharacteristics.expectsDirectAnswer ?? false,
+
+semanticExpectsExplanation:
+  semanticResponseCharacteristics.expectsExplanation ?? false,
+
+semanticExpectsCollaboration:
+  semanticResponseCharacteristics.expectsCollaboration ?? false,
+
+semanticExpectsCodeOrArtifact:
+  semanticResponseCharacteristics.expectsCodeOrArtifact ?? false,
+
+semanticExpectsFollowUpContext:
+  semanticResponseCharacteristics.expectsFollowUpContext ?? false,
+
+semanticLikelyWantsMinimalAnswer:
+  semanticResponseCharacteristics.likelyWantsMinimalAnswer ?? false,
+
+semanticEmotionalOverlay,
+
+semanticEmotionalTone:
+  semanticEmotionalOverlay.tone || null,
+
+semanticEmotionalIntensity:
+  semanticEmotionalOverlay.intensity || null,
+
+semanticAmbiguity,
+
+semanticAmbiguityPresent:
+  semanticAmbiguity.present ?? false,
+
+semanticAmbiguityReason:
+  semanticAmbiguity.reason || null,
+
+// ==================================================
 // NEW CORE CHAIN: ROUTING / LANE SPLITTER / CONTINUITY PACKET
 // ==================================================
 
@@ -506,6 +672,26 @@ laneSplitterConfidence:
 
 laneSplitterScores:
   laneSplit.scores || {},
+
+laneSplitterSemanticAware:
+  analysis.laneSplitterSemanticAware ??
+  laneSplit.semanticAware ??
+  false,
+
+laneSplitterSemanticFirst:
+  laneSplit.semanticFirst ?? false,
+
+laneSplitterLexicalFallbackUsed:
+  laneSplit.lexicalFallbackUsed ?? false,
+
+laneSplitterSemanticFrameType:
+  laneSplit.semanticFrameType || null,
+
+laneSplitterSemanticIntent:
+  laneSplit.semanticIntent || null,
+
+laneSplitterExplanation:
+  laneSplit.explanation || null,
 
 continuityResults,
 
