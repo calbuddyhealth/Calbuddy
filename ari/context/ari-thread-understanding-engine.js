@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Convert user language into active situation context across turns.
-// V5.1.0 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
+// V5.1.1 — Situation Understanding / Decision Structure / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "5.1.0",
+  version: "5.1.1",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -986,6 +986,10 @@ keyFacts: workingContext.keyFacts?.length ? workingContext.keyFacts : currentSit
       (a, b) => Number(b.confidence || 0) - Number(a.confidence || 0)
     )[0];
   },
+
+chooseBestText(...values) {
+  return values.find(v => typeof v === "string" && v.trim()) || null;
+},
 
   uniqueOptions(options = []) {
     const seen = new Set();
