@@ -1,20 +1,16 @@
 // ari/observer-system/ari-observer-routing-evidence.js
 // Ari Observer Routing Evidence
 // Purpose: Convert Observer evidence into routing pressures for the Lane Splitter.
-// V1.1.0 — Lossless / Additive / No Lane Authority / No Composer Authority
+// V1.2.0 — Better follow-up discrimination / new-topic protection / no lane authority
 
 window.Ari = window.Ari || {};
 
 window.Ari.observerRoutingEvidence = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
-    const observer =
-      input.observer ||
-      summary.observer ||
-      summary.observerEvidence ||
-      {};
+    const observer = input.observer || summary.observer || summary.observerEvidence || {};
 
     const rawText =
       observer.rawUserMessage ||
@@ -37,30 +33,29 @@ window.Ari.observerRoutingEvidence = {
       ? summary.recentMessages
       : [];
 
-    const thread = summary.threadUnderstanding || {};
+    const thread = summary.threadUnderstanding || summary.threadState || {};
     const memory = summary.memoryContext || summary.memory || {};
     const relationship = summary.relationshipContext || {};
 
     const messageShape = this.measureMessageShape(text);
     const observerShape = this.measureObserverShape(observations);
     const contextShape = this.measureContextShape(text, recentMessages, thread);
-   const followUpShape = this.measureFollowUpShape(text, recentMessages, summary);
-     const memoryShape = this.measureMemoryShape(summary, memory, observerShape);
+    const topicShape = this.measureTopicShape(text);
+    const followUpShape = this.measureFollowUpShape(text, recentMessages, summary, topicShape);
+    const memoryShape = this.measureMemoryShape(summary, memory, observerShape);
     const revisionShape = this.measureRevisionShape(summary, observerShape);
     const relationshipShape = this.measureRelationshipShape(summary, relationship, observerShape);
+
     const pressures = {
-      standaloneCompleteness: this.scoreStandaloneCompleteness(messageShape, contextShape, observerShape),
-      contextDependency: this.scoreContextDependency(messageShape, contextShape, observerShape),
-      followUpPressure: this.scoreFollowUpPressure(
-  followUpShape,
-  contextShape
-),
+      standaloneCompleteness: this.scoreStandaloneCompleteness(messageShape, contextShape, observerShape, topicShape),
+      contextDependency: this.scoreContextDependency(messageShape, contextShape, observerShape, topicShape),
+      followUpPressure: this.scoreFollowUpPressure(followUpShape, contextShape, topicShape),
       recallPressure: this.scoreRecallPressure(memoryShape, contextShape, observerShape),
       revisionPressure: this.scoreRevisionPressure(revisionShape, contextShape, observerShape),
       relationshipContinuity: this.scoreRelationshipContinuity(relationshipShape, contextShape, observerShape),
-      ambiguityWithoutContext: this.scoreAmbiguityWithoutContext(messageShape, contextShape, observerShape),
+      ambiguityWithoutContext: this.scoreAmbiguityWithoutContext(messageShape, contextShape, topicShape),
       activeThreadMatch: contextShape.activeThreadMatch,
-      directAnswerPressure: this.scoreDirectAnswerPressure(messageShape, contextShape, observerShape)
+      directAnswerPressure: this.scoreDirectAnswerPressure(messageShape, contextShape, observerShape, topicShape)
     };
 
     return {
@@ -69,15 +64,20 @@ window.Ari.observerRoutingEvidence = {
       source: "ari-observer-routing-evidence",
 
       ...pressures,
-
       routingPressures: pressures,
 
-      supportingObservationIds: this.buildSupportingObservationIds(observations),
+      routingGuards: {
+        hasConcreteNewTopic: topicShape.hasConcreteNewTopic,
+        shouldNotForceFollowUp: topicShape.hasConcreteNewTopic && !followUpShape.hasStrongFollowUpSignal,
+        followUpStrength: followUpShape.followUpStrength,
+        followUpReason: followUpShape.reason
+      },
 
       supportingEvidence: {
         messageShape,
         observerShape,
         contextShape,
+        topicShape,
         followUpShape,
         memoryShape,
         revisionShape,
@@ -96,7 +96,7 @@ window.Ari.observerRoutingEvidence = {
     };
   },
 
-  measureMessageShape(text) {
+  measureMessageShape(text = "") {
     const words = text.split(/\s+/).filter(Boolean);
     const wordCount = words.length;
     const length = text.length;
@@ -113,6 +113,29 @@ window.Ari.observerRoutingEvidence = {
       hasEnoughContent: wordCount >= 7 && length >= 35,
       contentDensity: wordCount ? this.clamp01(concreteUnits / wordCount) : 0,
       brevityPressure: wordCount <= 12 ? 1 : wordCount <= 25 ? 0.5 : 0
+    };
+  },
+
+  measureTopicShape(text = "") {
+    const hasWeightTopic =
+      /\b\d+\s?(lbs?|pounds?|kg)\b/.test(text) ||
+      /\b(weight|calories|diet|fat|lose weight|gain weight|cut|bulk|protein|meal|workout|exercise)\b/.test(text);
+
+    const hasBuilderTopic =
+      /\b(code|file|bug|error|github|engine|function|pipeline|javascript)\b/.test(text);
+
+    const hasMedicalTopic =
+      /\b(sunburn|pain|fever|diarrhea|cough|pregnant|symptom|blister|bleeding)\b/.test(text);
+
+    const hasLifeTopic =
+      /\b(job|career|money|school|boss|relationship|father|mother|baby|wife|fiance|girlfriend)\b/.test(text);
+
+    return {
+      hasWeightTopic,
+      hasBuilderTopic,
+      hasMedicalTopic,
+      hasLifeTopic,
+      hasConcreteNewTopic: hasWeightTopic || hasBuilderTopic || hasMedicalTopic || hasLifeTopic
     };
   },
 
@@ -134,62 +157,77 @@ window.Ari.observerRoutingEvidence = {
         hasType("relationship_reference") ||
         hasType("family_reference") ||
         hasDomain("relationship"),
-      hasSafetySignal:
-        hasType("safety_language") ||
-        hasDomain("safety"),
       hasMedicalSignal:
         hasType("body_context") ||
         hasType("body_symptom") ||
         hasDomain("body"),
-      hasCurrentTimeSignal: hasType("current_time"),
-      hasPastTimeSignal: hasType("past_time"),
       hasOwnershipSelf: hasValue("self"),
       hasOwnershipCloseOther: hasValue("close_other"),
       hasBuilderSignal: hasDomain("builder")
     };
   },
 
-  measureContextShape(text, recentMessages, thread) {
+  measureContextShape(text = "", recentMessages = [], thread = {}) {
     const activeThreadAvailable =
       recentMessages.length > 0 ||
       !!thread?.activeTopic ||
-      !!thread?.workingContext;
+      !!thread?.workingContext ||
+      !!thread?.semanticState;
 
     return {
       activeThreadAvailable,
       recentMessageCount: recentMessages.length,
       referenceLoad: this.measureReferenceLoad(text),
       continuationLoad: this.measureContinuationLoad(text),
-      activeThreadMatch: activeThreadAvailable
-        ? this.estimateThreadMatch(text, thread)
-        : 0
+      activeThreadMatch: activeThreadAvailable ? this.estimateThreadMatch(text, thread) : 0
     };
   },
 
-measureFollowUpShape(text = "", recentMessages = [], summary = {}) {
-  const normalized = this.normalize(text);
-  const hasThread = recentMessages.length > 0 || !!summary.threadState;
+  measureFollowUpShape(text = "", recentMessages = [], summary = {}, topicShape = {}) {
+    const normalized = this.normalize(text);
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const hasThread = recentMessages.length > 0 || !!summary.threadState;
 
-  const startsAsFollowUp =
-    /^(why|how|what if|then what|after that|what about|and if|but|so|ok|okay)\b/i.test(normalized);
+    const strongBareFollowUp =
+      /^(why|how|really|then what|what else|what about that|what about this)\??$/.test(normalized);
 
-  const hasReference =
-    this.measureReferenceLoad(normalized) > 0.08;
+    const pronounReference =
+      /\b(it|this|that|they|them|same)\b/.test(normalized);
 
-  const shortQuestion =
-    normalized.endsWith("?") && normalized.split(/\s+/).filter(Boolean).length <= 14;
+    const startsAsFollowUp =
+      /^(why|what if|then what|after that|what about|and if|but|so|ok|okay)\b/.test(normalized);
 
-  return {
-    hasThread,
-    startsAsFollowUp,
-    hasReference,
-    shortQuestion,
-    followUpSignal:
-      hasThread && (startsAsFollowUp || hasReference || shortQuestion)
-        ? 1
-        : 0
-  };
-},
+    const shortQuestion =
+      normalized.endsWith("?") && words.length <= 8;
+
+    const concreteQuestion =
+      topicShape.hasConcreteNewTopic && words.length >= 5;
+
+    const hasStrongFollowUpSignal =
+      strongBareFollowUp ||
+      pronounReference ||
+      (startsAsFollowUp && !concreteQuestion);
+
+    const followUpSignal =
+      hasThread && hasStrongFollowUpSignal ? 1 : 0;
+
+    return {
+      hasThread,
+      strongBareFollowUp,
+      pronounReference,
+      startsAsFollowUp,
+      shortQuestion,
+      concreteQuestion,
+      hasStrongFollowUpSignal,
+      followUpSignal,
+      followUpStrength: followUpSignal ? "strong" : concreteQuestion ? "blocked_by_new_topic" : "weak",
+      reason: followUpSignal
+        ? "Strong follow-up wording with available thread."
+        : concreteQuestion
+          ? "Concrete new topic present; do not force continuity."
+          : "Weak or no follow-up signal."
+    };
+  },
 
   measureMemoryShape(summary, memory, observerShape) {
     return {
@@ -233,7 +271,7 @@ measureFollowUpShape(text = "", recentMessages = [], summary = {}) {
     };
   },
 
-  scoreStandaloneCompleteness(messageShape, contextShape, observerShape) {
+  scoreStandaloneCompleteness(messageShape, contextShape, observerShape, topicShape) {
     let score = 0;
 
     score += messageShape.hasEnoughContent ? 0.30 : 0;
@@ -241,39 +279,45 @@ measureFollowUpShape(text = "", recentMessages = [], summary = {}) {
     score += observerShape.hasQuestion ? 0.15 : 0;
     score += observerShape.hasDirectAnswerExpectation ? 0.15 : 0;
     score += contextShape.referenceLoad < 0.15 ? 0.10 : 0;
+    score += topicShape.hasConcreteNewTopic ? 0.20 : 0;
 
     return this.clamp01(score);
   },
 
-  scoreContextDependency(messageShape, contextShape, observerShape) {
+  scoreContextDependency(messageShape, contextShape, observerShape, topicShape) {
     let score = 0;
 
-    score += contextShape.activeThreadAvailable ? 0.12 : 0;
-    score += contextShape.referenceLoad * 0.30;
-    score += contextShape.continuationLoad * 0.25;
-    score += messageShape.brevityPressure * 0.15;
+    score += contextShape.activeThreadAvailable ? 0.10 : 0;
+    score += contextShape.referenceLoad * 0.35;
+    score += contextShape.continuationLoad * 0.20;
+    score += messageShape.brevityPressure * 0.10;
     score += contextShape.activeThreadMatch * 0.10;
-    score += observerShape.hasPastTimeSignal ? 0.08 : 0;
+
+    if (topicShape.hasConcreteNewTopic) score -= 0.25;
 
     return this.clamp01(score);
   },
-scoreFollowUpPressure(followUpShape = {}, contextShape = {}) {
-  let score = 0;
 
-  score += followUpShape.followUpSignal ? 0.55 : 0;
-  score += followUpShape.startsAsFollowUp ? 0.20 : 0;
-  score += followUpShape.hasReference ? 0.15 : 0;
-  score += followUpShape.shortQuestion ? 0.10 : 0;
-  score += contextShape.activeThreadAvailable ? 0.10 : 0;
+  scoreFollowUpPressure(followUpShape = {}, contextShape = {}, topicShape = {}) {
+    let score = 0;
 
-  return this.clamp01(score);
-},
+    score += followUpShape.followUpSignal ? 0.65 : 0;
+    score += followUpShape.strongBareFollowUp ? 0.20 : 0;
+    score += followUpShape.pronounReference ? 0.15 : 0;
+    score += contextShape.activeThreadAvailable ? 0.10 : 0;
+
+    if (topicShape.hasConcreteNewTopic && !followUpShape.hasStrongFollowUpSignal) {
+      score -= 0.55;
+    }
+
+    return this.clamp01(score);
+  },
+
   scoreRecallPressure(memoryShape, contextShape, observerShape) {
     let score = 0;
 
     score += memoryShape.recallSignal * 0.65;
     score += memoryShape.memoryAvailable ? 0.15 : 0;
-    score += observerShape.hasPastTimeSignal ? 0.10 : 0;
     score += contextShape.referenceLoad * 0.10;
 
     return this.clamp01(score);
@@ -302,64 +346,30 @@ scoreFollowUpPressure(followUpShape = {}, contextShape = {}) {
     return this.clamp01(score);
   },
 
-  scoreAmbiguityWithoutContext(messageShape, contextShape) {
+  scoreAmbiguityWithoutContext(messageShape, contextShape, topicShape) {
     let score = 0;
 
-    score += messageShape.contentDensity < 0.35 ? 0.30 : 0;
-    score += messageShape.brevityPressure * 0.25;
+    score += messageShape.contentDensity < 0.35 ? 0.25 : 0;
+    score += messageShape.brevityPressure * 0.20;
     score += contextShape.referenceLoad * 0.25;
-    score += contextShape.activeThreadAvailable ? 0.20 : 0;
+    score += contextShape.activeThreadAvailable ? 0.15 : 0;
+
+    if (topicShape.hasConcreteNewTopic) score -= 0.35;
 
     return this.clamp01(score);
   },
 
-  scoreDirectAnswerPressure(messageShape, contextShape, observerShape) {
+  scoreDirectAnswerPressure(messageShape, contextShape, observerShape, topicShape) {
     let score = 0;
 
-    score += observerShape.hasDirectAnswerExpectation ? 0.30 : 0;
+    score += observerShape.hasDirectAnswerExpectation ? 0.25 : 0;
+    score += observerShape.hasStepByStepExpectation ? 0.25 : 0;
     score += observerShape.hasQuestion ? 0.20 : 0;
-    score += messageShape.hasEnoughContent ? 0.20 : 0;
-    score += messageShape.contentDensity * 0.20;
-    score += contextShape.referenceLoad < 0.15 ? 0.10 : 0;
+    score += messageShape.hasEnoughContent ? 0.15 : 0;
+    score += messageShape.contentDensity * 0.15;
+    score += topicShape.hasConcreteNewTopic ? 0.20 : 0;
 
     return this.clamp01(score);
-  },
-
-  buildSupportingObservationIds(observations = []) {
-    const idsFor = predicate =>
-      observations
-        .map((observation, index) => ({ observation, index }))
-        .filter(item => predicate(item.observation))
-        .map(item => item.index);
-
-    return {
-      directAnswerPressure: idsFor(o =>
-        o.type === "question_mark_count" ||
-        o.type === "question_phrase" ||
-        o.value === "direct_answer"
-      ),
-
-      contextDependency: idsFor(o =>
-        o.type === "past_time" ||
-        o.type === "current_time" ||
-        o.type === "ownership_reference"
-      ),
-
-      recallPressure: idsFor(o =>
-        o.type === "memory_request_phrase" ||
-        o.type === "past_time"
-      ),
-
-      revisionPressure: idsFor(o =>
-        o.type === "speech_act" && o.value === "feedback"
-      ),
-
-      relationshipContinuity: idsFor(o =>
-        o.type === "relationship_reference" ||
-        o.type === "family_reference" ||
-        o.domain === "relationship"
-      )
-    };
   },
 
   measureReferenceLoad(text) {
@@ -385,16 +395,24 @@ scoreFollowUpPressure(followUpShape = {}, contextShape = {}) {
 
     let score = 0;
 
-    if (words.length <= 12) score += 0.30;
-    if (text.length <= 80) score += 0.20;
+    if (words.length <= 8) score += 0.25;
+    if (text.length <= 60) score += 0.15;
     if (this.measureReferenceLoad(text) > 0.12) score += 0.35;
-    if (text.trim().endsWith("?")) score += 0.15;
+    if (/^(why|what about|then what|what if|really)\b/.test(text)) score += 0.25;
 
     return this.clamp01(score);
   },
 
   estimateThreadMatch(text, thread) {
-    const activeTopic = String(thread?.activeTopic || thread?.workingContext || "");
+    const activeTopic = String(
+      thread?.activeTopic ||
+      thread?.workingContext?.followUpAnchor ||
+      thread?.workingContext?.activeClaim ||
+      thread?.semanticState?.followUpAnchor ||
+      thread?.workingContext ||
+      ""
+    );
+
     if (!activeTopic) return 0;
 
     const messageTokens = this.tokenSet(text);
