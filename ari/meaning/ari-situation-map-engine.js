@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.2.0 — Advisory Situation Mapper Only
+// V8.2.1 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.2.0",
+  version: "8.2.1",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -1103,6 +1103,29 @@ this.mapTextSituationSignals(map);
     }
   },
 
+semanticPrimary(map, frameTypes = []) {
+  const frame = map.semanticSituation?.currentTurnMeaning || {};
+  const handoff = map.semanticSituation?.handoff || {};
+
+  const meaning = frame.frameType || handoff.currentMeaning || "";
+  const intent = frame.intent || handoff.intent || "";
+  const domain = frame.domain || handoff.domain || "";
+
+  return frameTypes.some(type =>
+    meaning === type ||
+    intent === type ||
+    domain === type
+  );
+},
+
+semanticIntentIncludes(map, terms = []) {
+  const frame = map.semanticSituation?.currentTurnMeaning || {};
+  const handoff = map.semanticSituation?.handoff || {};
+  const intent = `${frame.intent || ""} ${handoff.intent || ""}`.toLowerCase();
+
+  return terms.some(term => intent.includes(term));
+},
+
 mapSemanticNeedSignals(map) {
   const frame = map.semanticSituation?.currentTurnMeaning || {};
   const handoff = map.semanticSituation?.handoff || {};
@@ -1178,12 +1201,24 @@ this.mapSemanticNeedSignals(map);
     }
 
     if (
-      map.questions.includes("instruction_question") ||
-      map.domains.includes("builder_domain") ||
-      map.situations.includes("implementation_help_request")
-    ) {
-      this.add(map.needs, "action_or_build_help");
-    }
+  map.questions.includes("instruction_question") ||
+  map.situations.includes("implementation_help_request") ||
+  this.semanticPrimary(map, [
+    "collaborative_software_build",
+    "instruction_or_command",
+    "debugging_or_root_cause"
+  ]) ||
+  this.semanticIntentIncludes(map, [
+    "create",
+    "modify",
+    "implement",
+    "debug",
+    "fix",
+    "request_action_or_output"
+  ])
+) {
+  this.add(map.needs, "action_or_build_help");
+}
 
     if (
       map.questions.includes("knowledge_question") ||
@@ -1377,38 +1412,47 @@ this.mapTextNeedSignals(map);
 addSemanticLaneEvidence(map, addCandidate) {
   const frame = map.semanticSituation?.currentTurnMeaning || {};
   const handoff = map.semanticSituation?.handoff || {};
+
   const meaning = frame.frameType || handoff.currentMeaning || "";
   const intent = frame.intent || handoff.intent || "";
   const domain = frame.domain || handoff.domain || "";
 
-if (
-  meaning === "emotional_disclosure" ||
-  intent === "receive_and_respond_to_emotion" ||
-  domain === "emotion"
-) {
-  addCandidate("emotion", 94, "Semantic frame indicates emotional disclosure.");
-}
-
-  if (meaning === "decision_support" || intent === "evaluate_options") {
-    addCandidate("executive_decision", 86, "Semantic frame indicates decision support.");
+  if (
+    meaning === "emotional_disclosure" ||
+    intent === "receive_and_respond_to_emotion" ||
+    domain === "emotion"
+  ) {
+    addCandidate("emotion", 94, "Semantic frame indicates emotional disclosure.");
   }
 
   if (
+    meaning === "decision_support" ||
+    intent === "evaluate_options" ||
+    intent === "obtain_opinion_or_judgment"
+  ) {
+    addCandidate("executive_decision", 92, "Semantic frame indicates decision or judgment support.");
+  }
+
+  if (
+    meaning === "collaborative_software_build" ||
+    meaning === "instruction_or_command" ||
+    meaning === "debugging_or_root_cause" ||
     intent.includes("implement") ||
     intent.includes("create") ||
     intent.includes("modify") ||
-    intent.includes("manage") ||
-    meaning.includes("instruction")
+    intent.includes("debug") ||
+    intent.includes("fix") ||
+    intent.includes("request_action_or_output")
   ) {
-    addCandidate("builder", 86, "Semantic frame indicates action/build help.");
+    addCandidate("builder", 88, "Semantic frame indicates build, action, or debug help.");
   }
 
   if (
+    meaning === "information_seeking" ||
     intent.includes("understand") ||
-    intent.includes("explain") ||
-    meaning === "information_seeking"
+    intent.includes("explain")
   ) {
-    addCandidate("teacher", 82, "Semantic frame indicates explanation or understanding.");
+    addCandidate("teacher", 84, "Semantic frame indicates explanation or understanding.");
   }
 
   if (
@@ -1416,7 +1460,7 @@ if (
     meaning.includes("medical") ||
     meaning.includes("body")
   ) {
-    addCandidate("medical_context", 84, "Semantic frame indicates health/body context.");
+    addCandidate("medical_context", 70, "Semantic frame indicates health/body context only.");
   }
 },
 
@@ -1452,9 +1496,13 @@ this.addSemanticLaneEvidence(map, addCandidate);
       addCandidate("risk_clarification", 95, "Safety Gate requested risk clarification.");
     }
 
-    if (map.needs.includes("context_sensitive_support")) {
-      addCandidate("medical_context", 82, "Medical/body context is present.");
-    }
+    if (
+  map.needs.includes("context_sensitive_support") &&
+  !map.risks.includes("confirmed_medical_urgency") &&
+  !map.risks.includes("ambiguous_risk")
+) {
+  addCandidate("medical_context", 58, "Medical/body context is present but Safety Gate did not escalate.");
+}
 
     if (map.needs.includes("decision_support")) {
       addCandidate("executive_decision", 80, "Decision support need is present.");
@@ -1527,7 +1575,18 @@ this.addSemanticLaneEvidence(map, addCandidate);
     if (map.risks.includes("confirmed_safety_emergency")) return "safety";
     if (map.risks.includes("confirmed_medical_urgency")) return "body";
     if (map.risks.includes("ambiguous_risk")) return "risk_clarification";
-    if (map.domains.includes("medical_context_domain")) return "body";
+    if (
+  map.domains.includes("medical_context_domain") &&
+  (
+    map.risks.includes("confirmed_medical_urgency") ||
+    map.risks.includes("ambiguous_risk") ||
+    !map.laneEvidence?.some(lane =>
+      ["builder", "executive_decision", "teacher", "emotion"].includes(lane.lane)
+    )
+  )
+) {
+  return "body";
+}
     if (map.domains.includes("emotion_context_domain")) return "emotion";
     if (map.domains.includes("builder_domain")) return "builder";
     if (map.domains.includes("career_work_domain")) return "work";
