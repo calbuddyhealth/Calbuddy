@@ -1,40 +1,26 @@
 // ari/continuity/ari-continuity-packet.js
 // Ari Continuity Packet
-// Purpose: Build the official continuity handoff object for the Situation Map.
-// V1.0.0 — Packet Builder Only / No Route Authority / No Answer Authority / No Priority Authority
+// Purpose: Build official continuity handoff object for Situation Map.
+// V1.1.0 — Preserves active subject from threadState / prevents follow-up subject loss
 
 window.Ari = window.Ari || {};
 
 window.Ari.continuityPacket = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
-
-    const continuityResults =
-      input.continuityResults ||
-      summary.continuityResults ||
-      {};
-
-    const laneSplit =
-      input.laneSplit ||
-      summary.laneSplit ||
-      {};
-
+    const continuityResults = input.continuityResults || summary.continuityResults || {};
+    const laneSplit = input.laneSplit || summary.laneSplit || {};
     const outputs = continuityResults.outputs || {};
 
     const thread = outputs.thread || null;
     const memory = outputs.memory || null;
     const relationship = outputs.relationship || null;
 
-    const currentTurn = this.buildCurrentTurn({
-      summary,
-      continuityResults,
-      laneSplit
-    });
-
-    const activeThread = this.buildActiveThread(thread);
-    const usableFacts = this.buildUsableFacts({ thread, memory, relationship });
+    const currentTurn = this.buildCurrentTurn({ summary, continuityResults, laneSplit });
+    const activeThread = this.buildActiveThread(thread, summary);
+    const usableFacts = this.buildUsableFacts({ summary, thread, memory, relationship, activeThread });
     const unresolvedReferences = this.buildUnresolvedReferences({ thread, memory, relationship });
     const sourceTrace = this.buildSourceTrace({ continuityResults, laneSplit, thread, memory, relationship });
 
@@ -46,13 +32,8 @@ window.Ari.continuityPacket = {
       ran: !!continuityResults.ran,
       reason: continuityResults.reason || null,
 
-      continuityType:
-        continuityResults.lane ||
-        laneSplit.lane ||
-        "unknown",
-
+      continuityType: continuityResults.lane || laneSplit.lane || "unknown",
       currentTurn,
-
       activeThread,
 
       referencedContext: {
@@ -68,7 +49,6 @@ window.Ari.continuityPacket = {
       unresolvedReferenceCount: unresolvedReferences.length,
 
       warnings: continuityResults.warnings || [],
-
       sourceTrace,
 
       confidence: this.estimateConfidence({
@@ -80,9 +60,7 @@ window.Ari.continuityPacket = {
 
       situationMapHandoff: {
         ready: true,
-        shouldUseAsContext:
-          !!continuityResults.ran &&
-          laneSplit.lane !== "direct_current_turn",
+        shouldUseAsContext: !!continuityResults.ran && laneSplit.lane !== "direct_current_turn",
         preferredPlacement: "continuityContext"
       },
 
@@ -108,44 +86,59 @@ window.Ari.continuityPacket = {
 
     return {
       text,
-      lane:
-        continuityResults.currentTurn?.lane ||
-        laneSplit.lane ||
-        null,
+      lane: continuityResults.currentTurn?.lane || laneSplit.lane || null,
       needsPriorContext:
         continuityResults.currentTurn?.needsPriorContext ??
         laneSplit.lane !== "direct_current_turn"
     };
   },
 
-  buildActiveThread(thread) {
-    if (!thread) {
-      return {
-        activeTopic: null,
-        workingContext: null,
-        threadAvailable: false
-      };
-    }
+  buildActiveThread(thread, summary = {}) {
+    const threadState = summary.threadState || {};
+    const workingContext = thread?.workingContext || thread?.reconstructedContext || null;
+
+    const activeSubject =
+      this.extractSubject(thread?.activeSubject) ||
+      this.extractSubject(workingContext?.activeSubject) ||
+      this.extractSubject(threadState.activeSubject) ||
+      this.extractSubject(summary.activeSubject) ||
+      null;
+
+    const activeTopic =
+      activeSubject ||
+      this.extractSubject(thread?.activeTopic) ||
+      this.extractSubject(workingContext?.activeTopic) ||
+      this.extractSubject(thread?.threadTopic) ||
+      this.extractSubject(threadState.currentTopic) ||
+      this.extractSubject(summary.activeTopic) ||
+      null;
 
     return {
-      activeTopic:
-        thread.activeTopic ||
-        thread.workingContext?.activeTopic ||
-        thread.threadTopic ||
-        thread.reconstructedContext?.activeTopic ||
-        null,
-
-      workingContext:
-        thread.workingContext ||
-        thread.reconstructedContext ||
-        null,
-
-      threadAvailable: true
+      activeTopic,
+      activeSubject,
+      workingContext,
+      threadAvailable: Boolean(thread || threadState?.lastMessages?.length || activeSubject || activeTopic)
     };
   },
 
-  buildUsableFacts({ thread, memory, relationship }) {
+  buildUsableFacts({ summary, thread, memory, relationship, activeThread }) {
     const facts = [];
+
+    if (activeThread?.activeSubject) {
+      facts.push({
+        source: "thread",
+        index: 0,
+        fact: {
+          type: "active_subject",
+          claim: `Active subject: ${activeThread.activeSubject}`,
+          value: activeThread.activeSubject,
+          confidence: 0.9,
+          source: "ari-continuity-packet"
+        },
+        confidence: 0.9,
+        usableBySituationMap: true
+      });
+    }
 
     this.addFacts(facts, "thread", this.extractThreadFacts(thread));
     this.addFacts(facts, "memory", this.extractMemoryFacts(memory));
@@ -281,13 +274,38 @@ window.Ari.continuityPacket = {
 
     if (continuityResults.ran) score += 25;
     if (activeThread?.activeTopic) score += 20;
-    if (usableFacts.length > 0) score += 30;
+    if (activeThread?.activeSubject) score += 25;
+    if (usableFacts.length > 0) score += 25;
     if (unresolvedReferences.length === 0) score += 15;
     if ((continuityResults.warnings || []).length === 0) score += 10;
 
     if (score >= 75) return "high";
     if (score >= 45) return "medium";
     return "low";
+  },
+
+  extractSubject(value) {
+    if (!value) return null;
+
+    if (typeof value === "string") {
+      const clean = value.trim();
+      if (!clean || clean === "follow_up_context_available") return null;
+      return clean;
+    }
+
+    if (typeof value === "object") {
+      return (
+        value.surface ||
+        value.name ||
+        value.label ||
+        value.value ||
+        value.claim ||
+        value.evidence ||
+        null
+      );
+    }
+
+    return String(value || "").trim() || null;
   },
 
   arrayFrom(value) {
