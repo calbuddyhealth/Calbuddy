@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
-// Purpose: Convert user language + assembled context into structured conceptual meaning.
-// V1.1.0 — Descriptive Semantics / Continuity Signals / Directness Signals / Advisory Only
+// Purpose: Convert current user language into structured conceptual meaning.
+// V1.2.0 — Current Turn First / Context Second / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -19,49 +19,28 @@ window.AriSemanticFrameBuilder = {
       ""
     );
 
-    const observer = summary.observerEvidence || summary.observer || {};
-    const thread = summary.threadUnderstanding || {};
-    const continuityState = summary.continuityState || summary.conversationContinuity || {};
-    const assembled = summary.assembledContext || summary.contextAssembler || summary || {};
-    const memory = summary.memoryContext || {};
-    const relationship = summary.relationshipProfile || {};
-
     const normalized = this.normalizeText(originalText);
+    const inheritedContext = this.readInheritedContext(summary);
+    const currentTurnFrame = this.buildCurrentTurnFrame(normalized, summary);
+    const continuityFrame = this.buildContinuityFrame(normalized, inheritedContext);
+    const responseCharacteristics = this.buildResponseCharacteristics(
+      normalized,
+      currentTurnFrame,
+      continuityFrame
+    );
+    const emotionalOverlay = this.buildEmotionalOverlay(normalized);
+    const ambiguity = this.buildAmbiguitySignal(
+      normalized,
+      currentTurnFrame,
+      continuityFrame
+    );
 
-    const continuity = this.buildContinuitySignal(normalized, thread, continuityState, assembled);
-    const responseCharacteristics = this.buildResponseCharacteristics(normalized, continuity);
-    const emotionalOverlay = this.buildEmotionalOverlay(normalized, observer);
-    const ambiguity = this.buildAmbiguitySignal(normalized, continuity, thread);
+    const allFrames = this.rankFrames([
+      currentTurnFrame,
+      ...(continuityFrame.isContinuation ? [continuityFrame] : [])
+    ]);
 
-    const frames = [];
-
-    this.detectInformationSeeking(frames, normalized);
-    this.detectCollaborativeBuild(frames, normalized, thread, assembled);
-    this.detectDebugging(frames, normalized);
-    this.detectDecisionSupport(frames, normalized);
-    this.detectMedicalConcern(frames, normalized);
-    this.detectRelationshipMeaning(frames, normalized, relationship);
-    this.detectIdentityRole(frames, normalized, memory);
-    this.detectReflection(frames, normalized);
-    this.detectComparison(frames, normalized);
-    this.detectPlanning(frames, normalized);
-    this.detectStatusCheck(frames, normalized);
-    this.detectInstructionOrCommand(frames, normalized);
-    this.detectImperfectLanguage(frames, normalized);
-
-    if (continuity.isContinuation) {
-      this.pushFrame(frames, {
-        frameType: "continuation",
-        domain: "conversation_flow",
-        intent: "continue_prior_context",
-        conversationStyle: "follow_up",
-        confidence: continuity.confidence,
-        evidence: continuity.evidence
-      });
-    }
-
-    const rankedFrames = this.rankFrames(frames);
-    const primaryFrame = rankedFrames[0] || this.defaultFrame(normalized);
+    const primaryFrame = currentTurnFrame;
 
     return {
       semanticFrameBuilderRan: true,
@@ -77,24 +56,299 @@ window.AriSemanticFrameBuilder = {
       normalizedText: normalized.text,
       normalization: normalized,
 
-      primaryFrame,
-      secondaryFrames: rankedFrames.slice(1, 5),
-      allFrames: rankedFrames,
+      currentTurnFrame,
+      continuityFrame,
+      inheritedContext,
 
-      continuity,
+      primaryFrame,
+      secondaryFrames: allFrames.filter(f => f.frameType !== primaryFrame.frameType).slice(0, 5),
+      allFrames,
+
+      continuity: {
+        isContinuation: continuityFrame.isContinuation,
+        referencesPriorContext: continuityFrame.referencesPriorContext,
+        referencesPriorArtifact: continuityFrame.referencesPriorArtifact,
+        referencesPriorQuestion: continuityFrame.referencesPriorQuestion,
+        confidence: continuityFrame.confidence,
+        evidence: continuityFrame.evidence
+      },
+
       responseCharacteristics,
       emotionalOverlay,
       ambiguity,
 
+      handoff: this.buildHandoff({
+        normalized,
+        primaryFrame,
+        continuityFrame,
+        inheritedContext,
+        responseCharacteristics,
+        ambiguity
+      }),
+
       semanticSummary: this.buildSemanticSummary({
         primaryFrame,
-        frames: rankedFrames,
+        allFrames,
         normalized,
-        continuity,
+        continuityFrame,
         responseCharacteristics,
         emotionalOverlay,
         ambiguity
       })
+    };
+  },
+
+  buildCurrentTurnFrame(n, summary = {}) {
+    const frames = [];
+
+    this.detectMedicalConcern(frames, n);
+    this.detectCollaborativeBuild(frames, n);
+    this.detectDebugging(frames, n);
+    this.detectDecisionSupport(frames, n);
+    this.detectInstructionOrCommand(frames, n);
+    this.detectPlanning(frames, n);
+    this.detectComparison(frames, n);
+    this.detectStatusCheck(frames, n);
+    this.detectReflection(frames, n);
+    this.detectRelationshipMeaning(frames, n);
+    this.detectIdentityRole(frames, n);
+    this.detectInformationSeeking(frames, n);
+    this.detectImperfectLanguage(frames, n);
+
+    const ranked = this.rankFrames(frames);
+    return ranked[0] || this.defaultFrame(n);
+  },
+
+  buildContinuityFrame(n, inherited = {}) {
+    const text = n.text;
+
+    const continuationHits = this.findWordHits(text, [
+      "next",
+      "again",
+      "continue",
+      "same",
+      "previous"
+    ]);
+
+    const phraseHits = this.findPhraseHits(text, [
+      "do that",
+      "send code",
+      "send me the code",
+      "make the update",
+      "update it",
+      "like before",
+      "where were we",
+      "what else",
+      "other advice",
+      "what about him",
+      "what about it"
+    ]);
+
+    const pronounHits = this.findWordHits(text, [
+      "it",
+      "this",
+      "that",
+      "they",
+      "them",
+      "him",
+      "her",
+      "those",
+      "these"
+    ]);
+
+    const hasThread = inherited.threadAvailable;
+    const isContinuation =
+      (hasThread && n.isShortTurn) ||
+      (hasThread && pronounHits.length > 0) ||
+      (hasThread && continuationHits.length > 0) ||
+      (hasThread && phraseHits.length > 0);
+
+    const evidence = [
+      ...continuationHits,
+      ...phraseHits
+    ];
+
+    if (hasThread && pronounHits.length) {
+      evidence.push("reference language with active thread");
+    }
+
+    if (hasThread && isContinuation) {
+      evidence.push("active thread context available");
+    }
+
+    return {
+      frameType: "continuation",
+      domain: "conversation_flow",
+      intent: "continue_prior_context",
+      conversationStyle: "follow_up",
+      isContinuation,
+      referencesPriorContext: isContinuation,
+      referencesPriorArtifact: this.findWordHits(text, [
+        "code",
+        "file",
+        "builder",
+        "engine",
+        "module",
+        "pipeline",
+        "composer",
+        "observer"
+      ]).length > 0,
+      referencesPriorQuestion: this.findPhraseHits(text, [
+        "what i asked",
+        "my question",
+        "what we said",
+        "what you said"
+      ]).length > 0,
+      confidence: isContinuation
+        ? this.cap(65 + evidence.length * 6)
+        : 25,
+      evidence,
+      advisoryOnly: true
+    };
+  },
+
+  readInheritedContext(summary = {}) {
+    const threadState = summary.threadState || {};
+    const recentMessages = summary.recentMessages || threadState.lastMessages || [];
+
+    return {
+      threadAvailable: Boolean(
+        summary.threadStateLoaded ||
+        recentMessages.length ||
+        threadState.currentTopic ||
+        threadState.activeSubject ||
+        threadState.continuitySummary
+      ),
+
+      currentTopic: this.stringifyTopic(
+        summary.activeTopic ||
+        threadState.currentTopic ||
+        null
+      ),
+
+      activeSubject: this.stringifyTopic(
+        summary.resolvedPrimarySubject ||
+        threadState.activeSubject ||
+        null
+      ),
+
+      previousAnswerSummary:
+        threadState.previousAnswerSummary ||
+        threadState.lastFinalResponse ||
+        summary.previousAnswerSummary ||
+        null,
+
+      recentMessages: Array.isArray(recentMessages)
+        ? recentMessages.slice(-6)
+        : [],
+
+      authority: "context_only_not_current_meaning"
+    };
+  },
+
+  buildResponseCharacteristics(n, primaryFrame, continuityFrame) {
+    const text = n.text;
+
+    const directQuestion =
+      n.hasQuestionMark ||
+      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
+
+    const buildLike = [
+      "collaborative_software_build",
+      "debugging_or_root_cause",
+      "instruction_or_command"
+    ].includes(primaryFrame.frameType);
+
+    return {
+      expectsDirectAnswer: directQuestion,
+      expectsExplanation: this.findPhraseHits(text, [
+        "explain",
+        "tell me",
+        "how does",
+        "why does",
+        "what does it mean"
+      ]).length > 0,
+      expectsCollaboration: buildLike,
+      expectsReflection: primaryFrame.frameType === "self_reflection",
+      expectsCodeOrArtifact:
+        this.findWordHits(text, ["code", "file", "script", "module"]).length > 0,
+      expectsFollowUpContext: continuityFrame.isContinuation,
+      likelyWantsMinimalAnswer: n.isShortTurn || continuityFrame.isContinuation,
+      confidence: this.cap(
+        55 +
+        (directQuestion ? 12 : 0) +
+        (buildLike ? 18 : 0) +
+        (continuityFrame.isContinuation ? 10 : 0)
+      )
+    };
+  },
+
+  buildAmbiguitySignal(n, primaryFrame, continuityFrame) {
+    const pronounHits = this.findWordHits(n.text, [
+      "it",
+      "this",
+      "that",
+      "they",
+      "them",
+      "him",
+      "her"
+    ]);
+
+    const present =
+      (n.isVeryShortTurn && !continuityFrame.isContinuation) ||
+      (pronounHits.length > 0 && !continuityFrame.referencesPriorContext);
+
+    return {
+      present,
+      reason: present
+        ? "Current turn lacks enough standalone meaning."
+        : "No major ambiguity detected.",
+      confidence: present ? 72 : 35,
+      evidence: pronounHits
+    };
+  },
+
+  buildHandoff({
+    normalized,
+    primaryFrame,
+    continuityFrame,
+    inheritedContext,
+    responseCharacteristics,
+    ambiguity
+  }) {
+    return {
+      currentQuestion: normalized.original,
+      currentMeaning: primaryFrame.frameType,
+      domain: primaryFrame.domain,
+      intent: primaryFrame.intent,
+
+      requiresPriorContext: continuityFrame.isContinuation,
+      inheritedSubject: continuityFrame.isContinuation
+        ? inheritedContext.activeSubject || inheritedContext.currentTopic
+        : null,
+
+      priorContextAvailable: inheritedContext.threadAvailable,
+      previousAnswerSummary: continuityFrame.isContinuation
+        ? inheritedContext.previousAnswerSummary
+        : null,
+
+      responseMode: responseCharacteristics.expectsCodeOrArtifact
+        ? "code_or_artifact"
+        : responseCharacteristics.expectsCollaboration
+          ? "collaborative_action"
+          : responseCharacteristics.expectsDirectAnswer
+            ? "direct_answer"
+            : "normal_response",
+
+      ambiguityPresent: ambiguity.present,
+
+      authority: {
+        canChooseLane: false,
+        canAnswerUser: false,
+        canOverrideSafety: false,
+        canSetContract: false,
+        role: "semantic_description_handoff_only"
+      }
     };
   },
 
@@ -105,30 +359,14 @@ window.AriSemanticFrameBuilder = {
     const replacements = {
       "wtf": "what the fuck",
       "idk": "i do not know",
-      "imo": "in my opinion",
       "rn": "right now",
       "u": "you",
       "ur": "your",
       "pls": "please",
       "plz": "please",
-      "thx": "thanks",
-      "finna": "about to",
       "gonna": "going to",
       "wanna": "want to",
       "kinda": "kind of",
-      "sorta": "sort of",
-      "bruh": "bro",
-      "no cap": "truth",
-      "cap": "lie",
-      "cooked": "broken or in trouble",
-      "cooking": "making progress",
-      "trippin": "acting wrong",
-      "tripping": "acting wrong",
-      "lowkey": "somewhat",
-      "highkey": "strongly",
-      "fr": "for real",
-      "ngl": "not going to lie",
-      "y": "why",
       "bc": "because",
       "cuz": "because"
     };
@@ -145,8 +383,7 @@ window.AriSemanticFrameBuilder = {
       "pritority": "priority",
       "priorirty": "priority",
       "situational map": "situation map",
-      "langauge": "language",
-      "comunicate": "communicate"
+      "langauge": "language"
     };
 
     const detectedSlang = [];
@@ -192,227 +429,9 @@ window.AriSemanticFrameBuilder = {
     };
   },
 
-  buildContinuitySignal(n, thread, continuityState, assembled) {
-    const text = n.text;
-
-    const continuationHits = this.findHits(text, [
-      "next",
-      "again",
-      "continue",
-      "do that",
-      "send code",
-      "send me the code",
-      "make the update",
-      "huge update",
-      "big update",
-      "same thing",
-      "like before",
-      "where were we",
-      "we talked",
-      "update it",
-      "let's make this happen",
-      "lets make this happen"
-    ]);
-
-    const priorReferenceHits = this.findHits(text, [
-      "this",
-      "that",
-      "it",
-      "they",
-      "them",
-      "the current",
-      "the old",
-      "the new",
-      "the previous",
-      "that one",
-      "this one"
-    ]);
-
-    const activeThread =
-      !!thread?.activeThread ||
-      !!thread?.workingContext ||
-      !!continuityState?.activeThread ||
-      !!assembled?.thread;
-
-    const isContinuation =
-      continuationHits.length > 0 ||
-      (activeThread && n.isShortTurn) ||
-      (activeThread && priorReferenceHits.length > 0);
-
-    const evidence = [];
-
-    if (continuationHits.length) evidence.push(...continuationHits);
-    if (priorReferenceHits.length && activeThread) evidence.push("prior-reference language with active thread");
-    if (activeThread) evidence.push("active thread context present");
-
-    return {
-      isContinuation,
-      referencesPriorContext: isContinuation && activeThread,
-      referencesPriorArtifact: this.findHits(text, [
-        "code",
-        "file",
-        "builder",
-        "engine",
-        "module",
-        "lane splitter",
-        "composer",
-        "observer"
-      ]).length > 0,
-      referencesPriorQuestion: this.findHits(text, [
-        "what i asked",
-        "my question",
-        "what we said",
-        "what you said"
-      ]).length > 0,
-      confidence: isContinuation
-        ? this.cap(68 + continuationHits.length * 8 + (activeThread ? 12 : 0))
-        : 25,
-      evidence
-    };
-  },
-
-  buildResponseCharacteristics(n, continuity) {
-    const text = n.text;
-
-    const directQuestion =
-      n.hasQuestionMark ||
-      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/i.test(text);
-
-    const buildHits = this.findHits(text, [
-      "build",
-      "make",
-      "create",
-      "implement",
-      "send code",
-      "update",
-      "rewrite"
-    ]);
-
-    const explainHits = this.findHits(text, [
-      "explain",
-      "summary",
-      "tell me",
-      "how does",
-      "why does",
-      "what does it mean"
-    ]);
-
-    const reflectionHits = this.findHits(text, [
-      "why do i",
-      "what am i",
-      "who am i",
-      "i feel",
-      "i keep",
-      "what kind of"
-    ]);
-
-    return {
-      expectsDirectAnswer: directQuestion && buildHits.length === 0,
-      expectsExplanation: explainHits.length > 0,
-      expectsCollaboration: buildHits.length > 0 || this.findHits(text, ["let's", "lets"]).length > 0,
-      expectsReflection: reflectionHits.length > 0,
-      expectsCodeOrArtifact: this.findHits(text, ["code", "file", "script", "module"]).length > 0,
-      expectsFollowUpContext: continuity.isContinuation,
-      likelyWantsMinimalAnswer: n.isShortTurn && continuity.isContinuation,
-      confidence: this.cap(
-        55 +
-        (directQuestion ? 12 : 0) +
-        (buildHits.length ? 14 : 0) +
-        (explainHits.length ? 10 : 0) +
-        (continuity.isContinuation ? 10 : 0)
-      )
-    };
-  },
-
-  buildEmotionalOverlay(n, observer) {
-    const text = n.text;
-
-    const frustrationHits = this.findHits(text, [
-      "what the fuck",
-      "annoying",
-      "frustrated",
-      "confused",
-      "give up",
-      "this is bad",
-      "again",
-      "come on",
-      "are you serious"
-    ]);
-
-    const excitementHits = this.findHits(text, [
-      "let's go",
-      "lets go",
-      "hell yes",
-      "huge update",
-      "big update",
-      "make this happen"
-    ]);
-
-    const concernHits = this.findHits(text, [
-      "worried",
-      "scared",
-      "concerned",
-      "pain",
-      "symptom",
-      "emergency"
-    ]);
-
-    let tone = "neutral";
-    let intensity = "low";
-    const evidence = [];
-
-    if (frustrationHits.length || n.hasProfanity) {
-      tone = "frustrated";
-      intensity = n.hasProfanity ? "high" : "medium";
-      evidence.push(...frustrationHits, n.hasProfanity ? "profanity emphasis" : null);
-    } else if (excitementHits.length || n.hasExclamation) {
-      tone = "excited";
-      intensity = n.hasExclamation ? "high" : "medium";
-      evidence.push(...excitementHits, n.hasExclamation ? "exclamation emphasis" : null);
-    } else if (concernHits.length) {
-      tone = "concerned";
-      intensity = "medium";
-      evidence.push(...concernHits);
-    }
-
-    return {
-      tone,
-      intensity,
-      semanticMeaningSeparated: true,
-      evidence: evidence.filter(Boolean)
-    };
-  },
-
-  buildAmbiguitySignal(n, continuity, thread) {
-    const pronounHits = this.findHits(n.text, [
-      "it",
-      "this",
-      "that",
-      "they",
-      "them",
-      "that one",
-      "this one"
-    ]);
-
-    const present =
-      n.isVeryShortTurn && !continuity.isContinuation ||
-      (pronounHits.length > 0 && !continuity.referencesPriorContext);
-
-    return {
-      present,
-      reason: present
-        ? "Short or pronoun-heavy message may require prior context."
-        : "No major ambiguity detected.",
-      confidence: present ? 70 : 35,
-      evidence: pronounHits
-    };
-  },
-
   detectInformationSeeking(frames, n) {
-    const text = n.text;
-
     const startsQuestion =
-      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/i.test(text);
+      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(n.text);
 
     if (!n.hasQuestionMark && !startsQuestion) return;
 
@@ -427,7 +446,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectCollaborativeBuild(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "ari",
       "rebirth",
       "semantic frame builder",
@@ -463,12 +482,11 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectDebugging(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "broken",
       "not working",
       "does not work",
       "doesn't work",
-      "can't",
       "cannot",
       "issue",
       "problem",
@@ -478,7 +496,8 @@ window.AriSemanticFrameBuilder = {
       "why does",
       "wrong",
       "failing",
-      "regression"
+      "regression",
+      "bottleneck"
     ]);
 
     if (!hits.length) return;
@@ -494,7 +513,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectDecisionSupport(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "should i",
       "which one",
       "what should",
@@ -504,7 +523,9 @@ window.AriSemanticFrameBuilder = {
       "decide",
       "option",
       "recommend",
-      "worth it"
+      "worth it",
+      "critique",
+      "score"
     ]);
 
     if (!hits.length) return;
@@ -520,7 +541,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectMedicalConcern(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findWordHits(n.text, [
       "pain",
       "bleeding",
       "pregnant",
@@ -531,23 +552,18 @@ window.AriSemanticFrameBuilder = {
       "labs",
       "symptom",
       "doctor",
-      "er",
-      "emergency",
-      "fever",
-      "chest pain",
-      "shortness of breath"
+      "fever"
     ]);
 
-    if (!hits.length) return;
-
-    const urgentHits = this.findHits(n.text, [
+    const urgentHits = this.findPhraseHits(n.text, [
       "chest pain",
       "shortness of breath",
       "emergency",
-      "er",
       "can't swallow",
       "cannot swallow"
     ]);
+
+    if (!hits.length && !urgentHits.length) return;
 
     this.pushFrame(frames, {
       frameType: "medical_or_body_concern",
@@ -556,12 +572,12 @@ window.AriSemanticFrameBuilder = {
       conversationStyle: "safety_sensitive_information",
       urgency: urgentHits.length ? "possible_urgent" : "routine_or_unknown",
       confidence: urgentHits.length ? 94 : this.scoreFromHits(84, hits, 3),
-      evidence: hits
+      evidence: [...hits, ...urgentHits]
     });
   },
 
   detectRelationshipMeaning(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findWordHits(n.text, [
       "father",
       "dad",
       "mom",
@@ -591,7 +607,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectIdentityRole(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "who am i",
       "identity",
       "nurse",
@@ -618,7 +634,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectReflection(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "why do i",
       "why am i",
       "i feel",
@@ -641,7 +657,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectComparison(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "compare",
       "versus",
       "vs",
@@ -663,7 +679,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectPlanning(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "roadmap",
       "plan",
       "next step",
@@ -687,7 +703,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectStatusCheck(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "where are we",
       "status",
       "what's next",
@@ -710,7 +726,7 @@ window.AriSemanticFrameBuilder = {
   },
 
   detectInstructionOrCommand(frames, n) {
-    const hits = this.findHits(n.text, [
+    const hits = this.findPhraseHits(n.text, [
       "send code",
       "send me",
       "make",
@@ -750,6 +766,80 @@ window.AriSemanticFrameBuilder = {
     });
   },
 
+  buildEmotionalOverlay(n) {
+    const frustrationHits = this.findPhraseHits(n.text, [
+      "what the fuck",
+      "annoying",
+      "frustrated",
+      "confused",
+      "give up",
+      "this is bad",
+      "come on",
+      "are you serious"
+    ]);
+
+    let tone = "neutral";
+    let intensity = "low";
+    const evidence = [];
+
+    if (frustrationHits.length || n.hasProfanity) {
+      tone = "frustrated";
+      intensity = n.hasProfanity ? "high" : "medium";
+      evidence.push(...frustrationHits);
+      if (n.hasProfanity) evidence.push("profanity emphasis");
+    }
+
+    return {
+      tone,
+      intensity,
+      semanticMeaningSeparated: true,
+      evidence
+    };
+  },
+
+  buildSemanticSummary({
+    primaryFrame,
+    allFrames,
+    normalized,
+    continuityFrame,
+    responseCharacteristics,
+    emotionalOverlay,
+    ambiguity
+  }) {
+    return {
+      primaryMeaning: primaryFrame.frameType,
+      domain: primaryFrame.domain,
+      intent: primaryFrame.intent,
+      conversationStyle: primaryFrame.conversationStyle,
+      confidence:
+        primaryFrame.confidence >= 85 ? "high" :
+        primaryFrame.confidence >= 65 ? "medium" :
+        "low",
+
+      continuity: {
+        isContinuation: continuityFrame.isContinuation,
+        referencesPriorContext: continuityFrame.referencesPriorContext,
+        referencesPriorArtifact: continuityFrame.referencesPriorArtifact,
+        confidence: continuityFrame.confidence
+      },
+
+      responseCharacteristics,
+      emotionalOverlay,
+      ambiguity,
+      competingMeanings: allFrames
+        .filter(f => f.frameType !== primaryFrame.frameType)
+        .slice(0, 4)
+        .map(f => f.frameType),
+
+      languageNotes: {
+        slangResolved: normalized.detectedSlang.length > 0,
+        typosResolved: normalized.detectedTypos.length > 0,
+        profanityAsSignal: normalized.hasProfanity,
+        shortTurn: normalized.isShortTurn
+      }
+    };
+  },
+
   pushFrame(frames, frame) {
     frames.push({
       ...frame,
@@ -758,10 +848,10 @@ window.AriSemanticFrameBuilder = {
     });
   },
 
-  rankFrames(frames) {
+  rankFrames(frames = []) {
     const merged = {};
 
-    frames.forEach(frame => {
+    frames.filter(Boolean).forEach(frame => {
       const key = frame.frameType;
 
       if (!merged[key]) {
@@ -781,48 +871,6 @@ window.AriSemanticFrameBuilder = {
     return Object.values(merged).sort((a, b) => b.confidence - a.confidence);
   },
 
-  buildSemanticSummary({
-    primaryFrame,
-    frames,
-    normalized,
-    continuity,
-    responseCharacteristics,
-    emotionalOverlay,
-    ambiguity
-  }) {
-    return {
-      primaryMeaning: primaryFrame.frameType,
-      domain: primaryFrame.domain,
-      intent: primaryFrame.intent,
-      conversationStyle: primaryFrame.conversationStyle,
-
-      confidence:
-        primaryFrame.confidence >= 85 ? "high" :
-        primaryFrame.confidence >= 65 ? "medium" :
-        "low",
-
-      continuity: {
-        isContinuation: continuity.isContinuation,
-        referencesPriorContext: continuity.referencesPriorContext,
-        referencesPriorArtifact: continuity.referencesPriorArtifact,
-        confidence: continuity.confidence
-      },
-
-      responseCharacteristics,
-      emotionalOverlay,
-      ambiguity,
-
-      competingMeanings: frames.slice(1, 4).map(f => f.frameType),
-
-      languageNotes: {
-        slangResolved: normalized.detectedSlang.length > 0,
-        typosResolved: normalized.detectedTypos.length > 0,
-        profanityAsSignal: normalized.hasProfanity,
-        shortTurn: normalized.isShortTurn
-      }
-    };
-  },
-
   defaultFrame(n) {
     return {
       frameType: "general_conversation",
@@ -835,13 +883,35 @@ window.AriSemanticFrameBuilder = {
     };
   },
 
-  findHits(text, patterns) {
+  findPhraseHits(text, patterns = []) {
     const lower = String(text || "").toLowerCase();
     return patterns.filter(pattern => lower.includes(pattern.toLowerCase()));
   },
 
+  findWordHits(text, words = []) {
+    const lower = String(text || "").toLowerCase();
+    return words.filter(word => {
+      const pattern = new RegExp(`\\b${this.escapeRegExp(word)}\\b`, "i");
+      return pattern.test(lower);
+    });
+  },
+
   scoreFromHits(base, hits, perHit = 4) {
     return this.cap(base + Math.min(hits.length * perHit, 20));
+  },
+
+  stringifyTopic(topic) {
+    if (!topic) return null;
+    if (typeof topic === "string") return topic;
+
+    return (
+      topic.surface ||
+      topic.label ||
+      topic.value ||
+      topic.claim ||
+      topic.evidence ||
+      null
+    );
   },
 
   clean(value) {
@@ -856,3 +926,8 @@ window.AriSemanticFrameBuilder = {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 };
+
+console.log(
+  "ARI SEMANTIC FRAME BUILDER LOADED:",
+  window.AriSemanticFrameBuilder?.version
+);
