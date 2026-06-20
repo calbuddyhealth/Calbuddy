@@ -1,11 +1,11 @@
 // ari/context/ari-thread-question-generator.js
 // Purpose: Resolve true follow-up questions using prior conversation meaning.
-// V1.4.0 — Semantic Frame Follow-Up Resolver / Lexical Fallback Only
+// V1.5.0 — Recent Message Fallback + Weak Topic Recovery
 
 window.Ari = window.Ari || {};
 
 window.Ari.threadQuestionGenerator = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   generate(input = {}) {
     const summary = input.summary || input || {};
@@ -31,7 +31,7 @@ window.Ari.threadQuestionGenerator = {
       ? "none"
       : this.detectRequestedOperationFallback(text);
 
-    const operation = semanticOperation || fallbackOperation;
+    let operation = semanticOperation || fallbackOperation;
 
     const standalone = this.detectStandaloneTurn({
       text,
@@ -39,23 +39,27 @@ window.Ari.threadQuestionGenerator = {
       operation
     });
 
+    const fragment = this.detectFragment(text);
+
     const needsContext = this.needsContext({
       summary,
       packet,
       semantic,
       operation,
-      standalone
+      standalone,
+      fragment
     });
 
-    if (!needsContext || standalone.isStandalone || operation === "none") {
+    if (!needsContext || standalone.isStandalone) {
       return this.noResolution(
         raw,
         standalone.reason || "Current turn does not safely require prior context.",
-        {
-          semantic,
-          operation
-        }
+        { semantic, operation }
       );
+    }
+
+    if (operation === "none" && fragment.isFragment) {
+      operation = "reference_resolution";
     }
 
     const inherited = this.findBestInheritedTopic({
@@ -76,7 +80,8 @@ window.Ari.threadQuestionGenerator = {
       text,
       operation,
       anchor: inherited.text,
-      semantic
+      semantic,
+      fragment
     });
 
     return {
@@ -102,11 +107,11 @@ window.Ari.threadQuestionGenerator = {
 
       resolutionType: "follow_up_question_resolved_from_prior_context",
       confidence: inherited.confidence,
-      reason: "Follow-up was resolved using prior conversation meaning and semantic frame signals.",
+      reason: "Follow-up was resolved using prior topic, recent messages, and semantic frame signals.",
 
       threadQuestionResolutionType: "follow_up_question_resolved_from_prior_context",
       threadQuestionConfidence: inherited.confidence,
-      threadQuestionReason: "Follow-up was resolved using prior conversation meaning and semantic frame signals.",
+      threadQuestionReason: "Follow-up was resolved using prior topic, recent messages, and semantic frame signals.",
 
       resolvedCurrentTurn: {
         rawText: raw,
@@ -133,12 +138,15 @@ window.Ari.threadQuestionGenerator = {
     const semanticFrameOutput =
       summary.semanticFrameOutput ||
       summary.semanticFrame ||
+      summary.activeSemanticFrame ||
       {};
 
     const primaryFrame =
       summary.primarySemanticFrame ||
       semanticFrameOutput.primaryFrame ||
-      summary.activeSemanticFrame ||
+      semanticFrameOutput.currentTurnFrame ||
+      summary.activeSemanticFrame?.primaryFrame ||
+      summary.activeSemanticFrame?.currentTurnFrame ||
       {};
 
     const semanticSummary =
@@ -267,6 +275,12 @@ window.Ari.threadQuestionGenerator = {
       return { isStandalone: true, reason: "Empty text." };
     }
 
+    const fragment = this.detectFragment(text);
+
+    if (fragment.isFragment) {
+      return { isStandalone: false, reason: "Current turn is a fragment needing context." };
+    }
+
     if (
       semantic.available &&
       semantic.expectsDirectAnswer &&
@@ -294,7 +308,7 @@ window.Ari.threadQuestionGenerator = {
     }
 
     if (!semantic.available) {
-      if (this.hasNewConcreteTopicFallback(text)) {
+      if (this.hasNewConcreteTopicFallback(text) && !fragment.isFragment) {
         return { isStandalone: true, reason: "Current turn contains a new concrete topic." };
       }
 
@@ -306,8 +320,9 @@ window.Ari.threadQuestionGenerator = {
     return { isStandalone: false, reason: null };
   },
 
-  needsContext({ summary = {}, packet = {}, semantic = {}, operation = "none", standalone = {} } = {}) {
+  needsContext({ summary = {}, packet = {}, semantic = {}, operation = "none", standalone = {}, fragment = {} } = {}) {
     if (standalone.isStandalone) return false;
+    if (fragment.isFragment) return true;
 
     if (semantic.available) {
       return Boolean(
@@ -327,9 +342,17 @@ window.Ari.threadQuestionGenerator = {
     );
   },
 
-  composeResolvedQuestion({ text = "", operation = "none", anchor = "", semantic = {} }) {
+  composeResolvedQuestion({ text = "", operation = "none", anchor = "", semantic = {}, fragment = {} }) {
     const clean = this.clean(text);
     const topic = this.trimEndingPunctuation(anchor);
+
+    const fragmentQuestion = this.composeFragmentQuestion({
+      text: clean,
+      anchor: topic,
+      fragment
+    });
+
+    if (fragmentQuestion) return fragmentQuestion;
 
     switch (operation) {
       case "continue_code_or_artifact":
@@ -367,6 +390,43 @@ window.Ari.threadQuestionGenerator = {
     }
   },
 
+  composeFragmentQuestion({ text = "", anchor = "", fragment = {} } = {}) {
+    const cleanedFragment = this.cleanFragment(text);
+    const topic = this.extractTopicFromAnchor(anchor);
+
+    if (!cleanedFragment || !topic) return null;
+
+    if (/\beconomic causes?\b/.test(cleanedFragment)) {
+      return `Explain the economic causes of ${topic}.`;
+    }
+
+    if (/\bpolitical causes?\b/.test(cleanedFragment)) {
+      return `Explain the political causes of ${topic}.`;
+    }
+
+    if (/\bsocial causes?\b/.test(cleanedFragment)) {
+      return `Explain the social causes of ${topic}.`;
+    }
+
+    if (/\bmain causes?\b/.test(cleanedFragment)) {
+      return `Explain the main causes of ${topic}.`;
+    }
+
+    if (/\bcause\b|\bcauses\b/.test(cleanedFragment)) {
+      return `Explain the causes of ${topic}.`;
+    }
+
+    if (/^why\b|how come|what caused|what causes/.test(cleanedFragment)) {
+      return `${this.ensureQuestionMark(cleanedFragment)} In the context of ${topic}.`;
+    }
+
+    if (cleanedFragment.length <= 80) {
+      return `Explain ${cleanedFragment} in the context of ${topic}.`;
+    }
+
+    return null;
+  },
+
   findBestInheritedTopic({ summary = {}, packet = {}, thread = {}, currentText = "" }) {
     const candidates = [];
 
@@ -389,56 +449,138 @@ window.Ari.threadQuestionGenerator = {
     add(summary.priorMeaningForFollowUp?.userText, "prior_meaning_user_text", 0.98);
     add(summary.priorMeaningForFollowUp?.activeIssue, "prior_meaning_active_issue", 0.94);
     add(summary.priorMeaningForFollowUp?.activeSubject, "prior_meaning_active_subject", 0.9);
-    add(summary.priorMeaningForFollowUp?.situationFamily, "prior_meaning_situation_family", 0.84);
 
     add(summary.latestConversationMeaning?.resolvedUserQuestion, "latest_meaning_resolved_question", 0.96);
     add(summary.latestConversationMeaning?.userText, "latest_meaning_user_text", 0.94);
     add(summary.latestConversationMeaning?.activeIssue, "latest_meaning_active_issue", 0.9);
     add(summary.latestConversationMeaning?.activeSubject, "latest_meaning_active_subject", 0.88);
 
-    add(summary.activeSemanticFrame?.intent, "active_semantic_frame_intent", 0.68);
-    add(summary.activeSemanticFrame?.frameType, "active_semantic_frame_type", 0.62);
+    add(thread.semanticState?.activeQuestion, "thread_semantic_active_question", 0.9);
+    add(thread.activeQuestion, "thread_active_question", 0.88);
+    add(thread.semanticState?.followUpAnchor, "thread_semantic_follow_up_anchor", 0.78);
+    add(thread.followUpAnchor, "thread_follow_up_anchor", 0.76);
+    add(thread.semanticState?.activeClaim, "thread_semantic_active_claim", 0.72);
+    add(thread.activeClaim, "thread_active_claim", 0.7);
 
-    add(thread.semanticState?.followUpAnchor, "thread_semantic_follow_up_anchor", 0.93);
-    add(thread.semanticState?.activeClaim, "thread_semantic_active_claim", 0.9);
-    add(thread.semanticState?.activeQuestion, "thread_semantic_active_question", 0.88);
-    add(thread.followUpAnchor, "thread_follow_up_anchor", 0.86);
-    add(thread.activeClaim, "thread_active_claim", 0.84);
-    add(thread.activeQuestion, "thread_active_question", 0.82);
+    const recentMessages = this.collectRecentMessages({ summary, packet, thread });
 
-    add(summary.conversationMeaningFocus, "conversation_meaning_focus", 0.86);
+    recentMessages
+      .filter(msg => this.clean(msg) !== this.clean(currentText))
+      .slice(-8)
+      .forEach((msg, index) => {
+        add(msg, `recent_message_${index}`, 0.86 + index * 0.01);
+      });
 
-    (summary.conversationMeaningOpenLoops || []).forEach((loop, index) => {
-      add(loop, `conversation_meaning_open_loop_${index}`, 0.8);
-    });
+    const previousAnswerSummary =
+      summary.threadState?.previousAnswerSummary ||
+      summary.previousAnswerSummary ||
+      thread.previousAnswerSummary ||
+      thread.semanticState?.semanticFrame?.inheritedContext?.previousAnswerSummary ||
+      thread.semanticFrame?.inheritedContext?.previousAnswerSummary ||
+      packet.activeThread?.semanticFrame?.inheritedContext?.previousAnswerSummary ||
+      "";
+
+    add(previousAnswerSummary, "previous_answer_summary", 0.74);
 
     (packet.usableFacts || []).forEach(fact => {
       add(
         fact.claim || fact.value || fact.label || fact.evidence || fact,
         "continuity_usable_fact",
-        0.78
+        0.62
       );
     });
 
-    const previousMessages =
-      summary.threadState?.lastMessages ||
-      summary.recentMessages ||
-      thread.lastMessages ||
-      [];
-
-    previousMessages
-      .slice(-6)
-      .filter(msg => this.clean(msg) !== this.clean(currentText))
-      .forEach((msg, index) => {
-        add(msg, `previous_message_${index}`, 0.72);
-      });
-
-    add(summary.workingContext, "working_context", 0.62);
-    add(summary.threadState?.continuitySummary, "continuity_summary", 0.58);
-    add(summary.threadState?.previousAnswerSummary, "previous_answer_summary", 0.55);
+    add(summary.workingContext, "working_context", 0.58);
+    add(summary.threadState?.continuitySummary, "continuity_summary", 0.56);
 
     candidates.sort((a, b) => b.score - a.score);
     return candidates[0] || null;
+  },
+
+  collectRecentMessages({ summary = {}, packet = {}, thread = {} } = {}) {
+    const possible = [
+      summary.threadState?.lastMessages,
+      summary.recentMessages,
+      summary.lastMessages,
+      thread.lastMessages,
+      thread.recentMessages,
+      thread.semanticState?.semanticFrame?.inheritedContext?.recentMessages,
+      thread.semanticFrame?.inheritedContext?.recentMessages,
+      packet.activeThread?.semanticFrame?.inheritedContext?.recentMessages,
+      packet.activeThread?.workingContext?.semanticFrame?.inheritedContext?.recentMessages,
+      packet.activeThread?.workingContext?.semanticState?.semanticFrame?.inheritedContext?.recentMessages
+    ];
+
+    const messages = [];
+
+    possible.forEach(list => {
+      if (!Array.isArray(list)) return;
+      list.forEach(item => {
+        const text = this.extractText(item);
+        if (text) messages.push(text);
+      });
+    });
+
+    return [...new Set(messages.map(m => String(m).trim()).filter(Boolean))];
+  },
+
+  detectFragment(text = "") {
+    const clean = this.clean(text);
+    const words = clean.split(/\s+/).filter(Boolean);
+
+    const correction =
+      /\b(i mean|i meant|i ment|meant|rather|instead|not that|no,? i mean)\b/.test(clean);
+
+    const shortClarifier =
+      words.length <= 7 &&
+      (
+        /\b(cause|causes|reason|reasons|economic|political|social|second|first|third|other one|same one)\b/.test(clean) ||
+        /^(why|how|what about|and|also|then|more|explain more)\b/.test(clean)
+      );
+
+    const hasReference = this.hasReferenceWordFallback(clean);
+
+    return {
+      isFragment: correction || shortClarifier || hasReference,
+      correction,
+      shortClarifier,
+      hasReference,
+      wordCount: words.length
+    };
+  },
+
+  cleanFragment(text = "") {
+    return this.clean(text)
+      .replace(/\bi ment\b/g, "i meant")
+      .replace(/^no,?\s*/g, "")
+      .replace(/^i mean,?\s*/g, "")
+      .replace(/^i meant,?\s*/g, "")
+      .replace(/^meant,?\s*/g, "")
+      .replace(/^rather,?\s*/g, "")
+      .replace(/^instead,?\s*/g, "")
+      .replace(/^the\s+/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
+
+  extractTopicFromAnchor(anchor = "") {
+    let topic = this.clean(anchor);
+
+    topic = topic
+      .replace(/[?.!]+$/g, "")
+      .replace(/^(explain|teach me about|tell me about|what is|what are|why is|why are|how does|how do)\s+/i, "")
+      .replace(/^the user's current situation:\s*/i, "")
+      .replace(/^current topic:\s*/i, "")
+      .replace(/^current situation:\s*/i, "")
+      .trim();
+
+    if (!topic) return "";
+
+    if (!/^the\b/.test(topic) && /\bcivil war\b/.test(topic)) {
+      return "the Civil War";
+    }
+
+    return topic;
   },
 
   detectRequestedOperationFallback(text = "") {
@@ -495,6 +637,14 @@ window.Ari.threadQuestionGenerator = {
     if (cleanTopic.includes("[object object]")) return true;
 
     const badExact = [
+      "the user",
+      "user",
+      "self",
+      "me",
+      "i",
+      "my",
+      "explain",
+      "general",
       "general understanding",
       "general_understanding",
       "follow up context available",
@@ -511,6 +661,9 @@ window.Ari.threadQuestionGenerator = {
     ];
 
     if (badExact.includes(cleanTopic)) return true;
+
+    if (/^the user's current situation\b/.test(cleanTopic)) return true;
+    if (/^active subject:\s*(the user|user|self)\b/.test(cleanTopic)) return true;
 
     if (this.detectRequestedOperationFallback(cleanTopic) !== "none" && cleanTopic.split(/\s+/).length <= 8) {
       return true;
