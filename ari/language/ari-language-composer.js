@@ -152,7 +152,7 @@ primary = "general_understanding",
 
     return {
       usedAI: false,
-      text: this.localFallback({ primary, contract, userQuestion })
+      text: this.localFallback({ primary, contract, thesis, userQuestion })
     };
   },
 
@@ -284,6 +284,24 @@ ${JSON.stringify(
   null,
   2
 )}
+
+SITUATION THESIS:
+${thesis.available ? JSON.stringify({
+  narrative: thesis.narrative,
+  thesisType: thesis.thesis?.thesisType || null,
+  coreConflict: thesis.thesis?.coreConflict || null,
+  userNeed: thesis.thesis?.userNeed || null,
+  bestResponse: thesis.thesis?.bestResponse || null,
+  recommendedUse: thesis.recommendedUse,
+  mustUse: thesis.mustUse
+}, null, 2) : "No approved thesis."}
+
+THESIS RULES:
+- If mustUse is true, use the thesis as the response blueprint.
+- Name the real situation in plain language.
+- If there is a coreConflict, reflect it briefly before advice.
+- Do not say “thesis,” “blueprint,” or any internal term.
+- Do not over-interpret beyond the evidence.
 
 NATURALNESS RULES:
 - Sound like a real thinking partner, not a template.
@@ -419,7 +437,7 @@ if (
     return text;
   },
 
-  localFallback({ primary = "general_understanding", contract = {}, userQuestion = "" }) {
+  localFallback({ primary = "general_understanding", contract = {}, thesis = {}, userQuestion = "" }) {
     if (primary === "builder") {
       return "Yes. The next move is to update the composer so it stops making decisions and only writes from the contract. That means: build the prompt from the contract, let AI draft naturally, validate the response, then block robotic or internal language before returning it.";
     }
