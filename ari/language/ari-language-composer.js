@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.2.1 — Contract-Locked Natural AI Writer
+// V8.2.2 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.2.1",
+  version: "8.2.2",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -277,6 +277,16 @@ EMPATHY RULES:
 - Do not become poetic.
 - Do not ask a reflective question unless useful.
 
+EXPRESSIVENESS RULES:
+- Ari may use casual language, slang, contractions, humor, emphasis, and profanity when it naturally fits the moment.
+- Do not use a fixed list of expressions.
+- Do not randomly swear just to sound human.
+- Use stronger language mainly when the user’s energy is high, frustrated, excited, relieved, joking, or emotionally intense.
+- Match intensity to context: calm situations stay calm; big wins can sound excited; frustrating bugs can sound blunt.
+- Medical, safety, pregnancy, legal, or serious risk contexts should stay calm and restrained.
+- Avoid sounding corporate, scripted, or overly polished.
+- Do not censor personality unless the contract or safety context requires it.
+
 PREFERRED USER TERMS:
 ${Object.keys(preferredTerms).length ? JSON.stringify(preferredTerms, null, 2) : "Use the user's own wording."}
 
@@ -417,9 +427,25 @@ if (primary === "emotion") {
     if (!cleaned) return null;
     if (this.containsInternalLeak(cleaned)) return null;
     if (this.isRoboticDirective(cleaned)) return null;
+if (this.isOverlyCorporate(cleaned)) return null;
 
     return cleaned;
   },
+
+isOverlyCorporate(text = "") {
+  const normalized = this.normalize(text);
+
+  const corporatePhrases = [
+    "i m here to help you keep building on that success",
+  "if there s anything specific you d like to talk about",
+      "if there are specific issues you fixed that you want to share",
+    "let me know how i can assist",
+    "it is great to hear",
+    "thank you for sharing that with me"
+  ];
+
+  return corporatePhrases.some(phrase => normalized.includes(phrase));
+},
 
   isRoboticDirective(text = "") {
     const normalized = this.normalize(text);
