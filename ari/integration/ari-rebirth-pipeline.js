@@ -88,6 +88,28 @@ window.AriRebirthPipeline = {
       observationCount: observerResult.observationCount || 0
     };
 
+// 0.23 Conversation Function Engine
+const conversationFunctionResult = await runEngine(
+  window.AriConversationFunctionEngine,
+  ["analyze"],
+  {
+    conversationFunctionRan: false,
+    conversationFunctionSource: "not-loaded",
+    primaryFunction: "unknown",
+    supportFunctions: [],
+    blockedFunctions: [],
+    candidates: [],
+    responseBias: null,
+    confidence: null
+  }
+);
+
+summary = {
+  ...summary,
+  conversationFunction: conversationFunctionResult,
+  ...conversationFunctionResult
+};
+
     // 0.25 Universal Conversation Classifier
     const conversationResult = await runEngine(
       window.AriUniversalConversationClassifier,
@@ -1143,7 +1165,8 @@ priorMeaningForFollowUp:
     console.log("===== ARI REBIRTH PIPELINE =====", this.version);
     console.log("===== SAFETY CONTEXT GATE =====", summary.safetyContextGate);
     console.log("===== OBSERVER EVIDENCE =====", summary.observerEvidence);
-    console.log("===== CONVERSATION MEANING HISTORY =====", summary.conversationMeaningHistoryState);
+   console.log("===== CONVERSATION FUNCTION =====", summary.conversationFunction);
+     console.log("===== CONVERSATION MEANING HISTORY =====", summary.conversationMeaningHistoryState);
     console.log("===== CLASSIFIER =====", summary.universalConversationClassification);
     console.log("===== ROUTING EVIDENCE =====", summary.routingEvidence);
     console.log("===== SEMANTIC FRAME BUILDER =====", summary.semanticFrameOutput);
