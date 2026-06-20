@@ -715,7 +715,9 @@ mapSemanticDomainToSituationDomain(map, domain) {
     self_concept: "identity_context_domain",
     inner_life: "emotion_context_domain",
     execution: "builder_domain",
-    analysis: "knowledge_domain"
+    analysis: "knowledge_domain",
+    emotion: "emotion_context_domain",
+conversation_flow: "conversation_flow_domain"
   };
 
   const mapped = domainMap[domain];
@@ -1108,6 +1110,16 @@ mapSemanticNeedSignals(map) {
   const meaning = frame.frameType || handoff.currentMeaning || "";
   const intent = frame.intent || handoff.intent || "";
 
+if (
+  meaning === "emotional_disclosure" ||
+  intent === "receive_and_respond_to_emotion" ||
+  domain === "emotion"
+) {
+  this.add(map.situations, "emotional_disclosure_present");
+  this.add(map.needs, "emotional_attunement");
+  this.add(map.responseRequirements, "emotional_presence_first");
+}
+
   if (meaning === "decision_support" || intent === "evaluate_options") {
     this.add(map.needs, "decision_support");
   }
@@ -1369,6 +1381,14 @@ addSemanticLaneEvidence(map, addCandidate) {
   const intent = frame.intent || handoff.intent || "";
   const domain = frame.domain || handoff.domain || "";
 
+if (
+  meaning === "emotional_disclosure" ||
+  intent === "receive_and_respond_to_emotion" ||
+  domain === "emotion"
+) {
+  addCandidate("emotion", 94, "Semantic frame indicates emotional disclosure.");
+}
+
   if (meaning === "decision_support" || intent === "evaluate_options") {
     addCandidate("executive_decision", 86, "Semantic frame indicates decision support.");
   }
@@ -1508,11 +1528,12 @@ this.addSemanticLaneEvidence(map, addCandidate);
     if (map.risks.includes("confirmed_medical_urgency")) return "body";
     if (map.risks.includes("ambiguous_risk")) return "risk_clarification";
     if (map.domains.includes("medical_context_domain")) return "body";
+    if (map.domains.includes("emotion_context_domain")) return "emotion";
     if (map.domains.includes("builder_domain")) return "builder";
     if (map.domains.includes("career_work_domain")) return "work";
     if (map.domains.includes("relationship_context_domain")) return "relationship";
     if (map.domains.includes("family_context_domain")) return "family";
-    if (map.domains.includes("emotion_context_domain")) return "emotion";
+  
     if (map.domains.includes("knowledge_domain")) return "knowledge";
     return "general";
   },
