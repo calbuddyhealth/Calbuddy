@@ -66,7 +66,8 @@ window.AriOpenAIKnowledgeClient = {
         openAIKnowledgeUsed: true,
 
         openAIKnowledgeClientVersion: this.version,
-
+openAIKnowledgeSource:
+  "api/knowledge",
         knowledgeProvider: "openai",
 
         knowledgeSource:
@@ -488,29 +489,29 @@ Do not output phrases like:
   // -----------------------------
   determineConversationMode(summary = {}) {
 
-    if (
-      summary.currentTurnWasResolved ||
-      summary.usedThreadContext
-    ) {
-      return "follow_up";
-    }
+  if (
+    summary.topicTransition === true ||
+    summary.detectedTopicShift === true
+  ) {
+    return "topic_shift";
+  }
 
-    if (
-      summary.threadQuestion?.isClarification ||
-      summary.isClarificationQuestion
-    ) {
-      return "clarification";
-    }
+  if (
+    summary.threadQuestion?.isClarification ||
+    summary.isClarificationQuestion
+  ) {
+    return "clarification";
+  }
 
-    if (
-      summary.topicTransition === true ||
-      summary.detectedTopicShift === true
-    ) {
-      return "topic_shift";
-    }
+  if (
+    summary.currentTurnWasResolved ||
+    summary.usedThreadContext
+  ) {
+    return "follow_up";
+  }
 
-    return "new_question";
-  },
+  return "new_question";
+},
 
   // -----------------------------
   // Helper: create compact snapshot
