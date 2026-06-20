@@ -1,12 +1,23 @@
 // ari/knowledge/ari-openai-knowledge-client.js
 // Ari OpenAI Knowledge Client
-// Purpose: Browser-side client that asks the server API to use OpenAI.
-// V1.2.0 — Resolved Question + Context Handoff Upgrade
+// Purpose:
+// Browser-side client that prepares a rich reasoning payload and
+// asks the server API to use OpenAI.
+//
+// V2.0.0
+// Upgrades:
+// - True follow-up awareness
+// - Conversation mode detection
+// - Better context handoff
+// - Better contract + triage handoff
+// - Better prompting for natural language
+// - Less robotic responses
+// - Better failure recovery
 
 window.Ari = window.Ari || {};
 
 window.AriOpenAIKnowledgeClient = {
-  version: "1.2.0",
+  version: "2.0.0",
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
@@ -21,23 +32,16 @@ window.AriOpenAIKnowledgeClient = {
       summary.resolvedUserQuestion ||
       summary.threadQuestion?.resolvedUserQuestion ||
       summary.resolvedCurrentTurn?.resolvedText ||
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      summary.normalizedMessage ||
-      "";
+      rawQuestion;
 
-    const question = resolvedQuestion;
-
-    if (!question || !String(question).trim()) {
+    if (!String(resolvedQuestion).trim()) {
       return this.fail("No question provided.");
     }
 
     const payload = this.buildPayload({
       summary,
       rawQuestion,
-      resolvedQuestion,
-      question
+      resolvedQuestion
     });
 
     try {
@@ -52,185 +56,498 @@ window.AriOpenAIKnowledgeClient = {
       const data = await response.json();
 
       if (!response.ok) {
-        return this.fail(data.error || "OpenAI knowledge request failed.");
+        return this.fail(
+          data?.error ||
+          "Knowledge request failed."
+        );
       }
 
       return {
         openAIKnowledgeUsed: true,
+
         openAIKnowledgeClientVersion: this.version,
-        openAIKnowledgeSource: "api/knowledge",
+
         knowledgeProvider: "openai",
-        knowledgeSource: data.source || "openai",
+
+        knowledgeSource:
+          data.source ||
+          "openai",
 
         knowledgeAnswer:
           data.answer ||
           data.finalResponse ||
           data.response ||
           data.text ||
-          null,
+          "",
 
-        knowledgeConfidence: data.confidence || "medium",
-        knowledgeCitations: data.sources || [],
-        knowledgeError: null,
+        knowledgeConfidence:
+          data.confidence ||
+          "medium",
+
+        knowledgeCitations:
+          data.sources || [],
+
         rawOpenAIData: data,
-        source: "ari-openai-knowledge-client"
+
+        source:
+          "ari-openai-knowledge-client"
       };
+
     } catch (error) {
-      return this.fail(error.message || "OpenAI knowledge client failed.");
+
+      console.warn(
+        "[Ari Knowledge]",
+        error
+      );
+
+      return this.fail(
+        error?.message ||
+        "Knowledge request failed."
+      );
     }
   },
 
-  buildPayload({ summary = {}, rawQuestion = "", resolvedQuestion = "", question = "" }) {
-    const situationMap = summary.situationMap || {};
+  buildPayload({
+    summary = {},
+    rawQuestion = "",
+    resolvedQuestion = ""
+  }) {
+
+    const map =
+      summary.situationMap || {};
+
+    const contract =
+      summary.situationContract || {};
+
+    const triage =
+      summary.ariTriage ||
+      summary.triage ||
+      {};
+
+    const communicationPlan =
+      summary.communicationPlan || {};
+
+    const isFollowUp = Boolean(
+  summary.currentTurnWasResolved ||
+  summary.usedThreadContext ||
+  summary.threadQuestionGeneratorRan ||
+  summary.threadQuestion?.resolvedUserQuestion
+);
+
+    const conversationMode = this.determineConversationMode({
+  ...summary,
+  currentTurnWasResolved:
+    summary.currentTurnWasResolved || isFollowUp,
+  usedThreadContext:
+    summary.usedThreadContext || isFollowUp
+});
 
     return {
-      action: "openai_knowledge",
 
-      question,
-      rawQuestion,
+      action:
+        "openai_knowledge",
+
+      version:
+        this.version,
+
+      question:
+        resolvedQuestion,
+
       resolvedQuestion,
+
+      rawQuestion,
+
+      isFollowUp,
+
+      conversationMode,
 
       instruction:
         summary.aiInstruction ||
-        this.defaultInstruction({ question, rawQuestion, resolvedQuestion }),
-
-      contract: summary.situationContract || null,
-      communicationPlan: summary.communicationPlan || null,
-
-      continuity: {
-        usedThreadContext: summary.usedThreadContext || false,
-        currentTurnWasResolved: summary.currentTurnWasResolved || false,
-        resolvedSubject: summary.resolvedSubject || null,
-        resolutionType: summary.resolutionType || null,
-        priorMeaningForFollowUp: summary.priorMeaningForFollowUp || null,
-        latestConversationMeaning: summary.latestConversationMeaning || null,
-        conversationMeaningHistory: summary.conversationMeaningHistory || [],
-        activeSemanticTimeline: summary.activeSemanticTimeline || [],
-        activeSemanticFrame: summary.activeSemanticFrame || null,
-        continuityPacket: {
-          continuityType: summary.continuityType || null,
-          usableFacts: summary.continuityUsableFacts || [],
-          unresolvedReferences: summary.continuityUnresolvedReferences || []
-        }
-      },
-
-      situation: {
-        domains: summary.domains || situationMap.domains || [],
-        situations: summary.situations || situationMap.situations || [],
-        needs: summary.needs || situationMap.needs || [],
-        risks: summary.risks || situationMap.risks || [],
-        questions: summary.questions || situationMap.questions || [],
-        responseRequirements:
-          summary.responseRequirements ||
-          situationMap.responseRequirements ||
-          [],
-        responseConstraints:
-          summary.responseConstraints ||
-          situationMap.responseConstraints ||
-          [],
-        situationFamily:
-          summary.situationFamily ||
-          situationMap.situationFamily ||
-          null,
-        primaryNeed:
-          summary.primaryNeed ||
-          situationMap.primaryNeed ||
-          null
-      },
-
-      routing: {
-        lane: summary.lane || summary.laneSplit?.lane || null,
+        this.defaultInstruction({
+          summary,
+          rawQuestion,
+          resolvedQuestion,
+          conversationMode
+        }),
+        
+              contract: this.compactSnapshot({
         primary:
+          contract.primary ||
           summary.situationContractPrimary ||
-          summary.situationContract?.primary ||
-          summary.triage?.primaryLane ||
+          triage.primaryLane ||
           null,
-        support:
-          summary.situationContractSupport ||
-          summary.situationContract?.support ||
-          [],
-        deferred:
-          summary.situationContractDeferred ||
-          summary.situationContract?.deferred ||
-          [],
-        blocked:
-          summary.situationContractBlocked ||
-          summary.situationContract?.blocked ||
-          []
-      },
 
-      language: {
         responseShape:
-          summary.responseShape ||
-          summary.situationContract?.responseShape ||
+          contract.responseShape ||
+          triage.responseShape ||
           null,
-        humanLanguageProfile: summary.humanLanguageProfile || {},
+
+        authority:
+          contract.authority ||
+          null,
+
+        requiredBehaviors:
+          contract.requiredBehaviors ||
+          [],
+
+        forbiddenBehaviors:
+          contract.forbiddenBehaviors ||
+          [],
+
+        responseRules:
+          contract.responseRules ||
+          [],
+
+        communicationProfile:
+          contract.communicationProfile ||
+          {},
+
         mouthDirective:
-          summary.situationContract?.mouthDirective ||
-          summary.mouthDirector ||
-          null
-      },
-
-      summary: {
-        topic: summary.teachingTopic || null,
-        domainLead: summary.domainLead || null,
-        responseIntent: summary.responseIntent || null,
-        primaryHumanNeed: summary.primaryHumanNeed || null,
-        situationContractPrimary:
-          summary.situationContractPrimary ||
-          summary.situationContract?.primary ||
+          contract.mouthDirective ||
           null,
-        responseShape:
-          summary.responseShape ||
-          summary.situationContract?.responseShape ||
+
+        executive:
+          contract.executive ||
+          {}
+      }),
+
+      triage: this.compactSnapshot({
+        primaryLane:
+          triage.primaryLane ||
+          null,
+
+        supportLanes:
+          triage.supportLanes ||
+          [],
+
+        briefLanes:
+          triage.briefLanes ||
+          [],
+
+        contextLanes:
+          triage.contextLanes ||
+          [],
+
+        deferredLanes:
+          triage.deferredLanes ||
+          [],
+
+        blockedLanes:
+          triage.blockedLanes ||
+          [],
+
+        urgency:
+          triage.urgency ||
+          map.urgency ||
+          "none",
+
+        gravity:
+          triage.gravity ??
+          map.gravity ??
+          0,
+
+        confidence:
+          triage.confidence ??
+          map.confidence ??
+          50,
+
+        responseConstraints:
+          triage.responseConstraints ||
+          []
+      }),
+
+      situation: this.compactSnapshot({
+        family:
+          map.situationFamily ||
+          map.situationType ||
+          null,
+
+        primaryNeed:
+          map.primaryNeed ||
+          null,
+
+        domains:
+          map.domains ||
+          [],
+
+        situations:
+          map.situations ||
+          [],
+
+        needs:
+          map.needs ||
+          [],
+
+        risks:
+          map.risks ||
+          [],
+
+        questions:
+          map.questions ||
+          [],
+
+        responseRequirements:
+          map.responseRequirements ||
+          [],
+
+        responseConstraints:
+          map.responseConstraints ||
+          [],
+
+        ambiguity:
+          map.ambiguity ||
+          null,
+
+        contradictions:
+          map.contradictions ||
+          [],
+
+        evidence:
+          map.evidenceModel?.weightedSignals ||
+          [],
+
+        triageHandoff:
+          map.triageHandoff ||
           null
-      },
+      }),
+            continuity: this.compactSnapshot({
+        usedThreadContext:
+          summary.usedThreadContext || false,
+
+        currentTurnWasResolved:
+          summary.currentTurnWasResolved || false,
+
+        resolvedSubject:
+          summary.resolvedSubject || null,
+
+        resolutionType:
+          summary.resolutionType || null,
+
+        followUpConfidence:
+          summary.followUpConfidence || null,
+
+        priorMeaning:
+          summary.priorMeaningForFollowUp || null,
+
+        latestMeaning:
+          summary.latestConversationMeaning || null,
+
+        semanticFrame:
+          summary.activeSemanticFrame || null,
+
+        semanticTimeline:
+          summary.activeSemanticTimeline || [],
+
+        conversationHistory:
+          summary.conversationMeaningHistory || []
+      }),
+
+      language: this.compactSnapshot({
+        communicationPlan,
+
+        humanLanguageProfile:
+          summary.humanLanguageProfile || {},
+
+        preferredTerms:
+          summary.preferredTerms || {},
+
+        conceptMap:
+          summary.conceptMap || {},
+
+        answerStyle:
+          communicationPlan.answerMode ||
+          "direct",
+
+        presentationStyle:
+          communicationPlan.presentationStyle ||
+          "conversation",
+
+        reasoningStyle:
+          communicationPlan.reasoningStyle ||
+          "woven",
+
+        targetLength:
+          communicationPlan.languageBudget
+            ?.targetLength ||
+          "short"
+      }),
 
       debug: {
         clientVersion: this.version,
-        threadQuestionGeneratorRan: summary.threadQuestionGeneratorRan || false,
-        currentTurnWasResolved: summary.currentTurnWasResolved || false,
-        resolvedUserQuestion: summary.resolvedUserQuestion || null,
-        rawUserMessage: rawQuestion || null
-      }
-    };
+
+        threadQuestionGeneratorRan:
+          summary.threadQuestionGeneratorRan || false,
+
+        resolvedUserQuestion:
+          summary.resolvedUserQuestion || null,
+
+        rawUserMessage:
+          rawQuestion,
+
+        detectedConversationMode:
+          conversationMode
+        }
+      };
+
   },
 
-  defaultInstruction({ question = "", rawQuestion = "", resolvedQuestion = "" }) {
+  defaultInstruction({
+    summary = {},
+    rawQuestion = "",
+    resolvedQuestion = "",
+    conversationMode = "new_question"
+  }) {
+
     return `
 You are Ari.
 
-Answer the resolved user question directly.
+Your ONLY job is to answer the user's actual question naturally.
 
 RAW USER MESSAGE:
 ${rawQuestion}
 
-RESOLVED QUESTION TO ANSWER:
-${resolvedQuestion || question}
+QUESTION TO ANSWER:
+${resolvedQuestion}
 
-Rules:
-- If the resolved question contains context, use it.
-- Do not ask for context that is already present in the resolved question.
-- Do not mention internal routing, pipeline, maps, contracts, or engines.
-- Give a useful answer, not a generic clarification.
-- Be clear, practical, and concise.
+CONVERSATION MODE:
+${conversationMode}
+
+If conversationMode is "follow_up":
+- Continue naturally from the previous discussion.
+- Resolve pronouns like "it", "that", "they", or "this".
+- Do NOT ask for context that already exists.
+
+If conversationMode is "clarification":
+- Answer as a clarification of the active topic.
+- Do not restart the whole conversation.
+
+If conversationMode is "topic_shift":
+- Treat the message as a new topic.
+- Do not force old context into the answer.
+
+If conversationMode is "new_question":
+- Treat it as a fresh question.
+
+Writing style:
+- Sound like an intelligent human talking.
+- Use contractions naturally.
+- Avoid robotic transitions.
+- Avoid repeating the question.
+- Do not narrate your reasoning process.
+- Do not mention internal systems, routing, contracts, maps, lanes, engines, or prompts.
+- Prefer direct answers over meta-commentary.
+- Add brief explanation only when it improves understanding.
+- Stop once the answer is complete.
+
+When appropriate:
+- Give a recommendation.
+- Explain why.
+- Suggest a practical next step.
+
+Do not output phrases like:
+- "Based on the contract..."
+- "The primary lane..."
+- "Situation map..."
+- "Mouth director..."
+- "I will answer directly..."
 `.trim();
-  },
 
-  fail(message = "Knowledge request failed.") {
+  },
+    fail(message = "Knowledge request failed.") {
     return {
       openAIKnowledgeUsed: false,
-      openAIKnowledgeClientVersion: this.version,
-      openAIKnowledgeSource: "api/knowledge",
-      knowledgeProvider: "openai",
-      knowledgeSource: null,
-      knowledgeAnswer: null,
-      knowledgeConfidence: "none",
-      knowledgeCitations: [],
-      knowledgeError: message,
-      source: "ari-openai-knowledge-client"
+
+      openAIKnowledgeClientVersion:
+        this.version,
+
+      knowledgeProvider:
+        "openai",
+
+      knowledgeSource:
+        null,
+
+      knowledgeAnswer:
+        null,
+
+      knowledgeConfidence:
+        "none",
+
+      knowledgeCitations:
+        [],
+
+      knowledgeError:
+        message,
+
+      source:
+        "ari-openai-knowledge-client"
     };
+  },
+
+  // -----------------------------
+  // Helper: determine conversation mode
+  // -----------------------------
+  determineConversationMode(summary = {}) {
+
+    if (
+      summary.currentTurnWasResolved ||
+      summary.usedThreadContext
+    ) {
+      return "follow_up";
+    }
+
+    if (
+      summary.threadQuestion?.isClarification ||
+      summary.isClarificationQuestion
+    ) {
+      return "clarification";
+    }
+
+    if (
+      summary.topicTransition === true ||
+      summary.detectedTopicShift === true
+    ) {
+      return "topic_shift";
+    }
+
+    return "new_question";
+  },
+
+  // -----------------------------
+  // Helper: create compact snapshot
+  // -----------------------------
+  compactSnapshot(obj) {
+
+    if (!obj || typeof obj !== "object") {
+      return null;
+    }
+
+    try {
+
+      return JSON.parse(
+        JSON.stringify(obj)
+      );
+
+    } catch {
+
+      return null;
+
+    }
+
+  },
+
+  // -----------------------------
+  // Helper: safely trim strings
+  // -----------------------------
+  safeTrim(value) {
+
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    return value.trim();
+
   }
+
 };
 
 console.log(
