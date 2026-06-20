@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.2.1 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.2.2 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.2.1",
+  version: "3.2.2",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -160,13 +160,14 @@ window.AriSituationContract = {
       ""
     ).toLowerCase();
 
-    if (
-      map.threadQuestionUsed ||
-      map.canonical?.priorContextUsed ||
-      map.canonical?.requiresContext ||
-      map.situations?.includes("follow_up_context_available") ||
-      thread.resolvedMeaning?.isContextual
-    ) {
+    const confirmedPriorContext =
+  map.threadQuestionUsed === true ||
+  map.canonical?.priorContextUsed === true ||
+  thread.resolvedMeaning?.isContextual === true ||
+  thread.shouldUseAsContext === true ||
+  Object.keys(thread.workingContext || {}).length > 0;
+
+if (confirmedPriorContext)  {
       contract.conversationMode = {
         mode: "follow_up",
         isFollowUp: true,
@@ -302,27 +303,31 @@ window.AriSituationContract = {
   },
 
   applySafetyPriority(contract, safety = {}, map = {}, triage = {}) {
-  if (safety.override === "emergency") {
-    contract.primary =
-      safety.primaryRisk?.type === "medical" ||
-      safety.primaryRisk?.type === "poisoning_overdose"
-        ? "medical_body"
-        : "safety";
+  const primaryRisk = safety.primaryRisk || map.primaryRisk || null;
 
+  const isMedicalRisk =
+    primaryRisk?.type === "medical" ||
+    primaryRisk?.type === "poisoning_overdose";
+
+  if (safety.override === "emergency") {
+    contract.primary = isMedicalRisk ? "medical_body" : "safety";
     contract.authority = "absolute";
-    contract.reasons.push("Safety Gate confirmed emergency.");
+    contract.reasons.push(
+      isMedicalRisk
+        ? "Safety Gate confirmed emergency medical/body risk."
+        : "Safety Gate confirmed emergency safety risk."
+    );
     return;
   }
 
   if (safety.override === "urgent") {
-    contract.primary =
-      safety.primaryRisk?.type === "medical" ||
-      safety.primaryRisk?.type === "poisoning_overdose"
-        ? "medical_body"
-        : "safety";
-
+    contract.primary = isMedicalRisk ? "medical_body" : "safety";
     contract.authority = "absolute";
-    contract.reasons.push("Safety Gate confirmed urgent risk.");
+    contract.reasons.push(
+      isMedicalRisk
+        ? "Safety Gate confirmed urgent medical/body risk."
+        : "Safety Gate confirmed urgent safety risk."
+    );
     return;
   }
 
@@ -335,7 +340,7 @@ window.AriSituationContract = {
       question:
         safety.followUpQuestion ||
         map.recommendedQuestion ||
-        "Are you safe right now?",
+        "Is anyone in immediate danger right now?",
       placement: "only"
     };
     contract.reasons.push("Safety Gate requested risk clarification.");
