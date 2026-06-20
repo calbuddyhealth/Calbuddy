@@ -1074,6 +1074,47 @@ if (pendingGithubEdit && CalBuddy.isYes(message)) {
   }
   CalBuddy.setAriMood("thinking");
   const userContext = await CalBuddy.getUserContext();
+  
+/* -----------------------------
+
+ARI REBIRTH LOCAL BRIDGE
+
+----------------------------- */
+
+if (window.AriRebirthAppBridge) {
+
+  const rebirth = await window.AriRebirthAppBridge.ask(message, {
+
+    userContext,
+
+    history
+
+  });
+
+  await CalBuddy.logUsage({ message, usage_type: "chat" });
+
+  const mood = rebirth.emotion || "happy";
+
+  CalBuddy.setAriMood(mood);
+
+  return {
+
+    reply: rebirth.reply,
+
+    emotion: mood,
+
+    pendingAction: null,
+
+    memoryCandidate: null,
+
+    developerIntent: null,
+
+    rebirthSummary: rebirth.summary
+
+  };
+
+}
+  
   const response = await CalBuddy.api("/api/ask-calbuddy", {
     message,
     userContext,
