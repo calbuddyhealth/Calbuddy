@@ -40,10 +40,13 @@ window.AriOpenAIKnowledgeClient = {
     }
 
     const payload = this.buildPayload({
-      summary,
-      rawQuestion,
-      resolvedQuestion
-    });
+  summary,
+  rawQuestion,
+  resolvedQuestion
+});
+
+// DEBUG: Inspect exactly what Ari is sending to the API
+console.log("[Ari Knowledge Payload]", payload);
 
     try {
       const response = await fetch("/api/knowledge", {
