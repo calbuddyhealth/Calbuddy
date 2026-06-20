@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.0.2 — Advisory Situation Mapper Only
+// V8.1.0 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.0.2",
+  version: "8.1.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -71,6 +71,15 @@ const text = this.normalize(resolvedText);
         conversationCandidates: summary.conversationCandidates || []
       };
 
+const rawSemanticFrame =
+  summary.semanticFrame ||
+  summary.activeSemanticFrame ||
+  summary.currentSemanticFrame ||
+  summary.semanticFrameOutput ||
+  summary.normalizedSemanticFrame ||
+  summary.primarySemanticFrame ||
+  null;
+
     const map = this.createEmptyMap({
   text,
   rawUserText,
@@ -79,11 +88,13 @@ const text = this.normalize(resolvedText);
   safetyGate,
   thread,
   entity,
-  conversation
+  conversation,
+  rawSemanticFrame
 });
 
     this.collectUpstreamSignals(map);
-    this.detectQuestions(map);
+   this.readSemanticSituation(map);
+     this.detectQuestions(map);
     this.detectDomains(map);
     this.detectSituations(map);
     this.detectRisks(map);
@@ -99,93 +110,131 @@ this.syncLegacyCompatibility(map);
     return map;
   },
 
-  createEmptyMap({ text, rawUserText, resolvedText, observations, safetyGate, thread, entity, conversation }) {
-    return {
-      situationMapRan: true,
-      situationMapVersion: this.version,
-      source: "ari-situation-map-engine",
 
-      text,
-rawText: text,
-rawUserText,
-resolvedText,
-normalizedResolvedText: text,
-threadQuestionUsed: Boolean(resolvedText !== rawUserText),
-threadQuestion: {
-  used: Boolean(resolvedText !== rawUserText),
-  rawUserText,
-  resolvedText
-},
+  createEmptyMap({ text, rawUserText, resolvedText, observations, safetyGate, thread, entity, conversation, rawSemanticFrame }) {
+  return {
+    situationMapRan: true,
+    situationMapVersion: this.version,
+    source: "ari-situation-map-engine",
 
-      observationsUsed: observations,
-      safetyGateUsed: safetyGate,
-      threadUnderstandingUsed: thread,
-      entityReferenceUsed: entity,
-      conversationClassificationUsed: conversation,
+    text,
+    rawText: text,
+    rawUserText,
+    resolvedText,
+    normalizedResolvedText: text,
 
-      upstreamSignals: {
-        domainSignals: [],
-        intentSignals: [],
-        issueSignals: [],
-        subjectSignals: [],
-        objectSignals: [],
-        goalSignals: [],
-        constraintSignals: [],
-        attemptSignals: []
-      },
+    threadQuestionUsed: Boolean(resolvedText !== rawUserText),
+    threadQuestion: {
+      used: Boolean(resolvedText !== rawUserText),
+      rawUserText,
+      resolvedText
+    },
 
-      questions: [],
-      domains: [],
-      situations: [],
-      needs: [],
-      risks: [],
+    observationsUsed: observations,
+    safetyGateUsed: safetyGate,
+    threadUnderstandingUsed: thread,
+    entityReferenceUsed: entity,
+    conversationClassificationUsed: conversation,
+rawSemanticFrame,
 
-      responseRequirements: [],
-      responseConstraints: [],
+    canonical: {
+      actor: null,
+      subject: null,
+      object: null,
 
-      competingSituations: [],
+      domain: null,
+      subdomain: null,
 
-      laneCandidates: [],
-      laneEvidence: [],
-      supportLaneHints: [],
-      blockedLaneHints: [],
+      issue: null,
+      issueType: null,
 
-      gravity: 0,
-      urgency: "none",
-      complexity: "simple",
-      horizon: "present_or_unspecified",
+      goal: null,
+      desiredOutcome: null,
 
-      eventState: safetyGate.riskLevel === "context" ? "context" : "unknown",
-      riskLevel: safetyGate.riskLevel || "none",
-      riskType: safetyGate.riskType || "none",
-      override: safetyGate.override || null,
+      constraints: [],
+      attempts: [],
 
-      situationType: null,
-      situationFamily: null,
-      primaryNeed: null,
+      urgency: "unknown",
+      severity: "unknown",
+      timeframe: "present_or_unspecified",
+      uncertainty: "unknown",
+
+      requiresContext: false,
+      priorContextUsed: false
+    },
+
+    semanticSituation: {
+      available: false,
+      source: null,
       confidence: 0,
+      currentTurnMeaning: null,
+      inheritedContext: null,
+      handoff: null
+    },
 
-      shouldUseMultiLaneResponse: false,
-      shouldAskClarifyingQuestion: false,
-      recommendedQuestion: null,
+    upstreamSignals: {
+      domainSignals: [],
+      intentSignals: [],
+      issueSignals: [],
+      subjectSignals: [],
+      objectSignals: [],
+      goalSignals: [],
+      constraintSignals: [],
+      attemptSignals: []
+    },
 
-      reasons: [],
+    questions: [],
+    domains: [],
+    situations: [],
+    needs: [],
+    risks: [],
 
-      authority: "advisory_situation_mapping_only",
+    responseRequirements: [],
+    responseConstraints: [],
 
-      cannotSet: [
-        "primaryLane",
-        "primaryLaneSuggestion",
-        "triagePrimaryLane",
-        "situationContractPrimary",
-        "riskLevelOverride",
-        "finalResponse",
-        "responseText",
-        "medicalEscalation",
-        "mouthPattern"
-      ]
-    };
-  },
+    competingSituations: [],
+
+    laneCandidates: [],
+    laneEvidence: [],
+    supportLaneHints: [],
+    blockedLaneHints: [],
+
+    gravity: 0,
+    urgency: "none",
+    complexity: "simple",
+    horizon: "present_or_unspecified",
+
+    eventState: safetyGate.riskLevel === "context" ? "context" : "unknown",
+    riskLevel: safetyGate.riskLevel || "none",
+    riskType: safetyGate.riskType || "none",
+    override: safetyGate.override || null,
+
+    situationType: null,
+    situationFamily: null,
+    primaryNeed: null,
+    confidence: 0,
+
+    shouldUseMultiLaneResponse: false,
+    shouldAskClarifyingQuestion: false,
+    recommendedQuestion: null,
+
+    reasons: [],
+
+    authority: "advisory_situation_mapping_only",
+
+    cannotSet: [
+      "primaryLane",
+      "primaryLaneSuggestion",
+      "triagePrimaryLane",
+      "situationContractPrimary",
+      "riskLevelOverride",
+      "finalResponse",
+      "responseText",
+      "medicalEscalation",
+      "mouthPattern"
+    ]
+  };
+},
 
   collectUpstreamSignals(map) {
     const thread = map.threadUnderstandingUsed || {};
@@ -267,6 +316,116 @@ threadQuestion: {
       });
     }
   },
+
+mapSemanticDomainToSituationDomain(map, domain) {
+  const domainMap = {
+    health: "medical_context_domain",
+    animal_health: "animal_health_context_domain",
+    general_understanding: "knowledge_domain",
+    choice_or_priority: "decision_context_domain",
+    task_execution: "builder_domain",
+    ari_architecture: "builder_domain",
+    system_behavior: "builder_domain",
+    relationships: "relationship_context_domain",
+    self_concept: "identity_context_domain",
+    inner_life: "emotion_context_domain",
+    execution: "builder_domain",
+    analysis: "knowledge_domain"
+  };
+
+  const mapped = domainMap[domain];
+
+  if (mapped) {
+    this.add(map.domains, mapped);
+  }
+},
+
+readSemanticSituation(map) {
+  const thread = map.threadUnderstandingUsed || {};
+  const working = thread.workingContext || thread || {};
+
+  const frame =
+  thread.semanticFrame ||
+  thread.activeSemanticFrame ||
+  working.semanticFrame ||
+  working.activeSemanticFrame ||
+  working.semanticState?.semanticFrame ||
+  map.conversationClassificationUsed?.semanticFrame ||
+  map.rawSemanticFrame ||
+  null;
+
+  const currentTurnFrame =
+    frame?.currentTurnFrame ||
+    frame?.primaryFrame ||
+    frame ||
+    null;
+
+  const continuityFrame = frame?.continuityFrame || null;
+  const handoff = frame?.handoff || null;
+  const inherited = frame?.inheritedContext || null;
+
+  if (!frame && !currentTurnFrame && !handoff && !inherited) return;
+
+  map.semanticSituation = {
+    available: true,
+    source: frame?.semanticFrameSource || frame?.source || "semantic_frame",
+    confidence:
+      currentTurnFrame?.confidence ||
+      frame?.confidence ||
+      handoff?.confidence ||
+      60,
+    currentTurnMeaning: currentTurnFrame,
+    inheritedContext: inherited,
+    handoff,
+    continuityFrame
+  };
+
+  map.canonical.domain =
+    currentTurnFrame?.domain ||
+    handoff?.domain ||
+    map.canonical.domain;
+
+  map.canonical.issueType =
+    currentTurnFrame?.frameType ||
+    handoff?.currentMeaning ||
+    map.canonical.issueType;
+
+  map.canonical.goal =
+    currentTurnFrame?.intent ||
+    handoff?.intent ||
+    map.canonical.goal;
+
+  map.canonical.subject =
+    handoff?.inheritedSubject ||
+    inherited?.activeSubject ||
+    inherited?.currentTopic ||
+    map.canonical.subject;
+
+  map.canonical.requiresContext = Boolean(
+    handoff?.requiresPriorContext ||
+    continuityFrame?.isContinuation ||
+    inherited
+  );
+
+  map.canonical.priorContextUsed = Boolean(
+    inherited ||
+    handoff?.priorContextAvailable
+  );
+
+  this.mapSemanticDomainToSituationDomain(map, currentTurnFrame?.domain);
+  
+
+  if (currentTurnFrame?.frameType) {
+    this.add(map.situations, currentTurnFrame.frameType);
+  }
+
+  if (handoff?.requiresPriorContext || continuityFrame?.isContinuation) {
+    this.add(map.situations, "follow_up_context_available");
+    this.add(map.responseRequirements, "reuse_prior_context_without_reasking");
+  }
+
+  map.reasons.push("Semantic frame read into Situation Map canonical structure.");
+},
 
   detectQuestions(map) {
     const observations = map.observationsUsed || [];
@@ -557,8 +716,51 @@ this.mapTextSituationSignals(map);
     }
   },
 
+mapSemanticNeedSignals(map) {
+  const frame = map.semanticSituation?.currentTurnMeaning || {};
+  const handoff = map.semanticSituation?.handoff || {};
+  const domain = frame.domain || handoff.domain || "";
+  const meaning = frame.frameType || handoff.currentMeaning || "";
+  const intent = frame.intent || handoff.intent || "";
+
+  if (meaning === "decision_support" || intent === "evaluate_options") {
+    this.add(map.needs, "decision_support");
+  }
+
+  if (
+    intent.includes("action") ||
+    intent.includes("manage") ||
+    intent.includes("implement") ||
+    meaning.includes("instruction")
+  ) {
+    this.add(map.needs, "action_or_build_help");
+  }
+
+  if (
+    intent.includes("explain") ||
+    intent.includes("understand") ||
+    meaning.includes("information_seeking")
+  ) {
+    this.add(map.needs, "understanding");
+  }
+
+  if (
+    domain === "health" ||
+    domain === "animal_health" ||
+    meaning.includes("medical") ||
+    meaning.includes("body")
+  ) {
+    this.add(map.needs, "context_sensitive_support");
+  }
+
+  if (map.canonical.requiresContext || map.canonical.priorContextUsed) {
+    this.add(map.needs, "context_sensitive_support");
+  }
+},
+
   detectNeeds(map) {
     const conversation = map.conversationClassificationUsed || {};
+this.mapSemanticNeedSignals(map);
 
     if (
       map.risks.includes("confirmed_safety_emergency") ||
@@ -775,6 +977,44 @@ this.mapTextNeedSignals(map);
     }
   },
 
+addSemanticLaneEvidence(map, addCandidate) {
+  const frame = map.semanticSituation?.currentTurnMeaning || {};
+  const handoff = map.semanticSituation?.handoff || {};
+  const meaning = frame.frameType || handoff.currentMeaning || "";
+  const intent = frame.intent || handoff.intent || "";
+  const domain = frame.domain || handoff.domain || "";
+
+  if (meaning === "decision_support" || intent === "evaluate_options") {
+    addCandidate("executive_decision", 86, "Semantic frame indicates decision support.");
+  }
+
+  if (
+    intent.includes("implement") ||
+    intent.includes("create") ||
+    intent.includes("modify") ||
+    intent.includes("manage") ||
+    meaning.includes("instruction")
+  ) {
+    addCandidate("builder", 86, "Semantic frame indicates action/build help.");
+  }
+
+  if (
+    intent.includes("understand") ||
+    intent.includes("explain") ||
+    meaning === "information_seeking"
+  ) {
+    addCandidate("teacher", 82, "Semantic frame indicates explanation or understanding.");
+  }
+
+  if (
+    domain === "health" ||
+    meaning.includes("medical") ||
+    meaning.includes("body")
+  ) {
+    addCandidate("medical_context", 84, "Semantic frame indicates health/body context.");
+  }
+},
+
   buildLaneEvidence(map) {
     const addCandidate = (lane, score, reason) => {
       if (!lane || !score) return;
@@ -793,6 +1033,7 @@ this.mapTextNeedSignals(map);
         reasons: reason ? [reason] : []
       });
     };
+this.addSemanticLaneEvidence(map, addCandidate);
 
     if (map.risks.includes("confirmed_safety_emergency")) {
       addCandidate("safety", 100, "Safety Gate confirmed emergency.");
