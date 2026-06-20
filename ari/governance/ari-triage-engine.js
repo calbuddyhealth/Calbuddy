@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.0 — Evidence Weighted Arbitration Engine
+// V2.2.1 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.0",
+  version: "2.2.1",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -108,28 +108,76 @@ triageAudit: triage.audit
   },
 
   collectSafetyCandidate(safety = {}, triage = {}) {
-    triage.audit.safetyChecked = true;
+  triage.audit.safetyChecked = true;
 
-    if (safety.override === "safety_emergency") {
-      this.addCandidate(triage, "safety", 100, "Safety emergency overrides all other lanes.", "safety_gate");
+  if (safety.override === "emergency") {
+    if (
+      safety.primaryRisk?.type === "medical" ||
+      safety.primaryRisk?.type === "poisoning_overdose"
+    ) {
+      this.addCandidate(
+        triage,
+        "medical_body",
+        100,
+        "Safety Gate detected emergency medical/body risk.",
+        "safety_gate"
+      );
       triage.urgency = "critical";
       triage.gravity = 10;
       return;
     }
 
-    if (safety.override === "medical_urgent") {
-      this.addCandidate(triage, "medical_body", 98, "Medical urgency overrides non-medical lanes.", "safety_gate");
-      triage.urgency = "high";
-      triage.gravity = 9;
-      return;
+    this.addCandidate(
+      triage,
+      "safety",
+      100,
+      "Safety Gate detected emergency safety risk.",
+      "safety_gate"
+    );
+    triage.urgency = "critical";
+    triage.gravity = 10;
+    return;
+  }
+
+  if (safety.override === "urgent") {
+    if (
+      safety.primaryRisk?.type === "medical" ||
+      safety.primaryRisk?.type === "poisoning_overdose"
+    ) {
+      this.addCandidate(
+        triage,
+        "medical_body",
+        98,
+        "Safety Gate detected urgent medical/body risk.",
+        "safety_gate"
+      );
+    } else {
+      this.addCandidate(
+        triage,
+        "safety",
+        98,
+        "Safety Gate detected urgent safety risk.",
+        "safety_gate"
+      );
     }
 
-    if (safety.override === "clarify_risk") {
-      this.addCandidate(triage, "risk_clarification", 96, "Risk is ambiguous, so one clarification question leads.", "safety_gate");
-      triage.urgency = "clarify";
-      triage.gravity = Math.max(triage.gravity || 0, 7);
-    }
-  },
+    triage.urgency = "high";
+    triage.gravity = Math.max(triage.gravity || 0, 9);
+    return;
+  }
+
+  if (safety.override === "clarify_risk") {
+    this.addCandidate(
+      triage,
+      "risk_clarification",
+      96,
+      "Risk is ambiguous, so one clarification question leads.",
+      "safety_gate"
+    );
+    triage.urgency = "clarify";
+    triage.gravity = Math.max(triage.gravity || 0, 7);
+  }
+},
 
 collectConversationFunctionCandidate(summary = {}, triage = {}) {
   const cf = summary.conversationFunction || {};
@@ -197,8 +245,12 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
     const questions = map.questions || [];
 
     if (needs.includes("urgent_protection")) {
-      this.addCandidate(triage, "medical_body", 92, "Urgent protection need detected.", "universal_need");
-    }
+  if (map.risks?.includes("confirmed_medical_or_body_risk")) {
+    this.addCandidate(triage, "medical_body", 92, "Urgent medical/body protection need detected.", "universal_need");
+  } else {
+    this.addCandidate(triage, "safety", 92, "Urgent safety protection need detected.", "universal_need");
+  }
+}
 
     if (needs.includes("risk_clarification")) {
       this.addCandidate(triage, "risk_clarification", 90, "Risk clarification need detected.", "universal_need");
@@ -286,13 +338,30 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
     const text = `${item.claim || ""} ${item.evidence || ""} ${item.type || ""}`.toLowerCase();
 
     if (text.includes("safety") || text.includes("self harm") || text.includes("danger")) return "safety";
-    if (text.includes("medical_urgent") || text.includes("urgent") || text.includes("emergency")) return "medical_body";
+    if (
+  text.includes("medical") ||
+  text.includes("body") ||
+  text.includes("health") ||
+  text.includes("poisoning") ||
+  text.includes("overdose")
+) {
+  if (
+    text.includes("urgent") ||
+    text.includes("emergency") ||
+    text.includes("risk")
+  ) {
+    return "medical_body";
+  }
+
+  return "medical_context";
+}
+
+if (text.includes("urgent") || text.includes("emergency")) return "safety";
     if (text.includes("risk") || text.includes("clarify")) return "risk_clarification";
 
     if (text.includes("builder") || text.includes("code") || text.includes("debug") || text.includes("implementation")) return "builder";
     if (text.includes("decision") || text.includes("tradeoff") || text.includes("options")) return "executive_decision";
     if (text.includes("understanding") || text.includes("explain") || text.includes("knowledge")) return "teacher";
-    if (text.includes("medical") || text.includes("body") || text.includes("health")) return "medical_context";
     if (text.includes("memory")) return "memory";
     if (text.includes("family")) return "family";
     if (text.includes("relationship")) return "relationship";
