@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V1.2.0 — Current Turn First / Context Second / Advisory Only
+// V1.2.2 — Current Turn First / Context Second / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "1.2.0",
+  version: "1.2.2",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -23,25 +23,28 @@ window.AriSemanticFrameBuilder = {
     const inheritedContext = this.readInheritedContext(summary);
     const currentTurnFrame = this.buildCurrentTurnFrame(normalized, summary);
     const continuityFrame = this.buildContinuityFrame(normalized, inheritedContext);
-    const responseCharacteristics = this.buildResponseCharacteristics(
-      normalized,
-      currentTurnFrame,
-      continuityFrame
-    );
+   
+    const functionFrame = this.buildFunctionFrame(summary.conversationFunction);
+
+const allFrames = this.rankFrames([
+  functionFrame,
+  currentTurnFrame,
+  ...(continuityFrame.isContinuation ? [continuityFrame] : [])
+]);
+
+const primaryFrame = allFrames[0] || currentTurnFrame;
+const responseCharacteristics = this.buildResponseCharacteristics(
+  normalized,
+  primaryFrame,
+  continuityFrame
+);
     const emotionalOverlay = this.buildEmotionalOverlay(normalized);
     const ambiguity = this.buildAmbiguitySignal(
-      normalized,
-      currentTurnFrame,
-      continuityFrame
-    );
-
-    const allFrames = this.rankFrames([
-      currentTurnFrame,
-      ...(continuityFrame.isContinuation ? [continuityFrame] : [])
-    ]);
-
-    const primaryFrame = currentTurnFrame;
-
+  normalized,
+  primaryFrame,
+  continuityFrame
+);
+    
     return {
       semanticFrameBuilderRan: true,
       semanticFrameBuilderVersion: this.version,
@@ -95,6 +98,61 @@ window.AriSemanticFrameBuilder = {
         emotionalOverlay,
         ambiguity
       })
+    };
+  },
+
+  buildFunctionFrame(conversationFunction = {}) {
+    const primaryFunction =
+      conversationFunction.primaryFunction ||
+      conversationFunction.function ||
+      null;
+
+    if (!primaryFunction || primaryFunction === "unknown") return null;
+
+    const map = {
+      emotional_disclosure: {
+        frameType: "emotional_disclosure",
+        domain: "emotion",
+        intent: "receive_and_respond_to_emotion",
+        conversationStyle: "emotional_presence",
+        confidence: 92
+      },
+
+      direct_question: {
+        frameType: "information_seeking",
+        domain: "general_understanding",
+        intent: "obtain_answer_or_clarification",
+        conversationStyle: "question",
+        confidence: 82
+      },
+
+      correction_or_clarification: {
+        frameType: "correction_or_clarification",
+        domain: "conversation_flow",
+        intent: "correct_prior_interpretation",
+        conversationStyle: "clarification",
+        confidence: 88
+      },
+
+      build_or_debug: {
+        frameType: "collaborative_software_build",
+        domain: "ari_architecture",
+        intent: "create_or_modify_system_component",
+        conversationStyle: "co_creation",
+        confidence: 86
+      }
+    };
+
+    const selected = map[primaryFunction];
+    if (!selected) return null;
+
+    return {
+      ...selected,
+      evidence: [
+        `conversation_function:${primaryFunction}`
+      ],
+      advisoryOnly: true,
+      source: "conversation_function_engine"
     };
   },
 
