@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.0 — Contract-Locked Natural AI Writer
+// V8.3.1 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.0",
+  version: "8.3.1",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -57,6 +57,7 @@ const thesis = this.readSituationThesis(summary);
       contract,
       communicationPlan,
       language,
+      thesis,
       primary,
       userQuestion
     });
@@ -65,6 +66,7 @@ const thesis = this.readSituationThesis(summary);
   text: validated,
   summary,
   contract,
+  thesis,
   primary,
   userQuestion
 });
@@ -391,6 +393,7 @@ Write naturally, like a smart direct human partner.
     summary = {},
     contract = {},
     communicationPlan = {},
+    thesis = {},
     language = {},
     primary = "general_understanding",
     userQuestion = ""
@@ -408,11 +411,11 @@ if (
     "you might be feeling lost"
   ].some(p => text.toLowerCase().includes(p))
 ) {
-  text = this.localFallback({ primary, contract, userQuestion });
+  text = this.localFallback({ primary, contract, thesis, userQuestion });
 }
 
     if (!text) {
-      return this.localFallback({ primary, contract, userQuestion });
+      return this.localFallback({ primary, contract, thesis, userQuestion });
     }
 
     if (this.containsInternalLeak(text)) {
@@ -420,7 +423,7 @@ if (
     }
 
     if (this.isRoboticDirective(text)) {
-      text = this.localFallback({ primary, contract, userQuestion });
+      text = this.localFallback({ primary, contract, thesis, userQuestion });
     }
 
     if (contract.clarity?.needed && contract.clarity?.placement === "only") {
@@ -610,7 +613,7 @@ isOverlyCorporate(text = "") {
     return words.slice(0, max).join(" ").replace(/[,:;–-]$/, "") + ".";
   },
 
-naturalizeResponse({ text = "", summary = {}, contract = {}, primary = "", userQuestion = "" }) {
+naturalizeResponse({ text = "", summary = {}, contract = {}, thesis = {}, primary = "", userQuestion = "" }) {
   let result = String(text || "").trim();
   if (!result) return result;
 
@@ -627,7 +630,7 @@ naturalizeResponse({ text = "", summary = {}, contract = {}, primary = "", userQ
   const soundsGeneric = genericPhrases.some(phrase => lower.includes(phrase));
 
   if (soundsGeneric) {
-    return this.localFallback({ primary, contract, userQuestion });
+    return this.localFallback({ primary, contract, thesis, userQuestion });
   }
 
   result = result
