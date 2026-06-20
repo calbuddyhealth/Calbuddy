@@ -1,11 +1,11 @@
 // ari/context/ari-thread-question-generator.js
 // Purpose: Resolve true follow-up questions using prior conversation meaning.
-// V1.5.0 — Recent Message Fallback + Weak Topic Recovery
+// V1.5.1 — Recent Message Fallback + Weak Topic Recovery
 
 window.Ari = window.Ari || {};
 
 window.Ari.threadQuestionGenerator = {
-  version: "1.5.0",
+  version: "1.5.1",
 
   generate(input = {}) {
     const summary = input.summary || input || {};
@@ -277,6 +277,17 @@ window.Ari.threadQuestionGenerator = {
 
     const fragment = this.detectFragment(text);
 
+const completeEnough =
+  words.length >= 10 &&
+  !/^(why|how|what about|and|also|then|more|next|continue|same one|other one)\b/.test(this.clean(text));
+
+if (completeEnough) {
+  return {
+    isStandalone: true,
+    reason: "Current turn is complete enough; do not rewrite with prior context."
+  };
+}
+
     if (fragment.isFragment) {
       return { isStandalone: false, reason: "Current turn is a fragment needing context." };
     }
@@ -525,29 +536,31 @@ window.Ari.threadQuestionGenerator = {
   },
 
   detectFragment(text = "") {
-    const clean = this.clean(text);
-    const words = clean.split(/\s+/).filter(Boolean);
+  const clean = this.clean(text);
+  const words = clean.split(/\s+/).filter(Boolean);
 
-    const correction =
-      /\b(i mean|i meant|i ment|meant|rather|instead|not that|no,? i mean)\b/.test(clean);
+  const correction =
+    /\b(i mean|i meant|i ment|meant|rather|instead|not that|no,? i mean)\b/.test(clean);
 
-    const shortClarifier =
-      words.length <= 7 &&
-      (
-        /\b(cause|causes|reason|reasons|economic|political|social|second|first|third|other one|same one)\b/.test(clean) ||
-        /^(why|how|what about|and|also|then|more|explain more)\b/.test(clean)
-      );
+  const shortClarifier =
+    words.length <= 7 &&
+    (
+      /\b(cause|causes|reason|reasons|economic|political|social|second|first|third|other one|same one)\b/.test(clean) ||
+      /^(why|how|what about|and|also|then|more|explain more|next|continue)\b/.test(clean)
+    );
 
-    const hasReference = this.hasReferenceWordFallback(clean);
+  const hasReference =
+    words.length <= 8 &&
+    this.hasReferenceWordFallback(clean);
 
-    return {
-      isFragment: correction || shortClarifier || hasReference,
-      correction,
-      shortClarifier,
-      hasReference,
-      wordCount: words.length
-    };
-  },
+  return {
+    isFragment: correction || shortClarifier || hasReference,
+    correction,
+    shortClarifier,
+    hasReference,
+    wordCount: words.length
+  };
+},
 
   cleanFragment(text = "") {
   return this.clean(text)
