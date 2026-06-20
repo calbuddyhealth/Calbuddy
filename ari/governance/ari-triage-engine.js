@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.1.2 — Evidence Weighted Arbitration Engine
+// V2.1.3 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.1.2",
+  version: "2.1.3",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -34,10 +34,11 @@ window.AriTriageEngine = {
     this.collectUniversalCandidates(map, triage);
     this.collectEvidenceWeightedCandidates(map, handoff, triage);
 
-    this.resolveContradictions(map, handoff, triage);
-    this.resolveAmbiguity(map, handoff, triage);
+   this.resolveContradictions(map, handoff, triage);
+this.resolveAmbiguity(map, handoff, triage);
+this.enforceSafetyGateAuthority(safety, triage);
 
-    this.arbitrate(triage);
+this.arbitrate(triage);
     this.applyLaneConsequences(map, safety, triage);
     this.finalize(triage);
 
@@ -371,6 +372,27 @@ if (needsClarification && !this.hasDirectAnswerRequest(map)) {
       );
     }
   },
+
+enforceSafetyGateAuthority(safety = {}, triage = {}) {
+  if (!safety.safetyApprovedNormalFlow) return;
+
+  triage.candidates = triage.candidates.filter(
+    candidate => candidate.lane !== "risk_clarification"
+  );
+
+  triage.responseConstraints = triage.responseConstraints.filter(
+    rule =>
+      ![
+        "ask_one_risk_question",
+        "do_not_assume_safety",
+        "ask_risk_clarification_first"
+      ].includes(rule)
+  );
+
+  triage.audit.notes.push(
+    "Safety Gate approved normal flow; removed downstream risk clarification candidates."
+  );
+},
 
   arbitrate(triage = {}) {
     if (!triage.candidates.length) {
