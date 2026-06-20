@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V1.2.2 — Current Turn First / Context Second / Advisory Only
+// V2.0.0 — Universal Meaning Model / Current Turn First / Context Second
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "1.2.2",
+  version: "2.0.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -21,30 +21,31 @@ window.AriSemanticFrameBuilder = {
 
     const normalized = this.normalizeText(originalText);
     const inheritedContext = this.readInheritedContext(summary);
-    const currentTurnFrame = this.buildCurrentTurnFrame(normalized, summary);
-    const continuityFrame = this.buildContinuityFrame(normalized, inheritedContext);
-   
+
+    const currentTurnFrame = this.buildCurrentTurnFrameV2(normalized, summary);
+    const continuityFrame = this.buildContinuityFrame(normalized, inheritedContext, currentTurnFrame);
     const functionFrame = this.buildFunctionFrame(summary.conversationFunction);
 
-const allFrames = this.rankFrames([
-  functionFrame,
-  currentTurnFrame,
-  ...(continuityFrame.isContinuation ? [continuityFrame] : [])
-]);
+    const allFrames = this.rankFrames([
+      currentTurnFrame,
+      functionFrame,
+      ...(continuityFrame.isContinuation ? [continuityFrame] : [])
+    ]);
 
-const primaryFrame = allFrames[0] || currentTurnFrame;
-const responseCharacteristics = this.buildResponseCharacteristics(
-  normalized,
-  primaryFrame,
-  continuityFrame
-);
+    const primaryFrame = this.selectPrimaryFrame(allFrames, normalized, continuityFrame);
+    const responseCharacteristics = this.buildResponseCharacteristics(
+      normalized,
+      primaryFrame,
+      continuityFrame
+    );
+
     const emotionalOverlay = this.buildEmotionalOverlay(normalized);
     const ambiguity = this.buildAmbiguitySignal(
-  normalized,
-  primaryFrame,
-  continuityFrame
-);
-    
+      normalized,
+      primaryFrame,
+      continuityFrame
+    );
+
     return {
       semanticFrameBuilderRan: true,
       semanticFrameBuilderVersion: this.version,
@@ -64,7 +65,9 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       inheritedContext,
 
       primaryFrame,
-      secondaryFrames: allFrames.filter(f => f.frameType !== primaryFrame.frameType).slice(0, 5),
+      secondaryFrames: allFrames
+        .filter(f => f && f.frameType !== primaryFrame.frameType)
+        .slice(0, 6),
       allFrames,
 
       continuity: {
@@ -101,6 +104,235 @@ const responseCharacteristics = this.buildResponseCharacteristics(
     };
   },
 
+  buildCurrentTurnFrameV2(n, summary = {}) {
+    const features = this.extractUniversalFeatures(n, summary);
+    const frames = this.generateFramesFromFeatures(features, n);
+
+    const ranked = this.rankFrames(frames);
+    return ranked[0] || this.defaultFrame(n);
+  },
+
+  extractUniversalFeatures(n, summary = {}) {
+    const text = n.text;
+    const words = text.split(/\s+/).filter(Boolean);
+
+    const question =
+      n.hasQuestionMark ||
+      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
+
+    const asksOpinion =
+      /\b(what do you think|be honest|honestly|your take|your opinion|am i|should i|would you)\b/.test(text);
+
+    const asksAction =
+      /\b(fix|build|update|replace|send|show|give|make|write|create|implement|review|look at|where do i add)\b/.test(text);
+
+    const asksExplanation =
+      /\b(explain|why|how does|how do|what does|tell me about|help me understand)\b/.test(text);
+
+    const asksDecision =
+      /\b(should i|which|choose|worth it|better|best|recommend|what would you do|what do you think)\b/.test(text);
+
+    const hasProblem =
+      /\b(problem|issue|bug|broken|wrong|not working|doesn't work|failed|bottleneck|stuck|confused|hard|trouble)\b/.test(text);
+
+    const bodyRisk =
+      /\b(pain|bleeding|pregnant|pregnancy|fever|cough|swallow|symptom|doctor|labs|vitals|chest|breathing|diarrhea|faint|seizure)\b/.test(text);
+
+    const resourcePressure =
+      /\b(money|debt|rent|budget|pay|cost|expensive|tight|afford|few thousand|loan|job|time|deadline)\b/.test(text);
+
+    const relationshipStake =
+      /\b(wife|husband|fiance|fiancé|girlfriend|boyfriend|father|mother|dad|mom|baby|child|family|relationship|marriage)\b/.test(text);
+
+    const buildContext =
+      /\b(app|code|file|engine|module|pipeline|github|vercel|supabase|composer|observer|frame builder|triage|contract|ari|rebirth)\b/.test(text);
+
+    const identityStake =
+      /\b(father|mother|nurse|marine|officer|student|provider|career|identity|who am i|separating)\b/.test(text);
+
+    const emotionExpression =
+      n.hasExclamation ||
+      n.hasProfanity ||
+      /\b(happy|excited|proud|angry|mad|sad|ashamed|scared|overwhelmed|frustrated|relieved|celebrate|deserve)\b/.test(text);
+
+    const currentTurnCompleteness =
+      words.length >= 10 ? "complete" :
+      words.length >= 4 ? "partial" :
+      "fragment";
+
+    return {
+      text,
+      wordCount: words.length,
+
+      question,
+      asksOpinion,
+      asksAction,
+      asksExplanation,
+      asksDecision,
+
+      hasProblem,
+      bodyRisk,
+      resourcePressure,
+      relationshipStake,
+      buildContext,
+      identityStake,
+      emotionExpression,
+
+      currentTurnCompleteness,
+
+      conversationFunction: summary.conversationFunction || {},
+      observations: summary.observations || summary.observationLedger || []
+    };
+  },
+
+  generateFramesFromFeatures(f, n) {
+    const frames = [];
+
+    if (f.asksDecision) {
+      this.pushFrame(frames, {
+        frameType: "decision_support",
+        domain: "choice_or_priority",
+        intent: "evaluate_options",
+        conversationStyle: "recommendation_request",
+        confidence: this.cap(76 + (f.resourcePressure ? 8 : 0) + (f.relationshipStake ? 8 : 0)),
+        evidence: ["choice pressure", "judgment request"]
+      });
+    }
+
+    if (f.asksAction && f.buildContext) {
+      this.pushFrame(frames, {
+        frameType: "collaborative_software_build",
+        domain: "ari_architecture",
+        intent: "create_or_modify_system_component",
+        conversationStyle: "co_creation",
+        confidence: this.cap(82 + (f.hasProblem ? 8 : 0)),
+        evidence: ["action request", "system/build context"]
+      });
+    }
+
+    if (f.hasProblem && f.buildContext) {
+      this.pushFrame(frames, {
+        frameType: "debugging_or_root_cause",
+        domain: "system_behavior",
+        intent: "diagnose_failure_or_mismatch",
+        conversationStyle: "diagnostic",
+        confidence: 84,
+        evidence: ["problem signal", "system/build context"]
+      });
+    }
+
+    if (f.bodyRisk) {
+      this.pushFrame(frames, {
+        frameType: "medical_or_body_context",
+        domain: "health",
+        intent: "include_body_context_without_hijacking",
+        conversationStyle: "safety_sensitive_context",
+        confidence: f.asksDecision || f.resourcePressure ? 64 : 82,
+        evidence: ["body/medical context"]
+      });
+    }
+
+    if (f.resourcePressure) {
+      this.pushFrame(frames, {
+        frameType: "resource_pressure",
+        domain: "money_time_energy",
+        intent: "protect_limited_resources",
+        conversationStyle: "practical_constraint",
+        confidence: 78,
+        evidence: ["resource constraint"]
+      });
+    }
+
+    if (f.relationshipStake) {
+      this.pushFrame(frames, {
+        frameType: "relationship_or_family_context",
+        domain: "relationships",
+        intent: "protect_connection_or_dependents",
+        conversationStyle: "relational_context",
+        confidence: 76,
+        evidence: ["relationship stake"]
+      });
+    }
+
+    if (f.identityStake) {
+      this.pushFrame(frames, {
+        frameType: "identity_or_role",
+        domain: "self_concept",
+        intent: "understand_role_or_direction",
+        conversationStyle: "identity_context",
+        confidence: 72,
+        evidence: ["identity or role stake"]
+      });
+    }
+
+    if (f.emotionExpression) {
+      this.pushFrame(frames, {
+        frameType: "emotional_expression",
+        domain: "emotion",
+        intent: "respond_to_expressed_state",
+        conversationStyle: "expressive",
+        confidence: 70,
+        evidence: ["emotional expression"]
+      });
+    }
+
+    if (f.asksExplanation && !f.asksAction) {
+      this.pushFrame(frames, {
+        frameType: "information_seeking",
+        domain: "general_understanding",
+        intent: "obtain_answer_or_clarification",
+        conversationStyle: "question",
+        confidence: 80,
+        evidence: ["explanation request"]
+      });
+    }
+
+    if (f.question && !frames.length) {
+      this.pushFrame(frames, {
+        frameType: "information_seeking",
+        domain: "general_understanding",
+        intent: "obtain_answer_or_clarification",
+        conversationStyle: "question",
+        confidence: 76,
+        evidence: ["question"]
+      });
+    }
+
+    if (!frames.length && f.currentTurnCompleteness === "complete") {
+      this.pushFrame(frames, {
+        frameType: "general_current_turn",
+        domain: "general",
+        intent: "respond_to_current_statement",
+        conversationStyle: "normal",
+        confidence: 62,
+        evidence: ["complete current turn"]
+      });
+    }
+
+    return frames;
+  },
+
+  selectPrimaryFrame(frames = [], n = {}, continuityFrame = {}) {
+    const cleanFrames = frames.filter(Boolean);
+    if (!cleanFrames.length) return this.defaultFrame(n);
+
+    const top = cleanFrames[0];
+
+    const medicalOnlyHijack =
+      top.frameType === "medical_or_body_context" &&
+      cleanFrames.some(f =>
+        ["decision_support", "collaborative_software_build", "debugging_or_root_cause"].includes(f.frameType)
+      );
+
+    if (medicalOnlyHijack) {
+      return cleanFrames.find(f =>
+        ["decision_support", "collaborative_software_build", "debugging_or_root_cause"].includes(f.frameType)
+      ) || top;
+    }
+
+    return top;
+  },
+
   buildFunctionFrame(conversationFunction = {}) {
     const primaryFunction =
       conversationFunction.primaryFunction ||
@@ -115,7 +347,7 @@ const responseCharacteristics = this.buildResponseCharacteristics(
         domain: "emotion",
         intent: "receive_and_respond_to_emotion",
         conversationStyle: "emotional_presence",
-        confidence: 92
+        confidence: 88
       },
 
       direct_question: {
@@ -123,7 +355,7 @@ const responseCharacteristics = this.buildResponseCharacteristics(
         domain: "general_understanding",
         intent: "obtain_answer_or_clarification",
         conversationStyle: "question",
-        confidence: 82
+        confidence: 78
       },
 
       correction_or_clarification: {
@@ -131,7 +363,7 @@ const responseCharacteristics = this.buildResponseCharacteristics(
         domain: "conversation_flow",
         intent: "correct_prior_interpretation",
         conversationStyle: "clarification",
-        confidence: 88
+        confidence: 86
       },
 
       build_or_debug: {
@@ -139,7 +371,7 @@ const responseCharacteristics = this.buildResponseCharacteristics(
         domain: "ari_architecture",
         intent: "create_or_modify_system_component",
         conversationStyle: "co_creation",
-        confidence: 86
+        confidence: 84
       }
     };
 
@@ -148,37 +380,17 @@ const responseCharacteristics = this.buildResponseCharacteristics(
 
     return {
       ...selected,
-      evidence: [
-        `conversation_function:${primaryFunction}`
-      ],
+      evidence: [`conversation_function:${primaryFunction}`],
       advisoryOnly: true,
       source: "conversation_function_engine"
     };
   },
 
-  buildCurrentTurnFrame(n, summary = {}) {
-    const frames = [];
-
-    this.detectMedicalConcern(frames, n);
-    this.detectCollaborativeBuild(frames, n);
-    this.detectDebugging(frames, n);
-    this.detectDecisionSupport(frames, n);
-    this.detectInstructionOrCommand(frames, n);
-    this.detectPlanning(frames, n);
-    this.detectComparison(frames, n);
-    this.detectStatusCheck(frames, n);
-    this.detectReflection(frames, n);
-    this.detectRelationshipMeaning(frames, n);
-    this.detectIdentityRole(frames, n);
-    this.detectInformationSeeking(frames, n);
-    this.detectImperfectLanguage(frames, n);
-
-    const ranked = this.rankFrames(frames);
-    return ranked[0] || this.defaultFrame(n);
-  },
-
-  buildContinuityFrame(n, inherited = {}) {
+  buildContinuityFrame(n, inherited = {}, currentTurnFrame = {}) {
     const text = n.text;
+
+    const hasThread = inherited.threadAvailable;
+    const completeCurrentTurn = n.wordCount >= 10;
 
     const continuationHits = this.findWordHits(text, [
       "next",
@@ -190,16 +402,15 @@ const responseCharacteristics = this.buildResponseCharacteristics(
 
     const phraseHits = this.findPhraseHits(text, [
       "do that",
-      "send code",
       "send me the code",
       "make the update",
       "update it",
       "like before",
       "where were we",
       "what else",
-      "other advice",
+      "what about it",
       "what about him",
-      "what about it"
+      "what about her"
     ]);
 
     const pronounHits = this.findWordHits(text, [
@@ -214,19 +425,24 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       "these"
     ]);
 
-    const hasThread = inherited.threadAvailable;
+    const currentTurnHasOwnMeaning =
+      completeCurrentTurn &&
+      currentTurnFrame &&
+      currentTurnFrame.confidence >= 70;
+
     const isContinuation =
-      (hasThread && n.isShortTurn) ||
-      (hasThread && pronounHits.length > 0) ||
-      (hasThread && continuationHits.length > 0) ||
-      (hasThread && phraseHits.length > 0);
+      hasThread &&
+      !currentTurnHasOwnMeaning &&
+      (
+        n.isShortTurn ||
+        continuationHits.length > 0 ||
+        phraseHits.length > 0 ||
+        pronounHits.length > 0
+      );
 
-    const evidence = [
-      ...continuationHits,
-      ...phraseHits
-    ];
+    const evidence = [...continuationHits, ...phraseHits];
 
-    if (hasThread && pronounHits.length) {
+    if (hasThread && pronounHits.length && !currentTurnHasOwnMeaning) {
       evidence.push("reference language with active thread");
     }
 
@@ -244,7 +460,6 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       referencesPriorArtifact: this.findWordHits(text, [
         "code",
         "file",
-        "builder",
         "engine",
         "module",
         "pipeline",
@@ -257,9 +472,7 @@ const responseCharacteristics = this.buildResponseCharacteristics(
         "what we said",
         "what you said"
       ]).length > 0,
-      confidence: isContinuation
-        ? this.cap(65 + evidence.length * 6)
-        : 25,
+      confidence: isContinuation ? this.cap(65 + evidence.length * 6) : 25,
       evidence,
       advisoryOnly: true
     };
@@ -311,31 +524,25 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       n.hasQuestionMark ||
       /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
 
-    const buildLike = [
+    const collaborationFrames = [
       "collaborative_software_build",
-      "debugging_or_root_cause",
-      "instruction_or_command"
-    ].includes(primaryFrame.frameType);
+      "debugging_or_root_cause"
+    ];
 
     return {
       expectsDirectAnswer: directQuestion,
-      expectsExplanation: this.findPhraseHits(text, [
-        "explain",
-        "tell me",
-        "how does",
-        "why does",
-        "what does it mean"
-      ]).length > 0,
-      expectsCollaboration: buildLike,
-      expectsReflection: primaryFrame.frameType === "self_reflection",
+      expectsExplanation:
+        /\b(explain|tell me|how does|why does|what does it mean)\b/.test(text),
+      expectsCollaboration: collaborationFrames.includes(primaryFrame.frameType),
+      expectsReflection: primaryFrame.frameType === "emotional_disclosure",
       expectsCodeOrArtifact:
         this.findWordHits(text, ["code", "file", "script", "module"]).length > 0,
       expectsFollowUpContext: continuityFrame.isContinuation,
-      likelyWantsMinimalAnswer: n.isShortTurn || continuityFrame.isContinuation,
+      likelyWantsMinimalAnswer: n.isShortTurn || /\bbriefly|quick|short answer\b/.test(text),
       confidence: this.cap(
         55 +
-        (directQuestion ? 12 : 0) +
-        (buildLike ? 18 : 0) +
+        (directQuestion ? 14 : 0) +
+        (collaborationFrames.includes(primaryFrame.frameType) ? 18 : 0) +
         (continuityFrame.isContinuation ? 10 : 0)
       )
     };
@@ -352,9 +559,14 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       "her"
     ]);
 
+    const currentTurnComplete = n.wordCount >= 10 && primaryFrame.confidence >= 65;
+
     const present =
-      (n.isVeryShortTurn && !continuityFrame.isContinuation) ||
-      (pronounHits.length > 0 && !continuityFrame.referencesPriorContext);
+      !currentTurnComplete &&
+      (
+        (n.isVeryShortTurn && !continuityFrame.isContinuation) ||
+        (pronounHits.length > 0 && !continuityFrame.referencesPriorContext)
+      );
 
     return {
       present,
@@ -429,23 +641,7 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       "cuz": "because"
     };
 
-    const typoFixes = {
-      "semntic": "semantic",
-      "sematic": "semantic",
-      "rebirht": "rebirth",
-      "rebith": "rebirth",
-      "lan splitter": "lane splitter",
-      "lane splitr": "lane splitter",
-      "composor": "composer",
-      "oberserver": "observer",
-      "pritority": "priority",
-      "priorirty": "priority",
-      "situational map": "situation map",
-      "langauge": "language"
-    };
-
     const detectedSlang = [];
-    const detectedTypos = [];
 
     Object.keys(replacements)
       .sort((a, b) => b.length - a.length)
@@ -456,14 +652,6 @@ const responseCharacteristics = this.buildResponseCharacteristics(
           normalized = normalized.replace(pattern, replacements[key]);
         }
       });
-
-    Object.keys(typoFixes).forEach(key => {
-      const pattern = new RegExp(`\\b${this.escapeRegExp(key)}\\b`, "gi");
-      if (pattern.test(normalized)) {
-        detectedTypos.push({ from: key, to: typoFixes[key] });
-        normalized = normalized.replace(pattern, typoFixes[key]);
-      }
-    });
 
     normalized = normalized
       .replace(/[“”]/g, "\"")
@@ -478,373 +666,36 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       text: normalized,
       wordCount,
       detectedSlang,
-      detectedTypos,
+      detectedTypos: [],
       hasQuestionMark: original.includes("?"),
       hasExclamation: original.includes("!"),
-      hasProfanity: /\b(fuck|fucking|shit|wtf|damn|bullshit)\b/i.test(original),
+      hasProfanity: /\b(fuck|fucking|fucken|shit|wtf|damn|bullshit)\b/i.test(original),
       isShortTurn: wordCount <= 5,
       isVeryShortTurn: wordCount <= 2
     };
   },
 
-  detectInformationSeeking(frames, n) {
-    const startsQuestion =
-      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(n.text);
-
-    if (!n.hasQuestionMark && !startsQuestion) return;
-
-    this.pushFrame(frames, {
-      frameType: "information_seeking",
-      domain: "general_understanding",
-      intent: "obtain_answer_or_clarification",
-      conversationStyle: "question",
-      confidence: n.hasQuestionMark ? 80 : 70,
-      evidence: n.hasQuestionMark ? ["question mark"] : ["question opening"]
-    });
-  },
-
-  detectCollaborativeBuild(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "ari",
-      "rebirth",
-      "semantic frame builder",
-      "frame builder",
-      "lane splitter",
-      "observer",
-      "composer",
-      "context assembler",
-      "thread understanding",
-      "situation map",
-      "triage",
-      "priority governor",
-      "engine",
-      "pipeline",
-      "code",
-      "module",
-      "build",
-      "update",
-      "implement",
-      "rewrite"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "collaborative_software_build",
-      domain: "ari_architecture",
-      intent: "create_or_modify_system_component",
-      conversationStyle: "co_creation",
-      confidence: this.scoreFromHits(74, hits, 4),
-      evidence: hits
-    });
-  },
-
-  detectDebugging(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "broken",
-      "not working",
-      "does not work",
-      "doesn't work",
-      "cannot",
-      "issue",
-      "problem",
-      "bug",
-      "fix",
-      "causing",
-      "why does",
-      "wrong",
-      "failing",
-      "regression",
-      "bottleneck"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "debugging_or_root_cause",
-      domain: "system_behavior",
-      intent: "diagnose_failure_or_mismatch",
-      conversationStyle: "diagnostic",
-      confidence: this.scoreFromHits(76, hits, 5),
-      evidence: hits
-    });
-  },
-
-  detectDecisionSupport(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "should i",
-      "which one",
-      "what should",
-      "best",
-      "better",
-      "choose",
-      "decide",
-      "option",
-      "recommend",
-      "worth it",
-      "critique",
-      "score"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "decision_support",
-      domain: "choice_or_priority",
-      intent: "evaluate_options",
-      conversationStyle: "recommendation_request",
-      confidence: this.scoreFromHits(72, hits, 5),
-      evidence: hits
-    });
-  },
-
-  detectMedicalConcern(frames, n) {
-    const hits = this.findWordHits(n.text, [
-      "pain",
-      "bleeding",
-      "pregnant",
-      "swallowing",
-      "coughing",
-      "diarrhea",
-      "vitals",
-      "labs",
-      "symptom",
-      "doctor",
-      "fever"
-    ]);
-
-    const urgentHits = this.findPhraseHits(n.text, [
-      "chest pain",
-      "shortness of breath",
-      "emergency",
-      "can't swallow",
-      "cannot swallow"
-    ]);
-
-    if (!hits.length && !urgentHits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "medical_or_body_concern",
-      domain: "health",
-      intent: "understand_or_manage_body_symptom",
-      conversationStyle: "safety_sensitive_information",
-      urgency: urgentHits.length ? "possible_urgent" : "routine_or_unknown",
-      confidence: urgentHits.length ? 94 : this.scoreFromHits(84, hits, 3),
-      evidence: [...hits, ...urgentHits]
-    });
-  },
-
-  detectRelationshipMeaning(frames, n) {
-    const hits = this.findWordHits(n.text, [
-      "father",
-      "dad",
-      "mom",
-      "mother",
-      "fiance",
-      "fiancé",
-      "wife",
-      "husband",
-      "baby",
-      "daughter",
-      "son",
-      "family",
-      "relationship",
-      "marriage"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "relationship_or_attachment",
-      domain: "relationships",
-      intent: "understand_or_protect_connection",
-      conversationStyle: "relational_context",
-      confidence: this.scoreFromHits(70, hits, 4),
-      evidence: hits
-    });
-  },
-
-  detectIdentityRole(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "who am i",
-      "identity",
-      "nurse",
-      "marine",
-      "officer",
-      "father",
-      "builder",
-      "provider",
-      "student",
-      "career",
-      "separating"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "identity_or_role",
-      domain: "self_concept",
-      intent: "understand_role_or_direction",
-      conversationStyle: "identity_reflection",
-      confidence: this.scoreFromHits(70, hits, 4),
-      evidence: hits
-    });
-  },
-
-  detectReflection(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "why do i",
-      "why am i",
-      "i feel",
-      "i keep",
-      "what kind of person",
-      "what kind of father",
-      "what does this say about me"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "self_reflection",
-      domain: "inner_life",
-      intent: "make_meaning_from_experience",
-      conversationStyle: "reflective",
-      confidence: this.scoreFromHits(74, hits, 5),
-      evidence: hits
-    });
-  },
-
-  detectComparison(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "compare",
-      "versus",
-      "vs",
-      "difference between",
-      "better than",
-      "same as"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "comparison",
-      domain: "analysis",
-      intent: "understand_differences_or_ranking",
-      conversationStyle: "compare_contrast",
-      confidence: this.scoreFromHits(74, hits, 5),
-      evidence: hits
-    });
-  },
-
-  detectPlanning(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "roadmap",
-      "plan",
-      "next step",
-      "sequence",
-      "order",
-      "start",
-      "priority",
-      "timeline"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "planning_or_roadmap",
-      domain: "execution",
-      intent: "organize_next_actions",
-      conversationStyle: "planning",
-      confidence: this.scoreFromHits(72, hits, 4),
-      evidence: hits
-    });
-  },
-
-  detectStatusCheck(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "where are we",
-      "status",
-      "what's next",
-      "whats next",
-      "what now",
-      "where is this",
-      "how far"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "status_check",
-      domain: "progress_tracking",
-      intent: "understand_current_state",
-      conversationStyle: "orientation",
-      confidence: this.scoreFromHits(76, hits, 5),
-      evidence: hits
-    });
-  },
-
-  detectInstructionOrCommand(frames, n) {
-    const hits = this.findPhraseHits(n.text, [
-      "send code",
-      "send me",
-      "make",
-      "build",
-      "update",
-      "replace",
-      "fix",
-      "show me",
-      "give me"
-    ]);
-
-    if (!hits.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "instruction_or_command",
-      domain: "task_execution",
-      intent: "request_action_or_output",
-      conversationStyle: "directive",
-      confidence: this.scoreFromHits(73, hits, 4),
-      evidence: hits
-    });
-  },
-
-  detectImperfectLanguage(frames, n) {
-    if (!n.detectedSlang.length && !n.detectedTypos.length) return;
-
-    this.pushFrame(frames, {
-      frameType: "imperfect_language_resolved",
-      domain: "language_understanding",
-      intent: "preserve_meaning_despite_slang_or_typos",
-      conversationStyle: "normalization",
-      confidence: 68,
-      evidence: [
-        ...n.detectedSlang.map(x => `${x.from}->${x.to}`),
-        ...n.detectedTypos.map(x => `${x.from}->${x.to}`)
-      ]
-    });
-  },
-
   buildEmotionalOverlay(n) {
-    const frustrationHits = this.findPhraseHits(n.text, [
-      "what the fuck",
-      "annoying",
-      "frustrated",
-      "confused",
-      "give up",
-      "this is bad",
-      "come on",
-      "are you serious"
-    ]);
-
     let tone = "neutral";
     let intensity = "low";
     const evidence = [];
 
-    if (frustrationHits.length || n.hasProfanity) {
+    if (/\b(happy|excited|proud|relieved|celebrate|deserve)\b/.test(n.text)) {
+      tone = "positive_activation";
+      intensity = n.hasExclamation || n.hasProfanity ? "high" : "medium";
+      evidence.push("positive expressive language");
+    }
+
+    if (/\b(frustrated|angry|mad|annoying|confused|give up|come on|are you serious)\b/.test(n.text)) {
       tone = "frustrated";
       intensity = n.hasProfanity ? "high" : "medium";
-      evidence.push(...frustrationHits);
-      if (n.hasProfanity) evidence.push("profanity emphasis");
+      evidence.push("frustration language");
+    }
+
+    if (n.hasProfanity && tone === "neutral") {
+      tone = "intense_expression";
+      intensity = "high";
+      evidence.push("profanity emphasis");
     }
 
     return {
@@ -884,9 +735,10 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       responseCharacteristics,
       emotionalOverlay,
       ambiguity,
+
       competingMeanings: allFrames
-        .filter(f => f.frameType !== primaryFrame.frameType)
-        .slice(0, 4)
+        .filter(f => f && f.frameType !== primaryFrame.frameType)
+        .slice(0, 5)
         .map(f => f.frameType),
 
       languageNotes: {
@@ -952,10 +804,6 @@ const responseCharacteristics = this.buildResponseCharacteristics(
       const pattern = new RegExp(`\\b${this.escapeRegExp(word)}\\b`, "i");
       return pattern.test(lower);
     });
-  },
-
-  scoreFromHits(base, hits, perHit = 4) {
-    return this.cap(base + Math.min(hits.length * perHit, 20));
   },
 
   stringifyTopic(topic) {
