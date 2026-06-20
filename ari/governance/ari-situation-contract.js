@@ -302,44 +302,43 @@ window.AriSituationContract = {
   },
 
   applySafetyPriority(contract, safety = {}, map = {}, triage = {}) {
-  const primaryRisk = safety.primaryRisk || map.primaryRisk || null;
-  const isMedicalRisk =
-    primaryRisk?.type === "medical" ||
-    primaryRisk?.type === "poisoning_overdose" ||
-    triage.primaryLane === "medical_body";
+  if (safety.override === "emergency") {
+    contract.primary =
+      safety.primaryRisk?.type === "medical" ||
+      safety.primaryRisk?.type === "poisoning_overdose"
+        ? "medical_body"
+        : "safety";
 
-  if (safety.override === "emergency" || triage.primaryLane === "safety" || triage.primaryLane === "medical_body") {
-    contract.primary = isMedicalRisk ? "medical_body" : "safety";
     contract.authority = "absolute";
-    contract.reasons.push(
-      isMedicalRisk
-        ? "Emergency medical/body risk overrides non-medical lanes."
-        : "Emergency safety risk overrides all other lanes."
-    );
+    contract.reasons.push("Safety Gate confirmed emergency.");
     return;
   }
 
   if (safety.override === "urgent") {
-    contract.primary = isMedicalRisk ? "medical_body" : "safety";
+    contract.primary =
+      safety.primaryRisk?.type === "medical" ||
+      safety.primaryRisk?.type === "poisoning_overdose"
+        ? "medical_body"
+        : "safety";
+
     contract.authority = "absolute";
-    contract.reasons.push(
-      isMedicalRisk
-        ? "Urgent medical/body risk overrides non-medical lanes."
-        : "Urgent safety risk overrides lower-priority lanes."
-    );
+    contract.reasons.push("Safety Gate confirmed urgent risk.");
     return;
   }
 
-  if (safety.override === "clarify_risk" || triage.primaryLane === "risk_clarification") {
+  if (safety.override === "clarify_risk") {
     contract.primary = "risk_clarification";
     contract.authority = "absolute";
     contract.clarity = {
       needed: true,
       level: "high",
-      question: safety.followUpQuestion || map.recommendedQuestion || "Is anyone in immediate danger right now?",
+      question:
+        safety.followUpQuestion ||
+        map.recommendedQuestion ||
+        "Are you safe right now?",
       placement: "only"
     };
-    contract.reasons.push("Ambiguous risk requires clarification.");
+    contract.reasons.push("Safety Gate requested risk clarification.");
   }
 },
 
