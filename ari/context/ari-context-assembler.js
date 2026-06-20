@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, entity, and semantic-frame context.
-// V1.4.0 — Semantic Frame Context Handoff / Advisory Only
+// V1.5.0 — Semantic Frame Context Handoff / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -127,70 +127,106 @@ window.AriContextAssembler = {
     };
   },
     readSemanticFrame(summary = {}, thread = {}, continuity = {}) {
-    const workingContext = thread.workingContext || {};
+  const workingContext = thread.workingContext || {};
+  const semanticFrameOutput = summary.semanticFrameOutput || {};
 
-    const candidates = [
-      summary.semanticFrame,
-      summary.currentSemanticFrame,
-      summary.observerSemanticFrame,
-      summary.activeSemanticFrame,
-      summary.semanticFrameBuilder,
-      summary.semanticFrameResult,
+  const candidates = [
+    semanticFrameOutput.normalizedFrame,
+    semanticFrameOutput.primaryFrame,
+    semanticFrameOutput.semanticSummary,
 
-      thread.semanticFrame,
-      thread.activeSemanticFrame,
-      thread.resolvedMeaning?.semanticFrame,
-      workingContext.semanticFrame,
-      workingContext.activeSemanticFrame,
-      workingContext.semanticState?.semanticFrame,
+    summary.primarySemanticFrame,
+    summary.normalizedSemanticFrame,
 
-      continuity.semanticFrame,
-      continuity.activeSemanticFrame,
-      continuity.activeSemanticFrameState,
-      continuity.latestConversationMeaning?.semanticFrame,
+    summary.semanticFrame?.primaryFrame,
+    summary.semanticFrame?.normalizedFrame,
+    summary.semanticFrame,
 
-      summary.threadState?.semanticFrame,
-      summary.threadState?.activeSemanticFrame,
-      summary.threadState?.activeSemanticFrameState,
-      summary.threadState?.latestConversationMeaning?.semanticFrame
-    ];
+    summary.currentSemanticFrame,
+    summary.activeSemanticFrame,
 
-    const found = candidates.find(frame => frame && typeof frame === "object");
-    if (!found) return null;
+    thread.semanticFrame?.primaryFrame,
+    thread.semanticFrame,
+    thread.activeSemanticFrame,
+    thread.resolvedMeaning?.semanticFrame,
 
-    return {
-      ...found,
-      source: found.source || "ari-context-assembler"
-    };
-  },
+    workingContext.semanticFrame?.primaryFrame,
+    workingContext.semanticFrame,
+    workingContext.activeSemanticFrame,
+    workingContext.semanticState?.semanticFrame?.primaryFrame,
+    workingContext.semanticState?.semanticFrame,
+
+    continuity.semanticFrame,
+    continuity.activeSemanticFrame,
+    continuity.activeSemanticFrameState,
+
+    summary.threadState?.semanticFrame,
+    summary.threadState?.activeSemanticFrame
+  ];
+
+  const found = candidates.find(frame =>
+    frame &&
+    typeof frame === "object" &&
+    (
+      frame.frameType ||
+      frame.primaryMeaning ||
+      frame.intent ||
+      frame.domain ||
+      frame.operation
+    )
+  );
+
+  if (!found) return null;
+
+  return {
+    ...found,
+    source: found.source || found.semanticFrameSource || "ari-context-assembler"
+  };
+},
 
   cleanContinuity(continuity = {}) {
-    return {
-      currentTopic: continuity.currentTopic || null,
-      previousTopic: continuity.previousTopic || null,
+  const currentTopic = this.stringifyTopic(continuity.currentTopic);
 
-      semanticFrame:
-        continuity.semanticFrame ||
-        continuity.activeSemanticFrame ||
-        continuity.activeSemanticFrameState ||
-        null,
+  return {
+    currentTopic,
+    previousTopic: this.stringifyTopic(continuity.previousTopic),
 
-      followUpDetected: Boolean(continuity.followUpDetected),
-      followUpType: continuity.followUpType || "none",
-      shouldReusePriorContext: Boolean(continuity.shouldReusePriorContext),
+    semanticFrame:
+      continuity.semanticFrame ||
+      continuity.activeSemanticFrame ||
+      continuity.activeSemanticFrameState ||
+      null,
 
-      unresolvedItems: Array.isArray(continuity.unresolvedItems)
-        ? continuity.unresolvedItems.slice(0, 8)
-        : [],
+    followUpDetected:
+  Boolean(
+    continuity.followUpDetected ||
+    continuity.shouldReusePriorContext ||
+    (
+      continuity.followUpType &&
+      continuity.followUpType !== "none"
+    )
+  ),
 
-      nextStep: continuity.nextStep || null,
-      previousAnswerSummary: continuity.previousAnswerSummary || null,
+    followUpType: continuity.followUpType || "none",
 
-      lastMessages: Array.isArray(continuity.lastMessages)
-        ? continuity.lastMessages.slice(-8)
-        : []
-    };
-  },
+    shouldReusePriorContext:
+      Boolean(
+        continuity.shouldReusePriorContext ||
+        continuity.followUpDetected
+      ),
+
+    unresolvedItems: Array.isArray(continuity.unresolvedItems)
+      ? continuity.unresolvedItems.slice(0, 8)
+      : [],
+
+    nextStep: continuity.nextStep || null,
+    previousAnswerSummary: continuity.previousAnswerSummary || continuity.lastFinalResponse || null,
+
+    lastMessages: Array.isArray(continuity.lastMessages)
+      ? continuity.lastMessages.slice(-8)
+      : []
+  };
+},
 
   cleanMemory(memory = {}) {
     return {
@@ -877,29 +913,40 @@ window.AriContextAssembler = {
     });
   },
     buildContinuityContext(context = {}) {
-    return {
-      ready: true,
-      authority: "context_handoff_to_situation_map",
-      shouldUseAsContext: true,
+  const c = context.continuity || {};
+  const hasThreadFacts = Array.isArray(context.activeThreadFacts) && context.activeThreadFacts.length > 0;
+  const hasKeyFacts = Array.isArray(context.keyFacts) && context.keyFacts.length > 0;
 
-      semanticFrame: context.semanticFrame || null,
-      activeSemanticFrame: context.activeSemanticFrame || context.semanticFrame || null,
+  return {
+    ready: true,
+    authority: "context_handoff_to_situation_map",
 
-      activeSituation: context.activeSituation || null,
-      keyFacts: context.keyFacts || [],
-      activeThreadFacts: context.activeThreadFacts || [],
+    shouldUseAsContext:
+      Boolean(
+        c.shouldReusePriorContext ||
+        c.followUpDetected ||
+        hasThreadFacts ||
+        hasKeyFacts ||
+        c.previousAnswerSummary
+      ),
 
-      currentTopic: context.continuity?.currentTopic || null,
-      previousAnswerSummary:
-        context.continuity?.previousAnswerSummary || null,
-      lastMessages: context.continuity?.lastMessages || [],
+    semanticFrame: context.semanticFrame || null,
+    activeSemanticFrame: context.activeSemanticFrame || context.semanticFrame || null,
 
-      domainSignals: context.domainSignals || [],
-      intentSignals: context.intentSignals || [],
+    activeSituation: context.activeSituation || null,
+    keyFacts: context.keyFacts || [],
+    activeThreadFacts: context.activeThreadFacts || [],
 
-      source: "ari-context-assembler"
-    };
-  },
+    currentTopic: c.currentTopic || null,
+    previousAnswerSummary: c.previousAnswerSummary || null,
+    lastMessages: c.lastMessages || [],
+
+    domainSignals: context.domainSignals || [],
+    intentSignals: context.intentSignals || [],
+
+    source: "ari-context-assembler"
+  };
+},
 
   finalize(context = {}) {
     context.activeThreadFacts = this.uniqueByClaim(context.activeThreadFacts);
@@ -916,6 +963,20 @@ window.AriContextAssembler = {
       context.activeSemanticFrame = context.semanticFrame;
     }
   },
+
+stringifyTopic(topic) {
+  if (!topic) return null;
+  if (typeof topic === "string") return topic;
+
+  return (
+    topic.surface ||
+    topic.label ||
+    topic.value ||
+    topic.claim ||
+    topic.evidence ||
+    null
+  );
+},
 
   slotClaim(slot) {
     if (!slot) return "";
