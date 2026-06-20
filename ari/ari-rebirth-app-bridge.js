@@ -48,9 +48,18 @@ window.AriRebirthAppBridge = {
       "I heard you, but I need a cleaner response path.";
 
     const emotion =
-      summary.emotionalClassification ||
-      summary.humanLanguageTone ||
-      "happy";
+  summary.riskLevel && summary.riskLevel !== "none"
+    ? "concerned"
+    : summary.situationContract?.primary === "medical_body" ||
+      summary.situationContract?.primary === "medical_context"
+      ? "concerned"
+      : summary.situationContract?.primary === "builder"
+        ? "thinking"
+        : summary.situationContract?.primary === "teacher"
+          ? "happy"
+          : summary.situationContract?.primary === "emotion"
+            ? "listening"
+            : "happy";
 
     return {
       reply,
