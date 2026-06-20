@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.1.0 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.1.1 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.1.0",
+  version: "3.1.1",
 
   create(input = {}) {
     const summary = input.summary || input || {};
