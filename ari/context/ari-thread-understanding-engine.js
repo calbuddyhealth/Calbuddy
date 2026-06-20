@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Preserve active situation context across turns.
-// V5.2.1 — Semantic Frame Consumer / Context Memory / Advisory Only
+// V5.2.2 — Semantic Frame Consumer / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "5.2.1",
+  version: "5.2.2",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -798,7 +798,31 @@ window.AriThreadUnderstandingEngine = {
       /\b(it|this|that|they|them|one|same)\b/.test(text)
     );
   },
+isFragmentTurnText(text = "") {
 
+    const clean = this.clean(text).toLowerCase();
+
+    const words = clean.split(/\s+/).filter(Boolean);
+
+    if (!clean) return false;
+
+    return (
+
+      words.length <= 8 &&
+
+      (
+
+        /\b(i mean|i meant|i ment|meant|rather|instead|not that|no i mean)\b/.test(clean) ||
+
+        /\b(cause|causes|reason|reasons|economic|political|social|crisis|second|first|third|other one|same one)\b/.test(clean) ||
+
+        /\b(it|this|that|they|them|those|these|same|one|ones)\b/.test(clean)
+
+      )
+
+    );
+
+  },
   mergeWorkingContext({
     previousWorkingContext = {},
     currentTurn = {},
