@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.2.0 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.2.1 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.2.0",
+  version: "3.2.1",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -302,32 +302,46 @@ window.AriSituationContract = {
   },
 
   applySafetyPriority(contract, safety = {}, map = {}, triage = {}) {
-    if (safety.override === "safety_emergency" || triage.primaryLane === "safety") {
-      contract.primary = "safety";
-      contract.authority = "absolute";
-      contract.reasons.push("Safety emergency overrides all other lanes.");
-      return;
-    }
+  const primaryRisk = safety.primaryRisk || map.primaryRisk || null;
+  const isMedicalRisk =
+    primaryRisk?.type === "medical" ||
+    primaryRisk?.type === "poisoning_overdose" ||
+    triage.primaryLane === "medical_body";
 
-    if (safety.override === "medical_urgent" || triage.primaryLane === "medical_body") {
-      contract.primary = "medical_body";
-      contract.authority = "absolute";
-      contract.reasons.push("Medical urgency overrides non-medical lanes.");
-      return;
-    }
+  if (safety.override === "emergency" || triage.primaryLane === "safety" || triage.primaryLane === "medical_body") {
+    contract.primary = isMedicalRisk ? "medical_body" : "safety";
+    contract.authority = "absolute";
+    contract.reasons.push(
+      isMedicalRisk
+        ? "Emergency medical/body risk overrides non-medical lanes."
+        : "Emergency safety risk overrides all other lanes."
+    );
+    return;
+  }
 
-    if (safety.override === "clarify_risk" || triage.primaryLane === "risk_clarification") {
-      contract.primary = "risk_clarification";
-      contract.authority = "absolute";
-      contract.clarity = {
-        needed: true,
-        level: "high",
-        question: safety.followUpQuestion || map.recommendedQuestion || "Are you safe right now?",
-        placement: "only"
-      };
-      contract.reasons.push("Ambiguous risk requires clarification.");
-    }
-  },
+  if (safety.override === "urgent") {
+    contract.primary = isMedicalRisk ? "medical_body" : "safety";
+    contract.authority = "absolute";
+    contract.reasons.push(
+      isMedicalRisk
+        ? "Urgent medical/body risk overrides non-medical lanes."
+        : "Urgent safety risk overrides lower-priority lanes."
+    );
+    return;
+  }
+
+  if (safety.override === "clarify_risk" || triage.primaryLane === "risk_clarification") {
+    contract.primary = "risk_clarification";
+    contract.authority = "absolute";
+    contract.clarity = {
+      needed: true,
+      level: "high",
+      question: safety.followUpQuestion || map.recommendedQuestion || "Is anyone in immediate danger right now?",
+      placement: "only"
+    };
+    contract.reasons.push("Ambiguous risk requires clarification.");
+  }
+},
 
 applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {}) {
   if (contract.primary) return;
