@@ -1,11 +1,11 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
-// V2.1.0 — Continuity Intent Lock / Action Follow-Up Fix
+// V2.1.1 — Continuity Intent Lock / Action Follow-Up Fix
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -155,17 +155,26 @@ window.Ari.laneSplitterEngine = {
       ? this.emptyLexicalFallback()
       : this.lexicalFallback(text);
 
+const standaloneDirectQuestion =
+  expectsDirectAnswer &&
+  !explicitReferenceLanguage &&
+  !actionFollowUp &&
+  !recommendationFollowUp &&
+  !critiqueFollowUp &&
+  wordCount >= 4;
+
     const mustUseThread =
-      hasThread &&
-      (
-        explicitReferenceLanguage ||
-        actionFollowUp ||
-        recommendationFollowUp ||
-        critiqueFollowUp ||
-        semanticContinuation ||
-        expectsFollowUpContext ||
-        referencesPriorContext
-      );
+  hasThread &&
+  !standaloneDirectQuestion &&
+  (
+    explicitReferenceLanguage ||
+    actionFollowUp ||
+    recommendationFollowUp ||
+    critiqueFollowUp ||
+    semanticContinuation ||
+    expectsFollowUpContext ||
+    referencesPriorContext
+  );
 
     return {
       text,
@@ -180,7 +189,7 @@ window.Ari.laneSplitterEngine = {
       actionFollowUp,
       recommendationFollowUp,
       critiqueFollowUp,
-
+standaloneDirectQuestion,
       semanticContinuation,
       expectsFollowUpContext,
       referencesPriorContext,
@@ -229,14 +238,16 @@ window.Ari.laneSplitterEngine = {
   },
 
   chooseLane(ranked = [], context = {}) {
-    if (context.mustUseThread) return "continuity_follow_up";
+  if (context.standaloneDirectQuestion) return "direct_current_turn";
 
-    if (!context.semanticAvailable && context.lexicalFallback.needsThread) {
-      return "continuity_follow_up";
-    }
+  if (context.mustUseThread) return "continuity_follow_up";
 
-    return ranked[0]?.lane || "direct_current_turn";
-  },
+  if (!context.semanticAvailable && context.lexicalFallback.needsThread) {
+    return "continuity_follow_up";
+  }
+
+  return ranked[0]?.lane || "direct_current_turn";
+},
 
   hasReferenceLanguage(text = "") {
     return /\b(it|this|that|they|them|their|those|these|same|one|ones|him|her|he|she|his|hers|there|that guy|that person)\b/.test(text);
