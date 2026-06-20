@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.1.0 — Contract-Locked Natural AI Writer
+// V8.2.0 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.1.0",
+  version: "8.2.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -60,10 +60,18 @@ window.AriLanguageComposer = {
       userQuestion
     });
 
-    const finalResponse = this.finalPolish(
-      this.enforceFinalBudget(validated, communicationPlan),
-      language
-    );
+    const natural = this.naturalizeResponse({
+  text: validated,
+  summary,
+  contract,
+  primary,
+  userQuestion
+});
+
+const finalResponse = this.finalPolish(
+  this.enforceFinalBudget(natural, communicationPlan),
+  language
+);
 
     return {
       languageMode: primary,
@@ -240,12 +248,15 @@ ${JSON.stringify(
   2
 )}
 
-CONTEXT ANCHORS:
-- Before writing, identify the concrete event the user is talking about.
-- Mention that event naturally in the response.
-- Do not replace specific events with generic phrases like
-  "this situation", "what matters most", or "take a breath"
-  unless the event has already been acknowledged.
+NATURALNESS RULES:
+- Sound like a real thinking partner, not a template.
+- Start with the useful answer, not generic comfort.
+- Use the user’s actual words when possible.
+- Mention the concrete issue before giving advice.
+- Avoid vague filler like “what matters most,” “take a moment,” or “small steps” unless truly appropriate.
+- Vary sentence rhythm.
+- Do not make every response emotional.
+- Match the lane: technical = crisp, teaching = clear, decision = decisive, emotion = warm, medical = calm/direct.
 
 EMOTIONAL / THREAD CONTEXT:
 ${JSON.stringify(emotionalContext, null, 2)}
@@ -512,6 +523,37 @@ if (primary === "emotion") {
 
     return words.slice(0, max).join(" ").replace(/[,:;–-]$/, "") + ".";
   },
+
+naturalizeResponse({ text = "", summary = {}, contract = {}, primary = "", userQuestion = "" }) {
+  let result = String(text || "").trim();
+  if (!result) return result;
+
+  const genericPhrases = [
+    "take a moment to breathe",
+    "think about what matters most",
+    "small steps you can take",
+    "you might be feeling lost",
+    "align with those priorities",
+    "this situation can be challenging"
+  ];
+
+  const lower = result.toLowerCase();
+  const soundsGeneric = genericPhrases.some(phrase => lower.includes(phrase));
+
+  if (soundsGeneric) {
+    return this.localFallback({ primary, contract, userQuestion });
+  }
+
+  result = result
+    .replace(/\bIt sounds like you might be\b/gi, "It sounds like you’re")
+    .replace(/\bIt is important to\b/gi, "You should")
+    .replace(/\bYou may want to consider\b/gi, "Consider")
+    .replace(/\bIn this situation,\s*/gi, "")
+    .replace(/\bMoving forward,\s*/gi, "")
+    .trim();
+
+  return result;
+},
 
   finalPolish(response = "", language = {}) {
     let polished = String(response || "")
