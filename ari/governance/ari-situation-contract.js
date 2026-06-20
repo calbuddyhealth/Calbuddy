@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.1.2 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.2.0 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.1.2",
+  version: "3.2.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -25,7 +25,8 @@ window.AriSituationContract = {
     this.applyPrimaryLane(contract, map, triage);
     this.applyLaneProfile(contract);
     this.applyTriageLanes(contract, triage, map);
-    this.applyMedicalContextProtection(contract, safety, map, triage);
+   this.applySituationThesis(contract, map);
+     this.applyMedicalContextProtection(contract, safety, map, triage);
     this.applyClarity(contract, safety, map);
     this.applyAuthority(contract);
     this.applyResponseShape(contract);
@@ -91,6 +92,13 @@ window.AriSituationContract = {
         placement: "none"
       },
 
+      situationThesis: {
+        available: false,
+        thesis: null,
+        narrative: null,
+        recommendedUse: "do_not_use_as_authority",
+        requiredByComposer: false
+      },
       responseShape: null,
       responseRules: [],
 
@@ -388,6 +396,50 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
     this.addMany(contract.deferred, triage.deferredLanes || []);
     this.addMany(contract.blocked, triage.blockedLanes || []);
     this.addMany(contract.responseRules, triage.responseConstraints || map.responseConstraints || []);
+  },
+
+  applySituationThesis(contract, map = {}) {
+    const thesis = map.primarySituationThesis || null;
+    const narrative = map.situationNarrative || thesis?.oneLine || null;
+    const recommendedUse =
+      map.thesisRecommendedUse || "do_not_use_as_authority";
+
+    contract.situationThesis = {
+      available: Boolean(thesis),
+      thesis,
+      narrative,
+      recommendedUse,
+      requiredByComposer: recommendedUse === "use_as_situation_blueprint"
+    };
+
+    contract.debug = {
+      ...(contract.debug || {}),
+      situationNarrative: narrative,
+      primarySituationThesisType: thesis?.thesisType || null,
+      thesisRecommendedUse: recommendedUse,
+      thesisEvidenceCount: thesis?.evidenceCount || 0
+    };
+
+    if (recommendedUse !== "use_as_situation_blueprint") return;
+
+    this.add(contract.responseRules, "composer_must_use_situation_thesis");
+    this.add(contract.responseRules, "name_core_conflict_before_recommending");
+    this.add(contract.requiredBehaviors, "Use the situation thesis as the response blueprint.");
+    this.add(contract.requiredBehaviors, "Name the core conflict before giving advice when relevant.");
+
+    if (thesis?.bestResponse) {
+      this.add(contract.requiredBehaviors, thesis.bestResponse);
+    }
+
+    contract.mouthDirective.required = [
+      ...(contract.mouthDirective.required || []),
+      "Use the situation thesis as the response blueprint.",
+      "Do not answer from domain labels alone."
+    ];
+
+    contract.reasons.push(
+      `Situation thesis promoted: ${thesis?.thesisType || "unknown"}.`
+    );
   },
 
   applyMedicalContextProtection(contract, safety = {}, map = {}) {
