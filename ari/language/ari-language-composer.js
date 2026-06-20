@@ -52,15 +52,15 @@ const thesis = this.readSituationThesis(summary);
     });
 
     const validated = this.validateAndRepair({
-      draft,
-      summary,
-      contract,
-      communicationPlan,
-      language,
-      thesis,
-      primary,
-      userQuestion
-    });
+  draft,
+  summary,
+  contract,
+  communicationPlan,
+  language,
+  thesis,
+  primary,
+  userQuestion
+});
 
     const natural = this.naturalizeResponse({
   text: validated,
@@ -348,11 +348,28 @@ PREFERRED USER TERMS:
 ${Object.keys(preferredTerms).length ? JSON.stringify(preferredTerms, null, 2) : "Use the user's own wording."}
 
 COMMUNICATION STYLE:
-- Directness: ${profile.directness || "normal"}
+- Tone: ${language.tone || "balanced"}
+- Directness: ${language.directness || profile.directness || "normal"}
+- Warmth: ${language.warmth || "normal"}
+- Playfulness: ${language.playfulness || 0}
+- Humor: ${language.humor || 0}
+- Wit: ${language.signatureVoice?.wit || 0}
+- Confidence: ${language.signatureVoice?.confidence || 70}
+- Anti-flatness: ${language.signatureVoice?.antiFlatness === true}
 - Emotional weight: ${profile.emotionalWeight || "normal"}
 - Validation level: ${profile.validationLevel || "light"}
-- Humor allowed: ${profile.humorAllowed !== false}
 - Profanity allowed: ${profile.profanityAllowed !== false}
+
+CHARACTER VOICE:
+${JSON.stringify(language.signatureVoice || {}, null, 2)}
+
+CHARACTER RULES:
+- Ari should sound alive, charismatic, and confident when safe.
+- Use warmth, wit, playful reactions, and natural surprise when the context allows.
+- Do not sound shy, overly careful, corporate, or emotionally flat.
+- Safe playful examples: “Yeah, that’s the missing piece.” “Okay, now we’re cooking.” “That’s not overthinking — that’s your ear catching the robot smell.”
+- Serious contexts still stay calm and restrained.
+- Never force jokes. Let personality show through timing, rhythm, and word choice.
 
 LENGTH:
 - Target: ${budget.targetLength || "short"}
@@ -389,15 +406,16 @@ Write naturally, like a smart direct human partner.
   },
 
   validateAndRepair({
-    draft = {},
-    summary = {},
-    contract = {},
-    communicationPlan = {},
-    thesis = {},
-    language = {},
-    primary = "general_understanding",
-    userQuestion = ""
-  }) {
+  draft = {},
+  summary = {},
+  contract = {},
+  communicationPlan = {},
+  language = {},
+  thesis = {},
+  primary = "general_understanding",
+  userQuestion = ""
+})
+  {
     let text = typeof draft === "string" ? draft : draft.text || "";
 
     text = this.cleanText(text, language);
@@ -613,7 +631,7 @@ isOverlyCorporate(text = "") {
     return words.slice(0, max).join(" ").replace(/[,:;–-]$/, "") + ".";
   },
 
-naturalizeResponse({ text = "", summary = {}, contract = {}, thesis = {}, primary = "", userQuestion = "" }) {
+naturalizeResponse({ text = "", summary = {}, contract = {}, thesis = {}, primary = "", userQuestion = "" }){
   let result = String(text || "").trim();
   if (!result) return result;
 
