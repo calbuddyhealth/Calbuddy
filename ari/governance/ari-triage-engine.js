@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   run(input = {}) {
     const summary = input.summary || input || {};
