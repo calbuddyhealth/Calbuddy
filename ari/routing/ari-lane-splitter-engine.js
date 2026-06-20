@@ -1,12 +1,12 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
 // Purpose: Choose direct vs continuity/recall/revision/relationship route.
-// V1.9.0 — Semantic-First Routing / Lexical Fallback Only
+// V2.0.0 — Semantic Continuity Priority / Pronoun Reference Lock
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "1.9.0",
+  version: "2.0.0",
 
   split(input = {}) {
     const summary = input.summary || input || {};
@@ -164,6 +164,12 @@ window.Ari.laneSplitterEngine = {
       semantic.semanticSummary?.intent ||
       "unknown";
 
+    const explicitReferenceLanguage = this.hasReferenceLanguage(text);
+
+    const asksAboutPriorSubject =
+      explicitReferenceLanguage &&
+      /\b(him|her|it|that|this|they|them|those|these|same|one|ones)\b/.test(text);
+
     const expectsDirectAnswer =
       semantic.response?.expectsDirectAnswer === true;
 
@@ -214,6 +220,7 @@ window.Ari.laneSplitterEngine = {
       expectsCodeOrArtifact,
       semanticContinuation,
       ambiguityPresent,
+      explicitReferenceLanguage,
       lexicalFallback
     });
 
@@ -227,6 +234,8 @@ window.Ari.laneSplitterEngine = {
       referencesPriorArtifact,
       ambiguityPresent,
       frameType,
+      explicitReferenceLanguage,
+      asksAboutPriorSubject,
       lexicalFallback
     });
 
@@ -237,6 +246,9 @@ window.Ari.laneSplitterEngine = {
 
       frameType,
       intent,
+
+      explicitReferenceLanguage,
+      asksAboutPriorSubject,
 
       expectsDirectAnswer,
       expectsExplanation,
@@ -288,15 +300,17 @@ window.Ari.laneSplitterEngine = {
       (p.activeThreadMatch || 0) * 10;
 
     let directBoost = Math.round(context.standaloneMeaningScore * 60);
-    let continuityBoost = Math.round(context.semanticDependencyScore * 65);
+    let continuityBoost = Math.round(context.semanticDependencyScore * 75);
 
-    if (context.expectsDirectAnswer) directBoost += 35;
-    if (context.expectsExplanation) directBoost += 20;
+    if (context.expectsDirectAnswer && !context.asksAboutPriorSubject) directBoost += 35;
+    if (context.expectsExplanation && !context.asksAboutPriorSubject) directBoost += 20;
 
     if (context.semanticContinuation) continuityBoost += 40;
     if (context.expectsFollowUpContext) continuityBoost += 35;
-    if (context.referencesPriorContext) continuityBoost += 25;
+    if (context.referencesPriorContext) continuityBoost += 30;
     if (context.ambiguityPresent) continuityBoost += 25;
+    if (context.explicitReferenceLanguage && context.hasThread) continuityBoost += 35;
+    if (context.asksAboutPriorSubject && context.hasThread) continuityBoost += 45;
 
     if (context.expectsCodeOrArtifact) {
       directBoost += 12;
@@ -309,9 +323,10 @@ window.Ari.laneSplitterEngine = {
     }
 
     if (context.frameType === "continuation") continuityBoost += 35;
-    if (context.frameType === "information_seeking") directBoost += 25;
-    if (context.frameType === "explanation_request") directBoost += 22;
+    if (context.frameType === "information_seeking" && !context.asksAboutPriorSubject) directBoost += 25;
+    if (context.frameType === "explanation_request" && !context.asksAboutPriorSubject) directBoost += 22;
     if (context.frameType === "instruction_or_command") directBoost += 15;
+
     if (context.frameType === "collaborative_software_build") {
       directBoost += 10;
       continuityBoost += context.hasThread ? 15 : 0;
@@ -332,14 +347,21 @@ window.Ari.laneSplitterEngine = {
 
     if (
       context.hasThread &&
+      context.asksAboutPriorSubject
+    ) {
+      return "continuity_follow_up";
+    }
+
+    if (
+      context.hasThread &&
       context.semanticAvailable &&
       (
         context.semanticContinuation ||
         context.expectsFollowUpContext ||
         context.referencesPriorContext ||
-        context.ambiguityPresent
-      ) &&
-      !context.expectsDirectAnswer
+        context.ambiguityPresent ||
+        context.explicitReferenceLanguage
+      )
     ) {
       return "continuity_follow_up";
     }
@@ -352,8 +374,13 @@ window.Ari.laneSplitterEngine = {
       return "continuity_follow_up";
     }
 
+    if (!context.semanticAvailable && context.lexicalFallback.needsThread) {
+      return "continuity_follow_up";
+    }
+
     if (
       context.expectsDirectAnswer &&
+      !context.explicitReferenceLanguage &&
       context.standaloneMeaningScore >= context.semanticDependencyScore
     ) {
       return "direct_current_turn";
@@ -362,13 +389,10 @@ window.Ari.laneSplitterEngine = {
     if (
       context.expectsExplanation &&
       !context.semanticContinuation &&
-      !context.ambiguityPresent
+      !context.ambiguityPresent &&
+      !context.explicitReferenceLanguage
     ) {
       return "direct_current_turn";
-    }
-
-    if (!context.semanticAvailable && context.lexicalFallback.needsThread) {
-      return "continuity_follow_up";
     }
 
     if (!top || top.score < 35) {
@@ -379,7 +403,8 @@ window.Ari.laneSplitterEngine = {
       top.lane !== "direct_current_turn" &&
       second &&
       top.score - second.score < 8 &&
-      context.standaloneMeaningScore >= context.semanticDependencyScore
+      context.standaloneMeaningScore >= context.semanticDependencyScore &&
+      !context.explicitReferenceLanguage
     ) {
       return "direct_current_turn";
     }
@@ -397,6 +422,8 @@ window.Ari.laneSplitterEngine = {
     referencesPriorArtifact = false,
     ambiguityPresent = false,
     frameType = "unknown",
+    explicitReferenceLanguage = false,
+    asksAboutPriorSubject = false,
     lexicalFallback = {}
   } = {}) {
     if (!hasThread) return 0;
@@ -406,15 +433,17 @@ window.Ari.laneSplitterEngine = {
     if (semanticAvailable) {
       if (semanticContinuation) score += 0.45;
       if (expectsFollowUpContext) score += 0.35;
-      if (referencesPriorContext) score += 0.25;
+      if (referencesPriorContext) score += 0.3;
       if (referencesPriorArtifact) score += 0.15;
       if (ambiguityPresent) score += 0.25;
+      if (explicitReferenceLanguage) score += 0.35;
+      if (asksAboutPriorSubject) score += 0.45;
       if (frameType === "continuation") score += 0.25;
-      if (wordCount <= 5 && semanticContinuation) score += 0.15;
+      if (wordCount <= 8 && explicitReferenceLanguage) score += 0.15;
     } else {
       if (lexicalFallback.needsThread) score += 0.45;
       if (lexicalFallback.hasReferenceLanguage) score += 0.25;
-      if (wordCount <= 5) score += 0.15;
+      if (wordCount <= 8) score += 0.15;
     }
 
     return this.clamp01(score);
@@ -431,6 +460,7 @@ window.Ari.laneSplitterEngine = {
     expectsCodeOrArtifact = false,
     semanticContinuation = false,
     ambiguityPresent = false,
+    explicitReferenceLanguage = false,
     lexicalFallback = {}
   } = {}) {
     let score = 0;
@@ -446,6 +476,7 @@ window.Ari.laneSplitterEngine = {
 
       if (semanticContinuation) score -= 0.3;
       if (ambiguityPresent) score -= 0.25;
+      if (explicitReferenceLanguage) score -= 0.35;
     } else {
       if (lexicalFallback.looksLikeQuestion) score += 0.35;
       if (lexicalFallback.hasEnoughContent) score += 0.25;
@@ -454,6 +485,12 @@ window.Ari.laneSplitterEngine = {
     }
 
     return this.clamp01(score);
+  },
+
+  hasReferenceLanguage(text = "") {
+    return /\b(it|this|that|they|them|their|those|these|same|one|ones|him|her|he|she|his|hers|there|that guy|that person)\b/.test(
+      String(text || "").toLowerCase()
+    );
   },
 
   emptyLexicalFallback() {
@@ -470,7 +507,7 @@ window.Ari.laneSplitterEngine = {
     const wordCount = String(text || "").split(/\s+/).filter(Boolean).length;
 
     const hasReferenceLanguage =
-      /\b(it|this|that|they|them|same|one|those|these)\b/.test(text) ||
+      this.hasReferenceLanguage(text) ||
       /^(so|but|also|still|okay|then|next)\b/.test(text);
 
     const looksLikeQuestion =
@@ -479,7 +516,7 @@ window.Ari.laneSplitterEngine = {
 
     return {
       used: true,
-      needsThread: hasReferenceLanguage && wordCount <= 8,
+      needsThread: hasReferenceLanguage && wordCount <= 12,
       hasReferenceLanguage,
       looksLikeQuestion,
       hasEnoughContent: wordCount >= 6
@@ -516,6 +553,7 @@ window.Ari.laneSplitterEngine = {
     const second = ranked[1]?.score || 0;
     const gap = top - second;
 
+    if (context.asksAboutPriorSubject && context.hasThread) return "high";
     if (context.semanticAvailable && gap >= 20) return "high";
     if (context.semanticContinuation || context.expectsDirectAnswer) return "high";
     if (!context.semanticAvailable && context.lexicalFallbackUsed) return "medium";
@@ -525,6 +563,10 @@ window.Ari.laneSplitterEngine = {
   },
 
   explain(lane, context = {}, semantic = {}) {
+    if (lane === "continuity_follow_up" && context.asksAboutPriorSubject) {
+      return "Current turn uses pronoun/reference language, so it must inherit the prior subject from thread context.";
+    }
+
     if (context.lexicalFallbackUsed) {
       return "Semantic frame unavailable; Lane Splitter used minimal lexical fallback.";
     }
