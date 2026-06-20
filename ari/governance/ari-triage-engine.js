@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.1.0 — Evidence Weighted Arbitration Engine
+// V2.1.1 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -28,6 +28,7 @@ window.AriTriageEngine = {
     const triage = this.createEmptyTriage(map);
 
     this.collectSafetyCandidate(safety, triage);
+    this.collectConversationFunctionCandidate(summary, triage);
     this.collectHandoffCandidates(handoff, triage);
     this.collectSituationCandidates(map, triage);
     this.collectUniversalCandidates(map, triage);
@@ -125,6 +126,24 @@ window.AriTriageEngine = {
       triage.gravity = Math.max(triage.gravity || 0, 7);
     }
   },
+
+collectConversationFunctionCandidate(summary = {}, triage = {}) {
+  const cf = summary.conversationFunction || {};
+  const primaryFunction = cf.primaryFunction || summary.primaryFunction || null;
+
+  if (primaryFunction === "emotional_disclosure") {
+    this.addCandidate(
+      triage,
+      "emotion",
+      96,
+      "Conversation Function Engine detected emotional disclosure.",
+      "conversation_function_engine"
+    );
+
+    this.add(triage.responseConstraints, "emotional_presence_first");
+    this.add(triage.responseConstraints, "do_not_jump_to_builder_or_teacher");
+  }
+},
 
   collectHandoffCandidates(handoff = {}, triage = {}) {
     if (!handoff || !handoff.ready) return;
@@ -494,7 +513,7 @@ window.AriTriageEngine = {
 
       relationship: 36,
       family: 36,
-      emotion: 30,
+      emotion: 58,
       wisdom: 28,
 
       life_chapter: 20,
