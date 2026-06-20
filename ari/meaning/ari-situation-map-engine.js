@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.2.1 — Advisory Situation Mapper Only
+// V8.3.0 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.2.1",
+  version: "8.3.0",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -108,6 +108,7 @@ this.setMapSummary(map);
 this.applyResponseConstraints(map);
 
 this.buildEvidenceModel(map);
+this.buildSituationTheses(map);
 this.detectContradictions(map);
 this.detectAmbiguity(map);
 this.buildTriageHandoff(map);
@@ -204,6 +205,20 @@ createEmptyMap({
     responseRequirements: [],
     responseConstraints: [],
     competingSituations: [],
+
+    situationTheses: [],
+    primarySituationThesis: null,
+    situationNarrative: null,
+    thesisQuality: {
+      groundedInUserText: false,
+      evidenceCount: 0,
+      unsupportedClaims: [],
+      ambiguityLevel: "none",
+      overInterpretationRisk: "low",
+      confidence: 0
+    },
+
+    thesisRecommendedUse: "do_not_use_as_authority",
 
     evidenceModel: {
       objectiveEvidence: [],
@@ -1624,6 +1639,493 @@ this.addSemanticLaneEvidence(map, addCandidate);
     }
   },
 
+    buildSituationTheses(map) {
+    const theses = [];
+
+    const addThesis = thesis => {
+      if (!thesis?.thesisType || !thesis?.oneLine) return;
+
+      const checked = this.checkThesisQuality(map, thesis);
+
+      if (!checked.groundedInUserText) return;
+
+      theses.push(checked);
+    };
+
+    const hasNeed = need => map.needs.includes(need);
+    const hasDomain = domain => map.domains.includes(domain);
+    const hasSituation = situation => map.situations.includes(situation);
+    const hasQuestion = question => map.questions.includes(question);
+
+    const semantic = this.getSemanticThesisSignals(map);
+
+    // 1. Safety / medical first
+    if (
+      hasDomain("medical_context_domain") ||
+      hasSituation("body_or_medical_context") ||
+      hasSituation("body_symptom_mentioned") ||
+      semantic.domain === "health"
+    ) {
+      addThesis({
+        thesisType: "medical_or_body_context",
+        oneLine:
+          "The user mentioned body or medical context, so the response should stay practical, cautious, and avoid false reassurance.",
+        coreConflict: "uncertainty vs health risk",
+        userNeed: "safe practical guidance",
+        bestResponse:
+          "Give practical next steps, name red flags when relevant, and avoid overclaiming.",
+        score: 86,
+        confidence: 0.86,
+        evidenceConcepts: [
+          "medical_context_domain",
+          "body_or_medical_context",
+          "body_symptom_mentioned",
+          "context_sensitive_support",
+          "health",
+          "body",
+          "medical"
+        ]
+      });
+    }
+
+    // 2. Decision / tradeoff
+    if (
+      hasNeed("decision_support") ||
+      semantic.meaning === "decision_support" ||
+      semantic.intent === "evaluate_options"
+    ) {
+      addThesis({
+        thesisType: "decision_under_tradeoff",
+        oneLine:
+          "The user is asking for help choosing a direction while weighing competing pressures.",
+        coreConflict: "choice vs consequence",
+        userNeed: "clear recommendation with the tradeoff named",
+        bestResponse:
+          "Answer directly, name the tradeoff, and recommend the next step.",
+        score: 82,
+        confidence: 0.84,
+        evidenceConcepts: [
+          "decision_support",
+          "decision_context_domain",
+          "tradeoff_or_competing_priorities",
+          "constraint_or_obligation_pressure",
+          "evaluate_options",
+          "opinion_request",
+          "explicit_question"
+        ]
+      });
+    }
+
+    // 3. Universal reward impulse vs stability
+    if (
+      hasNeed("decision_support") &&
+      (
+        hasDomain("financial_resource_domain") ||
+        hasDomain("family_context_domain") ||
+        hasSituation("constraint_or_obligation_pressure")
+      ) &&
+      this.textHasAny(map, [
+        "celebrate",
+        "deserve",
+        "reward",
+        "treat myself",
+        "go hard",
+        "blow",
+        "spend",
+        "buy"
+      ])
+    ) {
+      addThesis({
+        thesisType: "short_term_reward_vs_long_term_stability",
+        oneLine:
+          "The user is feeling a strong reward impulse, but the immediate reward may conflict with longer-term stability or responsibility.",
+        coreConflict: "short-term reward vs long-term stability",
+        userNeed: "validation plus protective decision guidance",
+        bestResponse:
+          "Validate the earned win, name the impulse, protect stability, and suggest a controlled reward.",
+        score: 94,
+        confidence: 0.9,
+        evidenceConcepts: [
+          "decision_support",
+          "financial_resource_domain",
+          "family_context_domain",
+          "constraint_or_obligation_pressure",
+          "money_or_resource_context",
+          "pressure_or_constraint_risk",
+          "celebrate",
+          "deserve",
+          "spend",
+          "buy",
+          "reward"
+        ]
+      });
+    }
+
+    // 4. Builder / technical
+    if (
+      hasDomain("builder_domain") ||
+      hasSituation("building_or_debugging_context") ||
+      hasNeed("action_or_build_help") ||
+      semantic.domain === "ari_architecture" ||
+      semantic.domain === "system_behavior"
+    ) {
+      addThesis({
+        thesisType: "technical_problem_or_build_context",
+        oneLine:
+          "The user is working through a technical or build-related situation and needs concrete diagnosis or implementation help.",
+        coreConflict: "unclear system behavior vs working implementation",
+        userNeed: "specific action or debugging clarity",
+        bestResponse:
+          "Identify the likely cause, explain briefly, and provide the next concrete action.",
+        score: 84,
+        confidence: 0.84,
+        evidenceConcepts: [
+          "builder_domain",
+          "building_or_debugging_context",
+          "action_or_build_help",
+          "implementation_help_request",
+          "ari_architecture",
+          "system_behavior",
+          "debugging_or_root_cause",
+          "collaborative_software_build"
+        ]
+      });
+    }
+
+    // 5. Emotional load
+    if (
+      hasDomain("emotion_context_domain") ||
+      hasNeed("emotional_attunement") ||
+      semantic.domain === "emotion" ||
+      semantic.meaning === "emotional_disclosure"
+    ) {
+      addThesis({
+        thesisType: "emotional_load_needs_containment",
+        oneLine:
+          "The user appears emotionally activated and may need brief emotional containment before detailed problem-solving.",
+        coreConflict: "emotional load vs executive clarity",
+        userNeed: "steadying plus one clear next step",
+        bestResponse:
+          "Briefly validate, reduce the problem, and give one concrete next action.",
+        score: 78,
+        confidence: 0.78,
+        evidenceConcepts: [
+          "emotion_context_domain",
+          "emotional_attunement",
+          "emotional_disclosure_present",
+          "emotional_disclosure",
+          "emotion",
+          "brief_emotional_attunement"
+        ]
+      });
+    }
+
+    // 6. Relationship / family impact
+    if (
+      hasDomain("relationship_context_domain") ||
+      hasDomain("family_context_domain") ||
+      hasNeed("relationship_awareness") ||
+      hasNeed("family_awareness")
+    ) {
+      addThesis({
+        thesisType: "relationship_or_family_impact",
+        oneLine:
+          "The user’s situation involves an important relationship or family responsibility, so the response should account for relational consequences.",
+        coreConflict: "personal desire vs relational impact",
+        userNeed: "guidance that protects the relationship or family system",
+        bestResponse:
+          "Name the relational stake without over-interpreting and recommend a respectful next action.",
+        score: 76,
+        confidence: 0.76,
+        evidenceConcepts: [
+          "relationship_context_domain",
+          "family_context_domain",
+          "relationship_awareness",
+          "family_awareness",
+          "decision_vs_relationship_impact",
+          "decision_vs_family_impact"
+        ]
+      });
+    }
+
+    // 7. Direct information request
+    if (
+      hasQuestion("knowledge_question") ||
+      hasNeed("understanding") ||
+      semantic.meaning === "information_seeking" ||
+      semantic.intent?.includes?.("explain")
+    ) {
+      addThesis({
+        thesisType: "direct_information_or_explanation_request",
+        oneLine:
+          "The user is asking for information or explanation and should receive a direct answer before any deeper interpretation.",
+        coreConflict: "unknown information vs needed clarity",
+        userNeed: "accurate direct explanation",
+        bestResponse:
+          "Answer first, then explain only as much as needed.",
+        score: 72,
+        confidence: 0.78,
+        evidenceConcepts: [
+          "knowledge_question",
+          "understanding",
+          "knowledge_domain",
+          "clear_explanation",
+          "information_seeking",
+          "explain",
+          "understand"
+        ]
+      });
+    }
+
+    // 8. Universal fallback
+    if (!theses.length) {
+      addThesis({
+        thesisType: "direct_current_turn",
+        oneLine:
+          "The user’s current message should be answered directly without adding deeper interpretation.",
+        coreConflict: "unclear or minimal",
+        userNeed: "direct response",
+        bestResponse:
+          "Answer the current message plainly and avoid over-reading.",
+        score: 55,
+        confidence: 0.66,
+        evidenceConcepts: [
+          "explicit_question",
+          "implicit_question_or_statement",
+          "general_understanding"
+        ]
+      });
+    }
+
+    theses.sort((a, b) => b.score - a.score);
+
+    map.situationTheses = theses.slice(0, 4);
+    map.primarySituationThesis = map.situationTheses[0] || null;
+
+    map.situationNarrative = map.primarySituationThesis
+      ? map.primarySituationThesis.oneLine
+      : "No evidence-grounded situation narrative could be established.";
+
+    map.thesisQuality = map.primarySituationThesis
+      ? {
+          groundedInUserText: map.primarySituationThesis.groundedInUserText,
+          evidenceCount: map.primarySituationThesis.evidenceCount,
+          unsupportedClaims: map.primarySituationThesis.unsupportedClaims || [],
+          ambiguityLevel: map.primarySituationThesis.ambiguityLevel,
+          overInterpretationRisk: map.primarySituationThesis.overInterpretationRisk,
+          confidence: map.primarySituationThesis.confidence
+        }
+      : {
+          groundedInUserText: false,
+          evidenceCount: 0,
+          unsupportedClaims: [],
+          ambiguityLevel: "high",
+          overInterpretationRisk: "high",
+          confidence: 0
+        };
+
+    map.thesisRecommendedUse = this.recommendThesisUse(map.primarySituationThesis);
+
+    if (map.primarySituationThesis) {
+      map.reasons.push(
+        `Situation thesis selected: ${map.primarySituationThesis.thesisType}.`
+      );
+    }
+  },
+
+  getSemanticThesisSignals(map) {
+    const frame = map.semanticSituation?.currentTurnMeaning || {};
+    const handoff = map.semanticSituation?.handoff || {};
+
+    return {
+      meaning: frame.frameType || handoff.currentMeaning || "",
+      intent: frame.intent || handoff.intent || "",
+      domain: frame.domain || handoff.domain || "",
+      confidence:
+        map.semanticSituation?.confidence ||
+        frame.confidence ||
+        handoff.confidence ||
+        0
+    };
+  },
+
+  checkThesisQuality(map, thesis) {
+    const evidence = this.collectThesisEvidence(
+      map,
+      thesis.evidenceConcepts || thesis.evidenceKeywords || []
+    );
+
+    const evidenceCount = evidence.length;
+
+    let score = thesis.score || 50;
+    let confidence = thesis.confidence || 0.6;
+    let ambiguityLevel = "low";
+    let overInterpretationRisk = "low";
+
+    if (evidenceCount < 3) {
+      score -= 10;
+      confidence = Math.min(confidence, 0.76);
+      ambiguityLevel = "medium";
+    }
+
+    if (evidenceCount < 2) {
+      score -= 18;
+      confidence = Math.min(confidence, 0.62);
+      ambiguityLevel = "medium";
+      overInterpretationRisk = "medium";
+    }
+
+    if (evidenceCount < 1) {
+      score -= 35;
+      confidence = Math.min(confidence, 0.45);
+      ambiguityLevel = "high";
+      overInterpretationRisk = "high";
+    }
+
+    if (map.ambiguity?.present && map.ambiguity.level === "high") {
+      confidence = Math.min(confidence, 0.68);
+      overInterpretationRisk =
+        overInterpretationRisk === "low" ? "medium" : overInterpretationRisk;
+    }
+
+    return {
+      ...thesis,
+      evidence,
+      evidenceCount,
+      groundedInUserText: evidenceCount > 0,
+      ambiguityLevel,
+      overInterpretationRisk,
+      unsupportedClaims: [],
+      score: Math.max(0, Math.min(100, score)),
+      confidence
+    };
+  },
+
+  collectThesisEvidence(map, concepts = []) {
+    const evidence = [];
+
+    const add = (source, claim, value, weight = 50) => {
+      if (!value) return;
+
+      const cleanValue = String(value).trim();
+      if (!cleanValue) return;
+
+      const exists = evidence.some(e =>
+        e.value === cleanValue &&
+        e.source === source &&
+        e.claim === claim
+      );
+
+      if (!exists) {
+        evidence.push({
+          source,
+          claim,
+          value: cleanValue,
+          weight
+        });
+      }
+    };
+
+    const normalizedConcepts = concepts.map(c => this.normalize(c));
+    const text = map.rawText || "";
+
+    // Raw text is allowed, but only as one evidence stream.
+    normalizedConcepts.forEach(concept => {
+      if (concept && text.includes(concept)) {
+        add("user_text", concept, concept, 70);
+      }
+    });
+
+    // Structured map evidence is stronger.
+    [
+      ...(map.questions || []),
+      ...(map.domains || []),
+      ...(map.situations || []),
+      ...(map.needs || []),
+      ...(map.risks || []),
+      ...(map.responseRequirements || []),
+      ...(map.responseConstraints || [])
+    ].forEach(signal => {
+      const normalizedSignal = this.normalize(signal);
+
+      if (normalizedConcepts.includes(normalizedSignal)) {
+        add("structured_map", signal, signal, 85);
+      }
+    });
+
+    // Competing situations matter because they identify conflicts.
+    (map.competingSituations || []).forEach(item => {
+      const normalizedName = this.normalize(item.name);
+      const normalizedReason = this.normalize(item.reason);
+
+      const matched = normalizedConcepts.some(concept =>
+        normalizedName.includes(concept) ||
+        normalizedReason.includes(concept)
+      );
+
+      if (matched) {
+        add(
+          "competing_situation",
+          item.name,
+          item.reason || item.name,
+          item.weight || 75
+        );
+      }
+    });
+
+    // Evidence model receipts.
+    (map.evidenceModel?.weightedSignals || []).forEach(signal => {
+      const combined = this.normalize(
+        `${signal.claim || ""} ${signal.evidence || ""} ${signal.type || ""}`
+      );
+
+      const matched = normalizedConcepts.some(concept =>
+        combined.includes(concept)
+      );
+
+      if (matched) {
+        add(
+          signal.source || "evidence_model",
+          signal.claim || signal.type || "evidence",
+          signal.evidence || signal.claim,
+          signal.weight || 60
+        );
+      }
+    });
+
+    // Semantic frame receipts.
+    const semantic = this.getSemanticThesisSignals(map);
+    const semanticCombined = this.normalize(
+      `${semantic.meaning} ${semantic.intent} ${semantic.domain}`
+    );
+
+    normalizedConcepts.forEach(concept => {
+      if (concept && semanticCombined.includes(concept)) {
+        add("semantic_frame", concept, concept, 90);
+      }
+    });
+
+    return evidence
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 10);
+  },
+
+  recommendThesisUse(thesis) {
+    if (!thesis) return "do_not_use_as_authority";
+    if (!thesis.groundedInUserText) return "do_not_use_as_authority";
+    if (thesis.overInterpretationRisk === "high") return "do_not_use_as_authority";
+    if (thesis.confidence < 0.7) return "use_as_soft_context_only";
+    if (thesis.evidenceCount < 2) return "use_as_soft_context_only";
+    return "use_as_situation_blueprint";
+  },
+
+  textHasAny(map, terms = []) {
+    const text = map.rawText || "";
+    return terms.some(term => text.includes(this.normalize(term)));
+  },
+
+  
+
   syncLegacyCompatibility(map) {
     map.primaryLaneSuggestion = null;
     map.supportLaneSuggestions = [];
@@ -1715,6 +2217,7 @@ runMapIntegrityCheck(map) {
     "contradictions",
     "laneEvidence",
     "triageCandidates",
+    "situationTheses",
     "reasons"
   ];
 
@@ -1726,6 +2229,24 @@ runMapIntegrityCheck(map) {
 
   if (!map.canonical) map.canonical = {};
   if (!map.evidenceModel) map.evidenceModel = {};
+  if (!map.thesisQuality) {
+  map.thesisQuality = {
+    groundedInUserText: false,
+    evidenceCount: 0,
+    unsupportedClaims: [],
+    ambiguityLevel: "none",
+    overInterpretationRisk: "low",
+    confidence: 0
+  };
+}
+
+if (!map.thesisRecommendedUse) {
+  map.thesisRecommendedUse = "do_not_use_as_authority";
+}
+
+if (typeof map.situationNarrative !== "string") {
+  map.situationNarrative = map.primarySituationThesis?.oneLine || null;
+}
   if (!map.ambiguity) {
     map.ambiguity = {
       present: false,
