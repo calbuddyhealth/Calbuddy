@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.1.1 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.1.2 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.1.1",
+  version: "3.1.2",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -410,21 +410,38 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
   },
 
   applyClarity(contract, safety = {}, map = {}) {
-    if (contract.clarity.needed) return;
+  if (contract.clarity.needed) return;
 
-    if (
-      map.shouldAskClarifyingQuestion === true &&
-      contract.questionMode.mayAskClarifyingQuestion !== false
-    ) {
-      contract.clarity = {
-        needed: true,
-        level: map.complexity === "multi_domain" ? "medium" : "low",
-        question: map.recommendedQuestion || "Which part do you want to handle first?",
-        placement: "end"
-      };
-      contract.reasons.push("Situation Map requested clarification.");
-    }
-  },
+  const directAnswerRequest =
+    contract.questionMode?.isDirectQuestion === true &&
+    contract.questionMode?.shouldAnswerImmediately === true;
+
+  if (directAnswerRequest) {
+    contract.clarity = {
+      needed: false,
+      level: "none",
+      question: null,
+      placement: "none"
+    };
+
+    this.add(contract.responseRules, "answer_direct_question_without_clarification");
+    this.add(contract.forbiddenBehaviors, "Do not add a generic clarification question after answering.");
+    return;
+  }
+
+  if (
+    map.shouldAskClarifyingQuestion === true &&
+    contract.questionMode.mayAskClarifyingQuestion !== false
+  ) {
+    contract.clarity = {
+      needed: true,
+      level: map.complexity === "multi_domain" ? "medium" : "low",
+      question: map.recommendedQuestion || "Which part do you want to handle first?",
+      placement: "end"
+    };
+    contract.reasons.push("Situation Map requested clarification.");
+  }
+},
 
   applyAuthority(contract) {
     if (["safety", "medical_body", "risk_clarification"].includes(contract.primary)) {
