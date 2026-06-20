@@ -191,6 +191,17 @@ const emotionalContext = {
     summary.rootNeed ||
     null,
 
+  event:
+    summary.activeIssue ||
+    summary.threadState?.activeIssue ||
+    summary.situationSummary ||
+    null,
+
+  identity:
+    summary.leadIdentity ||
+    summary.primaryRole ||
+    null,
+
   recentContext: recentMessages.slice(-3),
   activeThreadFacts
 };
@@ -228,6 +239,13 @@ ${JSON.stringify(
   null,
   2
 )}
+
+CONTEXT ANCHORS:
+- Before writing, identify the concrete event the user is talking about.
+- Mention that event naturally in the response.
+- Do not replace specific events with generic phrases like
+  "this situation", "what matters most", or "take a breath"
+  unless the event has already been acknowledged.
 
 EMOTIONAL / THREAD CONTEXT:
 ${JSON.stringify(emotionalContext, null, 2)}
@@ -300,6 +318,18 @@ Write naturally, like a smart direct human partner.
 
     text = this.cleanText(text, language);
 
+if (
+  primary === "emotion" &&
+  [
+    "take a moment to breathe",
+    "think about what matters most",
+    "small steps you can take",
+    "you might be feeling lost"
+  ].some(p => text.toLowerCase().includes(p))
+) {
+  text = this.localFallback({ primary, contract, userQuestion });
+}
+
     if (!text) {
       return this.localFallback({ primary, contract, userQuestion });
     }
@@ -340,7 +370,12 @@ Write naturally, like a smart direct human partner.
     }
 
 if (primary === "emotion") {
-  return "Yeah — that makes sense. A med error can hit hard because you care about doing the job right, not because you’re a bad nurse. First: follow your unit policy, report/document what needs to be reported, and make sure the patient is okay. Then debrief with someone safe instead of letting shame eat you alive.";
+  const event =
+    contract?.debug?.threadQuestionUsed
+      ? "what you just described"
+      : "that";
+
+  return `Yeah — ${event} can hit hard. The move is: name what happened honestly, separate accountability from self-attack, and take one grounded next step instead of letting shame run the whole room.`;
 }
 
     if (primary === "medical_body") {
