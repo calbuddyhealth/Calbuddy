@@ -1620,6 +1620,56 @@ this.addSemanticLaneEvidence(map, addCandidate);
     if (!exists) list.push(item);
   },
 
+runMapIntegrityCheck(map) {
+  if (!map || typeof map !== "object") return map;
+
+  const arrayFields = [
+    "questions",
+    "domains",
+    "situations",
+    "needs",
+    "risks",
+    "responseRequirements",
+    "responseConstraints",
+    "competingSituations",
+    "contradictions",
+    "laneEvidence",
+    "triageCandidates",
+    "reasons"
+  ];
+
+  arrayFields.forEach(field => {
+    if (!Array.isArray(map[field])) {
+      map[field] = [];
+    }
+  });
+
+  if (!map.canonical) map.canonical = {};
+  if (!map.evidenceModel) map.evidenceModel = {};
+  if (!map.ambiguity) {
+    map.ambiguity = {
+      present: false,
+      level: "none",
+      reasons: [],
+      missing: []
+    };
+  }
+
+  if (!map.triageHandoff) {
+    map.triageHandoff = {
+      ready: false,
+      evidence: [],
+      recommendedPriorities: [],
+      constraints: [],
+      ambiguity: null,
+      authority: "handoff_only"
+    };
+  }
+
+  map.integrityCheckRan = true;
+  return map;
+},
+
   normalize(value = "") {
     return String(value || "")
       .toLowerCase()
