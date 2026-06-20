@@ -1,7 +1,7 @@
 // ari/language/ari-human-language-engine.js
 // Ari Human Language Engine
 // Purpose: Decide how Ari should SOUND as a human communicator.
-// V1.0.0
+// V1.1.0
 //
 // Role:
 // - Does NOT decide the response lane.
@@ -15,7 +15,7 @@
 window.Ari = window.Ari || {};
 
 window.AriHumanLanguageEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -34,6 +34,7 @@ window.AriHumanLanguageEngine = {
     this.applyContractContext(profile, contract, risk, clarity);
 this.applyDomainProfile(profile, primary, summary);
 this.applyContractCommunicationProfile(profile, contract);
+this.applyAriSignatureVoice(profile, primary, summary);
 this.applyRiskSafetyRules(profile, primary, risk, clarity);
     this.applyRelationshipMode(profile, summary);
     this.applyUserStyle(profile, summary);
@@ -74,7 +75,16 @@ this.applyRiskSafetyRules(profile, primary, risk, clarity);
 
       tone: "balanced",
       voice: "ari",
-
+signatureVoice: {
+  presence: 70,
+  curiosity: 65,
+  playfulness: 35,
+  wit: 25,
+  confidence: 75,
+  emotionalRange: 60,
+  naturalSurprise: 30,
+  antiFlatness: true
+},
       warmth: 50,
       directness: 70,
       tenderness: 30,
@@ -476,6 +486,78 @@ applyContractCommunicationProfile(profile, contract = {}) {
     profile.domain = domain;
     profile.reasons.push(`Applied human language profile for '${domain}'.`);
   },
+
+applyAriSignatureVoice(profile, primary, summary = {}) {
+  const message = String(
+    summary.normalizedMessage ||
+    summary.userMessage ||
+    summary.message ||
+    ""
+  ).toLowerCase();
+
+  const seriousDomains = [
+    "safety",
+    "medical_body",
+    "medical_context",
+    "risk_clarification"
+  ];
+
+  const playfulSafeDomains = [
+    "builder",
+    "teacher",
+    "executive_decision",
+    "general_understanding",
+    "wisdom"
+  ];
+
+  profile.signatureVoice = profile.signatureVoice || {};
+
+  profile.signatureVoice.presence = Math.max(profile.signatureVoice.presence || 0, 70);
+  profile.signatureVoice.confidence = Math.max(profile.signatureVoice.confidence || 0, 75);
+  profile.signatureVoice.curiosity = Math.max(profile.signatureVoice.curiosity || 0, 60);
+  profile.signatureVoice.antiFlatness = true;
+
+  if (seriousDomains.includes(primary)) {
+    profile.signatureVoice.playfulness = 0;
+    profile.signatureVoice.wit = 0;
+    profile.signatureVoice.naturalSurprise = 0;
+    profile.playfulness = 0;
+    profile.humor = 0;
+    profile.sarcasm = 0;
+    profile.reasons.push("Serious context suppresses Ari signature playfulness.");
+    return;
+  }
+
+  if (playfulSafeDomains.includes(primary)) {
+    profile.playfulness = Math.max(profile.playfulness, 20);
+    profile.humor = Math.max(profile.humor, 10);
+    profile.signatureVoice.playfulness = Math.max(profile.signatureVoice.playfulness || 0, 35);
+    profile.signatureVoice.wit = Math.max(profile.signatureVoice.wit || 0, 25);
+    profile.signatureVoice.naturalSurprise = Math.max(profile.signatureVoice.naturalSurprise || 0, 25);
+  }
+
+  if (/\b(lol|haha|wtf|annoying|confused|this is crazy|damn|fuck|shit)\b/.test(message)) {
+    profile.playfulness = Math.max(profile.playfulness, 35);
+    profile.humor = Math.max(profile.humor, 20);
+    profile.bluntness = Math.max(profile.bluntness, 55);
+    profile.signatureVoice.naturalSurprise = Math.max(profile.signatureVoice.naturalSurprise || 0, 40);
+    profile.reasons.push("User energy allows more expressive Ari voice.");
+  }
+
+  profile.preferredMoves.push(
+    "sound_alive_not_scripted",
+    "use_specific_reaction",
+    "vary_sentence_rhythm",
+    "show_confident_presence",
+    "use_playfulness_when_safe"
+  );
+
+  profile.bannedMoves.push(
+    "flat_professional_voice",
+    "shy_over_apologetic_voice",
+    "generic_assistant_tone"
+  );
+},
 
   applyRiskSafetyRules(profile, primary, risk = {}, clarity = {}) {
     const highRisk =
@@ -920,3 +1002,7 @@ applyContractCommunicationProfile(profile, contract = {}) {
     return Math.max(min, Math.min(max, number));
   }
 };
+console.log(
+  "ARI HUMAN LANGUAGE ENGINE LOADED:",
+  window.AriHumanLanguageEngine?.version
+);
