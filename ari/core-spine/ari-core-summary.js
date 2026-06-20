@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.5.5 — Adds routing evidence, lane split, continuity results, continuity packet
+// V3.5.6 — Adds routing evidence, lane split, continuity results, continuity packet
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.5.5",
+  version: "3.5.6",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -35,6 +35,10 @@ window.Ari.coreSummary = {
       analysis.observerEvidence ||
       analysis.observer ||
       {};
+
+const conversationFunction =
+  analysis.conversationFunction ||
+  {};
 
 const routingEvidence =
   analysis.routingEvidence ||
@@ -443,6 +447,63 @@ const humanLanguage =
 
       rankedLedgerObservations:
         observationLedger.slice(0, 10),
+
+// ==================================================
+// CONVERSATION FUNCTION ENGINE
+// ==================================================
+
+conversationFunction,
+
+conversationFunctionRan:
+  analysis.conversationFunctionRan ??
+  conversationFunction.conversationFunctionRan ??
+  false,
+
+conversationFunctionVersion:
+  analysis.conversationFunctionVersion ||
+  conversationFunction.conversationFunctionVersion ||
+  null,
+
+conversationFunctionSource:
+  analysis.conversationFunctionSource ||
+  conversationFunction.conversationFunctionSource ||
+  conversationFunction.source ||
+  "not-yet-run",
+
+primaryFunction:
+  analysis.primaryFunction ||
+  conversationFunction.primaryFunction ||
+  null,
+
+supportFunctions:
+  analysis.supportFunctions ||
+  conversationFunction.supportFunctions ||
+  [],
+
+blockedFunctions:
+  analysis.blockedFunctions ||
+  conversationFunction.blockedFunctions ||
+  [],
+
+conversationFunctionCandidates:
+  analysis.conversationFunctionCandidates ||
+  conversationFunction.candidates ||
+  [],
+
+conversationFunctionResponseBias:
+  analysis.conversationFunctionResponseBias ||
+  conversationFunction.responseBias ||
+  null,
+
+conversationFunctionConfidence:
+  analysis.conversationFunctionConfidence ??
+  conversationFunction.confidence ??
+  null,
+
+conversationFunctionReason:
+  analysis.conversationFunctionReason ||
+  conversationFunction.reason ||
+  null,
 
 // ==================================================
 // NEW CORE CHAIN: UNIVERSAL CONVERSATION CLASSIFIER
