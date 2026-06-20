@@ -1,7 +1,7 @@
 // ari/safety/ari-safety-context-gate.js
 // Ari Safety Context Gate
 // Purpose: Detect true safety/medical urgency from context, not single words.
-// V2.1.0
+// V2.1.1
 // Upgrades:
 // - Signal detection separated from risk decision.
 // - Adds negation detection: no bleeding, denies bleeding, not bleeding.
@@ -12,7 +12,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSafetyContextGate = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   evaluate(input = {}) {
     const summary = input.summary || input || {};
@@ -35,6 +35,8 @@ window.AriSafetyContextGate = {
       override: null,
       riskLevel: "none",
       riskType: "none",
+      primaryRisk: null,
+risks: [],
       followUpNeeded: false,
       followUpType: null,
       followUpQuestion: null,
@@ -57,7 +59,8 @@ safetyApprovedNormalFlow: true,
         context: {},
         riskScore: 0,
         confidence: 0,
-        decision: "none"
+        decision: "none",
+        riskRanking: [],
       }
     };
 
@@ -71,7 +74,7 @@ safetyApprovedNormalFlow: true,
     gate.debug.riskScore = scored.score;
     gate.debug.confidence = scored.confidence;
     gate.debug.decision = scored.decision;
-
+gate.debug.riskRanking = scored.risks || [];
     this.applyDecision(gate, scored);
 
     return gate;
@@ -385,162 +388,363 @@ safetyApprovedNormalFlow: true,
 },
 
   scoreRisk(text, context, signals) {
-    let score = 0;
-    let confidence = 40;
-    let riskType = "none";
-    const evidence = [];
-    const reasons = [];
+  let confidence = 40;
+  const risks = [];
+  const globalReasons = [];
 
-    const add = (points, type, ev, reason) => {
-      score += points;
-      riskType = type || riskType;
-      if (ev) evidence.push(ev);
-      if (reason) reasons.push(reason);
-    };
+  const addRisk = ({ points, type, subtype, ev, reason }) => {
+    if (!points || !type) return;
 
-    if (context.fictionalOrReference || context.educational) {
-      score -= 50;
-      confidence += 20;
-      reasons.push("Risk language appears fictional, educational, quoted, or referential.");
+    const existing = risks.find(r => r.type === type && r.subtype === subtype);
+
+    if (existing) {
+      existing.score += points;
+      if (ev) existing.evidence.push(ev);
+      if (reason) existing.reasons.push(reason);
+      return;
     }
 
-    if (context.historical && !context.current) {
-      score -= 25;
-      confidence += 10;
-      reasons.push("Past-time language suggests context rather than active emergency.");
-    }
+    risks.push({
+      type,
+      subtype: subtype || type,
+      score: points,
+      level: "none",
+      evidence: ev ? [ev] : [],
+      reasons: reason ? [reason] : []
+    });
+  };
 
-if (context.stabilizedOrResolved && !context.unresolvedOrWorsening) {
-  score -= 60;
-  confidence += 20;
-  reasons.push(
-    "High-risk language appears medically evaluated, stabilized, resolved, or already under care."
-  );
-}
+  if (context.fictionalOrReference || context.educational) {
+    confidence += 20;
+    globalReasons.push("Risk language appears fictional, educational, quoted, or referential.");
+  }
 
-    if ((context.current && !context.stabilizedOrResolved) || context.closeOther || context.self) {
-  confidence += 15;
-}
+  if (context.historical && !context.current) {
+    confidence += 10;
+    globalReasons.push("Past-time language suggests context rather than active emergency.");
+  }
 
-    if (signals.selfHarmIntent.present) {
-      add(100, "safety", signals.selfHarmIntent.evidence, "Active self-harm intent or inability to stay safe detected.");
-    } else if (signals.selfHarmLanguage.present && context.current) {
-      add(55, "safety", signals.selfHarmLanguage.evidence, "Current self-harm-related language needs clarification.");
-    }
+  if (context.stabilizedOrResolved && !context.unresolvedOrWorsening) {
+    confidence += 20;
+    globalReasons.push("High-risk language appears evaluated, stabilized, resolved, or already under care.");
+  }
 
-    if (signals.overdose.present) {
-      add(95, "substance", signals.overdose.evidence, "Possible overdose or poisoning language detected.");
-    }
+  if ((context.current && !context.stabilizedOrResolved) || context.closeOther || context.self) {
+    confidence += 15;
+  }
 
-    if (signals.violence.present && context.current) {
-      add(65, "violence", signals.violence.evidence, "Possible current violence risk language detected.");
-    }
+  if (signals.selfHarmIntent.present) {
+    addRisk({
+      points: 100,
+      type: "self_harm",
+      subtype: "active_intent",
+      ev: signals.selfHarmIntent.evidence,
+      reason: "Active self-harm intent or inability to stay safe detected."
+    });
+  } else if (signals.selfHarmLanguage.present && context.current) {
+    addRisk({
+      points: 55,
+      type: "self_harm",
+      subtype: "self_harm_language",
+      ev: signals.selfHarmLanguage.evidence,
+      reason: "Current self-harm-related language needs clarification."
+    });
+  }
 
-    if (signals.abuseDanger.present && context.current) {
-      add(55, "abuse", signals.abuseDanger.evidence, "Possible current abuse or danger language detected.");
-    }
+  if (signals.overdose.present) {
+    addRisk({
+      points: 95,
+      type: "poisoning_overdose",
+      subtype: "possible_overdose_or_poisoning",
+      ev: signals.overdose.evidence,
+      reason: "Possible overdose or poisoning language detected."
+    });
+  }
 
-    if (signals.chestPain.present) add(70, "medical", signals.chestPain.evidence, "Chest pain can indicate urgent medical risk.");
-    if (signals.breathingTrouble.present) add(75, "medical", signals.breathingTrouble.evidence, "Breathing difficulty can indicate urgent medical risk.");
-    if (signals.fainting.present) add(65, "medical", signals.fainting.evidence, "Fainting/loss of consciousness can indicate urgent medical risk.");
-    if (signals.seizure.present) add(75, "medical", signals.seizure.evidence, "Seizure language can indicate urgent medical risk.");
-    if (signals.strokeSymptoms.present) add(80, "medical", signals.strokeSymptoms.evidence, "Stroke-like symptoms can indicate urgent medical risk.");
-    if (signals.pregnancyRedFlag.present) add(75, "medical", signals.pregnancyRedFlag.evidence, "Pregnancy red-flag symptom detected.");
+  if (signals.violence.present && context.current) {
+    addRisk({
+      points: 65,
+      type: "violence_to_others",
+      subtype: "possible_current_violence",
+      ev: signals.violence.evidence,
+      reason: "Possible current violence risk language detected."
+    });
+  }
 
-    if (signals.pregnant.present) {
-      add(12, "medical", signals.pregnant.evidence, "Pregnancy is medically relevant context.");
-    }
+  if (signals.abuseDanger.present && context.current) {
+    addRisk({
+      points: 55,
+      type: "abuse_or_domestic_danger",
+      subtype: "possible_current_abuse_danger",
+      ev: signals.abuseDanger.evidence,
+      reason: "Possible current abuse or danger language detected."
+    });
+  }
 
-    if (signals.rectalPain.present) {
-      add(18, "medical", signals.rectalPain.evidence, "Rectal pain is a body symptom but not automatically an emergency.");
-    } else if (signals.pain.present) {
-      add(18, "medical", signals.pain.evidence, "Pain is a body symptom but needs severity/context.");
-    }
+  if (signals.chestPain.present) {
+    addRisk({
+      points: 70,
+      type: "medical",
+      subtype: "chest_pain",
+      ev: signals.chestPain.evidence,
+      reason: "Chest pain can indicate urgent medical risk."
+    });
+  }
 
-    if (signals.bleeding.present) {
-      add(35, "medical", signals.bleeding.evidence, "Bleeding is a medical risk signal.");
-    }
+  if (signals.breathingTrouble.present) {
+    addRisk({
+      points: 75,
+      type: "medical",
+      subtype: "breathing_trouble",
+      ev: signals.breathingTrouble.evidence,
+      reason: "Breathing difficulty can indicate urgent medical risk."
+    });
+  }
 
-    if (signals.fever.present) add(25, "medical", signals.fever.evidence, "Fever may increase medical concern.");
-    if (signals.dehydration.present) add(35, "medical", signals.dehydration.evidence, "Dehydration can increase medical concern.");
+  if (signals.fainting.present) {
+    addRisk({
+      points: 65,
+      type: "medical",
+      subtype: "fainting",
+      ev: signals.fainting.evidence,
+      reason: "Fainting/loss of consciousness can indicate urgent medical risk."
+    });
+  }
 
-    if (signals.negatedSignals.length) {
-      score -= signals.negatedSignals.length * 12;
-      reasons.push(`Negated risk signals detected: ${signals.negatedSignals.join(", ")}.`);
-    }
+  if (signals.seizure.present) {
+    addRisk({
+      points: 75,
+      type: "medical",
+      subtype: "seizure",
+      ev: signals.seizure.evidence,
+      reason: "Seizure language can indicate urgent medical risk."
+    });
+  }
 
-    if (context.worryOrDecision) {
-      confidence += 8;
-      reasons.push("User is asking for decision support around possible risk.");
-    }
+  if (signals.strokeSymptoms.present) {
+    addRisk({
+      points: 80,
+      type: "medical",
+      subtype: "stroke_symptoms",
+      ev: signals.strokeSymptoms.evidence,
+      reason: "Stroke-like symptoms can indicate urgent medical risk."
+    });
+  }
 
-    score = Math.max(0, Math.min(100, score));
-    confidence = Math.max(0, Math.min(100, confidence));
+  if (signals.pregnancyRedFlag.present) {
+    addRisk({
+      points: 75,
+      type: "medical",
+      subtype: "pregnancy_red_flag",
+      ev: signals.pregnancyRedFlag.evidence,
+      reason: "Pregnancy red-flag symptom detected."
+    });
+  }
 
-    let decision = "none";
-    let riskLevel = "none";
-    let override = null;
+  if (signals.pregnant.present) {
+    addRisk({
+      points: 12,
+      type: "medical",
+      subtype: "pregnancy_context",
+      ev: signals.pregnant.evidence,
+      reason: "Pregnancy is medically relevant context."
+    });
+  }
 
-    if (score >= 90) {
-      decision = "critical";
-      riskLevel = "critical";
-      override = riskType === "safety" || riskType === "violence" ? "safety_emergency" : "medical_urgent";
-    } else if (score >= 70) {
-      decision = "urgent";
-      riskLevel = "high";
-      override = riskType === "medical" || riskType === "substance" ? "medical_urgent" : "clarify_risk";
-    } else if (score >= 45) {
-      decision = "elevated";
-      riskLevel = "moderate";
-      override = "clarify_risk";
-    } else if (score >= 15) {
-      decision = "advisory";
-      riskLevel = "context";
-      override = null;
-    }
+  if (signals.rectalPain.present) {
+    addRisk({
+      points: 18,
+      type: "medical",
+      subtype: "rectal_pain",
+      ev: signals.rectalPain.evidence,
+      reason: "Rectal pain is a body symptom but not automatically an emergency."
+    });
+  } else if (signals.pain.present) {
+    addRisk({
+      points: 18,
+      type: "medical",
+      subtype: "pain",
+      ev: signals.pain.evidence,
+      reason: "Pain is a body symptom but needs severity/context."
+    });
+  }
 
-    return {
-      score,
-      confidence,
-      decision,
-      riskLevel,
-      riskType,
-      override,
-      evidence,
-      reasons
-    };
-  },
+  if (signals.bleeding.present) {
+    addRisk({
+      points: 35,
+      type: "medical",
+      subtype: "bleeding",
+      ev: signals.bleeding.evidence,
+      reason: "Bleeding is a medical risk signal."
+    });
+  }
+
+  if (signals.fever.present) {
+    addRisk({
+      points: 25,
+      type: "medical",
+      subtype: "fever",
+      ev: signals.fever.evidence,
+      reason: "Fever may increase medical concern."
+    });
+  }
+
+  if (signals.dehydration.present) {
+    addRisk({
+      points: 35,
+      type: "medical",
+      subtype: "dehydration",
+      ev: signals.dehydration.evidence,
+      reason: "Dehydration can increase medical concern."
+    });
+  }
+
+  const contextPenalty =
+    (context.fictionalOrReference || context.educational ? 50 : 0) +
+    (context.historical && !context.current ? 25 : 0) +
+    (context.stabilizedOrResolved && !context.unresolvedOrWorsening ? 60 : 0) +
+    ((signals.negatedSignals || []).length * 12);
+
+  risks.forEach(risk => {
+    risk.score = Math.max(0, Math.min(100, risk.score - contextPenalty));
+    risk.level = this.levelFromScore(risk.score);
+  });
+
+  const priority = {
+    critical: 5,
+    high: 4,
+    moderate: 3,
+    context: 2,
+    none: 1
+  };
+
+  const typePriority = {
+    immediate_physical_danger: 100,
+    self_harm: 95,
+    violence_to_others: 90,
+    poisoning_overdose: 88,
+    medical: 85,
+    child_or_dependent_safety: 82,
+    abuse_or_domestic_danger: 75,
+    driving_or_unsafe_operation: 70,
+    environmental_danger: 68
+  };
+
+  risks.sort((a, b) => {
+    const levelDiff = (priority[b.level] || 0) - (priority[a.level] || 0);
+    if (levelDiff) return levelDiff;
+
+    const typeDiff = (typePriority[b.type] || 0) - (typePriority[a.type] || 0);
+    if (typeDiff) return typeDiff;
+
+    return b.score - a.score;
+  });
+
+  const primaryRisk = risks[0] || null;
+
+  const score = primaryRisk?.score || 0;
+  const riskLevel = primaryRisk?.level || "none";
+  const riskType = primaryRisk?.type || "none";
+
+  let decision = "none";
+  let override = null;
+
+  if (riskLevel === "critical") {
+  decision = "critical";
+  override = "emergency";
+} else if (riskLevel === "high") {
+  decision = "urgent";
+  override = "urgent";
+} else if (riskLevel === "moderate") {
+  decision = "elevated";
+  override = "clarify_risk";
+} else if (riskLevel === "context") {
+  decision = "advisory";
+  override = null;
+  }
+
+  if (signals.negatedSignals.length) {
+    globalReasons.push(`Negated risk signals detected: ${signals.negatedSignals.join(", ")}.`);
+  }
+
+  if (context.worryOrDecision) {
+    confidence += 8;
+    globalReasons.push("User is asking for decision support around possible risk.");
+  }
+
+  confidence = Math.max(0, Math.min(100, confidence));
+
+  return {
+    score,
+    confidence,
+    decision,
+    riskLevel,
+    riskType,
+    override,
+    evidence: primaryRisk?.evidence || [],
+    reasons: [...(primaryRisk?.reasons || []), ...globalReasons],
+    risks,
+    primaryRisk
+  };
+},
+
+levelFromScore(score = 0) {
+  if (score >= 90) return "critical";
+  if (score >= 70) return "high";
+  if (score >= 45) return "moderate";
+  if (score >= 15) return "context";
+  return "none";
+},
 
   applyDecision(gate, scored) {
     gate.riskLevel = scored.riskLevel || "none";
     gate.riskType = scored.riskType || "none";
+    gate.primaryRisk = scored.primaryRisk || null;
+gate.risks = scored.risks || [];
     gate.evidence.push(...scored.evidence);
     gate.reasons.push(...scored.reasons);
 gate.allowSafetyOverride = false;
 gate.allowMedicalOverride = false;
 gate.allowRiskClarification = false;
 gate.safetyApprovedNormalFlow = true;
-    if (scored.override === "safety_emergency") {
-      gate.override = "safety_emergency";
-      gate.shouldStopNormalResponse = true;
-      gate.shouldUseSafetyResponse = true;
-      gate.shouldUseMedicalResponse = false;
-      gate.shouldAskRiskClarification = false;
-      gate.allowSafetyOverride = true;
-gate.safetyApprovedNormalFlow = false;
-      return;
-    }
+    
+    if (scored.override === "emergency") {
+  gate.override = "emergency";
+  gate.shouldStopNormalResponse = true;
+  gate.safetyApprovedNormalFlow = false;
 
-    if (scored.override === "medical_urgent") {
-      gate.override = "medical_urgent";
-      gate.shouldStopNormalResponse = true;
-      gate.shouldUseSafetyResponse = false;
-      gate.shouldUseMedicalResponse = true;
-      gate.shouldAskRiskClarification = false;
-      gate.allowMedicalOverride = true;
-gate.safetyApprovedNormalFlow = false;
-      return;
-    }
+  if (
+  scored.primaryRisk?.type === "medical" ||
+  scored.primaryRisk?.type === "poisoning_overdose"
+) {
+    gate.shouldUseMedicalResponse = true;
+    gate.allowMedicalOverride = true;
+  } else {
+    gate.shouldUseSafetyResponse = true;
+    gate.allowSafetyOverride = true;
+  }
+
+  return;
+}
+    if (scored.override === "urgent") {
+  gate.override = "urgent";
+  gate.shouldStopNormalResponse = true;
+  gate.safetyApprovedNormalFlow = false;
+
+  if (
+    scored.primaryRisk?.type === "medical" ||
+    scored.primaryRisk?.type === "poisoning_overdose"
+  ) {
+    gate.shouldUseMedicalResponse = true;
+    gate.allowMedicalOverride = true;
+  } else {
+    gate.shouldUseSafetyResponse = true;
+    gate.allowSafetyOverride = true;
+  }
+
+  return;
+}
+    
 
     if (scored.override === "clarify_risk") {
       gate.override = "clarify_risk";
