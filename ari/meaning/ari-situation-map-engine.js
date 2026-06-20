@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.1.0 — Advisory Situation Mapper Only
+// V8.2.0 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,74 +13,112 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.1.0",
+  version: "8.2.0",
 
-  build(input = {}) {
-    const summary = input.summary || input || {};
+build(input = {}) {
+  const summary = input.summary || input || {};
 
-    const rawUserText =
-  summary.userMessage ||
-  summary.message ||
-  summary.input ||
-  summary.normalizedMessage ||
-  "";
+  const rawUserText =
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    summary.normalizedMessage ||
+    "";
 
-const resolvedText =
-  summary.resolvedUserQuestion ||
-  summary.threadQuestion?.resolvedUserQuestion ||
-  rawUserText;
+  const resolvedText =
+    summary.resolvedUserQuestion ||
+    summary.threadQuestion?.resolvedUserQuestion ||
+    rawUserText;
 
-const text = this.normalize(resolvedText);
+  const text = this.normalize(resolvedText);
 
-    const observations =
-      summary.observations ||
-      summary.observationLedger ||
-      summary.observerEvidence?.observations ||
-      [];
+  const observations =
+    summary.observations ||
+    summary.observationLedger ||
+    summary.observerEvidence?.observations ||
+    [];
 
-    const safetyGate = summary.safetyContextGate || {
-      override: summary.override || null,
-      riskLevel: summary.riskLevel || "none",
-      riskType: summary.riskType || "none",
-      followUpNeeded: summary.followUpNeeded || false,
-      followUpQuestion: summary.followUpQuestion || null
+  const safetyGate = summary.safetyContextGate || {
+    override: summary.override || null,
+    riskLevel: summary.riskLevel || "none",
+    riskType: summary.riskType || "none",
+    followUpNeeded: summary.followUpNeeded || false,
+    followUpQuestion: summary.followUpQuestion || null
+  };
+
+  const thread =
+    summary.continuityContext ||
+    summary.continuityPacket?.activeThread?.workingContext ||
+    summary.continuityPacket?.activeThread ||
+    summary.continuityResults?.outputs?.thread ||
+    summary.threadUnderstanding ||
+    summary.threadUnderstandingState ||
+    {};
+
+  const entity =
+    summary.entityReference ||
+    summary.entityReferenceState ||
+    summary.subjectGraphState ||
+    {};
+
+  const conversation =
+    summary.universalConversationClassification ||
+    summary.conversationClassification ||
+    summary.conversation ||
+    {
+      conversationType: summary.conversationType || null,
+      conversationIntent: summary.conversationIntent || null,
+      conversationCandidates: summary.conversationCandidates || []
     };
 
-    const thread =
-  summary.continuityContext ||
-  summary.continuityPacket?.activeThread?.workingContext ||
-  summary.continuityPacket?.activeThread ||
-  summary.continuityResults?.outputs?.thread ||
-  summary.threadUnderstanding ||
-  summary.threadUnderstandingState ||
-  {};
+  const rawSemanticFrame =
+    summary.semanticFrame ||
+    summary.activeSemanticFrame ||
+    summary.currentSemanticFrame ||
+    summary.semanticFrameOutput ||
+    summary.normalizedSemanticFrame ||
+    summary.primarySemanticFrame ||
+    null;
 
-    const entity =
-      summary.entityReference ||
-      summary.entityReferenceState ||
-      summary.subjectGraphState ||
-      {};
+  const map = this.createEmptyMap({
+    text,
+    rawUserText,
+    resolvedText,
+    observations,
+    safetyGate,
+    thread,
+    entity,
+    conversation,
+    rawSemanticFrame
+  });
 
-    const conversation =
-      summary.universalConversationClassification ||
-      summary.conversationClassification ||
-      summary.conversation ||
-      {
-        conversationType: summary.conversationType || null,
-        conversationIntent: summary.conversationIntent || null,
-        conversationCandidates: summary.conversationCandidates || []
-      };
+  this.collectUpstreamSignals(map);
+  this.readSemanticSituation(map);
+  this.detectQuestions(map);
+  this.detectDomains(map);
+  this.detectSituations(map);
+  this.detectRisks(map);
+  this.detectNeeds(map);
 
-const rawSemanticFrame =
-  summary.semanticFrame ||
-  summary.activeSemanticFrame ||
-  summary.currentSemanticFrame ||
-  summary.semanticFrameOutput ||
-  summary.normalizedSemanticFrame ||
-  summary.primarySemanticFrame ||
-  null;
+this.detectCompetingSituations(map);
+this.detectResponseRequirements(map);
+this.scoreMap(map);
+this.buildLaneEvidence(map);
+this.setMapSummary(map);
+this.applyResponseConstraints(map);
 
-    const map = this.createEmptyMap({
+this.buildEvidenceModel(map);
+this.detectContradictions(map);
+this.detectAmbiguity(map);
+this.buildTriageHandoff(map);
+
+this.syncLegacyCompatibility(map);
+
+
+  return map;
+},
+
+createEmptyMap({
   text,
   rawUserText,
   resolvedText,
@@ -90,28 +128,7 @@ const rawSemanticFrame =
   entity,
   conversation,
   rawSemanticFrame
-});
-
-    this.collectUpstreamSignals(map);
-   this.readSemanticSituation(map);
-     this.detectQuestions(map);
-    this.detectDomains(map);
-    this.detectSituations(map);
-    this.detectRisks(map);
-    this.detectNeeds(map);
-    this.detectCompetingSituations(map);
-    this.detectResponseRequirements(map);
-    this.scoreMap(map);
-    this.buildLaneEvidence(map);
-this.setMapSummary(map);
-this.applyResponseConstraints(map);
-this.syncLegacyCompatibility(map);
-
-    return map;
-  },
-
-
-  createEmptyMap({ text, rawUserText, resolvedText, observations, safetyGate, thread, entity, conversation, rawSemanticFrame }) {
+}) {
   return {
     situationMapRan: true,
     situationMapVersion: this.version,
@@ -135,30 +152,24 @@ this.syncLegacyCompatibility(map);
     threadUnderstandingUsed: thread,
     entityReferenceUsed: entity,
     conversationClassificationUsed: conversation,
-rawSemanticFrame,
+    rawSemanticFrame,
 
     canonical: {
       actor: null,
       subject: null,
       object: null,
-
       domain: null,
       subdomain: null,
-
       issue: null,
       issueType: null,
-
       goal: null,
       desiredOutcome: null,
-
       constraints: [],
       attempts: [],
-
       urgency: "unknown",
       severity: "unknown",
       timeframe: "present_or_unspecified",
       uncertainty: "unknown",
-
       requiresContext: false,
       priorContextUsed: false
     },
@@ -169,7 +180,8 @@ rawSemanticFrame,
       confidence: 0,
       currentTurnMeaning: null,
       inheritedContext: null,
-      handoff: null
+      handoff: null,
+      continuityFrame: null
     },
 
     upstreamSignals: {
@@ -191,13 +203,39 @@ rawSemanticFrame,
 
     responseRequirements: [],
     responseConstraints: [],
-
     competingSituations: [],
 
-    laneCandidates: [],
+    evidenceModel: {
+      objectiveEvidence: [],
+      subjectiveEvidence: [],
+      semanticEvidence: [],
+      contextualEvidence: [],
+      lexicalEvidence: [],
+      riskEvidence: [],
+      weightedSignals: [],
+      confidence: 0
+    },
+
+    ambiguity: {
+      present: false,
+      level: "none",
+      reasons: [],
+      missing: []
+    },
+
+    contradictions: [],
+
+    triageHandoff: {
+      ready: false,
+      evidence: [],
+      recommendedPriorities: [],
+      constraints: [],
+      ambiguity: null,
+      authority: "handoff_only"
+    },
+
     laneEvidence: [],
-    supportLaneHints: [],
-    blockedLaneHints: [],
+    triageCandidates: [],
 
     gravity: 0,
     urgency: "none",
@@ -220,6 +258,8 @@ rawSemanticFrame,
 
     reasons: [],
 
+
+
     authority: "advisory_situation_mapping_only",
 
     cannotSet: [
@@ -235,87 +275,432 @@ rawSemanticFrame,
     ]
   };
 },
+collectUpstreamSignals(map) {
+  const thread = map.threadUnderstandingUsed || {};
+  const working =
+    thread.workingContext ||
+    thread ||
+    {};
 
-  collectUpstreamSignals(map) {
-    const thread = map.threadUnderstandingUsed || {};
-    const working =
-  thread.workingContext ||
-  thread ||
-  {};
+  const allSignals = [
+    ...(thread.currentTurn?.signals || []),
+    ...(working.domainSignals || []),
+    ...(working.intentSignals || []),
+    ...(working.issueSignals || []),
+    ...(working.subjectSignals || []),
+    ...(working.objectSignals || []),
+    ...(working.goalSignals || []),
+    ...(working.constraintSignals || []),
+    ...(working.attemptSignals || [])
+  ];
 
-    const allSignals = [
-      ...(thread.currentTurn?.signals || []),
-      ...(working.domainSignals || []),
-      ...(working.intentSignals || []),
-      ...(working.issueSignals || []),
-      ...(working.subjectSignals || []),
-      ...(working.objectSignals || []),
-      ...(working.goalSignals || []),
-      ...(working.constraintSignals || []),
-      ...(working.attemptSignals || [])
-    ];
+  allSignals.forEach(signal => {
+    if (!signal?.category) return;
 
-    allSignals.forEach(signal => {
-      if (!signal?.category) return;
+    if (signal.category === "domain") this.addObj(map.upstreamSignals.domainSignals, signal);
+    if (signal.category === "intent") this.addObj(map.upstreamSignals.intentSignals, signal);
+    if (signal.category === "issue") this.addObj(map.upstreamSignals.issueSignals, signal);
+    if (signal.category === "subject") this.addObj(map.upstreamSignals.subjectSignals, signal);
+    if (signal.category === "object") this.addObj(map.upstreamSignals.objectSignals, signal);
+    if (signal.category === "goal") this.addObj(map.upstreamSignals.goalSignals, signal);
+    if (signal.category === "constraint") this.addObj(map.upstreamSignals.constraintSignals, signal);
+    if (signal.category === "attempt") this.addObj(map.upstreamSignals.attemptSignals, signal);
+  });
 
-      if (signal.category === "domain") this.addObj(map.upstreamSignals.domainSignals, signal);
-      if (signal.category === "intent") this.addObj(map.upstreamSignals.intentSignals, signal);
-      if (signal.category === "issue") this.addObj(map.upstreamSignals.issueSignals, signal);
-      if (signal.category === "subject") this.addObj(map.upstreamSignals.subjectSignals, signal);
-      if (signal.category === "object") this.addObj(map.upstreamSignals.objectSignals, signal);
-      if (signal.category === "goal") this.addObj(map.upstreamSignals.goalSignals, signal);
-      if (signal.category === "constraint") this.addObj(map.upstreamSignals.constraintSignals, signal);
-      if (signal.category === "attempt") this.addObj(map.upstreamSignals.attemptSignals, signal);
+  const entity = map.entityReferenceUsed || {};
+
+  if (entity.activeProblem || entity.activeIssue) {
+    this.addObj(map.upstreamSignals.issueSignals, {
+      category: "issue",
+      type: "entity_active_issue",
+      value:
+        entity.activeProblem?.issueType ||
+        entity.activeIssue?.issueType ||
+        entity.activeProblem?.type ||
+        entity.activeIssue?.type ||
+        "active_issue",
+      evidence:
+        entity.activeProblem?.label ||
+        entity.activeIssue?.label ||
+        "entity active issue",
+      confidence:
+        entity.activeProblem?.confidence ||
+        entity.activeIssue?.confidence ||
+        entity.confidence ||
+        0.7,
+      source: "entity_reference_resolver"
     });
+  }
 
-    const entity = map.entityReferenceUsed || {};
+  if (entity.activeSubject || entity.activeEntity) {
+    this.addObj(map.upstreamSignals.subjectSignals, {
+      category: "subject",
+      type: "entity_active_subject",
+      value:
+        entity.activeSubject?.kind ||
+        entity.activeEntity?.kind ||
+        "active_subject",
+      evidence:
+        entity.activeSubject?.surface ||
+        entity.activeEntity?.surface ||
+        entity.activeSubject?.label ||
+        entity.activeEntity?.label ||
+        "entity active subject",
+      confidence:
+        entity.activeSubject?.confidence ||
+        entity.activeEntity?.confidence ||
+        entity.confidence ||
+        0.7,
+      source: "entity_reference_resolver"
+    });
+  }
+},
+buildEvidenceModel(map) {
+  const safeConfidence = value => {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n > 1 ? n / 100 : n;
+    return 0.6;
+  };
 
-    if (entity.activeProblem || entity.activeIssue) {
-      this.addObj(map.upstreamSignals.issueSignals, {
-        category: "issue",
-        type: "entity_active_issue",
-        value:
-          entity.activeProblem?.issueType ||
-          entity.activeIssue?.issueType ||
-          entity.activeProblem?.type ||
-          entity.activeIssue?.type ||
-          "active_issue",
-        evidence:
-          entity.activeProblem?.label ||
-          entity.activeIssue?.label ||
-          "entity active issue",
-        confidence:
-          entity.activeProblem?.confidence ||
-          entity.activeIssue?.confidence ||
-          entity.confidence ||
-          0.7,
-        source: "entity_reference_resolver"
-      });
+  const addEvidence = (bucket, item = {}) => {
+    if (!item.claim && !item.evidence) return;
+
+    map.evidenceModel[bucket].push({
+      claim: item.claim || item.evidence,
+      evidence: item.evidence || item.claim,
+      confidence: safeConfidence(item.confidence),
+      source: item.source || "unknown",
+      type: item.type || null
+    });
+  };
+
+  (map.observationsUsed || []).forEach(obs => {
+    const type = obs.type || "";
+
+    const item = {
+      claim: obs.value || obs.type,
+      evidence: obs.evidence || obs.value || obs.type,
+      confidence: obs.confidence ?? 0.6,
+      source: obs.source || "observer",
+      type
+    };
+
+    if (
+      [
+        "question_mark_count",
+        "message_length",
+        "body_symptom",
+        "work_reference",
+        "money_reference",
+        "building_reference",
+        "family_reference",
+        "person_reference"
+      ].includes(type)
+    ) {
+      addEvidence("objectiveEvidence", item);
+      return;
     }
 
-    if (entity.activeSubject || entity.activeEntity) {
-      this.addObj(map.upstreamSignals.subjectSignals, {
-        category: "subject",
-        type: "entity_active_subject",
-        value:
-          entity.activeSubject?.kind ||
-          entity.activeEntity?.kind ||
-          "active_subject",
-        evidence:
-          entity.activeSubject?.surface ||
-          entity.activeEntity?.surface ||
-          entity.activeSubject?.label ||
-          entity.activeEntity?.label ||
-          "entity active subject",
-        confidence:
-          entity.activeSubject?.confidence ||
-          entity.activeEntity?.confidence ||
-          entity.confidence ||
-          0.7,
-        source: "entity_reference_resolver"
-      });
+    if (
+      [
+        "emotion_word",
+        "ownership_reference",
+        "conversation_target",
+        "messy_language_signal"
+      ].includes(type)
+    ) {
+      addEvidence("subjectiveEvidence", item);
+      return;
     }
-  },
+
+    addEvidence("lexicalEvidence", item);
+  });
+
+  if (map.semanticSituation.available) {
+    addEvidence("semanticEvidence", {
+      claim: map.canonical.issueType || "semantic situation",
+      evidence: map.canonical.goal || map.semanticSituation.source,
+      confidence: map.semanticSituation.confidence || 0.7,
+      source: map.semanticSituation.source,
+      type: "semantic_situation"
+    });
+  }
+
+  if (map.canonical.priorContextUsed) {
+    addEvidence("contextualEvidence", {
+      claim: "prior context used",
+      evidence: map.canonical.subject || "continuity context",
+      confidence: 0.78,
+      source: "continuity",
+      type: "prior_context"
+    });
+  }
+
+  (map.risks || []).forEach(risk => {
+    addEvidence("riskEvidence", {
+      claim: risk,
+      evidence: map.riskType || risk,
+      confidence: 0.86,
+      source: "safety_or_situation_map",
+      type: "risk"
+    });
+  });
+
+  map.evidenceModel.weightedSignals = [
+    ...map.evidenceModel.riskEvidence.map(e => ({ ...e, weight: 100 })),
+    ...map.evidenceModel.semanticEvidence.map(e => ({ ...e, weight: 85 })),
+    ...map.evidenceModel.contextualEvidence.map(e => ({ ...e, weight: 75 })),
+    ...map.evidenceModel.objectiveEvidence.map(e => ({ ...e, weight: 70 })),
+    ...map.evidenceModel.subjectiveEvidence.map(e => ({ ...e, weight: 60 })),
+    ...map.evidenceModel.lexicalEvidence.map(e => ({ ...e, weight: 55 }))
+  ].sort((a, b) => b.weight - a.weight);
+
+  const total = map.evidenceModel.weightedSignals.length;
+
+  const avg =
+    total > 0
+      ? map.evidenceModel.weightedSignals.reduce(
+          (sum, e) => sum + Number(e.confidence || 0),
+          0
+        ) / total
+      : 0.5;
+
+  map.evidenceModel.confidence = Math.round(avg * 100);
+},
+
+detectContradictions(map) {
+  map.contradictions = [];
+
+  const addContradiction = (
+    type,
+    claim,
+    severity = "low",
+    guidance = ""
+  ) => {
+    map.contradictions.push({
+      type,
+      claim,
+      severity,
+      guidance
+    });
+  };
+
+  const has = domain => map.domains.includes(domain);
+
+  // ------------------------------------------------------------------
+  // Domain conflicts
+  // ------------------------------------------------------------------
+
+  if (
+    has("builder_domain") &&
+    has("medical_context_domain") &&
+    !has("animal_health_context_domain")
+  ) {
+    addContradiction(
+      "domain_conflict",
+      "Builder and medical domains both strongly detected.",
+      "medium",
+      "Prefer semantic frame and resolved user question when selecting the dominant interpretation."
+    );
+  }
+
+  if (
+    has("builder_domain") &&
+    has("relationship_context_domain")
+  ) {
+    addContradiction(
+      "mixed_domain",
+      "Technical and relationship contexts both present.",
+      "low",
+      "Allow multi-lane reasoning unless semantic evidence clearly favors one."
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Semantic vs legacy disagreement
+  // ------------------------------------------------------------------
+
+  if (
+    map.semanticSituation.available &&
+    map.canonical.issueType &&
+    map.situations.length &&
+    !map.situations.includes(map.canonical.issueType)
+  ) {
+    addContradiction(
+      "semantic_vs_legacy",
+      `Semantic issue '${map.canonical.issueType}' is not reflected in detected situations.`,
+      "medium",
+      "Favor semantic interpretation while retaining legacy detections as supporting evidence."
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Need vs lane disagreement
+  // ------------------------------------------------------------------
+
+  const topLane = map.laneEvidence?.[0]?.lane || null;
+
+  if (
+    map.needs.includes("decision_support") &&
+    topLane &&
+    topLane !== "executive_decision"
+  ) {
+    addContradiction(
+      "lane_alignment",
+      "Decision support detected but executive lane is not leading.",
+      "low",
+      "Verify lane ranking before Triage finalizes."
+    );
+  }
+
+  if (
+    map.needs.includes("action_or_build_help") &&
+    topLane &&
+    topLane === "teacher"
+  ) {
+    addContradiction(
+      "explain_vs_act",
+      "Signals indicate implementation help but explanation lane is strongest.",
+      "low",
+      "Consider builder support alongside explanation."
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Context continuity disagreement
+  // ------------------------------------------------------------------
+
+  if (
+    map.canonical.requiresContext &&
+    !map.canonical.priorContextUsed
+  ) {
+    addContradiction(
+      "continuity_gap",
+      "Semantic frame expects prior context but none was incorporated.",
+      "medium",
+      "Thread Understanding should reconstruct missing context before Triage."
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Confidence disagreement
+  // ------------------------------------------------------------------
+
+  if (
+    map.semanticSituation.available &&
+    map.semanticSituation.confidence >= 85 &&
+    map.evidenceModel.confidence < 50
+  ) {
+    addContradiction(
+      "confidence_mismatch",
+      "Semantic confidence is high while aggregate evidence confidence is low.",
+      "low",
+      "Review evidence weighting and observer signals."
+    );
+  }
+},
+detectAmbiguity(map) {
+  const missing = [];
+  const reasons = [];
+
+  const topLane = map.laneEvidence?.[0] || null;
+  const secondLane = map.laneEvidence?.[1] || null;
+
+  if (!map.canonical.subject && map.canonical.requiresContext) {
+    missing.push("subject");
+    reasons.push("Context is required but subject is unresolved.");
+  }
+
+  if (
+    map.needs.includes("decision_support") &&
+    !map.canonical.object &&
+    !map.canonical.issue
+  ) {
+    missing.push("decision_options_or_issue");
+    reasons.push("Decision support detected but options/issue are unclear.");
+  }
+
+  if (
+    map.needs.includes("context_sensitive_support") &&
+    map.domains.includes("medical_context_domain") &&
+    !map.text
+  ) {
+    missing.push("health_context_details");
+    reasons.push("Health/body context detected but details are missing.");
+  }
+
+  if (
+    topLane &&
+    secondLane &&
+    Math.abs(topLane.score - secondLane.score) <= 8
+  ) {
+    missing.push("dominant_lane");
+    reasons.push(
+      `Top lane '${topLane.lane}' is close to '${secondLane.lane}'.`
+    );
+  }
+
+  if (map.contradictions?.length) {
+    missing.push("conflict_resolution");
+    reasons.push("Contradictions are present and need triage review.");
+  }
+
+  if (
+    map.semanticSituation.available &&
+    map.semanticSituation.confidence < 60
+  ) {
+    missing.push("semantic_confidence");
+    reasons.push("Semantic frame confidence is weak.");
+  }
+
+  map.ambiguity = {
+    present: missing.length > 0,
+    level:
+      missing.length >= 3
+        ? "high"
+        : missing.length === 2
+          ? "moderate"
+          : missing.length === 1
+            ? "low"
+            : "none",
+    missing,
+    reasons,
+    shouldAskClarifyingQuestion:
+      missing.includes("subject") ||
+      missing.includes("decision_options_or_issue") ||
+      missing.includes("dominant_lane")
+  };
+
+  map.shouldAskClarifyingQuestion = map.ambiguity.shouldAskClarifyingQuestion;
+
+  if (map.shouldAskClarifyingQuestion && !map.recommendedQuestion) {
+    map.recommendedQuestion =
+      "What exactly are we deciding or trying to fix?";
+  }
+},
+
+buildTriageHandoff(map) {
+  map.triageHandoff = {
+    ready: true,
+    authority: "handoff_only",
+    situationFamily: map.situationFamily || this.inferSituationFamily(map),
+    primaryNeed: map.primaryNeed || map.needs[0] || "general_understanding",
+    semanticSituation: map.semanticSituation,
+    canonical: map.canonical,
+    evidence: map.evidenceModel.weightedSignals.slice(0, 8),
+    recommendedPriorities: map.laneEvidence.slice(0, 6),
+    constraints: map.responseConstraints,
+    ambiguity: map.ambiguity,
+    contradictions: map.contradictions,
+    risk: {
+      level: map.riskLevel,
+      type: map.riskType,
+      override: map.override
+    }
+  };
+},
+
+  
 
 mapSemanticDomainToSituationDomain(map, domain) {
   const domainMap = {
