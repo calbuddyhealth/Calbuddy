@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.1.1 — Evidence Weighted Arbitration Engine
+// V2.1.2 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.1.1",
+  version: "2.1.2",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -339,15 +339,23 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
 
     this.add(triage.responseConstraints, "handle_ambiguity_explicitly");
 
-    if (ambiguity.shouldAskClarifyingQuestion) {
-      this.addCandidate(
-        triage,
-        "clarification",
-        82,
-        "Ambiguity requires one clarification before full response.",
-        "ambiguity_resolver"
-      );
-    }
+    const needsClarification =
+  ambiguity.shouldAskClarifyingQuestion &&
+  (
+    (ambiguity.missing || []).includes("decision_options_or_issue") ||
+    (ambiguity.missing || []).includes("subject") ||
+    (ambiguity.missing || []).includes("dominant_lane")
+  );
+
+if (needsClarification && !this.hasDirectAnswerRequest(map)) {
+  this.addCandidate(
+    triage,
+    "clarification",
+    82,
+    "Ambiguity requires one clarification before full response.",
+    "ambiguity_resolver"
+  );
+}
 
     if ((ambiguity.missing || []).includes("dominant_lane")) {
       this.add(triage.responseConstraints, "state_assumption_if_answering");
@@ -550,7 +558,31 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
     if (!Number.isFinite(n)) return 0.6;
     return n > 1 ? n / 100 : n;
   },
+hasDirectAnswerRequest(map = {}) {
+  const text = String(map.rawUserText || map.resolvedText || map.text || "").toLowerCase();
 
+  const semanticIntent =
+    map.semanticSituation?.currentTurnMeaning?.intent ||
+    map.semanticSituation?.handoff?.intent ||
+    map.canonical?.goal ||
+    "";
+
+  const semanticMeaning =
+    map.semanticSituation?.currentTurnMeaning?.frameType ||
+    map.semanticSituation?.handoff?.currentMeaning ||
+    map.canonical?.issueType ||
+    "";
+
+  const questions = map.questions || [];
+
+  return (
+    questions.includes("explicit_question") ||
+    questions.includes("knowledge_question") ||
+    semanticIntent === "obtain_answer_or_clarification" ||
+    semanticMeaning === "information_seeking" ||
+    /\b(can we|do you know|what is|what are|why|how|tell me|explain|quote|example)\b/.test(text)
+  );
+},
   addCandidate(triage = {}, lane, score = 50, reason = "", source = "unknown") {
     if (!lane) return;
 
