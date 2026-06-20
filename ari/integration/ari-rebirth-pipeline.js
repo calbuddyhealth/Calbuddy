@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.7 — Lane Splitter + Continuity Packet Routing
+// V3.5.8 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.7",
+  version: "3.5.8",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -149,7 +149,8 @@ merge(await runEngine(window.AriContextAssembler, ["assemble", "create"]));
 
 // 0.266 Semantic Frame Builder
 const semanticFrameOutput = await runEngine(
-  window.AriSemanticFrameBuilder,
+  window.AriSemanticFrameBuilder ||
+  window.Ari?.semanticFrameBuilder,
   ["build"],
   {
     semanticFrameBuilderRan: false,
@@ -157,6 +158,7 @@ const semanticFrameOutput = await runEngine(
     semanticFrameSource: "not-loaded",
     advisoryOnly: true,
     primaryFrame: null,
+    normalizedFrame: null,
     secondaryFrames: [],
     allFrames: [],
     continuity: {},
@@ -225,7 +227,27 @@ semanticSummary: summary.semanticSummary
   laneSplit.scores || {},
 
 laneSplitterSemanticAware:
-  Boolean(summary.semanticFrameOutput?.semanticFrameBuilderRan)
+  Boolean(
+    summary.semanticFrameOutput?.semanticFrameBuilderRan ||
+    summary.semanticSummary ||
+    summary.semanticFrameOutput?.primaryFrame ||
+    summary.semanticFrameOutput?.normalizedFrame
+  ),
+
+laneSplitterSemanticFirst:
+  laneSplit.semanticFirst ?? false,
+
+laneSplitterLexicalFallbackUsed:
+  laneSplit.lexicalFallbackUsed ?? false,
+
+laneSplitterSemanticFrameType:
+  laneSplit.semanticFrameType || null,
+
+laneSplitterSemanticIntent:
+  laneSplit.semanticIntent || null,
+
+laneSplitterExplanation:
+  laneSplit.explanation || null
 };
 
     // 0.28 Continuity Entry Point
