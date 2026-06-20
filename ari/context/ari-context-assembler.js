@@ -210,10 +210,14 @@ window.AriContextAssembler = {
     followUpType: continuity.followUpType || "none",
 
     shouldReusePriorContext:
-      Boolean(
-        continuity.shouldReusePriorContext ||
-        continuity.followUpDetected
-      ),
+  Boolean(
+    continuity.shouldReusePriorContext ||
+    continuity.followUpDetected ||
+    (
+      continuity.followUpType &&
+      continuity.followUpType !== "none"
+    )
+  ),
 
     unresolvedItems: Array.isArray(continuity.unresolvedItems)
       ? continuity.unresolvedItems.slice(0, 8)
