@@ -21,6 +21,7 @@ window.AriSituationContract = {
     this.applyQuestionMode(contract, map, thread, summary);
 
     this.applySafetyPriority(contract, safety, map, triage);
+    this.applyConversationFunctionPriority(contract, map, triage, summary);
     this.applyPrimaryLane(contract, map, triage);
     this.applyLaneProfile(contract);
     this.applyTriageLanes(contract, triage, map);
@@ -320,6 +321,27 @@ window.AriSituationContract = {
     }
   },
 
+applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {}) {
+  if (contract.primary) return;
+
+  const cf = summary.conversationFunction || {};
+  const primaryFunction = cf.primaryFunction || summary.primaryFunction || null;
+
+  if (primaryFunction === "emotional_disclosure") {
+    contract.primary = "emotion";
+    contract.authority = "strong";
+    contract.responseShape = "presence_then_grounding";
+
+    this.add(contract.responseRules, "emotional_presence_first");
+    this.add(contract.requiredBehaviors, "Acknowledge the emotional disclosure before explaining.");
+    this.add(contract.forbiddenBehaviors, "Do not jump straight into builder/teacher mode.");
+
+    contract.reasons.push(
+      "Conversation Function Engine detected emotional disclosure."
+    );
+  }
+},
+
   applyPrimaryLane(contract, map = {}, triage = {}) {
     if (contract.primary) return;
 
@@ -410,7 +432,7 @@ window.AriSituationContract = {
       return;
     }
 
-    if (["medical_context", "builder", "teacher", "executive_decision", "memory"].includes(contract.primary)) {
+    if (["medical_context", "builder", "teacher", "executive_decision", "memory", "emotion"].includes(contract.primary)) {
       contract.authority = "strong";
       return;
     }
@@ -662,12 +684,19 @@ window.AriSituationContract = {
       },
 
       emotion: {
-        authority: "normal",
-        responseShape: "comfort_then_truth",
-        support: ["truth"],
-        requiredBehaviors: ["Validate without overdoing it.", "Name the emotional signal.", "Ground the user."],
-        forbiddenBehaviors: ["Do not replace action with emotional reflection when action is requested."]
-      },
+  authority: "strong",
+  responseShape: "presence_then_grounding",
+  support: ["truth"],
+  requiredBehaviors: [
+    "Acknowledge the emotional signal.",
+    "Validate briefly.",
+    "Ground before teaching."
+  ],
+  forbiddenBehaviors: [
+    "Do not immediately switch into builder mode.",
+    "Do not replace presence with a lecture."
+  ]
+},
 
       wisdom: {
         authority: "normal",
