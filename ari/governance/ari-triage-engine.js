@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.1.3 — Evidence Weighted Arbitration Engine
+// V2.2.0 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.1.3",
+  version: "2.2.0",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -33,7 +33,7 @@ window.AriTriageEngine = {
     this.collectSituationCandidates(map, triage);
     this.collectUniversalCandidates(map, triage);
     this.collectEvidenceWeightedCandidates(map, handoff, triage);
-
+this.collectSituationThesis(map, handoff, triage);
    this.resolveContradictions(map, handoff, triage);
 this.resolveAmbiguity(map, handoff, triage);
 this.enforceSafetyGateAuthority(safety, triage);
@@ -59,7 +59,9 @@ this.arbitrate(triage);
       triageConfidence: triage.confidence,
       triageCandidates: triage.candidates,
       triageReasons: triage.reasons,
-      triageAudit: triage.audit
+      triageSituationThesis: triage.situationThesisUsed,
+triageThesisRecommendedUse: triage.thesisRecommendedUse,
+triageAudit: triage.audit
     };
   },
 
@@ -87,7 +89,8 @@ this.arbitrate(triage);
       evidenceUsed: [],
       ambiguityUsed: null,
       contradictionsUsed: [],
-
+      situationThesisUsed: null,
+      thesisRecommendedUse: "do_not_use_as_authority",
       reasons: [],
 
       audit: {
@@ -297,6 +300,110 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
     if (text.includes("wisdom") || text.includes("principle")) return "wisdom";
 
     return null;
+  },
+
+  collectSituationThesis(map = {}, handoff = {}, triage = {}) {
+    const thesis =
+      map.primarySituationThesis ||
+      handoff.primarySituationThesis ||
+      null;
+
+    const recommendedUse =
+      map.thesisRecommendedUse ||
+      handoff.thesisRecommendedUse ||
+      "do_not_use_as_authority";
+
+    if (!thesis) return;
+
+    triage.situationThesisUsed = thesis;
+    triage.thesisRecommendedUse = recommendedUse;
+
+    triage.audit.notes.push(
+      `Situation thesis read: ${thesis.thesisType || "unknown"} (${recommendedUse}).`
+    );
+
+    if (recommendedUse === "use_as_situation_blueprint") {
+      this.add(triage.responseConstraints, "composer_must_use_situation_thesis");
+      this.add(triage.responseConstraints, "name_core_conflict_before_recommending");
+
+      if (thesis.bestResponse) {
+        this.add(triage.responseConstraints, "follow_thesis_best_response");
+      }
+
+      triage.audit.notes.push(
+        "Situation thesis approved as response blueprint."
+      );
+    }
+
+    if (thesis.thesisType === "medical_or_body_context") {
+      this.addCandidate(
+        triage,
+        "medical_context",
+        82,
+        "Situation thesis indicates medical/body context.",
+        "situation_thesis"
+      );
+    }
+
+    if (thesis.thesisType === "decision_under_tradeoff") {
+      this.addCandidate(
+        triage,
+        "executive_decision",
+        86,
+        "Situation thesis indicates decision under tradeoff.",
+        "situation_thesis"
+      );
+    }
+
+    if (thesis.thesisType === "short_term_reward_vs_long_term_stability") {
+      this.addCandidate(
+        triage,
+        "executive_decision",
+        92,
+        "Situation thesis indicates reward impulse versus long-term stability.",
+        "situation_thesis"
+      );
+    }
+
+    if (thesis.thesisType === "technical_problem_or_build_context") {
+      this.addCandidate(
+        triage,
+        "builder",
+        88,
+        "Situation thesis indicates technical/build context.",
+        "situation_thesis"
+      );
+    }
+
+    if (thesis.thesisType === "emotional_load_needs_containment") {
+      this.addCandidate(
+        triage,
+        "emotion",
+        84,
+        "Situation thesis indicates emotional load needs containment.",
+        "situation_thesis"
+      );
+    }
+
+    if (thesis.thesisType === "relationship_or_family_impact") {
+      this.addCandidate(
+        triage,
+        "relationship",
+        78,
+        "Situation thesis indicates relationship/family impact.",
+        "situation_thesis"
+      );
+    }
+
+    if (thesis.thesisType === "direct_information_or_explanation_request") {
+      this.addCandidate(
+        triage,
+        "teacher",
+        82,
+        "Situation thesis indicates direct explanation request.",
+        "situation_thesis"
+      );
+    }
   },
 
   resolveContradictions(map = {}, handoff = {}, triage = {}) {
