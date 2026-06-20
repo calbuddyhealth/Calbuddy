@@ -1,19 +1,68 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.0.0 — Universal Arbitration Engine
+// V2.1.0 — Evidence Weighted Arbitration Engine
+// Boundary:
+// - DOES choose final triage lane.
+// - DOES decide support/context/deferred/blocked lanes.
+// - DOES decide response shape and constraints.
+// - DOES NOT compose final response.
+// - DOES NOT override Safety Gate.
+// - DOES NOT create Situation Contract.
 
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   run(input = {}) {
     const summary = input.summary || input || {};
     const map = summary.situationMap || {};
-    const safety = summary.safetyContextGate || {};
+    const safety = summary.safetyContextGate || map.safetyGateUsed || {};
 
-    const triage = {
+    const handoff =
+      map.triageHandoff ||
+      summary.triageHandoff ||
+      {};
+
+    const triage = this.createEmptyTriage(map);
+
+    this.collectSafetyCandidate(safety, triage);
+    this.collectHandoffCandidates(handoff, triage);
+    this.collectSituationCandidates(map, triage);
+    this.collectUniversalCandidates(map, triage);
+    this.collectEvidenceWeightedCandidates(map, handoff, triage);
+
+    this.resolveContradictions(map, handoff, triage);
+    this.resolveAmbiguity(map, handoff, triage);
+
+    this.arbitrate(triage);
+    this.applyLaneConsequences(map, safety, triage);
+    this.finalize(triage);
+
+    return {
+      ariTriage: triage,
+      triageEngineRan: true,
+      triageEngineVersion: this.version,
+      triagePrimaryLane: triage.primaryLane,
+      triageSupportLanes: triage.supportLanes,
+      triageBriefLanes: triage.briefLanes,
+      triageContextLanes: triage.contextLanes,
+      triageDeferredLanes: triage.deferredLanes,
+      triageBlockedLanes: triage.blockedLanes,
+      triageResponseShape: triage.responseShape,
+      triageResponseConstraints: triage.responseConstraints,
+      triageUrgency: triage.urgency,
+      triageGravity: triage.gravity,
+      triageConfidence: triage.confidence,
+      triageCandidates: triage.candidates,
+      triageReasons: triage.reasons,
+      triageAudit: triage.audit
+    };
+  },
+
+  createEmptyTriage(map = {}) {
+    return {
       triageEngineRan: true,
       triageEngineVersion: this.version,
       source: "ari-triage-engine",
@@ -33,55 +82,73 @@ window.AriTriageEngine = {
       responseConstraints: [],
 
       candidates: [],
-      reasons: []
-    };
+      evidenceUsed: [],
+      ambiguityUsed: null,
+      contradictionsUsed: [],
 
-    this.collectSafetyCandidate(safety, triage);
-    this.collectSituationCandidates(map, triage);
-    this.collectUniversalCandidates(map, triage);
-    this.arbitrate(triage);
-    this.applyLaneConsequences(map, safety, triage);
-    this.finalize(triage);
+      reasons: [],
 
-    return {
-      ariTriage: triage,
-      triageEngineRan: true,
-      triagePrimaryLane: triage.primaryLane,
-      triageSupportLanes: triage.supportLanes,
-      triageBriefLanes: triage.briefLanes,
-      triageContextLanes: triage.contextLanes,
-      triageDeferredLanes: triage.deferredLanes,
-      triageBlockedLanes: triage.blockedLanes,
-      triageResponseShape: triage.responseShape,
-      triageResponseConstraints: triage.responseConstraints,
-      triageUrgency: triage.urgency,
-      triageGravity: triage.gravity,
-      triageConfidence: triage.confidence,
-      triageCandidates: triage.candidates,
-      triageReasons: triage.reasons
+      audit: {
+        safetyChecked: false,
+        handoffRead: false,
+        evidenceWeighted: false,
+        contradictionsResolved: false,
+        ambiguityResolved: false,
+        finalAuthority: "triage_engine",
+        notes: []
+      },
+
+      authority: "triage_owns_lane_choice"
     };
   },
 
   collectSafetyCandidate(safety = {}, triage = {}) {
+    triage.audit.safetyChecked = true;
+
     if (safety.override === "safety_emergency") {
-      this.addCandidate(triage, "safety", 100, "Safety emergency overrides all other lanes.");
+      this.addCandidate(triage, "safety", 100, "Safety emergency overrides all other lanes.", "safety_gate");
       triage.urgency = "critical";
       triage.gravity = 10;
       return;
     }
 
     if (safety.override === "medical_urgent") {
-      this.addCandidate(triage, "medical_body", 96, "Medical urgency overrides non-medical lanes.");
+      this.addCandidate(triage, "medical_body", 98, "Medical urgency overrides non-medical lanes.", "safety_gate");
       triage.urgency = "high";
       triage.gravity = 9;
       return;
     }
 
     if (safety.override === "clarify_risk") {
-      this.addCandidate(triage, "risk_clarification", 94, "Risk is ambiguous, so one clarification question leads.");
+      this.addCandidate(triage, "risk_clarification", 96, "Risk is ambiguous, so one clarification question leads.", "safety_gate");
       triage.urgency = "clarify";
       triage.gravity = Math.max(triage.gravity || 0, 7);
     }
+  },
+
+  collectHandoffCandidates(handoff = {}, triage = {}) {
+    if (!handoff || !handoff.ready) return;
+
+    triage.audit.handoffRead = true;
+
+    (handoff.recommendedPriorities || []).forEach(item => {
+      this.addCandidate(
+        triage,
+        item.lane,
+        item.score || 60,
+        item.reasons?.[0] || "Recommended by Situation Map triage handoff.",
+        "triage_handoff"
+      );
+    });
+
+    this.addMany(triage.responseConstraints, handoff.constraints || []);
+
+    triage.ambiguityUsed = handoff.ambiguity || null;
+    triage.contradictionsUsed = handoff.contradictions || [];
+
+    (handoff.evidence || []).forEach(evidence => {
+      triage.evidenceUsed.push(evidence);
+    });
   },
 
   collectSituationCandidates(map = {}, triage = {}) {
@@ -92,26 +159,11 @@ window.AriTriageEngine = {
         triage,
         candidate.lane,
         candidate.score || 50,
-        candidate.reasons?.[0] || "Candidate from Situation Map."
+        candidate.reasons?.[0] || "Candidate from Situation Map.",
+        "situation_map"
       );
     });
 
-    const primary = map.primaryLane || map.primaryLaneSuggestion || null;
-
-    if (primary) {
-      this.addCandidate(
-        triage,
-        primary,
-        map.confidence || 70,
-        "Situation Map selected primary lane."
-      );
-    }
-
-    this.addMany(triage.supportLanes, map.supportLanes || map.supportLaneSuggestions || []);
-    this.addMany(triage.briefLanes, map.briefLanes || map.briefLaneSuggestions || []);
-    this.addMany(triage.contextLanes, map.contextLanes || map.contextLaneSuggestions || []);
-    this.addMany(triage.deferredLanes, map.deferredLanes || map.deferredLaneSuggestions || []);
-    this.addMany(triage.blockedLanes, map.blockedLanes || []);
     this.addMany(triage.responseConstraints, map.responseConstraints || []);
   },
 
@@ -122,18 +174,15 @@ window.AriTriageEngine = {
     const questions = map.questions || [];
 
     if (needs.includes("urgent_protection")) {
-      this.addCandidate(triage, "medical_body", 92, "Urgent protection need detected.");
+      this.addCandidate(triage, "medical_body", 92, "Urgent protection need detected.", "universal_need");
     }
 
     if (needs.includes("risk_clarification")) {
-      this.addCandidate(triage, "risk_clarification", 90, "Risk clarification need detected.");
+      this.addCandidate(triage, "risk_clarification", 90, "Risk clarification need detected.", "universal_need");
     }
 
-    if (
-      needs.includes("action_or_build_help") ||
-      domains.includes("builder_domain")
-    ) {
-      this.addCandidate(triage, "builder", 86, "Build/debug/action request detected.");
+    if (needs.includes("action_or_build_help") || domains.includes("builder_domain")) {
+      this.addCandidate(triage, "builder", 86, "Build/debug/action request detected.", "universal_need");
     }
 
     if (
@@ -141,7 +190,7 @@ window.AriTriageEngine = {
       domains.includes("knowledge_domain") ||
       questions.includes("knowledge_question")
     ) {
-      this.addCandidate(triage, "teacher", 82, "Knowledge or explanation request detected.");
+      this.addCandidate(triage, "teacher", 82, "Knowledge or explanation request detected.", "universal_need");
     }
 
     if (
@@ -149,29 +198,27 @@ window.AriTriageEngine = {
       questions.includes("decision_question") ||
       situations.includes("tradeoff_or_competing_priorities")
     ) {
-      this.addCandidate(triage, "executive_decision", 88, "Decision or tradeoff request detected.");
+      this.addCandidate(triage, "executive_decision", 88, "Decision or tradeoff request detected.", "universal_need");
     }
 
     if (domains.includes("memory_preference_domain")) {
-      this.addCandidate(triage, "memory", 90, "Memory or preference request detected.");
+      this.addCandidate(triage, "memory", 90, "Memory or preference request detected.", "universal_domain");
     }
 
-    if (
-      domains.includes("medical_context_domain") ||
-      domains.includes("body_signal_domain")
-    ) {
-      this.addCandidate(triage, "medical_context", 76, "Medical/body context should stay visible without hijacking.");
+    if (domains.includes("medical_context_domain")) {
+      this.addCandidate(triage, "medical_context", 76, "Medical/body context should stay visible without hijacking.", "universal_domain");
     }
 
-    if (
-      domains.includes("family_context_domain") ||
-      domains.includes("relationship_context_domain")
-    ) {
-      this.addCandidate(triage, "relationship", 70, "Relationship or family context detected.");
+    if (domains.includes("family_context_domain")) {
+      this.addCandidate(triage, "family", 72, "Family context detected.", "universal_domain");
+    }
+
+    if (domains.includes("relationship_context_domain")) {
+      this.addCandidate(triage, "relationship", 70, "Relationship context detected.", "universal_domain");
     }
 
     if (domains.includes("emotion_context_domain")) {
-      this.addCandidate(triage, "emotion", 64, "Emotion context detected.");
+      this.addCandidate(triage, "emotion", 64, "Emotion context detected.", "universal_domain");
     }
 
     if (
@@ -180,13 +227,127 @@ window.AriTriageEngine = {
       needs.includes("wisdom_support") ||
       needs.includes("principle_clarity")
     ) {
-      this.addCandidate(triage, "wisdom", 62, "Wisdom or principle tension detected.");
+      this.addCandidate(triage, "wisdom", 62, "Wisdom or principle tension detected.", "universal_domain");
+    }
+  },
+
+  collectEvidenceWeightedCandidates(map = {}, handoff = {}, triage = {}) {
+    const evidence = [
+      ...(handoff.evidence || []),
+      ...(map.evidenceModel?.weightedSignals || [])
+    ];
+
+    if (!evidence.length) return;
+
+    triage.audit.evidenceWeighted = true;
+
+    evidence.forEach(item => {
+      const lane = this.laneFromEvidence(item);
+      if (!lane) return;
+
+      const confidence = this.safeConfidence(item.confidence);
+      const weight = Number(item.weight || 50);
+      const score = Math.min(96, Math.round((confidence * 70) + (weight * 0.3)));
+
+      this.addCandidate(
+        triage,
+        lane,
+        score,
+        `Evidence supports ${lane}: ${item.claim || item.evidence}.`,
+        item.source || "evidence_model"
+      );
+    });
+  },
+
+  laneFromEvidence(item = {}) {
+    const text = `${item.claim || ""} ${item.evidence || ""} ${item.type || ""}`.toLowerCase();
+
+    if (text.includes("safety") || text.includes("self harm") || text.includes("danger")) return "safety";
+    if (text.includes("medical_urgent") || text.includes("urgent") || text.includes("emergency")) return "medical_body";
+    if (text.includes("risk") || text.includes("clarify")) return "risk_clarification";
+
+    if (text.includes("builder") || text.includes("code") || text.includes("debug") || text.includes("implementation")) return "builder";
+    if (text.includes("decision") || text.includes("tradeoff") || text.includes("options")) return "executive_decision";
+    if (text.includes("understanding") || text.includes("explain") || text.includes("knowledge")) return "teacher";
+    if (text.includes("medical") || text.includes("body") || text.includes("health")) return "medical_context";
+    if (text.includes("memory")) return "memory";
+    if (text.includes("family")) return "family";
+    if (text.includes("relationship")) return "relationship";
+    if (text.includes("emotion")) return "emotion";
+    if (text.includes("wisdom") || text.includes("principle")) return "wisdom";
+
+    return null;
+  },
+
+  resolveContradictions(map = {}, handoff = {}, triage = {}) {
+    const contradictions = [
+      ...(map.contradictions || []),
+      ...(handoff.contradictions || [])
+    ];
+
+    if (!contradictions.length) return;
+
+    triage.audit.contradictionsResolved = true;
+    triage.contradictionsUsed = contradictions;
+
+    contradictions.forEach(item => {
+      if (item.type === "domain_conflict") {
+        this.add(triage.responseConstraints, "resolve_domain_conflict_before_composing");
+        triage.audit.notes.push("Domain conflict detected; final lane should prefer stronger semantic/evidence support.");
+      }
+
+      if (item.type === "continuity_gap") {
+        this.add(triage.responseConstraints, "reuse_or_reconstruct_context");
+        this.addCandidate(triage, "teacher", 68, "Continuity gap requires clear grounding before answer.", "contradiction_resolver");
+      }
+
+      if (item.type === "explain_vs_act") {
+        this.addCandidate(triage, "builder", 84, "Implementation help outranks pure explanation when action is requested.", "contradiction_resolver");
+      }
+
+      if (item.type === "lane_alignment") {
+        this.addCandidate(triage, "executive_decision", 84, "Decision support needs executive arbitration.", "contradiction_resolver");
+      }
+    });
+  },
+
+  resolveAmbiguity(map = {}, handoff = {}, triage = {}) {
+    const ambiguity = handoff.ambiguity || map.ambiguity || null;
+    if (!ambiguity || !ambiguity.present) return;
+
+    triage.audit.ambiguityResolved = true;
+    triage.ambiguityUsed = ambiguity;
+
+    this.add(triage.responseConstraints, "handle_ambiguity_explicitly");
+
+    if (ambiguity.shouldAskClarifyingQuestion) {
+      this.addCandidate(
+        triage,
+        "clarification",
+        82,
+        "Ambiguity requires one clarification before full response.",
+        "ambiguity_resolver"
+      );
+    }
+
+    if ((ambiguity.missing || []).includes("dominant_lane")) {
+      this.add(triage.responseConstraints, "state_assumption_if_answering");
+    }
+
+    if ((ambiguity.missing || []).includes("decision_options_or_issue")) {
+      this.addCandidate(
+        triage,
+        "executive_decision",
+        82,
+        "Decision ambiguity should be organized before answering.",
+        "ambiguity_resolver"
+      );
     }
   },
 
   arbitrate(triage = {}) {
     if (!triage.candidates.length) {
-      this.addCandidate(triage, "general_understanding", 50, "No strong candidate found.");
+      this.addCandidate(triage, "general_understanding", 50, "No strong candidate found.", "fallback");
     }
 
     triage.candidates.forEach(candidate => {
@@ -204,6 +365,10 @@ window.AriTriageEngine = {
     triage.primaryLane = winner.lane;
     triage.confidence = Math.min(100, Math.max(50, winner.score));
     triage.reasons.push(winner.reasons?.[0] || `Triage selected ${winner.lane}.`);
+
+    triage.audit.notes.push(
+      `Primary lane '${winner.lane}' selected with score ${winner.score}, priority ${winner.priority}, final ${winner.finalScore}.`
+    );
   },
 
   applyLaneConsequences(map = {}, safety = {}, triage = {}) {
@@ -227,6 +392,12 @@ window.AriTriageEngine = {
       this.addMany(triage.blockedLanes, ["teacher", "builder", "wisdom", "life_chapter", "deep_emotion"]);
       this.addMany(triage.responseConstraints, ["ask_one_risk_question", "do_not_assume_safety"]);
       triage.responseShape = "clarify_risk_only";
+      return;
+    }
+
+    if (primary === "clarification") {
+      this.addMany(triage.responseConstraints, ["ask_one_clarifying_question", "do_not_over_answer"]);
+      triage.responseShape = "clarify_then_answer";
       return;
     }
 
@@ -254,7 +425,18 @@ window.AriTriageEngine = {
     }
 
     if (primary === "emotion") {
+      this.addMany(triage.responseConstraints, ["brief_attunement_then_ground"]);
       triage.responseShape = "emotion_then_ground";
+    }
+
+    if (primary === "family") {
+      this.addMany(triage.responseConstraints, ["protect_family_context", "practical_next_step"]);
+      triage.responseShape = "family_truth_then_next_step";
+    }
+
+    if (primary === "relationship") {
+      this.addMany(triage.responseConstraints, ["relationship_awareness", "repair_or_clarity"]);
+      triage.responseShape = "relationship_truth_then_repair";
     }
 
     if (primary === "wisdom") {
@@ -293,6 +475,8 @@ window.AriTriageEngine = {
     triage.deferredLanes = this.cleanLaneList(triage.deferredLanes, triage.primaryLane);
     triage.blockedLanes = this.cleanLaneList(triage.blockedLanes, triage.primaryLane);
     triage.responseConstraints = [...new Set(triage.responseConstraints)];
+
+    triage.audit.notes.push(`Final response shape: ${triage.responseShape}.`);
   },
 
   priorityOf(lane) {
@@ -300,6 +484,7 @@ window.AriTriageEngine = {
       safety: 100,
       medical_body: 95,
       risk_clarification: 90,
+      clarification: 70,
       medical_context: 55,
 
       memory: 50,
@@ -326,6 +511,7 @@ window.AriTriageEngine = {
       medical_body: "medical_boundary_then_action",
       medical_context: "medical_context_then_next_step",
       risk_clarification: "clarify_risk_only",
+      clarification: "clarify_then_answer",
       teacher: "clear_explanation",
       builder: "build_steps",
       executive_decision: "decision_first_layered",
@@ -340,7 +526,13 @@ window.AriTriageEngine = {
     return map[primary] || "standard";
   },
 
-  addCandidate(triage = {}, lane, score = 50, reason = "") {
+  safeConfidence(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0.6;
+    return n > 1 ? n / 100 : n;
+  },
+
+  addCandidate(triage = {}, lane, score = 50, reason = "", source = "unknown") {
     if (!lane) return;
 
     const existing = triage.candidates.find(item => item.lane === lane);
@@ -350,13 +542,17 @@ window.AriTriageEngine = {
       if (reason && !existing.reasons.includes(reason)) {
         existing.reasons.push(reason);
       }
+      if (source && !existing.sources.includes(source)) {
+        existing.sources.push(source);
+      }
       return;
     }
 
     triage.candidates.push({
       lane,
       score,
-      reasons: reason ? [reason] : []
+      reasons: reason ? [reason] : [],
+      sources: source ? [source] : []
     });
   },
 
@@ -375,3 +571,8 @@ window.AriTriageEngine = {
     return [...new Set(list)].filter(lane => lane && lane !== primary);
   }
 };
+
+console.log(
+  "ARI TRIAGE ENGINE LOADED:",
+  window.AriTriageEngine?.version
+);
