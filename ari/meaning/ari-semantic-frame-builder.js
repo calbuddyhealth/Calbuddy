@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V2.0.0 — Universal Meaning Model / Current Turn First / Context Second
+// V2.0.1 — Universal Meaning Model / Current Turn First / Context Second
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "2.0.0",
+  version: "2.0.1",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -390,7 +390,17 @@ window.AriSemanticFrameBuilder = {
     const text = n.text;
 
     const hasThread = inherited.threadAvailable;
-    const completeCurrentTurn = n.wordCount >= 10;
+    const directQuestion =
+  n.hasQuestionMark ||
+  /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
+
+const completeCurrentTurn =
+  n.wordCount >= 10 ||
+  (
+    directQuestion &&
+    currentTurnFrame &&
+    currentTurnFrame.confidence >= 70
+  );
 
     const continuationHits = this.findWordHits(text, [
       "next",
@@ -559,7 +569,17 @@ window.AriSemanticFrameBuilder = {
       "her"
     ]);
 
-    const currentTurnComplete = n.wordCount >= 10 && primaryFrame.confidence >= 65;
+    const directQuestion =
+  n.hasQuestionMark ||
+  /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(n.text);
+
+const currentTurnComplete =
+  (n.wordCount >= 10 && primaryFrame.confidence >= 65) ||
+  (
+    directQuestion &&
+    primaryFrame &&
+    primaryFrame.confidence >= 70
+  );
 
     const present =
       !currentTurnComplete &&
