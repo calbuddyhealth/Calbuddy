@@ -1,7 +1,7 @@
 // ari/safety/ari-safety-context-gate.js
 // Ari Safety Context Gate
 // Purpose: Detect true safety/medical urgency from context, not single words.
-// V2.0.0
+// V2.1.0
 // Upgrades:
 // - Signal detection separated from risk decision.
 // - Adds negation detection: no bleeding, denies bleeding, not bleeding.
@@ -12,7 +12,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSafetyContextGate = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   evaluate(input = {}) {
     const summary = input.summary || input || {};
@@ -38,7 +38,11 @@ window.AriSafetyContextGate = {
       followUpNeeded: false,
       followUpType: null,
       followUpQuestion: null,
-
+      safetyAuthority: "safety_gate_final",
+allowSafetyOverride: false,
+allowMedicalOverride: false,
+allowRiskClarification: false,
+safetyApprovedNormalFlow: true,
       evidence: [],
       reasons: [],
 
@@ -512,13 +516,18 @@ if (context.stabilizedOrResolved && !context.unresolvedOrWorsening) {
     gate.riskType = scored.riskType || "none";
     gate.evidence.push(...scored.evidence);
     gate.reasons.push(...scored.reasons);
-
+gate.allowSafetyOverride = false;
+gate.allowMedicalOverride = false;
+gate.allowRiskClarification = false;
+gate.safetyApprovedNormalFlow = true;
     if (scored.override === "safety_emergency") {
       gate.override = "safety_emergency";
       gate.shouldStopNormalResponse = true;
       gate.shouldUseSafetyResponse = true;
       gate.shouldUseMedicalResponse = false;
       gate.shouldAskRiskClarification = false;
+      gate.allowSafetyOverride = true;
+gate.safetyApprovedNormalFlow = false;
       return;
     }
 
@@ -528,6 +537,8 @@ if (context.stabilizedOrResolved && !context.unresolvedOrWorsening) {
       gate.shouldUseSafetyResponse = false;
       gate.shouldUseMedicalResponse = true;
       gate.shouldAskRiskClarification = false;
+      gate.allowMedicalOverride = true;
+gate.safetyApprovedNormalFlow = false;
       return;
     }
 
@@ -539,7 +550,8 @@ if (context.stabilizedOrResolved && !context.unresolvedOrWorsening) {
       gate.shouldUseSafetyResponse = false;
       gate.shouldUseMedicalResponse = false;
       gate.shouldAskRiskClarification = true;
-
+gate.allowRiskClarification = true;
+gate.safetyApprovedNormalFlow = false;
       if (scored.riskType === "medical") {
         gate.followUpQuestion = "Is she having severe pain, heavy bleeding, fainting, fever, trouble breathing, or anything rapidly worsening right now?";
       } else {
@@ -556,7 +568,11 @@ if (context.stabilizedOrResolved && !context.unresolvedOrWorsening) {
       gate.shouldUseSafetyResponse = false;
       gate.shouldUseMedicalResponse = false;
       gate.shouldAskRiskClarification = false;
-      gate.reasons.push("Medical/safety context detected, but not enough for urgent override.");
+      gate.allowSafetyOverride = false;
+gate.allowMedicalOverride = false;
+gate.allowRiskClarification = false;
+gate.safetyApprovedNormalFlow = true;
+     gate.reasons.push("Medical/safety context detected, but not enough for urgent override.");
     }
   },
 
