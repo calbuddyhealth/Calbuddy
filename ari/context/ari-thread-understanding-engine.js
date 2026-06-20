@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Preserve active situation context across turns.
-// V5.2.0 — Semantic Frame Consumer / Context Memory / Advisory Only
+// V5.2.1 — Semantic Frame Consumer / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "5.2.0",
+  version: "5.2.1",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
