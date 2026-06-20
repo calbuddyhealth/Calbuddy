@@ -731,9 +731,9 @@ window.AriThreadUnderstandingEngine = {
       add(`The central tradeoff is ${centralTradeoff.sideA} versus ${centralTradeoff.sideB}.`, 0.86);
     }
 
-    if (!facts.length && text) {
-      add(`The user's current situation: ${text}`, 0.68);
-    }
+    if (!facts.length && text && !this.isFragmentTurnText(text)) {
+  add(`The user's current situation: ${text}`, 0.68);
+}
 
     return this.uniqueFacts(facts).slice(0, 8);
   },
@@ -808,7 +808,9 @@ window.AriThreadUnderstandingEngine = {
     providedSemanticFrame = null
   }) {
     const merged = this.emptyWorkingContext();
-    const lowInfoFollowUp = this.isLowInformationFollowUp(currentTurn);
+    const lowInfoFollowUp =
+  this.isLowInformationFollowUp(currentTurn) ||
+  this.isFragmentTurnText(currentText);
 
     if (!topicTransition.switched) {
       this.copyContextInto(merged, previousWorkingContext);
