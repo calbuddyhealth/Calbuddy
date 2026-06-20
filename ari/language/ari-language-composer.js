@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.2.2 — Contract-Locked Natural AI Writer
+// V8.3.0 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.2.2",
+  version: "8.3.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -23,7 +23,7 @@ window.AriLanguageComposer = {
     const communicationPlan = summary.communicationPlan || {};
     const mouth = summary.mouthDirector || {};
     const language = summary.humanLanguageProfile || {};
-
+const thesis = this.readSituationThesis(summary);
     const userQuestion =
       summary.resolvedUserQuestion ||
       summary.threadQuestion?.resolvedUserQuestion ||
@@ -45,6 +45,7 @@ window.AriLanguageComposer = {
       contract,
       communicationPlan,
       mouth,
+      thesis,
       language,
       primary,
       userQuestion
@@ -91,6 +92,7 @@ const finalResponse = this.finalPolish(
         authority: contract.authority || null,
         communicationProfile: contract.communicationProfile || null,
         mouthDirective: contract.mouthDirective || null,
+        situationThesis: thesis,
         usedAI: Boolean(draft.usedAI),
         rawDraft: draft.text
       }
@@ -103,7 +105,8 @@ const finalResponse = this.finalPolish(
     communicationPlan = {},
     mouth = {},
     language = {},
-    primary = "general_understanding",
+thesis = {},
+primary = "general_understanding",
     userQuestion = ""
   }) {
     const instruction = this.buildAIInstruction({
@@ -111,6 +114,7 @@ const finalResponse = this.finalPolish(
       contract,
       communicationPlan,
       mouth,
+      thesis,
       language,
       primary,
       userQuestion
@@ -152,11 +156,44 @@ const finalResponse = this.finalPolish(
     };
   },
 
+readSituationThesis(summary = {}) {
+  const contract = summary.situationContract || {};
+  const map = summary.situationMap || {};
+  const triage = summary.ariTriage || summary.triage || {};
+
+  const thesis =
+    contract.situationThesis?.thesis ||
+    map.primarySituationThesis ||
+    triage.situationThesisUsed ||
+    null;
+
+  const narrative =
+    contract.situationThesis?.narrative ||
+    map.situationNarrative ||
+    thesis?.oneLine ||
+    null;
+
+  const recommendedUse =
+    contract.situationThesis?.recommendedUse ||
+    map.thesisRecommendedUse ||
+    triage.thesisRecommendedUse ||
+    "do_not_use_as_authority";
+
+  return {
+    available: Boolean(thesis || narrative),
+    thesis,
+    narrative,
+    recommendedUse,
+    mustUse: recommendedUse === "use_as_situation_blueprint"
+  };
+},
+
   buildAIInstruction({
     summary = {},
     contract = {},
     communicationPlan = {},
     mouth = {},
+    thesis = {},
     language = {},
     primary = "general_understanding",
     userQuestion = ""
