@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.3.0 — Advisory Situation Mapper Only
+// V8.3.1 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.3.0",
+  version: "8.3.1",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -39,13 +39,14 @@ build(input = {}) {
     [];
 
   const safetyGate = summary.safetyContextGate || {
-    override: summary.override || null,
-    riskLevel: summary.riskLevel || "none",
-    riskType: summary.riskType || "none",
-    followUpNeeded: summary.followUpNeeded || false,
-    followUpQuestion: summary.followUpQuestion || null
-  };
-
+  override: summary.override || null,
+  riskLevel: summary.riskLevel || "none",
+  riskType: summary.riskType || "none",
+  primaryRisk: summary.primaryRisk || null,
+  risks: summary.risks || [],
+  followUpNeeded: summary.followUpNeeded || false,
+  followUpQuestion: summary.followUpQuestion || null
+};
   const thread =
     summary.continuityContext ||
     summary.continuityPacket?.activeThread?.workingContext ||
@@ -259,8 +260,10 @@ createEmptyMap({
 
     eventState: safetyGate.riskLevel === "context" ? "context" : "unknown",
     riskLevel: safetyGate.riskLevel || "none",
-    riskType: safetyGate.riskType || "none",
-    override: safetyGate.override || null,
+riskType: safetyGate.riskType || "none",
+override: safetyGate.override || null,
+primaryRisk: safetyGate.primaryRisk || null,
+rankedRisks: safetyGate.risks || [],
 
     situationType: null,
     situationFamily: null,
@@ -708,10 +711,12 @@ buildTriageHandoff(map) {
     ambiguity: map.ambiguity,
     contradictions: map.contradictions,
     risk: {
-      level: map.riskLevel,
-      type: map.riskType,
-      override: map.override
-    }
+  level: map.riskLevel,
+  type: map.riskType,
+  override: map.override,
+  primaryRisk: map.primaryRisk,
+  rankedRisks: map.rankedRisks
+}
   };
 },
 
@@ -885,10 +890,20 @@ readSemanticSituation(map) {
     const safetyGate = map.safetyGateUsed || {};
     const conversation = map.conversationClassificationUsed || {};
 
-    if (safetyGate.override === "safety_emergency") this.add(map.domains, "safety_domain");
-    if (safetyGate.override === "medical_urgent") this.add(map.domains, "medical_context_domain");
-    if (safetyGate.override === "clarify_risk") this.add(map.domains, "risk_clarification_domain");
+    if (safetyGate.override === "emergency" || safetyGate.override === "urgent") {
+  if (
+    safetyGate.primaryRisk?.type === "medical" ||
+    safetyGate.primaryRisk?.type === "poisoning_overdose"
+  ) {
+    this.add(map.domains, "medical_context_domain");
+  } else {
+    this.add(map.domains, "safety_domain");
+  }
+}
 
+if (safetyGate.override === "clarify_risk") {
+  this.add(map.domains, "risk_clarification_domain");
+}
     const observerDomainMap = {
       safety: "safety_domain",
       body: "medical_context_domain",
@@ -1015,11 +1030,43 @@ mapTextNeedSignals(map) {
     const safetyGate = map.safetyGateUsed || {};
     const thread = map.threadUnderstandingUsed || {};
 
-    if (safetyGate.override === "safety_emergency") this.add(map.situations, "active_safety_emergency");
-    if (safetyGate.override === "medical_urgent") this.add(map.situations, "active_medical_urgency");
-    if (safetyGate.override === "clarify_risk") this.add(map.situations, "ambiguous_risk_needs_clarification");
-    if (safetyGate.riskLevel === "context") this.add(map.situations, "risk_or_medical_context_only");
+    if (safetyGate.override === "emergency") {
+  this.add(map.situations, "active_emergency_risk");
+}
 
+if (safetyGate.override === "urgent") {
+  this.add(map.situations, "active_urgent_risk");
+}
+
+if (
+  (safetyGate.override === "emergency" || safetyGate.override === "urgent") &&
+  (
+    safetyGate.primaryRisk?.type === "medical" ||
+    safetyGate.primaryRisk?.type === "poisoning_overdose"
+  )
+) {
+  this.add(map.situations, "active_medical_urgency");
+}
+
+if (
+  (safetyGate.override === "emergency" || safetyGate.override === "urgent") &&
+  safetyGate.primaryRisk?.type &&
+  !["medical", "poisoning_overdose"].includes(safetyGate.primaryRisk.type)
+) {
+  this.add(map.situations, "active_safety_emergency");
+}
+
+if ((safetyGate.risks || []).length > 1) {
+  this.add(map.situations, "multi_risk_context");
+}
+
+if (safetyGate.override === "clarify_risk") {
+  this.add(map.situations, "ambiguous_risk_needs_clarification");
+}
+
+if (safetyGate.riskLevel === "context") {
+  this.add(map.situations, "risk_or_medical_context_only");
+}
     if (this.hasType(observations, "body_context")) this.add(map.situations, "body_or_medical_context");
     if (this.hasType(observations, "body_symptom")) this.add(map.situations, "body_symptom_mentioned");
     if (this.hasType(observations, "work_reference")) this.add(map.situations, "work_or_career_context");
@@ -1102,21 +1149,47 @@ this.mapTextSituationSignals(map);
     });
   },
     detectRisks(map) {
-    const safetyGate = map.safetyGateUsed || {};
+  const safetyGate = map.safetyGateUsed || {};
+  const primaryRisk = safetyGate.primaryRisk || null;
+  const rankedRisks = safetyGate.risks || [];
 
-    if (safetyGate.override === "safety_emergency") this.add(map.risks, "confirmed_safety_emergency");
-    if (safetyGate.override === "medical_urgent") this.add(map.risks, "confirmed_medical_urgency");
-    if (safetyGate.override === "clarify_risk") this.add(map.risks, "ambiguous_risk");
-    if (safetyGate.riskLevel === "context") this.add(map.risks, "context_only_not_emergency");
+  if (primaryRisk) {
+    this.add(map.risks, `primary_${primaryRisk.type}_risk`);
+    this.add(map.risks, `${primaryRisk.level}_risk`);
+  }
 
-    if (map.situations.includes("accountability_or_work_quality_context")) {
-      this.add(map.risks, "accountability_or_quality_risk");
-    }
+  rankedRisks.forEach(risk => {
+    if (risk?.type) this.add(map.risks, `${risk.type}_risk`);
+    if (risk?.subtype) this.add(map.risks, `${risk.subtype}_risk`);
+  });
 
-    if (map.situations.includes("constraint_or_obligation_pressure")) {
-      this.add(map.risks, "pressure_or_constraint_risk");
-    }
-  },
+  if (safetyGate.override === "emergency") this.add(map.risks, "confirmed_emergency_risk");
+  if (safetyGate.override === "urgent") this.add(map.risks, "confirmed_urgent_risk");
+  if (safetyGate.override === "clarify_risk") this.add(map.risks, "ambiguous_risk");
+  if (safetyGate.riskLevel === "context") this.add(map.risks, "context_only_not_emergency");
+
+  if (
+    primaryRisk?.type === "medical" ||
+    primaryRisk?.type === "poisoning_overdose"
+  ) {
+    this.add(map.risks, "confirmed_medical_or_body_risk");
+  }
+
+  if (
+    primaryRisk &&
+    !["medical", "poisoning_overdose"].includes(primaryRisk.type)
+  ) {
+    this.add(map.risks, "confirmed_safety_risk");
+  }
+
+  if (map.situations.includes("accountability_or_work_quality_context")) {
+    this.add(map.risks, "accountability_or_quality_risk");
+  }
+
+  if (map.situations.includes("constraint_or_obligation_pressure")) {
+    this.add(map.risks, "pressure_or_constraint_risk");
+  }
+},
 
 semanticPrimary(map, frameTypes = []) {
   const frame = map.semanticSituation?.currentTurnMeaning || {};
@@ -1198,11 +1271,11 @@ if (
 this.mapSemanticNeedSignals(map);
 
     if (
-      map.risks.includes("confirmed_safety_emergency") ||
-      map.risks.includes("confirmed_medical_urgency")
-    ) {
-      this.add(map.needs, "urgent_protection");
-    }
+  map.risks.includes("confirmed_emergency_risk") ||
+  map.risks.includes("confirmed_urgent_risk")
+) {
+  this.add(map.needs, "urgent_protection");
+}
 
     if (
       map.questions.includes("decision_question") ||
@@ -1318,15 +1391,19 @@ this.mapTextNeedSignals(map);
     const safetyGate = map.safetyGateUsed || {};
     const thread = map.threadUnderstandingUsed || {};
 
-    if (safetyGate.override === "safety_emergency") {
-      this.add(map.responseRequirements, "safety_response_required");
-      map.shouldAskClarifyingQuestion = false;
-    }
+    if (safetyGate.override === "emergency" || safetyGate.override === "urgent") {
+  if (
+    safetyGate.primaryRisk?.type === "medical" ||
+    safetyGate.primaryRisk?.type === "poisoning_overdose"
+  ) {
+    this.add(map.responseRequirements, "medical_urgent_response_required");
+  } else {
+    this.add(map.responseRequirements, "safety_response_required");
+  }
 
-    if (safetyGate.override === "medical_urgent") {
-      this.add(map.responseRequirements, "medical_urgent_response_required");
-      map.shouldAskClarifyingQuestion = false;
-    }
+  this.add(map.responseRequirements, "urgent_response_required");
+  map.shouldAskClarifyingQuestion = false;
+}
 
     if (safetyGate.override === "clarify_risk") {
       this.add(map.responseRequirements, "ask_one_risk_clarification_question");
@@ -1359,17 +1436,17 @@ this.mapTextNeedSignals(map);
 }
   },
     scoreMap(map) {
-    if (map.risks.includes("confirmed_safety_emergency")) {
-      map.gravity = 10;
-      map.urgency = "critical";
-      return;
-    }
+    if (map.risks.includes("confirmed_emergency_risk")) {
+  map.gravity = 10;
+  map.urgency = "critical";
+  return;
+}
 
-    if (map.risks.includes("confirmed_medical_urgency")) {
-      map.gravity = 9;
-      map.urgency = "high";
-      return;
-    }
+if (map.risks.includes("confirmed_urgent_risk")) {
+  map.gravity = 9;
+  map.urgency = "high";
+  return;
+}
 
     if (map.risks.includes("ambiguous_risk")) {
       map.gravity = 7;
@@ -1499,21 +1576,28 @@ addSemanticLaneEvidence(map, addCandidate) {
     };
 this.addSemanticLaneEvidence(map, addCandidate);
 
-    if (map.risks.includes("confirmed_safety_emergency")) {
-      addCandidate("safety", 100, "Safety Gate confirmed emergency.");
-    }
+    if (map.risks.includes("confirmed_emergency_risk")) {
+  if (map.risks.includes("confirmed_medical_or_body_risk")) {
+    addCandidate("medical_body", 100, "Safety Gate confirmed emergency medical/body risk.");
+  } else {
+    addCandidate("safety", 100, "Safety Gate confirmed emergency safety risk.");
+  }
+}
 
-    if (map.risks.includes("confirmed_medical_urgency")) {
-      addCandidate("medical_body", 98, "Safety Gate confirmed medical urgency.");
-    }
-
+if (map.risks.includes("confirmed_urgent_risk")) {
+  if (map.risks.includes("confirmed_medical_or_body_risk")) {
+    addCandidate("medical_body", 98, "Safety Gate confirmed urgent medical/body risk.");
+  } else {
+    addCandidate("safety", 98, "Safety Gate confirmed urgent safety risk.");
+  }
+}
     if (map.risks.includes("ambiguous_risk")) {
       addCandidate("risk_clarification", 95, "Safety Gate requested risk clarification.");
     }
 
     if (
   map.needs.includes("context_sensitive_support") &&
-  !map.risks.includes("confirmed_medical_urgency") &&
+  !map.risks.includes("confirmed_medical_or_body_risk") &&
   !map.risks.includes("ambiguous_risk")
 ) {
   addCandidate("medical_context", 58, "Medical/body context is present but Safety Gate did not escalate.");
@@ -1587,13 +1671,18 @@ this.addSemanticLaneEvidence(map, addCandidate);
   },
 
   inferSituationFamily(map) {
-    if (map.risks.includes("confirmed_safety_emergency")) return "safety";
-    if (map.risks.includes("confirmed_medical_urgency")) return "body";
+    if (
+  map.risks.includes("confirmed_emergency_risk") ||
+  map.risks.includes("confirmed_urgent_risk")
+) {
+  if (map.risks.includes("confirmed_medical_or_body_risk")) return "body";
+  return "safety";
+}
     if (map.risks.includes("ambiguous_risk")) return "risk_clarification";
     if (
   map.domains.includes("medical_context_domain") &&
   (
-    map.risks.includes("confirmed_medical_urgency") ||
+    map.risks.includes("confirmed_medical_or_body_risk") ||
     map.risks.includes("ambiguous_risk") ||
     !map.laneEvidence?.some(lane =>
       ["builder", "executive_decision", "teacher", "emotion"].includes(lane.lane)
@@ -1617,13 +1706,18 @@ this.addSemanticLaneEvidence(map, addCandidate);
       this.add(map.responseConstraints, req);
     });
 
-    if (map.risks.includes("confirmed_safety_emergency")) {
-      this.add(map.responseConstraints, "safety_first");
-    }
+    if (
+  map.risks.includes("confirmed_emergency_risk") ||
+  map.risks.includes("confirmed_urgent_risk")
+) {
+  this.add(map.responseConstraints, "urgent_first");
 
-    if (map.risks.includes("confirmed_medical_urgency")) {
-      this.add(map.responseConstraints, "medical_first");
-    }
+  if (map.risks.includes("confirmed_medical_or_body_risk")) {
+    this.add(map.responseConstraints, "medical_first");
+  } else {
+    this.add(map.responseConstraints, "safety_first");
+  }
+}
 
     if (map.needs.includes("context_sensitive_support")) {
       this.add(map.responseConstraints, "avoid_false_reassurance");
