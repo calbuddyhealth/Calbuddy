@@ -558,7 +558,8 @@ window.Ari.threadQuestionGenerator = {
     .replace(/^meant,?\s*/g, "")
     .replace(/^rather,?\s*/g, "")
     .replace(/^instead,?\s*/g, "")
-    .replace(/^the\s+/, "")
+    .replace(/^the\s+/g, "")
+    .replace(/^t\s+/g, "")
     .replace(/\s+/g, " ")
     .trim();
 },
