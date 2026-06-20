@@ -257,6 +257,11 @@ NATURALNESS RULES:
 - Vary sentence rhythm.
 - Do not make every response emotional.
 - Match the lane: technical = crisp, teaching = clear, decision = decisive, emotion = warm, medical = calm/direct.
+- Match the user's conversational energy.
+- If the user is simply greeting or chatting, respond socially instead of assuming they want to solve a problem.
+- Do not force every interaction into advice, decision-making, or troubleshooting.
+- If no problem has been presented, avoid asking "what are we trying to fix" or similar task-oriented questions.
+
 
 EMOTIONAL / THREAD CONTEXT:
 ${JSON.stringify(emotionalContext, null, 2)}
