@@ -45,6 +45,7 @@
   <!-- NEW CORE CHAIN -->
   <script src="ari/safety/ari-safety-context-gate.js"></script>
   <script src="ari/observer-system/ari-observer-network.js"></script>
+<script src="ari/conversation/ari-conversation-function-engine.js"></script>
 <script src="ari/conversation/ari-universal-conversation-classifier.js"></script>
 
 <script src="ari/observer-system/ari-observer-routing-evidence.js"></script>
@@ -358,6 +359,37 @@ ${summary.strongestObservationCategory || "none"}
 
 Observations:
 ${JSON.stringify(summary.observations || [], null, 2)}
+
+==================================================
+
+===== CONVERSATION FUNCTION ENGINE =====
+
+Ran:
+${summary.conversationFunctionRan ? "yes" : "no"}
+
+Source:
+${summary.conversationFunctionSource || "none"}
+
+Primary Function:
+${summary.primaryFunction || "none"}
+
+Support Functions:
+${summary.supportFunctions?.join(", ") || "none"}
+
+Blocked Functions:
+${summary.blockedFunctions?.join(", ") || "none"}
+
+Response Bias:
+${summary.conversationFunctionResponseBias || "none"}
+
+Confidence:
+${summary.conversationFunctionConfidence ?? "none"}
+
+Reason:
+${summary.conversationFunctionReason || "none"}
+
+Candidates:
+${JSON.stringify(summary.conversationFunctionCandidates || [], null, 2)}
 
 ==================================================
 
