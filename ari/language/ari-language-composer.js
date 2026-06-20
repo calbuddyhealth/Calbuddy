@@ -162,6 +162,39 @@ window.AriLanguageComposer = {
     const preferredTerms = summary.preferredTerms || {};
     const reasoning = summary.reasoning || {};
     const conclusion = reasoning.executiveConclusion || {};
+    const activeThreadFacts =
+  summary.activeThreadFacts ||
+  summary.continuityUsableFacts ||
+  [];
+
+const recentMessages =
+  summary.threadRecentMessages ||
+  summary.threadState?.lastMessages ||
+  [];
+
+const emotionalContext = {
+  primaryEmotion:
+    summary.primaryEmotion ||
+    summary.semanticEmotionalTone ||
+    null,
+
+  underlyingEmotion:
+    summary.underlyingEmotion ||
+    null,
+
+  emotionalClassification:
+    summary.emotionalClassification ||
+    null,
+
+  currentNeed:
+    summary.primaryHumanNeed ||
+    summary.rootNeed ||
+    null,
+
+  recentContext: recentMessages.slice(-3),
+  activeThreadFacts
+};
+    
     const budget = communicationPlan.languageBudget || {};
     const sentenceRules = communicationPlan.sentenceRules || {};
 
@@ -195,6 +228,20 @@ ${JSON.stringify(
   null,
   2
 )}
+
+EMOTIONAL / THREAD CONTEXT:
+${JSON.stringify(emotionalContext, null, 2)}
+
+EMPATHY RULES:
+- If the user is sad, ashamed, scared, overwhelmed, or disappointed, name it plainly and briefly.
+- Do not sound generic.
+- Use the user’s actual situation, not vague phrases like “what matters most.”
+- Pair empathy with one concrete next step.
+- For mistakes, separate accountability from self-attack.
+- For work/clinical errors, encourage reporting/following policy without shaming.
+- Do not over-comfort.
+- Do not become poetic.
+- Do not ask a reflective question unless useful.
 
 PREFERRED USER TERMS:
 ${Object.keys(preferredTerms).length ? JSON.stringify(preferredTerms, null, 2) : "Use the user's own wording."}
@@ -291,6 +338,10 @@ Write naturally, like a smart direct human partner.
     if (primary === "executive_decision") {
       return "My recommendation: make the composer contract-locked. Let Triage decide the lane, let Contract define the rules, and let Composer only write and validate the final answer.";
     }
+
+if (primary === "emotion") {
+  return "Yeah — that makes sense. A med error can hit hard because you care about doing the job right, not because you’re a bad nurse. First: follow your unit policy, report/document what needs to be reported, and make sure the patient is okay. Then debrief with someone safe instead of letting shame eat you alive.";
+}
 
     if (primary === "medical_body") {
       return "Because this involves the body, safety comes first. If symptoms are severe, worsening, or involve pregnancy, get medical guidance now.";
