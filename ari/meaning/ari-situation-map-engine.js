@@ -111,7 +111,7 @@ this.buildEvidenceModel(map);
 this.detectContradictions(map);
 this.detectAmbiguity(map);
 this.buildTriageHandoff(map);
-
+this.runMapIntegrityCheck(map);
 this.syncLegacyCompatibility(map);
 
 
