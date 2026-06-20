@@ -550,18 +550,18 @@ window.Ari.threadQuestionGenerator = {
   },
 
   cleanFragment(text = "") {
-    return this.clean(text)
-      .replace(/\bi ment\b/g, "i meant")
-      .replace(/^no,?\s*/g, "")
-      .replace(/^i mean,?\s*/g, "")
-      .replace(/^i meant,?\s*/g, "")
-      .replace(/^meant,?\s*/g, "")
-      .replace(/^rather,?\s*/g, "")
-      .replace(/^instead,?\s*/g, "")
-      .replace(/^the\s+/, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  },
+  return this.clean(text)
+    .replace(/\bi ment\b/g, "i meant")
+    .replace(/^no,?\s*/g, "")
+    .replace(/^i mean,?\s*/g, "")
+    .replace(/^i meant,?\s*/g, "")
+    .replace(/^meant,?\s*/g, "")
+    .replace(/^rather,?\s*/g, "")
+    .replace(/^instead,?\s*/g, "")
+    .replace(/^the\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+},
 
   extractTopicFromAnchor(anchor = "") {
     let topic = this.clean(anchor);
