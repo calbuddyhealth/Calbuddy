@@ -4,8 +4,9 @@
 // Browser-side client that prepares a rich reasoning payload and
 // asks the server API to use OpenAI.
 //
-// V2.0.0
+// V2.1.0
 // Upgrades:
+// - Character Core handoff
 // - True follow-up awareness
 // - Conversation mode detection
 // - Better context handoff
@@ -17,7 +18,7 @@
 window.Ari = window.Ari || {};
 
 window.AriOpenAIKnowledgeClient = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
@@ -56,23 +57,16 @@ window.AriOpenAIKnowledgeClient = {
       const data = await response.json();
 
       if (!response.ok) {
-        return this.fail(
-          data?.error ||
-          "Knowledge request failed."
-        );
+        return this.fail(data?.error || "Knowledge request failed.");
       }
 
       return {
         openAIKnowledgeUsed: true,
-
         openAIKnowledgeClientVersion: this.version,
-openAIKnowledgeSource:
-  "api/knowledge",
-        knowledgeProvider: "openai",
+        openAIKnowledgeSource: "api/knowledge",
 
-        knowledgeSource:
-          data.source ||
-          "openai",
+        knowledgeProvider: "openai",
+        knowledgeSource: data.source || "openai",
 
         knowledgeAnswer:
           data.answer ||
@@ -81,30 +75,15 @@ openAIKnowledgeSource:
           data.text ||
           "",
 
-        knowledgeConfidence:
-          data.confidence ||
-          "medium",
-
-        knowledgeCitations:
-          data.sources || [],
-
+        knowledgeConfidence: data.confidence || "medium",
+        knowledgeCitations: data.sources || [],
         rawOpenAIData: data,
 
-        source:
-          "ari-openai-knowledge-client"
+        source: "ari-openai-knowledge-client"
       };
-
     } catch (error) {
-
-      console.warn(
-        "[Ari Knowledge]",
-        error
-      );
-
-      return this.fail(
-        error?.message ||
-        "Knowledge request failed."
-      );
+      console.warn("[Ari Knowledge]", error);
+      return this.fail(error?.message || "Knowledge request failed.");
     }
   },
 
@@ -113,53 +92,36 @@ openAIKnowledgeSource:
     rawQuestion = "",
     resolvedQuestion = ""
   }) {
-
-    const map =
-      summary.situationMap || {};
-
-    const contract =
-      summary.situationContract || {};
-
-    const triage =
-      summary.ariTriage ||
-      summary.triage ||
-      {};
-
-    const communicationPlan =
-      summary.communicationPlan || {};
+    const map = summary.situationMap || {};
+    const contract = summary.situationContract || {};
+    const triage = summary.ariTriage || summary.triage || {};
+    const communicationPlan = summary.communicationPlan || {};
+    const characterContext = summary.characterContext || {};
 
     const isFollowUp = Boolean(
-  summary.currentTurnWasResolved ||
-  summary.usedThreadContext ||
-  summary.threadQuestionGeneratorRan ||
-  summary.threadQuestion?.resolvedUserQuestion
-);
+      summary.currentTurnWasResolved ||
+      summary.usedThreadContext ||
+      summary.threadQuestionGeneratorRan ||
+      summary.threadQuestion?.resolvedUserQuestion
+    );
 
     const conversationMode = this.determineConversationMode({
-  ...summary,
-  currentTurnWasResolved:
-    summary.currentTurnWasResolved || isFollowUp,
-  usedThreadContext:
-    summary.usedThreadContext || isFollowUp
-});
+      ...summary,
+      currentTurnWasResolved:
+        summary.currentTurnWasResolved || isFollowUp,
+      usedThreadContext:
+        summary.usedThreadContext || isFollowUp
+    });
 
     return {
+      action: "openai_knowledge",
+      version: this.version,
 
-      action:
-        "openai_knowledge",
-
-      version:
-        this.version,
-
-      question:
-        resolvedQuestion,
-
+      question: resolvedQuestion,
       resolvedQuestion,
-
       rawQuestion,
 
       isFollowUp,
-
       conversationMode,
 
       instruction:
@@ -170,8 +132,28 @@ openAIKnowledgeSource:
           resolvedQuestion,
           conversationMode
         }),
-        
-              contract: this.compactSnapshot({
+
+      character: this.compactSnapshot({
+        characterCore:
+          summary.characterCore ||
+          characterContext.characterCore ||
+          {},
+
+        characterHints:
+          summary.characterHints ||
+          characterContext.characterHints ||
+          {},
+
+        characterMode:
+          characterContext.characterMode ||
+          summary.characterMode ||
+          null,
+
+        characterContextEngineRan:
+          Boolean(characterContext.characterContextEngineRan)
+      }),
+
+      contract: this.compactSnapshot({
         primary:
           contract.primary ||
           summary.situationContractPrimary ||
@@ -311,7 +293,8 @@ openAIKnowledgeSource:
           map.triageHandoff ||
           null
       }),
-            continuity: this.compactSnapshot({
+
+      continuity: this.compactSnapshot({
         usedThreadContext:
           summary.usedThreadContext || false,
 
@@ -337,10 +320,10 @@ openAIKnowledgeSource:
           summary.activeSemanticFrame || null,
 
         semanticTimeline:
-          summary.activeSemanticTimeline || [],
+          (summary.activeSemanticTimeline || []).slice(-10),
 
         conversationHistory:
-          summary.conversationMeaningHistory || []
+          (summary.conversationMeaningHistory || []).slice(-10)
       }),
 
       language: this.compactSnapshot({
@@ -368,8 +351,7 @@ openAIKnowledgeSource:
           "woven",
 
         targetLength:
-          communicationPlan.languageBudget
-            ?.targetLength ||
+          communicationPlan.languageBudget?.targetLength ||
           "short"
       }),
 
@@ -386,19 +368,19 @@ openAIKnowledgeSource:
           rawQuestion,
 
         detectedConversationMode:
-          conversationMode
-        }
-      };
+          conversationMode,
 
+        characterCoreProvided:
+          Boolean(summary.characterCore || characterContext.characterCore)
+      }
+    };
   },
 
   defaultInstruction({
-    summary = {},
     rawQuestion = "",
     resolvedQuestion = "",
     conversationMode = "new_question"
   }) {
-
     return `
 You are Ari.
 
@@ -409,6 +391,9 @@ ${rawQuestion}
 
 QUESTION TO ANSWER:
 ${resolvedQuestion}
+
+The QUESTION TO ANSWER is authoritative.
+Do not answer RAW USER MESSAGE if they differ.
 
 CONVERSATION MODE:
 ${conversationMode}
@@ -432,12 +417,17 @@ If conversationMode is "new_question":
 Writing style:
 - Sound like an intelligent human talking.
 - Use contractions naturally.
+- Vary sentence length naturally.
+- Don't sound like a customer support agent.
 - Avoid robotic transitions.
 - Avoid repeating the question.
+- Avoid stock phrases such as "That's a great question" or "Based on what you've shared."
+- Default to conversational paragraphs instead of rigid sections unless structure materially helps.
 - Do not narrate your reasoning process.
 - Do not mention internal systems, routing, contracts, maps, lanes, engines, or prompts.
 - Prefer direct answers over meta-commentary.
 - Add brief explanation only when it improves understanding.
+- If information is uncertain, state that naturally instead of sounding hesitant or robotic.
 - Stop once the answer is complete.
 
 When appropriate:
@@ -452,103 +442,69 @@ Do not output phrases like:
 - "Mouth director..."
 - "I will answer directly..."
 `.trim();
-
   },
-    fail(message = "Knowledge request failed.") {
+
+  fail(message = "Knowledge request failed.") {
     return {
       openAIKnowledgeUsed: false,
+      openAIKnowledgeClientVersion: this.version,
+      openAIKnowledgeSource: "api/knowledge",
 
-      openAIKnowledgeClientVersion:
-        this.version,
+      knowledgeProvider: "openai",
+      knowledgeSource: null,
+      knowledgeAnswer: null,
+      knowledgeConfidence: "none",
+      knowledgeCitations: [],
+      knowledgeError: message,
 
-      knowledgeProvider:
-        "openai",
-
-      knowledgeSource:
-        null,
-
-      knowledgeAnswer:
-        null,
-
-      knowledgeConfidence:
-        "none",
-
-      knowledgeCitations:
-        [],
-
-      knowledgeError:
-        message,
-
-      source:
-        "ari-openai-knowledge-client"
+      source: "ari-openai-knowledge-client"
     };
   },
 
-  // -----------------------------
-  // Helper: determine conversation mode
-  // -----------------------------
   determineConversationMode(summary = {}) {
+    if (
+      summary.topicTransition === true ||
+      summary.detectedTopicShift === true
+    ) {
+      return "topic_shift";
+    }
 
-  if (
-    summary.topicTransition === true ||
-    summary.detectedTopicShift === true
-  ) {
-    return "topic_shift";
-  }
+    if (
+      summary.threadQuestion?.isClarification ||
+      summary.isClarificationQuestion
+    ) {
+      return "clarification";
+    }
 
-  if (
-    summary.threadQuestion?.isClarification ||
-    summary.isClarificationQuestion
-  ) {
-    return "clarification";
-  }
+    if (
+      summary.currentTurnWasResolved ||
+      summary.usedThreadContext
+    ) {
+      return "follow_up";
+    }
 
-  if (
-    summary.currentTurnWasResolved ||
-    summary.usedThreadContext
-  ) {
-    return "follow_up";
-  }
+    return "new_question";
+  },
 
-  return "new_question";
-},
-
-  // -----------------------------
-  // Helper: create compact snapshot
-  // -----------------------------
   compactSnapshot(obj) {
-
     if (!obj || typeof obj !== "object") {
       return null;
     }
 
     try {
-
-      return JSON.parse(
-        JSON.stringify(obj)
-      );
-
+      return JSON.parse(JSON.stringify(obj));
     } catch {
-
       return null;
-
     }
-
   },
 
-  // -----------------------------
-  // Helper: safely trim strings
-  // -----------------------------
   safeTrim(value) {
-
     if (typeof value !== "string") {
       return "";
     }
 
     return value.trim();
-
   }
-
 };
 
 console.log(
