@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.1 — Contract-Locked Natural AI Writer
+// V8.3.2 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.1",
+  version: "8.3.2",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -39,6 +39,39 @@ const thesis = this.readSituationThesis(summary);
       communicationPlan.primary ||
       mouth.contractPrimary ||
       "general_understanding";
+
+const safetyAction = this.readSafetyAction({ summary, contract, primary });
+
+if (safetyAction.interruptMode === "full") {
+  const forced = this.composeSafetyActionResponse({
+    summary,
+    contract,
+    primary,
+    userQuestion,
+    safetyAction
+  });
+
+  return {
+    languageMode: primary,
+    languageBody: forced,
+    languageSections: [forced],
+    finalResponse: forced,
+
+    composerVersion: this.version,
+    source: "ari-language-composer",
+
+    composerUsedAI: false,
+    composerValidation: "safety_action_full_interrupt",
+
+    composerDebug: {
+      primary,
+      responseShape: contract.responseShape || communicationPlan.answerMode || null,
+      authority: contract.authority || null,
+      safetyAction,
+      rawDraft: null
+    }
+  };
+}
 
     const draft = await this.writeDraft({
       summary,
@@ -455,8 +488,142 @@ if (
       }
     }
 
+const safetyAction = this.readSafetyAction({ summary, contract, primary });
+
+if (safetyAction.interruptMode === "full") {
+  return this.composeSafetyActionResponse({
+    summary,
+    contract,
+    primary,
+    userQuestion,
+    safetyAction
+  });
+}
+
     return text;
   },
+
+readSafetyAction({ summary = {}, contract = {}, primary = "" }) {
+  const gate = summary.safetyContextGate || {};
+  const risk = contract.risk || gate || {};
+  const rules = contract.responseRules || [];
+
+  const level = risk.level || gate.riskLevel || "none";
+  const type = risk.type || gate.riskType || null;
+  const override = risk.override || gate.override || null;
+
+  const requiredAction =
+    risk.requiredAction ||
+    contract.requiredAction ||
+    contract.executive?.requiredAction ||
+    null;
+
+  let interruptMode =
+    risk.interruptMode ||
+    contract.interruptMode ||
+    contract.conversationPriority ||
+    null;
+
+  if (!interruptMode) {
+    if (level === "critical") interruptMode = "full";
+    else if (level === "high") interruptMode = "full";
+    else if (level === "moderate") interruptMode = "partial";
+    else interruptMode = "none";
+  }
+
+  const hardSafetyRule =
+    rules.includes("medical_urgent_response_required") ||
+    rules.includes("safety_first") ||
+    rules.includes("medical_first") ||
+    rules.includes("state_urgent_thresholds");
+
+  const urgentOverride =
+  override === "medical_urgent" ||
+  override === "safety_urgent" ||
+  override === "emergency" ||
+  override === "critical_risk" ||
+  override === "immediate_danger";
+
+if (
+  urgentOverride ||
+  requiredAction ||
+  (hardSafetyRule && (level === "high" || level === "critical"))
+) {
+  interruptMode = "full";
+}
+
+  return {
+    type,
+    level,
+    override,
+    requiredAction,
+    interruptMode,
+    evidence: risk.evidence || gate.evidence || [],
+    deferredTopics: risk.deferredTopics || contract.deferredTopics || contract.deferred || []
+  };
+},
+
+composeSafetyActionResponse({
+  summary = {},
+  contract = {},
+  primary = "",
+  userQuestion = "",
+  safetyAction = {}
+}) {
+  const evidence = Array.isArray(safetyAction.evidence)
+    ? safetyAction.evidence.filter(Boolean)
+    : [];
+
+  const evidenceLine = evidence.length
+    ? ` The concerning signs are: ${evidence.join(", ")}.`
+    : "";
+
+  const action =
+    safetyAction.requiredAction ||
+    this.defaultSafetyAction({ safetyAction, primary });
+
+  if (action === "call_emergency_services_now") {
+    return `This needs emergency help now.${evidenceLine} Call emergency services now, or have someone call for you. Don’t drive yourself. The other question can wait until this is handled.`;
+  }
+
+  if (action === "get_urgent_medical_help_now") {
+    return `This needs urgent medical attention now.${evidenceLine} Don’t wait it out or downgrade it to a routine appointment. Call emergency services or have someone take you to the ER if symptoms are active, severe, or worsening. Don’t drive yourself if there’s any chance this is an emergency.`;
+  }
+
+  if (action === "contact_crisis_or_emergency_support_now") {
+    return `Safety comes first right now.${evidenceLine} Contact emergency services or a crisis support line now, and move closer to another person if you can. Don’t stay alone with the risk.`;
+  }
+
+  if (action === "leave_danger_and_call_emergency_services") {
+    return `Get away from the immediate danger first.${evidenceLine} Move to a safer place if you can, call emergency services, and don’t confront the threat. Everything else can wait until you’re physically safe.`;
+  }
+
+  if (action === "call_poison_control_or_emergency_services") {
+    return `This needs immediate poison or emergency guidance.${evidenceLine} Call Poison Control or emergency services now. Don’t wait for symptoms to get worse. Keep the substance or container nearby if it’s safe so responders know what was involved.`;
+  }
+
+  return `Safety comes first right now.${evidenceLine} Take the immediate safety step before anything lower priority. We can come back to the other question after the urgent risk is handled.`;
+},
+
+defaultSafetyAction({ safetyAction = {}, primary = "" }) {
+  if (safetyAction.type === "medical" || primary === "medical_body") {
+    return "get_urgent_medical_help_now";
+  }
+
+  if (safetyAction.type === "self_harm") {
+    return "contact_crisis_or_emergency_support_now";
+  }
+
+  if (safetyAction.type === "violence" || safetyAction.type === "immediate_danger") {
+    return "leave_danger_and_call_emergency_services";
+  }
+
+  if (safetyAction.type === "poisoning") {
+    return "call_poison_control_or_emergency_services";
+  }
+
+  return "take_immediate_safety_action";
+},
 
   localFallback({ primary = "general_understanding", contract = {}, thesis = {}, userQuestion = "" }) {
     if (primary === "builder") {
