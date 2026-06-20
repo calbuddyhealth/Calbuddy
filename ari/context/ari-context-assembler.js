@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, entity, and semantic-frame context.
-// V1.5.0 — Semantic Frame Context Handoff / Advisory Only
+// V1.6.0 — Semantic Frame Context Handoff / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.5.0",
+  version: "1.6.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -131,9 +131,14 @@ window.AriContextAssembler = {
   const semanticFrameOutput = summary.semanticFrameOutput || {};
 
   const candidates = [
-    semanticFrameOutput.normalizedFrame,
-    semanticFrameOutput.primaryFrame,
-    semanticFrameOutput.semanticSummary,
+  semanticFrameOutput,
+  summary.semanticFrame,
+  thread.semanticFrame,
+  workingContext.semanticState?.semanticFrame,
+
+  semanticFrameOutput.normalizedFrame,
+  semanticFrameOutput.primaryFrame,
+  semanticFrameOutput.semanticSummary,
 
     summary.primarySemanticFrame,
     summary.normalizedSemanticFrame,
@@ -165,16 +170,21 @@ window.AriContextAssembler = {
   ];
 
   const found = candidates.find(frame =>
-    frame &&
-    typeof frame === "object" &&
-    (
-      frame.frameType ||
-      frame.primaryMeaning ||
-      frame.intent ||
-      frame.domain ||
-      frame.operation
-    )
-  );
+  frame &&
+  typeof frame === "object" &&
+  (
+    frame.semanticFrameBuilderRan ||
+    frame.currentTurnFrame ||
+    frame.continuityFrame ||
+    frame.handoff ||
+    frame.primaryFrame ||
+    frame.frameType ||
+    frame.primaryMeaning ||
+    frame.intent ||
+    frame.domain ||
+    frame.operation
+  )
+);
 
   if (!found) return null;
 
