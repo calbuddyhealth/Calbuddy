@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.8 — Lane Splitter + Continuity Packet Routing
+// V3.5.9 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.8",
+  version: "3.5.9",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
