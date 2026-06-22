@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.2.4 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.2.5 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.2.4",
+  version: "3.2.5",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -31,7 +31,7 @@ window.AriSituationContract = {
     this.applyAuthority(contract);
     this.applyResponseShape(contract);
     this.applyExecutive(contract);
-    this.buildExecutiveConclusion(contract, map, triage);
+    this.buildExecutiveConclusion(contract, summary, map, triage);
     this.applyCommunicationProfile(contract);
     this.applyMouthDirective(contract);
     this.applyLegacyProtection(contract);
@@ -567,11 +567,21 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
     };
   },
 
-buildExecutiveConclusion(contract, map = {}, triage = {}) {
+buildExecutiveConclusion(
+  contract,
+  summary = {},
+  map = {},
+  triage = {}
+) {
   if (contract.primary !== "executive_decision") return;
 
   const thesis = contract.situationThesis?.thesis || {};
-  const preferred = map.preferredTerms || {};
+  const preferred =
+  summary.preferredTerms ||
+  summary.lexicalGrounding?.preferredTerms ||
+  summary.lexicalGroundingOutput?.preferredTerms ||
+  map.preferredTerms ||
+  {};
 
   contract.executive.executiveConclusion = {
     recommendation: null,
