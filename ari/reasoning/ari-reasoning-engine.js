@@ -1,41 +1,34 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
-// Purpose: Build an evidence-based case model from upstream context.
-// V8.3.0 — Case Modeler Only / No Final Recommendation Authority
-// Boundary:
-// - DOES organize known facts, inferred facts, unknowns, constraints, risks, options, tradeoffs, consequences, and confidence.
-// - DOES use groundedContext and preferredTerms when available.
-// - DOES NOT choose final lane.
-// - DOES NOT create final recommendation language.
-// - DOES NOT compose final response.
-// - DOES NOT override Situation Contract, Triage, Safety, Character, or Composer.
+// Purpose: Build a universal evidence-based case model from structured upstream context.
+// V8.4.0 — Universal Case Modeler / Structured Inputs Only / No Final Recommendation Authority
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "8.3.0",
+  version: "8.4.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
     const contract = summary.situationContract || {};
-    const observations = summary.observations || summary.observationLedger || [];
+    const triage = summary.triage || summary.ariTriage || {};
+    const map = summary.situationMap || {};
 
     const primary =
       contract.primary ||
       summary.situationContractPrimary ||
+      triage.primaryLane ||
       summary.triagePrimaryLane ||
       "general_understanding";
 
-    const reasoning = this.blankReasoning({ primary, contract });
+    const reasoning = this.blankReasoning({ primary, contract, triage, map });
 
-    this.loadGroundedInputs(reasoning, summary);
-this.loadActiveSituationInputs(reasoning, summary);
-this.addRelevantFacts(reasoning, observations);
-    this.buildCaseModel(reasoning, summary, primary);
-    this.buildOptionsAndConsequences(reasoning, summary, primary);
-    this.buildTradeoffs(reasoning, summary, primary);
-    this.buildMissingInfo(reasoning, summary, primary);
-    this.buildConfidence(reasoning, summary, primary);
+    this.loadStructuredInputs(reasoning, summary);
+    this.buildUniversalCaseModel(reasoning, summary);
+    this.buildUniversalOptions(reasoning, summary);
+    this.buildUniversalTradeoffs(reasoning, summary);
+    this.buildDecisionMemo(reasoning);
+    this.buildConfidence(reasoning);
     this.finalize(reasoning);
 
     return {
@@ -54,14 +47,15 @@ this.addRelevantFacts(reasoning, observations);
     };
   },
 
-  blankReasoning({ primary, contract }) {
+  blankReasoning({ primary, contract = {}, triage = {}, map = {} }) {
     return {
       version: this.version,
       source: "ari-reasoning-engine",
 
       primary,
       contractPrimary: contract.primary || primary,
-      responseShape: contract.responseShape || null,
+      triagePrimary: triage.primaryLane || null,
+      responseShape: contract.responseShape || triage.responseShape || null,
 
       authority: "case_modeling_only",
 
@@ -79,8 +73,28 @@ this.addRelevantFacts(reasoning, observations);
         "riskOverride"
       ],
 
-      groundedContext: {},
-      preferredTerms: {},
+      upstream: {
+        contract,
+        triage,
+        map
+      },
+
+      structuredInputs: {
+        userText: null,
+        semanticSummary: {},
+        situationThesis: null,
+        preferredTerms: {},
+        conceptMap: {},
+        groundedContext: {},
+        observations: [],
+        domains: [],
+        situations: [],
+        needs: [],
+        risks: [],
+        questions: [],
+        constraints: [],
+        responseRules: []
+      },
 
       knownFacts: [],
       inferredFacts: [],
@@ -93,18 +107,13 @@ this.addRelevantFacts(reasoning, observations);
         frame: null,
         situation: null,
         userQuestion: null,
+        primaryLane: primary,
+        userNeed: null,
+        coreConflict: null,
         activeProblem: null,
-        actor: null,
-        issue: null,
-        action: null,
-        pressure: null,
-        decision: null,
-        consequence: null,
-        userGoal: null,
-        currentState: null,
-        desiredState: null,
-        obstacle: null,
+        goals: [],
         constraints: [],
+        obligations: [],
         risks: [],
         unknowns: [],
         options: [],
@@ -159,698 +168,471 @@ this.addRelevantFacts(reasoning, observations);
       contractViolations: []
     };
   },
-    loadGroundedInputs(reasoning, summary = {}) {
-    const groundedContext =
-      summary.groundedContext ||
-      summary.entityReference?.groundedContext ||
-      summary.entityReferenceState?.groundedContext ||
-      summary.subjectGraphState?.groundedContext ||
+
+  loadStructuredInputs(reasoning, summary = {}) {
+    const map = summary.situationMap || {};
+    const contract = summary.situationContract || {};
+    const triage = summary.triage || summary.ariTriage || {};
+
+    const semanticSummary =
+      summary.semanticSummary ||
+      summary.semanticFrameOutput?.semanticSummary ||
       {};
 
-    const preferredTerms =
-      summary.preferredTerms ||
-      summary.lexicalGrounding?.preferredTerms ||
-      {};
-
-    reasoning.groundedContext = groundedContext;
-    reasoning.preferredTerms = preferredTerms;
-
-    const addIfPresent = (target, value, label) => {
-      const text = this.termText(value);
-      if (!text) return;
-      this.add(target, `${label}: ${text}`);
-    };
-
-    addIfPresent(reasoning.knownFacts, preferredTerms.actor, "Actor");
-    addIfPresent(reasoning.knownFacts, preferredTerms.issue, "Issue");
-    addIfPresent(reasoning.knownFacts, preferredTerms.action, "Action");
-    addIfPresent(reasoning.knownFacts, preferredTerms.pressure, "Pressure");
-    addIfPresent(reasoning.knownFacts, preferredTerms.decision, "Decision being considered");
-    addIfPresent(reasoning.knownFacts, preferredTerms.consequence, "Feared consequence");
-
-    addIfPresent(reasoning.knownFacts, groundedContext.actor, "Actor");
-    addIfPresent(reasoning.knownFacts, groundedContext.issue, "Issue");
-    addIfPresent(reasoning.knownFacts, groundedContext.pressure, "Pressure");
-    addIfPresent(reasoning.knownFacts, groundedContext.decision, "Decision being considered");
-    addIfPresent(reasoning.knownFacts, groundedContext.consequence, "Feared consequence");
-  },
-loadActiveSituationInputs(reasoning, summary = {}) {
-  const activeSituation =
-    summary.activeSituation ||
-    summary.assembledContext?.activeSituation ||
-    summary.advisoryContext?.activeSituation ||
-    summary.threadUnderstanding?.activeSituation ||
-    summary.threadUnderstanding?.resolvedMeaning?.activeSituation ||
-    null;
-
-  const keyFacts =
-    this.collectKeyFacts(summary);
-
-  if (activeSituation) {
-    const situationText =
-      activeSituation.value ||
-      activeSituation.label ||
-      activeSituation.evidence ||
+    const situationThesis =
+      contract.situationThesis?.thesis ||
+      map.primarySituationThesis ||
+      triage.situationThesisUsed ||
+      summary.triageSituationThesis ||
       null;
 
-    if (situationText) {
-      this.add(reasoning.knownFacts, `Active situation: ${situationText}`);
-      reasoning.caseModel.situation = situationText;
-      reasoning.caseModel.userQuestion = this.getOriginalText(summary);
+    reasoning.structuredInputs = {
+      userText: this.getOriginalText(summary),
+      semanticSummary,
+      situationThesis,
+      preferredTerms:
+        summary.preferredTerms ||
+        summary.lexicalGrounding?.preferredTerms ||
+        {},
+      conceptMap:
+        summary.conceptMap ||
+        summary.lexicalGrounding?.conceptMap ||
+        {},
+      groundedContext:
+        summary.groundedContext ||
+        summary.entityReference?.groundedContext ||
+        summary.subjectGraphState?.groundedContext ||
+        {},
+      observations:
+        summary.observations ||
+        summary.observationLedger ||
+        [],
+      domains: map.domains || [],
+      situations: map.situations || [],
+      needs: map.needs || [],
+      risks: map.risks || [],
+      questions: map.questions || [],
+      constraints: [
+        ...(map.responseConstraints || []),
+        ...(triage.responseConstraints || []),
+        ...(contract.responseRules || [])
+      ],
+      responseRules: contract.responseRules || []
+    };
+
+    this.extractFactsFromStructuredInputs(reasoning);
+  },
+
+  extractFactsFromStructuredInputs(reasoning) {
+    const input = reasoning.structuredInputs;
+    const thesis = input.situationThesis || {};
+    const semantic = input.semanticSummary || {};
+    const terms = input.preferredTerms || {};
+    const conceptMap = input.conceptMap || {};
+
+    this.add(reasoning.knownFacts, `Primary lane: ${reasoning.primary}`);
+
+    if (semantic.primaryMeaning) {
+      this.add(reasoning.knownFacts, `Primary meaning: ${semantic.primaryMeaning}`);
     }
-  }
 
-  keyFacts.forEach(fact => {
-    this.add(reasoning.knownFacts, fact);
-  });
+    if (semantic.intent) {
+      this.add(reasoning.knownFacts, `Intent: ${semantic.intent}`);
+    }
 
-  if (keyFacts.length) {
-    reasoning.decisionMemo.strongestFacts = [
-      ...keyFacts,
-      ...reasoning.decisionMemo.strongestFacts
-    ].slice(0, 5);
+    if (semantic.domain) {
+      this.add(reasoning.knownFacts, `Domain: ${semantic.domain}`);
+    }
 
-    reasoning.confidence.reasons.push(
-      "Active situation key facts were provided by context assembler."
-    );
-  }
-},
+    if (thesis.oneLine) {
+      this.add(reasoning.knownFacts, `Situation thesis: ${thesis.oneLine}`);
+    }
 
-collectKeyFacts(summary = {}) {
-  const sources = [
-    summary.keyFacts,
-    summary.assembledContext?.keyFacts,
-    summary.advisoryContext?.keyFacts,
-    summary.threadUnderstanding?.keyFacts,
-    summary.threadUnderstanding?.resolvedMeaning?.keyFacts,
-    summary.threadUnderstanding?.workingContext?.keyFacts
-  ];
+    if (thesis.coreConflict) {
+      this.add(reasoning.knownFacts, `Core conflict: ${thesis.coreConflict}`);
+    }
 
-  const facts = [];
+    if (thesis.userNeed) {
+      this.add(reasoning.knownFacts, `User need: ${thesis.userNeed}`);
+    }
 
-  sources.forEach(source => {
-    if (!Array.isArray(source)) return;
-
-    source.forEach(fact => {
-      const text =
-        typeof fact === "string"
-          ? fact
-          : fact?.claim || fact?.value || fact?.label || fact?.evidence || "";
-
-      if (text && String(text).trim()) {
-        facts.push(String(text).trim());
-      }
+    Object.entries(terms).forEach(([key, value]) => {
+      const text = this.termText(value);
+      if (text) this.add(reasoning.knownFacts, `${key}: ${text}`);
     });
-  });
 
-  return [...new Set(facts)];
-},
-  addRelevantFacts(reasoning, observations = []) {
-    observations.forEach(obs => {
-      if (!obs?.value) return;
-
-      this.add(reasoning.knownFacts, `${obs.type || "observation"}: ${obs.value}`);
+    Object.entries(conceptMap).forEach(([key, value]) => {
+      const text = this.termText(value);
+      if (text) this.add(reasoning.knownFacts, `Concept ${key}: ${text}`);
     });
+
+    input.domains.forEach(x => this.add(reasoning.knownFacts, `Domain signal: ${x}`));
+    input.situations.forEach(x => this.add(reasoning.knownFacts, `Situation signal: ${x}`));
+    input.needs.forEach(x => this.add(reasoning.knownFacts, `Need signal: ${x}`));
+    input.questions.forEach(x => this.add(reasoning.knownFacts, `Question signal: ${x}`));
+
+    input.risks.forEach(x => this.add(reasoning.risks, x));
+    input.constraints.forEach(x => this.add(reasoning.constraints, x));
   },
 
-  buildCaseModel(reasoning, summary = {}, primary = "") {
-    const frame = this.resolveFrame(reasoning, summary, primary);
-    reasoning.caseModel.frame = frame;
-
-    if (frame === "workplace_accountability") {
-      return this.buildWorkplaceAccountabilityCase(reasoning, summary);
-    }
-
-    if (frame === "medical_or_body") {
-      return this.buildMedicalBodyCase(reasoning, summary);
-    }
-
-    if (frame === "builder") {
-      return this.buildBuilderCase(reasoning, summary);
-    }
-
-    if (frame === "relationship") {
-      return this.buildRelationshipCase(reasoning, summary);
-    }
-
-    return this.buildGeneralCase(reasoning, summary, primary);
-  },
-
-  resolveFrame(reasoning, summary = {}, primary = "") {
-    const map = summary.situationMap || {};
-    const domains = map.domains || [];
-    const situations = map.situations || [];
-    const preferred = reasoning.preferredTerms || {};
-    const grounded = reasoning.groundedContext || {};
-    const text = this.getText(summary);
-
-    const hasWorkAccountability =
-      domains.includes("accountability_context_domain") ||
-      situations.includes("accountability_or_work_quality_context") ||
-      this.termText(preferred.issue) ||
-      this.termText(grounded.issue) ||
-      this.hasAny(text, [
-        "documenting assessments",
-        "cutting corners",
-        "reporting it",
-        "report a coworker",
-        "leadership keeps rushing",
-        "management has been pushing"
-      ]);
-
-    if (hasWorkAccountability) return "workplace_accountability";
-
-    if (
-      primary === "medical_body" ||
-      primary === "medical_context" ||
-      domains.includes("medical_context_domain")
-    ) {
-      return "medical_or_body";
-    }
-
-    if (
-      primary === "builder" ||
-      domains.includes("builder_domain")
-    ) {
-      return "builder";
-    }
-
-    if (
-      primary === "relationship" ||
-      domains.includes("relationship_context_domain") ||
-      domains.includes("family_context_domain")
-    ) {
-      return "relationship";
-    }
-
-    return "general";
-  },
-
-  buildWorkplaceAccountabilityCase(reasoning, summary = {}) {
-    const preferred = reasoning.preferredTerms || {};
-    const grounded = reasoning.groundedContext || {};
-
-    const actor = this.termText(preferred.actor) || grounded.actor || null;
-    const issue = this.termText(preferred.issue) || grounded.issue || null;
-    const pressure = this.termText(preferred.pressure) || grounded.pressure || null;
-    const decision = this.termText(preferred.decision) || grounded.decision || null;
-    const consequence = this.termText(preferred.consequence) || grounded.consequence || null;
-    const action = this.termText(preferred.action) || grounded.action || null;
+  buildUniversalCaseModel(reasoning, summary = {}) {
+    const input = reasoning.structuredInputs;
+    const thesis = input.situationThesis || {};
+    const semantic = input.semanticSummary || {};
+    const terms = input.preferredTerms || {};
 
     const model = reasoning.caseModel;
 
-    model.situation = "The user is deciding how to respond to a workplace accountability or documentation concern.";
-    model.userQuestion = this.getOriginalText(summary);
-    model.activeProblem = this.termText(preferred.activeProblem) || grounded.activeProblemLabel || issue || null;
+    model.frame =
+      thesis.thesisType ||
+      semantic.primaryMeaning ||
+      reasoning.primary ||
+      "general_case";
 
-    model.actor = actor;
-    model.issue = issue;
-    model.action = action;
-    model.pressure = pressure;
-    model.decision = decision;
-    model.consequence = consequence;
+    model.situation =
+      thesis.oneLine ||
+      semantic.primaryMeaning ||
+      "The user is asking for help with the current situation.";
 
-    model.userGoal = "choose a responsible next step without ignoring the workplace pressure or the social consequences";
-    model.currentState = "there is a concrete documentation/accountability concern and possible system pressure behind it";
-    model.desiredState = "protect safety, facts, fairness, and professional responsibility";
-    model.obstacle = "the issue may involve both individual accountability and system pressure from leadership or staffing";
+    model.userQuestion = input.userText;
 
-    model.constraints = [
-      "do not treat system pressure as an excuse for unsafe or false documentation",
-      "do not accuse beyond the evidence",
-      "protect patient safety and documentation integrity",
-      "reduce retaliation or team-backlash risk where possible",
-      "use the appropriate chain of command or policy pathway"
-    ];
+    model.userNeed =
+      thesis.userNeed ||
+      this.termText(terms.primaryGoal) ||
+      this.first(input.needs) ||
+      "a useful next step";
 
-    model.risks = [
-      "false or incomplete documentation can create patient-safety and professional risk",
-      "reporting without facts can create unnecessary conflict",
-      "ignoring the issue can normalize unsafe practice",
-      "system pressure may continue unless documented separately"
-    ];
+    model.coreConflict =
+      thesis.coreConflict ||
+      this.inferConflictFromSignals(input) ||
+      null;
 
-    model.unknowns = [
-      "whether the documentation issue is isolated or repeated",
-      "whether patients were affected",
-      "whether leadership already knows about the staffing pressure",
-      "what the unit policy says about reporting documentation concerns",
-      "whether there is a safe direct conversation path"
-    ];
+    model.activeProblem =
+      this.termText(terms.activeProblem) ||
+      this.termText(terms.issue) ||
+      this.termText(terms.object) ||
+      semantic.primaryMeaning ||
+      null;
 
-    reasoning.knownFacts.push(...model.constraints.map(x => `Constraint: ${x}`));
-    reasoning.risks.push(...model.risks);
-    reasoning.unknowns.push(...model.unknowns);
+    model.goals = this.cleanList([
+      this.termText(terms.primaryGoal),
+      thesis.userNeed,
+      semantic.intent,
+      ...input.needs
+    ]);
 
-    reasoning.inferredFacts.push(
-      "System pressure may explain why the behavior is happening, but it does not automatically make the behavior acceptable."
-    );
+    model.constraints = this.cleanList([
+      ...reasoning.constraints,
+      this.termText(terms.constraintPhrase),
+      this.termText(terms.deadline),
+      this.termText(terms.limitingResource)
+    ]);
 
-    reasoning.resources.push(
-      "objective documentation",
-      "policy or chain of command",
-      "direct conversation if safe and appropriate",
-      "reporting the system pressure separately from the individual behavior"
-    );
-  },
-    buildMedicalBodyCase(reasoning, summary = {}) {
-    const preferred = reasoning.preferredTerms || {};
-    const bodyProblem = this.termText(preferred.bodyProblem) || "the body or health concern";
-    const model = reasoning.caseModel;
+    model.obligations = this.cleanList([
+      this.termText(terms.personOrRelationship),
+      this.termText(terms.lifeTransition),
+      ...input.domains.filter(x =>
+        x.includes("family") ||
+        x.includes("relationship") ||
+        x.includes("medical") ||
+        x.includes("financial") ||
+        x.includes("career")
+      )
+    ]);
 
-    model.situation = "The user is asking about a body or health concern.";
-    model.userQuestion = this.getOriginalText(summary);
-    model.activeProblem = bodyProblem;
-    model.userGoal = "protect health and choose a safe next step";
-    model.currentState = "health context is present, but severity and red flags may be unknown";
-    model.desiredState = "identify red flags, avoid false reassurance, and choose appropriate care";
-    model.obstacle = "symptoms can be mild, serious, or unclear without more clinical context";
+    model.risks = this.cleanList([
+      ...reasoning.risks,
+      ...input.risks
+    ]);
 
-    model.constraints = [
-      "do not over-reassure",
-      "name red flags when relevant",
-      "recommend urgent care when severe, worsening, or high-risk signs are present"
-    ];
-
-    model.risks = [
-      "missing a serious symptom",
-      "delaying care if red flags are present"
-    ];
-
-    model.unknowns = [
-      "duration",
-      "severity",
-      "associated symptoms",
-      "risk factors",
-      "whether symptoms are worsening"
-    ];
-
-    reasoning.risks.push(...model.risks);
-    reasoning.unknowns.push(...model.unknowns);
-  },
-
-  buildBuilderCase(reasoning, summary = {}) {
-    const preferred = reasoning.preferredTerms || {};
-    const thingToFix = this.termText(preferred.thingToFix) || "the code or system issue";
-    const model = reasoning.caseModel;
-
-    model.situation = "The user is trying to build, fix, or debug something.";
-    model.userQuestion = this.getOriginalText(summary);
-    model.activeProblem = thingToFix;
-    model.userGoal = "make the system work correctly";
-    model.currentState = "a technical issue or implementation step is active";
-    model.desiredState = "a small, testable fix";
-    model.obstacle = "the exact failing layer may be unclear";
-
-    model.constraints = [
-      "avoid broad rewrites unless necessary",
-      "prefer the smallest targeted fix",
-      "keep code boundaries clear"
-    ];
-
-    model.risks = [
-      "patching the wrong layer",
-      "creating regressions",
-      "breaking working behavior"
-    ];
-
-    model.unknowns = [
-      "exact file state",
-      "console errors",
-      "which layer is failing"
-    ];
-
-    reasoning.risks.push(...model.risks);
-    reasoning.unknowns.push(...model.unknowns);
-  },
-
-  buildRelationshipCase(reasoning, summary = {}) {
-    const preferred = reasoning.preferredTerms || {};
-    const person = this.termText(preferred.personOrRelationship) || "the other person";
-    const model = reasoning.caseModel;
-
-    model.situation = "The user is navigating a relationship or family situation.";
-    model.userQuestion = this.getOriginalText(summary);
-    model.activeProblem = person;
-    model.userGoal = "respond in a way that protects honesty, clarity, and the relationship";
-    model.currentState = "there may be incomplete information about the other person's inner state";
-    model.desiredState = "address the issue without mind-reading or unnecessary defensiveness";
-    model.obstacle = "the visible problem may not be the only relational issue";
-
-    model.constraints = [
-      "do not assume what another person feels",
-      "separate facts from interpretation",
-      "repair trust before trying to win the argument"
-    ];
-
-    model.risks = [
-      "mind-reading",
-      "defending too early",
-      "missing the real injury"
-    ];
-
-    model.unknowns = [
-      "what the other person actually feels",
-      "what they need repaired",
-      "what facts are disputed"
-    ];
-
-    reasoning.risks.push(...model.risks);
-    reasoning.unknowns.push(...model.unknowns);
-  },
-
-  buildGeneralCase(reasoning, summary = {}, primary = "") {
-    const model = reasoning.caseModel;
-
-    model.situation = model.situation || "The user is asking for help or clarity.";
-    model.userQuestion = this.getOriginalText(summary);
-    model.userGoal = "get a useful answer";
-    model.currentState = `active lane: ${primary}`;
-    model.desiredState = "clear next understanding or action";
-    model.obstacle = reasoning.knownFacts.length
-  ? "the decision needs to be prioritized using the known facts"
-  : "not enough specific case context may be available";
-
-    model.constraints = [];
-    model.risks = [];
-    model.unknowns = ["what details would materially change the answer"];
+    model.unknowns = this.cleanList([
+      "which detail would materially change the next step",
+      "whether any hidden constraint is more important than the visible one",
+      "what option best protects the user's highest priority"
+    ]);
 
     reasoning.unknowns.push(...model.unknowns);
   },
 
-  buildOptionsAndConsequences(reasoning, summary = {}, primary = "") {
-    const frame = reasoning.caseModel.frame;
-
-    if (frame === "workplace_accountability") {
-      return this.buildWorkplaceOptions(reasoning);
-    }
-
-    if (frame === "medical_or_body") {
-      return this.buildMedicalOptions(reasoning);
-    }
-
-    if (frame === "builder") {
-      return this.buildBuilderOptions(reasoning);
-    }
-
-    if (frame === "relationship") {
-      return this.buildRelationshipOptions(reasoning);
-    }
-
-    return this.buildGeneralOptions(reasoning);
-  },
-
-  buildWorkplaceOptions(reasoning) {
+  buildUniversalOptions(reasoning) {
     const model = reasoning.caseModel;
+    const primary = reasoning.primary;
 
-    model.options = [
-      {
-        option: "Document objective facts first",
-        benefits: ["reduces hearsay", "protects fairness", "creates a clear record"],
-        risks: ["takes time before acting"],
+    const options = [];
+
+    options.push({
+      option: "Name the priority",
+      benefits: [
+        "prevents treating every concern as equal",
+        "makes the next step easier to choose"
+      ],
+      risks: [
+        "may temporarily delay action"
+      ],
+      reversibility: "high"
+    });
+
+    options.push({
+      option: "Protect the highest-risk constraint first",
+      benefits: [
+        "reduces avoidable harm",
+        "keeps the decision grounded"
+      ],
+      risks: [
+        "may feel less emotionally satisfying in the short term"
+      ],
+      reversibility: "medium"
+    });
+
+    options.push({
+      option: "Choose the smallest useful next step",
+      benefits: [
+        "creates progress without overcommitting",
+        "preserves flexibility"
+      ],
+      risks: [
+        "may need another step after new information appears"
+      ],
+      reversibility: "high"
+    });
+
+    if (primary === "builder") {
+      options.push({
+        option: "Apply the smallest targeted technical change",
+        benefits: [
+          "reduces regression risk",
+          "keeps debugging clean"
+        ],
+        risks: [
+          "may not fix deeper architecture issues"
+        ],
         reversibility: "high"
-      },
-      {
-        option: "Separate the documentation concern from the staffing pressure",
-        benefits: ["acknowledges system pressure without excusing unsafe practice"],
-        risks: ["requires careful wording"],
-        reversibility: "high"
-      },
-      {
-        option: "Use the appropriate reporting pathway",
-        benefits: ["protects patient safety and professional standards"],
-        risks: ["may create social backlash"],
+      });
+    }
+
+    if (primary === "executive_decision") {
+      options.push({
+        option: "Compare options by consequence, not emotion alone",
+        benefits: [
+          "improves decision quality",
+          "reduces impulse-driven choices"
+        ],
+        risks: [
+          "can feel slower than choosing immediately"
+        ],
         reversibility: "medium"
-      },
-      {
-        option: "Ignore it because leadership is rushing everyone",
-        benefits: ["avoids immediate conflict"],
-        risks: ["normalizes unsafe documentation", "may expose patients and staff to risk"],
-        reversibility: "low"
-      }
-    ];
+      });
+    }
 
-    model.consequences = [
-      {
-        option: "Document objective facts first",
-        likelyOutcome: "the user can act with more accuracy and less emotional guessing",
-        riskLevel: "low"
-      },
-      {
-        option: "Separate the documentation concern from the staffing pressure",
-        likelyOutcome: "the response becomes fairer and more useful",
-        riskLevel: "low"
-      },
-      {
-        option: "Use the appropriate reporting pathway",
-        likelyOutcome: "the concern is escalated through a safer structure",
-        riskLevel: "medium"
-      },
-      {
-        option: "Ignore it because leadership is rushing everyone",
-        likelyOutcome: "the immediate conflict may decrease, but the underlying risk remains",
-        riskLevel: "high"
-      }
-    ];
-
-    model.nextActionCandidates = [
-      "Write down only what was observed, when it happened, and why it matters.",
-      "Separate the individual documentation concern from the leadership/staffing pressure.",
-      "Follow policy or chain of command rather than making it personal."
-    ];
-
-    reasoning.options.push(...model.options);
-    reasoning.likelyOutcomes.push(...model.consequences);
-  },
-    buildMedicalOptions(reasoning) {
-    reasoning.caseModel.options = [];
-    reasoning.caseModel.nextActionCandidates = [
-      "Determine severity and red flags.",
-      "Identify missing clinical information.",
-      "Escalate when serious features are present."
-    ];
-  },
-
-  buildBuilderOptions(reasoning) {
-    reasoning.caseModel.options = [];
-    reasoning.caseModel.nextActionCandidates = [
-      "Identify the failing component.",
-      "Apply the smallest targeted change.",
-      "Retest before modifying another subsystem."
-    ];
-  },
-
-  buildRelationshipOptions(reasoning) {
-    reasoning.caseModel.options = [];
-    reasoning.caseModel.nextActionCandidates = [
-      "Clarify facts before assumptions.",
-      "Separate observations from interpretations.",
-      "Address the relationship directly and respectfully."
-    ];
-  },
-
-  buildGeneralOptions(reasoning) {
-  const model = reasoning.caseModel;
-
-  const hasUsefulFacts = (reasoning.knownFacts || []).length > 0;
-
-  const hasKnownDecision =
-    Boolean(model.decision) ||
-    Boolean(model.activeProblem) ||
-    Boolean(model.issue) ||
-    hasUsefulFacts;
-
-  if (hasKnownDecision) {
-    model.options = [
-      {
-        option: "Clarify the objective",
-        benefits: ["prevents solving the wrong problem"],
-        risks: ["can feel slower than jumping into action"],
-        reversibility: "high"
-      },
-      {
-        option: "Identify the main constraint",
-        benefits: ["shows what is actually limiting the situation"],
-        risks: ["may miss secondary concerns if used alone"],
+    if (primary === "medical_body" || primary === "medical_context") {
+      options.push({
+        option: "Check red flags and choose the safest care threshold",
+        benefits: [
+          "avoids false reassurance",
+          "keeps medical context practical"
+        ],
+        risks: [
+          "may require outside medical input"
+        ],
         reversibility: "medium"
-      },
-      {
-        option: "Compare tradeoffs before acting",
-        benefits: ["reduces impulsive or anxiety-driven choices"],
-        risks: ["can delay action if overdone"],
-        reversibility: "medium"
-      },
-      {
-        option: "Choose the smallest useful next step",
-        benefits: ["creates progress while preserving flexibility"],
-        risks: ["may need adjustment as new facts appear"],
-        reversibility: "high"
-      }
-    ];
+      });
+    }
 
-    model.tradeoffs = [
-      {
-        sideA: "acting quickly",
-        sideB: "protecting the outcome that matters most"
-      }
-    ];
+    model.options = options;
+    reasoning.options = options;
 
-    model.nextActionCandidates = [
-      "Clarify what outcome matters most.",
-      "Identify the biggest constraint or risk.",
-      "Choose the smallest useful next step."
-    ];
+    model.consequences = options.map(option => ({
+      option: option.option,
+      likelyOutcome: option.benefits?.[0] || "may improve clarity",
+      riskLevel: option.reversibility === "high" ? "low" : "moderate"
+    }));
 
-    reasoning.options.push(...model.options);
+    reasoning.likelyOutcomes = model.consequences;
+
+    model.nextActionCandidates = this.cleanList([
+      "State the priority.",
+      "Name the main constraint.",
+      "Pick the smallest useful next step.",
+      primary === "builder" ? "Make one targeted code change and retest." : null,
+      primary === "executive_decision" ? "Choose the option that protects stability first." : null,
+      primary === "medical_body" || primary === "medical_context"
+        ? "Check whether red flags or urgent thresholds are present."
+        : null
+    ]);
+  },
+
+  buildUniversalTradeoffs(reasoning) {
+    const model = reasoning.caseModel;
+
+    const tradeoffs = [];
+
+    if (model.coreConflict) {
+      tradeoffs.push({
+        sideA: model.coreConflict.split(" vs ")[0] || "one priority",
+        sideB: model.coreConflict.split(" vs ")[1] || "competing priority"
+      });
+    }
+
+    tradeoffs.push({
+      sideA: "acting quickly",
+      sideB: "protecting the outcome that matters most"
+    });
+
+    if (model.constraints.length) {
+      tradeoffs.push({
+        sideA: "what the user wants to do",
+        sideB: "the constraint that limits the decision"
+      });
+    }
+
+    model.tradeoffs = this.cleanTradeoffs(tradeoffs);
     reasoning.tradeoffs = model.tradeoffs;
-    return;
-  }
-
-  model.options = [
-    {
-      option: "Gather the missing facts",
-      benefits: ["reduces guessing"],
-      risks: ["can delay action if overdone"],
-      reversibility: "high"
-    },
-    {
-      option: "Ask one clarifying question",
-      benefits: ["gets the minimum information needed"],
-      risks: ["may slow the conversation slightly"],
-      reversibility: "high"
-    },
-    {
-      option: "Give a cautious general answer",
-      benefits: ["still helps when details are limited"],
-      risks: ["may be less personalized"],
-      reversibility: "high"
-    }
-  ];
-
-  model.nextActionCandidates = [
-    "Gather the missing facts.",
-    "Ask one clarifying question.",
-    "Give a cautious general answer."
-  ];
-
-  reasoning.options.push(...model.options);
-},
-
-  buildTradeoffs(reasoning) {
-    const m = reasoning.caseModel;
-
-    if (m.frame === "workplace_accountability") {
-      m.tradeoffs = [
-        {
-          sideA: "protecting patient safety and documentation integrity",
-          sideB: "avoiding conflict with coworkers"
-        },
-        {
-          sideA: "recognizing system pressure",
-          sideB: "holding individuals accountable for their actions"
-        }
-      ];
-    }
-
-    reasoning.tradeoffs = reasoning.tradeoffs.length
-  ? reasoning.tradeoffs
-  : (m.tradeoffs || []);
   },
 
-  buildMissingInfo(reasoning) {
-    reasoning.decisionMemo.materialUnknowns =
-      reasoning.caseModel.unknowns || [];
+  buildDecisionMemo(reasoning) {
+    const model = reasoning.caseModel;
+
+    reasoning.decisionMemo.summary = model.situation;
+    reasoning.decisionMemo.strongestFacts = reasoning.knownFacts.slice(0, 8);
+    reasoning.decisionMemo.materialUnknowns = model.unknowns.slice(0, 5);
+    reasoning.decisionMemo.safestAvailableActions =
+      model.nextActionCandidates.slice(0, 4);
+
+    reasoning.decisionMemo.actionsToAvoid = this.cleanList([
+      "Do not let a lower-priority signal override the contract primary.",
+      "Do not create a final recommendation inside the reasoning engine.",
+      "Do not escalate medical or safety context unless the Safety Gate supports it.",
+      "Do not replace a direct answer with a vague reflective question."
+    ]);
+
+    reasoning.executiveConclusion.analysisSummary = model.situation;
+    reasoning.executiveConclusion.framing = model.frame;
+    reasoning.executiveConclusion.candidateActions = model.nextActionCandidates;
+    reasoning.executiveConclusion.keyRisk = model.risks[0] || null;
+    reasoning.executiveConclusion.keyTradeoff = model.tradeoffs[0] || null;
+    reasoning.executiveConclusion.uncertainty = model.unknowns[0] || null;
   },
 
-    buildConfidence(reasoning) {
-    const model = reasoning.caseModel || {};
+  buildConfidence(reasoning) {
+    const model = reasoning.caseModel;
 
-    let score = 0.45;
+    let score = 0.35;
 
-    if (model.frame) score += 0.10;
-    if (model.situation) score += 0.10;
-    if ((reasoning.knownFacts || []).length) score += 0.15;
-    if ((model.constraints || []).length) score += 0.10;
-    if ((model.options || []).length) score += 0.10;
-    if ((model.nextActionCandidates || []).length) score += 0.10;
-    if ((model.tradeoffs || []).length) score += 0.10;
+    if (reasoning.primary) score += 0.1;
+    if (model.frame) score += 0.1;
+    if (model.situation) score += 0.1;
+    if (reasoning.knownFacts.length) score += 0.15;
+    if (model.goals.length) score += 0.08;
+    if (model.constraints.length) score += 0.08;
+    if (model.options.length) score += 0.1;
+    if (model.tradeoffs.length) score += 0.08;
+    if (model.nextActionCandidates.length) score += 0.08;
 
-    reasoning.confidence.score = Math.min(0.95, score);
+    reasoning.confidence.score = Math.min(0.95, Number(score.toFixed(2)));
 
     reasoning.confidence.level =
-      reasoning.confidence.score >= 0.80 ? "high" :
-      reasoning.confidence.score >= 0.60 ? "medium" :
+      reasoning.confidence.score >= 0.8 ? "high" :
+      reasoning.confidence.score >= 0.6 ? "medium" :
       "low";
 
-    reasoning.confidence.reasons = [
-      ...(reasoning.confidence.reasons || []),
-      model.situation ? "A usable situation frame was available." : null,
-      (reasoning.knownFacts || []).length ? "Known facts were available." : null,
-      (model.options || []).length ? "Options were generated." : null,
-      (model.tradeoffs || []).length ? "Tradeoffs were identified." : null
-    ].filter(Boolean);
+    reasoning.confidence.reasons = this.cleanList([
+      model.frame ? "A usable frame was available." : null,
+      reasoning.knownFacts.length ? "Structured facts were available." : null,
+      model.options.length ? "Options were generated." : null,
+      model.tradeoffs.length ? "Tradeoffs were identified." : null,
+      model.nextActionCandidates.length ? "Next action candidates were identified." : null
+    ]);
 
-    reasoning.confidence.uncertaintyDrivers =
-      model.unknowns || [];
-
-    reasoning.decisionMemo.strongestFacts =
-      (reasoning.knownFacts || []).slice(0, 7);
-
-    reasoning.decisionMemo.materialUnknowns =
-      model.unknowns || [];
-
-    reasoning.decisionMemo.safestAvailableActions =
-      (model.nextActionCandidates || []).slice(0, 4);
-
-    reasoning.executiveConclusion.analysisSummary =
-      model.situation || null;
-
-    reasoning.executiveConclusion.candidateActions =
-      model.nextActionCandidates || [];
-
-    reasoning.executiveConclusion.keyRisk =
-      (model.risks || [])[0] || null;
-
-    reasoning.executiveConclusion.keyTradeoff =
-      (model.tradeoffs || reasoning.tradeoffs || [])[0] || null;
-
-    reasoning.executiveConclusion.uncertainty =
-      (model.unknowns || [])[0] || null;
+    reasoning.confidence.uncertaintyDrivers = model.unknowns || [];
+    reasoning.decisionMemo.confidence = reasoning.confidence.level;
   },
 
   finalize(reasoning) {
-    // The Reasoning Engine intentionally NEVER produces the final answer.
     reasoning.answer = null;
     reasoning.recommendation = null;
     reasoning.executiveConclusion.ownsFinalRecommendation = false;
+
+    if (
+      reasoning.recommendation ||
+      reasoning.answer ||
+      reasoning.executiveConclusion.ownsFinalRecommendation
+    ) {
+      reasoning.obeyedContract = false;
+      reasoning.contractViolations.push(
+        "Reasoning engine attempted to own final answer authority."
+      );
+    }
   },
 
-  add(arr, value) {
-    if (!value) return;
-    if (!arr.includes(value)) arr.push(value);
+  inferConflictFromSignals(input = {}) {
+    const domains = input.domains || [];
+    const situations = input.situations || [];
+
+    if (
+      domains.includes("financial_resource_domain") &&
+      domains.includes("family_context_domain")
+    ) {
+      return "financial stability vs family responsibility";
+    }
+
+    if (
+      domains.includes("career_work_domain") &&
+      domains.includes("family_context_domain")
+    ) {
+      return "career movement vs family stability";
+    }
+
+    if (
+      situations.includes("tradeoff_or_competing_priorities")
+    ) {
+      return "choice vs consequence";
+    }
+
+    return null;
   },
 
   termText(term) {
     if (!term) return null;
     if (typeof term === "string") return term;
-    return term.raw || term.phrase || term.noun || term.short || null;
-  },
-
-  getOriginalText(summary = {}) {
     return (
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      ""
+      term.raw ||
+      term.phrase ||
+      term.noun ||
+      term.short ||
+      term.value ||
+      term.label ||
+      term.evidence ||
+      null
     );
   },
 
-  getText(summary = {}) {
-    return this.getOriginalText(summary).toLowerCase();
+  getOriginalText(summary = {}) {
+    return summary.userMessage || summary.message || summary.input || "";
   },
 
-  hasAny(text = "", phrases = []) {
-    return phrases.some(p => text.includes(p.toLowerCase()));
+  first(arr = []) {
+    return Array.isArray(arr) && arr.length ? arr[0] : null;
+  },
+
+  add(arr, value) {
+    if (!value || !Array.isArray(arr)) return;
+    if (!arr.includes(value)) arr.push(value);
+  },
+
+  cleanList(list = []) {
+    return [...new Set((list || []).filter(Boolean).map(x => String(x).trim()))];
+  },
+
+  cleanTradeoffs(list = []) {
+    const seen = new Set();
+
+    return list.filter(item => {
+      if (!item?.sideA || !item?.sideB) return false;
+      const key = `${item.sideA}::${item.sideB}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 };
 
