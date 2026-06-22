@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.3.4 — Advisory Situation Mapper Only
+// V8.3.5 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.3.4",
+  version: "8.3.5",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -112,6 +112,7 @@ this.buildEvidenceModel(map);
 this.buildSituationTheses(map);
 this.detectContradictions(map);
 this.detectAmbiguity(map);
+this.applyClarificationGovernor(map);
 this.buildTriageHandoff(map);
 this.runMapIntegrityCheck(map);
 this.syncLegacyCompatibility(map);
@@ -671,6 +672,10 @@ detectAmbiguity(map) {
     reasons.push("Semantic frame confidence is weak.");
   }
 
+  const shouldAsk =
+    missing.includes("subject") ||
+    missing.includes("decision_options_or_issue");
+
   map.ambiguity = {
     present: missing.length > 0,
     level:
@@ -683,17 +688,89 @@ detectAmbiguity(map) {
             : "none",
     missing,
     reasons,
-    shouldAskClarifyingQuestion:
-      missing.includes("subject") ||
-      missing.includes("decision_options_or_issue") ||
-      missing.includes("dominant_lane")
+    shouldAskClarifyingQuestion: shouldAsk
   };
 
-  map.shouldAskClarifyingQuestion = map.ambiguity.shouldAskClarifyingQuestion;
+  map.shouldAskClarifyingQuestion = shouldAsk;
 
-  if (map.shouldAskClarifyingQuestion && !map.recommendedQuestion) {
-    map.recommendedQuestion =
-      "What exactly are we deciding or trying to fix?";
+  if (shouldAsk && !map.recommendedQuestion) {
+    if (missing.includes("decision_options_or_issue")) {
+      map.recommendedQuestion =
+        "What are the options or decision you want help with?";
+    } else if (missing.includes("subject")) {
+      map.recommendedQuestion = "What are you referring to?";
+    }
+  }
+},
+
+applyClarificationGovernor(map) {
+  const frame = map.semanticSituation?.currentTurnMeaning || {};
+  const text = map.rawText || "";
+
+  const meaning = this.normalize(frame.frameType || "");
+  const intent = this.normalize(frame.intent || "");
+  const domain = this.normalize(frame.domain || "");
+
+  const isDirectAnswerable =
+    meaning.includes("information seeking") ||
+    intent.includes("obtain answer") ||
+    intent.includes("clarification") ||
+    domain.includes("general understanding") ||
+    map.needs.includes("understanding") ||
+    map.responseRequirements.includes("clear_explanation");
+
+  const hasSafetyClarifier =
+    map.safetyGateUsed?.override === "clarify_risk" ||
+    map.responseRequirements.includes("ask_one_risk_clarification_question");
+
+  const hasBlockingMissingInfo =
+  map.ambiguity?.missing?.includes("subject") ||
+  map.ambiguity?.missing?.includes("decision_options_or_issue");
+
+  const isDecisionOrAction =
+    map.needs.includes("decision_support") ||
+    map.needs.includes("action_or_build_help") ||
+    /\b(decide|choose|fix|build|implement|should i|what should i do|how do i)\b/.test(text);
+
+  // Safety clarification survives.
+  if (hasSafetyClarifier) return;
+
+  // Direct answerable questions should not get fake clarification.
+  if (isDirectAnswerable && !hasBlockingMissingInfo) {
+    map.shouldAskClarifyingQuestion = false;
+    map.recommendedQuestion = null;
+
+    if (map.ambiguity) {
+      map.ambiguity.shouldAskClarifyingQuestion = false;
+    }
+
+    map.responseRequirements = map.responseRequirements.filter(
+      req => req !== "ask_clarifying_question"
+    );
+
+    map.responseConstraints = map.responseConstraints.filter(
+      req => req !== "ask_clarifying_question"
+    );
+
+    map.reasons.push(
+      "Clarification Governor suppressed clarification because the current turn is directly answerable."
+    );
+
+    return;
+  }
+
+  // Do not use decision/fix wording unless the user is actually deciding/fixing.
+  if (!isDecisionOrAction && map.recommendedQuestion === "What exactly are we deciding or trying to fix?") {
+    map.recommendedQuestion = null;
+    map.shouldAskClarifyingQuestion = false;
+
+    if (map.ambiguity) {
+      map.ambiguity.shouldAskClarifyingQuestion = false;
+    }
+
+    map.reasons.push(
+      "Clarification Governor removed generic decision/fix question because no decision/action request was present."
+    );
   }
 },
 
