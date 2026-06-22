@@ -188,42 +188,44 @@ window.AriLexicalGroundingEngine = {
   },
 
   mapConcreteDecisionLanguage(grounding, text) {
-  const decisionOption = this.findFirst(text, [
+  const actionPhrase = this.findFirst(text, [
+    /\b(?:buy|lease|finance|refinance|sell|trade in|apply for|report|tell|ask|call|schedule|cancel|fix|build|replace|save for|pay for|start|go to|move to|enroll in|take)\s+[^.?!,;]{2,90}/gi
+  ]);
+
+  const rawDecisionOption = this.findFirst(text, [
     /\bshould i\s+[^.?!,;]{2,90}/gi,
     /\bdo you think i should\s+[^.?!,;]{2,90}/gi,
     /\bwould it be smart to\s+[^.?!,;]{2,90}/gi
   ]);
 
-  const actionPhrase = this.findFirst(text, [
-    /\b(?:buy|lease|finance|refinance|sell|trade in|apply for|report|tell|ask|call|schedule|cancel|fix|build|replace|save for|pay for|start|go to|move to|enroll in|take)\s+[^.?!,;]{2,90}/gi
-  ]);
+  const decisionOption =
+    actionPhrase ||
+    rawDecisionOption;
 
   const uncertaintyPhrase = this.findFirst(text, [
     /\b(?:don't know if|do not know if|not sure if|unsure if|wondering if)\s+[^.?!,;]{2,100}/gi
   ]);
 
-  if (decisionOption) {
-  this.setConcept(
-    grounding,
-    "decision_option",
-    decisionOption,
-    "User named the decision option they are considering.",
-    0.84
-  );
+  if (decisionOption && !this.isGenericQuestionPhrase(decisionOption)) {
+    this.setConcept(
+      grounding,
+      "decision_option",
+      decisionOption,
+      "User named the decision option they are considering.",
+      0.84
+    );
 
-  const option = grounding.conceptMap.decision_option;
-  const object = grounding.conceptMap.object;
+    const option = grounding.conceptMap.decision_option;
+    const object = grounding.conceptMap.object;
 
-  if (option?.phrase && object?.short && /\b(it|this|that)\b/i.test(option.phrase)) {
-    option.phrase = option.phrase.replace(/\b(it|this|that)\b/i, object.short);
-    option.raw = option.raw.replace(/\b(it|this|that)\b/i, object.short);
-    option.noun = option.noun.replace(/\b(it|this|that)\b/i, object.short);
-    option.verb = option.verb.replace(/\b(it|this|that)\b/i, object.short);
-    option.short = option.short.replace(/\b(it|this|that)\b/i, object.short);
-    option.article = option.article.replace(/\b(it|this|that)\b/i, object.short);
-    option.reason += " Pronoun was resolved using the grounded object.";
+    if (option?.phrase && object?.short && /\b(it|this|that)\b/i.test(option.phrase)) {
+      ["phrase", "raw", "noun", "verb", "short", "article"].forEach(key => {
+        option[key] = option[key].replace(/\b(it|this|that)\b/i, object.short);
+      });
+
+      option.reason += " Pronoun was resolved using the grounded object.";
+    }
   }
-}
 
   if (actionPhrase && !this.isGenericQuestionPhrase(actionPhrase)) {
     this.setConcept(
