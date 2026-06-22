@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.2.2 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.2.3 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.2.2",
+  version: "3.2.3",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -352,6 +352,30 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
 
   const cf = summary.conversationFunction || {};
   const primaryFunction = cf.primaryFunction || summary.primaryFunction || null;
+
+  const triagePrimary =
+    triage.primaryLane ||
+    summary.triagePrimaryLane ||
+    summary.ariTriage?.primaryLane ||
+    null;
+
+  if (triagePrimary === "executive_decision") {
+    contract.primary = "executive_decision";
+    contract.authority = "strong";
+    contract.responseShape = "prioritize_then_plan";
+
+    this.add(contract.brief, "emotion");
+    this.add(contract.responseRules, "decision_framework");
+    this.add(contract.responseRules, "do_not_let_emotion_override_direct_decision_request");
+    this.add(contract.requiredBehaviors, "Name the priority.");
+    this.add(contract.requiredBehaviors, "Give the next step.");
+    this.add(contract.requiredBehaviors, "Separate primary from secondary concerns.");
+
+    contract.reasons.push(
+      "Triage selected executive_decision; emotional disclosure is support, not primary."
+    );
+    return;
+  }
 
   if (primaryFunction === "emotional_disclosure") {
     contract.primary = "emotion";
