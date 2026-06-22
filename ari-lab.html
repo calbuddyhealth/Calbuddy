@@ -201,7 +201,10 @@
   <script src="ari/knowledge/ari-knowledge-router.js"></script>
   <script src="ari/teaching/ari-teaching-answer-engine.js"></script>
 <script src="ari/reasoning/ari-reasoning-engine.js"></script>
-    <script src="ari/integration/ari-rebirth-pipeline.js"></script>
+   
+ 
+      <script src="ari/integration/ari-rebirth-pipeline.js"></script>
+     
 
   <!-- MEMORY -->
   <script src="ari/memory-system/ari-memory-engine.js"></script>
@@ -221,51 +224,36 @@
   <script src="ari/system/ari-prompt-builder.js"></script>
   <script src="ari/system/ari-bootstrap.js"></script>
 
+<script src="ari/ari-rebirth-app-bridge.js"></script>
+
   <!-- TESTING -->
   <script src="ari/testing/ari-readiness-diagnostic.js"></script>
 
   <script>
     async function runAriOnce(message) {
-      const analysis = window.Ari.core.analyzeMessage(message, {});
+  if (
+    !window.AriRebirthAppBridge ||
+    typeof window.AriRebirthAppBridge.ask !== "function"
+  ) {
+    throw new Error("Ari Rebirth App Bridge is not loaded.");
+  }
 
-      let summary = window.Ari.core.createSystemSummary(analysis);
+  const result = await window.AriRebirthAppBridge.ask(message, {
+    source: "ari-lab",
+    appMode: "rebirth-only"
+  });
 
-      summary.userMessage = message;
-      summary.message = message;
-      summary.input = message;
-      summary.normalizedMessage = String(message || "").toLowerCase().trim();
+  const summary = result.summary || {};
+  const analysis = result.analysis || {};
 
-      if (
-        window.AriRebirthPipeline &&
-        typeof window.AriRebirthPipeline.run === "function"
-      ) {
-        summary = await window.AriRebirthPipeline.run(summary);
-      }
-
-      const languageRoute = window.Ari.languageRouter
-        ? window.Ari.languageRouter.route(analysis)
-        : "language-router-unavailable";
-
-      const oldResponse = window.Ari.languageSystem.generate(analysis, {
-        length: "normal"
-      });
-
-      const rebirthResponse =
-        summary.finalResponse ||
-        summary.situationContract?.clarity?.question ||
-        summary.synthesisRecommendedQuestion ||
-        summary.salienceQuestion ||
-        summary.recommendedRecoveryQuestion ||
-        oldResponse;
-
-      return {
-        analysis,
-        summary,
-        languageRoute,
-        oldResponse,
-        rebirthResponse
-      };
-    }
+  return {
+    analysis,
+    summary,
+    reply: result.reply,
+    emotion: result.emotion,
+    source: result.source || "ari-rebirth-app-bridge"
+  };
+}
 
     document.getElementById("ariAnalyzeBtn").addEventListener("click", async () => {
       const output = document.getElementById("ariOutput");
@@ -294,15 +282,15 @@
           : "";
 
         output.textContent =
-`===== OLD ARI RESPONSE =====
+`===== ARI REBIRTH APP RESPONSE =====
 
-${run.oldResponse}
+${run.reply}
 
-==================================================
+Emotion:
+${run.emotion}
 
-===== ARI REBIRTH RESPONSE =====
-
-${run.rebirthResponse}
+Source:
+${run.source}
 
 ==================================================
 
@@ -1262,9 +1250,7 @@ ${summary.authorityMap?.source || summary.authoritySource || "none"}
 
 ==================================================
 
-===== OLD LANGUAGE ROUTE =====
-
-${run.languageRoute}
+===== LANGUAGE SIGNALS =====
 
 Recommended Language Lead:
 ${summary.recommendedLanguageLead || run.analysis.signals?.recommendedLanguageLead || "none"}
@@ -1451,15 +1437,15 @@ ${error.stack}
         for (const testCase of window.Ari.readinessDiagnostic.testCases) {
           const run = await runAriOnce(testCase.prompt);
 
-          responseMap[testCase.id] = run.rebirthResponse;
+          responseMap[testCase.id] = run.reply;
 
           fullRuns.push({
             id: testCase.id,
             category: testCase.category,
             prompt: testCase.prompt,
-            oldResponse: run.oldResponse,
-            rebirthResponse: run.rebirthResponse,
-            languageRoute: run.languageRoute,
+            rebirthResponse: run.reply,
+emotion: run.emotion,
+source: run.source,
             summary: run.summary
           });
         }
