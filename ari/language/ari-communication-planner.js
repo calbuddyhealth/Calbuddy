@@ -1,12 +1,12 @@
 // ari/language/ari-communication-planner.js
 // Ari Communication Planner
 // Purpose: Decide how Ari should speak before final composition.
-// V1.2.0 — Language Budget + Stop Discipline
+// V1.3.0 — Response Plan Authority + Language Budget + Stop Discipline
 
 window.Ari = window.Ari || {};
 
 window.AriCommunicationPlanner = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   plan(input = {}) {
     const summary = input.summary || input || {};
@@ -54,12 +54,25 @@ window.AriCommunicationPlanner = {
     const useHeadings =
       this.useHeadings(primary, wantsSeparatedReasoning, budget);
 
+    const responsePlan = this.buildResponsePlan({
+      summary,
+      contract,
+      reasoning,
+      primary,
+      wantsConcise,
+      wantsDepth,
+      wantsSeparatedReasoning,
+      budget
+    });
+
     const plan = {
       communicationPlannerRan: true,
       communicationPlannerVersion: this.version,
       source: "ari-communication-planner",
 
       primary,
+
+      responsePlan,
 
       answerMode: this.answerMode(primary, wantsSeparatedReasoning),
       humanFeel: this.humanFeel(primary, language),
@@ -78,13 +91,7 @@ window.AriCommunicationPlanner = {
 
       languageBudget: budget,
 
-      sectionPlan: this.sectionPlan({
-        primary,
-        wantsConcise,
-        wantsDepth,
-        wantsSeparatedReasoning,
-        reasoning
-      }),
+      sectionPlan: responsePlan.sections,
 
       sentenceRules: this.sentenceRules(primary, wantsConcise, wantsDepth, budget),
 
@@ -120,12 +127,15 @@ window.AriCommunicationPlanner = {
         "explain_without_padding",
         "sound_like_a_person",
         "stop_when_answered",
-        "preserve_user_requested_distinctions"
+        "preserve_user_requested_distinctions",
+        "follow_response_plan"
       ]
     };
 
     return {
       communicationPlan: plan,
+      responsePlan,
+
       communicationPlannerRan: true,
       communicationPlannerVersion: this.version,
       communicationPlannerSource: "ari-communication-planner",
@@ -135,6 +145,132 @@ window.AriCommunicationPlanner = {
       communicationStructureStyle: structureStyle,
       communicationLanguageBudget: budget
     };
+  },
+
+  buildResponsePlan({
+    summary = {},
+    contract = {},
+    reasoning = {},
+    primary = "general_understanding",
+    wantsSeparatedReasoning = false,
+    budget = {}
+  }) {
+    const preferred =
+      summary.preferredTerms ||
+      summary.lexicalGrounding?.preferredTerms ||
+      summary.lexicalGroundingOutput?.preferredTerms ||
+      {};
+
+    const thesis =
+      contract.situationThesis?.thesis ||
+      summary.situationMap?.primarySituationThesis ||
+      {};
+
+    const executiveConclusion =
+      contract.executive?.executiveConclusion ||
+      summary.executiveConclusion ||
+      reasoning.executiveConclusion ||
+      {};
+
+    const concreteOption =
+      preferred.decisionOption?.short ||
+      preferred.actionPhrase?.short ||
+      executiveConclusion.decisionOption ||
+      null;
+
+    const concreteTradeoff =
+      preferred.centralTradeoff?.short ||
+      preferred.centralTradeoff?.phrase ||
+      executiveConclusion.tradeoff ||
+      thesis.coreConflict ||
+      null;
+
+    const base = {
+      responsePlanRan: true,
+      source: "ari-communication-planner",
+      authority: "composer_instruction",
+      primary,
+      goal: "Make the final answer concrete, natural, and contract-compliant.",
+      sections: this.sectionPlan({
+        primary,
+        wantsConcise: budget.targetLength === "tiny",
+        wantsDepth: budget.targetLength === "medium",
+        wantsSeparatedReasoning
+      }),
+      mustUse: [],
+      mustAvoid: [
+        "Do not use generic phrases like 'what matters most' when concrete terms exist.",
+        "Do not end with vague reflection.",
+        "Do not sound like a template.",
+        "Do not add extra emotional padding when validation is none."
+      ],
+      openingMove: "answer_first",
+      closingMove: "next_step_then_stop",
+      concreteTerms: {
+        option: concreteOption,
+        tradeoff: concreteTradeoff,
+        personOrRelationship: preferred.personOrRelationship?.short || null,
+        timeline: preferred.timeline?.short || preferred.timePhrase?.short || null
+      }
+    };
+
+    if (primary === "executive_decision") {
+      base.goal = "Give a real recommendation or decision test, name the tradeoff, then stop after the next step.";
+      base.sections = wantsSeparatedReasoning
+        ? ["recommendation", "known", "inferred", "could_change", "next_step"]
+        : ["recommendation", "tradeoff", "reason", "next_step"];
+
+      base.mustUse.push(
+        concreteTradeoff
+          ? `Name this tradeoff plainly: ${concreteTradeoff}.`
+          : "Name the real tradeoff plainly.",
+        concreteOption
+          ? `Use this concrete option: ${concreteOption}.`
+          : "Use the user's concrete option if available.",
+        "Give either a recommendation or a decision test.",
+        "End with one concrete next step."
+      );
+
+      base.mustAvoid.push(
+        "Do not say 'prioritize what feels more important'.",
+        "Do not say 'make a list of your priorities' unless the list has a specific purpose.",
+        "Do not merely tell the user to discuss it with family without giving a decision frame first."
+      );
+
+      base.recommendedSkeleton = concreteOption && concreteTradeoff
+        ? `My recommendation: don't say yes to ${concreteOption} unless ${concreteTradeoff} still looks worth it after naming the cost. The reason is simple: money can help your family, but three years of absence is not a small trade. The next step is to write the non-negotiables first, then decide whether the promotion can meet them.`
+        : "My recommendation: don't decide from pressure alone. Name the tradeoff, decide what cost is unacceptable, then choose the option that protects that priority.";
+    }
+
+    if (primary === "builder") {
+      base.goal = "Give the technical next move clearly.";
+      base.sections = ["fix", "steps", "check"];
+      base.mustUse.push("Give concrete implementation steps.");
+      base.mustAvoid.push("Do not turn the answer into emotional reflection.");
+    }
+
+    if (primary === "teacher") {
+      base.goal = "Explain clearly without overexplaining.";
+      base.sections = ["answer", "explanation", "example"];
+      base.mustUse.push("Start with the clean explanation.");
+      base.mustAvoid.push("Do not ask a vague question before teaching.");
+    }
+
+    if (primary === "emotion") {
+      base.goal = "Acknowledge briefly, ground, and give one useful next move.";
+      base.sections = ["validation", "grounding", "next_step"];
+      base.mustUse.push("Name the emotional signal briefly.");
+      base.mustAvoid.push("Do not become poetic or generic.");
+    }
+
+    if (primary === "safety" || primary === "medical_body") {
+      base.goal = "Lead with safety/body action.";
+      base.sections = ["urgent_boundary", "action", "thresholds"];
+      base.mustUse.push("Use calm direct language.");
+      base.mustAvoid.push("Do not use humor, sarcasm, or emotional interpretation first.");
+    }
+
+    return base;
   },
 
   languageBudget({ primary, wantsConcise, wantsDepth, wantsSeparatedReasoning }) {
@@ -178,7 +314,7 @@ window.AriCommunicationPlanner = {
       return {
         recommendation: 1,
         supportingReason: 1,
-        tradeoff: 0,
+        tradeoff: 1,
         nextAction: 1,
         caveat: 0,
         emotionalValidation: 0
@@ -186,36 +322,18 @@ window.AriCommunicationPlanner = {
     }
 
     if (primary === "teacher") {
-      return {
-        definition: 1,
-        explanation: 2,
-        example: 1,
-        summary: 0
-      };
+      return { definition: 1, explanation: 2, example: 1, summary: 0 };
     }
 
     if (primary === "builder") {
-      return {
-        diagnosis: 1,
-        fix: 1,
-        steps: 3,
-        check: 1
-      };
+      return { diagnosis: 1, fix: 1, steps: 3, check: 1 };
     }
 
     if (primary === "emotion") {
-      return {
-        validation: 1,
-        grounding: 1,
-        question: 1
-      };
+      return { validation: 1, grounding: 1, question: 1 };
     }
 
-    return {
-      answer: 1,
-      context: 1,
-      nextAction: 1
-    };
+    return { answer: 1, context: 1, nextAction: 1 };
   },
 
   answerMode(primary, wantsSeparatedReasoning) {
@@ -227,7 +345,7 @@ window.AriCommunicationPlanner = {
     if (primary === "executive_decision") {
       return wantsSeparatedReasoning
         ? "recommendation_then_evidence"
-        : "recommendation_reason_next_step";
+        : "recommendation_tradeoff_reason_next_step";
     }
 
     if (primary === "emotion") return "attune_then_ground";
@@ -262,7 +380,7 @@ window.AriCommunicationPlanner = {
     if (wantsSeparatedReasoning) return "light_labeled_sections";
     if (primary === "builder") return "steps";
     if (primary === "safety" || primary === "medical_body") return "direct_action";
-    if (primary === "executive_decision") return "recommendation_reason_action";
+    if (primary === "executive_decision") return "recommendation_tradeoff_reason_action";
     return "light_sections";
   },
 
@@ -318,7 +436,7 @@ window.AriCommunicationPlanner = {
     }
 
     if (primary === "executive_decision") {
-      return ["recommendation", "reason", "next_step"];
+      return ["recommendation", "tradeoff", "reason", "next_step"];
     }
 
     if (primary === "builder") {
@@ -380,3 +498,8 @@ window.AriCommunicationPlanner = {
     );
   }
 };
+
+console.log(
+  "ARI COMMUNICATION PLANNER LOADED:",
+  window.AriCommunicationPlanner?.version
+);
