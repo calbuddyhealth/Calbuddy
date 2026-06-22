@@ -1,12 +1,12 @@
 // ari/language/ari-lexical-grounding-engine.js
 // Ari Lexical Grounding Engine
 // Purpose: Map user language into grounded, reusable phrases for downstream systems.
-// V3.0.1 — Universal Lexical Grounding / No Final Authority
+// V3.0.2 — Universal Lexical Grounding / No Final Authority
 
 window.Ari = window.Ari || {};
 
 window.AriLexicalGroundingEngine = {
-  version: "3.0.1",
+  version: "3.0.2",
 
   ground(input = {}) {
     const summary = input.summary || input || {};
