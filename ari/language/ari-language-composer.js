@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.3 — Contract-Locked Natural AI Writer
+// V8.3.4 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.3",
+  version: "8.3.4",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -187,7 +187,7 @@ primary = "general_understanding",
 
     return {
       usedAI: false,
-      text: this.localFallback({ primary, contract, thesis, userQuestion })
+      text: this.localFallback({ summary, primary, contract, thesis, userQuestion })
     };
   },
 
@@ -245,7 +245,13 @@ readSituationThesis(summary = {}) {
   summary.lexicalGroundingOutput?.preferredTerms ||
   {};
     const reasoning = summary.reasoning || {};
-    const conclusion = reasoning.executiveConclusion || {};
+const contractExecutive = contract.executive || {};
+
+const conclusion =
+  contractExecutive.executiveConclusion ||
+  summary.executiveConclusion ||
+  reasoning.executiveConclusion ||
+  {};
     const activeThreadFacts =
   summary.activeThreadFacts ||
   summary.continuityUsableFacts ||
@@ -317,12 +323,21 @@ KNOWN REASONING OR CONCLUSION:
 ${JSON.stringify(
   {
     recommendation: conclusion.recommendation || reasoning.recommendation || null,
-    keyReason: conclusion.keyReason || reasoning.coreJudgment || null,
-    nextStep: conclusion.nextStep || reasoning.nextStep || null
+keyReason: conclusion.keyReason || reasoning.coreJudgment || null,
+nextStep: conclusion.nextStep || reasoning.nextStep || null,
+decisionOption: conclusion.decisionOption || null,
+tradeoff: conclusion.tradeoff || null
   },
   null,
   2
 )}
+
+EXECUTIVE DECISION RULES:
+- If decisionOption exists, use it in the answer.
+- If tradeoff exists, name that tradeoff plainly.
+- Do not say vague phrases like “what matters most” when tradeoff is available.
+- Give an actual recommendation or decision test, not just “think about it.”
+- End with a concrete next step.
 
 SITUATION THESIS:
 ${thesis.available ? JSON.stringify({
@@ -466,11 +481,11 @@ if (
     "you might be feeling lost"
   ].some(p => text.toLowerCase().includes(p))
 ) {
-  text = this.localFallback({ primary, contract, thesis, userQuestion });
+  text = this.localFallback({ summary, primary, contract, thesis, userQuestion });
 }
 
     if (!text) {
-      return this.localFallback({ primary, contract, thesis, userQuestion });
+      return this.localFallback({ summary, primary, contract, thesis, userQuestion });
     }
 
     if (this.containsInternalLeak(text)) {
@@ -478,7 +493,7 @@ if (
     }
 
     if (this.isRoboticDirective(text)) {
-      text = this.localFallback({ primary, contract, thesis, userQuestion });
+      text = this.localFallback({ summary, primary, contract, thesis, userQuestion });
     }
 
     if (contract.clarity?.needed && contract.clarity?.placement === "only") {
@@ -629,7 +644,13 @@ defaultSafetyAction({ safetyAction = {}, primary = "" }) {
   return "take_immediate_safety_action";
 },
 
-  localFallback({ primary = "general_understanding", contract = {}, thesis = {}, userQuestion = "" }) {
+  localFallback({
+  summary = {},
+  primary = "general_understanding",
+  contract = {},
+  thesis = {},
+  userQuestion = ""
+}) {
     if (primary === "builder") {
       return "Yes. The next move is to update the composer so it stops making decisions and only writes from the contract. That means: build the prompt from the contract, let AI draft naturally, validate the response, then block robotic or internal language before returning it.";
     }
@@ -638,9 +659,25 @@ defaultSafetyAction({ safetyAction = {}, primary = "" }) {
       return "The clean answer is this: the composer should not decide what the user needs. It should only turn the contract into a natural final response.";
     }
 
-    if (primary === "executive_decision") {
-      return "My recommendation: make the composer contract-locked. Let Triage decide the lane, let Contract define the rules, and let Composer only write and validate the final answer.";
-    }
+ if (primary === "executive_decision") {
+  const preferred =
+    summary.preferredTerms ||
+    summary.lexicalGrounding?.preferredTerms ||
+    summary.lexicalGroundingOutput?.preferredTerms ||
+    {};
+
+  const option =
+    preferred.decisionOption?.short ||
+    preferred.actionPhrase?.short ||
+    "the option";
+
+  const tradeoff =
+    preferred.centralTradeoff?.short ||
+    preferred.centralTradeoff?.phrase ||
+    "the main tradeoff";
+
+  return `My recommendation: don’t decide from emotion alone. Compare ${tradeoff}, then decide whether ${option} is worth the cost. The next step is to write the top 3 gains and top 3 losses before saying yes.`;
+}
 
 if (primary === "emotion") {
   const event =
@@ -812,6 +849,7 @@ naturalizeResponse({ text = "", summary = {}, contract = {}, thesis = {}, primar
     "small steps you can take",
     "you might be feeling lost",
     "align with those priorities",
+    "what matters most",
     "this situation can be challenging"
   ];
 
@@ -819,7 +857,7 @@ naturalizeResponse({ text = "", summary = {}, contract = {}, thesis = {}, primar
   const soundsGeneric = genericPhrases.some(phrase => lower.includes(phrase));
 
   if (soundsGeneric) {
-    return this.localFallback({ primary, contract, thesis, userQuestion });
+    return this.localFallback({ summary, primary, contract, thesis, userQuestion });
   }
 
   result = result
