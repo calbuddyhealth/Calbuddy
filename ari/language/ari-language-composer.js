@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.4 — Contract-Locked Natural AI Writer
+// V8.3.5 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.4",
+  version: "8.3.5",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -299,6 +299,11 @@ const emotionalContext = {
     const budget = communicationPlan.languageBudget || {};
     const sentenceRules = communicationPlan.sentenceRules || {};
 
+const responsePlan =
+  communicationPlan.responsePlan ||
+  summary.responsePlan ||
+  {};
+
     return `
 You are Ari.
 
@@ -332,12 +337,19 @@ tradeoff: conclusion.tradeoff || null
   2
 )}
 
-EXECUTIVE DECISION RULES:
-- If decisionOption exists, use it in the answer.
-- If tradeoff exists, name that tradeoff plainly.
-- Do not say vague phrases like “what matters most” when tradeoff is available.
-- Give an actual recommendation or decision test, not just “think about it.”
-- End with a concrete next step.
+RESPONSE PLAN:
+${Object.keys(responsePlan).length
+  ? JSON.stringify(responsePlan, null, 2)
+  : "No response plan provided."}
+
+RESPONSE PLAN RULES:
+- Follow the response plan before inventing your own structure.
+- Use recommendedOpening only as direction, not as exact copied text.
+- Use mustUse ideas when available.
+- Avoid mustAvoid phrases and patterns.
+- Use the decision test or recommendation from the plan.
+- End with the planned next step.
+- Do not sound like a template.
 
 SITUATION THESIS:
 ${thesis.available ? JSON.stringify({
