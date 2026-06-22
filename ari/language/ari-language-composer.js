@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.2 — Contract-Locked Natural AI Writer
+// V8.3.3 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.2",
+  version: "8.3.3",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -239,7 +239,11 @@ readSituationThesis(summary = {}) {
     const executive = contract.executive || {};
     const mouthDirective = contract.mouthDirective || {};
     const profile = contract.communicationProfile || {};
-    const preferredTerms = summary.preferredTerms || {};
+    const preferredTerms =
+  summary.preferredTerms ||
+  summary.lexicalGrounding?.preferredTerms ||
+  summary.lexicalGroundingOutput?.preferredTerms ||
+  {};
     const reasoning = summary.reasoning || {};
     const conclusion = reasoning.executiveConclusion || {};
     const activeThreadFacts =
@@ -825,6 +829,52 @@ naturalizeResponse({ text = "", summary = {}, contract = {}, thesis = {}, primar
     .replace(/\bIn this situation,\s*/gi, "")
     .replace(/\bMoving forward,\s*/gi, "")
     .trim();
+
+   result = this.repairDanglingDecisionEnding({
+    text: result,
+    summary,
+    primary,
+    contract,
+    thesis,
+    userQuestion
+  });
+
+  return result;
+},
+
+repairDanglingDecisionEnding({ text = "", summary = {}, primary = "", contract = {}, thesis = {}, userQuestion = "" }) {
+  let result = String(text || "").trim();
+
+  const preferred =
+    summary.preferredTerms ||
+    summary.lexicalGrounding?.preferredTerms ||
+    summary.lexicalGroundingOutput?.preferredTerms ||
+    {};
+
+  const decisionOption =
+    preferred.decisionOption?.short ||
+    preferred.decisionOption?.phrase ||
+    "the move";
+
+  const tradeoff =
+    preferred.centralTradeoff?.short ||
+    preferred.centralTradeoff?.phrase ||
+    null;
+
+  if (
+  primary === "executive_decision" &&
+  (
+    /\bthe next step\?\s*$/i.test(result) ||
+    /\bnext step\?\s*$/i.test(result)
+  )
+) {
+    const next =
+      tradeoff
+        ? `The next step is to compare ${tradeoff} honestly, then decide whether ${decisionOption} is worth the cost.`
+        : `The next step is to decide whether ${decisionOption} is worth the cost.`;
+
+    result = result.replace(/\bThe next step\?\s*$/i, next);
+  }
 
   return result;
 },
