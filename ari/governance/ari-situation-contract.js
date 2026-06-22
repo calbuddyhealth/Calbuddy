@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.2.3 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.2.4 — Conversation Mode / Direct Question / Anti-Drift Upgrade
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.2.3",
+  version: "3.2.4",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -31,6 +31,7 @@ window.AriSituationContract = {
     this.applyAuthority(contract);
     this.applyResponseShape(contract);
     this.applyExecutive(contract);
+    this.buildExecutiveConclusion(contract, map, triage);
     this.applyCommunicationProfile(contract);
     this.applyMouthDirective(contract);
     this.applyLegacyProtection(contract);
@@ -122,6 +123,7 @@ window.AriSituationContract = {
         contractObstacle: null,
         contractNextAction: null,
         contractCompletionCriteria: null,
+        executiveConclusion: null,
         legacyOverrideProtection: true,
         allowedLegacyInfluence: "support_only"
       },
@@ -564,6 +566,36 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
       ...(profile.executive || {})
     };
   },
+
+buildExecutiveConclusion(contract, map = {}, triage = {}) {
+  if (contract.primary !== "executive_decision") return;
+
+  const thesis = contract.situationThesis?.thesis || {};
+  const preferred = map.preferredTerms || {};
+
+  contract.executive.executiveConclusion = {
+    recommendation: null,
+    keyReason:
+      thesis.coreConflict ||
+      preferred.centralTradeoff?.short ||
+      preferred.centralTradeoff?.phrase ||
+      "choice vs consequence",
+    nextStep:
+      thesis.bestResponse ||
+      "Answer directly, name the tradeoff, and recommend the next step.",
+    decisionOption:
+      preferred.decisionOption?.short ||
+      preferred.decisionOption?.phrase ||
+      null,
+    tradeoff:
+      preferred.centralTradeoff?.short ||
+      preferred.centralTradeoff?.phrase ||
+      null,
+    authority: "contract_handoff_only"
+  };
+
+  this.add(contract.responseRules, "composer_should_use_executive_conclusion");
+},
 
   applyCommunicationProfile(contract) {
     const profile = contract.communicationProfile;
