@@ -1,12 +1,12 @@
 // ari/language/ari-lexical-grounding-engine.js
 // Ari Lexical Grounding Engine
 // Purpose: Map user language into grounded, reusable phrases for downstream systems.
-// V3.0.0 — Universal Lexical Grounding / No Final Authority
+// V3.0.1 — Universal Lexical Grounding / No Final Authority
 
 window.Ari = window.Ari || {};
 
 window.AriLexicalGroundingEngine = {
-  version: "3.0.0",
+  version: "3.0.1",
 
   ground(input = {}) {
     const summary = input.summary || input || {};
@@ -56,6 +56,7 @@ window.AriLexicalGroundingEngine = {
     this.mapUniversalGoalTerms(grounding, text, normalized);
     this.mapUniversalTransitionTerms(grounding, text, normalized);
     this.mapUniversalTradeoffTerms(grounding, text, normalized);
+    this.mapObjectTerms(grounding, text, normalized);
     this.mapConcreteDecisionLanguage(grounding, text, normalized);
     this.mapConcreteConstraintTerms(grounding, text, normalized);
     this.mapTimelineTerms(grounding, text, normalized);
@@ -63,7 +64,7 @@ window.AriLexicalGroundingEngine = {
     this.mapBuilderTerms(grounding, text, normalized);
     this.mapRelationshipTerms(grounding, text, normalized);
     this.mapEmotionTerms(grounding, text, normalized);
-    this.mapObjectTerms(grounding, text, normalized);
+    
 
     grounding.preferredTerms = this.buildPreferredTerms(grounding);
 
@@ -187,34 +188,63 @@ window.AriLexicalGroundingEngine = {
   },
 
   mapConcreteDecisionLanguage(grounding, text) {
-    const actionPhrase = this.findFirst(text, [
-      /\b(?:buy|lease|finance|refinance|sell|trade in|apply for|report|tell|ask|call|schedule|cancel|fix|build|replace|save for|pay for|start|go to|move to|enroll in)\s+[^.?!,;]{2,90}/gi
-    ]);
+  const decisionOption = this.findFirst(text, [
+    /\bshould i\s+[^.?!,;]{2,90}/gi,
+    /\bdo you think i should\s+[^.?!,;]{2,90}/gi,
+    /\bwould it be smart to\s+[^.?!,;]{2,90}/gi
+  ]);
 
-    const uncertaintyPhrase = this.findFirst(text, [
-      /\b(?:don't know if|do not know if|not sure if|unsure if|wondering if)\s+[^.?!,;]{2,100}/gi
-    ]);
+  const actionPhrase = this.findFirst(text, [
+    /\b(?:buy|lease|finance|refinance|sell|trade in|apply for|report|tell|ask|call|schedule|cancel|fix|build|replace|save for|pay for|start|go to|move to|enroll in|take)\s+[^.?!,;]{2,90}/gi
+  ]);
 
-    if (actionPhrase && !this.isGenericQuestionPhrase(actionPhrase)) {
-      this.setConcept(
-        grounding,
-        "action_phrase",
-        actionPhrase,
-        "User used concrete action language.",
-        0.78
-      );
-    }
+  const uncertaintyPhrase = this.findFirst(text, [
+    /\b(?:don't know if|do not know if|not sure if|unsure if|wondering if)\s+[^.?!,;]{2,100}/gi
+  ]);
 
-    if (uncertaintyPhrase) {
-      this.setConcept(
-        grounding,
-        "decision_phrase",
-        uncertaintyPhrase,
-        "User expressed uncertainty about a choice or timing.",
-        0.8
-      );
-    }
-  },
+  if (decisionOption) {
+  this.setConcept(
+    grounding,
+    "decision_option",
+    decisionOption,
+    "User named the decision option they are considering.",
+    0.84
+  );
+
+  const option = grounding.conceptMap.decision_option;
+  const object = grounding.conceptMap.object;
+
+  if (option?.phrase && object?.short && /\b(it|this|that)\b/i.test(option.phrase)) {
+    option.phrase = option.phrase.replace(/\b(it|this|that)\b/i, object.short);
+    option.raw = option.raw.replace(/\b(it|this|that)\b/i, object.short);
+    option.noun = option.noun.replace(/\b(it|this|that)\b/i, object.short);
+    option.verb = option.verb.replace(/\b(it|this|that)\b/i, object.short);
+    option.short = option.short.replace(/\b(it|this|that)\b/i, object.short);
+    option.article = option.article.replace(/\b(it|this|that)\b/i, object.short);
+    option.reason += " Pronoun was resolved using the grounded object.";
+  }
+}
+
+  if (actionPhrase && !this.isGenericQuestionPhrase(actionPhrase)) {
+    this.setConcept(
+      grounding,
+      "action_phrase",
+      actionPhrase,
+      "User used concrete action language.",
+      0.78
+    );
+  }
+
+  if (uncertaintyPhrase) {
+    this.setConcept(
+      grounding,
+      "decision_phrase",
+      uncertaintyPhrase,
+      "User expressed uncertainty about a choice or timing.",
+      0.8
+    );
+  }
+},
 
   mapConcreteConstraintTerms(grounding, text) {
     const resourcePhrase = this.findFirst(text, [
@@ -318,6 +348,7 @@ window.AriLexicalGroundingEngine = {
       actionPhrase: map.action_phrase || null,
       pressure: map.pressure || null,
       decisionPhrase: map.decision_phrase || null,
+      decisionOption: map.decision_option || null,
       consequence: map.consequence || null,
       activeProblem: map.active_problem || null,
       object: map.object || null,
@@ -434,32 +465,33 @@ window.AriLexicalGroundingEngine = {
   },
 
   isGenericQuestionPhrase(value = "") {
-    const text = this.normalize(value);
-    if (!text) return true;
+  const text = this.normalize(value);
+  if (!text) return true;
 
-    const exactGeneric = new Set([
-      "what should i do",
-      "what do i do",
-      "what kind of plan",
-      "what plan should i follow",
-      "should i",
-      "do you think",
-      "what would you do",
-      "what do you recommend",
-      "next step",
-      "what next",
-      "help me",
-      "help"
-    ]);
+  const exactGeneric = new Set([
+    "what should i do",
+    "what do i do",
+    "what kind of plan",
+    "what plan should i follow",
+    "do you think",
+    "what would you do",
+    "what do you recommend",
+    "next step",
+    "what next",
+    "help me",
+    "help"
+  ]);
 
-    if (exactGeneric.has(text)) return true;
+  if (exactGeneric.has(text)) return true;
 
-    if (/^(what|how|why|should|do you|can you|could you)\b/.test(text) && text.split(/\s+/).length <= 10) {
-      return true;
-    }
+  // Only block bare question stems, not meaningful decision phrases.
+  if (/^(what|how|why|do you|can you|could you)\b/.test(text) && text.split(/\s+/).length <= 6) {
+    return true;
+  }
 
-    return false;
-  },
+  // Important: do NOT block "should I take the job" or similar.
+  return false;
+},
 
   findFirst(text = "", patterns = []) {
     return this.findPhrases(text, patterns)[0] || null;
