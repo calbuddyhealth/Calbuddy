@@ -4,7 +4,7 @@
 // Browser-side client that prepares a rich reasoning payload and
 // asks the server API to use OpenAI.
 //
-// V2.1.0
+// V2.1.1
 // Upgrades:
 // - Character Core handoff
 // - True follow-up awareness
@@ -18,7 +18,7 @@
 window.Ari = window.Ari || {};
 
 window.AriOpenAIKnowledgeClient = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
@@ -336,10 +336,16 @@ console.log("[Ari Knowledge Payload]", payload);
           summary.humanLanguageProfile || {},
 
         preferredTerms:
-          summary.preferredTerms || {},
+  summary.preferredTerms ||
+  summary.lexicalGrounding?.preferredTerms ||
+  summary.lexicalGroundingOutput?.preferredTerms ||
+  {},
 
-        conceptMap:
-          summary.conceptMap || {},
+conceptMap:
+  summary.conceptMap ||
+  summary.lexicalGrounding?.conceptMap ||
+  summary.lexicalGroundingOutput?.conceptMap ||
+  {},
 
         answerStyle:
           communicationPlan.answerMode ||
