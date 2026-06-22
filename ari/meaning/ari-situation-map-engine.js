@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.3.1 — Advisory Situation Mapper Only
+// V8.3.4 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.3.1",
+  version: "8.3.4",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -724,27 +724,44 @@ buildTriageHandoff(map) {
 
 mapSemanticDomainToSituationDomain(map, domain) {
   const domainMap = {
-    health: "medical_context_domain",
-    animal_health: "animal_health_context_domain",
-    general_understanding: "knowledge_domain",
-    choice_or_priority: "decision_context_domain",
-    task_execution: "builder_domain",
-    ari_architecture: "builder_domain",
-    system_behavior: "builder_domain",
-    relationships: "relationship_context_domain",
-    self_concept: "identity_context_domain",
-    inner_life: "emotion_context_domain",
-    execution: "builder_domain",
-    analysis: "knowledge_domain",
-    emotion: "emotion_context_domain",
-conversation_flow: "conversation_flow_domain"
+    health: ["medical_context_domain"],
+    body: ["medical_context_domain"],
+    medical: ["medical_context_domain"],
+    animal_health: ["animal_health_context_domain", "medical_context_domain"],
+
+    general_understanding: ["knowledge_domain"],
+    information: ["knowledge_domain"],
+    analysis: ["knowledge_domain"],
+    explanation: ["knowledge_domain"],
+
+    choice_or_priority: ["decision_context_domain"],
+    decision: ["decision_context_domain"],
+    planning: ["decision_context_domain"],
+    prioritization: ["decision_context_domain"],
+
+    task_execution: ["builder_domain"],
+    execution: ["builder_domain"],
+    builder: ["builder_domain"],
+    ari_architecture: ["builder_domain"],
+    system_behavior: ["builder_domain"],
+    code: ["builder_domain"],
+    debugging: ["builder_domain"],
+
+    relationships: ["relationship_context_domain"],
+    relationship: ["relationship_context_domain"],
+    family: ["family_context_domain"],
+    parenting: ["family_context_domain"],
+
+    self_concept: ["identity_context_domain"],
+    identity: ["identity_context_domain"],
+
+    inner_life: ["emotion_context_domain"],
+    emotion: ["emotion_context_domain"],
+
+    conversation_flow: ["conversation_flow_domain"]
   };
 
-  const mapped = domainMap[domain];
-
-  if (mapped) {
-    this.add(map.domains, mapped);
-  }
+  (domainMap[domain] || []).forEach(mapped => this.add(map.domains, mapped));
 },
 
 readSemanticSituation(map) {
@@ -752,86 +769,140 @@ readSemanticSituation(map) {
   const working = thread.workingContext || thread || {};
 
   const frame =
-  thread.semanticFrame ||
-  thread.activeSemanticFrame ||
-  working.semanticFrame ||
-  working.activeSemanticFrame ||
-  working.semanticState?.semanticFrame ||
-  map.conversationClassificationUsed?.semanticFrame ||
-  map.rawSemanticFrame ||
-  null;
+    thread.semanticFrame ||
+    thread.activeSemanticFrame ||
+    working.semanticFrame ||
+    working.activeSemanticFrame ||
+    working.semanticState?.semanticFrame ||
+    map.conversationClassificationUsed?.semanticFrame ||
+    map.rawSemanticFrame ||
+    null;
 
   const currentTurnFrame =
     frame?.currentTurnFrame ||
     frame?.primaryFrame ||
+    frame?.currentTurnMeaning ||
     frame ||
     null;
 
-  const continuityFrame = frame?.continuityFrame || null;
-  const handoff = frame?.handoff || null;
-  const inherited = frame?.inheritedContext || null;
+  const continuityFrame =
+    frame?.continuityFrame ||
+    frame?.continuity ||
+    null;
+
+  const handoff =
+    frame?.handoff ||
+    frame?.semanticHandoff ||
+    null;
+
+  const inherited =
+    frame?.inheritedContext ||
+    frame?.priorContext ||
+    null;
 
   if (!frame && !currentTurnFrame && !handoff && !inherited) return;
+
+  const meaning =
+    currentTurnFrame?.frameType ||
+    currentTurnFrame?.primaryMeaning ||
+    handoff?.currentMeaning ||
+    handoff?.meaning ||
+    null;
+
+  const domain =
+    currentTurnFrame?.domain ||
+    handoff?.domain ||
+    null;
+
+  const intent =
+    currentTurnFrame?.intent ||
+    handoff?.intent ||
+    null;
+
+  const confidence =
+    currentTurnFrame?.confidence ||
+    frame?.confidence ||
+    handoff?.confidence ||
+    60;
 
   map.semanticSituation = {
     available: true,
     source: frame?.semanticFrameSource || frame?.source || "semantic_frame",
-    confidence:
-      currentTurnFrame?.confidence ||
-      frame?.confidence ||
-      handoff?.confidence ||
-      60,
-    currentTurnMeaning: currentTurnFrame,
+    confidence,
+    currentTurnMeaning: {
+      ...currentTurnFrame,
+      frameType: meaning,
+      domain,
+      intent
+    },
     inheritedContext: inherited,
     handoff,
     continuityFrame
   };
 
-  map.canonical.domain =
-    currentTurnFrame?.domain ||
-    handoff?.domain ||
-    map.canonical.domain;
-
-  map.canonical.issueType =
-    currentTurnFrame?.frameType ||
-    handoff?.currentMeaning ||
-    map.canonical.issueType;
-
-  map.canonical.goal =
-    currentTurnFrame?.intent ||
-    handoff?.intent ||
-    map.canonical.goal;
+  map.canonical.domain = domain || map.canonical.domain;
+  map.canonical.issueType = meaning || map.canonical.issueType;
+  map.canonical.goal = intent || map.canonical.goal;
 
   map.canonical.subject =
     handoff?.inheritedSubject ||
     inherited?.activeSubject ||
     inherited?.currentTopic ||
+    currentTurnFrame?.subject ||
+    currentTurnFrame?.topic ||
     map.canonical.subject;
+
+  map.canonical.object =
+    currentTurnFrame?.object ||
+    currentTurnFrame?.target ||
+    handoff?.object ||
+    map.canonical.object;
+
+  map.canonical.issue =
+    currentTurnFrame?.issue ||
+    currentTurnFrame?.problem ||
+    handoff?.issue ||
+    map.canonical.issue;
+
+  map.canonical.desiredOutcome =
+    currentTurnFrame?.desiredOutcome ||
+    currentTurnFrame?.goal ||
+    handoff?.desiredOutcome ||
+    map.canonical.desiredOutcome;
 
   map.canonical.requiresContext = Boolean(
     handoff?.requiresPriorContext ||
     continuityFrame?.isContinuation ||
+    currentTurnFrame?.referencesPriorContext ||
     inherited
   );
 
   map.canonical.priorContextUsed = Boolean(
     inherited ||
-    handoff?.priorContextAvailable
+    handoff?.priorContextAvailable ||
+    continuityFrame?.isContinuation
   );
 
-  this.mapSemanticDomainToSituationDomain(map, currentTurnFrame?.domain);
-  
+  this.mapSemanticDomainToSituationDomain(map, domain);
 
-  if (currentTurnFrame?.frameType) {
-    this.add(map.situations, currentTurnFrame.frameType);
-  }
+  if (meaning) this.add(map.situations, meaning);
 
-  if (handoff?.requiresPriorContext || continuityFrame?.isContinuation) {
+  if (map.canonical.requiresContext || map.canonical.priorContextUsed) {
     this.add(map.situations, "follow_up_context_available");
     this.add(map.responseRequirements, "reuse_prior_context_without_reasking");
   }
 
-  map.reasons.push("Semantic frame read into Situation Map canonical structure.");
+  if (intent === "evaluate_options") {
+    this.add(map.needs, "decision_support");
+  }
+
+  if (intent === "receive_and_respond_to_emotion") {
+    this.add(map.needs, "emotional_attunement");
+  }
+
+  map.reasons.push(
+    `Semantic frame read as ${meaning || "unknown"} / ${domain || "unknown"} / ${intent || "unknown"}.`
+  );
 },
 
   detectQuestions(map) {
@@ -1217,48 +1288,102 @@ semanticIntentIncludes(map, terms = []) {
 mapSemanticNeedSignals(map) {
   const frame = map.semanticSituation?.currentTurnMeaning || {};
   const handoff = map.semanticSituation?.handoff || {};
-  const domain = frame.domain || handoff.domain || "";
-  const meaning = frame.frameType || handoff.currentMeaning || "";
-  const intent = frame.intent || handoff.intent || "";
 
-if (
-  meaning === "emotional_disclosure" ||
-  intent === "receive_and_respond_to_emotion" ||
-  domain === "emotion"
-) {
-  this.add(map.situations, "emotional_disclosure_present");
-  this.add(map.needs, "emotional_attunement");
-  this.add(map.responseRequirements, "emotional_presence_first");
-}
+  const domain = this.normalize(frame.domain || handoff.domain || "");
+  const meaning = this.normalize(frame.frameType || handoff.currentMeaning || "");
+  const intent = this.normalize(frame.intent || handoff.intent || "");
+  const style = this.normalize(frame.conversationStyle || handoff.conversationStyle || "");
 
-  if (meaning === "decision_support" || intent === "evaluate_options") {
+  const combined = `${domain} ${meaning} ${intent} ${style}`;
+
+  if (
+    meaning.includes("emotional_disclosure") ||
+    intent.includes("receive_and_respond_to_emotion") ||
+    domain.includes("emotion") ||
+    style.includes("emotional_presence")
+  ) {
+    this.add(map.situations, "emotional_disclosure_present");
+    this.add(map.needs, "emotional_attunement");
+    this.add(map.responseRequirements, "emotional_presence_first");
+  }
+
+  if (
+    meaning.includes("decision_support") ||
+    intent.includes("evaluate_options") ||
+    intent.includes("recommend") ||
+    intent.includes("choose") ||
+    intent.includes("prioritize") ||
+    style.includes("recommendation_request")
+  ) {
     this.add(map.needs, "decision_support");
   }
 
   if (
-    intent.includes("action") ||
-    intent.includes("manage") ||
-    intent.includes("implement") ||
-    meaning.includes("instruction")
+    combined.includes("action") ||
+    combined.includes("manage") ||
+    combined.includes("implement") ||
+    combined.includes("instruction") ||
+    combined.includes("debug") ||
+    combined.includes("fix") ||
+    combined.includes("build") ||
+    combined.includes("create") ||
+    combined.includes("modify")
   ) {
     this.add(map.needs, "action_or_build_help");
   }
 
   if (
-    intent.includes("explain") ||
-    intent.includes("understand") ||
-    meaning.includes("information_seeking")
+    combined.includes("explain") ||
+    combined.includes("understand") ||
+    combined.includes("information_seeking") ||
+    combined.includes("knowledge") ||
+    combined.includes("teach")
   ) {
     this.add(map.needs, "understanding");
   }
 
   if (
-    domain === "health" ||
-    domain === "animal_health" ||
-    meaning.includes("medical") ||
-    meaning.includes("body")
+    domain.includes("health") ||
+    domain.includes("animal_health") ||
+    combined.includes("medical") ||
+    combined.includes("body") ||
+    combined.includes("symptom")
   ) {
     this.add(map.needs, "context_sensitive_support");
+  }
+
+  if (
+    domain.includes("relationship") ||
+    domain.includes("family") ||
+    combined.includes("relationship") ||
+    combined.includes("family")
+  ) {
+    this.add(map.needs, "relationship_awareness");
+  }
+
+  if (
+    domain.includes("memory") ||
+    combined.includes("memory") ||
+    combined.includes("preference")
+  ) {
+    this.add(map.needs, "memory_acknowledgment");
+  }
+
+  if (
+    domain.includes("writing") ||
+    combined.includes("rewrite") ||
+    combined.includes("draft") ||
+    combined.includes("compose")
+  ) {
+    this.add(map.needs, "writing_or_rewrite");
+  }
+
+  if (
+    domain.includes("calculation") ||
+    combined.includes("calculate") ||
+    combined.includes("math")
+  ) {
+    this.add(map.needs, "calculation");
   }
 
   if (map.canonical.requiresContext || map.canonical.priorContextUsed) {
@@ -1505,54 +1630,74 @@ addSemanticLaneEvidence(map, addCandidate) {
   const frame = map.semanticSituation?.currentTurnMeaning || {};
   const handoff = map.semanticSituation?.handoff || {};
 
-  const meaning = frame.frameType || handoff.currentMeaning || "";
-  const intent = frame.intent || handoff.intent || "";
-  const domain = frame.domain || handoff.domain || "";
+  const meaning = this.normalize(frame.frameType || handoff.currentMeaning || "");
+  const intent = this.normalize(frame.intent || handoff.intent || "");
+  const domain = this.normalize(frame.domain || handoff.domain || "");
+  const style = this.normalize(frame.conversationStyle || handoff.conversationStyle || "");
+
+  const combined = `${meaning} ${intent} ${domain} ${style}`;
 
   if (
-    meaning === "emotional_disclosure" ||
-    intent === "receive_and_respond_to_emotion" ||
-    domain === "emotion"
+    combined.includes("emotional_disclosure") ||
+    combined.includes("receive_and_respond_to_emotion") ||
+    domain.includes("emotion") ||
+    style.includes("emotional_presence")
   ) {
     addCandidate("emotion", 94, "Semantic frame indicates emotional disclosure.");
   }
 
   if (
-    meaning === "decision_support" ||
-    intent === "evaluate_options" ||
-    intent === "obtain_opinion_or_judgment"
+    combined.includes("decision_support") ||
+    combined.includes("evaluate_options") ||
+    combined.includes("recommendation_request") ||
+    combined.includes("choose") ||
+    combined.includes("prioritize") ||
+    combined.includes("judgment")
   ) {
-    addCandidate("executive_decision", 92, "Semantic frame indicates decision or judgment support.");
+    addCandidate("executive_decision", 94, "Semantic frame indicates decision or judgment support.");
   }
 
   if (
-    meaning === "collaborative_software_build" ||
-    meaning === "instruction_or_command" ||
-    meaning === "debugging_or_root_cause" ||
-    intent.includes("implement") ||
-    intent.includes("create") ||
-    intent.includes("modify") ||
-    intent.includes("debug") ||
-    intent.includes("fix") ||
-    intent.includes("request_action_or_output")
+    combined.includes("collaborative_software_build") ||
+    combined.includes("instruction_or_command") ||
+    combined.includes("debugging_or_root_cause") ||
+    combined.includes("implement") ||
+    combined.includes("create") ||
+    combined.includes("modify") ||
+    combined.includes("debug") ||
+    combined.includes("fix") ||
+    combined.includes("request_action_or_output")
   ) {
-    addCandidate("builder", 88, "Semantic frame indicates build, action, or debug help.");
+    addCandidate("builder", 90, "Semantic frame indicates build, action, or debug help.");
   }
 
   if (
-    meaning === "information_seeking" ||
-    intent.includes("understand") ||
-    intent.includes("explain")
+    combined.includes("information_seeking") ||
+    combined.includes("understand") ||
+    combined.includes("explain") ||
+    combined.includes("knowledge") ||
+    combined.includes("teach")
   ) {
-    addCandidate("teacher", 84, "Semantic frame indicates explanation or understanding.");
+    addCandidate("teacher", 86, "Semantic frame indicates explanation or understanding.");
   }
 
   if (
-    domain === "health" ||
-    meaning.includes("medical") ||
-    meaning.includes("body")
+    domain.includes("health") ||
+    domain.includes("animal_health") ||
+    combined.includes("medical") ||
+    combined.includes("body") ||
+    combined.includes("symptom")
   ) {
     addCandidate("medical_context", 70, "Semantic frame indicates health/body context only.");
+  }
+
+  if (
+    domain.includes("relationship") ||
+    domain.includes("family") ||
+    combined.includes("relationship") ||
+    combined.includes("family")
+  ) {
+    addCandidate("relationship", 74, "Semantic frame indicates relationship or family context.");
   }
 },
 
@@ -1811,24 +1956,15 @@ if (map.risks.includes("confirmed_urgent_risk")) {
     }
 
     // 3. Universal reward impulse vs stability
-    if (
-      hasNeed("decision_support") &&
-      (
-        hasDomain("financial_resource_domain") ||
-        hasDomain("family_context_domain") ||
-        hasSituation("constraint_or_obligation_pressure")
-      ) &&
-      this.textHasAny(map, [
-        "celebrate",
-        "deserve",
-        "reward",
-        "treat myself",
-        "go hard",
-        "blow",
-        "spend",
-        "buy"
-      ])
-    ) {
+if (
+  hasNeed("decision_support") &&
+  (
+    hasDomain("financial_resource_domain") ||
+    hasDomain("family_context_domain") ||
+    hasSituation("constraint_or_obligation_pressure")
+  ) &&
+  this.hasRewardImpulseLanguage(map)
+) {
       addThesis({
         thesisType: "short_term_reward_vs_long_term_stability",
         oneLine:
@@ -1849,7 +1985,6 @@ if (map.risks.includes("confirmed_urgent_risk")) {
           "celebrate",
           "deserve",
           "spend",
-          "buy",
           "reward"
         ]
       });
@@ -2213,6 +2348,20 @@ if (map.risks.includes("confirmed_urgent_risk")) {
     return "use_as_situation_blueprint";
   },
 
+hasRewardImpulseLanguage(map) {
+  return this.textHasAny(map, [
+    "celebrate",
+    "deserve",
+    "reward",
+    "treat myself",
+    "treat ourselves",
+    "i earned it",
+    "i deserve it",
+    "go hard",
+    "blow money",
+    "splurge"
+  ]);
+},
   textHasAny(map, terms = []) {
     const text = map.rawText || "";
     return terms.some(term => text.includes(this.normalize(term)));
