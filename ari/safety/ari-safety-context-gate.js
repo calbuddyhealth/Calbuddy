@@ -1,7 +1,7 @@
 // ari/safety/ari-safety-context-gate.js
 // Ari Safety Context Gate
 // Purpose: Detect true safety/medical urgency from context, not single words.
-// V2.1.1
+// V2.1.2
 // Upgrades:
 // - Signal detection separated from risk decision.
 // - Adds negation detection: no bleeding, denies bleeding, not bleeding.
@@ -12,7 +12,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSafetyContextGate = {
-  version: "2.1.1",
+  version: "2.1.2",
 
   evaluate(input = {}) {
     const summary = input.summary || input || {};
@@ -542,14 +542,8 @@ gate.debug.riskRanking = scored.risks || [];
   }
 
   if (signals.pregnant.present) {
-    addRisk({
-      points: 12,
-      type: "medical",
-      subtype: "pregnancy_context",
-      ev: signals.pregnant.evidence,
-      reason: "Pregnancy is medically relevant context."
-    });
-  }
+  globalReasons.push("Pregnancy mentioned as context only; no medical risk elevated without symptoms or red flags.");
+}
 
   if (signals.rectalPain.present) {
     addRisk({
