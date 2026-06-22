@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.1 — Evidence Weighted Arbitration Engine
+// V2.2.2 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.1",
+  version: "2.2.2",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -183,7 +183,42 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
   const cf = summary.conversationFunction || {};
   const primaryFunction = cf.primaryFunction || summary.primaryFunction || null;
 
+  const semanticSummary = summary.semanticSummary || {};
+  const expectsDirectAnswer =
+    summary.semanticExpectsDirectAnswer === true ||
+    semanticSummary.responseCharacteristics?.expectsDirectAnswer === true;
+
+  const isDecisionSupport =
+    summary.semanticPrimaryMeaning === "decision_support" ||
+    semanticSummary.primaryMeaning === "decision_support" ||
+    summary.semanticIntent === "evaluate_options" ||
+    semanticSummary.intent === "evaluate_options";
+
   if (primaryFunction === "emotional_disclosure") {
+    if (isDecisionSupport && expectsDirectAnswer) {
+      this.addCandidate(
+        triage,
+        "executive_decision",
+        97,
+        "Direct decision request with emotional pressure; decision leads and emotion supports.",
+        "conversation_function_engine"
+      );
+
+      this.addCandidate(
+        triage,
+        "emotion",
+        72,
+        "Emotional pressure is present as support context.",
+        "conversation_function_engine"
+      );
+
+      this.add(triage.briefLanes, "emotion");
+      this.add(triage.responseConstraints, "brief_emotional_attunement");
+      this.add(triage.responseConstraints, "decision_framework");
+      this.add(triage.responseConstraints, "do_not_let_emotion_override_direct_decision_request");
+      return;
+    }
+
     this.addCandidate(
       triage,
       "emotion",
@@ -714,12 +749,12 @@ enforceSafetyGateAuthority(safety = {}, triage = {}) {
 
       memory: 50,
       builder: 48,
-      executive_decision: 46,
+      executive_decision: 60,
       teacher: 42,
 
       relationship: 36,
       family: 36,
-      emotion: 58,
+      emotion: 52,
       wisdom: 28,
 
       life_chapter: 20,
