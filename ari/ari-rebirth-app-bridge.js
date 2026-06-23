@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.1.0 — App Safe / Pipeline Guarded / Action Ready
+// V1.1.1 — App Safe / Pipeline Guarded / Action Ready
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -115,20 +115,31 @@ window.AriRebirthAppBridge = {
       normalizedMessage,
 
       appContext: {
-        source: options.source || "calbuddy-health",
-        appMode: "rebirth-only",
-        page: options.page || "unknown",
+  source: options.source || "calbuddy-health",
+  appMode: "rebirth-only",
+  page: options.page || "unknown",
 
-        goals: options.goals || null,
-        meals: Array.isArray(options.meals) ? options.meals : [],
-        todayLog: Array.isArray(options.todayLog) ? options.todayLog : [],
-        user: options.user || null,
+  userContext: options.userContext || null,
+  coachMemorySummary: options.coachMemorySummary || "",
 
-        permissions: {
-          allowDirectWrites: false,
-          requireApprovalForActions: true
-        }
-      }
+  goals: options.goals || null,
+  meals: Array.isArray(options.meals) ? options.meals : [],
+  todayLog: Array.isArray(options.todayLog) ? options.todayLog : [],
+  recentMeals: Array.isArray(options.recentMeals) ? options.recentMeals : [],
+  favoriteFoods: Array.isArray(options.favoriteFoods) ? options.favoriteFoods : [],
+  recentWeights: Array.isArray(options.recentWeights) ? options.recentWeights : [],
+
+  user: options.user || null,
+  ownerMode: options.ownerMode === true,
+  ariPermissions: options.ariPermissions || {},
+
+  history: Array.isArray(options.history) ? options.history.slice(-20) : [],
+
+  permissions: {
+    allowDirectWrites: false,
+    requireApprovalForActions: true
+  }
+}
     };
   },
 
