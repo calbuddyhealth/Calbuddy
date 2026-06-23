@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-developer-planner.js
 // Ari Rebirth Developer Planner
-// Purpose: Turn owner developer commands into investigation plans.
-// V1.0.0 — Search → Read → Analyze → Edit Discipline
+// Purpose: Turn owner developer commands into evidence-based investigation plans.
+// V1.1.0 — Clean Query Builder / Stopword Guard / Target-First Search
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperPlanner = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   plan(input = {}) {
     const summary = input.summary || input || {};
@@ -64,64 +64,24 @@ window.AriRebirthDeveloperPlanner = {
     const t = text.toLowerCase();
 
     return [
-      "fix",
-      "bug",
-      "broken",
-      "glitch",
-      "error",
-      "layout",
-      "homepage",
-      "code",
-      "github",
-      "file",
-      "function",
-      "remove",
-      "change",
-      "update",
-      "move",
-      "add",
-      "search",
-      "find",
-      "read",
-      "inspect",
-      "look at",
-      "where is",
-      "why does",
-      "why isn't",
-      "why is"
+      "fix", "bug", "broken", "glitch", "error", "layout",
+      "homepage", "code", "github", "file", "function",
+      "remove", "change", "update", "move", "add",
+      "search", "find", "read", "inspect", "look at",
+      "where is", "where's", "why does", "why isn't", "why is"
     ].some(word => t.includes(word));
   },
 
   inferIntent(text = "") {
     const t = text.toLowerCase();
 
-    if (this.hasAny(t, ["read", "inspect", "look at", "open"])) {
-      return "read_file";
-    }
-
-    if (this.hasAny(t, ["find", "search", "locate", "where is", "where's"])) {
-      return "locate_code";
-    }
-
-    if (this.hasAny(t, ["fix", "bug", "broken", "glitch", "error", "not working"])) {
-      return "fix_bug";
-    }
-
-    if (this.hasAny(t, ["remove", "delete", "hide"])) {
-      return "remove_ui";
-    }
-
-    if (this.hasAny(t, ["move", "relocate", "put", "place"])) {
-      return "move_ui";
-    }
-
-    if (this.hasAny(t, ["add", "create", "make", "build"])) {
-      return "add_feature";
-    }
-
-    if (this.hasAny(t, ["change", "update", "replace", "redesign"])) {
-      return "change_ui";
-    }
+    if (this.hasAny(t, ["read", "inspect", "look at", "open"])) return "read_file";
+    if (this.hasAny(t, ["find", "search", "locate", "where is", "where's"])) return "locate_code";
+    if (this.hasAny(t, ["fix", "bug", "broken", "glitch", "error", "not working"])) return "fix_bug";
+    if (this.hasAny(t, ["remove", "delete", "hide"])) return "remove_ui";
+    if (this.hasAny(t, ["move", "relocate", "put", "place"])) return "move_ui";
+    if (this.hasAny(t, ["add", "create", "make", "build"])) return "add_feature";
+    if (this.hasAny(t, ["change", "update", "replace", "redesign"])) return "change_ui";
 
     return "developer_help";
   },
@@ -130,9 +90,7 @@ window.AriRebirthDeveloperPlanner = {
     const clean = String(text || "").trim();
     const lower = clean.toLowerCase();
 
-    const fileMatch = clean.match(
-      /\b([a-zA-Z0-9_\-./]+?\.(?:html|css|js))\b/i
-    );
+    const fileMatch = clean.match(/\b([a-zA-Z0-9_\-./]+?\.(?:html|css|js))\b/i);
 
     const labels = [];
 
@@ -144,10 +102,17 @@ window.AriRebirthDeveloperPlanner = {
       "Calories Left",
       "Ask Ari",
       "Sign Out",
+      "Welcome back",
       "homepage greeting",
       "ARI_DEFAULT_BUBBLE",
       "calorie meter",
-      "reset time"
+      "reset time",
+      "authButton",
+      "ariSpeechBubble",
+      "ariConversationPanel",
+      "pendingActionBar",
+      "trueMeterFill",
+      "caloriesLeftText"
     ].forEach(label => {
       if (lower.includes(label.toLowerCase())) labels.push(label);
     });
@@ -161,7 +126,7 @@ window.AriRebirthDeveloperPlanner = {
       };
     }
 
-    if (lower.includes("homepage")) {
+    if (lower.includes("homepage") || lower.includes("home page")) {
       return {
         kind: "homepage",
         raw: clean,
@@ -187,44 +152,101 @@ window.AriRebirthDeveloperPlanner = {
   buildSearchQueries(text = "", target = {}, intent = "") {
     const queries = new Set();
 
-    const cleanedText = String(text || "")
-      .replace(/\b(find|search|locate|track down|where is|where's|read|inspect|look at|open|fix|remove|change|update|move|add)\b/gi, "")
-      .replace(/\b(the|a|an|from|on|in|for|please)\b/gi, "")
-      .trim();
-
-    if (cleanedText) queries.add(cleanedText);
+    if (target.filePath) {
+      queries.add(target.filePath);
+    }
 
     if (Array.isArray(target.labels)) {
       target.labels.forEach(label => {
         queries.add(label);
-        queries.add(label.toUpperCase());
       });
     }
 
+    const phraseCandidates = this.extractQuotedPhrases(text);
+    phraseCandidates.forEach(phrase => queries.add(phrase));
+
+    const cleanedMeaning = this.extractMeaningfulQuery(text);
+    if (this.isUsefulQuery(cleanedMeaning)) {
+      queries.add(cleanedMeaning);
+    }
+
     if (target.kind === "homepage") {
-      queries.add("homepage");
-      queries.add("home");
-      queries.add("dashboard");
+      queries.add("ariSpeechBubble");
       queries.add("ARI_DEFAULT_BUBBLE");
+      queries.add("ariSearchSection");
+      queries.add("calorie-card");
+      queries.add("three-actions");
     }
 
     if (intent === "remove_ui" || intent === "move_ui" || intent === "change_ui") {
-      queries.add("My Goals");
-      queries.add("Progress");
-      queries.add("History");
-      queries.add("Conversations");
+      if (!target.labels?.length) {
+        queries.add("ari-action-grid");
+        queries.add("goals-tile");
+        queries.add("progress-tile");
+        queries.add("history-tile");
+      }
     }
 
     if (intent === "fix_bug") {
       queries.add("refreshDashboard");
       queries.add("dashboardUpdated");
       queries.add("getHomepageGreeting");
+      queries.add("sendAriMessage");
     }
 
     return Array.from(queries)
       .map(q => String(q || "").trim())
-      .filter(Boolean)
+      .filter(q => this.isUsefulQuery(q))
       .slice(0, 8);
+  },
+
+  extractQuotedPhrases(text = "") {
+    const matches = String(text || "").match(/["'“”‘’]([^"'“”‘’]{2,80})["'“”‘’]/g) || [];
+
+    return matches
+      .map(item => item.replace(/["'“”‘’]/g, "").trim())
+      .filter(item => this.isUsefulQuery(item));
+  },
+
+  extractMeaningfulQuery(text = "") {
+    let clean = String(text || "")
+      .replace(/\b(find|search|locate|track down|where is|where's|read|inspect|look at|open|fix|remove|change|update|move|add|please|can you|could you|ari|rebirth)\b/gi, " ")
+      .replace(/[?.,!]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const words = clean
+      .split(/\s+/)
+      .filter(word => !this.isStopword(word))
+      .filter(word => word.length >= 3);
+
+    return words.slice(0, 5).join(" ").trim();
+  },
+
+  isStopword(word = "") {
+    const w = String(word || "").toLowerCase().trim();
+
+    return [
+      "the", "a", "an", "and", "or", "but", "from", "on", "in", "for",
+      "to", "of", "with", "my", "your", "our", "this", "that", "these",
+      "those", "it", "is", "are", "was", "were", "be", "been", "being",
+      "do", "does", "did", "now", "next", "here", "there", "some",
+      "thing", "stuff", "code", "file"
+    ].includes(w);
+  },
+
+  isUsefulQuery(query = "") {
+    const q = String(query || "").trim();
+    const lower = q.toLowerCase();
+
+    if (!q) return false;
+    if (q.length < 3) return false;
+    if (this.isStopword(lower)) return false;
+
+    const words = lower.split(/\s+/).filter(Boolean);
+    if (words.length === 1 && this.isStopword(words[0])) return false;
+
+    return true;
   },
 
   inferLikelyFiles(text = "", target = {}) {
@@ -235,6 +257,7 @@ window.AriRebirthDeveloperPlanner = {
 
     if (
       t.includes("homepage") ||
+      t.includes("home page") ||
       t.includes("my goals") ||
       t.includes("progress") ||
       t.includes("history") ||
@@ -253,8 +276,8 @@ window.AriRebirthDeveloperPlanner = {
       t.includes("calories") ||
       t.includes("meter")
     ) {
-      files.add("calbuddy-core.js");
       files.add("index.html");
+      files.add("calbuddy-core.js");
       files.add("style.css");
     }
 
@@ -266,6 +289,18 @@ window.AriRebirthDeveloperPlanner = {
     ) {
       files.add("api/ask-calbuddy.js");
       files.add("ari/ari-rebirth-app-bridge.js");
+    }
+
+    if (
+      t.includes("developer") ||
+      t.includes("search") ||
+      t.includes("read") ||
+      t.includes("github")
+    ) {
+      files.add("ari/developer/ari-rebirth-developer-planner.js");
+      files.add("calbuddy-core.js");
+      files.add("api/ari-github-search.js");
+      files.add("api/ari-github-read.js");
     }
 
     return Array.from(files).slice(0, 6);
@@ -348,13 +383,8 @@ window.AriRebirthDeveloperPlanner = {
   inferPriority(text = "") {
     const t = text.toLowerCase();
 
-    if (this.hasAny(t, ["broken", "not working", "error", "crash", "urgent"])) {
-      return "high";
-    }
-
-    if (this.hasAny(t, ["bug", "fix", "glitch"])) {
-      return "high";
-    }
+    if (this.hasAny(t, ["broken", "not working", "error", "crash", "urgent"])) return "high";
+    if (this.hasAny(t, ["bug", "fix", "glitch"])) return "high";
 
     return "medium";
   },
