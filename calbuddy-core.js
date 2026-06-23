@@ -1123,6 +1123,26 @@ if (window.AriRebirthAppBridge) {
   const mood = rebirth.emotion || "happy";
   CalBuddy.setAriMood(mood);
 
+  if (rebirth.developerIntent || rebirth.summary?.developerIntent) {
+    const handledIntent = await CalBuddy.handleDeveloperIntent({
+      developerIntent: rebirth.developerIntent || rebirth.summary?.developerIntent,
+      originalMessage: message,
+      userContext,
+      history
+    });
+
+    if (handledIntent) {
+      CalBuddy.setAriMood(handledIntent.emotion || "thinking");
+
+      return {
+        ...handledIntent,
+        pendingAction: null,
+        memoryCandidate: null,
+        rebirthSummary: rebirth.summary
+      };
+    }
+  }
+
   if (Array.isArray(rebirth.actions) && rebirth.actions.length > 0) {
     const firstAction = rebirth.actions[0];
 
@@ -1487,6 +1507,124 @@ CalBuddy.saveAriMemoryCandidate = async function (memoryCandidate) {
     return null;
   }
 };
+
+CalBuddy.handleDeveloperIntent = async function ({
+  developerIntent,
+  originalMessage = "",
+  userContext = null,
+  history = []
+} = {}) {
+  if (!developerIntent || developerIntent.enabled === false) {
+    return null;
+  }
+
+  localStorage.setItem(
+    "calbuddyLastDeveloperIntent",
+    JSON.stringify(developerIntent)
+  );
+
+  CalBuddy.saveDeveloperIntentLocally(developerIntent);
+
+  window.dispatchEvent(
+    new CustomEvent("calbuddy:developerIntent", {
+      detail: { developerIntent }
+    })
+  );
+
+  if (developerIntent.githubEdit) {
+    localStorage.setItem(
+      "calbuddyPendingGithubEdit",
+      JSON.stringify(developerIntent)
+    );
+
+    return {
+      reply:
+        developerIntent.githubEdit.confirmationText ||
+        "I prepared a GitHub edit request. Say yes to commit it.",
+      emotion: "thinking",
+      developerIntent
+    };
+  }
+
+  if (developerIntent.type === "github_read_request") {
+    const filePath =
+      developerIntent.filePath ||
+      developerIntent.githubRead?.filePath;
+
+    if (!filePath) {
+      return {
+        reply: "I need the file path before I can read it.",
+        emotion: "concerned",
+        developerIntent
+      };
+    }
+
+    const readResult = await CalBuddy.readGithubFile(filePath);
+
+    if (!readResult.success) {
+      return {
+        reply: readResult.error || "I could not read that file.",
+        emotion: "concerned",
+        developerIntent
+      };
+    }
+
+    return {
+      reply: `I read ${filePath}.`,
+      emotion: "thinking",
+      developerIntent,
+      githubReadResult: readResult
+    };
+  }
+
+  if (developerIntent.type === "github_search_request") {
+    const query =
+      developerIntent.query ||
+      developerIntent.searchQuery ||
+      developerIntent.githubSearch?.query;
+
+    if (!query) {
+      return {
+        reply: "I need a search term before I can search the repository.",
+        emotion: "concerned",
+        developerIntent
+      };
+    }
+
+    const searchResult = await CalBuddy.searchGithubCode(query);
+
+    if (!searchResult.success) {
+      return {
+        reply: searchResult.error || "I could not search the repository.",
+        emotion: "concerned",
+        developerIntent
+      };
+    }
+
+    const resultsText = (searchResult.results || [])
+      .map(item => `- ${item.path}`)
+      .join("\n");
+
+    return {
+      reply:
+        searchResult.count > 0
+          ? `I found ${searchResult.count} result(s) for "${query}":\n${resultsText}`
+          : `I searched for "${query}" but did not find a match.`,
+      emotion: "thinking",
+      developerIntent,
+      githubSearchResult: searchResult
+    };
+  }
+
+  return {
+    reply:
+      developerIntent.summary ||
+      "I saved this as an owner developer task.",
+    emotion: "thinking",
+    developerIntent
+  };
+};
+
 CalBuddy.searchGithubCode = async function (query) {
   try {
     const context = await CalBuddy.getUserContext();
