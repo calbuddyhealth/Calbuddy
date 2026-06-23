@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.3 — Evidence Weighted Arbitration Engine
+// V2.2.4 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.3",
+  version: "2.2.4",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -398,7 +398,14 @@ if (text.includes("urgent") || text.includes("emergency")) return "safety";
     if (text.includes("risk") || text.includes("clarify")) return "risk_clarification";
 
     if (text.includes("builder") || text.includes("code") || text.includes("debug") || text.includes("implementation")) return "builder";
-    if (text.includes("decision") || text.includes("tradeoff") || text.includes("options")) return "executive_decision";
+    if (
+  text.includes("decision_question") ||
+  text.includes("evaluate_options") ||
+  text.includes("request_action") ||
+  text.includes("recommend") ||
+  text.includes("choose") ||
+  text.includes("decide")
+) return "executive_decision";
     if (text.includes("understanding") || text.includes("explain") || text.includes("knowledge")) return "teacher";
     if (text.includes("memory")) return "memory";
     if (text.includes("family")) return "family";
@@ -452,15 +459,18 @@ if (text.includes("urgent") || text.includes("emergency")) return "safety";
       );
     }
 
-    if (thesis.thesisType === "decision_under_tradeoff") {
-      this.addCandidate(
-        triage,
-        "executive_decision",
-        86,
-        "Situation thesis indicates decision under tradeoff.",
-        "situation_thesis"
-      );
-    }
+    if (
+  thesis.thesisType === "decision_under_tradeoff" &&
+  this.isTrueDecisionRequest(map)
+) {
+  this.addCandidate(
+    triage,
+    "executive_decision",
+    86,
+    "Situation thesis indicates a true decision under tradeoff.",
+    "situation_thesis"
+  );
+}
 
     if (thesis.thesisType === "short_term_reward_vs_long_term_stability") {
       this.addCandidate(
@@ -801,12 +811,21 @@ enforceSafetyGateAuthority(safety = {}, triage = {}) {
 isTrueDecisionRequest(map = {}) {
   const text = String(map.rawUserText || map.resolvedText || map.text || "").toLowerCase();
   const questions = map.questions || [];
+  const situations = map.situations || [];
   const needs = map.needs || [];
+
+  const directDecisionLanguage =
+    /\b(should i|should we|what should i do|what do i do|which one|which option|choose|decide|best move|next step|recommend|would you|do i|do we)\b/.test(text);
+
+  const buildActionRequest =
+    needs.includes("action_or_build_help") &&
+    /\b(fix|build|implement|update|replace|debug|send code|how do i)\b/.test(text);
 
   return (
     questions.includes("decision_question") ||
-    /\b(should i|what should i do|what do i do|which one|choose|decide|best move|next step|recommend|would you|do i|do we)\b/.test(text) ||
-    needs.includes("action_or_build_help")
+    situations.includes("decision_context") ||
+    directDecisionLanguage ||
+    buildActionRequest
   );
 },
 
