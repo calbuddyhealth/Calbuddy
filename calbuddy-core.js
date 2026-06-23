@@ -1339,7 +1339,7 @@ CalBuddy.getHomepageGreeting = async function () {
   const netCalories = Math.max(consumed - burned, 0);
 
   let timeGreeting = "Hey.";
-  if (hour < 12) timeGreeting = "Good morning.";
+  if (hour < 12) timeGreeting = "Hello, my name is Ari.";
   else if (hour < 17) timeGreeting = "Good afternoon.";
   else timeGreeting = "Good evening.";
 
