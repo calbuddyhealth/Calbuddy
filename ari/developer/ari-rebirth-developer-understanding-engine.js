@@ -94,6 +94,7 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     const targetArea = this.inferTargetArea(rawText, text, targetObject);
     const userGoal = this.inferUserGoal(rawText, text, targetArea);
     const requestedChange = this.inferRequestedChange(rawText, text);
+    const requestedChanges = this.inferRequestedChanges(rawText, text);
     const intentFamily = this.inferIntentFamily(rawText, text, userGoal, targetArea, requestedChange);
     const reason = this.inferReason(rawText, text, targetArea, intentFamily);
     const constraints = this.inferConstraints(rawText, text, targetArea);
@@ -157,26 +158,27 @@ window.AriRebirthDeveloperUnderstandingEngine = {
       safeNextStep
     });
 
-    return {
-      isDeveloperWork,
-      confidence,
-      developerSignals,
-      userGoal,
-      requestedChange,
-      intentFamily,
-      targetArea,
-      targetObject,
-      reason,
-      constraints,
-      urgency,
-      riskLevel,
-      likelyFiles,
-      searchConcepts,
-      requiredEvidence,
-      safeNextStep,
-      investigationPlan,
-      steps: investigationPlan.steps
-    };
+   return {
+  isDeveloperWork,
+  confidence,
+  developerSignals,
+  userGoal,
+  requestedChange,
+  requestedChanges,
+  intentFamily,
+  targetArea,
+  targetObject,
+  reason,
+  constraints,
+  urgency,
+  riskLevel,
+  likelyFiles,
+  searchConcepts,
+  requiredEvidence,
+  safeNextStep,
+  investigationPlan,
+  steps: investigationPlan.steps
+};
   },
 
   detectDeveloperSignals(text = "") {
@@ -309,7 +311,45 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     return rawText || "Understand the owner’s developer request.";
   },
 
+inferRequestedChanges(rawText = "", text = "") {
+  const changes = [];
+
+  const has = phrases => phrases.some(p => text.includes(p));
+
+  if (has(["remove ari picture", "remove ari image", "hide ari", "remove mascot", "remove ari mascot"])) {
+    changes.push("remove_ari_mascot");
+  }
+
+  if (has(["hide conversation history", "conversation history disappear", "remove conversation history", "hide history"])) {
+    changes.push("hide_conversation_history");
+  }
+
+  if (has(["expand chat", "bigger chat box", "make chat box bigger", "larger chat", "chat box to expand"])) {
+    changes.push("expand_chat_box");
+  }
+
+  if (has(["remove bottom tabs", "remove action tiles", "remove homepage tabs", "remove my goals and progress", "remove goals and progress"])) {
+    changes.push("remove_homepage_action_tiles");
+  }
+
+  if (has(["complete visual change", "redesign homepage", "change homepage layout", "new homepage layout", "clean chat layout"])) {
+    changes.push("homepage_layout_redesign");
+  }
+
+  return [...new Set(changes)];
+},
+
   inferRequestedChange(rawText = "", text = "") {
+    if (this.hasMeaning(text, [
+  "complete visual change",
+  "redesign homepage",
+  "change homepage layout",
+  "new homepage layout",
+  "clean chat layout"
+])) {
+  return "multi_element_homepage_layout_change";
+}
+    
     if (this.hasMeaning(text, ["remove", "delete", "hide"])) return "remove_existing_element";
     if (this.hasMeaning(text, ["move", "relocate", "place", "put"])) return "move_existing_element";
     if (this.hasMeaning(text, ["add", "create", "build", "new tool", "new feature", "capability"])) return "add_new_capability";
