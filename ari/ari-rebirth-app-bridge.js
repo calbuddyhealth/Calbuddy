@@ -210,20 +210,109 @@ extractFileEvidenceReply(summary = {}) {
     null;
 
   const content = String(fileContext?.content || "");
+  const filePath = fileContext?.filePath || "the file";
   const userText = String(summary.userMessage || summary.message || "").toLowerCase();
 
   if (!content.trim()) return null;
 
-  if (
+  const wantsExactCode =
     userText.includes("exact html") ||
+    userText.includes("exact code") ||
     userText.includes("show me the exact") ||
     userText.includes("show exact") ||
-    userText.includes("do not edit")
-  ) {
+    userText.includes("do not edit");
+
+  if (wantsExactCode) {
     return content.trim();
   }
 
+  const wantsFilePurpose =
+    userText.includes("what does this file do") ||
+    userText.includes("what does it do") ||
+    userText.includes("explain this file") ||
+    userText.includes("summarize this file");
+
+  if (wantsFilePurpose) {
+    return `I read ${filePath}. This file appears to contain code related to:\n\n${this.summarizeFileContent(content)}`;
+  }
+
+  const wantsLocation =
+    userText.includes("where is") ||
+    userText.includes("where do i") ||
+    userText.includes("where should") ||
+    userText.includes("find");
+
+  if (wantsLocation) {
+    return this.findRelevantFileLines(content, userText, filePath);
+  }
+
+  const wantsEditAdvice =
+    userText.includes("what should we edit") ||
+    userText.includes("what do we edit") ||
+    userText.includes("how do we change") ||
+    userText.includes("what needs to change");
+
+  if (wantsEditAdvice) {
+    return `I read ${filePath}. The file content is available, but I should identify the exact target block before suggesting a patch. The safest next step is to search the file for the relevant UI text, class, id, or function, then use exact find/replace.`;
+  }
+
   return null;
+},
+
+summarizeFileContent(content = "") {
+  const text = String(content || "");
+  const hints = [];
+
+  if (text.includes("<section")) hints.push("HTML page sections");
+  if (text.includes("<script")) hints.push("script loading or inline JavaScript");
+  if (text.includes("CalBuddy")) hints.push("CalBuddy app behavior");
+  if (text.includes("Ari")) hints.push("Ari interface or Ari logic");
+  if (text.includes("href=")) hints.push("navigation links");
+  if (text.includes("class=")) hints.push("styled UI elements");
+  if (text.includes("addEventListener")) hints.push("event handlers");
+  if (text.includes("fetch(")) hints.push("API calls");
+
+  return hints.length
+    ? hints.map(item => `- ${item}`).join("\n")
+    : "- General source code content";
+},
+
+findRelevantFileLines(content = "", userText = "", filePath = "the file") {
+  const lines = String(content || "").split("\n");
+
+  const keywords = String(userText || "")
+    .replace(/[^\w\s.-]/g, " ")
+    .split(/\s+/)
+    .filter(word => word.length >= 4)
+    .map(word => word.toLowerCase())
+    .slice(0, 12);
+
+  const matches = lines
+    .map((line, index) => {
+      const lower = line.toLowerCase();
+      const score = keywords.reduce((total, word) => {
+        return lower.includes(word) ? total + 1 : total;
+      }, 0);
+
+      return {
+        line: index + 1,
+        score,
+        text: line
+      };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+
+  if (!matches.length) {
+    return `I read ${filePath}, but I did not find a strong matching line for that request. Try naming the exact text, class, id, or feature.`;
+  }
+
+  return [
+    `I read ${filePath}. The most relevant lines are:`,
+    "",
+    ...matches.map(item => `Line ${item.line}: ${item.text.trim()}`)
+  ].join("\n");
 },
 
   cleanReply(reply) {
