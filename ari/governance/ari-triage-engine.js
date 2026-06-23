@@ -304,12 +304,15 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
     }
 
     if (
-      needs.includes("decision_support") ||
-      questions.includes("decision_question") ||
-      situations.includes("tradeoff_or_competing_priorities")
-    ) {
-      this.addCandidate(triage, "executive_decision", 88, "Decision or tradeoff request detected.", "universal_need");
-    }
+  this.isTrueDecisionRequest(map) &&
+  (
+    needs.includes("decision_support") ||
+    questions.includes("decision_question") ||
+    situations.includes("tradeoff_or_competing_priorities")
+  )
+) {
+  this.addCandidate(triage, "executive_decision", 88, "True decision/action request detected.", "universal_need");
+}
 
     if (domains.includes("memory_preference_domain")) {
       this.addCandidate(triage, "memory", 90, "Memory or preference request detected.", "universal_domain");
@@ -573,15 +576,18 @@ if (needsClarification && !this.hasDirectAnswerRequest(map)) {
       this.add(triage.responseConstraints, "state_assumption_if_answering");
     }
 
-    if ((ambiguity.missing || []).includes("decision_options_or_issue")) {
-      this.addCandidate(
-        triage,
-        "executive_decision",
-        82,
-        "Decision ambiguity should be organized before answering.",
-        "ambiguity_resolver"
-      );
-    }
+    if (
+  (ambiguity.missing || []).includes("decision_options_or_issue") &&
+  this.isTrueDecisionRequest(map)
+) {
+  this.addCandidate(
+    triage,
+    "executive_decision",
+    82,
+    "Decision ambiguity should be organized before answering.",
+    "ambiguity_resolver"
+  );
+}
   },
 
 enforceSafetyGateAuthority(safety = {}, triage = {}) {
@@ -791,6 +797,19 @@ enforceSafetyGateAuthority(safety = {}, triage = {}) {
     if (!Number.isFinite(n)) return 0.6;
     return n > 1 ? n / 100 : n;
   },
+
+isTrueDecisionRequest(map = {}) {
+  const text = String(map.rawUserText || map.resolvedText || map.text || "").toLowerCase();
+  const questions = map.questions || [];
+  const needs = map.needs || [];
+
+  return (
+    questions.includes("decision_question") ||
+    /\b(should i|what should i do|what do i do|which one|choose|decide|best move|next step|recommend|would you|do i|do we)\b/.test(text) ||
+    needs.includes("action_or_build_help")
+  );
+},
+
 hasDirectAnswerRequest(map = {}) {
   const text = String(map.rawUserText || map.resolvedText || map.text || "").toLowerCase();
 
