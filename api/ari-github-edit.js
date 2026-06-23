@@ -1,7 +1,15 @@
+// api/ari-github-edit.js
+// Ari GitHub Edit Endpoint
+// V2.0.0 — Safer Replace / Better Errors / Preview First / Undo Ready
+
 export default async function handler(req, res) {
   try {
     if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
+      return res.status(405).json({
+        success: false,
+        error: "Method not allowed",
+        code: "METHOD_NOT_ALLOWED"
+      });
     }
 
     const token = process.env.GITHUB_TOKEN;
@@ -11,7 +19,11 @@ export default async function handler(req, res) {
       "1-build-calbuddy-v02--supabase-login-and-data-saving";
 
     if (!token || !repo) {
-      return res.status(500).json({ error: "GitHub env variables missing" });
+      return res.status(500).json({
+        success: false,
+        error: "GitHub env variables missing",
+        code: "MISSING_GITHUB_ENV"
+      });
     }
 
     const {
@@ -19,27 +31,50 @@ export default async function handler(req, res) {
       mode,
       filePath,
       newContent,
-      operation,
+      operation = "replace",
       find,
       replace,
       commitMessage,
       confirmationText,
-      previousContent
+      previousContent,
+      replaceAll = false
     } = req.body || {};
 
     if (owner_access !== true) {
-      return res.status(403).json({ error: "Owner authorization required" });
+      return res.status(403).json({
+        success: false,
+        error: "Owner authorization required",
+        code: "OWNER_AUTH_REQUIRED"
+      });
     }
 
     if (!["preview", "commit", "undo"].includes(mode)) {
-      return res.status(400).json({ error: "Invalid mode" });
+      return res.status(400).json({
+        success: false,
+        error: "Invalid mode",
+        code: "INVALID_MODE"
+      });
     }
 
-    if (!filePath) {
-      return res.status(400).json({ error: "filePath is required" });
+    if (!filePath || typeof filePath !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "filePath is required",
+        code: "MISSING_FILE_PATH"
+      });
     }
 
-    const apiBase = `https://api.github.com/repos/${repo}/contents/${filePath}`;
+    if (isUnsafeFilePath(filePath)) {
+      return res.status(400).json({
+        success: false,
+        error: "Unsafe filePath rejected",
+        code: "UNSAFE_FILE_PATH"
+      });
+    }
+
+    const apiBase = `https://api.github.com/repos/${repo}/contents/${encodeURIComponentPath(
+      filePath
+    )}`;
 
     async function githubFetch(url, options = {}) {
       const response = await fetch(url, {
@@ -55,7 +90,10 @@ export default async function handler(req, res) {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.message || "GitHub API request failed");
+        const err = new Error(data.message || "GitHub API request failed");
+        err.status = response.status;
+        err.github = data;
+        throw err;
       }
 
       return data;
@@ -65,27 +103,122 @@ export default async function handler(req, res) {
       `${apiBase}?ref=${encodeURIComponent(branch)}`
     );
 
+    if (!currentFile?.content || !currentFile?.sha) {
+      return res.status(400).json({
+        success: false,
+        error: "Could not read GitHub file content",
+        code: "GITHUB_FILE_READ_FAILED",
+        filePath,
+        branch
+      });
+    }
+
     const currentContent = Buffer.from(
-      currentFile.content || "",
+      currentFile.content,
       "base64"
     ).toString("utf8");
 
-    let editedContent = newContent || "";
+    let editedContent = "";
 
-    if (operation === "replace") {
-      if (!find || replace === undefined) {
-        return res.status(400).json({
-          error: "find and replace are required for replace operation"
+    if (mode === "undo") {
+      if (confirmationText !== "CONFIRM GITHUB EDIT") {
+        return res.status(403).json({
+          success: false,
+          error: "Exact confirmation required: CONFIRM GITHUB EDIT",
+          code: "CONFIRMATION_REQUIRED"
         });
       }
 
-      editedContent = currentContent.replace(find, replace);
-
-      if (editedContent === currentContent) {
+      if (!previousContent || typeof previousContent !== "string") {
         return res.status(400).json({
-          error: "Target text not found"
+          success: false,
+          error: "previousContent is required for undo",
+          code: "MISSING_PREVIOUS_CONTENT"
         });
       }
+
+      editedContent = previousContent;
+
+      return await commitToGithub({
+        res,
+        githubFetch,
+        apiBase,
+        currentFile,
+        editedContent,
+        branch,
+        filePath,
+        message: `Undo Ari edit to ${filePath}`,
+        mode: "undo"
+      });
+    }
+
+    if (operation === "full_replace") {
+      if (typeof newContent !== "string" || !newContent.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: "newContent is required for full_replace",
+          code: "MISSING_NEW_CONTENT"
+        });
+      }
+
+      editedContent = newContent;
+    } else if (operation === "replace") {
+      if (!find || typeof find !== "string") {
+        return res.status(400).json({
+          success: false,
+          error: "find is required for replace operation",
+          code: "MISSING_FIND_TEXT"
+        });
+      }
+
+      if (replace === undefined || replace === null) {
+        return res.status(400).json({
+          success: false,
+          error: "replace is required for replace operation",
+          code: "MISSING_REPLACE_TEXT"
+        });
+      }
+
+      const result = applyReplace({
+        currentContent,
+        find,
+        replace: String(replace),
+        replaceAll
+      });
+
+      if (!result.changed) {
+        return res.status(400).json({
+          success: false,
+          error: "Target text not found",
+          code: "TARGET_TEXT_NOT_FOUND",
+          filePath,
+          branch,
+          operation,
+          findPreview: makePreview(find),
+          suggestion:
+            "Read or search the repository file first, then retry using exact text from the current file.",
+          nearbyMatches: findNearbyMatches(currentContent, find)
+        });
+      }
+
+      editedContent = result.editedContent;
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: "Unsupported operation",
+        code: "UNSUPPORTED_OPERATION",
+        supportedOperations: ["replace", "full_replace"]
+      });
+    }
+
+    if (!editedContent || editedContent === currentContent) {
+      return res.status(400).json({
+        success: false,
+        error: "No file changes detected",
+        code: "NO_CHANGES_DETECTED",
+        filePath,
+        branch
+      });
     }
 
     if (mode === "preview") {
@@ -94,8 +227,11 @@ export default async function handler(req, res) {
         mode: "preview",
         filePath,
         branch,
+        operation,
+        replaceAll,
         currentContent,
         proposedContent: editedContent,
+        diffSummary: buildDiffSummary(currentContent, editedContent),
         message:
           "Preview ready. No GitHub changes were made. Type CONFIRM GITHUB EDIT to commit."
       });
@@ -104,80 +240,197 @@ export default async function handler(req, res) {
     if (mode === "commit") {
       if (confirmationText !== "CONFIRM GITHUB EDIT") {
         return res.status(403).json({
-          error: "Exact confirmation required: CONFIRM GITHUB EDIT"
+          success: false,
+          error: "Exact confirmation required: CONFIRM GITHUB EDIT",
+          code: "CONFIRMATION_REQUIRED"
         });
       }
 
-      if (!editedContent) {
-        return res.status(400).json({
-          error: "No content generated"
-        });
-      }
-
-      const encoded = Buffer.from(editedContent, "utf8").toString("base64");
-
-      const result = await githubFetch(apiBase, {
-        method: "PUT",
-        body: JSON.stringify({
-          message: commitMessage || `Ari update ${filePath}`,
-          content: encoded,
-          sha: currentFile.sha,
-          branch
-        })
-      });
-
-      return res.status(200).json({
-        success: true,
-        mode: "commit",
-        filePath,
+      return await commitToGithub({
+        res,
+        githubFetch,
+        apiBase,
+        currentFile,
+        editedContent,
         branch,
-        commit: result.commit?.html_url || null,
+        filePath,
+        message: commitMessage || `Ari update ${filePath}`,
+        mode: "commit",
         rollbackPayload: {
           mode: "undo",
           filePath,
           previousContent: currentContent,
           confirmationText: "CONFIRM GITHUB EDIT"
-        },
-        message: "GitHub commit created. Vercel should redeploy automatically."
+        }
       });
     }
 
-    if (mode === "undo") {
-      if (confirmationText !== "CONFIRM GITHUB EDIT") {
-        return res.status(403).json({
-          error: "Exact confirmation required: CONFIRM GITHUB EDIT"
-        });
-      }
-
-      if (!previousContent) {
-        return res.status(400).json({
-          error: "previousContent is required for undo"
-        });
-      }
-
-      const encoded = Buffer.from(previousContent, "utf8").toString("base64");
-
-      const result = await githubFetch(apiBase, {
-        method: "PUT",
-        body: JSON.stringify({
-          message: `Undo Ari edit to ${filePath}`,
-          content: encoded,
-          sha: currentFile.sha,
-          branch
-        })
-      });
-
-      return res.status(200).json({
-        success: true,
-        mode: "undo",
-        filePath,
-        branch,
-        commit: result.commit?.html_url || null,
-        message: "Undo commit created. Vercel should redeploy automatically."
-      });
-    }
+    return res.status(400).json({
+      success: false,
+      error: "Unhandled request mode",
+      code: "UNHANDLED_MODE"
+    });
   } catch (err) {
     console.error("Ari GitHub edit error:", err);
-    return res.status(500).json({ error: err.message });
+
+    return res.status(err.status || 500).json({
+      success: false,
+      error: err.message || "Ari GitHub edit failed",
+      code: "ARI_GITHUB_EDIT_FAILED",
+      github: err.github || null
+    });
   }
+}
+
+function applyReplace({ currentContent, find, replace, replaceAll = false }) {
+  let editedContent = currentContent;
+
+  if (currentContent.includes(find)) {
+    editedContent = replaceAll
+      ? currentContent.split(find).join(replace)
+      : currentContent.replace(find, replace);
+
+    return {
+      changed: editedContent !== currentContent,
+      editedContent
+    };
+  }
+
+  const normalizedFind = normalizeLineEndings(find);
+  const normalizedContent = normalizeLineEndings(currentContent);
+
+  if (normalizedContent.includes(normalizedFind)) {
+    const normalizedEdited = replaceAll
+      ? normalizedContent.split(normalizedFind).join(replace)
+      : normalizedContent.replace(normalizedFind, replace);
+
+    return {
+      changed: normalizedEdited !== normalizedContent,
+      editedContent: normalizedEdited
+    };
+  }
+
+  return {
+    changed: false,
+    editedContent: currentContent
+  };
+}
+
+async function commitToGithub({
+  res,
+  githubFetch,
+  apiBase,
+  currentFile,
+  editedContent,
+  branch,
+  filePath,
+  message,
+  mode,
+  rollbackPayload = null
+}) {
+  const encoded = Buffer.from(editedContent, "utf8").toString("base64");
+
+  const result = await githubFetch(apiBase, {
+    method: "PUT",
+    body: JSON.stringify({
+      message,
+      content: encoded,
+      sha: currentFile.sha,
+      branch
+    })
+  });
+
+  return res.status(200).json({
+    success: true,
+    mode,
+    filePath,
+    branch,
+    commit: result.commit?.html_url || null,
+    rollbackPayload,
+    message:
+      mode === "undo"
+        ? "Undo commit created. Vercel should redeploy automatically."
+        : "GitHub commit created. Vercel should redeploy automatically."
+  });
+}
+
+function normalizeLineEndings(text = "") {
+  return String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function makePreview(text = "") {
+  const clean = String(text || "");
+  if (clean.length <= 300) return clean;
+  return `${clean.slice(0, 300)}...`;
+}
+
+function buildDiffSummary(before = "", after = "") {
+  const beforeLines = String(before).split("\n");
+  const afterLines = String(after).split("\n");
+
+  return {
+    beforeCharacters: before.length,
+    afterCharacters: after.length,
+    characterDelta: after.length - before.length,
+    beforeLines: beforeLines.length,
+    afterLines: afterLines.length,
+    lineDelta: afterLines.length - beforeLines.length
+  };
+}
+
+function findNearbyMatches(content = "", find = "") {
+  const cleanFind = String(find || "").trim();
+
+  if (!cleanFind) return [];
+
+  const words = cleanFind
+    .split(/\s+/)
+    .map(word => word.replace(/[^\w-]/g, ""))
+    .filter(word => word.length >= 4)
+    .slice(0, 8);
+
+  if (!words.length) return [];
+
+  const lines = String(content || "").split("\n");
+  const matches = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lowerLine = line.toLowerCase();
+
+    const score = words.reduce((count, word) => {
+      return lowerLine.includes(word.toLowerCase()) ? count + 1 : count;
+    }, 0);
+
+    if (score > 0) {
+      matches.push({
+        line: i + 1,
+        score,
+        preview: line.trim().slice(0, 220)
+      });
+    }
+  }
+
+  return matches
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+}
+
+function isUnsafeFilePath(filePath = "") {
+  const path = String(filePath || "");
+
+  if (!path.trim()) return true;
+  if (path.includes("..")) return true;
+  if (path.startsWith("/")) return true;
+  if (path.includes("\\")) return true;
+  if (path.includes("\0")) return true;
+
+  return false;
+}
+
+function encodeURIComponentPath(filePath = "") {
+  return String(filePath)
+    .split("/")
+    .map(part => encodeURIComponent(part))
+    .join("/");
 }
