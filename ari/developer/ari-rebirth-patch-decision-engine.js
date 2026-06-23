@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-patch-decision-engine.js
 // Ari Rebirth Patch Decision Engine
 // Purpose: Decide if Ari has enough code evidence to safely propose an edit.
-// V1.1.0 — Evidence-Gated / Code Understanding Aware / No Guess Patches / Owner Approval Required
+// V1.2.0 — Evidence-Gated / Homepage Tabs Patch Helper / No Guess Patches / Owner Approval Required
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPatchDecisionEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   decide(input = {}) {
     const summary = input.summary || input || {};
@@ -23,6 +23,7 @@ window.AriRebirthPatchDecisionEngine = {
 
     const githubContext =
       summary.githubFileContext ||
+      summary.githubEvidence ||
       summary.appContext?.githubFileContext ||
       null;
 
@@ -38,7 +39,7 @@ window.AriRebirthPatchDecisionEngine = {
 
     const decision = this.emptyDecision({ filePath });
 
-    if (!summary.appContext?.ownerMode) {
+    if (!this.isOwnerMode(summary)) {
       return this.block(decision, {
         reason: "Owner mode is not active, so Ari cannot prepare code edits.",
         missing: "owner_mode",
@@ -79,7 +80,7 @@ window.AriRebirthPatchDecisionEngine = {
     }
 
     if (patchCandidate.noChange === true) {
-      decision.reason = "The requested change already appears to be present. No patch needed.";
+      decision.reason = patchCandidate.reason || "The requested change already appears to be present. No patch needed.";
       decision.patchType = "no_change";
       decision.noChange = true;
       return decision;
@@ -142,6 +143,14 @@ window.AriRebirthPatchDecisionEngine = {
     };
 
     return decision;
+  },
+
+  isOwnerMode(summary = {}) {
+    return (
+      summary.ownerMode === true ||
+      summary.appContext?.ownerMode === true ||
+      summary.userContext?.ownerMode === true
+    );
   },
 
   emptyDecision({ filePath = null } = {}) {
@@ -243,6 +252,14 @@ window.AriRebirthPatchDecisionEngine = {
     const direct = this.detectDirectTextReplacement(ownerText);
     if (direct) return direct;
 
+    const homepageTabs = this.semanticHomepageActionTabsPatch({
+      ownerText,
+      filePath,
+      fileContent
+    });
+
+    if (homepageTabs) return homepageTabs;
+
     const semantic = this.semanticPatchFromGoal({
       ownerText,
       understanding,
@@ -271,6 +288,61 @@ window.AriRebirthPatchDecisionEngine = {
       title: "Apply owner-provided text replacement",
       reason: "The owner provided exact current text and exact replacement text."
     };
+  },
+
+  semanticHomepageActionTabsPatch({
+    ownerText = "",
+    filePath = "",
+    fileContent = ""
+  }) {
+    const lower = String(ownerText || "").toLowerCase();
+    const path = String(filePath || "").toLowerCase();
+
+    const wantsRemoveHomepageTabs =
+      path.endsWith("index.html") &&
+      (
+        lower.includes("remove them from the homepage") ||
+        lower.includes("remove them from homepage") ||
+        lower.includes("remove my goals and progress") ||
+        lower.includes("remove the my goals and progress") ||
+        lower.includes("remove goals and progress") ||
+        lower.includes("remove bottom homepage tabs") ||
+        lower.includes("remove homepage tabs")
+      );
+
+    if (!wantsRemoveHomepageTabs) return null;
+
+    const fullTabsBlock = `<section class="ari-action-grid three-actions">
+  <a href="goals.html" class="ari-action-tile">My Goals</a>
+  <a href="progress.html" class="ari-action-tile">Progress</a>
+  <button class="ari-action-tile">Conversations</button>
+</section>`;
+
+    const conversationsOnlyBlock = `<section class="ari-action-grid one-action">
+  <button class="ari-action-tile">Conversations</button>
+</section>`;
+
+    if (fileContent.includes(conversationsOnlyBlock)) {
+      return {
+        noChange: true,
+        source: "semantic_homepage_tabs_already_removed",
+        confidence: "high",
+        reason: "The My Goals and Progress homepage tabs already appear to be removed."
+      };
+    }
+
+    if (fileContent.includes(fullTabsBlock)) {
+      return {
+        find: fullTabsBlock,
+        replace: conversationsOnlyBlock,
+        source: "semantic_homepage_action_tabs_remove_goals_progress",
+        confidence: "high",
+        title: "Remove My Goals and Progress from homepage tabs",
+        reason: "The owner asked to remove My Goals and Progress from the homepage display, and the exact homepage action grid exists in index.html."
+      };
+    }
+
+    return null;
   },
 
   semanticPatchFromGoal({
@@ -317,23 +389,6 @@ window.AriRebirthPatchDecisionEngine = {
           source: "semantic_no_change_default_bubble",
           confidence: "high",
           reason: "The requested Welcome back Jose bubble already exists."
-        };
-      }
-    }
-
-    if (
-      path.endsWith("calbuddy-core.js") &&
-      lower.includes("version") &&
-      lower.includes("3.3")
-    ) {
-      const find = `CalBuddy.version = "3.3.0";`;
-
-      if (fileContent.includes(find)) {
-        return {
-          noChange: true,
-          source: "semantic_no_change_core_version",
-          confidence: "high",
-          reason: "CalBuddy core is already on version 3.3.0."
         };
       }
     }
