@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.1.1 — App Safe / Pipeline Guarded / Action Ready
+// V1.1.2 — App Safe / Pipeline Guarded / Action Handoff Recovery
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.1.1",
+  version: "1.1.2",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -115,31 +115,31 @@ window.AriRebirthAppBridge = {
       normalizedMessage,
 
       appContext: {
-  source: options.source || "calbuddy-health",
-  appMode: "rebirth-only",
-  page: options.page || "unknown",
+        source: options.source || "calbuddy-health",
+        appMode: "rebirth-only",
+        page: options.page || "unknown",
 
-  userContext: options.userContext || null,
-  coachMemorySummary: options.coachMemorySummary || "",
+        userContext: options.userContext || null,
+        coachMemorySummary: options.coachMemorySummary || "",
 
-  goals: options.goals || null,
-  meals: Array.isArray(options.meals) ? options.meals : [],
-  todayLog: Array.isArray(options.todayLog) ? options.todayLog : [],
-  recentMeals: Array.isArray(options.recentMeals) ? options.recentMeals : [],
-  favoriteFoods: Array.isArray(options.favoriteFoods) ? options.favoriteFoods : [],
-  recentWeights: Array.isArray(options.recentWeights) ? options.recentWeights : [],
+        goals: options.goals || null,
+        meals: Array.isArray(options.meals) ? options.meals : [],
+        todayLog: Array.isArray(options.todayLog) ? options.todayLog : [],
+        recentMeals: Array.isArray(options.recentMeals) ? options.recentMeals : [],
+        favoriteFoods: Array.isArray(options.favoriteFoods) ? options.favoriteFoods : [],
+        recentWeights: Array.isArray(options.recentWeights) ? options.recentWeights : [],
 
-  user: options.user || null,
-  ownerMode: options.ownerMode === true,
-  ariPermissions: options.ariPermissions || {},
+        user: options.user || null,
+        ownerMode: options.ownerMode === true,
+        ariPermissions: options.ariPermissions || {},
 
-  history: Array.isArray(options.history) ? options.history.slice(-20) : [],
+        history: Array.isArray(options.history) ? options.history.slice(-20) : [],
 
-  permissions: {
-    allowDirectWrites: false,
-    requireApprovalForActions: true
-  }
-}
+        permissions: {
+          allowDirectWrites: false,
+          requireApprovalForActions: true
+        }
+      }
     };
   },
 
@@ -235,13 +235,98 @@ window.AriRebirthAppBridge = {
       summary.appActions ||
       [];
 
-    if (!Array.isArray(candidates)) return [];
+    if (Array.isArray(candidates) && candidates.length > 0) {
+      return candidates.map(action => ({
+        ...action,
+        requiresApproval: true,
+        directWriteAllowed: false
+      }));
+    }
 
-    return candidates.map(action => ({
-      ...action,
+    return this.recoverActionsFromResponse(summary);
+  },
+
+  recoverActionsFromResponse(summary = {}) {
+    const reply = String(
+      summary.finalResponse ||
+        summary.compressedResponse ||
+        summary.response ||
+        ""
+    ).toLowerCase();
+
+    const userText = String(
+      summary.userMessage ||
+        summary.message ||
+        summary.input ||
+        ""
+    ).toLowerCase();
+
+    if (!reply.includes("want me to log")) return [];
+
+    const foodAction = this.recoverMealAction(userText, reply);
+    if (foodAction) return [foodAction];
+
+    return [];
+  },
+
+  recoverMealAction(userText = "", reply = "") {
+    const cleanUserText = String(userText || "")
+      .toLowerCase()
+      .replace(/[,]/g, "")
+      .trim();
+
+    const cleanReply = String(reply || "")
+      .toLowerCase()
+      .replace(/[,]/g, "")
+      .trim();
+
+    let foodName = null;
+    let calories = null;
+
+    if (cleanUserText.includes("big mac") && cleanUserText.includes("fries")) {
+      foodName = "Big Mac and large fries";
+      calories = this.extractCaloriesFromReply(cleanReply) || 1040;
+    } else if (cleanUserText.includes("big mac")) {
+      foodName = "Big Mac";
+      calories = this.extractCaloriesFromReply(cleanReply) || 550;
+    } else if (cleanUserText.includes("large fries")) {
+      foodName = "large fries";
+      calories = this.extractCaloriesFromReply(cleanReply) || 490;
+    }
+
+    if (!foodName || !calories) return null;
+
+    return {
+      action_type: "log_meal",
+      payload: {
+        name: foodName,
+        calories,
+        category: "Meal",
+        serving_size: "Estimated by Ari Rebirth"
+      },
+      confirmation_text: `Log ${foodName} for about ${calories.toLocaleString()} calories?`,
       requiresApproval: true,
       directWriteAllowed: false
-    }));
+    };
+  },
+
+  extractCaloriesFromReply(text = "") {
+    const clean = String(text || "").replace(/,/g, "");
+
+    const totalMatch =
+      clean.match(/total of approximately\s+(\d{2,5})\s+calories/) ||
+      clean.match(/total of about\s+(\d{2,5})\s+calories/) ||
+      clean.match(/approximately\s+(\d{2,5})\s+calories/) ||
+      clean.match(/about\s+(\d{2,5})\s+calories/);
+
+    if (!totalMatch) return null;
+
+    const calories = Number(totalMatch[1]);
+
+    if (!Number.isFinite(calories)) return null;
+    if (calories < 10 || calories > 5000) return null;
+
+    return calories;
   },
 
   makeResponse({
