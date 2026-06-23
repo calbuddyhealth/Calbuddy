@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.2.0 — App Safe / Pipeline Guarded / Developer Planner Connected
+// V1.3.0 — App Safe / Pipeline Guarded / Developer Layer Handoff
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -145,73 +145,47 @@ window.AriRebirthAppBridge = {
   },
 
   attachDeveloperIntent(summary = {}) {
-    if (
-      !window.AriRebirthDeveloperPlanner ||
-      typeof window.AriRebirthDeveloperPlanner.plan !== "function"
-    ) {
-      return summary;
-    }
+  const existingIntent =
+    summary.developerIntent ||
+    summary.developerHandoff?.developerIntent ||
+    summary.appDeveloperIntent ||
+    summary.ownerDeveloperIntent ||
+    null;
 
-    try {
-      const existingIntent =
-        summary.developerIntent ||
-        summary.appDeveloperIntent ||
-        summary.ownerDeveloperIntent ||
-        null;
+  if (existingIntent) {
+    return {
+      ...summary,
+      developerIntent: existingIntent
+    };
+  }
 
-      if (existingIntent) {
-        return {
-          ...summary,
-          developerIntent: existingIntent
-        };
-      }
+  return summary;
+},
 
-      const developerIntent =
-        window.AriRebirthDeveloperPlanner.plan(summary);
+    
 
-      if (!developerIntent) return summary;
+extractReply(summary = {}) {
+  if (summary.developerHandoff?.reply) {
+    return this.cleanReply(summary.developerHandoff.reply);
+  }
 
-      return {
-        ...summary,
-        developerIntent
-      };
-    } catch (error) {
-      console.error("ARI DEVELOPER PLANNER ERROR:", error);
+  if (summary.developerIntent?.type === "developer_investigation") {
+    return "I’ll investigate that first — search, read the likely files, then propose a safe fix only after I have exact code evidence.";
+  }
 
-      return {
-        ...summary,
-        developerIntent: {
-          enabled: true,
-          type: "developer_planner_error",
-          title: "Developer planner error",
-          summary:
-            "Ari Rebirth detected a developer request, but the Developer Planner failed before creating an investigation plan.",
-          priority: "high",
-          ownerCommand: true,
-          error: String(error?.message || error)
-        }
-      };
-    }
-  },
-
-  extractReply(summary = {}) {
-    if (summary.developerIntent?.type === "developer_investigation") {
-      return "I’ll investigate that first — search, read the likely files, then propose a safe fix only after I have exact code evidence.";
-    }
-
-    return this.cleanReply(
-      summary.finalResponse ||
-        summary.compressedResponse ||
-        summary.languageComposerOutput ||
-        summary.response ||
-        summary.answer ||
-        summary.situationContract?.clarity?.question ||
-        summary.synthesisRecommendedQuestion ||
-        summary.salienceQuestion ||
-        summary.recommendedRecoveryQuestion ||
-        "I heard you, but I need a cleaner response path."
-    );
-  },
+  return this.cleanReply(
+    summary.finalResponse ||
+      summary.compressedResponse ||
+      summary.languageComposerOutput ||
+      summary.response ||
+      summary.answer ||
+      summary.situationContract?.clarity?.question ||
+      summary.synthesisRecommendedQuestion ||
+      summary.salienceQuestion ||
+      summary.recommendedRecoveryQuestion ||
+      "I heard you, but I need a cleaner response path."
+  );
+},
 
   cleanReply(reply) {
     const text = String(reply || "").trim();
