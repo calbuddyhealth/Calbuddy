@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.7.0 — Developer Layer Wired / Owner Code Handoff Ready
+// V3.8.0 — Developer Layer Wired / Owner Code Handoff Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.7.0",
+  version: "3.8.0",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -16,6 +16,8 @@ window.AriRebirthPipeline = {
 
   summary = await this.loadThreadState(summary);
     let reasoningResult = {};
+
+summary = this.preserveDeveloperEvidence(summary);
 
     const runEngine = async (engine, methods = [], fallback = {}) => {
       if (!engine) return fallback;
@@ -499,11 +501,12 @@ if (shouldRunEntityResolver) {
 // Owner-only developer reasoning. Runs before normal human-needs response path
 // so app/code requests can produce developerIntent safely.
 summary = await this.runDeveloperLayer(summary);
-
+summary = this.preserveDeveloperEvidence(summary);
 summary = this.reassertContractAuthority(summary);
 
-const developerResponseLocked = Boolean(summary.developerIntent || summary.developerHandoff?.reply);
-
+const developerResponseLocked = Boolean(
+  summary.developerIntent || summary.developerHandoff?.reply
+);
     // 1.00 Human Needs
     merge(await runEngine(
       window.Ari?.needEngine,
@@ -831,6 +834,36 @@ summary = {
       normalizedMessage: String(userMessage || "").toLowerCase().trim()
     };
   },
+
+preserveDeveloperEvidence(summary = {}) {
+  const githubFileContext =
+    summary.githubFileContext ||
+    summary.appContext?.githubFileContext ||
+    null;
+
+  const developerInvestigation =
+    summary.developerInvestigation ||
+    summary.appContext?.developerInvestigation ||
+    null;
+
+  return {
+    ...summary,
+
+    githubFileContext,
+    developerInvestigation,
+
+    githubEvidenceAvailable: Boolean(githubFileContext?.content),
+
+    githubEvidence: githubFileContext?.content
+      ? {
+          filePath: githubFileContext.filePath || "unknown",
+          content: githubFileContext.content,
+          contentLength: githubFileContext.content.length,
+          contentPreview: githubFileContext.content.slice(0, 5000)
+        }
+      : null
+  };
+},
 
   async runObserverHierarchy(summary = {}) {
     if (
@@ -1328,6 +1361,13 @@ async runDeveloperLayer(summary = {}) {
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
   console.log("===== DEVELOPER LAYER =====", summary.developerHandoff || summary.developerUnderstanding);
+  console.log("===== GITHUB EVIDENCE =====", {
+  available: summary.githubEvidenceAvailable,
+  filePath: summary.githubEvidence?.filePath,
+  contentLength: summary.githubEvidence?.contentLength,
+  preview:
+    summary.githubEvidence?.contentPreview?.slice(0, 300) || null
+});
   }
 };
 
