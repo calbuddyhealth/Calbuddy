@@ -2,38 +2,88 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
+// V1.1.0 — App Safe / Pipeline Guarded / Action Ready
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.0.1",
+  version: "1.1.0",
 
   async ask(message, options = {}) {
-    if (!message || !String(message).trim()) {
-      return {
+    const cleanMessage = String(message || "").trim();
+
+    if (!cleanMessage) {
+      return this.makeResponse({
         reply: "Say something first.",
-        emotion: "idle",
-        source: "ari-rebirth-app-bridge"
-      };
+        emotion: "idle"
+      });
     }
 
+    const readiness = this.checkReadiness();
+
+    if (!readiness.ready) {
+      return this.makeResponse({
+        reply: readiness.message,
+        emotion: "concerned",
+        error: readiness.error
+      });
+    }
+
+    try {
+      const analysis = window.Ari.core.analyzeMessage(cleanMessage, options);
+
+      let summary = window.Ari.core.createSystemSummary(analysis);
+
+      summary = this.attachAppContext(summary, cleanMessage, options);
+
+      summary = await window.AriRebirthPipeline.run(summary);
+
+      const reply = this.extractReply(summary);
+      const emotion = this.chooseEmotion(summary);
+      const actions = this.extractActions(summary);
+
+      return this.makeResponse({
+        reply,
+        emotion,
+        actions,
+        summary,
+        analysis
+      });
+    } catch (error) {
+      console.error("ARI REBIRTH APP BRIDGE ERROR:", error);
+
+      return this.makeResponse({
+        reply:
+          "Ari Rebirth hit an internal error before finishing the response. The app is safe, but the response path needs fixing.",
+        emotion: "concerned",
+        error: String(error?.message || error)
+      });
+    }
+  },
+
+  checkReadiness() {
     if (!window.Ari?.core) {
       return {
-        reply: "Ari Rebirth core is not loaded yet.",
-        emotion: "concerned",
-        source: "ari-rebirth-app-bridge"
+        ready: false,
+        message: "Ari Rebirth core is not loaded yet.",
+        error: "missing_window_Ari_core"
       };
     }
 
-    if (
-      typeof window.Ari.core.analyzeMessage !== "function" ||
-      typeof window.Ari.core.createSystemSummary !== "function"
-    ) {
+    if (typeof window.Ari.core.analyzeMessage !== "function") {
       return {
-        reply: "Ari Core is loaded, but its required functions are missing.",
-        emotion: "concerned",
-        source: "ari-rebirth-app-bridge"
+        ready: false,
+        message: "Ari Core is loaded, but analyzeMessage is missing.",
+        error: "missing_analyzeMessage"
+      };
+    }
+
+    if (typeof window.Ari.core.createSystemSummary !== "function") {
+      return {
+        ready: false,
+        message: "Ari Core is loaded, but createSystemSummary is missing.",
+        error: "missing_createSystemSummary"
       };
     }
 
@@ -42,43 +92,80 @@ window.AriRebirthAppBridge = {
       typeof window.AriRebirthPipeline.run !== "function"
     ) {
       return {
-        reply: "Ari Rebirth pipeline is not loaded yet.",
-        emotion: "concerned",
-        source: "ari-rebirth-app-bridge"
+        ready: false,
+        message: "Ari Rebirth pipeline is not loaded yet.",
+        error: "missing_AriRebirthPipeline_run"
       };
     }
 
-    const cleanMessage = String(message || "").trim();
-
-    const analysis = window.Ari.core.analyzeMessage(cleanMessage, options);
-
-    let summary = window.Ari.core.createSystemSummary(analysis);
-
-    summary.userMessage = cleanMessage;
-    summary.message = cleanMessage;
-    summary.input = cleanMessage;
-    summary.normalizedMessage = cleanMessage.toLowerCase().trim();
-
-    summary.appContext = {
-      source: options.source || "unknown",
-      appMode: options.appMode || "rebirth-only",
-      goals: options.goals || null,
-      meals: options.meals || [],
-      todayLog: options.todayLog || [],
-      user: options.user || null
+    return {
+      ready: true
     };
+  },
 
-    summary = await window.AriRebirthPipeline.run(summary);
+  attachAppContext(summary = {}, cleanMessage = "", options = {}) {
+    const normalizedMessage = cleanMessage.toLowerCase().trim();
 
-    const reply =
+    return {
+      ...summary,
+
+      userMessage: cleanMessage,
+      message: cleanMessage,
+      input: cleanMessage,
+      normalizedMessage,
+
+      appContext: {
+        source: options.source || "calbuddy-health",
+        appMode: "rebirth-only",
+        page: options.page || "unknown",
+
+        goals: options.goals || null,
+        meals: Array.isArray(options.meals) ? options.meals : [],
+        todayLog: Array.isArray(options.todayLog) ? options.todayLog : [],
+        user: options.user || null,
+
+        permissions: {
+          allowDirectWrites: false,
+          requireApprovalForActions: true
+        }
+      }
+    };
+  },
+
+  extractReply(summary = {}) {
+    return this.cleanReply(
       summary.finalResponse ||
-      summary.compressedResponse ||
-      summary.situationContract?.clarity?.question ||
-      summary.synthesisRecommendedQuestion ||
-      summary.salienceQuestion ||
-      summary.recommendedRecoveryQuestion ||
-      "I heard you, but I need a cleaner response path.";
+        summary.compressedResponse ||
+        summary.languageComposerOutput ||
+        summary.response ||
+        summary.answer ||
+        summary.situationContract?.clarity?.question ||
+        summary.synthesisRecommendedQuestion ||
+        summary.salienceQuestion ||
+        summary.recommendedRecoveryQuestion ||
+        "I heard you, but I need a cleaner response path."
+    );
+  },
 
+  cleanReply(reply) {
+    const text = String(reply || "").trim();
+
+    if (!text) {
+      return "I heard you, but I need a cleaner response path.";
+    }
+
+    if (
+      text === "Answer the primary lane directly." ||
+      text === "Compose final response." ||
+      text === "Return final answer."
+    ) {
+      return "I understand the question, but Ari’s final response writer did not complete the answer.";
+    }
+
+    return text;
+  },
+
+  chooseEmotion(summary = {}) {
     const primary =
       summary.situationContract?.primary ||
       summary.situationContractPrimary ||
@@ -92,25 +179,77 @@ window.AriRebirthAppBridge = {
       summary.riskLevel ||
       "none";
 
-    const emotion =
-      riskLevel && riskLevel !== "none"
-        ? "concerned"
-        : primary === "medical_body" || primary === "medical_context"
-          ? "concerned"
-          : primary === "builder" || primary === "planning" || primary === "coding"
-            ? "thinking"
-            : primary === "teacher" || primary === "teaching"
-              ? "happy"
-              : primary === "emotion" || primary === "connection"
-                ? "listening"
-                : "happy";
+    if (riskLevel && riskLevel !== "none") return "concerned";
 
+    if (
+      primary === "medical_body" ||
+      primary === "medical_context" ||
+      primary === "safety"
+    ) {
+      return "concerned";
+    }
+
+    if (
+      primary === "builder" ||
+      primary === "planning" ||
+      primary === "coding" ||
+      primary === "project_help"
+    ) {
+      return "thinking";
+    }
+
+    if (
+      primary === "teacher" ||
+      primary === "teaching" ||
+      primary === "explanation"
+    ) {
+      return "happy";
+    }
+
+    if (
+      primary === "emotion" ||
+      primary === "connection" ||
+      primary === "relationship"
+    ) {
+      return "listening";
+    }
+
+    return "happy";
+  },
+
+  extractActions(summary = {}) {
+    const candidates =
+      summary.proposedActions ||
+      summary.actions ||
+      summary.appActions ||
+      [];
+
+    if (!Array.isArray(candidates)) return [];
+
+    return candidates.map(action => ({
+      ...action,
+      requiresApproval: true,
+      directWriteAllowed: false
+    }));
+  },
+
+  makeResponse({
+    reply,
+    emotion = "idle",
+    actions = [],
+    summary = null,
+    analysis = null,
+    error = null
+  } = {}) {
     return {
-      reply,
+      reply: this.cleanReply(reply),
       emotion,
+      actions: Array.isArray(actions) ? actions : [],
       summary,
       analysis,
-      source: "ari-rebirth-app-bridge"
+      error,
+      source: "ari-rebirth-app-bridge",
+      bridgeVersion: this.version
     };
   }
 };
