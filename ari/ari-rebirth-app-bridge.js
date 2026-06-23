@@ -39,9 +39,21 @@ window.AriRebirthAppBridge = {
 
       summary = await window.AriRebirthPipeline.run(summary);
 
-      summary = this.attachDeveloperIntent(summary);
+/*
+DEBUG TEST
+*/
+if (summary.appContext?.githubFileContext?.content) {
+  return this.makeResponse({
+    reply:
+      summary.appContext.githubFileContext.content.slice(0, 500),
+    emotion: "thinking",
+    summary
+  });
+}
 
-      const reply = this.extractReply(summary);
+summary = this.attachDeveloperIntent(summary);
+
+const reply = this.extractReply(summary);
       const emotion = this.chooseEmotion(summary);
       const actions = this.extractActions(summary);
 
