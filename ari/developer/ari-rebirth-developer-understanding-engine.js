@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-developer-understanding-engine.js
 // Ari Rebirth Developer Understanding Engine
 // Purpose: Build semantic understanding of owner developer requests.
-// V1.0.0 — Semantic First / Keyword Assisted Only / Planner Support
+// V1.1.0 — Planner Consolidated / Semantic First / Evidence Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperUnderstandingEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -34,7 +34,7 @@ window.AriRebirthDeveloperUnderstandingEngine = {
       rawText,
       normalizedText: text,
 
-      isDeveloperWork: semanticFrame.isDeveloperWork,
+      isDeveloperWork: true,
       confidence: semanticFrame.confidence,
 
       userGoal: semanticFrame.userGoal,
@@ -51,6 +51,9 @@ window.AriRebirthDeveloperUnderstandingEngine = {
       searchConcepts: semanticFrame.searchConcepts,
       requiredEvidence: semanticFrame.requiredEvidence,
       safeNextStep: semanticFrame.safeNextStep,
+
+      investigationPlan: semanticFrame.investigationPlan,
+      steps: semanticFrame.steps,
 
       canEditNow: false,
       requiresReadBeforeEdit: true,
@@ -79,30 +82,33 @@ window.AriRebirthDeveloperUnderstandingEngine = {
   normalize(text = "") {
     return String(text || "")
       .toLowerCase()
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
       .replace(/\s+/g, " ")
       .trim();
   },
 
   buildSemanticFrame({ rawText = "", text = "", summary = {}, appContext = {} }) {
     const developerSignals = this.detectDeveloperSignals(text);
-    const goal = this.inferUserGoal(rawText, text);
-    const requestedChange = this.inferRequestedChange(rawText, text);
-    const targetArea = this.inferTargetArea(rawText, text);
     const targetObject = this.inferTargetObject(rawText, text);
-    const intentFamily = this.inferIntentFamily(rawText, text, goal, targetArea);
-    const reason = this.inferReason(rawText, text);
-    const constraints = this.inferConstraints(rawText, text);
+    const targetArea = this.inferTargetArea(rawText, text, targetObject);
+    const userGoal = this.inferUserGoal(rawText, text, targetArea);
+    const requestedChange = this.inferRequestedChange(rawText, text);
+    const intentFamily = this.inferIntentFamily(rawText, text, userGoal, targetArea, requestedChange);
+    const reason = this.inferReason(rawText, text, targetArea, intentFamily);
+    const constraints = this.inferConstraints(rawText, text, targetArea);
     const urgency = this.inferUrgency(text);
     const riskLevel = this.inferRiskLevel(intentFamily, targetArea, text);
 
     const isDeveloperWork =
       developerSignals.score >= 2 ||
+      targetArea !== "unknown" ||
       intentFamily !== "general_developer_help" ||
-      targetArea !== "unknown";
+      targetObject.kind === "file";
 
     const confidence = this.scoreConfidence({
       developerSignals,
-      goal,
+      userGoal,
       requestedChange,
       targetArea,
       targetObject,
@@ -120,7 +126,7 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     const searchConcepts = this.buildSearchConcepts({
       rawText,
       text,
-      goal,
+      userGoal,
       requestedChange,
       targetArea,
       targetObject,
@@ -142,11 +148,20 @@ window.AriRebirthDeveloperUnderstandingEngine = {
       requiredEvidence
     });
 
+    const investigationPlan = this.buildInvestigationPlan({
+      intentFamily,
+      targetArea,
+      targetObject,
+      searchConcepts,
+      likelyFiles,
+      safeNextStep
+    });
+
     return {
       isDeveloperWork,
       confidence,
       developerSignals,
-      userGoal: goal,
+      userGoal,
       requestedChange,
       intentFamily,
       targetArea,
@@ -158,7 +173,9 @@ window.AriRebirthDeveloperUnderstandingEngine = {
       likelyFiles,
       searchConcepts,
       requiredEvidence,
-      safeNextStep
+      safeNextStep,
+      investigationPlan,
+      steps: investigationPlan.steps
     };
   },
 
@@ -166,12 +183,80 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     const signals = [];
 
     const concepts = {
-      app_change: ["change the app", "update the app", "make the app", "implement", "build"],
-      bug_fix: ["bug", "broken", "not working", "glitch", "error", "fix"],
-      code_work: ["code", "file", "github", "function", "repo", "branch", "commit"],
-      ui_work: ["home screen", "homepage", "layout", "button", "tile", "meter", "screen", "design"],
-      ari_behavior: ["ari", "speak", "respond", "answer", "more naturally", "less robotic"],
-      tool_building: ["tool", "barcode", "scanner", "knowledge", "anatomy", "new feature"]
+      app_change: [
+        "change the app",
+        "update the app",
+        "make the app",
+        "implement",
+        "build",
+        "create",
+        "add",
+        "remove",
+        "move",
+        "redesign",
+        "make better",
+        "improve"
+      ],
+      bug_fix: [
+        "bug",
+        "broken",
+        "not working",
+        "glitch",
+        "error",
+        "fix",
+        "issue",
+        "problem",
+        "wrong",
+        "bottleneck"
+      ],
+      code_work: [
+        "code",
+        "file",
+        "github",
+        "function",
+        "repo",
+        "branch",
+        "commit",
+        "patch",
+        "engine",
+        "endpoint",
+        "api"
+      ],
+      ui_work: [
+        "home screen",
+        "homepage",
+        "home page",
+        "layout",
+        "button",
+        "tile",
+        "meter",
+        "screen",
+        "design",
+        "bubble",
+        "conversation",
+        "search bar"
+      ],
+      ari_behavior: [
+        "ari",
+        "rebirth",
+        "speak",
+        "respond",
+        "answer",
+        "more naturally",
+        "less robotic",
+        "smarter",
+        "semantic",
+        "keyword"
+      ],
+      tool_building: [
+        "tool",
+        "barcode",
+        "scanner",
+        "knowledge",
+        "anatomy",
+        "new feature",
+        "capability"
+      ]
     };
 
     Object.entries(concepts).forEach(([concept, phrases]) => {
@@ -192,33 +277,33 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     };
   },
 
-  inferUserGoal(rawText = "", text = "") {
-    if (this.hasMeaning(text, ["completely change my home screen", "redesign home screen", "redesign homepage"])) {
-      return "Redesign the CalBuddy homepage experience.";
+  inferUserGoal(rawText = "", text = "", targetArea = "") {
+    if (targetArea === "homepage_ui") {
+      return "Modify or redesign the CalBuddy homepage experience while preserving Ari-first architecture.";
     }
 
-    if (this.hasMeaning(text, ["speak more naturally", "less robotic", "sound human", "talk better"])) {
-      return "Improve Ari’s final communication style and response naturalness.";
+    if (targetArea === "ari_response_behavior") {
+      return "Improve Ari’s response quality, naturalness, intelligence, or developer behavior.";
+    }
+
+    if (targetArea === "tooling") {
+      return "Add or improve a modular CalBuddy/Ari capability.";
+    }
+
+    if (targetArea === "repository_layer") {
+      return "Improve Ari’s ability to search, read, patch, or commit repository code safely.";
+    }
+
+    if (targetArea === "data_layer") {
+      return "Fix or improve Supabase/profile/app data behavior safely.";
+    }
+
+    if (targetArea === "specific_file") {
+      return "Inspect or modify a specific repository file based on the owner request.";
     }
 
     if (this.hasMeaning(text, ["fix bugs", "bug", "not working", "broken", "glitch"])) {
       return "Investigate and fix a malfunction in CalBuddy.";
-    }
-
-    if (this.hasMeaning(text, ["barcode", "scanner", "scan food"])) {
-      return "Add or improve barcode scanning capability.";
-    }
-
-    if (this.hasMeaning(text, ["anatomy", "knowledge", "education", "medical knowledge"])) {
-      return "Add or improve a knowledge/tool capability.";
-    }
-
-    if (this.hasMeaning(text, ["find", "search", "locate", "where is"])) {
-      return "Locate relevant code before making changes.";
-    }
-
-    if (this.hasMeaning(text, ["read", "inspect", "look at", "open"])) {
-      return "Read a specific repository file before deciding changes.";
     }
 
     return rawText || "Understand the owner’s developer request.";
@@ -227,36 +312,40 @@ window.AriRebirthDeveloperUnderstandingEngine = {
   inferRequestedChange(rawText = "", text = "") {
     if (this.hasMeaning(text, ["remove", "delete", "hide"])) return "remove_existing_element";
     if (this.hasMeaning(text, ["move", "relocate", "place", "put"])) return "move_existing_element";
-    if (this.hasMeaning(text, ["add", "create", "build", "new tool", "new feature"])) return "add_new_capability";
-    if (this.hasMeaning(text, ["change", "update", "redesign", "make better", "improve"])) return "modify_or_improve_existing_system";
-    if (this.hasMeaning(text, ["fix", "bug", "broken", "not working", "glitch"])) return "diagnose_and_patch_bug";
+    if (this.hasMeaning(text, ["add", "create", "build", "new tool", "new feature", "capability"])) return "add_new_capability";
+    if (this.hasMeaning(text, ["change", "update", "redesign", "make better", "improve", "upgrade"])) return "modify_or_improve_existing_system";
+    if (this.hasMeaning(text, ["fix", "bug", "broken", "not working", "glitch", "error", "issue"])) return "diagnose_and_patch_bug";
     if (this.hasMeaning(text, ["read", "inspect", "look at", "open"])) return "read_before_deciding";
-    if (this.hasMeaning(text, ["find", "search", "locate", "where is"])) return "search_before_deciding";
+    if (this.hasMeaning(text, ["find", "search", "locate", "where is", "bottleneck"])) return "search_before_deciding";
 
     return "developer_analysis_needed";
   },
 
-  inferIntentFamily(rawText = "", text = "", goal = "", targetArea = "") {
+  inferIntentFamily(rawText = "", text = "", goal = "", targetArea = "", requestedChange = "") {
+    if (requestedChange === "read_before_deciding") return "file_read";
+    if (requestedChange === "search_before_deciding") return "code_search";
+    if (requestedChange === "diagnose_and_patch_bug") return "bug_investigation";
+
     if (targetArea === "ari_response_behavior") return "improve_ari_behavior";
     if (targetArea === "homepage_ui") return "homepage_redesign_or_patch";
     if (targetArea === "tooling") return "tool_or_feature_build";
-    if (this.hasMeaning(text, ["bug", "broken", "not working", "error", "glitch", "fix"])) return "bug_investigation";
-    if (this.hasMeaning(text, ["read", "inspect", "look at", "open"])) return "file_read";
-    if (this.hasMeaning(text, ["find", "search", "locate", "where is"])) return "code_search";
+    if (targetArea === "repository_layer") return "repository_workflow";
+    if (targetArea === "data_layer") return "data_layer_fix";
+    if (targetArea === "specific_file") return "specific_file_work";
+    if (targetArea === "calorie_meter") return "calorie_meter_patch";
 
     return "general_developer_help";
   },
 
-  inferTargetArea(rawText = "", text = "") {
-    if (this.hasMeaning(text, ["home screen", "homepage", "home page", "main screen"])) return "homepage_ui";
-    if (this.hasMeaning(text, ["ari speak", "speak more naturally", "less robotic", "response", "answer better", "talk better"])) return "ari_response_behavior";
-    if (this.hasMeaning(text, ["barcode", "scanner", "photo", "anatomy", "knowledge", "tool"])) return "tooling";
-    if (this.hasMeaning(text, ["calorie meter", "calories left", "arch meter"])) return "calorie_meter";
-    if (this.hasMeaning(text, ["supabase", "database", "profile", "meals", "weight logs"])) return "data_layer";
-    if (this.hasMeaning(text, ["github", "repo", "commit", "branch"])) return "repository_layer";
+  inferTargetArea(rawText = "", text = "", targetObject = {}) {
+    if (targetObject?.filePath) return "specific_file";
 
-    const filePath = this.extractFilePath(rawText);
-    if (filePath) return "specific_file";
+    if (this.hasMeaning(text, ["home screen", "homepage", "home page", "main screen", "home layout"])) return "homepage_ui";
+    if (this.hasMeaning(text, ["ari speak", "speak more naturally", "less robotic", "response", "answer better", "talk better", "semantic", "keyword based"])) return "ari_response_behavior";
+    if (this.hasMeaning(text, ["barcode", "scanner", "photo", "anatomy", "knowledge", "tool", "new feature", "capability"])) return "tooling";
+    if (this.hasMeaning(text, ["calorie meter", "calories left", "arch meter", "true meter"])) return "calorie_meter";
+    if (this.hasMeaning(text, ["supabase", "database", "profile", "meals", "weight logs", "auth"])) return "data_layer";
+    if (this.hasMeaning(text, ["github", "repo", "commit", "branch", "read file", "search repo", "patch"])) return "repository_layer";
 
     return "unknown";
   },
@@ -285,7 +374,10 @@ window.AriRebirthDeveloperUnderstandingEngine = {
       "homepage greeting",
       "barcode scanner",
       "Ari response style",
-      "Ari developer planner",
+      "Ari developer understanding",
+      "Ari code evidence",
+      "Ari patch decision",
+      "Ari self improvement",
       "Ari Rebirth"
     ];
 
@@ -306,27 +398,27 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     };
   },
 
-  inferReason(rawText = "", text = "") {
-    if (this.hasMeaning(text, ["too robotic", "not natural", "sounds fake"])) {
-      return "Ari’s communication quality is not matching the desired companion/product-partner experience.";
+  inferReason(rawText = "", text = "", targetArea = "", intentFamily = "") {
+    if (targetArea === "ari_response_behavior") {
+      return "The request affects Ari’s intelligence, response quality, routing, or developer behavior.";
     }
 
-    if (this.hasMeaning(text, ["clutter", "too much", "messy", "takes too much space"])) {
-      return "The current UI likely needs better hierarchy, spacing, or compression.";
+    if (targetArea === "homepage_ui") {
+      return "The request affects the homepage experience and must preserve Ari-first layout decisions.";
     }
 
-    if (this.hasMeaning(text, ["not working", "broken", "error", "glitch"])) {
+    if (targetArea === "tooling") {
+      return "The owner wants Ari or CalBuddy to gain a new modular capability.";
+    }
+
+    if (intentFamily === "bug_investigation") {
       return "The owner is reporting a functional problem that needs evidence-based debugging.";
     }
 
-    if (this.hasMeaning(text, ["new tool", "barcode", "anatomy", "knowledge"])) {
-      return "The owner wants CalBuddy/Ari to gain a new capability through modular tooling.";
-    }
-
-    return "The owner wants a safer developer workflow that searches, reads, analyzes, then edits.";
+    return "The owner wants a safe developer workflow: understand, search, read, analyze, then patch only with evidence.";
   },
 
-  inferConstraints(rawText = "", text = "") {
+  inferConstraints(rawText = "", text = "", targetArea = "") {
     const constraints = [
       "Do not guess exact find/replace text.",
       "Read current repository content before editing.",
@@ -335,11 +427,12 @@ window.AriRebirthDeveloperUnderstandingEngine = {
       "Do not break CalBuddy core behavior."
     ];
 
-    if (this.hasMeaning(text, ["keep ari visible", "not popup", "homepage"])) {
+    if (targetArea === "homepage_ui") {
       constraints.push("Preserve Ari-first homepage architecture.");
+      constraints.push("Do not hide Ari behind popup/chat launcher patterns.");
     }
 
-    if (this.hasMeaning(text, ["semantic", "not keyword"])) {
+    if (text.includes("semantic") || text.includes("keyword")) {
       constraints.push("Use semantic understanding before keyword matching.");
     }
 
@@ -348,7 +441,7 @@ window.AriRebirthDeveloperUnderstandingEngine = {
 
   inferUrgency(text = "") {
     if (this.hasMeaning(text, ["urgent", "asap", "right now", "crash", "can't use"])) return "high";
-    if (this.hasMeaning(text, ["broken", "bug", "not working", "error"])) return "medium_high";
+    if (this.hasMeaning(text, ["broken", "bug", "not working", "error", "bottleneck"])) return "medium_high";
     return "medium";
   },
 
@@ -381,8 +474,8 @@ window.AriRebirthDeveloperUnderstandingEngine = {
 
     if (targetArea === "tooling" || intentFamily === "tool_or_feature_build") {
       files.add("calbuddy-core.js");
-      files.add("api/ask-calbuddy.js");
       files.add("api/actions.js");
+      files.add("api/ask-calbuddy.js");
       files.add("ari/ari-rebirth-app-bridge.js");
     }
 
@@ -418,7 +511,7 @@ window.AriRebirthDeveloperUnderstandingEngine = {
   buildSearchConcepts({
     rawText = "",
     text = "",
-    goal = "",
+    userGoal = "",
     requestedChange = "",
     targetArea = "",
     targetObject = {},
@@ -426,27 +519,58 @@ window.AriRebirthDeveloperUnderstandingEngine = {
   }) {
     const concepts = new Set();
 
-    if (targetObject?.name) concepts.add(targetObject.name);
+    if (targetObject?.name && targetObject.name !== "unknown developer target") {
+      concepts.add(targetObject.name);
+    }
+
     if (targetObject?.filePath) concepts.add(targetObject.filePath);
 
-    concepts.add(targetArea);
-    concepts.add(intentFamily);
-    concepts.add(requestedChange);
+    if (targetArea !== "unknown") concepts.add(targetArea);
+    if (intentFamily !== "general_developer_help") concepts.add(intentFamily);
+    if (requestedChange !== "developer_analysis_needed") concepts.add(requestedChange);
 
     if (targetArea === "homepage_ui") {
-      ["ari-master-home", "ari-hero-section", "ari-search-section", "ari-action-grid", "ARI_DEFAULT_BUBBLE"].forEach(x => concepts.add(x));
+      [
+        "ari-master-home",
+        "ari-hero-section",
+        "ari-search-section",
+        "ari-action-grid",
+        "ARI_DEFAULT_BUBBLE",
+        "toggleConversationHistory"
+      ].forEach(x => concepts.add(x));
     }
 
     if (targetArea === "ari_response_behavior") {
-      ["finalResponse", "languageComposerOutput", "communicationPlan", "mouth", "compose", "response"].forEach(x => concepts.add(x));
+      [
+        "finalResponse",
+        "languageComposerOutput",
+        "communicationPlan",
+        "mouth",
+        "compose",
+        "response",
+        "extractReply"
+      ].forEach(x => concepts.add(x));
     }
 
     if (targetArea === "tooling") {
-      ["api", "actions", "pendingAction", "tool", "barcode", "knowledge"].forEach(x => concepts.add(x));
+      [
+        "api",
+        "actions",
+        "pendingAction",
+        "tool",
+        "barcode",
+        "knowledge",
+        "analyzeImage"
+      ].forEach(x => concepts.add(x));
     }
 
     if (targetArea === "calorie_meter") {
-      ["caloriesLeftText", "trueMeterFill", "updateLiveArchMeter", "updateMeterStatus"].forEach(x => concepts.add(x));
+      [
+        "caloriesLeftText",
+        "trueMeterFill",
+        "updateLiveArchMeter",
+        "updateMeterStatus"
+      ].forEach(x => concepts.add(x));
     }
 
     return Array.from(concepts)
@@ -481,11 +605,58 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     };
   },
 
-  scoreConfidence({ developerSignals, goal, requestedChange, targetArea, targetObject, intentFamily }) {
+  buildInvestigationPlan({ intentFamily, targetArea, targetObject, searchConcepts, likelyFiles, safeNextStep }) {
+    const steps = [];
+
+    if (targetObject.kind === "file" && targetObject.filePath) {
+      steps.push({
+        tool: "github_read",
+        filePath: targetObject.filePath,
+        reason: "Owner named the file. Read exact content first."
+      });
+    } else {
+      searchConcepts.slice(0, 6).forEach(query => {
+        steps.push({
+          tool: "github_search",
+          query,
+          reason: "Search semantic concept before guessing file location."
+        });
+      });
+
+      likelyFiles.slice(0, 4).forEach(filePath => {
+        steps.push({
+          tool: "github_read",
+          filePath,
+          reason: "Likely file for this developer request."
+        });
+      });
+    }
+
+    steps.push({
+      tool: "rebirth_analyze",
+      reason: "Analyze evidence against the owner goal."
+    });
+
+    steps.push({
+      tool: "patch_decision",
+      reason: "Decide if exact safe edit can be proposed.",
+      requiresExactFindText: true,
+      requiresOwnerConfirmation: true
+    });
+
+    return {
+      type: safeNextStep.type,
+      intentFamily,
+      targetArea,
+      steps: this.dedupeSteps(steps).slice(0, 12)
+    };
+  },
+
+  scoreConfidence({ developerSignals, userGoal, requestedChange, targetArea, targetObject, intentFamily }) {
     let score = 0.35;
 
     if (developerSignals.score >= 2) score += 0.2;
-    if (goal && goal !== "Understand the owner’s developer request.") score += 0.15;
+    if (userGoal && userGoal !== "Understand the owner’s developer request.") score += 0.15;
     if (requestedChange && requestedChange !== "developer_analysis_needed") score += 0.1;
     if (targetArea && targetArea !== "unknown") score += 0.15;
     if (targetObject?.kind && targetObject.kind !== "concept") score += 0.1;
@@ -510,6 +681,17 @@ window.AriRebirthDeveloperUnderstandingEngine = {
     if (!clean) return "unknown developer target";
 
     return clean.slice(0, 120);
+  },
+
+  dedupeSteps(steps = []) {
+    const seen = new Set();
+
+    return steps.filter(step => {
+      const key = `${step.tool}:${step.query || step.filePath || step.reason}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   },
 
   hasMeaning(text = "", concepts = []) {
