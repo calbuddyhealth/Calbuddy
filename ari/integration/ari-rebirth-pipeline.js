@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.5.9 — Lane Splitter + Continuity Packet Routing
+// V3.6.0 — Lane Splitter + Continuity Packet Routing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.5.9",
+  version: "3.6.0",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -717,6 +717,13 @@ summary = this.reassertContractAuthority(summary);
         compressionResult.compressedResponse ||
         summary.finalResponse
     };
+
+// 2.10 Rebirth Action Planner
+// Converts Ari's understanding into safe CalBuddy proposed actions.
+// CalBuddy still requires user approval before executing.
+if (window.Ari?.rebirthActionPlanner?.plan) {
+  summary = window.Ari.rebirthActionPlanner.plan(summary);
+}
 
 // Conversation Meaning History
 const conversationMeaningHistory =
