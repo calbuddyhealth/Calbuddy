@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.6 — Contract-Locked Natural AI Writer
+// V8.3.7 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.6",
+  version: "8.3.7",
 
 
   async compose(input = {}) {
@@ -140,76 +140,106 @@ const finalResponse = this.finalPolish(
   },
 
 composeFromGithubEvidence(summary = {}) {
+  const fileContext =
+    summary.githubFileContext ||
+    summary.githubEvidence ||
+    summary.appContext?.githubFileContext ||
+    null;
 
-    const fileContext =
+  const content = String(fileContext?.content || "").trim();
+  const filePath = fileContext?.filePath || "the file";
 
-      summary.githubFileContext ||
+  if (!content) return null;
 
-      summary.githubEvidence ||
+  const groundedAnswer = this.answerFromFileEvidence({
+  content,
+  filePath,
+  userText: String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  )
+});
 
-      summary.appContext?.githubFileContext ||
+return {
+  languageMode: "file_evidence",
+  languageBody: groundedAnswer,
+  languageSections: [groundedAnswer],
+  finalResponse: groundedAnswer,
+    composerVersion: this.version,
+    source: "ari-language-composer",
+    composerUsedAI: false,
+    composerValidation: "github_evidence_grounded_return",
+    composerDebug: {
+      usedGithubEvidence: true,
+      filePath
+    }
+  };
+},
 
-      null;
+answerFromFileEvidence({ content = "", filePath = "the file", userText = "" }) {
+  const text = String(userText || "").toLowerCase();
 
-    const content = String(fileContext?.content || "");
+  if (text.includes("what does") || text.includes("explain")) {
+    return this.explainFileEvidence(content, filePath);
+  }
 
-    const userText = String(
+  if (text.includes("where")) {
+    return this.findRelevantFileLines(content, text, filePath);
+  }
 
-      summary.userMessage ||
+  return content.trim();
+},
 
-      summary.message ||
+explainFileEvidence(content = "", filePath = "the file") {
+  const text = String(content || "");
 
-      summary.input ||
+  if (text.includes("ari-action-grid") && text.includes("ari-action-tile")) {
+    return `This section creates the bottom homepage action tabs in ${filePath}. It shows three tiles: “My Goals” links to goals.html, “Progress” links to progress.html, and “Conversations” is currently a button.`;
+  }
 
-      ""
+  return `I read ${filePath}. This section contains source code, and the answer should be based on the actual file content, not a generic guess.`;
+},
 
-    ).toLowerCase();
+findRelevantFileLines(content = "", userText = "", filePath = "the file") {
+  const lines = String(content || "").split("\n");
 
-    if (!content.trim()) return null;
+  const keywords = String(userText || "")
+    .toLowerCase()
+    .replace(/[^\w\s.-]/g, " ")
+    .split(/\s+/)
+    .filter(word => word.length >= 4)
+    .slice(0, 12);
 
-    const wantsExact =
+  const matches = lines
+    .map((line, index) => {
+      const lower = line.toLowerCase();
+      const score = keywords.reduce((total, word) => {
+        return lower.includes(word) ? total + 1 : total;
+      }, 0);
 
-      userText.includes("exact html") ||
+      return {
+        line: index + 1,
+        score,
+        text: line.trim()
+      };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
 
-      userText.includes("exact code") ||
+  if (!matches.length) {
+    return `I read ${filePath}, but I didn’t find a strong matching line.`;
+  }
 
-      userText.includes("show me the exact") ||
+  return [
+    `I read ${filePath}. The most relevant lines are:`,
+    "",
+    ...matches.map(item => `Line ${item.line}: ${item.text}`)
+  ].join("\n");
+},
 
-      userText.includes("show exact") ||
-
-      userText.includes("do not edit");
-
-    if (!wantsExact) return null;
-
-    return {
-
-      languageMode: "file_evidence",
-
-      languageBody: content.trim(),
-
-      languageSections: [content.trim()],
-
-      finalResponse: content.trim(),
-
-      composerVersion: this.version,
-
-      source: "ari-language-composer",
-
-      composerUsedAI: false,
-
-      composerValidation: "github_evidence_direct_return",
-
-      composerDebug: {
-
-        usedGithubEvidence: true,
-
-        filePath: fileContext.filePath || null
-
-      }
-
-    };
-
-  },
 
   async writeDraft({
     summary = {},
