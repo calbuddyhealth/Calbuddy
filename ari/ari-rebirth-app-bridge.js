@@ -122,6 +122,9 @@ window.AriRebirthAppBridge = {
 
         userContext: options.userContext || null,
         coachMemorySummary: options.coachMemorySummary || "",
+githubFileContext: options.githubFileContext || null,
+developerInvestigation: options.developerInvestigation || null,
+
 
         goals: options.goals || null,
         meals: Array.isArray(options.meals) ? options.meals : [],
