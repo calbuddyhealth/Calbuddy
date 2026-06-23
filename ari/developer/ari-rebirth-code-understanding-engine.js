@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-code-understanding-engine.js
 // Purpose: Read developer investigation evidence and build code-level meaning.
-// V1.1.0 — Semantic Code Understanding / Planner Consolidated / Evidence Before Patch
+// V1.1.1 — Semantic Code Understanding / Planner Consolidated / Evidence Before Patch
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthCodeUnderstandingEngine = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -21,17 +21,22 @@ window.AriRebirthCodeUnderstandingEngine = {
       null;
 
     const githubFileContext =
-      summary.githubFileContext ||
-      summary.appContext?.githubFileContext ||
-      null;
+  summary.githubFileContext ||
+  summary.githubEvidence ||
+  summary.appContext?.githubFileContext ||
+  null;
 
-    if (
-      !developerUnderstanding?.isDeveloperWork &&
-      !developerIntent &&
-      !githubFileContext?.content
-    ) {
-      return null;
-    }
+    const hasGithubContent =
+  Boolean(githubFileContext?.content) ||
+  Boolean(summary.githubEvidence?.content);
+
+if (
+  !developerUnderstanding?.isDeveloperWork &&
+  !developerIntent &&
+  !hasGithubContent
+) {
+  return null;
+}
 
     const filePath =
       githubFileContext?.filePath ||
@@ -40,7 +45,20 @@ window.AriRebirthCodeUnderstandingEngine = {
       developerUnderstanding?.likelyFiles?.[0] ||
       "unknown";
 
-    const content = String(githubFileContext?.content || "");
+    const content = String(
+  githubFileContext?.content ||
+  summary.githubEvidence?.content ||
+  ""
+);
+
+console.log(
+  "CODE UNDERSTANDING EVIDENCE:",
+  {
+    githubFileContext: Boolean(githubFileContext),
+    githubEvidence: Boolean(summary.githubEvidence),
+    contentLength: content.length
+  }
+);
 
     if (!content.trim()) {
       return {
