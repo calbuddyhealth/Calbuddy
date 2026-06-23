@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.2.0";
+CalBuddy.version = "3.3.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
