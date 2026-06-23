@@ -1215,9 +1215,12 @@ priorMeaningForFollowUp:
 },
 
 async runDeveloperLayer(summary = {}) {
-  const appContext = summary.appContext || {};
+  const ownerMode =
+    summary.ownerMode === true ||
+    summary.appContext?.ownerMode === true ||
+    summary.userContext?.ownerMode === true;
 
-  if (!appContext.ownerMode) {
+  if (!ownerMode) {
     return summary;
   }
 
