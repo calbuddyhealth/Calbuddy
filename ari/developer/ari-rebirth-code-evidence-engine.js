@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-code-evidence-engine.js
 // Ari Rebirth Code Evidence Engine
 // Purpose: Convert developer understanding into executable evidence-gathering steps.
-// V1.2.0 — Semantic Evidence / Consolidated Planner / Investigation Handoff Ready
+// V1.2.1 — Repository Evidence Aware / Read-State Detection / Patch Gate Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthCodeEvidenceEngine = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -18,9 +18,11 @@ window.AriRebirthCodeEvidenceEngine = {
 
     if (!understanding?.isDeveloperWork) return null;
 
+    const evidenceState = this.getRepositoryEvidenceState(summary);
+
     const searchSteps = this.buildSearchSteps(understanding);
     const readSteps = this.buildReadSteps(understanding);
-    const analysisSteps = this.buildAnalysisSteps(understanding);
+    const analysisSteps = this.buildAnalysisSteps();
 
     const steps = this.dedupeSteps([
       ...searchSteps,
@@ -38,9 +40,10 @@ window.AriRebirthCodeEvidenceEngine = {
       codeEvidenceVersion: this.version,
       source: "ari-rebirth-code-evidence-engine",
 
-      evidenceStatus: "needed",
-      canEditNow: false,
-      requiresReadBeforeEdit: true,
+      evidenceStatus: evidenceState.available ? "available" : "needed",
+      canEditNow: evidenceState.available,
+      requiresReadBeforeEdit: !evidenceState.available,
+      repositoryEvidence: evidenceState,
 
       intentFamily: understanding.intentFamily,
       targetArea: understanding.targetArea,
@@ -63,8 +66,9 @@ window.AriRebirthCodeEvidenceEngine = {
         targetArea: understanding.targetArea,
         targetObject: understanding.targetObject,
         steps,
-        canEditNow: false,
-        requiresReadBeforeEdit: true
+        canEditNow: evidenceState.available,
+        requiresReadBeforeEdit: !evidenceState.available,
+        repositoryEvidence: evidenceState
       },
 
       searchSteps,
@@ -75,7 +79,8 @@ window.AriRebirthCodeEvidenceEngine = {
       nextRequiredAction: this.inferNextRequiredAction({
         understanding,
         searchSteps,
-        readSteps
+        readSteps,
+        evidenceState
       }),
 
       evidencePolicy: {
@@ -88,6 +93,53 @@ window.AriRebirthCodeEvidenceEngine = {
         requireOwnerConfirmation: true,
         confirmationText: "CONFIRM GITHUB EDIT"
       }
+    };
+  },
+
+  getRepositoryEvidenceState(summary = {}) {
+    const githubFileContext =
+      summary.githubFileContext ||
+      summary.githubEvidence ||
+      summary.appContext?.githubFileContext ||
+      null;
+
+    const directContent = String(githubFileContext?.content || "").trim();
+
+    const investigation =
+      summary.developerInvestigation ||
+      summary.appContext?.developerInvestigation ||
+      null;
+
+    const readResults = Array.isArray(investigation?.readResults)
+      ? investigation.readResults
+      : [];
+
+    const successfulReads = readResults.filter(item => {
+      const result = item.result || item;
+      return result?.success && String(result.content || "").trim();
+    });
+
+    const available = Boolean(directContent || successfulReads.length);
+
+    return {
+      available,
+      source: directContent
+        ? "github_file_context"
+        : successfulReads.length
+          ? "developer_investigation_read_results"
+          : "none",
+      filePath:
+        githubFileContext?.filePath ||
+        successfulReads[0]?.filePath ||
+        successfulReads[0]?.result?.filePath ||
+        null,
+      contentLength:
+        directContent.length ||
+        String(successfulReads[0]?.result?.content || successfulReads[0]?.content || "").length ||
+        0,
+      readCount: successfulReads.length,
+      hasExactCurrentCode: available,
+      canProceedToPatchDecision: available
     };
   },
 
@@ -364,8 +416,22 @@ window.AriRebirthCodeEvidenceEngine = {
     return `Read likely ${understanding.targetArea || "developer"} file before proposing code changes.`;
   },
 
-  inferNextRequiredAction({ understanding = {}, searchSteps = [], readSteps = [] }) {
+  inferNextRequiredAction({
+    understanding = {},
+    searchSteps = [],
+    readSteps = [],
+    evidenceState = {}
+  }) {
     const target = understanding.targetObject || {};
+
+    if (evidenceState.available) {
+      return {
+        type: "patch_decision",
+        tool: "patch_decision",
+        filePath: evidenceState.filePath || target.filePath || null,
+        reason: "Repository evidence is already available. Proceed to patch decision, not another read."
+      };
+    }
 
     if (target.kind === "file" && target.filePath) {
       return {
