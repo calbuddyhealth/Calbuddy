@@ -239,9 +239,20 @@
   }
 
   const result = await window.AriRebirthAppBridge.ask(message, {
-    source: "ari-lab",
-    appMode: "rebirth-only"
-  });
+  source: "ari-lab",
+  appMode: "rebirth-only",
+
+  githubFileContext: {
+    filePath: "index.html",
+    content: `
+<section class="ari-action-grid three-actions">
+  <a href="goals.html" class="ari-action-tile">My Goals</a>
+  <a href="progress.html" class="ari-action-tile">Progress</a>
+  <button class="ari-action-tile">Conversations</button>
+</section>
+`
+  }
+});
 
   const summary = result.summary || {};
   const analysis = result.analysis || {};
