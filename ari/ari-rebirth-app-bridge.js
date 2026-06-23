@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.3.1 — App Safe / Pipeline Guarded / Developer Layer Handoff
+// V1.3.2 — App Safe / Pipeline Guarded / Developer Layer Handoff
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.3.1",
+  version: "1.3.2",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
