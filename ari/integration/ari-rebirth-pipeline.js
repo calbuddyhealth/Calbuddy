@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.6.0 — Lane Splitter + Continuity Packet Routing
+// V3.7.0 — Developer Layer Wired / Owner Code Handoff Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.6.0",
+  version: "3.7.0",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -495,6 +495,15 @@ if (shouldRunEntityResolver) {
     summary = this.applyContractBridge(summary);
     summary = this.reassertContractAuthority(summary);
 
+// 0.60 Ari Rebirth Developer Layer
+// Owner-only developer reasoning. Runs before normal human-needs response path
+// so app/code requests can produce developerIntent safely.
+summary = await this.runDeveloperLayer(summary);
+
+summary = this.reassertContractAuthority(summary);
+
+const developerResponseLocked = Boolean(summary.developerIntent || summary.developerHandoff?.reply);
+
     // 1.00 Human Needs
     merge(await runEngine(
       window.Ari?.needEngine,
@@ -700,23 +709,27 @@ summary = this.reassertContractAuthority(summary);
     summary = this.reassertContractAuthority(summary);
 
     // Composer
-    merge(await runEngine(window.AriLanguageComposer, ["compose"]));
+if (!developerResponseLocked) {
+  merge(await runEngine(window.AriLanguageComposer, ["compose"]));
+}
 
-    // Response Compressor
-    const compressionResult = await runEngine(
-      window.AriResponseCompressor,
-      ["compress"],
-      {}
-    );
+// Response Compressor
+if (!developerResponseLocked) {
+  const compressionResult = await runEngine(
+    window.AriResponseCompressor,
+    ["compress"],
+    {}
+  );
 
-    summary = {
-      ...summary,
-      ...compressionResult,
-      finalResponse:
-        compressionResult.finalResponse ||
-        compressionResult.compressedResponse ||
-        summary.finalResponse
-    };
+  summary = {
+    ...summary,
+    ...compressionResult,
+    finalResponse:
+      compressionResult.finalResponse ||
+      compressionResult.compressedResponse ||
+      summary.finalResponse
+  };
+}
 
 // 2.10 Rebirth Action Planner
 // Converts Ari's understanding into safe CalBuddy proposed actions.
@@ -1168,6 +1181,133 @@ priorMeaningForFollowUp:
   }
 },
 
+async runDeveloperLayer(summary = {}) {
+  const appContext = summary.appContext || {};
+
+  if (!appContext.ownerMode) {
+    return summary;
+  }
+
+  const runEngine = async (engine, methods = [], fallback = null) => {
+    if (!engine) return fallback;
+
+    for (const method of methods) {
+      if (typeof engine[method] === "function") {
+        try {
+          const result = await engine[method](summary);
+          return result || fallback;
+        } catch (error) {
+          console.error("Developer engine error:", method, error);
+          return fallback;
+        }
+      }
+    }
+
+    return fallback;
+  };
+
+  const mergeAs = (key, result) => {
+    if (!result) return;
+
+    summary = {
+      ...summary,
+      [key]: result,
+      [`rebirth${key.charAt(0).toUpperCase()}${key.slice(1)}`]: result,
+      ...result
+    };
+  };
+
+  mergeAs(
+    "developerUnderstanding",
+    await runEngine(window.AriRebirthDeveloperUnderstandingEngine, ["understand"])
+  );
+
+  mergeAs(
+    "projectKnowledgeGraph",
+    await runEngine(window.AriRebirthProjectKnowledgeGraphEngine, ["build"])
+  );
+
+  mergeAs(
+    "capabilityRegistry",
+    await runEngine(window.AriRebirthCapabilityRegistryEngine, ["inspect"])
+  );
+
+  mergeAs(
+    "architecture",
+    await runEngine(window.AriRebirthArchitectureEngine, ["design"])
+  );
+
+  mergeAs(
+    "bugDiagnosis",
+    await runEngine(window.AriRebirthBugDiagnosisEngine, ["diagnose"])
+  );
+
+  mergeAs(
+    "executionPlanner",
+    await runEngine(window.AriRebirthExecutionPlannerEngine, ["plan"])
+  );
+
+  mergeAs(
+    "codeEvidence",
+    await runEngine(window.AriRebirthCodeEvidenceEngine, ["build"])
+  );
+
+  mergeAs(
+    "codeUnderstanding",
+    await runEngine(window.AriRebirthCodeUnderstandingEngine, ["understand"])
+  );
+
+  mergeAs(
+    "dependencyMap",
+    await runEngine(window.AriRebirthDependencyMapEngine, ["map"])
+  );
+
+  mergeAs(
+    "selfImprovement",
+    await runEngine(window.AriRebirthSelfImprovementEngine, ["improve"])
+  );
+
+  mergeAs(
+    "patchDecision",
+    await runEngine(window.AriRebirthPatchDecisionEngine, ["decide"])
+  );
+
+  mergeAs(
+    "patchValidation",
+    await runEngine(window.AriRebirthPatchValidationEngine, ["validate"])
+  );
+
+  mergeAs(
+    "regressionTest",
+    await runEngine(window.AriRebirthRegressionTestEngine, ["build"])
+  );
+
+  mergeAs(
+    "learning",
+    await runEngine(window.AriRebirthLearningEngine, ["learn"])
+  );
+
+  mergeAs(
+    "developerHandoff",
+    await runEngine(window.AriRebirthDeveloperHandoffEngine, ["handoff", "create", "build"])
+  );
+
+  if (summary.developerHandoff?.developerIntent) {
+    summary.developerIntent = summary.developerHandoff.developerIntent;
+  }
+
+  if (summary.developerHandoff?.reply) {
+    summary.finalResponse = summary.developerHandoff.reply;
+  }
+
+  return {
+    ...summary,
+    developerLayerRan: true,
+    developerLayerSource: "ari-rebirth-pipeline",
+    developerLayerVersion: this.version
+  };
+},
+
   debugLog(summary = {}, reasoningResult = {}) {
     console.log("===== ARI REBIRTH PIPELINE =====", this.version);
     console.log("===== SAFETY CONTEXT GATE =====", summary.safetyContextGate);
@@ -1187,6 +1327,7 @@ priorMeaningForFollowUp:
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
+  console.log("===== DEVELOPER LAYER =====", summary.developerHandoff || summary.developerUnderstanding);
   }
 };
 
