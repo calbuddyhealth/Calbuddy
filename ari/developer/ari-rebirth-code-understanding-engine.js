@@ -1,6 +1,7 @@
 // ari/developer/ari-rebirth-code-understanding-engine.js
 // Purpose: Read developer investigation evidence and build code-level meaning.
-// V1.1.1 — Semantic Code Understanding / Planner Consolidated / Evidence Before Patch
+// V1.1.1 — GitHub Evidence Aware / Semantic Code Understanding / Evidence Before Patch
+
 
 window.Ari = window.Ari || {};
 
