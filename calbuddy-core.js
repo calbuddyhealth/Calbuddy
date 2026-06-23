@@ -891,6 +891,14 @@ CalBuddy.executeAction = async function (action) {
   if (type === "change_reset_time") return await CalBuddy.changeResetTime(payload);
   if (type === "update_profile" || type === "update_goal_profile") return await CalBuddy.updateProfile(payload);
   if (type === "owner_code_task" || type === "developer_task" || type === "design_change") {
+  const context = await CalBuddy.getUserContext();
+
+  if (context.ownerMode !== true) {
+    return {
+      success: false,
+      reply: "Developer tools are only available in Owner Mode."
+    };
+  }
   const task = CalBuddy.saveDeveloperIntentLocally({
     enabled: true,
     type,
@@ -910,29 +918,9 @@ CalBuddy.executeAction = async function (action) {
 }
 console.log("ACTION TYPE:", type);
 console.log("ACTION:", action);
-  const fallbackTask = CalBuddy.saveDeveloperIntentLocally({
-  enabled: true,
-  type: type || "owner_code_task",
-  title: action.title || payload.title || "Owner requested app change",
-  summary:
-    action.summary ||
-    payload.summary ||
-    action.confirmation_text ||
-    "Owner confirmed an app improvement request.",
-  priority: payload.priority || action.priority || "medium",
-  recommended_files:
-    payload.recommended_files ||
-    action.recommended_files ||
-    ["index.html", "style.css", "calbuddy-core.js", "api/ask-calbuddy.js"],
-  ownerCommand: true,
-  payload
-});
-
-return {
-  success: true,
-  task: fallbackTask,
-  reply:
-    "Saved to Owner Tasks. I prepared the implementation plan instead of trying to directly edit production code."
+  return {
+  success: false,
+  reply: "I don’t recognize that action type."
 };
 };
 CalBuddy.confirmPendingGithubEdit = async function () {
@@ -947,6 +935,17 @@ CalBuddy.confirmPendingGithubEdit = async function () {
 
   const developerIntent = JSON.parse(saved);
   const githubEdit = developerIntent.githubEdit || {};
+
+const context = await CalBuddy.getUserContext();
+
+if (context.ownerMode !== true) {
+  localStorage.removeItem("calbuddyPendingGithubEdit");
+
+  return {
+    success: false,
+    reply: "Developer tools are only available in Owner Mode."
+  };
+}
 
   if (!githubEdit.filePath) {
     return {
@@ -968,8 +967,6 @@ CalBuddy.confirmPendingGithubEdit = async function () {
       reply: "I saved the GitHub edit request, but I don’t have replacement content yet."
     };
   }
-
-  const context = await CalBuddy.getUserContext();
 
   const result = await CalBuddy.sendGithubEditRequest({
     owner_access: context.ownerMode === true,
@@ -1517,6 +1514,14 @@ CalBuddy.handleDeveloperIntent = async function ({
   if (!developerIntent || developerIntent.enabled === false) {
     return null;
   }
+
+if (userContext?.ownerMode !== true) {
+  return {
+    reply: "Developer tools are only available in Owner Mode.",
+    emotion: "concerned",
+    developerIntent: null
+  };
+}
 
   localStorage.setItem(
     "calbuddyLastDeveloperIntent",
