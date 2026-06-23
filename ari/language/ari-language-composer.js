@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.5",
+  version: "8.3.6",
 
 
   async compose(input = {}) {
