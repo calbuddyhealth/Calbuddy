@@ -1682,8 +1682,8 @@ CalBuddy.runDeveloperInvestigation = async function ({
   if (readableFiles.length > 0) {
     const fileContext = readableFiles[0];
 
-    const analysisResponse = await CalBuddy.api("/api/ask-calbuddy", {
-      message: `The owner asked: "${originalMessage}"
+    const analysisResponse = await window.AriRebirthAppBridge.ask(
+  `The owner asked: "${originalMessage}"
 
 Ari Rebirth investigated this request.
 
@@ -1700,17 +1700,29 @@ If not, explain what file or code needs to be read next.
 
 Do not guess find text.
 Do not claim anything was changed.`,
-      userContext: userContext || await CalBuddy.getUserContext(),
-      coachMemorySummary: userContext?.coachMemorySummary || "",
-      history: history.slice(-10),
-      githubFileContext: {
-        filePath: fileContext.filePath,
-        content: fileContext.result.content
-      },
-      modes: {
-        developerFileAnalysis: true
-      }
-    });
+  {
+    source: "calbuddy-core-developer-investigation",
+    page: window.location.pathname || "unknown",
+    history: history.slice(-10),
+
+    userContext: userContext || await CalBuddy.getUserContext(),
+    coachMemorySummary: userContext?.coachMemorySummary || "",
+
+    ownerMode: true,
+    ariPermissions: userContext?.ariPermissions || {},
+
+    githubFileContext: {
+      filePath: fileContext.filePath,
+      content: fileContext.result.content
+    },
+
+    developerInvestigation: {
+      developerIntent,
+      searchResults,
+      readResults
+    }
+  }
+);
 
     if (analysisResponse.developerIntent?.githubEdit) {
       localStorage.setItem(
