@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.1.0";
+CalBuddy.version = "3.2.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -1075,44 +1075,89 @@ if (pendingGithubEdit && CalBuddy.isYes(message)) {
   CalBuddy.setAriMood("thinking");
   const userContext = await CalBuddy.getUserContext();
   
+
 /* -----------------------------
-
 ARI REBIRTH LOCAL BRIDGE
-
+Rebirth-only app brain. Old server Ari remains below as emergency API fallback
+only if Rebirth bridge is not loaded.
 ----------------------------- */
 
 if (window.AriRebirthAppBridge) {
-
   const rebirth = await window.AriRebirthAppBridge.ask(message, {
+    source: "calbuddy-core",
+    page: window.location.pathname || "unknown",
+    history,
 
     userContext,
 
-    history
+    user: {
+      id: userContext.userId || user.id,
+      email: userContext.email || user.email || null
+    },
 
+    goals: {
+      dailyGoal: userContext.dailyGoal,
+      caloriesConsumed: userContext.caloriesConsumed,
+      caloriesBurned: userContext.caloriesBurned,
+      caloriesLeft: userContext.caloriesLeft,
+      currentWeight: userContext.currentWeight,
+      goalWeight: userContext.goalWeight,
+      goalType: userContext.goalType,
+      activityLevel: userContext.activityLevel,
+      nutritionDate: userContext.nutritionDate
+    },
+
+    meals: userContext.mealsToday || [],
+    todayLog: userContext.mealsToday || [],
+    recentMeals: userContext.recentMeals || [],
+    favoriteFoods: userContext.favoriteFoods || [],
+    recentWeights: userContext.recentWeights || [],
+
+    ownerMode: userContext.ownerMode === true,
+    ariPermissions: userContext.ariPermissions || {},
+    coachMemorySummary: userContext.coachMemorySummary || ""
   });
 
   await CalBuddy.logUsage({ message, usage_type: "chat" });
 
   const mood = rebirth.emotion || "happy";
-
   CalBuddy.setAriMood(mood);
 
+  if (Array.isArray(rebirth.actions) && rebirth.actions.length > 0) {
+    const firstAction = rebirth.actions[0];
+
+    if (firstAction.requiresApproval !== false) {
+      const pendingAction = await CalBuddy.createPendingAction({
+        action_type: firstAction.action_type || firstAction.type,
+        payload: firstAction.payload || {},
+        confirmation_text:
+          firstAction.confirmation_text ||
+          firstAction.confirmationText ||
+          "I can do that. Want me to confirm it?"
+      });
+
+      return {
+        reply:
+          pendingAction.confirmation_text ||
+          rebirth.reply ||
+          "I can do that. Want me to confirm it?",
+        emotion: mood,
+        pendingAction,
+        memoryCandidate: null,
+        developerIntent: null,
+        rebirthSummary: rebirth.summary
+      };
+    }
+  }
+
   return {
-
     reply: rebirth.reply,
-
     emotion: mood,
-
     pendingAction: null,
-
     memoryCandidate: null,
-
     developerIntent: null,
-
     rebirthSummary: rebirth.summary
-
   };
-
 }
   
   const response = await CalBuddy.api("/api/ask-calbuddy", {
