@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.5.6 — Adds routing evidence, lane split, continuity results, continuity packet
+// V3.5.7 — Adds routing evidence, lane split, continuity results, continuity packet
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.5.6",
+  version: "3.5.7",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -192,6 +192,21 @@ const triage =
       observation.observerHierarchy ||
       observation.hierarchy ||
       {};
+
+const executionPlanner =
+  analysis.executionPlanner ||
+  analysis.rebirthExecutionPlanner ||
+  {};
+
+const codeEvidence =
+  analysis.codeEvidence ||
+  analysis.rebirthCodeEvidence ||
+  {};
+
+const patchDecision =
+  analysis.patchDecision ||
+  analysis.rebirthPatchDecision ||
+  {};
 
     const observationLedger =
       analysis.observationLedger ||
@@ -1892,6 +1907,73 @@ reasoningAnswer:
 reasoningConfidence:
   analysis.reasoning?.confidence ??
   analysis.reasoningConfidence ??
+  null,
+
+// ==================================================
+// DEVELOPER EXECUTION / CODE EVIDENCE / PATCH DECISION
+// ==================================================
+
+executionPlanner,
+rebirthExecutionPlanner: executionPlanner,
+
+executionPlannerRan:
+  executionPlanner.executionPlannerRan ??
+  analysis.executionPlannerRan ??
+  false,
+
+executionType:
+  executionPlanner.executionType || null,
+
+executionPhases:
+  executionPlanner.phases || [],
+
+executionCurrentPhase:
+  executionPlanner.currentPhase || null,
+
+executionNextAction:
+  executionPlanner.nextAction || null,
+
+codeEvidence,
+rebirthCodeEvidence: codeEvidence,
+
+codeEvidenceRan:
+  codeEvidence.codeEvidenceRan ??
+  analysis.codeEvidenceRan ??
+  false,
+
+codeEvidenceDeveloperIntent:
+  codeEvidence.developerIntent || null,
+
+codeEvidenceSteps:
+  codeEvidence.steps || [],
+
+codeEvidenceNextRequiredAction:
+  codeEvidence.nextRequiredAction || null,
+
+patchDecision,
+rebirthPatchDecision: patchDecision,
+
+patchDecisionRan:
+  patchDecision.patchDecisionRan ??
+  analysis.patchDecisionRan ??
+  false,
+
+patchCanPatchNow:
+  patchDecision.canPatchNow ?? false,
+
+patchDecisionReason:
+  patchDecision.reason || null,
+
+patchGithubEdit:
+  patchDecision.githubEdit || null,
+
+patchDeveloperIntent:
+  patchDecision.developerIntent || null,
+
+developerIntent:
+  analysis.developerIntent ||
+  patchDecision.developerIntent ||
+  codeEvidence.developerIntent ||
   null,
 
 // ==================================================
