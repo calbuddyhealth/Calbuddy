@@ -1531,6 +1531,15 @@ CalBuddy.handleDeveloperIntent = async function ({
     })
   );
 
+  if (developerIntent.type === "developer_investigation") {
+    return await CalBuddy.runDeveloperInvestigation({
+      developerIntent,
+      originalMessage,
+      userContext,
+      history
+    });
+  }
+
   if (developerIntent.githubEdit) {
     localStorage.setItem(
       "calbuddyPendingGithubEdit",
@@ -1622,6 +1631,118 @@ CalBuddy.handleDeveloperIntent = async function ({
       "I saved this as an owner developer task.",
     emotion: "thinking",
     developerIntent
+  };
+};
+
+CalBuddy.runDeveloperInvestigation = async function ({
+  developerIntent,
+  originalMessage = "",
+  userContext = null,
+  history = []
+} = {}) {
+  const steps = Array.isArray(developerIntent.steps)
+    ? developerIntent.steps
+    : [];
+
+  const searchResults = [];
+  const readResults = [];
+
+  for (const step of steps) {
+    if (step.tool === "github_search" && step.query) {
+      const result = await CalBuddy.searchGithubCode(step.query);
+      searchResults.push({
+        query: step.query,
+        result
+      });
+    }
+
+    if (step.tool === "github_read" && step.filePath) {
+      const result = await CalBuddy.readGithubFile(step.filePath);
+      readResults.push({
+        filePath: step.filePath,
+        result
+      });
+    }
+  }
+
+  localStorage.setItem(
+    "calbuddyLastDeveloperInvestigation",
+    JSON.stringify({
+      developerIntent,
+      searchResults,
+      readResults,
+      created_at: new Date().toISOString()
+    })
+  );
+
+  const readableFiles = readResults
+    .filter(item => item.result?.success && item.result?.content)
+    .slice(0, 3);
+
+  if (readableFiles.length > 0) {
+    const fileContext = readableFiles[0];
+
+    const analysisResponse = await CalBuddy.api("/api/ask-calbuddy", {
+      message: `The owner asked: "${originalMessage}"
+
+Ari Rebirth investigated this request.
+
+Developer intent:
+${JSON.stringify(developerIntent, null, 2)}
+
+Search results:
+${JSON.stringify(searchResults, null, 2).slice(0, 8000)}
+
+Now analyze the file content and decide the safest next step.
+
+If you can identify an exact safe edit, return developerIntent.githubEdit with exact find/replace text.
+If not, explain what file or code needs to be read next.
+
+Do not guess find text.
+Do not claim anything was changed.`,
+      userContext: userContext || await CalBuddy.getUserContext(),
+      coachMemorySummary: userContext?.coachMemorySummary || "",
+      history: history.slice(-10),
+      githubFileContext: {
+        filePath: fileContext.filePath,
+        content: fileContext.result.content
+      },
+      modes: {
+        developerFileAnalysis: true
+      }
+    });
+
+    if (analysisResponse.developerIntent?.githubEdit) {
+      localStorage.setItem(
+        "calbuddyPendingGithubEdit",
+        JSON.stringify(analysisResponse.developerIntent)
+      );
+    }
+
+    return {
+      reply: analysisResponse.reply || "I analyzed the code and prepared the next step.",
+      emotion: analysisResponse.emotion || "thinking",
+      developerIntent: analysisResponse.developerIntent || developerIntent,
+      pendingAction: analysisResponse.pendingAction || null,
+      memoryCandidate: analysisResponse.memoryCandidate || null,
+      developerInvestigation: {
+        searchResults,
+        readResults
+      }
+    };
+  }
+
+  return {
+    reply:
+      searchResults.length > 0
+        ? `I searched ${searchResults.length} term(s), but I still need to read the most relevant file before proposing an edit.`
+        : "I could not gather enough code evidence yet.",
+    emotion: "thinking",
+    developerIntent,
+    developerInvestigation: {
+      searchResults,
+      readResults
+    }
   };
 };
 
