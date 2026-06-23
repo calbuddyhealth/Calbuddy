@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.3.0 — App Safe / Pipeline Guarded / Developer Layer Handoff
+// V1.3.1 — App Safe / Pipeline Guarded / Developer Layer Handoff
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.3.0",
+  version: "1.3.1",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -39,19 +39,19 @@ window.AriRebirthAppBridge = {
 
       summary = await window.AriRebirthPipeline.run(summary);
 
-/*
-DEBUG TEST
-*/
-if (summary.appContext?.githubFileContext?.content) {
-  return this.makeResponse({
-    reply:
-      summary.appContext.githubFileContext.content.slice(0, 500),
-    emotion: "thinking",
-    summary
-  });
-}
 
 summary = this.attachDeveloperIntent(summary);
+const fileEvidenceReply = this.extractFileEvidenceReply(summary);
+
+if (fileEvidenceReply) {
+  return this.makeResponse({
+    reply: fileEvidenceReply,
+    emotion: "thinking",
+    developerIntent: summary.developerIntent || null,
+    summary,
+    analysis
+  });
+}
 
 const reply = this.extractReply(summary);
       const emotion = this.chooseEmotion(summary);
@@ -200,6 +200,30 @@ extractReply(summary = {}) {
       summary.recommendedRecoveryQuestion ||
       "I heard you, but I need a cleaner response path."
   );
+},
+
+extractFileEvidenceReply(summary = {}) {
+  const fileContext =
+    summary.githubFileContext ||
+    summary.githubEvidence ||
+    summary.appContext?.githubFileContext ||
+    null;
+
+  const content = String(fileContext?.content || "");
+  const userText = String(summary.userMessage || summary.message || "").toLowerCase();
+
+  if (!content.trim()) return null;
+
+  if (
+    userText.includes("exact html") ||
+    userText.includes("show me the exact") ||
+    userText.includes("show exact") ||
+    userText.includes("do not edit")
+  ) {
+    return content.trim();
+  }
+
+  return null;
 },
 
   cleanReply(reply) {
