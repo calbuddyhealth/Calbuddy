@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.1.2 — App Safe / Pipeline Guarded / Action Handoff Recovery
+// V1.2.0 — App Safe / Pipeline Guarded / Developer Planner Connected
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.1.2",
+  version: "1.2.0",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -39,6 +39,8 @@ window.AriRebirthAppBridge = {
 
       summary = await window.AriRebirthPipeline.run(summary);
 
+      summary = this.attachDeveloperIntent(summary);
+
       const reply = this.extractReply(summary);
       const emotion = this.chooseEmotion(summary);
       const actions = this.extractActions(summary);
@@ -47,6 +49,7 @@ window.AriRebirthAppBridge = {
         reply,
         emotion,
         actions,
+        developerIntent: summary.developerIntent || null,
         summary,
         analysis
       });
@@ -98,9 +101,7 @@ window.AriRebirthAppBridge = {
       };
     }
 
-    return {
-      ready: true
-    };
+    return { ready: true };
   },
 
   attachAppContext(summary = {}, cleanMessage = "", options = {}) {
@@ -143,7 +144,61 @@ window.AriRebirthAppBridge = {
     };
   },
 
+  attachDeveloperIntent(summary = {}) {
+    if (
+      !window.AriRebirthDeveloperPlanner ||
+      typeof window.AriRebirthDeveloperPlanner.plan !== "function"
+    ) {
+      return summary;
+    }
+
+    try {
+      const existingIntent =
+        summary.developerIntent ||
+        summary.appDeveloperIntent ||
+        summary.ownerDeveloperIntent ||
+        null;
+
+      if (existingIntent) {
+        return {
+          ...summary,
+          developerIntent: existingIntent
+        };
+      }
+
+      const developerIntent =
+        window.AriRebirthDeveloperPlanner.plan(summary);
+
+      if (!developerIntent) return summary;
+
+      return {
+        ...summary,
+        developerIntent
+      };
+    } catch (error) {
+      console.error("ARI DEVELOPER PLANNER ERROR:", error);
+
+      return {
+        ...summary,
+        developerIntent: {
+          enabled: true,
+          type: "developer_planner_error",
+          title: "Developer planner error",
+          summary:
+            "Ari Rebirth detected a developer request, but the Developer Planner failed before creating an investigation plan.",
+          priority: "high",
+          ownerCommand: true,
+          error: String(error?.message || error)
+        }
+      };
+    }
+  },
+
   extractReply(summary = {}) {
+    if (summary.developerIntent?.type === "developer_investigation") {
+      return "I’ll investigate that first — search, read the likely files, then propose a safe fix only after I have exact code evidence.";
+    }
+
     return this.cleanReply(
       summary.finalResponse ||
         summary.compressedResponse ||
@@ -177,6 +232,8 @@ window.AriRebirthAppBridge = {
   },
 
   chooseEmotion(summary = {}) {
+    if (summary.developerIntent) return "thinking";
+
     const primary =
       summary.situationContract?.primary ||
       summary.situationContractPrimary ||
@@ -333,6 +390,7 @@ window.AriRebirthAppBridge = {
     reply,
     emotion = "idle",
     actions = [],
+    developerIntent = null,
     summary = null,
     analysis = null,
     error = null
@@ -341,6 +399,7 @@ window.AriRebirthAppBridge = {
       reply: this.cleanReply(reply),
       emotion,
       actions: Array.isArray(actions) ? actions : [],
+      developerIntent,
       summary,
       analysis,
       error,
