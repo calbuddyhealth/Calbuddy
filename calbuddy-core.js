@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.4.0";
+CalBuddy.version = "3.5.0";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -1555,7 +1555,7 @@ CalBuddy.handleDeveloperIntent = async function ({
     };
   }
 
-  if (developerIntent.type === "github_read_request") {
+    if (developerIntent.type === "github_read_request") {
     const filePath =
       developerIntent.filePath ||
       developerIntent.githubRead?.filePath;
@@ -1578,11 +1578,42 @@ CalBuddy.handleDeveloperIntent = async function ({
       };
     }
 
+    const analysisResponse = await window.AriRebirthAppBridge.ask(
+      `The owner asked: "${originalMessage}"
+
+You just read this GitHub file: ${filePath}
+
+Answer the owner using the file content.
+If the owner asked to show code, show the exact relevant code.
+Do not edit unless asked.`,
+      {
+        source: "calbuddy-core-github-read",
+        page: window.location.pathname || "unknown",
+        history: history.slice(-10),
+
+        userContext: userContext || await CalBuddy.getUserContext(),
+        coachMemorySummary: userContext?.coachMemorySummary || "",
+
+        ownerMode: true,
+        ariPermissions: userContext?.ariPermissions || {},
+
+        githubFileContext: {
+          filePath,
+          content: readResult.content,
+          contentLength:
+            readResult.contentLength ||
+            readResult.content?.length ||
+            0
+        }
+      }
+    );
+
     return {
-      reply: `I read ${filePath}.`,
-      emotion: "thinking",
-      developerIntent,
-      githubReadResult: readResult
+      reply: analysisResponse.reply || `I read ${filePath}.`,
+      emotion: analysisResponse.emotion || "thinking",
+      developerIntent: analysisResponse.developerIntent || developerIntent,
+      githubReadResult: readResult,
+      rebirthSummary: analysisResponse.summary
     };
   }
 
