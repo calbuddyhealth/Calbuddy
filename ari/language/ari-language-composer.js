@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.5 — Contract-Locked Natural AI Writer
+// V8.3.6 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -16,9 +16,14 @@ window.Ari = window.Ari || {};
 window.AriLanguageComposer = {
   version: "8.3.5",
 
+
   async compose(input = {}) {
     const summary = input.summary || input || {};
+const fileEvidenceReply = this.composeFromGithubEvidence(summary);
 
+if (fileEvidenceReply) {
+  return fileEvidenceReply;
+}
     const contract = summary.situationContract || {};
     const communicationPlan = summary.communicationPlan || {};
     const mouth = summary.mouthDirector || {};
@@ -132,6 +137,78 @@ const finalResponse = this.finalPolish(
         rawDraft: draft.text
       }
     };
+  },
+
+composeFromGithubEvidence(summary = {}) {
+
+    const fileContext =
+
+      summary.githubFileContext ||
+
+      summary.githubEvidence ||
+
+      summary.appContext?.githubFileContext ||
+
+      null;
+
+    const content = String(fileContext?.content || "");
+
+    const userText = String(
+
+      summary.userMessage ||
+
+      summary.message ||
+
+      summary.input ||
+
+      ""
+
+    ).toLowerCase();
+
+    if (!content.trim()) return null;
+
+    const wantsExact =
+
+      userText.includes("exact html") ||
+
+      userText.includes("exact code") ||
+
+      userText.includes("show me the exact") ||
+
+      userText.includes("show exact") ||
+
+      userText.includes("do not edit");
+
+    if (!wantsExact) return null;
+
+    return {
+
+      languageMode: "file_evidence",
+
+      languageBody: content.trim(),
+
+      languageSections: [content.trim()],
+
+      finalResponse: content.trim(),
+
+      composerVersion: this.version,
+
+      source: "ari-language-composer",
+
+      composerUsedAI: false,
+
+      composerValidation: "github_evidence_direct_return",
+
+      composerDebug: {
+
+        usedGithubEvidence: true,
+
+        filePath: fileContext.filePath || null
+
+      }
+
+    };
+
   },
 
   async writeDraft({
