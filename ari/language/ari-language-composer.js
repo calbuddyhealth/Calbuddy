@@ -189,7 +189,7 @@ answerFromFileEvidence({ content = "", filePath = "the file", userText = "" }) {
     return this.findRelevantFileLines(content, text, filePath);
   }
 
-  return content.trim();
+  return `I’m currently reading ${filePath}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.`;
 },
 
 explainFileEvidence(content = "", filePath = "the file") {
