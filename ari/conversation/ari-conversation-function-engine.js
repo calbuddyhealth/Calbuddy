@@ -1,12 +1,12 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.0.0 — Conversation Move Interpreter / Advisory Only
+// V2.1.0 — Developer Artifact Detection / Layout Command Ready / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
@@ -61,6 +61,13 @@ window.AriConversationFunctionEngine = {
       currentTurnIsConcrete: signals.currentTurnIsConcrete,
       shouldBlockFixing: signals.boundaryPresent && !signals.actionRequest,
 
+      developerArtifactRequest: signals.developerArtifactRequest,
+      artifactModificationRequest: signals.artifactModificationRequest,
+      artifactCreationRequest: signals.artifactCreationRequest,
+      artifactInvestigationRequest: signals.artifactInvestigationRequest,
+      githubEvidenceAvailable: signals.githubEvidenceAvailable,
+      expectsCodeOrArtifact: signals.expectsCodeOrArtifact,
+
       authority: "advisory_conversation_function_only",
       cannotSet: [
         "primaryLane",
@@ -74,6 +81,55 @@ window.AriConversationFunctionEngine = {
   },
 
   collectSignals({ text = "", words = [], observations = [], summary = {} } = {}) {
+    const githubFileContext =
+      summary.githubFileContext ||
+      summary.appContext?.githubFileContext ||
+      null;
+
+    const githubEvidenceAvailable =
+      !!(
+        githubFileContext &&
+        githubFileContext.filePath &&
+        String(githubFileContext.content || "").trim()
+      ) ||
+      summary.githubEvidenceAvailable === true;
+
+    const developerNouns =
+      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|interface|html|css|javascript|js|file|code|function|engine|pipeline|github|vercel|supabase|index\.html|style|class|element|div|container|modal|menu|tab|navbar|dashboard|meter|search bar|input|form)\b/.test(text);
+
+    const modificationVerb =
+      /\b(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|make|turn|switch|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable)\b/.test(text);
+
+    const creationVerb =
+      /\b(create|build|make|generate|design|add new|set up|scaffold)\b/.test(text);
+
+    const investigationVerb =
+      /\b(debug|inspect|check|find|figure out|why is|why isn't|why does|not working|broken|issue|bug|error|failing)\b/.test(text);
+
+    const layoutLanguage =
+      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|bottom tabs|top bar|search bar|meter|dashboard|profile button|hamburger|greeting box|action grid)\b/.test(text);
+
+    const codeLanguage =
+      /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|class|script|style|component)\b/.test(text);
+
+    const artifactModificationRequest =
+      modificationVerb && (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage);
+
+    const artifactCreationRequest =
+      creationVerb && (developerNouns || layoutLanguage || codeLanguage);
+
+    const artifactInvestigationRequest =
+      investigationVerb && (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage);
+
+    const developerArtifactRequest =
+      artifactModificationRequest ||
+      artifactCreationRequest ||
+      artifactInvestigationRequest ||
+      (
+        githubEvidenceAvailable &&
+        (modificationVerb || creationVerb || investigationVerb || developerNouns)
+      );
+
     const hasQuestion =
       text.includes("?") ||
       this.hasType(observations, "question_phrase") ||
@@ -83,10 +139,12 @@ window.AriConversationFunctionEngine = {
 
     const directAnswerNeeded =
       hasQuestion ||
+      developerArtifactRequest ||
       this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
       /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because)\b/.test(text);
 
     const actionRequest =
+      developerArtifactRequest ||
       /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement)\b/.test(text);
 
     const decisionNeeded =
@@ -110,6 +168,7 @@ window.AriConversationFunctionEngine = {
       /\b(not trying to fix|don'?t fix|just listen|just venting|that'?s all|i only want|i don'?t want advice|no advice)\b/.test(text);
 
     const buildContext =
+      developerArtifactRequest ||
       /\b(code|file|bug|error|debug|fix this|not working|function|engine|pipeline|github|vercel|supabase|javascript|html|css)\b/.test(text);
 
     const medicalContext =
@@ -119,6 +178,7 @@ window.AriConversationFunctionEngine = {
       /\b(remember|forget|save this|from now on|who are you|what are you|ari)\b/.test(text);
 
     const creative =
+      !developerArtifactRequest &&
       /\b(generate|create|draw|design|image|picture|logo|name ideas|write a story)\b/.test(text);
 
     const correction =
@@ -129,6 +189,7 @@ window.AriConversationFunctionEngine = {
       /\b(this|that|it|they|them|same|one|what about|then what|next|continue|why)\b/.test(text);
 
     const currentTurnIsConcrete =
+      developerArtifactRequest ||
       words.length >= 14 &&
       (
         relationshipContext ||
@@ -136,6 +197,10 @@ window.AriConversationFunctionEngine = {
         medicalContext ||
         /\b(today|yesterday|tomorrow|courthouse|married|work|job|school|car|cat|dog|money|rent|baby|wife|husband|father|mother)\b/.test(text)
       );
+
+    const expectsCodeOrArtifact =
+      developerArtifactRequest ||
+      /\b(send code|full code|updated code|patch|html|css|javascript|file|replace this|update it|change it)\b/.test(text);
 
     let emotionalWeight = "none";
     if (emotionPresent || directEmotionDisclosure) emotionalWeight = "medium";
@@ -164,7 +229,20 @@ window.AriConversationFunctionEngine = {
       creative,
       correction,
       shortFollowUp,
-      currentTurnIsConcrete
+      currentTurnIsConcrete,
+
+      githubEvidenceAvailable,
+      developerNouns,
+      modificationVerb,
+      creationVerb,
+      investigationVerb,
+      layoutLanguage,
+      codeLanguage,
+      artifactModificationRequest,
+      artifactCreationRequest,
+      artifactInvestigationRequest,
+      developerArtifactRequest,
+      expectsCodeOrArtifact
     };
   },
 
@@ -197,6 +275,38 @@ window.AriConversationFunctionEngine = {
       add("correction_or_clarification", 88, "User appears to be correcting or clarifying prior meaning.");
     }
 
+    if (signals.developerArtifactRequest) {
+      add(
+        "developer_artifact_request",
+        96,
+        "User is asking Ari to operate on an existing or intended code/UI artifact."
+      );
+    }
+
+    if (signals.artifactModificationRequest) {
+      add(
+        "artifact_modification_request",
+        94,
+        "User is asking to modify an existing artifact, layout, file, or UI element."
+      );
+    }
+
+    if (signals.artifactCreationRequest) {
+      add(
+        "artifact_creation_request",
+        88,
+        "User is asking to create or add a code/UI artifact."
+      );
+    }
+
+    if (signals.artifactInvestigationRequest) {
+      add(
+        "artifact_investigation_request",
+        88,
+        "User is asking to inspect, debug, or investigate a code/UI artifact."
+      );
+    }
+
     if (signals.buildContext || signals.actionRequest) {
       add("build_or_debug_request", signals.buildContext ? 86 : 75, "User is asking for code, build, debug, or practical action help.");
     }
@@ -206,7 +316,7 @@ window.AriConversationFunctionEngine = {
     }
 
     if (signals.directAnswerNeeded) {
-      add("explanation_or_information_question", 88, "User needs a direct answer or explanation.");
+      add("explanation_or_information_question", signals.developerArtifactRequest ? 62 : 88, "User needs a direct answer or explanation.");
     }
 
     if (signals.decisionNeeded) {
@@ -251,12 +361,45 @@ window.AriConversationFunctionEngine = {
       .map(fn => {
         let score = fn.score;
 
-        // Current-turn protection: a complete new situation should not be swallowed by follow-up logic.
+        if (
+          signals.developerArtifactRequest &&
+          [
+            "developer_artifact_request",
+            "artifact_modification_request",
+            "artifact_creation_request",
+            "artifact_investigation_request"
+          ].includes(fn.name)
+        ) {
+          score += 20;
+        }
+
+        if (
+          signals.githubEvidenceAvailable &&
+          [
+            "developer_artifact_request",
+            "artifact_modification_request",
+            "artifact_investigation_request"
+          ].includes(fn.name)
+        ) {
+          score += 10;
+        }
+
+        if (signals.developerArtifactRequest && fn.name === "general_conversation") {
+          score -= 60;
+        }
+
+        if (signals.developerArtifactRequest && fn.name === "explanation_or_information_question") {
+          score -= 18;
+        }
+
+        if (signals.developerArtifactRequest && fn.name === "continuation_or_follow_up") {
+          score -= 45;
+        }
+
         if (signals.currentTurnIsConcrete && fn.name === "continuation_or_follow_up") {
           score -= 45;
         }
 
-        // Direct-answer override: questions with emotion should still get answered.
         if (signals.directAnswerNeeded && fn.name === "explanation_or_information_question") {
           score += 18;
         }
@@ -265,17 +408,14 @@ window.AriConversationFunctionEngine = {
           score -= 22;
         }
 
-        // Decision should not win unless the user actually asks for choice/action guidance.
         if (!signals.decisionNeeded && fn.name === "decision_support") {
           score -= 25;
         }
 
-        // Relationship is usually context, not the primary move.
         if (fn.name === "relationship_or_family_context" && (signals.directAnswerNeeded || signals.decisionNeeded || signals.directEmotionDisclosure)) {
           score -= 10;
         }
 
-        // Emotion-first only when the user is mainly venting, not asking why/how/what to do.
         if (
           fn.name === "emotional_disclosure" &&
           signals.directEmotionDisclosure &&
@@ -286,7 +426,6 @@ window.AriConversationFunctionEngine = {
           score += 18;
         }
 
-        // Builder/action beats normal explanation when user asks for implementation.
         if (fn.name === "build_or_debug_request" && signals.actionRequest) {
           score += 15;
         }
@@ -301,14 +440,25 @@ window.AriConversationFunctionEngine = {
   },
 
   getBlockedFunctions(primary, functions = [], signals = {}) {
-    const names = functions.map(f => f.name);
-
     if (
       primary === "emotional_disclosure" &&
       signals.emotionalWeight === "high" &&
       signals.boundaryPresent
     ) {
       return ["build_or_debug_request", "instruction_request"];
+    }
+
+    if (
+      primary === "developer_artifact_request" ||
+      primary === "artifact_modification_request" ||
+      primary === "artifact_creation_request" ||
+      primary === "artifact_investigation_request"
+    ) {
+      return [
+        "generic_platform_advice",
+        "unnecessary_clarification",
+        "deep_emotional_processing"
+      ];
     }
 
     if (primary === "build_or_debug_request") {
@@ -324,6 +474,26 @@ window.AriConversationFunctionEngine = {
 
   getResponseBias(primary, signals = {}) {
     const base = {
+      developer_artifact_request: {
+        preferredLaneBias: "developer_artifact",
+        responseShape: signals.githubEvidenceAvailable ? "code_patch" : "artifact_action_plan",
+        instruction: "Use available file/artifact context. Modify or produce code directly. Do not give generic platform advice when file context exists."
+      },
+      artifact_modification_request: {
+        preferredLaneBias: "developer_artifact",
+        responseShape: signals.githubEvidenceAvailable ? "modified_artifact" : "targeted_patch_request",
+        instruction: "Treat the user command as a request to change an existing artifact. Preserve unrelated code and return the modified section."
+      },
+      artifact_creation_request: {
+        preferredLaneBias: "developer_artifact",
+        responseShape: "new_artifact_or_patch",
+        instruction: "Create the requested artifact or code addition directly."
+      },
+      artifact_investigation_request: {
+        preferredLaneBias: "developer_artifact",
+        responseShape: "diagnosis_then_patch",
+        instruction: "Inspect the artifact context, identify the issue, and propose the smallest safe fix."
+      },
       emotional_disclosure: {
         preferredLaneBias: "emotion",
         responseShape: "presence_then_grounding",
