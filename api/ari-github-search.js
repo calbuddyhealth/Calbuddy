@@ -28,11 +28,11 @@ export default async function handler(req, res) {
 
     const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 20);
 
-    const searches = [
-      `${cleanQuery} repo:${repo} in:file`,
-      `${cleanQuery} repo:${repo}`,
-      `"${cleanQuery}" repo:${repo}`
-    ];
+   const searches = [
+  `${cleanQuery} repo:${repo} in:file`,
+  `${cleanQuery} repo:${repo}`,
+  `"${cleanQuery}" repo:${repo}`
+];
 
     const seen = new Set();
     const results = [];
