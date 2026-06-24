@@ -32,11 +32,17 @@
       Run Readiness Diagnostic
     </button>
 
+<button id="ariIntegrationBtn">
+  Run Layout Integration Test
+</button>
+
     <pre
       id="ariOutput"
       style="margin-top: 20px; padding: 16px; background: #111827; color: #d1fae5; white-space: pre-wrap;"
     ></pre>
   </main> 
+
+
 
   <!-- SYSTEM FOUNDATION -->
   <script src="ari/system/ari-loader.js"></script>
@@ -224,6 +230,7 @@
   <script src="ari/system/ari-prompt-builder.js"></script>
   <script src="ari/system/ari-bootstrap.js"></script>
 
+<script src="calbuddy-core.js"></script>
 <script src="ari/ari-rebirth-app-bridge.js"></script>
 
   <!-- TESTING -->
@@ -264,6 +271,87 @@
     emotion: result.emotion,
     source: result.source || "ari-rebirth-app-bridge"
   };
+}
+
+async function runLayoutIntegrationTest() {
+  const homepageContext = `
+<section class="ari-action-grid three-actions">
+  <a href="goals.html" class="ari-action-tile">My Goals</a>
+  <a href="progress.html" class="ari-action-tile">Progress</a>
+  <button class="ari-action-tile">Conversations</button>
+</section>
+`;
+
+  const tests = [
+    {
+      id: "remove_conversations",
+      prompt: "Remove the Conversations button from the homepage.",
+      mustInclude: ["goals.html", "progress.html"],
+      mustNotInclude: ["Conversations"]
+    },
+    {
+      id: "rename_my_goals",
+      prompt: "Rename My Goals to Goals.",
+      mustInclude: ["Goals"],
+      mustNotInclude: ["My Goals"]
+    },
+    {
+      id: "change_bottom_tiles",
+      prompt: "Change the homepage bottom tiles to Goals, Log Food, and Progress.",
+      mustInclude: ["Goals", "Log Food", "Progress"],
+      mustNotInclude: ["Conversations"]
+    }
+  ];
+
+  const results = [];
+
+  for (const test of tests) {
+    const run = await window.AriRebirthAppBridge.ask(test.prompt, {
+      source: "ari-lab",
+      appMode: "layout-integration-test",
+      testMode: true,
+      githubFileContext: {
+        filePath: "index.html",
+        content: homepageContext
+      }
+    });
+
+    const proposedCode =
+      run.proposedCode ||
+      run.proposedHtml ||
+      run.action?.proposedCode ||
+      run.action?.proposedHtml ||
+      run.summary?.proposedCode ||
+      run.summary?.proposedHtml ||
+      run.reply ||
+      "";
+
+    const missingRequired = test.mustInclude.filter(
+      item => !proposedCode.includes(item)
+    );
+
+    const forbiddenFound = test.mustNotInclude.filter(
+      item => proposedCode.includes(item)
+    );
+
+    const passed =
+      missingRequired.length === 0 &&
+      forbiddenFound.length === 0;
+
+    results.push({
+      id: test.id,
+      prompt: test.prompt,
+      passed,
+      missingRequired,
+      forbiddenFound,
+      reply: run.reply,
+      proposedCode,
+      action: run.action || run.summary?.action || null,
+      summary: run.summary || {}
+    });
+  }
+
+  return results;
 }
 
     document.getElementById("ariAnalyzeBtn").addEventListener("click", async () => {
@@ -1512,6 +1600,40 @@ ${error.stack}
 `;
       }
     });
+  
+  
+  document.getElementById("ariIntegrationBtn").addEventListener("click", async () => {
+  const output = document.getElementById("ariOutput");
+
+  try {
+    const results = await runLayoutIntegrationTest();
+    const passedCount = results.filter(result => result.passed).length;
+
+    output.textContent =
+`===== ARI HOMEPAGE LAYOUT INTEGRATION TEST =====
+
+Passed:
+${passedCount}/${results.length}
+
+==================================================
+
+${JSON.stringify(results, null, 2)}
+`;
+  } catch (error) {
+    console.error("[ARI LAYOUT INTEGRATION ERROR]", error);
+
+    output.textContent =
+`===== ARI LAYOUT INTEGRATION ERROR =====
+
+${error.message}
+
+==================================================
+
+${error.stack}
+`;
+  }
+});
+  
   </script>
 </body>
 </html>
