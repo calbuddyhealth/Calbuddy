@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent handoff.
-// V1.0.0 — Handoff Only / No Understanding / No Patch Guessing
+// V1.0.1 — Handoff Only / No Understanding / No Patch Guessing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -56,6 +56,25 @@ window.AriRebirthDeveloperHandoffEngine = {
         patchDecision
       });
     }
+
+const wantsDirectRead =
+  this.wantsDirectFileRead(summary, understanding);
+
+if (wantsDirectRead) {
+  const readStep = this.findReadStep(
+    understanding,
+    codeEvidence,
+    selfImprovement
+  );
+
+  if (readStep) {
+    return this.buildGithubReadIntent({
+      summary,
+      understanding,
+      readStep
+    });
+  }
+}
 
     if (codeEvidence?.steps?.length) {
       return this.buildDeveloperInvestigationIntent({
@@ -233,6 +252,92 @@ window.AriRebirthDeveloperHandoffEngine = {
       patchDecision
     };
   },
+
+wantsDirectFileRead(summary = {}, understanding = null) {
+  const text = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  ).toLowerCase();
+
+  const directReadPhrases = [
+    "read ",
+    "open ",
+    "show me",
+    "show full file",
+    "show all code",
+    "full code",
+    "entire file",
+    "first ",
+    "last ",
+    "lines ",
+    "what are the first",
+    "what are the last",
+    "what file are you reading",
+    "currently reading"
+  ];
+
+  const namedFile =
+    understanding?.targetObject?.filePath ||
+    /\b[a-zA-Z0-9_\-./]+?\.(html|css|js|json|md|ts|tsx|jsx)\b/i.test(text);
+
+  return Boolean(
+    namedFile &&
+    directReadPhrases.some(phrase => text.includes(phrase))
+  );
+},
+
+findReadStep(understanding = null, codeEvidence = null, selfImprovement = null) {
+  const steps = [
+    ...(codeEvidence?.steps || []),
+    ...(selfImprovement?.steps || [])
+  ];
+
+  const namedReadStep = steps.find(
+    step => step?.tool === "github_read" && step.filePath
+  );
+
+  if (namedReadStep) return namedReadStep;
+
+  const filePath =
+    understanding?.targetObject?.filePath ||
+    understanding?.likelyFiles?.[0] ||
+    null;
+
+  if (!filePath) return null;
+
+  return {
+    tool: "github_read",
+    filePath,
+    reason: "Owner asked for direct file visibility."
+  };
+},
+
+buildGithubReadIntent({ summary = {}, understanding = null, readStep = {} }) {
+  return {
+    enabled: true,
+    type: "github_read_request",
+    source: "ari-rebirth-developer-handoff-engine",
+    handoffVersion: this.version,
+    title: this.buildTitle(understanding, "Read GitHub file"),
+    summary: readStep.reason || "Ari should read the requested GitHub file before answering.",
+    priority: this.inferPriority(understanding),
+    ownerCommand: true,
+    filePath: readStep.filePath,
+    githubRead: {
+      filePath: readStep.filePath
+    },
+    canEditNow: false,
+    requiresReadBeforeEdit: false,
+    safety: {
+      ownerRequired: true,
+      directWriteAllowed: false,
+      readOnly: true,
+      evidenceBased: true
+    }
+  };
+},
 
   cleanSteps(steps = []) {
     return steps
