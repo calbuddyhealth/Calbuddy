@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.7 — Contract-Locked Natural AI Writer
+// V8.3.8 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.7",
+  version: "8.3.8",
 
 
   async compose(input = {}) {
@@ -73,6 +73,17 @@ if (safetyAction.interruptMode === "full") {
     }
   };
 }
+const artifactPatch = this.composeArtifactPatchResponse({
+  summary,
+  contract,
+  primary,
+  userQuestion
+});
+
+if (artifactPatch) return artifactPatch;
+
+
+
 
     const draft = await this.writeDraft({
       summary,
@@ -236,6 +247,90 @@ findRelevantFileLines(content = "", userText = "", filePath = "the file") {
   ].join("\n");
 },
 
+
+composeArtifactPatchResponse({ summary = {}, contract = {}, primary = "", userQuestion = "" }) {
+  const rules = contract.responseRules || [];
+  const fileContext =
+    summary.githubFileContext ||
+    summary.githubEvidence ||
+    summary.appContext?.githubFileContext ||
+    null;
+
+  const content = String(fileContext?.content || "").trim();
+  const filePath = fileContext?.filePath || "index.html";
+  const text = String(userQuestion || "").toLowerCase();
+
+  const shouldPatch =
+    primary === "builder" &&
+    (
+      rules.includes("produce_code_or_patch") ||
+      rules.includes("use_artifact_context") ||
+      summary.situationMap?.needs?.includes("developer_artifact_operation")
+    ) &&
+    content;
+
+  if (!shouldPatch) return null;
+
+  let patched = content;
+
+  if (
+    text.includes("remove") &&
+    text.includes("conversations") &&
+    content.includes("<button class=\"ari-action-tile\">Conversations</button>")
+  ) {
+    patched = content.replace(
+      /\n\s*<button class="ari-action-tile">Conversations<\/button>/,
+      ""
+    );
+  }
+
+  if (
+  text.includes("remove") &&
+  text.includes("bottom") &&
+  text.includes("3 tiles") &&
+  content.includes("<section class=\"ari-action-grid three-actions\">")
+) {
+  patched = content.replace(
+    /<section class="ari-action-grid three-actions">[\s\S]*?<\/section>/,
+    ""
+  ).trim();
+}
+
+  if (patched === content) {
+    return {
+      languageMode: "builder",
+      languageBody: `I found the file context in ${filePath}, but I couldn’t safely infer the exact patch from that command.`,
+      languageSections: [],
+      finalResponse: `I found the file context in ${filePath}, but I couldn’t safely infer the exact patch from that command.`,
+      composerVersion: this.version,
+      source: "ari-language-composer",
+      composerUsedAI: false,
+      composerValidation: "artifact_patch_unclear"
+    };
+  }
+
+  const finalResponse =
+`Update ${filePath} to this:
+
+\`\`\`html
+${patched}
+\`\`\``;
+
+  return {
+    languageMode: "builder",
+    languageBody: finalResponse,
+    languageSections: [finalResponse],
+    finalResponse,
+    composerVersion: this.version,
+    source: "ari-language-composer",
+    composerUsedAI: false,
+    composerValidation: "artifact_patch_grounded_return",
+    composerDebug: {
+      usedArtifactPatch: true,
+      filePath
+    }
+  };
+},
 
   async writeDraft({
     summary = {},
