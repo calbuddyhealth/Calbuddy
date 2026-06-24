@@ -139,6 +139,38 @@
 <script src="/ari/developer/ari-rebirth-learning-engine.js"></script>
 <script src="/ari/developer/ari-rebirth-developer-handoff-engine.js"></script>
 
+<script src="/ari/safety/ari-safety-context-gate.js"></script>
+<script src="/ari/observer-system/ari-observer-network.js"></script>
+<script src="/ari/conversation/ari-conversation-function-engine.js"></script>
+<script src="/ari/conversation/ari-universal-conversation-classifier.js"></script>
+<script src="/ari/observer-system/ari-observer-routing-evidence.js"></script>
+<script src="/ari/context/ari-context-assembler.js"></script>
+<script src="/ari/meaning/ari-semantic-frame-builder.js"></script>
+<script src="/ari/routing/ari-lane-splitter-engine.js"></script>
+<script src="/ari/continuity/ari-continuity-entry-point.js"></script>
+<script src="/ari/continuity/ari-continuity-packet.js"></script>
+<script src="/ari/continuity/ari-thread-question-generator.js"></script>
+<script src="/ari/meaning/ari-situation-map-engine.js"></script>
+<script src="/ari/triage/ari-triage-engine.js"></script>
+<script src="/ari/contract/ari-situation-contract.js"></script>
+<script src="/ari/language/ari-language-composer.js"></script>
+
+<script src="/ari/thread/ari-thread-store.js"></script>
+<script src="/ari/meaning/ari-conversation-meaning-history.js"></script>
+<script src="/ari/memory/ari-memory-candidate-engine.js"></script>
+<script src="/ari/language/ari-human-language-engine.js"></script>
+<script src="/ari/language/ari-communication-planner.js"></script>
+<script src="/ari/language/ari-mouth-director.js"></script>
+<script src="/ari/reasoning/ari-reasoning-engine.js"></script>
+<script src="/ari/character/ari-character-context-engine.js"></script>
+<script src="/ari/lexical/ari-lexical-grounding-engine.js"></script>
+<script src="/ari/review/ari-situation-review-console.js"></script>
+<script src="/ari/response/ari-response-compressor.js"></script>
+
+<script src="/ari/needs/ari-human-needs-network.js"></script>
+<script src="/ari/response/ari-response-intent-engine.js"></script>
+<script src="/ari/executive/ari-executive-function.js"></script>
+
 <script src="/ari/integration/ari-rebirth-pipeline.js"></script>
 <script src="/ari/ari-rebirth-app-bridge.js"></script>
 
@@ -511,9 +543,13 @@ async function sendAriMessage() {
 
   try {
     const response = await CalBuddy.askAri({
-      message,
-      history: ariChatHistory
-    });
+  message,
+  history: ariChatHistory,
+  ownerMode: true,
+  appContext: {
+    ownerMode: true
+  }
+});
 
     const reply = response.reply || "Hmm. I had trouble answering that. Try again.";
 
