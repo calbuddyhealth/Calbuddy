@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.3.5 — App Safe / Pipeline Guarded / Developer Layer Handoff
+// V1.3.6 — App Safe / Pipeline Guarded / Developer Layer Handoff
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.3.5",
+  version: "1.3.6",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -31,13 +31,11 @@ window.AriRebirthAppBridge = {
     }
 
     try {
-      const analysis = null;
+    const analysis = null;
 
 let summary = this.attachAppContext({}, cleanMessage, options);
 
 summary = await window.AriRebirthPipeline.run(summary);
-
-      summary = await window.AriRebirthPipeline.run(summary);
 
 
 summary = this.attachDeveloperIntent(summary);
@@ -91,20 +89,6 @@ const reply = this.extractReply(summary);
 
   return { ready: true };
 },
-
-    if (
-      !window.AriRebirthPipeline ||
-      typeof window.AriRebirthPipeline.run !== "function"
-    ) {
-      return {
-        ready: false,
-        message: "Ari Rebirth pipeline is not loaded yet.",
-        error: "missing_AriRebirthPipeline_run"
-      };
-    }
-
-    return { ready: true };
-  },
 
   attachAppContext(summary = {}, cleanMessage = "", options = {}) {
     const normalizedMessage = cleanMessage.toLowerCase().trim();
