@@ -31,11 +31,11 @@ window.AriRebirthAppBridge = {
     }
 
     try {
-      const analysis = window.Ari.core.analyzeMessage(cleanMessage, options);
+      const analysis = null;
 
-      let summary = window.Ari.core.createSystemSummary(analysis);
+let summary = this.attachAppContext({}, cleanMessage, options);
 
-      summary = this.attachAppContext(summary, cleanMessage, options);
+summary = await window.AriRebirthPipeline.run(summary);
 
       summary = await window.AriRebirthPipeline.run(summary);
 
@@ -78,29 +78,19 @@ const reply = this.extractReply(summary);
   },
 
   checkReadiness() {
-    if (!window.Ari?.core) {
-      return {
-        ready: false,
-        message: "Ari Rebirth core is not loaded yet.",
-        error: "missing_window_Ari_core"
-      };
-    }
+  if (
+    !window.AriRebirthPipeline ||
+    typeof window.AriRebirthPipeline.run !== "function"
+  ) {
+    return {
+      ready: false,
+      message: "Ari Rebirth pipeline is not loaded yet.",
+      error: "missing_AriRebirthPipeline_run"
+    };
+  }
 
-    if (typeof window.Ari.core.analyzeMessage !== "function") {
-      return {
-        ready: false,
-        message: "Ari Core is loaded, but analyzeMessage is missing.",
-        error: "missing_analyzeMessage"
-      };
-    }
-
-    if (typeof window.Ari.core.createSystemSummary !== "function") {
-      return {
-        ready: false,
-        message: "Ari Core is loaded, but createSystemSummary is missing.",
-        error: "missing_createSystemSummary"
-      };
-    }
+  return { ready: true };
+},
 
     if (
       !window.AriRebirthPipeline ||
