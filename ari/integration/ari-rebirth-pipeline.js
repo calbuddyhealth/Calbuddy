@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.0 — Developer Layer Wired / Owner Code Handoff Ready
+// V3.8.1 — Developer Layer Wired / Owner Code Handoff Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.0",
+  version: "3.8.1",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -1258,10 +1258,7 @@ async runDeveloperLayer(summary = {}) {
     await runEngine(window.AriRebirthDeveloperUnderstandingEngine, ["understand"])
   );
 
-mergeAs(
-  "uiLayoutPlanner",
-  await runEngine(window.AriRebirthUILayoutPlannerEngine, ["plan"])
-);
+
 
   mergeAs(
     "projectKnowledgeGraph",
@@ -1277,6 +1274,11 @@ mergeAs(
     "architecture",
     await runEngine(window.AriRebirthArchitectureEngine, ["design"])
   );
+
+mergeAs(
+  "uiLayoutPlanner",
+  await runEngine(window.AriRebirthUILayoutPlannerEngine, ["plan"])
+);
 
   mergeAs(
     "bugDiagnosis",
@@ -1369,6 +1371,7 @@ mergeAs(
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
   console.log("===== DEVELOPER LAYER =====", summary.developerHandoff || summary.developerUnderstanding);
+  console.log("===== UI LAYOUT PLANNER =====", summary.uiLayoutPlanner);
   console.log("===== GITHUB EVIDENCE =====", {
   available: summary.githubEvidenceAvailable,
   filePath: summary.githubEvidence?.filePath,
