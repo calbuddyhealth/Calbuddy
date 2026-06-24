@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.5.7 — Adds routing evidence, lane split, continuity results, continuity packet
+// V3.5.8 — Adds routing evidence, lane split, continuity results, continuity packet
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.5.7",
+  version: "3.5.8",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -244,6 +244,11 @@ const patchDecision =
     const organism = analysis.organism || {};
     const responseIntent = analysis.responseIntent || {};
     const mouthDirector = analysis.mouthDirector || {};
+
+const uiLayoutPlanner =
+  analysis.uiLayoutPlanner ||
+  analysis.rebirthUiLayoutPlanner ||
+  {};
 
 const humanLanguage =
   analysis.humanLanguage ||
@@ -1912,6 +1917,41 @@ reasoningConfidence:
 // ==================================================
 // DEVELOPER EXECUTION / CODE EVIDENCE / PATCH DECISION
 // ==================================================
+
+uiLayoutPlanner,
+rebirthUiLayoutPlanner: uiLayoutPlanner,
+
+uiLayoutPlannerRan:
+  uiLayoutPlanner.uiLayoutPlannerRan ??
+  analysis.uiLayoutPlannerRan ??
+  false,
+
+uiLayoutPlannerVersion:
+  uiLayoutPlanner.uiLayoutPlannerVersion ||
+  analysis.uiLayoutPlannerVersion ||
+  null,
+
+uiLayoutPlannerSource:
+  uiLayoutPlanner.source ||
+  analysis.uiLayoutPlannerSource ||
+  "not-yet-run",
+
+uiLayoutType:
+  uiLayoutPlanner.layoutType || null,
+
+uiRequestedChanges:
+  uiLayoutPlanner.requestedChanges || [],
+
+uiLayoutBlueprint:
+  uiLayoutPlanner.layoutBlueprint ||
+  uiLayoutPlanner.blueprint ||
+  null,
+
+uiLayoutAffectedFiles:
+  uiLayoutPlanner.affectedFiles || [],
+
+uiLayoutPatchStrategy:
+  uiLayoutPlanner.patchStrategy || null,
 
 executionPlanner,
 rebirthExecutionPlanner: executionPlanner,
