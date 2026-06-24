@@ -1,11 +1,11 @@
 // ari/language/ari-response-compressor.js
 // Purpose: Compress final response without changing meaning or contract.
-// V1.4.0 — Character-safe compressor
+// V1.4.1 — Character-safe compressor
 
 window.Ari = window.Ari || {};
 
 window.AriResponseCompressor = {
-  version: "1.4.0",
+  version: "1.4.1",
 
   compress(input = {}) {
     const summary = input.summary || input || {};
@@ -15,6 +15,19 @@ window.AriResponseCompressor = {
       summary.mouthDirector?.compressionDirective ||
       summary.compressionDirective ||
       {};
+
+if (
+  summary.githubEvidenceAvailable &&
+  text.trim() === String(summary.githubEvidence?.content || "").trim()
+) {
+  return this.result(
+    `I’m currently reading ${summary.githubEvidence?.filePath || "a GitHub file"}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.`,
+    {
+      responseCompressorSkipped: true,
+      responseCompressorSkipReason: "blocked raw github evidence passthrough"
+    }
+  );
+}
 
     if (!text.trim()) {
       return this.result("");
