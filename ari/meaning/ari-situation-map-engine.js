@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.3.5 — Advisory Situation Mapper Only
+// V8.4.0 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.3.5",
+  version: "8.4.0",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -723,6 +723,48 @@ applyClarificationGovernor(map) {
     map.safetyGateUsed?.override === "clarify_risk" ||
     map.responseRequirements.includes("ask_one_risk_clarification_question");
 
+const isDeveloperArtifactRequest =
+  map.domains.includes("developer_artifact_domain") ||
+  map.needs.includes("developer_artifact_operation") ||
+  map.situations.includes("developer_artifact_request") ||
+  map.situations.includes("artifact_modification_request");
+
+const hasArtifactContext =
+  map.rawSemanticFrame?.responseCharacteristics?.expectsCodeOrArtifact === true ||
+  map.rawSemanticFrame?.handoff?.responseMode === "code_or_artifact" ||
+  Boolean(
+    map.rawSemanticFrame?.githubFileContext ||
+    map.rawSemanticFrame?.appContext?.githubFileContext
+  );
+
+if (isDeveloperArtifactRequest) {
+  map.shouldAskClarifyingQuestion = false;
+  map.recommendedQuestion = null;
+
+  if (map.ambiguity) {
+    map.ambiguity.shouldAskClarifyingQuestion = false;
+    map.ambiguity.present = false;
+    map.ambiguity.level = "none";
+    map.ambiguity.missing = [];
+    map.ambiguity.reasons = [
+      hasArtifactContext
+        ? "Developer artifact request has usable artifact context."
+        : "Developer artifact request should produce a targeted patch or state missing file context directly."
+    ];
+  }
+
+  this.add(map.responseRequirements, "use_artifact_context");
+  this.add(map.responseRequirements, "produce_code_or_patch");
+  this.add(map.responseConstraints, "do_not_ask_platform_clarification");
+  this.add(map.responseConstraints, "avoid_generic_platform_advice");
+
+  map.reasons.push(
+    "Clarification Governor suppressed clarification for developer artifact request."
+  );
+
+  return;
+}
+
   const hasBlockingMissingInfo =
   map.ambiguity?.missing?.includes("subject") ||
   map.ambiguity?.missing?.includes("decision_options_or_issue");
@@ -805,7 +847,7 @@ mapSemanticDomainToSituationDomain(map, domain) {
     body: ["medical_context_domain"],
     medical: ["medical_context_domain"],
     animal_health: ["animal_health_context_domain", "medical_context_domain"],
-
+developer: ["developer_artifact_domain", "builder_domain"],
     general_understanding: ["knowledge_domain"],
     information: ["knowledge_domain"],
     analysis: ["knowledge_domain"],
@@ -963,6 +1005,43 @@ readSemanticSituation(map) {
   this.mapSemanticDomainToSituationDomain(map, domain);
 
   if (meaning) this.add(map.situations, meaning);
+
+if (
+  domain === "developer" ||
+  [
+    "developer_artifact_request",
+    "artifact_modification_request",
+    "artifact_creation_request",
+    "artifact_investigation_request"
+  ].includes(meaning)
+) {
+  this.add(map.domains, "developer_artifact_domain");
+  this.add(map.domains, "builder_domain");
+
+  this.add(map.situations, "developer_artifact_request");
+
+  if (meaning === "artifact_modification_request") {
+    this.add(map.situations, "artifact_modification_request");
+    this.add(map.situations, "existing_file_modification");
+  }
+
+  this.add(map.needs, "developer_artifact_operation");
+  this.add(map.needs, "action_or_build_help");
+
+  this.add(map.responseRequirements, "use_artifact_context");
+  this.add(map.responseRequirements, "produce_code_or_patch");
+  this.add(map.responseRequirements, "preserve_unrelated_code");
+
+  map.canonical.requiresContext = false;
+  map.canonical.priorContextUsed = Boolean(
+    map.rawSemanticFrame?.responseCharacteristics?.expectsCodeOrArtifact ||
+    map.rawSemanticFrame?.handoff?.responseMode === "code_or_artifact"
+  );
+
+  map.reasons.push(
+    "Developer artifact request detected from semantic frame; file/context should be used before asking clarification."
+  );
+}
 
   if (map.canonical.requiresContext || map.canonical.priorContextUsed) {
     this.add(map.situations, "follow_up_context_available");
@@ -1373,6 +1452,31 @@ mapSemanticNeedSignals(map) {
 
   const combined = `${domain} ${meaning} ${intent} ${style}`;
 
+if (
+  domain.includes("developer") ||
+  meaning.includes("developer_artifact_request") ||
+  meaning.includes("artifact_modification_request") ||
+  meaning.includes("artifact_creation_request") ||
+  meaning.includes("artifact_investigation_request") ||
+  intent.includes("modify_existing_artifact") ||
+  intent.includes("modify_existing_code_or_ui") ||
+  intent.includes("create_artifact") ||
+  intent.includes("operate_on_artifact") ||
+  style.includes("artifact_operation") ||
+  style.includes("code_patch")
+) {
+  this.add(map.domains, "developer_artifact_domain");
+  this.add(map.domains, "builder_domain");
+
+  this.add(map.situations, "developer_artifact_request");
+  this.add(map.needs, "developer_artifact_operation");
+  this.add(map.needs, "action_or_build_help");
+
+  this.add(map.responseRequirements, "use_artifact_context");
+  this.add(map.responseRequirements, "produce_code_or_patch");
+  this.add(map.responseRequirements, "preserve_unrelated_code");
+}
+
   if (
     meaning.includes("emotional_disclosure") ||
     intent.includes("receive_and_respond_to_emotion") ||
@@ -1613,6 +1717,13 @@ this.mapTextNeedSignals(map);
       map.recommendedQuestion = safetyGate.followUpQuestion || "Are you safe right now?";
     }
 
+if (map.needs.includes("developer_artifact_operation")) {
+  this.add(map.responseRequirements, "use_artifact_context");
+  this.add(map.responseRequirements, "produce_code_or_patch");
+  this.add(map.responseRequirements, "preserve_unrelated_code");
+  this.add(map.responseRequirements, "avoid_generic_platform_advice");
+}
+
     if (map.needs.includes("decision_support")) this.add(map.responseRequirements, "decision_framework");
     if (map.needs.includes("action_or_build_help")) this.add(map.responseRequirements, "step_by_step_action");
     if (map.needs.includes("understanding")) this.add(map.responseRequirements, "clear_explanation");
@@ -1713,6 +1824,30 @@ addSemanticLaneEvidence(map, addCandidate) {
   const style = this.normalize(frame.conversationStyle || handoff.conversationStyle || "");
 
   const combined = `${meaning} ${intent} ${domain} ${style}`;
+
+if (
+  domain.includes("developer") ||
+  combined.includes("developer_artifact_request") ||
+  combined.includes("artifact_modification_request") ||
+  combined.includes("artifact_creation_request") ||
+  combined.includes("artifact_investigation_request") ||
+  combined.includes("modify_existing_artifact") ||
+  combined.includes("modify_existing_code_or_ui") ||
+  combined.includes("artifact_operation") ||
+  combined.includes("code_patch")
+) {
+  addCandidate(
+    "developer_artifact",
+    98,
+    "Semantic frame indicates a developer artifact/code modification request."
+  );
+
+  addCandidate(
+    "builder",
+    88,
+    "Developer artifact request also supports builder lane."
+  );
+}
 
   if (
     combined.includes("emotional_disclosure") ||
@@ -1914,6 +2049,7 @@ if (map.risks.includes("confirmed_urgent_risk")) {
   return "body";
 }
     if (map.domains.includes("emotion_context_domain")) return "emotion";
+    if (map.domains.includes("developer_artifact_domain")) return "developer_artifact";
     if (map.domains.includes("builder_domain")) return "builder";
     if (map.domains.includes("career_work_domain")) return "work";
     if (map.domains.includes("relationship_context_domain")) return "relationship";
