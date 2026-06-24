@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V2.0.1 — Universal Meaning Model / Current Turn First / Context Second
+// V2.1.0 — Developer Artifact Meaning / GitHub Context Aware / Current Turn First
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "2.0.1",
+  version: "2.1.0",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -24,7 +24,7 @@ window.AriSemanticFrameBuilder = {
 
     const currentTurnFrame = this.buildCurrentTurnFrameV2(normalized, summary);
     const continuityFrame = this.buildContinuityFrame(normalized, inheritedContext, currentTurnFrame);
-    const functionFrame = this.buildFunctionFrame(summary.conversationFunction);
+    const functionFrame = this.buildFunctionFrame(summary.conversationFunction || summary);
 
     const allFrames = this.rankFrames([
       currentTurnFrame,
@@ -33,17 +33,21 @@ window.AriSemanticFrameBuilder = {
     ]);
 
     const primaryFrame = this.selectPrimaryFrame(allFrames, normalized, continuityFrame);
+
     const responseCharacteristics = this.buildResponseCharacteristics(
       normalized,
       primaryFrame,
-      continuityFrame
+      continuityFrame,
+      summary
     );
 
     const emotionalOverlay = this.buildEmotionalOverlay(normalized);
+
     const ambiguity = this.buildAmbiguitySignal(
       normalized,
       primaryFrame,
-      continuityFrame
+      continuityFrame,
+      summary
     );
 
     return {
@@ -116,6 +120,74 @@ window.AriSemanticFrameBuilder = {
     const text = n.text;
     const words = text.split(/\s+/).filter(Boolean);
 
+    const conversationFunction = summary.conversationFunction || summary || {};
+
+    const githubFileContext =
+      summary.githubFileContext ||
+      summary.appContext?.githubFileContext ||
+      null;
+
+    const githubEvidenceAvailable =
+      !!(
+        githubFileContext &&
+        githubFileContext.filePath &&
+        String(githubFileContext.content || "").trim()
+      ) ||
+      summary.githubEvidenceAvailable === true ||
+      conversationFunction.githubEvidenceAvailable === true ||
+      conversationFunction.signalProfile?.githubEvidenceAvailable === true;
+
+    const developerArtifactFromFunction =
+      conversationFunction.primaryFunction === "developer_artifact_request" ||
+      conversationFunction.primaryFunction === "artifact_modification_request" ||
+      conversationFunction.primaryFunction === "artifact_creation_request" ||
+      conversationFunction.primaryFunction === "artifact_investigation_request" ||
+      conversationFunction.developerArtifactRequest === true ||
+      conversationFunction.artifactModificationRequest === true ||
+      conversationFunction.signalProfile?.developerArtifactRequest === true ||
+      conversationFunction.signalProfile?.artifactModificationRequest === true;
+
+    const developerNouns =
+      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|interface|html|css|javascript|js|file|code|function|engine|pipeline|github|vercel|supabase|index\.html|style|class|element|div|container|modal|menu|tab|navbar|dashboard|meter|search bar|input|form)\b/.test(text);
+
+    const modificationVerb =
+      /\b(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|make|turn|switch|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable)\b/.test(text);
+
+    const creationVerb =
+      /\b(create|build|make|generate|design|add new|set up|scaffold)\b/.test(text);
+
+    const investigationVerb =
+      /\b(debug|inspect|check|find|figure out|why is|why isn't|why does|not working|broken|issue|bug|error|failing)\b/.test(text);
+
+    const layoutLanguage =
+      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|bottom tabs|top bar|search bar|meter|dashboard|profile button|hamburger|greeting box|action grid)\b/.test(text);
+
+    const codeLanguage =
+      /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|class|script|style|component)\b/.test(text);
+
+    const artifactModificationRequest =
+      developerArtifactFromFunction ||
+      (
+        modificationVerb &&
+        (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage)
+      );
+
+    const artifactCreationRequest =
+      creationVerb && (developerNouns || layoutLanguage || codeLanguage);
+
+    const artifactInvestigationRequest =
+      investigationVerb && (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage);
+
+    const developerArtifactRequest =
+      developerArtifactFromFunction ||
+      artifactModificationRequest ||
+      artifactCreationRequest ||
+      artifactInvestigationRequest ||
+      (
+        githubEvidenceAvailable &&
+        (modificationVerb || creationVerb || investigationVerb || developerNouns)
+      );
+
     const question =
       n.hasQuestionMark ||
       /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
@@ -124,7 +196,8 @@ window.AriSemanticFrameBuilder = {
       /\b(what do you think|be honest|honestly|your take|your opinion|am i|should i|would you)\b/.test(text);
 
     const asksAction =
-      /\b(fix|build|update|replace|send|show|give|make|write|create|implement|review|look at|where do i add)\b/.test(text);
+      developerArtifactRequest ||
+      /\b(fix|build|update|replace|send|show|give|make|write|create|implement|review|look at|where do i add|remove|delete|rename|move|change)\b/.test(text);
 
     const asksExplanation =
       /\b(explain|why|how does|how do|what does|tell me about|help me understand)\b/.test(text);
@@ -145,6 +218,7 @@ window.AriSemanticFrameBuilder = {
       /\b(wife|husband|fiance|fiancé|girlfriend|boyfriend|father|mother|dad|mom|baby|child|family|relationship|marriage)\b/.test(text);
 
     const buildContext =
+      developerArtifactRequest ||
       /\b(app|code|file|engine|module|pipeline|github|vercel|supabase|composer|observer|frame builder|triage|contract|ari|rebirth)\b/.test(text);
 
     const identityStake =
@@ -156,6 +230,7 @@ window.AriSemanticFrameBuilder = {
       /\b(happy|excited|proud|angry|mad|sad|ashamed|scared|overwhelmed|frustrated|relieved|celebrate|deserve)\b/.test(text);
 
     const currentTurnCompleteness =
+      developerArtifactRequest ? "complete" :
       words.length >= 10 ? "complete" :
       words.length >= 4 ? "partial" :
       "fragment";
@@ -178,15 +253,86 @@ window.AriSemanticFrameBuilder = {
       identityStake,
       emotionExpression,
 
+      githubEvidenceAvailable,
+      githubFileContext,
+      developerNouns,
+      modificationVerb,
+      creationVerb,
+      investigationVerb,
+      layoutLanguage,
+      codeLanguage,
+      artifactModificationRequest,
+      artifactCreationRequest,
+      artifactInvestigationRequest,
+      developerArtifactRequest,
+
       currentTurnCompleteness,
 
-      conversationFunction: summary.conversationFunction || {},
+      conversationFunction,
       observations: summary.observations || summary.observationLedger || []
     };
   },
 
   generateFramesFromFeatures(f, n) {
     const frames = [];
+
+    if (f.developerArtifactRequest) {
+      this.pushFrame(frames, {
+        frameType: "developer_artifact_request",
+        domain: "developer",
+        intent: f.artifactModificationRequest
+          ? "modify_existing_artifact"
+          : f.artifactCreationRequest
+            ? "create_artifact"
+            : f.artifactInvestigationRequest
+              ? "investigate_artifact"
+              : "operate_on_artifact",
+        conversationStyle: "artifact_operation",
+        confidence: this.cap(90 + (f.githubEvidenceAvailable ? 8 : 0)),
+        evidence: [
+          "developer artifact request",
+          f.githubEvidenceAvailable ? "github file context available" : null,
+          f.layoutLanguage ? "layout/ui language" : null,
+          f.codeLanguage ? "code/file language" : null
+        ].filter(Boolean)
+      });
+    }
+
+    if (f.artifactModificationRequest) {
+      this.pushFrame(frames, {
+        frameType: "artifact_modification_request",
+        domain: "developer",
+        intent: "modify_existing_code_or_ui",
+        conversationStyle: "code_patch",
+        confidence: this.cap(92 + (f.githubEvidenceAvailable ? 8 : 0)),
+        evidence: [
+          "modification command",
+          f.githubEvidenceAvailable ? "existing file context available" : null
+        ].filter(Boolean)
+      });
+    }
+
+    if (f.artifactCreationRequest) {
+      this.pushFrame(frames, {
+        frameType: "artifact_creation_request",
+        domain: "developer",
+        intent: "create_or_add_code_or_ui",
+        conversationStyle: "code_generation",
+        confidence: 88,
+        evidence: ["creation command", "developer artifact context"]
+      });
+    }
+
+    if (f.artifactInvestigationRequest) {
+      this.pushFrame(frames, {
+        frameType: "artifact_investigation_request",
+        domain: "developer",
+        intent: "diagnose_or_inspect_artifact",
+        conversationStyle: "diagnostic",
+        confidence: this.cap(86 + (f.githubEvidenceAvailable ? 6 : 0)),
+        evidence: ["investigation/debug command", "developer artifact context"]
+      });
+    }
 
     if (f.asksDecision) {
       this.pushFrame(frames, {
@@ -199,7 +345,7 @@ window.AriSemanticFrameBuilder = {
       });
     }
 
-    if (f.asksAction && f.buildContext) {
+    if (f.asksAction && f.buildContext && !f.developerArtifactRequest) {
       this.pushFrame(frames, {
         frameType: "collaborative_software_build",
         domain: "ari_architecture",
@@ -210,7 +356,7 @@ window.AriSemanticFrameBuilder = {
       });
     }
 
-    if (f.hasProblem && f.buildContext) {
+    if (f.hasProblem && f.buildContext && !f.developerArtifactRequest) {
       this.pushFrame(frames, {
         frameType: "debugging_or_root_cause",
         domain: "system_behavior",
@@ -276,7 +422,7 @@ window.AriSemanticFrameBuilder = {
       });
     }
 
-    if (f.asksExplanation && !f.asksAction) {
+    if (f.asksExplanation && !f.asksAction && !f.developerArtifactRequest) {
       this.pushFrame(frames, {
         frameType: "information_seeking",
         domain: "general_understanding",
@@ -316,6 +462,19 @@ window.AriSemanticFrameBuilder = {
     const cleanFrames = frames.filter(Boolean);
     if (!cleanFrames.length) return this.defaultFrame(n);
 
+    const developerFrame = cleanFrames.find(f =>
+      [
+        "artifact_modification_request",
+        "developer_artifact_request",
+        "artifact_creation_request",
+        "artifact_investigation_request"
+      ].includes(f.frameType)
+    );
+
+    if (developerFrame && developerFrame.confidence >= 80) {
+      return developerFrame;
+    }
+
     const top = cleanFrames[0];
 
     const medicalOnlyHijack =
@@ -342,6 +501,38 @@ window.AriSemanticFrameBuilder = {
     if (!primaryFunction || primaryFunction === "unknown") return null;
 
     const map = {
+      developer_artifact_request: {
+        frameType: "developer_artifact_request",
+        domain: "developer",
+        intent: "operate_on_artifact",
+        conversationStyle: "artifact_operation",
+        confidence: 94
+      },
+
+      artifact_modification_request: {
+        frameType: "artifact_modification_request",
+        domain: "developer",
+        intent: "modify_existing_code_or_ui",
+        conversationStyle: "code_patch",
+        confidence: 96
+      },
+
+      artifact_creation_request: {
+        frameType: "artifact_creation_request",
+        domain: "developer",
+        intent: "create_or_add_code_or_ui",
+        conversationStyle: "code_generation",
+        confidence: 90
+      },
+
+      artifact_investigation_request: {
+        frameType: "artifact_investigation_request",
+        domain: "developer",
+        intent: "diagnose_or_inspect_artifact",
+        conversationStyle: "diagnostic",
+        confidence: 90
+      },
+
       emotional_disclosure: {
         frameType: "emotional_disclosure",
         domain: "emotion",
@@ -364,6 +555,14 @@ window.AriSemanticFrameBuilder = {
         intent: "correct_prior_interpretation",
         conversationStyle: "clarification",
         confidence: 86
+      },
+
+      build_or_debug_request: {
+        frameType: "collaborative_software_build",
+        domain: "ari_architecture",
+        intent: "create_or_modify_system_component",
+        conversationStyle: "co_creation",
+        confidence: 84
       },
 
       build_or_debug: {
@@ -390,17 +589,28 @@ window.AriSemanticFrameBuilder = {
     const text = n.text;
 
     const hasThread = inherited.threadAvailable;
-    const directQuestion =
-  n.hasQuestionMark ||
-  /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
 
-const completeCurrentTurn =
-  n.wordCount >= 10 ||
-  (
-    directQuestion &&
-    currentTurnFrame &&
-    currentTurnFrame.confidence >= 70
-  );
+    const directQuestion =
+      n.hasQuestionMark ||
+      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
+
+    const artifactFrame =
+      currentTurnFrame &&
+      [
+        "developer_artifact_request",
+        "artifact_modification_request",
+        "artifact_creation_request",
+        "artifact_investigation_request"
+      ].includes(currentTurnFrame.frameType);
+
+    const completeCurrentTurn =
+      artifactFrame ||
+      n.wordCount >= 10 ||
+      (
+        directQuestion &&
+        currentTurnFrame &&
+        currentTurnFrame.confidence >= 70
+      );
 
     const continuationHits = this.findWordHits(text, [
       "next",
@@ -467,15 +677,21 @@ const completeCurrentTurn =
       conversationStyle: "follow_up",
       isContinuation,
       referencesPriorContext: isContinuation,
-      referencesPriorArtifact: this.findWordHits(text, [
-        "code",
-        "file",
-        "engine",
-        "module",
-        "pipeline",
-        "composer",
-        "observer"
-      ]).length > 0,
+      referencesPriorArtifact:
+        artifactFrame ||
+        this.findWordHits(text, [
+          "code",
+          "file",
+          "engine",
+          "module",
+          "pipeline",
+          "composer",
+          "observer",
+          "homepage",
+          "layout",
+          "button",
+          "tile"
+        ]).length > 0,
       referencesPriorQuestion: this.findPhraseHits(text, [
         "what i asked",
         "my question",
@@ -527,38 +743,76 @@ const completeCurrentTurn =
     };
   },
 
-  buildResponseCharacteristics(n, primaryFrame, continuityFrame) {
+  buildResponseCharacteristics(n, primaryFrame, continuityFrame, summary = {}) {
     const text = n.text;
 
     const directQuestion =
       n.hasQuestionMark ||
       /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
 
-    const collaborationFrames = [
-      "collaborative_software_build",
-      "debugging_or_root_cause"
+    const developerFrames = [
+      "developer_artifact_request",
+      "artifact_modification_request",
+      "artifact_creation_request",
+      "artifact_investigation_request"
     ];
 
+    const collaborationFrames = [
+      "collaborative_software_build",
+      "debugging_or_root_cause",
+      ...developerFrames
+    ];
+
+    const githubFileContext =
+      summary.githubFileContext ||
+      summary.appContext?.githubFileContext ||
+      null;
+
+    const hasGithubContext =
+      !!(
+        githubFileContext &&
+        githubFileContext.filePath &&
+        String(githubFileContext.content || "").trim()
+      ) ||
+      summary.githubEvidenceAvailable === true;
+
+    const expectsCodeOrArtifact =
+      developerFrames.includes(primaryFrame.frameType) ||
+      hasGithubContext ||
+      this.findWordHits(text, [
+        "code",
+        "file",
+        "script",
+        "module",
+        "html",
+        "css",
+        "javascript",
+        "homepage",
+        "layout",
+        "button",
+        "tile"
+      ]).length > 0;
+
     return {
-      expectsDirectAnswer: directQuestion,
+      expectsDirectAnswer: directQuestion || developerFrames.includes(primaryFrame.frameType),
       expectsExplanation:
         /\b(explain|tell me|how does|why does|what does it mean)\b/.test(text),
       expectsCollaboration: collaborationFrames.includes(primaryFrame.frameType),
       expectsReflection: primaryFrame.frameType === "emotional_disclosure",
-      expectsCodeOrArtifact:
-        this.findWordHits(text, ["code", "file", "script", "module"]).length > 0,
+      expectsCodeOrArtifact,
       expectsFollowUpContext: continuityFrame.isContinuation,
       likelyWantsMinimalAnswer: n.isShortTurn || /\bbriefly|quick|short answer\b/.test(text),
       confidence: this.cap(
         55 +
         (directQuestion ? 14 : 0) +
         (collaborationFrames.includes(primaryFrame.frameType) ? 18 : 0) +
+        (expectsCodeOrArtifact ? 18 : 0) +
         (continuityFrame.isContinuation ? 10 : 0)
       )
     };
   },
 
-  buildAmbiguitySignal(n, primaryFrame, continuityFrame) {
+  buildAmbiguitySignal(n, primaryFrame, continuityFrame, summary = {}) {
     const pronounHits = this.findWordHits(n.text, [
       "it",
       "this",
@@ -569,17 +823,47 @@ const completeCurrentTurn =
       "her"
     ]);
 
-    const directQuestion =
-  n.hasQuestionMark ||
-  /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(n.text);
+    const developerFrames = [
+      "developer_artifact_request",
+      "artifact_modification_request",
+      "artifact_creation_request",
+      "artifact_investigation_request"
+    ];
 
-const currentTurnComplete =
-  (n.wordCount >= 10 && primaryFrame.confidence >= 65) ||
-  (
-    directQuestion &&
-    primaryFrame &&
-    primaryFrame.confidence >= 70
-  );
+    const githubFileContext =
+      summary.githubFileContext ||
+      summary.appContext?.githubFileContext ||
+      null;
+
+    const hasGithubContext =
+      !!(
+        githubFileContext &&
+        githubFileContext.filePath &&
+        String(githubFileContext.content || "").trim()
+      ) ||
+      summary.githubEvidenceAvailable === true;
+
+    if (developerFrames.includes(primaryFrame.frameType) && hasGithubContext) {
+      return {
+        present: false,
+        reason: "Developer artifact request has usable file context.",
+        confidence: 90,
+        evidence: ["github file context available"]
+      };
+    }
+
+    const directQuestion =
+      n.hasQuestionMark ||
+      /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(n.text);
+
+    const currentTurnComplete =
+      developerFrames.includes(primaryFrame.frameType) ||
+      (n.wordCount >= 10 && primaryFrame.confidence >= 65) ||
+      (
+        directQuestion &&
+        primaryFrame &&
+        primaryFrame.confidence >= 70
+      );
 
     const present =
       !currentTurnComplete &&
