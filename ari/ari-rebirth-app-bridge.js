@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.3.3 — App Safe / Pipeline Guarded / Developer Layer Handoff
+// V1.3.5 — App Safe / Pipeline Guarded / Developer Layer Handoff
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.3.3",
+  version: "1.3.5",
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -208,55 +208,85 @@ extractFileEvidenceReply(summary = {}) {
     summary.githubEvidence ||
     summary.appContext?.githubFileContext ||
     null;
-
   const content = String(fileContext?.content || "");
   const filePath = fileContext?.filePath || "the file";
   const userText = String(summary.userMessage || summary.message || "").toLowerCase();
-
   if (!content.trim()) return null;
-
-  const wantsExactCode =
-    userText.includes("exact html") ||
+  const lines = content.split("\n");
+  const rangeMatch =
+    userText.match(/lines?\s+(\d+)\s*(?:-|to|through)\s*(\d+)/i);
+  if (rangeMatch) {
+    const start = Math.max(Number(rangeMatch[1]), 1);
+    const end = Math.min(Number(rangeMatch[2]), lines.length);
+    return this.formatFileLines({
+      filePath,
+      lines,
+      start,
+      end
+    });
+  }
+  const firstMatch =
+    userText.match(/first\s+(\d+)\s+lines?/i);
+  if (firstMatch) {
+    const count = Math.min(Number(firstMatch[1]), lines.length);
+    return this.formatFileLines({
+      filePath,
+      lines,
+      start: 1,
+      end: count
+    });
+  }
+  const lastMatch =
+    userText.match(/last\s+(\d+)\s+lines?/i);
+  if (lastMatch) {
+    const count = Math.min(Number(lastMatch[1]), lines.length);
+    const start = Math.max(lines.length - count + 1, 1);
+    return this.formatFileLines({
+      filePath,
+      lines,
+      start,
+      end: lines.length
+    });
+  }
+  const wantsFullCode =
+    userText.includes("show full file") ||
+    userText.includes("show me full file") ||
+    userText.includes("show all code") ||
+    userText.includes("full code") ||
+    userText.includes("entire file") ||
     userText.includes("exact code") ||
-    userText.includes("show me the exact") ||
-    userText.includes("show exact") ||
-    userText.includes("do not edit");
-
-  if (wantsExactCode) {
-    return content.trim();
+    userText.includes("exact html") ||
+    userText.includes("show me the exact");
+  if (wantsFullCode) {
+    return [
+      `I read ${filePath}. Full file content:`,
+      "",
+      "```",
+      content.trim(),
+      "```"
+    ].join("\n");
   }
-
-  const wantsFilePurpose =
-    userText.includes("what does this file do") ||
-    userText.includes("what does it do") ||
-    userText.includes("explain this file") ||
-    userText.includes("summarize this file");
-
-  if (wantsFilePurpose) {
-    return `I read ${filePath}. This file appears to contain code related to:\n\n${this.summarizeFileContent(content)}`;
+  const wantsFileStatus =
+    userText.includes("what file") ||
+    userText.includes("currently reading") ||
+    userText.includes("githubevidenceavailable");
+  if (wantsFileStatus) {
+    return `I’m currently reading ${filePath}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.\n\nContent length: ${content.length} characters.\nLine count: ${lines.length}.`;
   }
-
-  const wantsLocation =
-    userText.includes("where is") ||
-    userText.includes("where do i") ||
-    userText.includes("where should") ||
-    userText.includes("find");
-
-  if (wantsLocation) {
-    return this.findRelevantFileLines(content, userText, filePath);
-  }
-
-  const wantsEditAdvice =
-    userText.includes("what should we edit") ||
-    userText.includes("what do we edit") ||
-    userText.includes("how do we change") ||
-    userText.includes("what needs to change");
-
-  if (wantsEditAdvice) {
-    return `I read ${filePath}. The file content is available, but I should identify the exact target block before suggesting a patch. The safest next step is to search the file for the relevant UI text, class, id, or function, then use exact find/replace.`;
-  }
-
   return null;
+},
+formatFileLines({ filePath = "the file", lines = [], start = 1, end = 1 } = {}) {
+  const selected = lines.slice(start - 1, end);
+  return [
+    `I read ${filePath}. Lines ${start}-${end}:`,
+    "",
+    "```",
+    ...selected.map((line, index) => {
+      const lineNumber = start + index;
+      return `${String(lineNumber).padStart(4, " ")} | ${line}`;
+    }),
+    "```"
+  ].join("\n");
 },
 
 summarizeFileContent(content = "") {
