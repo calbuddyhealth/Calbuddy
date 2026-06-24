@@ -1079,7 +1079,21 @@ Rebirth-only app brain. Old server Ari remains below as emergency API fallback
 only if Rebirth bridge is not loaded.
 ----------------------------- */
 
-if (window.AriRebirthAppBridge) {
+console.log("REBIRTH LOAD CHECK:", {
+  bridge: window.AriRebirthAppBridge?.version,
+  pipeline: window.AriRebirthPipeline?.version,
+  safety: window.AriSafetyContextGate?.version,
+  observer: window.Ari?.observerNetwork?.version,
+  situationMap: window.AriSituationMapEngine?.version,
+  triage: window.AriTriageEngine?.version,
+  contract: window.AriSituationContract?.version,
+  composer: window.AriLanguageComposer?.version
+});
+
+if (
+  window.AriRebirthAppBridge?.ask &&
+  window.AriRebirthPipeline?.run
+) {
   const rebirth = await window.AriRebirthAppBridge.ask(message, {
     source: "calbuddy-core",
     page: window.location.pathname || "unknown",
