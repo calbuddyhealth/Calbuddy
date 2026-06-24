@@ -1258,6 +1258,11 @@ async runDeveloperLayer(summary = {}) {
     await runEngine(window.AriRebirthDeveloperUnderstandingEngine, ["understand"])
   );
 
+mergeAs(
+  "uiLayoutPlanner",
+  await runEngine(window.AriRebirthUILayoutPlannerEngine, ["plan"])
+);
+
   mergeAs(
     "projectKnowledgeGraph",
     await runEngine(window.AriRebirthProjectKnowledgeGraphEngine, ["build"])
