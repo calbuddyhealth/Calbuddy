@@ -1584,13 +1584,9 @@ if (userContext?.ownerMode !== true) {
     }
 
     const analysisResponse = await window.AriRebirthAppBridge.ask(
-      `The owner asked: "${originalMessage}"
+  `OWNER REQUEST:
 
-You just read this GitHub file: ${filePath}
-
-Answer the owner using the file content.
-If the owner asked to show code, show the exact relevant code.
-Do not edit unless asked.`,
+${originalMessage}`,
       {
         source: "calbuddy-core-github-read",
         page: window.location.pathname || "unknown",
