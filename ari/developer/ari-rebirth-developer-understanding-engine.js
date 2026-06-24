@@ -1,19 +1,24 @@
 // ari/developer/ari-rebirth-developer-understanding-engine.js
 // Ari Rebirth Developer Understanding Engine
 // Purpose: Build semantic understanding of owner developer requests.
-// V1.1.0 — Planner Consolidated / Semantic First / Evidence Ready
+// V1.1.1 — Planner Consolidated / Semantic First / Evidence Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperUnderstandingEngine = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
     const appContext = summary.appContext || {};
     const rawText = this.getText(summary);
 
-    if (!appContext.ownerMode) return null;
+    const ownerMode =
+  appContext.ownerMode === true ||
+  summary.ownerMode === true ||
+  summary.userContext?.ownerMode === true;
+
+if (!ownerMode) return null;
 
     const text = this.normalize(rawText);
 
@@ -39,6 +44,7 @@ window.AriRebirthDeveloperUnderstandingEngine = {
 
       userGoal: semanticFrame.userGoal,
       requestedChange: semanticFrame.requestedChange,
+      requestedChanges: semanticFrame.requestedChanges,
       intentFamily: semanticFrame.intentFamily,
       targetArea: semanticFrame.targetArea,
       targetObject: semanticFrame.targetObject,
