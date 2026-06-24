@@ -19,11 +19,7 @@ window.AriLanguageComposer = {
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
-const fileEvidenceReply = this.composeFromGithubEvidence(summary);
 
-if (fileEvidenceReply) {
-  return fileEvidenceReply;
-}
     const contract = summary.situationContract || {};
     const communicationPlan = summary.communicationPlan || {};
     const mouth = summary.mouthDirector || {};
