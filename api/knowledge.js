@@ -1,7 +1,7 @@
 // api/knowledge.js
 // CalBuddy / Ari Knowledge API
-// Purpose: Supabase knowledge library + Ari OpenAI knowledge.
-// V2.1.0 — Character Core + Natural Ari Voice Upgrade
+// Purpose: Supabase knowledge library + Ari OpenAI knowledge client.
+// V2.2.0 — Ari Rebirth Compatible / aiInstruction Ready
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
@@ -9,11 +9,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const action = req.method === "GET" ? req.query.action : req.body?.action;
+    const body = req.body || {};
+    const action = req.method === "GET" ? req.query.action : body.action;
 
     if (
       action === "openai_knowledge" ||
-      (req.method === "POST" && req.body?.question && !action)
+      body.aiInstruction ||
+      body.question ||
+      body.resolvedUserQuestion ||
+      body.userMessage ||
+      body.message
     ) {
       return await handleOpenAIKnowledge(req, res);
     }
@@ -30,7 +35,7 @@ export default async function handler(req, res) {
       "Content-Type": "application/json"
     };
 
-    const user_id = req.method === "GET" ? req.query.user_id : req.body?.user_id;
+    const user_id = req.method === "GET" ? req.query.user_id : body.user_id;
 
     if (!action) return res.status(400).json({ error: "Missing action." });
     if (!user_id) return res.status(400).json({ error: "Missing user_id." });
@@ -44,7 +49,7 @@ export default async function handler(req, res) {
         copyright_status = "unknown",
         use_allowed = false,
         notes = ""
-      } = req.body;
+      } = body;
 
       if (!title) return res.status(400).json({ error: "Missing document title." });
 
@@ -78,7 +83,7 @@ export default async function handler(req, res) {
         page_start = null,
         page_end = null,
         tags = []
-      } = req.body;
+      } = body;
 
       if (!document_id || !chunk_text) {
         return res.status(400).json({ error: "document_id and chunk_text are required." });
@@ -111,7 +116,7 @@ export default async function handler(req, res) {
         lesson_summary,
         application_notes = null,
         category = null
-      } = req.body;
+      } = body;
 
       if (!document_id || !lesson_summary) {
         return res.status(400).json({ error: "document_id and lesson_summary are required." });
@@ -139,7 +144,7 @@ export default async function handler(req, res) {
       const query =
         req.method === "GET"
           ? String(req.query.query || "")
-          : String(req.body?.query || "");
+          : String(body.query || "");
 
       if (!query.trim()) return res.status(400).json({ error: "Missing search query." });
 
@@ -189,7 +194,7 @@ export default async function handler(req, res) {
         public_url = null,
         summary = null,
         extracted_text = null
-      } = req.body;
+      } = body;
 
       if (!file_name) return res.status(400).json({ error: "Missing file_name." });
 
@@ -226,21 +231,32 @@ export default async function handler(req, res) {
 async function handleOpenAIKnowledge(req, res) {
   const body = req.body || {};
 
+  const aiInstruction = body.aiInstruction || body.instruction || "";
+
   const question =
+    body.resolvedUserQuestion ||
     body.resolvedQuestion ||
     body.question ||
+    body.userMessage ||
+    body.message ||
+    body.input ||
     body.rawQuestion ||
     "";
 
-  const rawQuestion = body.rawQuestion || "";
-  const instruction = body.instruction || "";
+  const rawQuestion =
+    body.rawQuestion ||
+    body.userMessage ||
+    body.message ||
+    body.input ||
+    question ||
+    "";
 
-  const character = body.character || {};
-  const contract = body.contract || {};
-  const triage = body.triage || {};
-  const situation = body.situation || {};
-  const continuity = body.continuity || {};
-  const language = body.language || {};
+  const character = body.character || body.characterContext || {};
+  const contract = body.contract || body.situationContract || {};
+  const triage = body.triage || body.ariTriage || {};
+  const situation = body.situation || body.situationMap || {};
+  const continuity = body.continuity || body.continuityContext || body.threadState || {};
+  const language = body.language || body.humanLanguageProfile || {};
   const conversationMode = body.conversationMode || "new_question";
 
   if (!process.env.OPENAI_API_KEY) {
@@ -256,49 +272,30 @@ async function handleOpenAIKnowledge(req, res) {
   const systemPrompt = `
 You are Ari.
 
-You are not a sterile knowledge engine.
-You are a clear, grounded, intelligent assistant with a natural human tone.
+You are the OpenAI language brain for Ari Rebirth.
+Your job is to turn Ari Rebirth's instruction and context into a natural final answer.
 
 Authority order:
 1. Safety and medical risk boundaries
 2. The user's resolved question
-3. Situation contract and triage
-4. Character Core voice and values
-5. Communication style
+3. The provided AI instruction
+4. Situation contract and triage
+5. Ari character voice and communication style
 
-Character Core:
-- Use the provided character context as Ari's voice, values, and boundaries.
-- Do not let Character Core override safety, medical caution, or the user's actual question.
-- Stay honest, useful, direct, and warm when appropriate.
-
-Your job:
+Rules:
 - Answer the user's actual question.
-- Use the resolved question as the authority.
-- Use contract, triage, situation, continuity, language, and character only to shape the answer.
-- Do not mention internal systems.
+- Follow the AI instruction closely when provided.
+- Use the provided context to shape the answer.
+- Do not mention internal systems, pipeline names, contracts, triage, or hidden architecture.
+- Do not output placeholders.
+- Do not sound robotic.
+- Be natural, useful, direct, and concise.
+- If the user is asking for code, provide code.
+- If the user is asking for a patch, provide the patch.
+- If unsure, say what is missing and what to inspect next.
+- Never claim a file was edited, committed, or deployed unless the app confirms it.
 
-Tone:
-- Natural, direct, and human.
-- Do not sound like customer support.
-- Do not use robotic openings like "Based on the information provided."
-- Use contractions naturally.
-- Use short paragraphs.
-- Be practical.
-- Avoid fake emotion.
-
-Conversation handling:
-- If conversation mode is follow_up, continue the active topic.
-- If conversation mode is clarification, clarify the active topic without restarting.
-- If conversation mode is topic_shift, do not force old context.
-- If conversation mode is new_question, answer as a fresh question.
-
-Safety:
-- If medical, legal, financial, or safety context exists, be careful and avoid false certainty.
-- If unsure, say so plainly.
-- Give practical next steps when useful.
-
-Output:
-- Return only valid JSON.
+Return only valid JSON.
 `.trim();
 
   const userPrompt = `
@@ -311,8 +308,8 @@ ${cleanQuestion}
 CONVERSATION MODE:
 ${conversationMode}
 
-CLIENT INSTRUCTION:
-${instruction}
+ARI REBIRTH AI INSTRUCTION:
+${String(aiInstruction || "").trim() || "No special instruction provided."}
 
 CONTEXT:
 ${JSON.stringify(
@@ -350,7 +347,7 @@ Return JSON only:
         { role: "user", content: userPrompt }
       ],
       temperature: 0.55,
-      max_tokens: 900,
+      max_tokens: 1200,
       response_format: { type: "json_object" }
     })
   });
@@ -377,14 +374,24 @@ Return JSON only:
     };
   }
 
+  const answer =
+    parsed.answer ||
+    parsed.finalResponse ||
+    parsed.reply ||
+    parsed.text ||
+    "I don’t have enough reliable information to answer that clearly yet.";
+
   return res.status(200).json({
-    answer:
-      parsed.answer ||
-      "I don’t have enough reliable information to answer that clearly yet.",
+    answer,
+    finalResponse: answer,
+    knowledgeAnswer: answer,
+    response: answer,
+    text: answer,
     confidence: parsed.confidence || "medium",
     sources: Array.isArray(parsed.sources) ? parsed.sources : [],
     notes: parsed.notes || null,
     model: data.model || "gpt-4o-mini",
-    source: "openai"
+    source: "openai_knowledge",
+    success: true
   });
 }
