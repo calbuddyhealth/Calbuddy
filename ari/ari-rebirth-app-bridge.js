@@ -15,8 +15,8 @@ window.AriRebirthAppBridge = {
     "ari/system/ari-authority.js",
 
 "ari/actions/ari-rebirth-action-planner.js",
-"ari/actions/ari-action-intent-classifier.js",
-"ari/actions/ari-action-contract.js",
+"ari/intent/ari-action-intent-classifier.js",
+"ari/intent/ari-action-contract.js",
 
 "ari/developer/ari-rebirth-developer-understanding-engine.js",
 "ari/developer/ari-rebirth-ui-layout-planner-engine.js",
