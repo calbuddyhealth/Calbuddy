@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.4.1 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
+// V8.4.2 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.4.1",
+  version: "8.4.2",
 
 
   async compose(input = {}) {
@@ -82,7 +82,7 @@ const artifactPatch = this.composeArtifactPatchResponse({
 
 if (artifactPatch) return artifactPatch;
 
-const githubEvidenceResponse = this.shouldUseGithubEvidence(summary)
+const githubEvidenceResponse = this.shouldUseGithubEvidence(summary, primary)
   ? this.composeFromGithubEvidence(summary)
   : null;
 
@@ -151,7 +151,14 @@ const finalResponse = this.finalPolish(
     };
   },
 
-shouldUseGithubEvidence(summary = {}) {
+shouldUseGithubEvidence(summary = {}, primary = "") {
+  const developerLane =
+    primary === "builder" ||
+    primary === "coding" ||
+    primary === "project_help";
+
+  if (!developerLane) return false;
+
   const text = String(
     summary.userMessage ||
     summary.message ||
@@ -172,8 +179,8 @@ shouldUseGithubEvidence(summary = {}) {
     text.includes("code") ||
     text.includes("github") ||
     text.includes("read file") ||
-text.includes("read the file") ||
-text.includes("read github") ||
+    text.includes("read the file") ||
+    text.includes("read github") ||
     text.includes("line") ||
     text.includes("where is") ||
     text.includes("show me") ||
