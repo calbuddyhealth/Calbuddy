@@ -1,12 +1,12 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.1.0 — Developer Artifact Detection / Layout Command Ready / Advisory Only
+// V2.1.1 — Developer Artifact Detection / Layout Command Ready / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
@@ -67,7 +67,8 @@ window.AriConversationFunctionEngine = {
       artifactInvestigationRequest: signals.artifactInvestigationRequest,
       githubEvidenceAvailable: signals.githubEvidenceAvailable,
       expectsCodeOrArtifact: signals.expectsCodeOrArtifact,
-
+languageOrInterpretationRequest: signals.languageOrInterpretationRequest,
+languageTeacherRequest: signals.languageTeacherRequest,
       authority: "advisory_conversation_function_only",
       cannotSet: [
         "primaryLane",
@@ -511,6 +512,12 @@ if (signals.languageTeacherRequest) {
 
   getResponseBias(primary, signals = {}) {
     const base = {
+      
+      language_or_interpretation_request: {
+  preferredLaneBias: "teacher",
+  responseShape: "translate_or_explain_then_invite_discussion",
+  instruction: "Translate, explain, or discuss the quoted text directly. Do not route religious, quote, scripture, or language requests into developer/artifact mode just because file context exists."
+},
       developer_artifact_request: {
         preferredLaneBias: "developer_artifact",
         responseShape: signals.githubEvidenceAvailable ? "code_patch" : "artifact_action_plan",
