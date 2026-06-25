@@ -304,9 +304,32 @@ function renderDashboard(context = {}) {
   const netConsumed = Math.max(consumed - burned, 0);
   const caloriesLeft = Math.max(goal - netConsumed, 0);
 
+  const percentLeft = goal
+    ? Math.max(0, Math.min(caloriesLeft / goal, 1))
+    : 1;
+
+  const percentUsed = goal
+    ? Math.max(0, Math.min(netConsumed / goal, 1))
+    : 0;
+
   setText("caloriesLeftText", caloriesLeft.toLocaleString());
   setText("dailyGoalText", goal.toLocaleString());
   setText("caloriesConsumedText", netConsumed.toLocaleString());
+
+  const navFill = document.getElementById("navMeterFill");
+
+  if (navFill) {
+    navFill.style.strokeDasharray = "100";
+    navFill.style.strokeDashoffset = String(100 - percentLeft * 100);
+
+    navFill.classList.remove("nav-meter-yellow", "nav-meter-red");
+
+    if (percentUsed >= 1) {
+      navFill.classList.add("nav-meter-red");
+    } else if (percentUsed >= 0.75) {
+      navFill.classList.add("nav-meter-yellow");
+    }
+  }
 }
 
 function setText(id, value) {
