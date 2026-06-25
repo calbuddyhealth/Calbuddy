@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.3.7 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
+// V1.3.8 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.3.7",
+  version: "1.3.8",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -53,6 +53,36 @@ window.AriRebirthAppBridge = {
     "ari/language/ari-mouth-director.js",
     "ari/language/ari-response-compressor.js",
     "ari/language/ari-language-composer.js",
+
+"ari/observer-system/ari-dual-salience-system.js",
+"ari/observer-system/ari-observer-hierarchy-engine.js",
+"ari/observer-system/ari-observation-ledger.js",
+"ari/observer-system/ari-question-understanding.js",
+"ari/observer-system/ari-life-signal-extractor.js",
+
+"ari/attention-system/ari-attention-system.js",
+"ari/brain/ari-router.js",
+
+"ari/value-system/ari-value-engine.js",
+"ari/identity-system/ari-identity-engine.js",
+"ari/conflict-system/ari-conflict-engine.js",
+
+"ari/confidence-system/ari-confidence-system.js",
+"ari/confidence-system/ari-confidence-calibration.js",
+
+"ari/executive-system/ari-executive-function.js",
+
+"ari/heart/ari-emotion-engine.js",
+"ari/emotion-system/ari-emotional-intelligence.js",
+"ari/emotion-system/ari-underlying-emotion-engine.js",
+"ari/emotion-system/ari-emotion-recovery-questions.js",
+"ari/emotion-system/ari-emotion-integrator.js",
+
+"ari/organism-system/ari-organism-function-engine.js",
+"ari/needs/ari-need-engine.js",
+
+"ari/integration/ari-salience-governor.js",
+"ari/integration/ari-synthesis-engine.js",
 
     "ari/knowledge/ari-openai-knowledge-client.js",
     "ari/reasoning/ari-reasoning-engine.js",
