@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.8 — Contract-Locked Natural AI Writer
+// V8.3.9 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.8",
+  version: "8.3.9",
 
 
   async compose(input = {}) {
@@ -861,57 +861,60 @@ defaultSafetyAction({ safetyAction = {}, primary = "" }) {
   thesis = {},
   userQuestion = ""
 }) {
-    if (primary === "builder") {
-      return "Yes. The next move is to update the composer so it stops making decisions and only writes from the contract. That means: build the prompt from the contract, let AI draft naturally, validate the response, then block robotic or internal language before returning it.";
-    }
+  const question = String(userQuestion || "").trim();
+  const lower = question.toLowerCase();
 
-    if (primary === "teacher") {
-      return "The clean answer is this: the composer should not decide what the user needs. It should only turn the contract into a natural final response.";
-    }
+  if (contract.clarity?.question) {
+    return contract.clarity.question;
+  }
 
- if (primary === "executive_decision") {
-  const preferred =
-    summary.preferredTerms ||
-    summary.lexicalGrounding?.preferredTerms ||
-    summary.lexicalGroundingOutput?.preferredTerms ||
-    {};
+  if (
+    lower === "ari" ||
+    lower === "talk to me" ||
+    lower.includes("can you help me") ||
+    lower.includes("help me out")
+  ) {
+    return "Yeah. I’m here with you. Tell me what’s going on.";
+  }
 
-  const option =
-    preferred.decisionOption?.short ||
-    preferred.actionPhrase?.short ||
-    "the option";
+  if (
+    lower.includes("sad") ||
+    lower.includes("down") ||
+    lower.includes("depressed") ||
+    lower.includes("overwhelmed") ||
+    lower.includes("hurt")
+  ) {
+    return "Yeah, I’m here. I’m sorry you’re feeling that way. You don’t have to carry the whole thing alone right now — tell me what happened.";
+  }
 
-  const tradeoff =
-    preferred.centralTradeoff?.short ||
-    preferred.centralTradeoff?.phrase ||
-    "the main tradeoff";
+  if (primary === "builder") {
+    return "Yes — I can help with that. Show me the exact behavior, file, or error, and we’ll trace it before changing more code.";
+  }
 
-  return `My recommendation: don’t decide from emotion alone. Compare ${tradeoff}, then decide whether ${option} is worth the cost. The next step is to write the top 3 gains and top 3 losses before saying yes.`;
-}
+  if (primary === "teacher") {
+    return "The clean answer is: yes, I can explain it. Send me the part you want broken down and I’ll make it clear.";
+  }
 
-if (primary === "emotion") {
-  const event =
-    contract?.debug?.threadQuestionUsed
-      ? "what you just described"
-      : "that";
+  if (primary === "executive_decision") {
+    return "My recommendation: slow the decision down, compare the real tradeoff, and pick the option that still makes sense after the emotion cools off.";
+  }
 
-  return `Yeah — ${event} can hit hard. The move is: name what happened honestly, separate accountability from self-attack, and take one grounded next step instead of letting shame run the whole room.`;
-}
+  if (primary === "emotion") {
+    return "Yeah — that can hit hard. I’m here. Let’s slow it down and deal with the real thing, not beat you up over it.";
+  }
 
-    if (primary === "medical_body") {
-      return "Because this involves the body, safety comes first. If symptoms are severe, worsening, or involve pregnancy, get medical guidance now.";
-    }
+  if (primary === "medical_body") {
+    return "Because this involves the body, safety comes first. If symptoms are severe, worsening, or involve pregnancy, get medical guidance now.";
+  }
 
-    if (primary === "safety") {
-      return "Safety comes first. Step away from immediate danger and get help now.";
-    }
+  if (primary === "safety") {
+    return "Safety comes first. Step away from immediate danger and get help now.";
+  }
 
-    if (contract.clarity?.question) {
-      return contract.clarity.question;
-    }
-
-    return "Yes. The composer should be updated so it writes naturally from the contract instead of sounding like it is repeating internal instructions.";
-  },
+  return question
+    ? `I hear you. Let’s deal with this directly: ${question}`
+    : "Yeah. I’m here. Tell me what’s going on.";
+},
 
   safeAnswer(text = "") {
     if (!text || typeof text !== "string") return null;
