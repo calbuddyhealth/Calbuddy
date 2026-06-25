@@ -1,7 +1,7 @@
 // api/ask-calbuddy.js
 // CalBuddy OpenAI Knowledge Client
 // Purpose: Server-side OpenAI caller for Ari Rebirth.
-// V2.0.0 — Lean / Rebirth-Compatible / Legacy-Safe
+// V2.1.0 — Structured Meal Estimate / Rebirth Action Safe
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -78,7 +78,6 @@ export default async function handler(req, res) {
     }
 
     const rawContent = data?.choices?.[0]?.message?.content || "";
-
     const parsed = parseModelResponse(rawContent, responseFormat);
 
     return res.status(200).json({
@@ -90,21 +89,29 @@ export default async function handler(req, res) {
         rawContent ||
         "I heard you, but I need a cleaner response path.",
       emotion: parsed.emotion || parsed.mood || "happy",
+
+      mealEstimate: parsed.mealEstimate || null,
+      foodAnalysis: parsed.foodAnalysis || null,
+      nutritionEstimate: parsed.nutritionEstimate || null,
+
       pendingAction: parsed.pendingAction || null,
       memoryCandidate: parsed.memoryCandidate || null,
       developerIntent: parsed.developerIntent || null,
+
       finalResponse:
         parsed.finalResponse ||
         parsed.reply ||
         parsed.answer ||
         rawContent ||
         null,
+
       knowledgeAnswer:
         parsed.knowledgeAnswer ||
         parsed.answer ||
         parsed.reply ||
         rawContent ||
         null,
+
       response: parsed,
       rawContent
     });
@@ -170,6 +177,16 @@ Your job:
 - Do not claim files were edited, committed, or deployed.
 - If GitHub file content is provided, ground the answer in that exact content.
 - Be concise, specific, and useful.
+- For food calorie estimates, include structured mealEstimate when possible:
+  {
+    "description": "short meal description",
+    "totalCalories": number,
+    "foods": [
+      { "name": "food", "calories": number }
+    ],
+    "confidence": "low|medium|high"
+  }
+- If estimating multiple foods, totalCalories must be the full meal total, not the first ingredient.
 
 ARI REBIRTH INSTRUCTION:
 ${suppliedInstruction}
@@ -183,6 +200,7 @@ Required shape:
 {
   "reply": "string",
   "emotion": "happy",
+  "mealEstimate": null,
   "pendingAction": null,
   "memoryCandidate": null,
   "developerIntent": null
@@ -201,6 +219,16 @@ Rules:
 - Be warm, direct, practical, and concise.
 - Use CalBuddy context when relevant.
 - For food questions, estimate calories when reasonable.
+- For food calorie estimates, include structured mealEstimate when possible:
+  {
+    "description": "short meal description",
+    "totalCalories": number,
+    "foods": [
+      { "name": "food", "calories": number }
+    ],
+    "confidence": "low|medium|high"
+  }
+- If estimating multiple foods, totalCalories must be the full meal total, not the first ingredient.
 - For app/code questions, do not claim edits were made.
 - If exact repository content is provided, use it.
 - If exact repository content is not provided, say what should be inspected first.
@@ -214,6 +242,7 @@ Return only valid JSON:
 {
   "reply": "string",
   "emotion": "happy",
+  "mealEstimate": null,
   "pendingAction": null,
   "memoryCandidate": null,
   "developerIntent": null
@@ -237,6 +266,9 @@ function parseModelResponse(rawContent = "", responseFormat = "json") {
     return {
       reply: "I heard you, but I need a cleaner response path.",
       emotion: "concerned",
+      mealEstimate: null,
+      foodAnalysis: null,
+      nutritionEstimate: null,
       pendingAction: null,
       memoryCandidate: null,
       developerIntent: null
@@ -247,6 +279,9 @@ function parseModelResponse(rawContent = "", responseFormat = "json") {
     return {
       reply: text,
       emotion: "happy",
+      mealEstimate: null,
+      foodAnalysis: null,
+      nutritionEstimate: null,
       pendingAction: null,
       memoryCandidate: null,
       developerIntent: null
@@ -265,9 +300,15 @@ function parseModelResponse(rawContent = "", responseFormat = "json") {
           parsed.text ||
           "I heard you, but I need a cleaner response path.",
         emotion: parsed.emotion || parsed.mood || "happy",
+
+        mealEstimate: parsed.mealEstimate || null,
+        foodAnalysis: parsed.foodAnalysis || null,
+        nutritionEstimate: parsed.nutritionEstimate || null,
+
         pendingAction: parsed.pendingAction || null,
         memoryCandidate: parsed.memoryCandidate || null,
         developerIntent: parsed.developerIntent || null,
+
         ...parsed
       };
     }
@@ -278,6 +319,9 @@ function parseModelResponse(rawContent = "", responseFormat = "json") {
   return {
     reply: text,
     emotion: "happy",
+    mealEstimate: null,
+    foodAnalysis: null,
+    nutritionEstimate: null,
     pendingAction: null,
     memoryCandidate: null,
     developerIntent: null
