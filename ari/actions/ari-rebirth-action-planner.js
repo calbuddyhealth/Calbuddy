@@ -1,11 +1,11 @@
 // ari/actions/ari-rebirth-action-planner.js
 // Purpose: Convert Rebirth understanding into safe CalBuddy proposed actions.
-// V1.0.0
+// V1.2.0 — Universal Action Planner / No Food Keyword Estimation
 
 window.Ari = window.Ari || {};
 
 window.Ari.rebirthActionPlanner = {
-  version: "1.0.0",
+  version: "1.2.0",
 
   plan(summary = {}) {
     const text = String(
@@ -16,7 +16,6 @@ window.Ari.rebirthActionPlanner = {
     ).trim();
 
     const normalized = text.toLowerCase().replace(/,/g, "");
-
     const actions = [];
 
     const mealAction = this.detectMealLog(normalized, summary);
@@ -35,60 +34,166 @@ window.Ari.rebirthActionPlanner = {
   },
 
   detectMealLog(text = "", summary = {}) {
-    const directCalorieMatch =
-      text.match(/\b(?:log|add|ate|i ate|had|i had)\s+(.{2,60}?)\s+(?:for\s+)?(\d{2,5})\s*(?:calories|calorie|kcal|cals)?\b/) ||
-      text.match(/\b(?:log|add)\s+(\d{2,5})\s*(?:calories|calorie|kcal|cals)\s+(?:for\s+)?(.{2,60})\b/);
+    const wantsMealLog = this.userWantsMealLog(text);
+    if (!wantsMealLog) return null;
 
-    if (directCalorieMatch) {
-      let foodName;
-      let calories;
+    const calories = this.resolveMealTotalCalories(summary, text);
+    const foodName = this.resolveMealDescription(summary, text);
 
-      if (Number(directCalorieMatch[1])) {
-        calories = Number(directCalorieMatch[1]);
-        foodName = directCalorieMatch[2];
-      } else {
-        foodName = directCalorieMatch[1];
-        calories = Number(directCalorieMatch[2]);
-      }
+    if (!calories || !foodName) return null;
 
-      foodName = this.cleanFoodName(foodName);
+    return this.makeMealAction(foodName, calories, "Estimated by Ari Rebirth");
+  },
 
-      if (foodName && calories >= 10 && calories <= 5000) {
-        return {
-          action_type: "log_meal",
-          payload: {
-            name: foodName,
-            calories,
-            category: "Meal",
-            serving_size: "Logged through Ari Rebirth"
-          },
-          confirmation_text: `Log ${foodName} for ${calories} calories?`
-        };
+  userWantsMealLog(text = "") {
+    return (
+      /\b(log|add|save|track)\b/.test(text) &&
+      (
+        text.includes("meal") ||
+        text.includes("food") ||
+        text.includes("calories") ||
+        text.includes("calorie") ||
+        text.includes("kcal") ||
+        text.includes("cals") ||
+        text.includes("that") ||
+        text.includes("it") ||
+        text.includes("total")
+      )
+    );
+  },
+
+  resolveMealTotalCalories(summary = {}, text = "") {
+    const structuredCandidates = [
+      summary.mealEstimate?.totalCalories,
+      summary.foodAnalysis?.totalCalories,
+      summary.nutritionEstimate?.totalCalories,
+      summary.calorieEstimate?.totalCalories,
+      summary.totalCalories,
+      summary.appContext?.lastMealEstimate?.totalCalories,
+      summary.appContext?.mealEstimate?.totalCalories
+    ];
+
+    for (const value of structuredCandidates) {
+      const number = Number(value);
+      if (Number.isFinite(number) && number >= 10 && number <= 5000) {
+        return Math.round(number);
       }
     }
 
-    const eatenMatch =
-      text.match(/\b(?:i ate|i had|ate|had)\s+(.{2,80})\b/);
+    const directCalories = this.extractTotalCaloriesFromText(text);
+    if (directCalories) return directCalories;
 
-    if (eatenMatch) {
-      const foodName = this.cleanFoodName(eatenMatch[1]);
-      const estimatedCalories = this.estimateKnownFood(foodName);
+    const history = Array.isArray(summary.appContext?.history)
+      ? summary.appContext.history
+      : [];
 
-      if (foodName && estimatedCalories) {
-        return {
-          action_type: "log_meal",
-          payload: {
-            name: foodName,
-            calories: estimatedCalories,
-            category: "Meal",
-            serving_size: "Estimated by Ari Rebirth"
-          },
-          confirmation_text: `That sounds like about ${estimatedCalories} calories. Log ${foodName}?`
-        };
+    for (let i = history.length - 1; i >= 0; i--) {
+      const item = history[i] || {};
+      const historyText = String(
+        item.reply ||
+        item.content ||
+        item.message ||
+        item.assistantMessage ||
+        ""
+      );
+
+      const calories = this.extractTotalCaloriesFromText(historyText);
+      if (calories) return calories;
+    }
+
+    return null;
+  },
+
+  resolveMealDescription(summary = {}, text = "") {
+    const structuredCandidates = [
+      summary.mealEstimate?.description,
+      summary.foodAnalysis?.description,
+      summary.nutritionEstimate?.description,
+      summary.calorieEstimate?.description,
+      summary.appContext?.lastMealEstimate?.description,
+      summary.appContext?.mealEstimate?.description
+    ];
+
+    for (const value of structuredCandidates) {
+      const clean = this.cleanFoodName(value);
+      if (clean) return clean;
+    }
+
+    const directFood = this.extractFoodFromDirectLog(text);
+    if (directFood) return directFood;
+
+    const history = Array.isArray(summary.appContext?.history)
+      ? summary.appContext.history
+      : [];
+
+    for (let i = history.length - 1; i >= 0; i--) {
+      const item = history[i] || {};
+      const historyText = String(
+        item.userMessage ||
+        item.message ||
+        item.content ||
+        ""
+      );
+
+      const food = this.extractFoodFromEatingText(historyText);
+      if (food) return food;
+    }
+
+    return "Meal estimated by Ari";
+  },
+
+  extractFoodFromDirectLog(text = "") {
+    const match =
+      text.match(/\b(?:log|add|save|track)\s+(.{2,120}?)\s+(?:for\s+)?\d{2,5}\s*(?:calories|calorie|kcal|cals)?\b/) ||
+      text.match(/\b(?:log|add|save|track)\s+\d{2,5}\s*(?:calories|calorie|kcal|cals)\s+(?:for\s+)?(.{2,120})\b/);
+
+    if (!match) return null;
+
+    return this.cleanFoodName(match[1] || match[2]);
+  },
+
+  extractFoodFromEatingText(text = "") {
+    const match = String(text || "").match(/\b(?:i ate|i had|ate|had)\s+(.{2,180})\b/i);
+    if (!match) return null;
+
+    return this.cleanFoodName(match[1]);
+  },
+
+  extractTotalCaloriesFromText(text = "") {
+    const clean = String(text || "").replace(/,/g, "").toLowerCase();
+
+    const patterns = [
+      /total:\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
+      /total\s*(?:is|would be|comes to)?\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
+      /approximately\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i,
+      /about\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i,
+      /\b(\d{2,5})\s*(?:calories|kcal|cals)\b/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = clean.match(pattern);
+      if (!match) continue;
+
+      const calories = Number(match[1]);
+      if (Number.isFinite(calories) && calories >= 10 && calories <= 5000) {
+        return Math.round(calories);
       }
     }
 
     return null;
+  },
+
+  makeMealAction(foodName, calories, servingSize = "Estimated by Ari Rebirth") {
+    return {
+      action_type: "log_meal",
+      payload: {
+        name: foodName,
+        calories,
+        category: "Meal",
+        serving_size: servingSize
+      },
+      confirmation_text: `Log ${foodName} for about ${calories.toLocaleString()} calories?`
+    };
   },
 
   detectWeightLog(text = "") {
@@ -98,7 +203,6 @@ window.Ari.rebirthActionPlanner = {
     if (!match) return null;
 
     const weight = Number(match[1]);
-
     if (!weight || weight < 70 || weight > 700) return null;
 
     return {
@@ -119,7 +223,6 @@ window.Ari.rebirthActionPlanner = {
     if (!match) return null;
 
     const calorieGoal = Number(match[1]);
-
     if (!calorieGoal || calorieGoal < 1000 || calorieGoal > 6000) return null;
 
     return {
@@ -132,21 +235,10 @@ window.Ari.rebirthActionPlanner = {
     };
   },
 
-  estimateKnownFood(foodName = "") {
-    const food = String(foodName).toLowerCase();
-
-    if (food.includes("big mac") && food.includes("large fries")) return 1050;
-    if (food.includes("big mac")) return 590;
-    if (food.includes("large fries")) return 480;
-    if (food.includes("medium fries")) return 320;
-    if (food.includes("small fries")) return 230;
-
-    return null;
-  },
-
   cleanFoodName(foodName = "") {
     return String(foodName || "")
       .replace(/\b(calories|calorie|kcal|cals)\b/g, "")
+      .replace(/\b(total|approximately|about|around)\b/g, "")
       .replace(/[.!?]+$/g, "")
       .trim();
   }
