@@ -242,7 +242,8 @@ window.AriRebirthAppBridge = {
 
       return this.makeResponse({
         reply:
-          "Ari Rebirth hit an internal error before finishing the response. The app is safe, but the response path needs fixing.",
+  "Ari Rebirth hit an internal error: " +
+  String(error?.message || error),
         emotion: "concerned",
         error: String(error?.message || error)
       });
