@@ -318,6 +318,8 @@ function handleAriEnter(event) {
 }
 
 function addAriMessage(text, sender = "ari") {
+  document.getElementById("ariSearchSection")?.classList.add("expanded");
+  
   const messages = document.getElementById("ariMessages");
   if (!messages) return null;
 
