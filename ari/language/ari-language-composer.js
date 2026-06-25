@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.3.9 — Contract-Locked Natural AI Writer
+// V8.4.0 — Contract-Locked Natural AI Writer
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.3.9",
+  version: "8.4.0",
 
 
   async compose(input = {}) {
@@ -82,8 +82,11 @@ const artifactPatch = this.composeArtifactPatchResponse({
 
 if (artifactPatch) return artifactPatch;
 
+const githubEvidenceResponse = this.composeFromGithubEvidence(summary);
 
-
+if (githubEvidenceResponse) {
+  return githubEvidenceResponse;
+}
 
     const draft = await this.writeDraft({
       summary,
@@ -919,9 +922,19 @@ defaultSafetyAction({ safetyAction = {}, primary = "" }) {
   safeAnswer(text = "") {
     if (!text || typeof text !== "string") return null;
 
-    const cleaned = text.trim();
+    let cleaned = text.trim();
 
-    if (!cleaned) return null;
+if (!cleaned) return null;
+
+try {
+  const parsed = JSON.parse(cleaned);
+  if (parsed?.answer) cleaned = String(parsed.answer).trim();
+  else if (parsed?.reply) cleaned = String(parsed.reply).trim();
+  else if (parsed?.response) cleaned = String(parsed.response).trim();
+  else if (parsed?.text) cleaned = String(parsed.text).trim();
+} catch {
+  // Not JSON. Keep normal text.
+}
     if (this.containsInternalLeak(cleaned)) return null;
     if (this.isRoboticDirective(cleaned)) return null;
 if (this.isOverlyCorporate(cleaned)) return null;
