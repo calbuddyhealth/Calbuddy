@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.0";
+CalBuddy.version = "3.5.1";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -1033,29 +1033,24 @@ CalBuddy.cancelPendingAction = function () {
 };
 
 CalBuddy.isDeveloperCommand = function (message = "") {
-  const text = String(message || "").toLowerCase();
+  const text = String(message || "").toLowerCase().trim();
 
-  return (
-    text.includes("code") ||
-    text.includes("file") ||
-    text.includes("github") ||
-    text.includes("bug") ||
-    text.includes("read file") ||
-text.includes("read the file") ||
-text.includes("read github") ||
-text.includes("search github") ||
-text.includes("search repo") ||
-text.includes("update code") ||
-text.includes("update file") ||
-    text.includes("replace") ||
-    text.includes("commit") ||
-    text.includes("vercel") ||
-    text.includes("supabase") ||
-    text.includes("index.html") ||
-    text.includes("style.css") ||
-    text.includes("calbuddy-core") ||
-    text.includes("ari-")
-  );
+  const explicitDevCommand =
+    /\b(read|open|show|search|find|update|change|replace|remove|fix|commit|deploy)\b.{0,40}\b(github|repo|repository|vercel|supabase|index\.html|style\.css|calbuddy-core|ari\/|[\w/-]+\.(js|html|css))\b/.test(text) ||
+    /\b(github|repo|repository|vercel|supabase|index\.html|style\.css|calbuddy-core|ari\/|[\w/-]+\.(js|html|css))\b.{0,40}\b(read|open|show|search|find|update|change|replace|remove|fix|commit|deploy)\b/.test(text);
+
+  const ownerIntent =
+  text.includes("update this file") ||
+  text.includes("update the file") ||
+  text.includes("send full code") ||
+  text.includes("send the full code") ||
+  text.includes("commit this") ||
+  text.includes("read this file") ||
+  text.includes("read the file") ||
+  text.includes("search the repo") ||
+  text.includes("search github");
+
+  return explicitDevCommand || ownerIntent;
 };
 
 /* -----------------------------
