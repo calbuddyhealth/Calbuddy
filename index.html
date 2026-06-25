@@ -3,125 +3,83 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CalBuddy Health</title>
+<title>ARI | CalBuddy Health</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-<main class="app ari-master-home">
+<main class="app ari-master-home ari-chatgpt-home">
 
 <header class="top-bar ari-header">
   <button class="menu-btn" type="button" onclick="toggleMenu()">☰</button>
 
-  <a class="logo home-logo-link" href="index.html">
-    <span class="cal">Cal</span><span class="buddy">Buddy</span>
+  <a class="ari-wordmark" href="index.html" aria-label="ARI Home">
+    <span class="ari-a">A</span><span class="ari-r">R</span><span class="ari-i">I</span>
   </a>
 
   <button class="profile-btn" id="authButton" type="button">👤</button>
 </header>
 
-<nav id="sideMenu" class="side-menu">
+<nav id="sideMenu" class="side-menu ari-side-menu">
   <button class="close-menu" type="button" onclick="toggleMenu()">✕</button>
+
   <a href="index.html">🏠 Home</a>
   <a href="profile.html">👤 Profile</a>
   <a href="goals.html">🎯 My Goals</a>
   <a href="log.html?mode=today">🍽️ Daily Intake</a>
   <a href="progress.html">📈 Progress</a>
   <a href="log.html?mode=favorite">⭐ Favorites</a>
-  <a href="log.html?mode=history">📖 Meal Chat History</a>
+  <a href="log.html?mode=history">🗨️ Conversation History</a>
+
+  <a href="log.html?mode=today" class="nav-calorie-card">
+    <p>CALORIES LEFT</p>
+    <h2 id="caloriesLeftText">2,100</h2>
+    <span><span id="caloriesConsumedText">0</span> / <span id="dailyGoalText">2,100</span> kcal</span>
+  </a>
 </nav>
 
 <div id="menuOverlay" class="menu-overlay" onclick="toggleMenu()"></div>
 
-<section class="ari-hero-section ari-large-coach-hero">
-  <div class="ari-speech-bubble ari-coach-card" id="ariSpeechBubble">
-    Welcome back, Jose.
-  </div>
-
+<section class="ari-main-chat-stage">
   <img
     id="ariMascot"
-    class="ari-master-img"
+    class="ari-master-img ari-transparent-mascot"
     src="assets/ari/ari-idle-open.png"
     alt="Ari, CalBuddy AI Nutrition Coach"
   />
-</section>
 
-<section class="ari-search-section" id="ariSearchSection">
-  <div class="ari-search-bar">
-    <span class="search-icon">⌕</span>
+  <section class="ari-search-section ari-primary-chat" id="ariSearchSection">
+    <div id="ariConversationPanel" class="ari-conversation-panel ari-chat-panel">
+      <div id="ariMessages" class="ari-thread"></div>
 
-    <textarea
-      id="ariInput"
-      rows="1"
-      placeholder="Ask Ari anything..."
-      oninput="autoResizeAriInput()"
-      onkeydown="handleAriEnter(event)"
-    ></textarea>
-
-    <button id="ariSendBtn" class="ari-send-btn" type="button" onclick="sendAriMessage()">➤</button>
-  </div>
-
-  <div id="ariConversationPanel" class="ari-conversation-panel">
-    <div id="ariMessages" class="ari-thread">
-      <div class="ari-message ari-ai">
-        <span class="ari-label">Ari</span>
-        <p>Your conversation history will appear here.</p>
+      <div id="pendingActionBar" class="pending-action-bar">
+        <p id="pendingActionText">Want me to log that?</p>
+        <div class="pending-action-buttons">
+          <button type="button" onclick="confirmAriAction()">Yes</button>
+          <button type="button" onclick="cancelAriAction()">Cancel</button>
+        </div>
       </div>
     </div>
 
-    <div id="pendingActionBar" class="pending-action-bar">
-      <p id="pendingActionText">Want me to log that?</p>
-      <div class="pending-action-buttons">
-        <button type="button" onclick="confirmAriAction()">Yes</button>
-        <button type="button" onclick="cancelAriAction()">Cancel</button>
-      </div>
+    <div class="ari-search-bar ari-large-chat-bar">
+      <textarea
+        id="ariInput"
+        rows="1"
+        placeholder="Message Ari..."
+        oninput="autoResizeAriInput()"
+        onkeydown="handleAriEnter(event)"
+      ></textarea>
+
+      <button id="ariSendBtn" class="ari-send-btn" type="button" onclick="sendAriMessage()">➤</button>
     </div>
-  </div>
-</section>
-
-<a href="log.html?mode=today" class="calorie-card hero-card compact-calorie-card ari-meter-card">
-  <div class="meter-side">
-    <div class="true-meter-wrap">
-      <svg class="true-meter" viewBox="0 0 220 130">
-        <path class="true-meter-bg" d="M 25 105 A 85 85 0 0 1 195 105" pathLength="100" />
-        <path class="true-meter-fill" id="trueMeterFill" d="M 25 105 A 85 85 0 0 1 195 105" pathLength="100" />
-      </svg>
-
-      <div class="true-meter-text">
-        <p>CALORIES LEFT</p>
-        <h2 id="caloriesLeftText">2,100</h2>
-        <span><span id="caloriesConsumedText">0</span> / <span id="dailyGoalText">2,100</span> kcal</span>
-      </div>
-    </div>
-  </div>
-</a>
-
-<section class="ari-action-grid three-actions">
-  <a class="ari-action-tile goals-tile" href="goals.html">
-    <span>🎯</span>
-    <strong>My Goals</strong>
-  </a>
-
-  <a class="ari-action-tile progress-tile" href="progress.html">
-    <span>📈</span>
-    <strong>Progress</strong>
-  </a>
-
-  <button class="ari-action-tile history-tile" type="button" onclick="toggleConversationHistory()">
-    <span>🗨️</span>
-    <strong>Conversations</strong>
-  </button>
+  </section>
 </section>
 
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
-
-<!-- CalBuddy -->
 <script src="calbuddy-core.js?v=3.5.0"></script>
-
-<!-- Ari Rebirth Bridge: self-loads Rebirth dependencies -->
 <script src="ari/ari-rebirth-app-bridge.js?v=1.3.8"></script>
 
 <script>
@@ -131,7 +89,7 @@ let ariBlinkTimeout = null;
 let ariResetTimeout = null;
 let ariBusy = false;
 
-const ARI_DEFAULT_BUBBLE = "Welcome back, Jose.";
+const ARI_DEFAULT_BUBBLE = "";
 
 const ARI_ASSETS = {
   idleOpen: "assets/ari/ari-idle-open.png",
@@ -158,7 +116,6 @@ const ARI_ASSETS = {
 document.addEventListener("DOMContentLoaded", async () => {
   preloadAriAssets();
   setAriPose("idleOpen");
-  setAriBubble(ARI_DEFAULT_BUBBLE);
   startAriBlinkLoop();
 
   await setupHomeAuth();
@@ -185,15 +142,6 @@ window.addEventListener("calbuddy:pendingActionCleared", () => {
   hidePendingAction();
 });
 
-function scrollToAri(delay = 150) {
-  setTimeout(() => {
-    document.querySelector(".ari-hero-section")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
-  }, delay);
-}
-
 function preloadAriAssets() {
   Object.values(ARI_ASSETS).forEach((src) => {
     const img = new Image();
@@ -207,12 +155,7 @@ function setAriPose(poseKey) {
   img.src = ARI_ASSETS[poseKey];
 }
 
-function setAriBubble(text) {
-  const bubble = document.getElementById("ariSpeechBubble");
-  if (!bubble) return;
-  bubble.textContent = text || ARI_DEFAULT_BUBBLE;
-  bubble.scrollTop = 0;
-}
+function setAriBubble() {}
 
 function startAriBlinkLoop() {
   clearInterval(ariBlinkInterval);
@@ -229,13 +172,11 @@ function startAriBlinkLoop() {
   }, 30000);
 }
 
-function interruptAri(poseKey, bubbleText) {
+function interruptAri(poseKey) {
   ariBusy = true;
   clearTimeout(ariResetTimeout);
   clearTimeout(ariBlinkTimeout);
-
   setAriPose(poseKey);
-  if (bubbleText) setAriBubble(bubbleText);
 }
 
 function resetAriAfterDelay(delay = 120000) {
@@ -244,7 +185,6 @@ function resetAriAfterDelay(delay = 120000) {
   ariResetTimeout = setTimeout(() => {
     ariBusy = false;
     setAriPose("idleOpen");
-    setAriBubble(ARI_DEFAULT_BUBBLE);
   }, delay);
 }
 
@@ -258,44 +198,26 @@ function chooseAriReaction(message = "") {
     text.includes("5 pounds") ||
     text.includes("weight gain")
   ) {
-    return {
-      pose: "concerned",
-      bubble: "I hear you. Let me look at this with you."
-    };
+    return { pose: "concerned" };
   }
 
   if (text.includes("lose weight fast") || text.includes("can i lose")) {
-    return {
-      pose: "excited",
-      bubble: "Good question. Let’s be honest about it."
-    };
+    return { pose: "excited" };
   }
 
   if (text.includes("thank") || text.includes("beautiful") || text.includes("love you")) {
-    return {
-      pose: "shy",
-      bubble: "Aw. Don’t make me blush."
-    };
+    return { pose: "shy" };
   }
 
   if (text.includes("sad") || text.includes("bad day") || text.includes("relapse") || text.includes("failed")) {
-    return {
-      pose: "sad",
-      bubble: "Okay. Let’s slow down and talk."
-    };
+    return { pose: "sad" };
   }
 
   if (text.includes("excuse") || text.includes("monday") || text.includes("cheated")) {
-    return {
-      pose: "armsCrossed",
-      bubble: "Hmm. That sounds like an excuse."
-    };
+    return { pose: "armsCrossed" };
   }
 
-  return {
-    pose: "thinking",
-    bubble: "I’m thinking..."
-  };
+  return { pose: "thinking" };
 }
 
 function applyAriAfterResponseEmotion(message = "", reply = "") {
@@ -324,10 +246,6 @@ function applyAriAfterResponseEmotion(message = "", reply = "") {
   }
 
   resetAriAfterDelay();
-}
-
-function toggleConversationHistory() {
-  document.getElementById("ariSearchSection")?.classList.toggle("expanded");
 }
 
 function toggleMenu() {
@@ -377,9 +295,6 @@ function renderDashboard(context = {}) {
   setText("caloriesLeftText", caloriesLeft.toLocaleString());
   setText("dailyGoalText", goal.toLocaleString());
   setText("caloriesConsumedText", netConsumed.toLocaleString());
-
-  updateMeterStatus(netConsumed, goal);
-  updateLiveArchMeter(netConsumed, goal);
 }
 
 function setText(id, value) {
@@ -387,50 +302,12 @@ function setText(id, value) {
   if (element) element.textContent = value;
 }
 
-function updateMeterStatus(netConsumed, goal) {
-  const card = document.querySelector(".calorie-card");
-  if (!card || !goal) return;
-
-  const percentUsed = netConsumed / goal;
-
-  card.classList.remove("meter-green", "meter-yellow", "meter-red", "meter-blue");
-
-  if (percentUsed < 0.75) {
-    card.classList.add("meter-blue");
-  } else if (percentUsed <= 1) {
-    card.classList.add("meter-yellow");
-  } else {
-    card.classList.add("meter-red");
-  }
-}
-
-function updateLiveArchMeter(netConsumed, goal) {
-  const fill = document.getElementById("trueMeterFill");
-  if (!fill || !goal) return;
-
-  const percentLeft = Math.max(0, Math.min((goal - netConsumed) / goal, 1));
-  const percentUsed = Math.max(0, Math.min(netConsumed / goal, 1));
-
-  fill.style.strokeDasharray = "100";
-  fill.style.strokeDashoffset = String(100 - percentLeft * 100);
-
-  fill.classList.remove("meter-fill-blue", "meter-fill-yellow", "meter-fill-red");
-
-  if (percentUsed < 0.75) {
-    fill.classList.add("meter-fill-blue");
-  } else if (percentUsed <= 1) {
-    fill.classList.add("meter-fill-yellow");
-  } else {
-    fill.classList.add("meter-fill-red");
-  }
-}
-
 function autoResizeAriInput() {
   const input = document.getElementById("ariInput");
   if (!input) return;
 
   input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 100) + "px";
+  input.style.height = Math.min(input.scrollHeight, 180) + "px";
 }
 
 function handleAriEnter(event) {
@@ -473,12 +350,10 @@ async function sendAriMessage() {
   if (!message) return;
 
   const reaction = chooseAriReaction(message);
-  interruptAri(reaction.pose, reaction.bubble);
+  interruptAri(reaction.pose);
 
   input.value = "";
   autoResizeAriInput();
-  input.blur();
-  scrollToAri(250);
 
   addAriMessage(message, "user");
   const thinkingMessage = addAriMessage("Thinking...", "ari");
@@ -490,18 +365,15 @@ async function sendAriMessage() {
 
   try {
     const response = await CalBuddy.askAri({
-  message,
-  history: ariChatHistory,
-  ownerMode: true,
-  appContext: {
-    ownerMode: true
-  }
-});
+      message,
+      history: ariChatHistory,
+      ownerMode: true,
+      appContext: {
+        ownerMode: true
+      }
+    });
 
     const reply = response.reply || "Hmm. I had trouble answering that. Try again.";
-
-    setAriBubble(reply);
-    scrollToAri(150);
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
@@ -521,8 +393,6 @@ async function sendAriMessage() {
 
   } catch (error) {
     setAriPose("concerned");
-    setAriBubble(error.message || "Something glitched. Try again in a second.");
-    scrollToAri(150);
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
@@ -554,11 +424,9 @@ async function confirmAriAction() {
 
   addAriMessage(result.reply || "Done.", "ari");
   setAriPose("celebrate");
-  setAriBubble(result.reply || "Done. Nice work.");
   hidePendingAction();
 
   await refreshHomeDashboard();
-  scrollToAri(150);
   resetAriAfterDelay();
 }
 
@@ -567,10 +435,8 @@ function cancelAriAction() {
 
   addAriMessage(result.reply || "No problem.", "ari");
   setAriPose("idleOpen");
-  setAriBubble(result.reply || "No problem.");
   hidePendingAction();
 
-  scrollToAri(150);
   resetAriAfterDelay();
 }
 </script>
