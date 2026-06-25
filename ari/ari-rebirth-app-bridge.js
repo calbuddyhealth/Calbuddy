@@ -2,38 +2,38 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.4.1 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
+// V1.4.2 — App Safe / Pipeline Guarded / Clean Action Bridge
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.4.1",
+  version: "1.4.2",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
     "ari/system/ari-authority.js",
 
-"ari/actions/ari-rebirth-action-planner.js",
-"ari/intent/ari-action-intent-classifier.js",
-"ari/intent/ari-action-contract.js",
+    "ari/actions/ari-rebirth-action-planner.js",
+    "ari/intent/ari-action-intent-classifier.js",
+    "ari/intent/ari-action-contract.js",
 
-"ari/developer/ari-rebirth-developer-understanding-engine.js",
-"ari/developer/ari-rebirth-ui-layout-planner-engine.js",
-"ari/developer/ari-rebirth-project-knowledge-graph-engine.js",
-"ari/developer/ari-rebirth-capability-registry-engine.js",
-"ari/developer/ari-rebirth-architecture-engine.js",
-"ari/developer/ari-rebirth-bug-diagnosis-engine.js",
-"ari/developer/ari-rebirth-execution-planner-engine.js",
-"ari/developer/ari-rebirth-code-evidence-engine.js",
-"ari/developer/ari-rebirth-code-understanding-engine.js",
-"ari/developer/ari-rebirth-dependency-map-engine.js",
-"ari/developer/ari-rebirth-self-improvement-engine.js",
-"ari/developer/ari-rebirth-patch-decision-engine.js",
-"ari/developer/ari-rebirth-patch-validation-engine.js",
-"ari/developer/ari-rebirth-regression-test-engine.js",
-"ari/developer/ari-rebirth-learning-engine.js",
-"ari/developer/ari-rebirth-developer-handoff-engine.js",
+    "ari/developer/ari-rebirth-developer-understanding-engine.js",
+    "ari/developer/ari-rebirth-ui-layout-planner-engine.js",
+    "ari/developer/ari-rebirth-project-knowledge-graph-engine.js",
+    "ari/developer/ari-rebirth-capability-registry-engine.js",
+    "ari/developer/ari-rebirth-architecture-engine.js",
+    "ari/developer/ari-rebirth-bug-diagnosis-engine.js",
+    "ari/developer/ari-rebirth-execution-planner-engine.js",
+    "ari/developer/ari-rebirth-code-evidence-engine.js",
+    "ari/developer/ari-rebirth-code-understanding-engine.js",
+    "ari/developer/ari-rebirth-dependency-map-engine.js",
+    "ari/developer/ari-rebirth-self-improvement-engine.js",
+    "ari/developer/ari-rebirth-patch-decision-engine.js",
+    "ari/developer/ari-rebirth-patch-validation-engine.js",
+    "ari/developer/ari-rebirth-regression-test-engine.js",
+    "ari/developer/ari-rebirth-learning-engine.js",
+    "ari/developer/ari-rebirth-developer-handoff-engine.js",
 
     "ari/safety/ari-safety-context-gate.js",
     "ari/observer-system/ari-observer-network.js",
@@ -75,44 +75,44 @@ window.AriRebirthAppBridge = {
     "ari/language/ari-response-compressor.js",
     "ari/language/ari-language-composer.js",
 
-"ari/observer-system/ari-dual-salience-system.js",
-"ari/observer-system/ari-observer-hierarchy-engine.js",
-"ari/observer-system/ari-observation-ledger.js",
-"ari/observer-system/ari-question-understanding.js",
-"ari/observer-system/ari-life-signal-extractor.js",
+    "ari/observer-system/ari-dual-salience-system.js",
+    "ari/observer-system/ari-observer-hierarchy-engine.js",
+    "ari/observer-system/ari-observation-ledger.js",
+    "ari/observer-system/ari-question-understanding.js",
+    "ari/observer-system/ari-life-signal-extractor.js",
 
-"ari/attention-system/ari-attention-system.js",
-"ari/brain/ari-router.js",
+    "ari/attention-system/ari-attention-system.js",
+    "ari/brain/ari-router.js",
 
-"ari/value-system/ari-value-engine.js",
-"ari/identity-system/ari-identity-engine.js",
-"ari/conflict-system/ari-conflict-engine.js",
+    "ari/value-system/ari-value-engine.js",
+    "ari/identity-system/ari-identity-engine.js",
+    "ari/conflict-system/ari-conflict-engine.js",
 
-"ari/confidence-system/ari-confidence-system.js",
-"ari/confidence-system/ari-confidence-calibration.js",
+    "ari/confidence-system/ari-confidence-system.js",
+    "ari/confidence-system/ari-confidence-calibration.js",
 
-"ari/executive-system/ari-executive-function.js",
+    "ari/executive-system/ari-executive-function.js",
 
-"ari/heart/ari-emotion-engine.js",
-"ari/emotion-system/ari-emotional-intelligence.js",
-"ari/emotion-system/ari-underlying-emotion-engine.js",
-"ari/emotion-system/ari-emotion-recovery-questions.js",
-"ari/emotion-system/ari-emotion-integrator.js",
+    "ari/heart/ari-emotion-engine.js",
+    "ari/emotion-system/ari-emotional-intelligence.js",
+    "ari/emotion-system/ari-underlying-emotion-engine.js",
+    "ari/emotion-system/ari-emotion-recovery-questions.js",
+    "ari/emotion-system/ari-emotion-integrator.js",
 
-"ari/organism-system/ari-organism-function-engine.js",
-"ari/needs/ari-need-engine.js",
+    "ari/organism-system/ari-organism-function-engine.js",
+    "ari/needs/ari-need-engine.js",
 
-"ari/integration/ari-salience-governor.js",
-"ari/integration/ari-synthesis-engine.js",
+    "ari/integration/ari-salience-governor.js",
+    "ari/integration/ari-synthesis-engine.js",
 
-"ari/uncertainty/ari-uncertainty-classification-engine.js",
-"ari/identity/ari-identity-priority-engine.js",
-"ari/identity/ari-identity-conflict-resolver.js",
-"ari/values/ari-value-integration-engine.js",
-"ari/emotion/ari-stewardship-fear-differentiator.js",
-"ari/meaning/ari-life-chapter-engine.js",
-"ari/teaching/ari-teaching-answer-engine.js",
-"ari/governance/ari-situation-review-console.js",
+    "ari/uncertainty/ari-uncertainty-classification-engine.js",
+    "ari/identity/ari-identity-priority-engine.js",
+    "ari/identity/ari-identity-conflict-resolver.js",
+    "ari/values/ari-value-integration-engine.js",
+    "ari/emotion/ari-stewardship-fear-differentiator.js",
+    "ari/meaning/ari-life-chapter-engine.js",
+    "ari/teaching/ari-teaching-answer-engine.js",
+    "ari/governance/ari-situation-review-console.js",
 
     "ari/knowledge/ari-openai-knowledge-client.js",
     "ari/reasoning/ari-reasoning-engine.js",
@@ -187,8 +187,8 @@ window.AriRebirthAppBridge = {
 
       return this.makeResponse({
         reply:
-  "Ari Rebirth bridge loaded, but this file failed: " +
-  String(error?.message || error),
+          "Ari Rebirth bridge loaded, but this file failed: " +
+          String(error?.message || error),
         emotion: "concerned",
         error: String(error?.message || error)
       });
@@ -242,8 +242,8 @@ window.AriRebirthAppBridge = {
 
       return this.makeResponse({
         reply:
-  "Ari Rebirth hit an internal error: " +
-  String(error?.message || error),
+          "Ari Rebirth hit an internal error: " +
+          String(error?.message || error),
         emotion: "concerned",
         error: String(error?.message || error)
       });
@@ -595,94 +595,7 @@ window.AriRebirthAppBridge = {
       }));
     }
 
-    return this.recoverActionsFromResponse(summary);
-  },
-
-    extractTotalCaloriesFromSummaryOrReply(summary = {}, reply = "") {
-    const structuredCalories =
-      summary.mealEstimate?.totalCalories ||
-      summary.foodAnalysis?.totalCalories ||
-      summary.nutritionEstimate?.totalCalories ||
-      summary.calorieEstimate?.totalCalories ||
-      summary.totalCalories;
-
-    const number = Number(structuredCalories);
-
-    if (Number.isFinite(number) && number >= 10 && number <= 5000) {
-      return Math.round(number);
-    }
-
-    return this.extractMealTotalCaloriesFromReply(reply);
-  },
-
-  extractMealTotalCaloriesFromReply(text = "") {
-    const clean = String(text || "").replace(/,/g, "").toLowerCase();
-
-    const totalPatterns = [
-      /total:\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal)/i,
-      /total\s+(?:is|would be|comes to)?\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal)/i,
-      /approximately\s+(\d{2,5})\s*(?:calories|kcal)\s*(?:total|for the whole meal)/i,
-      /about\s+(\d{2,5})\s*(?:calories|kcal)\s*(?:total|for the whole meal)/i
-    ];
-
-    for (const pattern of totalPatterns) {
-      const match = clean.match(pattern);
-
-      if (match) {
-        const calories = Number(match[1]);
-
-        if (Number.isFinite(calories) && calories >= 10 && calories <= 5000) {
-          return Math.round(calories);
-        }
-      }
-    }
-
-    return null;
-  },
-
-  extractCaloriesFromReply(text = "") {
-    return this.extractMealTotalCaloriesFromReply(text);
-  },
-
-  recoverMealAction(userText = "", reply = "") {
-    const cleanUserText = String(userText || "")
-      .toLowerCase()
-      .replace(/[,]/g, "")
-      .trim();
-
-    const cleanReply = String(reply || "")
-      .toLowerCase()
-      .replace(/[,]/g, "")
-      .trim();
-
-    let foodName = null;
-    let calories = null;
-
-    if (cleanUserText.includes("big mac") && cleanUserText.includes("fries")) {
-      foodName = "Big Mac and large fries";
-      calories = this.extractTotalCaloriesFromSummaryOrReply({}, cleanReply) || 1040;
-    } else if (cleanUserText.includes("big mac")) {
-      foodName = "Big Mac";
-      calories = this.extractCaloriesFromReply(cleanReply) || 550;
-    } else if (cleanUserText.includes("large fries")) {
-      foodName = "large fries";
-      calories = this.extractCaloriesFromReply(cleanReply) || 490;
-    }
-
-    if (!foodName || !calories) return null;
-
-    return {
-      action_type: "log_meal",
-      payload: {
-        name: foodName,
-        calories,
-        category: "Meal",
-        serving_size: "Estimated by Ari Rebirth"
-      },
-      confirmation_text: `Log ${foodName} for about ${calories.toLocaleString()} calories?`,
-      requiresApproval: true,
-      directWriteAllowed: false
-    };
+    return [];
   },
 
   makeResponse({
