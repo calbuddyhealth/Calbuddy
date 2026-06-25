@@ -112,23 +112,40 @@ window.AriConversationFunctionEngine = {
     const codeLanguage =
       /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|class|script|style|component)\b/.test(text);
 
-    const artifactModificationRequest =
-      modificationVerb && (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage);
+const explicitDeveloperTarget =
+  developerNouns ||
+  layoutLanguage ||
+  codeLanguage ||
+  /\b(repo|repository|github|file path|source file|app file|this file|the file|codebase)\b/.test(text);
 
-    const artifactCreationRequest =
-      creationVerb && (developerNouns || layoutLanguage || codeLanguage);
+const explicitDeveloperAction =
+  /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch)\b/.test(text);
 
-    const artifactInvestigationRequest =
-      investigationVerb && (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage);
+const translationOrQuoteRequest =
+  /\b(translate|translation|bible verse|verse|quote|scripture|what does this mean|interpret this)\b/.test(text);
 
-    const developerArtifactRequest =
-      artifactModificationRequest ||
-      artifactCreationRequest ||
-      artifactInvestigationRequest ||
-      (
-        githubEvidenceAvailable &&
-        (modificationVerb || creationVerb || investigationVerb || developerNouns)
-      );
+const artifactModificationRequest =
+  !translationOrQuoteRequest &&
+  explicitDeveloperAction &&
+  modificationVerb &&
+  explicitDeveloperTarget;
+
+const artifactCreationRequest =
+  !translationOrQuoteRequest &&
+  explicitDeveloperAction &&
+  creationVerb &&
+  explicitDeveloperTarget;
+
+const artifactInvestigationRequest =
+  !translationOrQuoteRequest &&
+  explicitDeveloperAction &&
+  investigationVerb &&
+  explicitDeveloperTarget;
+
+const developerArtifactRequest =
+  artifactModificationRequest ||
+  artifactCreationRequest ||
+  artifactInvestigationRequest;
 
     const hasQuestion =
       text.includes("?") ||
@@ -137,11 +154,19 @@ window.AriConversationFunctionEngine = {
       /^(what|why|how|when|where|who|is|are|do|does|can|should|would|could)\b/.test(text) ||
       /\b(i don'?t know why|not sure why|why would|why did|why is|why was|could it be|does that mean|is it because)\b/.test(text);
 
+const languageOrInterpretationRequest =
+  /\b(translate|translation|bible verse|verse|quote|scripture|meaning|interpret|what does this mean)\b/.test(text);
+
+const languageTeacherRequest =
+  languageOrInterpretationRequest ||
+  /\b(translate this|translate for me|translate this for me|what does this say|what is this saying)\b/.test(text);
+
     const directAnswerNeeded =
-      hasQuestion ||
-      developerArtifactRequest ||
-      this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
-      /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because)\b/.test(text);
+  hasQuestion ||
+  languageTeacherRequest ||
+  developerArtifactRequest ||
+  this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
+  /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because)\b/.test(text);
 
     const actionRequest =
       developerArtifactRequest ||
@@ -177,9 +202,11 @@ window.AriConversationFunctionEngine = {
     const memoryOrIdentity =
       /\b(remember|forget|save this|from now on|who are you|what are you|ari)\b/.test(text);
 
-    const creative =
-      !developerArtifactRequest &&
-      /\b(generate|create|draw|design|image|picture|logo|name ideas|write a story)\b/.test(text);
+
+const creative =
+  !developerArtifactRequest &&
+  !languageOrInterpretationRequest &&
+  /\b(generate|create|draw|design|image|picture|logo|name ideas|write a story)\b/.test(text);
 
     const correction =
       /\b(i mean|i meant|i ment|no,?\s*i mean|not that|rather|instead)\b/.test(text);
@@ -215,6 +242,8 @@ window.AriConversationFunctionEngine = {
 
     return {
       hasQuestion,
+      languageOrInterpretationRequest,
+languageTeacherRequest,
       directAnswerNeeded,
       actionRequest,
       decisionNeeded,
@@ -314,6 +343,14 @@ window.AriConversationFunctionEngine = {
     if (signals.medicalContext) {
       add("medical_or_body_concern", 82, "Health or body concern detected.");
     }
+
+if (signals.languageTeacherRequest) {
+  add(
+    "language_or_interpretation_request",
+    92,
+    "User is asking to translate, interpret, or discuss language/quoted text."
+  );
+}
 
     if (signals.directAnswerNeeded) {
       add("explanation_or_information_question", signals.developerArtifactRequest ? 62 : 88, "User needs a direct answer or explanation.");
