@@ -318,9 +318,9 @@ function handleAriEnter(event) {
 }
 
 function addAriMessage(text, sender = "ari") {
-  document.getElementById("ariSearchSection")?.classList.add("expanded");
-  
   const messages = document.getElementById("ariMessages");
+  const panel = document.getElementById("ariConversationPanel");
+
   if (!messages) return null;
 
   const div = document.createElement("div");
@@ -337,7 +337,10 @@ function addAriMessage(text, sender = "ari") {
   div.appendChild(body);
 
   messages.appendChild(div);
-  messages.scrollTop = messages.scrollHeight;
+
+  if (panel) {
+    panel.scrollTop = panel.scrollHeight;
+  }
 
   return div;
 }
