@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.1";
+CalBuddy.version = "3.5.2";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -623,147 +623,41 @@ return context;
 /* -----------------------------
 CLIENT-SIDE ACTION DETECTION
 ----------------------------- */
-CalBuddy.detectAriActionFromMessage = async function (message = "") {
-const text = String(message).toLowerCase().replace(/,/g, "").trim();
+CalBuddy.detectAriActionFromMessage = async function (message = "", context = null) {
+  const userContext = context || await CalBuddy.getUserContext();
 
-const getNumber = (match) => {
-if (!match) return null;
-const value = Number(match[1]);
-return Number.isFinite(value) ? value : null;
-};
+  if (
+    !window.Ari?.actionIntentClassifier ||
+    !window.Ari?.actionContract
+  ) {
+    console.log("Ari action classifier not loaded. Skipping client action detection.");
+    return null;
+  }
 
-const calorieGoalMatch =
-text.match(/\b(?:set|change|update)?\s*(?:my)?\s*(?:daily)?\s*(?:calorie|calories|kcal)\s*(?:goal|target)?\s*(?:to|is|at)?\s*(\d{4,5})\b/) ||
-text.match(/\b(\d{4,5})\s*(?:calories|kcal)\b/);
+  const intent = window.Ari.actionIntentClassifier.classify({
+    message,
+    userContext,
+    context: userContext,
+    history: []
+  });
 
-const calorieGoal = getNumber(calorieGoalMatch);
+  const contract = window.Ari.actionContract.build({
+    intent,
+    message,
+    userContext,
+    context: userContext,
+    lastMealEstimate: await CalBuddy.getLastAriMealEstimate?.(),
+    lastCalorieGoalSuggestion: await CalBuddy.getLastAriCalorieGoalSuggestion?.()
+  });
 
-if (calorieGoal && calorieGoal >= 1000 && calorieGoal <= 6000) {
-return {
-action_type: "update_profile",
-payload: {
-daily_calorie_goal: calorieGoal,
-calorieGoal: calorieGoal
-},
-confirmation_text: `Change your daily calorie goal to ${calorieGoal.toLocaleString()} kcal?`
-};
-}
+  localStorage.setItem("calbuddyLastActionIntent", JSON.stringify(intent));
+  localStorage.setItem("calbuddyLastActionContract", JSON.stringify(contract));
 
-const currentWeightMatch =
-text.match(/\b(?:i weigh|my weight is|weighed|current weight is|update my weight to|set my weight to)\s*(\d{2,3}(?:\.\d+)?)\s*(?:lb|lbs|pounds)?\b/);
+  if (!contract.shouldCreatePendingAction || !contract.action) {
+    return null;
+  }
 
-const currentWeight = getNumber(currentWeightMatch);
-
-if (currentWeight && currentWeight >= 70 && currentWeight <= 700) {
-return {
-action_type: "log_weight",
-payload: {
-weight: currentWeight,
-notes: "Logged through Ari"
-},
-confirmation_text: `Log your current weight as ${currentWeight} lb?`
-};
-}
-
-const goalWeightMatch =
-text.match(/\b(?:my\s+)?(?:goal weight|target weight)\s*(?:is|to|at)?\s*(\d{2,3}(?:\.\d+)?)\s*(?:lb|lbs|pounds)?\b/) ||
-text.match(/\b(?:my goal is|set my goal to|change my goal to|i want to weigh|i want my weight to be)\s*(\d{2,3}(?:\.\d+)?)\s*(?:lb|lbs|pounds)?\b/);
-
-const goalWeight = getNumber(goalWeightMatch);
-
-if (goalWeight && goalWeight >= 70 && goalWeight <= 700) {
-return {
-action_type: "update_profile",
-payload: {
-goal_weight: goalWeight,
-targetWeight: goalWeight,
-target_weight_lbs: goalWeight
-},
-confirmation_text: `Set your goal weight to ${goalWeight} lb?`
-};
-}
-
-const sexMatch = text.match(/\b(?:i am|i'm|sex is|gender is|set sex to|set gender to)\s*(male|female)\b/);
-
-if (sexMatch) {
-const sex = sexMatch[1];
-
-return {
-action_type: "update_profile",
-payload: {
-sex,
-gender: sex
-},
-confirmation_text: `Update your sex to ${sex}?`
-};
-}
-
-const heightMatch =
-text.match(/\b(?:height is|my height is|set my height to|update my height to)\s*(\d{2,3}(?:\.\d+)?)\s*(?:in|inch|inches)?\b/);
-
-const height = getNumber(heightMatch);
-
-if (height && height >= 36 && height <= 96) {
-return {
-action_type: "update_profile",
-payload: {
-height_in: height,
-height
-},
-confirmation_text: `Update your height to ${height} inches?`
-};
-}
-
-if (text.includes("lose weight")) {
-return {
-action_type: "update_profile",
-payload: {
-goal: "lose",
-goalType: "lose"
-},
-confirmation_text: "Set your goal to lose weight?"
-};
-}
-
-if (text.includes("maintain weight")) {
-return {
-action_type: "update_profile",
-payload: {
-goal: "maintain",
-goalType: "maintain"
-},
-confirmation_text: "Set your goal to maintain weight?"
-};
-}
-
-if (text.includes("gain weight")) {
-return {
-action_type: "update_profile",
-payload: {
-goal: "gain",
-goalType: "gain"
-},
-confirmation_text: "Set your goal to gain weight?"
-};
-}
-
-const weeklyMatch =
-text.match(/\b(?:lose|gain|change).{0,20}(\d(?:\.\d+)?)\s*(?:lb|lbs|pound|pounds).{0,15}(?:week|weekly)\b/);
-
-const weekly = getNumber(weeklyMatch);
-
-if (weekly && weekly > 0 && weekly <= 2) {
-return {
-action_type: "update_profile",
-payload: {
-weekly_weight_change_goal: weekly,
-weeklyChange: weekly
-},
-confirmation_text: `Set your weekly weight change goal to ${weekly} lb/week?`
-};
-}
-
-return null;
+  return contract.action;
 };
 /* -----------------------------
 BARCODE / PHOTO / KNOWLEDGE HOOKS
@@ -1054,6 +948,126 @@ CalBuddy.isDeveloperCommand = function (message = "") {
 };
 
 /* -----------------------------
+ARI TEMP ACTION MEMORY
+Stores recent suggestions so "log that" / "set that" can work safely.
+----------------------------- */
+
+CalBuddy.saveLastAriMealEstimate = function ({
+  name,
+  calories,
+  category = "Meal",
+  serving_size = "Estimated by Ari"
+} = {}) {
+  if (!name && !calories) return null;
+
+  const estimate = {
+    name: name || "Meal from Ari",
+    calories: Number(calories || 0),
+    category,
+    serving_size,
+    saved_at: new Date().toISOString()
+  };
+
+  localStorage.setItem("calbuddyLastAriMealEstimate", JSON.stringify(estimate));
+  return estimate;
+};
+
+CalBuddy.getLastAriMealEstimate = async function () {
+  const saved = localStorage.getItem("calbuddyLastAriMealEstimate");
+  if (!saved) return null;
+
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+};
+
+CalBuddy.saveLastAriCalorieGoalSuggestion = function ({
+  calories,
+  label = "Suggested by Ari"
+} = {}) {
+  const value = Number(calories || 0);
+  if (!value || value < 1000 || value > 6000) return null;
+
+  const suggestion = {
+    calories: value,
+    label,
+    saved_at: new Date().toISOString()
+  };
+
+  localStorage.setItem("calbuddyLastAriCalorieGoalSuggestion", JSON.stringify(suggestion));
+  return suggestion;
+};
+
+CalBuddy.getLastAriCalorieGoalSuggestion = async function () {
+  const saved = localStorage.getItem("calbuddyLastAriCalorieGoalSuggestion");
+  if (!saved) return null;
+
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+};
+
+CalBuddy.captureAriTemporarySuggestions = function ({
+  userMessage = "",
+  reply = "",
+  source = "ari"
+} = {}) {
+  const userText = String(userMessage || "");
+  const replyText = String(reply || "");
+  const combined = `${userText}\n${replyText}`;
+
+  const calorieRangeMatch =
+    replyText.match(/\b(\d{2,4})\s*(?:to|-|–)\s*(\d{2,4})\s*(?:calories|kcal)\b/i) ||
+    replyText.match(/\b(\d{2,4})\s*(?:calories|kcal)\b/i);
+
+  const userAskedCalories =
+    /\b(how many calories|calories is|calories are|calorie estimate|estimate calories)\b/i.test(userText);
+
+  if (userAskedCalories && calorieRangeMatch) {
+    const low = Number(calorieRangeMatch[1]);
+    const high = Number(calorieRangeMatch[2] || calorieRangeMatch[1]);
+    const estimatedCalories = Math.round((low + high) / 2);
+
+    if (estimatedCalories >= 20 && estimatedCalories <= 5000) {
+      CalBuddy.saveLastAriMealEstimate({
+        name: userText
+          .replace(/how many calories (is|are in|are|does|do)?/gi, "")
+          .replace(/\?/g, "")
+          .trim() || "Meal from Ari",
+        calories: estimatedCalories,
+        category: "Meal",
+        serving_size: `Estimated by Ari via ${source}`
+      });
+    }
+  }
+
+  const goalSuggestionMatch =
+    replyText.match(
+      /(?:daily caloric intake|daily calorie intake|daily calories|calorie goal|calorie target|daily intake).{0,100}?(\d{1,2},?\d{3})\s*(?:to|-|–)\s*(\d{1,2},?\d{3})/i
+    ) ||
+    replyText.match(
+      /(?:daily caloric intake|daily calorie intake|daily calories|calorie goal|calorie target|daily intake).{0,100}?(\d{1,2},?\d{3})/i
+    );
+
+  if (goalSuggestionMatch) {
+    const low = Number(String(goalSuggestionMatch[1]).replace(/,/g, ""));
+    const high = Number(String(goalSuggestionMatch[2] || goalSuggestionMatch[1]).replace(/,/g, ""));
+    const suggestedCalories = Math.round((low + high) / 2);
+
+    if (suggestedCalories >= 1000 && suggestedCalories <= 6000) {
+      CalBuddy.saveLastAriCalorieGoalSuggestion({
+        calories: suggestedCalories,
+        label: `Suggested by Ari via ${source}`
+      });
+    }
+  }
+};
+
+/* -----------------------------
 ASK ARI
 ----------------------------- */
 CalBuddy.askAri = async function ({ message, history = [] }) {
@@ -1073,7 +1087,7 @@ if (pendingGithubEdit && CalBuddy.isYes(message)) {
   if (pending && CalBuddy.isNo(message)) {
     return CalBuddy.cancelPendingAction();
   }
-  const quickAction = await CalBuddy.detectAriActionFromMessage(message);
+  const quickAction = await CalBuddy.detectAriActionFromMessage(message, await CalBuddy.getUserContext());
   if (quickAction) {
     const action = await CalBuddy.createPendingAction(quickAction);
     CalBuddy.setAriMood("coach");
@@ -1154,7 +1168,13 @@ if (
   await CalBuddy.logUsage({ message, usage_type: "chat" });
 
   const mood = rebirth.emotion || "happy";
-  CalBuddy.setAriMood(mood);
+CalBuddy.setAriMood(mood);
+
+CalBuddy.captureAriTemporarySuggestions({
+  userMessage: message,
+  reply: rebirth.reply || "",
+  source: "rebirth"
+});
 
   const currentMessageIsDeveloperCommand = CalBuddy.isDeveloperCommand(message);
 
