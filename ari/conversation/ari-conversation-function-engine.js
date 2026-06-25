@@ -69,6 +69,7 @@ window.AriConversationFunctionEngine = {
       expectsCodeOrArtifact: signals.expectsCodeOrArtifact,
 languageOrInterpretationRequest: signals.languageOrInterpretationRequest,
 languageTeacherRequest: signals.languageTeacherRequest,
+      quotedOrImportedText: signals.quotedOrImportedText,
       authority: "advisory_conversation_function_only",
       cannotSet: [
         "primaryLane",
@@ -162,6 +163,10 @@ const languageTeacherRequest =
   languageOrInterpretationRequest ||
   /\b(translate this|translate for me|translate this for me|what does this say|what is this saying)\b/.test(text);
 
+const quotedOrImportedText =
+  languageTeacherRequest ||
+  /["“”‘’].{8,}["“”‘’]/.test(text);
+
     const directAnswerNeeded =
   hasQuestion ||
   languageTeacherRequest ||
@@ -198,8 +203,8 @@ const languageTeacherRequest =
       /\b(code|file|bug|error|debug|fix this|not working|function|engine|pipeline|github|vercel|supabase|javascript|html|css)\b/.test(text);
 
     const medicalContext =
-      /\b(pain|fever|bleeding|pregnant|chest|breathing|faint|vomit|diarrhea|swallow|cough|stroke|seizure)\b/.test(text);
-
+  !quotedOrImportedText &&
+  /\b(pain|fever|bleeding|pregnant|chest|breathing|faint|vomit|diarrhea|swallow|cough|stroke|seizure)\b/.test(text);
     const memoryOrIdentity =
       /\b(remember|forget|save this|from now on|who are you|what are you|ari)\b/.test(text);
 
@@ -245,6 +250,7 @@ const creative =
       hasQuestion,
       languageOrInterpretationRequest,
 languageTeacherRequest,
+quotedOrImportedText,
       directAnswerNeeded,
       actionRequest,
       decisionNeeded,
@@ -383,9 +389,12 @@ if (signals.languageTeacherRequest) {
       add("creative_generation", 76, "User requested creative generation.");
     }
 
-    if (/\b(suicide|kill myself|hurt myself|chest pain|shortness of breath|bleeding|stroke|fainting|seizure|emergency)\b/.test(text)) {
-      add("safety_or_risk_disclosure", 100, "Safety or urgent risk language detected.");
-    }
+    if (
+  !signals.quotedOrImportedText &&
+  /\b(suicide|kill myself|hurt myself|chest pain|shortness of breath|bleeding|stroke|fainting|seizure|emergency)\b/.test(text)
+) {
+  add("safety_or_risk_disclosure", 100, "Safety or urgent risk language detected.");
+}
 
     if (!functions.length) {
       add("general_conversation", 50, "No stronger conversation function detected.");
