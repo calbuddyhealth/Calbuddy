@@ -1031,6 +1031,33 @@ CalBuddy.cancelPendingAction = function () {
     reply: "No problem — I won’t change that."
   };
 };
+
+CalBuddy.isDeveloperCommand = function (message = "") {
+  const text = String(message || "").toLowerCase();
+
+  return (
+    text.includes("code") ||
+    text.includes("file") ||
+    text.includes("github") ||
+    text.includes("bug") ||
+    text.includes("read file") ||
+text.includes("read the file") ||
+text.includes("read github") ||
+text.includes("search github") ||
+text.includes("search repo") ||
+text.includes("update code") ||
+text.includes("update file") ||
+    text.includes("replace") ||
+    text.includes("commit") ||
+    text.includes("vercel") ||
+    text.includes("supabase") ||
+    text.includes("index.html") ||
+    text.includes("style.css") ||
+    text.includes("calbuddy-core") ||
+    text.includes("ari-")
+  );
+};
+
 /* -----------------------------
 ASK ARI
 ----------------------------- */
@@ -1134,7 +1161,12 @@ if (
   const mood = rebirth.emotion || "happy";
   CalBuddy.setAriMood(mood);
 
-  if (rebirth.developerIntent || rebirth.summary?.developerIntent) {
+  const currentMessageIsDeveloperCommand = CalBuddy.isDeveloperCommand(message);
+
+if (
+  currentMessageIsDeveloperCommand &&
+  (rebirth.developerIntent || rebirth.summary?.developerIntent)
+) {
     const handledIntent = await CalBuddy.handleDeveloperIntent({
       developerIntent: rebirth.developerIntent || rebirth.summary?.developerIntent,
       originalMessage: message,
@@ -1226,7 +1258,7 @@ if (
   console.log("CalBuddy Memory Candidate:", response.memoryCandidate);
 }
 
-if (response.developerIntent) {
+if (CalBuddy.isDeveloperCommand(message) && response.developerIntent) {
   localStorage.setItem(
     "calbuddyLastDeveloperIntent",
     JSON.stringify(response.developerIntent)
