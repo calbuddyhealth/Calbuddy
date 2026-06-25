@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.3.8 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
+// V1.3.9 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.3.8",
+  version: "1.3.9",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -185,7 +185,8 @@ window.AriRebirthAppBridge = {
 
       return this.makeResponse({
         reply:
-          "Ari Rebirth bridge loaded, but one of the Rebirth brain files failed to load. Check the browser console for the missing script path.",
+  "Ari Rebirth bridge loaded, but this file failed: " +
+  String(error?.message || error),
         emotion: "concerned",
         error: String(error?.message || error)
       });
