@@ -3376,3 +3376,51 @@ FINAL OVERRIDE
   opacity: 1 !important;
   visibility: visible !important;
 }
+/* ARI CHAT VISIBLE + READABLE FINAL FIX */
+
+.ari-chatgpt-home .ari-conversation-panel,
+.ari-chatgpt-home .ari-conversation-panel.ari-chat-panel,
+.ari-chatgpt-home .ari-search-section:not(.expanded) .ari-conversation-panel,
+.ari-chatgpt-home .ari-search-section.expanded .ari-conversation-panel {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  height: 56vh !important;
+  min-height: 56vh !important;
+  max-height: 56vh !important;
+  overflow-y: auto !important;
+}
+
+.ari-chatgpt-home .ari-thread {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.ari-chatgpt-home .ari-message {
+  display: block !important;
+  margin-bottom: 14px !important;
+  padding: 12px 14px !important;
+  border-radius: 18px !important;
+}
+
+.ari-chatgpt-home .ari-ai {
+  background: rgba(34, 211, 238, 0.10) !important;
+  border: 1px solid rgba(34, 211, 238, 0.18) !important;
+}
+
+.ari-chatgpt-home .ari-user {
+  background: rgba(139, 92, 246, 0.16) !important;
+  border: 1px solid rgba(139, 92, 246, 0.22) !important;
+  text-align: right !important;
+}
+
+.ari-chatgpt-home .ari-message p {
+  color: white !important;
+  margin: 4px 0 0 !important;
+  white-space: pre-wrap !important;
+}
