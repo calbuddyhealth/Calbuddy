@@ -118,64 +118,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 
-<!-- Ari Rebirth -->
-<script src="/ari/actions/ari-rebirth-action-planner.js"></script>
-
-<!-- Ari Rebirth Developer Engines -->
-<script src="/ari/developer/ari-rebirth-developer-understanding-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-ui-layout-planner-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-project-knowledge-graph-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-capability-registry-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-architecture-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-bug-diagnosis-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-execution-planner-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-code-evidence-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-code-understanding-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-dependency-map-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-self-improvement-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-patch-decision-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-patch-validation-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-regression-test-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-learning-engine.js"></script>
-<script src="/ari/developer/ari-rebirth-developer-handoff-engine.js"></script>
-
-<script src="/ari/safety/ari-safety-context-gate.js"></script>
-<script src="/ari/observer-system/ari-observer-network.js"></script>
-<script src="/ari/conversation/ari-conversation-function-engine.js"></script>
-<script src="/ari/conversation/ari-universal-conversation-classifier.js"></script>
-<script src="/ari/observer-system/ari-observer-routing-evidence.js"></script>
-<script src="/ari/context/ari-context-assembler.js"></script>
-<script src="/ari/meaning/ari-semantic-frame-builder.js"></script>
-<script src="/ari/routing/ari-lane-splitter-engine.js"></script>
-<script src="/ari/continuity/ari-continuity-entry-point.js"></script>
-<script src="/ari/continuity/ari-continuity-packet.js"></script>
-<script src="/ari/continuity/ari-thread-question-generator.js"></script>
-<script src="/ari/meaning/ari-situation-map-engine.js"></script>
-<script src="/ari/triage/ari-triage-engine.js"></script>
-<script src="/ari/contract/ari-situation-contract.js"></script>
-<script src="/ari/language/ari-language-composer.js"></script>
-
-<script src="/ari/thread/ari-thread-store.js"></script>
-<script src="/ari/meaning/ari-conversation-meaning-history.js"></script>
-<script src="/ari/memory/ari-memory-candidate-engine.js"></script>
-<script src="/ari/language/ari-human-language-engine.js"></script>
-<script src="/ari/language/ari-communication-planner.js"></script>
-<script src="/ari/language/ari-mouth-director.js"></script>
-<script src="/ari/reasoning/ari-reasoning-engine.js"></script>
-<script src="/ari/character/ari-character-context-engine.js"></script>
-<script src="/ari/lexical/ari-lexical-grounding-engine.js"></script>
-<script src="/ari/review/ari-situation-review-console.js"></script>
-<script src="/ari/response/ari-response-compressor.js"></script>
-
-<script src="/ari/needs/ari-human-needs-network.js"></script>
-<script src="/ari/response/ari-response-intent-engine.js"></script>
-<script src="/ari/executive/ari-executive-function.js"></script>
-
-<script src="/ari/integration/ari-rebirth-pipeline.js"></script>
-<script src="/ari/ari-rebirth-app-bridge.js"></script>
-
 <!-- CalBuddy -->
 <script src="calbuddy-core.js?v=3.5.0"></script>
+
+<!-- Ari Rebirth Bridge: self-loads Rebirth dependencies -->
+<script src="ari/ari-rebirth-app-bridge.js?v=1.3.7"></script>
 
 <script>
 let ariChatHistory = [];
