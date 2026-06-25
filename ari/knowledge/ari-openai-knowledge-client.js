@@ -4,21 +4,16 @@
 // Browser-side client that prepares a rich reasoning payload and
 // asks the server API to use OpenAI.
 //
-// V2.1.1
+// V2.1.2
 // Upgrades:
-// - Character Core handoff
-// - True follow-up awareness
-// - Conversation mode detection
-// - Better context handoff
-// - Better contract + triage handoff
-// - Better prompting for natural language
-// - Less robotic responses
-// - Better failure recovery
+// - Preserves structured mealEstimate / foodAnalysis / nutritionEstimate
+// - Prevents action planner from scraping wrong calorie numbers
+// - Keeps Rebirth summary handoff structured
 
 window.Ari = window.Ari || {};
 
 window.AriOpenAIKnowledgeClient = {
-  version: "2.1.1",
+  version: "2.1.2",
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
@@ -40,13 +35,12 @@ window.AriOpenAIKnowledgeClient = {
     }
 
     const payload = this.buildPayload({
-  summary,
-  rawQuestion,
-  resolvedQuestion
-});
+      summary,
+      rawQuestion,
+      resolvedQuestion
+    });
 
-// DEBUG: Inspect exactly what Ari is sending to the API
-console.log("[Ari Knowledge Payload]", payload);
+    console.log("[Ari Knowledge Payload]", payload);
 
     try {
       const response = await fetch("/api/knowledge", {
@@ -63,6 +57,24 @@ console.log("[Ari Knowledge Payload]", payload);
         return this.fail(data?.error || "Knowledge request failed.");
       }
 
+      const mealEstimate =
+        data.mealEstimate ||
+        data.response?.mealEstimate ||
+        data.rawContent?.mealEstimate ||
+        null;
+
+      const foodAnalysis =
+        data.foodAnalysis ||
+        data.response?.foodAnalysis ||
+        data.rawContent?.foodAnalysis ||
+        null;
+
+      const nutritionEstimate =
+        data.nutritionEstimate ||
+        data.response?.nutritionEstimate ||
+        data.rawContent?.nutritionEstimate ||
+        null;
+
       return {
         openAIKnowledgeUsed: true,
         openAIKnowledgeClientVersion: this.version,
@@ -74,9 +86,33 @@ console.log("[Ari Knowledge Payload]", payload);
         knowledgeAnswer:
           data.answer ||
           data.finalResponse ||
+          data.reply ||
+          data.knowledgeAnswer ||
+          data.response?.reply ||
+          data.response?.answer ||
           data.response ||
           data.text ||
           "",
+
+        finalResponse:
+          data.finalResponse ||
+          data.reply ||
+          data.answer ||
+          data.knowledgeAnswer ||
+          data.response?.reply ||
+          data.response?.answer ||
+          null,
+
+        response:
+          data.response ||
+          null,
+
+        mealEstimate,
+        foodAnalysis,
+        nutritionEstimate,
+
+        lastMealEstimate: mealEstimate,
+        pendingAction: data.pendingAction || data.response?.pendingAction || null,
 
         knowledgeConfidence: data.confidence || "medium",
         knowledgeCitations: data.sources || [],
@@ -135,6 +171,12 @@ console.log("[Ari Knowledge Payload]", payload);
           resolvedQuestion,
           conversationMode
         }),
+
+      existingMealEstimate:
+        summary.mealEstimate ||
+        summary.lastMealEstimate ||
+        summary.appContext?.lastMealEstimate ||
+        null,
 
       character: this.compactSnapshot({
         characterCore:
@@ -326,7 +368,13 @@ console.log("[Ari Knowledge Payload]", payload);
           (summary.activeSemanticTimeline || []).slice(-10),
 
         conversationHistory:
-          (summary.conversationMeaningHistory || []).slice(-10)
+          (summary.conversationMeaningHistory || []).slice(-10),
+
+        mealEstimate:
+          summary.mealEstimate ||
+          summary.lastMealEstimate ||
+          summary.appContext?.lastMealEstimate ||
+          null
       }),
 
       language: this.compactSnapshot({
@@ -336,16 +384,16 @@ console.log("[Ari Knowledge Payload]", payload);
           summary.humanLanguageProfile || {},
 
         preferredTerms:
-  summary.preferredTerms ||
-  summary.lexicalGrounding?.preferredTerms ||
-  summary.lexicalGroundingOutput?.preferredTerms ||
-  {},
+          summary.preferredTerms ||
+          summary.lexicalGrounding?.preferredTerms ||
+          summary.lexicalGroundingOutput?.preferredTerms ||
+          {},
 
-conceptMap:
-  summary.conceptMap ||
-  summary.lexicalGrounding?.conceptMap ||
-  summary.lexicalGroundingOutput?.conceptMap ||
-  {},
+        conceptMap:
+          summary.conceptMap ||
+          summary.lexicalGrounding?.conceptMap ||
+          summary.lexicalGroundingOutput?.conceptMap ||
+          {},
 
         answerStyle:
           communicationPlan.answerMode ||
@@ -380,7 +428,14 @@ conceptMap:
           conversationMode,
 
         characterCoreProvided:
-          Boolean(summary.characterCore || characterContext.characterCore)
+          Boolean(summary.characterCore || characterContext.characterCore),
+
+        mealEstimateProvided:
+          Boolean(
+            summary.mealEstimate ||
+            summary.lastMealEstimate ||
+            summary.appContext?.lastMealEstimate
+          )
       }
     };
   },
@@ -423,6 +478,12 @@ If conversationMode is "topic_shift":
 If conversationMode is "new_question":
 - Treat it as a fresh question.
 
+Food and calorie rules:
+- If the user asks for calorie estimation, provide a reasonable estimate.
+- If estimating a meal, include a structured mealEstimate in the server JSON response when possible.
+- mealEstimate.totalCalories must represent the full meal total, not one ingredient.
+- If the user asks to log the estimated total, preserve and reuse the prior meal estimate instead of recalculating from a single food item.
+
 Writing style:
 - Sound like an intelligent human talking.
 - Use contractions naturally.
@@ -462,6 +523,14 @@ Do not output phrases like:
       knowledgeProvider: "openai",
       knowledgeSource: null,
       knowledgeAnswer: null,
+      finalResponse: null,
+
+      mealEstimate: null,
+      foodAnalysis: null,
+      nutritionEstimate: null,
+      lastMealEstimate: null,
+      pendingAction: null,
+
       knowledgeConfidence: "none",
       knowledgeCitations: [],
       knowledgeError: message,
