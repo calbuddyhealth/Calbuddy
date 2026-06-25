@@ -1091,8 +1091,8 @@ console.log("REBIRTH LOAD CHECK:", {
 });
 
 if (
-  window.AriRebirthAppBridge?.ask &&
-  window.AriRebirthPipeline?.run
+  window.AriRebirthAppBridge &&
+  typeof window.AriRebirthAppBridge.ask === "function"
 ) {
   const rebirth = await window.AriRebirthAppBridge.ask(message, {
     source: "calbuddy-core",
