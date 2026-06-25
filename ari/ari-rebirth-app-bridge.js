@@ -14,6 +14,25 @@ window.AriRebirthAppBridge = {
     "ari/system/ari-loader.js",
     "ari/system/ari-authority.js",
 
+"ari/actions/ari-rebirth-action-planner.js",
+
+"ari/developer/ari-rebirth-developer-understanding-engine.js",
+"ari/developer/ari-rebirth-ui-layout-planner-engine.js",
+"ari/developer/ari-rebirth-project-knowledge-graph-engine.js",
+"ari/developer/ari-rebirth-capability-registry-engine.js",
+"ari/developer/ari-rebirth-architecture-engine.js",
+"ari/developer/ari-rebirth-bug-diagnosis-engine.js",
+"ari/developer/ari-rebirth-execution-planner-engine.js",
+"ari/developer/ari-rebirth-code-evidence-engine.js",
+"ari/developer/ari-rebirth-code-understanding-engine.js",
+"ari/developer/ari-rebirth-dependency-map-engine.js",
+"ari/developer/ari-rebirth-self-improvement-engine.js",
+"ari/developer/ari-rebirth-patch-decision-engine.js",
+"ari/developer/ari-rebirth-patch-validation-engine.js",
+"ari/developer/ari-rebirth-regression-test-engine.js",
+"ari/developer/ari-rebirth-learning-engine.js",
+"ari/developer/ari-rebirth-developer-handoff-engine.js",
+
     "ari/safety/ari-safety-context-gate.js",
     "ari/observer-system/ari-observer-network.js",
     "ari/conversation/ari-conversation-function-engine.js",
@@ -83,6 +102,15 @@ window.AriRebirthAppBridge = {
 
 "ari/integration/ari-salience-governor.js",
 "ari/integration/ari-synthesis-engine.js",
+
+"ari/uncertainty/ari-uncertainty-classification-engine.js",
+"ari/identity/ari-identity-priority-engine.js",
+"ari/identity/ari-identity-conflict-resolver.js",
+"ari/values/ari-value-integration-engine.js",
+"ari/emotion/ari-stewardship-fear-differentiator.js",
+"ari/meaning/ari-life-chapter-engine.js",
+"ari/teaching/ari-teaching-answer-engine.js",
+"ari/governance/ari-situation-review-console.js",
 
     "ari/knowledge/ari-openai-knowledge-client.js",
     "ari/reasoning/ari-reasoning-engine.js",
