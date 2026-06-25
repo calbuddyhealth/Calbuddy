@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.4.0 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
+// V1.4.1 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.4.0",
+  version: "1.4.1",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -597,27 +597,50 @@ window.AriRebirthAppBridge = {
     return this.recoverActionsFromResponse(summary);
   },
 
-  recoverActionsFromResponse(summary = {}) {
-    const reply = String(
-      summary.finalResponse ||
-        summary.compressedResponse ||
-        summary.response ||
-        ""
-    ).toLowerCase();
+    extractTotalCaloriesFromSummaryOrReply(summary = {}, reply = "") {
+    const structuredCalories =
+      summary.mealEstimate?.totalCalories ||
+      summary.foodAnalysis?.totalCalories ||
+      summary.nutritionEstimate?.totalCalories ||
+      summary.calorieEstimate?.totalCalories ||
+      summary.totalCalories;
 
-    const userText = String(
-      summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        ""
-    ).toLowerCase();
+    const number = Number(structuredCalories);
 
-    if (!reply.includes("want me to log")) return [];
+    if (Number.isFinite(number) && number >= 10 && number <= 5000) {
+      return Math.round(number);
+    }
 
-    const foodAction = this.recoverMealAction(userText, reply);
-    if (foodAction) return [foodAction];
+    return this.extractMealTotalCaloriesFromReply(reply);
+  },
 
-    return [];
+  extractMealTotalCaloriesFromReply(text = "") {
+    const clean = String(text || "").replace(/,/g, "").toLowerCase();
+
+    const totalPatterns = [
+      /total:\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal)/i,
+      /total\s+(?:is|would be|comes to)?\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal)/i,
+      /approximately\s+(\d{2,5})\s*(?:calories|kcal)\s*(?:total|for the whole meal)/i,
+      /about\s+(\d{2,5})\s*(?:calories|kcal)\s*(?:total|for the whole meal)/i
+    ];
+
+    for (const pattern of totalPatterns) {
+      const match = clean.match(pattern);
+
+      if (match) {
+        const calories = Number(match[1]);
+
+        if (Number.isFinite(calories) && calories >= 10 && calories <= 5000) {
+          return Math.round(calories);
+        }
+      }
+    }
+
+    return null;
+  },
+
+  extractCaloriesFromReply(text = "") {
+    return this.extractMealTotalCaloriesFromReply(text);
   },
 
   recoverMealAction(userText = "", reply = "") {
@@ -636,7 +659,7 @@ window.AriRebirthAppBridge = {
 
     if (cleanUserText.includes("big mac") && cleanUserText.includes("fries")) {
       foodName = "Big Mac and large fries";
-      calories = this.extractCaloriesFromReply(cleanReply) || 1040;
+      calories = this.extractTotalCaloriesFromSummaryOrReply({}, cleanReply) || 1040;
     } else if (cleanUserText.includes("big mac")) {
       foodName = "Big Mac";
       calories = this.extractCaloriesFromReply(cleanReply) || 550;
@@ -659,25 +682,6 @@ window.AriRebirthAppBridge = {
       requiresApproval: true,
       directWriteAllowed: false
     };
-  },
-
-  extractCaloriesFromReply(text = "") {
-    const clean = String(text || "").replace(/,/g, "");
-
-    const totalMatch =
-      clean.match(/total of approximately\s+(\d{2,5})\s+calories/) ||
-      clean.match(/total of about\s+(\d{2,5})\s+calories/) ||
-      clean.match(/approximately\s+(\d{2,5})\s+calories/) ||
-      clean.match(/about\s+(\d{2,5})\s+calories/);
-
-    if (!totalMatch) return null;
-
-    const calories = Number(totalMatch[1]);
-
-    if (!Number.isFinite(calories)) return null;
-    if (calories < 10 || calories > 5000) return null;
-
-    return calories;
   },
 
   makeResponse({
