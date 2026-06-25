@@ -1,11 +1,11 @@
 // ari/actions/ari-rebirth-action-planner.js
 // Purpose: Convert Rebirth understanding into safe CalBuddy proposed actions.
-// V1.2.0 — Universal Action Planner / No Food Keyword Estimation
+// V1.2.1 — Universal Action Planner / No Food Keyword Estimation
 
 window.Ari = window.Ari || {};
 
 window.Ari.rebirthActionPlanner = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   plan(summary = {}) {
     const text = String(
@@ -166,8 +166,7 @@ window.Ari.rebirthActionPlanner = {
       /total:\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
       /total\s*(?:is|would be|comes to)?\s*(?:approximately|about|around)?\s*(\d{2,5})\s*(?:calories|kcal|cals)/i,
       /approximately\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i,
-      /about\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i,
-      /\b(\d{2,5})\s*(?:calories|kcal|cals)\b/i
+      /about\s*(\d{2,5})\s*(?:calories|kcal|cals)\s*(?:total|for the whole meal)/i
     ];
 
     for (const pattern of patterns) {
