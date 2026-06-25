@@ -2,13 +2,113 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.3.6 — App Safe / Pipeline Guarded / Developer Layer Handoff
+// V1.3.7 — App Safe / Pipeline Guarded / Self Loading Rebirth Bridge
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.3.6",
+  version: "1.3.7",
+
+  requiredScripts: [
+    "ari/system/ari-loader.js",
+    "ari/system/ari-authority.js",
+
+    "ari/safety/ari-safety-context-gate.js",
+    "ari/observer-system/ari-observer-network.js",
+    "ari/conversation/ari-conversation-function-engine.js",
+    "ari/conversation/ari-universal-conversation-classifier.js",
+    "ari/observer-system/ari-observer-routing-evidence.js",
+    "ari/routing/ari-lane-splitter-engine.js",
+
+    "ari/continuity/ari-continuity-entry-point.js",
+    "ari/continuity/ari-continuity-packet.js",
+    "ari/continuity/ari-conversation-meaning-history.js",
+    "ari/context/ari-thread-question-generator.js",
+
+    "ari/storage/ari-thread-store.js",
+    "ari/storage/ari-memory-store.js",
+    "ari/continuity/ari-conversation-continuity-engine.js",
+
+    "ari/memory/ari-memory-ranking-engine.js",
+    "ari/memory/ari-memory-retrieval-engine.js",
+    "ari/memory/ari-memory-candidate-engine.js",
+
+    "ari/relationship/ari-relationship-engine.js",
+    "ari/context/ari-context-assembler.js",
+    "ari/context/ari-thread-understanding-engine.js",
+    "ari/context/ari-entity-reference-resolver.js",
+
+    "ari/meaning/ari-semantic-frame-builder.js",
+    "ari/character/ari-character-core.js",
+    "ari/character/ari-character-context-engine.js",
+    "ari/meaning/ari-situation-map-engine.js",
+
+    "ari/governance/ari-triage-engine.js",
+    "ari/governance/ari-situation-contract.js",
+
+    "ari/language/ari-lexical-grounding-engine.js",
+    "ari/language/ari-communication-planner.js",
+    "ari/language/ari-human-language-engine.js",
+    "ari/language/ari-mouth-director.js",
+    "ari/language/ari-response-compressor.js",
+    "ari/language/ari-language-composer.js",
+
+    "ari/knowledge/ari-openai-knowledge-client.js",
+    "ari/reasoning/ari-reasoning-engine.js",
+    "ari/integration/ari-rebirth-pipeline.js"
+  ],
+
+  loaded: false,
+  loadingPromise: null,
+
+  async ensureLoaded() {
+    if (
+      this.loaded &&
+      window.AriRebirthPipeline &&
+      typeof window.AriRebirthPipeline.run === "function"
+    ) {
+      return true;
+    }
+
+    if (this.loadingPromise) {
+      return this.loadingPromise;
+    }
+
+    this.loadingPromise = (async () => {
+      for (const src of this.requiredScripts) {
+        await this.loadScriptOnce(src);
+      }
+
+      this.loaded = true;
+      return true;
+    })();
+
+    return this.loadingPromise;
+  },
+
+  loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+      const alreadyLoaded = [...document.scripts].some(script => {
+        const existing = script.getAttribute("src") || "";
+        return existing === src || script.src.endsWith(src);
+      });
+
+      if (alreadyLoaded) {
+        resolve();
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = false;
+
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load Ari script: ${src}`));
+
+      document.head.appendChild(script);
+    });
+  },
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
@@ -17,6 +117,19 @@ window.AriRebirthAppBridge = {
       return this.makeResponse({
         reply: "Say something first.",
         emotion: "idle"
+      });
+    }
+
+    try {
+      await this.ensureLoaded();
+    } catch (error) {
+      console.error("ARI REBIRTH SCRIPT LOAD ERROR:", error);
+
+      return this.makeResponse({
+        reply:
+          "Ari Rebirth bridge loaded, but one of the Rebirth brain files failed to load. Check the browser console for the missing script path.",
+        emotion: "concerned",
+        error: String(error?.message || error)
       });
     }
 
@@ -31,27 +144,27 @@ window.AriRebirthAppBridge = {
     }
 
     try {
-    const analysis = null;
+      const analysis = null;
 
-let summary = this.attachAppContext({}, cleanMessage, options);
+      let summary = this.attachAppContext({}, cleanMessage, options);
 
-summary = await window.AriRebirthPipeline.run(summary);
+      summary = await window.AriRebirthPipeline.run(summary);
 
+      summary = this.attachDeveloperIntent(summary);
 
-summary = this.attachDeveloperIntent(summary);
-const fileEvidenceReply = this.extractFileEvidenceReply(summary);
+      const fileEvidenceReply = this.extractFileEvidenceReply(summary);
 
-if (fileEvidenceReply) {
-  return this.makeResponse({
-    reply: fileEvidenceReply,
-    emotion: "thinking",
-    developerIntent: summary.developerIntent || null,
-    summary,
-    analysis
-  });
-}
+      if (fileEvidenceReply) {
+        return this.makeResponse({
+          reply: fileEvidenceReply,
+          emotion: "thinking",
+          developerIntent: summary.developerIntent || null,
+          summary,
+          analysis
+        });
+      }
 
-const reply = this.extractReply(summary);
+      const reply = this.extractReply(summary);
       const emotion = this.chooseEmotion(summary);
       const actions = this.extractActions(summary);
 
@@ -76,19 +189,19 @@ const reply = this.extractReply(summary);
   },
 
   checkReadiness() {
-  if (
-    !window.AriRebirthPipeline ||
-    typeof window.AriRebirthPipeline.run !== "function"
-  ) {
-    return {
-      ready: false,
-      message: "Ari Rebirth pipeline is not loaded yet.",
-      error: "missing_AriRebirthPipeline_run"
-    };
-  }
+    if (
+      !window.AriRebirthPipeline ||
+      typeof window.AriRebirthPipeline.run !== "function"
+    ) {
+      return {
+        ready: false,
+        message: "Ari Rebirth pipeline is not loaded yet.",
+        error: "missing_AriRebirthPipeline_run"
+      };
+    }
 
-  return { ready: true };
-},
+    return { ready: true };
+  },
 
   attachAppContext(summary = {}, cleanMessage = "", options = {}) {
     const normalizedMessage = cleanMessage.toLowerCase().trim();
@@ -108,9 +221,8 @@ const reply = this.extractReply(summary);
 
         userContext: options.userContext || null,
         coachMemorySummary: options.coachMemorySummary || "",
-githubFileContext: options.githubFileContext || null,
-developerInvestigation: options.developerInvestigation || null,
-
+        githubFileContext: options.githubFileContext || null,
+        developerInvestigation: options.developerInvestigation || null,
 
         goals: options.goals || null,
         meals: Array.isArray(options.meals) ? options.meals : [],
@@ -134,190 +246,205 @@ developerInvestigation: options.developerInvestigation || null,
   },
 
   attachDeveloperIntent(summary = {}) {
-  const existingIntent =
-    summary.developerIntent ||
-    summary.developerHandoff?.developerIntent ||
-    summary.appDeveloperIntent ||
-    summary.ownerDeveloperIntent ||
-    null;
+    const existingIntent =
+      summary.developerIntent ||
+      summary.developerHandoff?.developerIntent ||
+      summary.appDeveloperIntent ||
+      summary.ownerDeveloperIntent ||
+      null;
 
-  if (existingIntent) {
-    return {
-      ...summary,
-      developerIntent: existingIntent
-    };
-  }
+    if (existingIntent) {
+      return {
+        ...summary,
+        developerIntent: existingIntent
+      };
+    }
 
-  return summary;
-},
+    return summary;
+  },
 
-    
+  extractReply(summary = {}) {
+    if (summary.developerHandoff?.reply) {
+      return this.cleanReply(summary.developerHandoff.reply);
+    }
 
-extractReply(summary = {}) {
-  if (summary.developerHandoff?.reply) {
-    return this.cleanReply(summary.developerHandoff.reply);
-  }
+    if (summary.developerIntent?.type === "developer_investigation") {
+      return "I’ll investigate that first — search, read the likely files, then propose a safe fix only after I have exact code evidence.";
+    }
 
-  if (summary.developerIntent?.type === "developer_investigation") {
-    return "I’ll investigate that first — search, read the likely files, then propose a safe fix only after I have exact code evidence.";
-  }
+    return this.cleanReply(
+      summary.finalResponse ||
+        summary.compressedResponse ||
+        summary.languageComposerOutput ||
+        summary.response ||
+        summary.answer ||
+        summary.situationContract?.clarity?.question ||
+        summary.synthesisRecommendedQuestion ||
+        summary.salienceQuestion ||
+        summary.recommendedRecoveryQuestion ||
+        "I heard you, but I need a cleaner response path."
+    );
+  },
 
-  return this.cleanReply(
-    summary.finalResponse ||
-      summary.compressedResponse ||
-      summary.languageComposerOutput ||
-      summary.response ||
-      summary.answer ||
-      summary.situationContract?.clarity?.question ||
-      summary.synthesisRecommendedQuestion ||
-      summary.salienceQuestion ||
-      summary.recommendedRecoveryQuestion ||
-      "I heard you, but I need a cleaner response path."
-  );
-},
+  extractFileEvidenceReply(summary = {}) {
+    const fileContext =
+      summary.githubFileContext ||
+      summary.githubEvidence ||
+      summary.appContext?.githubFileContext ||
+      null;
 
-extractFileEvidenceReply(summary = {}) {
-  const fileContext =
-    summary.githubFileContext ||
-    summary.githubEvidence ||
-    summary.appContext?.githubFileContext ||
-    null;
-  const content = String(fileContext?.content || "");
-  const filePath = fileContext?.filePath || "the file";
-  const userText = String(summary.userMessage || summary.message || "").toLowerCase();
-  if (!content.trim()) return null;
-  const lines = content.split("\n");
-  const rangeMatch =
-    userText.match(/lines?\s+(\d+)\s*(?:-|to|through)\s*(\d+)/i);
-  if (rangeMatch) {
-    const start = Math.max(Number(rangeMatch[1]), 1);
-    const end = Math.min(Number(rangeMatch[2]), lines.length);
-    return this.formatFileLines({
-      filePath,
-      lines,
-      start,
-      end
-    });
-  }
-  const firstMatch =
-    userText.match(/first\s+(\d+)\s+lines?/i);
-  if (firstMatch) {
-    const count = Math.min(Number(firstMatch[1]), lines.length);
-    return this.formatFileLines({
-      filePath,
-      lines,
-      start: 1,
-      end: count
-    });
-  }
-  const lastMatch =
-    userText.match(/last\s+(\d+)\s+lines?/i);
-  if (lastMatch) {
-    const count = Math.min(Number(lastMatch[1]), lines.length);
-    const start = Math.max(lines.length - count + 1, 1);
-    return this.formatFileLines({
-      filePath,
-      lines,
-      start,
-      end: lines.length
-    });
-  }
-  const wantsFullCode =
-    userText.includes("show full file") ||
-    userText.includes("show me full file") ||
-    userText.includes("show all code") ||
-    userText.includes("full code") ||
-    userText.includes("entire file") ||
-    userText.includes("exact code") ||
-    userText.includes("exact html") ||
-    userText.includes("show me the exact");
-  if (wantsFullCode) {
+    const content = String(fileContext?.content || "");
+    const filePath = fileContext?.filePath || "the file";
+    const userText = String(summary.userMessage || summary.message || "").toLowerCase();
+
+    if (!content.trim()) return null;
+
+    const lines = content.split("\n");
+
+    const rangeMatch =
+      userText.match(/lines?\s+(\d+)\s*(?:-|to|through)\s*(\d+)/i);
+
+    if (rangeMatch) {
+      const start = Math.max(Number(rangeMatch[1]), 1);
+      const end = Math.min(Number(rangeMatch[2]), lines.length);
+
+      return this.formatFileLines({
+        filePath,
+        lines,
+        start,
+        end
+      });
+    }
+
+    const firstMatch = userText.match(/first\s+(\d+)\s+lines?/i);
+
+    if (firstMatch) {
+      const count = Math.min(Number(firstMatch[1]), lines.length);
+
+      return this.formatFileLines({
+        filePath,
+        lines,
+        start: 1,
+        end: count
+      });
+    }
+
+    const lastMatch = userText.match(/last\s+(\d+)\s+lines?/i);
+
+    if (lastMatch) {
+      const count = Math.min(Number(lastMatch[1]), lines.length);
+      const start = Math.max(lines.length - count + 1, 1);
+
+      return this.formatFileLines({
+        filePath,
+        lines,
+        start,
+        end: lines.length
+      });
+    }
+
+    const wantsFullCode =
+      userText.includes("show full file") ||
+      userText.includes("show me full file") ||
+      userText.includes("show all code") ||
+      userText.includes("full code") ||
+      userText.includes("entire file") ||
+      userText.includes("exact code") ||
+      userText.includes("exact html") ||
+      userText.includes("show me the exact");
+
+    if (wantsFullCode) {
+      return [
+        `I read ${filePath}. Full file content:`,
+        "",
+        "```",
+        content.trim(),
+        "```"
+      ].join("\n");
+    }
+
+    const wantsFileStatus =
+      userText.includes("what file") ||
+      userText.includes("currently reading") ||
+      userText.includes("githubevidenceavailable");
+
+    if (wantsFileStatus) {
+      return `I’m currently reading ${filePath}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.\n\nContent length: ${content.length} characters.\nLine count: ${lines.length}.`;
+    }
+
+    return null;
+  },
+
+  formatFileLines({ filePath = "the file", lines = [], start = 1, end = 1 } = {}) {
+    const selected = lines.slice(start - 1, end);
+
     return [
-      `I read ${filePath}. Full file content:`,
+      `I read ${filePath}. Lines ${start}-${end}:`,
       "",
       "```",
-      content.trim(),
+      ...selected.map((line, index) => {
+        const lineNumber = start + index;
+        return `${String(lineNumber).padStart(4, " ")} | ${line}`;
+      }),
       "```"
     ].join("\n");
-  }
-  const wantsFileStatus =
-    userText.includes("what file") ||
-    userText.includes("currently reading") ||
-    userText.includes("githubevidenceavailable");
-  if (wantsFileStatus) {
-    return `I’m currently reading ${filePath}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.\n\nContent length: ${content.length} characters.\nLine count: ${lines.length}.`;
-  }
-  return null;
-},
-formatFileLines({ filePath = "the file", lines = [], start = 1, end = 1 } = {}) {
-  const selected = lines.slice(start - 1, end);
-  return [
-    `I read ${filePath}. Lines ${start}-${end}:`,
-    "",
-    "```",
-    ...selected.map((line, index) => {
-      const lineNumber = start + index;
-      return `${String(lineNumber).padStart(4, " ")} | ${line}`;
-    }),
-    "```"
-  ].join("\n");
-},
+  },
 
-summarizeFileContent(content = "") {
-  const text = String(content || "");
-  const hints = [];
+  summarizeFileContent(content = "") {
+    const text = String(content || "");
+    const hints = [];
 
-  if (text.includes("<section")) hints.push("HTML page sections");
-  if (text.includes("<script")) hints.push("script loading or inline JavaScript");
-  if (text.includes("CalBuddy")) hints.push("CalBuddy app behavior");
-  if (text.includes("Ari")) hints.push("Ari interface or Ari logic");
-  if (text.includes("href=")) hints.push("navigation links");
-  if (text.includes("class=")) hints.push("styled UI elements");
-  if (text.includes("addEventListener")) hints.push("event handlers");
-  if (text.includes("fetch(")) hints.push("API calls");
+    if (text.includes("<section")) hints.push("HTML page sections");
+    if (text.includes("<script")) hints.push("script loading or inline JavaScript");
+    if (text.includes("CalBuddy")) hints.push("CalBuddy app behavior");
+    if (text.includes("Ari")) hints.push("Ari interface or Ari logic");
+    if (text.includes("href=")) hints.push("navigation links");
+    if (text.includes("class=")) hints.push("styled UI elements");
+    if (text.includes("addEventListener")) hints.push("event handlers");
+    if (text.includes("fetch(")) hints.push("API calls");
 
-  return hints.length
-    ? hints.map(item => `- ${item}`).join("\n")
-    : "- General source code content";
-},
+    return hints.length
+      ? hints.map(item => `- ${item}`).join("\n")
+      : "- General source code content";
+  },
 
-findRelevantFileLines(content = "", userText = "", filePath = "the file") {
-  const lines = String(content || "").split("\n");
+  findRelevantFileLines(content = "", userText = "", filePath = "the file") {
+    const lines = String(content || "").split("\n");
 
-  const keywords = String(userText || "")
-    .replace(/[^\w\s.-]/g, " ")
-    .split(/\s+/)
-    .filter(word => word.length >= 4)
-    .map(word => word.toLowerCase())
-    .slice(0, 12);
+    const keywords = String(userText || "")
+      .replace(/[^\w\s.-]/g, " ")
+      .split(/\s+/)
+      .filter(word => word.length >= 4)
+      .map(word => word.toLowerCase())
+      .slice(0, 12);
 
-  const matches = lines
-    .map((line, index) => {
-      const lower = line.toLowerCase();
-      const score = keywords.reduce((total, word) => {
-        return lower.includes(word) ? total + 1 : total;
-      }, 0);
+    const matches = lines
+      .map((line, index) => {
+        const lower = line.toLowerCase();
+        const score = keywords.reduce((total, word) => {
+          return lower.includes(word) ? total + 1 : total;
+        }, 0);
 
-      return {
-        line: index + 1,
-        score,
-        text: line
-      };
-    })
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
+        return {
+          line: index + 1,
+          score,
+          text: line
+        };
+      })
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
 
-  if (!matches.length) {
-    return `I read ${filePath}, but I did not find a strong matching line for that request. Try naming the exact text, class, id, or feature.`;
-  }
+    if (!matches.length) {
+      return `I read ${filePath}, but I did not find a strong matching line for that request. Try naming the exact text, class, id, or feature.`;
+    }
 
-  return [
-    `I read ${filePath}. The most relevant lines are:`,
-    "",
-    ...matches.map(item => `Line ${item.line}: ${item.text.trim()}`)
-  ].join("\n");
-},
+    return [
+      `I read ${filePath}. The most relevant lines are:`,
+      "",
+      ...matches.map(item => `Line ${item.line}: ${item.text.trim()}`)
+    ].join("\n");
+  },
 
   cleanReply(reply) {
     const text = String(reply || "").trim();
