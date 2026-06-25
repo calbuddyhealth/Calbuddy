@@ -42,7 +42,7 @@ window.AriRebirthAppBridge = {
 
     "ari/continuity/ari-continuity-entry-point.js",
     "ari/continuity/ari-continuity-packet.js",
-    "ari/continuity/ari-conversation-meaning-history.js",
+    "ari/conversation/ari-conversation-meaning-history.js",
     "ari/context/ari-thread-question-generator.js",
 
     "ari/storage/ari-thread-store.js",
