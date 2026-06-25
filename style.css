@@ -3366,3 +3366,13 @@ FINAL OVERRIDE
     border-radius: 26px;
   }
 }
+
+/* FIX: Ari response not showing */
+
+.ari-chatgpt-home .ari-search-section .ari-conversation-panel,
+.ari-chatgpt-home .ari-search-section:not(.expanded) .ari-conversation-panel,
+.ari-chatgpt-home .ari-conversation-panel.ari-chat-panel {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
