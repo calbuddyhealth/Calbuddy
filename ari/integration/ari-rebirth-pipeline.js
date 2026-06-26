@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.3 — Developer Layer Wired / Owner Code Handoff Ready
+// V3.8.4 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.3",
+  version: "3.8.4",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -591,7 +591,6 @@ const developerResponseLocked = Boolean(
 
     summary = this.reassertContractAuthority(summary);
 
-summary = this.preserveMealEstimate(summary);
 
     // Character Context
     const characterContextResult = await runEngine(
@@ -869,11 +868,12 @@ preserveDeveloperEvidence(summary = {}) {
 },
 
 preserveMealEstimate(summary = {}) {
-  const mealEstimate =
+  const wantsMealLog = /\b(log|add|save|track)\b/i.test(
+    String(summary.userMessage || summary.message || summary.input || "")
+  );
+
+  const newMealEstimate =
     summary.mealEstimate ||
-    summary.lastMealEstimate ||
-    summary.foodAnalysis ||
-    summary.nutritionEstimate ||
     summary.aiData?.mealEstimate ||
     summary.aiData?.rawOpenAIData?.mealEstimate ||
     summary.aiData?.rawOpenAIData?.response?.mealEstimate ||
@@ -881,8 +881,17 @@ preserveMealEstimate(summary = {}) {
     summary.rawOpenAIData?.mealEstimate ||
     summary.rawOpenAIData?.response?.mealEstimate ||
     summary.response?.mealEstimate ||
-    summary.threadState?.lastMealEstimate ||
     null;
+
+  const priorMealEstimate =
+    wantsMealLog
+      ? summary.lastMealEstimate ||
+        summary.appContext?.lastMealEstimate ||
+        summary.threadState?.lastMealEstimate ||
+        null
+      : null;
+
+  const mealEstimate = newMealEstimate || priorMealEstimate;
 
   if (!mealEstimate) return summary;
 
@@ -1244,9 +1253,7 @@ lastMealEstimate:
   threadState.lastMealEstimate || null,
 
 mealEstimate:
-  summary.mealEstimate ||
-  threadState.lastMealEstimate ||
-  null,
+  summary.mealEstimate || null,
 
 priorMeaningForFollowUp:
   threadState.latestConversationMeaning || null,
