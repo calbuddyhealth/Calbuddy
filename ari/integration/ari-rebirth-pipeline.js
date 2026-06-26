@@ -735,7 +735,6 @@ if (!developerResponseLocked) {
   };
 }
 
-summary = this.preserveMealEstimate(summary);
 // 2.10 Rebirth Action Planner
 // Converts Ari's understanding into safe CalBuddy proposed actions.
 // CalBuddy still requires user approval before executing.
