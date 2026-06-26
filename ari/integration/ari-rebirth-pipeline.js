@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.1 — Developer Layer Wired / Owner Code Handoff Ready
+// V3.8.2 — Developer Layer Wired / Owner Code Handoff Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.1",
+  version: "3.8.2",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -591,6 +591,8 @@ const developerResponseLocked = Boolean(
 
     summary = this.reassertContractAuthority(summary);
 
+summary = this.preserveMealEstimate(summary);
+
     // Character Context
     const characterContextResult = await runEngine(
       window.AriCharacterContextEngine,
@@ -865,6 +867,31 @@ preserveDeveloperEvidence(summary = {}) {
   };
 },
 
+preserveMealEstimate(summary = {}) {
+  const mealEstimate =
+    summary.mealEstimate ||
+    summary.foodAnalysis ||
+    summary.nutritionEstimate ||
+    summary.rawOpenAIData?.mealEstimate ||
+    summary.rawOpenAIData?.response?.mealEstimate ||
+    summary.response?.mealEstimate ||
+    summary.threadState?.lastMealEstimate ||
+    null;
+
+  if (!mealEstimate) return summary;
+
+  return {
+    ...summary,
+    mealEstimate,
+    lastMealEstimate: mealEstimate,
+    appContext: {
+      ...(summary.appContext || {}),
+      lastMealEstimate: mealEstimate,
+      mealEstimate
+    }
+  };
+},
+
   async runObserverHierarchy(summary = {}) {
     if (
       !window.Ari?.observerHierarchyEngine ||
@@ -1019,6 +1046,12 @@ conversationMeaningOpenLoops:
       summary.finalResponse
         ? String(summary.finalResponse).slice(0, 500)
         : previousThread.previousAnswerSummary || null,
+
+lastMealEstimate:
+  summary.mealEstimate ||
+  summary.lastMealEstimate ||
+  previousThread.lastMealEstimate ||
+  null,
 
     lastFinalResponse:
       summary.finalResponse ||
@@ -1201,6 +1234,14 @@ conversationMeaningFocus:
 conversationMeaningOpenLoops:
   threadState.conversationMeaningOpenLoops || [],
 
+lastMealEstimate:
+  threadState.lastMealEstimate || null,
+
+mealEstimate:
+  summary.mealEstimate ||
+  threadState.lastMealEstimate ||
+  null,
+
 priorMeaningForFollowUp:
   threadState.latestConversationMeaning || null,
      };
@@ -1369,6 +1410,7 @@ mergeAs(
     console.log("===== TRIAGE =====", summary.triage);
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== REASONING =====", reasoningResult);
+    console.log("===== MEAL ESTIMATE =====", summary.mealEstimate || summary.lastMealEstimate);
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
   console.log("===== DEVELOPER LAYER =====", summary.developerHandoff || summary.developerUnderstanding);
   console.log("===== UI LAYOUT PLANNER =====", summary.uiLayoutPlanner);
