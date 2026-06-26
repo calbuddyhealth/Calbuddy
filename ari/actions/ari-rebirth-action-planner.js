@@ -1,11 +1,11 @@
 // ari/actions/ari-rebirth-action-planner.js
 // Purpose: Convert Rebirth understanding into safe CalBuddy proposed actions.
-// V1.2.1 — Universal Action Planner / No Food Keyword Estimation
+// V1.3.0 — Structured Meal Action Planner / Full Total + Single Item Support
 
 window.Ari = window.Ari || {};
 
 window.Ari.rebirthActionPlanner = {
-  version: "1.2.1",
+  version: "1.3.0",
 
   plan(summary = {}) {
     const text = String(
@@ -34,11 +34,21 @@ window.Ari.rebirthActionPlanner = {
   },
 
   detectMealLog(text = "", summary = {}) {
-    const wantsMealLog = this.userWantsMealLog(text);
-    if (!wantsMealLog) return null;
+    if (!this.userWantsMealLog(text)) return null;
 
-    const calories = this.resolveMealTotalCalories(summary, text);
-    const foodName = this.resolveMealDescription(summary, text);
+    const mealEstimate = this.getMealEstimate(summary);
+    const selectedFood = this.resolveSelectedFoodFromMealEstimate(text, mealEstimate);
+
+    if (selectedFood) {
+      return this.makeMealAction(
+        selectedFood.name,
+        selectedFood.calories,
+        "Selected from Ari Rebirth estimate"
+      );
+    }
+
+    const calories = this.resolveMealTotalCalories(summary, text, mealEstimate);
+    const foodName = this.resolveMealDescription(summary, text, mealEstimate);
 
     if (!calories || !foodName) return null;
 
@@ -57,20 +67,90 @@ window.Ari.rebirthActionPlanner = {
         text.includes("cals") ||
         text.includes("that") ||
         text.includes("it") ||
-        text.includes("total")
+        text.includes("total") ||
+        text.includes("estimate") ||
+        text.includes("intake") ||
+        text.includes("just") ||
+        text.includes("only")
       )
     );
   },
 
-  resolveMealTotalCalories(summary = {}, text = "") {
+  getMealEstimate(summary = {}) {
+    return (
+      summary.mealEstimate ||
+      summary.lastMealEstimate ||
+      summary.foodAnalysis ||
+      summary.nutritionEstimate ||
+      summary.calorieEstimate ||
+      summary.appContext?.mealEstimate ||
+      summary.appContext?.lastMealEstimate ||
+      summary.threadState?.lastMealEstimate ||
+      null
+    );
+  },
+
+  resolveSelectedFoodFromMealEstimate(text = "", mealEstimate = null) {
+    const foods = Array.isArray(mealEstimate?.foods)
+      ? mealEstimate.foods
+      : [];
+
+    if (!foods.length) return null;
+
+    const wantsPartial =
+      text.includes("just") ||
+      text.includes("only") ||
+      text.includes("the ");
+
+    if (!wantsPartial) return null;
+
+    const cleanText = this.normalizeText(text);
+
+    const scored = foods
+      .map(food => {
+        const name = this.cleanFoodName(food?.name || food?.food || "");
+        const calories = Number(food?.calories || food?.totalCalories);
+
+        if (!name || !Number.isFinite(calories)) return null;
+
+        const normalizedName = this.normalizeText(name);
+        const tokens = normalizedName
+          .split(/\s+/)
+          .filter(token => token.length >= 3);
+
+        let score = 0;
+
+        if (cleanText.includes(normalizedName)) score += 10;
+
+        tokens.forEach(token => {
+          if (cleanText.includes(token)) score += 2;
+        });
+
+        return {
+          name,
+          calories: Math.round(calories),
+          score
+        };
+      })
+      .filter(Boolean)
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return scored[0] || null;
+  },
+
+  resolveMealTotalCalories(summary = {}, text = "", mealEstimate = null) {
     const structuredCandidates = [
+      mealEstimate?.totalCalories,
       summary.mealEstimate?.totalCalories,
+      summary.lastMealEstimate?.totalCalories,
       summary.foodAnalysis?.totalCalories,
       summary.nutritionEstimate?.totalCalories,
       summary.calorieEstimate?.totalCalories,
       summary.totalCalories,
       summary.appContext?.lastMealEstimate?.totalCalories,
-      summary.appContext?.mealEstimate?.totalCalories
+      summary.appContext?.mealEstimate?.totalCalories,
+      summary.threadState?.lastMealEstimate?.totalCalories
     ];
 
     for (const value of structuredCandidates) {
@@ -104,14 +184,17 @@ window.Ari.rebirthActionPlanner = {
     return null;
   },
 
-  resolveMealDescription(summary = {}, text = "") {
+  resolveMealDescription(summary = {}, text = "", mealEstimate = null) {
     const structuredCandidates = [
+      mealEstimate?.description,
       summary.mealEstimate?.description,
+      summary.lastMealEstimate?.description,
       summary.foodAnalysis?.description,
       summary.nutritionEstimate?.description,
       summary.calorieEstimate?.description,
       summary.appContext?.lastMealEstimate?.description,
-      summary.appContext?.mealEstimate?.description
+      summary.appContext?.mealEstimate?.description,
+      summary.threadState?.lastMealEstimate?.description
     ];
 
     for (const value of structuredCandidates) {
@@ -239,6 +322,14 @@ window.Ari.rebirthActionPlanner = {
       .replace(/\b(calories|calorie|kcal|cals)\b/g, "")
       .replace(/\b(total|approximately|about|around)\b/g, "")
       .replace(/[.!?]+$/g, "")
+      .trim();
+  },
+
+  normalizeText(text = "") {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
   }
 };
