@@ -132,10 +132,6 @@ const finalResponse = this.finalPolish(
       languageSections: [finalResponse],
       finalResponse,
 
-aiData: draft.aiData || null,
-structuredOutput: draft.structuredOutput || null,
-mealEstimate: draft.mealEstimate || null,
-
       composerVersion: this.version,
       source: "ari-language-composer",
 
@@ -424,19 +420,9 @@ primary = "general_understanding",
 
         if (safe) {
   return {
-    usedAI: true,
-    text: safe,
-
-    aiData: aiResult,
-    structuredOutput: aiResult,
-
-    mealEstimate:
-      aiResult.mealEstimate ||
-      aiResult.rawOpenAIData?.mealEstimate ||
-      aiResult.rawOpenAIData?.response?.mealEstimate ||
-      aiResult.response?.mealEstimate ||
-      null
-  };
+  usedAI: true,
+  text: safe
+};
 }
         }
       }
