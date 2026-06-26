@@ -591,7 +591,6 @@ const developerResponseLocked = Boolean(
 
     summary = this.reassertContractAuthority(summary);
 
-
     // Character Context
     const characterContextResult = await runEngine(
       window.AriCharacterContextEngine,
@@ -734,6 +733,8 @@ if (!developerResponseLocked) {
       summary.finalResponse
   };
 }
+
+summary = this.preserveMealEstimate(summary);
 
 // 2.10 Rebirth Action Planner
 // Converts Ari's understanding into safe CalBuddy proposed actions.
