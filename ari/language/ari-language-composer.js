@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.4.4 — Structured AI Output Pass-Through / Meal Estimate Safe
+// V8.4.3 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.4.4",
+  version: "8.4.3",
 
 
   async compose(input = {}) {
@@ -419,11 +419,10 @@ primary = "general_understanding",
         const safe = this.safeAnswer(text);
 
         if (safe) {
-  return {
-  usedAI: true,
-  text: safe
-};
-}
+          return {
+            usedAI: true,
+            text: safe
+          };
         }
       }
     } catch (error) {
