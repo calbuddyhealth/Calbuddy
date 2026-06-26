@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.2 — Developer Layer Wired / Owner Code Handoff Ready
+// V3.8.3 — Developer Layer Wired / Owner Code Handoff Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.2",
+  version: "3.8.3",
 
   async run(systemSummary = {}) {
     let summary = this.normalizeInput(systemSummary);
@@ -736,6 +736,7 @@ if (!developerResponseLocked) {
   };
 }
 
+summary = this.preserveMealEstimate(summary);
 // 2.10 Rebirth Action Planner
 // Converts Ari's understanding into safe CalBuddy proposed actions.
 // CalBuddy still requires user approval before executing.
@@ -870,8 +871,13 @@ preserveDeveloperEvidence(summary = {}) {
 preserveMealEstimate(summary = {}) {
   const mealEstimate =
     summary.mealEstimate ||
+    summary.lastMealEstimate ||
     summary.foodAnalysis ||
     summary.nutritionEstimate ||
+    summary.aiData?.mealEstimate ||
+    summary.aiData?.rawOpenAIData?.mealEstimate ||
+    summary.aiData?.rawOpenAIData?.response?.mealEstimate ||
+    summary.structuredOutput?.mealEstimate ||
     summary.rawOpenAIData?.mealEstimate ||
     summary.rawOpenAIData?.response?.mealEstimate ||
     summary.response?.mealEstimate ||
