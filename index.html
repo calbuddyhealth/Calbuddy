@@ -389,14 +389,28 @@ async function sendAriMessage() {
   const message = input.value.trim();
   if (!message) return;
 
+  const ariTimingStart = performance.now();
+  const ariTiming = [];
+
+  const markAriTiming = (label) => {
+    ariTiming.push({
+      label,
+      ms: Math.round(performance.now() - ariTimingStart)
+    });
+  };
+
+  markAriTiming("message accepted");
+
   const reaction = chooseAriReaction(message);
   interruptAri(reaction.pose);
+  markAriTiming("reaction applied");
 
   input.value = "";
   autoResizeAriInput();
 
   addAriMessage(message, "user");
   const thinkingMessage = addAriMessage("Thinking...", "ari");
+  markAriTiming("thinking message rendered");
 
   ariChatHistory.push({ role: "user", content: message });
   ariChatHistory = ariChatHistory.slice(-10);
@@ -404,14 +418,19 @@ async function sendAriMessage() {
   if (button) button.disabled = true;
 
   try {
+    markAriTiming("before CalBuddy.askAri");
+
     const response = await CalBuddy.askAri({
       message,
       history: ariChatHistory,
       ownerMode: true,
       appContext: {
         ownerMode: true
-      }
+      },
+      debugTiming: true
     });
+
+    markAriTiming("after CalBuddy.askAri");
 
     const reply = response.reply || "Hmm. I had trouble answering that. Try again.";
 
@@ -419,6 +438,8 @@ async function sendAriMessage() {
       const body = thinkingMessage.querySelector("p");
       if (body) body.textContent = reply;
     }
+
+    markAriTiming("reply rendered");
 
     ariChatHistory.push({ role: "assistant", content: reply });
     ariChatHistory = ariChatHistory.slice(-10);
@@ -429,9 +450,13 @@ async function sendAriMessage() {
       showPendingAction(response.pendingAction);
     }
 
+    markAriTiming("before refreshHomeDashboard");
     await refreshHomeDashboard();
+    markAriTiming("after refreshHomeDashboard");
 
   } catch (error) {
+    markAriTiming("error caught");
+
     setAriPose("concerned");
 
     if (thinkingMessage) {
@@ -441,6 +466,14 @@ async function sendAriMessage() {
 
     resetAriAfterDelay();
   } finally {
+    markAriTiming("complete");
+
+    console.table(ariTiming);
+    console.log(
+      "[Ari Homepage Timing] Total:",
+      Math.round(performance.now() - ariTimingStart) + "ms"
+    );
+
     if (button) button.disabled = false;
   }
 }
