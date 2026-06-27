@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.0 — Locked Developer Reply / Composer-Safe / Evidence + Artifact Ready
+// V1.2.1 — Locked Developer Reply / Composer-Safe / Evidence + Artifact Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -33,22 +33,32 @@ window.AriRebirthDeveloperHandoffEngine = {
       summary.rebirthPatchDecision ||
       null;
 
+const patchValidation =
+  summary.patchValidation ||
+  summary.rebirthPatchValidation ||
+  null;
+
     const selfImprovement =
       summary.selfImprovement ||
       summary.rebirthSelfImprovement ||
       null;
 
     if (
-      !understanding &&
-      !codeEvidence &&
-      !codeUnderstanding &&
-      !patchDecision &&
-      !selfImprovement
-    ) {
-      return null;
-    }
+  !understanding &&
+  !codeEvidence &&
+  !codeUnderstanding &&
+  !patchDecision &&
+  !patchValidation &&
+  !selfImprovement
+) {
+  return null;
+}
 
-    if (patchDecision?.canPatchNow && patchDecision.githubEdit) {
+    if (
+  patchDecision?.canPatchNow &&
+  patchDecision.githubEdit &&
+  patchValidation?.valid === true
+) {
       return this.lockHandoff(
         this.buildGithubEditIntent({
           summary,
@@ -58,6 +68,28 @@ window.AriRebirthDeveloperHandoffEngine = {
         })
       );
     }
+
+if (
+  patchDecision?.canPatchNow &&
+  patchDecision.githubEdit &&
+  patchValidation?.valid === false
+) {
+  return this.lockHandoff(
+    this.buildDeveloperTaskIntent({
+      summary,
+      understanding,
+      codeUnderstanding,
+      patchDecision: {
+        ...patchDecision,
+        reason:
+          "Patch validation failed.",
+        missingEvidence:
+          patchValidation.requiredFixes || ["patch_validation_failed"]
+      },
+      selfImprovement
+    })
+  );
+}
 
     if (this.wantsDirectFileRead(summary, understanding)) {
       const readStep = this.findReadStep(understanding, codeEvidence, selfImprovement);
