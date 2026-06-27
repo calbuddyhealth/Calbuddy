@@ -9,16 +9,26 @@ window.AriRebirthPipeline = {
   version: "3.8.9",
 
   async run(systemSummary = {}) {
-    const debugTiming = systemSummary.debugTiming === true || systemSummary.appContext?.debugTiming === true;
+    const debugTiming =
+  systemSummary.debugTiming === true ||
+  systemSummary.appContext?.debugTiming === true;
+
 const timingStart = performance.now();
 const timing = [];
 
+let summary = this.normalizeInput(systemSummary);
+summary.debugTiming = debugTiming;
+summary.pipelineTiming = timing;
+
 const mark = (label) => {
   if (!debugTiming) return;
+
   timing.push({
     label,
     ms: Math.round(performance.now() - timingStart)
   });
+
+  summary.pipelineTiming = timing;
 };
 
 const finishTiming = () => {
@@ -30,8 +40,7 @@ const finishTiming = () => {
     Math.round(performance.now() - timingStart) + "ms"
   );
 };
-    let summary = this.normalizeInput(systemSummary);
-   summary.debugTiming = debugTiming;
+    
 mark("normalizeInput complete");
      // 0.05 Load Thread State
 
