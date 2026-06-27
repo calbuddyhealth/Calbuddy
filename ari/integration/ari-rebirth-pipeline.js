@@ -526,6 +526,7 @@ if (shouldRunEntityResolver) {
 // Owner-only developer reasoning. Runs before normal human-needs response path
 // so app/code requests can produce developerIntent safely.
 mark("before runDeveloperLayer");
+summary.pipelineTiming = timing;
 summary = await this.runDeveloperLayer(summary);
 mark("after runDeveloperLayer");
 summary = this.preserveDeveloperEvidence(summary);
@@ -855,7 +856,6 @@ mark("after saveFinalThreadState");
     this.debugLog(summary, reasoningResult);
 
 finishTiming();
-summary.pipelineTiming = timing;
 
 return summary;
   },
