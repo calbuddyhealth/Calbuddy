@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.1.0 — Universal Developer Response Handoff / Evidence + Artifact Ready / No Patch Guessing
+// V1.2.0 — Locked Developer Reply / Composer-Safe / Evidence + Artifact Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -49,53 +49,93 @@ window.AriRebirthDeveloperHandoffEngine = {
     }
 
     if (patchDecision?.canPatchNow && patchDecision.githubEdit) {
-      return this.buildGithubEditIntent({
-        summary,
-        understanding,
-        codeUnderstanding,
-        patchDecision
-      });
+      return this.lockHandoff(
+        this.buildGithubEditIntent({
+          summary,
+          understanding,
+          codeUnderstanding,
+          patchDecision
+        })
+      );
     }
 
     if (this.wantsDirectFileRead(summary, understanding)) {
       const readStep = this.findReadStep(understanding, codeEvidence, selfImprovement);
 
       if (readStep) {
-        return this.buildGithubReadIntent({
-          summary,
-          understanding,
-          readStep,
-          codeEvidence,
-          codeUnderstanding
-        });
+        return this.lockHandoff(
+          this.buildGithubReadIntent({
+            summary,
+            understanding,
+            readStep,
+            codeEvidence,
+            codeUnderstanding
+          })
+        );
       }
     }
 
     if (codeEvidence?.steps?.length) {
-      return this.buildDeveloperInvestigationIntent({
-        summary,
-        understanding,
-        codeEvidence,
-        selfImprovement
-      });
+      return this.lockHandoff(
+        this.buildDeveloperInvestigationIntent({
+          summary,
+          understanding,
+          codeEvidence,
+          selfImprovement
+        })
+      );
     }
 
     if (selfImprovement?.steps?.length) {
-      return this.buildDeveloperInvestigationIntent({
-        summary,
-        understanding,
-        codeEvidence: selfImprovement,
-        selfImprovement
-      });
+      return this.lockHandoff(
+        this.buildDeveloperInvestigationIntent({
+          summary,
+          understanding,
+          codeEvidence: selfImprovement,
+          selfImprovement
+        })
+      );
     }
 
-    return this.buildDeveloperTaskIntent({
-      summary,
-      understanding,
-      codeUnderstanding,
-      patchDecision,
-      selfImprovement
-    });
+    return this.lockHandoff(
+      this.buildDeveloperTaskIntent({
+        summary,
+        understanding,
+        codeUnderstanding,
+        patchDecision,
+        selfImprovement
+      })
+    );
+  },
+
+  lockHandoff(intent = null) {
+    if (!intent) return null;
+
+    const developerResponse =
+      intent.developerResponse ||
+      this.buildDeveloperResponse({
+        kind: intent.type || "developer_response",
+        explanation: intent.summary || "Developer handoff prepared.",
+        nextAction: "Continue with the safest developer next step."
+      });
+
+    const reply =
+      intent.reply ||
+      this.composeDeveloperReply(developerResponse);
+
+    const lockedIntent = {
+      ...intent,
+      developerResponse,
+      reply
+    };
+
+    return {
+      ...lockedIntent,
+      developerIntent: lockedIntent,
+      finalResponse: reply,
+      responseLocked: true,
+      developerResponseLocked: true
+    };
   },
 
   buildGithubEditIntent({
@@ -106,6 +146,20 @@ window.AriRebirthDeveloperHandoffEngine = {
   }) {
     const githubEdit = patchDecision.githubEdit || {};
     const artifact = this.buildArtifactFromPatchDecision(patchDecision);
+
+    const developerResponse = this.buildDeveloperResponse({
+      kind: "code_patch",
+      summary,
+      understanding,
+      explanation:
+        patchDecision.explanation ||
+        patchDecision.reason ||
+        "Prepared an evidence-based code patch.",
+      evidence: patchDecision.evidence || codeUnderstanding?.evidence || null,
+      artifact,
+      nextAction: "Owner confirmation is required before committing.",
+      confidence: patchDecision.confidence || "medium_high"
+    });
 
     return {
       enabled: true,
@@ -129,19 +183,7 @@ window.AriRebirthDeveloperHandoffEngine = {
         confirmationText: "CONFIRM GITHUB EDIT"
       },
 
-      developerResponse: this.buildDeveloperResponse({
-        kind: "code_patch",
-        summary,
-        understanding,
-        explanation:
-          patchDecision.explanation ||
-          patchDecision.reason ||
-          "Prepared an evidence-based code patch.",
-        evidence: patchDecision.evidence || codeUnderstanding?.evidence || null,
-        artifact,
-        nextAction: "Ask owner to confirm before committing.",
-        confidence: patchDecision.confidence || "medium_high"
-      }),
+      developerResponse,
 
       safety: {
         ownerRequired: true,
@@ -164,6 +206,22 @@ window.AriRebirthDeveloperHandoffEngine = {
     selfImprovement = null
   }) {
     const steps = this.cleanSteps(codeEvidence.steps || selfImprovement?.steps || []);
+
+    const developerResponse = this.buildDeveloperResponse({
+      kind: "investigation_plan",
+      summary,
+      understanding,
+      explanation:
+        "I need exact code evidence before proposing a safe patch.",
+      evidence: codeEvidence.evidence || null,
+      artifact: {
+        type: "investigation_steps",
+        language: "json",
+        steps
+      },
+      nextAction: "Run the listed search/read steps before editing.",
+      confidence: "medium"
+    });
 
     return {
       enabled: true,
@@ -218,21 +276,7 @@ window.AriRebirthDeveloperHandoffEngine = {
       canEditNow: false,
       requiresReadBeforeEdit: true,
 
-      developerResponse: this.buildDeveloperResponse({
-        kind: "investigation_plan",
-        summary,
-        understanding,
-        explanation:
-          "I need to gather exact code evidence before proposing a safe patch.",
-        evidence: codeEvidence.evidence || null,
-        artifact: {
-          type: "investigation_steps",
-          language: "json",
-          steps
-        },
-        nextAction: "Run the listed search/read steps before editing.",
-        confidence: "medium"
-      }),
+      developerResponse,
 
       safety: {
         ownerRequired: true,
@@ -252,6 +296,20 @@ window.AriRebirthDeveloperHandoffEngine = {
     patchDecision = null,
     selfImprovement = null
   }) {
+    const developerResponse = this.buildDeveloperResponse({
+      kind: "developer_task",
+      summary,
+      understanding,
+      explanation:
+        patchDecision?.reason ||
+        selfImprovement?.summary ||
+        this.buildSummary(understanding),
+      evidence: codeUnderstanding?.evidence || null,
+      artifact: null,
+      nextAction: "Read/search the relevant files before proposing code.",
+      confidence: "medium"
+    });
+
     return {
       enabled: true,
       type: "developer_task",
@@ -280,19 +338,7 @@ window.AriRebirthDeveloperHandoffEngine = {
         patchDecision?.missingEvidence ||
         ["more_code_evidence"],
 
-      developerResponse: this.buildDeveloperResponse({
-        kind: "developer_task",
-        summary,
-        understanding,
-        explanation:
-          patchDecision?.reason ||
-          selfImprovement?.summary ||
-          this.buildSummary(understanding),
-        evidence: codeUnderstanding?.evidence || null,
-        artifact: null,
-        nextAction: "Read/search the relevant files before proposing code.",
-        confidence: "medium"
-      }),
+      developerResponse,
 
       codeUnderstanding,
       patchDecision
@@ -306,6 +352,20 @@ window.AriRebirthDeveloperHandoffEngine = {
     codeEvidence = null,
     codeUnderstanding = null
   }) {
+    const developerResponse = this.buildDeveloperResponse({
+      kind: "file_read",
+      summary,
+      understanding,
+      explanation: `Read ${readStep.filePath} before answering with exact file evidence.`,
+      evidence: codeEvidence?.evidence || codeUnderstanding?.evidence || null,
+      artifact: {
+        type: "file_reference",
+        filePath: readStep.filePath
+      },
+      nextAction: "Use the exact file content to answer the owner.",
+      confidence: "high"
+    });
+
     return {
       enabled: true,
       type: "github_read_request",
@@ -329,19 +389,7 @@ window.AriRebirthDeveloperHandoffEngine = {
       canEditNow: false,
       requiresReadBeforeEdit: false,
 
-      developerResponse: this.buildDeveloperResponse({
-        kind: "file_read",
-        summary,
-        understanding,
-        explanation: `Read ${readStep.filePath} before answering with exact file evidence.`,
-        evidence: codeEvidence?.evidence || codeUnderstanding?.evidence || null,
-        artifact: {
-          type: "file_reference",
-          filePath: readStep.filePath
-        },
-        nextAction: "Use the exact file content to answer the owner.",
-        confidence: "high"
-      }),
+      developerResponse,
 
       safety: {
         ownerRequired: true,
@@ -415,6 +463,84 @@ window.AriRebirthDeveloperHandoffEngine = {
     };
   },
 
+  composeDeveloperReply(developerResponse = {}) {
+    if (!developerResponse?.enabled) {
+      return "Developer handoff prepared.";
+    }
+
+    const artifact = developerResponse.artifact || null;
+    const explanation = developerResponse.explanation || "Developer handoff prepared.";
+    const nextAction = developerResponse.nextAction || "";
+
+    if (artifact?.type === "code_patch") {
+      const language = artifact.language || "text";
+      const filePath = artifact.filePath || "unknown file";
+      const operation = artifact.operation || "replace";
+
+      const parts = [
+        explanation,
+        "",
+        `File: ${filePath}`,
+        `Operation: ${operation}`
+      ];
+
+      if (artifact.find) {
+        parts.push(
+          "",
+          "Exact find text:",
+          "```" + language,
+          artifact.find,
+          "```"
+        );
+      }
+
+      if (artifact.replacement || artifact.code) {
+        parts.push(
+          "",
+          "Replacement code:",
+          "```" + language,
+          artifact.replacement || artifact.code,
+          "```"
+        );
+      }
+
+      if (nextAction) {
+        parts.push("", nextAction);
+      }
+
+      return parts.join("\n");
+    }
+
+    if (artifact?.type === "investigation_steps") {
+      return [
+        explanation,
+        "",
+        "Next evidence steps:",
+        "```json",
+        JSON.stringify(artifact.steps || [], null, 2),
+        "```",
+        "",
+        nextAction
+      ].join("\n");
+    }
+
+    if (artifact?.type === "file_reference") {
+      return [
+        explanation,
+        "",
+        `File to read: ${artifact.filePath || "unknown"}`,
+        "",
+        nextAction
+      ].join("\n");
+    }
+
+    return [
+      explanation,
+      "",
+      nextAction
+    ].filter(Boolean).join("\n");
+  },
+
   buildArtifactFromPatchDecision(patchDecision = {}) {
     const githubEdit = patchDecision.githubEdit || {};
 
@@ -460,15 +586,11 @@ window.AriRebirthDeveloperHandoffEngine = {
     if (!evidence) return null;
 
     if (typeof evidence === "string") {
-      return {
-        summary: evidence
-      };
+      return { summary: evidence };
     }
 
     if (Array.isArray(evidence)) {
-      return {
-        items: evidence
-      };
+      return { items: evidence };
     }
 
     return evidence;
