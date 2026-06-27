@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-developer-understanding-engine.js
 // Ari Rebirth Developer Understanding Engine
 // Purpose: Build semantic understanding of owner developer requests.
-// V1.1.1 — Planner Consolidated / Semantic First / Evidence Ready
+// V1.2.1 — Universal Edit Intent / Evidence Ready / Patch Engine Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperUnderstandingEngine = {
-  version: "1.1.1",
+  version: "1.2.1",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -41,7 +41,9 @@ if (!ownerMode) return null;
 
       isDeveloperWork: true,
       confidence: semanticFrame.confidence,
-
+editOperations: semanticFrame.editOperations,
+primaryEditOperation: semanticFrame.primaryEditOperation,
+patchIntent: semanticFrame.patchIntent,
       userGoal: semanticFrame.userGoal,
       requestedChange: semanticFrame.requestedChange,
       requestedChanges: semanticFrame.requestedChanges,
@@ -106,7 +108,17 @@ if (!ownerMode) return null;
     const constraints = this.inferConstraints(rawText, text, targetArea);
     const urgency = this.inferUrgency(text);
     const riskLevel = this.inferRiskLevel(intentFamily, targetArea, text);
-
+const editOperations = this.inferEditOperations(rawText, text);
+const primaryEditOperation = editOperations[0] || null;
+const patchIntent = this.buildPatchIntent({
+  rawText,
+  text,
+  targetObject,
+  targetArea,
+  requestedChange,
+  requestedChanges,
+  editOperations
+});
     const isDeveloperWork =
       developerSignals.score >= 2 ||
       targetArea !== "unknown" ||
@@ -119,7 +131,8 @@ if (!ownerMode) return null;
       requestedChange,
       targetArea,
       targetObject,
-      intentFamily
+      intentFamily,
+      editOperations
     });
 
     const likelyFiles = this.inferLikelyFiles({
@@ -171,6 +184,9 @@ if (!ownerMode) return null;
   userGoal,
   requestedChange,
   requestedChanges,
+  editOperations,
+  primaryEditOperation,
+  patchIntent,
   intentFamily,
   targetArea,
   targetObject,
@@ -698,7 +714,130 @@ inferRequestedChanges(rawText = "", text = "") {
     };
   },
 
-  scoreConfidence({ developerSignals, userGoal, requestedChange, targetArea, targetObject, intentFamily }) {
+inferEditOperations(rawText = "", text = "") {
+  const operations = [];
+
+  const add = (type, data = {}) => {
+    operations.push({
+      type,
+      confidence: data.confidence || "medium",
+      targetText: data.targetText || null,
+      replacementText: data.replacementText || null,
+      targetSelector: data.targetSelector || null,
+      targetFileHint: data.targetFileHint || null,
+      anchorText: data.anchorText || null,
+      position: data.position || null,
+      reason: data.reason || "Detected from owner request."
+    });
+  };
+
+  const quotedReplace = rawText.match(
+    /["“](.+?)["”]\s*(?:to|with|into|replace with)\s*["“](.+?)["”]/i
+  );
+
+  if (quotedReplace) {
+    add("replace_text", {
+      confidence: "high",
+      targetText: quotedReplace[1],
+      replacementText: quotedReplace[2],
+      reason: "Owner provided exact source and replacement text."
+    });
+  }
+
+  const renameMatch = rawText.match(
+    /rename\s+(.+?)\s+(?:to|as)\s+(.+?)(?:\.|,|$)/i
+  );
+
+  if (renameMatch) {
+    add("rename_text", {
+      confidence: "high",
+      targetText: renameMatch[1].trim(),
+      replacementText: renameMatch[2].trim(),
+      reason: "Owner asked to rename visible text."
+    });
+  }
+
+  if (this.hasMeaning(text, ["remove", "delete", "hide"])) {
+    add("remove_element", {
+      confidence: "medium_high",
+      reason: "Owner asked to remove or hide an existing element."
+    });
+  }
+
+  if (this.hasMeaning(text, ["add", "create", "insert", "include"])) {
+    add("insert_element", {
+      confidence: "medium",
+      reason: "Owner asked to add or insert something new."
+    });
+  }
+
+  if (this.hasMeaning(text, ["move", "relocate", "put", "place"])) {
+    add("move_element", {
+      confidence: "medium",
+      reason: "Owner asked to move an existing element."
+    });
+  }
+
+  if (this.hasMeaning(text, ["replace", "swap"])) {
+    add("replace_block", {
+      confidence: "medium",
+      reason: "Owner asked to replace existing code or UI."
+    });
+  }
+
+  if (this.hasMeaning(text, ["update function", "change function", "fix function"])) {
+    add("update_function", {
+      confidence: "medium_high",
+      reason: "Owner asked to update function behavior."
+    });
+  }
+
+  if (this.hasMeaning(text, ["remove css", "change css", "style", "design"])) {
+    add("update_style", {
+      confidence: "medium",
+      reason: "Owner request affects styling."
+    });
+  }
+
+  return operations;
+},
+
+buildPatchIntent({
+  rawText = "",
+  text = "",
+  targetObject = {},
+  targetArea = "",
+  requestedChange = "",
+  requestedChanges = [],
+  editOperations = []
+} = {}) {
+  return {
+    ownerRequest: rawText,
+    targetArea,
+    targetObject,
+    requestedChange,
+    requestedChanges,
+    editOperations,
+    primaryOperation: editOperations[0] || null,
+
+    evidenceRequirements: {
+      requireExactFilePath: true,
+      requireExactCurrentCode: true,
+      requireExactFindText: true,
+      requireOwnerConfirmation: true
+    },
+
+    patchRules: {
+      neverGuessCode: true,
+      preferSmallestSafePatch: true,
+      preserveUnrelatedCode: true,
+      explainBeforePatch: text.includes("explain"),
+      allowNoChangeDecision: true
+    }
+  };
+},
+
+  scoreConfidence({ developerSignals, userGoal, requestedChange, targetArea, targetObject, intentFamily, editOperations = [] }) {
     let score = 0.35;
 
     if (developerSignals.score >= 2) score += 0.2;
@@ -707,7 +846,7 @@ inferRequestedChanges(rawText = "", text = "") {
     if (targetArea && targetArea !== "unknown") score += 0.15;
     if (targetObject?.kind && targetObject.kind !== "concept") score += 0.1;
     if (intentFamily && intentFamily !== "general_developer_help") score += 0.1;
-
+if (editOperations.length) score += 0.12;
     return Math.min(Number(score.toFixed(2)), 0.98);
   },
 
