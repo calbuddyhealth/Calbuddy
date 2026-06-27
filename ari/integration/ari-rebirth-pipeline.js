@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.7 — Meal Estimate Preservation Gated
+// V3.8.8 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.7",
+  version: "3.8.8",
 
   async run(systemSummary = {}) {
     const debugTiming = systemSummary.debugTiming === true || systemSummary.appContext?.debugTiming === true;
