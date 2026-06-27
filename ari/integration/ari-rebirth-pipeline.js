@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.8 — Meal Estimate Preservation Gated
+// V3.8.9 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.8",
+  version: "3.8.9",
 
   async run(systemSummary = {}) {
     const debugTiming = systemSummary.debugTiming === true || systemSummary.appContext?.debugTiming === true;
@@ -526,7 +526,6 @@ if (shouldRunEntityResolver) {
 // Owner-only developer reasoning. Runs before normal human-needs response path
 // so app/code requests can produce developerIntent safely.
 mark("before runDeveloperLayer");
-summary.pipelineTiming = timing;
 summary = await this.runDeveloperLayer(summary);
 mark("after runDeveloperLayer");
 summary = this.preserveDeveloperEvidence(summary);
@@ -856,6 +855,7 @@ mark("after saveFinalThreadState");
     this.debugLog(summary, reasoningResult);
 
 finishTiming();
+summary.pipelineTiming = timing;
 
 return summary;
   },
