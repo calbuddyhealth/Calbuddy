@@ -1348,7 +1348,7 @@ const isDeveloperRequest =
 
   summary.situationContractPrimary === "builder" ||
 
-  /\b(code|file|github|repo|commit|patch|function|html|css|javascript|api|engine|bug|fix|update|edit|build|implement|developer|composer|pipeline)\b/i.test(text);
+/\b(code|file|github|repo|commit|patch|function|html|css|javascript|api|engine|bug|fix|update|edit|build|implement|developer|composer|pipeline|latency|slow|bottleneck|performance|diagnose)\b/i.test(text);
 
 if (!isDeveloperRequest) {
 
