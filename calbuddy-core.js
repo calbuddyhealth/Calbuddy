@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.2";
+CalBuddy.version = "3.5.3";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -668,7 +668,8 @@ CalBuddy.lookupBarcode = async function (barcode) {
 CalBuddy.analyzeImage = async function ({ imageBase64, imageUrl, prompt = "", analysisType = "food" }) {
   const user = await CalBuddy.requireUser();
   CalBuddy.setAriMood("thinking");
-  const result = await CalBuddy.api("/api/image-analyze", {
+ 
+   const result = await CalBuddy.api("/api/image-analyze", {
     imageBase64,
     imageUrl,
     prompt,
@@ -1070,9 +1071,32 @@ CalBuddy.captureAriTemporarySuggestions = function ({
 /* -----------------------------
 ASK ARI
 ----------------------------- */
-CalBuddy.askAri = async function ({ message, history = [] }) {
+CalBuddy.askAri = async function ({ message, history = [], debugTiming = false }) {
+  const timingStart = performance.now();
+  const timing = [];
+
+  const mark = (label) => {
+    if (!debugTiming) return;
+    timing.push({
+      label,
+      ms: Math.round(performance.now() - timingStart)
+    });
+  };
+
+  const finishTiming = () => {
+    if (!debugTiming) return;
+    mark("CalBuddy.askAri complete");
+    console.table(timing);
+    console.log(
+      "[CalBuddy.askAri Timing] Total:",
+      Math.round(performance.now() - timingStart) + "ms"
+    );
+  };
+  
   const user = await CalBuddy.requireUser();
-  if (!message || !message.trim()) {
+mark("requireUser complete");
+
+if (!message || !message.trim()) {
     throw new Error("Message is required.");
   }
   const pendingGithubEdit = localStorage.getItem("calbuddyPendingGithubEdit");
@@ -1087,7 +1111,14 @@ if (pendingGithubEdit && CalBuddy.isYes(message)) {
   if (pending && CalBuddy.isNo(message)) {
     return CalBuddy.cancelPendingAction();
   }
-  const quickAction = await CalBuddy.detectAriActionFromMessage(message, await CalBuddy.getUserContext());
+  mark("before getUserContext");
+const userContext = await CalBuddy.getUserContext();
+mark("after getUserContext");
+
+mark("before detectAriActionFromMessage");
+const quickAction = await CalBuddy.detectAriActionFromMessage(message, userContext);
+mark("after detectAriActionFromMessage");
+  
   if (quickAction) {
     const action = await CalBuddy.createPendingAction(quickAction);
     CalBuddy.setAriMood("coach");
@@ -1097,7 +1128,10 @@ if (pendingGithubEdit && CalBuddy.isYes(message)) {
       emotion: "coach"
     };
   }
-  const usage = await CalBuddy.checkUsage("chat");
+ 
+  mark("before checkUsage");
+  
+   const usage = await CalBuddy.checkUsage("chat");
   if (usage && usage.allowed === false) {
     CalBuddy.setAriMood("concerned");
     return {
@@ -1106,9 +1140,9 @@ if (pendingGithubEdit && CalBuddy.isYes(message)) {
     };
   }
   CalBuddy.setAriMood("thinking");
-  const userContext = await CalBuddy.getUserContext();
   
-
+  
+mark("after checkUsage");
 /* -----------------------------
 ARI REBIRTH LOCAL BRIDGE
 Rebirth-only app brain. Old server Ari remains below as emergency API fallback
@@ -1130,10 +1164,13 @@ if (
   window.AriRebirthAppBridge &&
   typeof window.AriRebirthAppBridge.ask === "function"
 ) {
-  const rebirth = await window.AriRebirthAppBridge.ask(message, {
-    source: "calbuddy-core",
-    page: window.location.pathname || "unknown",
-    history,
+  mark("before AriRebirthAppBridge.ask");
+
+const rebirth = await window.AriRebirthAppBridge.ask(message, {
+  source: "calbuddy-core",
+  page: window.location.pathname || "unknown",
+  history,
+  debugTiming,
 
     userContext,
 
@@ -1162,10 +1199,14 @@ if (
 
     ownerMode: userContext.ownerMode === true,
     ariPermissions: userContext.ariPermissions || {},
-    coachMemorySummary: userContext.coachMemorySummary || ""
-  });
+      coachMemorySummary: userContext.coachMemorySummary || ""
+});
 
-  await CalBuddy.logUsage({ message, usage_type: "chat" });
+mark("after AriRebirthAppBridge.ask");
+
+  mark("before logUsage");
+await CalBuddy.logUsage({ message, usage_type: "chat" });
+mark("after logUsage");
 
   const mood = rebirth.emotion || "happy";
 CalBuddy.setAriMood(mood);
@@ -1228,14 +1269,16 @@ if (
     }
   }
 
-  return {
-    reply: rebirth.reply,
-    emotion: mood,
-    pendingAction: null,
-    memoryCandidate: null,
-    developerIntent: null,
-    rebirthSummary: rebirth.summary
-  };
+  finishTiming();
+
+return {
+  reply: rebirth.reply,
+  emotion: mood,
+  pendingAction: null,
+  memoryCandidate: null,
+  developerIntent: null,
+  rebirthSummary: rebirth.summary
+};
 }
   
   const response = await CalBuddy.api("/api/ask-calbuddy", {
@@ -1252,7 +1295,9 @@ if (
       photoAnalysisReady: true
     }
   });
-  await CalBuddy.logUsage({ message, usage_type: "chat" });
+  mark("before logUsage");
+await CalBuddy.logUsage({ message, usage_type: "chat" });
+mark("after logUsage");
   if (response.pendingAction) {
     CalBuddy.setPendingAction(response.pendingAction);
   }
@@ -1405,7 +1450,9 @@ const mood =
     response.mood ||
     CalBuddy.moodFromText(response.reply || "");
   CalBuddy.setAriMood(mood);
-  return response;
+
+finishTiming();
+return response;
 };
 
 /* -----------------------------
