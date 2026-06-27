@@ -173,6 +173,30 @@ window.AriRebirthAppBridge = {
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
 
+const debugTiming = options.debugTiming === true;
+const timingStart = performance.now();
+const timing = [];
+
+const mark = (label) => {
+  if (!debugTiming) return;
+  timing.push({
+    label,
+    ms: Math.round(performance.now() - timingStart)
+  });
+};
+
+const finishTiming = () => {
+  if (!debugTiming) return;
+  mark("AriRebirthAppBridge.ask complete");
+  console.table(timing);
+  console.log(
+    "[AriRebirthAppBridge Timing] Total:",
+    Math.round(performance.now() - timingStart) + "ms"
+  );
+};
+
+mark("bridge ask started");
+
     if (!cleanMessage) {
       return this.makeResponse({
         reply: "Say something first.",
@@ -181,7 +205,9 @@ window.AriRebirthAppBridge = {
     }
 
     try {
-      await this.ensureLoaded();
+      mark("before ensureLoaded");
+await this.ensureLoaded();
+mark("after ensureLoaded");
     } catch (error) {
       console.error("ARI REBIRTH SCRIPT LOAD ERROR:", error);
 
@@ -207,16 +233,23 @@ window.AriRebirthAppBridge = {
     try {
       const analysis = null;
 
-      let summary = this.attachAppContext({}, cleanMessage, options);
+      mark("before attachAppContext");
+let summary = this.attachAppContext({}, cleanMessage, options);
+mark("after attachAppContext");
 
-      summary = await window.AriRebirthPipeline.run(summary);
+mark("before AriRebirthPipeline.run");
+summary = await window.AriRebirthPipeline.run(summary);
+mark("after AriRebirthPipeline.run");
 
-      summary = this.attachDeveloperIntent(summary);
+mark("before attachDeveloperIntent");
+summary = this.attachDeveloperIntent(summary);
+mark("after attachDeveloperIntent");
 
       const fileEvidenceReply = this.extractFileEvidenceReply(summary);
 
       if (fileEvidenceReply) {
-        return this.makeResponse({
+      finishTiming();
+          return this.makeResponse({
           reply: fileEvidenceReply,
           emotion: "thinking",
           developerIntent: summary.developerIntent || null,
@@ -229,10 +262,12 @@ window.AriRebirthAppBridge = {
       const emotion = this.chooseEmotion(summary);
       const actions = this.extractActions(summary);
 
-      return this.makeResponse({
-        reply,
-        emotion,
-        actions,
+      finishTiming();
+
+return this.makeResponse({
+  reply,
+  emotion,
+  actions,
         developerIntent: summary.developerIntent || null,
         summary,
         analysis
