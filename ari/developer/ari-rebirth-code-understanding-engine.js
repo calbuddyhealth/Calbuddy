@@ -1,12 +1,11 @@
 // ari/developer/ari-rebirth-code-understanding-engine.js
-// Purpose: Read developer investigation evidence and build code-level meaning.
-// V1.1.1 — GitHub Evidence Aware / Semantic Code Understanding / Evidence Before Patch
-
+// Purpose: Read developer evidence and build code-level meaning for safe patch decisions.
+// V1.2.0 — Patch Intent Aware / Edit Operation Mapping / Evidence Before Patch
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthCodeUnderstandingEngine = {
-  version: "1.1.1",
+  version: "1.2.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -22,22 +21,22 @@ window.AriRebirthCodeUnderstandingEngine = {
       null;
 
     const githubFileContext =
-  summary.githubFileContext ||
-  summary.githubEvidence ||
-  summary.appContext?.githubFileContext ||
-  null;
+      summary.githubFileContext ||
+      summary.githubEvidence ||
+      summary.appContext?.githubFileContext ||
+      null;
 
     const hasGithubContent =
-  Boolean(githubFileContext?.content) ||
-  Boolean(summary.githubEvidence?.content);
+      Boolean(githubFileContext?.content) ||
+      Boolean(summary.githubEvidence?.content);
 
-if (
-  !developerUnderstanding?.isDeveloperWork &&
-  !developerIntent &&
-  !hasGithubContent
-) {
-  return null;
-}
+    if (
+      !developerUnderstanding?.isDeveloperWork &&
+      !developerIntent &&
+      !hasGithubContent
+    ) {
+      return null;
+    }
 
     const filePath =
       githubFileContext?.filePath ||
@@ -47,19 +46,32 @@ if (
       "unknown";
 
     const content = String(
-  githubFileContext?.content ||
-  summary.githubEvidence?.content ||
-  ""
-);
+      githubFileContext?.content ||
+      summary.githubEvidence?.content ||
+      ""
+    );
 
-console.log(
-  "CODE UNDERSTANDING EVIDENCE:",
-  {
-    githubFileContext: Boolean(githubFileContext),
-    githubEvidence: Boolean(summary.githubEvidence),
-    contentLength: content.length
-  }
-);
+    const editOperations =
+      Array.isArray(developerUnderstanding?.editOperations)
+        ? developerUnderstanding.editOperations
+        : [];
+
+    const patchIntent =
+      developerUnderstanding?.patchIntent || null;
+
+    const primaryEditOperation =
+      developerUnderstanding?.primaryEditOperation ||
+      editOperations[0] ||
+      null;
+
+    console.log("CODE UNDERSTANDING EVIDENCE:", {
+      filePath,
+      githubFileContext: Boolean(githubFileContext),
+      githubEvidence: Boolean(summary.githubEvidence),
+      contentLength: content.length,
+      editOperationCount: editOperations.length,
+      primaryEditOperation
+    });
 
     if (!content.trim()) {
       return {
@@ -70,6 +82,9 @@ console.log(
         engineVersion: this.version,
         filePath,
         message: "Code understanding needs exact file content before patching.",
+        patchIntent,
+        editOperations,
+        primaryEditOperation,
         requiredNextStep: {
           tool: "github_read",
           filePath,
@@ -82,7 +97,10 @@ console.log(
       filePath,
       content,
       developerIntent,
-      developerUnderstanding
+      developerUnderstanding,
+      patchIntent,
+      editOperations,
+      primaryEditOperation
     });
 
     return {
@@ -98,6 +116,10 @@ console.log(
       intentFamily: map.intentFamily,
       targetArea: map.targetArea,
 
+      patchIntent,
+      editOperations,
+      primaryEditOperation,
+
       importantSections: map.importantSections,
       semanticInventory: map.semanticInventory,
       likelyChangeZones: map.likelyChangeZones,
@@ -109,8 +131,15 @@ console.log(
       nextPatchInput: {
         filePath,
         contentAvailable: true,
-        bestZones: map.likelyChangeZones.slice(0, 5),
-        candidates: map.safeEditCandidates.slice(0, 5),
+        ownerRequest:
+          developerUnderstanding?.rawText ||
+          developerIntent?.summary ||
+          "",
+        patchIntent,
+        editOperations,
+        primaryEditOperation,
+        bestZones: map.likelyChangeZones.slice(0, 8),
+        candidates: map.safeEditCandidates.slice(0, 8),
         requireExactFindText: true,
         requireOwnerConfirmation: true,
         confirmationText: "CONFIRM GITHUB EDIT"
@@ -122,13 +151,19 @@ console.log(
     filePath = "",
     content = "",
     developerIntent = null,
-    developerUnderstanding = null
+    developerUnderstanding = null,
+    patchIntent = null,
+    editOperations = [],
+    primaryEditOperation = null
   }) {
     const lines = String(content || "").split("\n");
 
     const intentText = this.normalizeIntentText({
       developerIntent,
-      developerUnderstanding
+      developerUnderstanding,
+      patchIntent,
+      editOperations,
+      primaryEditOperation
     });
 
     const sections = this.findSections(lines);
@@ -145,7 +180,6 @@ console.log(
     const semanticInventory = this.buildSemanticInventory({
       filePath,
       content,
-      lines,
       functions,
       constants,
       domIds,
@@ -164,7 +198,11 @@ console.log(
       classes,
       eventHooks,
       apiRoutes,
-      semanticInventory
+      semanticInventory,
+      developerUnderstanding,
+      patchIntent,
+      editOperations,
+      primaryEditOperation
     });
 
     const risks = this.inferRisks({
@@ -179,7 +217,10 @@ console.log(
       likelyChangeZones,
       intentText,
       filePath,
-      developerUnderstanding
+      developerUnderstanding,
+      patchIntent,
+      editOperations,
+      primaryEditOperation
     });
 
     return {
@@ -218,15 +259,26 @@ console.log(
         characterCount: content.length,
         filePath,
         hasExactContent: true,
-        strongestZone: likelyChangeZones[0] || null
+        strongestZone: likelyChangeZones[0] || null,
+        editOperationCount: editOperations.length,
+        primaryEditOperation
       }
     };
   },
 
-  normalizeIntentText({ developerIntent = null, developerUnderstanding = null }) {
+  normalizeIntentText({
+    developerIntent = null,
+    developerUnderstanding = null,
+    patchIntent = null,
+    editOperations = [],
+    primaryEditOperation = null
+  }) {
     return JSON.stringify({
       developerIntent,
-      developerUnderstanding
+      developerUnderstanding,
+      patchIntent,
+      editOperations,
+      primaryEditOperation
     }).toLowerCase();
   },
 
@@ -391,7 +443,9 @@ console.log(
 
     lines.forEach((line, index) => {
       const classMatches = [...String(line).matchAll(/class=["']([^"']+)["']/g)];
-      const queryMatches = [...String(line).matchAll(/querySelector\(["']\.([^"']+)["']\)/g)];
+      const queryMatches = [
+        ...String(line).matchAll(/querySelector\(["']\.([^"']+)["']\)/g)
+      ];
 
       classMatches.forEach(match => {
         String(match[1])
@@ -498,18 +552,20 @@ console.log(
     return {
       hasAriUI:
         text.includes("ari") &&
-        (text.includes("bubble") || text.includes("mascot") || text.includes("conversation")),
+        (text.includes("bubble") ||
+          text.includes("mascot") ||
+          text.includes("conversation")),
       hasCalorieMeter:
         text.includes("calorieslefttext") ||
         text.includes("truemeterfill") ||
-        text.includes("updateLiveArchMeter".toLowerCase()),
+        text.includes("updatelivearchmeter"),
       hasDeveloperWorkflow:
         text.includes("developerintent") ||
         text.includes("github") ||
         text.includes("githubedit"),
       hasPendingActions:
         text.includes("pendingaction") ||
-        text.includes("confirmPendingAction".toLowerCase()),
+        text.includes("confirmpendingaction"),
       hasSupabase:
         text.includes("supabase") ||
         text.includes("calbuddysupabase"),
@@ -533,17 +589,20 @@ console.log(
   findLikelyChangeZones({
     lines = [],
     intentText = "",
-    sections = [],
     functions = [],
     constants = [],
     domIds = [],
     classes = [],
-    eventHooks = [],
-    apiRoutes = [],
-    semanticInventory = {}
+    developerUnderstanding = null,
+    patchIntent = null,
+    editOperations = [],
+    primaryEditOperation = null
   }) {
     const zones = [];
     const concepts = this.extractConcepts(intentText);
+
+    const operationTexts = this.extractOperationTexts(editOperations);
+    const requestedChanges = developerUnderstanding?.requestedChanges || [];
 
     const scoreLine = (line = "") => {
       const lower = line.toLowerCase();
@@ -554,6 +613,21 @@ console.log(
         if (lower.includes(concept)) {
           score += 3;
           reasons.push(`matches concept:${concept}`);
+        }
+      });
+
+      operationTexts.forEach(opText => {
+        if (opText && lower.includes(opText.toLowerCase())) {
+          score += 8;
+          reasons.push(`matches edit operation text:${opText}`);
+        }
+      });
+
+      requestedChanges.forEach(change => {
+        const clean = String(change || "").replace(/_/g, " ");
+        if (clean && lower.includes(clean)) {
+          score += 4;
+          reasons.push(`matches requested change:${change}`);
         }
       });
 
@@ -569,11 +643,33 @@ console.log(
       ];
 
       semanticChecks.forEach(([intentConcept, lineTerms, value]) => {
-        if (intentText.includes(intentConcept) && lineTerms.some(term => lower.includes(term))) {
+        if (
+          intentText.includes(intentConcept) &&
+          lineTerms.some(term => lower.includes(term))
+        ) {
           score += value;
           reasons.push(`semantic:${intentConcept}`);
         }
       });
+
+      if (primaryEditOperation?.type === "rename_text") {
+        score += lower.includes(String(primaryEditOperation.targetText || "").toLowerCase()) ? 10 : 0;
+        if (lower.includes(String(primaryEditOperation.targetText || "").toLowerCase())) {
+          reasons.push("primary operation target text found");
+        }
+      }
+
+      if (primaryEditOperation?.type === "remove_element") {
+        if (
+          lower.includes("button") ||
+          lower.includes("section") ||
+          lower.includes("class=") ||
+          lower.includes("href=")
+        ) {
+          score += 3;
+          reasons.push("remove operation likely UI element");
+        }
+      }
 
       return { score, reasons };
     };
@@ -658,7 +754,20 @@ console.log(
 
     return this.dedupeZones(zones)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 30);
+      .slice(0, 40);
+  },
+
+  extractOperationTexts(editOperations = []) {
+    const texts = [];
+
+    editOperations.forEach(op => {
+      if (op?.targetText) texts.push(op.targetText);
+      if (op?.replacementText) texts.push(op.replacementText);
+      if (op?.anchorText) texts.push(op.anchorText);
+      if (op?.targetSelector) texts.push(op.targetSelector);
+    });
+
+    return [...new Set(texts.map(x => String(x || "").trim()).filter(Boolean))];
   },
 
   extractConcepts(text = "") {
@@ -666,10 +775,10 @@ console.log(
 
     const conceptMap = {
       homepage: ["homepage", "home", "dashboard", "main", "screen"],
-      conversation: ["conversation", "chat", "thread", "messages", "history"],
+      conversation: ["conversation", "conversations", "chat", "thread", "messages", "history"],
       greeting: ["greeting", "welcome", "bubble", "default"],
       meter: ["meter", "calories", "calorie", "arch", "truemeter"],
-      goals: ["goals", "goal"],
+      goals: ["goals", "goal", "my goals"],
       progress: ["progress"],
       history: ["history"],
       ari: ["ari", "mascot", "bubble", "reply", "rebirth"],
@@ -689,11 +798,11 @@ console.log(
     String(text)
       .replace(/[^\w\s.-]/g, " ")
       .split(/\s+/)
-      .filter(word => word.length >= 5)
-      .slice(0, 30)
+      .filter(word => word.length >= 4)
+      .slice(0, 40)
       .forEach(word => concepts.add(word.toLowerCase()));
 
-    return Array.from(concepts).slice(0, 40);
+    return Array.from(concepts).slice(0, 50);
   },
 
   inferRisks({ filePath = "", content = "", likelyChangeZones = [], developerUnderstanding = null }) {
@@ -740,9 +849,12 @@ console.log(
     likelyChangeZones = [],
     intentText = "",
     filePath = "",
-    developerUnderstanding = null
+    developerUnderstanding = null,
+    patchIntent = null,
+    editOperations = [],
+    primaryEditOperation = null
   }) {
-    return likelyChangeZones.slice(0, 8).map(zone => {
+    return likelyChangeZones.slice(0, 10).map(zone => {
       const currentLine = lines[zone.line - 1] || "";
       const block = this.extractNearbyBlock(lines, zone.line);
 
@@ -750,20 +862,40 @@ console.log(
         filePath,
         fileLine: zone.line,
         zoneKind: zone.kind || "line",
+
+        operationType: primaryEditOperation?.type || null,
+        editOperations,
+        patchIntent,
+
+        targetText: primaryEditOperation?.targetText || null,
+        replacementText: primaryEditOperation?.replacementText || null,
+        anchorText: primaryEditOperation?.anchorText || null,
+        position: primaryEditOperation?.position || null,
+
         confidence:
+          zone.score >= 12 ? "high" :
           zone.score >= 8 ? "medium_high" :
           zone.score >= 5 ? "medium" :
           "low",
+
         currentTextPreview: currentLine.trim().slice(0, 260),
         nearbyBlockPreview: block.preview,
-        recommendation:
-          "Use this area only if the exact current block is matched before replace.",
+        nearbyBlockStartLine: block.startLine,
+        nearbyBlockEndLine: block.endLine,
+
+        recommendedFindStrategy:
+          "Use exact nearbyBlockPreview or exact currentTextPreview only if it appears once in the file.",
+
         canPatchDirectly: false,
+
         reason:
-          "Candidate identified semantically, but exact find/replace must be decided by the patch decision engine.",
+          "Candidate identified from exact file content plus owner edit intent. Patch decision must still construct exact find/replace and verify it exists.",
+
         evidence: {
           zoneScore: zone.score,
-          reasons: zone.reasons || []
+          reasons: zone.reasons || [],
+          ownerRequest: developerUnderstanding?.rawText || "",
+          intentText
         }
       };
     });
@@ -779,14 +911,18 @@ console.log(
     return {
       startLine: start + 1,
       endLine: end,
-      preview: block.trim().slice(0, 900)
+      preview: block.trim().slice(0, 1200)
     };
   },
 
   assessPatchReadiness(map = {}) {
-    const hasZones = Array.isArray(map.likelyChangeZones) && map.likelyChangeZones.length > 0;
+    const hasZones =
+      Array.isArray(map.likelyChangeZones) &&
+      map.likelyChangeZones.length > 0;
+
     const hasCandidates =
-      Array.isArray(map.safeEditCandidates) && map.safeEditCandidates.length > 0;
+      Array.isArray(map.safeEditCandidates) &&
+      map.safeEditCandidates.length > 0;
 
     if (!hasZones || !hasCandidates) {
       return {
@@ -801,11 +937,13 @@ console.log(
     return {
       ready: false,
       level:
-        bestZone?.score >= 8
-          ? "strong_code_understanding_patch_not_ready"
-          : "analysis_ready_patch_not_ready",
+        bestZone?.score >= 12
+          ? "strong_patch_intent_mapping_patch_not_ready"
+          : bestZone?.score >= 8
+            ? "strong_code_understanding_patch_not_ready"
+            : "analysis_ready_patch_not_ready",
       reason:
-        "Code meaning is mapped, but patch creation still requires exact find/replace construction and owner confirmation.",
+        "Code meaning and owner edit intent are mapped, but patch creation still requires exact find/replace construction and owner confirmation.",
       bestZone
     };
   },
