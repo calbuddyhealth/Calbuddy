@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.2 — Developer Diagnostic Handoff / Locked Reply / Composer-Safe
+// V1.2.3 — Universal Developer Response Contract / Diagnostic + Findings Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.2",
+  version: "1.2.3",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -453,13 +453,23 @@ if (this.wantsDeveloperDiagnosis(summary, understanding)) {
     evidence = null,
     artifact = null,
     nextAction = "",
-    confidence = "medium"
+    confidence = "medium",
+    findings = [],
+recommendedActions = [],
+metadata = null,
   } = {}) {
     return {
       enabled: true,
       kind,
       source: "ari-rebirth-developer-handoff-engine",
       handoffVersion: this.version,
+
+summaryText: String(explanation || "").trim(),
+findings: Array.isArray(findings) ? findings.filter(Boolean) : [],
+recommendedActions: Array.isArray(recommendedActions)
+  ? recommendedActions.filter(Boolean)
+  : [],
+metadata,
 
       ownerRequest:
         summary.userMessage ||
@@ -570,8 +580,14 @@ if (this.wantsDeveloperDiagnosis(summary, understanding)) {
     }
 
 if (artifact?.type === "diagnostic_summary") {
+  const findings = developerResponse.findings || [];
+  const recommendedActions = developerResponse.recommendedActions || [];
+
   return [
     explanation,
+    "",
+    findings.length ? "Findings:" : "",
+    ...findings.map((item, index) => `${index + 1}. ${item}`),
     "",
     "Diagnostic target:",
     artifact.targetArea || "unknown",
@@ -581,13 +597,11 @@ if (artifact?.type === "diagnostic_summary") {
     JSON.stringify(artifact.likelyFiles || [], null, 2),
     "```",
     "",
-    "Diagnostic steps:",
-    "```json",
-    JSON.stringify(artifact.steps || [], null, 2),
-    "```",
+    recommendedActions.length ? "Recommended next actions:" : "",
+    ...recommendedActions.map((item, index) => `${index + 1}. ${item}`),
     "",
     nextAction
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
     if (artifact?.type === "file_reference") {
@@ -662,6 +676,43 @@ if (artifact?.type === "diagnostic_summary") {
     return evidence;
   },
 
+extractTimingFindings(summary = {}) {
+  const timing = summary.pipelineTiming || summary.timing || [];
+
+  if (!Array.isArray(timing) || !timing.length) return [];
+
+  const findings = [];
+
+  const total =
+    timing[timing.length - 1]?.ms ??
+    null;
+
+  if (total !== null) {
+    findings.push(`Total measured pipeline time was about ${total}ms.`);
+  }
+
+  for (let i = 1; i < timing.length; i++) {
+    const previous = timing[i - 1];
+    const current = timing[i];
+
+    const delta = Number(current.ms || 0) - Number(previous.ms || 0);
+
+    if (delta >= 10) {
+      findings.push(
+        `${previous.label} → ${current.label} took about ${delta}ms.`
+      );
+    }
+  }
+
+  if (!findings.length) {
+    findings.push(
+      "No single measured pipeline step showed a large delay in the captured timing data."
+    );
+  }
+
+  return findings;
+},
+
 wantsDeveloperDiagnosis(summary = {}, understanding = null) {
   const text = String(
     summary.userMessage ||
@@ -699,15 +750,24 @@ buildDeveloperDiagnosticIntent({
   patchDecision = null,
   selfImprovement = null
 } = {}) {
+  const timingFindings = this.extractTimingFindings(summary);
+
   const developerResponse = this.buildDeveloperResponse({
     kind: "developer_diagnostic",
     summary,
     understanding,
     explanation:
-      "This looks like a developer diagnostic request, not an edit request.",
+      "I inspected this as a developer diagnostic request, not an edit request.",
+    findings: timingFindings.length
+      ? timingFindings
+      : [
+          "Ari correctly classified this as a diagnostic request.",
+          "No patch should be proposed until exact code evidence or timing evidence identifies the bottleneck."
+        ],
     evidence:
       codeUnderstanding?.evidence ||
       codeEvidence?.evidence ||
+      summary.pipelineTiming ||
       null,
     artifact: {
       type: "diagnostic_summary",
@@ -719,6 +779,11 @@ buildDeveloperDiagnosticIntent({
         []
       )
     },
+    recommendedActions: [
+      "Use pipelineTiming to identify the slowest stage.",
+      "Read the highest-risk files before proposing a patch.",
+      "Only propose an edit after exact bottleneck evidence exists."
+    ],
     nextAction:
       "Inspect the relevant pipeline/debug evidence and explain the likely bottleneck before proposing a patch.",
     confidence: "medium_high"
