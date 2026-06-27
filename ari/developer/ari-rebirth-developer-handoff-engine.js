@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
-// Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent handoff.
-// V1.0.1 — Handoff Only / No Understanding / No Patch Guessing
+// Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
+// V1.1.0 — Universal Developer Response Handoff / Evidence + Artifact Ready / No Patch Guessing
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.0.1",
+  version: "1.1.0",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -57,24 +57,19 @@ window.AriRebirthDeveloperHandoffEngine = {
       });
     }
 
-const wantsDirectRead =
-  this.wantsDirectFileRead(summary, understanding);
+    if (this.wantsDirectFileRead(summary, understanding)) {
+      const readStep = this.findReadStep(understanding, codeEvidence, selfImprovement);
 
-if (wantsDirectRead) {
-  const readStep = this.findReadStep(
-    understanding,
-    codeEvidence,
-    selfImprovement
-  );
-
-  if (readStep) {
-    return this.buildGithubReadIntent({
-      summary,
-      understanding,
-      readStep
-    });
-  }
-}
+      if (readStep) {
+        return this.buildGithubReadIntent({
+          summary,
+          understanding,
+          readStep,
+          codeEvidence,
+          codeUnderstanding
+        });
+      }
+    }
 
     if (codeEvidence?.steps?.length) {
       return this.buildDeveloperInvestigationIntent({
@@ -109,6 +104,9 @@ if (wantsDirectRead) {
     codeUnderstanding = null,
     patchDecision = {}
   }) {
+    const githubEdit = patchDecision.githubEdit || {};
+    const artifact = this.buildArtifactFromPatchDecision(patchDecision);
+
     return {
       enabled: true,
       type: "github_edit_request",
@@ -123,20 +121,35 @@ if (wantsDirectRead) {
       priority: this.inferPriority(understanding),
       ownerCommand: true,
 
-      recommended_files: [patchDecision.filePath].filter(Boolean),
+      recommended_files: [patchDecision.filePath || githubEdit.filePath].filter(Boolean),
 
       githubEdit: {
-        ...patchDecision.githubEdit,
+        ...githubEdit,
         requiresConfirmation: true,
         confirmationText: "CONFIRM GITHUB EDIT"
       },
+
+      developerResponse: this.buildDeveloperResponse({
+        kind: "code_patch",
+        summary,
+        understanding,
+        explanation:
+          patchDecision.explanation ||
+          patchDecision.reason ||
+          "Prepared an evidence-based code patch.",
+        evidence: patchDecision.evidence || codeUnderstanding?.evidence || null,
+        artifact,
+        nextAction: "Ask owner to confirm before committing.",
+        confidence: patchDecision.confidence || "medium_high"
+      }),
 
       safety: {
         ownerRequired: true,
         directWriteAllowed: false,
         requiresConfirmation: true,
         confirmationText: "CONFIRM GITHUB EDIT",
-        evidenceBased: true
+        evidenceBased: true,
+        neverGuessFindText: true
       },
 
       codeUnderstanding,
@@ -150,6 +163,8 @@ if (wantsDirectRead) {
     codeEvidence = {},
     selfImprovement = null
   }) {
+    const steps = this.cleanSteps(codeEvidence.steps || selfImprovement?.steps || []);
+
     return {
       enabled: true,
       type: "developer_investigation",
@@ -198,10 +213,26 @@ if (wantsDirectRead) {
         selfImprovement?.searchConcepts ||
         [],
 
-      steps: this.cleanSteps(codeEvidence.steps || selfImprovement?.steps || []),
+      steps,
 
       canEditNow: false,
       requiresReadBeforeEdit: true,
+
+      developerResponse: this.buildDeveloperResponse({
+        kind: "investigation_plan",
+        summary,
+        understanding,
+        explanation:
+          "I need to gather exact code evidence before proposing a safe patch.",
+        evidence: codeEvidence.evidence || null,
+        artifact: {
+          type: "investigation_steps",
+          language: "json",
+          steps
+        },
+        nextAction: "Run the listed search/read steps before editing.",
+        confidence: "medium"
+      }),
 
       safety: {
         ownerRequired: true,
@@ -228,6 +259,7 @@ if (wantsDirectRead) {
       handoffVersion: this.version,
 
       title: this.buildTitle(understanding, "Developer task"),
+
       summary:
         patchDecision?.reason ||
         selfImprovement?.summary ||
@@ -248,96 +280,260 @@ if (wantsDirectRead) {
         patchDecision?.missingEvidence ||
         ["more_code_evidence"],
 
+      developerResponse: this.buildDeveloperResponse({
+        kind: "developer_task",
+        summary,
+        understanding,
+        explanation:
+          patchDecision?.reason ||
+          selfImprovement?.summary ||
+          this.buildSummary(understanding),
+        evidence: codeUnderstanding?.evidence || null,
+        artifact: null,
+        nextAction: "Read/search the relevant files before proposing code.",
+        confidence: "medium"
+      }),
+
       codeUnderstanding,
       patchDecision
     };
   },
 
-wantsDirectFileRead(summary = {}, understanding = null) {
-  const text = String(
-    summary.userMessage ||
-    summary.message ||
-    summary.input ||
-    ""
-  ).toLowerCase();
+  buildGithubReadIntent({
+    summary = {},
+    understanding = null,
+    readStep = {},
+    codeEvidence = null,
+    codeUnderstanding = null
+  }) {
+    return {
+      enabled: true,
+      type: "github_read_request",
+      source: "ari-rebirth-developer-handoff-engine",
+      handoffVersion: this.version,
 
-  const directReadPhrases = [
-    "read ",
-    "open ",
-    "show me",
-    "show full file",
-    "show all code",
-    "full code",
-    "entire file",
-    "first ",
-    "last ",
-    "lines ",
-    "what are the first",
-    "what are the last",
-    "what file are you reading",
-    "currently reading"
-  ];
+      title: this.buildTitle(understanding, "Read GitHub file"),
+      summary:
+        readStep.reason ||
+        "Ari should read the requested GitHub file before answering.",
 
-  const namedFile =
-    understanding?.targetObject?.filePath ||
-    /\b[a-zA-Z0-9_\-./]+?\.(html|css|js|json|md|ts|tsx|jsx)\b/i.test(text);
+      priority: this.inferPriority(understanding),
+      ownerCommand: true,
 
-  return Boolean(
-    namedFile &&
-    directReadPhrases.some(phrase => text.includes(phrase))
-  );
-},
+      filePath: readStep.filePath,
 
-findReadStep(understanding = null, codeEvidence = null, selfImprovement = null) {
-  const steps = [
-    ...(codeEvidence?.steps || []),
-    ...(selfImprovement?.steps || [])
-  ];
+      githubRead: {
+        filePath: readStep.filePath
+      },
 
-  const namedReadStep = steps.find(
-    step => step?.tool === "github_read" && step.filePath
-  );
+      canEditNow: false,
+      requiresReadBeforeEdit: false,
 
-  if (namedReadStep) return namedReadStep;
+      developerResponse: this.buildDeveloperResponse({
+        kind: "file_read",
+        summary,
+        understanding,
+        explanation: `Read ${readStep.filePath} before answering with exact file evidence.`,
+        evidence: codeEvidence?.evidence || codeUnderstanding?.evidence || null,
+        artifact: {
+          type: "file_reference",
+          filePath: readStep.filePath
+        },
+        nextAction: "Use the exact file content to answer the owner.",
+        confidence: "high"
+      }),
 
-  const filePath =
-    understanding?.targetObject?.filePath ||
-    understanding?.likelyFiles?.[0] ||
-    null;
+      safety: {
+        ownerRequired: true,
+        directWriteAllowed: false,
+        readOnly: true,
+        evidenceBased: true
+      }
+    };
+  },
 
-  if (!filePath) return null;
+  buildDeveloperResponse({
+    kind = "developer_response",
+    summary = {},
+    understanding = null,
+    explanation = "",
+    evidence = null,
+    artifact = null,
+    nextAction = "",
+    confidence = "medium"
+  } = {}) {
+    return {
+      enabled: true,
+      kind,
+      source: "ari-rebirth-developer-handoff-engine",
+      handoffVersion: this.version,
 
-  return {
-    tool: "github_read",
-    filePath,
-    reason: "Owner asked for direct file visibility."
-  };
-},
+      ownerRequest:
+        summary.userMessage ||
+        summary.message ||
+        summary.input ||
+        "",
 
-buildGithubReadIntent({ summary = {}, understanding = null, readStep = {} }) {
-  return {
-    enabled: true,
-    type: "github_read_request",
-    source: "ari-rebirth-developer-handoff-engine",
-    handoffVersion: this.version,
-    title: this.buildTitle(understanding, "Read GitHub file"),
-    summary: readStep.reason || "Ari should read the requested GitHub file before answering.",
-    priority: this.inferPriority(understanding),
-    ownerCommand: true,
-    filePath: readStep.filePath,
-    githubRead: {
-      filePath: readStep.filePath
-    },
-    canEditNow: false,
-    requiresReadBeforeEdit: false,
-    safety: {
-      ownerRequired: true,
-      directWriteAllowed: false,
-      readOnly: true,
-      evidenceBased: true
+      intentFamily:
+        understanding?.intentFamily ||
+        kind,
+
+      targetArea:
+        understanding?.targetArea ||
+        "unknown",
+
+      targetObject:
+        understanding?.targetObject ||
+        null,
+
+      explanation:
+        String(explanation || "").trim() ||
+        "Developer handoff prepared.",
+
+      evidence: this.normalizeEvidence(evidence),
+
+      artifact,
+
+      nextAction:
+        String(nextAction || "").trim() ||
+        "Continue with the safest developer next step.",
+
+      composerInstructions: {
+        mustUseThisHandoff: true,
+        doNotInventCode: true,
+        useArtifactIfPresent: Boolean(artifact),
+        useEvidenceIfPresent: Boolean(evidence),
+        answerOwnerDirectly: true,
+        maxSections: 3,
+        preferredShape:
+          artifact?.replacement || artifact?.code
+            ? "explain_then_code"
+            : "direct_developer_answer"
+      },
+
+      confidence
+    };
+  },
+
+  buildArtifactFromPatchDecision(patchDecision = {}) {
+    const githubEdit = patchDecision.githubEdit || {};
+
+    const replacement =
+      githubEdit.replace ||
+      githubEdit.newContent ||
+      patchDecision.replacement ||
+      patchDecision.proposedCode ||
+      patchDecision.proposedHtml ||
+      patchDecision.code ||
+      null;
+
+    const find =
+      githubEdit.find ||
+      patchDecision.find ||
+      null;
+
+    if (!replacement && !find) return null;
+
+    return {
+      type: "code_patch",
+      language:
+        patchDecision.language ||
+        this.inferLanguageFromFilePath(patchDecision.filePath || githubEdit.filePath),
+      filePath:
+        patchDecision.filePath ||
+        githubEdit.filePath ||
+        null,
+      operation:
+        githubEdit.operation ||
+        patchDecision.operation ||
+        "replace",
+      find,
+      replacement,
+      code:
+        replacement ||
+        githubEdit.newContent ||
+        null
+    };
+  },
+
+  normalizeEvidence(evidence = null) {
+    if (!evidence) return null;
+
+    if (typeof evidence === "string") {
+      return {
+        summary: evidence
+      };
     }
-  };
-},
+
+    if (Array.isArray(evidence)) {
+      return {
+        items: evidence
+      };
+    }
+
+    return evidence;
+  },
+
+  wantsDirectFileRead(summary = {}, understanding = null) {
+    const text = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    ).toLowerCase();
+
+    const directReadPhrases = [
+      "read ",
+      "open ",
+      "show me",
+      "show full file",
+      "show all code",
+      "full code",
+      "entire file",
+      "first ",
+      "last ",
+      "lines ",
+      "what are the first",
+      "what are the last",
+      "what file are you reading",
+      "currently reading"
+    ];
+
+    const namedFile =
+      understanding?.targetObject?.filePath ||
+      /\b[a-zA-Z0-9_\-./]+?\.(html|css|js|json|md|ts|tsx|jsx)\b/i.test(text);
+
+    return Boolean(
+      namedFile &&
+      directReadPhrases.some(phrase => text.includes(phrase))
+    );
+  },
+
+  findReadStep(understanding = null, codeEvidence = null, selfImprovement = null) {
+    const steps = [
+      ...(codeEvidence?.steps || []),
+      ...(selfImprovement?.steps || [])
+    ];
+
+    const namedReadStep = steps.find(
+      step => step?.tool === "github_read" && step.filePath
+    );
+
+    if (namedReadStep) return namedReadStep;
+
+    const filePath =
+      understanding?.targetObject?.filePath ||
+      understanding?.likelyFiles?.[0] ||
+      null;
+
+    if (!filePath) return null;
+
+    return {
+      tool: "github_read",
+      filePath,
+      reason: "Owner asked for direct file visibility."
+    };
+  },
 
   cleanSteps(steps = []) {
     return steps
@@ -390,6 +586,21 @@ buildGithubReadIntent({ summary = {}, understanding = null, readStep = {} }) {
     if (understanding.riskLevel === "medium_high") return "medium_high";
 
     return "medium";
+  },
+
+  inferLanguageFromFilePath(filePath = "") {
+    const path = String(filePath || "").toLowerCase();
+
+    if (path.endsWith(".html")) return "html";
+    if (path.endsWith(".css")) return "css";
+    if (path.endsWith(".js")) return "javascript";
+    if (path.endsWith(".json")) return "json";
+    if (path.endsWith(".md")) return "markdown";
+    if (path.endsWith(".ts")) return "typescript";
+    if (path.endsWith(".tsx")) return "tsx";
+    if (path.endsWith(".jsx")) return "jsx";
+
+    return "text";
   }
 };
 
