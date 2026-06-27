@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.5 — Meal Estimate Preservation Gated
+// V3.8.6 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.5",
+  version: "3.8.6",
 
   async run(systemSummary = {}) {
     const debugTiming = systemSummary.debugTiming === true || systemSummary.appContext?.debugTiming === true;
@@ -532,7 +532,12 @@ summary = this.preserveDeveloperEvidence(summary);
 summary = this.reassertContractAuthority(summary);
 
 const developerResponseLocked = Boolean(
-  summary.developerIntent || summary.developerHandoff?.reply
+  summary.responseLocked ||
+  summary.developerResponseLocked ||
+  summary.developerHandoff?.responseLocked ||
+  summary.developerHandoff?.developerResponseLocked ||
+  summary.developerHandoff?.reply ||
+  summary.developerIntent?.reply
 );
     // 1.00 Human Needs
     merge(await runEngine(
@@ -1424,13 +1429,33 @@ mergeAs(
     await runEngine(window.AriRebirthDeveloperHandoffEngine, ["handoff", "create", "build"])
   );
 
-  if (summary.developerHandoff?.developerIntent) {
-    summary.developerIntent = summary.developerHandoff.developerIntent;
-  }
+  // Promote locked developer handoff into pipeline-level authority.
+if (summary.developerHandoff) {
+  summary.developerIntent =
+    summary.developerHandoff.developerIntent ||
+    summary.developerHandoff;
 
-  if (summary.developerHandoff?.reply) {
+  summary.developerResponse =
+    summary.developerHandoff.developerResponse ||
+    summary.developerIntent?.developerResponse ||
+    null;
+
+  summary.developerResponseLocked =
+    summary.developerHandoff.developerResponseLocked === true ||
+    summary.developerHandoff.responseLocked === true ||
+    Boolean(summary.developerHandoff.reply);
+
+  summary.responseLocked =
+    summary.developerResponseLocked;
+
+  if (summary.developerHandoff.reply) {
     summary.finalResponse = summary.developerHandoff.reply;
   }
+
+  if (!summary.finalResponse && summary.developerHandoff.finalResponse) {
+    summary.finalResponse = summary.developerHandoff.finalResponse;
+  }
+}
 
   return {
     ...summary,
