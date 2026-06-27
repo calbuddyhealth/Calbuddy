@@ -304,9 +304,11 @@ return this.makeResponse({
     const normalizedMessage = cleanMessage.toLowerCase().trim();
 
     return {
-      ...summary,
+  ...summary,
 
-      userMessage: cleanMessage,
+  debugTiming: options.debugTiming === true,
+
+  userMessage: cleanMessage,
       message: cleanMessage,
       input: cleanMessage,
       normalizedMessage,
@@ -315,7 +317,8 @@ return this.makeResponse({
         source: options.source || "calbuddy-health",
         appMode: "rebirth-only",
         page: options.page || "unknown",
-
+debugTiming: options.debugTiming === true,
+        
         userContext: options.userContext || null,
         coachMemorySummary: options.coachMemorySummary || "",
         githubFileContext: options.githubFileContext || null,
