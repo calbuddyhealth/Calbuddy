@@ -19,6 +19,7 @@ const timing = [];
 let summary = this.normalizeInput(systemSummary);
 summary.debugTiming = debugTiming;
 summary.pipelineTiming = timing;
+summary.pipelineTimingStart = timingStart;
 
 const mark = (label) => {
   if (!debugTiming) return;
@@ -865,7 +866,7 @@ mark("after saveFinalThreadState");
 
 finishTiming();
 summary.pipelineTiming = timing;
-
+summary.pipelineTimingStart = timingStart;
 return summary;
   },
 
@@ -1382,6 +1383,15 @@ if (!isDeveloperRequest) {
 
     return fallback;
   };
+
+const devMark = label => {
+  if (!summary.debugTiming || !Array.isArray(summary.pipelineTiming)) return;
+
+  summary.pipelineTiming.push({
+    label,
+    ms: Math.round(performance.now() - (summary.pipelineTimingStart || performance.now()))
+  });
+};
 
   const mergeAs = (key, result) => {
     if (!result) return;
