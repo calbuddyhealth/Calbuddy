@@ -9,12 +9,37 @@ window.AriRebirthPipeline = {
   version: "3.8.4",
 
   async run(systemSummary = {}) {
+    const debugTiming = systemSummary.debugTiming === true || systemSummary.appContext?.debugTiming === true;
+const timingStart = performance.now();
+const timing = [];
+
+const mark = (label) => {
+  if (!debugTiming) return;
+  timing.push({
+    label,
+    ms: Math.round(performance.now() - timingStart)
+  });
+};
+
+const finishTiming = () => {
+  if (!debugTiming) return;
+  mark("AriRebirthPipeline.run complete");
+  console.table(timing);
+  console.log(
+    "[AriRebirthPipeline Timing] Total:",
+    Math.round(performance.now() - timingStart) + "ms"
+  );
+};
     let summary = this.normalizeInput(systemSummary);
-    // 0.05 Load Thread State
+   summary.debugTiming = debugTiming;
+mark("normalizeInput complete");
+     // 0.05 Load Thread State
 
   // Runs first so Safety, Observer, Classifier, Routing Evidence, and Lane Splitter can see prior context.
 
-  summary = await this.loadThreadState(summary);
+  mark("before loadThreadState");
+summary = await this.loadThreadState(summary);
+mark("after loadThreadState");
     let reasoningResult = {};
 
 summary = this.preserveDeveloperEvidence(summary);
@@ -500,7 +525,9 @@ if (shouldRunEntityResolver) {
 // 0.60 Ari Rebirth Developer Layer
 // Owner-only developer reasoning. Runs before normal human-needs response path
 // so app/code requests can produce developerIntent safely.
+mark("before runDeveloperLayer");
 summary = await this.runDeveloperLayer(summary);
+mark("after runDeveloperLayer");
 summary = this.preserveDeveloperEvidence(summary);
 summary = this.reassertContractAuthority(summary);
 
@@ -569,6 +596,7 @@ const developerResponseLocked = Boolean(
     summary = this.reassertContractAuthority(summary);
 
     // Reasoning Engine
+    mark("before AriReasoningEngine");
     reasoningResult = await runEngine(
       window.AriReasoningEngine,
       ["create", "reason"],
@@ -590,7 +618,7 @@ const developerResponseLocked = Boolean(
     };
 
     summary = this.reassertContractAuthority(summary);
-
+mark("after AriReasoningEngine");
     // Character Context
     const characterContextResult = await runEngine(
       window.AriCharacterContextEngine,
@@ -713,7 +741,9 @@ summary = this.reassertContractAuthority(summary);
 
     // Composer
 if (!developerResponseLocked) {
+  mark("before AriLanguageComposer");
   merge(await runEngine(window.AriLanguageComposer, ["compose"]));
+  mark("after AriLanguageComposer");
 }
 
 // Response Compressor
@@ -789,7 +819,9 @@ summary = {
     }
 
     // Final Thread Save
-    await this.saveFinalThreadState(summary);
+    mark("before saveFinalThreadState");
+await this.saveFinalThreadState(summary);
+mark("after saveFinalThreadState");
 
     // Situation Review Console
     const situationReview = await runEngine(
@@ -817,7 +849,10 @@ summary = {
 
     this.debugLog(summary, reasoningResult);
 
-    return summary;
+finishTiming();
+summary.pipelineTiming = timing;
+
+return summary;
   },
 
   normalizeInput(systemSummary = {}) {
