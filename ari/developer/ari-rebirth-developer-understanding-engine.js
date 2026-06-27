@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-developer-understanding-engine.js
 // Ari Rebirth Developer Understanding Engine
 // Purpose: Build semantic understanding of owner developer requests.
-// V1.2.1 — Universal Edit Intent / Evidence Ready / Patch Engine Handoff
+// V1.2.2 — Universal Edit Intent / Evidence Ready / Patch Engine Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperUnderstandingEngine = {
-  version: "1.2.1",
+  version: "1.2.2",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -243,6 +243,7 @@ const patchIntent = this.buildPatchIntent({
         "commit",
         "patch",
         "engine",
+        "pipeline",
         "endpoint",
         "api"
       ],
@@ -385,7 +386,19 @@ inferRequestedChanges(rawText = "", text = "") {
 
   inferIntentFamily(rawText = "", text = "", goal = "", targetArea = "", requestedChange = "") {
     if (requestedChange === "read_before_deciding") return "file_read";
-    if (requestedChange === "search_before_deciding") return "code_search";
+   if (this.hasMeaning(text, [
+  "latency",
+  "slow",
+  "too slowly",
+  "bottleneck",
+  "performance",
+  "where the latency",
+  "why is ari slow",
+  "answers too slowly"
+])) {
+  return "performance_investigation";
+}
+   if (requestedChange === "search_before_deciding") return "code_search";
     if (requestedChange === "diagnose_and_patch_bug") return "bug_investigation";
 
     if (targetArea === "ari_response_behavior") return "improve_ari_behavior";
