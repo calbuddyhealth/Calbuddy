@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-developer-understanding-engine.js
 // Ari Rebirth Developer Understanding Engine
 // Purpose: Build semantic understanding of owner developer requests.
-// V1.2.2 — Universal Edit Intent / Evidence Ready / Patch Engine Handoff
+// V1.2.3 — Universal Edit Intent / Evidence Ready / Patch Engine Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperUnderstandingEngine = {
-  version: "1.2.2",
+  version: "1.2.3",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -422,6 +422,18 @@ inferRequestedChanges(rawText = "", text = "") {
     if (this.hasMeaning(text, ["supabase", "database", "profile", "meals", "weight logs", "auth"])) return "data_layer";
     if (this.hasMeaning(text, ["github", "repo", "commit", "branch", "read file", "search repo", "patch"])) return "repository_layer";
 
+if (this.hasMeaning(text, [
+  "latency",
+  "slow",
+  "too slowly",
+  "bottleneck",
+  "performance",
+  "answers too slowly",
+  "why is ari slow",
+  "where the latency",
+  "pipeline"
+])) return "pipeline_performance";
+
     return "unknown";
   },
 
@@ -573,6 +585,15 @@ inferRequestedChanges(rawText = "", text = "") {
       files.add("calbuddy-core.js");
     }
 
+if (targetArea === "pipeline_performance" || intentFamily === "performance_investigation") {
+  files.add("ari/integration/ari-rebirth-pipeline.js");
+  files.add("ari/ari-rebirth-app-bridge.js");
+  files.add("ari/developer/ari-rebirth-developer-handoff-engine.js");
+  files.add("ari/developer/ari-rebirth-developer-understanding-engine.js");
+  files.add("ari/developer/ari-rebirth-code-evidence-engine.js");
+  files.add("ari/developer/ari-rebirth-patch-decision-engine.js");
+}
+
     if (!files.size) {
       files.add("index.html");
       files.add("style.css");
@@ -598,6 +619,17 @@ inferRequestedChanges(rawText = "", text = "") {
       concepts.add(targetObject.name);
     }
 
+if (targetArea === "pipeline_performance" || intentFamily === "performance_investigation") {
+  [
+    "debugTiming",
+    "runDeveloperLayer",
+    "AriReasoningEngine",
+    "AriLanguageComposer",
+    "saveFinalThreadState",
+    "developerResponseLocked",
+    "pipelineTiming"
+  ].forEach(x => concepts.add(x));
+}
     if (targetObject?.filePath) concepts.add(targetObject.filePath);
 
     if (targetArea !== "unknown") concepts.add(targetArea);
