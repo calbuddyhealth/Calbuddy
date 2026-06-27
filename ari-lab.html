@@ -248,7 +248,14 @@
   const result = await window.AriRebirthAppBridge.ask(message, {
   source: "ari-lab",
   appMode: "rebirth-only",
-
+  debugTiming: true,
+ownerMode: true,
+ariPermissions: {
+  owner_access: true,
+  suggest_code_changes: true,
+  direct_code_editing: true,
+  create_developer_tasks: true
+},
   githubFileContext: {
     filePath: "index.html",
     content: `
@@ -307,10 +314,18 @@ async function runLayoutIntegrationTest() {
 
   for (const test of tests) {
     const run = await window.AriRebirthAppBridge.ask(test.prompt, {
-      source: "ari-lab",
-      appMode: "layout-integration-test",
-      testMode: true,
-      githubFileContext: {
+  source: "ari-lab",
+  appMode: "layout-integration-test",
+  testMode: true,
+  debugTiming: true,
+  ownerMode: true,
+ariPermissions: {
+  owner_access: true,
+  suggest_code_changes: true,
+  direct_code_editing: true,
+  create_developer_tasks: true
+},
+  githubFileContext: {
         filePath: "index.html",
         content: homepageContext
       }
@@ -368,6 +383,12 @@ async function runLayoutIntegrationTest() {
         const run = await runAriOnce(message);
         const summary = run.summary;
 
+const pipelineTimingText = Array.isArray(summary.pipelineTiming)
+  ? summary.pipelineTiming
+      .map(item => `${item.label}: ${item.ms}ms`)
+      .join("\n")
+  : "No pipeline timing found.";
+
         const primaryPriority =
           typeof summary.primaryPriority === "object"
             ? summary.primaryPriority?.name
@@ -390,6 +411,12 @@ ${run.emotion}
 
 Source:
 ${run.source}
+
+==================================================
+
+===== TIMING =====
+
+${pipelineTimingText}
 
 ==================================================
 
