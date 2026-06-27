@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.1 — Locked Developer Reply / Composer-Safe / Evidence + Artifact Ready
+// V1.2.2 — Developer Diagnostic Handoff / Locked Reply / Composer-Safe
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.1",
+  version: "1.2.2",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -86,6 +86,19 @@ if (
         missingEvidence:
           patchValidation.requiredFixes || ["patch_validation_failed"]
       },
+      selfImprovement
+    })
+  );
+}
+
+if (this.wantsDeveloperDiagnosis(summary, understanding)) {
+  return this.lockHandoff(
+    this.buildDeveloperDiagnosticIntent({
+      summary,
+      understanding,
+      codeEvidence,
+      codeUnderstanding,
+      patchDecision,
       selfImprovement
     })
   );
@@ -556,6 +569,27 @@ if (
       ].join("\n");
     }
 
+if (artifact?.type === "diagnostic_summary") {
+  return [
+    explanation,
+    "",
+    "Diagnostic target:",
+    artifact.targetArea || "unknown",
+    "",
+    "Likely files:",
+    "```json",
+    JSON.stringify(artifact.likelyFiles || [], null, 2),
+    "```",
+    "",
+    "Diagnostic steps:",
+    "```json",
+    JSON.stringify(artifact.steps || [], null, 2),
+    "```",
+    "",
+    nextAction
+  ].join("\n");
+}
+
     if (artifact?.type === "file_reference") {
       return [
         explanation,
@@ -627,6 +661,100 @@ if (
 
     return evidence;
   },
+
+wantsDeveloperDiagnosis(summary = {}, understanding = null) {
+  const text = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  ).toLowerCase();
+
+  const intentFamily =
+    understanding?.intentFamily ||
+    summary.intentFamily ||
+    null;
+
+  const developerIntent =
+    intentFamily === "bug_investigation" ||
+    intentFamily === "performance_investigation" ||
+    intentFamily === "developer_diagnosis" ||
+    summary.developerArtifactRequest === true ||
+    summary.artifactInvestigationRequest === true;
+
+  const diagnosticLanguage =
+    /\b(inspect|diagnose|latency|slow|bottleneck|performance|debug|trace|why.*slow|where.*coming from)\b/i.test(text);
+
+  const developerSubject =
+    /\b(ari|pipeline|engine|composer|handoff|github|code|file|repo|calbuddy|developer layer)\b/i.test(text);
+
+  return Boolean(developerIntent && diagnosticLanguage && developerSubject);
+},
+
+buildDeveloperDiagnosticIntent({
+  summary = {},
+  understanding = null,
+  codeEvidence = null,
+  codeUnderstanding = null,
+  patchDecision = null,
+  selfImprovement = null
+} = {}) {
+  const developerResponse = this.buildDeveloperResponse({
+    kind: "developer_diagnostic",
+    summary,
+    understanding,
+    explanation:
+      "This looks like a developer diagnostic request, not an edit request.",
+    evidence:
+      codeUnderstanding?.evidence ||
+      codeEvidence?.evidence ||
+      null,
+    artifact: {
+      type: "diagnostic_summary",
+      targetArea: understanding?.targetArea || "unknown",
+      likelyFiles: understanding?.likelyFiles || [],
+      steps: this.cleanSteps(
+        codeEvidence?.steps ||
+        selfImprovement?.steps ||
+        []
+      )
+    },
+    nextAction:
+      "Inspect the relevant pipeline/debug evidence and explain the likely bottleneck before proposing a patch.",
+    confidence: "medium_high"
+  });
+
+  return {
+    enabled: true,
+    type: "developer_diagnostic",
+    source: "ari-rebirth-developer-handoff-engine",
+    handoffVersion: this.version,
+
+    title: this.buildTitle(understanding, "Developer diagnostic"),
+    summary:
+      "Ari should diagnose the code behavior first and avoid jumping straight to an edit.",
+
+    priority: this.inferPriority(understanding),
+    ownerCommand: true,
+
+    canEditNow: false,
+    requiresReadBeforeEdit: true,
+
+    developerResponse,
+    codeEvidence,
+    codeUnderstanding,
+    patchDecision,
+    selfImprovement,
+
+    safety: {
+      ownerRequired: true,
+      directWriteAllowed: false,
+      diagnosticOnly: true,
+      readBeforeEdit: true,
+      neverGuessFindText: true
+    }
+  };
+},
 
   wantsDirectFileRead(summary = {}, understanding = null) {
     const text = String(
