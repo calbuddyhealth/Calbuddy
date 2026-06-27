@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.9 — Meal Estimate Preservation Gated
+// V3.9.0 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.9",
+  version: "3.9.0",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -1387,104 +1387,54 @@ if (!isDeveloperRequest) {
 const devMark = label => {
   if (!summary.debugTiming || !Array.isArray(summary.pipelineTiming)) return;
 
+  const start =
+    typeof summary.pipelineTimingStart === "number"
+      ? summary.pipelineTimingStart
+      : performance.now();
+
   summary.pipelineTiming.push({
     label,
-    ms: Math.round(performance.now() - (summary.pipelineTimingStart || performance.now()))
+    ms: Math.round(performance.now() - start)
   });
 };
 
-  const mergeAs = (key, result) => {
-    if (!result) return;
+const mergeAs = (key, result) => {
+  if (!result) return;
 
-    summary = {
-      ...summary,
-      [key]: result,
-      [`rebirth${key.charAt(0).toUpperCase()}${key.slice(1)}`]: result,
-      ...result
-    };
+  summary = {
+    ...summary,
+    [key]: result,
+    [`rebirth${key.charAt(0).toUpperCase()}${key.slice(1)}`]: result,
+    ...result,
+    pipelineTiming: summary.pipelineTiming,
+    pipelineTimingStart: summary.pipelineTimingStart
   };
+};
 
-  mergeAs(
-    "developerUnderstanding",
-    await runEngine(window.AriRebirthDeveloperUnderstandingEngine, ["understand"])
-  );
+const timedRun = async (key, engine, methods = []) => {
+  devMark(`before ${key}`);
+  const result = await runEngine(engine, methods);
+  devMark(`after ${key}`);
+  mergeAs(key, result);
+  return result;
+};
 
-
-
-  mergeAs(
-    "projectKnowledgeGraph",
-    await runEngine(window.AriRebirthProjectKnowledgeGraphEngine, ["build"])
-  );
-
-  mergeAs(
-    "capabilityRegistry",
-    await runEngine(window.AriRebirthCapabilityRegistryEngine, ["inspect"])
-  );
-
-  mergeAs(
-    "architecture",
-    await runEngine(window.AriRebirthArchitectureEngine, ["design"])
-  );
-
-mergeAs(
-  "uiLayoutPlanner",
-  await runEngine(window.AriRebirthUILayoutPlannerEngine, ["plan"])
-);
-
-  mergeAs(
-    "bugDiagnosis",
-    await runEngine(window.AriRebirthBugDiagnosisEngine, ["diagnose"])
-  );
-
-  mergeAs(
-    "executionPlanner",
-    await runEngine(window.AriRebirthExecutionPlannerEngine, ["plan"])
-  );
-
-  mergeAs(
-    "codeEvidence",
-    await runEngine(window.AriRebirthCodeEvidenceEngine, ["build"])
-  );
-
-  mergeAs(
-    "codeUnderstanding",
-    await runEngine(window.AriRebirthCodeUnderstandingEngine, ["understand"])
-  );
-
-  mergeAs(
-    "dependencyMap",
-    await runEngine(window.AriRebirthDependencyMapEngine, ["map"])
-  );
-
-  mergeAs(
-    "selfImprovement",
-    await runEngine(window.AriRebirthSelfImprovementEngine, ["improve"])
-  );
-
-  mergeAs(
-    "patchDecision",
-    await runEngine(window.AriRebirthPatchDecisionEngine, ["decide"])
-  );
-
-  mergeAs(
-    "patchValidation",
-    await runEngine(window.AriRebirthPatchValidationEngine, ["validate"])
-  );
-
-  mergeAs(
-    "regressionTest",
-    await runEngine(window.AriRebirthRegressionTestEngine, ["build"])
-  );
-
-  mergeAs(
-    "learning",
-    await runEngine(window.AriRebirthLearningEngine, ["learn"])
-  );
-
-  mergeAs(
-    "developerHandoff",
-    await runEngine(window.AriRebirthDeveloperHandoffEngine, ["handoff", "create", "build"])
-  );
+  await timedRun("developerUnderstanding", window.AriRebirthDeveloperUnderstandingEngine, ["understand"]);
+await timedRun("projectKnowledgeGraph", window.AriRebirthProjectKnowledgeGraphEngine, ["build"]);
+await timedRun("capabilityRegistry", window.AriRebirthCapabilityRegistryEngine, ["inspect"]);
+await timedRun("architecture", window.AriRebirthArchitectureEngine, ["design"]);
+await timedRun("uiLayoutPlanner", window.AriRebirthUILayoutPlannerEngine, ["plan"]);
+await timedRun("bugDiagnosis", window.AriRebirthBugDiagnosisEngine, ["diagnose"]);
+await timedRun("executionPlanner", window.AriRebirthExecutionPlannerEngine, ["plan"]);
+await timedRun("codeEvidence", window.AriRebirthCodeEvidenceEngine, ["build"]);
+await timedRun("codeUnderstanding", window.AriRebirthCodeUnderstandingEngine, ["understand"]);
+await timedRun("dependencyMap", window.AriRebirthDependencyMapEngine, ["map"]);
+await timedRun("selfImprovement", window.AriRebirthSelfImprovementEngine, ["improve"]);
+await timedRun("patchDecision", window.AriRebirthPatchDecisionEngine, ["decide"]);
+await timedRun("patchValidation", window.AriRebirthPatchValidationEngine, ["validate"]);
+await timedRun("regressionTest", window.AriRebirthRegressionTestEngine, ["build"]);
+await timedRun("learning", window.AriRebirthLearningEngine, ["learn"]);
+await timedRun("developerHandoff", window.AriRebirthDeveloperHandoffEngine, ["handoff", "create", "build"]);
 
   // Promote locked developer handoff into pipeline-level authority.
 if (summary.developerHandoff) {
