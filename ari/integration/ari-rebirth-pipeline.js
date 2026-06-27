@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.0 — Meal Estimate Preservation Gated
+// V3.9.1 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.0",
+  version: "3.9.1",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -75,6 +75,7 @@ summary = this.preserveDeveloperEvidence(summary);
     };
 
     // 0.10 Safety Context Gate
+    mark("before safetyContextGate");
     const safetyContextGate = await runEngine(
       window.AriSafetyContextGate,
       ["evaluate"],
@@ -94,8 +95,9 @@ summary = this.preserveDeveloperEvidence(summary);
       safetyContextGate,
       ...safetyContextGate
     };
-
+mark("after safetyContextGate");
     // 0.20 Observer Evidence
+    mark("before observerEvidence");
     const observerResult = await runEngine(
       window.Ari?.observerNetwork,
       ["observe"],
@@ -124,8 +126,9 @@ summary = this.preserveDeveloperEvidence(summary);
       observedValues: observerResult.observedValues || [],
       observationCount: observerResult.observationCount || 0
     };
-
+mark("after observerEvidence");
 // 0.23 Conversation Function Engine
+mark("before conversationFunction");
 const conversationFunctionResult = await runEngine(
   window.AriConversationFunctionEngine,
   ["analyze"],
@@ -146,8 +149,10 @@ summary = {
   conversationFunction: conversationFunctionResult,
   ...conversationFunctionResult
 };
-
+mark("after conversationFunction");
+    
     // 0.25 Universal Conversation Classifier
+    mark("before universalConversationClassifier");
     const conversationResult = await runEngine(
       window.AriUniversalConversationClassifier,
       ["classify"],
@@ -166,9 +171,10 @@ summary = {
       ...conversationResult,
       universalConversationClassification: conversationResult
     };
-
+mark("after universalConversationClassifier");
     
     // 0.26 Observer Routing Evidence
+    mark("before observerRoutingEvidence");
     const routingEvidence =
       window.Ari?.observerRoutingEvidence?.analyze
         ? await window.Ari.observerRoutingEvidence.analyze({
@@ -202,11 +208,15 @@ summary = {
   preservedObservationCount:
     routingEvidence.preservedObservationCount ?? 0
 };
+mark("after observerRoutingEvidence");
 
 // 0.265 Context Assembler - Early Pass
+mark("before contextAssemblerEarly");
 merge(await runEngine(window.AriContextAssembler, ["assemble", "create"]));
+mark("after contextAssemblerEarly");
 
 // 0.266 Semantic Frame Builder
+mark("before semanticFrameBuilder");
 const semanticFrameOutput = await runEngine(
   window.AriSemanticFrameBuilder ||
   window.Ari?.semanticFrameBuilder,
@@ -243,8 +253,10 @@ summary = {
   semanticAmbiguity:
     semanticFrameOutput.ambiguity || {}
 };
+mark("after semanticFrameBuilder");
 
     // 0.27 Lane Splitter
+    mark("before laneSplitter");
     const laneSplit =
       window.Ari?.laneSplitterEngine?.split
         ? await window.Ari.laneSplitterEngine.split({
@@ -309,7 +321,10 @@ laneSplitterExplanation:
   laneSplit.explanation || null
 };
 
+mark("after laneSplitter");
+
     // 0.28 Continuity Entry Point
+    mark("before continuityEntryPoint");
     const continuityResults =
       window.Ari?.continuityEntryPoint?.enter
         ? await window.Ari.continuityEntryPoint.enter({
@@ -350,8 +365,10 @@ laneSplitterExplanation:
   continuityEntryPointWarnings:
     continuityResults.warnings || []
 };
+mark("after continuityEntryPoint");
 
     // 0.29 Continuity Packet
+    mark("before continuityPacket");
     const continuityPacket =
       window.Ari?.continuityPacket?.build
         ? await window.Ari.continuityPacket.build({
@@ -412,6 +429,7 @@ laneSplitterExplanation:
   continuitySituationMapHandoff:
     continuityPacket.situationMapHandoff || {}
 };
+mark("after continuityPacket");
 
 // 0.292 Load Prior Conversation Meaning
 summary = {
@@ -433,6 +451,7 @@ summary = {
 };
 
 // 0.295 Thread Question Generator
+mark("before threadQuestionGenerator");
 const threadQuestion =
   window.Ari?.threadQuestionGenerator?.generate
     ? await window.Ari.threadQuestionGenerator.generate({ summary })
@@ -448,6 +467,7 @@ summary = {
   threadQuestion,
   ...threadQuestion
 };
+mark("after threadQuestionGenerator");
 
     // 0.30 Entity Reference Resolver
 // Only run for continuity routes. Direct current-turn messages do not need thread/entity resolution.
@@ -462,6 +482,7 @@ if (shouldRunEntityResolver) {
 
 
     // 0.35 Situation Map
+    mark("before situationMap");
     const situationMap = await runEngine(
       window.AriSituationMapEngine,
       ["build", "create"],
@@ -484,8 +505,9 @@ if (shouldRunEntityResolver) {
       situationMap,
       ...situationMap
     };
-
+mark("after situationMap");
     // 0.40 Triage Engine
+    mark("before triageEngine");
     const triageOutput = await runEngine(
       window.AriTriageEngine,
       ["run", "triage"],
@@ -516,8 +538,10 @@ if (shouldRunEntityResolver) {
       blockedLanes: triageResult.blockedLanes || [],
       responseConstraints: triageResult.responseConstraints || []
     };
+mark("after triageEngine");
 
     // 0.45 Situation Contract
+    mark("before situationContract");
     merge(await runEngine(
       window.AriSituationContract,
       ["create", "build"],
@@ -527,11 +551,13 @@ if (shouldRunEntityResolver) {
         situationContract: null
       }
     ));
+mark("after situationContract");
 
     // 0.50 Bridge Contract
+mark("before contractBridge");
     summary = this.applyContractBridge(summary);
     summary = this.reassertContractAuthority(summary);
-
+mark("after contractBridge");
 // 0.60 Ari Rebirth Developer Layer
 // Owner-only developer reasoning. Runs before normal human-needs response path
 // so app/code requests can produce developerIntent safely.
