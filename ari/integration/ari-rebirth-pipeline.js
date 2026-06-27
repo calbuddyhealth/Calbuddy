@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.8.6 — Meal Estimate Preservation Gated
+// V3.8.7 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.8.6",
+  version: "3.8.7",
 
   async run(systemSummary = {}) {
     const debugTiming = systemSummary.debugTiming === true || systemSummary.appContext?.debugTiming === true;
@@ -1317,6 +1317,44 @@ async runDeveloperLayer(summary = {}) {
   if (!ownerMode) {
     return summary;
   }
+
+const text = String(
+
+  summary.userMessage ||
+
+    summary.message ||
+
+    summary.input ||
+
+    ""
+
+);
+
+const isDeveloperRequest =
+
+  summary.conversationFunction?.developerArtifactRequest === true ||
+
+  summary.artifactModificationRequest === true ||
+
+  summary.artifactCreationRequest === true ||
+
+  summary.artifactInvestigationRequest === true ||
+
+  summary.developerArtifactRequest === true ||
+
+  summary.primaryFunction === "developer_artifact_request" ||
+
+  summary.primaryFunction === "build_or_debug_request" ||
+
+  summary.situationContractPrimary === "builder" ||
+
+  /\b(code|file|github|repo|commit|patch|function|html|css|javascript|api|engine|bug|fix|update|edit|build|implement|developer|composer|pipeline)\b/i.test(text);
+
+if (!isDeveloperRequest) {
+
+  return summary;
+
+}
 
   const runEngine = async (engine, methods = [], fallback = null) => {
     if (!engine) return fallback;
