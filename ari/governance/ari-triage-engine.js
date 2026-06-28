@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.4 — Evidence Weighted Arbitration Engine
+// V2.2.5 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.4",
+  version: "2.2.5",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -32,10 +32,10 @@ window.AriTriageEngine = {
     this.collectMetaDeveloperRoutingCandidate(summary, map, triage);
     this.collectHandoffCandidates(handoff, triage);
     this.collectSituationCandidates(map, triage);
-    this.collectUniversalCandidates(map, triage);
-    this.collectEvidenceWeightedCandidates(map, handoff, triage);
-this.collectSituationThesis(map, handoff, triage);
-   this.resolveContradictions(map, handoff, triage);
+    this.collectUniversalCandidates(map, triage, summary);
+this.collectEvidenceWeightedCandidates(map, handoff, triage);
+this.collectSituationThesis(map, handoff, triage, summary);
+this.resolveContradictions(map, handoff, triage);
 this.resolveAmbiguity(map, handoff, triage);
 this.enforceSafetyGateAuthority(safety, triage);
 
@@ -295,7 +295,7 @@ collectMetaDeveloperRoutingCandidate(summary = {}, map = {}, triage = {}) {
     this.addMany(triage.responseConstraints, map.responseConstraints || []);
   },
 
-  collectUniversalCandidates(map = {}, triage = {}) {
+  collectUniversalCandidates(map = {}, triage = {}, summary = {}) {
     const needs = map.needs || [];
     const domains = map.domains || [];
     const situations = map.situations || [];
@@ -326,16 +326,22 @@ collectMetaDeveloperRoutingCandidate(summary = {}, map = {}, triage = {}) {
     }
 
     if (
-  this.isTrueDecisionRequest(map) &&
+  this.isTrueDecisionRequest(map, summary) &&
   (
     needs.includes("decision_support") ||
     questions.includes("decision_question") ||
     situations.includes("tradeoff_or_competing_priorities")
   )
 ) {
-  this.addCandidate(triage, "executive_decision", 88, "True decision/action request detected.", "universal_need");
+  this.addCandidate(
+    triage,
+    "executive_decision",
+    88,
+    "True decision/action request detected.",
+    "universal_need"
+  );
 }
-
+  
     if (domains.includes("memory_preference_domain")) {
       this.addCandidate(triage, "memory", 90, "Memory or preference request detected.", "universal_domain");
     }
@@ -438,7 +444,7 @@ if (text.includes("urgent") || text.includes("emergency")) return "safety";
     return null;
   },
 
-  collectSituationThesis(map = {}, handoff = {}, triage = {}) {
+  collectSituationThesis(map = {}, handoff = {}, triage = {}, summary = {}) {
     const thesis =
       map.primarySituationThesis ||
       handoff.primarySituationThesis ||
@@ -483,7 +489,7 @@ if (text.includes("urgent") || text.includes("emergency")) return "safety";
 
     if (
   thesis.thesisType === "decision_under_tradeoff" &&
-  this.isTrueDecisionRequest(map)
+  this.isTrueDecisionRequest(map, summary)
 ) {
   this.addCandidate(
     triage,
@@ -610,7 +616,7 @@ if (needsClarification && !this.hasDirectAnswerRequest(map)) {
 
     if (
   (ambiguity.missing || []).includes("decision_options_or_issue") &&
-  this.isTrueDecisionRequest(map)
+  this.isTrueDecisionRequest(map, {})
 ) {
   this.addCandidate(
     triage,
@@ -865,9 +871,9 @@ isMetaDeveloperRoutingQuestion(summary = {}, map = {}) {
   );
 },
 
-isTrueDecisionRequest(map = {}) {
+isTrueDecisionRequest(map = {}, summary = {}) {
+  if (this.isMetaDeveloperRoutingQuestion(summary, map)) return false;
 
-  if (this.isMetaDeveloperRoutingQuestion({}, map)) return false;
   const text = String(map.rawUserText || map.resolvedText || map.text || "").toLowerCase();
   const questions = map.questions || [];
   const situations = map.situations || [];
