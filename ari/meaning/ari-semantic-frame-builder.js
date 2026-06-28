@@ -49,7 +49,14 @@ window.AriSemanticFrameBuilder = {
       continuityFrame,
       summary
     );
-
+const canonicalMeaning = this.buildCanonicalMeaning({
+  normalized,
+  primaryFrame,
+  continuityFrame,
+  inheritedContext,
+  responseCharacteristics,
+  summary
+});
     return {
       semanticFrameBuilderRan: true,
       semanticFrameBuilderVersion: this.version,
@@ -86,7 +93,7 @@ window.AriSemanticFrameBuilder = {
       responseCharacteristics,
       emotionalOverlay,
       ambiguity,
-
+canonicalMeaning,
       handoff: this.buildHandoff({
         normalized,
         primaryFrame,
@@ -165,33 +172,52 @@ window.AriSemanticFrameBuilder = {
     const codeLanguage =
       /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|class|script|style|component)\b/.test(text);
 
-    const artifactModificationRequest =
-      developerArtifactFromFunction ||
-      (
-        modificationVerb &&
-        (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage)
-      );
-
-    const artifactCreationRequest =
-      creationVerb && (developerNouns || layoutLanguage || codeLanguage);
-
-    const artifactInvestigationRequest =
-      investigationVerb && (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage);
-
-    const developerArtifactRequest =
-      developerArtifactFromFunction ||
-      artifactModificationRequest ||
-      artifactCreationRequest ||
-      artifactInvestigationRequest ||
-      (
-        githubEvidenceAvailable &&
-        (modificationVerb || creationVerb || investigationVerb || developerNouns)
-      );
-
-    const question =
+const question =
       n.hasQuestionMark ||
       /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
 
+    const asksMetaAboutArtifact =
+  question &&
+  /\b(why|how|what|does|will|should|is|are)\b/.test(text) &&
+  /\b(trigger|detect|distinguish|mean|affect|cause|bug|semantic|keyterm|key term|artifact modification)\b/.test(text);
+
+const explicitEditCommand =
+  /^(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable)\b/.test(text) ||
+  /\b(can you|please|let's|lets|i want you to|we need to|make it|update it|fix it|change it|replace it|add it|remove it)\b/.test(text);
+
+const artifactModificationRequest =
+  !asksMetaAboutArtifact &&
+  (
+    developerArtifactFromFunction ||
+    (
+      explicitEditCommand &&
+      modificationVerb &&
+      (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage)
+    )
+  );
+
+    const artifactCreationRequest =
+  !asksMetaAboutArtifact &&
+  creationVerb &&
+  (developerNouns || layoutLanguage || codeLanguage);
+
+const artifactInvestigationRequest =
+  !asksMetaAboutArtifact &&
+  investigationVerb &&
+  (developerNouns || githubEvidenceAvailable || layoutLanguage || codeLanguage);
+    const developerArtifactRequest =
+  !asksMetaAboutArtifact &&
+  (
+    developerArtifactFromFunction ||
+    artifactModificationRequest ||
+    artifactCreationRequest ||
+    artifactInvestigationRequest ||
+    (
+      githubEvidenceAvailable &&
+      (explicitEditCommand || creationVerb || investigationVerb)
+    )
+  );
+    
     const asksOpinion =
       /\b(what do you think|be honest|honestly|your take|your opinion|am i|should i|would you)\b/.test(text);
 
@@ -265,7 +291,8 @@ window.AriSemanticFrameBuilder = {
       artifactCreationRequest,
       artifactInvestigationRequest,
       developerArtifactRequest,
-
+asksMetaAboutArtifact,
+explicitEditCommand,
       currentTurnCompleteness,
 
       conversationFunction,
@@ -881,6 +908,99 @@ window.AriSemanticFrameBuilder = {
       evidence: pronounHits
     };
   },
+
+buildCanonicalMeaning({
+  normalized = {},
+  primaryFrame = {},
+  continuityFrame = {},
+  inheritedContext = {},
+  responseCharacteristics = {},
+  summary = {}
+} = {}) {
+  const text = normalized.text || "";
+
+  const isQuestion =
+    normalized.hasQuestionMark ||
+    /^(what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(text);
+
+  const isInstruction =
+    /^(remove|delete|hide|change|update|replace|rename|move|add|insert|fix|implement|wire|connect|disable|enable)\b/.test(text) ||
+    /\b(can you|please|let's|lets|i want you to|we need to|make it|update it|fix it|change it|replace it|add it|remove it)\b/.test(text);
+
+  const isMetaQuestion =
+    isQuestion &&
+    /\b(trigger|detect|distinguish|mean|affect|cause|bug|semantic|keyterm|key term|artifact modification|triage|situation map|frame builder|contract)\b/.test(text);
+
+  const hasDeveloperTarget =
+    /\b(code|file|engine|pipeline|github|semantic frame|frame builder|situation map|triage|contract|artifact|module|function|html|css|javascript|js)\b/.test(text);
+
+  const isArtifactModification =
+    !isMetaQuestion &&
+    isInstruction &&
+    hasDeveloperTarget;
+
+  const requestedOperation =
+    isArtifactModification
+      ? "patch"
+      : isMetaQuestion
+        ? "explain"
+        : primaryFrame.intent || "respond";
+
+  return {
+    enabled: true,
+    source: "ari-semantic-frame-builder",
+    version: this.version,
+
+    speechAct: isInstruction
+      ? "instruction"
+      : isQuestion
+        ? "question"
+        : "statement",
+
+    userGoal: isArtifactModification
+      ? "modify"
+      : isMetaQuestion
+        ? "understand"
+        : primaryFrame.intent || "respond",
+
+    requestedOperation,
+
+    targetDomain: hasDeveloperTarget
+      ? "developer"
+      : primaryFrame.domain || "general",
+
+    targetObject: {
+      type: hasDeveloperTarget ? "system_concept" : "unknown",
+      name: null,
+      filePath: null
+    },
+
+    artifactAction: {
+      isArtifactRequest: hasDeveloperTarget && (isArtifactModification || isMetaQuestion),
+      isModification: isArtifactModification,
+      isMetaQuestion,
+      requiresFileContent: isArtifactModification
+    },
+
+    responseMode: responseCharacteristics.expectsCodeOrArtifact
+      ? "code_or_artifact"
+      : responseCharacteristics.expectsDirectAnswer
+        ? "direct_answer"
+        : "normal_response",
+
+    confidence: isArtifactModification || isMetaQuestion ? 0.88 : 0.72,
+
+    evidence: [
+      isQuestion ? "question form" : null,
+      isInstruction ? "instruction form" : null,
+      isMetaQuestion ? "meta artifact/system question" : null,
+      hasDeveloperTarget ? "developer target language" : null,
+      isArtifactModification ? "explicit edit intent" : null
+    ].filter(Boolean),
+
+    authority: "semantic_description_only"
+  };
+},
 
   buildHandoff({
     normalized,
