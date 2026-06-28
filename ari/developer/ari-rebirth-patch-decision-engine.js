@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-patch-decision-engine.js
 // Ari Rebirth Patch Decision Engine
 // Purpose: Convert evidence + edit operations into safe exact GitHub patches.
-// V1.3.0 — Universal Operation Patch Builders / Evidence-Gated / Owner Approval Required
+// V1.3.1 — Universal Operation Patch Builders / Evidence-Gated / Owner Approval Required
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPatchDecisionEngine = {
-  version: "1.3.0",
+  version: "1.3.1",
 
   decide(input = {}) {
     const summary = input.summary || input || {};
@@ -76,7 +76,7 @@ window.AriRebirthPatchDecisionEngine = {
         reason:
           "Ari mapped the code, but no universal safe patch candidate could be built yet.",
         missing: "safe_patch_candidate",
-        shouldAskOwner: true
+        shouldAskOwner: !this.isExplanationOnlyRequest(summary)
       });
     }
 
@@ -618,6 +618,16 @@ window.AriRebirthPatchDecisionEngine = {
     );
   },
 
+isExplanationOnlyRequest(summary = {}) {
+  const text = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  ).toLowerCase();
+
+  return /\b(why|explain|what options|suggest|recommend|possible solutions|what do you suggest|hypothesis|diagnose|what is happening|cause)\b/i.test(text);
+},
   preview(text = "") {
     const clean = String(text || "");
     return clean.length > 240 ? `${clean.slice(0, 240)}...` : clean;
