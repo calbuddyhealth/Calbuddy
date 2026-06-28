@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.4 — Universal Developer Response Contract / Diagnostic + Findings Ready
+// V1.2.5 — Universal Developer Response Contract / Diagnostic + Findings Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.4",
+  version: "1.2.5",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -881,10 +881,13 @@ buildDeveloperExplanationIntent({
     kind: "developer_explanation",
     summary,
     understanding,
-    explanation:
-      patchDecision?.reason ||
-      selfImprovement?.summary ||
-      this.buildSummary(understanding),
+    explanation: this.buildExplanationText({
+  summary,
+  understanding,
+  codeUnderstanding,
+  patchDecision,
+  selfImprovement
+}),
     evidence: codeUnderstanding?.evidence || null,
     artifact: null,
     nextAction:
@@ -921,6 +924,43 @@ buildDeveloperExplanationIntent({
       requiresConfirmation: false
     }
   };
+},
+
+buildExplanationText({
+  summary = {},
+  understanding = null,
+  codeUnderstanding = null,
+  patchDecision = null,
+  selfImprovement = null
+} = {}) {
+  const ownerText = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  ).trim();
+
+  const blocker =
+    patchDecision?.reason ||
+    selfImprovement?.summary ||
+    "Ari could not build a safe patch from the available evidence.";
+
+  const filePath =
+    patchDecision?.filePath ||
+    codeUnderstanding?.filePath ||
+    understanding?.targetObject?.filePath ||
+    understanding?.likelyFiles?.[0] ||
+    "the relevant file";
+
+  return [
+    `Likely cause: Ari is entering the developer handoff path, but the patch engine cannot build an exact safe edit for ${filePath}.`,
+    "",
+    `The current blocker is: ${blocker}`,
+    "",
+    "That means Ari should explain the cause and options instead of forcing read/edit steps.",
+    "",
+    "Best fix: keep the safety gate for real code edits, but add a separate explanation-only path that returns a normal diagnostic answer when the owner asks why, what options exist, or what is happening."
+  ].join("\n");
 },
 
   wantsDirectFileRead(summary = {}, understanding = null) {
