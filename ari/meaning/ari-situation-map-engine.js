@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.4.1 — Advisory Situation Mapper Only
+// V8.4.3 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.4.1",
+  version: "8.4.3",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -1007,14 +1007,20 @@ readSemanticSituation(map) {
 
   if (meaning) this.add(map.situations, meaning);
 
+const isMetaRouting =
+  meaning === "meta_developer_routing_question";
+
 if (
-  domain === "developer" ||
-  [
-    "developer_artifact_request",
-    "artifact_modification_request",
-    "artifact_creation_request",
-    "artifact_investigation_request"
-  ].includes(meaning)
+  !isMetaRouting &&
+  (
+    domain === "developer" ||
+    [
+      "developer_artifact_request",
+      "artifact_modification_request",
+      "artifact_creation_request",
+      "artifact_investigation_request"
+    ].includes(meaning)
+  )
 ) {
   this.add(map.domains, "developer_artifact_domain");
   this.add(map.domains, "builder_domain");
@@ -1144,6 +1150,16 @@ if (
   this.add(map.situations, "information_seeking");
   this.add(map.needs, "understanding");
   this.add(map.domains, "knowledge_domain");
+
+// Meta routing questions are about understanding the routing,
+// not performing developer work.
+map.domains = map.domains.filter(
+  domain =>
+    ![
+      "developer_artifact_domain",
+      "builder_domain"
+    ].includes(domain)
+);
 
   map.needs = map.needs.filter(
     need =>
@@ -1897,6 +1913,20 @@ addSemanticLaneEvidence(map, addCandidate) {
   const style = this.normalize(frame.conversationStyle || handoff.conversationStyle || "");
 
   const combined = `${meaning} ${intent} ${domain} ${style}`;
+
+const isMetaRouting =
+  meaning === "meta developer routing question" ||
+  combined.includes("meta developer routing question") ||
+  combined.includes("explain developer routing behavior");
+
+if (isMetaRouting) {
+  addCandidate(
+    "teacher",
+    92,
+    "Semantic frame indicates a meta routing explanation question, not a code edit."
+  );
+  return;
+}
 
 if (
   domain.includes("developer") ||
