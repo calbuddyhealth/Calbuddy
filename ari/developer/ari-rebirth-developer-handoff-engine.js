@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.3 — Universal Developer Response Contract / Diagnostic + Findings Ready
+// V1.2.4 — Universal Developer Response Contract / Diagnostic + Findings Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.3",
+  version: "1.2.4",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -119,6 +119,18 @@ if (this.wantsDeveloperDiagnosis(summary, understanding)) {
         );
       }
     }
+
+if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patchDecision)) {
+  return this.lockHandoff(
+    this.buildDeveloperExplanationIntent({
+      summary,
+      understanding,
+      codeUnderstanding,
+      patchDecision,
+      selfImprovement
+    })
+  );
+}
 
     if (codeEvidence?.steps?.length) {
       return this.lockHandoff(
@@ -614,6 +626,14 @@ if (artifact?.type === "diagnostic_summary") {
       ].join("\n");
     }
 
+if (developerResponse.kind === "developer_explanation") {
+  return [
+    explanation,
+    "",
+    nextAction
+  ].filter(Boolean).join("\n");
+}
+
     return [
       explanation,
       "",
@@ -817,6 +837,88 @@ buildDeveloperDiagnosticIntent({
       diagnosticOnly: true,
       readBeforeEdit: true,
       neverGuessFindText: true
+    }
+  };
+},
+
+canExplainWithoutPatch(summary = {}, understanding = null, codeUnderstanding = null, patchDecision = null) {
+  const text = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  ).toLowerCase();
+
+  const asksForExplanation =
+    /\b(why|explain|what options|suggest|recommend|possible solutions|what do you suggest|hypothesis|diagnose|what is happening)\b/i.test(text);
+
+  const hasDeveloperContext =
+    understanding?.isDeveloperWork === true ||
+    summary.developerArtifactRequest === true ||
+    summary.primaryFunction === "developer_artifact_request" ||
+    summary.situationContractPrimary === "builder";
+
+  const patchBlockedButInformative =
+    patchDecision &&
+    patchDecision.canPatchNow !== true &&
+    patchDecision.reason;
+
+  return Boolean(
+    hasDeveloperContext &&
+    asksForExplanation &&
+    patchBlockedButInformative
+  );
+},
+
+buildDeveloperExplanationIntent({
+  summary = {},
+  understanding = null,
+  codeUnderstanding = null,
+  patchDecision = null,
+  selfImprovement = null
+} = {}) {
+  const developerResponse = this.buildDeveloperResponse({
+    kind: "developer_explanation",
+    summary,
+    understanding,
+    explanation:
+      patchDecision?.reason ||
+      selfImprovement?.summary ||
+      this.buildSummary(understanding),
+    evidence: codeUnderstanding?.evidence || null,
+    artifact: null,
+    nextAction:
+      "Explain the likely cause and options. Do not force a read/edit step unless the owner asks to patch.",
+    confidence: "medium_high"
+  });
+
+  return {
+    enabled: true,
+    type: "developer_explanation",
+    source: "ari-rebirth-developer-handoff-engine",
+    handoffVersion: this.version,
+
+    title: this.buildTitle(understanding, "Developer explanation"),
+    summary:
+      "Ari can explain the developer issue without preparing an edit yet.",
+
+    priority: this.inferPriority(understanding),
+    ownerCommand: true,
+
+    canEditNow: false,
+    requiresReadBeforeEdit: false,
+
+    developerResponse,
+
+    codeUnderstanding,
+    patchDecision,
+    selfImprovement,
+
+    safety: {
+      ownerRequired: true,
+      directWriteAllowed: false,
+      explanationOnly: true,
+      requiresConfirmation: false
     }
   };
 },
