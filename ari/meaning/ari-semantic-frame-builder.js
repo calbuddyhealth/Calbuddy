@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V2.1.2 — Canonical Meaning Handoff Authority
+// V2.1.4 — Meta Question Safe / Canonical Response Mode Stable
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "2.1.2",
+  version: "2.1.4",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -34,12 +34,21 @@ window.AriSemanticFrameBuilder = {
 
     const primaryFrame = this.selectPrimaryFrame(allFrames, normalized, continuityFrame);
 
-    const responseCharacteristics = this.buildResponseCharacteristics(
-      normalized,
-      primaryFrame,
-      continuityFrame,
-      summary
-    );
+    const canonicalMeaning = this.buildCanonicalMeaning({
+  normalized,
+  primaryFrame,
+  continuityFrame,
+  inheritedContext,
+  summary
+});
+
+const responseCharacteristics = this.buildResponseCharacteristics(
+  normalized,
+  primaryFrame,
+  continuityFrame,
+  summary,
+  canonicalMeaning
+);
 
     const emotionalOverlay = this.buildEmotionalOverlay(normalized);
 
@@ -49,14 +58,7 @@ window.AriSemanticFrameBuilder = {
       continuityFrame,
       summary
     );
-const canonicalMeaning = this.buildCanonicalMeaning({
-  normalized,
-  primaryFrame,
-  continuityFrame,
-  inheritedContext,
-  responseCharacteristics,
-  summary
-});
+
     return {
       semanticFrameBuilderRan: true,
       semanticFrameBuilderVersion: this.version,
@@ -372,7 +374,7 @@ explicitEditCommand,
       });
     }
 
-    if (f.asksAction && f.buildContext && !f.developerArtifactRequest) {
+    if (f.asksAction && f.buildContext && !f.developerArtifactRequest && !f.asksMetaAboutArtifact) {
       this.pushFrame(frames, {
         frameType: "collaborative_software_build",
         domain: "ari_architecture",
@@ -383,7 +385,7 @@ explicitEditCommand,
       });
     }
 
-    if (f.hasProblem && f.buildContext && !f.developerArtifactRequest) {
+    if (f.hasProblem && f.buildContext && !f.developerArtifactRequest && !f.asksMetaAboutArtifact) {
       this.pushFrame(frames, {
         frameType: "debugging_or_root_cause",
         domain: "system_behavior",
@@ -770,7 +772,7 @@ explicitEditCommand,
     };
   },
 
-  buildResponseCharacteristics(n, primaryFrame, continuityFrame, summary = {}) {
+  buildResponseCharacteristics(n, primaryFrame, continuityFrame, summary = {}, canonicalMeaning = null) {
     const text = n.text;
 
     const directQuestion =
@@ -804,21 +806,7 @@ explicitEditCommand,
       summary.githubEvidenceAvailable === true;
 
     const expectsCodeOrArtifact =
-      developerFrames.includes(primaryFrame.frameType) ||
-      hasGithubContext ||
-      this.findWordHits(text, [
-        "code",
-        "file",
-        "script",
-        "module",
-        "html",
-        "css",
-        "javascript",
-        "homepage",
-        "layout",
-        "button",
-        "tile"
-      ]).length > 0;
+  canonicalMeaning?.responseMode === "code_or_artifact";
 
     return {
       expectsDirectAnswer: directQuestion || developerFrames.includes(primaryFrame.frameType),
@@ -914,7 +902,6 @@ buildCanonicalMeaning({
   primaryFrame = {},
   continuityFrame = {},
   inheritedContext = {},
-  responseCharacteristics = {},
   summary = {}
 } = {}) {
   const text = normalized.text || "";
@@ -929,7 +916,7 @@ buildCanonicalMeaning({
 
   const isMetaQuestion =
     isQuestion &&
-    /\b(trigger|detect|distinguish|mean|affect|cause|bug|semantic|keyterm|key term|artifact modification|triage|situation map|frame builder|contract)\b/.test(text);
+    /\b(trigger|detect|distinguish|mean|affect|cause|bug|semantic|keyterm|key term|artifact modification|triage|situation map|frame builder|contract|canonical meaning)\b/.test(text);
 
   const hasDeveloperTarget =
     /\b(code|file|engine|pipeline|github|semantic frame|frame builder|situation map|triage|contract|artifact|module|function|html|css|javascript|js)\b/.test(text);
@@ -982,13 +969,11 @@ buildCanonicalMeaning({
       requiresFileContent: isArtifactModification
     },
 
-    responseMode: isMetaQuestion
-  ? "direct_answer"
-  : responseCharacteristics.expectsCodeOrArtifact
-    ? "code_or_artifact"
-      : responseCharacteristics.expectsDirectAnswer
-        ? "direct_answer"
-        : "normal_response",
+    responseMode: isArtifactModification
+  ? "code_or_artifact"
+  : isQuestion || isMetaQuestion
+    ? "direct_answer"
+    : "normal_response",
 
     confidence: isArtifactModification || isMetaQuestion ? 0.88 : 0.72,
 
