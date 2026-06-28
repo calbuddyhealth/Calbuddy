@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.5 — Evidence Weighted Arbitration Engine
+// V2.2.6 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.5",
+  version: "2.2.6",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -36,7 +36,7 @@ window.AriTriageEngine = {
 this.collectEvidenceWeightedCandidates(map, handoff, triage);
 this.collectSituationThesis(map, handoff, triage, summary);
 this.resolveContradictions(map, handoff, triage);
-this.resolveAmbiguity(map, handoff, triage);
+this.resolveAmbiguity(map, handoff, triage, summary);
 this.enforceSafetyGateAuthority(safety, triage);
 
 this.arbitrate(triage);
@@ -583,7 +583,7 @@ if (text.includes("urgent") || text.includes("emergency")) return "safety";
     });
   },
 
-  resolveAmbiguity(map = {}, handoff = {}, triage = {}) {
+  resolveAmbiguity(map = {}, handoff = {}, triage = {}, summary = {}) {
     const ambiguity = handoff.ambiguity || map.ambiguity || null;
     if (!ambiguity || !ambiguity.present) return;
 
@@ -616,7 +616,7 @@ if (needsClarification && !this.hasDirectAnswerRequest(map)) {
 
     if (
   (ambiguity.missing || []).includes("decision_options_or_issue") &&
-  this.isTrueDecisionRequest(map, {})
+  this.isTrueDecisionRequest(map, summary)
 ) {
   this.addCandidate(
     triage,
