@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-code-understanding-engine.js
 // Purpose: Read developer evidence and build code-level meaning for safe patch decisions.
-// V1.2.0 — Patch Intent Aware / Edit Operation Mapping / Evidence Before Patch
+// V1.2.1 — Patch Intent Aware / Edit Operation Mapping / Evidence Before Patch
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthCodeUnderstandingEngine = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -63,6 +63,7 @@ window.AriRebirthCodeUnderstandingEngine = {
       developerUnderstanding?.primaryEditOperation ||
       editOperations[0] ||
       null;
+const explanationOnlyRequest = this.isExplanationOnlyRequest(summary);
 
     console.log("CODE UNDERSTANDING EVIDENCE:", {
       filePath,
@@ -70,7 +71,8 @@ window.AriRebirthCodeUnderstandingEngine = {
       githubEvidence: Boolean(summary.githubEvidence),
       contentLength: content.length,
       editOperationCount: editOperations.length,
-      primaryEditOperation
+      primaryEditOperation,
+      explanationOnlyRequest
     });
 
     if (!content.trim()) {
@@ -85,6 +87,7 @@ window.AriRebirthCodeUnderstandingEngine = {
         patchIntent,
         editOperations,
         primaryEditOperation,
+        explanationOnlyRequest,
         requiredNextStep: {
           tool: "github_read",
           filePath,
@@ -119,6 +122,7 @@ window.AriRebirthCodeUnderstandingEngine = {
       patchIntent,
       editOperations,
       primaryEditOperation,
+      explanationOnlyRequest,
 
       importantSections: map.importantSections,
       semanticInventory: map.semanticInventory,
@@ -138,6 +142,7 @@ window.AriRebirthCodeUnderstandingEngine = {
         patchIntent,
         editOperations,
         primaryEditOperation,
+        explanationOnlyRequest,
         bestZones: map.likelyChangeZones.slice(0, 8),
         candidates: map.safeEditCandidates.slice(0, 8),
         requireExactFindText: true,
@@ -947,6 +952,17 @@ window.AriRebirthCodeUnderstandingEngine = {
       bestZone
     };
   },
+
+isExplanationOnlyRequest(summary = {}) {
+  const text = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  ).toLowerCase();
+
+  return /\b(why|explain|what options|suggest|recommend|possible solutions|what do you suggest|hypothesis|diagnose|what is happening|cause|what is causing|what will it solve)\b/i.test(text);
+},
 
   dedupeByKey(items = [], key = "") {
     const seen = new Set();
