@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.4.0 — Advisory Situation Mapper Only
+// V8.4.1 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.4.0",
+  version: "8.4.1",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -96,11 +96,12 @@ build(input = {}) {
   this.collectUpstreamSignals(map);
   this.readSemanticSituation(map);
   this.detectQuestions(map);
-  this.detectDomains(map);
+ 
+   this.detectDomains(map);
   this.detectSituations(map);
   this.detectRisks(map);
   this.detectNeeds(map);
-
+this.detectMetaDeveloperRouting(map);
 this.detectCompetingSituations(map);
 this.detectResponseRequirements(map);
 this.scoreMap(map);
@@ -1062,6 +1063,7 @@ if (
 },
 
   detectQuestions(map) {
+    
     const observations = map.observationsUsed || [];
     const thread = map.threadUnderstandingUsed || {};
     const conversation = map.conversationClassificationUsed || {};
@@ -1112,6 +1114,77 @@ if (
       this.add(map.questions, "implicit_question_or_statement");
     }
   },
+   
+    detectMetaDeveloperRouting(map) {
+  const text = map.rawText || "";
+  const conversation = map.conversationClassificationUsed || {};
+
+  const conversationType =
+    conversation.conversationType ||
+    map.conversationType ||
+    "";
+
+  const conversationIntent =
+    conversation.conversationIntent ||
+    map.conversationIntent ||
+    "";
+
+  const isMetaDeveloperRouting =
+    conversationType === "meta_developer_routing_question" ||
+    conversationIntent === "explain_developer_routing_behavior" ||
+    (
+      /\b(should ari|should it|does it|will it|would it|can it)\b/.test(text) &&
+      /\b(trigger|detect|classify|route|routing|semantic|artifact modification|file context|developer request|treat)\b/.test(text)
+    );
+
+  if (!isMetaDeveloperRouting) return;
+
+  this.add(map.questions, "meta_developer_routing_question");
+  this.add(map.situations, "meta_developer_routing_question");
+  this.add(map.situations, "information_seeking");
+  this.add(map.needs, "understanding");
+  this.add(map.domains, "knowledge_domain");
+
+  map.needs = map.needs.filter(
+    need =>
+      ![
+        "decision_support",
+        "action_or_build_help",
+        "developer_artifact_operation"
+      ].includes(need)
+  );
+
+  map.situations = map.situations.filter(
+    situation =>
+      ![
+        "tradeoff_or_competing_priorities",
+        "building_or_debugging_context",
+        "developer_artifact_request",
+        "artifact_modification_request"
+      ].includes(situation)
+  );
+
+  map.responseRequirements = map.responseRequirements.filter(
+    req =>
+      ![
+        "decision_framework",
+        "step_by_step_action",
+        "use_artifact_context",
+        "produce_code_or_patch"
+      ].includes(req)
+  );
+
+  this.add(map.responseRequirements, "clear_explanation");
+  this.add(map.responseConstraints, "answer_directly");
+  this.add(map.responseConstraints, "explain_routing_behavior");
+  this.add(map.responseConstraints, "do_not_route_meta_question_as_builder");
+  this.add(map.responseConstraints, "do_not_route_meta_question_as_executive_decision");
+
+  map.reasons.push(
+    "Meta developer routing question detected; builder and decision signals downgraded to context."
+  );
+},
+     
     detectDomains(map) {
     const observations = map.observationsUsed || [];
     const safetyGate = map.safetyGateUsed || {};
@@ -2110,6 +2183,29 @@ if (map.risks.includes("confirmed_urgent_risk")) {
     const hasQuestion = question => map.questions.includes(question);
 
     const semantic = this.getSemanticThesisSignals(map);
+if (hasQuestion("meta_developer_routing_question")) {
+  addThesis({
+    thesisType: "direct_information_or_explanation_request",
+    oneLine:
+      "The user is asking how Ari should classify or route a developer-related message.",
+    coreConflict:
+      "developer keywords are present, but the user is asking about routing behavior, not requesting a code edit.",
+    userNeed: "direct routing explanation",
+    bestResponse:
+      "Answer directly as a routing/classification explanation and do not treat it as an artifact operation.",
+    score: 98,
+    confidence: 0.94,
+    evidenceConcepts: [
+      "meta_developer_routing_question",
+      "understanding",
+      "knowledge_domain",
+      "clear_explanation",
+      "explain_routing_behavior",
+      "do_not_route_meta_question_as_builder"
+    ]
+  });
+}
+
 
     // 1. Safety / medical first
     if (
