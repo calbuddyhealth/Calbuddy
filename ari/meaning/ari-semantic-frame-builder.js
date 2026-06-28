@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V2.1.1 — Developer Artifact Meaning / GitHub Context Aware / Current Turn First
+// V2.1.2 — Canonical Meaning Handoff Authority
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "2.1.1",
+  version: "2.1.2",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -100,7 +100,8 @@ canonicalMeaning,
         continuityFrame,
         inheritedContext,
         responseCharacteristics,
-        ambiguity
+        ambiguity,
+        canonicalMeaning
       }),
 
       semanticSummary: this.buildSemanticSummary({
@@ -1009,7 +1010,8 @@ buildCanonicalMeaning({
     continuityFrame,
     inheritedContext,
     responseCharacteristics,
-    ambiguity
+    ambiguity,
+    canonicalMeaning = null
   }) {
     return {
       currentQuestion: normalized.original,
@@ -1027,13 +1029,19 @@ buildCanonicalMeaning({
         ? inheritedContext.previousAnswerSummary
         : null,
 
-      responseMode: responseCharacteristics.expectsCodeOrArtifact
-        ? "code_or_artifact"
-        : responseCharacteristics.expectsCollaboration
-          ? "collaborative_action"
-          : responseCharacteristics.expectsDirectAnswer
-            ? "direct_answer"
-            : "normal_response",
+      responseMode: canonicalMeaning?.responseMode ||
+  (
+    responseCharacteristics.expectsCodeOrArtifact
+      ? "code_or_artifact"
+      : responseCharacteristics.expectsCollaboration
+        ? "collaborative_action"
+        : responseCharacteristics.expectsDirectAnswer
+          ? "direct_answer"
+          : "normal_response"
+  ),
+canonicalMeaning,
+requestedOperation: canonicalMeaning?.requestedOperation || null,
+artifactAction: canonicalMeaning?.artifactAction || null,
 
       ambiguityPresent: ambiguity.present,
 
