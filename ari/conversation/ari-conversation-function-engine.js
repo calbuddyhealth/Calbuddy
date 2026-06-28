@@ -1,12 +1,12 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.1.4 — Developer Artifact Detection / Layout Command Ready / Advisory Only
+// V2.1.6 — Developer Artifact Detection / Layout Command Ready / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.1.4",
+  version: "2.1.6",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
@@ -123,9 +123,19 @@ const explicitDeveloperTarget =
 const explicitDeveloperAction =
   /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch)\b/.test(text);
 
-const translationOrQuoteRequest =
-  /\b(translate|translation|bible verse|verse|quote|scripture|what does this mean|interpret this)\b/.test(text);
+const hasQuestion =
+      text.includes("?") ||
+      this.hasType(observations, "question_phrase") ||
+      this.hasType(observations, "question_mark_count") ||
+      /^(what|why|how|when|where|who|is|are|do|does|can|should|would|could)\b/.test(text) ||
+      /\b(i don'?t know why|not sure why|why would|why did|why is|why was|could it be|does that mean|is it because)\b/.test(text);
 
+const translationOrQuoteRequest =
+  /\b(translate|translation|bible verse|scripture|what does this mean|interpret this|what does this say|what is this saying)\b/.test(text);
+
+const metaDeveloperQuestion =
+  hasQuestion &&
+  /\b(should ari|should it|does it|will it|would it|trigger|treat|detect|semantic|keyterm|artifact modification|file context)\b/.test(text);
 
 const humanLifeContext =
   /\b(career|family|freedom|regret|ambition|ego|wise|choice|responsible|stable career|betting on myself)\b/.test(text);
@@ -141,6 +151,7 @@ const hasLoadedDeveloperArtifact =
 
 const confirmedDeveloperRequest =
   !translationOrQuoteRequest &&
+  !metaDeveloperQuestion &&
   !humanLifeContext &&
   developerAction &&
   (
@@ -168,13 +179,7 @@ const developerArtifactRequest =
   artifactCreationRequest ||
   artifactInvestigationRequest;
 
-    const hasQuestion =
-      text.includes("?") ||
-      this.hasType(observations, "question_phrase") ||
-      this.hasType(observations, "question_mark_count") ||
-      /^(what|why|how|when|where|who|is|are|do|does|can|should|would|could)\b/.test(text) ||
-      /\b(i don'?t know why|not sure why|why would|why did|why is|why was|could it be|does that mean|is it because)\b/.test(text);
-
+    
 const languageOrInterpretationRequest =
   /\b(translate|translation|bible verse|verse|quote|scripture|meaning|interpret|what does this mean)\b/.test(text);
 
@@ -194,8 +199,11 @@ const quotedOrImportedText =
   /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because)\b/.test(text);
 
     const actionRequest =
-      developerArtifactRequest ||
-      /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement)\b/.test(text);
+  developerArtifactRequest ||
+  (
+    !metaDeveloperQuestion &&
+    /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement)\b/.test(text)
+  );
 
     const decisionNeeded =
       /\b(should i|should we|which one|which option|better|choose|decide|worth it|pros and cons|compare|best move|recommend|do i|do we)\b/.test(text) ||
@@ -218,8 +226,11 @@ const quotedOrImportedText =
       /\b(not trying to fix|don'?t fix|just listen|just venting|that'?s all|i only want|i don'?t want advice|no advice)\b/.test(text);
 
     const buildContext =
-      developerArtifactRequest ||
-      /\b(code|file|bug|error|debug|fix this|not working|function|engine|pipeline|github|vercel|supabase|javascript|html|css)\b/.test(text);
+  developerArtifactRequest ||
+  (
+    !metaDeveloperQuestion &&
+    /\b(code|file|bug|error|debug|fix this|not working|function|engine|pipeline|github|vercel|supabase|javascript|html|css)\b/.test(text)
+  );
 
     const medicalContext =
   !quotedOrImportedText &&
