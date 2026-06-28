@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V2.1.0 — Developer Artifact Meaning / GitHub Context Aware / Current Turn First
+// V2.1.1 — Developer Artifact Meaning / GitHub Context Aware / Current Turn First
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -179,8 +179,7 @@ const question =
     const asksMetaAboutArtifact =
   question &&
   /\b(why|how|what|does|will|should|is|are)\b/.test(text) &&
-  /\b(trigger|detect|distinguish|mean|affect|cause|bug|semantic|keyterm|key term|artifact modification)\b/.test(text);
-
+  /\b(trigger|detect|distinguish|mean|affect|cause|bug|semantic|keyterm|key term|artifact modification|triage|situation map|frame builder|contract|canonical meaning)\b/.test(text);
 const explicitEditCommand =
   /^(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable)\b/.test(text) ||
   /\b(can you|please|let's|lets|i want you to|we need to|make it|update it|fix it|change it|replace it|add it|remove it)\b/.test(text);
@@ -976,14 +975,16 @@ buildCanonicalMeaning({
     },
 
     artifactAction: {
-      isArtifactRequest: hasDeveloperTarget && (isArtifactModification || isMetaQuestion),
+      isArtifactRequest: isArtifactModification,
       isModification: isArtifactModification,
       isMetaQuestion,
       requiresFileContent: isArtifactModification
     },
 
-    responseMode: responseCharacteristics.expectsCodeOrArtifact
-      ? "code_or_artifact"
+    responseMode: isMetaQuestion
+  ? "direct_answer"
+  : responseCharacteristics.expectsCodeOrArtifact
+    ? "code_or_artifact"
       : responseCharacteristics.expectsDirectAnswer
         ? "direct_answer"
         : "normal_response",
