@@ -29,6 +29,7 @@ window.AriTriageEngine = {
 
     this.collectSafetyCandidate(safety, triage);
     this.collectConversationFunctionCandidate(summary, triage);
+    this.collectMetaDeveloperRoutingCandidate(summary, map, triage);
     this.collectHandoffCandidates(handoff, triage);
     this.collectSituationCandidates(map, triage);
     this.collectUniversalCandidates(map, triage);
@@ -230,6 +231,27 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
     this.add(triage.responseConstraints, "emotional_presence_first");
     this.add(triage.responseConstraints, "do_not_jump_to_builder_or_teacher");
   }
+},
+
+collectMetaDeveloperRoutingCandidate(summary = {}, map = {}, triage = {}) {
+  if (!this.isMetaDeveloperRoutingQuestion(summary, map)) return;
+
+  this.addCandidate(
+    triage,
+    "teacher",
+    96,
+    "Meta developer routing question detected; answer as explanation, not artifact operation or decision.",
+    "triage_meta_developer_guard"
+  );
+
+  this.add(triage.responseConstraints, "answer_directly");
+  this.add(triage.responseConstraints, "explain_routing_behavior");
+  this.add(triage.responseConstraints, "do_not_route_meta_question_as_builder");
+  this.add(triage.responseConstraints, "do_not_route_meta_question_as_executive_decision");
+
+  triage.audit.notes.push(
+    "Meta developer routing guard applied; teacher lane preferred."
+  );
 },
 
   collectHandoffCandidates(handoff = {}, triage = {}) {
@@ -808,7 +830,44 @@ enforceSafetyGateAuthority(safety = {}, triage = {}) {
     return n > 1 ? n / 100 : n;
   },
 
+isMetaDeveloperRoutingQuestion(summary = {}, map = {}) {
+  const text = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    map.rawUserText ||
+    map.resolvedText ||
+    map.text ||
+    ""
+  ).toLowerCase();
+
+  const questions = map.questions || [];
+  const classifierType =
+    summary.conversationType ||
+    summary.universalConversationClassifier?.conversationType ||
+    summary.classifier?.conversationType ||
+    "";
+
+  const functionIntent =
+    summary.conversationIntent ||
+    summary.universalConversationClassifier?.conversationIntent ||
+    summary.classifier?.conversationIntent ||
+    "";
+
+  return (
+    questions.includes("meta_developer_routing_question") ||
+    classifierType === "meta_developer_routing_question" ||
+    functionIntent === "explain_developer_routing_behavior" ||
+    (
+      /\b(should ari|should it|does it|will it|would it|can it)\b/.test(text) &&
+      /\b(trigger|detect|classify|route|routing|semantic|artifact modification|file context|developer request|treat)\b/.test(text)
+    )
+  );
+},
+
 isTrueDecisionRequest(map = {}) {
+
+  if (this.isMetaDeveloperRoutingQuestion({}, map)) return false;
   const text = String(map.rawUserText || map.resolvedText || map.text || "").toLowerCase();
   const questions = map.questions || [];
   const situations = map.situations || [];
