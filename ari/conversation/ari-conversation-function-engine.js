@@ -1,12 +1,12 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.1.3 — Developer Artifact Detection / Layout Command Ready / Advisory Only
+// V2.1.4 — Developer Artifact Detection / Layout Command Ready / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.1.3",
+  version: "2.1.4",
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
@@ -136,9 +136,18 @@ const developerObject =
 const developerAction =
   /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch)\b/.test(text);
 
-const confirmedDeveloperRequest =
-  developerObject && developerAction && !humanLifeContext;
+const hasLoadedDeveloperArtifact =
+  githubEvidenceAvailable === true;
 
+const confirmedDeveloperRequest =
+  !translationOrQuoteRequest &&
+  !humanLifeContext &&
+  developerAction &&
+  (
+    developerObject ||
+    explicitDeveloperTarget ||
+    hasLoadedDeveloperArtifact
+  );
 const artifactModificationRequest =
   !translationOrQuoteRequest &&
   confirmedDeveloperRequest &&
@@ -242,9 +251,7 @@ const creative =
       );
 
     const expectsCodeOrArtifact =
-      developerArtifactRequest ||
-      /\b(send code|full code|updated code|patch|html|css|javascript|file|replace this|update it|change it)\b/.test(text);
-
+  developerArtifactRequest;
     let emotionalWeight = "none";
     if (emotionPresent || directEmotionDisclosure) emotionalWeight = "medium";
     if (
