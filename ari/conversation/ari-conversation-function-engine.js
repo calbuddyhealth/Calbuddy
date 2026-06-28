@@ -1,12 +1,83 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.1.6 — Developer Artifact Detection / Layout Command Ready / Advisory Only
+// V2.1.9 — Evidence-Weighted Developer Artifact Detection / Meta Question Safe / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.1.6",
+  version: "2.1.9",
+
+  patterns: {
+    developerNouns:
+      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|interface|html|css|javascript|js|file|code|function|engine|pipeline|github|vercel|supabase|index\.html|style|class|element|div|container|modal|menu|tab|navbar|dashboard|meter|search bar|input|form|repo|repository|codebase|api)\b/,
+
+    developerAction:
+      /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch|implement|wire|connect|load|disable|enable)\b/,
+
+    modificationVerb:
+      /\b(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|make|turn|switch|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable|edit|patch)\b/,
+
+    creationVerb:
+      /\b(create|build|make|generate|design|add new|set up|scaffold)\b/,
+
+    investigationVerb:
+      /\b(debug|inspect|check|find|figure out|why is|why isn't|why does|not working|broken|issue|bug|error|failing)\b/,
+
+    layoutLanguage:
+      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|bottom tabs|top bar|search bar|meter|dashboard|profile button|hamburger|greeting box|action grid)\b/,
+
+    codeLanguage:
+      /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|class|script|style|component|api|repo|repository)\b/,
+
+    languageRequest:
+      /\b(translate|translation|bible verse|verse|quote|scripture|meaning|interpret|interpret this|what does this mean|what does this say|what is this saying)\b/,
+
+    metaDeveloperQuestion:
+      /\b(should ari|should it|does it|will it|would it|can it|trigger|detect|classify|identify|semantic|keyword|keyterm|routing|conversation function|artifact modification|file context|developer request|treat this|treat it)\b/,
+
+    humanLifeContext:
+      /\b(career|family|freedom|regret|ambition|ego|wise|choice|responsible|stable career|betting on myself)\b/,
+
+    directAnswer:
+      /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because)\b/,
+
+    actionRequest:
+      /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement)\b/,
+
+    decision:
+      /\b(should i|should we|which one|which option|better|choose|decide|worth it|pros and cons|compare|best move|recommend|do i|do we)\b/,
+
+    relationship:
+      /\b(wife|husband|spouse|partner|girlfriend|boyfriend|family|kid|kids|child|children|father|mother|mom|dad)\b/,
+
+    emotion:
+      /\b(sad|mad|angry|hurt|upset|bothered|worried|scared|anxious|stressed|overwhelmed|agitated|frustrated|lonely|depressed)\b/,
+
+    directEmotion:
+      /\b(i'?m|i am|i feel|i felt|feeling|felt)\s+(sad|mad|angry|hurt|upset|worried|scared|anxious|stressed|overwhelmed|lonely|depressed|frustrated)\b|\b(that bothered me|it bothered me|i was bothered|i got upset|i am upset|i'm upset)\b/,
+
+    boundary:
+      /\b(not trying to fix|don'?t fix|just listen|just venting|that'?s all|i only want|i don'?t want advice|no advice)\b/,
+
+    medical:
+      /\b(pain|fever|bleeding|pregnant|chest|breathing|faint|vomit|diarrhea|swallow|cough|stroke|seizure)\b/,
+
+    memoryOrIdentity:
+      /\b(remember|forget|save this|from now on|who are you|what are you|ari)\b/,
+
+    creative:
+      /\b(generate|create|draw|design|image|picture|logo|name ideas|write a story)\b/,
+
+    correction:
+      /\b(i mean|i meant|i ment|no,?\s*i mean|not that|rather|instead)\b/,
+
+    shortFollowUp:
+      /\b(this|that|it|they|them|same|one|what about|then what|next|continue|why)\b/,
+
+    urgentSafety:
+      /\b(suicide|kill myself|hurt myself|chest pain|shortness of breath|bleeding|stroke|fainting|seizure|emergency)\b/
+  },
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
@@ -67,9 +138,12 @@ window.AriConversationFunctionEngine = {
       artifactInvestigationRequest: signals.artifactInvestigationRequest,
       githubEvidenceAvailable: signals.githubEvidenceAvailable,
       expectsCodeOrArtifact: signals.expectsCodeOrArtifact,
-languageOrInterpretationRequest: signals.languageOrInterpretationRequest,
-languageTeacherRequest: signals.languageTeacherRequest,
+
+      languageOrInterpretationRequest: signals.languageOrInterpretationRequest,
+      languageTeacherRequest: signals.languageTeacherRequest,
       quotedOrImportedText: signals.quotedOrImportedText,
+      metaDeveloperQuestion: signals.metaDeveloperQuestion,
+
       authority: "advisory_conversation_function_only",
       cannotSet: [
         "primaryLane",
@@ -96,173 +170,140 @@ languageTeacherRequest: signals.languageTeacherRequest,
       ) ||
       summary.githubEvidenceAvailable === true;
 
-    const developerNouns =
-      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|interface|html|css|javascript|js|file|code|function|engine|pipeline|github|vercel|supabase|index\.html|style|class|element|div|container|modal|menu|tab|navbar|dashboard|meter|search bar|input|form)\b/.test(text);
-
-    const modificationVerb =
-      /\b(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|make|turn|switch|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable)\b/.test(text);
-
-    const creationVerb =
-      /\b(create|build|make|generate|design|add new|set up|scaffold)\b/.test(text);
-
-    const investigationVerb =
-      /\b(debug|inspect|check|find|figure out|why is|why isn't|why does|not working|broken|issue|bug|error|failing)\b/.test(text);
-
-    const layoutLanguage =
-      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|bottom tabs|top bar|search bar|meter|dashboard|profile button|hamburger|greeting box|action grid)\b/.test(text);
-
-    const codeLanguage =
-      /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|class|script|style|component)\b/.test(text);
-
-const explicitDeveloperTarget =
-  developerNouns ||
-  layoutLanguage ||
-  codeLanguage ||
-  /\b(repo|repository|github|file path|source file|app file|this file|the file|codebase)\b/.test(text);
-
-const explicitDeveloperAction =
-  /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch)\b/.test(text);
-
-const hasQuestion =
+    const hasQuestion =
       text.includes("?") ||
       this.hasType(observations, "question_phrase") ||
       this.hasType(observations, "question_mark_count") ||
       /^(what|why|how|when|where|who|is|are|do|does|can|should|would|could)\b/.test(text) ||
       /\b(i don'?t know why|not sure why|why would|why did|why is|why was|could it be|does that mean|is it because)\b/.test(text);
 
-const translationOrQuoteRequest =
-  /\b(translate|translation|bible verse|scripture|what does this mean|interpret this|what does this say|what is this saying)\b/.test(text);
+    const developerNouns = this.patterns.developerNouns.test(text);
+    const developerAction = this.patterns.developerAction.test(text);
+    const modificationVerb = this.patterns.modificationVerb.test(text);
+    const creationVerb = this.patterns.creationVerb.test(text);
+    const investigationVerb = this.patterns.investigationVerb.test(text);
+    const layoutLanguage = this.patterns.layoutLanguage.test(text);
+    const codeLanguage = this.patterns.codeLanguage.test(text);
 
-const metaDeveloperQuestion =
-  hasQuestion &&
-  /\b(should ari|should it|does it|will it|would it|trigger|treat|detect|semantic|keyterm|artifact modification|file context)\b/.test(text);
+    const languageOrInterpretationRequest = this.patterns.languageRequest.test(text);
+    const languageTeacherRequest = languageOrInterpretationRequest;
+    const translationOrQuoteRequest = languageOrInterpretationRequest;
 
-const humanLifeContext =
-  /\b(career|family|freedom|regret|ambition|ego|wise|choice|responsible|stable career|betting on myself)\b/.test(text);
+    const quotedOrImportedText =
+      languageTeacherRequest ||
+      /["“”‘’].{8,}["“”‘’]/.test(text);
 
-const developerObject =
-  /\b(code|file|repo|repository|github|html|css|javascript|js|component|page|engine|pipeline|function|class|api|supabase|vercel)\b/.test(text);
+    const metaDeveloperQuestion =
+      hasQuestion &&
+      this.patterns.metaDeveloperQuestion.test(text) &&
+      (developerNouns || codeLanguage || layoutLanguage || /\b(ari|artifact|developer|file context|semantic|routing)\b/.test(text));
 
-const developerAction =
-  /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch)\b/.test(text);
+    const humanLifeContext = this.patterns.humanLifeContext.test(text);
 
-const hasLoadedDeveloperArtifact =
-  githubEvidenceAvailable === true;
+    const explicitDeveloperTarget =
+      developerNouns ||
+      layoutLanguage ||
+      codeLanguage ||
+      /\b(repo|repository|github|file path|source file|app file|this file|the file|codebase)\b/.test(text);
 
-const confirmedDeveloperRequest =
-  !translationOrQuoteRequest &&
-  !metaDeveloperQuestion &&
-  !humanLifeContext &&
-  developerAction &&
-  (
-    developerObject ||
-    explicitDeveloperTarget ||
-    hasLoadedDeveloperArtifact
-  );
-const artifactModificationRequest =
-  !translationOrQuoteRequest &&
-  confirmedDeveloperRequest &&
-  modificationVerb;
+    const confirmedDeveloperRequest =
+      !translationOrQuoteRequest &&
+      !metaDeveloperQuestion &&
+      !humanLifeContext &&
+      developerAction &&
+      (
+        explicitDeveloperTarget ||
+        githubEvidenceAvailable
+      );
 
-const artifactCreationRequest =
-  !translationOrQuoteRequest &&
-  confirmedDeveloperRequest &&
-  creationVerb;
+    const artifactModificationRequest =
+      confirmedDeveloperRequest &&
+      modificationVerb;
 
-const artifactInvestigationRequest =
-  !translationOrQuoteRequest &&
-  confirmedDeveloperRequest &&
-  investigationVerb;
+    const artifactCreationRequest =
+      confirmedDeveloperRequest &&
+      creationVerb;
 
-const developerArtifactRequest =
-  artifactModificationRequest ||
-  artifactCreationRequest ||
-  artifactInvestigationRequest;
+    const artifactInvestigationRequest =
+      confirmedDeveloperRequest &&
+      investigationVerb;
 
-    
-const languageOrInterpretationRequest =
-  /\b(translate|translation|bible verse|verse|quote|scripture|meaning|interpret|what does this mean)\b/.test(text);
-
-const languageTeacherRequest =
-  languageOrInterpretationRequest ||
-  /\b(translate this|translate for me|translate this for me|what does this say|what is this saying)\b/.test(text);
-
-const quotedOrImportedText =
-  languageTeacherRequest ||
-  /["“”‘’].{8,}["“”‘’]/.test(text);
+    const developerArtifactRequest =
+      artifactModificationRequest ||
+      artifactCreationRequest ||
+      artifactInvestigationRequest;
 
     const directAnswerNeeded =
-  hasQuestion ||
-  languageTeacherRequest ||
-  developerArtifactRequest ||
-  this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
-  /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because)\b/.test(text);
+      hasQuestion ||
+      languageTeacherRequest ||
+      developerArtifactRequest ||
+      metaDeveloperQuestion ||
+      this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
+      this.patterns.directAnswer.test(text);
 
     const actionRequest =
-  developerArtifactRequest ||
-  (
-    !metaDeveloperQuestion &&
-    /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement)\b/.test(text)
-  );
+      developerArtifactRequest ||
+      (
+        !metaDeveloperQuestion &&
+        this.patterns.actionRequest.test(text)
+      );
 
     const decisionNeeded =
-      /\b(should i|should we|which one|which option|better|choose|decide|worth it|pros and cons|compare|best move|recommend|do i|do we)\b/.test(text) ||
+      this.patterns.decision.test(text) ||
       this.hasType(observations, "option_language") ||
       this.hasTypeValue(observations, "slot_signal", "option_language");
 
     const relationshipContext =
-      /\b(wife|husband|spouse|partner|girlfriend|boyfriend|family|kid|kids|child|children|father|mother|mom|dad)\b/.test(text) ||
+      this.patterns.relationship.test(text) ||
       this.hasType(observations, "relationship_reference");
 
     const emotionPresent =
-      /\b(sad|mad|angry|hurt|upset|bothered|worried|scared|anxious|stressed|overwhelmed|agitated|frustrated|lonely|depressed)\b/.test(text) ||
+      this.patterns.emotion.test(text) ||
       this.hasType(observations, "emotion_word");
 
     const directEmotionDisclosure =
-      /\b(i'?m|i am|i feel|i felt|feeling|felt)\s+(sad|mad|angry|hurt|upset|worried|scared|anxious|stressed|overwhelmed|lonely|depressed|frustrated)\b/.test(text) ||
-      /\b(that bothered me|it bothered me|i was bothered|i got upset|i am upset|i'm upset)\b/.test(text);
+      this.patterns.directEmotion.test(text);
 
-    const boundaryPresent =
-      /\b(not trying to fix|don'?t fix|just listen|just venting|that'?s all|i only want|i don'?t want advice|no advice)\b/.test(text);
+    const boundaryPresent = this.patterns.boundary.test(text);
 
     const buildContext =
-  developerArtifactRequest ||
-  (
-    !metaDeveloperQuestion &&
-    /\b(code|file|bug|error|debug|fix this|not working|function|engine|pipeline|github|vercel|supabase|javascript|html|css)\b/.test(text)
-  );
+      developerArtifactRequest ||
+      (
+        !metaDeveloperQuestion &&
+        /\b(code|file|bug|error|debug|fix this|not working|function|engine|pipeline|github|vercel|supabase|javascript|html|css)\b/.test(text)
+      );
 
     const medicalContext =
-  !quotedOrImportedText &&
-  /\b(pain|fever|bleeding|pregnant|chest|breathing|faint|vomit|diarrhea|swallow|cough|stroke|seizure)\b/.test(text);
-    const memoryOrIdentity =
-      /\b(remember|forget|save this|from now on|who are you|what are you|ari)\b/.test(text);
+      !quotedOrImportedText &&
+      this.patterns.medical.test(text);
 
+    const memoryOrIdentity = this.patterns.memoryOrIdentity.test(text);
 
-const creative =
-  !developerArtifactRequest &&
-  !languageOrInterpretationRequest &&
-  /\b(generate|create|draw|design|image|picture|logo|name ideas|write a story)\b/.test(text);
+    const creative =
+      !developerArtifactRequest &&
+      !languageOrInterpretationRequest &&
+      this.patterns.creative.test(text);
 
-    const correction =
-      /\b(i mean|i meant|i ment|no,?\s*i mean|not that|rather|instead)\b/.test(text);
+    const correction = this.patterns.correction.test(text);
 
     const shortFollowUp =
       words.length <= 12 &&
-      /\b(this|that|it|they|them|same|one|what about|then what|next|continue|why)\b/.test(text);
+      this.patterns.shortFollowUp.test(text);
 
     const currentTurnIsConcrete =
       developerArtifactRequest ||
-      words.length >= 14 &&
       (
-        relationshipContext ||
-        buildContext ||
-        medicalContext ||
-        /\b(today|yesterday|tomorrow|courthouse|married|work|job|school|car|cat|dog|money|rent|baby|wife|husband|father|mother)\b/.test(text)
+        words.length >= 14 &&
+        (
+          relationshipContext ||
+          buildContext ||
+          medicalContext ||
+          /\b(today|yesterday|tomorrow|courthouse|married|work|job|school|car|cat|dog|money|rent|baby|wife|husband|father|mother)\b/.test(text)
+        )
       );
 
-    const expectsCodeOrArtifact =
-  developerArtifactRequest;
+    const expectsCodeOrArtifact = developerArtifactRequest;
+
     let emotionalWeight = "none";
     if (emotionPresent || directEmotionDisclosure) emotionalWeight = "medium";
     if (
@@ -276,9 +317,6 @@ const creative =
 
     return {
       hasQuestion,
-      languageOrInterpretationRequest,
-languageTeacherRequest,
-quotedOrImportedText,
       directAnswerNeeded,
       actionRequest,
       decisionNeeded,
@@ -297,11 +335,20 @@ quotedOrImportedText,
 
       githubEvidenceAvailable,
       developerNouns,
+      developerAction,
       modificationVerb,
       creationVerb,
       investigationVerb,
       layoutLanguage,
       codeLanguage,
+
+      languageOrInterpretationRequest,
+      languageTeacherRequest,
+      quotedOrImportedText,
+      translationOrQuoteRequest,
+
+      metaDeveloperQuestion,
+
       artifactModificationRequest,
       artifactCreationRequest,
       artifactInvestigationRequest,
@@ -339,6 +386,22 @@ quotedOrImportedText,
       add("correction_or_clarification", 88, "User appears to be correcting or clarifying prior meaning.");
     }
 
+    if (signals.languageTeacherRequest) {
+      add(
+        "language_or_interpretation_request",
+        92,
+        "User is asking to translate, interpret, or discuss language/quoted text."
+      );
+    }
+
+    if (signals.metaDeveloperQuestion) {
+      add(
+        "explanation_or_information_question",
+        94,
+        "User is asking about developer routing/classification behavior, not asking for a code artifact operation."
+      );
+    }
+
     if (signals.developerArtifactRequest) {
       add(
         "developer_artifact_request",
@@ -372,23 +435,23 @@ quotedOrImportedText,
     }
 
     if (signals.buildContext || signals.actionRequest) {
-      add("build_or_debug_request", signals.buildContext ? 86 : 75, "User is asking for code, build, debug, or practical action help.");
+      add(
+        "build_or_debug_request",
+        signals.buildContext ? 86 : 75,
+        "User is asking for code, build, debug, or practical action help."
+      );
     }
 
     if (signals.medicalContext) {
       add("medical_or_body_concern", 82, "Health or body concern detected.");
     }
 
-if (signals.languageTeacherRequest) {
-  add(
-    "language_or_interpretation_request",
-    92,
-    "User is asking to translate, interpret, or discuss language/quoted text."
-  );
-}
-
     if (signals.directAnswerNeeded) {
-      add("explanation_or_information_question", signals.developerArtifactRequest ? 62 : 88, "User needs a direct answer or explanation.");
+      add(
+        "explanation_or_information_question",
+        signals.developerArtifactRequest ? 62 : 88,
+        "User needs a direct answer or explanation."
+      );
     }
 
     if (signals.decisionNeeded) {
@@ -400,7 +463,11 @@ if (signals.languageTeacherRequest) {
     }
 
     if (signals.directEmotionDisclosure) {
-      add("emotional_disclosure", signals.emotionalWeight === "high" ? 96 : 72, "User disclosed an emotional reaction.");
+      add(
+        "emotional_disclosure",
+        signals.emotionalWeight === "high" ? 96 : 72,
+        "User disclosed an emotional reaction."
+      );
     } else if (signals.emotionPresent) {
       add("emotional_signal_present", 54, "Emotion language is present as context.");
     }
@@ -418,11 +485,11 @@ if (signals.languageTeacherRequest) {
     }
 
     if (
-  !signals.quotedOrImportedText &&
-  /\b(suicide|kill myself|hurt myself|chest pain|shortness of breath|bleeding|stroke|fainting|seizure|emergency)\b/.test(text)
-) {
-  add("safety_or_risk_disclosure", 100, "Safety or urgent risk language detected.");
-}
+      !signals.quotedOrImportedText &&
+      this.patterns.urgentSafety.test(text)
+    ) {
+      add("safety_or_risk_disclosure", 100, "Safety or urgent risk language detected.");
+    }
 
     if (!functions.length) {
       add("general_conversation", 50, "No stronger conversation function detected.");
@@ -448,20 +515,38 @@ if (signals.languageTeacherRequest) {
           score += 20;
         }
 
-if (signals.languageTeacherRequest && fn.name === "language_or_interpretation_request") {
-  score += 18;
-}
+        if (signals.metaDeveloperQuestion && fn.name === "explanation_or_information_question") {
+          score += 16;
+        }
 
-if (signals.languageTeacherRequest && fn.name === "explanation_or_information_question") {
-  score -= 12;
-}
+        if (
+          signals.metaDeveloperQuestion &&
+          [
+            "developer_artifact_request",
+            "artifact_modification_request",
+            "artifact_creation_request",
+            "artifact_investigation_request",
+            "build_or_debug_request"
+          ].includes(fn.name)
+        ) {
+          score -= 60;
+        }
 
-if (signals.quotedOrImportedText && fn.name === "medical_or_body_concern") {
-  score -= 50;
-}
+        if (signals.languageTeacherRequest && fn.name === "language_or_interpretation_request") {
+          score += 18;
+        }
+
+        if (signals.languageTeacherRequest && fn.name === "explanation_or_information_question") {
+          score -= 12;
+        }
+
+        if (signals.quotedOrImportedText && fn.name === "medical_or_body_concern") {
+          score -= 50;
+        }
 
         if (
           signals.githubEvidenceAvailable &&
+          signals.developerArtifactRequest &&
           [
             "developer_artifact_request",
             "artifact_modification_request",
@@ -491,7 +576,11 @@ if (signals.quotedOrImportedText && fn.name === "medical_or_body_concern") {
           score += 18;
         }
 
-        if (signals.directAnswerNeeded && fn.name === "emotional_disclosure" && signals.emotionalWeight !== "high") {
+        if (
+          signals.directAnswerNeeded &&
+          fn.name === "emotional_disclosure" &&
+          signals.emotionalWeight !== "high"
+        ) {
           score -= 22;
         }
 
@@ -499,7 +588,14 @@ if (signals.quotedOrImportedText && fn.name === "medical_or_body_concern") {
           score -= 25;
         }
 
-        if (fn.name === "relationship_or_family_context" && (signals.directAnswerNeeded || signals.decisionNeeded || signals.directEmotionDisclosure)) {
+        if (
+          fn.name === "relationship_or_family_context" &&
+          (
+            signals.directAnswerNeeded ||
+            signals.decisionNeeded ||
+            signals.directEmotionDisclosure
+          )
+        ) {
           score -= 10;
         }
 
@@ -535,6 +631,24 @@ if (signals.quotedOrImportedText && fn.name === "medical_or_body_concern") {
       return ["build_or_debug_request", "instruction_request"];
     }
 
+    if (primary === "language_or_interpretation_request") {
+      return [
+        "developer_artifact_request",
+        "artifact_modification_request",
+        "generic_platform_advice"
+      ];
+    }
+
+    if (signals.metaDeveloperQuestion) {
+      return [
+        "developer_artifact_request",
+        "artifact_modification_request",
+        "artifact_creation_request",
+        "artifact_investigation_request",
+        "unnecessary_code_patch"
+      ];
+    }
+
     if (
       primary === "developer_artifact_request" ||
       primary === "artifact_modification_request" ||
@@ -561,92 +675,121 @@ if (signals.quotedOrImportedText && fn.name === "medical_or_body_concern") {
 
   getResponseBias(primary, signals = {}) {
     const base = {
-      
       language_or_interpretation_request: {
-  preferredLaneBias: "teacher",
-  responseShape: "translate_or_explain_then_invite_discussion",
-  instruction: "Translate, explain, or discuss the quoted text directly. Do not route religious, quote, scripture, or language requests into developer/artifact mode just because file context exists."
-},
+        preferredLaneBias: "teacher",
+        responseShape: "translate_or_explain_then_invite_discussion",
+        instruction:
+          "Translate, explain, or discuss the quoted text directly. Do not route religious, quote, scripture, or language requests into developer/artifact mode just because file context exists."
+      },
+
       developer_artifact_request: {
         preferredLaneBias: "developer_artifact",
         responseShape: signals.githubEvidenceAvailable ? "code_patch" : "artifact_action_plan",
-        instruction: "Use available file/artifact context. Modify or produce code directly. Do not give generic platform advice when file context exists."
+        instruction:
+          "Use available file/artifact context. Modify or produce code directly. Do not give generic platform advice when file context exists."
       },
+
       artifact_modification_request: {
         preferredLaneBias: "developer_artifact",
         responseShape: signals.githubEvidenceAvailable ? "modified_artifact" : "targeted_patch_request",
-        instruction: "Treat the user command as a request to change an existing artifact. Preserve unrelated code and return the modified section."
+        instruction:
+          "Treat the user command as a request to change an existing artifact. Preserve unrelated code and return the modified section."
       },
+
       artifact_creation_request: {
         preferredLaneBias: "developer_artifact",
         responseShape: "new_artifact_or_patch",
         instruction: "Create the requested artifact or code addition directly."
       },
+
       artifact_investigation_request: {
         preferredLaneBias: "developer_artifact",
         responseShape: "diagnosis_then_patch",
-        instruction: "Inspect the artifact context, identify the issue, and propose the smallest safe fix."
+        instruction:
+          "Inspect the artifact context, identify the issue, and propose the smallest safe fix."
       },
+
       emotional_disclosure: {
         preferredLaneBias: "emotion",
         responseShape: "presence_then_grounding",
-        instruction: "Acknowledge the emotional signal, then give a grounded next step if useful."
+        instruction:
+          "Acknowledge the emotional signal, then give a grounded next step if useful."
       },
+
       emotional_signal_present: {
         preferredLaneBias: "emotion_context",
         responseShape: "brief_attunement_then_answer",
-        instruction: "Briefly acknowledge emotion, but do not let it override the user's actual question."
+        instruction:
+          "Briefly acknowledge emotion, but do not let it override the user's actual question."
       },
+
       explanation_or_information_question: {
-        preferredLaneBias: "teacher",
+        preferredLaneBias: signals.metaDeveloperQuestion ? "teacher" : "teacher",
         responseShape: "answer_directly",
-        instruction: "Answer the question directly. If emotion or relationship context is present, include brief warmth without losing the answer."
+        instruction:
+          signals.metaDeveloperQuestion
+            ? "Answer the routing/classification question directly. Do not treat the question itself as a code patch request."
+            : "Answer the question directly. If emotion or relationship context is present, include brief warmth without losing the answer."
       },
+
       decision_support: {
         preferredLaneBias: "executive_decision",
         responseShape: "decision_framework",
-        instruction: "Name the tradeoff, separate options, and recommend a next step."
+        instruction:
+          "Name the tradeoff, separate options, and recommend a next step."
       },
+
       relationship_or_family_context: {
         preferredLaneBias: "relationship_context",
         responseShape: "relationship_truth_then_next_step",
-        instruction: "Treat relationship as important context, but do not assume it is the whole task."
+        instruction:
+          "Treat relationship as important context, but do not assume it is the whole task."
       },
+
       boundary_or_preference_statement: {
         preferredLaneBias: "respect_boundary",
         responseShape: "respect_user_preference",
         instruction: "Respect the user's stated preference before offering solutions."
       },
+
       correction_or_clarification: {
         preferredLaneBias: "clarification",
         responseShape: "update_understanding",
         instruction: "Use corrected meaning and avoid defending the prior interpretation."
       },
+
       build_or_debug_request: {
         preferredLaneBias: "builder",
         responseShape: "build_steps",
         instruction: "Help build or debug directly."
       },
+
       medical_or_body_concern: {
         preferredLaneBias: "medical_context",
         responseShape: "medical_context_then_next_step",
-        instruction: "Handle body/health context carefully and escalate only when risk evidence supports it."
+        instruction:
+          "Handle body/health context carefully and escalate only when risk evidence supports it."
       },
+
       continuation_or_follow_up: {
         preferredLaneBias: "continuity",
         responseShape: "reuse_context_if_safe",
-        instruction: "Use prior context only if the current turn is not a complete new situation."
+        instruction:
+          "Use prior context only if the current turn is not a complete new situation."
       },
+
       memory_or_identity_request: {
         preferredLaneBias: "memory_or_identity",
         responseShape: "answer_or_acknowledge",
         instruction: "Handle memory or identity request directly."
       },
+
       creative_generation: {
         preferredLaneBias: "creative",
         responseShape: "generate_requested_output",
         instruction: "Create the requested output."
       },
+
       safety_or_risk_disclosure: {
         preferredLaneBias: "safety",
         responseShape: "safety_first",
