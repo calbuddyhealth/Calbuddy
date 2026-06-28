@@ -126,23 +126,28 @@ const explicitDeveloperAction =
 const translationOrQuoteRequest =
   /\b(translate|translation|bible verse|verse|quote|scripture|what does this mean|interpret this)\b/.test(text);
 
-const artifactModificationRequest =
-  !translationOrQuoteRequest &&
-  explicitDeveloperAction &&
-  modificationVerb &&
-  explicitDeveloperTarget;
+
+const humanLifeContext =
+  /\b(career|family|freedom|regret|ambition|ego|wise|choice|responsible|stable career|betting on myself)\b/.test(text);
+
+const developerObject =
+  /\b(code|file|repo|repository|github|html|css|javascript|js|component|page|engine|pipeline|function|class|api|supabase|vercel)\b/.test(text);
+
+const developerAction =
+  /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch)\b/.test(text);
+
+const confirmedDeveloperRequest =
+  developerObject && developerAction && !humanLifeContext;
 
 const artifactCreationRequest =
   !translationOrQuoteRequest &&
-  explicitDeveloperAction &&
-  creationVerb &&
-  explicitDeveloperTarget;
+  confirmedDeveloperRequest &&
+  creationVerb;
 
 const artifactInvestigationRequest =
   !translationOrQuoteRequest &&
-  explicitDeveloperAction &&
-  investigationVerb &&
-  explicitDeveloperTarget;
+  confirmedDeveloperRequest &&
+  investigationVerb;
 
 const developerArtifactRequest =
   artifactModificationRequest ||
