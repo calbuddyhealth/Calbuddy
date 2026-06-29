@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.5 — Universal Developer Response Contract / Diagnostic + Findings Ready
+// V1.2.6 — Selective Locking / Composer-Safe Developer Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.5",
+  version: "1.2.6",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -60,13 +60,14 @@ const patchValidation =
   patchValidation?.valid === true
 ) {
       return this.lockHandoff(
-        this.buildGithubEditIntent({
-          summary,
-          understanding,
-          codeUnderstanding,
-          patchDecision
-        })
-      );
+  this.buildGithubEditIntent({
+    summary,
+    understanding,
+    codeUnderstanding,
+    patchDecision
+  }),
+  { lock: true }
+);
     }
 
 if (
@@ -75,33 +76,35 @@ if (
   patchValidation?.valid === false
 ) {
   return this.lockHandoff(
-    this.buildDeveloperTaskIntent({
-      summary,
-      understanding,
-      codeUnderstanding,
-      patchDecision: {
-        ...patchDecision,
-        reason:
-          "Patch validation failed.",
-        missingEvidence:
-          patchValidation.requiredFixes || ["patch_validation_failed"]
-      },
-      selfImprovement
-    })
-  );
+  this.buildDeveloperTaskIntent({
+    summary,
+    understanding,
+    codeUnderstanding,
+    patchDecision: {
+      ...patchDecision,
+      reason:
+        "Patch validation failed.",
+      missingEvidence:
+        patchValidation.requiredFixes || ["patch_validation_failed"]
+    },
+    selfImprovement
+  }),
+  { lock: false }
+);
 }
 
 if (this.wantsDeveloperDiagnosis(summary, understanding)) {
   return this.lockHandoff(
-    this.buildDeveloperDiagnosticIntent({
-      summary,
-      understanding,
-      codeEvidence,
-      codeUnderstanding,
-      patchDecision,
-      selfImprovement
-    })
-  );
+  this.buildDeveloperDiagnosticIntent({
+    summary,
+    understanding,
+    codeEvidence,
+    codeUnderstanding,
+    patchDecision,
+    selfImprovement
+  }),
+  { lock: false }
+);
 }
 
     if (this.wantsDirectFileRead(summary, understanding)) {
@@ -109,27 +112,38 @@ if (this.wantsDeveloperDiagnosis(summary, understanding)) {
 
       if (readStep) {
         return this.lockHandoff(
-          this.buildGithubReadIntent({
-            summary,
-            understanding,
-            readStep,
-            codeEvidence,
-            codeUnderstanding
-          })
-        );
+
+  this.buildGithubReadIntent({
+
+    summary,
+
+    understanding,
+
+    readStep,
+
+    codeEvidence,
+
+    codeUnderstanding
+
+  }),
+
+  { lock: true }
+
+);
       }
     }
 
 if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patchDecision)) {
   return this.lockHandoff(
-    this.buildDeveloperExplanationIntent({
-      summary,
-      understanding,
-      codeUnderstanding,
-      patchDecision,
-      selfImprovement
-    })
-  );
+  this.buildDeveloperExplanationIntent({
+    summary,
+    understanding,
+    codeUnderstanding,
+    patchDecision,
+    selfImprovement
+  }),
+  { lock: false }
+);
 }
 
     if (codeEvidence?.steps?.length) {
@@ -139,19 +153,23 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
           understanding,
           codeEvidence,
           selfImprovement
-        })
-      );
+       }),
+
+  { lock: false }
+
+);
     }
 
     if (selfImprovement?.steps?.length) {
       return this.lockHandoff(
-        this.buildDeveloperInvestigationIntent({
-          summary,
-          understanding,
-          codeEvidence: selfImprovement,
-          selfImprovement
-        })
-      );
+  this.buildDeveloperInvestigationIntent({
+    summary,
+    understanding,
+    codeEvidence: selfImprovement,
+    selfImprovement
+  }),
+  { lock: false }
+);
     }
 
     return this.lockHandoff(
@@ -161,39 +179,44 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
         codeUnderstanding,
         patchDecision,
         selfImprovement
-      })
-    );
+      }),
+
+  { lock: false }
+
+);
   },
 
-  lockHandoff(intent = null) {
-    if (!intent) return null;
+  lockHandoff(intent = null, options = {}) {
+  if (!intent) return null;
 
-    const developerResponse =
-      intent.developerResponse ||
-      this.buildDeveloperResponse({
-        kind: intent.type || "developer_response",
-        explanation: intent.summary || "Developer handoff prepared.",
-        nextAction: "Continue with the safest developer next step."
-      });
+  const shouldLock = options.lock === true;
 
-    const reply =
-      intent.reply ||
-      this.composeDeveloperReply(developerResponse);
+  const developerResponse =
+    intent.developerResponse ||
+    this.buildDeveloperResponse({
+      kind: intent.type || "developer_response",
+      explanation: intent.summary || "Developer handoff prepared.",
+      nextAction: "Continue with the safest developer next step."
+    });
 
-    const lockedIntent = {
-      ...intent,
-      developerResponse,
-      reply
-    };
+  const reply =
+    intent.reply ||
+    this.composeDeveloperReply(developerResponse);
 
-    return {
-      ...lockedIntent,
-      developerIntent: lockedIntent,
-      finalResponse: reply,
-      responseLocked: true,
-      developerResponseLocked: true
-    };
-  },
+  const lockedIntent = {
+    ...intent,
+    developerResponse,
+    reply
+  };
+
+  return {
+    ...lockedIntent,
+    developerIntent: lockedIntent,
+    finalResponse: shouldLock ? reply : null,
+    responseLocked: shouldLock,
+    developerResponseLocked: shouldLock
+  };
+},
 
   buildGithubEditIntent({
     summary = {},
