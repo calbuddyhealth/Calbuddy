@@ -1,6 +1,6 @@
 // ari/language/ari-composer-bridge.js
-// Purpose: Convert approved pipeline summary into sealed composer packet.
-// V1.0.0 — Contract-to-Composer Boundary
+// Purpose: Build one clean composer packet from contract + downstream context.
+// V1.0.0
 
 window.Ari = window.Ari || {};
 
@@ -10,82 +10,88 @@ window.AriComposerBridge = {
   build(summary = {}) {
     const contract = summary.situationContract || {};
     const triage = summary.triage || summary.ariTriage || {};
-    const map = summary.situationMap || {};
+    const mouth = summary.mouthDirector || {};
+    const communicationPlan = summary.communicationPlan || {};
 
     const primary =
       contract.primary ||
       summary.situationContractPrimary ||
       triage.primaryLane ||
+      summary.primaryLane ||
       "general_understanding";
 
-    return {
-      composerPacket: {
-        ready: true,
-        source: "ari-composer-bridge",
-        version: this.version,
+    const userQuestion =
+      summary.resolvedUserQuestion ||
+      summary.threadQuestion?.resolvedUserQuestion ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      "";
 
-        userQuestion:
-          summary.resolvedUserQuestion ||
-          summary.threadQuestion?.resolvedUserQuestion ||
-          summary.userMessage ||
-          summary.message ||
-          summary.input ||
-          "",
+    const packet = {
+      ready: true,
+      source: "ari-composer-bridge",
+      version: this.version,
 
-        primary,
-        responseShape:
-          contract.responseShape ||
-          triage.responseShape ||
-          summary.responseShape ||
-          "clear_explanation",
+      userQuestion,
+      primary,
+      responseShape:
+        contract.responseShape ||
+        summary.responseShape ||
+        mouth.responsePattern ||
+        "clear_explanation",
 
-        responseRules:
-          contract.responseRules ||
-          triage.responseConstraints ||
-          summary.responseRules ||
-          [],
+      responseRules:
+        contract.responseRules ||
+        summary.responseRules ||
+        summary.responseConstraints ||
+        [],
 
-        mouthDirective: contract.mouthDirective || null,
+      requiredBehaviors: contract.requiredBehaviors || [],
+      forbiddenBehaviors: contract.forbiddenBehaviors || [],
 
-        situation: {
-          thesis:
-            contract.situationThesis?.thesis ||
-            map.primarySituationThesis ||
-            summary.primarySituationThesis ||
-            null,
+      mouthDirective: contract.mouthDirective || mouth || null,
+      communicationPlan,
+      humanLanguageProfile: summary.humanLanguageProfile || {},
 
-          narrative:
-            contract.situationThesis?.narrative ||
-            map.situationNarrative ||
-            summary.situationNarrative ||
-            null,
+      thesis: {
+        value:
+          contract.situationThesis?.thesis ||
+          summary.primarySituationThesis ||
+          null,
+        narrative:
+          contract.situationThesis?.narrative ||
+          summary.situationNarrative ||
+          null,
+        recommendedUse:
+          contract.situationThesis?.recommendedUse ||
+          summary.thesisRecommendedUse ||
+          "do_not_use_as_authority"
+      },
 
-          recommendedUse:
-            contract.situationThesis?.recommendedUse ||
-            map.thesisRecommendedUse ||
-            summary.thesisRecommendedUse ||
-            "do_not_use_as_authority"
-        },
+      safety: {
+        gate: summary.safetyContextGate || null,
+        risk: contract.risk || null,
+        clarity: contract.clarity || null
+      },
 
-        evidence: {
-          github: summary.githubEvidence || null,
-          developerHandoff: summary.developerHandoff || null,
-          safety: summary.safetyContextGate || null
-        },
-
-        style: {
-          communicationPlan: summary.communicationPlan || null,
-          humanLanguageProfile: summary.humanLanguageProfile || null
-        },
-
-        locks: {
-          allowAI: false,
-          allowPatch: primary === "builder",
-          allowSummaryInspection: false
-        }
+      evidence: {
+        github: summary.githubEvidence || null,
+        developerHandoff: summary.developerHandoff || null,
+        reasoning: summary.reasoning || null,
+        lexicalGrounding: summary.lexicalGrounding || null,
+        continuityFacts: summary.continuityUsableFacts || []
       }
+    };
+
+    return {
+      composerPacketReady: true,
+      composerPacket: packet,
+      composerBridgeRan: true,
+      composerBridgeSource: "ari-composer-bridge",
+      composerBridgeVersion: this.version
     };
   }
 };
 
-console.log("ARI COMPOSER BRIDGE LOADED:", window.AriComposerBridge?.version);
+console.log("ARI COMPOSER BRIDGE LOADED:", window.AriComposerBridge.version);
