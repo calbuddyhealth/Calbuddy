@@ -1,6 +1,6 @@
 // api/ari-github-read.js
 // Ari GitHub Read Endpoint
-// V2.0.0 — Safer File Reads / Better Errors / Branch-Aware
+// V2.1.0 — Full File Reads / Safer Metadata / Branch-Aware
 
 export default async function handler(req, res) {
   try {
@@ -104,6 +104,7 @@ export default async function handler(req, res) {
     }
 
     const content = Buffer.from(data.content, "base64").toString("utf8");
+    const lineCount = content ? content.split("\n").length : 0;
 
     return res.status(200).json({
       success: true,
@@ -112,9 +113,24 @@ export default async function handler(req, res) {
       sha: data.sha,
       size: data.size || content.length,
       encoding: data.encoding,
+
+      // Full file content. Do not cap this.
       content,
+      contentLength: content.length,
+      lineCount,
+
+      // Explicit evidence flags for Ari.
+      fullContent: true,
+      contentComplete: true,
+      isFullFile: true,
+      hasExactCurrentCode: true,
+
+      // Preview is capped only for UI/debug display.
       contentPreview: makePreview(content),
-      message: `Read ${filePath} successfully.`
+      previewLength: Math.min(String(content || "").length, 1200),
+      previewIsTruncated: String(content || "").length > 1200,
+
+      message: `Read full file ${filePath} successfully.`
     });
   } catch (error) {
     console.error("Ari GitHub read error:", error);
