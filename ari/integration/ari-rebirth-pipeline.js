@@ -1,12 +1,11 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.9 — AI Writer / Validator Pathway Wired
-
+// V4.0.1 — AI Writer Receives Composer Packet / Validator Receives Summary
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.9",
+  version: "4.0.1",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -798,57 +797,79 @@ mark("after composerBridge");
 // AI Writer
 if (!developerResponseLocked) {
   mark("before aiWriter");
-  const aiWriterResult = await runEngine(
-    window.AriAIWriter,
-    ["write"],
-    { aiWriterRan: false }
-  );
+
+  const aiWriterResult =
+    window.AriAIWriter?.write
+      ? await window.AriAIWriter.write(summary.composerPacket || {})
+      : { aiWriterRan: false };
 
   summary = {
     ...summary,
     ...aiWriterResult,
-    aiWriter: aiWriterResult
+    aiWriter: aiWriterResult,
+    aiWriterDraft: aiWriterResult.draft || null
   };
+
   mark("after aiWriter");
 }
 
 // Response Validator
 if (!developerResponseLocked) {
   mark("before responseValidator");
-  const validatorResult = await runEngine(
-    window.AriResponseValidator,
-    ["validate"],
-    { responseValidatorRan: false }
-  );
+
+  const validatorResult =
+    window.AriResponseValidator?.validate
+      ? await window.AriResponseValidator.validate(summary)
+      : { responseValidatorRan: false };
 
   summary = {
     ...summary,
     ...validatorResult,
     responseValidator: validatorResult,
     finalResponse:
-  validatorResult.finalResponse ||
-  validatorResult.final ||
-  summary.aiWriterDraft ||
-  summary.aiWriter?.draft ||
-  summary.draft ||
-  summary.finalResponse
+      validatorResult.finalResponse ||
+      validatorResult.final ||
+      summary.aiWriterDraft ||
+      summary.aiWriter?.draft ||
+      summary.finalResponse
   };
+
   mark("after responseValidator");
 }
 
 // Composer Final Wrapper
+// Final wrapper should preserve validator/AI writer output.
+// It should NOT overwrite a valid finalResponse with old fallback language.
 if (!developerResponseLocked) {
   mark("before AriLanguageComposer");
-  const composerResult = await runEngine(window.AriLanguageComposer, ["compose"]);
+
+  const composerResult = await runEngine(
+    window.AriLanguageComposer,
+    ["compose"],
+    {}
+  );
+
+  const composerFinal =
+    composerResult.finalResponse ||
+    composerResult.languageBody ||
+    composerResult.languageComposerOutput ||
+    null;
+
+  const badComposerFallback =
+    composerFinal === "Answer the primary lane directly." ||
+    composerFinal === "Compose final response." ||
+    composerFinal === "Return final answer.";
 
   summary = {
     ...summary,
     ...composerResult,
+
     finalResponse:
-      composerResult.finalResponse ||
-      composerResult.languageBody ||
-      summary.finalResponse
+      composerFinal && !badComposerFallback
+        ? composerFinal
+        : summary.finalResponse
   };
+
   mark("after AriLanguageComposer");
 }
 
