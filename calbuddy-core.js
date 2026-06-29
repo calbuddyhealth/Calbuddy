@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.3";
+CalBuddy.version = "3.5.4";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -1817,12 +1817,23 @@ CalBuddy.runDeveloperInvestigation = async function ({
 
   const readableFiles = readResults
     .filter(item => item.result?.success && item.result?.content)
-    .slice(0, 3);
+    .slice(0, 5);
 
   if (readableFiles.length > 0) {
-    const fileContext = readableFiles[0];
+    const combinedGithubContent = readableFiles
+  .map(item => {
+    return [
+      `/* ===== FILE: ${item.filePath} ===== */`,
+      item.result.content || ""
+    ].join("\n");
+  })
+  .join("\n\n");
 
-    const analysisResponse = await window.AriRebirthAppBridge.ask(
+const combinedFilePath = readableFiles
+  .map(item => item.filePath)
+  .join(", ");
+
+const analysisResponse = await window.AriRebirthAppBridge.ask(
   `The owner asked: "${originalMessage}"
 
 Ari Rebirth investigated this request.
@@ -1852,9 +1863,14 @@ Do not claim anything was changed.`,
     ariPermissions: userContext?.ariPermissions || {},
 
     githubFileContext: {
-      filePath: fileContext.filePath,
-      content: fileContext.result.content
-    },
+  filePath: combinedFilePath,
+  content: combinedGithubContent,
+  contentLength: combinedGithubContent.length,
+  files: readableFiles.map(item => ({
+    filePath: item.filePath,
+    contentLength: item.result.content?.length || 0
+  }))
+},
 
     developerInvestigation: {
       developerIntent,
@@ -1872,7 +1888,9 @@ Do not claim anything was changed.`,
     }
 
     return {
-      reply: analysisResponse.reply || "I analyzed the code and prepared the next step.",
+      reply:
+  analysisResponse.reply ||
+  `I analyzed ${readableFiles.length} file(s): ${combinedFilePath}.`,
       emotion: analysisResponse.emotion || "thinking",
       developerIntent: analysisResponse.developerIntent || developerIntent,
       pendingAction: analysisResponse.pendingAction || null,
