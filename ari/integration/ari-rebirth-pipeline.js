@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.7 — Composer Handoff Contract Normalized
+// V3.9.8 — Composer Bridge Packet Integrated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.7",
+  version: "3.9.8",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -780,12 +780,22 @@ summary = this.reassertContractAuthority(summary);
 
 summary = this.reassertContractAuthority(summary);
 
-// Composer handoff
-mark("before prepareComposerHandoff");
-summary = this.prepareComposerHandoff(summary);
-mark("after prepareComposerHandoff");
+// Composer Bridge
+mark("before composerBridge");
+const composerPacketResult = await runEngine(
+  window.AriComposerBridge,
+  ["build"],
+  { composerPacketReady: false }
+);
 
-    // Composer
+summary = {
+  ...summary,
+  ...composerPacketResult,
+  composerPacket: composerPacketResult.composerPacket || null
+};
+mark("after composerBridge");
+
+// Composer
 if (!developerResponseLocked) {
   mark("before AriLanguageComposer");
   const composerResult = await runEngine(window.AriLanguageComposer, ["compose"]);
@@ -1750,7 +1760,9 @@ prepareComposerHandoff(summary = {}) {
     console.log("===== TRIAGE =====", summary.triage);
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== REASONING =====", reasoningResult);
- console.log("===== COMPOSER HANDOFF =====", {
+ console.log("===== COMPOSER PACKET =====", summary.composerPacket);
+
+console.log("===== OLD COMPOSER HANDOFF =====", {
   handoff: summary.composerHandoff,
   ready: summary.composerHandoffReady,
   primary: summary.situationContractPrimary,
