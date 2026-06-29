@@ -826,10 +826,12 @@ if (!developerResponseLocked) {
     ...validatorResult,
     responseValidator: validatorResult,
     finalResponse:
-      validatorResult.finalResponse ||
-      validatorResult.final ||
-      summary.aiWriterDraft ||
-      summary.finalResponse
+  validatorResult.finalResponse ||
+  validatorResult.final ||
+  summary.aiWriterDraft ||
+  summary.aiWriter?.draft ||
+  summary.draft ||
+  summary.finalResponse
   };
   mark("after responseValidator");
 }
