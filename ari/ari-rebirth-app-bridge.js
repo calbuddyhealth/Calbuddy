@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.4.3 — App Safe / Pipeline Guarded / Clean Action Bridge
+// V1.4.4 — App Safe / Pipeline Guarded / Clean Action Bridge
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.4.3",
+  version: "1.4.4",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -364,27 +364,25 @@ debugTiming: options.debugTiming === true,
   },
 
   extractReply(summary = {}) {
-    if (summary.developerHandoff?.reply) {
-      return this.cleanReply(summary.developerHandoff.reply);
-    }
-
-    if (summary.developerIntent?.type === "developer_investigation") {
-      return "I’ll investigate that first — search, read the likely files, then propose a safe fix only after I have exact code evidence.";
-    }
-
-    return this.cleanReply(
-      summary.finalResponse ||
-        summary.compressedResponse ||
-        summary.languageComposerOutput ||
-        summary.response ||
-        summary.answer ||
-        summary.situationContract?.clarity?.question ||
-        summary.synthesisRecommendedQuestion ||
-        summary.salienceQuestion ||
-        summary.recommendedRecoveryQuestion ||
-        "I heard you, but I need a cleaner response path."
-    );
-  },
+  return this.cleanReply(
+    summary.finalResponse ||
+      summary.compressedResponse ||
+      summary.languageBody ||
+      summary.languageBodyOutput ||
+      summary.developerHandoff?.reply ||
+      summary.developerHandoff?.finalResponse ||
+      summary.developerResponse ||
+      summary.developerIntent?.reply ||
+      summary.languageComposerOutput ||
+      summary.response ||
+      summary.answer ||
+      summary.situationContract?.clarity?.question ||
+      summary.synthesisRecommendedQuestion ||
+      summary.salienceQuestion ||
+      summary.recommendedRecoveryQuestion ||
+      "I heard you, but I need a cleaner response path."
+  );
+},
 
   extractFileEvidenceReply(summary = {}) {
     const fileContext =
@@ -565,7 +563,7 @@ debugTiming: options.debugTiming === true,
   },
 
   chooseEmotion(summary = {}) {
-    if (summary.developerIntent) return "thinking";
+    if (summary.developerIntent && !summary.finalResponse) return "thinking";
 
     const primary =
       summary.situationContract?.primary ||
