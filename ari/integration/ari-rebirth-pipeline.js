@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.3 — Meal Estimate Preservation Gated
+// V3.9.4 — Contract Bridge Promotes Composer Fields
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.3",
+  version: "3.9.4",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -1168,190 +1168,190 @@ lastMealEstimate:
 },
 
     applyContractBridge(summary = {}) {
-    const contract = summary.situationContract || {};
-    const map = summary.situationMap || {};
-    const triage = summary.triage || summary.ariTriage || {};
+  const contract = summary.situationContract || {};
+  const map = summary.situationMap || {};
+  const triage = summary.triage || summary.ariTriage || {};
 
-    const primary =
-      contract.primary ||
-      triage.primaryLane ||
-      summary.primaryLaneSuggestion ||
-      summary.situationContractPrimary ||
-      null;
+  const primary =
+    contract.primary ||
+    triage.primaryLane ||
+    summary.primaryLaneSuggestion ||
+    summary.situationContractPrimary ||
+    null;
 
-    return {
-      ...summary,
+  return {
+    ...summary,
 
-      contractBridgeRan: true,
-      contractBridgeSource: "ari-rebirth-pipeline",
+    contractBridgeRan: true,
+    contractBridgeSource: "ari-rebirth-pipeline",
 
-      situationContract: contract,
+    situationContract: contract,
 
-      primaryLane: primary,
-      triagePrimaryLane: triage.primaryLane || primary,
-      situationContractPrimary: primary,
+    primaryLane: primary,
+    triagePrimaryLane: triage.primaryLane || primary,
+    situationContractPrimary: primary,
 
-      responseShape:
-        contract.responseShape ||
-        triage.responseShape ||
-        summary.responseShape ||
-        null,
+    responseShape:
+      contract.responseShape ||
+      triage.responseShape ||
+      summary.responseShape ||
+      null,
 
-      responseRules:
-        contract.responseRules ||
-        triage.responseConstraints ||
-        summary.responseRules ||
-        [],
+    responseRules:
+      contract.responseRules ||
+      triage.responseConstraints ||
+      summary.responseRules ||
+      [],
 
-      responseConstraints:
-        contract.responseRules ||
-        triage.responseConstraints ||
-        summary.responseConstraints ||
-        [],
+    responseConstraints:
+      contract.responseRules ||
+      triage.responseConstraints ||
+      summary.responseConstraints ||
+      [],
 
-      primarySituationThesis:
-        contract.situationThesis?.thesis ||
-        map.primarySituationThesis ||
-        summary.primarySituationThesis ||
-        null,
+    primarySituationThesis:
+      contract.situationThesis?.thesis ||
+      map.primarySituationThesis ||
+      summary.primarySituationThesis ||
+      null,
 
-      situationNarrative:
-        contract.situationThesis?.narrative ||
-        map.situationNarrative ||
-        summary.situationNarrative ||
-        null,
+    situationNarrative:
+      contract.situationThesis?.narrative ||
+      map.situationNarrative ||
+      summary.situationNarrative ||
+      null,
 
-      thesisRecommendedUse:
-        contract.situationThesis?.recommendedUse ||
-        map.thesisRecommendedUse ||
-        summary.thesisRecommendedUse ||
-        "do_not_use_as_authority",
+    thesisRecommendedUse:
+      contract.situationThesis?.recommendedUse ||
+      map.thesisRecommendedUse ||
+      summary.thesisRecommendedUse ||
+      "do_not_use_as_authority",
 
-      situationContractSupport: contract.support || [],
-      situationContractBrief: contract.brief || [],
-      situationContractContext: contract.context || [],
-      situationContractDeferred: contract.deferred || [],
-      situationContractBlocked: contract.blocked || []
-    };
-  },
+    situationContractSupport: contract.support || [],
+    situationContractBrief: contract.brief || [],
+    situationContractContext: contract.context || [],
+    situationContractDeferred: contract.deferred || [],
+    situationContractBlocked: contract.blocked || []
+  };
+},
 
-  reassertContractAuthority(summary = {}) {
-    const contract = summary.situationContract || null;
-    if (!contract || !contract.primary) return summary;
+reassertContractAuthority(summary = {}) {
+  const contract = summary.situationContract || null;
+  if (!contract || !contract.primary) return summary;
 
-    const primary = contract.primary;
+  const primary = contract.primary;
 
-    const laneMap = {
-      safety: {
-        salienceLeadOrgan: "safety",
-        salienceMode: "safety_override",
-        responseIntent: "protect_safety_first",
-        primaryHumanNeed: "security",
-        needResponseMode: "protect_safety_first"
-      },
-      medical_body: {
-        salienceLeadOrgan: "safety",
-        salienceMode: "medical_or_body_first",
-        responseIntent: "stabilize_organism_function",
-        primaryHumanNeed: "body",
-        needResponseMode: "stabilize_body_first"
-      },
-      risk_clarification: {
-        salienceLeadOrgan: "safety",
-        salienceMode: "clarify_risk",
-        responseIntent: "clarify_risk",
-        primaryHumanNeed: "security",
-        needResponseMode: "clarify_before_answer"
-      },
-      executive_decision: {
-        salienceLeadOrgan: "executive",
-        salienceMode: "plan_next_step",
-        responseIntent: "decision_support",
-        primaryHumanNeed: "clarity",
-        needResponseMode: "choose_next_step"
-      },
-      builder: {
-        salienceLeadOrgan: "builder",
-        salienceMode: "build_or_debug",
-        responseIntent: "build_or_fix",
-        primaryHumanNeed: "execution",
-        needResponseMode: "step_by_step_action"
-      },
-      teacher: {
-        salienceLeadOrgan: "teacher",
-        salienceMode: "teach_clearly",
-        responseIntent: "teach",
-        primaryHumanNeed: "understanding",
-        needResponseMode: "teach_clearly"
-      },
-      emotion: {
-        salienceLeadOrgan: "emotion",
-        salienceMode: "restore_connection",
-        responseIntent: "offer_connection",
-        primaryHumanNeed: "connection",
-        needResponseMode: "restore_connection"
-      },
-      general_understanding: {
-        salienceLeadOrgan: "observer",
-        salienceMode: "continue_observing",
-        responseIntent: "understand_context",
-        primaryHumanNeed: "understanding",
-        needResponseMode: "continue_observing"
-      }
-    };
+  const laneMap = {
+    safety: {
+      salienceLeadOrgan: "safety",
+      salienceMode: "safety_override",
+      responseIntent: "protect_safety_first",
+      primaryHumanNeed: "security",
+      needResponseMode: "protect_safety_first"
+    },
+    medical_body: {
+      salienceLeadOrgan: "safety",
+      salienceMode: "medical_or_body_first",
+      responseIntent: "stabilize_organism_function",
+      primaryHumanNeed: "body",
+      needResponseMode: "stabilize_body_first"
+    },
+    risk_clarification: {
+      salienceLeadOrgan: "safety",
+      salienceMode: "clarify_risk",
+      responseIntent: "clarify_risk",
+      primaryHumanNeed: "security",
+      needResponseMode: "clarify_before_answer"
+    },
+    executive_decision: {
+      salienceLeadOrgan: "executive",
+      salienceMode: "plan_next_step",
+      responseIntent: "decision_support",
+      primaryHumanNeed: "clarity",
+      needResponseMode: "choose_next_step"
+    },
+    builder: {
+      salienceLeadOrgan: "builder",
+      salienceMode: "build_or_debug",
+      responseIntent: "build_or_fix",
+      primaryHumanNeed: "execution",
+      needResponseMode: "step_by_step_action"
+    },
+    teacher: {
+      salienceLeadOrgan: "teacher",
+      salienceMode: "teach_clearly",
+      responseIntent: "teach",
+      primaryHumanNeed: "understanding",
+      needResponseMode: "teach_clearly"
+    },
+    emotion: {
+      salienceLeadOrgan: "emotion",
+      salienceMode: "restore_connection",
+      responseIntent: "offer_connection",
+      primaryHumanNeed: "connection",
+      needResponseMode: "restore_connection"
+    },
+    general_understanding: {
+      salienceLeadOrgan: "observer",
+      salienceMode: "continue_observing",
+      responseIntent: "understand_context",
+      primaryHumanNeed: "understanding",
+      needResponseMode: "continue_observing"
+    }
+  };
 
-        return {
-      ...summary,
+  return {
+    ...summary,
 
-      contractAuthorityReasserted: true,
-      contractAuthoritySource: "ari-rebirth-pipeline",
+    contractAuthorityReasserted: true,
+    contractAuthoritySource: "ari-rebirth-pipeline",
 
-      primaryLane: primary,
-      triagePrimaryLane: summary.triage?.primaryLane || primary,
-      situationContractPrimary: primary,
+    primaryLane: primary,
+    triagePrimaryLane: summary.triage?.primaryLane || primary,
+    situationContractPrimary: primary,
 
-      situationContractSupport: contract.support || [],
-      situationContractBrief: contract.brief || [],
-      situationContractContext: contract.context || [],
-      situationContractDeferred: contract.deferred || [],
-      situationContractBlocked: contract.blocked || [],
+    situationContractSupport: contract.support || [],
+    situationContractBrief: contract.brief || [],
+    situationContractContext: contract.context || [],
+    situationContractDeferred: contract.deferred || [],
+    situationContractBlocked: contract.blocked || [],
 
-      responseShape:
-        contract.responseShape ||
-        summary.responseShape ||
-        null,
+    responseShape:
+      contract.responseShape ||
+      summary.responseShape ||
+      null,
 
-      responseRules:
-        contract.responseRules ||
-        summary.responseRules ||
-        [],
+    responseRules:
+      contract.responseRules ||
+      summary.responseRules ||
+      [],
 
-      responseConstraints:
-        contract.responseRules ||
-        summary.responseConstraints ||
-        [],
+    responseConstraints:
+      contract.responseRules ||
+      summary.responseConstraints ||
+      [],
 
-      primarySituationThesis:
-        contract.situationThesis?.thesis ||
-        summary.situationMap?.primarySituationThesis ||
-        summary.primarySituationThesis ||
-        null,
+    primarySituationThesis:
+      contract.situationThesis?.thesis ||
+      summary.situationMap?.primarySituationThesis ||
+      summary.primarySituationThesis ||
+      null,
 
-      situationNarrative:
-        contract.situationThesis?.narrative ||
-        summary.situationMap?.situationNarrative ||
-        summary.situationNarrative ||
-        null,
+    situationNarrative:
+      contract.situationThesis?.narrative ||
+      summary.situationMap?.situationNarrative ||
+      summary.situationNarrative ||
+      null,
 
-      thesisRecommendedUse:
-        contract.situationThesis?.recommendedUse ||
-        summary.situationMap?.thesisRecommendedUse ||
-        summary.thesisRecommendedUse ||
-        "do_not_use_as_authority",
+    thesisRecommendedUse:
+      contract.situationThesis?.recommendedUse ||
+      summary.situationMap?.thesisRecommendedUse ||
+      summary.thesisRecommendedUse ||
+      "do_not_use_as_authority",
 
-           ...(laneMap[primary] || {})
-    };
-  },
+    ...(laneMap[primary] || {})
+  };
+},
 
 async loadThreadState(summary = {}) {
   const store = window.AriThreadStore;
