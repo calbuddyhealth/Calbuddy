@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.4.9 — App Safe / Pipeline Guarded / File Evidence Non-Hijack
+// V1.5.0 — App Safe / Pipeline Guarded / File Evidence Non-Hijack
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.4.9",
+version: "1.5.0",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -399,7 +399,7 @@ return this.makeResponse({
   );
 },
 
-  extractFileEvidenceReply(summary = {}) {
+    extractFileEvidenceReply(summary = {}) {
     const fileContext =
       summary.githubFileContext ||
       summary.githubEvidence ||
@@ -411,62 +411,21 @@ return this.makeResponse({
     const userText = String(summary.userMessage || summary.message || "").toLowerCase();
 
     if (!content.trim()) return null;
+    if (!this.isFileEvidenceDisplayRequest(userText)) return null;
 
     const lines = content.split("\n");
 
-    const rangeMatch =
-      userText.match(/lines?\s+(\d+)\s*(?:-|to|through)\s*(\d+)/i);
-
-    if (rangeMatch) {
-      const start = Math.max(Number(rangeMatch[1]), 1);
-      const end = Math.min(Number(rangeMatch[2]), lines.length);
-
+    const range = this.wantsLineRange(userText, lines.length);
+    if (range) {
       return this.formatFileLines({
         filePath,
         lines,
-        start,
-        end
+        start: range.start,
+        end: range.end
       });
     }
 
-    const firstMatch = userText.match(/first\s+(\d+)\s+lines?/i);
-
-    if (firstMatch) {
-      const count = Math.min(Number(firstMatch[1]), lines.length);
-
-      return this.formatFileLines({
-        filePath,
-        lines,
-        start: 1,
-        end: count
-      });
-    }
-
-    const lastMatch = userText.match(/last\s+(\d+)\s+lines?/i);
-
-    if (lastMatch) {
-      const count = Math.min(Number(lastMatch[1]), lines.length);
-      const start = Math.max(lines.length - count + 1, 1);
-
-      return this.formatFileLines({
-        filePath,
-        lines,
-        start,
-        end: lines.length
-      });
-    }
-
-    const wantsFullCode =
-      userText.includes("show full file") ||
-      userText.includes("show me full file") ||
-      userText.includes("show all code") ||
-      userText.includes("full code") ||
-      userText.includes("entire file") ||
-      userText.includes("exact code") ||
-      userText.includes("exact html") ||
-      userText.includes("show me the exact");
-
-    if (wantsFullCode) {
+    if (this.wantsFullFile(userText)) {
       return [
         `I read ${filePath}. Full file content:`,
         "",
@@ -476,18 +435,79 @@ return this.makeResponse({
       ].join("\n");
     }
 
-    const wantsFileStatus =
-  userText.includes("what file are you reading") ||
-  userText.includes("which file are you reading") ||
-  userText.includes("currently reading") ||
-  userText.includes("github evidence available") ||
-  userText.includes("githubevidenceavailable");
-
-    if (wantsFileStatus) {
-      return `I’m currently reading ${filePath}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.\n\nContent length: ${content.length} characters.\nLine count: ${lines.length}.`;
+    if (this.wantsFileStatus(userText)) {
+      return [
+        `I’m currently reading ${filePath}.`,
+        "",
+        `Exact file content loaded: yes`,
+        `Content length: ${content.length} characters`,
+        `Line count: ${lines.length}`
+      ].join("\n");
     }
 
     return null;
+  },
+
+  isFileEvidenceDisplayRequest(userText = "") {
+    return Boolean(
+      this.wantsLineRange(userText, 999999) ||
+      this.wantsFullFile(userText) ||
+      this.wantsFileStatus(userText)
+    );
+  },
+
+  wantsLineRange(userText = "", lineCount = 0) {
+    const text = String(userText || "").toLowerCase();
+
+    const rangeMatch = text.match(/lines?\s+(\d+)\s*(?:-|to|through)\s*(\d+)/i);
+    if (rangeMatch) {
+      const start = Math.max(Number(rangeMatch[1]), 1);
+      const end = Math.min(Number(rangeMatch[2]), lineCount);
+      return start <= end ? { start, end } : null;
+    }
+
+    const firstMatch = text.match(/first\s+(\d+)\s+lines?/i);
+    if (firstMatch) {
+      const count = Math.min(Number(firstMatch[1]), lineCount);
+      return { start: 1, end: count };
+    }
+
+    const lastMatch = text.match(/last\s+(\d+)\s+lines?/i);
+    if (lastMatch) {
+      const count = Math.min(Number(lastMatch[1]), lineCount);
+      const start = Math.max(lineCount - count + 1, 1);
+      return { start, end: lineCount };
+    }
+
+    return null;
+  },
+
+  wantsFullFile(userText = "") {
+    const text = String(userText || "").toLowerCase();
+
+    return (
+      text.includes("show full file") ||
+      text.includes("show me full file") ||
+      text.includes("show all code") ||
+      text.includes("full code") ||
+      text.includes("entire file") ||
+      text.includes("whole file") ||
+      text.includes("paste the file") ||
+      text.includes("send the full file")
+    );
+  },
+
+  wantsFileStatus(userText = "") {
+    const text = String(userText || "").toLowerCase();
+
+    return (
+      text.includes("what file are you reading") ||
+      text.includes("which file are you reading") ||
+      text.includes("currently reading") ||
+      text.includes("current file status") ||
+      text.includes("github evidence available") ||
+      text.includes("githubevidenceavailable")
+    );
   },
 
   formatFileLines({ filePath = "the file", lines = [], start = 1, end = 1 } = {}) {
