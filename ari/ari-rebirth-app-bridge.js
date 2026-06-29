@@ -2,13 +2,15 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.4.8 — App Safe / Pipeline Guarded / Clean Action Bridge
+// V1.4.9 — App Safe / Pipeline Guarded / File Evidence Non-Hijack
+
+version: "1.4.9",
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.4.8",
+
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -476,9 +478,11 @@ return this.makeResponse({
     }
 
     const wantsFileStatus =
-      userText.includes("what file") ||
-      userText.includes("currently reading") ||
-      userText.includes("githubevidenceavailable");
+  userText.includes("what file are you reading") ||
+  userText.includes("which file are you reading") ||
+  userText.includes("currently reading") ||
+  userText.includes("github evidence available") ||
+  userText.includes("githubevidenceavailable");
 
     if (wantsFileStatus) {
       return `I’m currently reading ${filePath}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.\n\nContent length: ${content.length} characters.\nLine count: ${lines.length}.`;
