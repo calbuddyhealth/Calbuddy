@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.6.0 — Composer Bridge / AI Writer / Validator Debug Fields
+// V3.7.0 — Composer Bridge / AI Writer / Validator Debug Fields
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.6.0",
+  version: "3.7.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -224,6 +224,11 @@ const codeEvidence =
 const patchDecision =
   analysis.patchDecision ||
   analysis.rebirthPatchDecision ||
+  {};
+
+const developerHandoff =
+  analysis.developerHandoff ||
+  analysis.rebirthDeveloperHandoff ||
   {};
 
     const observationLedger =
@@ -2028,12 +2033,37 @@ patchGithubEdit:
 patchDeveloperIntent:
   patchDecision.developerIntent || null,
 
+developerHandoff,
+rebirthDeveloperHandoff: developerHandoff,
+
+developerHandoffRan:
+  developerHandoff.enabled === true ||
+  Boolean(developerHandoff.developerIntent),
+
+developerHandoffType:
+  developerHandoff.type || null,
+
+developerHandoffReply:
+  developerHandoff.reply ||
+  developerHandoff.finalResponse ||
+  null,
+
+developerResponseLocked:
+  analysis.developerResponseLocked ??
+  developerHandoff.developerResponseLocked ??
+  false,
+
+responseLocked:
+  analysis.responseLocked ??
+  developerHandoff.responseLocked ??
+  false,
+
 developerIntent:
   analysis.developerIntent ||
+  developerHandoff.developerIntent ||
   patchDecision.developerIntent ||
   codeEvidence.developerIntent ||
   null,
-
 // ==================================================
 // CHARACTER CONTEXT ENGINE
 // ==================================================
