@@ -2,13 +2,13 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.4.7 — App Safe / Pipeline Guarded / Clean Action Bridge
+// V1.4.8 — App Safe / Pipeline Guarded / Clean Action Bridge
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "1.4.7",
+  version: "1.4.8",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -307,49 +307,58 @@ return this.makeResponse({
   },
 
   attachAppContext(summary = {}, cleanMessage = "", options = {}) {
-    const normalizedMessage = cleanMessage.toLowerCase().trim();
+  const normalizedMessage = cleanMessage.toLowerCase().trim();
 
-    return {
-  ...summary,
+  const githubFileContext = options.githubFileContext || null;
+  const developerInvestigation = options.developerInvestigation || null;
 
-  debugTiming: options.debugTiming === true,
+  return {
+    ...summary,
 
-  userMessage: cleanMessage,
-      message: cleanMessage,
-      input: cleanMessage,
-      normalizedMessage,
+    debugTiming: options.debugTiming === true,
 
-      appContext: {
-        source: options.source || "calbuddy-health",
-        appMode: "rebirth-only",
-        page: options.page || "unknown",
-debugTiming: options.debugTiming === true,
-        
-        userContext: options.userContext || null,
-        coachMemorySummary: options.coachMemorySummary || "",
-        githubFileContext: options.githubFileContext || null,
-        developerInvestigation: options.developerInvestigation || null,
+    userMessage: cleanMessage,
+    message: cleanMessage,
+    input: cleanMessage,
+    normalizedMessage,
 
-        goals: options.goals || null,
-        meals: Array.isArray(options.meals) ? options.meals : [],
-        todayLog: Array.isArray(options.todayLog) ? options.todayLog : [],
-        recentMeals: Array.isArray(options.recentMeals) ? options.recentMeals : [],
-        favoriteFoods: Array.isArray(options.favoriteFoods) ? options.favoriteFoods : [],
-        recentWeights: Array.isArray(options.recentWeights) ? options.recentWeights : [],
+    // IMPORTANT: promote file evidence to top-level
+    githubFileContext,
+    githubEvidence: githubFileContext,
+    developerInvestigation,
 
-        user: options.user || null,
-        ownerMode: options.ownerMode === true,
-        ariPermissions: options.ariPermissions || {},
+    appContext: {
+      source: options.source || "calbuddy-health",
+      appMode: "rebirth-only",
+      page: options.page || "unknown",
+      debugTiming: options.debugTiming === true,
 
-        history: Array.isArray(options.history) ? options.history.slice(-20) : [],
+      userContext: options.userContext || null,
+      coachMemorySummary: options.coachMemorySummary || "",
+      githubFileContext,
+      githubEvidence: githubFileContext,
+      developerInvestigation,
 
-        permissions: {
-          allowDirectWrites: false,
-          requireApprovalForActions: true
-        }
+      goals: options.goals || null,
+      meals: Array.isArray(options.meals) ? options.meals : [],
+      todayLog: Array.isArray(options.todayLog) ? options.todayLog : [],
+      recentMeals: Array.isArray(options.recentMeals) ? options.recentMeals : [],
+      favoriteFoods: Array.isArray(options.favoriteFoods) ? options.favoriteFoods : [],
+      recentWeights: Array.isArray(options.recentWeights) ? options.recentWeights : [],
+
+      user: options.user || null,
+      ownerMode: options.ownerMode === true,
+      ariPermissions: options.ariPermissions || {},
+
+      history: Array.isArray(options.history) ? options.history.slice(-20) : [],
+
+      permissions: {
+        allowDirectWrites: false,
+        requireApprovalForActions: true
       }
-    };
-  },
+    }
+  };
+},
 
   attachDeveloperIntent(summary = {}) {
     const existingIntent =
