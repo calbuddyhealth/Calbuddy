@@ -1,11 +1,11 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.0.1 — AI Writer Receives Composer Packet / Validator Receives Summary
+// V4.0.3 — V9 Composer Preferred / Safe Developer Lock
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.0.1",
+  version: "4.0.3",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -844,10 +844,10 @@ if (!developerResponseLocked) {
   mark("before AriLanguageComposer");
 
   const composerResult = await runEngine(
-    window.AriLanguageComposer,
-    ["compose"],
-    {}
-  );
+  window.AriLanguageComposerV9 || window.AriLanguageComposer,
+  ["compose"],
+  {}
+);
 
   const composerFinal =
     composerResult.finalResponse ||
@@ -1641,27 +1641,24 @@ if (summary.developerHandoff) {
     summary.developerIntent?.developerResponse ||
     null;
 
-    summary.developerResponseLocked =
+    const hasDeveloperFinal =
+  Boolean(summary.developerHandoff.reply) ||
+  Boolean(summary.developerHandoff.finalResponse);
+
+summary.developerResponseLocked =
+  hasDeveloperFinal &&
+  (
     summary.developerHandoff.developerResponseLocked === true ||
-    summary.developerHandoff.responseLocked === true;
+    summary.developerHandoff.responseLocked === true
+  );
 
-  summary.responseLocked =
-    summary.developerResponseLocked;
-
-    if (
-    summary.developerResponseLocked === true &&
-    summary.developerHandoff.reply
-  ) {
-    summary.finalResponse = summary.developerHandoff.reply;
-  }
-
-  if (
-    summary.developerResponseLocked === true &&
-    !summary.finalResponse &&
-    summary.developerHandoff.finalResponse
-  ) {
-    summary.finalResponse = summary.developerHandoff.finalResponse;
-  }
+summary.responseLocked = summary.developerResponseLocked;
+   if (summary.developerResponseLocked === true) {
+  summary.finalResponse =
+    summary.developerHandoff.reply ||
+    summary.developerHandoff.finalResponse ||
+    summary.finalResponse;
+}
 }
 
   return {
