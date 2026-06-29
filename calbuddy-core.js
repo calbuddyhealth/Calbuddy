@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.4";
+CalBuddy.version = "3.5.5";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -1217,14 +1217,27 @@ CalBuddy.captureAriTemporarySuggestions({
   source: "rebirth"
 });
 
-  const currentMessageIsDeveloperCommand = CalBuddy.isDeveloperCommand(message);
+  const developerIntent =
+  rebirth.developerIntent ||
+  rebirth.summary?.developerIntent ||
+  null;
 
-if (
-  currentMessageIsDeveloperCommand &&
-  (rebirth.developerIntent || rebirth.summary?.developerIntent)
-) {
+const shouldHandleDeveloperIntent =
+  userContext.ownerMode === true &&
+  developerIntent &&
+  developerIntent.enabled !== false &&
+  (
+    CalBuddy.isDeveloperCommand(message) ||
+    developerIntent.ownerCommand === true ||
+    developerIntent.type === "developer_investigation" ||
+    developerIntent.type === "github_read_request" ||
+    developerIntent.type === "github_search_request" ||
+    developerIntent.githubEdit
+  );
+
+if (shouldHandleDeveloperIntent) {
     const handledIntent = await CalBuddy.handleDeveloperIntent({
-      developerIntent: rebirth.developerIntent || rebirth.summary?.developerIntent,
+      developerIntent,
       originalMessage: message,
       userContext,
       history
