@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-code-evidence-engine.js
 // Ari Rebirth Code Evidence Engine
 // Purpose: Convert developer understanding into executable evidence-gathering steps.
-// V1.2.2 — Repository Evidence Aware / Read-State Detection / Patch Gate Ready
+// V1.2.3 — Full-File Evidence Aware / Semantic Discovery / No Static File Trap
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthCodeEvidenceEngine = {
-  version: "1.2.2",
+  version: "1.2.3",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -20,36 +20,36 @@ window.AriRebirthCodeEvidenceEngine = {
 
     const evidenceState = this.getRepositoryEvidenceState(summary);
 
-    const searchSteps = evidenceState.available
-  ? []
-  : this.buildSearchSteps(understanding);
+    const searchSteps = evidenceState.hasCompleteEvidence
+      ? []
+      : this.buildSearchSteps(understanding);
 
-const readSteps = evidenceState.available
-  ? []
-  : this.buildReadSteps(understanding);
+    const readSteps = evidenceState.hasCompleteEvidence
+      ? []
+      : this.buildReadSteps(understanding);
 
-const analysisSteps = this.buildAnalysisSteps();
+    const analysisSteps = this.buildAnalysisSteps();
 
-const steps = this.dedupeSteps([
-  ...searchSteps,
-  ...readSteps,
-  ...analysisSteps
-]);
+    const steps = this.dedupeSteps([
+      ...searchSteps,
+      ...readSteps,
+      ...analysisSteps
+    ]);
 
     const investigationPlan = this.buildInvestigationPlan({
-  understanding,
-  evidenceState,
-  steps
-});
+      understanding,
+      evidenceState,
+      steps
+    });
 
     return {
       codeEvidenceRan: true,
       codeEvidenceVersion: this.version,
       source: "ari-rebirth-code-evidence-engine",
 
-      evidenceStatus: evidenceState.available ? "available" : "needed",
-      canEditNow: evidenceState.available,
-      requiresReadBeforeEdit: !evidenceState.available,
+      evidenceStatus: evidenceState.hasCompleteEvidence ? "complete" : "needed",
+      canEditNow: evidenceState.hasCompleteEvidence,
+      requiresReadBeforeEdit: !evidenceState.hasCompleteEvidence,
       repositoryEvidence: evidenceState,
 
       intentFamily: understanding.intentFamily,
@@ -73,8 +73,8 @@ const steps = this.dedupeSteps([
         targetArea: understanding.targetArea,
         targetObject: understanding.targetObject,
         steps,
-        canEditNow: evidenceState.available,
-        requiresReadBeforeEdit: !evidenceState.available,
+        canEditNow: evidenceState.hasCompleteEvidence,
+        requiresReadBeforeEdit: !evidenceState.hasCompleteEvidence,
         repositoryEvidence: evidenceState
       },
 
@@ -96,6 +96,8 @@ const steps = this.dedupeSteps([
         searchBeforeGuessing: true,
         readBeforeEditing: true,
         requireExactCurrentCode: true,
+        requireFullFileEvidenceForPatch: true,
+        textLengthDoesNotProveCompleteness: true,
         requirePatchReason: true,
         requireOwnerConfirmation: true,
         confirmationText: "CONFIRM GITHUB EDIT"
@@ -112,6 +114,14 @@ const steps = this.dedupeSteps([
 
     const directContent = String(githubFileContext?.content || "").trim();
 
+    const directComplete =
+      Boolean(directContent) &&
+      (
+        githubFileContext?.fullContent === true ||
+        githubFileContext?.contentComplete === true ||
+        githubFileContext?.isFullFile === true
+      );
+
     const investigation =
       summary.developerInvestigation ||
       summary.appContext?.developerInvestigation ||
@@ -126,27 +136,77 @@ const steps = this.dedupeSteps([
       return result?.success && String(result.content || "").trim();
     });
 
-    const available = Boolean(directContent || successfulReads.length);
+    const completeReads = successfulReads.filter(item => {
+      const result = item.result || item;
+
+      return (
+        result.fullContent === true ||
+        result.contentComplete === true ||
+        result.isFullFile === true
+      );
+    });
+
+    const hasAnyEvidence = Boolean(directContent || successfulReads.length);
+    const hasCompleteEvidence = Boolean(directComplete || completeReads.length);
+
+    const firstCompleteRead = completeReads[0] || null;
+    const firstSuccessfulRead = successfulReads[0] || null;
+
+    const selectedRead = firstCompleteRead || firstSuccessfulRead;
+    const selectedResult = selectedRead?.result || selectedRead || null;
 
     return {
-      available,
-      source: directContent
-        ? "github_file_context"
-        : successfulReads.length
-          ? "developer_investigation_read_results"
-          : "none",
+      available: hasAnyEvidence,
+      hasAnyEvidence,
+      hasCompleteEvidence,
+      source: directComplete
+        ? "github_file_context_full_file"
+        : directContent
+          ? "github_file_context_partial_or_unverified"
+          : completeReads.length
+            ? "developer_investigation_full_file_read_results"
+            : successfulReads.length
+              ? "developer_investigation_partial_or_unverified_read_results"
+              : "none",
+
       filePath:
         githubFileContext?.filePath ||
-        successfulReads[0]?.filePath ||
-        successfulReads[0]?.result?.filePath ||
+        selectedRead?.filePath ||
+        selectedResult?.filePath ||
         null,
+
       contentLength:
         directContent.length ||
-        String(successfulReads[0]?.result?.content || successfulReads[0]?.content || "").length ||
+        String(selectedResult?.content || "").length ||
         0,
+
+      lineCount:
+        githubFileContext?.lineCount ||
+        selectedResult?.lineCount ||
+        String(directContent || selectedResult?.content || "").split("\n").length ||
+        0,
+
       readCount: successfulReads.length,
-      hasExactCurrentCode: available,
-      canProceedToPatchDecision: available
+      completeReadCount: completeReads.length,
+
+      hasExactCurrentCode: hasCompleteEvidence,
+      canProceedToPatchDecision: hasCompleteEvidence,
+
+      fullContent:
+        githubFileContext?.fullContent === true ||
+        selectedResult?.fullContent === true,
+
+      contentComplete:
+        githubFileContext?.contentComplete === true ||
+        selectedResult?.contentComplete === true,
+
+      isFullFile:
+        githubFileContext?.isFullFile === true ||
+        selectedResult?.isFullFile === true,
+
+      warning: hasAnyEvidence && !hasCompleteEvidence
+        ? "Repository content exists, but Ari cannot treat it as complete full-file evidence yet."
+        : null
     };
   },
 
@@ -176,11 +236,13 @@ const steps = this.dedupeSteps([
           tool: "github_search",
           query,
           reason: this.reasonForSearch(query, understanding),
-          semanticPurpose: this.semanticPurposeForQuery(query, understanding)
+          semanticPurpose: this.semanticPurposeForQuery(query, understanding),
+          required: false,
+          discoverMoreFiles: true
         };
       })
       .filter(Boolean)
-      .slice(0, 10);
+      .slice(0, 12);
   },
 
   buildReadSteps(understanding = {}) {
@@ -190,8 +252,9 @@ const steps = this.dedupeSteps([
       return [{
         tool: "github_read",
         filePath: target.filePath,
-        reason: "Owner named this file. Read exact current content before analysis.",
-        required: true
+        reason: "Owner named this file. Read exact full current content before analysis.",
+        required: true,
+        requireFullFile: true
       }];
     }
 
@@ -200,9 +263,11 @@ const steps = this.dedupeSteps([
         tool: "github_read",
         filePath,
         reason: this.reasonForRead(filePath, understanding),
-        required: true
+        required: false,
+        requireFullFile: true,
+        seedFile: true
       }))
-      .slice(0, 8);
+      .slice(0, 10);
   },
 
   buildAnalysisSteps() {
@@ -213,8 +278,9 @@ const steps = this.dedupeSteps([
       },
       {
         tool: "patch_decision",
-        reason: "Decide if exact evidence exists for a safe patch.",
+        reason: "Decide if complete full-file evidence exists for a safe patch.",
         requiresExactFindText: true,
+        requiresFullFileEvidence: true,
         requiresOwnerConfirmation: true,
         confirmationText: "CONFIRM GITHUB EDIT"
       }
@@ -224,29 +290,34 @@ const steps = this.dedupeSteps([
   expandSearchConcepts(understanding = {}) {
     const concepts = new Set([
       ...(understanding.searchConcepts || []),
+      understanding.userGoal,
+      understanding.requestedChange,
       understanding.targetObject?.name,
       understanding.targetObject?.filePath,
       understanding.targetArea,
-      understanding.intentFamily,
-      understanding.requestedChange
+      understanding.intentFamily
     ]);
 
     const targetArea = understanding.targetArea || "";
     const intentFamily = understanding.intentFamily || "";
 
-    const add = arr => arr.forEach(x => concepts.add(x));
+    const add = arr => arr.forEach(item => concepts.add(item));
 
     if (targetArea === "homepage_ui" || intentFamily === "homepage_redesign_or_patch") {
       add([
-        "ari-master-home",
+        "homepage Ari mascot",
+        "data-ari-mascot",
+        "ari mascot",
+        "ari avatar",
+        "ari-hero",
         "ari-hero-section",
+        "ari-master-home",
         "ari-search-section",
         "ariConversationPanel",
         "ari-action-grid",
-        "calorie-card",
         "ARI_DEFAULT_BUBBLE",
-        "toggleConversationHistory",
-        "sendAriMessage"
+        "sendAriMessage",
+        "toggleConversationHistory"
       ]);
     }
 
@@ -254,12 +325,28 @@ const steps = this.dedupeSteps([
       add([
         "finalResponse",
         "languageComposerOutput",
+        "developerResponseLocked",
+        "composerDeveloperPacket",
         "communicationPlan",
         "compose",
         "cleanReply",
         "extractReply",
         "reply",
         "response"
+      ]);
+    }
+
+    if (targetArea === "repository_layer") {
+      add([
+        "ari-github-read",
+        "ari-github-search",
+        "ari-github-edit",
+        "fullContent",
+        "contentComplete",
+        "isFullFile",
+        "developerIntent",
+        "githubEdit",
+        "CONFIRM GITHUB EDIT"
       ]);
     }
 
@@ -270,7 +357,6 @@ const steps = this.dedupeSteps([
         "searchKnowledge",
         "pendingAction",
         "CalBuddy.api",
-        "api",
         "actions",
         "memory"
       ]);
@@ -284,17 +370,6 @@ const steps = this.dedupeSteps([
         "updateMeterStatus",
         "calorie-card",
         "meter-fill"
-      ]);
-    }
-
-    if (targetArea === "repository_layer") {
-      add([
-        "ari-github-read",
-        "ari-github-search",
-        "ari-github-edit",
-        "developerIntent",
-        "githubEdit",
-        "CONFIRM GITHUB EDIT"
       ]);
     }
 
@@ -313,43 +388,46 @@ const steps = this.dedupeSteps([
     return Array.from(concepts)
       .map(item => String(item || "").trim())
       .filter(Boolean)
-      .slice(0, 18);
+      .slice(0, 24);
   },
 
   expandLikelyFiles(understanding = {}) {
-    const files = new Set(understanding.likelyFiles || []);
+    const files = new Set();
+
     const target = understanding.targetObject || {};
-    const targetArea = understanding.targetArea || "";
-    const intentFamily = understanding.intentFamily || "";
+    const likelyFiles = Array.isArray(understanding.likelyFiles)
+      ? understanding.likelyFiles
+      : [];
+
+    likelyFiles.forEach(filePath => files.add(filePath));
 
     if (target.filePath) files.add(target.filePath);
 
-    const add = arr => arr.forEach(x => files.add(x));
+    const targetArea = understanding.targetArea || "";
+    const intentFamily = understanding.intentFamily || "";
+
+    const addSeeds = arr => arr.forEach(filePath => files.add(filePath));
 
     if (targetArea === "homepage_ui" || intentFamily === "homepage_redesign_or_patch") {
-      add(["index.html", "style.css", "calbuddy-core.js"]);
+      addSeeds([
+        "index.html",
+        "style.css"
+      ]);
     }
 
     if (targetArea === "ari_response_behavior" || intentFamily === "improve_ari_behavior") {
-      add([
-        "ari/language/ari-communication-planner.js",
-        "ari/language/ari-language-composer.js",
+      addSeeds([
         "ari/ari-rebirth-app-bridge.js",
+        "ari/language/ari-composer-bridge.js",
+        "ari/language/ari-ai-writer.js",
+        "ari/language/ari-language-composer-v9.js",
+        "ari/language/ari-language-composer.js",
         "api/ask-calbuddy.js"
       ]);
     }
 
-    if (targetArea === "tooling" || intentFamily === "tool_or_feature_build") {
-      add([
-        "calbuddy-core.js",
-        "api/actions.js",
-        "api/ask-calbuddy.js",
-        "ari/ari-rebirth-app-bridge.js"
-      ]);
-    }
-
     if (targetArea === "repository_layer") {
-      add([
+      addSeeds([
         "api/ari-github-read.js",
         "api/ari-github-search.js",
         "api/ari-github-edit.js",
@@ -357,70 +435,91 @@ const steps = this.dedupeSteps([
       ]);
     }
 
+    if (targetArea === "tooling" || intentFamily === "tool_or_feature_build") {
+      addSeeds([
+        "calbuddy-core.js",
+        "api/actions.js",
+        "api/ask-calbuddy.js",
+        "ari/ari-rebirth-app-bridge.js"
+      ]);
+    }
+
     if (targetArea === "data_layer") {
-      add(["calbuddy-core.js", "api/actions.js", "supabase-config.js"]);
+      addSeeds([
+        "calbuddy-core.js",
+        "api/actions.js",
+        "supabase-config.js"
+      ]);
     }
 
     if (!files.size) {
-      add(["index.html", "style.css", "calbuddy-core.js", "api/ask-calbuddy.js"]);
+      addSeeds([
+        "index.html",
+        "style.css",
+        "calbuddy-core.js",
+        "api/ask-calbuddy.js",
+        "ari/ari-rebirth-app-bridge.js"
+      ]);
     }
 
-    return Array.from(files).filter(Boolean).slice(0, 10);
+    return Array.from(files)
+      .map(filePath => String(filePath || "").trim())
+      .filter(Boolean)
+      .slice(0, 12);
   },
 
   reasonForSearch(query = "", understanding = {}) {
-    return `Semantic search for "${query}" related to ${understanding.intentFamily || "developer work"} in ${understanding.targetArea || "unknown area"}.`;
+    return `Semantic discovery search for "${query}" related to ${
+      understanding.intentFamily || "developer work"
+    } in ${understanding.targetArea || "unknown area"}.`;
   },
 
   semanticPurposeForQuery(query = "") {
     const q = String(query).toLowerCase();
 
-    if (q.includes("ari") || q.includes("bubble") || q.includes("conversation")) {
-      return "Locate Ari UI, conversation, or response behavior code.";
+    if (q.includes("mascot") || q.includes("avatar") || q.includes("ari") || q.includes("bubble")) {
+      return "Discover Ari UI, mascot, avatar, bubble, or conversation files.";
     }
 
     if (q.includes("meter") || q.includes("calorie")) {
-      return "Locate calorie meter rendering and update logic.";
+      return "Discover calorie meter rendering and update logic.";
     }
 
-    if (q.includes("github") || q.includes("developerintent")) {
-      return "Locate developer workflow and GitHub handoff code.";
+    if (q.includes("github") || q.includes("fullcontent") || q.includes("contentcomplete")) {
+      return "Discover repository read/search/edit evidence flow.";
+    }
+
+    if (q.includes("composer") || q.includes("response") || q.includes("reply")) {
+      return "Discover final response generation and locked-template behavior.";
     }
 
     if (q.includes("barcode") || q.includes("tool") || q.includes("api")) {
-      return "Locate tool/action/API capability code.";
+      return "Discover tool/action/API capability code.";
     }
 
-    return "Locate exact repository references before reading or editing.";
+    return "Discover relevant repository files before reading or editing.";
   },
 
   reasonForRead(filePath = "", understanding = {}) {
     const reasons = {
-      "index.html": "Read homepage structure, Ari UI, visible buttons, inline scripts, and script loading order.",
-      "style.css": "Read visual styling before layout, mobile spacing, meter, or Ari presentation changes.",
-      "calbuddy-core.js": "Read CalBuddy app brain, Ari handoff, dashboard, actions, GitHub handling, and context flow.",
-      "api/ask-calbuddy.js": "Read server Ari prompt, JSON contract, developerIntent behavior, and fallback response logic.",
-      "api/actions.js": "Read app action endpoint before adding or changing write-capable tools.",
-      "api/ari-github-read.js": "Read GitHub read endpoint before changing repository evidence flow.",
-      "api/ari-github-search.js": "Read GitHub search endpoint before changing semantic repository search behavior.",
-      "api/ari-github-edit.js": "Read GitHub edit endpoint before changing patch, commit, preview, or undo behavior."
+      "index.html": "Seed read: homepage structure and visible Ari UI may live here.",
+      "style.css": "Seed read: mascot visibility, layout, and homepage styling may live here.",
+      "calbuddy-core.js": "Seed read: CalBuddy app brain, Ari handoff, GitHub handling, and context flow may live here.",
+      "api/ask-calbuddy.js": "Seed read: server Ari prompt, response contract, developerIntent behavior, and fallback logic may live here.",
+      "api/actions.js": "Seed read: app action endpoint before changing write-capable tools.",
+      "api/ari-github-read.js": "Seed read: GitHub read endpoint and full-file evidence flags.",
+      "api/ari-github-search.js": "Seed read: GitHub search endpoint and semantic repository discovery.",
+      "api/ari-github-edit.js": "Seed read: GitHub edit endpoint before patch, commit, preview, or undo changes.",
+      "ari/ari-rebirth-app-bridge.js": "Seed read: Rebirth bridge, developerIntent handoff, and file evidence handling.",
+      "ari/language/ari-composer-bridge.js": "Seed read: composer packet routing and locked developer packet behavior.",
+      "ari/language/ari-ai-writer.js": "Seed read: AI writer behavior for natural responses.",
+      "ari/language/ari-language-composer-v9.js": "Seed read: modern final response composer behavior.",
+      "ari/language/ari-language-composer.js": "Seed read: fallback or legacy final response composer behavior."
     };
 
     if (reasons[filePath]) return reasons[filePath];
 
-    if (filePath.includes("ari-rebirth-app-bridge")) {
-      return "Read Rebirth bridge to verify action, developerIntent, and app handoff behavior.";
-    }
-
-    if (filePath.includes("ari-language-composer")) {
-      return "Read final response writer for naturalness and style issues.";
-    }
-
-    if (filePath.includes("ari-communication-planner")) {
-      return "Read communication planner for tone, directness, and speaking strategy.";
-    }
-
-    return `Read likely ${understanding.targetArea || "developer"} file before proposing code changes.`;
+    return `Seed read for likely ${understanding.targetArea || "developer"} file. Search may discover more exact files.`;
   },
 
   inferNextRequiredAction({
@@ -431,40 +530,49 @@ const steps = this.dedupeSteps([
   }) {
     const target = understanding.targetObject || {};
 
-    if (evidenceState.available) {
+    if (evidenceState.hasCompleteEvidence) {
       return {
         type: "patch_decision",
         tool: "patch_decision",
         filePath: evidenceState.filePath || target.filePath || null,
-        reason: "Repository evidence is already available. Proceed to patch decision, not another read."
+        reason: "Complete full-file repository evidence is available. Proceed to patch decision."
+      };
+    }
+
+    if (evidenceState.hasAnyEvidence && !evidenceState.hasCompleteEvidence) {
+      return {
+        type: "read_full_file",
+        tool: "github_read",
+        filePath: evidenceState.filePath || target.filePath || null,
+        reason: "Partial or unverified code evidence exists, but patching requires full-file evidence."
       };
     }
 
     if (target.kind === "file" && target.filePath) {
       return {
-        type: "read",
+        type: "read_full_file",
         tool: "github_read",
         filePath: target.filePath,
-        reason: "Specific file is known. Read exact current content next."
+        reason: "Specific file is known. Read exact full current content next."
       };
     }
 
     if (searchSteps.length) {
       return {
-        type: "search_then_read",
+        type: "semantic_search_then_read",
         firstTool: "github_search",
         firstQuery: searchSteps[0].query,
-        readFilesAfterSearch: readSteps.map(step => step.filePath),
-        reason: "Search concepts first, then read likely files before patching."
+        seedReadFiles: readSteps.map(step => step.filePath),
+        reason: "Use semantic search to discover relevant files, then read full files before patching."
       };
     }
 
     if (readSteps.length) {
       return {
-        type: "read",
+        type: "read_seed_file",
         tool: "github_read",
         filePath: readSteps[0].filePath,
-        reason: "Likely file is known. Read exact current content next."
+        reason: "Read seed file, but do not treat seed files as the complete universe."
       };
     }
 
@@ -485,16 +593,22 @@ const steps = this.dedupeSteps([
   },
 
   buildSummary(understanding = {}, evidenceState = {}) {
-  if (evidenceState.available) {
-    return `Ari Rebirth already has repository evidence for: ${
-      understanding.userGoal || "developer request"
-    }. Proceed to code understanding and patch decision.`;
-  }
+    if (evidenceState.hasCompleteEvidence) {
+      return `Ari Rebirth has complete full-file repository evidence for: ${
+        understanding.userGoal || "developer request"
+      }. Proceed to code understanding and patch decision.`;
+    }
 
-  return `Ari Rebirth will gather repository evidence for: ${
-    understanding.userGoal || "developer request"
-  }. Search/read must happen before patching.`;
-},
+    if (evidenceState.hasAnyEvidence) {
+      return `Ari Rebirth has partial or unverified repository evidence for: ${
+        understanding.userGoal || "developer request"
+      }. Read full-file evidence before patching.`;
+    }
+
+    return `Ari Rebirth will use semantic discovery and seed reads for: ${
+      understanding.userGoal || "developer request"
+    }. Search/read must happen before patching.`;
+  },
 
   inferPriority(understanding = {}) {
     if (understanding.urgency === "high") return "high";
@@ -512,12 +626,12 @@ const steps = this.dedupeSteps([
       .replace(/^developer_analysis_needed$/i, "")
       .replace(/^specific_file$/i, "")
       .replace(/^homepage_ui$/i, "homepage")
-      .replace(/^ari_response_behavior$/i, "Ari response")
+      .replace(/^ari_response_behavior$/i, "Ari response behavior")
       .replace(/^tool_or_feature_build$/i, "tool feature")
       .trim();
 
     if (!cleaned || cleaned.length < 2) return null;
-    return cleaned.slice(0, 140);
+    return cleaned.slice(0, 180);
   },
 
   dedupeSteps(steps = []) {
