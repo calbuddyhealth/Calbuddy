@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.0.2 — Evidence-Aware Natural Writer
+// V1.0.3 — Developer Evidence Gated / Normal Chat Safe
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.0.2",
+  version: "1.0.3",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -14,7 +14,8 @@ window.AriAIWriter = {
       return this.localDraft(packet, "composer_packet_missing");
     }
 
-    const instruction = this.buildInstruction(packet);
+    const safePacket = this.buildSafePacket(packet);
+    const instruction = this.buildInstruction(safePacket);
 
     try {
       if (
@@ -22,9 +23,9 @@ window.AriAIWriter = {
         typeof window.AriOpenAIKnowledgeClient.ask === "function"
       ) {
         const result = await window.AriOpenAIKnowledgeClient.ask({
-          question: packet.userQuestion || "",
+          question: safePacket.userQuestion || "",
           aiInstruction: instruction,
-          composerPacket: packet
+          composerPacket: safePacket
         });
 
         const text =
@@ -50,10 +51,68 @@ window.AriAIWriter = {
       console.warn("AriAIWriter failed:", error);
     }
 
-    return this.localDraft(packet, "ai_unavailable");
+    return this.localDraft(safePacket, "ai_unavailable");
+  },
+
+  buildSafePacket(packet = {}) {
+    const developerRelevant = this.isDeveloperRelevant(packet);
+
+    if (developerRelevant) return packet;
+
+    return {
+      ...packet,
+      developerPacket: null,
+      hasDeveloperPacket: false,
+      evidence: {
+        ...(packet.evidence || {}),
+        github: null,
+        developerPacket: null,
+        developerIntent: null,
+        developerHandoff: null,
+        developerResponse: null,
+        developerReply: null,
+        codeUnderstanding: null,
+        developerUnderstanding: null
+      }
+    };
+  },
+
+  isDeveloperRelevant(packet = {}) {
+    const question = String(packet.userQuestion || "").toLowerCase();
+    const primary = String(packet.primary || "").toLowerCase();
+    const shape = String(packet.responseShape || "").toLowerCase();
+
+    const developerPacket =
+      packet.developerPacket ||
+      packet.evidence?.developerPacket ||
+      null;
+
+    const explicitDeveloperLanguage =
+      /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|code|file|read|search|patch|debug|fix|update|replace|remove|edit)\b/i.test(question) ||
+      /\b[\w/-]+\.(js|html|css|json|md|ts|tsx|jsx)\b/i.test(question);
+
+    const developerMode =
+      primary === "developer" ||
+      primary === "builder" ||
+      primary === "coding" ||
+      shape.includes("developer") ||
+      shape.includes("build") ||
+      shape.includes("patch");
+
+    const lockedDeveloperPacket =
+      developerPacket?.enabled === true &&
+      developerPacket.locked === true;
+
+    return Boolean(
+      lockedDeveloperPacket ||
+      developerMode ||
+      explicitDeveloperLanguage
+    );
   },
 
   buildInstruction(packet = {}) {
+    const developerRelevant = this.isDeveloperRelevant(packet);
+
     return `
 You are Ari.
 
@@ -81,19 +140,20 @@ EVIDENCE:
 ${JSON.stringify(packet.evidence || {}, null, 2)}
 
 DEVELOPER RULES:
+- Developer/file evidence is relevant: ${developerRelevant ? "yes" : "no"}.
+- If developer/file evidence is not relevant, ignore GitHub evidence completely.
 - Locked developer replies may be used directly.
 - Unlocked developer packets are context only.
 - Do not print investigation steps unless the user specifically asks for them.
 - Do not say you can patch or edit unless the packet gives exact evidence.
-- If GitHub evidence is only a snippet, say what the snippet actually contains.
-- If the requested object is not visible in the loaded evidence, say that clearly.
-- Recommend the next specific file or section needed.
+- If GitHub evidence is only a snippet and the user asked about code, say what the snippet actually contains.
+- If the requested code object is not visible in loaded evidence, say that clearly.
 
 GENERAL RULES:
 - Answer the user's actual question.
+- Do not let stale file evidence override a normal conversation.
 - Do not invent missing facts.
 - Do not mention internal pipeline names.
-- Do not say primary lane, contract, triage, observer, composer packet, or handoff.
 - Be direct, natural, and concise.
 `.trim();
   },
@@ -101,11 +161,16 @@ GENERAL RULES:
   localDraft(packet = {}, reason = "fallback") {
     const question = String(packet.userQuestion || "").toLowerCase();
     const github = packet.evidence?.github || null;
-    const developerPacket = packet.developerPacket || packet.evidence?.developerPacket || null;
+    const developerPacket =
+      packet.developerPacket ||
+      packet.evidence?.developerPacket ||
+      null;
 
-    let draft = "Yeah. I’m here. Tell me what’s going on.";
+    const developerRelevant = this.isDeveloperRelevant(packet);
 
-    if (github?.content) {
+    let draft = this.generalFallback(packet);
+
+    if (developerRelevant && github?.content) {
       const filePath = github.filePath || "the loaded file";
       const content = String(github.content || "");
 
@@ -114,17 +179,17 @@ GENERAL RULES:
         !/mascot|ari-hero|ari-avatar|ari-mascot|ari-bubble|ari-face|ari-character/i.test(content)
       ) {
         draft =
-          `I read ${filePath}, but the loaded snippet does not show the Ari mascot markup. It only shows the homepage action grid. To remove the mascot safely, Ari needs the part of index.html or style.css that contains the mascot, likely around ari-hero, Ari image/avatar, or bubble markup.`;
+          `I read ${filePath}, but the loaded evidence does not show the Ari mascot markup. I should not guess. Read the full homepage area around the Ari hero/avatar/bubble markup before removing anything.`;
       } else {
         draft =
-          `I read ${filePath}. Based on the loaded evidence, Ari should answer only from what is visible there and say what is missing instead of guessing.`;
+          `I read ${filePath}. I should answer only from the visible file evidence and clearly say what is missing before suggesting a patch.`;
       }
-    } else if (developerPacket?.enabled && developerPacket.locked !== true) {
+    } else if (developerRelevant && developerPacket?.enabled && developerPacket.locked !== true) {
       draft =
-        "Ari has a developer task, but it is not locked as a final answer. She should use it as context, explain what evidence is missing, and avoid dumping the investigation plan as the response.";
-    } else if (packet.primary === "builder") {
+        "I have developer context, but it is not locked as a final answer. I should use it as background and answer directly without dumping an investigation template.";
+    } else if (developerRelevant && packet.primary === "builder") {
       draft =
-        "Ari needs exact file evidence before giving a patch. She should name the likely files, say what is missing, and avoid pretending she found code that was not loaded.";
+        "I need exact file evidence before giving a patch. The next step is to read the relevant file or search the repo for the exact target.";
     }
 
     return {
@@ -136,6 +201,20 @@ GENERAL RULES:
       draft,
       aiWriterDraft: draft
     };
+  },
+
+  generalFallback(packet = {}) {
+    const q = String(packet.userQuestion || "").toLowerCase().trim();
+
+    if (q.includes("favorite color")) {
+      return "I’d pick deep navy blue — calm, sharp, and very CalBuddy.";
+    }
+
+    if (q.startsWith("what is") || q.startsWith("what's")) {
+      return "I can answer that, but the AI draft was unavailable, so I’m using a safe fallback.";
+    }
+
+    return "Yeah. I’m here. Tell me what’s going on.";
   }
 };
 
