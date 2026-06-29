@@ -4,7 +4,7 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.5";
+CalBuddy.version = "3.5.7";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
 /* -----------------------------
@@ -930,22 +930,49 @@ CalBuddy.cancelPendingAction = function () {
 CalBuddy.isDeveloperCommand = function (message = "") {
   const text = String(message || "").toLowerCase().trim();
 
-  const explicitDevCommand =
-    /\b(read|open|show|search|find|update|change|replace|remove|fix|commit|deploy)\b.{0,40}\b(github|repo|repository|vercel|supabase|index\.html|style\.css|calbuddy-core|ari\/|[\w/-]+\.(js|html|css))\b/.test(text) ||
-    /\b(github|repo|repository|vercel|supabase|index\.html|style\.css|calbuddy-core|ari\/|[\w/-]+\.(js|html|css))\b.{0,40}\b(read|open|show|search|find|update|change|replace|remove|fix|commit|deploy)\b/.test(text);
+  const fileOrRepo =
+    /\b(github|repo|repository|branch|commit|deploy|vercel|supabase)\b/.test(text) ||
+    /\b(index\.html|style\.css|calbuddy-core\.js|ask-calbuddy|ari-github-read|ari-github-search|ari-github-edit)\b/.test(text) ||
+    /\b[\w/-]+\.(js|html|css|json|md)\b/.test(text);
 
-  const ownerIntent =
-  text.includes("update this file") ||
-  text.includes("update the file") ||
-  text.includes("send full code") ||
-  text.includes("send the full code") ||
-  text.includes("commit this") ||
-  text.includes("read this file") ||
-  text.includes("read the file") ||
-  text.includes("search the repo") ||
-  text.includes("search github");
+  const devVerb =
+    /\b(read|open|show|search|find|update|change|replace|remove|fix|patch|commit|deploy|debug|edit)\b/.test(text);
 
-  return explicitDevCommand || ownerIntent;
+  const ownerPhrases =
+    text.includes("update this file") ||
+    text.includes("update the file") ||
+    text.includes("send full code") ||
+    text.includes("send the full code") ||
+    text.includes("read this file") ||
+    text.includes("read the file") ||
+    text.includes("search the repo") ||
+    text.includes("search github") ||
+    text.includes("commit this");
+
+  return ownerPhrases || (fileOrRepo && devVerb);
+};
+
+CalBuddy.shouldHandleDeveloperIntent = function ({
+  message = "",
+  developerIntent = null,
+  userContext = null
+} = {}) {
+  if (!developerIntent || developerIntent.enabled === false) return false;
+  if (userContext?.ownerMode !== true) return false;
+
+  const explicitDeveloperCommand = CalBuddy.isDeveloperCommand(message);
+
+  const hasExecutableGithubWork =
+    developerIntent.type === "github_read_request" ||
+    developerIntent.type === "github_search_request" ||
+    Boolean(developerIntent.githubEdit) ||
+    (Array.isArray(developerIntent.steps) &&
+      developerIntent.steps.some(step =>
+        step.tool === "github_read" ||
+        step.tool === "github_search"
+      ));
+
+  return explicitDeveloperCommand && hasExecutableGithubWork;
 };
 
 /* -----------------------------
@@ -1222,18 +1249,11 @@ CalBuddy.captureAriTemporarySuggestions({
   rebirth.summary?.developerIntent ||
   null;
 
-const shouldHandleDeveloperIntent =
-  userContext.ownerMode === true &&
-  developerIntent &&
-  developerIntent.enabled !== false &&
-  (
-    CalBuddy.isDeveloperCommand(message) ||
-    developerIntent.ownerCommand === true ||
-    developerIntent.type === "developer_investigation" ||
-    developerIntent.type === "github_read_request" ||
-    developerIntent.type === "github_search_request" ||
-    developerIntent.githubEdit
-  );
+const shouldHandleDeveloperIntent = CalBuddy.shouldHandleDeveloperIntent({
+  message,
+  developerIntent,
+  userContext
+});
 
 if (shouldHandleDeveloperIntent) {
     const handledIntent = await CalBuddy.handleDeveloperIntent({
@@ -1331,7 +1351,13 @@ mark("after logUsage");
   console.log("CalBuddy Memory Candidate:", response.memoryCandidate);
 }
 
-if (CalBuddy.isDeveloperCommand(message) && response.developerIntent) {
+if (
+  CalBuddy.shouldHandleDeveloperIntent({
+    message,
+    developerIntent: response.developerIntent,
+    userContext
+  })
+) {
   localStorage.setItem(
     "calbuddyLastDeveloperIntent",
     JSON.stringify(response.developerIntent)
@@ -1829,8 +1855,26 @@ CalBuddy.runDeveloperInvestigation = async function ({
   );
 
   const readableFiles = readResults
-    .filter(item => item.result?.success && item.result?.content)
-    .slice(0, 5);
+  .filter(item => item.result?.success && item.result?.content)
+  .map(item => ({
+    ...item,
+    result: {
+      ...item.result,
+      content: item.result.content,
+      contentLength:
+        item.result.contentLength ||
+        item.result.content?.length ||
+        0,
+      lineCount:
+        item.result.lineCount ||
+        String(item.result.content || "").split("\n").length,
+      fullContent: item.result.fullContent === true,
+      contentComplete: item.result.contentComplete !== false,
+      isFullFile: item.result.isFullFile !== false,
+      hasExactCurrentCode: true
+    }
+  }))
+  .slice(0, 5);
 
   if (readableFiles.length > 0) {
     const combinedGithubContent = readableFiles
@@ -1879,9 +1923,15 @@ Do not claim anything was changed.`,
   filePath: combinedFilePath,
   content: combinedGithubContent,
   contentLength: combinedGithubContent.length,
+  contentComplete: true,
+  isFullFile: true,
+  fullContent: true,
   files: readableFiles.map(item => ({
     filePath: item.filePath,
-    contentLength: item.result.content?.length || 0
+    contentLength: item.result.content?.length || 0,
+    lineCount: item.result.lineCount || 0,
+    contentComplete: item.result.contentComplete !== false,
+    isFullFile: item.result.isFullFile !== false
   }))
 },
 
