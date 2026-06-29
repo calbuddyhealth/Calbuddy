@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.8 — Composer Bridge Packet Integrated
+// V3.9.9 — AI Writer / Validator Pathway Wired
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.8",
+  version: "3.9.9",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -795,19 +795,58 @@ summary = {
 };
 mark("after composerBridge");
 
-// Composer
+// AI Writer
+if (!developerResponseLocked) {
+  mark("before aiWriter");
+  const aiWriterResult = await runEngine(
+    window.AriAIWriter,
+    ["write"],
+    { aiWriterRan: false }
+  );
+
+  summary = {
+    ...summary,
+    ...aiWriterResult,
+    aiWriter: aiWriterResult
+  };
+  mark("after aiWriter");
+}
+
+// Response Validator
+if (!developerResponseLocked) {
+  mark("before responseValidator");
+  const validatorResult = await runEngine(
+    window.AriResponseValidator,
+    ["validate"],
+    { responseValidatorRan: false }
+  );
+
+  summary = {
+    ...summary,
+    ...validatorResult,
+    responseValidator: validatorResult,
+    finalResponse:
+      validatorResult.finalResponse ||
+      validatorResult.final ||
+      summary.aiWriterDraft ||
+      summary.finalResponse
+  };
+  mark("after responseValidator");
+}
+
+// Composer Final Wrapper
 if (!developerResponseLocked) {
   mark("before AriLanguageComposer");
   const composerResult = await runEngine(window.AriLanguageComposer, ["compose"]);
 
-summary = {
-  ...summary,
-  ...composerResult,
-  finalResponse:
-    composerResult.finalResponse ||
-    composerResult.languageBody ||
-    summary.finalResponse
-};
+  summary = {
+    ...summary,
+    ...composerResult,
+    finalResponse:
+      composerResult.finalResponse ||
+      composerResult.languageBody ||
+      summary.finalResponse
+  };
   mark("after AriLanguageComposer");
 }
 
