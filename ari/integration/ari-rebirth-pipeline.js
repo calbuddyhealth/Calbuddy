@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.4 — Contract Bridge Promotes Composer Fields
+// V3.9.5 — Composer Handoff Contract Normalized
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.4",
+  version: "3.9.5",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -777,6 +777,12 @@ summary = this.reassertContractAuthority(summary);
     };
 
     summary = this.reassertContractAuthority(summary);
+
+summary = this.reassertContractAuthority(summary);
+
+// Composer handoff
+
+summary = this.prepareComposerHandoff(summary);
 
     // Composer
 if (!developerResponseLocked) {
@@ -1593,6 +1599,79 @@ if (summary.developerHandoff) {
   };
 },
 
+prepareComposerHandoff(summary = {}) {
+  const contract = summary.situationContract || {};
+  const triage = summary.triage || summary.ariTriage || {};
+  const map = summary.situationMap || {};
+
+  const primary =
+    contract.primary ||
+    summary.situationContractPrimary ||
+    triage.primaryLane ||
+    summary.triagePrimaryLane ||
+    summary.primaryLane ||
+    "general_understanding";
+
+  return {
+    ...summary,
+
+    composerHandoffReady: true,
+
+    situationContract: {
+      ...contract,
+      primary,
+      responseShape:
+  contract.responseShape ||
+  triage.responseShape ||
+  summary.responseShape ||
+  map.responseShape ||
+  "clear_explanation",
+      responseRules:
+        contract.responseRules ||
+        triage.responseConstraints ||
+        summary.responseRules ||
+        [],
+      situationThesis: contract.situationThesis || {
+        thesis: summary.primarySituationThesis || map.primarySituationThesis || null,
+        narrative: summary.situationNarrative || map.situationNarrative || null,
+        recommendedUse:
+          summary.thesisRecommendedUse ||
+          map.thesisRecommendedUse ||
+          "do_not_use_as_authority"
+      }
+    },
+
+    situationContractPrimary: primary,
+    triagePrimaryLane: triage.primaryLane || primary,
+    primaryLane: primary,
+
+    responseShape:
+  contract.responseShape ||
+  triage.responseShape ||
+  summary.responseShape ||
+  map.responseShape ||
+  "clear_explanation",
+
+    primarySituationThesis:
+      summary.primarySituationThesis ||
+      map.primarySituationThesis ||
+      contract.situationThesis?.thesis ||
+      null,
+
+    situationNarrative:
+      summary.situationNarrative ||
+      map.situationNarrative ||
+      contract.situationThesis?.narrative ||
+      null,
+
+    thesisRecommendedUse:
+      summary.thesisRecommendedUse ||
+      map.thesisRecommendedUse ||
+      contract.situationThesis?.recommendedUse ||
+      "do_not_use_as_authority"
+  };
+},
+
   debugLog(summary = {}, reasoningResult = {}) {
     console.log("===== ARI REBIRTH PIPELINE =====", this.version);
     console.log("===== SAFETY CONTEXT GATE =====", summary.safetyContextGate);
@@ -1611,7 +1690,15 @@ if (summary.developerHandoff) {
     console.log("===== TRIAGE =====", summary.triage);
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== REASONING =====", reasoningResult);
-    console.log("===== MEAL ESTIMATE =====", summary.mealEstimate || summary.lastMealEstimate);
+ console.log("===== COMPOSER HANDOFF =====", {
+  ready: summary.composerHandoffReady,
+  primary: summary.situationContractPrimary,
+  responseShape: summary.responseShape,
+  hasThesis: Boolean(summary.primarySituationThesis),
+  narrative: summary.situationNarrative,
+  thesisUse: summary.thesisRecommendedUse
+});
+       console.log("===== MEAL ESTIMATE =====", summary.mealEstimate || summary.lastMealEstimate);
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
   console.log("===== DEVELOPER LAYER =====", summary.developerHandoff || summary.developerUnderstanding);
   console.log("===== UI LAYOUT PLANNER =====", summary.uiLayoutPlanner);
