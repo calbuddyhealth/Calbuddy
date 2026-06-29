@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.0 — Packet-Locked Composer / Developer + AI Writer Aware
+// V9.1.1 — Locked Developer Packet + AI Writer Aware
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.0",
+  version: "9.1.1",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -29,18 +29,25 @@ window.AriLanguageComposerV9 = {
       summary.composerDeveloperPacket ||
       null;
 
-    if (developerPacket?.enabled && developerPacket.reply) {
+    if (
+      developerPacket?.enabled &&
+      developerPacket.locked === true &&
+      developerPacket.reply
+    ) {
       return this.returnFinal(
         developerPacket.reply,
-        "developer_packet_reply",
+        "developer_packet_locked_reply",
         packet
       );
     }
 
-    if (packet.evidence?.developerHandoff?.reply) {
+    if (
+      packet.evidence?.developerHandoff?.responseLocked === true &&
+      packet.evidence?.developerHandoff?.reply
+    ) {
       return this.returnFinal(
         packet.evidence.developerHandoff.reply,
-        "developer_handoff_reply",
+        "developer_handoff_locked_reply",
         packet
       );
     }
@@ -72,7 +79,9 @@ window.AriLanguageComposerV9 = {
     if (String(aiDraft || "").trim()) {
       return this.returnFinal(
         String(aiDraft).trim(),
-        packet.evidence?.aiWriter?.usedAI ? "ai_writer_draft" : "ai_writer_fallback",
+        packet.evidence?.aiWriter?.usedAI
+          ? "ai_writer_draft"
+          : "ai_writer_fallback",
         packet
       );
     }
@@ -140,7 +149,7 @@ window.AriLanguageComposerV9 = {
 
     if (packet.primary === "builder") {
       return this.returnFinal(
-        "Yes — but only with exact file evidence or a clear requested change. Otherwise Ari should diagnose first, not patch blindly.",
+        "To do that safely, Ari needs the exact homepage markup and styles first. The likely files are index.html, style.css, and possibly calbuddy-core.js. Once those are loaded, Ari can identify the mascot section and remove only that part without breaking the Ask Ari input, meter, or homepage actions.",
         "builder_guarded",
         packet
       );
