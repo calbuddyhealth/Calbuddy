@@ -1,23 +1,19 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.3 — No Stale History Reuse / Current Writer First
+// V9.1.4 — Current Draft First / No Stale History / Developer-Gated Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.3",
+  version: "9.1.4",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
-
-    const packet =
-      input.composerPacket ||
-      summary.composerPacket ||
-      input;
+    const packet = input.composerPacket || summary.composerPacket || input;
 
     if (!packet?.ready) {
       return this.returnFinal(
-        "I don’t have a valid composer packet. Diagnostic: composer packet missing.",
+        "I don’t have a valid composer packet.",
         "diagnostic_no_packet",
         packet
       );
@@ -29,11 +25,7 @@ window.AriLanguageComposerV9 = {
       summary.composerDeveloperPacket ||
       null;
 
-    if (
-      developerPacket?.enabled &&
-      developerPacket.locked === true &&
-      developerPacket.reply
-    ) {
+    if (this.isLockedDeveloperPacket(developerPacket)) {
       return this.returnFinal(
         developerPacket.reply,
         "developer_packet_locked_reply",
@@ -41,10 +33,7 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    if (
-      packet.evidence?.developerHandoff?.responseLocked === true &&
-      packet.evidence?.developerHandoff?.reply
-    ) {
+    if (this.isLockedDeveloperHandoff(packet)) {
       return this.returnFinal(
         packet.evidence.developerHandoff.reply,
         "developer_handoff_locked_reply",
@@ -74,14 +63,51 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    if (
-      packet.primary === "builder" &&
-      packet.evidence?.github?.content
-    ) {
+    if (this.isDeveloperRelevant(packet) && packet.evidence?.github?.content) {
       return this.composeGithub(packet);
     }
 
     return this.composeLocal(packet);
+  },
+
+  isLockedDeveloperPacket(developerPacket = null) {
+    return Boolean(
+      developerPacket?.enabled === true &&
+      developerPacket.locked === true &&
+      String(developerPacket.reply || "").trim()
+    );
+  },
+
+  isLockedDeveloperHandoff(packet = {}) {
+    return Boolean(
+      packet.evidence?.developerHandoff?.responseLocked === true &&
+      String(packet.evidence?.developerHandoff?.reply || "").trim()
+    );
+  },
+
+  isDeveloperRelevant(packet = {}) {
+    const question = String(packet.userQuestion || "").toLowerCase();
+    const primary = String(packet.primary || "").toLowerCase();
+    const shape = String(packet.responseShape || "").toLowerCase();
+
+    const explicitCodeFile =
+      /\b[\w/-]+\.(js|html|css|json|md|ts|tsx|jsx)\b/i.test(question);
+
+    const repoContext =
+      /\b(github|repo|repository|branch|commit|deploy|vercel|supabase|codebase)\b/i.test(question);
+
+    const codeAction =
+      /\b(read|open|show|search|find|update|change|replace|remove|fix|patch|debug|edit|inspect)\b/i.test(question);
+
+    const developerMode =
+      primary === "developer" ||
+      primary === "builder" ||
+      primary === "coding" ||
+      shape.includes("developer") ||
+      shape.includes("patch") ||
+      shape.includes("code");
+
+    return Boolean(developerMode || explicitCodeFile || (repoContext && codeAction));
   },
 
   getCurrentWriterDraft({ packet = {}, summary = {}, input = {} } = {}) {
@@ -101,31 +127,47 @@ window.AriLanguageComposerV9 = {
 
     for (const candidate of candidates) {
       const text = String(candidate || "").trim();
-
       if (!text) continue;
-      if (this.isStaleHistoryReply(text, packet)) continue;
-
+      if (this.isStaleOrWrongContextReply(text, packet)) continue;
       return text;
     }
 
     return "";
   },
 
-  isStaleHistoryReply(text = "", packet = {}) {
+  isStaleOrWrongContextReply(text = "", packet = {}) {
     const t = String(text || "").toLowerCase();
     const q = String(packet.userQuestion || "").toLowerCase();
 
-    const staleFileReply =
+    const fileReply =
+      t.includes("i read ") ||
+      t.includes("loaded evidence") ||
+      t.includes("loaded snippet") ||
+      t.includes("github evidence") ||
+      t.includes("file content");
+
+    const userAsksCode =
+      this.isDeveloperRelevant(packet);
+
+    if (fileReply && !userAsksCode) return true;
+
+    const staleIndexReply =
       t.includes("i read index.html") &&
-      t.includes("loaded snippet") &&
-      t.includes("does not show");
+      (
+        t.includes("loaded snippet") ||
+        t.includes("loaded evidence") ||
+        t.includes("does not show") ||
+        t.includes("visible file evidence")
+      );
 
-    const currentQuestionStillAsksSameFileIssue =
-      q.includes("mascot") ||
+    const sameIndexTopic =
+      q.includes("index.html") ||
       q.includes("homepage") ||
-      q.includes("index.html");
+      q.includes("mascot") ||
+      q.includes("ari hero") ||
+      q.includes("avatar");
 
-    return staleFileReply && !currentQuestionStillAsksSameFileIssue;
+    return staleIndexReply && !sameIndexTopic;
   },
 
   composeGithub(packet = {}) {
@@ -142,19 +184,25 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    if (
-      question.includes("mascot") &&
-      !/mascot|ari-hero|ari-avatar|ari-mascot|ari-bubble|ari-face|ari-character/i.test(content)
-    ) {
+    const asksMascot =
+      question.includes("mascot") ||
+      question.includes("avatar") ||
+      question.includes("ari face") ||
+      question.includes("ari character");
+
+    const hasMascotEvidence =
+      /mascot|ari-hero|ari-avatar|ari-mascot|ari-bubble|ari-face|ari-character/i.test(content);
+
+    if (asksMascot && !hasMascotEvidence) {
       return this.returnFinal(
-        `I read ${filePath}, but the loaded content does not include the Ari mascot markup. Ari should not guess a patch from unrelated code. Load the full homepage section or the style file that contains the mascot selector before removing anything.`,
+        `I read ${filePath}, but the loaded content does not show the Ari mascot markup. I should not guess a patch from unrelated code. Read the full homepage area or the style file that contains the mascot selector before removing anything.`,
         "github_missing_requested_object",
         packet
       );
     }
 
     return this.returnFinal(
-      `I read ${filePath}. Based on the loaded evidence, Ari should answer only from the current file content and avoid reusing older saved replies.`,
+      `I read ${filePath}. I should answer only from the current file content and avoid reusing older saved replies.`,
       "github_grounded",
       packet
     );
@@ -163,29 +211,31 @@ window.AriLanguageComposerV9 = {
   composeLocal(packet = {}) {
     const q = String(packet.userQuestion || "").trim();
 
-    if (packet.primary === "builder") {
+    if (this.isDeveloperRelevant(packet)) {
       return this.returnFinal(
-        "Ari needs current file evidence or a current writer draft before giving a patch. She should not reuse an older conversation history answer.",
-        "builder_guarded",
+        "I need current file evidence or a current writer draft before giving a code patch. I should not reuse an older conversation-history answer.",
+        "developer_guarded",
         packet
       );
     }
 
     return this.returnFinal(
       q
-        ? "I can answer, but the current AI Writer draft was missing, so I’m using a safe fallback instead of pulling from old conversation history."
-        : "Yeah. I’m here. Tell me what’s going on.",
+        ? "I can answer that, but the current AI Writer draft was missing. I’m using a safe fallback instead of pulling from old conversation history."
+        : "Yeah. I’m here.",
       "general_fallback",
       packet
     );
   },
 
   returnFinal(text = "", validation = "passed", packet = null) {
+    const finalText = String(text || "").trim() || "Yeah. I’m here.";
+
     return {
       languageMode: packet?.primary || "general_understanding",
-      languageBody: text,
-      languageSections: [text],
-      finalResponse: text,
+      languageBody: finalText,
+      languageSections: [finalText],
+      finalResponse: finalText,
       composerVersion: this.version,
       source: "ari-language-composer-v9",
       composerUsedAI: validation === "ai_writer_draft",
@@ -193,10 +243,14 @@ window.AriLanguageComposerV9 = {
       composerDebug: {
         usedPacket: true,
         staleHistoryFinalResponseIgnored: true,
+        developerRelevant: this.isDeveloperRelevant(packet || {}),
         packet
       }
     };
   }
 };
 
-console.log("ARI LANGUAGE COMPOSER V9 LOADED:", window.AriLanguageComposerV9?.version);
+console.log(
+  "ARI LANGUAGE COMPOSER V9 LOADED:",
+  window.AriLanguageComposerV9?.version
+);
