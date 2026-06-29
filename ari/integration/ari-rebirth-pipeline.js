@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.1 — Meal Estimate Preservation Gated
+// V3.9.2 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.1",
+  version: "3.9.2",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -568,10 +568,12 @@ summary = this.preserveDeveloperEvidence(summary);
 summary = this.reassertContractAuthority(summary);
 
 const developerResponseLocked = Boolean(
-  summary.responseLocked === true ||
-  summary.developerResponseLocked === true ||
-  summary.developerHandoff?.responseLocked === true ||
-  summary.developerHandoff?.developerResponseLocked === true
+  summary.responseLocked ||
+  summary.developerResponseLocked ||
+  summary.developerHandoff?.responseLocked ||
+  summary.developerHandoff?.developerResponseLocked ||
+  summary.developerHandoff?.reply ||
+  summary.developerIntent?.reply
 );
     // 1.00 Human Needs
     merge(await runEngine(
@@ -1472,24 +1474,18 @@ if (summary.developerHandoff) {
     null;
 
   summary.developerResponseLocked =
-  summary.developerHandoff.developerResponseLocked === true ||
-  summary.developerHandoff.responseLocked === true;
+    summary.developerHandoff.developerResponseLocked === true ||
+    summary.developerHandoff.responseLocked === true ||
+    Boolean(summary.developerHandoff.reply);
 
   summary.responseLocked =
     summary.developerResponseLocked;
 
-    if (
-    summary.developerResponseLocked === true &&
-    summary.developerHandoff.reply
-  ) {
+  if (summary.developerHandoff.reply) {
     summary.finalResponse = summary.developerHandoff.reply;
   }
 
-  if (
-    summary.developerResponseLocked === true &&
-    !summary.finalResponse &&
-    summary.developerHandoff.finalResponse
-  ) {
+  if (!summary.finalResponse && summary.developerHandoff.finalResponse) {
     summary.finalResponse = summary.developerHandoff.finalResponse;
   }
 }
