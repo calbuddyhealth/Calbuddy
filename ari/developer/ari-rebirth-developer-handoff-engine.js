@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.6 — Selective Locking / Composer-Safe Developer Handoff
+// V1.2.7 — Selective Locking / Composer-Safe Developer Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.6",
+  version: "1.2.7",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -210,12 +210,27 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
   };
 
   return {
-    ...lockedIntent,
-    developerIntent: lockedIntent,
-    finalResponse: shouldLock ? reply : null,
-    responseLocked: shouldLock,
-    developerResponseLocked: shouldLock
-  };
+  ...lockedIntent,
+
+  developerIntent: lockedIntent,
+  developerResponse,
+  developerReply: reply,
+
+  composerDeveloperPacket: {
+    enabled: true,
+    mode: "developer",
+    locked: shouldLock,
+    kind: developerResponse.kind || lockedIntent.type || "developer_response",
+    reply,
+    response: developerResponse,
+    intent: lockedIntent,
+    source: "ari-rebirth-developer-handoff-engine"
+  },
+
+  finalResponse: shouldLock ? reply : null,
+  responseLocked: shouldLock,
+  developerResponseLocked: shouldLock
+};
 },
 
   buildGithubEditIntent({
