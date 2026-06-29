@@ -375,10 +375,9 @@ debugTiming: options.debugTiming === true,
       summary.compressedResponse ||
       summary.languageBody ||
       summary.languageBodyOutput ||
-      summary.developerHandoff?.reply ||
-      summary.developerHandoff?.finalResponse ||
-      summary.developerResponse ||
-      summary.developerIntent?.reply ||
+      (summary.developerResponseLocked ? summary.developerHandoff?.reply : null) ||
+(summary.developerResponseLocked ? summary.developerHandoff?.finalResponse : null) ||
+(summary.developerResponseLocked ? summary.developerIntent?.reply : null) ||
       summary.languageComposerOutput ||
       summary.response ||
       summary.answer ||
