@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.2 — Meal Estimate Preservation Gated
+// V3.9.3 — Meal Estimate Preservation Gated
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.2",
+  version: "3.9.3",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -568,12 +568,10 @@ summary = this.preserveDeveloperEvidence(summary);
 summary = this.reassertContractAuthority(summary);
 
 const developerResponseLocked = Boolean(
-  summary.responseLocked ||
-  summary.developerResponseLocked ||
-  summary.developerHandoff?.responseLocked ||
-  summary.developerHandoff?.developerResponseLocked ||
-  summary.developerHandoff?.reply ||
-  summary.developerIntent?.reply
+  summary.responseLocked === true ||
+  summary.developerResponseLocked === true ||
+  summary.developerHandoff?.responseLocked === true ||
+  summary.developerHandoff?.developerResponseLocked === true
 );
     // 1.00 Human Needs
     merge(await runEngine(
@@ -783,7 +781,16 @@ summary = this.reassertContractAuthority(summary);
     // Composer
 if (!developerResponseLocked) {
   mark("before AriLanguageComposer");
-  merge(await runEngine(window.AriLanguageComposer, ["compose"]));
+  const composerResult = await runEngine(window.AriLanguageComposer, ["compose"]);
+
+summary = {
+  ...summary,
+  ...composerResult,
+  finalResponse:
+    composerResult.finalResponse ||
+    composerResult.languageBody ||
+    summary.finalResponse
+};
   mark("after AriLanguageComposer");
 }
 
@@ -1160,19 +1167,66 @@ lastMealEstimate:
   return summary;
 },
 
-  applyContractBridge(summary = {}) {
+    applyContractBridge(summary = {}) {
     const contract = summary.situationContract || {};
-    const primary = contract.primary || summary.primaryLaneSuggestion;
+    const map = summary.situationMap || {};
+    const triage = summary.triage || summary.ariTriage || {};
+
+    const primary =
+      contract.primary ||
+      triage.primaryLane ||
+      summary.primaryLaneSuggestion ||
+      summary.situationContractPrimary ||
+      null;
 
     return {
       ...summary,
+
       contractBridgeRan: true,
       contractBridgeSource: "ari-rebirth-pipeline",
+
+      situationContract: contract,
+
+      primaryLane: primary,
+      triagePrimaryLane: triage.primaryLane || primary,
+      situationContractPrimary: primary,
+
       responseShape:
         contract.responseShape ||
+        triage.responseShape ||
         summary.responseShape ||
         null,
-      situationContractPrimary: primary || null,
+
+      responseRules:
+        contract.responseRules ||
+        triage.responseConstraints ||
+        summary.responseRules ||
+        [],
+
+      responseConstraints:
+        contract.responseRules ||
+        triage.responseConstraints ||
+        summary.responseConstraints ||
+        [],
+
+      primarySituationThesis:
+        contract.situationThesis?.thesis ||
+        map.primarySituationThesis ||
+        summary.primarySituationThesis ||
+        null,
+
+      situationNarrative:
+        contract.situationThesis?.narrative ||
+        map.situationNarrative ||
+        summary.situationNarrative ||
+        null,
+
+      thesisRecommendedUse:
+        contract.situationThesis?.recommendedUse ||
+        map.thesisRecommendedUse ||
+        summary.thesisRecommendedUse ||
+        "do_not_use_as_authority",
+
       situationContractSupport: contract.support || [],
       situationContractBrief: contract.brief || [],
       situationContractContext: contract.context || [],
@@ -1246,21 +1300,56 @@ lastMealEstimate:
       }
     };
 
-    return {
+        return {
       ...summary,
+
       contractAuthorityReasserted: true,
       contractAuthoritySource: "ari-rebirth-pipeline",
+
+      primaryLane: primary,
+      triagePrimaryLane: summary.triage?.primaryLane || primary,
       situationContractPrimary: primary,
+
       situationContractSupport: contract.support || [],
       situationContractBrief: contract.brief || [],
       situationContractContext: contract.context || [],
       situationContractDeferred: contract.deferred || [],
       situationContractBlocked: contract.blocked || [],
+
       responseShape:
         contract.responseShape ||
         summary.responseShape ||
         null,
-      ...(laneMap[primary] || {})
+
+      responseRules:
+        contract.responseRules ||
+        summary.responseRules ||
+        [],
+
+      responseConstraints:
+        contract.responseRules ||
+        summary.responseConstraints ||
+        [],
+
+      primarySituationThesis:
+        contract.situationThesis?.thesis ||
+        summary.situationMap?.primarySituationThesis ||
+        summary.primarySituationThesis ||
+        null,
+
+      situationNarrative:
+        contract.situationThesis?.narrative ||
+        summary.situationMap?.situationNarrative ||
+        summary.situationNarrative ||
+        null,
+
+      thesisRecommendedUse:
+        contract.situationThesis?.recommendedUse ||
+        summary.situationMap?.thesisRecommendedUse ||
+        summary.thesisRecommendedUse ||
+        "do_not_use_as_authority",
+
+           ...(laneMap[primary] || {})
     };
   },
 
@@ -1473,19 +1562,25 @@ if (summary.developerHandoff) {
     summary.developerIntent?.developerResponse ||
     null;
 
-  summary.developerResponseLocked =
+    summary.developerResponseLocked =
     summary.developerHandoff.developerResponseLocked === true ||
-    summary.developerHandoff.responseLocked === true ||
-    Boolean(summary.developerHandoff.reply);
+    summary.developerHandoff.responseLocked === true;
 
   summary.responseLocked =
     summary.developerResponseLocked;
 
-  if (summary.developerHandoff.reply) {
+    if (
+    summary.developerResponseLocked === true &&
+    summary.developerHandoff.reply
+  ) {
     summary.finalResponse = summary.developerHandoff.reply;
   }
 
-  if (!summary.finalResponse && summary.developerHandoff.finalResponse) {
+  if (
+    summary.developerResponseLocked === true &&
+    !summary.finalResponse &&
+    summary.developerHandoff.finalResponse
+  ) {
     summary.finalResponse = summary.developerHandoff.finalResponse;
   }
 }
