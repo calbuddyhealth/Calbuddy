@@ -1,27 +1,33 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.0.3 — Structured Evidence Packet / AI Writer Ready
+// V1.0.4 — Locked Developer Packets Only / Normal Conversation Safe
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.0.3",
+  version: "1.0.4",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
     const triage = summary.triage || summary.ariTriage || {};
     const mouth = summary.mouthDirector || {};
     const communicationPlan = summary.communicationPlan || {};
-    const developerPacket = summary.composerDeveloperPacket || null;
 
-    const primary =
-      developerPacket?.enabled
-        ? "developer"
-        : contract.primary ||
-          summary.situationContractPrimary ||
-          triage.primaryLane ||
-          summary.primaryLane ||
-          "general_understanding";
+    const developerPacket =
+      summary.composerDeveloperPacket?.enabled === true
+        ? summary.composerDeveloperPacket
+        : null;
+
+    const developerLocked = developerPacket?.locked === true;
+
+    const basePrimary =
+      contract.primary ||
+      summary.situationContractPrimary ||
+      triage.primaryLane ||
+      summary.primaryLane ||
+      "general_understanding";
+
+    const primary = developerLocked ? "developer" : basePrimary;
 
     const userQuestion =
       summary.resolvedUserQuestion ||
@@ -39,48 +45,56 @@ window.AriComposerBridge = {
       userQuestion,
       primary,
 
-      developerPacket: developerPacket?.enabled ? developerPacket : null,
-      hasDeveloperPacket: developerPacket?.enabled === true,
+      developerPacket,
+      hasDeveloperPacket: Boolean(developerPacket),
+      developerPacketLocked: developerLocked,
+      developerPacketAdvisory: Boolean(developerPacket && !developerLocked),
 
-      responseShape:
-        developerPacket?.enabled
-          ? "developer_direct_answer"
-          : contract.responseShape ||
-            summary.responseShape ||
-            mouth.responsePattern ||
-            "clear_explanation",
+      responseShape: developerLocked
+        ? "developer_direct_answer"
+        : contract.responseShape ||
+          summary.responseShape ||
+          mouth.responsePattern ||
+          "clear_explanation",
 
-      responseRules:
-        developerPacket?.enabled
-          ? [
-              "use_locked_developer_packet_only",
-              "do_not_render_unlocked_investigation_as_final",
-              "do_not_invent_code",
-              ...(contract.responseRules || [])
-            ]
-          : contract.responseRules ||
-            summary.responseRules ||
-            summary.responseConstraints ||
-            [],
+      responseRules: developerLocked
+        ? [
+            "use_locked_developer_packet_only",
+            "do_not_invent_code",
+            ...(contract.responseRules || [])
+          ]
+        : [
+            "normal_conversation_must_not_be_replaced_by_unlocked_developer_packet",
+            "use_unlocked_developer_packet_as_advisory_context_only",
+            ...(contract.responseRules ||
+              summary.responseRules ||
+              summary.responseConstraints ||
+              [])
+          ],
 
-      requiredBehaviors:
-        developerPacket?.enabled
-          ? [
-              "Use locked developer replies directly only when locked is true.",
-              "Use unlocked developer packets as context for the AI Writer.",
-              ...(contract.requiredBehaviors || [])
-            ]
-          : contract.requiredBehaviors || [],
+      requiredBehaviors: developerLocked
+        ? [
+            "Use locked developer replies directly only when locked is true.",
+            ...(contract.requiredBehaviors || [])
+          ]
+        : [
+            "Answer the user's current request normally.",
+            "Use unlocked developer packets only as background evidence.",
+            ...(contract.requiredBehaviors || [])
+          ],
 
-      forbiddenBehaviors:
-        developerPacket?.enabled
-          ? [
-              "Do not ignore composerDeveloperPacket.",
-              "Do not render unlocked investigation plans as final answers.",
-              "Do not answer from generic reasoning when stronger evidence exists.",
-              ...(contract.forbiddenBehaviors || [])
-            ]
-          : contract.forbiddenBehaviors || [],
+      forbiddenBehaviors: developerLocked
+        ? [
+            "Do not ignore a locked composerDeveloperPacket.",
+            "Do not invent code.",
+            ...(contract.forbiddenBehaviors || [])
+          ]
+        : [
+            "Do not render unlocked investigation plans as final answers.",
+            "Do not switch normal conversation into developer template mode.",
+            "Do not dump JSON investigation steps to the user.",
+            ...(contract.forbiddenBehaviors || [])
+          ],
 
       mouthDirective: contract.mouthDirective || mouth || null,
       communicationPlan,
@@ -108,7 +122,7 @@ window.AriComposerBridge = {
       },
 
       evidence: {
-        github: summary.githubEvidence || null,
+        github: summary.githubEvidence || summary.githubFileContext || null,
 
         codeUnderstanding:
           summary.codeUnderstanding ||
@@ -127,8 +141,8 @@ window.AriComposerBridge = {
 
         developerHandoff: summary.developerHandoff || null,
         developerResponse: summary.developerResponse || null,
-        developerReply: summary.developerReply || null,
-        developerPacket: developerPacket?.enabled ? developerPacket : null,
+        developerReply: developerLocked ? summary.developerReply || null : null,
+        developerPacket,
 
         aiWriter: {
           ran: summary.aiWriterRan === true,
