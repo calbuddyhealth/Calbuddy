@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.1 — Locked Developer Packet + AI Writer Aware
+// V9.1.2 — Locked Developer Packet / AI Writer First / Thin Composer
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.1",
+  version: "9.1.2",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -62,10 +62,6 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    if (packet.primary === "builder" && packet.evidence?.github?.content) {
-      return this.composeGithub(packet);
-    }
-
     const aiDraft =
       packet.evidence?.aiWriter?.draft ||
       packet.aiWriterDraft ||
@@ -86,6 +82,10 @@ window.AriLanguageComposerV9 = {
       );
     }
 
+    if (packet.primary === "builder" && packet.evidence?.github?.content) {
+      return this.composeGithub(packet);
+    }
+
     return this.composeLocal(packet);
   },
 
@@ -103,29 +103,19 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    if (question.includes("where")) {
-      const lines = content.split("\n");
-      const matches = lines
-        .map((line, i) => ({
-          line: i + 1,
-          text: line.trim()
-        }))
-        .filter(item => item.text)
-        .slice(0, 12);
-
+    if (
+      question.includes("mascot") &&
+      !/mascot|ari-hero|ari-avatar|ari-mascot|ari-bubble|ari-face|ari-character/i.test(content)
+    ) {
       return this.returnFinal(
-        [
-          `I read ${filePath}. Relevant loaded lines:`,
-          "",
-          ...matches.map(item => `Line ${item.line}: ${item.text}`)
-        ].join("\n"),
-        "github_lines",
+        `I read ${filePath}, but the loaded snippet does not show the Ari mascot markup. It only shows the content that was loaded, so Ari should not guess. Load the full homepage section around the Ari mascot, likely the hero/avatar/bubble markup, before removing anything.`,
+        "github_missing_requested_object",
         packet
       );
     }
 
     return this.returnFinal(
-      `I read ${filePath}. The answer should be based only on the loaded file evidence, not a guess.`,
+      `I read ${filePath}. Based on the loaded evidence, Ari should answer only from what is visible there and clearly say what is missing instead of guessing.`,
       "github_grounded",
       packet
     );
@@ -133,32 +123,11 @@ window.AriLanguageComposerV9 = {
 
   composeLocal(packet = {}) {
     const q = String(packet.userQuestion || "").trim();
-    const lower = q.toLowerCase();
-
-    if (
-      lower.includes("should ari treat") ||
-      lower.includes("artifact modification") ||
-      lower.includes("file context")
-    ) {
-      return this.returnFinal(
-        "No. Ari should not treat that as an artifact modification just because the prior thread was about code. If no usable file context is loaded, Ari should answer it as a routing/explanation question or say file context is missing. Prior code context can inform the answer, but it should not trigger a patch by itself.",
-        "meta_routing_answer",
-        packet
-      );
-    }
 
     if (packet.primary === "builder") {
       return this.returnFinal(
-        "To do that safely, Ari needs the exact homepage markup and styles first. The likely files are index.html, style.css, and possibly calbuddy-core.js. Once those are loaded, Ari can identify the mascot section and remove only that part without breaking the Ask Ari input, meter, or homepage actions.",
+        "Ari needs exact file evidence before giving a patch. She should name the likely files, say what is missing, and avoid pretending she found code that was not loaded.",
         "builder_guarded",
-        packet
-      );
-    }
-
-    if (packet.primary === "teacher") {
-      return this.returnFinal(
-        "I can explain it, but the AI Writer draft was missing, so I’m using a safe teacher fallback.",
-        "teacher_fallback",
         packet
       );
     }
