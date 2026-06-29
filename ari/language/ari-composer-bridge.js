@@ -1,24 +1,27 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.0.0
+// V1.0.1 — Developer Packet Priority
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
     const triage = summary.triage || summary.ariTriage || {};
     const mouth = summary.mouthDirector || {};
     const communicationPlan = summary.communicationPlan || {};
+    const developerPacket = summary.composerDeveloperPacket || null;
 
     const primary =
-      contract.primary ||
-      summary.situationContractPrimary ||
-      triage.primaryLane ||
-      summary.primaryLane ||
-      "general_understanding";
+      developerPacket?.enabled
+        ? "developer"
+        : contract.primary ||
+          summary.situationContractPrimary ||
+          triage.primaryLane ||
+          summary.primaryLane ||
+          "general_understanding";
 
     const userQuestion =
       summary.resolvedUserQuestion ||
@@ -35,20 +38,45 @@ window.AriComposerBridge = {
 
       userQuestion,
       primary,
+
+      developerPacket: developerPacket?.enabled ? developerPacket : null,
+      hasDeveloperPacket: developerPacket?.enabled === true,
+
       responseShape:
-        contract.responseShape ||
-        summary.responseShape ||
-        mouth.responsePattern ||
-        "clear_explanation",
+        developerPacket?.enabled
+          ? "developer_direct_answer"
+          : contract.responseShape ||
+            summary.responseShape ||
+            mouth.responsePattern ||
+            "clear_explanation",
 
       responseRules:
-        contract.responseRules ||
-        summary.responseRules ||
-        summary.responseConstraints ||
-        [],
+        developerPacket?.enabled
+          ? [
+              "use_developer_packet_first",
+              "do_not_replace_developer_reply",
+              "do_not_invent_code",
+              ...(contract.responseRules || [])
+            ]
+          : contract.responseRules ||
+            summary.responseRules ||
+            summary.responseConstraints ||
+            [],
 
-      requiredBehaviors: contract.requiredBehaviors || [],
-      forbiddenBehaviors: contract.forbiddenBehaviors || [],
+      requiredBehaviors: developerPacket?.enabled
+        ? [
+            "Render the developer packet reply directly when present.",
+            ...(contract.requiredBehaviors || [])
+          ]
+        : contract.requiredBehaviors || [],
+
+      forbiddenBehaviors: developerPacket?.enabled
+        ? [
+            "Do not ignore composerDeveloperPacket.",
+            "Do not answer from generic reasoning when developerPacket.reply exists.",
+            ...(contract.forbiddenBehaviors || [])
+          ]
+        : contract.forbiddenBehaviors || [],
 
       mouthDirective: contract.mouthDirective || mouth || null,
       communicationPlan,
@@ -78,6 +106,9 @@ window.AriComposerBridge = {
       evidence: {
         github: summary.githubEvidence || null,
         developerHandoff: summary.developerHandoff || null,
+        developerResponse: summary.developerResponse || null,
+        developerReply: summary.developerReply || null,
+        developerPacket: developerPacket?.enabled ? developerPacket : null,
         reasoning: summary.reasoning || null,
         lexicalGrounding: summary.lexicalGrounding || null,
         continuityFacts: summary.continuityUsableFacts || []
