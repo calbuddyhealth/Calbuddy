@@ -1,11 +1,11 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.0.3 — V9 Composer Preferred / Safe Developer Lock
+// V4.0.4 — V9 Composer Preferred / Safe Developer Lock
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.0.3",
+  version: "4.0.4",
 
   async run(systemSummary = {}) {
     const debugTiming =
