@@ -1,11 +1,11 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.0.4 — V9 Composer Preferred / Safe Developer Lock
+// V4.0.5 — V9 Composer Preferred / Safe Developer Lock
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.0.4",
+  version: "4.0.5",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -572,6 +572,23 @@ const developerResponseLocked = Boolean(
   summary.developerHandoff?.responseLocked === true ||
   summary.developerHandoff?.developerResponseLocked === true
 );
+
+// If developer handoff is NOT locked, keep it as developerIntent only.
+// Do not let Composer/V9 treat investigation plans as the final answer.
+if (!developerResponseLocked && summary.developerHandoff) {
+  summary.unlockedDeveloperHandoff = summary.developerHandoff;
+
+  summary.developerIntent =
+    summary.developerIntent ||
+    summary.developerHandoff.developerIntent ||
+    summary.developerHandoff;
+
+  summary.developerHandoff = null;
+  summary.developerResponse = null;
+  summary.finalResponse = null;
+  summary.responseLocked = false;
+  summary.developerResponseLocked = false;
+}
     // 1.00 Human Needs
     merge(await runEngine(
       window.Ari?.needEngine,
