@@ -568,12 +568,10 @@ summary = this.preserveDeveloperEvidence(summary);
 summary = this.reassertContractAuthority(summary);
 
 const developerResponseLocked = Boolean(
-  summary.responseLocked ||
-  summary.developerResponseLocked ||
-  summary.developerHandoff?.responseLocked ||
-  summary.developerHandoff?.developerResponseLocked ||
-  summary.developerHandoff?.reply ||
-  summary.developerIntent?.reply
+  summary.responseLocked === true ||
+  summary.developerResponseLocked === true ||
+  summary.developerHandoff?.responseLocked === true ||
+  summary.developerHandoff?.developerResponseLocked === true
 );
     // 1.00 Human Needs
     merge(await runEngine(
@@ -1474,18 +1472,24 @@ if (summary.developerHandoff) {
     null;
 
   summary.developerResponseLocked =
-    summary.developerHandoff.developerResponseLocked === true ||
-    summary.developerHandoff.responseLocked === true ||
-    Boolean(summary.developerHandoff.reply);
+  summary.developerHandoff.developerResponseLocked === true ||
+  summary.developerHandoff.responseLocked === true;
 
   summary.responseLocked =
     summary.developerResponseLocked;
 
-  if (summary.developerHandoff.reply) {
+    if (
+    summary.developerResponseLocked === true &&
+    summary.developerHandoff.reply
+  ) {
     summary.finalResponse = summary.developerHandoff.reply;
   }
 
-  if (!summary.finalResponse && summary.developerHandoff.finalResponse) {
+  if (
+    summary.developerResponseLocked === true &&
+    !summary.finalResponse &&
+    summary.developerHandoff.finalResponse
+  ) {
     summary.finalResponse = summary.developerHandoff.finalResponse;
   }
 }
