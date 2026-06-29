@@ -1,11 +1,11 @@
 // ari/developer/ari-rebirth-developer-handoff-engine.js
 // Purpose: Convert developer engine outputs into CalBuddy-safe developerIntent + developerResponse handoff.
-// V1.2.7 — Selective Locking / Composer-Safe Developer Handoff
+// V1.2.8 — No Template Dump / Evidence-Aware / Composer-Safe Developer Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthDeveloperHandoffEngine = {
-  version: "1.2.7",
+  version: "1.2.8",
 
   handoff(input = {}) {
     const summary = input.summary || input || {};
@@ -33,10 +33,10 @@ window.AriRebirthDeveloperHandoffEngine = {
       summary.rebirthPatchDecision ||
       null;
 
-const patchValidation =
-  summary.patchValidation ||
-  summary.rebirthPatchValidation ||
-  null;
+    const patchValidation =
+      summary.patchValidation ||
+      summary.rebirthPatchValidation ||
+      null;
 
     const selfImprovement =
       summary.selfImprovement ||
@@ -44,107 +44,97 @@ const patchValidation =
       null;
 
     if (
-  !understanding &&
-  !codeEvidence &&
-  !codeUnderstanding &&
-  !patchDecision &&
-  !patchValidation &&
-  !selfImprovement
-) {
-  return null;
-}
-
-    if (
-  patchDecision?.canPatchNow &&
-  patchDecision.githubEdit &&
-  patchValidation?.valid === true
-) {
-      return this.lockHandoff(
-  this.buildGithubEditIntent({
-    summary,
-    understanding,
-    codeUnderstanding,
-    patchDecision
-  }),
-  { lock: true }
-);
+      !understanding &&
+      !codeEvidence &&
+      !codeUnderstanding &&
+      !patchDecision &&
+      !patchValidation &&
+      !selfImprovement
+    ) {
+      return null;
     }
 
-if (
-  patchDecision?.canPatchNow &&
-  patchDecision.githubEdit &&
-  patchValidation?.valid === false
-) {
-  return this.lockHandoff(
-  this.buildDeveloperTaskIntent({
-    summary,
-    understanding,
-    codeUnderstanding,
-    patchDecision: {
-      ...patchDecision,
-      reason:
-        "Patch validation failed.",
-      missingEvidence:
-        patchValidation.requiredFixes || ["patch_validation_failed"]
-    },
-    selfImprovement
-  }),
-  { lock: false }
-);
-}
+    if (
+      patchDecision?.canPatchNow &&
+      patchDecision.githubEdit &&
+      patchValidation?.valid === true
+    ) {
+      return this.lockHandoff(
+        this.buildGithubEditIntent({
+          summary,
+          understanding,
+          codeUnderstanding,
+          patchDecision
+        }),
+        { lock: true }
+      );
+    }
 
-if (this.wantsDeveloperDiagnosis(summary, understanding)) {
-  return this.lockHandoff(
-  this.buildDeveloperDiagnosticIntent({
-    summary,
-    understanding,
-    codeEvidence,
-    codeUnderstanding,
-    patchDecision,
-    selfImprovement
-  }),
-  { lock: false }
-);
-}
+    if (
+      patchDecision?.canPatchNow &&
+      patchDecision.githubEdit &&
+      patchValidation?.valid === false
+    ) {
+      return this.lockHandoff(
+        this.buildDeveloperTaskIntent({
+          summary,
+          understanding,
+          codeUnderstanding,
+          patchDecision: {
+            ...patchDecision,
+            reason: "Patch validation failed.",
+            missingEvidence:
+              patchValidation.requiredFixes || ["patch_validation_failed"]
+          },
+          selfImprovement
+        }),
+        { lock: false }
+      );
+    }
+
+    if (this.wantsDeveloperDiagnosis(summary, understanding)) {
+      return this.lockHandoff(
+        this.buildDeveloperDiagnosticIntent({
+          summary,
+          understanding,
+          codeEvidence,
+          codeUnderstanding,
+          patchDecision,
+          selfImprovement
+        }),
+        { lock: false }
+      );
+    }
 
     if (this.wantsDirectFileRead(summary, understanding)) {
       const readStep = this.findReadStep(understanding, codeEvidence, selfImprovement);
 
       if (readStep) {
         return this.lockHandoff(
-
-  this.buildGithubReadIntent({
-
-    summary,
-
-    understanding,
-
-    readStep,
-
-    codeEvidence,
-
-    codeUnderstanding
-
-  }),
-
-  { lock: true }
-
-);
+          this.buildGithubReadIntent({
+            summary,
+            understanding,
+            readStep,
+            codeEvidence,
+            codeUnderstanding
+          }),
+          { lock: true }
+        );
       }
     }
 
-if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patchDecision)) {
-  return this.lockHandoff(
-  this.buildDeveloperExplanationIntent({
-    summary,
-    understanding,
-    codeUnderstanding,
-    patchDecision,
-    selfImprovement
-  }),
-  { lock: false }
-);
-}
+    if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patchDecision)) {
+      return this.lockHandoff(
+        this.buildDeveloperExplanationIntent({
+          summary,
+          understanding,
+          codeUnderstanding,
+          patchDecision,
+          selfImprovement
+        }),
+        { lock: false }
+      );
+    }
 
     if (codeEvidence?.steps?.length) {
       return this.lockHandoff(
@@ -153,23 +143,21 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
           understanding,
           codeEvidence,
           selfImprovement
-       }),
-
-  { lock: false }
-
-);
+        }),
+        { lock: false }
+      );
     }
 
     if (selfImprovement?.steps?.length) {
       return this.lockHandoff(
-  this.buildDeveloperInvestigationIntent({
-    summary,
-    understanding,
-    codeEvidence: selfImprovement,
-    selfImprovement
-  }),
-  { lock: false }
-);
+        this.buildDeveloperInvestigationIntent({
+          summary,
+          understanding,
+          codeEvidence: selfImprovement,
+          selfImprovement
+        }),
+        { lock: false }
+      );
     }
 
     return this.lockHandoff(
@@ -180,58 +168,56 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
         patchDecision,
         selfImprovement
       }),
-
-  { lock: false }
-
-);
+      { lock: false }
+    );
   },
 
   lockHandoff(intent = null, options = {}) {
-  if (!intent) return null;
+    if (!intent) return null;
 
-  const shouldLock = options.lock === true;
+    const shouldLock = options.lock === true;
 
-  const developerResponse =
-    intent.developerResponse ||
-    this.buildDeveloperResponse({
-      kind: intent.type || "developer_response",
-      explanation: intent.summary || "Developer handoff prepared.",
-      nextAction: "Continue with the safest developer next step."
-    });
+    const developerResponse =
+      intent.developerResponse ||
+      this.buildDeveloperResponse({
+        kind: intent.type || "developer_response",
+        explanation: intent.summary || "Developer handoff prepared.",
+        nextAction: "Continue with the safest developer next step."
+      });
 
-  const reply =
-    intent.reply ||
-    this.composeDeveloperReply(developerResponse);
+    const reply = shouldLock
+      ? this.composeLockedDeveloperReply(developerResponse)
+      : this.composeUnlockedDeveloperReply(developerResponse);
 
-  const lockedIntent = {
-    ...intent,
-    developerResponse,
-    reply
-  };
+    const lockedIntent = {
+      ...intent,
+      developerResponse,
+      reply
+    };
 
-  return {
-  ...lockedIntent,
+    return {
+      ...lockedIntent,
 
-  developerIntent: lockedIntent,
-  developerResponse,
-  developerReply: reply,
+      developerIntent: lockedIntent,
+      developerResponse,
+      developerReply: reply,
 
-  composerDeveloperPacket: {
-    enabled: true,
-    mode: "developer",
-    locked: shouldLock,
-    kind: developerResponse.kind || lockedIntent.type || "developer_response",
-    reply,
-    response: developerResponse,
-    intent: lockedIntent,
-    source: "ari-rebirth-developer-handoff-engine"
+      composerDeveloperPacket: {
+        enabled: true,
+        mode: "developer",
+        locked: shouldLock,
+        kind: developerResponse.kind || lockedIntent.type || "developer_response",
+        reply,
+        response: developerResponse,
+        intent: lockedIntent,
+        source: "ari-rebirth-developer-handoff-engine"
+      },
+
+      finalResponse: shouldLock ? reply : null,
+      responseLocked: shouldLock,
+      developerResponseLocked: shouldLock
+    };
   },
-
-  finalResponse: shouldLock ? reply : null,
-  responseLocked: shouldLock,
-  developerResponseLocked: shouldLock
-};
-},
 
   buildGithubEditIntent({
     summary = {},
@@ -252,6 +238,7 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
         "Prepared an evidence-based code patch.",
       evidence: patchDecision.evidence || codeUnderstanding?.evidence || null,
       artifact,
+      findings: this.extractCodeFindings({ codeUnderstanding, patchDecision }),
       nextAction: "Owner confirmation is required before committing.",
       confidence: patchDecision.confidence || "medium_high"
     });
@@ -301,21 +288,37 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
     selfImprovement = null
   }) {
     const steps = this.cleanSteps(codeEvidence.steps || selfImprovement?.steps || []);
+    const evidenceState = codeEvidence.repositoryEvidence || null;
+
+    const findings = this.extractEvidenceFindings({
+      codeEvidence,
+      evidenceState
+    });
+
+    const nextAction = this.buildNextSpecificAction({
+      understanding,
+      codeEvidence,
+      steps,
+      evidenceState
+    });
 
     const developerResponse = this.buildDeveloperResponse({
       kind: "investigation_plan",
       summary,
       understanding,
-      explanation:
-        "I need exact code evidence before proposing a safe patch.",
-      evidence: codeEvidence.evidence || null,
+      explanation: findings.length
+        ? "I found repository evidence, but Ari should not patch until the exact safe edit is proven."
+        : "I need exact code evidence before proposing a safe patch.",
+      evidence: codeEvidence.evidence || evidenceState || null,
       artifact: {
         type: "investigation_steps",
         language: "json",
         steps
       },
-      nextAction: "Run the listed search/read steps before editing.",
-      confidence: "medium"
+      findings,
+      recommendedActions: this.buildRecommendedActionsFromSteps(steps),
+      nextAction,
+      confidence: evidenceState?.hasCompleteEvidence ? "medium_high" : "medium"
     });
 
     return {
@@ -368,8 +371,8 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
 
       steps,
 
-      canEditNow: false,
-      requiresReadBeforeEdit: true,
+      canEditNow: codeEvidence.canEditNow === true,
+      requiresReadBeforeEdit: codeEvidence.requiresReadBeforeEdit !== false,
 
       developerResponse,
 
@@ -391,6 +394,8 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
     patchDecision = null,
     selfImprovement = null
   }) {
+    const findings = this.extractCodeFindings({ codeUnderstanding, patchDecision });
+
     const developerResponse = this.buildDeveloperResponse({
       kind: "developer_task",
       summary,
@@ -401,7 +406,13 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
         this.buildSummary(understanding),
       evidence: codeUnderstanding?.evidence || null,
       artifact: null,
-      nextAction: "Read/search the relevant files before proposing code.",
+      findings,
+      nextAction: this.buildNextSpecificAction({
+        understanding,
+        codeEvidence: null,
+        steps: [],
+        evidenceState: null
+      }),
       confidence: "medium"
     });
 
@@ -505,8 +516,8 @@ if (this.canExplainWithoutPatch(summary, understanding, codeUnderstanding, patch
     nextAction = "",
     confidence = "medium",
     findings = [],
-recommendedActions = [],
-metadata = null,
+    recommendedActions = [],
+    metadata = null
   } = {}) {
     return {
       enabled: true,
@@ -514,12 +525,12 @@ metadata = null,
       source: "ari-rebirth-developer-handoff-engine",
       handoffVersion: this.version,
 
-summaryText: String(explanation || "").trim(),
-findings: Array.isArray(findings) ? findings.filter(Boolean) : [],
-recommendedActions: Array.isArray(recommendedActions)
-  ? recommendedActions.filter(Boolean)
-  : [],
-metadata,
+      summaryText: String(explanation || "").trim(),
+      findings: Array.isArray(findings) ? findings.filter(Boolean) : [],
+      recommendedActions: Array.isArray(recommendedActions)
+        ? recommendedActions.filter(Boolean)
+        : [],
+      metadata,
 
       ownerRequest:
         summary.userMessage ||
@@ -557,6 +568,7 @@ metadata,
         useArtifactIfPresent: Boolean(artifact),
         useEvidenceIfPresent: Boolean(evidence),
         answerOwnerDirectly: true,
+        doNotRenderInvestigationJsonAsFinal: true,
         maxSections: 3,
         preferredShape:
           artifact?.replacement || artifact?.code
@@ -568,7 +580,40 @@ metadata,
     };
   },
 
-  composeDeveloperReply(developerResponse = {}) {
+  composeUnlockedDeveloperReply(developerResponse = {}) {
+    if (!developerResponse?.enabled) {
+      return "Developer handoff prepared.";
+    }
+
+    const findings = developerResponse.findings || [];
+    const recommendedActions = developerResponse.recommendedActions || [];
+    const nextAction = developerResponse.nextAction || "";
+    const explanation = developerResponse.explanation || "Developer handoff prepared.";
+
+    const parts = [explanation];
+
+    if (findings.length) {
+      parts.push(
+        "",
+        "What Ari found:",
+        ...findings.slice(0, 4).map(item => `- ${item}`)
+      );
+    }
+
+    if (recommendedActions.length) {
+      parts.push(
+        "",
+        "Next move:",
+        ...recommendedActions.slice(0, 3).map(item => `- ${item}`)
+      );
+    } else if (nextAction) {
+      parts.push("", `Next move: ${nextAction}`);
+    }
+
+    return parts.filter(Boolean).join("\n");
+  },
+
+  composeLockedDeveloperReply(developerResponse = {}) {
     if (!developerResponse?.enabled) {
       return "Developer handoff prepared.";
     }
@@ -609,50 +654,10 @@ metadata,
         );
       }
 
-      if (nextAction) {
-        parts.push("", nextAction);
-      }
+      if (nextAction) parts.push("", nextAction);
 
       return parts.join("\n");
     }
-
-    if (artifact?.type === "investigation_steps") {
-      return [
-        explanation,
-        "",
-        "Next evidence steps:",
-        "```json",
-        JSON.stringify(artifact.steps || [], null, 2),
-        "```",
-        "",
-        nextAction
-      ].join("\n");
-    }
-
-if (artifact?.type === "diagnostic_summary") {
-  const findings = developerResponse.findings || [];
-  const recommendedActions = developerResponse.recommendedActions || [];
-
-  return [
-    explanation,
-    "",
-    findings.length ? "Findings:" : "",
-    ...findings.map((item, index) => `${index + 1}. ${item}`),
-    "",
-    "Diagnostic target:",
-    artifact.targetArea || "unknown",
-    "",
-    "Likely files:",
-    "```json",
-    JSON.stringify(artifact.likelyFiles || [], null, 2),
-    "```",
-    "",
-    recommendedActions.length ? "Recommended next actions:" : "",
-    ...recommendedActions.map((item, index) => `${index + 1}. ${item}`),
-    "",
-    nextAction
-  ].filter(Boolean).join("\n");
-}
 
     if (artifact?.type === "file_reference") {
       return [
@@ -661,22 +666,10 @@ if (artifact?.type === "diagnostic_summary") {
         `File to read: ${artifact.filePath || "unknown"}`,
         "",
         nextAction
-      ].join("\n");
+      ].filter(Boolean).join("\n");
     }
 
-if (developerResponse.kind === "developer_explanation") {
-  return [
-    explanation,
-    "",
-    nextAction
-  ].filter(Boolean).join("\n");
-}
-
-    return [
-      explanation,
-      "",
-      nextAction
-    ].filter(Boolean).join("\n");
+    return this.composeUnlockedDeveloperReply(developerResponse);
   },
 
   buildArtifactFromPatchDecision(patchDecision = {}) {
@@ -720,6 +713,119 @@ if (developerResponse.kind === "developer_explanation") {
     };
   },
 
+  extractEvidenceFindings({ codeEvidence = {}, evidenceState = null } = {}) {
+    const findings = [];
+
+    const repositoryEvidence =
+      evidenceState ||
+      codeEvidence.repositoryEvidence ||
+      null;
+
+    if (repositoryEvidence?.hasCompleteEvidence) {
+      findings.push(
+        `Ari has complete file evidence for ${repositoryEvidence.filePath || "the current target file"}.`
+      );
+    } else if (repositoryEvidence?.hasAnyEvidence || repositoryEvidence?.available) {
+      findings.push(
+        `Ari has some repository evidence, but it is not proven complete full-file evidence yet.`
+      );
+    }
+
+    if (repositoryEvidence?.filePath) {
+      findings.push(`Current evidence target: ${repositoryEvidence.filePath}.`);
+    }
+
+    if (repositoryEvidence?.contentLength) {
+      findings.push(
+        `Loaded content length: ${repositoryEvidence.contentLength} characters. This is metadata, not proof of completeness.`
+      );
+    }
+
+    if (!findings.length && Array.isArray(codeEvidence.steps) && codeEvidence.steps.length) {
+      const firstStep = codeEvidence.steps[0];
+      if (firstStep.filePath) {
+        findings.push(`Ari should read ${firstStep.filePath} next.`);
+      } else if (firstStep.query) {
+        findings.push(`Ari should search the repo for "${firstStep.query}" next.`);
+      }
+    }
+
+    return findings;
+  },
+
+  extractCodeFindings({ codeUnderstanding = null, patchDecision = null } = {}) {
+    const findings = [];
+
+    if (codeUnderstanding?.filePath) {
+      findings.push(`Ari analyzed ${codeUnderstanding.filePath}.`);
+    }
+
+    if (codeUnderstanding?.purpose) {
+      findings.push(codeUnderstanding.purpose);
+    }
+
+    if (patchDecision?.reason) {
+      findings.push(patchDecision.reason);
+    }
+
+    if (Array.isArray(patchDecision?.missingEvidence)) {
+      findings.push(`Missing evidence: ${patchDecision.missingEvidence.join(", ")}.`);
+    }
+
+    return findings;
+  },
+
+  buildRecommendedActionsFromSteps(steps = []) {
+    if (!Array.isArray(steps) || !steps.length) return [];
+
+    const firstRead = steps.find(step => step.tool === "github_read" && step.filePath);
+    const firstSearch = steps.find(step => step.tool === "github_search" && step.query);
+
+    if (firstRead) {
+      return [`Read ${firstRead.filePath} as full-file evidence.`];
+    }
+
+    if (firstSearch) {
+      return [`Search the repository for "${firstSearch.query}", then read the best matching file.`];
+    }
+
+    return ["Run the next evidence step before proposing a patch."];
+  },
+
+  buildNextSpecificAction({
+    understanding = null,
+    codeEvidence = null,
+    steps = [],
+    evidenceState = null
+  } = {}) {
+    const nextRequired =
+      codeEvidence?.nextRequiredAction ||
+      null;
+
+    if (nextRequired?.filePath) {
+      return `Read ${nextRequired.filePath} as exact full-file evidence.`;
+    }
+
+    if (nextRequired?.firstQuery) {
+      return `Search the repository for "${nextRequired.firstQuery}", then read the strongest matching file.`;
+    }
+
+    const firstRead = steps.find(step => step.tool === "github_read" && step.filePath);
+    if (firstRead) return `Read ${firstRead.filePath} as exact full-file evidence.`;
+
+    const firstSearch = steps.find(step => step.tool === "github_search" && step.query);
+    if (firstSearch) return `Search the repository for "${firstSearch.query}", then read the strongest matching file.`;
+
+    const likelyFile =
+      understanding?.targetObject?.filePath ||
+      understanding?.likelyFiles?.[0] ||
+      null;
+
+    if (likelyFile) return `Read ${likelyFile} before proposing code.`;
+
+    return "Search the repository semantically, then read the most relevant file before proposing code.";
+  },
+
   normalizeEvidence(evidence = null) {
     if (!evidence) return null;
 
@@ -734,272 +840,263 @@ if (developerResponse.kind === "developer_explanation") {
     return evidence;
   },
 
-extractTimingFindings(summary = {}) {
-  const timing = summary.pipelineTiming || summary.timing || [];
+  extractTimingFindings(summary = {}) {
+    const timing = summary.pipelineTiming || summary.timing || [];
 
-  if (!Array.isArray(timing) || !timing.length) return [];
+    if (!Array.isArray(timing) || !timing.length) return [];
 
-  const findings = [];
+    const findings = [];
 
-  const total =
-    timing[timing.length - 1]?.ms ??
-    null;
+    const total = timing[timing.length - 1]?.ms ?? null;
 
-  if (total !== null) {
-    findings.push(`Total measured pipeline time was about ${total}ms.`);
-  }
+    if (total !== null) {
+      findings.push(`Total measured pipeline time was about ${total}ms.`);
+    }
 
-  for (let i = 1; i < timing.length; i++) {
-    const previous = timing[i - 1];
-    const current = timing[i];
+    for (let i = 1; i < timing.length; i++) {
+      const previous = timing[i - 1];
+      const current = timing[i];
 
-    const delta = Number(current.ms || 0) - Number(previous.ms || 0);
+      const delta = Number(current.ms || 0) - Number(previous.ms || 0);
 
-    if (delta >= 10) {
+      if (delta >= 10) {
+        findings.push(
+          `${previous.label} → ${current.label} took about ${delta}ms.`
+        );
+      }
+    }
+
+    if (!findings.length) {
       findings.push(
-        `${previous.label} → ${current.label} took about ${delta}ms.`
+        "No single measured pipeline step showed a large delay in the captured timing data."
       );
     }
-  }
 
-  if (!findings.length) {
-    findings.push(
-      "No single measured pipeline step showed a large delay in the captured timing data."
+    return findings;
+  },
+
+  wantsDeveloperDiagnosis(summary = {}, understanding = null) {
+    const text = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    ).toLowerCase();
+
+    const intentFamily =
+      understanding?.intentFamily ||
+      summary.intentFamily ||
+      null;
+
+    const developerIntent =
+      intentFamily === "bug_investigation" ||
+      intentFamily === "performance_investigation" ||
+      intentFamily === "developer_diagnosis" ||
+      summary.developerArtifactRequest === true ||
+      summary.artifactInvestigationRequest === true;
+
+    const diagnosticLanguage =
+      /\b(inspect|diagnose|latency|slow|bottleneck|performance|debug|trace|why.*slow|where.*coming from)\b/i.test(text);
+
+    const developerSubject =
+      /\b(ari|pipeline|engine|composer|handoff|github|code|file|repo|calbuddy|developer layer)\b/i.test(text);
+
+    return Boolean(developerIntent && diagnosticLanguage && developerSubject);
+  },
+
+  buildDeveloperDiagnosticIntent({
+    summary = {},
+    understanding = null,
+    codeEvidence = null,
+    codeUnderstanding = null,
+    patchDecision = null,
+    selfImprovement = null
+  } = {}) {
+    const timingFindings = this.extractTimingFindings(summary);
+
+    const developerResponse = this.buildDeveloperResponse({
+      kind: "developer_diagnostic",
+      summary,
+      understanding,
+      explanation:
+        "I inspected this as a developer diagnostic request, not an edit request.",
+      findings: timingFindings.length
+        ? timingFindings
+        : [
+            "Ari correctly classified this as a diagnostic request.",
+            "No patch should be proposed until exact code evidence or timing evidence identifies the bottleneck."
+          ],
+      evidence:
+        codeUnderstanding?.evidence ||
+        codeEvidence?.evidence ||
+        summary.pipelineTiming ||
+        null,
+      artifact: {
+        type: "diagnostic_summary",
+        targetArea: understanding?.targetArea || "unknown",
+        likelyFiles: understanding?.likelyFiles || [],
+        steps: this.cleanSteps(
+          codeEvidence?.steps ||
+          selfImprovement?.steps ||
+          []
+        )
+      },
+      recommendedActions: [
+        "Use pipelineTiming to identify the slowest stage.",
+        "Read the highest-risk files before proposing a patch.",
+        "Only propose an edit after exact bottleneck evidence exists."
+      ],
+      nextAction:
+        "Inspect the relevant pipeline/debug evidence and explain the likely bottleneck before proposing a patch.",
+      confidence: "medium_high"
+    });
+
+    return {
+      enabled: true,
+      type: "developer_diagnostic",
+      source: "ari-rebirth-developer-handoff-engine",
+      handoffVersion: this.version,
+
+      title: this.buildTitle(understanding, "Developer diagnostic"),
+      summary:
+        "Ari should diagnose the code behavior first and avoid jumping straight to an edit.",
+
+      priority: this.inferPriority(understanding),
+      ownerCommand: true,
+
+      canEditNow: false,
+      requiresReadBeforeEdit: true,
+
+      developerResponse,
+      codeEvidence,
+      codeUnderstanding,
+      patchDecision,
+      selfImprovement,
+
+      safety: {
+        ownerRequired: true,
+        directWriteAllowed: false,
+        diagnosticOnly: true,
+        readBeforeEdit: true,
+        neverGuessFindText: true
+      }
+    };
+  },
+
+  canExplainWithoutPatch(summary = {}, understanding = null, codeUnderstanding = null, patchDecision = null) {
+    const text = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    ).toLowerCase();
+
+    const asksForExplanation =
+      /\b(why|explain|what options|suggest|recommend|possible solutions|what do you suggest|hypothesis|diagnose|what is happening)\b/i.test(text);
+
+    const hasDeveloperContext =
+      understanding?.isDeveloperWork === true ||
+      summary.developerArtifactRequest === true ||
+      summary.primaryFunction === "developer_artifact_request" ||
+      summary.situationContractPrimary === "builder";
+
+    const patchBlockedButInformative =
+      patchDecision &&
+      patchDecision.canPatchNow !== true &&
+      patchDecision.reason;
+
+    return Boolean(
+      hasDeveloperContext &&
+      asksForExplanation &&
+      patchBlockedButInformative
     );
-  }
+  },
 
-  return findings;
-},
+  buildDeveloperExplanationIntent({
+    summary = {},
+    understanding = null,
+    codeUnderstanding = null,
+    patchDecision = null,
+    selfImprovement = null
+  } = {}) {
+    const developerResponse = this.buildDeveloperResponse({
+      kind: "developer_explanation",
+      summary,
+      understanding,
+      explanation: this.buildExplanationText({
+        summary,
+        understanding,
+        codeUnderstanding,
+        patchDecision,
+        selfImprovement
+      }),
+      evidence: codeUnderstanding?.evidence || null,
+      artifact: null,
+      nextAction:
+        "Explain the likely cause and options. Do not force a read/edit step unless the owner asks to patch.",
+      confidence: "medium_high"
+    });
 
-wantsDeveloperDiagnosis(summary = {}, understanding = null) {
-  const text = String(
-    summary.userMessage ||
-    summary.message ||
-    summary.input ||
-    ""
-  ).toLowerCase();
+    return {
+      enabled: true,
+      type: "developer_explanation",
+      source: "ari-rebirth-developer-handoff-engine",
+      handoffVersion: this.version,
 
-  const intentFamily =
-    understanding?.intentFamily ||
-    summary.intentFamily ||
-    null;
+      title: this.buildTitle(understanding, "Developer explanation"),
+      summary:
+        "Ari can explain the developer issue without preparing an edit yet.",
 
-  const developerIntent =
-    intentFamily === "bug_investigation" ||
-    intentFamily === "performance_investigation" ||
-    intentFamily === "developer_diagnosis" ||
-    summary.developerArtifactRequest === true ||
-    summary.artifactInvestigationRequest === true;
+      priority: this.inferPriority(understanding),
+      ownerCommand: true,
 
-  const diagnosticLanguage =
-    /\b(inspect|diagnose|latency|slow|bottleneck|performance|debug|trace|why.*slow|where.*coming from)\b/i.test(text);
+      canEditNow: false,
+      requiresReadBeforeEdit: false,
 
-  const developerSubject =
-    /\b(ari|pipeline|engine|composer|handoff|github|code|file|repo|calbuddy|developer layer)\b/i.test(text);
+      developerResponse,
 
-  return Boolean(developerIntent && diagnosticLanguage && developerSubject);
-},
+      codeUnderstanding,
+      patchDecision,
+      selfImprovement,
 
-buildDeveloperDiagnosticIntent({
-  summary = {},
-  understanding = null,
-  codeEvidence = null,
-  codeUnderstanding = null,
-  patchDecision = null,
-  selfImprovement = null
-} = {}) {
-  const timingFindings = this.extractTimingFindings(summary);
+      safety: {
+        ownerRequired: true,
+        directWriteAllowed: false,
+        explanationOnly: true,
+        requiresConfirmation: false
+      }
+    };
+  },
 
-  const developerResponse = this.buildDeveloperResponse({
-    kind: "developer_diagnostic",
-    summary,
-    understanding,
-    explanation:
-      "I inspected this as a developer diagnostic request, not an edit request.",
-    findings: timingFindings.length
-      ? timingFindings
-      : [
-          "Ari correctly classified this as a diagnostic request.",
-          "No patch should be proposed until exact code evidence or timing evidence identifies the bottleneck."
-        ],
-    evidence:
-      codeUnderstanding?.evidence ||
-      codeEvidence?.evidence ||
-      summary.pipelineTiming ||
-      null,
-    artifact: {
-      type: "diagnostic_summary",
-      targetArea: understanding?.targetArea || "unknown",
-      likelyFiles: understanding?.likelyFiles || [],
-      steps: this.cleanSteps(
-        codeEvidence?.steps ||
-        selfImprovement?.steps ||
-        []
-      )
-    },
-    recommendedActions: [
-      "Use pipelineTiming to identify the slowest stage.",
-      "Read the highest-risk files before proposing a patch.",
-      "Only propose an edit after exact bottleneck evidence exists."
-    ],
-    nextAction:
-      "Inspect the relevant pipeline/debug evidence and explain the likely bottleneck before proposing a patch.",
-    confidence: "medium_high"
-  });
+  buildExplanationText({
+    summary = {},
+    understanding = null,
+    codeUnderstanding = null,
+    patchDecision = null,
+    selfImprovement = null
+  } = {}) {
+    const blocker =
+      patchDecision?.reason ||
+      selfImprovement?.summary ||
+      "Ari could not build a safe patch from the available evidence.";
 
-  return {
-    enabled: true,
-    type: "developer_diagnostic",
-    source: "ari-rebirth-developer-handoff-engine",
-    handoffVersion: this.version,
+    const filePath =
+      patchDecision?.filePath ||
+      codeUnderstanding?.filePath ||
+      understanding?.targetObject?.filePath ||
+      understanding?.likelyFiles?.[0] ||
+      "the relevant file";
 
-    title: this.buildTitle(understanding, "Developer diagnostic"),
-    summary:
-      "Ari should diagnose the code behavior first and avoid jumping straight to an edit.",
-
-    priority: this.inferPriority(understanding),
-    ownerCommand: true,
-
-    canEditNow: false,
-    requiresReadBeforeEdit: true,
-
-    developerResponse,
-    codeEvidence,
-    codeUnderstanding,
-    patchDecision,
-    selfImprovement,
-
-    safety: {
-      ownerRequired: true,
-      directWriteAllowed: false,
-      diagnosticOnly: true,
-      readBeforeEdit: true,
-      neverGuessFindText: true
-    }
-  };
-},
-
-canExplainWithoutPatch(summary = {}, understanding = null, codeUnderstanding = null, patchDecision = null) {
-  const text = String(
-    summary.userMessage ||
-    summary.message ||
-    summary.input ||
-    ""
-  ).toLowerCase();
-
-  const asksForExplanation =
-    /\b(why|explain|what options|suggest|recommend|possible solutions|what do you suggest|hypothesis|diagnose|what is happening)\b/i.test(text);
-
-  const hasDeveloperContext =
-    understanding?.isDeveloperWork === true ||
-    summary.developerArtifactRequest === true ||
-    summary.primaryFunction === "developer_artifact_request" ||
-    summary.situationContractPrimary === "builder";
-
-  const patchBlockedButInformative =
-    patchDecision &&
-    patchDecision.canPatchNow !== true &&
-    patchDecision.reason;
-
-  return Boolean(
-    hasDeveloperContext &&
-    asksForExplanation &&
-    patchBlockedButInformative
-  );
-},
-
-buildDeveloperExplanationIntent({
-  summary = {},
-  understanding = null,
-  codeUnderstanding = null,
-  patchDecision = null,
-  selfImprovement = null
-} = {}) {
-  const developerResponse = this.buildDeveloperResponse({
-    kind: "developer_explanation",
-    summary,
-    understanding,
-    explanation: this.buildExplanationText({
-  summary,
-  understanding,
-  codeUnderstanding,
-  patchDecision,
-  selfImprovement
-}),
-    evidence: codeUnderstanding?.evidence || null,
-    artifact: null,
-    nextAction:
-      "Explain the likely cause and options. Do not force a read/edit step unless the owner asks to patch.",
-    confidence: "medium_high"
-  });
-
-  return {
-    enabled: true,
-    type: "developer_explanation",
-    source: "ari-rebirth-developer-handoff-engine",
-    handoffVersion: this.version,
-
-    title: this.buildTitle(understanding, "Developer explanation"),
-    summary:
-      "Ari can explain the developer issue without preparing an edit yet.",
-
-    priority: this.inferPriority(understanding),
-    ownerCommand: true,
-
-    canEditNow: false,
-    requiresReadBeforeEdit: false,
-
-    developerResponse,
-
-    codeUnderstanding,
-    patchDecision,
-    selfImprovement,
-
-    safety: {
-      ownerRequired: true,
-      directWriteAllowed: false,
-      explanationOnly: true,
-      requiresConfirmation: false
-    }
-  };
-},
-
-buildExplanationText({
-  summary = {},
-  understanding = null,
-  codeUnderstanding = null,
-  patchDecision = null,
-  selfImprovement = null
-} = {}) {
-  const ownerText = String(
-    summary.userMessage ||
-    summary.message ||
-    summary.input ||
-    ""
-  ).trim();
-
-  const blocker =
-    patchDecision?.reason ||
-    selfImprovement?.summary ||
-    "Ari could not build a safe patch from the available evidence.";
-
-  const filePath =
-    patchDecision?.filePath ||
-    codeUnderstanding?.filePath ||
-    understanding?.targetObject?.filePath ||
-    understanding?.likelyFiles?.[0] ||
-    "the relevant file";
-
-  return [
-    `Likely cause: Ari is entering the developer handoff path, but the patch engine cannot build an exact safe edit for ${filePath}.`,
-    "",
-    `The current blocker is: ${blocker}`,
-    "",
-    "That means Ari should explain the cause and options instead of forcing read/edit steps.",
-    "",
-    "Best fix: keep the safety gate for real code edits, but add a separate explanation-only path that returns a normal diagnostic answer when the owner asks why, what options exist, or what is happening."
-  ].join("\n");
-},
+    return [
+      `Likely cause: Ari is entering the developer handoff path, but the patch engine cannot build an exact safe edit for ${filePath}.`,
+      "",
+      `The current blocker is: ${blocker}`,
+      "",
+      "That means Ari should explain the cause and options instead of forcing read/edit steps.",
+      "",
+      "Best fix: keep the safety gate for real code edits, but use an explanation-only path when the owner asks why, what options exist, or what is happening."
+    ].join("\n");
+  },
 
   wantsDirectFileRead(summary = {}, understanding = null) {
     const text = String(
