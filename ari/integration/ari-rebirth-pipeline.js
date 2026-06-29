@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.6 — Composer Handoff Contract Normalized
+// V3.9.7 — Composer Handoff Contract Normalized
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.6",
+  version: "3.9.7",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -1669,7 +1669,66 @@ prepareComposerHandoff(summary = {}) {
       summary.thesisRecommendedUse ||
       map.thesisRecommendedUse ||
       contract.situationThesis?.recommendedUse ||
-      "do_not_use_as_authority"
+        "do_not_use_as_authority",
+  
+  composerHandoff: {
+  ready: true,
+  userQuestion:
+    summary.resolvedUserQuestion ||
+    summary.threadQuestion?.resolvedUserQuestion ||
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    "",
+
+  primary,
+  responseShape:
+    contract.responseShape ||
+    triage.responseShape ||
+    summary.responseShape ||
+    map.responseShape ||
+    "clear_explanation",
+
+  responseRules:
+    contract.responseRules ||
+    triage.responseConstraints ||
+    summary.responseRules ||
+    [],
+
+  situationThesis:
+    summary.primarySituationThesis ||
+    map.primarySituationThesis ||
+    contract.situationThesis?.thesis ||
+    null,
+
+  situationNarrative:
+    summary.situationNarrative ||
+    map.situationNarrative ||
+    contract.situationThesis?.narrative ||
+    null,
+
+  thesisRecommendedUse:
+    summary.thesisRecommendedUse ||
+    map.thesisRecommendedUse ||
+    contract.situationThesis?.recommendedUse ||
+    "do_not_use_as_authority",
+
+  mouthDirective:
+    contract.mouthDirective || null,
+
+  communicationPlan:
+    summary.communicationPlan || null,
+
+  humanLanguageProfile:
+    summary.humanLanguageProfile || null,
+
+  githubEvidence:
+    summary.githubEvidence || null,
+
+  developerHandoff:
+    summary.developerHandoff || null
+}
+  
   };
 },
 
@@ -1692,6 +1751,7 @@ prepareComposerHandoff(summary = {}) {
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== REASONING =====", reasoningResult);
  console.log("===== COMPOSER HANDOFF =====", {
+  handoff: summary.composerHandoff,
   ready: summary.composerHandoffReady,
   primary: summary.situationContractPrimary,
   responseShape: summary.responseShape,
