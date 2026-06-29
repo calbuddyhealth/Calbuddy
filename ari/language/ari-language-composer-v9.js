@@ -1,22 +1,38 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.0.0 — Packet-Locked Composer
+// V9.1.0 — Packet-Locked Composer / Developer + AI Writer Aware
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.0.0",
+  version: "9.1.0",
 
   async compose(input = {}) {
+    const summary = input.summary || input || {};
+
     const packet =
       input.composerPacket ||
-      input.summary?.composerPacket ||
+      summary.composerPacket ||
       input;
 
     if (!packet?.ready) {
       return this.returnFinal(
         "I don’t have a valid composer packet. Diagnostic: composer packet missing.",
         "diagnostic_no_packet",
+        packet
+      );
+    }
+
+    const developerPacket =
+      packet.developerPacket ||
+      packet.evidence?.developerPacket ||
+      summary.composerDeveloperPacket ||
+      null;
+
+    if (developerPacket?.enabled && developerPacket.reply) {
+      return this.returnFinal(
+        developerPacket.reply,
+        "developer_packet_reply",
         packet
       );
     }
@@ -29,8 +45,36 @@ window.AriLanguageComposerV9 = {
       );
     }
 
+    if (packet.safety?.gate?.shouldStopNormalResponse) {
+      return this.returnFinal(
+        packet.safety.gate.response ||
+          packet.safety.gate.message ||
+          "I need to pause normal answering because this may involve safety.",
+        "safety_gate_response",
+        packet
+      );
+    }
+
     if (packet.primary === "builder" && packet.evidence?.github?.content) {
       return this.composeGithub(packet);
+    }
+
+    const aiDraft =
+      packet.evidence?.aiWriter?.draft ||
+      packet.aiWriterDraft ||
+      summary.aiWriterDraft ||
+      input.aiWriterDraft ||
+      packet.draft ||
+      summary.draft ||
+      input.draft ||
+      "";
+
+    if (String(aiDraft || "").trim()) {
+      return this.returnFinal(
+        String(aiDraft).trim(),
+        packet.evidence?.aiWriter?.usedAI ? "ai_writer_draft" : "ai_writer_fallback",
+        packet
+      );
     }
 
     return this.composeLocal(packet);
@@ -104,14 +148,16 @@ window.AriLanguageComposerV9 = {
 
     if (packet.primary === "teacher") {
       return this.returnFinal(
-        q ? `The clean answer: ${q}` : "The clean answer is: yes, I can explain it.",
+        "I can explain it, but the AI Writer draft was missing, so I’m using a safe teacher fallback.",
         "teacher_fallback",
         packet
       );
     }
 
     return this.returnFinal(
-      q ? `I’ll answer directly: ${q}` : "Yeah. I’m here. Tell me what’s going on.",
+      q
+        ? "I can answer, but the AI Writer draft was missing, so I’m using a safe fallback instead of echoing your question."
+        : "Yeah. I’m here. Tell me what’s going on.",
       "general_fallback",
       packet
     );
@@ -125,7 +171,7 @@ window.AriLanguageComposerV9 = {
       finalResponse: text,
       composerVersion: this.version,
       source: "ari-language-composer-v9",
-      composerUsedAI: false,
+      composerUsedAI: validation === "ai_writer_draft",
       composerValidation: validation,
       composerDebug: {
         usedPacket: true,
