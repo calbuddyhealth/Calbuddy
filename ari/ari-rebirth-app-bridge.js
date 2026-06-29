@@ -4,13 +4,12 @@
 // Rebirth-only: no old Ari fallback.
 // V1.4.9 — App Safe / Pipeline Guarded / File Evidence Non-Hijack
 
-version: "1.4.9",
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-
+version: "1.4.9",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
