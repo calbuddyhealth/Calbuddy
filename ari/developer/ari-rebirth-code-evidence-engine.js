@@ -1,12 +1,12 @@
 // ari/developer/ari-rebirth-code-evidence-engine.js
 // Ari Rebirth Code Evidence Engine
 // Purpose: Convert developer understanding into executable evidence-gathering steps.
-// V1.2.1 — Repository Evidence Aware / Read-State Detection / Patch Gate Ready
+// V1.2.2 — Repository Evidence Aware / Read-State Detection / Patch Gate Ready
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthCodeEvidenceEngine = {
-  version: "1.2.1",
+  version: "1.2.2",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -20,20 +20,27 @@ window.AriRebirthCodeEvidenceEngine = {
 
     const evidenceState = this.getRepositoryEvidenceState(summary);
 
-    const searchSteps = this.buildSearchSteps(understanding);
-    const readSteps = this.buildReadSteps(understanding);
-    const analysisSteps = this.buildAnalysisSteps();
+    const searchSteps = evidenceState.available
+  ? []
+  : this.buildSearchSteps(understanding);
 
-    const steps = this.dedupeSteps([
-      ...searchSteps,
-      ...readSteps,
-      ...analysisSteps
-    ]);
+const readSteps = evidenceState.available
+  ? []
+  : this.buildReadSteps(understanding);
+
+const analysisSteps = this.buildAnalysisSteps();
+
+const steps = this.dedupeSteps([
+  ...searchSteps,
+  ...readSteps,
+  ...analysisSteps
+]);
 
     const investigationPlan = this.buildInvestigationPlan({
-      understanding,
-      steps
-    });
+  understanding,
+  evidenceState,
+  steps
+});
 
     return {
       codeEvidenceRan: true,
@@ -143,10 +150,10 @@ window.AriRebirthCodeEvidenceEngine = {
     };
   },
 
-  buildInvestigationPlan({ understanding = {}, steps = [] }) {
+  buildInvestigationPlan({ understanding = {}, evidenceState = {}, steps = [] }) {
     return {
       title: this.buildTitle(understanding),
-      summary: this.buildSummary(understanding),
+      summary: this.buildSummary(understanding, evidenceState),
       priority: this.inferPriority(understanding),
       ownerCommand: true,
       semanticFirst: true,
@@ -477,11 +484,17 @@ window.AriRebirthCodeEvidenceEngine = {
     return `Gather code evidence for ${target}`;
   },
 
-  buildSummary(understanding = {}) {
-    return `Ari Rebirth will gather repository evidence for: ${
+  buildSummary(understanding = {}, evidenceState = {}) {
+  if (evidenceState.available) {
+    return `Ari Rebirth already has repository evidence for: ${
       understanding.userGoal || "developer request"
-    }. Search/read must happen before patching.`;
-  },
+    }. Proceed to code understanding and patch decision.`;
+  }
+
+  return `Ari Rebirth will gather repository evidence for: ${
+    understanding.userGoal || "developer request"
+  }. Search/read must happen before patching.`;
+},
 
   inferPriority(understanding = {}) {
     if (understanding.urgency === "high") return "high";
