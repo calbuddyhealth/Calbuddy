@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.4.5 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
+// V8.4.6 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,7 +14,7 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.4.5",
+  version: "8.4.6",
 
 
   async compose(input = {}) {
@@ -27,6 +27,11 @@ console.log("COMPOSER INPUT", {
   thesisType: summary.primarySituationThesis?.thesisType,
   narrative: summary.situationNarrative
 });
+    const handoff = summary.composerHandoff || null;
+
+if (handoff?.ready === true) {
+  return this.composeFromHandoff(handoff);
+}
     const contract = summary.situationContract || {};
     const communicationPlan = summary.communicationPlan || {};
     const mouth = summary.mouthDirector || {};
@@ -1224,6 +1229,73 @@ repairDanglingDecisionEnding({ text = "", summary = {}, primary = "", contract =
 
     return polished;
   },
+
+composeFromHandoff(handoff = {}) {
+  const contract = {
+    primary: handoff.primary,
+    responseShape: handoff.responseShape,
+    responseRules: handoff.responseRules || [],
+    mouthDirective: handoff.mouthDirective || null
+  };
+
+  const userQuestion = handoff.userQuestion || "";
+  const primary = handoff.primary || "general_understanding";
+
+  let finalResponse = "";
+
+  if (handoff.developerHandoff?.reply) {
+    finalResponse = handoff.developerHandoff.reply;
+  } else if (handoff.githubEvidence?.content && primary === "builder") {
+    finalResponse = this.composeFromGithubEvidence({
+  userMessage: userQuestion,
+  githubEvidence: handoff.githubEvidence
+})?.finalResponse;
+  } else if (handoff.situationNarrative || handoff.situationThesis) {
+    finalResponse = this.localFallback({
+      summary: {},
+      primary,
+      contract,
+      thesis: {
+        available: Boolean(handoff.situationThesis || handoff.situationNarrative),
+        thesis: handoff.situationThesis,
+        narrative: handoff.situationNarrative,
+        recommendedUse: handoff.thesisRecommendedUse,
+        mustUse: handoff.thesisRecommendedUse === "use_as_situation_blueprint"
+      },
+      userQuestion
+    });
+  } else {
+    finalResponse = this.localFallback({
+      summary: {},
+      primary,
+      contract,
+      thesis: {},
+      userQuestion
+    });
+  }
+
+  if (
+    finalResponse === "Yeah. I’m here. Tell me what’s going on." &&
+    userQuestion
+  ) {
+    finalResponse = `I received the handoff, but composer failed to use it. Diagnostic: ${userQuestion}`;
+  }
+
+  return {
+    languageMode: primary,
+    languageBody: finalResponse,
+    languageSections: [finalResponse],
+    finalResponse,
+    composerVersion: this.version,
+    source: "ari-language-composer",
+    composerUsedAI: false,
+    composerValidation: "composer_handoff_locked",
+    composerDebug: {
+      usedComposerHandoff: true,
+      handoff
+    }
+  };
+},
 
   normalize(text = "") {
     return String(text || "")
