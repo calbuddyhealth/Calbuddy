@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V3.9.5 — Composer Handoff Contract Normalized
+// V3.9.6 — Composer Handoff Contract Normalized
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "3.9.5",
+  version: "3.9.6",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -781,8 +781,9 @@ summary = this.reassertContractAuthority(summary);
 summary = this.reassertContractAuthority(summary);
 
 // Composer handoff
-
+mark("before prepareComposerHandoff");
 summary = this.prepareComposerHandoff(summary);
+mark("after prepareComposerHandoff");
 
     // Composer
 if (!developerResponseLocked) {
