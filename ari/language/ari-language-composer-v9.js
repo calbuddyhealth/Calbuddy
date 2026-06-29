@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.2 — Locked Developer Packet / AI Writer First / Thin Composer
+// V9.1.3 — No Stale History Reuse / Current Writer First
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.2",
+  version: "9.1.3",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -62,19 +62,11 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    const aiDraft =
-      packet.evidence?.aiWriter?.draft ||
-      packet.aiWriterDraft ||
-      summary.aiWriterDraft ||
-      input.aiWriterDraft ||
-      packet.draft ||
-      summary.draft ||
-      input.draft ||
-      "";
+    const aiDraft = this.getCurrentWriterDraft({ packet, summary, input });
 
-    if (String(aiDraft || "").trim()) {
+    if (aiDraft) {
       return this.returnFinal(
-        String(aiDraft).trim(),
+        aiDraft,
         packet.evidence?.aiWriter?.usedAI
           ? "ai_writer_draft"
           : "ai_writer_fallback",
@@ -82,11 +74,58 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    if (packet.primary === "builder" && packet.evidence?.github?.content) {
+    if (
+      packet.primary === "builder" &&
+      packet.evidence?.github?.content
+    ) {
       return this.composeGithub(packet);
     }
 
     return this.composeLocal(packet);
+  },
+
+  getCurrentWriterDraft({ packet = {}, summary = {}, input = {} } = {}) {
+    const candidates = [
+      packet.evidence?.aiWriter?.draft,
+      packet.aiWriterDraft,
+      summary.aiWriterDraft,
+      input.aiWriterDraft,
+      packet.draft,
+      summary.draft,
+      input.draft,
+      summary.currentWriterOutput,
+      summary.writerOutput,
+      summary.languageBody,
+      summary.languageBodyOutput
+    ];
+
+    for (const candidate of candidates) {
+      const text = String(candidate || "").trim();
+
+      if (!text) continue;
+      if (this.isStaleHistoryReply(text, packet)) continue;
+
+      return text;
+    }
+
+    return "";
+  },
+
+  isStaleHistoryReply(text = "", packet = {}) {
+    const t = String(text || "").toLowerCase();
+    const q = String(packet.userQuestion || "").toLowerCase();
+
+    const staleFileReply =
+      t.includes("i read index.html") &&
+      t.includes("loaded snippet") &&
+      t.includes("does not show");
+
+    const currentQuestionStillAsksSameFileIssue =
+      q.includes("mascot") ||
+      q.includes("homepage") ||
+      q.includes("index.html");
+
+    return staleFileReply && !currentQuestionStillAsksSameFileIssue;
   },
 
   composeGithub(packet = {}) {
@@ -108,14 +147,14 @@ window.AriLanguageComposerV9 = {
       !/mascot|ari-hero|ari-avatar|ari-mascot|ari-bubble|ari-face|ari-character/i.test(content)
     ) {
       return this.returnFinal(
-        `I read ${filePath}, but the loaded snippet does not show the Ari mascot markup. It only shows the content that was loaded, so Ari should not guess. Load the full homepage section around the Ari mascot, likely the hero/avatar/bubble markup, before removing anything.`,
+        `I read ${filePath}, but the loaded content does not include the Ari mascot markup. Ari should not guess a patch from unrelated code. Load the full homepage section or the style file that contains the mascot selector before removing anything.`,
         "github_missing_requested_object",
         packet
       );
     }
 
     return this.returnFinal(
-      `I read ${filePath}. Based on the loaded evidence, Ari should answer only from what is visible there and clearly say what is missing instead of guessing.`,
+      `I read ${filePath}. Based on the loaded evidence, Ari should answer only from the current file content and avoid reusing older saved replies.`,
       "github_grounded",
       packet
     );
@@ -126,7 +165,7 @@ window.AriLanguageComposerV9 = {
 
     if (packet.primary === "builder") {
       return this.returnFinal(
-        "Ari needs exact file evidence before giving a patch. She should name the likely files, say what is missing, and avoid pretending she found code that was not loaded.",
+        "Ari needs current file evidence or a current writer draft before giving a patch. She should not reuse an older conversation history answer.",
         "builder_guarded",
         packet
       );
@@ -134,7 +173,7 @@ window.AriLanguageComposerV9 = {
 
     return this.returnFinal(
       q
-        ? "I can answer, but the AI Writer draft was missing, so I’m using a safe fallback instead of echoing your question."
+        ? "I can answer, but the current AI Writer draft was missing, so I’m using a safe fallback instead of pulling from old conversation history."
         : "Yeah. I’m here. Tell me what’s going on.",
       "general_fallback",
       packet
@@ -153,6 +192,7 @@ window.AriLanguageComposerV9 = {
       composerValidation: validation,
       composerDebug: {
         usedPacket: true,
+        staleHistoryFinalResponseIgnored: true,
         packet
       }
     };
