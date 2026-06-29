@@ -1633,8 +1633,8 @@ await timedRun("developerHandoff", window.AriRebirthDeveloperHandoffEngine, ["ha
   // Promote locked developer handoff into pipeline-level authority.
 if (summary.developerHandoff) {
   summary.developerIntent =
-    summary.developerHandoff.developerIntent ||
-    summary.developerHandoff;
+  summary.developerHandoff.developerIntent ||
+  null;
 
   summary.developerResponse =
     summary.developerHandoff.developerResponse ||
