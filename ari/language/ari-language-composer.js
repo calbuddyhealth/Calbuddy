@@ -1,7 +1,7 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
 // Purpose: Final response writer only.
-// V8.4.3 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
+// V8.4.5 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
 // Role:
 // - DOES write the final answer.
 // - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
@@ -14,12 +14,19 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.4.3",
+  version: "8.4.5",
 
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
-
+console.log("COMPOSER INPUT", {
+  hasContract: !!summary.situationContract,
+  primary: summary.situationContract?.primary,
+  responseShape: summary.situationContract?.responseShape,
+  hasThesis: !!summary.primarySituationThesis,
+  thesisType: summary.primarySituationThesis?.thesisType,
+  narrative: summary.situationNarrative
+});
     const contract = summary.situationContract || {};
     const communicationPlan = summary.communicationPlan || {};
     const mouth = summary.mouthDirector || {};
@@ -914,14 +921,25 @@ defaultSafetyAction({ safetyAction = {}, primary = "" }) {
     return contract.clarity.question;
   }
 
-  if (
-    lower === "ari" ||
-    lower === "talk to me" ||
-    lower.includes("can you help me") ||
-    lower.includes("help me out")
-  ) {
-    return "Yeah. I’m here with you. Tell me what’s going on.";
-  }
+  const isMetaRoutingQuestion =
+  lower.includes("should ari treat") ||
+  lower.includes("artifact modification") ||
+  lower.includes("file context") ||
+  lower.includes("developer routing") ||
+  lower.includes("routing behavior");
+
+if (isMetaRoutingQuestion) {
+  return "No. Ari should not treat that as an artifact modification just because the prior thread was about code. If no usable file context is loaded, Ari should answer it as a routing/explanation question or say file context is missing. Prior code context can inform the answer, but it should not trigger a patch by itself.";
+}
+
+if (
+  lower === "ari" ||
+  lower === "talk to me" ||
+  lower === "can you help me" ||
+  lower === "help me out"
+) {
+  return "Yeah. I’m here with you. Tell me what’s going on.";
+}
 
   if (
     lower.includes("sad") ||
@@ -938,8 +956,10 @@ defaultSafetyAction({ safetyAction = {}, primary = "" }) {
   }
 
   if (primary === "teacher") {
-    return "The clean answer is: yes, I can explain it. Send me the part you want broken down and I’ll make it clear.";
-  }
+  return question
+    ? `The clean answer: ${question}`
+    : "The clean answer is: yes, I can explain it.";
+}
 
   if (primary === "executive_decision") {
     return "My recommendation: slow the decision down, compare the real tradeoff, and pick the option that still makes sense after the emotion cools off.";
