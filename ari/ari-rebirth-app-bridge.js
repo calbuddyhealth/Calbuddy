@@ -72,7 +72,12 @@ window.AriRebirthAppBridge = {
     "ari/language/ari-communication-planner.js",
     "ari/language/ari-human-language-engine.js",
     "ari/language/ari-mouth-director.js",
-    "ari/language/ari-response-compressor.js",
+   
+    // NEW composer pathway
+"ari/language/ari-composer-bridge.js",
+"ari/language/ari-ai-writer.js",
+"ari/language/ari-response-validator.js",
+     "ari/language/ari-response-compressor.js",
     "ari/language/ari-language-composer.js",
 
     "ari/observer-system/ari-dual-salience-system.js",
