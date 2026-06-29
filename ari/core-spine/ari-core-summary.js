@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.5.8 — Adds routing evidence, lane split, continuity results, continuity packet
+// V3.6.0 — Composer Bridge / AI Writer / Validator Debug Fields
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.5.8",
+  version: "3.6.0",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -147,6 +147,24 @@ const triage =
     const contractBridge =
       analysis.contractBridge ||
       {};
+
+const composerPacket =
+  analysis.composerPacket ||
+  {};
+
+const aiWriter =
+  analysis.aiWriter ||
+  analysis.aiWriterResult ||
+  {};
+
+const responseValidator =
+  analysis.responseValidator ||
+  analysis.responseValidatorResult ||
+  {};
+
+const languageComposer =
+  analysis.languageComposer ||
+  {};
 
     const domainGovernor =
       analysis.domainGovernor ||
@@ -2136,6 +2154,131 @@ responseCompressorSource:
   "not-yet-run",
 
 compressedResponse:
+  analysis.compressedResponse ||
+  null,
+  
+  // ==================================================
+// COMPOSER BRIDGE / AI WRITER / RESPONSE VALIDATOR
+// ==================================================
+
+composerPacket,
+
+composerPacketReady:
+  analysis.composerPacketReady ??
+  composerPacket.ready ??
+  false,
+
+composerBridgeRan:
+  analysis.composerBridgeRan ??
+  composerPacket.composerBridgeRan ??
+  false,
+
+composerBridgeSource:
+  analysis.composerBridgeSource ||
+  composerPacket.source ||
+  "not-yet-run",
+
+composerPacketPrimary:
+  composerPacket.primary ||
+  analysis.composerPacketPrimary ||
+  null,
+
+composerPacketUserQuestion:
+  composerPacket.userQuestion ||
+  analysis.composerPacketUserQuestion ||
+  null,
+
+composerPacketResponseShape:
+  composerPacket.responseShape ||
+  analysis.composerPacketResponseShape ||
+  null,
+
+composerPacketRules:
+  composerPacket.responseRules ||
+  analysis.composerPacketRules ||
+  [],
+
+composerPacketMustAnswer:
+  composerPacket.mustAnswer ||
+  analysis.composerPacketMustAnswer ||
+  null,
+
+aiWriter,
+
+aiWriterRan:
+  analysis.aiWriterRan ??
+  aiWriter.aiWriterRan ??
+  false,
+
+aiWriterUsedAI:
+  analysis.aiWriterUsedAI ??
+  aiWriter.usedAI ??
+  false,
+
+aiWriterSource:
+  analysis.aiWriterSource ||
+  aiWriter.source ||
+  "not-yet-run",
+
+aiWriterDraft:
+  analysis.aiWriterDraft ||
+  aiWriter.draft ||
+  null,
+
+responseValidator,
+
+responseValidatorRan:
+  analysis.responseValidatorRan ??
+  responseValidator.responseValidatorRan ??
+  false,
+
+responseValidatorPassed:
+  analysis.responseValidatorPassed ??
+  responseValidator.passed ??
+  null,
+
+responseValidatorSource:
+  analysis.responseValidatorSource ||
+  responseValidator.source ||
+  "not-yet-run",
+
+responseValidatorFinal:
+  analysis.responseValidatorFinal ||
+  responseValidator.finalResponse ||
+  null,
+
+composerVersion:
+  analysis.composerVersion ||
+  languageComposer.composerVersion ||
+  null,
+
+composerSource:
+  analysis.source ||
+  languageComposer.source ||
+  "not-yet-run",
+
+composerDebug:
+  analysis.composerDebug ||
+  languageComposer.composerDebug ||
+  {},
+
+composerUsedAI:
+  analysis.composerUsedAI ??
+  languageComposer.composerUsedAI ??
+  false,
+
+composerValidation:
+  analysis.composerValidation ||
+  languageComposer.composerValidation ||
+  null,
+
+finalResponse:
+  analysis.finalResponse ||
+  responseValidator.finalResponse ||
+  responseValidator.final ||
+  aiWriter.finalResponse ||
+  aiWriter.draft ||
+  analysis.languageBody ||
   analysis.compressedResponse ||
   null,
   
