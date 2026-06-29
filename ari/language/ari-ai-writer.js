@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.0.1 — Summary/Packet Safe
+// V1.0.2 — Evidence-Aware Natural Writer
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.0.1",
+  version: "1.0.2",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -72,35 +72,59 @@ RESPONSE RULES:
 ${(packet.responseRules || []).map(x => "- " + x).join("\n") || "- Answer directly."}
 
 THESIS / NARRATIVE:
-${JSON.stringify(packet.thesis || packet.situationThesis || {}, null, 2)}
-
-EVIDENCE:
-${JSON.stringify(packet.evidence || packet.githubEvidence || {}, null, 2)}
+${JSON.stringify(packet.thesis || {}, null, 2)}
 
 STYLE:
 ${JSON.stringify(packet.humanLanguageProfile || {}, null, 2)}
 
-RULES:
-- Answer the user’s actual question.
+EVIDENCE:
+${JSON.stringify(packet.evidence || {}, null, 2)}
+
+DEVELOPER RULES:
+- Locked developer replies may be used directly.
+- Unlocked developer packets are context only.
+- Do not print investigation steps unless the user specifically asks for them.
+- Do not say you can patch or edit unless the packet gives exact evidence.
+- If GitHub evidence is only a snippet, say what the snippet actually contains.
+- If the requested object is not visible in the loaded evidence, say that clearly.
+- Recommend the next specific file or section needed.
+
+GENERAL RULES:
+- Answer the user's actual question.
 - Do not invent missing facts.
 - Do not mention internal pipeline names.
 - Do not say primary lane, contract, triage, observer, composer packet, or handoff.
-- If file evidence is present, ground the answer in that evidence.
-- If no file evidence is present, do not pretend you saw a file.
 - Be direct, natural, and concise.
 `.trim();
   },
 
   localDraft(packet = {}, reason = "fallback") {
-    const question = packet.userQuestion || "";
+    const question = String(packet.userQuestion || "").toLowerCase();
+    const github = packet.evidence?.github || null;
+    const developerPacket = packet.developerPacket || packet.evidence?.developerPacket || null;
 
-    let draft = question
-      ? `I hear you. The direct answer is: ${question}`
-      : "Yeah. I’m here. Tell me what’s going on.";
+    let draft = "Yeah. I’m here. Tell me what’s going on.";
 
-    if (packet.primary === "builder") {
+    if (github?.content) {
+      const filePath = github.filePath || "the loaded file";
+      const content = String(github.content || "");
+
+      if (
+        question.includes("mascot") &&
+        !/mascot|ari-hero|ari-avatar|ari-mascot|ari-bubble|ari-face|ari-character/i.test(content)
+      ) {
+        draft =
+          `I read ${filePath}, but the loaded snippet does not show the Ari mascot markup. It only shows the homepage action grid. To remove the mascot safely, Ari needs the part of index.html or style.css that contains the mascot, likely around ari-hero, Ari image/avatar, or bubble markup.`;
+      } else {
+        draft =
+          `I read ${filePath}. Based on the loaded evidence, Ari should answer only from what is visible there and say what is missing instead of guessing.`;
+      }
+    } else if (developerPacket?.enabled && developerPacket.locked !== true) {
       draft =
-        "Yes — but only if Ari has real file context or a clear developer command. Otherwise, she should explain what’s missing instead of pretending she can patch it.";
+        "Ari has a developer task, but it is not locked as a final answer. She should use it as context, explain what evidence is missing, and avoid dumping the investigation plan as the response.";
+    } else if (packet.primary === "builder") {
+      draft =
+        "Ari needs exact file evidence before giving a patch. She should name the likely files, say what is missing, and avoid pretending she found code that was not loaded.";
     }
 
     return {
