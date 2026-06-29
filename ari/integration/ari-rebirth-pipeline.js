@@ -1800,8 +1800,9 @@ prepareComposerHandoff(summary = {}) {
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== REASONING =====", reasoningResult);
  console.log("===== COMPOSER PACKET =====", summary.composerPacket);
-
-console.log("===== OLD COMPOSER HANDOFF =====", {
+console.log("===== AI WRITER =====", summary.aiWriter);
+console.log("===== RESPONSE VALIDATOR =====", summary.responseValidator);
+console.log("===== COMPOSER HANDOFF =====", {
   handoff: summary.composerHandoff,
   ready: summary.composerHandoffReady,
   primary: summary.situationContractPrimary,
