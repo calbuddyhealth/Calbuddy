@@ -1,20 +1,22 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Core + Preferences + Worldview.
-// V1.0.1 — Stable Character Reasoning / No Template Hijack / Advisory Only
+// V1.0.2 — Stable Character Reasoning / No Template Hijack / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.0.1",
+  version: "1.0.2",
 
     reason(input = {}) {
     const summary = input.summary || input || {};
 
     const expression =
-      summary.characterExpression ||
-      summary.characterExpressionEngine ||
-      input.characterExpression ||
-      null;
+  summary.characterExpression ||
+  summary.composerCharacter ||
+  summary.composerCharacterPacket ||
+  summary.characterExpressionEngine ||
+  input.characterExpression ||
+  null;
 
     const characterRelevant =
       expression?.characterRelevant === true ||
