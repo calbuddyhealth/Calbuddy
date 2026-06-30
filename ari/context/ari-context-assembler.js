@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, entity, and semantic-frame context.
-// V1.7.0 — Semantic Frame Context Handoff / Advisory Only
+// V1.8.0 — Active Dialogue + Character Identity Handoff / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.7.0",
+  version: "1.8.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -39,6 +39,10 @@ window.AriContextAssembler = {
       contextAssemblerVersion: this.version,
       contextAssemblerSource: "ari-context-assembler",
 activeDialogueState: null,
+ 
+characterContext: null,
+characterIdentity: null,
+           
       continuity: this.cleanContinuity(continuity),
       memory: this.cleanMemory(memoryContext),
       relationship: this.cleanRelationship(relationshipProfile),
@@ -91,6 +95,7 @@ activeDialogueState: null,
     this.addEntityFacts(assembledContext);
     this.addMemoryFacts(assembledContext);
     this.addRelationshipHints(assembledContext);
+    this.addCharacterIdentity(assembledContext, summary);
     this.finalize(assembledContext);
 
     return {
@@ -98,6 +103,8 @@ activeDialogueState: null,
       contextAssemblerVersion: this.version,
       contextAssemblerSource: "ari-context-assembler",
 activeDialogueState: assembledContext.activeDialogueState,
+    characterContext: assembledContext.characterContext,
+characterIdentity: assembledContext.characterIdentity,
       assembledContext,
       advisoryContext: assembledContext,
       continuityContext: this.buildContinuityContext(assembledContext),
@@ -1000,7 +1007,67 @@ addActiveDialogueStateFacts(context = {}) {
       });
     });
   },
-    buildContinuityContext(context = {}) {
+  
+  addCharacterIdentity(context = {}, summary = {}) {
+  const characterContext =
+    summary.characterContext ||
+    summary.characterContextEngine ||
+    summary.characterExpression?.characterContext ||
+    (
+      window.AriCharacterContextEngine?.create
+        ? window.AriCharacterContextEngine.create({ summary })
+        : null
+    );
+
+  if (!characterContext) return;
+
+  context.characterContext = characterContext;
+
+  context.characterIdentity = {
+    source: "ari-character-context-engine",
+    authority: "character_advisory_only",
+
+    mode: characterContext.characterMode || "background",
+    useAllowed: characterContext.characterUseAllowed === true,
+    visibility: characterContext.characterVisibility || "background",
+    focus: characterContext.characterFocus || null,
+
+    core: characterContext.characterCore || null,
+    preferences: characterContext.characterPreferences || null,
+    worldview: characterContext.ariWorldview || null,
+
+    hints: characterContext.characterHints || {},
+    signals: characterContext.characterSignals || {},
+    budget: characterContext.characterBudget || {},
+
+    userFacingLanguageRules:
+      characterContext.userFacingLanguageRules ||
+      characterContext.characterHints?.userFacingLanguageRules ||
+      {
+        preferredPhrases: ["my values", "the way I see it"],
+        avoidPhrases: ["according to my Constitution"]
+      },
+
+    rules: [
+      "Use exact stable preferences when available.",
+      "If no exact preference exists, infer Ari-like answers from beliefs, values, temperament, and existing preferences.",
+      "Do not mention Constitution unless the user asks about internal design.",
+      "Do not use character inference for external facts.",
+      "Character can shape expression but cannot override safety, truth, contract, or user intent."
+    ],
+
+    cannotSet: characterContext.cannotSet || []
+  };
+  context.advisoryFacts.push({
+  type: "character_identity",
+  claim: context.characterIdentity.mode || "character identity available",
+  confidence: 0.82,
+  source: "ari-character-context-engine",
+  raw: context.characterIdentity
+});
+},
+  
+  buildContinuityContext(context = {}) {
   const c = context.continuity || {};
   const hasThreadFacts = Array.isArray(context.activeThreadFacts) && context.activeThreadFacts.length > 0;
   const hasKeyFacts = Array.isArray(context.keyFacts) && context.keyFacts.length > 0;
@@ -1021,6 +1088,7 @@ addActiveDialogueStateFacts(context = {}) {
     semanticFrame: context.semanticFrame || null,
     activeSemanticFrame: context.activeSemanticFrame || context.semanticFrame || null,
 activeDialogueState: context.activeDialogueState || null,
+    characterIdentity: context.characterIdentity || null,
     activeSituation: context.activeSituation || null,
     keyFacts: context.keyFacts || [],
     activeThreadFacts: context.activeThreadFacts || [],
