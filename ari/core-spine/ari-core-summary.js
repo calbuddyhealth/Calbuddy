@@ -128,6 +128,21 @@ const characterContext =
   analysis.character ||
   {};
 
+const characterReasoning =
+  analysis.characterReasoning ||
+  {};
+
+const characterExpression =
+  analysis.characterExpression ||
+  {};
+
+const composerCharacter =
+  analysis.composerCharacter ||
+  analysis.composerPacket?.character ||
+  characterExpression.composerCharacter ||
+  characterExpression.composerCharacterPacket ||
+  {};
+
     const situationMap =
       analysis.situationMap ||
       analysis.situation ||
@@ -2125,6 +2140,65 @@ characterCannotSet:
   analysis.characterCannotSet ||
   characterContext.cannotSet ||
   [],
+
+// ==================================================
+// CHARACTER REASONING ENGINE
+// ==================================================
+
+characterReasoning,
+
+characterReasoningRan:
+  analysis.characterReasoningRan ??
+  characterReasoning.characterReasoningRan ??
+  false,
+
+characterReasoningSource:
+  analysis.characterReasoningSource ||
+  characterReasoning.characterReasoningSource ||
+  "not-yet-run",
+
+characterAnswerAvailable:
+  analysis.characterAnswerAvailable ??
+  characterReasoning.characterAnswerAvailable ??
+  false,
+
+characterReasoningFocus:
+  analysis.characterReasoningFocus ||
+  characterReasoning.focus ||
+  null,
+
+characterUserFacingDraft:
+  analysis.characterUserFacingDraft ||
+  characterReasoning.userFacingDraft ||
+  null,
+
+// ==================================================
+// CHARACTER EXPRESSION ENGINE
+// ==================================================
+
+characterExpression,
+
+characterExpressionRan:
+  analysis.characterExpressionRan ??
+  characterExpression.characterExpressionRan ??
+  false,
+
+characterExpressionSource:
+  analysis.characterExpressionSource ||
+  characterExpression.characterExpressionSource ||
+  "not-yet-run",
+
+characterRelevant:
+  analysis.characterRelevant ??
+  characterExpression.characterRelevant ??
+  false,
+
+characterExpressionLevel:
+  analysis.expressionLevel ||
+  characterExpression.expressionLevel ||
+  null,
+
+composerCharacter,
 
       // ==================================================
       // RESPONSE INTENT / MOUTH
