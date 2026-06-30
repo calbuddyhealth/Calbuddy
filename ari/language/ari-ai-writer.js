@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.0.5 — Universal Safe Writer / Developer-Gated / No Question Templates
+// V1.0.6 — Universal Safe Writer / Developer-Gated / No Question Templates
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.0.5",
+  version: "1.0.6",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -25,11 +25,20 @@ window.AriAIWriter = {
         window.AriOpenAIKnowledgeClient &&
         typeof window.AriOpenAIKnowledgeClient.ask === "function"
       ) {
-        const result = await window.AriOpenAIKnowledgeClient.ask({
-          question: safePacket.userQuestion || "",
-          aiInstruction: instruction,
-          composerPacket: safePacket
-        });
+        const userQuestion = safePacket.userQuestion || "";
+
+const result = await window.AriOpenAIKnowledgeClient.ask({
+  summary: {
+    ...safePacket,
+    userMessage: userQuestion,
+    message: userQuestion,
+    input: userQuestion,
+    question: userQuestion,
+    resolvedUserQuestion: userQuestion,
+    aiInstruction: instruction,
+    composerPacket: safePacket
+  }
+});
 
         const text =
           result?.finalResponse ||
