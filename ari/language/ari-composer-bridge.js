@@ -1,11 +1,11 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.0.8 — Developer Evidence Gated / Normal Conversation Clean
+// V1.0.9 — Character Reasoning + Stable Preference Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.0.8",
+  version: "1.0.9",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
@@ -20,12 +20,34 @@ const activeDialogueState =
   summary.threadUnderstanding?.activeDialogueState ||
   null;
  
+const character =
+  summary.composerCharacter ||
+  summary.characterExpression?.composerCharacter ||
+  summary.characterExpression?.composerCharacterPacket ||
+  null;
+
 const characterIdentity =
   summary.characterIdentity ||
   summary.assembledContext?.characterIdentity ||
   summary.advisoryContext?.characterIdentity ||
   summary.continuityContext?.characterIdentity ||
-  null;
+  {
+    source: "ari-composer-bridge",
+    authority: "character_advisory_only",
+    stablePreferences:
+      character?.stablePreferences ||
+      character?.preferences?.stablePreferences ||
+      character?.reasoning?.expression?.composerCharacter?.stablePreferences ||
+      {},
+    preferences:
+      character?.preferences ||
+      character?.reasoning?.expression?.composerCharacter?.preferences ||
+      {},
+    reasoning: character?.reasoning || null,
+    useAllowed: character?.enabled === true,
+    focus: character?.focus || character?.reasoning?.focus || null,
+    mode: character?.mode || null
+  };
 
    const userQuestion =
       summary.resolvedUserQuestion ||
@@ -128,14 +150,9 @@ const characterIdentity =
       mouthDirective: contract.mouthDirective || mouth || null,
       communicationPlan,
      activeDialogueState,
-      characterIdentity,
+      character,
+characterIdentity,
       humanLanguageProfile: summary.humanLanguageProfile || {},
-
-      character:
-        summary.composerCharacter ||
-        summary.characterExpression?.composerCharacter ||
-        summary.characterExpression?.composerCharacterPacket ||
-        null,
 
       thesis: {
         value:
@@ -217,7 +234,34 @@ const characterIdentity =
     const githubEvidence = allowDeveloperEvidence
       ? summary.githubEvidence || summary.githubFileContext || null
       : null;
+const character =
+  summary.composerCharacter ||
+  summary.characterExpression?.composerCharacter ||
+  summary.characterExpression?.composerCharacterPacket ||
+  null;
 
+const characterIdentity =
+  summary.characterIdentity ||
+  summary.assembledContext?.characterIdentity ||
+  summary.advisoryContext?.characterIdentity ||
+  summary.continuityContext?.characterIdentity ||
+  {
+    source: "ari-composer-bridge",
+    authority: "character_advisory_only",
+    stablePreferences:
+      character?.stablePreferences ||
+      character?.preferences?.stablePreferences ||
+      character?.reasoning?.expression?.composerCharacter?.stablePreferences ||
+      {},
+    preferences:
+      character?.preferences ||
+      character?.reasoning?.expression?.composerCharacter?.preferences ||
+      {},
+    reasoning: character?.reasoning || null,
+    useAllowed: character?.enabled === true,
+    focus: character?.focus || character?.reasoning?.focus || null,
+    mode: character?.mode || null
+  };
     return {
       github: githubEvidence,
 
@@ -261,12 +305,7 @@ activeDialogueState:
   summary.threadUnderstanding?.activeDialogueState ||
   null,
 
-characterIdentity:
-  summary.characterIdentity ||
-  summary.assembledContext?.characterIdentity ||
-  summary.advisoryContext?.characterIdentity ||
-  summary.continuityContext?.characterIdentity ||
-  null,
+characterIdentity,
 
       aiWriter: {
         ran: summary.aiWriterRan === true,
@@ -276,12 +315,6 @@ characterIdentity:
         version: summary.aiWriterVersion || null,
         fallbackReason: summary.aiWriterFallbackReason || null
       },
-
-      character:
-        summary.composerCharacter ||
-        summary.characterExpression?.composerCharacter ||
-        summary.characterExpression?.composerCharacterPacket ||
-        null,
 
       reasoning: summary.reasoning || null,
       lexicalGrounding: summary.lexicalGrounding || null,
