@@ -1,7 +1,7 @@
 // ari/core-spine/ari-core-summary.js
 // Ari Core Summary Spine
 // Purpose: Create Ari's base system/debug summary.
-// V3.7.0 — Composer Bridge / AI Writer / Validator Debug Fields
+// V3.7.1 — Composer Bridge / Character Packet Debug Fields
 // Adds:
 // - Safety Context Gate placeholders/debug fields.
 // - Observer Evidence placeholders/debug fields.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.coreSummary = {
-  version: "3.7.0",
+  version: "3.7.1",
 
   create(analysis = {}) {
     const lifeSignals = analysis.lifeSignals || {};
@@ -2198,7 +2198,36 @@ characterExpressionLevel:
   characterExpression.expressionLevel ||
   null,
 
+characterShouldInfluenceResponse:
+  characterExpression.shouldInfluenceResponse ??
+  characterExpression.characterRelevant ??
+  false,
+
+characterExpressionReason:
+  characterExpression.reason ||
+  null,
+
 composerCharacter,
+
+composerCharacterMode:
+  composerCharacter.mode || null,
+
+composerCharacterFocus:
+  composerCharacter.focus || null,
+
+composerCharacterVisibility:
+  composerCharacter.visibility || null,
+
+composerCharacterExpressionLevel:
+  composerCharacter.expressionLevel || null,
+
+composerCharacterEnabled:
+  composerCharacter.enabled ?? false,
+
+composerCharacterDraft:
+  composerCharacter.characterDraft ||
+  composerCharacter.draft ||
+  null,
 
       // ==================================================
       // RESPONSE INTENT / MOUTH
