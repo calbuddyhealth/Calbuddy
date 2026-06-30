@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.1.2 — Lean Pipeline / Clean Composer Packet / AI Writer + V9 Authority
+// V4.1.3 — Character Reasoning Before Expression / Clean Composer Character Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.1.2",
+  version: "4.1.3",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -559,31 +559,48 @@ window.AriRebirthPipeline = {
     mark("after AriReasoningEngine");
 
     // 0.80 Character Context
-    mark("before characterContext");
-    const characterContextResult = await runEngine(
-      window.AriCharacterContextEngine,
-      ["create"],
-      {
-        characterContextEngineRan: false,
-        characterContextEngineSource: "not-loaded",
-        characterUseAllowed: false,
-        characterVisibility: "background",
-        characterMode: "silent",
-        characterReason: "Character context engine not loaded.",
-        characterHints: {}
-      }
-    );
+mark("before characterContext");
+const characterContextResult = await runEngine(
+  window.AriCharacterContextEngine,
+  ["create"],
+  {
+    characterContextEngineRan: false,
+    characterContextEngineSource: "not-loaded",
+    characterUseAllowed: false,
+    characterVisibility: "background",
+    characterMode: "silent",
+    characterReason: "Character context engine not loaded.",
+    characterHints: {}
+  }
+);
 
-    summary = {
-      ...summary,
-      ...characterContextResult,
-      characterContext: characterContextResult
-    };
-    mark("after characterContext");
+summary = {
+  ...summary,
+  ...characterContextResult,
+  characterContext: characterContextResult
+};
+mark("after characterContext");
 
+// 0.81 Character Reasoning
+mark("before characterReasoning");
+const characterReasoningResult = await runEngine(
+  window.AriCharacterReasoningEngine,
+  ["reason"],
+  {
+    characterReasoningRan: false,
+    characterReasoningSource: "not-loaded",
+    characterAnswerAvailable: false
+  }
+);
 
+summary = {
+  ...summary,
+  ...characterReasoningResult,
+  characterReasoning: characterReasoningResult
+};
+mark("after characterReasoning");
 
-// 0.81 Character Expression
+// 0.82 Character Expression
 mark("before characterExpression");
 const characterExpressionResult = await runEngine(
   window.AriCharacterExpressionEngine,
@@ -606,25 +623,7 @@ summary = {
     characterExpressionResult.composerCharacterPacket ||
     null
 };
-mark("after characterExpression");
 
-// 0.82 Character Reasoning
-mark("before characterReasoning");
-const characterReasoningResult = await runEngine(
-  window.AriCharacterReasoningEngine,
-  ["reason"],
-  {
-    characterReasoningRan: false,
-    characterReasoningSource: "not-loaded",
-    characterAnswerAvailable: false
-  }
-);
-
-summary = {
-  ...summary,
-  ...characterReasoningResult,
-  characterReasoning: characterReasoningResult
-};
 summary.composerCharacter = {
   ...(summary.composerCharacter || {}),
   enabled:
@@ -639,7 +638,8 @@ summary.composerCharacter = {
       ? characterReasoningResult
       : summary.composerCharacter?.reasoning || null
 };
-mark("after characterReasoning");
+
+mark("after characterExpression");
 
     // 0.85 Lexical Grounding
     mark("before lexicalGrounding");
