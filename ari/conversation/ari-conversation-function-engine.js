@@ -1,12 +1,12 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.2.1 — Evidence-Weighted Developer Artifact Detection / Meta Question Safe / Advisory Only
+// V2.2.2 — Evidence-Weighted Developer Artifact Detection / Meta Question Safe / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.2.1",
+  version: "2.2.2",
 
   patterns: {
     developerNouns:
@@ -519,10 +519,24 @@ if (signals.ariPreferenceQuestion) {
   rankFunctions(functions = [], signals = {}) {
     return functions
       .map(fn => {
-        let score = fn.score;
+  let score = fn.score;
 
-        if (
-          signals.developerArtifactRequest &&
+  if (signals.ariPreferenceQuestion) {
+    if (fn.name === "memory_or_identity_request") {
+      score += 30;
+    }
+
+    if (fn.name === "explanation_or_information_question") {
+      score -= 35;
+    }
+
+    if (fn.name === "language_or_interpretation_request") {
+      score -= 50;
+    }
+  }
+
+  if (
+    signals.developerArtifactRequest &&
           [
             "developer_artifact_request",
             "artifact_modification_request",
