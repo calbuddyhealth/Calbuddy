@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.1.0 — Lean Pipeline / Clean Composer Packet / AI Writer + V9 Authority
+// V4.1.1 — Lean Pipeline / Clean Composer Packet / AI Writer + V9 Authority
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.1.0",
+  version: "4.1.1",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -1049,6 +1049,12 @@ mark("after characterExpression");
 
       developerPacket:
         summary.composerDeveloperPacket || null,
+
+character:
+  summary.composerCharacter ||
+  summary.characterExpression?.composerCharacter ||
+  summary.characterExpression?.composerCharacterPacket ||
+  null,
 
       hasDeveloperPacket:
         summary.composerDeveloperPacket?.enabled === true,
