@@ -304,7 +304,7 @@ activeDialogueState:
   summary.continuityContext?.activeDialogueState ||
   summary.threadUnderstanding?.activeDialogueState ||
   null,
-
+character,
 characterIdentity,
 
       aiWriter: {
