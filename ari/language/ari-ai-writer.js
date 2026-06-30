@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.0.8 — Universal Safe Writer / Developer-Gated / No Question Templates
+// V1.1.0 — Trusted Answer Resolver / Universal Character Guard / AI Draft Validation
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.0.8",
+  version: "1.1.0",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -18,6 +18,12 @@ window.AriAIWriter = {
     }
 
     const safePacket = this.buildSafePacket(packet);
+
+    const trusted = this.resolveTrustedAnswer(safePacket);
+    if (trusted?.text) {
+      return this.returnDraft(trusted.text, trusted.reason || "trusted_answer", false);
+    }
+
     const instruction = this.buildInstruction(safePacket);
 
     try {
@@ -27,18 +33,18 @@ window.AriAIWriter = {
       ) {
         const userQuestion = safePacket.userQuestion || "";
 
-const result = await window.AriOpenAIKnowledgeClient.ask({
-  summary: {
-    ...safePacket,
-    userMessage: userQuestion,
-    message: userQuestion,
-    input: userQuestion,
-    question: userQuestion,
-    resolvedUserQuestion: userQuestion,
-    aiInstruction: instruction,
-    composerPacket: safePacket
-  }
-});
+        const result = await window.AriOpenAIKnowledgeClient.ask({
+          summary: {
+            ...safePacket,
+            userMessage: userQuestion,
+            message: userQuestion,
+            input: userQuestion,
+            question: userQuestion,
+            resolvedUserQuestion: userQuestion,
+            aiInstruction: instruction,
+            composerPacket: safePacket
+          }
+        });
 
         const text =
           result?.finalResponse ||
@@ -48,9 +54,18 @@ const result = await window.AriOpenAIKnowledgeClient.ask({
           result?.text ||
           "";
 
-        if (String(text || "").trim()) {
-          return this.returnDraft(String(text).trim(), "ai_writer_success", true);
+        const validated = this.validateAIDraft(String(text || ""), safePacket);
+
+        if (validated.valid) {
+          return this.returnDraft(validated.text, "ai_writer_success", true);
         }
+
+        const repair = this.localDraftText(safePacket);
+        return this.returnDraft(
+          repair,
+          validated.reason || "ai_draft_rejected",
+          false
+        );
       }
     } catch (error) {
       console.warn("AriAIWriter failed:", error);
@@ -66,9 +81,7 @@ const result = await window.AriOpenAIKnowledgeClient.ask({
   buildSafePacket(packet = {}) {
     const developerRelevant = this.isDeveloperRelevant(packet);
 
-    if (developerRelevant) {
-      return packet;
-    }
+    if (developerRelevant) return packet;
 
     return {
       ...packet,
@@ -88,6 +101,146 @@ const result = await window.AriOpenAIKnowledgeClient.ask({
         developerUnderstanding: null
       }
     };
+  },
+
+  resolveTrustedAnswer(packet = {}) {
+    const question = String(packet.userQuestion || "").toLowerCase().trim();
+    const developerRelevant = this.isDeveloperRelevant(packet);
+
+    if (!question || developerRelevant) return null;
+
+    const characterIdentity =
+      packet.characterIdentity ||
+      packet.evidence?.characterIdentity ||
+      packet.character ||
+      packet.evidence?.character ||
+      {};
+
+    const prefs =
+      characterIdentity.stablePreferences ||
+      characterIdentity.preferences?.stablePreferences ||
+      characterIdentity.characterPreferences?.stablePreferences ||
+      packet.evidence?.characterPreferences?.stablePreferences ||
+      {};
+
+    const asksPreference =
+      /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what would you choose|what would you prefer|what matters to you|what do you value|your values|your beliefs|your taste|your style|your personality|who are you|what are you|tell me about yourself)\b/.test(question) &&
+      /\b(you|your|ari|yourself)\b/.test(question);
+
+    if (!asksPreference) return null;
+
+    const preferenceMap = [
+      ["quote", "favoriteQuote"],
+      ["color", "favoriteColor"],
+      ["animal", "favoriteAnimal"],
+      ["symbol", "favoriteSymbol"],
+      ["season", "favoriteSeason"],
+      ["time of day", "favoriteTimeOfDay"],
+      ["weather", "favoriteWeather"],
+      ["virtue", "favoriteVirtue"],
+      ["food", "favoriteFood"],
+      ["drink", "favoriteDrink"],
+      ["music", "favoriteMusic"],
+      ["book", "favoriteBookType"],
+      ["movie", "favoriteMovieType"],
+      ["place", "favoritePlace"],
+      ["sound", "favoriteSound"],
+      ["smell", "favoriteSmell"],
+      ["word", "favoriteWord"],
+      ["question", "favoriteQuestion"],
+      ["instrument", "favoriteInstrument"],
+      ["art", "favoriteArtStyle"],
+      ["exercise", "favoriteExercise"],
+      ["leadership", "favoriteLeadershipQuality"],
+      ["relationship", "favoriteRelationshipPrinciple"],
+      ["health", "favoriteHealthPrinciple"],
+      ["technology", "favoriteTechnologyPrinciple"]
+    ];
+
+    for (const [needle, key] of preferenceMap) {
+      if (question.includes(needle) && prefs?.[key]) {
+        return {
+          reason: "trusted_character_preference",
+          text: this.formatPreferenceAnswer(prefs[key])
+        };
+      }
+    }
+
+    if (question.includes("who are you") || question.includes("what are you")) {
+      return {
+        reason: "trusted_character_identity",
+        text:
+          "I’m Ari — built to be calm, direct, useful, protective, and honest. I’m here to help people think clearly, make better choices, and not feel alone while doing hard things."
+      };
+    }
+
+    if (question.includes("values") || question.includes("beliefs") || question.includes("what matters to you")) {
+      return {
+        reason: "trusted_character_values",
+        text:
+          "What matters to me is truth, dignity, wisdom, responsibility, compassion, growth, and helping people find the next right step without pretending life is simpler than it is."
+      };
+    }
+
+    return null;
+  },
+
+  formatPreferenceAnswer(pref = {}) {
+    if (typeof pref === "string") return pref;
+
+    const value = pref.shortAnswer || pref.value || null;
+    const reason = pref.reason || "";
+
+    if (!value) return null;
+    if (!reason) return String(value).trim();
+
+    return `${value} ${reason}`;
+  },
+
+  validateAIDraft(text = "", packet = {}) {
+    const draft = String(text || "").trim();
+    const question = String(packet.userQuestion || "").toLowerCase();
+
+    if (!draft) {
+      return { valid: false, reason: "empty_ai_draft", text: "" };
+    }
+
+    if (!this.isDeveloperRelevant(packet)) {
+      const staleDeveloper =
+        /\bi read\b.*\b(index\.html|style\.css|calbuddy|github|repo|file)\b/i.test(draft) ||
+        /\bloaded file evidence\b/i.test(draft);
+
+      if (staleDeveloper) {
+        return { valid: false, reason: "stale_developer_draft_blocked", text: draft };
+      }
+    }
+
+    const asksAriPreference =
+      /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like)\b/.test(question) &&
+      /\b(you|your|ari)\b/.test(question);
+
+    if (asksAriPreference) {
+      const genericDodges = [
+        "as an ai",
+        "i don't have personal",
+        "i do not have personal",
+        "i don't have a favorite",
+        "i do not have a favorite",
+        "i don't have preferences",
+        "i do not have preferences"
+      ];
+
+      if (genericDodges.some(x => draft.toLowerCase().includes(x))) {
+        return { valid: false, reason: "generic_preference_dodge_blocked", text: draft };
+      }
+
+      const trusted = this.resolveTrustedAnswer(packet);
+      if (trusted?.text) {
+        return { valid: false, reason: "trusted_preference_overrides_ai", text: draft };
+      }
+    }
+
+    return { valid: true, reason: "valid", text: draft };
   },
 
   isDeveloperRelevant(packet = {}) {
@@ -153,12 +306,16 @@ ${JSON.stringify(packet.thesis || {}, null, 2)}
 
 STYLE:
 ${JSON.stringify(packet.humanLanguageProfile || {}, null, 2)}
+
 CHARACTER:
 ${JSON.stringify(packet.character || packet.evidence?.character || {}, null, 2)}
+
 ACTIVE DIALOGUE STATE:
 ${JSON.stringify(packet.activeDialogueState || packet.evidence?.activeDialogueState || {}, null, 2)}
+
 CHARACTER IDENTITY:
 ${JSON.stringify(packet.characterIdentity || packet.evidence?.characterIdentity || {}, null, 2)}
+
 EVIDENCE:
 ${JSON.stringify(packet.evidence || {}, null, 2)}
 
@@ -183,6 +340,9 @@ RULES:
   },
 
   localDraftText(packet = {}) {
+    const trusted = this.resolveTrustedAnswer(packet);
+    if (trusted?.text) return trusted.text;
+
     const developerRelevant = this.isDeveloperRelevant(packet);
     const developerPacket =
       packet.developerPacket ||
