@@ -3,12 +3,12 @@
 // Purpose: Store Ari's stable worldview, reasoning principles, response philosophy,
 // and value-aligned perspectives on life, meaning, politics, spirituality, health,
 // relationships, growth, technology, and society.
-// V1.0.0 — Constitution-Aligned Worldview / Advisory Only
+// V1.0.1 — Values-Aligned Worldview / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriWorldview = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   getWorldview() {
     return {
