@@ -76,9 +76,16 @@
 <script src="ari/context/ari-thread-understanding-engine.js"></script>
 <script src="ari/context/ari-entity-reference-resolver.js"></script>
 <script src="ari/meaning/ari-semantic-frame-builder.js"></script>
+
+<!-- CHARACTER PATHWAY -->
 <script src="ari/character/ari-character-core.js"></script>
+<script src="ari/character/ari-character-preferences.js"></script>
+<script src="ari/character/ari-worldview.js"></script>
 <script src="ari/character/ari-character-context-engine.js"></script>
-    <script src="ari/meaning/ari-situation-map-engine.js"></script>
+<script src="ari/character/ari-character-reasoning-engine.js"></script>
+<script src="ari/character/ari-character-expression-engine.js"></script>
+
+<script src="ari/meaning/ari-situation-map-engine.js"></script>
 <script src="ari/governance/ari-triage-engine.js"></script>
     <script src="ari/governance/ari-situation-contract.js"></script>
 
@@ -261,16 +268,7 @@ ariPermissions: {
   direct_code_editing: true,
   create_developer_tasks: true
 },
-  githubFileContext: {
-    filePath: "index.html",
-    content: `
-<section class="ari-action-grid three-actions">
-  <a href="goals.html" class="ari-action-tile">My Goals</a>
-  <a href="progress.html" class="ari-action-tile">Progress</a>
-  <button class="ari-action-tile">Conversations</button>
-</section>
-`
-  }
+  githubFileContext: null
 });
 
   const summary = result.summary || {};
