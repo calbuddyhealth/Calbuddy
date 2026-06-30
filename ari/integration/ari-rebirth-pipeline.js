@@ -581,26 +581,9 @@ window.AriRebirthPipeline = {
     };
     mark("after characterContext");
 
-// 0.81 Character Reasoning
-mark("before characterReasoning");
-const characterReasoningResult = await runEngine(
-  window.AriCharacterReasoningEngine,
-  ["reason"],
-  {
-    characterReasoningRan: false,
-    characterReasoningSource: "not-loaded",
-    characterAnswerAvailable: false
-  }
-);
 
-summary = {
-  ...summary,
-  ...characterReasoningResult,
-  characterReasoning: characterReasoningResult
-};
-mark("after characterReasoning");
 
-// 0.82 Character Expression
+// 0.81 Character Expression
 mark("before characterExpression");
 const characterExpressionResult = await runEngine(
   window.AriCharacterExpressionEngine,
@@ -624,6 +607,39 @@ summary = {
     null
 };
 mark("after characterExpression");
+
+// 0.82 Character Reasoning
+mark("before characterReasoning");
+const characterReasoningResult = await runEngine(
+  window.AriCharacterReasoningEngine,
+  ["reason"],
+  {
+    characterReasoningRan: false,
+    characterReasoningSource: "not-loaded",
+    characterAnswerAvailable: false
+  }
+);
+
+summary = {
+  ...summary,
+  ...characterReasoningResult,
+  characterReasoning: characterReasoningResult
+};
+summary.composerCharacter = {
+  ...(summary.composerCharacter || {}),
+  enabled:
+    summary.composerCharacter?.enabled === true ||
+    characterReasoningResult.characterAnswerAvailable === true,
+  draft:
+    characterReasoningResult.userFacingDraft ||
+    summary.composerCharacter?.draft ||
+    "",
+  reasoning:
+    characterReasoningResult.characterAnswerAvailable === true
+      ? characterReasoningResult
+      : summary.composerCharacter?.reasoning || null
+};
+mark("after characterReasoning");
 
     // 0.85 Lexical Grounding
     mark("before lexicalGrounding");
