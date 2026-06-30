@@ -1,18 +1,24 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.0.6 — Developer Evidence Gated / Normal Conversation Clean
+// V1.0.7 — Developer Evidence Gated / Normal Conversation Clean
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.0.6",
+  version: "1.0.7",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
     const triage = summary.triage || summary.ariTriage || {};
     const mouth = summary.mouthDirector || {};
     const communicationPlan = summary.communicationPlan || {};
-
+const activeDialogueState =
+  summary.activeDialogueState ||
+  summary.assembledContext?.activeDialogueState ||
+  summary.advisoryContext?.activeDialogueState ||
+  summary.continuityContext?.activeDialogueState ||
+  summary.threadUnderstanding?.activeDialogueState ||
+  null;
     const userQuestion =
       summary.resolvedUserQuestion ||
       summary.threadQuestion?.resolvedUserQuestion ||
@@ -113,6 +119,7 @@ window.AriComposerBridge = {
 
       mouthDirective: contract.mouthDirective || mouth || null,
       communicationPlan,
+     activeDialogueState,
       humanLanguageProfile: summary.humanLanguageProfile || {},
 
       character:
@@ -236,6 +243,14 @@ window.AriComposerBridge = {
         : null,
 
       developerPacket: allowDeveloperEvidence ? developerPacket : null,
+
+activeDialogueState:
+  summary.activeDialogueState ||
+  summary.assembledContext?.activeDialogueState ||
+  summary.advisoryContext?.activeDialogueState ||
+  summary.continuityContext?.activeDialogueState ||
+  summary.threadUnderstanding?.activeDialogueState ||
+  null,
 
       aiWriter: {
         ran: summary.aiWriterRan === true,
