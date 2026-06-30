@@ -4,7 +4,7 @@
 // Browser-side client that prepares a rich reasoning payload and
 // asks the server API to use OpenAI.
 //
-// V2.1.3
+// V2.1.4
 // Upgrades:
 // - Preserves structured mealEstimate / foodAnalysis / nutritionEstimate
 // - Prevents action planner from scraping wrong calorie numbers
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriOpenAIKnowledgeClient = {
-  version: "2.1.3",
+  version: "2.1.4",
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
