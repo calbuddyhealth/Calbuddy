@@ -62,8 +62,6 @@ version: "1.5.0",
     "ari/context/ari-entity-reference-resolver.js",
 
     "ari/meaning/ari-semantic-frame-builder.js",
-    "ari/character/ari-character-core.js",
-    "ari/character/ari-character-context-engine.js",
     "ari/meaning/ari-situation-map-engine.js",
 
     "ari/governance/ari-triage-engine.js",
@@ -75,6 +73,12 @@ version: "1.5.0",
     "ari/language/ari-mouth-director.js",
    
     // NEW composer pathway
+"ari/character/ari-character-core.js",
+"ari/character/ari-character-preferences.js",
+"ari/character/ari-worldview.js",
+"ari/character/ari-character-context-engine.js",
+"ari/character/ari-character-reasoning-engine.js",
+"ari/character/ari-character-expression-engine.js",
 "ari/language/ari-composer-bridge.js",
 "ari/language/ari-ai-writer.js",
 "ari/language/ari-response-validator.js",
