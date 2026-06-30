@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, entity, and semantic-frame context.
-// V1.6.0 — Semantic Frame Context Handoff / Advisory Only
+// V1.7.0 — Semantic Frame Context Handoff / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.6.0",
+  version: "1.7.0",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -38,7 +38,7 @@ window.AriContextAssembler = {
       contextAssemblerRan: true,
       contextAssemblerVersion: this.version,
       contextAssemblerSource: "ari-context-assembler",
-
+activeDialogueState: null,
       continuity: this.cleanContinuity(continuity),
       memory: this.cleanMemory(memoryContext),
       relationship: this.cleanRelationship(relationshipProfile),
@@ -87,6 +87,7 @@ window.AriContextAssembler = {
     this.addActiveSituationFacts(assembledContext);
     this.addContinuityFacts(assembledContext);
     this.addThreadFacts(assembledContext);
+   this.addActiveDialogueStateFacts(assembledContext);
     this.addEntityFacts(assembledContext);
     this.addMemoryFacts(assembledContext);
     this.addRelationshipHints(assembledContext);
@@ -96,7 +97,7 @@ window.AriContextAssembler = {
       contextAssemblerRan: true,
       contextAssemblerVersion: this.version,
       contextAssemblerSource: "ari-context-assembler",
-
+activeDialogueState: assembledContext.activeDialogueState,
       assembledContext,
       advisoryContext: assembledContext,
       continuityContext: this.buildContinuityContext(assembledContext),
@@ -304,11 +305,19 @@ window.AriContextAssembler = {
       workingContext.semanticState?.semanticFrame ||
       null;
 
+const activeDialogueState =
+  thread.activeDialogueState ||
+  thread.threadActiveDialogueState ||
+  workingContext.activeDialogueState ||
+  null;
+
     return {
       confidence: thread.confidence ?? null,
 
       semanticFrame,
       activeSemanticFrame: semanticFrame,
+
+activeDialogueState,
 
       activeSituation:
         thread.activeSituation ||
@@ -823,6 +832,71 @@ window.AriContextAssembler = {
     });
   },
 
+addActiveDialogueStateFacts(context = {}) {
+  const state =
+    context.thread?.activeDialogueState ||
+    context.thread?.threadActiveDialogueState ||
+    null;
+
+  if (!state) return;
+
+  context.activeDialogueState = state;
+
+  context.advisoryFacts.unshift({
+    type: "active_dialogue_state",
+    claim: state.mainTopic || state.currentQuestion || "active dialogue state available",
+    confidence: state.confidence ?? 0.82,
+    source: "ari-thread-understanding-engine",
+    raw: state
+  });
+
+  if (state.currentQuestion) {
+    context.activeThreadFacts.unshift({
+      type: "current_question",
+      claim: state.currentQuestion,
+      confidence: state.confidence ?? 0.82,
+      source: "active_dialogue_state"
+    });
+  }
+
+  if (state.userGoal) {
+    context.activeGoals.unshift({
+      type: "dialogue_user_goal",
+      claim:
+        state.userGoal.label ||
+        state.userGoal.value ||
+        state.userGoal.claim ||
+        state.userGoal,
+      confidence: state.confidence ?? 0.78,
+      source: "active_dialogue_state",
+      raw: state.userGoal
+    });
+  }
+
+  (state.unresolvedTensions || []).forEach(tension => {
+    context.activeProblems.push({
+      type: "unresolved_tension",
+      claim:
+        tension.label ||
+        tension.value ||
+        tension.claim ||
+        tension,
+      confidence: 0.78,
+      source: "active_dialogue_state",
+      raw: tension
+    });
+  });
+
+  if (state.nextBestMove) {
+    context.advisoryFacts.push({
+      type: "next_best_move",
+      claim: state.nextBestMove,
+      confidence: state.confidence ?? 0.8,
+      source: "active_dialogue_state"
+    });
+  }
+},
+
   addEntityFacts(context = {}) {
     const e = context.entity || {};
 
@@ -946,7 +1020,7 @@ window.AriContextAssembler = {
 
     semanticFrame: context.semanticFrame || null,
     activeSemanticFrame: context.activeSemanticFrame || context.semanticFrame || null,
-
+activeDialogueState: context.activeDialogueState || null,
     activeSituation: context.activeSituation || null,
     keyFacts: context.keyFacts || [],
     activeThreadFacts: context.activeThreadFacts || [],
