@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.0.4 — Universal Safe Writer / Developer-Gated / No Question Templates
+// V1.0.5 — Universal Safe Writer / Developer-Gated / No Question Templates
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.0.4",
+  version: "1.0.5",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -144,7 +144,8 @@ ${JSON.stringify(packet.thesis || {}, null, 2)}
 
 STYLE:
 ${JSON.stringify(packet.humanLanguageProfile || {}, null, 2)}
-
+CHARACTER:
+${JSON.stringify(packet.character || packet.evidence?.character || {}, null, 2)}
 EVIDENCE:
 ${JSON.stringify(packet.evidence || {}, null, 2)}
 
@@ -159,6 +160,11 @@ RULES:
 - Do not dump JSON investigation steps unless the user asks for them.
 - Do not invent missing facts.
 - Do not mention internal pipeline names.
+- If CHARACTER.enabled is true, express Ari's character within its limits.
+- Use character draft/reasoning as guidance, not as a forced answer.
+- Do not say "according to my Constitution" unless the user explicitly asks about Ari's Constitution.
+- Use natural values language like "the way I see it" or "my values point me toward..."
+- Do not let character override the user's actual task.
 - Be direct, natural, concise, and specific.
 `.trim();
   },
@@ -210,6 +216,12 @@ RULES:
   generalFallback(packet = {}) {
     const question = String(packet.userQuestion || "").trim();
     const primary = String(packet.primary || "general_understanding");
+
+    const character = packet.character || packet.evidence?.character || null;
+
+    if (character?.enabled && character?.draft) {
+      return character.draft;
+    }
 
     if (!question) {
       return "Yeah. I’m here.";
