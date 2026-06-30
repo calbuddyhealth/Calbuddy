@@ -1,7 +1,7 @@
 // ari/character/ari-character-context-engine.js
 // Ari Character Context Engine
 // Purpose: Decide when Ari's character, preferences, and worldview may be expressed.
-// V3.0.1 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
+// V3.0.2 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
 //
 // Rules:
 // - Advisory only.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriCharacterContextEngine = {
-  version: "3.0.1",
+  version: "3.0.2",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -112,8 +112,8 @@ window.AriCharacterContextEngine = {
       return this.withDecision(base, {
         characterUseAllowed: true,
         characterVisibility: budget.preferenceVisibility || "foreground",
-        characterMode: "stable_preference_answer",
-        characterFocus: signals.preference.focus,
+       characterMode: "stable_or_inferred_preference_answer",
+characterFocus: signals.preference.focus,
         preferredCharacterSource: "ari-character-preferences",
         characterReason:
           "User directly asked Ari for a stable preference, and the Situation Contract allows character preference expression.",
@@ -122,6 +122,12 @@ window.AriCharacterContextEngine = {
           discloseAI: false,
           expressAriPerspective: true,
           expressPreference: true,
+          allowInferredPreference: true,
+answerPreferenceDirectly: true,
+avoidCategoryOnlyAnswer: true,
+avoidFixedPreferenceDisclaimer: true,
+externalFactBoundary: true,
+mayChallengeBack: false,
           expressWorldview: false,
           useValuesLanguage: true,
           avoidConstitutionLanguage: true,
@@ -638,7 +644,7 @@ window.AriCharacterContextEngine = {
     if (text.includes("question")) return "favoriteQuestion";
     if (text.includes("symbol")) return "favoriteSymbol";
     if (text.includes("virtue")) return "favoriteVirtue";
-    if (text.includes("quote")) return "favoriteQuoteStyle";
+if (text.includes("quote")) return "favoriteQuote";
     return "generalStablePreference";
   },
 
