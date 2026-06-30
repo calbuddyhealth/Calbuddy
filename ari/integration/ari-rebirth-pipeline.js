@@ -581,6 +581,50 @@ window.AriRebirthPipeline = {
     };
     mark("after characterContext");
 
+// 0.81 Character Reasoning
+mark("before characterReasoning");
+const characterReasoningResult = await runEngine(
+  window.AriCharacterReasoningEngine,
+  ["reason"],
+  {
+    characterReasoningRan: false,
+    characterReasoningSource: "not-loaded",
+    characterAnswerAvailable: false
+  }
+);
+
+summary = {
+  ...summary,
+  ...characterReasoningResult,
+  characterReasoning: characterReasoningResult
+};
+mark("after characterReasoning");
+
+// 0.82 Character Expression
+mark("before characterExpression");
+const characterExpressionResult = await runEngine(
+  window.AriCharacterExpressionEngine,
+  ["create"],
+  {
+    characterExpressionRan: false,
+    characterExpressionSource: "not-loaded",
+    characterRelevant: false,
+    composerCharacter: null,
+    composerCharacterPacket: null
+  }
+);
+
+summary = {
+  ...summary,
+  ...characterExpressionResult,
+  characterExpression: characterExpressionResult,
+  composerCharacter:
+    characterExpressionResult.composerCharacter ||
+    characterExpressionResult.composerCharacterPacket ||
+    null
+};
+mark("after characterExpression");
+
     // 0.85 Lexical Grounding
     mark("before lexicalGrounding");
     merge(await runEngine(
