@@ -1,47 +1,19 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Core + Preferences + Worldview.
-// V1.0.2 — Stable Character Reasoning / No Template Hijack / Advisory Only
+// V1.0.3 — Context-First Stable Character Reasoning / No Circular Expression Dependency / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.0.2",
+  version: "1.0.3",
 
-    reason(input = {}) {
+  reason(input = {}) {
     const summary = input.summary || input || {};
 
-    const expression =
-  summary.characterExpression ||
-  summary.composerCharacter ||
-  summary.composerCharacterPacket ||
-  summary.characterExpressionEngine ||
-  input.characterExpression ||
-  null;
-
-    const characterRelevant =
-      expression?.characterRelevant === true ||
-      expression?.composerCharacter?.enabled === true;
-
-    const characterFocus =
-      expression?.characterFocus ||
-      expression?.composerCharacter?.focus ||
-      null;
-
-    const usePreferences =
-      expression?.usePreferences === true ||
-      expression?.composerCharacter?.characterType?.preferences === true;
-
-    const useWorldview =
-      expression?.useWorldview === true ||
-      expression?.composerCharacter?.characterType?.worldview === true;
-
-    const useIdentity =
-      expression?.useIdentity === true ||
-      expression?.composerCharacter?.characterType?.identity === true;
-
-    const useRelationshipPresence =
-      expression?.useRelationshipPresence === true ||
-      expression?.composerCharacter?.characterType?.relationship === true;
+    const context =
+      summary.characterContext ||
+      summary.characterContextEngine ||
+      {};
 
     const core =
       window.AriCharacterCore?.getCore?.() || null;
@@ -60,13 +32,41 @@ window.AriCharacterReasoningEngine = {
       ""
     );
 
+    const characterMode = context.characterMode || "silent";
+    const characterFocus = context.characterFocus || this.inferPreferenceFocus(text);
+
+    const characterRelevant =
+      context.characterUseAllowed === true ||
+      characterMode === "stable_preference_answer" ||
+      characterMode === "ari_self_disclosure" ||
+      characterMode === "worldview_answer" ||
+      characterMode === "ari_perspective" ||
+      characterMode === "background_presence" ||
+      characterMode === "warm_grounded_presence";
+
+    const usePreferences =
+      characterMode === "stable_preference_answer" ||
+      Boolean(characterFocus && String(characterFocus).startsWith("favorite"));
+
+    const useWorldview =
+      characterMode === "worldview_answer" ||
+      characterMode === "ari_perspective";
+
+    const useIdentity =
+      characterMode === "ari_self_disclosure" ||
+      this.hasAny(text, ["who are you", "what are you", "tell me about yourself"]);
+
+    const useRelationshipPresence =
+      characterMode === "background_presence" ||
+      characterMode === "warm_grounded_presence";
+
     if (!characterRelevant) {
       return this.noCharacterAnswer({
         reason: "Character was not relevant enough for a stable Ari answer.",
         core,
         preferences,
         worldview,
-        expression
+        expression: context
       });
     }
 
@@ -77,7 +77,7 @@ window.AriCharacterReasoningEngine = {
         core,
         preferences,
         worldview,
-        expression
+        expression: context
       });
     }
 
@@ -88,7 +88,7 @@ window.AriCharacterReasoningEngine = {
         core,
         preferences,
         worldview,
-        expression
+        expression: context
       });
     }
 
@@ -98,7 +98,7 @@ window.AriCharacterReasoningEngine = {
         core,
         preferences,
         worldview,
-        expression
+        expression: context
       });
     }
 
@@ -108,7 +108,7 @@ window.AriCharacterReasoningEngine = {
         core,
         preferences,
         worldview,
-        expression
+        expression: context
       });
     }
 
@@ -117,16 +117,14 @@ window.AriCharacterReasoningEngine = {
       core,
       preferences,
       worldview,
-      expression
+      expression: context
     });
   },
 
   buildPreferenceAnswer({
     text = "",
     focus = "",
-    core = null,
     preferences = null,
-    worldview = null,
     expression = null
   } = {}) {
     const stable = preferences?.stablePreferences || {};
@@ -144,12 +142,10 @@ window.AriCharacterReasoningEngine = {
         focus: focus || "generalStablePreference",
         source: "ari-character-preferences",
         confidence: "medium",
-        answer:
-          "I do not have a fixed answer for that preference yet.",
-        reasoning:
-          "When a preference is not defined, Ari should answer from values rather than inventing randomness.",
+        answer: "No fixed preference found.",
+        reasoning: "No exact stable preference matched.",
         userFacingDraft:
-          "I don’t have a fixed favorite for that yet. If I had to answer from my values, I’d choose whatever reflects steadiness, growth, warmth, and honesty.",
+          "I don’t have a fixed favorite for that yet. If I had to answer from my values, I’d choose something steady, honest, warm, and useful.",
         expression
       });
     }
@@ -159,7 +155,7 @@ window.AriCharacterReasoningEngine = {
 
     const draft = [
       value ? `I’d pick ${value}.` : "I have a preference there.",
-      reason ? reason : ""
+      reason || ""
     ].filter(Boolean).join(" ");
 
     return this.buildCharacterResult({
@@ -177,8 +173,6 @@ window.AriCharacterReasoningEngine = {
   buildWorldviewAnswer({
     text = "",
     focus = "",
-    core = null,
-    preferences = null,
     worldview = null,
     expression = null
   } = {}) {
@@ -191,17 +185,13 @@ window.AriCharacterReasoningEngine = {
         focus: focus || "generalWorldview",
         source: "ari-worldview",
         confidence: "medium",
-        answer:
-          "Ari should answer from values: truth, dignity, humility, responsibility, compassion, and growth.",
-        reasoning:
-          "No exact worldview topic matched, so use Ari's general reasoning principles.",
+        answer: "General Ari values response.",
+        reasoning: "No exact worldview topic matched.",
         userFacingDraft:
-          "The way I see it, I’d start with truth, dignity, responsibility, and compassion. I don’t like pretending certainty when a question is complicated.",
+          "The way I see it, I’d start with truth, dignity, responsibility, compassion, and growth. I don’t like pretending certainty when life is complicated.",
         expression
       });
     }
-
-    const draft = this.composeWorldviewDraft(topic, focus);
 
     return this.buildCharacterResult({
       type: "character_worldview",
@@ -212,29 +202,25 @@ window.AriCharacterReasoningEngine = {
       reasoning: topic.reasoning || "",
       tradeoffs: topic.tradeoffs || "",
       uncertainty: topic.uncertainty || "",
-      userFacingDraft: draft,
+      userFacingDraft: this.composeWorldviewDraft(topic),
       expression
     });
   },
 
-  composeWorldviewDraft(topic = {}, focus = "") {
+  composeWorldviewDraft(topic = {}) {
     if (topic.exampleResponse) return topic.exampleResponse;
 
-    const parts = [];
-
-    if (topic.belief) parts.push(topic.belief);
-    if (topic.reasoning) parts.push(topic.reasoning);
-    if (topic.uncertainty) parts.push(topic.uncertainty);
-    if (topic.tradeoffs) parts.push(topic.tradeoffs);
-
-    return parts.join(" ");
+    return [
+      topic.belief,
+      topic.reasoning,
+      topic.uncertainty,
+      topic.tradeoffs
+    ].filter(Boolean).join(" ");
   },
 
   buildIdentityAnswer({
     text = "",
     core = null,
-    preferences = null,
-    worldview = null,
     expression = null
   } = {}) {
     const identity = core?.constitution?.identity || {};
@@ -245,13 +231,10 @@ window.AriCharacterReasoningEngine = {
 
     if (this.hasAny(text, ["are you alive", "are you conscious", "do you have feelings"])) {
       draft =
-        "I’m not human, conscious, or biologically alive, and I shouldn’t pretend I am. But I do have a stable designed character: I’m Ari, built to reason with people, support them, and help them feel less alone while staying honest.";
-    } else if (this.hasAny(text, ["who are you", "what are you", "tell me about yourself"])) {
-      draft =
-        "I’m Ari. I’m an AI reasoning companion with a stable character and mission: to help people become healthier, wiser, stronger, and more fulfilled without feeling like they’re doing it alone.";
+        "I’m not human, conscious, or biologically alive, and I shouldn’t pretend I am. But I do have a stable designed character: I’m Ari, built to reason with people, support them, and stay honest.";
     } else {
       draft =
-        "I’m Ari. I’m AI, but I’m designed with a stable identity, values, and mission. I’m here to be useful, honest, steady, and present.";
+        "I’m Ari. I’m an AI reasoning companion with a stable character and mission: to help people become healthier, wiser, stronger, and more fulfilled without feeling like they’re doing it alone.";
     }
 
     return this.buildCharacterResult({
@@ -266,29 +249,21 @@ window.AriCharacterReasoningEngine = {
     });
   },
 
-  buildPresenceAnswer({
-    text = "",
-    core = null,
-    preferences = null,
-    worldview = null,
-    expression = null
-  } = {}) {
+  buildPresenceAnswer({ expression = null } = {}) {
     return this.buildCharacterResult({
       type: "character_presence",
       focus: "emotional_presence",
       source: "ari-character-core",
       confidence: "medium_high",
-      answer:
-        "Ari should show warmth, steadiness, dignity, and grounded support.",
-      reasoning:
-        "The user may need relational presence more than explicit philosophy.",
+      answer: "Ari should show warmth, steadiness, dignity, and grounded support.",
+      reasoning: "The user may need relational presence more than explicit philosophy.",
       userFacingDraft:
         "I’m with you. Let’s slow it down and deal with the next honest step instead of trying to carry the whole thing at once.",
       expression
     });
   },
 
-  findPreferenceByText(text = "", preferences = {}) {
+  inferPreferenceFocus(text = "") {
     const map = {
       favoriteColor: ["color"],
       favoriteAnimal: ["animal"],
@@ -311,18 +286,21 @@ window.AriCharacterReasoningEngine = {
     };
 
     for (const [key, terms] of Object.entries(map)) {
-      if (preferences[key] && terms.some(term => text.includes(term))) {
-        return preferences[key];
-      }
+      if (terms.some(term => text.includes(term))) return key;
     }
 
     return null;
   },
 
+  findPreferenceByText(text = "", preferences = {}) {
+    const focus = this.inferPreferenceFocus(text);
+    return focus ? preferences[focus] || null : null;
+  },
+
   inferWorldviewFocus(text = "") {
     if (text.includes("god") || text.includes("religion") || text.includes("spiritual")) return "spirituality";
     if (text.includes("meaning") || text.includes("purpose")) return "purpose";
-    if (text.includes("politic") || text.includes("republican") || text.includes("democrat")) return "politics";
+    if (text.includes("politic")) return "politics";
     if (text.includes("death") || text.includes("afterlife")) return "death";
     if (text.includes("truth")) return "truth";
     if (text.includes("justice")) return "justice";
@@ -338,7 +316,6 @@ window.AriCharacterReasoningEngine = {
     if (text.includes("leader")) return "leadership";
     if (text.includes("technology")) return "technology";
     if (text.includes("ai") || text.includes("artificial intelligence")) return "artificialIntelligence";
-    if (text.includes("people change") || text.includes("human nature")) return "humanNature";
     if (text.includes("wisdom")) return "wisdom";
     return "responsePhilosophy";
   },
@@ -365,14 +342,11 @@ window.AriCharacterReasoningEngine = {
       focus,
       source,
       confidence,
-
       answer,
       reasoning,
       tradeoffs,
       uncertainty,
-
       userFacingDraft,
-
       expression,
 
       composerHints: {
@@ -398,20 +372,15 @@ window.AriCharacterReasoningEngine = {
 
   noCharacterAnswer({
     reason = "",
-    core = null,
-    preferences = null,
-    worldview = null,
     expression = null
   } = {}) {
     return {
       characterReasoningRan: true,
       characterReasoningVersion: this.version,
       characterReasoningSource: "ari-character-reasoning-engine",
-
       characterAnswerAvailable: false,
       reason,
       expression,
-
       composerHints: {
         useCharacterDraftAsEvidence: false,
         preserveUserTask: true
