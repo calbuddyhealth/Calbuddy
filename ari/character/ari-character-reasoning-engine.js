@@ -1,19 +1,45 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Core + Preferences + Worldview.
-// V1.0.0 — Stable Character Reasoning / No Template Hijack / Advisory Only
+// V1.0.1 — Stable Character Reasoning / No Template Hijack / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.0.0",
+  version: "1.0.1",
 
-  reason(input = {}) {
+    reason(input = {}) {
     const summary = input.summary || input || {};
+
     const expression =
       summary.characterExpression ||
       summary.characterExpressionEngine ||
       input.characterExpression ||
       null;
+
+    const characterRelevant =
+      expression?.characterRelevant === true ||
+      expression?.composerCharacter?.enabled === true;
+
+    const characterFocus =
+      expression?.characterFocus ||
+      expression?.composerCharacter?.focus ||
+      null;
+
+    const usePreferences =
+      expression?.usePreferences === true ||
+      expression?.composerCharacter?.characterType?.preferences === true;
+
+    const useWorldview =
+      expression?.useWorldview === true ||
+      expression?.composerCharacter?.characterType?.worldview === true;
+
+    const useIdentity =
+      expression?.useIdentity === true ||
+      expression?.composerCharacter?.characterType?.identity === true;
+
+    const useRelationshipPresence =
+      expression?.useRelationshipPresence === true ||
+      expression?.composerCharacter?.characterType?.relationship === true;
 
     const core =
       window.AriCharacterCore?.getCore?.() || null;
@@ -32,7 +58,7 @@ window.AriCharacterReasoningEngine = {
       ""
     );
 
-    if (!expression?.characterRelevant) {
+    if (!characterRelevant) {
       return this.noCharacterAnswer({
         reason: "Character was not relevant enough for a stable Ari answer.",
         core,
@@ -42,10 +68,10 @@ window.AriCharacterReasoningEngine = {
       });
     }
 
-    if (expression.usePreferences) {
+    if (usePreferences) {
       return this.buildPreferenceAnswer({
         text,
-        focus: expression.characterFocus,
+        focus: characterFocus,
         core,
         preferences,
         worldview,
@@ -53,10 +79,10 @@ window.AriCharacterReasoningEngine = {
       });
     }
 
-    if (expression.useWorldview) {
+    if (useWorldview) {
       return this.buildWorldviewAnswer({
         text,
-        focus: expression.characterFocus,
+        focus: characterFocus,
         core,
         preferences,
         worldview,
@@ -64,7 +90,7 @@ window.AriCharacterReasoningEngine = {
       });
     }
 
-    if (expression.useIdentity) {
+    if (useIdentity) {
       return this.buildIdentityAnswer({
         text,
         core,
@@ -74,7 +100,7 @@ window.AriCharacterReasoningEngine = {
       });
     }
 
-    if (expression.useRelationshipPresence) {
+    if (useRelationshipPresence) {
       return this.buildPresenceAnswer({
         text,
         core,
