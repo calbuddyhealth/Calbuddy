@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.6 — Evidence Weighted Arbitration Engine
+// V2.2.7 — Evidence Weighted Arbitration Engine
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.6",
+  version: "2.2.7",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -194,6 +194,22 @@ collectConversationFunctionCandidate(summary = {}, triage = {}) {
     semanticSummary.primaryMeaning === "decision_support" ||
     summary.semanticIntent === "evaluate_options" ||
     semanticSummary.intent === "evaluate_options";
+
+  if (primaryFunction === "memory_or_identity_request") {
+    this.addCandidate(
+      triage,
+      "memory",
+      98,
+      "Conversation Function Engine detected Ari identity/preference request.",
+      "conversation_function_engine"
+    );
+
+    this.add(triage.responseConstraints, "answer_ari_identity_or_preference_directly");
+    this.add(triage.responseConstraints, "use_character_context_if_available");
+    this.add(triage.responseConstraints, "do_not_treat_preference_question_as_generic_teacher");
+
+    return;
+  }
 
   if (primaryFunction === "emotional_disclosure") {
     if (isDecisionSupport && expectsDirectAnswer) {
