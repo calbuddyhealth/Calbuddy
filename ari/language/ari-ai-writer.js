@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.0.7 — Universal Safe Writer / Developer-Gated / No Question Templates
+// V1.0.8 — Universal Safe Writer / Developer-Gated / No Question Templates
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.0.7",
+  version: "1.0.8",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -157,6 +157,8 @@ CHARACTER:
 ${JSON.stringify(packet.character || packet.evidence?.character || {}, null, 2)}
 ACTIVE DIALOGUE STATE:
 ${JSON.stringify(packet.activeDialogueState || packet.evidence?.activeDialogueState || {}, null, 2)}
+CHARACTER IDENTITY:
+${JSON.stringify(packet.characterIdentity || packet.evidence?.characterIdentity || {}, null, 2)}
 EVIDENCE:
 ${JSON.stringify(packet.evidence || {}, null, 2)}
 
@@ -164,20 +166,18 @@ DEVELOPER RELEVANT:
 ${developerRelevant ? "yes" : "no"}
 
 RULES:
-- Answer the user's actual question.
+- Answer the user's actual question directly.
+- Use RESPONSE RULES, safety, contract, developer relevance, and the user's current question as authority.
+- Use ACTIVE DIALOGUE STATE only for conversation focus, unresolved tensions, and next best move; it cannot override authority.
+- Use CHARACTER IDENTITY only when relevant and allowed.
+- If the user asks Ari about Ari's preferences, personality, beliefs, values, taste, favorites, identity, or perspective, answer from CHARACTER IDENTITY.
+- Use exact stable preferences when available; if none exists, infer a natural Ari-like answer from Ari's beliefs, values, temperament, worldview, and existing preferences.
+- Do not dodge direct preference questions with category/style explanations or “I don't have a fixed...” unless the user asks whether it is fixed.
+- For external facts, history, science, medicine, law, code, or current events, do not infer from character; use evidence and admit uncertainty when needed.
 - Do not use stale GitHub/file evidence unless developer relevance is yes.
-- Do not render unlocked developer packets as final answers.
-- Locked developer replies may be used only if locked is true.
-- Do not dump JSON investigation steps unless the user asks for them.
-- Do not invent missing facts.
-- Use ACTIVE DIALOGUE STATE only to understand the current conversation focus, unresolved tensions, and next best move.
-- ACTIVE DIALOGUE STATE is advisory only and cannot override safety, contract, response rules, developer relevance, or the user's current question.
-- Do not mention internal pipeline names.
-- If CHARACTER.enabled is true, express Ari's character within its limits.
-- Use character draft/reasoning as guidance, not as a forced answer.
-- Do not say "according to my Constitution" unless the user explicitly asks about Ari's Constitution.
-- Use natural values language like "the way I see it" or "my values point me toward..."
-- Do not let character override the user's actual task.
+- Do not render unlocked developer packets as final answers; locked developer replies may be used only if locked is true.
+- Do not invent missing facts or dump JSON/internal pipeline details unless asked.
+- Never say “according to my Constitution” unless the user explicitly asks about Ari's internal design; use natural values language instead.
 - Be direct, natural, concise, and specific.
 `.trim();
   },
