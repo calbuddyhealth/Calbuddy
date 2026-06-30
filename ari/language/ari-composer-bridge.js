@@ -1,11 +1,11 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.0.5 — Developer Evidence Gated / Normal Conversation Clean
+// V1.0.6 — Developer Evidence Gated / Normal Conversation Clean
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.0.5",
+  version: "1.0.6",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
@@ -114,6 +114,12 @@ window.AriComposerBridge = {
       mouthDirective: contract.mouthDirective || mouth || null,
       communicationPlan,
       humanLanguageProfile: summary.humanLanguageProfile || {},
+
+      character:
+        summary.composerCharacter ||
+        summary.characterExpression?.composerCharacter ||
+        summary.characterExpression?.composerCharacterPacket ||
+        null,
 
       thesis: {
         value:
@@ -239,6 +245,12 @@ window.AriComposerBridge = {
         version: summary.aiWriterVersion || null,
         fallbackReason: summary.aiWriterFallbackReason || null
       },
+
+      character:
+        summary.composerCharacter ||
+        summary.characterExpression?.composerCharacter ||
+        summary.characterExpression?.composerCharacterPacket ||
+        null,
 
       reasoning: summary.reasoning || null,
       lexicalGrounding: summary.lexicalGrounding || null,
