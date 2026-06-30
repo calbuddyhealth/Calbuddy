@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.1.0 — Trusted Answer Resolver / Universal Character Guard / AI Draft Validation
+// V1.1.1 — Trusted Answer Resolver / Universal Character Guard / AI Draft Validation
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -117,11 +117,15 @@ window.AriAIWriter = {
       {};
 
     const prefs =
-      characterIdentity.stablePreferences ||
-      characterIdentity.preferences?.stablePreferences ||
-      characterIdentity.characterPreferences?.stablePreferences ||
-      packet.evidence?.characterPreferences?.stablePreferences ||
-      {};
+  characterIdentity.stablePreferences ||
+  characterIdentity.preferences?.stablePreferences ||
+  packet.character?.stablePreferences ||
+  packet.character?.preferences?.stablePreferences ||
+  packet.evidence?.character?.stablePreferences ||
+  packet.evidence?.character?.preferences?.stablePreferences ||
+  characterIdentity.characterPreferences?.stablePreferences ||
+  packet.evidence?.characterPreferences?.stablePreferences ||
+  {};
 
     const asksPreference =
       /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what would you choose|what would you prefer|what matters to you|what do you value|your values|your beliefs|your taste|your style|your personality|who are you|what are you|tell me about yourself)\b/.test(question) &&
