@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.4 — Current Draft First / No Stale History / Developer-Gated Fallback
+// V9.1.5 — Current Draft First / No Stale History / Developer-Gated Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.4",
+  version: "9.1.5",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -208,8 +208,20 @@ window.AriLanguageComposerV9 = {
     );
   },
 
-  composeLocal(packet = {}) {
+    composeLocal(packet = {}) {
     const q = String(packet.userQuestion || "").trim();
+    const character =
+      packet.character ||
+      packet.evidence?.character ||
+      null;
+
+    if (character?.enabled && character?.draft) {
+      return this.returnFinal(
+        character.draft,
+        "character_fallback_draft",
+        packet
+      );
+    }
 
     if (this.isDeveloperRelevant(packet)) {
       return this.returnFinal(
