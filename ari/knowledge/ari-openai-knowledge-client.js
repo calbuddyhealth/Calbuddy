@@ -4,7 +4,7 @@
 // Browser-side client that prepares a rich reasoning payload and
 // asks the server API to use OpenAI.
 //
-// V2.1.2
+// V2.1.3
 // Upgrades:
 // - Preserves structured mealEstimate / foodAnalysis / nutritionEstimate
 // - Prevents action planner from scraping wrong calorie numbers
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriOpenAIKnowledgeClient = {
-  version: "2.1.2",
+  version: "2.1.3",
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
@@ -52,7 +52,16 @@ window.AriOpenAIKnowledgeClient = {
       });
 
       const data = await response.json();
-
+const answer =
+  data.answer ||
+  data.finalResponse ||
+  data.reply ||
+  data.knowledgeAnswer ||
+  data.response?.reply ||
+  data.response?.answer ||
+  data.response ||
+  data.text ||
+  "";
       if (!response.ok) {
         return this.fail(data?.error || "Knowledge request failed.");
       }
@@ -83,25 +92,8 @@ window.AriOpenAIKnowledgeClient = {
         knowledgeProvider: "openai",
         knowledgeSource: data.source || "openai",
 
-        knowledgeAnswer:
-          data.answer ||
-          data.finalResponse ||
-          data.reply ||
-          data.knowledgeAnswer ||
-          data.response?.reply ||
-          data.response?.answer ||
-          data.response ||
-          data.text ||
-          "",
-
-        finalResponse:
-          data.finalResponse ||
-          data.reply ||
-          data.answer ||
-          data.knowledgeAnswer ||
-          data.response?.reply ||
-          data.response?.answer ||
-          null,
+        knowledgeAnswer: answer,
+finalResponse: answer || null,
 
         response:
           data.response ||
@@ -163,14 +155,23 @@ window.AriOpenAIKnowledgeClient = {
       isFollowUp,
       conversationMode,
 
-      instruction:
-        summary.aiInstruction ||
-        this.defaultInstruction({
+      aiInstruction:
+  summary.aiInstruction ||
+  this.defaultInstruction({
           summary,
           rawQuestion,
           resolvedQuestion,
           conversationMode
         }),
+
+instruction:
+  summary.aiInstruction ||
+  this.defaultInstruction({
+    summary,
+    rawQuestion,
+    resolvedQuestion,
+    conversationMode
+  }),
 
       existingMealEstimate:
         summary.mealEstimate ||
