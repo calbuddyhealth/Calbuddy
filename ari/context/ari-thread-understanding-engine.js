@@ -1,12 +1,12 @@
 // ari/context/ari-thread-understanding-engine.js
 // Ari Thread Understanding Engine
 // Purpose: Preserve active situation context across turns.
-// V5.2.2 — Semantic Frame Consumer / Context Memory / Advisory Only
+// V5.3.0 — Semantic Frame Consumer / Context Memory / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriThreadUnderstandingEngine = {
-  version: "5.2.2",
+  version: "5.3.0",
 
   understand(input = {}) {
     const summary = input.summary || input || {};
@@ -60,6 +60,17 @@ window.AriThreadUnderstandingEngine = {
       providedSemanticFrame
     });
 
+const activeDialogueState = this.buildActiveDialogueState({
+  summary,
+  currentText,
+  currentTurn,
+  currentSituation,
+  workingContext,
+  resolvedMeaning,
+  stateChange,
+  topicTransition
+});
+
     const threadUnderstanding = {
       threadUnderstandingRan: true,
       threadUnderstandingVersion: this.version,
@@ -94,7 +105,7 @@ window.AriThreadUnderstandingEngine = {
       resolvedMeaning,
       stateChange,
       topicTransition,
-
+activeDialogueState,
       activeSubject: workingContext.activeSubject,
       activeObject: workingContext.activeObject,
       activeIssue: workingContext.activeIssue,
@@ -175,8 +186,10 @@ window.AriThreadUnderstandingEngine = {
       threadActiveGoal: workingContext.activeGoal,
 
       threadStateChange: stateChange,
-      threadTopicTransition: topicTransition,
+      threadTopicTransition: topicTransition,  
       threadResolvedMeaning: resolvedMeaning,
+      activeDialogueState,
+threadActiveDialogueState: activeDialogueState,
       threadRecentMessages: recentMessages,
 
       authority: "advisory_context_only"
@@ -1128,6 +1141,184 @@ isFragmentTurnText(text = "") {
       authority: "advisory_context_only"
     };
   },
+
+buildActiveDialogueState({
+  summary = {},
+  currentText = "",
+  currentTurn = {},
+  currentSituation = {},
+  workingContext = {},
+  resolvedMeaning = {},
+  stateChange = {},
+  topicTransition = {}
+} = {}) {
+  const meaningHistory = Array.isArray(summary.conversationMeaningHistory)
+    ? summary.conversationMeaningHistory
+    : [];
+
+  const latestMeaning =
+    summary.latestConversationMeaning ||
+    meaningHistory[meaningHistory.length - 1] ||
+    null;
+
+  const openLoops =
+    summary.conversationMeaningOpenLoops ||
+    workingContext.unresolvedItems ||
+    [];
+
+  const mainTopic =
+    workingContext.semanticFrame?.summary ||
+    workingContext.activeSituation?.label ||
+    currentSituation.activeSituation?.label ||
+    latestMeaning?.semanticLabel ||
+    summary.conversationMeaningFocus ||
+    "active conversation";
+
+  const currentQuestion =
+    workingContext.activeQuestion ||
+    resolvedMeaning.currentText ||
+    currentText ||
+    null;
+
+  const userGoal =
+    workingContext.semanticFrame?.slots?.goal ||
+    workingContext.activeGoal ||
+    latestMeaning?.activeGoal ||
+    null;
+
+  const unresolvedTensions = [];
+
+  if (workingContext.centralTradeoff) {
+    unresolvedTensions.push(workingContext.centralTradeoff.label);
+  }
+
+  (workingContext.openQuestions || []).forEach(q => {
+    if (q && !unresolvedTensions.includes(q)) unresolvedTensions.push(q);
+  });
+
+  (openLoops || []).forEach(loop => {
+    const text =
+      loop.unresolvedQuestion ||
+      loop.claim ||
+      loop.label ||
+      loop.value ||
+      loop;
+
+    if (text && !unresolvedTensions.includes(text)) {
+      unresolvedTensions.push(text);
+    }
+  });
+
+  return {
+    activeDialogueStateRan: true,
+    activeDialogueStateVersion: this.version,
+    source: "ari-thread-understanding-engine",
+
+    mainTopic,
+    currentQuestion,
+    userGoal,
+
+    activeSubject: workingContext.activeSubject || null,
+    activeObject:
+      workingContext.semanticFrame?.slots?.object ||
+      workingContext.activeObject ||
+      null,
+    activeIssue:
+      workingContext.semanticFrame?.slots?.problem ||
+      workingContext.activeIssue ||
+      null,
+
+    agreedPoints: this.extractAgreedPoints(meaningHistory),
+    unresolvedTensions: unresolvedTensions.slice(0, 8),
+    openLoops: Array.isArray(openLoops) ? openLoops.slice(0, 8) : [],
+
+    topicShiftDetected: topicTransition.switched === true,
+    shouldReusePriorContext:
+      stateChange.type === "context_continued" ||
+      currentTurn.isShortFollowUp ||
+      currentTurn.hasContinuationCue,
+
+    nextBestMove: this.inferNextBestMove({
+      currentTurn,
+      currentSituation,
+      workingContext,
+      resolvedMeaning,
+      topicTransition
+    }),
+
+    confidence: this.scoreDialogueStateConfidence({
+      currentSituation,
+      workingContext,
+      resolvedMeaning,
+      topicTransition
+    }),
+
+    authority: "advisory_context_only",
+    cannotSet: [
+      "primaryLane",
+      "triagePrimaryLane",
+      "situationContractPrimary",
+      "riskLevel",
+      "override",
+      "finalResponse",
+      "recommendation",
+      "medicalEscalation",
+      "responseShape"
+    ]
+  };
+},
+
+extractAgreedPoints(history = []) {
+  return history
+    .filter(item => item.resolved === true && item.ariRecommendation)
+    .slice(-5)
+    .map(item => item.ariRecommendation)
+    .filter(Boolean);
+},
+
+inferNextBestMove({
+  currentTurn = {},
+  currentSituation = {},
+  workingContext = {},
+  resolvedMeaning = {},
+  topicTransition = {}
+} = {}) {
+  if (topicTransition.switched) {
+    return "Answer the new topic directly and avoid stale prior context.";
+  }
+
+  if (currentSituation.openQuestions?.length) {
+    return "Clarify the most important missing information before over-answering.";
+  }
+
+  if (workingContext.centralTradeoff) {
+    return "Explain the central tradeoff and help the user reason through it.";
+  }
+
+  if (currentTurn.isShortFollowUp || resolvedMeaning.isContextual) {
+    return "Use prior context to answer the follow-up without repeating the full history.";
+  }
+
+  return "Answer the current question using the active context.";
+},
+
+scoreDialogueStateConfidence({
+  currentSituation = {},
+  workingContext = {},
+  resolvedMeaning = {},
+  topicTransition = {}
+} = {}) {
+  let score = 0.45;
+
+  if (currentSituation.activeSituation) score += 0.12;
+  if (workingContext.semanticFrame) score += 0.12;
+  if (workingContext.keyFacts?.length) score += 0.1;
+  if (resolvedMeaning.isContextual) score += 0.08;
+  if (workingContext.centralTradeoff) score += 0.08;
+  if (topicTransition.confidence) score += 0.05;
+
+  return Math.max(0.35, Math.min(0.95, Number(score.toFixed(2))));
+},
 
   scoreSituationConfidence({ activeSituation, situationFrame, entities = [], decisionStructure, keyFacts = [], hardConstraints = [], semanticFrame = null }) {
     let score = 0.35;
