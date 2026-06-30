@@ -1,11 +1,11 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.0.7 — Developer Evidence Gated / Normal Conversation Clean
+// V1.0.8 — Developer Evidence Gated / Normal Conversation Clean
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.0.7",
+  version: "1.0.8",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
@@ -19,7 +19,15 @@ const activeDialogueState =
   summary.continuityContext?.activeDialogueState ||
   summary.threadUnderstanding?.activeDialogueState ||
   null;
-    const userQuestion =
+ 
+const characterIdentity =
+  summary.characterIdentity ||
+  summary.assembledContext?.characterIdentity ||
+  summary.advisoryContext?.characterIdentity ||
+  summary.continuityContext?.characterIdentity ||
+  null;
+
+   const userQuestion =
       summary.resolvedUserQuestion ||
       summary.threadQuestion?.resolvedUserQuestion ||
       summary.userMessage ||
@@ -120,6 +128,7 @@ const activeDialogueState =
       mouthDirective: contract.mouthDirective || mouth || null,
       communicationPlan,
      activeDialogueState,
+      characterIdentity,
       humanLanguageProfile: summary.humanLanguageProfile || {},
 
       character:
@@ -250,6 +259,13 @@ activeDialogueState:
   summary.advisoryContext?.activeDialogueState ||
   summary.continuityContext?.activeDialogueState ||
   summary.threadUnderstanding?.activeDialogueState ||
+  null,
+
+characterIdentity:
+  summary.characterIdentity ||
+  summary.assembledContext?.characterIdentity ||
+  summary.advisoryContext?.characterIdentity ||
+  summary.continuityContext?.characterIdentity ||
   null,
 
       aiWriter: {
