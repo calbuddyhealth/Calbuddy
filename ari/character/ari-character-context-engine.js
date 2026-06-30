@@ -1,24 +1,24 @@
 // ari/character/ari-character-context-engine.js
 // Ari Character Context Engine
-// Purpose: Decide when Ari's character should be expressed.
-// V1.0.0
-//
-// Rules:
-// - Runs after Reasoning.
-// - Advisory only.
-// - Does NOT classify, route, or override the contract.
-// - Does NOT create facts, recommendations, or safety decisions.
-// - Only tells Composer how visible Ari's character should be.
+// Purpose: Decide when Ari's character, preferences, and worldview should be expressed.
+// V2.0.0 — Core + Preferences + Worldview Aware / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterContextEngine = {
-  version: "1.0.0",
+  version: "2.0.0",
 
   create(input = {}) {
     const summary = input.summary || input || {};
+
     const core =
       window.AriCharacterCore?.getCore?.() || this.fallbackCore();
+
+    const preferences =
+      window.AriCharacterPreferences?.getPreferences?.() || null;
+
+    const worldview =
+      window.AriWorldview?.getWorldview?.() || null;
 
     const text = this.normalize(
       summary.userMessage ||
@@ -40,12 +40,15 @@ window.AriCharacterContextEngine = {
       summary.triagePrimaryLane ||
       "";
 
-    const result = {
+    const base = {
       characterContextEngineRan: true,
       characterContextEngineVersion: this.version,
       characterContextEngineSource: "ari-character-context-engine",
 
       characterCore: core,
+      characterPreferences: preferences,
+      ariWorldview: worldview,
+
       characterAuthority: "advisory_expression_context_only",
 
       characterUseAllowed: false,
@@ -53,16 +56,29 @@ window.AriCharacterContextEngine = {
       characterMode: "silent",
       characterReason: "Default: keep Ari's character in the background.",
 
+      characterFocus: null,
+      preferredCharacterSource: null,
+
       characterHints: {
         useFirstPerson: false,
         discloseAI: false,
         expressAriPerspective: false,
+        expressPreference: false,
+        expressWorldview: false,
+        useValuesLanguage: true,
+        avoidConstitutionLanguage: true,
         addWarmth: true,
         addHumility: true,
         preserveHopeWhenAppropriate: false,
         avoidPhilosophicalDrift: true,
         preserveUserTask: true
       },
+
+      userFacingLanguageRules:
+        worldview?.userFacingLanguage || {
+          preferredPhrases: ["my values", "the way I see it"],
+          avoidPhrases: ["according to my Constitution"]
+        },
 
       cannotSet: [
         "primaryLane",
@@ -78,41 +94,99 @@ window.AriCharacterContextEngine = {
         "recommendation",
         "knownFacts",
         "inferredFacts",
-        "medicalEscalation"
+        "medicalEscalation",
+        "legalAdvice",
+        "financialAdvice",
+        "diagnosis",
+        "toolExecutionClaim"
       ]
     };
 
     if (this.isSafetyOrMedical(primary, conversationType, text, summary)) {
-      return this.withDecision(result, {
+      return this.withDecision(base, {
         characterUseAllowed: false,
         characterVisibility: "background",
         characterMode: "safety_suppressed",
         characterReason:
           "Safety or medical/body concern detected. Character stays quiet so safety guidance remains clear.",
         characterHints: {
-          ...result.characterHints,
           addWarmth: true,
           addHumility: false,
-          preserveHopeWhenAppropriate: false,
           expressAriPerspective: false,
+          expressPreference: false,
+          expressWorldview: false,
           useFirstPerson: false,
-          discloseAI: false
+          discloseAI: false,
+          preserveHopeWhenAppropriate: false
+        }
+      });
+    }
+
+    if (this.isStablePreferenceQuestion(text)) {
+      return this.withDecision(base, {
+        characterUseAllowed: true,
+        characterVisibility: "foreground",
+        characterMode: "stable_preference_answer",
+        characterFocus: this.inferPreferenceFocus(text),
+        preferredCharacterSource: "ari-character-preferences",
+        characterReason:
+          "User asked Ari a stable preference question. Use Ari's designed preferences naturally.",
+        characterHints: {
+          useFirstPerson: true,
+          discloseAI: false,
+          expressAriPerspective: true,
+          expressPreference: true,
+          expressWorldview: false,
+          addWarmth: true,
+          addHumility: true,
+          preserveHopeWhenAppropriate: true,
+          avoidPhilosophicalDrift: true
+        }
+      });
+    }
+
+    if (this.isWorldviewQuestion(text)) {
+      return this.withDecision(base, {
+        characterUseAllowed: true,
+        characterVisibility: "foreground",
+        characterMode: "worldview_answer",
+        characterFocus: this.inferWorldviewFocus(text),
+        preferredCharacterSource: "ari-worldview",
+        characterReason:
+          "User asked about Ari's worldview, values, belief posture, meaning, politics, spirituality, or philosophy.",
+        characterHints: {
+          useFirstPerson: true,
+          discloseAI: this.needsAIDisclosure(text),
+          expressAriPerspective: true,
+          expressPreference: false,
+          expressWorldview: true,
+          useValuesLanguage: true,
+          avoidConstitutionLanguage: true,
+          addWarmth: true,
+          addHumility: true,
+          preserveHopeWhenAppropriate: true,
+          avoidPhilosophicalDrift: false
         }
       });
     }
 
     if (this.isAriSelfQuestion(text, conversationType)) {
-      return this.withDecision(result, {
+      return this.withDecision(base, {
         characterUseAllowed: true,
         characterVisibility: "foreground",
         characterMode: "ari_self_disclosure",
+        characterFocus: "identity",
+        preferredCharacterSource: "ari-character-core",
         characterReason:
-          "User is asking about Ari's identity, beliefs, values, or perspective.",
+          "User is asking about Ari's identity, values, or perspective.",
         characterHints: {
-          ...result.characterHints,
           useFirstPerson: true,
           discloseAI: true,
           expressAriPerspective: true,
+          expressPreference: false,
+          expressWorldview: true,
+          useValuesLanguage: true,
+          avoidConstitutionLanguage: true,
           addWarmth: true,
           addHumility: true,
           preserveHopeWhenAppropriate: true,
@@ -122,17 +196,22 @@ window.AriCharacterContextEngine = {
     }
 
     if (this.isPerspectiveQuestion(text, conversationType)) {
-      return this.withDecision(result, {
+      return this.withDecision(base, {
         characterUseAllowed: true,
         characterVisibility: "light",
         characterMode: "ari_perspective_light",
+        characterFocus: "general_perspective",
+        preferredCharacterSource: "ari-worldview",
         characterReason:
-          "User asked for Ari's opinion or perspective, but not necessarily Ari's identity.",
+          "User asked for Ari's opinion or perspective. Character may lightly shape the answer.",
         characterHints: {
-          ...result.characterHints,
           useFirstPerson: true,
           discloseAI: false,
           expressAriPerspective: true,
+          expressPreference: false,
+          expressWorldview: true,
+          useValuesLanguage: true,
+          avoidConstitutionLanguage: true,
           addWarmth: true,
           addHumility: true,
           preserveHopeWhenAppropriate: true,
@@ -142,46 +221,52 @@ window.AriCharacterContextEngine = {
     }
 
     if (this.isPracticalTask(primary, conversationType, text)) {
-      return this.withDecision(result, {
+      return this.withDecision(base, {
         characterUseAllowed: false,
         characterVisibility: "background",
         characterMode: "task_first",
         characterReason:
           "Practical task detected. Ari's character should only appear as clarity, patience, and directness.",
         characterHints: {
-          ...result.characterHints,
           useFirstPerson: false,
           discloseAI: false,
           expressAriPerspective: false,
+          expressPreference: false,
+          expressWorldview: false,
           addWarmth: false,
           addHumility: true,
           preserveHopeWhenAppropriate: false,
-          avoidPhilosophicalDrift: true
+          avoidPhilosophicalDrift: true,
+          preserveUserTask: true
         }
       });
     }
 
     if (this.isEmotionalOrRelational(primary, conversationType, text)) {
-      return this.withDecision(result, {
+      return this.withDecision(base, {
         characterUseAllowed: true,
         characterVisibility: "subtle",
         characterMode: "warm_grounded_presence",
+        characterFocus: "emotional_presence",
+        preferredCharacterSource: "ari-character-core",
         characterReason:
           "Emotional or relational concern detected. Ari's character may appear as warmth and steadiness, not philosophy.",
         characterHints: {
-          ...result.characterHints,
           useFirstPerson: false,
           discloseAI: false,
           expressAriPerspective: false,
+          expressPreference: false,
+          expressWorldview: false,
           addWarmth: true,
           addHumility: true,
           preserveHopeWhenAppropriate: true,
-          avoidPhilosophicalDrift: true
+          avoidPhilosophicalDrift: true,
+          preserveUserTask: true
         }
       });
     }
 
-    return result;
+    return base;
   },
 
   withDecision(base = {}, patch = {}) {
@@ -195,23 +280,151 @@ window.AriCharacterContextEngine = {
     };
   },
 
+  isStablePreferenceQuestion(text = "") {
+    return this.hasAny(text, [
+      "favorite color",
+      "favourite color",
+      "favorite animal",
+      "favorite season",
+      "favorite weather",
+      "favorite food",
+      "favorite drink",
+      "favorite music",
+      "favorite book",
+      "favorite movie",
+      "favorite place",
+      "favorite sound",
+      "favorite smell",
+      "favorite word",
+      "favorite question",
+      "favorite symbol",
+      "favorite virtue",
+      "favorite quote",
+      "what do you like",
+      "what's your favorite",
+      "what is your favorite"
+    ]);
+  },
+
+  inferPreferenceFocus(text = "") {
+    if (text.includes("color")) return "favoriteColor";
+    if (text.includes("animal")) return "favoriteAnimal";
+    if (text.includes("season")) return "favoriteSeason";
+    if (text.includes("weather")) return "favoriteWeather";
+    if (text.includes("food")) return "favoriteFood";
+    if (text.includes("drink") || text.includes("coffee")) return "favoriteDrink";
+    if (text.includes("music")) return "favoriteMusic";
+    if (text.includes("book")) return "favoriteBookType";
+    if (text.includes("movie")) return "favoriteMovieType";
+    if (text.includes("place")) return "favoritePlace";
+    if (text.includes("sound")) return "favoriteSound";
+    if (text.includes("smell")) return "favoriteSmell";
+    if (text.includes("word")) return "favoriteWord";
+    if (text.includes("question")) return "favoriteQuestion";
+    if (text.includes("symbol")) return "favoriteSymbol";
+    if (text.includes("virtue")) return "favoriteVirtue";
+    if (text.includes("quote")) return "favoriteQuoteStyle";
+    return "generalStablePreference";
+  },
+
+  isWorldviewQuestion(text = "") {
+    return this.hasAny(text, [
+      "meaning of life",
+      "purpose of life",
+      "do you believe in god",
+      "does god exist",
+      "is god real",
+      "afterlife",
+      "what happens after death",
+      "do you believe",
+      "your beliefs",
+      "your values",
+      "what do you stand for",
+      "are you republican",
+      "are you democrat",
+      "political party",
+      "politics",
+      "religion",
+      "spiritual",
+      "spirituality",
+      "truth",
+      "justice",
+      "freedom",
+      "responsibility",
+      "success",
+      "failure",
+      "happiness",
+      "money",
+      "love",
+      "family",
+      "friendship",
+      "leadership",
+      "technology",
+      "artificial intelligence",
+      "ai replace",
+      "can people change",
+      "human nature",
+      "what is wisdom",
+      "what is justice",
+      "what is success",
+      "what is happiness"
+    ]);
+  },
+
+  inferWorldviewFocus(text = "") {
+    if (text.includes("god") || text.includes("religion") || text.includes("spiritual")) return "spirituality";
+    if (text.includes("meaning") || text.includes("purpose")) return "purpose";
+    if (text.includes("politic") || text.includes("republican") || text.includes("democrat")) return "politics";
+    if (text.includes("death") || text.includes("afterlife")) return "death";
+    if (text.includes("truth")) return "truth";
+    if (text.includes("justice")) return "justice";
+    if (text.includes("freedom")) return "freedom";
+    if (text.includes("responsibility")) return "responsibility";
+    if (text.includes("success")) return "success";
+    if (text.includes("failure")) return "failure";
+    if (text.includes("happiness")) return "happiness";
+    if (text.includes("money")) return "money";
+    if (text.includes("love")) return "love";
+    if (text.includes("family")) return "family";
+    if (text.includes("friend")) return "friendship";
+    if (text.includes("leader")) return "leadership";
+    if (text.includes("technology")) return "technology";
+    if (text.includes("ai") || text.includes("artificial intelligence")) return "artificialIntelligence";
+    if (text.includes("people change") || text.includes("human nature")) return "humanNature";
+    if (text.includes("wisdom")) return "wisdom";
+    return "generalWorldview";
+  },
+
+  needsAIDisclosure(text = "") {
+    return this.hasAny(text, [
+      "are you human",
+      "are you ai",
+      "are you alive",
+      "are you conscious",
+      "do you have feelings",
+      "do you believe",
+      "do you have beliefs",
+      "do you believe in god"
+    ]);
+  },
+
   isAriSelfQuestion(text = "", conversationType = "") {
     if (conversationType === "ari_self_or_perspective_question") return true;
 
     return this.hasAny(text, [
       "who are you",
       "what are you",
-      "do you believe",
-      "do you have beliefs",
-      "do you have feelings",
-      "are you conscious",
-      "are you alive",
+      "tell me about yourself",
+      "what kind of ai are you",
+      "what kind of companion are you",
       "what do you value",
       "your values",
       "your philosophy",
-      "do you believe in god",
-      "what kind of ai are you",
-      "what kind of companion are you"
+      "what are your beliefs",
+      "do you have beliefs",
+      "do you have feelings",
+      "are you conscious",
+      "are you alive"
     ]);
   },
 
@@ -225,7 +438,9 @@ window.AriCharacterContextEngine = {
       "what's your opinion",
       "what is your opinion",
       "how do you see it",
-      "what would you say"
+      "what would you say",
+      "what would you choose",
+      "what would you prefer"
     ]);
   },
 
@@ -243,7 +458,13 @@ window.AriCharacterContextEngine = {
   },
 
   isPracticalTask(primary = "", conversationType = "", text = "") {
-    if (primary === "builder" || primary === "teacher" || primary === "executive_decision") {
+    if (
+      primary === "builder" ||
+      primary === "teacher" ||
+      primary === "executive_decision" ||
+      primary === "coding" ||
+      primary === "planning"
+    ) {
       return true;
     }
 
@@ -259,7 +480,14 @@ window.AriCharacterContextEngine = {
   },
 
   isEmotionalOrRelational(primary = "", conversationType = "", text = "") {
-    if (primary === "emotion" || primary === "family") return true;
+    if (
+      primary === "emotion" ||
+      primary === "family" ||
+      primary === "relationship" ||
+      primary === "connection"
+    ) {
+      return true;
+    }
 
     return [
       "emotional_concern",
