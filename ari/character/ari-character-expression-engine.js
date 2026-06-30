@@ -1,11 +1,11 @@
 // ari/character/ari-character-expression-engine.js
 // Purpose: Convert Character Context + Character Reasoning into one clean Composer-ready character packet.
-// V1.2.0 — Composer Character Packet / Advisory Only / Anti-Hijack
+// V1.2.1 — Composer Character Packet / Advisory Only / Anti-Hijack
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterExpressionEngine = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -146,6 +146,15 @@ window.AriCharacterExpressionEngine = {
               userFacingDraft: reasoning.userFacingDraft || ""
             }
           : null,
+
+stablePreferences:
+  context.characterPreferences?.stablePreferences ||
+  context.stablePreferences ||
+  {},
+
+preferences:
+  context.characterPreferences ||
+  {},
 
       rules: [
         "Character is advisory only.",
