@@ -1,12 +1,12 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.1.9 — Evidence-Weighted Developer Artifact Detection / Meta Question Safe / Advisory Only
+// V2.2.1 — Evidence-Weighted Developer Artifact Detection / Meta Question Safe / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.1.9",
+  version: "2.2.1",
 
   patterns: {
     developerNouns:
@@ -32,6 +32,9 @@ window.AriConversationFunctionEngine = {
 
     languageRequest:
       /\b(translate|translation|bible verse|verse|quote|scripture|meaning|interpret|interpret this|what does this mean|what does this say|what is this saying)\b/,
+
+ariPreferenceQuestion:
+  /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what kind of .* do you like|what would you choose|what would you prefer|what matters to you|what do you value|your values|your beliefs|your taste|your style|your personality|who are you|what are you|tell me about yourself)\b/,
 
     metaDeveloperQuestion:
       /\b(should ari|should it|does it|will it|would it|can it|trigger|detect|classify|identify|semantic|keyword|keyterm|routing|conversation function|artifact modification|file context|developer request|treat this|treat it)\b/,
@@ -185,7 +188,14 @@ window.AriConversationFunctionEngine = {
     const layoutLanguage = this.patterns.layoutLanguage.test(text);
     const codeLanguage = this.patterns.codeLanguage.test(text);
 
-    const languageOrInterpretationRequest = this.patterns.languageRequest.test(text);
+const ariPreferenceQuestion =
+  this.patterns.ariPreferenceQuestion.test(text) &&
+  /\b(you|your|ari|yourself)\b/.test(text);
+
+const languageOrInterpretationRequest =
+  !ariPreferenceQuestion &&
+  this.patterns.languageRequest.test(text);
+    
     const languageTeacherRequest = languageOrInterpretationRequest;
     const translationOrQuoteRequest = languageOrInterpretationRequest;
 
@@ -234,12 +244,13 @@ window.AriConversationFunctionEngine = {
       artifactInvestigationRequest;
 
     const directAnswerNeeded =
-      hasQuestion ||
-      languageTeacherRequest ||
-      developerArtifactRequest ||
-      metaDeveloperQuestion ||
-      this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
-      this.patterns.directAnswer.test(text);
+  hasQuestion ||
+  ariPreferenceQuestion ||
+  languageTeacherRequest ||
+  developerArtifactRequest ||
+  metaDeveloperQuestion ||
+  this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
+  this.patterns.directAnswer.test(text);
 
     const actionRequest =
       developerArtifactRequest ||
@@ -332,7 +343,7 @@ window.AriConversationFunctionEngine = {
       correction,
       shortFollowUp,
       currentTurnIsConcrete,
-
+ariPreferenceQuestion,
       githubEvidenceAvailable,
       developerNouns,
       developerAction,
@@ -386,6 +397,13 @@ window.AriConversationFunctionEngine = {
       add("correction_or_clarification", 88, "User appears to be correcting or clarifying prior meaning.");
     }
 
+if (signals.ariPreferenceQuestion) {
+  add(
+    "memory_or_identity_request",
+    96,
+    "User is asking Ari about Ari's preferences, identity, values, taste, or personality."
+  );
+}
     if (signals.languageTeacherRequest) {
       add(
         "language_or_interpretation_request",
