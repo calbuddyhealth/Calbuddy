@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.5 — Current Draft First / No Stale History / Developer-Gated Fallback
+// V9.1.6 — Active Dialogue Debug / Current Draft First / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.5",
+  version: "9.1.6",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -25,11 +25,18 @@ window.AriLanguageComposerV9 = {
       summary.composerDeveloperPacket ||
       null;
 
+    const activeDialogueState = this.readActiveDialogueState({
+      packet,
+      summary,
+      input
+    });
+
     if (this.isLockedDeveloperPacket(developerPacket)) {
       return this.returnFinal(
         developerPacket.reply,
         "developer_packet_locked_reply",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
@@ -37,7 +44,8 @@ window.AriLanguageComposerV9 = {
       return this.returnFinal(
         packet.evidence.developerHandoff.reply,
         "developer_handoff_locked_reply",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
@@ -47,7 +55,8 @@ window.AriLanguageComposerV9 = {
           packet.safety.gate.message ||
           "I need to pause normal answering because this may involve safety.",
         "safety_gate_response",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
@@ -59,15 +68,16 @@ window.AriLanguageComposerV9 = {
         packet.evidence?.aiWriter?.usedAI
           ? "ai_writer_draft"
           : "ai_writer_fallback",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
     if (this.isDeveloperRelevant(packet) && packet.evidence?.github?.content) {
-      return this.composeGithub(packet);
+      return this.composeGithub(packet, activeDialogueState);
     }
 
-    return this.composeLocal(packet);
+    return this.composeLocal(packet, activeDialogueState);
   },
 
   isLockedDeveloperPacket(developerPacket = null) {
@@ -108,6 +118,23 @@ window.AriLanguageComposerV9 = {
       shape.includes("code");
 
     return Boolean(developerMode || explicitCodeFile || (repoContext && codeAction));
+  },
+
+  readActiveDialogueState({ packet = {}, summary = {}, input = {} } = {}) {
+    return (
+      packet.activeDialogueState ||
+      packet.evidence?.activeDialogueState ||
+      packet.assembledContext?.activeDialogueState ||
+      packet.advisoryContext?.activeDialogueState ||
+      packet.continuityContext?.activeDialogueState ||
+      summary.activeDialogueState ||
+      summary.assembledContext?.activeDialogueState ||
+      summary.advisoryContext?.activeDialogueState ||
+      summary.continuityContext?.activeDialogueState ||
+      summary.threadUnderstanding?.activeDialogueState ||
+      input.activeDialogueState ||
+      null
+    );
   },
 
   getCurrentWriterDraft({ packet = {}, summary = {}, input = {} } = {}) {
@@ -170,7 +197,7 @@ window.AriLanguageComposerV9 = {
     return staleIndexReply && !sameIndexTopic;
   },
 
-  composeGithub(packet = {}) {
+  composeGithub(packet = {}, activeDialogueState = null) {
     const github = packet.evidence.github;
     const filePath = github.filePath || "the file";
     const content = String(github.content || "").trim();
@@ -180,7 +207,8 @@ window.AriLanguageComposerV9 = {
       return this.returnFinal(
         `I have ${filePath}, but no readable file content came through.`,
         "github_missing_content",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
@@ -197,18 +225,20 @@ window.AriLanguageComposerV9 = {
       return this.returnFinal(
         `I read ${filePath}, but the loaded content does not show the Ari mascot markup. I should not guess a patch from unrelated code. Read the full homepage area or the style file that contains the mascot selector before removing anything.`,
         "github_missing_requested_object",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
     return this.returnFinal(
       `I read ${filePath}. I should answer only from the current file content and avoid reusing older saved replies.`,
       "github_grounded",
-      packet
+      packet,
+      activeDialogueState
     );
   },
 
-    composeLocal(packet = {}) {
+  composeLocal(packet = {}, activeDialogueState = null) {
     const q = String(packet.userQuestion || "").trim();
     const character =
       packet.character ||
@@ -219,7 +249,8 @@ window.AriLanguageComposerV9 = {
       return this.returnFinal(
         character.draft,
         "character_fallback_draft",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
@@ -227,7 +258,8 @@ window.AriLanguageComposerV9 = {
       return this.returnFinal(
         "I need current file evidence or a current writer draft before giving a code patch. I should not reuse an older conversation-history answer.",
         "developer_guarded",
-        packet
+        packet,
+        activeDialogueState
       );
     }
 
@@ -236,11 +268,12 @@ window.AriLanguageComposerV9 = {
         ? "I can answer that, but the current AI Writer draft was missing. I’m using a safe fallback instead of pulling from old conversation history."
         : "Yeah. I’m here.",
       "general_fallback",
-      packet
+      packet,
+      activeDialogueState
     );
   },
 
-  returnFinal(text = "", validation = "passed", packet = null) {
+  returnFinal(text = "", validation = "passed", packet = null, activeDialogueState = null) {
     const finalText = String(text || "").trim() || "Yeah. I’m here.";
 
     return {
@@ -256,6 +289,7 @@ window.AriLanguageComposerV9 = {
         usedPacket: true,
         staleHistoryFinalResponseIgnored: true,
         developerRelevant: this.isDeveloperRelevant(packet || {}),
+        activeDialogueState,
         packet
       }
     };
