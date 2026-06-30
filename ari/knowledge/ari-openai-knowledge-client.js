@@ -52,6 +52,9 @@ window.AriOpenAIKnowledgeClient = {
       });
 
       const data = await response.json();
+console.log("[Ari Knowledge Response Status]", response.status, response.ok);
+console.log("[Ari Knowledge Response Data]", data);
+
 const answer =
   data.answer ||
   data.finalResponse ||
@@ -113,9 +116,9 @@ finalResponse: answer || null,
         source: "ari-openai-knowledge-client"
       };
     } catch (error) {
-      console.warn("[Ari Knowledge]", error);
-      return this.fail(error?.message || "Knowledge request failed.");
-    }
+  console.error("[Ari Knowledge Client Fatal]", error);
+  return this.fail(error?.message || "Knowledge request failed.");
+}
   },
 
   buildPayload({
