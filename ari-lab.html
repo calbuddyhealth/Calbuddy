@@ -1,16 +1,15 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
-<head>   
-  
+<head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ari Lab</title>
 </head>
- 
+
 <body>
-  <main style="max-width: 720px; margin: 40px auto; padding: 20px; font-family: system-ui;">
+  <main style="max-width: 760px; margin: 40px auto; padding: 20px; font-family: system-ui;">
     <h1>Ari Lab</h1>
-    <p>A standalone test space for Ari Rebirth.</p>
+    <p>A clean test space for Ari Rebirth. Scripts are loaded by the App Bridge, not manually duplicated here.</p>
 
     <textarea
       id="ariInput"
@@ -18,287 +17,158 @@
       style="width: 100%; min-height: 120px; padding: 14px; font-size: 16px;"
     ></textarea>
 
-    <button
-      id="ariAnalyzeBtn"
-      style="margin-top: 12px; padding: 12px 18px; font-weight: 700;"
-    >
-      Analyze with Ari
-    </button>
+    <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button id="ariAnalyzeBtn" style="padding: 12px 18px; font-weight: 700;">
+        Analyze with Ari
+      </button>
 
-    <button
-      id="ariDiagnosticBtn"
-      style="margin-top: 12px; margin-left: 8px; padding: 12px 18px; font-weight: 700;"
-    >
-      Run Readiness Diagnostic
-    </button>
+      <button id="ariDiagnosticBtn" style="padding: 12px 18px; font-weight: 700;">
+        Run Readiness Diagnostic
+      </button>
 
-<button id="ariIntegrationBtn">
-  Run Layout Integration Test
-</button>
+      <button id="ariIntegrationBtn" style="padding: 12px 18px; font-weight: 700;">
+        Run Developer Layout Test
+      </button>
+
+      <button id="ariClearBtn" style="padding: 12px 18px; font-weight: 700;">
+        Clear Output
+      </button>
+    </div>
 
     <pre
       id="ariOutput"
-      style="margin-top: 20px; padding: 16px; background: #111827; color: #d1fae5; white-space: pre-wrap;"
+      style="margin-top: 20px; padding: 16px; background: #111827; color: #d1fae5; white-space: pre-wrap; overflow:auto;"
     ></pre>
-  </main> 
+  </main>
 
-
-
-  <!-- SYSTEM FOUNDATION -->
-  <script src="ari/system/ari-loader.js"></script>
-  <script src="ari/system/ari-authority.js"></script>
-
-  <!-- NEW CORE CHAIN -->
-  <script src="ari/safety/ari-safety-context-gate.js"></script>
-  <script src="ari/observer-system/ari-observer-network.js"></script>
-<script src="ari/conversation/ari-conversation-function-engine.js"></script>
-<script src="ari/conversation/ari-universal-conversation-classifier.js"></script>
-
-<script src="ari/observer-system/ari-observer-routing-evidence.js"></script>
-<script src="ari/routing/ari-lane-splitter-engine.js"></script>
-<script src="ari/continuity/ari-continuity-entry-point.js"></script>
-<script src="ari/continuity/ari-continuity-packet.js"></script>
-<script src="ari/continuity/ari-conversation-meaning-history.js"></script>
-<script src="ari/context/ari-thread-question-generator.js"></script>
-
-<!-- CONTINUITY / MEMORY / RELATIONSHIP -->
-<script src="ari/storage/ari-thread-store.js"></script>
-<script src="ari/storage/ari-memory-store.js"></script>
-
-<script src="ari/continuity/ari-conversation-continuity-engine.js"></script>
-
-<script src="ari/memory/ari-memory-ranking-engine.js"></script>
-<script src="ari/memory/ari-memory-retrieval-engine.js"></script>
-<script src="ari/memory/ari-memory-candidate-engine.js"></script>
-
-<script src="ari/relationship/ari-relationship-engine.js"></script>
-<script src="ari/context/ari-context-assembler.js"></script>
-<script src="ari/context/ari-thread-understanding-engine.js"></script>
-<script src="ari/context/ari-entity-reference-resolver.js"></script>
-<script src="ari/meaning/ari-semantic-frame-builder.js"></script>
-
-<!-- CHARACTER PATHWAY -->
-<script src="ari/character/ari-character-core.js"></script>
-<script src="ari/character/ari-character-preferences.js"></script>
-<script src="ari/character/ari-worldview.js"></script>
-<script src="ari/character/ari-character-context-engine.js"></script>
-<script src="ari/character/ari-character-reasoning-engine.js"></script>
-<script src="ari/character/ari-character-expression-engine.js"></script>
-
-<script src="ari/meaning/ari-situation-map-engine.js"></script>
-<script src="ari/governance/ari-triage-engine.js"></script>
-    <script src="ari/governance/ari-situation-contract.js"></script>
-
-<!-- DEVELOPER PATHWAY -->
-<script src="ari/developer/ari-rebirth-developer-understanding-engine.js"></script>
-<script src="ari/developer/ari-rebirth-project-knowledge-graph-engine.js"></script>
-<script src="ari/developer/ari-rebirth-capability-registry-engine.js"></script>
-<script src="ari/developer/ari-rebirth-architecture-engine.js"></script>
-<script src="ari/developer/ari-rebirth-ui-layout-planner-engine.js"></script>
-<script src="ari/developer/ari-rebirth-bug-diagnosis-engine.js"></script>
-<script src="ari/developer/ari-rebirth-execution-planner-engine.js"></script>
-<script src="ari/developer/ari-rebirth-code-evidence-engine.js"></script>
-<script src="ari/developer/ari-rebirth-code-understanding-engine.js"></script>
-<script src="ari/developer/ari-rebirth-patch-decision-engine.js"></script>
-<script src="ari/developer/ari-rebirth-patch-validation-engine.js"></script>
-<script src="ari/developer/ari-rebirth-developer-handoff-engine.js"></script>
-
-  <!-- OBSERVER LEGACY / SUPPORT -->
-  <script src="ari/observer-system/ari-dual-salience-system.js"></script>
-  <script src="ari/observer-system/ari-observer-hierarchy-engine.js"></script>
-  <script src="ari/observer-system/ari-observation-ledger.js"></script>
-  <script src="ari/observer-system/ari-question-understanding.js"></script>
-  <script src="ari/observer-system/ari-life-signal-extractor.js"></script>
-
-  <!-- ATTENTION / ROUTER -->
-  <script src="ari/attention-system/ari-attention-system.js"></script>
-  <script src="ari/brain/ari-router.js"></script>
-
-  <!-- VALUES / IDENTITY / CONFLICT -->
-  <script src="ari/value-system/ari-value-engine.js"></script>
-  <script src="ari/identity-system/ari-identity-engine.js"></script>
-  <script src="ari/conflict-system/ari-conflict-engine.js"></script>
-
-  <!-- CONFIDENCE -->
-  <script src="ari/confidence-system/ari-confidence-system.js"></script>
-  <script src="ari/confidence-system/ari-confidence-calibration.js"></script>
-
-  <!-- EXECUTIVE -->
-  <script src="ari/executive-system/ari-executive-function.js"></script>
-
-  <!-- EMOTION -->
-  <script src="ari/heart/ari-emotion-engine.js"></script>
-  <script src="ari/emotion-system/ari-emotional-intelligence.js"></script>
-  <script src="ari/emotion-system/ari-underlying-emotion-engine.js"></script>
-  <script src="ari/emotion-system/ari-emotion-recovery-questions.js"></script>
-  <script src="ari/emotion-system/ari-emotion-integrator.js"></script>
-
-  <!-- MEANING / PERSON / BELIEF / SIMULATION -->
-  <script src="ari/meaning-engine/ari-meaning-engine.js"></script>
-  <script src="ari/person-model/ari-person-model.js"></script>
-  <script src="ari/belief-system/ari-belief-engine.js"></script>
-  <script src="ari/simulation-system/ari-simulation-engine.js"></script>
-
-  <!-- EVIDENCE -->
-  <script src="ari/evidence-system/ari-evidence-engine.js"></script>
-
-  <!-- INSIGHT -->
-  <script src="ari/insight-system/ari-insight-hypothesis-engine.js"></script>
-  <script src="ari/insight-system/ari-counter-hypothesis-engine.js"></script>
-  <script src="ari/insight-system/ari-insight-engine.js"></script>
-
-  <!-- META AWARENESS -->
-  <script src="ari/meta-awareness/ari-meta-awareness.js"></script>
-
-  <!-- WISDOM -->
-  <script src="ari/wisdom-system/ari-wisdom-library.js"></script>
-  <script src="ari/wisdom-system/ari-wisdom-engine.js"></script>
-  <script src="ari/wisdom-system/ari-wisdom-conflict-resolver.js"></script>
-  <script src="ari/wisdom-system/ari-wisdom-question-recovery.js"></script>
-  <script src="ari/wisdom-system/ari-regret-engine.js"></script>
-  <script src="ari/wisdom-system/ari-long-term-consequence-engine.js"></script>
-  <script src="ari/wisdom-system/ari-wisdom-synthesizer.js"></script>
-
-  <!-- ARI SELF SYSTEM -->
-  <script src="ari/self-system/ari-self-model.js"></script>
-  <script src="ari/self-system/ari-self-values.js"></script>
-  <script src="ari/self-system/ari-constitution.js"></script>
-  <script src="ari/self-system/ari-self-reflection.js"></script>
-
-  <!-- NERVOUS SYSTEM -->
-  <script src="ari/nervous-system/ari-life-signal-weighting.js"></script>
-  <script src="ari/nervous-system/ari-signal-system.js"></script>
-  <script src="ari/nervous-system/ari-salience-network.js"></script>
-
-  <!-- VOICE -->
-  <script src="ari/voice-system/ari-voice-engine.js"></script>
-
-  <!-- LANGUAGE SPINE -->
-  <script src="ari/language-system/ari-language-helpers.js"></script>
-  <script src="ari/language-system/ari-language-humanizers.js"></script>
-  <script src="ari/language-system/ari-language-reflection-questions.js"></script>
-  <script src="ari/language-system/ari-language-prioritizer.js"></script>
-  <script src="ari/language-system/ari-language-router.js"></script>
-
-  <!-- LANGUAGE BUILDERS -->
-  <script src="ari/language-system/ari-language-insight-builder.js"></script>
-  <script src="ari/language-system/ari-language-meaning-builder.js"></script>
-  <script src="ari/language-system/ari-language-emotion-builder.js"></script>
-  <script src="ari/language-system/ari-language-decision-builder.js"></script>
-  <script src="ari/language-system/ari-language-planning-builder.js"></script>
-  <script src="ari/language-system/ari-language-building-builder.js"></script>
-  <script src="ari/language-system/ari-language-recovery-builder.js"></script>
-
-  <!-- LANGUAGE COORDINATOR -->
-  <script src="ari/language-system/ari-language-builder.js"></script>
-  <script src="ari/language-system/ari-language-system.js"></script>
-
-  <!-- ARI REBIRTH ORGANS -->
-  <script src="ari/uncertainty/ari-uncertainty-classification-engine.js"></script>
-  <script src="ari/identity/ari-identity-priority-engine.js"></script>
-  <script src="ari/identity/ari-identity-conflict-resolver.js"></script>
-  <script src="ari/values/ari-value-integration-engine.js"></script>
-  <script src="ari/emotion/ari-stewardship-fear-differentiator.js"></script>
-  <script src="ari/meaning/ari-life-chapter-engine.js"></script>
-  <script src="ari/integration/ari-salience-governor.js"></script>
-  <script src="ari/integration/ari-synthesis-engine.js"></script>
-
-<!-- COMMUNICATION -->
-<script src="ari/language/ari-lexical-grounding-engine.js"></script>
-<script src="ari/language/ari-communication-planner.js"></script>
-
-<!-- ARI REBIRTH MOUTH -->
-<script src="ari/language/ari-human-language-engine.js"></script>
-<script src="ari/language/ari-mouth-director.js"></script>
-<script src="ari/language/ari-response-compressor.js"></script>
-<script src="ari/language/ari-composer-bridge.js"></script>
-<script src="ari/language/ari-ai-writer.js"></script>
-<script src="ari/language/ari-response-validator.js"></script>
-<script src="ari/language/ari-language-composer-v9.js"></script>
-<script src="ari/language/ari-language-composer.js"></script>
-
-
-  <!-- SAFETY / NEEDS / LEGACY GOVERNANCE / PIPELINE -->
-  <script src="ari/safety/ari-safety-classifier.js"></script>
-  <script src="ari/organism-system/ari-organism-function-engine.js"></script>
-  <script src="ari/needs/ari-need-engine.js"></script>
-
-  <!-- LEGACY - keep loaded for comparison only; pipeline should no longer depend on these -->
-  <script src="ari/governance/ari-multi-lane-response-planner.js"></script>
-  <script src="ari/governance/ari-universal-domain-governor.js"></script>
-  <script src="ari/governance/ari-authority-map-engine.js"></script>
-  <script src="ari/governance/ari-situation-review-console.js"></script>
-
-  <script src="ari/knowledge/ari-openai-knowledge-client.js"></script>
-  <script src="ari/knowledge/ari-knowledge-router.js"></script>
-  <script src="ari/teaching/ari-teaching-answer-engine.js"></script>
-<script src="ari/reasoning/ari-reasoning-engine.js"></script>
-   
- 
-      <script src="ari/integration/ari-rebirth-pipeline.js"></script>
-     
-
-  <!-- MEMORY -->
-  <script src="ari/memory-system/ari-memory-engine.js"></script>
-  <script src="ari/memory-system/ari-memory-store.js"></script>
-  <script src="ari/memory-system/ari-memory-context-builder.js"></script>
-
-  <!-- CORE SPINE -->
-  <script src="ari/core-spine/ari-core-perception.js"></script>
-  <script src="ari/core-spine/ari-core-cognition.js"></script>
-  <script src="ari/core-spine/ari-core-reflection.js"></script>
-  <script src="ari/core-spine/ari-core-expression.js"></script>
-  <script src="ari/core-spine/ari-core-continuity.js"></script>
-  <script src="ari/core-spine/ari-core-summary.js"></script>
-
-  <!-- CORE COORDINATOR -->
-  <script src="ari/system/ari-core.js"></script>
-  <script src="ari/system/ari-prompt-builder.js"></script>
-  <script src="ari/system/ari-bootstrap.js"></script>
-
-<script src="calbuddy-core.js"></script>
-<script src="ari/ari-rebirth-app-bridge.js"></script>
-
-  <!-- TESTING -->
+  <!-- Minimal Lab Loader -->
+  <script src="calbuddy-core.js"></script>
+  <script src="ari/ari-rebirth-app-bridge.js"></script>
   <script src="ari/testing/ari-readiness-diagnostic.js"></script>
 
   <script>
-    async function runAriOnce(message) {
-  if (
-    !window.AriRebirthAppBridge ||
-    typeof window.AriRebirthAppBridge.ask !== "function"
-  ) {
-    throw new Error("Ari Rebirth App Bridge is not loaded.");
-  }
+    const output = () => document.getElementById("ariOutput");
 
-  const result = await window.AriRebirthAppBridge.ask(message, {
-  source: "ari-lab",
-  appMode: "rebirth-only",
-  debugTiming: true,
-ownerMode: true,
-ariPermissions: {
-  owner_access: true,
-  suggest_code_changes: true,
-  direct_code_editing: true,
-  create_developer_tasks: true
-},
-  githubFileContext: null
-});
+    function print(text) {
+      output().textContent = text;
+    }
 
-  const summary = result.summary || {};
-  const analysis = result.analysis || {};
+    function section(title, body = "") {
+      return [
+        "",
+        "==================================================",
+        `===== ${title} =====`,
+        "",
+        body
+      ].join("\n");
+    }
 
-  return {
-    analysis,
-    summary,
-    reply: result.reply,
-    emotion: result.emotion,
-    source: result.source || "ari-rebirth-app-bridge"
-  };
-}
+    async function runAriOnce(message, options = {}) {
+      if (
+        !window.AriRebirthAppBridge ||
+        typeof window.AriRebirthAppBridge.ask !== "function"
+      ) {
+        throw new Error("Ari Rebirth App Bridge is not loaded.");
+      }
 
-async function runLayoutIntegrationTest() {
-  const homepageContext = `
+      const result = await window.AriRebirthAppBridge.ask(message, {
+        source: "ari-lab",
+        appMode: "rebirth-only",
+        debugTiming: true,
+        ownerMode: true,
+        ariPermissions: {
+          owner_access: true,
+          suggest_code_changes: true,
+          direct_code_editing: true,
+          create_developer_tasks: true
+        },
+        githubFileContext: null,
+        ...options
+      });
+
+      return {
+        reply: result.reply,
+        emotion: result.emotion,
+        source: result.source || "ari-rebirth-app-bridge",
+        summary: result.summary || {},
+        analysis: result.analysis || {},
+        raw: result
+      };
+    }
+
+    function formatTiming(summary = {}) {
+      if (!Array.isArray(summary.pipelineTiming)) {
+        return "No pipeline timing found.";
+      }
+
+      return summary.pipelineTiming
+        .map(item => `${item.label}: ${item.ms}ms`)
+        .join("\n");
+    }
+
+    function formatCoreRouting(summary = {}) {
+      return [
+        `Safety: ${summary.safetyContextGateRan ? "ran" : "not run"}`,
+        `Observer: ${summary.observerEvidenceRan ? "ran" : "not run"}`,
+        `Conversation Function: ${summary.primaryFunction || "none"}`,
+        `Classifier Type: ${summary.conversationType || "none"}`,
+        `Semantic Intent: ${summary.semanticIntent || "none"}`,
+        `Lane: ${summary.lane || "none"}`,
+        `Triage Primary: ${summary.triagePrimaryLane || summary.triage?.primaryLane || "none"}`,
+        `Contract Primary: ${summary.situationContractPrimary || summary.situationContract?.primary || "none"}`,
+        `Response Shape: ${summary.responseShape || summary.situationContract?.responseShape || "none"}`
+      ].join("\n");
+    }
+
+    function formatDeveloperLayer(summary = {}) {
+      return [
+        `Developer Layer Ran: ${summary.developerLayerRan ? "yes" : "no"}`,
+        `Developer Intent: ${summary.developerIntent?.type || summary.developerIntent?.intent || "none"}`,
+        `Developer Locked: ${summary.developerResponseLocked ? "yes" : "no"}`,
+        `Response Locked: ${summary.responseLocked ? "yes" : "no"}`,
+        `Code Evidence Ran: ${summary.codeEvidenceRan ? "yes" : "no"}`,
+        `Patch Can Patch Now: ${summary.patchCanPatchNow === true ? "yes" : "no"}`,
+        `Patch Reason: ${summary.patchDecisionReason || "none"}`,
+        `GitHub Evidence Available: ${summary.githubEvidenceAvailable ? "yes" : "no"}`,
+        `GitHub File: ${summary.githubEvidence?.filePath || "none"}`
+      ].join("\n");
+    }
+
+    function formatComposer(summary = {}) {
+      return [
+        `Composer Packet Ready: ${summary.composerPacketReady || summary.composerPacket?.ready ? "yes" : "no"}`,
+        `Composer Packet Primary: ${summary.composerPacket?.primary || summary.composerPacketPrimary || "none"}`,
+        `AI Writer Ran: ${summary.aiWriterRan ? "yes" : "no"}`,
+        `AI Writer Used AI: ${summary.aiWriterUsedAI ? "yes" : "no"}`,
+        `AI Writer Source: ${summary.aiWriterSource || "none"}`,
+        `Composer Version: ${summary.composerVersion || "none"}`,
+        `Composer Source: ${summary.source || summary.composerSource || "none"}`,
+        `Composer Validation: ${summary.composerValidation || "none"}`
+      ].join("\n");
+    }
+
+    function formatFinalSummary(run = {}) {
+      const summary = run.summary || {};
+
+      return [
+        "===== ARI REBIRTH APP RESPONSE =====",
+        "",
+        run.reply || "none",
+        "",
+        `Emotion:\n${run.emotion || "none"}`,
+        "",
+        `Source:\n${run.source || "none"}`,
+
+        section("TIMING", formatTiming(summary)),
+        section("CORE ROUTING", formatCoreRouting(summary)),
+        section("DEVELOPER LAYER", formatDeveloperLayer(summary)),
+        section("COMPOSER", formatComposer(summary)),
+        section("FINAL SUMMARY", JSON.stringify(summary, null, 2))
+      ].join("\n");
+    }
+
+    async function runLayoutIntegrationTest() {
+      const homepageContext = `
 <section class="ari-action-grid three-actions">
   <a href="goals.html" class="ari-action-tile">My Goals</a>
   <a href="progress.html" class="ari-action-tile">Progress</a>
@@ -306,1271 +176,96 @@ async function runLayoutIntegrationTest() {
 </section>
 `;
 
-  const tests = [
-    {
-      id: "remove_conversations",
-      prompt: "Remove the Conversations button from the homepage.",
-      mustInclude: ["goals.html", "progress.html"],
-      mustNotInclude: ["Conversations"]
-    },
-    {
-      id: "rename_my_goals",
-      prompt: "Rename My Goals to Goals.",
-      mustInclude: ["Goals"],
-      mustNotInclude: ["My Goals"]
-    },
-    {
-      id: "change_bottom_tiles",
-      prompt: "Change the homepage bottom tiles to Goals, Log Food, and Progress.",
-      mustInclude: ["Goals", "Log Food", "Progress"],
-      mustNotInclude: ["Conversations"]
-    }
-  ];
+      const tests = [
+        {
+          id: "remove_conversations",
+          prompt: "Remove the Conversations button from the homepage.",
+          mustInclude: ["goals.html", "progress.html"],
+          mustNotInclude: ["Conversations"]
+        },
+        {
+          id: "rename_my_goals",
+          prompt: "Rename My Goals to Goals.",
+          mustInclude: ["Goals"],
+          mustNotInclude: ["My Goals"]
+        },
+        {
+          id: "change_bottom_tiles",
+          prompt: "Change the homepage bottom tiles to Goals, Log Food, and Progress.",
+          mustInclude: ["Goals", "Log Food", "Progress"],
+          mustNotInclude: ["Conversations"]
+        }
+      ];
 
-  const results = [];
+      const results = [];
 
-  for (const test of tests) {
-    const run = await window.AriRebirthAppBridge.ask(test.prompt, {
-  source: "ari-lab",
-  appMode: "layout-integration-test",
-  testMode: true,
-  debugTiming: true,
-  ownerMode: true,
-ariPermissions: {
-  owner_access: true,
-  suggest_code_changes: true,
-  direct_code_editing: true,
-  create_developer_tasks: true
-},
-  githubFileContext: {
-        filePath: "index.html",
-        content: homepageContext
+      for (const test of tests) {
+        const run = await runAriOnce(test.prompt, {
+          appMode: "layout-integration-test",
+          testMode: true,
+          githubFileContext: {
+            filePath: "index.html",
+            content: homepageContext
+          }
+        });
+
+        const proposedCode =
+          run.raw?.proposedCode ||
+          run.raw?.proposedHtml ||
+          run.raw?.action?.proposedCode ||
+          run.raw?.action?.proposedHtml ||
+          run.summary?.proposedCode ||
+          run.summary?.proposedHtml ||
+          run.reply ||
+          "";
+
+        const missingRequired = test.mustInclude.filter(
+          item => !proposedCode.includes(item)
+        );
+
+        const forbiddenFound = test.mustNotInclude.filter(
+          item => proposedCode.includes(item)
+        );
+
+        results.push({
+          id: test.id,
+          prompt: test.prompt,
+          passed: missingRequired.length === 0 && forbiddenFound.length === 0,
+          missingRequired,
+          forbiddenFound,
+          reply: run.reply,
+          proposedCode,
+          developerIntent: run.summary?.developerIntent || null,
+          developerLayerRan: run.summary?.developerLayerRan || false,
+          patchCanPatchNow: run.summary?.patchCanPatchNow || false,
+          timing: run.summary?.pipelineTiming || []
+        });
       }
-    });
 
-    const proposedCode =
-      run.proposedCode ||
-      run.proposedHtml ||
-      run.action?.proposedCode ||
-      run.action?.proposedHtml ||
-      run.summary?.proposedCode ||
-      run.summary?.proposedHtml ||
-      run.reply ||
-      "";
-
-    const missingRequired = test.mustInclude.filter(
-      item => !proposedCode.includes(item)
-    );
-
-    const forbiddenFound = test.mustNotInclude.filter(
-      item => proposedCode.includes(item)
-    );
-
-    const passed =
-      missingRequired.length === 0 &&
-      forbiddenFound.length === 0;
-
-    results.push({
-      id: test.id,
-      prompt: test.prompt,
-      passed,
-      missingRequired,
-      forbiddenFound,
-      reply: run.reply,
-      proposedCode,
-      action: run.action || run.summary?.action || null,
-      summary: run.summary || {}
-    });
-  }
-
-  return results;
-}
+      return results;
+    }
 
     document.getElementById("ariAnalyzeBtn").addEventListener("click", async () => {
-      const output = document.getElementById("ariOutput");
-
       try {
-        const message = document.getElementById("ariInput").value;
+        const message = document.getElementById("ariInput").value.trim();
 
-        if (!message.trim()) {
-          output.textContent = "Enter a message first.";
+        if (!message) {
+          print("Enter a message first.");
           return;
         }
 
         const run = await runAriOnce(message);
-        const summary = run.summary;
-
-const pipelineTimingText = Array.isArray(summary.pipelineTiming)
-  ? summary.pipelineTiming
-      .map(item => `${item.label}: ${item.ms}ms`)
-      .join("\n")
-  : "No pipeline timing found.";
-
-        const primaryPriority =
-          typeof summary.primaryPriority === "object"
-            ? summary.primaryPriority?.name
-            : summary.primaryPriority;
-
-        const thingsToDelay = Array.isArray(summary.thingsToDelay)
-          ? summary.thingsToDelay
-              .map(item => typeof item === "string" ? item : item.name)
-              .filter(Boolean)
-              .join(", ")
-          : "";
-
-        output.textContent =
-`===== ARI REBIRTH APP RESPONSE =====
-
-${run.reply}
-
-Emotion:
-${run.emotion}
-
-Source:
-${run.source}
-
-==================================================
-
-===== TIMING =====
-
-${pipelineTimingText}
-
-==================================================
-
-===== SAFETY CONTEXT GATE =====
-
-Gate Ran:
-${summary.safetyContextGateRan ? "yes" : "no"}
-
-Override:
-${summary.safetyContextGate?.override || summary.override || "none"}
-
-Risk Level:
-${summary.safetyContextGate?.riskLevel || summary.riskLevel || "none"}
-
-Risk Type:
-${summary.safetyContextGate?.riskType || summary.riskType || "none"}
-
-Follow Up Needed:
-${summary.safetyContextGate?.followUpNeeded ? "yes" : "no"}
-
-Follow Up Question:
-${summary.safetyContextGate?.followUpQuestion || summary.followUpQuestion || "none"}
-
-Should Stop Normal Response:
-${summary.safetyContextGate?.shouldStopNormalResponse ? "yes" : "no"}
-
-Reasons:
-${summary.safetyContextGate?.reasons?.join("\\n") || "none"}
-
-Evidence:
-${summary.safetyContextGate?.evidence?.join("\\n") || "none"}
-
-==================================================
-
-===== OBSERVER EVIDENCE =====
-
-Observer Ran:
-${summary.observerEvidenceRan ? "yes" : "no"}
-
-Evidence Count:
-${summary.observationCount || 0}
-
-Observed Types:
-${summary.observedTypes?.join(", ") || "none"}
-
-Observed Values:
-${summary.observedValues?.join(", ") || "none"}
-
-Strongest Observation:
-${summary.strongestObservation || "none"}
-
-Strongest Observation Category:
-${summary.strongestObservationCategory || "none"}
-
-Observations:
-${JSON.stringify(summary.observations || [], null, 2)}
-
-==================================================
-
-===== CONVERSATION FUNCTION ENGINE =====
-
-Ran:
-${summary.conversationFunctionRan ? "yes" : "no"}
-
-Source:
-${summary.conversationFunctionSource || "none"}
-
-Primary Function:
-${summary.primaryFunction || "none"}
-
-Support Functions:
-${summary.supportFunctions?.join(", ") || "none"}
-
-Blocked Functions:
-${summary.blockedFunctions?.join(", ") || "none"}
-
-Response Bias:
-${summary.conversationFunctionResponseBias || "none"}
-
-Confidence:
-${summary.conversationFunctionConfidence ?? "none"}
-
-Reason:
-${summary.conversationFunctionReason || "none"}
-
-Candidates:
-${JSON.stringify(summary.conversationFunctionCandidates || [], null, 2)}
-
-==================================================
-
-===== UNIVERSAL CONVERSATION CLASSIFIER =====
-
-Classifier Ran:
-${summary.universalConversationClassifierRan ? "yes" : "no"}
-
-Source:
-${summary.universalConversationClassifierSource || "none"}
-
-Conversation Type:
-${summary.conversationType || "none"}
-
-Score:
-${summary.conversationTypeScore ?? "none"}
-
-Confidence:
-${summary.conversationTypeConfidence || "none"}
-
-Intent:
-${summary.conversationIntent || "none"}
-
-Response Hint:
-${summary.conversationResponseHint || "none"}
-
-Reasons:
-${summary.conversationTypeReasons?.join("\\n") || "none"}
-
-Candidates:
-${JSON.stringify(summary.conversationCandidates || [], null, 2)}
-
-==================================================
-
-===== ROUTING EVIDENCE =====
-
-Routing Evidence Ran:
-${summary.routingEvidenceRan ? "yes" : "no"}
-
-Source:
-${summary.routingEvidenceSource || "none"}
-
-Routing Pressures:
-${JSON.stringify(summary.routingPressures || {}, null, 2)}
-
-Preserved Observation Count:
-${summary.preservedObservationCount ?? "none"}
-
-==================================================
-
-===== SEMANTIC FRAME BUILDER =====
-
-Ran:
-${summary.semanticFrameBuilderRan ? "yes" : "no"}
-
-Source:
-${summary.semanticFrameSource || "none"}
-
-Primary Meaning:
-${summary.semanticPrimaryMeaning || "none"}
-
-Intent:
-${summary.semanticIntent || "none"}
-
-Domain:
-${summary.semanticDomain || "none"}
-
-Conversation Style:
-${summary.semanticConversationStyle || "none"}
-
-Is Continuation:
-${summary.semanticIsContinuation ? "yes" : "no"}
-
-References Prior Context:
-${summary.semanticReferencesPriorContext ? "yes" : "no"}
-
-References Prior Artifact:
-${summary.semanticReferencesPriorArtifact ? "yes" : "no"}
-
-Expects Direct Answer:
-${summary.semanticExpectsDirectAnswer ? "yes" : "no"}
-
-Expects Explanation:
-${summary.semanticExpectsExplanation ? "yes" : "no"}
-
-Expects Collaboration:
-${summary.semanticExpectsCollaboration ? "yes" : "no"}
-
-Expects Code/Artifact:
-${summary.semanticExpectsCodeOrArtifact ? "yes" : "no"}
-
-Expects Follow-Up Context:
-${summary.semanticExpectsFollowUpContext ? "yes" : "no"}
-
-Ambiguity Present:
-${summary.semanticAmbiguityPresent ? "yes" : "no"}
-
-Ambiguity Reason:
-${summary.semanticAmbiguityReason || "none"}
-
-Emotional Tone:
-${summary.semanticEmotionalTone || "none"}
-
-Semantic Summary:
-${JSON.stringify(summary.semanticSummary || {}, null, 2)}
-
-Normalized Semantic Frame:
-${JSON.stringify(summary.normalizedSemanticFrame || {}, null, 2)}
-
-Frame Complete:
-${summary.semanticFrameComplete === true ? "yes" : summary.semanticFrameComplete === false ? "no" : "none"}
-
-Needs Prior Frame:
-${summary.semanticNeedsPriorFrame === true ? "yes" : summary.semanticNeedsPriorFrame === false ? "no" : "none"}
-
-==================================================
-
-===== LANE SPLITTER =====
-
-Lane Splitter Ran:
-${summary.laneSplitterRan ? "yes" : "no"}
-
-Lane:
-${summary.lane || "none"}
-
-Confidence:
-${summary.laneSplitterConfidence || "none"}
-
-Semantic Aware:
-${summary.laneSplitterSemanticAware ? "yes" : "no"}
-
-Semantic First:
-${summary.laneSplitterSemanticFirst ? "yes" : "no"}
-
-Lexical Fallback Used:
-${summary.laneSplitterLexicalFallbackUsed ? "yes" : "no"}
-
-Semantic Frame Type:
-${summary.laneSplitterSemanticFrameType || "none"}
-
-Semantic Intent:
-${summary.laneSplitterSemanticIntent || "none"}
-
-Explanation:
-${summary.laneSplitterExplanation || "none"}
-
-Routing Decision:
-${JSON.stringify(summary.routingDecision || {}, null, 2)}
-
-Scores:
-${JSON.stringify(summary.laneSplitterScores || {}, null, 2)}
-
-==================================================
-
-===== CONTINUITY ENTRY POINT =====
-
-Entry Point Ran:
-${summary.continuityEntryPointRan ? "yes" : "no"}
-
-Reason:
-${summary.continuityEntryPointReason || "none"}
-
-Used:
-${JSON.stringify(summary.continuityEntryPointUsed || {}, null, 2)}
-
-Warnings:
-${JSON.stringify(summary.continuityEntryPointWarnings || [], null, 2)}
-
-==================================================
-
-===== CONTINUITY PACKET =====
-
-Packet Ran:
-${summary.continuityPacketRan ? "yes" : "no"}
-
-Continuity Type:
-${summary.continuityType || "none"}
-
-Current Turn:
-${JSON.stringify(summary.continuityCurrentTurn || {}, null, 2)}
-
-Active Thread:
-${JSON.stringify(summary.continuityActiveThread || {}, null, 2)}
-
-Referenced Context:
-${JSON.stringify(summary.continuityReferencedContext || {}, null, 2)}
-
-Usable Facts:
-${JSON.stringify(summary.continuityUsableFacts || [], null, 2)}
-
-Unresolved References:
-${JSON.stringify(summary.continuityUnresolvedReferences || [], null, 2)}
-
-Situation Map Handoff:
-${JSON.stringify(summary.continuitySituationMapHandoff || {}, null, 2)}
-
-==================================================
-
-===== THREAD QUESTION GENERATOR =====
-
-Ran:
-${summary.threadQuestionGeneratorRan ? "yes" : "no"}
-
-Source:
-${summary.threadQuestionGeneratorSource || "none"}
-
-Resolved:
-${summary.currentTurnWasResolved ? "yes" : "no"}
-
-Raw:
-${summary.userMessage || "none"}
-
-Resolved Question:
-${summary.resolvedUserQuestion || "none"}
-
-Resolution Type:
-${summary.threadQuestionResolutionType || "none"}
-
-Confidence:
-${summary.threadQuestionConfidence ?? "none"}
-
-Reason:
-${summary.threadQuestionReason || "none"}
-
-==================================================
-
-===== CONVERSATION MEANING HISTORY =====
-
-Ran:
-${summary.conversationMeaningHistoryRan ? "yes" : "no"}
-
-Source:
-${summary.conversationMeaningHistorySource || "none"}
-
-Latest Meaning:
-${JSON.stringify(summary.latestConversationMeaning || {}, null, 2)}
-
-History:
-${JSON.stringify(summary.conversationMeaningHistory || [], null, 2)}
-
-==================================================
-
-===== CONVERSATION CONTINUITY =====
-
-Continuity Ran:
-
-${summary.conversationContinuityEngineRan ? "yes" : "no"}
-
-Current Topic:
-
-${summary.continuityState?.currentTopic || "none"}
-
-Follow Up Detected:
-
-${summary.continuityState?.followUpDetected ? "yes" : "no"}
-
-Follow Up Type:
-
-${summary.continuityState?.followUpType || "none"}
-
-Should Reuse Prior Context:
-
-${summary.continuityState?.shouldReusePriorContext ? "yes" : "no"}
-
-Unresolved Items:
-
-${summary.continuityState?.unresolvedItems?.join("\\n") || "none"}
-
-Next Step:
-
-${summary.continuityState?.nextStep || "none"}
-
-==================================================
-
-===== MEMORY RETRIEVAL =====
-
-Memory Retrieval Ran:
-
-${summary.memoryRetrievalEngineRan ? "yes" : "no"}
-
-Raw Memory Count:
-
-${summary.rawMemoryCount ?? "none"}
-
-Retrieved Memories:
-
-${JSON.stringify(summary.retrievedMemories || [], null, 2)}
-
-Memory Context:
-
-${JSON.stringify(summary.memoryContext || {}, null, 2)}
-
-==================================================
-
-===== RELATIONSHIP ENGINE =====
-
-Relationship Ran:
-
-${summary.relationshipEngineRan ? "yes" : "no"}
-
-Communication Style:
-
-${summary.preferredCommunicationStyle || "none"}
-
-Preferred Depth:
-
-${summary.preferredDepth || "none"}
-
-Collaboration Mode:
-
-${summary.collaborationMode || "none"}
-
-Challenge Tolerance:
-
-${summary.challengeTolerance || "none"}
-
-Relationship Profile:
-
-${JSON.stringify(summary.relationshipProfile || {}, null, 2)}
-
-==================================================
-
-===== CONTEXT ASSEMBLER =====
-
-Context Assembler Ran:
-
-${summary.contextAssemblerRan ? "yes" : "no"}
-
-Advisory Facts:
-
-${JSON.stringify(summary.advisoryFacts || [], null, 2)}
-
-Style Hints:
-
-${JSON.stringify(summary.styleHints || {}, null, 2)}
-
-Project Context:
-
-${JSON.stringify(summary.projectContext || {}, null, 2)}
-
-Prior Decisions:
-
-${JSON.stringify(summary.priorDecisions || [], null, 2)}
-
-Active Thread Facts:
-
-${JSON.stringify(summary.activeThreadFacts || [], null, 2)}
-
-Context Conflicts:
-
-${JSON.stringify(summary.contextConflicts || [], null, 2)}
-
-==================================================
-
-===== THREAD UNDERSTANDING =====
-
-Thread Understanding Ran:
-${summary.threadUnderstandingRan ? "yes" : "no"}
-
-Source:
-${summary.threadUnderstandingSource || "none"}
-
-Domain:
-${summary.threadDomain || "none"}
-
-Lane Hint:
-${summary.threadLaneHint || "none"}
-
-Confidence:
-${summary.threadUnderstanding?.confidence ?? summary.threadConfidence ?? "none"}
-
-Active Subject:
-${JSON.stringify(summary.threadUnderstanding?.activeSubject || summary.threadSubject || {}, null, 2)}
-
-Active Issue:
-${JSON.stringify(summary.threadUnderstanding?.activeIssue || summary.threadActiveIssue || {}, null, 2)}
-
-Active Problem:
-${JSON.stringify(summary.threadUnderstanding?.activeProblem || summary.threadProblem || {}, null, 2)}
-
-Implied Question:
-${JSON.stringify(summary.threadUnderstanding?.impliedQuestion || summary.threadImpliedQuestion || {}, null, 2)}
-
-Resolved Meaning:
-${JSON.stringify(summary.threadUnderstanding?.resolvedMeaning || summary.threadResolvedMeaning || {}, null, 2)}
-
-State Change:
-${JSON.stringify(summary.threadUnderstanding?.stateChange || summary.threadStateChange || {}, null, 2)}
-
-Topic Transition:
-${JSON.stringify(summary.threadUnderstanding?.topicTransition || summary.threadTopicTransition || {}, null, 2)}
-
-Unresolved Problems:
-${JSON.stringify(summary.threadUnderstanding?.unresolvedProblems || summary.threadUnresolvedProblems || [], null, 2)}
-
-Working Context:
-${JSON.stringify(summary.threadUnderstanding?.workingContext || summary.threadWorkingContext || {}, null, 2)}
-
-Recent Messages:
-${JSON.stringify(summary.threadRecentMessages || [], null, 2)}
-
-==================================================
-
-===== ENTITY REFERENCE RESOLVER =====
-
-Entity Resolver Ran:
-${summary.entityReferenceResolverRan ? "yes" : "no"}
-
-Source:
-${summary.entityReferenceResolverSource || "none"}
-
-Resolved Primary Subject:
-${summary.resolvedPrimarySubject || "none"}
-
-Resolved Subject Type:
-${summary.resolvedSubjectType || "none"}
-
-Resolved Subject Domain:
-${summary.resolvedSubjectDomain || "none"}
-
-Resolved Reference Confidence:
-${summary.resolvedReferenceConfidence ?? "none"}
-
-Resolved Entities:
-${JSON.stringify(summary.resolvedEntities || [], null, 2)}
-
-Entity Reference:
-${JSON.stringify(summary.entityReference || {}, null, 2)}
-
-==================================================
-
-===== MEMORY CANDIDATES =====
-
-Memory Candidate Ran:
-
-${summary.memoryCandidateEngineRan ? "yes" : "no"}
-
-Memory Candidates:
-
-${JSON.stringify(summary.memoryCandidates || [], null, 2)}
-
-==================================================
-
-===== SITUATION MAP =====
-
-Situation Map Ran:
-${summary.situationMapRan ? "yes" : "no"}
-
-Domains:
-${summary.situationMap?.domains?.join(", ") || "none"}
-
-Situations:
-${summary.situationMap?.situations?.join(", ") || "none"}
-
-Needs:
-${summary.situationMap?.needs?.join(", ") || "none"}
-
-Risks:
-${summary.situationMap?.risks?.join(", ") || "none"}
-
-Questions:
-${summary.situationMap?.questions?.join(", ") || "none"}
-
-Complexity:
-${summary.situationMap?.complexity || "none"}
-
-Urgency:
-${summary.situationMap?.urgency || "none"}
-
-Gravity:
-${summary.situationMap?.gravity ?? "none"}
-
-Primary Lane Suggestion:
-${summary.situationMap?.primaryLaneSuggestion || "none"}
-
-Support Lane Suggestions:
-${summary.situationMap?.supportLaneSuggestions?.join(", ") || "none"}
-
-Brief Lane Suggestions:
-${summary.situationMap?.briefLaneSuggestions?.join(", ") || "none"}
-
-Context Lane Suggestions:
-${summary.situationMap?.contextLaneSuggestions?.join(", ") || "none"}
-
-Deferred Lane Suggestions:
-${summary.situationMap?.deferredLaneSuggestions?.join(", ") || "none"}
-
-Recommended Question:
-${summary.situationMap?.recommendedQuestion || "none"}
-
-==================================================
-
-===== TRIAGE ENGINE =====
-
-Triage Ran:
-${summary.triageEngineRan ? "yes" : "no"}
-
-Primary Lane:
-${summary.triage?.primaryLane || summary.triagePrimaryLane || "none"}
-
-Priority Class:
-${summary.triage?.priorityClass || summary.triagePriorityClass || "none"}
-
-Confidence:
-${summary.triage?.confidence ?? summary.triageConfidence ?? "none"}
-
-Blocked Lanes:
-${summary.triage?.blockedLanes?.join(", ") || summary.triageBlockedLanes?.join(", ") || "none"}
-
-Deferred Lanes:
-${summary.triage?.deferredLanes?.join(", ") || summary.triageDeferredLanes?.join(", ") || "none"}
-
-Response Constraints:
-${summary.triage?.responseConstraints?.join(", ") || summary.triageResponseConstraints?.join(", ") || "none"}
-
-Reason:
-${summary.triage?.reason || summary.triageReason || "none"}
-
-==================================================
-
-===== SITUATION CONTRACT =====
-
-Contract Ran:
-${summary.situationContractRan ? "yes" : "no"}
-
-Primary:
-${summary.situationContract?.primary || "none"}
-
-Support:
-${summary.situationContract?.support?.join(", ") || "none"}
-
-Brief:
-${summary.situationContract?.brief?.join(", ") || "none"}
-
-Context:
-${summary.situationContract?.context?.join(", ") || "none"}
-
-Deferred:
-${summary.situationContract?.deferred?.join(", ") || "none"}
-
-Blocked:
-${summary.situationContract?.blocked?.join(", ") || "none"}
-
-Risk:
-${JSON.stringify(summary.situationContract?.risk || {}, null, 2)}
-
-Clarity:
-${JSON.stringify(summary.situationContract?.clarity || {}, null, 2)}
-
-Response Shape:
-${summary.situationContract?.responseShape || "none"}
-
-Response Rules:
-${summary.situationContract?.responseRules?.join(", ") || "none"}
-
-Mouth Directive:
-${JSON.stringify(summary.situationContract?.mouthDirective || {}, null, 2)}
-
-Reasons:
-${summary.situationContract?.reasons?.join("\\n") || "none"}
-
-==================================================
-
-===== REASONING ENGINE V8.0.0 =====
-
-Reasoning Ran:
-${summary.reasoningEngineRan ? "yes" : "no"}
-
-Source:
-${summary.reasoningSource || "none"}
-
-Relevant Facts:
-${JSON.stringify(summary.reasoning?.relevantFacts || [], null, 2)}
-
-Assumptions:
-${JSON.stringify(summary.reasoning?.assumptions || [], null, 2)}
-
-Tradeoffs:
-${JSON.stringify(summary.reasoning?.tradeoffs || [], null, 2)}
-
-Counterfactuals:
-${JSON.stringify(summary.reasoning?.counterfactuals || [], null, 2)}
-
-Likely Outcomes:
-${JSON.stringify(summary.reasoning?.likelyOutcomes || [], null, 2)}
-
-Value Conflicts:
-${JSON.stringify(summary.reasoning?.valueConflicts || [], null, 2)}
-
-Systems View:
-${JSON.stringify(summary.reasoning?.systemsView || {}, null, 2)}
-
-Regret Lens:
-${JSON.stringify(summary.reasoning?.regretLens || {}, null, 2)}
-
-Recommendation:
-${summary.reasoningRecommendation || summary.reasoning?.recommendation?.summary || "none"}
-
-Reasoning Answer:
-${summary.reasoningAnswer || "none"}
-
-Confidence:
-${summary.reasoningConfidence ?? summary.reasoning?.confidence?.score ?? "none"}
-
-Confidence Level:
-${summary.reasoning?.confidence?.level || "none"}
-
-==================================================
-
-===== CHARACTER CONTEXT =====
-
-Character Context Ran:
-${summary.characterContextEngineRan ? "yes" : "no"}
-
-Source:
-${summary.characterContextEngineSource || "none"}
-
-Use Allowed:
-${summary.characterUseAllowed ? "yes" : "no"}
-
-Visibility:
-${summary.characterVisibility || "none"}
-
-Mode:
-${summary.characterMode || "none"}
-
-Reason:
-${summary.characterReason || "none"}
-
-Hints:
-${JSON.stringify(summary.characterHints || {}, null, 2)}
-
-Character Core:
-${JSON.stringify(summary.characterCore || summary.characterContext?.characterCore || {}, null, 2)}
-
-==================================================
-
-===== HUMAN LANGUAGE ENGINE =====
-
-Human Language Ran:
-${summary.humanLanguageEngineRan ? "yes" : "no"}
-
-Source:
-${summary.humanLanguageSource || "none"}
-
-Domain:
-${summary.humanLanguageDomain || "none"}
-
-Tone:
-${summary.humanLanguageTone || "none"}
-
-Warmth:
-${summary.humanLanguageWarmth ?? "none"}
-
-Directness:
-${summary.humanLanguageDirectness ?? "none"}
-
-Validation Level:
-${summary.humanLanguageValidationLevel || "none"}
-
-Humor:
-${summary.humanLanguageHumor ?? "none"}
-
-Sarcasm:
-${summary.humanLanguageSarcasm ?? "none"}
-
-Profanity:
-${summary.humanLanguageProfanity ?? "none"}
-
-Challenge:
-${summary.humanLanguageChallenge ?? "none"}
-
-Preferred Moves:
-${summary.humanLanguagePreferredMoves?.join(", ") || "none"}
-
-Banned Phrases:
-${summary.humanLanguageBannedPhrases?.join(", ") || "none"}
-
-Reasons:
-${summary.humanLanguageReasons?.join("\\n") || "none"}
-
-==================================================
-
-===== COMMUNICATION PLANNER =====
-
-Planner Ran:
-${summary.communicationPlannerRan ? "yes" : "no"}
-
-Source:
-${summary.communicationPlannerSource || "none"}
-
-Human Move:
-${summary.communicationPlan?.humanMove || "none"}
-
-Opening Strategy:
-${summary.communicationPlan?.openingStrategy || "none"}
-
-Structure:
-${summary.communicationPlan?.structure || "none"}
-
-Priorities:
-${summary.communicationPlan?.priorities?.join(", ") || "none"}
-
-Should Use Headings:
-${summary.communicationPlan?.useHeadings === true
-  ? "yes"
-  : summary.communicationPlan?.useHeadings === false
-    ? "no"
-    : "none"}
-
-Target Style:
-${summary.communicationPlan?.targetStyle || "none"}
-
-Notes:
-${summary.communicationPlan?.notes?.join("\n") || "none"}
-
-==================================================
-
-===== LEXICAL GROUNDING =====
-
-Grounding Ran:
-${summary.lexicalGroundingRan ? "yes" : "no"}
-
-Source:
-${summary.lexicalGroundingSource || "none"}
-
-Preferred Terms:
-${JSON.stringify(summary.preferredTerms || {}, null, 2)}
-
-Concept Map:
-${JSON.stringify(summary.conceptMap || {}, null, 2)}
-
-==================================================
-
-===== REBIRTH LEAD ORGAN =====
-
-${summary.salienceLeadOrgan || "none"}
-
-Mode:
-${summary.salienceMode || "none"}
-
-Life Chapter Strength:
-${summary.lifeChapterStrength || 0}
-
-Lead Identity:
-${summary.resolvedLeadIdentity || summary.leadIdentity || "none"}
-
-Lead Identity Score:
-${summary.leadIdentityScore || 0}
-
-Primary Life Chapter:
-${summary.primaryLifeChapter || "none"}
-
-Primary Human Need:
-${summary.primaryHumanNeed || "none"}
-
-Need Response Mode:
-${summary.needResponseMode || "none"}
-
-Uncertainty Type:
-${summary.uncertaintyType || "none"}
-
-Integrated Value:
-${summary.integratedValue || "none"}
-
-Value Integration:
-${summary.valueIntegrationDetected ? "yes" : "no"}
-
-Salience Lead Score:
-${summary.salienceLeadScore || 0}
-
-Organism Function:
-${summary.organismPrimaryFunction || summary.organismFunction || "none"}
-
-Organism Needs Stabilization:
-${summary.organismNeedsStabilization ? "yes" : "no"}
-
-Emotional Classification:
-${summary.emotionalClassification || "none"}
-
-==================================================
-
-===== MOUTH DIRECTOR =====
-
-Mouth Director Source:
-${summary.mouthDirectorSource || "none"}
-
-Mouth Pattern:
-${summary.mouthResponsePattern || "none"}
-
-Mouth Explanation:
-${summary.mouthExplanationLevel || "none"}
-
-Mouth Max Sections:
-${summary.mouthMaxBodySections || "none"}
-
-Ask Before Teaching:
-${summary.mouthAskBeforeTeaching === true ? "yes" : summary.mouthAskBeforeTeaching === false ? "no" : "none"}
-
-Allows Meaning:
-${summary.mouthAllows?.meaning === true ? "yes" : summary.mouthAllows?.meaning === false ? "no" : "none"}
-
-Allows Emotion:
-${summary.mouthAllows?.emotion === true ? "yes" : summary.mouthAllows?.emotion === false ? "no" : "none"}
-
-Allows Truth:
-${summary.mouthAllows?.truth === true ? "yes" : summary.mouthAllows?.truth === false ? "no" : "none"}
-
-Allows Wisdom:
-${summary.mouthAllows?.wisdom === true ? "yes" : summary.mouthAllows?.wisdom === false ? "no" : "none"}
-
-Allows Action:
-${summary.mouthAllows?.action === true ? "yes" : summary.mouthAllows?.action === false ? "no" : "none"}
-
-==================================================
-
-===== LEGACY MULTI-LANE PLAN =====
-
-Planner Ran:
-${summary.multiLanePlannerRan ? "yes" : "no"}
-
-Primary Lane:
-${summary.multiLanePlan?.primaryLane || "none"}
-
-Response Shape:
-${summary.multiLanePlan?.responseShape || "none"}
-
-Response Order:
-${summary.multiLanePlan?.responseOrder?.join(", ") || "none"}
-
-Support Lanes:
-${summary.multiLanePlan?.supportLanes?.join(", ") || "none"}
-
-Brief Lanes:
-${summary.multiLanePlan?.briefLanes?.join(", ") || "none"}
-
-Deferred Lanes:
-${summary.multiLanePlan?.deferredLanes?.join(", ") || "none"}
-
-Blocked Lanes:
-${summary.multiLanePlan?.blockedLanes?.join(", ") || "none"}
-
-==================================================
-
-===== LEGACY AUTHORITY MAP =====
-
-Allow Teaching:
-${summary.authorityAllows?.teaching === true ? "yes" : summary.authorityAllows?.teaching === false ? "no" : "none"}
-
-Allow Emotion:
-${summary.authorityAllows?.emotion === true ? "yes" : summary.authorityAllows?.emotion === false ? "no" : "none"}
-
-Allow Meaning:
-${summary.authorityAllows?.meaning === true ? "yes" : summary.authorityAllows?.meaning === false ? "no" : "none"}
-
-Allow Identity:
-${summary.authorityAllows?.identity === true ? "yes" : summary.authorityAllows?.identity === false ? "no" : "none"}
-
-Allow Wisdom:
-${summary.authorityAllows?.wisdom === true ? "yes" : summary.authorityAllows?.wisdom === false ? "no" : "none"}
-
-Allow Action:
-${summary.authorityAllows?.action === true ? "yes" : summary.authorityAllows?.action === false ? "no" : "none"}
-
-Authority Reason:
-${summary.authorityReason || "none"}
-
-Authority Source:
-${summary.authorityMap?.source || summary.authoritySource || "none"}
-
-==================================================
-
-===== LANGUAGE SIGNALS =====
-
-Recommended Language Lead:
-${summary.recommendedLanguageLead || run.analysis.signals?.recommendedLanguageLead || "none"}
-
-Strongest Signal:
-${summary.strongestSignal || run.analysis.signals?.strongestSignalName || "none"}
-
-Strongest Signal Category:
-${summary.strongestSignalCategory || run.analysis.signals?.strongestSignalCategory || "none"}
-
-==================================================
-
-===== EXECUTIVE DECISION =====
-
-${summary.executiveDecision || "none"}
-
-Primary Priority:
-${primaryPriority || "none"}
-
-Recommended Focus:
-${summary.recommendedFocus || "none"}
-
-Things To Delay:
-${thingsToDelay || "none"}
-
-==================================================
-
-===== OBSERVER HIERARCHY =====
-
-Primary Observation:
-${summary.observerHierarchyPrimaryObservation || "none"}
-
-Primary Category:
-${summary.observerHierarchyPrimaryCategory || "none"}
-
-Primary Reason:
-${summary.observerHierarchyPrimaryReason || "none"}
-
-Primary Confidence:
-${summary.observerHierarchyPrimaryConfidence ?? "none"}
-
-Dominant Tension:
-${summary.observerHierarchyDominantTension || "none"}
-
-Life Chapter:
-${summary.observerHierarchyLifeChapter || "none"}
-
-Objective Lead:
-${summary.observerHierarchyObjectiveLead || "none"}
-
-Subjective Lead:
-${summary.observerHierarchySubjectiveLead || "none"}
-
-Dual Salience Mode:
-${summary.observerHierarchyDualSalienceMode || "none"}
-
-Executive Instruction:
-${summary.observerHierarchyExecutiveInstruction || "none"}
-
-Should Ask Clarifying Question:
-${summary.observerHierarchyShouldAskClarifyingQuestion === true ? "yes" : summary.observerHierarchyShouldAskClarifyingQuestion === false ? "no" : "none"}
-
-Recommended Question:
-${summary.observerHierarchyRecommendedQuestion || "none"}
-
-==================================================
-
-===== LIFE CHAPTER =====
-
-Primary Chapter:
-${summary.primaryLifeChapter || "none"}
-
-Strength:
-${summary.lifeChapterStrength || 0}
-
-Statement:
-${summary.lifeChapterStatement || "none"}
-
-Question:
-${summary.lifeChapterQuestion || "none"}
-
-==================================================
-
-===== VALUE INTEGRATION =====
-
-Integrated Value:
-${summary.integratedValue || "none"}
-
-Conflict:
-${summary.apparentConflict || "none"}
-
-Statement:
-${summary.integrationStatement || "none"}
-
-Question:
-${summary.valueIntegrationQuestion || "none"}
-
-==================================================
-
-===== SITUATION REVIEW CONSOLE =====
-
-Console Ran:
-${summary.situationReviewConsoleRan ? "yes" : "no"}
-
-Pass/Fail:
-${summary.situationReview?.passFail || "none"}
-
-Scores:
-${JSON.stringify(summary.situationReview?.scores || {}, null, 2)}
-
-Warnings:
-${summary.situationReview?.warnings?.join(", ") || "none"}
-
-Suggested Fixes:
-${summary.situationReview?.suggestedFixes?.join("\\n") || "none"}
-
-==================================================
-
-===== REBIRTH PIPELINE CHECK =====
-
-Pipeline Ran:
-${summary.rebirthPipelineRan ? "yes" : "no"}
-
-Pipeline Source:
-${summary.rebirthPipelineSource || "none"}
-
-Need Engine Ran:
-${summary.needEngineRan ? "yes" : "no"}
-
-Need Engine Source:
-${summary.needEngineSource || "none"}
-
-Mouth Director Ran:
-${summary.mouthDirectorRan ? "yes" : "no"}
-
-Mouth Director Source:
-${summary.mouthDirectorSource || "none"}
-
-Language Source:
-${summary.source || "none"}
-
-Composer Version:
-${summary.composerVersion || "none"}
-
-Composer Used Lexical Grounding:
-${summary.composerUsedLexicalGrounding ? "yes" : "no"}
-
-Composer Debug:
-${JSON.stringify(summary.composerDebug || {}, null, 2)}
-
-==================================================
-
-===== REBIRTH SYSTEM SUMMARY =====
-
-${JSON.stringify(summary, null, 2)}
-`;
+        print(formatFinalSummary(run));
       } catch (error) {
         console.error("[ARI LAB ERROR]", error);
-
-        output.textContent =
-`===== ARI LAB ERROR =====
-
-${error.message}
-
-==================================================
-
-${error.stack}
-`;
+        print(`===== ARI LAB ERROR =====\n\n${error.message}\n\n${error.stack}`);
       }
     });
 
     document.getElementById("ariDiagnosticBtn").addEventListener("click", async () => {
-      const output = document.getElementById("ariOutput");
-
       try {
-        if (!window.Ari.readinessDiagnostic) {
-          output.textContent = "Ari Readiness Diagnostic not loaded.";
+        if (!window.Ari?.readinessDiagnostic) {
+          print("Ari Readiness Diagnostic not loaded.");
           return;
         }
 
@@ -1579,7 +274,6 @@ ${error.stack}
 
         for (const testCase of window.Ari.readinessDiagnostic.testCases) {
           const run = await runAriOnce(testCase.prompt);
-
           responseMap[testCase.id] = run.reply;
 
           fullRuns.push({
@@ -1587,13 +281,30 @@ ${error.stack}
             category: testCase.category,
             prompt: testCase.prompt,
             rebirthResponse: run.reply,
-emotion: run.emotion,
-source: run.source,
+            emotion: run.emotion,
+            source: run.source,
+            timing: run.summary?.pipelineTiming || [],
+            coreRouting: {
+              primaryFunction: run.summary?.primaryFunction || null,
+              conversationType: run.summary?.conversationType || null,
+              semanticIntent: run.summary?.semanticIntent || null,
+              lane: run.summary?.lane || null,
+              contractPrimary:
+                run.summary?.situationContractPrimary ||
+                run.summary?.situationContract?.primary ||
+                null
+            },
+            composer: {
+              aiWriterRan: run.summary?.aiWriterRan || false,
+              aiWriterUsedAI: run.summary?.aiWriterUsedAI || false,
+              composerVersion: run.summary?.composerVersion || null,
+              composerValidation: run.summary?.composerValidation || null
+            },
             summary: run.summary
           });
         }
 
-        const results = window.Ari.readinessDiagnostic.testCases.map((testCase) => {
+        const results = window.Ari.readinessDiagnostic.testCases.map(testCase => {
           return window.Ari.readinessDiagnostic.analyzeResponse(
             testCase,
             responseMap[testCase.id]
@@ -1602,82 +313,40 @@ source: run.source,
 
         const grade = window.Ari.readinessDiagnostic.grade(results);
 
-        output.textContent =
-`===== ARI READINESS DIAGNOSTIC =====
-
-Average Score:
-${grade.averageScore}
-
-Readiness:
-${grade.readiness}
-
-Recommendation:
-${grade.recommendation}
-
-==================================================
-
-Weak Areas:
-${JSON.stringify(grade.weakAreas, null, 2)}
-
-==================================================
-
-Full Results:
-${JSON.stringify(results, null, 2)}
-
-==================================================
-
-Full Ari Runs:
-${JSON.stringify(fullRuns, null, 2)}
-`;
-
+        print(
+          `===== ARI READINESS DIAGNOSTIC =====\n\n` +
+          `Average Score:\n${grade.averageScore}\n\n` +
+          `Readiness:\n${grade.readiness}\n\n` +
+          `Recommendation:\n${grade.recommendation}\n\n` +
+          section("WEAK AREAS", JSON.stringify(grade.weakAreas, null, 2)) +
+          section("FULL RESULTS", JSON.stringify(results, null, 2)) +
+          section("FULL ARI RUNS", JSON.stringify(fullRuns, null, 2))
+        );
       } catch (error) {
         console.error("[ARI DIAGNOSTIC ERROR]", error);
-
-        output.textContent =
-`===== ARI DIAGNOSTIC ERROR =====
-
-${error.message}
-
-==================================================
-
-${error.stack}
-`;
+        print(`===== ARI DIAGNOSTIC ERROR =====\n\n${error.message}\n\n${error.stack}`);
       }
     });
-  
-  
-  document.getElementById("ariIntegrationBtn").addEventListener("click", async () => {
-  const output = document.getElementById("ariOutput");
 
-  try {
-    const results = await runLayoutIntegrationTest();
-    const passedCount = results.filter(result => result.passed).length;
+    document.getElementById("ariIntegrationBtn").addEventListener("click", async () => {
+      try {
+        const results = await runLayoutIntegrationTest();
+        const passedCount = results.filter(result => result.passed).length;
 
-    output.textContent =
-`===== ARI HOMEPAGE LAYOUT INTEGRATION TEST =====
+        print(
+          `===== ARI HOMEPAGE LAYOUT INTEGRATION TEST =====\n\n` +
+          `Passed:\n${passedCount}/${results.length}\n\n` +
+          JSON.stringify(results, null, 2)
+        );
+      } catch (error) {
+        console.error("[ARI LAYOUT INTEGRATION ERROR]", error);
+        print(`===== ARI LAYOUT INTEGRATION ERROR =====\n\n${error.message}\n\n${error.stack}`);
+      }
+    });
 
-Passed:
-${passedCount}/${results.length}
-
-==================================================
-
-${JSON.stringify(results, null, 2)}
-`;
-  } catch (error) {
-    console.error("[ARI LAYOUT INTEGRATION ERROR]", error);
-
-    output.textContent =
-`===== ARI LAYOUT INTEGRATION ERROR =====
-
-${error.message}
-
-==================================================
-
-${error.stack}
-`;
-  }
-});
-  
+    document.getElementById("ariClearBtn").addEventListener("click", () => {
+      print("");
+    });
   </script>
 </body>
 </html>
