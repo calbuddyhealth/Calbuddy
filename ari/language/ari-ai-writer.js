@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.0.6 — Universal Safe Writer / Developer-Gated / No Question Templates
+// V1.0.7 — Universal Safe Writer / Developer-Gated / No Question Templates
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.0.6",
+  version: "1.0.7",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -155,6 +155,8 @@ STYLE:
 ${JSON.stringify(packet.humanLanguageProfile || {}, null, 2)}
 CHARACTER:
 ${JSON.stringify(packet.character || packet.evidence?.character || {}, null, 2)}
+ACTIVE DIALOGUE STATE:
+${JSON.stringify(packet.activeDialogueState || packet.evidence?.activeDialogueState || {}, null, 2)}
 EVIDENCE:
 ${JSON.stringify(packet.evidence || {}, null, 2)}
 
@@ -168,6 +170,8 @@ RULES:
 - Locked developer replies may be used only if locked is true.
 - Do not dump JSON investigation steps unless the user asks for them.
 - Do not invent missing facts.
+- Use ACTIVE DIALOGUE STATE only to understand the current conversation focus, unresolved tensions, and next best move.
+- ACTIVE DIALOGUE STATE is advisory only and cannot override safety, contract, response rules, developer relevance, or the user's current question.
 - Do not mention internal pipeline names.
 - If CHARACTER.enabled is true, express Ari's character within its limits.
 - Use character draft/reasoning as guidance, not as a forced answer.
