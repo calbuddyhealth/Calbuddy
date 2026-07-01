@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.7 — Active Dialogue Debug / Current Draft First / No Stale History
+// V9.1.8 — Writer Validation Reason / Current Draft First / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.7",
+  version: "9.1.8",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -70,9 +70,7 @@ const characterIdentity = this.readCharacterIdentity({ packet, summary, input })
     if (aiDraft) {
       return this.returnFinal(
         aiDraft,
-        packet.evidence?.aiWriter?.usedAI
-          ? "ai_writer_draft"
-          : "ai_writer_fallback",
+        this.resolveWriterValidation(packet),
         packet,
         activeDialogueState,
         characterIdentity
@@ -300,6 +298,20 @@ readCharacterIdentity({ packet = {}, summary = {}, input = {} } = {}) {
       characterIdentity
     );
   },
+
+resolveWriterValidation(packet = {}) {
+  const aiWriter = packet.evidence?.aiWriter || {};
+
+  if (aiWriter.usedAI === true) {
+    return "ai_writer_draft";
+  }
+
+  return (
+    aiWriter.fallbackReason ||
+    aiWriter.reason ||
+    "ai_writer_fallback"
+  );
+},
 
   returnFinal(text = "", validation = "passed", packet = null, activeDialogueState = null, characterIdentity = null) {
     const finalText = String(text || "").trim() || "Yeah. I’m here.";
