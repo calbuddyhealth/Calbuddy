@@ -112,7 +112,7 @@ window.AriCharacterContextEngine = {
       return this.withDecision(base, {
         characterUseAllowed: true,
         characterVisibility: budget.preferenceVisibility || "foreground",
-       characterMode: "stable_or_inferred_preference_answer",
+       characterMode: "stable_preference_answer",
 characterFocus: signals.preference.focus,
         preferredCharacterSource: "ari-character-preferences",
         characterReason:
