@@ -21,45 +21,43 @@ window.AriSupabaseKnowledgeClient = {
   );
 },
 
-  async searchKnowledgeGraph({ question = "" } = {}) {
-    const supabase = this.getClient();
+async searchKnowledgeGraph({ question = "" } = {}) {
+  const cleanQuestion = String(question || "").trim();
 
-    if (!supabase) return this.unavailable("Supabase client unavailable.");
+  if (!cleanQuestion) {
+    return this.empty("No usable semantic knowledge query.");
+  }
 
-    const terms = this.extractSearchTerms(question);
-    if (!terms.length) return this.empty("No usable knowledge query.");
+  try {
+    const url =
+      `/api/knowledge?action=semantic_search_ari_nodes` +
+      `&query=${encodeURIComponent(cleanQuestion)}` +
+      `&limit=5`;
 
-    try {
-      const filters = this.buildOrFilter(terms, [
-        "topic",
-        "summary",
-        "definition",
-        "purpose",
-        "importance",
-        "how_it_works",
-        "deep_understanding",
-        "universal_principle",
-        "knowledge_id",
-        "knowledge_path",
-        "knowledge_type",
-        "domain",
-        "subdomain"
-      ]);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
 
-      const { data, error } = await supabase
-        .from("ari_knowledge_nodes")
-        .select("*")
-        .or(filters)
-        .limit(10);
+    const data = await response.json();
 
-      if (error) throw error;
-
-      const ranked = this.rankNodes(data || [], terms);
-      return this.formatNodes(ranked.slice(0, 5), "ari_knowledge_nodes", terms);
-    } catch (error) {
-      return this.error(error);
+    if (!response.ok) {
+      throw new Error(data?.error || "Semantic knowledge search failed.");
     }
-  },
+
+    const matches = Array.isArray(data.matches) ? data.matches : [];
+
+    return this.formatNodes(
+      matches,
+      "ari_knowledge_nodes_semantic",
+      [cleanQuestion]
+    );
+  } catch (error) {
+    return this.error(error);
+  }
+},
 
   async searchSystemKnowledge({ question = "" } = {}) {
     const supabase = this.getClient();
@@ -199,13 +197,13 @@ window.AriSupabaseKnowledgeClient = {
       })
       .join("\n\n");
 
-    const bestScore = nodes[0]?.__ariScore || 0;
+    const bestScore = nodes[0]?.similarity || nodes[0]?.__ariScore || 0;
 
     return {
       finalResponse: null,
       knowledgeAnswer: answer,
       answer,
-      confidence: bestScore >= 5 ? "high" : "medium",
+      confidence: bestScore >= 0.5 ? "high" : "medium",
       sources: [source],
       nodes,
       provider: "supabase",
