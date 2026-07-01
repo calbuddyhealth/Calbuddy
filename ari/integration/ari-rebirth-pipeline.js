@@ -528,6 +528,25 @@ summary = {
 };
 mark("after cognitiveExecutive");
 
+mark("before knowledgeRouter");
+
+const knowledgeRouterResult = await runEngine(
+  window.AriKnowledgeRouter,
+  ["route"],
+  {
+    knowledgeRouterRan: false,
+    shouldUseKnowledge: false
+  }
+);
+
+summary = {
+  ...summary,
+  ...knowledgeRouterResult,
+  knowledgeRouter: knowledgeRouterResult
+};
+
+mark("after knowledgeRouter");
+
     // 0.60 Developer Layer
     mark("before runDeveloperLayer");
     summary = await this.runDeveloperLayer(summary);
@@ -1070,6 +1089,8 @@ mark("after characterExpression");
         summary.mouthDirector ||
         null,
 
+
+
       communicationPlan:
         summary.communicationPlan || null,
 
@@ -1511,6 +1532,7 @@ character:
     console.log("===== TRIAGE =====", summary.triage);
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== COGNITIVE EXECUTIVE =====", summary.cognitiveExecutive);
+    console.log("===== KNOWLEDGE ROUTER =====", summary.knowledgeRouter);
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile);
     console.log("===== COMMUNICATION PLAN =====", summary.communicationPlan);
