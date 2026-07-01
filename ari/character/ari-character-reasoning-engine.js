@@ -40,15 +40,16 @@ window.AriCharacterReasoningEngine = {
       this.inferWorldviewFocus(text);
 
     const characterRelevant =
-      context.characterUseAllowed === true ||
-      characterKnowledge?.characterKnowledgeAvailable === true ||
-      characterKnowledge?.inferenceNeeded === true ||
-      characterMode === "stable_preference_answer" ||
-      characterMode === "ari_self_disclosure" ||
-      characterMode === "worldview_answer" ||
-      characterMode === "ari_perspective" ||
-      characterMode === "background_presence" ||
-      characterMode === "warm_grounded_presence";
+  context.characterUseAllowed === true ||
+  characterKnowledge?.characterKnowledgeAvailable === true ||
+  characterKnowledge?.inferenceNeeded === true ||
+  characterMode === "stable_preference_answer" ||
+  characterMode === "stable_or_inferred_preference_answer" ||
+  characterMode === "ari_self_disclosure" ||
+  characterMode === "worldview_answer" ||
+  characterMode === "ari_perspective" ||
+  characterMode === "background_presence" ||
+  characterMode === "warm_grounded_presence";
 
     if (!characterRelevant) {
       return this.noCharacterAnswer({
@@ -67,16 +68,23 @@ window.AriCharacterReasoningEngine = {
     }
 
     const usePreferences =
-      characterMode === "stable_preference_answer" ||
-      Boolean(characterFocus && String(characterFocus).startsWith("favorite"));
+  characterMode === "stable_preference_answer" ||
+  characterMode === "stable_or_inferred_preference_answer" ||
+  Boolean(characterFocus && String(characterFocus).startsWith("favorite"));
 
     const useWorldview =
       characterMode === "worldview_answer" ||
       characterMode === "ari_perspective";
 
     const useIdentity =
-      characterMode === "ari_self_disclosure" ||
-      this.hasAny(text, ["who are you", "what are you", "tell me about yourself"]);
+  characterMode === "ari_self_disclosure" ||
+  this.hasAny(text, [
+    "who are you",
+    "what are you",
+    "what's your name",
+    "what is your name",
+    "tell me about yourself"
+  ]);
 
     const useRelationshipPresence =
       characterMode === "background_presence" ||
