@@ -5,118 +5,243 @@ Version: 1.0
 
 Status: Active
 
-Purpose
-
-This document defines the long-term research questions that drive Ari's evolution.
-
-Implementation follows research.
-
-Research follows the Constitution.
+Owner:
+Jose — Chief Cognitive Architect
 
 ---
 
-Research Area 1
+# Purpose
 
+The Ari Research Agenda defines the long-term scientific questions that guide Ari's evolution.
+
+Research precedes implementation.
+
+Implementation follows evidence.
+
+Every major cognitive improvement should begin as a research question.
+
+---
+
+# Mission
+
+Advance Ari's ability to understand, reason, learn, teach, and improve while preserving truth, transparency, and trust.
+
+---
+
+# Research Philosophy
+
+Research exists to answer questions about cognition.
+
+Every completed research project should improve Ari's architecture, not simply add features.
+
+---
+
+# Research Method
+
+Every research effort follows the same lifecycle.
+
+Question
+
+↓
+
+Observation
+
+↓
+
+Hypothesis
+
+↓
+
+Experiment
+
+↓
+
+Evidence Collection
+
+↓
+
+Evaluation
+
+↓
+
+Architecture Decision
+
+↓
+
+Implementation
+
+↓
+
+Measurement
+
+↓
+
+Continuous Review
+
+---
+
+# Research Areas
+
+## RA-001
 Understanding
 
 Question
 
-How can Ari determine what a user truly wants to accomplish?
+How can Ari better determine what a user truly wants to accomplish?
 
-Success
+Success Metric
 
-Ari correctly identifies user intent before reasoning.
+Higher understanding accuracy before reasoning.
 
 ---
 
-Research Area 2
-
-Knowledge
+## RA-002
+Knowledge Representation
 
 Question
 
-How should knowledge be represented?
+What structure produces the deepest understanding?
 
-Success
+Success Metric
 
-Every knowledge node improves understanding.
+Higher reasoning quality using fewer knowledge nodes.
 
 ---
 
-Research Area 3
-
+## RA-003
 Reasoning
 
 Question
 
-How should Ari construct understanding instead of retrieving answers?
+How should Ari transform knowledge into understanding?
+
+Success Metric
+
+Improved reasoning quality across domains.
 
 ---
 
-Research Area 4
-
+## RA-004
 Reflection
 
 Question
 
-How should Ari evaluate her own reasoning?
+Can Ari improve her own reasoning before responding?
+
+Success Metric
+
+Reduction in reasoning mistakes.
 
 ---
 
-Research Area 5
-
+## RA-005
 Curiosity
 
 Question
 
-How should Ari recognize knowledge gaps?
+How should Ari discover what she does not know?
+
+Success Metric
+
+Higher quality research suggestions.
 
 ---
 
-Research Area 6
-
+## RA-006
 Teaching
 
 Question
 
 How should Ari measure whether learning actually occurred?
 
+Success Metric
+
+Improved user understanding.
+
 ---
 
-Research Area 7
-
+## RA-007
 Founder Collaboration
 
 Question
 
-How should Ari collaborate with Jose to improve herself?
+How should Ari collaborate with the Founder when improving herself?
+
+Success Metric
+
+Lower review effort with higher-quality proposals.
 
 ---
 
-Research Area 8
-
-Cognitive Metrics
-
-Question
-
-How should intelligence be measured?
-
----
-
-Research Area 9
-
+## RA-008
 Knowledge Health
 
 Question
 
 How should Ari detect unhealthy knowledge?
 
+Success Metric
+
+Higher freshness and lower contradiction rates.
+
 ---
 
-Research Area 10
-
-Cognitive Evolution
+## RA-009
+Cognitive Metrics
 
 Question
 
-How should Ari become smarter over years without losing stability?
+How should Ari measure intelligence?
+
+Success Metric
+
+Reliable metrics that correlate with reasoning quality.
+
+---
+
+## RA-010
+Long-Term Learning
+
+Question
+
+How should Ari evolve over years without losing consistency?
+
+Success Metric
+
+Improvement without architectural drift.
+
+---
+
+# Publication Rule
+
+Every completed research project produces:
+
+• Findings
+
+• Evidence
+
+• Metrics
+
+• Lessons Learned
+
+• Architecture Impact
+
+---
+
+# Success
+
+Research is successful only if it strengthens Ari's ability to:
+
+Observe
+
+Understand
+
+Reason
+
+Reflect
+
+Learn
+
+Teach
+
+Improve
