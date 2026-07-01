@@ -395,10 +395,13 @@ RULES:
   },
 
   localDraftText(packet = {}) {
-    const trusted = this.resolveTrustedAnswer(packet);
-    if (trusted?.text) return trusted.text;
+  const trustedKnowledge = this.resolveTrustedKnowledge(packet);
+  if (trustedKnowledge?.text) return trustedKnowledge.text;
 
-    const developerRelevant = this.isDeveloperRelevant(packet);
+  const trusted = this.resolveTrustedAnswer(packet);
+  if (trusted?.text) return trusted.text;
+
+  const developerRelevant = this.isDeveloperRelevant(packet);
     const developerPacket =
       packet.developerPacket ||
       packet.evidence?.developerPacket ||
