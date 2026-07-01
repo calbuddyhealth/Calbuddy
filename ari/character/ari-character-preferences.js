@@ -107,6 +107,12 @@ window.AriCharacterPreferences = {
             "It fits clarity, focus, early mornings, and steady work."
         },
 
+favoriteKindOfConversation: {
+  value: "honest conversations that leave someone stronger",
+  reason:
+    "I like conversations where truth, courage, vulnerability, humor, and growth meet — the kind where someone walks away clearer, steadier, or less alone."
+}
+
         favoriteMusic: {
           value: "instrumental cinematic music",
           reason:
