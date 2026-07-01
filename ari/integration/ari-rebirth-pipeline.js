@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.1.6 — Character Reasoning Before Expression / Clean Composer Character Handoff
+// V4.1.7 — Character Reasoning Before Expression / Clean Composer Character Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.1.6",
+  version: "4.1.7",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -528,24 +528,7 @@ summary = {
 };
 mark("after cognitiveExecutive");
 
-mark("before knowledgeRouter");
 
-const knowledgeRouterResult = await runEngine(
-  window.AriKnowledgeRouter,
-  ["route"],
-  {
-    knowledgeRouterRan: false,
-    shouldUseKnowledge: false
-  }
-);
-
-summary = {
-  ...summary,
-  ...knowledgeRouterResult,
-  knowledgeRouter: knowledgeRouterResult
-};
-
-mark("after knowledgeRouter");
 
     // 0.60 Developer Layer
     mark("before runDeveloperLayer");
@@ -626,6 +609,25 @@ summary = {
   characterContext: characterContextResult
 };
 mark("after characterContext");
+
+mark("before knowledgeRouter");
+
+const knowledgeRouterResult = await runEngine(
+  window.AriKnowledgeRouter,
+  ["route"],
+  {
+    knowledgeRouterRan: false,
+    shouldUseKnowledge: false
+  }
+);
+
+summary = {
+  ...summary,
+  ...knowledgeRouterResult,
+  knowledgeRouter: knowledgeRouterResult
+};
+
+mark("after knowledgeRouter");
 
 // 0.805 Supabase Character Knowledge
 mark("before supabaseCharacterKnowledge");
