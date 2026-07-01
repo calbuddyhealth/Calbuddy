@@ -307,6 +307,21 @@ activeDialogueState:
 character,
 characterIdentity,
 
+knowledge: {
+  routerRan: summary.knowledgeRouterRan === true,
+  shouldUseKnowledge: summary.shouldUseKnowledge === true,
+  provider: summary.knowledgeProvider || null,
+  confidence: summary.knowledgeConfidence || null,
+  sources: summary.knowledgeSources || [],
+  answer: summary.knowledgeAnswer || null,
+  nodes:
+    summary.knowledgeRouter?.knowledgeRetrievalResults?.[0]?.nodes ||
+    summary.knowledgeRetrievalResults?.[0]?.nodes ||
+    [],
+  retrievalPlan: summary.knowledgeRetrievalPlan || null,
+  retrievalResults: summary.knowledgeRetrievalResults || []
+},
+
       aiWriter: {
         ran: summary.aiWriterRan === true,
         usedAI: summary.aiWriterUsedAI === true,
