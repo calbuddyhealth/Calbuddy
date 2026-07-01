@@ -465,17 +465,35 @@ Return JSON only:
   });
 }
 
+function parseVector(value) {
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === "string") {
+    return value
+      .replace("[", "")
+      .replace("]", "")
+      .split(",")
+      .map(Number)
+      .filter(Number.isFinite);
+  }
+
+  return [];
+}
+
 function cosineSimilarity(a = [], b = []) {
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return 0;
+  const vectorA = parseVector(a);
+  const vectorB = parseVector(b);
+
+  if (!vectorA.length || !vectorB.length || vectorA.length !== vectorB.length) return 0;
 
   let dot = 0;
   let magA = 0;
   let magB = 0;
 
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
+  for (let i = 0; i < vectorA.length; i++) {
+    dot += vectorA[i] * vectorB[i];
+    magA += vectorA[i] * vectorA[i];
+    magB += vectorB[i] * vectorB[i];
   }
 
   if (!magA || !magB) return 0;
