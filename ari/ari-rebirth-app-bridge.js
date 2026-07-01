@@ -126,6 +126,7 @@ version: "1.6.2",
     "ari/governance/ari-situation-review-console.js",
 
     "ari/knowledge/ari-openai-knowledge-client.js",
+    "ari/knowledge/ari-supabase-knowledge-client.js",
     "ari/reasoning/ari-reasoning-engine.js",
     "ari/cognition/ari-cognitive-executive.js",
     "ari/knowledge/ari-knowledge-router.js",
