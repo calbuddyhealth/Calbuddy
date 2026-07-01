@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.0 — Supabase Character Knowledge First / Local Fallback / Values Inference
+// V1.1.1 — Supabase Character Knowledge First / Local Fallback / Values Inference
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -90,31 +90,31 @@ window.AriCharacterReasoningEngine = {
       characterMode === "background_presence" ||
       characterMode === "warm_grounded_presence";
 
-    if (usePreferences) {
-      return this.buildPreferenceAnswer({
-        text,
-        focus: characterFocus,
-        preferences,
-        expression: context
-      });
-    }
-
-    if (useWorldview) {
-      return this.buildWorldviewAnswer({
-        text,
-        focus: characterFocus,
-        worldview,
-        expression: context
-      });
-    }
-
     if (useIdentity) {
-      return this.buildIdentityAnswer({
-        text,
-        core,
-        expression: context
-      });
-    }
+  return this.buildIdentityAnswer({
+    text,
+    core,
+    expression: context
+  });
+}
+
+if (usePreferences) {
+  return this.buildPreferenceAnswer({
+    text,
+    focus: characterFocus,
+    preferences,
+    expression: context
+  });
+}
+
+if (useWorldview) {
+  return this.buildWorldviewAnswer({
+    text,
+    focus: characterFocus,
+    worldview,
+    expression: context
+  });
+}
 
     if (characterKnowledge?.inferenceNeeded === true) {
       return this.buildValuesInferenceAnswer({
