@@ -49,11 +49,19 @@ async searchKnowledgeGraph({ question = "" } = {}) {
 
     const matches = Array.isArray(data.matches) ? data.matches : [];
 
-    return this.formatNodes(
-      matches,
-      "ari_knowledge_nodes_semantic",
-      [cleanQuestion]
-    );
+const usableMatches = matches.filter(match =>
+  Number(match.similarity || 0) >= 0.5
+);
+
+if (!usableMatches.length) {
+  return this.empty("No semantic knowledge node passed the relevance threshold.");
+}
+
+return this.formatNodes(
+  usableMatches,
+  "ari_knowledge_nodes_semantic",
+  [cleanQuestion]
+);
   } catch (error) {
     return this.error(error);
   }
