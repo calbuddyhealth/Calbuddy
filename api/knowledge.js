@@ -38,6 +38,73 @@ export default async function handler(req, res) {
     const user_id = req.method === "GET" ? req.query.user_id : body.user_id;
 
     if (!action) return res.status(400).json({ error: "Missing action." });
+    
+    if (action === "semantic_search_ari_nodes") {
+  const query =
+    req.method === "GET"
+      ? String(req.query.query || "")
+      : String(body.query || "");
+
+  const limit = Number(req.method === "GET" ? req.query.limit || 5 : body.limit || 5);
+
+  if (!query.trim()) {
+    return res.status(400).json({ error: "Missing semantic search query." });
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: "Missing OPENAI_API_KEY." });
+  }
+
+  const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "text-embedding-3-small",
+      input: query
+    })
+  });
+
+  const embeddingData = await embeddingResponse.json();
+
+  if (!embeddingResponse.ok) {
+    return res.status(embeddingResponse.status).json({
+      error: embeddingData?.error?.message || "Embedding failed."
+    });
+  }
+
+  const queryEmbedding = embeddingData?.data?.[0]?.embedding;
+
+  const nodesResponse = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/ari_knowledge_nodes?select=*&embedding=not.is.null&limit=200`,
+    { method: "GET", headers }
+  );
+
+  const nodes = await nodesResponse.json();
+
+  if (!nodesResponse.ok) {
+    return res.status(nodesResponse.status).json({ error: nodes });
+  }
+
+  const matches = (nodes || [])
+    .map(node => ({
+      ...node,
+      similarity: cosineSimilarity(queryEmbedding, node.embedding)
+    }))
+    .filter(node => Number.isFinite(node.similarity))
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit);
+
+  return res.status(200).json({
+    success: true,
+    query,
+    count: matches.length,
+    matches
+  });
+}
+    
     if (!user_id) return res.status(400).json({ error: "Missing user_id." });
 
     if (action === "create_document") {
@@ -251,6 +318,8 @@ async function handleOpenAIKnowledge(req, res) {
     question ||
     "";
 
+
+
   const character = body.character || body.characterContext || {};
   const contract = body.contract || body.situationContract || {};
   const triage = body.triage || body.ariTriage || {};
@@ -394,4 +463,22 @@ Return JSON only:
     source: "openai_knowledge",
     success: true
   });
+}
+
+function cosineSimilarity(a = [], b = []) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return 0;
+
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+
+  if (!magA || !magB) return 0;
+
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
