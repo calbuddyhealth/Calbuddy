@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Choose where Ari should retrieve knowledge from.
-// V3.0.0 — ACE-Aware / Source Router / Supabase-Ready / OpenAI Fallback
+// V3.0.1 — ACE-Aware / Source Router / Supabase-Ready / OpenAI Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "3.0.0",
+  version: "3.0.1",
 
   async route(input = {}) {
     const summary = input.summary || input || {};
@@ -117,11 +117,13 @@ window.AriKnowledgeRouter = {
       });
     }
 
-    sources.push({
-      id: "openai",
-      priority: 90,
-      stopOnUsable: true
-    });
+    if (!this.isAriIdentityOrPreferenceQuestion(question)) {
+  sources.push({
+    id: "openai",
+    priority: 90,
+    stopOnUsable: true
+  });
+}
 
     return {
       shouldRetrieve: true,
@@ -331,6 +333,17 @@ window.AriKnowledgeRouter = {
       reason: message
     };
   },
+
+isAriIdentityOrPreferenceQuestion(question = "") {
+  const text = String(question || "")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'");
+
+  return (
+    /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what would you choose|what would you prefer|what do you value|your values|your beliefs|what do you believe|what do you stand for|who are you|what are you|tell me about yourself|your mission|your purpose|your opinion|what do you think)\b/.test(text) &&
+    /\b(you|your|ari|yourself)\b/.test(text)
+  );
+},
 
   legacyShouldUseKnowledge(summary = {}, question = "") {
     const lower = String(question || "").toLowerCase();
