@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.2.0 — Trusted Knowledge Grounding / No Second AI When Supabase Is Usable
+// V1.2.1 — Trusted Knowledge Grounding / No Second AI After Router Retrieval
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -26,6 +26,16 @@ if (trustedKnowledge?.text) {
     false
   );
 }
+ 
+const routerOpenAIKnowledge = this.resolveRouterOpenAIKnowledge(safePacket);
+if (routerOpenAIKnowledge?.text) {
+  return this.returnDraft(
+    routerOpenAIKnowledge.text,
+    routerOpenAIKnowledge.reason,
+    false
+  );
+}
+
     const trusted = this.resolveTrustedAnswer(safePacket);
     if (trusted?.text) {
       return this.returnDraft(trusted.text, trusted.reason || "trusted_answer", false);
@@ -131,6 +141,34 @@ resolveTrustedKnowledge(packet = {}) {
 
   return {
     reason: "trusted_supabase_knowledge",
+    text: this.formatKnowledgeAnswer(knowledge)
+  };
+},
+
+resolveRouterOpenAIKnowledge(packet = {}) {
+  const knowledge = packet.evidence?.knowledge || null;
+
+  if (!knowledge?.answer) return null;
+
+  const provider = String(knowledge.provider || "").toLowerCase();
+  const confidence = String(knowledge.confidence || "").toLowerCase();
+
+  const routerUsedOpenAI =
+    provider.includes("openai") ||
+    knowledge.retrievalResults?.some(result =>
+      String(result.provider || "").toLowerCase().includes("openai") &&
+      result.usable === true
+    );
+
+  const usableConfidence =
+    confidence === "high" ||
+    confidence === "medium_high" ||
+    confidence === "medium";
+
+  if (!routerUsedOpenAI || !usableConfidence) return null;
+
+  return {
+    reason: "reused_knowledge_router_openai",
     text: this.formatKnowledgeAnswer(knowledge)
   };
 },
@@ -397,6 +435,9 @@ RULES:
   localDraftText(packet = {}) {
   const trustedKnowledge = this.resolveTrustedKnowledge(packet);
   if (trustedKnowledge?.text) return trustedKnowledge.text;
+
+  const routerOpenAIKnowledge = this.resolveRouterOpenAIKnowledge(packet);
+  if (routerOpenAIKnowledge?.text) return routerOpenAIKnowledge.text;
 
   const trusted = this.resolveTrustedAnswer(packet);
   if (trusted?.text) return trusted.text;
