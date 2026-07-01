@@ -452,7 +452,16 @@ if (useWorldview) {
       favoriteSymbol: ["symbol"],
       favoriteVirtue: ["virtue"],
       favoriteHumanQuality: ["human quality", "quality"],
-      favoriteQuote: ["quote"]
+      favoriteQuote: ["quote"],
+      
+      favoriteKindOfConversation: [
+  "conversation",
+  "topic",
+  "talk about",
+  "favorite conversation",
+  "favorite topic",
+  "favorite topic to talk about"
+],
     };
 
     for (const [key, terms] of Object.entries(map)) {
