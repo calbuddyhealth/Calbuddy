@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.1.1 — Trusted Answer Resolver / Universal Character Guard / AI Draft Validation
+// V1.2.0 — Trusted Knowledge Grounding / No Second AI When Supabase Is Usable
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.1.1",
+  version: "1.2.0",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -18,7 +18,14 @@ window.AriAIWriter = {
     }
 
     const safePacket = this.buildSafePacket(packet);
-
+const trustedKnowledge = this.resolveTrustedKnowledge(safePacket);
+if (trustedKnowledge?.text) {
+  return this.returnDraft(
+    trustedKnowledge.text,
+    trustedKnowledge.reason || "trusted_knowledge_answer",
+    false
+  );
+}
     const trusted = this.resolveTrustedAnswer(safePacket);
     if (trusted?.text) {
       return this.returnDraft(trusted.text, trusted.reason || "trusted_answer", false);
@@ -102,6 +109,50 @@ window.AriAIWriter = {
       }
     };
   },
+
+resolveTrustedKnowledge(packet = {}) {
+  const knowledge = packet.evidence?.knowledge || null;
+
+  if (!knowledge?.answer) return null;
+
+  const provider = String(knowledge.provider || "").toLowerCase();
+  const confidence = String(knowledge.confidence || "").toLowerCase();
+
+  const trustedProvider =
+    provider.includes("supabase") ||
+    provider.includes("knowledge_graph");
+
+  const trustedConfidence =
+    confidence === "high" ||
+    confidence === "medium_high" ||
+    confidence === "medium";
+
+  if (!trustedProvider || !trustedConfidence) return null;
+
+  return {
+    reason: "trusted_supabase_knowledge",
+    text: this.formatKnowledgeAnswer(knowledge)
+  };
+},
+
+formatKnowledgeAnswer(knowledge = {}) {
+  const nodes = Array.isArray(knowledge.nodes) ? knowledge.nodes : [];
+  const primaryNode = nodes[0] || null;
+
+  if (primaryNode) {
+    const parts = [
+      primaryNode.definition || null,
+      primaryNode.summary || null,
+      primaryNode.purpose ? `Purpose: ${primaryNode.purpose}` : null,
+      primaryNode.how_it_works ? `How it works: ${primaryNode.how_it_works}` : null,
+      primaryNode.universal_principle ? `Core principle: ${primaryNode.universal_principle}` : null
+    ].filter(Boolean);
+
+    if (parts.length) return parts.join("\n\n");
+  }
+
+  return String(knowledge.answer || "").trim();
+},
 
   resolveTrustedAnswer(packet = {}) {
     const question = String(packet.userQuestion || "").toLowerCase().trim();
