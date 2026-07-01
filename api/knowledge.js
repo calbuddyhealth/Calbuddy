@@ -1,7 +1,7 @@
 // api/knowledge.js
 // CalBuddy / Ari Knowledge API
 // Purpose: Supabase knowledge library + Ari OpenAI knowledge client.
-// V2.2.0 — Ari Rebirth Compatible / aiInstruction Ready
+// V2.2.1 — Ari Rebirth Compatible / aiInstruction Ready
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
