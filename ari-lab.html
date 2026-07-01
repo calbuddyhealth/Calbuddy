@@ -134,6 +134,17 @@ function formatCognitiveExecutive(summary = {}) {
   ].join("\n");
 }
 
+function formatKnowledgeRouter(summary = {}) {
+  return [
+    `Router Ran: ${summary.knowledgeRouterRan ? "yes" : "no"}`,
+    `Router Version: ${summary.knowledgeRouterVersion || "none"}`,
+    `Should Use Knowledge: ${summary.shouldUseKnowledge ? "yes" : "no"}`,
+    `Provider: ${summary.knowledgeProvider || "none"}`,
+    `Confidence: ${summary.knowledgeConfidence || "none"}`,
+    `Reason: ${summary.knowledgeReason || "none"}`
+  ].join("\n");
+}
+
     function formatDeveloperLayer(summary = {}) {
       return [
         `Developer Layer Ran: ${summary.developerLayerRan ? "yes" : "no"}`,
@@ -176,6 +187,7 @@ function formatCognitiveExecutive(summary = {}) {
         section("TIMING", formatTiming(summary)),
         section("CORE ROUTING", formatCoreRouting(summary)),
         section("COGNITIVE EXECUTIVE", formatCognitiveExecutive(summary)),
+        section("KNOWLEDGE ROUTER", formatKnowledgeRouter(summary)),
         section("DEVELOPER LAYER", formatDeveloperLayer(summary)),
         section("COMPOSER", formatComposer(summary)),
         section("FINAL SUMMARY", JSON.stringify(summary, null, 2))
