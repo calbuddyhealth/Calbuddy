@@ -141,7 +141,11 @@ function formatKnowledgeRouter(summary = {}) {
     `Should Use Knowledge: ${summary.shouldUseKnowledge ? "yes" : "no"}`,
     `Provider: ${summary.knowledgeProvider || "none"}`,
     `Confidence: ${summary.knowledgeConfidence || "none"}`,
-    `Reason: ${summary.knowledgeReason || "none"}`
+    `Reason: ${summary.knowledgeReason || "none"}`,
+    "",
+    `Retrieval Plan: ${JSON.stringify(summary.knowledgeRetrievalPlan || null, null, 2)}`,
+    "",
+    `Retrieval Results: ${JSON.stringify(summary.knowledgeRetrievalResults || null, null, 2)}`
   ].join("\n");
 }
 
