@@ -3,13 +3,20 @@
 // V0.2.0 — No Package Imports / Fetch Only / Server-Side Only
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed. Use POST." });
-  }
+  if (req.method !== "POST" && req.method !== "GET") {
+  return res.status(405).json({ error: "Method not allowed." });
+}
 
-  try {
-    const { id, limit = 10 } = req.body || {};
+try {
+  const body =
+    req.method === "POST"
+      ? req.body || {}
+      : {
+          id: req.query.id,
+          limit: Number(req.query.limit || 10)
+        };
 
+  const { id, limit = 10 } = body;
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ error: "Missing OPENAI_API_KEY." });
     }
