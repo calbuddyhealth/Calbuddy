@@ -501,6 +501,33 @@ window.AriRebirthPipeline = {
     summary = this.applyContractBridge(summary);
     mark("after contractBridge");
 
+// 0.50 Cognitive Executive
+mark("before cognitiveExecutive");
+const cognitiveExecutiveResult = await runEngine(
+  window.AriCognitiveExecutive,
+  ["plan"],
+  {
+    ariExecutiveRan: false,
+    ariExecutiveVersion: null,
+    cognitiveExecutive: {
+      source: "not-loaded",
+      authority: "none",
+      activate: [],
+      requires: {}
+    }
+  }
+);
+
+summary = {
+  ...summary,
+  ...cognitiveExecutiveResult,
+  cognitiveExecutive:
+    cognitiveExecutiveResult.cognitiveExecutive ||
+    summary.cognitiveExecutive ||
+    null
+};
+mark("after cognitiveExecutive");
+
     // 0.60 Developer Layer
     mark("before runDeveloperLayer");
     summary = await this.runDeveloperLayer(summary);
@@ -1483,6 +1510,7 @@ character:
     console.log("===== SITUATION MAP =====", summary.situationMap);
     console.log("===== TRIAGE =====", summary.triage);
     console.log("===== CONTRACT =====", summary.situationContract);
+    console.log("===== COGNITIVE EXECUTIVE =====", summary.cognitiveExecutive);
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile);
     console.log("===== COMMUNICATION PLAN =====", summary.communicationPlan);
