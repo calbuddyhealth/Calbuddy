@@ -89,13 +89,17 @@ export default async function handler(req, res) {
   }
 
   const matches = (nodes || [])
-    .map(node => ({
-      ...node,
-      similarity: cosineSimilarity(queryEmbedding, node.embedding)
-    }))
-    .filter(node => Number.isFinite(node.similarity))
-    .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, limit);
+  .map(node => {
+    const { embedding, ...cleanNode } = node;
+
+    return {
+      ...cleanNode,
+      similarity: cosineSimilarity(queryEmbedding, embedding)
+    };
+  })
+  .filter(node => Number.isFinite(node.similarity))
+  .sort((a, b) => b.similarity - a.similarity)
+  .slice(0, limit);
 
   return res.status(200).json({
     success: true,
