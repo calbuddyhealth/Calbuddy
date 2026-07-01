@@ -120,6 +120,20 @@
       ].join("\n");
     }
 
+function formatCognitiveExecutive(summary = {}) {
+  const ace = summary.cognitiveExecutive || {};
+
+  return [
+    `ACE Ran: ${summary.ariExecutiveRan ? "yes" : "no"}`,
+    `ACE Version: ${summary.ariExecutiveVersion || "none"}`,
+    `Authority: ${ace.authority || "none"}`,
+    `Cognitive State: ${ace.cognitiveState || "none"}`,
+    `Primary: ${ace.primary || "none"}`,
+    `Activate: ${Array.isArray(ace.activate) ? ace.activate.join(", ") : "none"}`,
+    `Requires: ${ace.requires ? JSON.stringify(ace.requires, null, 2) : "none"}`
+  ].join("\n");
+}
+
     function formatDeveloperLayer(summary = {}) {
       return [
         `Developer Layer Ran: ${summary.developerLayerRan ? "yes" : "no"}`,
@@ -161,6 +175,7 @@
 
         section("TIMING", formatTiming(summary)),
         section("CORE ROUTING", formatCoreRouting(summary)),
+        section("COGNITIVE EXECUTIVE", formatCognitiveExecutive(summary)),
         section("DEVELOPER LAYER", formatDeveloperLayer(summary)),
         section("COMPOSER", formatComposer(summary)),
         section("FINAL SUMMARY", JSON.stringify(summary, null, 2))
