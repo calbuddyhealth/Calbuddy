@@ -1,71 +1,80 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Choose where Ari should retrieve knowledge from.
-// V3.0.1 — ACE-Aware / Source Router / Supabase-Ready / OpenAI Fallback
+// V3.0.2 — ACE-Aware / Source Router / Supabase-Ready / OpenAI Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "3.0.1",
+  version: "3.0.2",
 
   async route(input = {}) {
-    const summary = input.summary || input || {};
-    const question = this.getQuestion(summary);
-    const ace = summary.cognitiveExecutive || {};
-    const requires = ace.requires || {};
+  const summary = input.summary || input || {};
+  const question = this.getQuestion(summary);
+  const ace = summary.cognitiveExecutive || {};
+  const requires = ace.requires || {};
 
-    const plan = this.buildPlan(summary, question, requires);
+  if (
+    summary.characterReasoning?.characterAnswerAvailable === true ||
+    summary.characterAnswerAvailable === true
+  ) {
+    return this.noKnowledge(
+      "Character reasoning already produced the Ari identity/preference/worldview answer."
+    );
+  }
 
-    if (!plan.shouldRetrieve) {
-      return this.noKnowledge(plan.reason);
-    }
+  const plan = this.buildPlan(summary, question, requires);
 
-    const results = [];
+  if (!plan.shouldRetrieve) {
+    return this.noKnowledge(plan.reason);
+  }
 
-    for (const source of plan.sources) {
-      const result = await this.runSource(source, summary, question);
-      if (result) results.push(result);
-      if (result?.usable === true && source.stopOnUsable !== false) break;
-    }
+  const results = [];
 
-    const best = this.chooseBestResult(results);
+  for (const source of plan.sources) {
+    const result = await this.runSource(source, summary, question);
+    if (result) results.push(result);
+    if (result?.usable === true && source.stopOnUsable !== false) break;
+  }
 
-    if (!best) {
-      return this.noKnowledge("Knowledge retrieval ran, but no usable knowledge was found.", true, {
-        plan,
-        results
-      });
-    }
+  const best = this.chooseBestResult(results);
 
-    return {
-      knowledgeRouterRan: true,
-      knowledgeRouterVersion: this.version,
-      knowledgeRouterSource: "ari-knowledge-router",
+  if (!best) {
+    return this.noKnowledge("Knowledge retrieval ran, but no usable knowledge was found.", true, {
+      plan,
+      results
+    });
+  }
 
-      shouldUseKnowledge: true,
-      knowledgeRetrievalPlan: plan,
-      knowledgeRetrievalResults: results,
+  return {
+    knowledgeRouterRan: true,
+    knowledgeRouterVersion: this.version,
+    knowledgeRouterSource: "ari-knowledge-router",
 
-      knowledgeAnswer: best.answer || null,
-      finalResponse: best.finalResponse || best.answer || null,
+    shouldUseKnowledge: true,
+    knowledgeRetrievalPlan: plan,
+    knowledgeRetrievalResults: results,
 
-      knowledgeConfidence: best.confidence || "medium",
-      knowledgeSources: best.sources || [],
-      knowledgeProvider: best.provider || "unknown",
-      knowledgeError: best.error || null,
+    knowledgeAnswer: best.answer || null,
+    finalResponse: best.finalResponse || best.answer || null,
 
-      openAIKnowledgeUsed: best.provider === "openai",
-      openAIKnowledgeSource: best.provider === "openai" ? best.source || "api/knowledge" : null,
+    knowledgeConfidence: best.confidence || "medium",
+    knowledgeSources: best.sources || [],
+    knowledgeProvider: best.provider || "unknown",
+    knowledgeError: best.error || null,
 
-      mealEstimate: best.mealEstimate || null,
-      foodAnalysis: best.foodAnalysis || null,
-      nutritionEstimate: best.nutritionEstimate || null,
-      pendingAction: best.pendingAction || null,
+    openAIKnowledgeUsed: best.provider === "openai",
+    openAIKnowledgeSource: best.provider === "openai" ? best.source || "api/knowledge" : null,
 
-      rawKnowledgeResult: best.raw || null,
-      knowledgeReason: plan.reason
-    };
-  },
+    mealEstimate: best.mealEstimate || null,
+    foodAnalysis: best.foodAnalysis || null,
+    nutritionEstimate: best.nutritionEstimate || null,
+    pendingAction: best.pendingAction || null,
+
+    rawKnowledgeResult: best.raw || null,
+    knowledgeReason: plan.reason
+  };
+},
 
   buildPlan(summary = {}, question = "", requires = {}) {
     const sources = [];
