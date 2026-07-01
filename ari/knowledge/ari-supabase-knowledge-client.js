@@ -1,16 +1,25 @@
 // ari/knowledge/ari-supabase-knowledge-client.js
 // Ari Supabase Knowledge Client
 // Purpose: Retrieve Ari Knowledge Graph + system knowledge from Supabase.
-// V0.2.0 — Keyword Candidate Retrieval / Router-Compatible / Semantic-Safe
+// V0.2.1 — Keyword Candidate Retrieval / Router-Compatible / Semantic-Safe
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseKnowledgeClient = {
-  version: "0.2.0",
+  version: "0.2.1",
 
   getClient() {
-    return window.CalBuddy?.supabase || window.supabaseClient || null;
-  },
+  return (
+    window.calbuddySupabase ||
+    window.CalBuddy?.supabase ||
+    window.CalBuddy?.supabaseClient ||
+    window.CalBuddy?.db ||
+    window.supabaseClient ||
+    window.supabase ||
+    window.sb ||
+    null
+  );
+},
 
   async searchKnowledgeGraph({ question = "" } = {}) {
     const supabase = this.getClient();
