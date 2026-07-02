@@ -134,12 +134,18 @@ async function handleSemanticSearchAriNodes(req, res, body = {}) {
     const core = item.core;
     const weight = Number(item.weight || 1);
 
-    const url =
-      `${process.env.SUPABASE_URL}/rest/v1/ari_knowledge_nodes` +
-      `?select=*` +
-      `&embedding=not.is.null` +
-      `&domain=eq.${encodeURIComponent(core)}` +
-      `&limit=500`;
+    const fetchLimit =
+  core === "character_core" ? 100 :
+  core === "relationship_core" ? 150 :
+  core === "memory_core" ? 150 :
+  200;
+
+const url =
+  `${process.env.SUPABASE_URL}/rest/v1/ari_knowledge_nodes` +
+  `?select=*` +
+  `&embedding=not.is.null` +
+  `&domain=eq.${encodeURIComponent(core)}` +
+  `&limit=${fetchLimit}`;
 
     const nodesResponse = await fetch(url, { method: "GET", headers });
     const nodes = await nodesResponse.json();
