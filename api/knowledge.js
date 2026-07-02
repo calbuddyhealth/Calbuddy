@@ -1,7 +1,7 @@
 // api/knowledge.js
 // CalBuddy / Ari Knowledge API
 // Purpose: Router-driven six-core Supabase retrieval + Ari OpenAI knowledge client.
-// V3.0.0 — Six-Core / Multi-Core Semantic Retrieval / Legacy-Safe
+// V3.0.1 — Six-Core / Multi-Core Semantic Retrieval / Legacy-Safe
 
 const VALID_KNOWLEDGE_CORES = [
   "character_core",
