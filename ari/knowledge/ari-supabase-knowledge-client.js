@@ -1,71 +1,82 @@
 // ari/knowledge/ari-supabase-knowledge-client.js
 // Ari Supabase Knowledge Client
 // Purpose: Retrieve Ari Knowledge Graph + system knowledge from Supabase.
-// V0.2.3 — Keyword Candidate Retrieval / Router-Compatible / Semantic-Safe
+// V0.3.0 — Six-Core SearchOrder / Router-Compatible / Semantic-Safe
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseKnowledgeClient = {
-  version: "0.2.3",
+  version: "0.3.0",
 
   getClient() {
-  return (
-    window.calbuddySupabase ||
-    window.CalBuddy?.supabase ||
-    window.CalBuddy?.supabaseClient ||
-    window.CalBuddy?.db ||
-    window.supabaseClient ||
-    window.supabase ||
-    window.sb ||
-    null
-  );
-},
+    return (
+      window.calbuddySupabase ||
+      window.CalBuddy?.supabase ||
+      window.CalBuddy?.supabaseClient ||
+      window.CalBuddy?.db ||
+      window.supabaseClient ||
+      window.supabase ||
+      window.sb ||
+      null
+    );
+  },
 
-async searchKnowledgeGraph({ question = "" } = {}) {
-  const cleanQuestion = String(question || "").trim();
+  async searchKnowledgeGraph({ summary = {}, question = "" } = {}) {
+    const cleanQuestion = String(question || "").trim();
 
-  if (!cleanQuestion) {
-    return this.empty("No usable semantic knowledge query.");
-  }
-
-  try {
-    const url =
-      `/api/knowledge?action=semantic_search_ari_nodes` +
-      `&query=${encodeURIComponent(cleanQuestion)}` +
-      `&limit=5`;
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json"
-      }
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.error || "Semantic knowledge search failed.");
+    if (!cleanQuestion) {
+      return this.empty("No usable semantic knowledge query.");
     }
 
-    const matches = Array.isArray(data.matches) ? data.matches : [];
+    try {
+      const router =
+        summary.knowledgeRouter ||
+        summary.knowledgeRetrievalPlan ||
+        {};
 
-const usableMatches = matches.filter(match =>
-  Number(match.similarity || 0) >= 0.5
-);
+      const searchOrder =
+        router.searchOrder ||
+        router.cores ||
+        summary.searchOrder ||
+        [{ core: "knowledge_core", weight: 1.0 }];
 
-if (!usableMatches.length) {
-  return this.empty("No semantic knowledge node passed the relevance threshold.");
-}
+      const response = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          action: "semantic_search_ari_nodes",
+          query: cleanQuestion,
+          searchOrder,
+          limit: 8,
+          limitPerCore: 3,
+          minSimilarity: 0.35
+        })
+      });
 
-return this.formatNodes(
-  usableMatches,
-  "ari_knowledge_nodes_semantic",
-  [cleanQuestion]
-);
-  } catch (error) {
-    return this.error(error);
-  }
-},
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Semantic knowledge search failed.");
+      }
+
+      const matches = Array.isArray(data.matches) ? data.matches : [];
+
+      if (!matches.length) {
+        return this.empty("No semantic knowledge node passed the relevance threshold.");
+      }
+
+      return this.formatNodes(
+        matches,
+        "ari_knowledge_nodes_semantic",
+        [cleanQuestion],
+        data
+      );
+    } catch (error) {
+      return this.error(error);
+    }
+  },
 
   async searchSystemKnowledge({ question = "" } = {}) {
     const supabase = this.getClient();
@@ -140,51 +151,7 @@ return this.formatNodes(
       .trim();
   },
 
-  rankNodes(nodes = [], terms = []) {
-    return [...nodes]
-      .map(node => ({
-        ...node,
-        __ariScore: this.scoreNode(node, terms)
-      }))
-      .sort((a, b) => b.__ariScore - a.__ariScore);
-  },
-
-  scoreNode(node = {}, terms = []) {
-    const text = [
-      node.topic,
-      node.summary,
-      node.definition,
-      node.purpose,
-      node.importance,
-      node.how_it_works,
-      node.deep_understanding,
-      node.universal_principle,
-      node.knowledge_id,
-      node.knowledge_path,
-      node.knowledge_type,
-      node.domain,
-      node.subdomain,
-      Array.isArray(node.tags) ? node.tags.join(" ") : ""
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    let score = 0;
-
-    for (const term of terms) {
-      if (!term) continue;
-      if (text.includes(term)) score += 1;
-      if (String(node.topic || "").toLowerCase().includes(term)) score += 2;
-      if (Array.isArray(node.tags) && node.tags.map(String).some(tag => tag.toLowerCase().includes(term))) {
-        score += 2;
-      }
-    }
-
-    return score;
-  },
-
-  formatNodes(nodes = [], source = "ari_knowledge_nodes", terms = []) {
+  formatNodes(nodes = [], source = "ari_knowledge_nodes", terms = [], rawSearch = null) {
     if (!Array.isArray(nodes) || nodes.length === 0) {
       return this.empty("No matching knowledge nodes found.");
     }
@@ -198,6 +165,7 @@ return this.formatNodes(
           node.purpose ? `Purpose: ${node.purpose}` : null,
           node.importance ? `Importance: ${node.importance}` : null,
           node.how_it_works ? `How it works: ${node.how_it_works}` : null,
+          node.deep_understanding ? `Deep understanding: ${node.deep_understanding}` : null,
           node.universal_principle ? `Universal principle: ${node.universal_principle}` : null
         ]
           .filter(Boolean)
@@ -205,7 +173,11 @@ return this.formatNodes(
       })
       .join("\n\n");
 
-    const bestScore = nodes[0]?.similarity || nodes[0]?.__ariScore || 0;
+    const bestScore =
+      nodes[0]?.weightedScore ||
+      nodes[0]?.similarity ||
+      nodes[0]?.__ariScore ||
+      0;
 
     return {
       finalResponse: null,
@@ -217,7 +189,11 @@ return this.formatNodes(
       provider: "supabase",
       usable: true,
       searchTerms: terms,
-      bestScore
+      bestScore,
+      searchedCores: rawSearch?.searchedCores || [],
+      searchOrder: rawSearch?.searchOrder || [],
+      coreResults: rawSearch?.coreResults || [],
+      rawSearch
     };
   },
 
