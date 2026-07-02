@@ -1,11 +1,11 @@
 // ari/character/ari-supabase-character-knowledge-engine.js
 // Purpose: Retrieve Ari's character knowledge from Supabase and build a character knowledge packet.
-// V0.1.0 — Supabase Character Retrieval / Exact + Semantic / Advisory Only
+// V0.2.0 — Single Semantic Character Retrieval / Domain-Locked / Faster
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseCharacterKnowledgeEngine = {
-  version: "0.1.0",
+  version: "0.2.0",
 
   async retrieve(input = {}) {
     const summary = input.summary || input || {};
@@ -24,27 +24,13 @@ window.AriSupabaseCharacterKnowledgeEngine = {
     }
 
     try {
-      const exact = await this.searchExactCharacterNode({ question, context });
-
-      if (exact.primaryNode) {
-        return this.packet({
-          question,
-          context,
-          exactMatch: true,
-          primaryNode: exact.primaryNode,
-          supportingNodes: exact.supportingNodes,
-          confidence: "high",
-          reason: "Exact character node matched."
-        });
-      }
-
-      const semantic = await this.searchSemanticCharacterNodes({ question, context });
+      const semantic = await this.searchSemanticCharacterNodes({ question });
 
       if (semantic.primaryNode) {
         return this.packet({
           question,
           context,
-          exactMatch: false,
+          exactMatch: semantic.score >= 0.75,
           primaryNode: semantic.primaryNode,
           supportingNodes: semantic.supportingNodes,
           confidence: semantic.score >= 0.55 ? "high" : "medium",
@@ -60,7 +46,8 @@ window.AriSupabaseCharacterKnowledgeEngine = {
         supportingNodes: [],
         confidence: "low",
         inferenceNeeded: true,
-        reason: "No exact or semantic character node matched. Character inference may be needed."
+        reason:
+          "No semantic character node matched. Character inference may be needed."
       });
     } catch (error) {
       return this.error(error);
@@ -72,58 +59,22 @@ window.AriSupabaseCharacterKnowledgeEngine = {
 
     const text = String(question || "").toLowerCase();
 
-    return /\b(who are you|what are you|your favorite|what'?s your favorite|what is your favorite|do you like|what do you like|what do you value|your values|your beliefs|what do you believe|what do you stand for|what do you think|your opinion|your purpose|your mission|ari)\b/.test(text);
-  },
-
-  async searchExactCharacterNode({ question = "", context = {} } = {}) {
-    const focus =
-      context.characterFocus ||
-      this.inferFocus(question);
-
-    const exactKnowledgeId = this.focusToKnowledgeId(focus);
-
-    if (!exactKnowledgeId) {
-      return {
-        primaryNode: null,
-        supportingNodes: []
-      };
-    }
-
-    const url =
-      `/api/knowledge?action=semantic_search_ari_nodes` +
-      `&query=${encodeURIComponent(exactKnowledgeId)}` +
-      `&limit=8`;
-
-    const data = await this.fetchJson(url);
-    const matches = Array.isArray(data.matches) ? data.matches : [];
-
-    const primaryNode =
-      matches.find(node => node.knowledge_id === exactKnowledgeId) ||
-      null;
-
-    const supportingNodes = matches
-      .filter(node => node.id !== primaryNode?.id)
-      .filter(node => this.isCharacterNode(node))
-      .slice(0, 3);
-
-    return {
-      primaryNode,
-      supportingNodes
-    };
+    return /\b(who are you|what are you|your favorite|what'?s your favorite|what is your favorite|do you like|what do you like|what do you value|your values|your beliefs|what do you believe|what do you stand for|what do you think|your opinion|your purpose|your mission|ari|are you ai|do you identify)\b/.test(text);
   },
 
   async searchSemanticCharacterNodes({ question = "" } = {}) {
     const url =
       `/api/knowledge?action=semantic_search_ari_nodes` +
       `&query=${encodeURIComponent(question)}` +
-      `&limit=10`;
+      `&domain=character_core` +
+      `&limit=5`;
 
     const data = await this.fetchJson(url);
     const matches = Array.isArray(data.matches) ? data.matches : [];
 
     const characterMatches = matches
       .filter(node => this.isCharacterNode(node))
-      .filter(node => Number(node.similarity || 0) >= 0.5)
+      .filter(node => Number(node.similarity || 0) >= 0.45)
       .sort((a, b) => Number(b.similarity || 0) - Number(a.similarity || 0));
 
     return {
@@ -151,47 +102,17 @@ window.AriSupabaseCharacterKnowledgeEngine = {
   },
 
   isCharacterNode(node = {}) {
+    const domain = String(node.domain || "").toLowerCase();
     const type = String(node.knowledge_type || "").toLowerCase();
     const subdomain = String(node.subdomain || "").toLowerCase();
 
     return (
-      type.includes("character_") ||
+      domain === "character_core" ||
+      type.includes("character") ||
       subdomain.includes("character") ||
       subdomain.includes("preference") ||
       subdomain.includes("worldview")
     );
-  },
-
-  inferFocus(question = "") {
-    const text = String(question || "").toLowerCase();
-
-    if (text.includes("favorite color") || text.includes("favourite color")) return "favoriteColor";
-    if (text.includes("favorite quote")) return "favoriteQuote";
-    if (text.includes("mission")) return "mission";
-    if (text.includes("purpose")) return "purpose";
-    if (text.includes("values") || text.includes("value")) return "values";
-    if (text.includes("laws") || text.includes("rules")) return "laws";
-    if (text.includes("ai") || text.includes("artificial intelligence")) return "artificialIntelligence";
-    if (text.includes("meaning of life") || text.includes("meaning")) return "meaningPurpose";
-    if (text.includes("who are you") || text.includes("what are you") || text.includes("identity")) return "identity";
-
-    return null;
-  },
-
-  focusToKnowledgeId(focus = "") {
-    const map = {
-      identity: "ARI-CORE-IDENTITY",
-      mission: "ARI-CORE-MISSION",
-      values: "ARI-CORE-VALUES",
-      laws: "ARI-CORE-LAWS",
-      favoriteColor: "ARI-PREF-FAVORITE-COLOR",
-      favoriteQuote: "ARI-PREF-FAVORITE-QUOTE",
-      purpose: "ARI-WORLDVIEW-PURPOSE",
-      meaningPurpose: "ARI-WORLDVIEW-PURPOSE",
-      artificialIntelligence: "ARI-WORLDVIEW-AI"
-    };
-
-    return map[focus] || null;
   },
 
   packet({
@@ -207,7 +128,8 @@ window.AriSupabaseCharacterKnowledgeEngine = {
     return {
       supabaseCharacterKnowledgeRan: true,
       supabaseCharacterKnowledgeVersion: this.version,
-      supabaseCharacterKnowledgeSource: "ari-supabase-character-knowledge-engine",
+      supabaseCharacterKnowledgeSource:
+        "ari-supabase-character-knowledge-engine",
 
       characterKnowledgeAvailable: Boolean(primaryNode),
       exactMatch,
@@ -219,7 +141,6 @@ window.AriSupabaseCharacterKnowledgeEngine = {
 
       primaryNode,
       supportingNodes,
-
       nodes: [primaryNode, ...supportingNodes].filter(Boolean),
 
       confidence,
@@ -244,7 +165,8 @@ window.AriSupabaseCharacterKnowledgeEngine = {
     return {
       supabaseCharacterKnowledgeRan: true,
       supabaseCharacterKnowledgeVersion: this.version,
-      supabaseCharacterKnowledgeSource: "ari-supabase-character-knowledge-engine",
+      supabaseCharacterKnowledgeSource:
+        "ari-supabase-character-knowledge-engine",
       characterKnowledgeAvailable: false,
       exactMatch: false,
       inferenceNeeded: false,
@@ -258,7 +180,8 @@ window.AriSupabaseCharacterKnowledgeEngine = {
   },
 
   error(error = null) {
-    const message = error?.message || String(error || "Unknown character knowledge error.");
+    const message =
+      error?.message || String(error || "Unknown character knowledge error.");
 
     return {
       ...this.empty(message),
