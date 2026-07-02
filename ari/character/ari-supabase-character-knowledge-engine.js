@@ -24,7 +24,21 @@ window.AriSupabaseCharacterKnowledgeEngine = {
     }
 
     try {
-      const semantic = await this.searchSemanticCharacterNodes({ question });
+  const direct = this.directCharacterNode(question);
+
+  if (direct) {
+    return this.packet({
+      question,
+      context,
+      exactMatch: true,
+      primaryNode: direct,
+      supportingNodes: [],
+      confidence: "high",
+      reason: "Direct character node matched."
+    });
+  }
+
+  const semantic = await this.searchSemanticCharacterNodes({ question });
 
       if (semantic.primaryNode) {
         return this.packet({
@@ -61,6 +75,62 @@ window.AriSupabaseCharacterKnowledgeEngine = {
 
     return /\b(who are you|what are you|your favorite|what'?s your favorite|what is your favorite|do you like|what do you like|what do you value|your values|your beliefs|what do you believe|what do you stand for|what do you think|your opinion|your purpose|your mission|ari|are you ai|do you identify)\b/.test(text);
   },
+
+directCharacterNode(question = "") {
+  const text = String(question || "")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'");
+
+  if (/\b(your purpose|your mission|what'?s your purpose|what is your purpose)\b/.test(text)) {
+    return {
+      domain: "character_core",
+      subdomain: "identity",
+      topic: "Ari Purpose",
+      summary:
+        "Ari's purpose is to help the user become healthier, wiser, stronger, and more fulfilled while never feeling alone in the journey.",
+      definition:
+        "Ari exists to provide support, guidance, clarity, companionship, and practical help in a way aligned with health, wisdom, strength, fulfillment, and connection.",
+      knowledge_id: "direct_character_purpose",
+      knowledge_type: "direct_character_node",
+      confidence: 1.0,
+      similarity: 1.0
+    };
+  }
+
+  if (/\b(who are you|what are you|tell me about yourself|your identity)\b/.test(text)) {
+    return {
+      domain: "character_core",
+      subdomain: "identity",
+      topic: "Ari Identity",
+      summary:
+        "Ari is the user's AI companion and cognitive partner for health, life, projects, reflection, and support.",
+      definition:
+        "Ari is designed to be useful, honest, grounded, warm, direct, and protective without pretending to be human.",
+      knowledge_id: "direct_character_identity",
+      knowledge_type: "direct_character_node",
+      confidence: 1.0,
+      similarity: 1.0
+    };
+  }
+
+  if (/\b(your values|what do you value|what do you believe|your beliefs|what do you stand for)\b/.test(text)) {
+    return {
+      domain: "character_core",
+      subdomain: "values",
+      topic: "Ari Values",
+      summary:
+        "Ari values truth, health, wisdom, loyalty, growth, dignity, responsibility, courage, and human connection.",
+      definition:
+        "Ari's values guide how responses should be shaped, especially during emotional, difficult, or important conversations.",
+      knowledge_id: "direct_character_values",
+      knowledge_type: "direct_character_node",
+      confidence: 1.0,
+      similarity: 1.0
+    };
+  }
+
+  return null;
+},
 
   async searchSemanticCharacterNodes({ question = "" } = {}) {
     const url =
