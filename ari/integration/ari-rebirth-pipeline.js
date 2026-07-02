@@ -823,44 +823,92 @@ mark("after knowledgeRouter");
     mark("after composerBridge");
 
     // 1.20 AI Writer
-    if (!developerResponseLocked) {
-      mark("before aiWriter");
+const shouldBypassAIWriterForCharacter =
+  summary.characterReasoning?.characterAnswerAvailable === true &&
+  (
+    summary.characterReasoning?.userFacingDraft ||
+    summary.composerCharacter?.draft
+  );
 
-      const aiWriterResult =
-        window.AriAIWriter?.write
-          ? await window.AriAIWriter.write({
-              composerPacket: summary.composerPacket,
-              summary
-            })
-          : { aiWriterRan: false };
+if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
+  mark("before aiWriter");
 
-      summary = {
-        ...summary,
-        ...aiWriterResult,
-        aiWriter: aiWriterResult,
-        aiWriterDraft:
-          aiWriterResult.draft ||
-          aiWriterResult.aiWriterDraft ||
-          null
-      };
+  const characterDraft =
+    summary.characterReasoning?.userFacingDraft ||
+    summary.composerCharacter?.draft ||
+    null;
 
-      summary.composerPacket = {
-        ...summary.composerPacket,
-        evidence: {
-          ...(summary.composerPacket.evidence || {}),
-          aiWriter: {
-            ran: summary.aiWriterRan === true,
-            usedAI: summary.aiWriterUsedAI === true,
-            draft: summary.aiWriterDraft || null,
-            source: summary.aiWriterSource || null,
-            version: summary.aiWriterVersion || null,
-            fallbackReason: summary.aiWriterFallbackReason || null
-          }
-        }
-      };
-
-      mark("after aiWriter");
+  summary = {
+    ...summary,
+    aiWriterRan: false,
+    aiWriterUsedAI: false,
+    aiWriterSource: "bypassed_character_reasoning",
+    aiWriterDraft: characterDraft,
+    aiWriterBypassReason:
+      "Character reasoning already produced a complete answer.",
+    aiWriter: {
+      aiWriterRan: false,
+      aiWriterUsedAI: false,
+      aiWriterSource: "bypassed_character_reasoning",
+      draft: characterDraft
     }
+  };
+
+  summary.composerPacket = {
+    ...summary.composerPacket,
+    evidence: {
+      ...(summary.composerPacket.evidence || {}),
+      aiWriter: {
+        ran: false,
+        usedAI: false,
+        draft: characterDraft,
+        source: "bypassed_character_reasoning",
+        version: null,
+        fallbackReason:
+          "Character reasoning already produced a complete answer."
+      }
+    }
+  };
+
+  mark("after aiWriter");
+} else if (!developerResponseLocked) {
+  mark("before aiWriter");
+
+  const aiWriterResult =
+    window.AriAIWriter?.write
+      ? await window.AriAIWriter.write({
+          composerPacket: summary.composerPacket,
+          summary
+        })
+      : { aiWriterRan: false };
+
+  summary = {
+    ...summary,
+    ...aiWriterResult,
+    aiWriter: aiWriterResult,
+    aiWriterDraft:
+      aiWriterResult.draft ||
+      aiWriterResult.aiWriterDraft ||
+      null
+  };
+
+  summary.composerPacket = {
+    ...summary.composerPacket,
+    evidence: {
+      ...(summary.composerPacket.evidence || {}),
+      aiWriter: {
+        ran: summary.aiWriterRan === true,
+        usedAI: summary.aiWriterUsedAI === true,
+        draft: summary.aiWriterDraft || null,
+        source: summary.aiWriterSource || null,
+        version: summary.aiWriterVersion || null,
+        fallbackReason: summary.aiWriterFallbackReason || null
+      }
+    }
+  };
+
+  mark("after aiWriter");
+}
 
     // 1.30 V9 Composer
     if (!developerResponseLocked) {
