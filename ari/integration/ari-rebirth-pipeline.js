@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.1.8 — Character/Supabase Before General Knowledge Router
+// V4.1.9 — Character/Supabase Before General Knowledge Router
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.1.8",
+  version: "4.1.9",
 
   async run(systemSummary = {}) {
     const debugTiming =
