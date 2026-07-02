@@ -18,6 +18,9 @@ const DEFAULT_SEARCH_ORDER = [
   { core: "knowledge_core", weight: 1.0 }
 ];
 
+const QUERY_EMBEDDING_CACHE = new Map();
+const QUERY_EMBEDDING_CACHE_TTL_MS = 1000 * 60 * 30;
+
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -105,27 +108,7 @@ async function handleSemanticSearchAriNodes(req, res, body = {}) {
 
   const searchOrder = normalizeSearchOrder(req, body);
 
-  const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "text-embedding-3-small",
-      input: query
-    })
-  });
-
-  const embeddingData = await embeddingResponse.json();
-
-  if (!embeddingResponse.ok) {
-    return res.status(embeddingResponse.status).json({
-      error: embeddingData?.error?.message || "Embedding failed."
-    });
-  }
-
-  const queryEmbedding = embeddingData?.data?.[0]?.embedding;
+  const queryEmbedding = await getQueryEmbedding(query);
 
   const allMatches = [];
   const coreResults = [];
@@ -448,6 +431,50 @@ Return JSON only:
     source: "openai_knowledge",
     success: true
   });
+}
+
+async function getQueryEmbedding(query = "") {
+  const cleanQuery = String(query || "").trim().toLowerCase();
+  const cached = QUERY_EMBEDDING_CACHE.get(cleanQuery);
+
+  if (
+    cached &&
+    Array.isArray(cached.embedding) &&
+    Date.now() - cached.createdAt < QUERY_EMBEDDING_CACHE_TTL_MS
+  ) {
+    return cached.embedding;
+  }
+
+  const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "text-embedding-3-small",
+      input: query
+    })
+  });
+
+  const embeddingData = await embeddingResponse.json();
+
+  if (!embeddingResponse.ok) {
+    throw new Error(embeddingData?.error?.message || "Embedding failed.");
+  }
+
+  const embedding = embeddingData?.data?.[0]?.embedding;
+
+  if (!Array.isArray(embedding)) {
+    throw new Error("No embedding returned.");
+  }
+
+  QUERY_EMBEDDING_CACHE.set(cleanQuery, {
+    embedding,
+    createdAt: Date.now()
+  });
+
+  return embedding;
 }
 
 function parseVector(value) {
