@@ -1,7 +1,22 @@
 // api/knowledge.js
 // CalBuddy / Ari Knowledge API
-// Purpose: Supabase knowledge library + Ari OpenAI knowledge client.
-// V2.2.1 — Ari Rebirth Compatible / aiInstruction Ready
+// Purpose: Router-driven six-core Supabase retrieval + Ari OpenAI knowledge client.
+// V3.0.0 — Six-Core / Multi-Core Semantic Retrieval / Legacy-Safe
+
+const VALID_KNOWLEDGE_CORES = [
+  "character_core",
+  "relationship_core",
+  "memory_core",
+  "life_core",
+  "knowledge_core",
+  "growth_core"
+];
+
+const LEGACY_DOMAINS = ["ari_legacy"];
+
+const DEFAULT_SEARCH_ORDER = [
+  { core: "knowledge_core", weight: 1.0 }
+];
 
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
@@ -11,6 +26,10 @@ export default async function handler(req, res) {
   try {
     const body = req.body || {};
     const action = req.method === "GET" ? req.query.action : body.action;
+
+    if (action === "semantic_search_ari_nodes") {
+      return await handleSemanticSearchAriNodes(req, res, body);
+    }
 
     if (
       action === "openai_knowledge" ||
@@ -29,31 +48,62 @@ export default async function handler(req, res) {
       });
     }
 
-    const headers = {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      "Content-Type": "application/json"
-    };
+    return res.status(400).json({ error: "Unknown knowledge action." });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Knowledge API failed."
+    });
+  }
+}
 
-    const user_id = req.method === "GET" ? req.query.user_id : body.user_id;
-
-    if (!action) return res.status(400).json({ error: "Missing action." });
-    
-    if (action === "semantic_search_ari_nodes") {
-  const query =
-    req.method === "GET"
-      ? String(req.query.query || "")
-      : String(body.query || "");
-
-  const limit = Number(req.method === "GET" ? req.query.limit || 5 : body.limit || 5);
-
-  if (!query.trim()) {
-    return res.status(400).json({ error: "Missing semantic search query." });
+async function handleSemanticSearchAriNodes(req, res, body = {}) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return res.status(500).json({
+      error: "Missing Supabase server environment variables."
+    });
   }
 
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ error: "Missing OPENAI_API_KEY." });
   }
+
+  const headers = {
+    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    "Content-Type": "application/json"
+  };
+
+  const query =
+    req.method === "GET"
+      ? String(req.query.query || "")
+      : String(body.query || "");
+
+  if (!query.trim()) {
+    return res.status(400).json({ error: "Missing semantic search query." });
+  }
+
+  const limit = clampNumber(
+    req.method === "GET" ? req.query.limit : body.limit,
+    1,
+    30,
+    8
+  );
+
+  const limitPerCore = clampNumber(
+    req.method === "GET" ? req.query.limitPerCore : body.limitPerCore,
+    1,
+    10,
+    5
+  );
+
+  const minSimilarity = clampNumber(
+    req.method === "GET" ? req.query.minSimilarity : body.minSimilarity,
+    0,
+    1,
+    0.35
+  );
+
+  const searchOrder = normalizeSearchOrder(req, body);
 
   const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
@@ -77,226 +127,153 @@ export default async function handler(req, res) {
 
   const queryEmbedding = embeddingData?.data?.[0]?.embedding;
 
-  const nodesResponse = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/ari_knowledge_nodes?select=*&embedding=not.is.null&limit=200`,
-    { method: "GET", headers }
-  );
+  const allMatches = [];
+  const coreResults = [];
 
-  const nodes = await nodesResponse.json();
+  for (const item of searchOrder) {
+    const core = item.core;
+    const weight = Number(item.weight || 1);
 
-  if (!nodesResponse.ok) {
-    return res.status(nodesResponse.status).json({ error: nodes });
+    const url =
+      `${process.env.SUPABASE_URL}/rest/v1/ari_knowledge_nodes` +
+      `?select=*` +
+      `&embedding=not.is.null` +
+      `&domain=eq.${encodeURIComponent(core)}` +
+      `&limit=500`;
+
+    const nodesResponse = await fetch(url, { method: "GET", headers });
+    const nodes = await nodesResponse.json();
+
+    if (!nodesResponse.ok) {
+      coreResults.push({
+        core,
+        weight,
+        success: false,
+        error: nodes,
+        count: 0
+      });
+      continue;
+    }
+
+    const matches = (nodes || [])
+      .filter(node => !isLegacyNode(node))
+      .map(node => {
+        const { embedding, ...cleanNode } = node;
+        const similarity = cosineSimilarity(queryEmbedding, embedding);
+        const confidence = Number(cleanNode.confidence || 0.8);
+        const weightedScore = similarity * weight * confidence;
+
+        return {
+          ...cleanNode,
+          core,
+          routerWeight: weight,
+          similarity,
+          weightedScore
+        };
+      })
+      .filter(node => Number.isFinite(node.similarity))
+      .filter(node => node.similarity >= minSimilarity)
+      .sort((a, b) => b.weightedScore - a.weightedScore)
+      .slice(0, limitPerCore);
+
+    allMatches.push(...matches);
+
+    coreResults.push({
+      core,
+      weight,
+      success: true,
+      count: matches.length,
+      bestSimilarity: matches[0]?.similarity || 0,
+      bestWeightedScore: matches[0]?.weightedScore || 0
+    });
   }
 
-  const matches = (nodes || [])
-  .map(node => {
-    const { embedding, ...cleanNode } = node;
-
-    return {
-      ...cleanNode,
-      similarity: cosineSimilarity(queryEmbedding, embedding)
-    };
-  })
-  .filter(node => Number.isFinite(node.similarity))
-  .sort((a, b) => b.similarity - a.similarity)
-  .slice(0, limit);
+  const merged = dedupeNodes(allMatches)
+    .sort((a, b) => b.weightedScore - a.weightedScore)
+    .slice(0, limit);
 
   return res.status(200).json({
     success: true,
     query,
-    count: matches.length,
-    matches
+    searchOrder,
+    searchedCores: searchOrder.map(item => item.core),
+    count: merged.length,
+    matches: merged,
+    coreResults
   });
 }
-    
-    if (!user_id) return res.status(400).json({ error: "Missing user_id." });
 
-    if (action === "create_document") {
-      const {
-        title,
-        document_type = "unknown",
-        source = "user_upload",
-        storage_path = null,
-        copyright_status = "unknown",
-        use_allowed = false,
-        notes = ""
-      } = body;
+function normalizeSearchOrder(req, body = {}) {
+  const raw =
+    req.method === "GET"
+      ? req.query.searchOrder || req.query.cores || req.query.domain || ""
+      : body.searchOrder || body.cores || body.domain || body.core || "";
 
-      if (!title) return res.status(400).json({ error: "Missing document title." });
+  let parsed = [];
 
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/knowledge_documents`, {
-        method: "POST",
-        headers: { ...headers, Prefer: "return=representation" },
-        body: JSON.stringify({
-          owner_user_id: user_id,
-          title,
-          document_type,
-          source,
-          storage_path,
-          copyright_status,
-          use_allowed,
-          notes
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) return res.status(response.status).json({ error: data });
-
-      return res.status(200).json({ success: true, document: data?.[0] || null });
+  if (Array.isArray(raw)) {
+    parsed = raw;
+  } else if (typeof raw === "string" && raw.trim()) {
+    try {
+      const maybeJson = JSON.parse(raw);
+      parsed = Array.isArray(maybeJson) ? maybeJson : [maybeJson];
+    } catch {
+      parsed = raw.split(",").map(core => core.trim());
     }
-
-    if (action === "add_chunk") {
-      const {
-        document_id,
-        chunk_title = null,
-        chunk_text,
-        category = null,
-        page_start = null,
-        page_end = null,
-        tags = []
-      } = body;
-
-      if (!document_id || !chunk_text) {
-        return res.status(400).json({ error: "document_id and chunk_text are required." });
-      }
-
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/knowledge_chunks`, {
-        method: "POST",
-        headers: { ...headers, Prefer: "return=representation" },
-        body: JSON.stringify({
-          document_id,
-          chunk_title,
-          chunk_text,
-          category,
-          page_start,
-          page_end,
-          tags
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) return res.status(response.status).json({ error: data });
-
-      return res.status(200).json({ success: true, chunk: data?.[0] || null });
-    }
-
-    if (action === "add_lesson") {
-      const {
-        document_id,
-        lesson_title = null,
-        lesson_summary,
-        application_notes = null,
-        category = null
-      } = body;
-
-      if (!document_id || !lesson_summary) {
-        return res.status(400).json({ error: "document_id and lesson_summary are required." });
-      }
-
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/document_lessons`, {
-        method: "POST",
-        headers: { ...headers, Prefer: "return=representation" },
-        body: JSON.stringify({
-          document_id,
-          lesson_title,
-          lesson_summary,
-          application_notes,
-          category
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) return res.status(response.status).json({ error: data });
-
-      return res.status(200).json({ success: true, lesson: data?.[0] || null });
-    }
-
-    if (action === "search_knowledge") {
-      const query =
-        req.method === "GET"
-          ? String(req.query.query || "")
-          : String(body.query || "");
-
-      if (!query.trim()) return res.status(400).json({ error: "Missing search query." });
-
-      const encodedQuery = encodeURIComponent(`%${query}%`);
-
-      const chunksResponse = await fetch(
-        `${process.env.SUPABASE_URL}/rest/v1/knowledge_chunks?select=*,knowledge_documents!inner(owner_user_id,title,document_type,source,use_allowed)&chunk_text=ilike.${encodedQuery}&knowledge_documents.owner_user_id=eq.${user_id}&limit=10`,
-        { method: "GET", headers }
-      );
-
-      const chunks = await chunksResponse.json();
-
-      const lessonsResponse = await fetch(
-        `${process.env.SUPABASE_URL}/rest/v1/document_lessons?select=*,knowledge_documents!inner(owner_user_id,title,document_type,source,use_allowed)&lesson_summary=ilike.${encodedQuery}&knowledge_documents.owner_user_id=eq.${user_id}&limit=10`,
-        { method: "GET", headers }
-      );
-
-      const lessons = await lessonsResponse.json();
-
-      return res.status(200).json({
-        success: true,
-        results: {
-          chunks: chunksResponse.ok ? chunks : [],
-          lessons: lessonsResponse.ok ? lessons : []
-        }
-      });
-    }
-
-    if (action === "list_documents") {
-      const response = await fetch(
-        `${process.env.SUPABASE_URL}/rest/v1/knowledge_documents?owner_user_id=eq.${user_id}&order=created_at.desc&limit=50`,
-        { method: "GET", headers }
-      );
-
-      const data = await response.json();
-      if (!response.ok) return res.status(response.status).json({ error: data });
-
-      return res.status(200).json({ success: true, documents: data || [] });
-    }
-
-    if (action === "save_uploaded_file") {
-      const {
-        file_name,
-        file_type = null,
-        file_category = null,
-        storage_path = null,
-        public_url = null,
-        summary = null,
-        extracted_text = null
-      } = body;
-
-      if (!file_name) return res.status(400).json({ error: "Missing file_name." });
-
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/uploaded_files`, {
-        method: "POST",
-        headers: { ...headers, Prefer: "return=representation" },
-        body: JSON.stringify({
-          user_id,
-          file_name,
-          file_type,
-          file_category,
-          storage_path,
-          public_url,
-          summary,
-          extracted_text,
-          ai_processed: Boolean(summary || extracted_text)
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) return res.status(response.status).json({ error: data });
-
-      return res.status(200).json({ success: true, file: data?.[0] || null });
-    }
-
-    return res.status(400).json({ error: "Unknown knowledge action." });
-  } catch (error) {
-    return res.status(500).json({
-      error: error.message || "Knowledge API failed."
-    });
   }
+
+  if (!parsed.length) parsed = DEFAULT_SEARCH_ORDER;
+
+  const normalized = parsed
+    .map(item => {
+      if (typeof item === "string") {
+        return {
+          core: item,
+          weight: 1.0
+        };
+      }
+
+      return {
+        core: item.core || item.domain || item.id || "",
+        weight: Number(item.weight ?? item.score ?? 1.0)
+      };
+    })
+    .filter(item => VALID_KNOWLEDGE_CORES.includes(item.core))
+    .map(item => ({
+      core: item.core,
+      weight: Number.isFinite(item.weight) ? item.weight : 1.0
+    }));
+
+  return normalized.length ? normalized : DEFAULT_SEARCH_ORDER;
+}
+
+function isLegacyNode(node = {}) {
+  return (
+    LEGACY_DOMAINS.includes(node.domain) ||
+    (Array.isArray(node.tags) && node.tags.includes("legacy"))
+  );
+}
+
+function dedupeNodes(nodes = []) {
+  const seen = new Set();
+  const result = [];
+
+  for (const node of nodes) {
+    const key = node.knowledge_id || node.id || `${node.domain}:${node.topic}`;
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(node);
+  }
+
+  return result;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
 }
 
 async function handleOpenAIKnowledge(req, res) {
@@ -321,8 +298,6 @@ async function handleOpenAIKnowledge(req, res) {
     body.input ||
     question ||
     "";
-
-
 
   const character = body.character || body.characterContext || {};
   const contract = body.contract || body.situationContract || {};
@@ -488,7 +463,9 @@ function cosineSimilarity(a = [], b = []) {
   const vectorA = parseVector(a);
   const vectorB = parseVector(b);
 
-  if (!vectorA.length || !vectorB.length || vectorA.length !== vectorB.length) return 0;
+  if (!vectorA.length || !vectorB.length || vectorA.length !== vectorB.length) {
+    return 0;
+  }
 
   let dot = 0;
   let magA = 0;
