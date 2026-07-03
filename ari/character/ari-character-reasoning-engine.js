@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.2 — Supabase Character Knowledge First / Local Fallback / Values Inference
+// V1.1.3 — Supabase Character Knowledge First / Local Fallback / Values Inference
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.2",
+  version: "1.1.3",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -47,9 +47,7 @@ window.AriCharacterReasoningEngine = {
   characterMode === "stable_or_inferred_preference_answer" ||
   characterMode === "ari_self_disclosure" ||
   characterMode === "worldview_answer" ||
-  characterMode === "ari_perspective" ||
-  characterMode === "background_presence" ||
-  characterMode === "warm_grounded_presence";
+  characterMode === "ari_perspective";
 
     if (!characterRelevant) {
       return this.noCharacterAnswer({
@@ -86,10 +84,8 @@ window.AriCharacterReasoningEngine = {
     "tell me about yourself"
   ]);
 
-    const useRelationshipPresence =
-      characterMode === "background_presence" ||
-      characterMode === "warm_grounded_presence";
-
+    
+      
     if (useIdentity) {
   return this.buildIdentityAnswer({
     text,
@@ -127,9 +123,7 @@ if (useWorldview) {
       });
     }
 
-    if (useRelationshipPresence) {
-      return this.buildPresenceAnswer({ expression: context });
-    }
+    
 
     return this.noCharacterAnswer({
       reason: "No character reasoning path matched.",
