@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.2.2 — Writer Validation Reason / Current Draft First / No Stale History
+// V9.2.3 — Writer Validation Reason / Current Draft First / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.2.2",
+  version: "9.2.3",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -292,8 +292,10 @@ composeSupabaseKnowledge(packet = {}) {
   const deep = this.cleanForUser(node.deep_understanding || "");
   const use = this.cleanForUser(node.how_ari_should_use_this || "");
 
+  const style = this.detectKnowledgeStyle(q);
+
   const isDefinition =
-    /\b(what is|define|meaning of|what does.*mean)\b/.test(q);
+    /\b(what is|define|definition|meaning of|what does.*mean)\b/.test(q);
 
   const isAdvice =
     /\b(what should i do|how do i|help|where do i start|what can i do|advice|fix|improve|deal with)\b/.test(q);
@@ -306,50 +308,72 @@ composeSupabaseKnowledge(packet = {}) {
 
   let sentences = [];
 
-  if (isDefinition) {
+  if (isDefinition || style === "textbook") {
     sentences = [
       definition || summary || `${topic} is the main idea here.`,
-      this.pickBestSupport({ q, summary, deep, use })
+      this.pickBestSupport({ q, summary, deep, use, style })
     ];
   } else if (isAdvice) {
     sentences = [
       userState
-        ? `Yes — ${topic.toLowerCase()} may be part of what is going on.`
+        ? `Yeah — ${topic.toLowerCase()} may be part of what is going on.`
         : `${topic} is probably the right place to start.`,
-      this.pickBestSupport({ q, summary, deep, use }),
+      this.pickBestSupport({ q, summary, deep, use, style }),
       this.buildOneNextStep(node, q)
     ];
   } else if (isCause || userState) {
     sentences = [
-      this.buildDirectAnswer(topic, q),
-      this.pickBestSupport({ q, summary, deep, use }),
+      this.buildDirectAnswer(topic, q, style),
+      this.pickBestSupport({ q, summary, deep, use, style }),
       this.buildMeaningForUser(node, q)
     ];
   } else {
     sentences = [
       summary || definition || `${topic} matters here.`,
-      this.pickBestSupport({ q, summary, deep, use })
+      this.pickBestSupport({ q, summary, deep, use, style })
     ];
   }
 
-  return this.polishResponse(sentences, maxSentences);
+  return this.polishResponse(sentences, maxSentences, style);
 },
 
-buildDirectAnswer(topic = "", q = "") {
+detectKnowledgeStyle(q = "") {
+  if (
+    /\b(define|definition|what is|textbook|explain fully|explain in detail|technical|scientific)\b/.test(q)
+  ) {
+    return "textbook";
+  }
+
+  if (
+    /\b(i feel|i'm|im|my|me|what'?s going on|what is going on|help|what should i do|why am i)\b/.test(q)
+  ) {
+    return "conversation";
+  }
+
+  return "direct";
+},
+
+buildDirectAnswer(topic = "", q = "", style = "conversation") {
   const lowerTopic = String(topic || "this").toLowerCase();
 
   if (/\b(can|does|could)\b/.test(q)) {
-    return `Yes — ${lowerTopic} can absolutely affect that.`;
+    return style === "conversation"
+      ? `Yeah — ${lowerTopic} can definitely affect that.`
+      : `Yes — ${lowerTopic} can affect that.`;
   }
 
   if (/\bwhat'?s going on|what is going on|why\b/.test(q)) {
-    return `What’s probably happening is that ${lowerTopic} is affecting more than one part of your life at once.`;
+    return style === "conversation"
+      ? `What’s probably happening is that ${lowerTopic} is hitting more than one part of your life at once.`
+      : `${lowerTopic} may be affecting multiple areas at once.`;
   }
 
-  return `This sounds connected to ${lowerTopic}.`;
+  return style === "conversation"
+    ? `This sounds connected to ${lowerTopic}.`
+    : `${lowerTopic} is relevant here.`;
 },
 
-pickBestSupport({ q = "", summary = "", deep = "", use = "" } = {}) {
+pickBestSupport({ q = "", summary = "", deep = "", use = "", style = "conversation" } = {}) {
   const source = deep || use || summary || "";
   if (!source) return "";
 
@@ -362,10 +386,26 @@ pickBestSupport({ q = "", summary = "", deep = "", use = "" } = {}) {
     }))
     .sort((a, b) => b.score - a.score);
 
-  return scored[0]?.sentence || sentences[0] || "";
+  let best = scored[0]?.sentence || sentences[0] || "";
+
+  if (style === "conversation") {
+    best = best
+      .replace(/\bPoor sleep can amplify stress, worsen mood, weaken discipline, reduce patience, increase cravings, impair judgment, and make ordinary problems feel much harder\./i,
+        "When sleep is off, your patience, mood, cravings, and judgment can all take a hit.")
+      .replace(/\bSleep is not wasted time\.\s*/i, "")
+      .replace(/\bIt is one of the core systems that allows humans to\b/i, "It helps you");
+  }
+
+  return best;
 },
 
 buildMeaningForUser(node = {}, q = "") {
+  const topic = String(node.topic || node.lesson || "this").toLowerCase();
+
+  if (topic.includes("sleep")) {
+    return "So if you’re more reactive with people, it may be a recovery problem before it’s a personality problem.";
+  }
+
   const practical = Array.isArray(node.practical_applications)
     ? node.practical_applications
     : [];
@@ -374,15 +414,16 @@ buildMeaningForUser(node = {}, q = "") {
     .map(item => this.cleanPractical(item))
     .filter(Boolean);
 
-  if (cleaned.length) {
-    return cleaned[0];
-  }
-
-  const topic = String(node.topic || node.lesson || "this").toLowerCase();
-  return `The useful move is to treat ${topic} as a real factor, not as a character flaw or lack of willpower.`;
+  return cleaned[0] || `The useful move is to treat ${topic} as a real factor, not as a character flaw.`;
 },
 
 buildOneNextStep(node = {}, q = "") {
+  const topic = String(node.topic || node.lesson || "this").toLowerCase();
+
+  if (topic.includes("sleep")) {
+    return "Start by protecting one sleep block or one recovery habit before trying to fix everything else.";
+  }
+
   const practical = Array.isArray(node.practical_applications)
     ? node.practical_applications
     : [];
@@ -403,8 +444,8 @@ cleanPractical(text = "") {
     .replace(/^Avoid shaming.*$/i, "Don’t turn this into a shame issue; treat it as a solvable pattern")
     .replace(/^Recommend medical evaluation\b/i, "Consider medical evaluation")
     .replace(/\busers report\b/gi, "you notice")
-.replace(/\busers\b/gi, "you")
-.replace(/\buser\b/gi, "you")
+    .replace(/\busers\b/gi, "you")
+    .replace(/\buser\b/gi, "you")
     .replace(/\.$/, "")
     .trim() + ".";
 },
@@ -435,6 +476,7 @@ relevanceScore(sentence = "", q = "") {
     .filter(word => word.length > 3);
 
   let score = 0;
+
   for (const word of words) {
     if (s.includes(word)) score += 2;
   }
@@ -447,10 +489,10 @@ relevanceScore(sentence = "", q = "") {
   return score;
 },
 
-polishResponse(sentences = [], maxSentences = 5) {
+polishResponse(sentences = [], maxSentences = 5, style = "conversation") {
   const seen = new Set();
 
-  return sentences
+  let cleaned = sentences
     .filter(Boolean)
     .map(s => String(s).trim())
     .filter(s => {
@@ -459,8 +501,13 @@ polishResponse(sentences = [], maxSentences = 5) {
       seen.add(key);
       return true;
     })
-    .slice(0, maxSentences)
-    .join(" ");
+    .slice(0, maxSentences);
+
+  if (style === "conversation") {
+    cleaned = cleaned.slice(0, Math.min(cleaned.length, 3));
+  }
+
+  return cleaned.join(" ");
 },
 
   composeLocal(packet = {}, activeDialogueState = null, characterIdentity = null) {
