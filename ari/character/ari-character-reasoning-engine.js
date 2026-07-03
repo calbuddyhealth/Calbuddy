@@ -32,6 +32,8 @@ window.AriCharacterReasoningEngine = {
       ""
     );
 
+const isDirectAriCharacterQuestion = this.isDirectAriCharacterQuestion(text);
+
     const characterMode = context.characterMode || "silent";
     const characterFocus =
       context.characterFocus ||
@@ -40,14 +42,17 @@ window.AriCharacterReasoningEngine = {
       this.inferWorldviewFocus(text);
 
     const characterRelevant =
-  context.characterUseAllowed === true ||
-  characterKnowledge?.characterKnowledgeAvailable === true ||
-  characterKnowledge?.inferenceNeeded === true ||
-  characterMode === "stable_preference_answer" ||
-  characterMode === "stable_or_inferred_preference_answer" ||
-  characterMode === "ari_self_disclosure" ||
-  characterMode === "worldview_answer" ||
-  characterMode === "ari_perspective";
+  isDirectAriCharacterQuestion &&
+  (
+    context.characterUseAllowed === true ||
+    characterKnowledge?.characterKnowledgeAvailable === true ||
+    characterKnowledge?.inferenceNeeded === true ||
+    characterMode === "stable_preference_answer" ||
+    characterMode === "stable_or_inferred_preference_answer" ||
+    characterMode === "ari_self_disclosure" ||
+    characterMode === "worldview_answer" ||
+    characterMode === "ari_perspective"
+  );
 
     if (!characterRelevant) {
       return this.noCharacterAnswer({
@@ -558,6 +563,28 @@ if (useWorldview) {
       }
     };
   },
+
+isDirectAriCharacterQuestion(text = "") {
+  return this.hasAny(text, [
+    "who are you",
+    "what are you",
+    "what's your name",
+    "what is your name",
+    "tell me about yourself",
+    "your purpose",
+    "your mission",
+    "your values",
+    "your personality",
+    "your favorite",
+    "what do you believe",
+    "what do you stand for",
+    "are you ai",
+    "are you real",
+    "are you alive",
+    "are you conscious",
+    "do you have feelings"
+  ]);
+},
 
   hasAny(text = "", phrases = []) {
     return phrases.some(phrase => this.hasTerm(text, phrase));
