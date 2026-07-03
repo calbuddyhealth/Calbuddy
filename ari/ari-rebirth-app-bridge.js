@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.6.6 — App Safe / Pipeline Guarded / Planner Loaded
+// V1.6.7 — App Safe / Pipeline Guarded / Mouth Planner Merge
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.6.6",
+version: "1.6.7",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -69,9 +69,9 @@ version: "1.6.6",
     "ari/governance/ari-situation-contract.js",
 
     "ari/language/ari-lexical-grounding-engine.js",
-    "ari/language/ari-communication-planner.js",
-    "ari/language/ari-human-language-engine.js",
-    "ari/language/ari-mouth-director.js",
+"ari/language/ari-human-language-engine.js",
+"ari/language/ari-mouth-director.js",
+"ari/language/ari-composer-bridge.js",
    
     // NEW composer pathway
 "ari/character/ari-character-core.js",
@@ -81,7 +81,6 @@ version: "1.6.6",
 "ari/character/ari-supabase-character-knowledge-engine.js",
 "ari/character/ari-character-reasoning-engine.js",
 "ari/character/ari-character-expression-engine.js",
-"ari/language/ari-composer-bridge.js",
 "ari/language/ari-ai-writer.js",
 "ari/language/ari-response-validator.js",
      "ari/language/ari-response-compressor.js",
