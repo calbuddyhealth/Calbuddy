@@ -1,7 +1,7 @@
 // api/knowledge.js 
 // CalBuddy / Ari Knowledge API
 // Purpose: Router-driven six-core Supabase retrieval + Ari OpenAI knowledge client.
-// V3.0.3 — Six-Core / Lower Similarity / Domain-Based Retrieval
+// V3.0.4 — Six-Core / Lower Similarity / Domain-Based Retrieval
 
 const VALID_KNOWLEDGE_CORES = [
   "character_core",
@@ -110,76 +110,60 @@ async function handleSemanticSearchAriNodes(req, res, body = {}) {
 
   const queryEmbedding = await getQueryEmbedding(query);
 
-  const allMatches = [];
-  const coreResults = [];
+  const domains = searchOrder.map(item => item.core);
 
-  for (const item of searchOrder) {
-    const core = item.core;
-    const weight = Number(item.weight || 1);
-
-    const fetchLimit =
-  core === "character_core" ? 100 :
-  core === "relationship_core" ? 150 :
-  core === "memory_core" ? 150 :
-  200;
-
-const url =
-  `${process.env.SUPABASE_URL}/rest/v1/ari_knowledge_nodes` +
-  `?select=*` +
-  `&embedding=not.is.null` +
-  `&domain=eq.${encodeURIComponent(core)}` +
-  `&limit=${fetchLimit}`;
-
-    const nodesResponse = await fetch(url, { method: "GET", headers });
-    const nodes = await nodesResponse.json();
-
-    if (!nodesResponse.ok) {
-      coreResults.push({
-        core,
-        weight,
-        success: false,
-        error: nodes,
-        count: 0
-      });
-      continue;
-    }
-
-    const matches = (nodes || [])
-      .filter(node => !isLegacyNode(node))
-      .map(node => {
-        const { embedding, ...cleanNode } = node;
-        const similarity = cosineSimilarity(queryEmbedding, embedding);
-        const confidence = Number(cleanNode.confidence || 0.8);
-        const weightedScore = similarity * weight * confidence;
-
-        return {
-          ...cleanNode,
-          core,
-          routerWeight: weight,
-          similarity,
-          weightedScore
-        };
-      })
-      .filter(node => Number.isFinite(node.similarity))
-      .filter(node => node.similarity >= minSimilarity)
-      .sort((a, b) => b.weightedScore - a.weightedScore)
-      .slice(0, limitPerCore);
-
-    allMatches.push(...matches);
-
-    coreResults.push({
-      core,
-      weight,
-      success: true,
-      count: matches.length,
-      bestSimilarity: matches[0]?.similarity || 0,
-      bestWeightedScore: matches[0]?.weightedScore || 0
-    });
+const rpcResponse = await fetch(
+  `${process.env.SUPABASE_URL}/rest/v1/rpc/match_ari_knowledge_nodes`,
+  {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      query_embedding: queryEmbedding,
+      match_domains: domains,
+      match_count: limit,
+      min_similarity: minSimilarity
+    })
   }
+);
 
-  const merged = dedupeNodes(allMatches)
-    .sort((a, b) => b.weightedScore - a.weightedScore)
-    .slice(0, limit);
+const rpcData = await rpcResponse.json();
+
+if (!rpcResponse.ok) {
+  return res.status(rpcResponse.status).json({
+    error: rpcData?.message || rpcData?.error || "Supabase vector RPC failed.",
+    details: rpcData
+  });
+}
+
+const weightByCore = Object.fromEntries(
+  searchOrder.map(item => [item.core, Number(item.weight || 1)])
+);
+
+const merged = (rpcData || [])
+  .map(node => {
+    const weight = weightByCore[node.domain] || 1;
+    const confidence = Number(node.confidence || 0.8);
+    return {
+      ...node,
+      core: node.domain,
+      routerWeight: weight,
+      weightedScore: Number(node.similarity || 0) * weight * confidence
+    };
+  })
+  .sort((a, b) => b.weightedScore - a.weightedScore)
+  .slice(0, limit);
+
+const coreResults = searchOrder.map(item => {
+  const coreMatches = merged.filter(node => node.domain === item.core);
+  return {
+    core: item.core,
+    weight: item.weight,
+    success: true,
+    count: coreMatches.length,
+    bestSimilarity: coreMatches[0]?.similarity || 0,
+    bestWeightedScore: coreMatches[0]?.weightedScore || 0
+  };
+});
 
   return res.status(200).json({
     success: true,
