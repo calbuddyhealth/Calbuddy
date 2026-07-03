@@ -14,8 +14,12 @@ window.AriSituationContract = {
     const safety = summary.safetyContextGate || {};
     const triage = summary.triage || summary.ariTriage || {};
     const thread = summary.threadUnderstanding || summary.threadUnderstandingState || {};
-
-    const contract = this.blankContract({ safety, map, triage, thread });
+const planner =
+  summary.multiLanePlan ||
+  summary.responsePlan ||
+  summary.multiLaneResponsePlan ||
+  {};
+    const contract = this.blankContract({ safety, map, triage, thread, planner });
 
     this.applyConversationMode(contract, map, thread, summary);
     this.applyQuestionMode(contract, map, thread, summary);
@@ -44,7 +48,7 @@ window.AriSituationContract = {
     };
   },
 
-  blankContract({ safety = {}, map = {}, triage = {}, thread = {} }) {
+  blankContract({ safety = {}, map = {}, triage = {}, thread = {}, planner = {} }) {
     return {
       situationContractRan: true,
       situationContractVersion: this.version,
@@ -141,6 +145,11 @@ window.AriSituationContract = {
         triageConfidence: triage.confidence ?? null,
         triageResponseShape: triage.responseShape || null,
         triageReasons: triage.reasons || [],
+        plannerPrimaryLane: planner.primaryLane || null,
+plannerResponseShape: planner.responseShape || null,
+plannerResponseOrder: planner.responseOrder || [],
+plannerComposerDirective: planner.composerDirective || null,
+        
         mapDomains: map.domains || [],
         mapSituations: map.situations || [],
         mapNeeds: map.needs || [],
@@ -442,6 +451,54 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
     this.addMany(contract.responseRules, triage.responseConstraints || map.responseConstraints || []);
   },
 
+applyPlannerHandoff(contract, planner = {}) {
+  if (!planner.multiLanePlannerRan) return;
+
+  if (planner.responseShape) {
+    contract.responseShape = planner.responseShape;
+  }
+
+  this.addMany(contract.support, planner.supportLanes || []);
+  this.addMany(contract.brief, planner.briefLanes || []);
+  this.addMany(contract.deferred, planner.deferredLanes || []);
+  this.addMany(contract.blocked, planner.blockedLanes || []);
+
+  if (planner.responseOrder?.length) {
+    contract.mouthDirective.order = planner.responseOrder;
+  }
+
+  const directive = planner.composerDirective || {};
+
+  if (directive.opening) {
+    contract.mouthDirective.opening = directive.opening;
+  }
+
+  if (directive.closing) {
+    contract.mouthDirective.closing = directive.closing;
+  }
+
+  this.addMany(contract.mouthDirective.required, directive.required || []);
+  this.addMany(contract.mouthDirective.avoid, directive.avoid || []);
+
+  (directive.sequence || []).forEach(step => {
+    this.add(contract.requiredBehaviors, step);
+  });
+
+  this.add(contract.responseRules, "use_multi_lane_planner_handoff");
+  this.add(contract.responseRules, "contract_may_override_planner_only_for_safety_or_authority");
+
+  contract.debug = {
+    ...(contract.debug || {}),
+    plannerUsed: true,
+    plannerPrimaryLane: planner.primaryLane || null,
+    plannerResponseShape: planner.responseShape || null,
+    plannerResponseOrder: planner.responseOrder || [],
+    plannerConfidence: planner.confidence ?? null
+  };
+
+  contract.reasons.push("Multi-lane planner handoff applied after triage.");
+},
+
   applySituationThesis(contract, map = {}) {
     const thesis = map.primarySituationThesis || null;
     const narrative = map.situationNarrative || thesis?.oneLine || null;
@@ -545,7 +602,7 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
       return;
     }
 
-    if (["medical_context", "builder", "teacher", "executive_decision", "memory", "emotion"].includes(contract.primary)) {
+    if (["medical_context", "developer_artifact", "builder", "teacher", "executive_decision", "memory", "emotion"].includes(contract.primary)) {
       contract.authority = "strong";
       return;
     }
@@ -773,6 +830,35 @@ buildExecutiveConclusion(
           contractCompletionCriteria: "Risk ambiguity is reduced."
         }
       },
+
+developer_artifact: {
+  authority: "strong",
+  responseShape: "developer_artifact_operation",
+  deferred: ["emotion", "wisdom", "life_chapter", "deep_emotion"],
+  blocked: ["life_chapter", "deep_emotion"],
+  responseRules: [
+    "use_artifact_context",
+    "produce_code_or_patch",
+    "preserve_unrelated_code",
+    "avoid_generic_platform_advice",
+    "legacy_systems_support_only"
+  ],
+  requiredBehaviors: [
+    "Use the provided file or artifact context.",
+    "Give exact code, patch, or placement instructions.",
+    "Preserve unrelated code."
+  ],
+  forbiddenBehaviors: [
+    "Do not give generic platform advice.",
+    "Do not ask unnecessary clarification.",
+    "Do not switch into emotional reflection before code/action."
+  ],
+  executive: {
+    contractGoal: "Perform the requested artifact/code operation.",
+    contractNextAction: "Provide the exact patch, replacement block, or placement instruction.",
+    contractCompletionCriteria: "User has actionable code or file instructions."
+  }
+},
 
       builder: {
         authority: "strong",
