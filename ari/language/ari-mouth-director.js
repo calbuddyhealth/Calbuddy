@@ -1,11 +1,11 @@
 // ari/language/ari-mouth-director.js
 // Purpose: Own final expression planning before Composer Bridge.
-// V2.0.0 — Communication Planner + Mouth Director + Blueprint Selector Merge
+// V2.0.2 — Communication Planner + Mouth Director + Blueprint Selector Merge / Planner Order Aware
 
 window.Ari = window.Ari || {};
 
 window.AriMouthDirector = {
-  version: "2.0.0",
+  version: "2.0.2",
 
   direct(input = {}) {
     const summary = input.summary || input || {};
@@ -15,7 +15,7 @@ window.AriMouthDirector = {
     const needs = map.needs || [];
     const situations = map.situations || [];
     const domains = map.domains || [];
-
+const multiLanePlan = summary.multiLanePlan || summary.responsePlan || {};
     const blueprintId = this.selectBlueprint({
       primary,
       needs,
@@ -30,6 +30,7 @@ window.AriMouthDirector = {
       needs,
       situations,
       domains,
+      multiLanePlan,
       summary
     });
 
@@ -51,6 +52,7 @@ window.AriMouthDirector = {
         responseShape: expressionPlan.responseShape,
         responseOrder: expressionPlan.structure,
         blueprintHint: blueprintId,
+        plannerInput: multiLanePlan,
         composerDirective: {
           opening: expressionPlan.opening,
           sequence: expressionPlan.structure,
@@ -137,7 +139,7 @@ window.AriMouthDirector = {
     return "general_direct_response";
   },
 
-  buildExpressionPlan({ primary, blueprintId, needs = [], situations = [], domains = [] } = {}) {
+  buildExpressionPlan({ primary, blueprintId, needs = [], situations = [], domains = [], summary = {}, multiLanePlan = {} } = {}) {
     const base = {
       blueprintId,
       primary,
@@ -161,7 +163,13 @@ window.AriMouthDirector = {
       question: null,
       aiAllowed: true
     };
+const plannerOrder = Array.isArray(multiLanePlan.responseOrder)
+  ? multiLanePlan.responseOrder
+  : [];
 
+if (plannerOrder.length && blueprintId !== "emotion_balance_repair") {
+  base.structure = plannerOrder;
+}
     if (blueprintId === "emotion_balance_repair") {
       return {
         ...base,
