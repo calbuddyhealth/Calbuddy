@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.6.4 — App Safe / Pipeline Guarded / File Evidence Non-Hijack
+// V1.6.5 — App Safe / Pipeline Guarded / Knowledge Interpreter Loaded
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.6.3",
+version: "1.6.5",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -127,11 +127,12 @@ version: "1.6.3",
     "ari/governance/ari-situation-review-console.js",
 
     "ari/knowledge/ari-openai-knowledge-client.js",
-    "ari/knowledge/ari-supabase-knowledge-client.js",
-    "ari/reasoning/ari-reasoning-engine.js",
-    "ari/cognition/ari-cognitive-executive.js",
-    "ari/knowledge/ari-knowledge-router.js",
-    "ari/integration/ari-rebirth-pipeline.js"
+"ari/knowledge/ari-supabase-knowledge-client.js",
+"ari/reasoning/ari-reasoning-engine.js",
+"ari/cognition/ari-cognitive-executive.js",
+"ari/knowledge/ari-knowledge-router.js",
+"ari/knowledge/ari-knowledge-meaning-interpreter.js",
+"ari/integration/ari-rebirth-pipeline.js"
   ],
 
   loaded: false,
