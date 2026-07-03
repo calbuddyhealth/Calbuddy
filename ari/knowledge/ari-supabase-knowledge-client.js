@@ -1,12 +1,12 @@
 // ari/knowledge/ari-supabase-knowledge-client.js
 // Ari Supabase Knowledge Client
 // Purpose: Retrieve Ari Knowledge Graph + system knowledge from Supabase.
-// V0.3.1 — Relaxed Semantic + Keyword Fallback / Six-Core Compatible
+// V0.3.2 — Relaxed Semantic + Keyword Fallback / Six-Core Compatible
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseKnowledgeClient = {
-  version: "0.3.1",
+  version: "0.3.2",
 
   async searchKnowledgeGraph({ summary = {}, question = "" } = {}) {
     const cleanQuestion = String(question || "").trim();
@@ -104,8 +104,8 @@ window.AriSupabaseKnowledgeClient = {
       .limit(12);
 
     if (cores.length) {
-      query = query.in("core", cores);
-    }
+  query = query.in("domain", cores);
+}
 
     const { data, error } = await query;
     if (error) throw error;
@@ -165,7 +165,7 @@ window.AriSupabaseKnowledgeClient = {
       if (text.includes(term)) score += 2;
     }
 
-    if (cores.includes(node.core)) score += 2;
+    if (cores.includes(node.domain)) score += 2;
     if (node.topic) score += 1;
 
     return score;
