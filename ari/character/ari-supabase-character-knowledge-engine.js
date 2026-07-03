@@ -1,11 +1,11 @@
 // ari/character/ari-supabase-character-knowledge-engine.js
 // Purpose: Retrieve Ari's character knowledge from Supabase and build a character knowledge packet.
-// V0.2.0 — Single Semantic Character Retrieval / Domain-Locked / Faster
+// V0.2.1 — Single Semantic Character Retrieval / Domain-Locked / Faster
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseCharacterKnowledgeEngine = {
-  version: "0.2.0",
+  version: "0.2.1",
 
   async retrieve(input = {}) {
     const summary = input.summary || input || {};
@@ -69,12 +69,26 @@ window.AriSupabaseCharacterKnowledgeEngine = {
   },
 
   shouldRun(context = {}, question = "") {
-    if (context.characterUseAllowed === true) return true;
+  const text = String(question || "")
+    .toLowerCase()
+    .replace(/[’‘]/g, "'");
 
-    const text = String(question || "").toLowerCase();
+  const userStatePattern =
+    /\b(i am|i'm|im|i feel|i have|i need|i want|my|me)\b.*\b(exhausted|tired|sleeping|sleep|eating|junk|snapping|stressed|burned out|burnout|overwhelmed|anxious|sad|angry|irritable|hungry|cravings|workout|exercise|nutrition|health|relationship|wife|husband|partner|friend|family|mother|father|job|school)\b/;
 
-    return /\b(who are you|what are you|your favorite|what'?s your favorite|what is your favorite|do you like|what do you like|what do you value|your values|your beliefs|what do you believe|what do you stand for|what do you think|your opinion|your purpose|your mission|ari|are you ai|do you identify)\b/.test(text);
-  },
+  if (userStatePattern.test(text)) return false;
+
+  const explicitCharacterQuestion =
+    /\b(who are you|what are you|what is your name|what's your name|tell me about yourself|your identity|your purpose|what'?s your purpose|your mission|what do you value|your values|your beliefs|what do you believe|what do you stand for|are you ai|do you identify)\b/;
+
+  const explicitPreferenceQuestion =
+    /\b(what is your favorite|what'?s your favorite|your favorite|do you like|what do you like|your opinion)\b/;
+
+  if (explicitCharacterQuestion.test(text)) return true;
+  if (explicitPreferenceQuestion.test(text)) return true;
+
+  return false;
+},
 
 directCharacterNode(question = "") {
   const text = String(question || "")
