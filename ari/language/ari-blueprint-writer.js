@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast reusable local drafts from expression blueprints.
-// V1.0.0 — Blueprint Families / Local Drafts / AI-Safe Handoff
+// V1.0.1 — Blueprint Families / Supabase Knowledge Drafts / AI-Safe Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -15,7 +15,24 @@ window.AriBlueprintWriter = {
       return this.returnDraft("", "blueprint_packet_missing", false);
     }
 
+    const knowledgeDraft = this.composeSupabaseKnowledge(packet);
+
+    if (knowledgeDraft) {
+      return this.returnDraft(
+        knowledgeDraft,
+        "blueprint_supabase_knowledge_draft",
+        true,
+        {
+          id: "supabase_knowledge_draft",
+          strategy: "knowledge",
+          responseGoal: "answer_from_retrieved_knowledge",
+          aiAllowed: false
+        }
+      );
+    }
+
     const blueprint = this.resolveBlueprint(packet);
+
     if (!blueprint) {
       return this.returnDraft("", "no_matching_blueprint", false);
     }
@@ -46,9 +63,17 @@ window.AriBlueprintWriter = {
 
   renderDraft({ packet = {}, blueprint = {}, question = "" } = {}) {
     const terms = packet.evidence?.lexicalGrounding?.preferredTerms || {};
-    const component = terms.composerComponent?.short || terms.thingToFix?.short || "that";
+    const component =
+      terms.composerComponent?.short ||
+      terms.thingToFix?.short ||
+      "that";
+
     const bodyProblem = terms.bodyProblem?.short || "that pain";
-    const decision = terms.decisionOption?.short || terms.centralTradeoff?.short || "the choice";
+
+    const decision =
+      terms.decisionOption?.short ||
+      terms.centralTradeoff?.short ||
+      "the choice";
 
     switch (blueprint.id) {
       case "emotion_presence_grounding":
@@ -84,6 +109,249 @@ window.AriBlueprintWriter = {
       default:
         return "Yes. The clean move is to answer the current question directly, keep it specific, and give one useful next step instead of overcomplicating it.";
     }
+  },
+
+  composeSupabaseKnowledge(packet = {}) {
+    const knowledge = packet.evidence?.knowledge || {};
+    const nodes = Array.isArray(knowledge.nodes) ? knowledge.nodes : [];
+    const question = String(packet.userQuestion || "").trim();
+    const q = question.toLowerCase();
+
+    if (!knowledge.shouldUseKnowledge || !nodes.length) return "";
+
+    const plan = packet.communicationPlan || {};
+    const budget = plan.languageBudget || {};
+    const maxSentences = budget.maxSentences || 5;
+
+    const node = nodes[0] || {};
+    const topic = node.topic || node.lesson || "this";
+
+    const definition = this.cleanForUser(node.definition || "");
+    const summary = this.cleanForUser(node.summary || "");
+    const deep = this.cleanForUser(node.deep_understanding || "");
+    const use = this.cleanForUser(node.how_ari_should_use_this || "");
+
+    const style = this.detectKnowledgeStyle(q);
+
+    const isDefinition =
+      /\b(what is|define|definition|meaning of|what does.*mean)\b/.test(q);
+
+    const isAdvice =
+      /\b(what should i do|how do i|help|where do i start|what can i do|advice|fix|improve|deal with)\b/.test(q);
+
+    const isCause =
+      /\b(why|what'?s going on|what is going on|how does|can .* affect|does .* affect|explain)\b/.test(q);
+
+    const userState =
+      /\b(i am|i'm|im|i feel|my|me|i have|i keep|i can'?t|i cannot)\b/.test(q);
+
+    let sentences = [];
+
+    if (isDefinition || style === "textbook") {
+      sentences = [
+        definition || summary || `${topic} is the main idea here.`,
+        this.pickBestSupport({ q, summary, deep, use, style })
+      ];
+    } else if (isAdvice) {
+      sentences = [
+        userState
+          ? `Yeah — ${String(topic).toLowerCase()} may be part of what is going on.`
+          : `${topic} is probably the right place to start.`,
+        this.pickBestSupport({ q, summary, deep, use, style }),
+        this.buildOneNextStep(node, q)
+      ];
+    } else if (isCause || userState) {
+      sentences = [
+        this.buildDirectAnswer(topic, q, style),
+        this.pickBestSupport({ q, summary, deep, use, style }),
+        this.buildMeaningForUser(node, q)
+      ];
+    } else {
+      sentences = [
+        summary || definition || `${topic} matters here.`,
+        this.pickBestSupport({ q, summary, deep, use, style })
+      ];
+    }
+
+    return this.polishResponse(sentences, maxSentences, style);
+  },
+
+  detectKnowledgeStyle(q = "") {
+    if (
+      /\b(define|definition|what is|textbook|explain fully|explain in detail|technical|scientific)\b/.test(q)
+    ) {
+      return "textbook";
+    }
+
+    if (
+      /\b(i feel|i'm|im|my|me|what'?s going on|what is going on|help|what should i do|why am i)\b/.test(q)
+    ) {
+      return "conversation";
+    }
+
+    return "direct";
+  },
+
+  buildDirectAnswer(topic = "", q = "", style = "conversation") {
+    const lowerTopic = String(topic || "this").toLowerCase();
+
+    if (/\b(can|does|could)\b/.test(q)) {
+      return style === "conversation"
+        ? `Yeah — ${lowerTopic} can definitely affect that.`
+        : `Yes — ${lowerTopic} can affect that.`;
+    }
+
+    if (/\bwhat'?s going on|what is going on|why\b/.test(q)) {
+      return style === "conversation"
+        ? `What’s probably happening is that ${lowerTopic} is hitting more than one part of your life at once.`
+        : `${lowerTopic} may be affecting multiple areas at once.`;
+    }
+
+    return style === "conversation"
+      ? `This sounds connected to ${lowerTopic}.`
+      : `${lowerTopic} is relevant here.`;
+  },
+
+  pickBestSupport({ q = "", summary = "", deep = "", use = "", style = "conversation" } = {}) {
+    const source = deep || use || summary || "";
+    if (!source) return "";
+
+    const sentences = this.splitSentences(source);
+
+    const scored = sentences
+      .map(sentence => ({
+        sentence,
+        score: this.relevanceScore(sentence, q)
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    let best = scored[0]?.sentence || sentences[0] || "";
+
+    if (style === "conversation") {
+      best = best
+        .replace(
+          /\bPoor sleep can amplify stress, worsen mood, weaken discipline, reduce patience, increase cravings, impair judgment, and make ordinary problems feel much harder\./i,
+          "When sleep is off, your patience, mood, cravings, and judgment can all take a hit."
+        )
+        .replace(/\bSleep is not wasted time\.\s*/i, "")
+        .replace(/\bIt is one of the core systems that allows humans to\b/i, "It helps you");
+    }
+
+    return best;
+  },
+
+  buildMeaningForUser(node = {}, q = "") {
+    const topic = String(node.topic || node.lesson || "this").toLowerCase();
+
+    if (topic.includes("sleep")) {
+      return "So if you’re more reactive with people, it may be a recovery problem before it’s a personality problem.";
+    }
+
+    const practical = Array.isArray(node.practical_applications)
+      ? node.practical_applications
+      : [];
+
+    const cleaned = practical
+      .map(item => this.cleanPractical(item))
+      .filter(Boolean);
+
+    return cleaned[0] || `The useful move is to treat ${topic} as a real factor, not as a character flaw.`;
+  },
+
+  buildOneNextStep(node = {}, q = "") {
+    const topic = String(node.topic || node.lesson || "this").toLowerCase();
+
+    if (topic.includes("sleep")) {
+      return "Start by protecting one sleep block or one recovery habit before trying to fix everything else.";
+    }
+
+    const practical = Array.isArray(node.practical_applications)
+      ? node.practical_applications
+      : [];
+
+    const cleaned = practical
+      .map(item => this.cleanPractical(item))
+      .filter(Boolean);
+
+    return cleaned[0] || "Start with one small realistic change instead of trying to fix everything at once.";
+  },
+
+  cleanPractical(text = "") {
+    const cleaned = String(text || "")
+      .replace(/^Ask about\b/i, "Look at")
+      .replace(/^Encourage\b/i, "Try")
+      .replace(/^Support\b/i, "Build around")
+      .replace(/^Connect\b/i, "Remember that")
+      .replace(/^Avoid shaming.*$/i, "Don’t turn this into a shame issue; treat it as a solvable pattern")
+      .replace(/^Recommend medical evaluation\b/i, "Consider medical evaluation")
+      .replace(/\busers report\b/gi, "you notice")
+      .replace(/\busers\b/gi, "you")
+      .replace(/\buser\b/gi, "you")
+      .replace(/\.$/, "")
+      .trim();
+
+    return cleaned ? `${cleaned}.` : "";
+  },
+
+  cleanForUser(text = "") {
+    return String(text || "")
+      .replace(/\bAri should\b/gi, "")
+      .replace(/\bHelp Ari recognize when\b/gi, "This matters when")
+      .replace(/\bHelp Ari\b/gi, "The point is to")
+      .replace(/\busers\b/gi, "people")
+      .replace(/\buser\b/gi, "person")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
+
+  splitSentences(text = "") {
+    return String(text || "")
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  },
+
+  relevanceScore(sentence = "", q = "") {
+    const s = String(sentence || "").toLowerCase();
+
+    const words = String(q || "")
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(word => word.length > 3);
+
+    let score = 0;
+
+    for (const word of words) {
+      if (s.includes(word)) score += 2;
+    }
+
+    if (s.includes("affect")) score += 1;
+    if (s.includes("because")) score += 1;
+    if (s.includes("can")) score += 1;
+    if (s.includes("not")) score -= 0.5;
+
+    return score;
+  },
+
+  polishResponse(sentences = [], maxSentences = 5, style = "conversation") {
+    const seen = new Set();
+
+    let cleaned = sentences
+      .filter(Boolean)
+      .map(s => String(s).trim())
+      .filter(s => {
+        const key = s.toLowerCase().replace(/[^\w\s]/g, "").slice(0, 80);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, maxSentences);
+
+    if (style === "conversation") {
+      cleaned = cleaned.slice(0, Math.min(cleaned.length, 3));
+    }
+
+    return cleaned.join(" ");
   },
 
   blueprints: {
