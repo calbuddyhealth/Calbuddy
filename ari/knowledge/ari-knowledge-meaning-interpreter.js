@@ -1,11 +1,11 @@
 // ari/knowledge/ari-knowledge-meaning-interpreter.js
-// Purpose: Convert retrieved knowledge nodes into human-usable meaning before composer.
-// V1.0.0 — Knowledge Meaning / Style Detection / Composer-Safe
+// Purpose: Convert retrieved knowledge nodes into synthesized, human-usable meaning before composer.
+// V1.1.0 — Knowledge Synthesizer / Multi-Node Meaning / Composer-Safe
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeMeaningInterpreter = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   interpret(input = {}) {
     const summary = input.summary || input || {};
@@ -16,40 +16,34 @@ window.AriKnowledgeMeaningInterpreter = {
     const nodes = knowledge.nodes;
 
     if (!knowledge.shouldUseKnowledge || !nodes.length) {
-      return this.noInterpretation("No usable knowledge nodes to interpret.");
+      return this.noInterpretation("No usable knowledge nodes to synthesize.");
     }
 
-    const node = nodes[0] || {};
+    const rankedNodes = this.rankNodes(nodes, q).slice(0, 6);
     const style = this.detectStyle(q);
     const intent = this.detectIntent(q);
-    const topic = node.topic || node.lesson || "this";
 
-    const packet = {
-      knowledgeMeaningInterpreterRan: true,
-      knowledgeMeaningInterpreterVersion: this.version,
-      knowledgeMeaningInterpreterSource: "ari-knowledge-meaning-interpreter",
-
-      usable: true,
-      topic,
+    const synthesis = this.buildSynthesis({
+      question,
+      q,
+      nodes: rankedNodes,
       style,
       intent,
-
-      directAnswer: this.buildDirectAnswer(node, q, style, intent),
-      support: this.pickBestSupport(node, q, style),
-      meaningForUser: this.buildMeaningForUser(node, q, style),
-      nextStep: this.buildNextStep(node, q, style, intent),
-
-      sourceNode: node,
-      sourceNodes: nodes,
-      sourceProvider: knowledge.provider,
-      sourceConfidence: knowledge.confidence
-    };
+      provider: knowledge.provider,
+      confidence: knowledge.confidence
+    });
 
     return {
-      knowledgeMeaning: packet,
       knowledgeMeaningInterpreterRan: true,
       knowledgeMeaningInterpreterVersion: this.version,
-      knowledgeMeaningInterpreterSource: "ari-knowledge-meaning-interpreter"
+      knowledgeMeaningInterpreterSource: "ari-knowledge-meaning-synthesizer",
+
+      knowledgeMeaningUsable: true,
+      knowledgeMeaning: synthesis,
+
+      knowledgeSynthesis: synthesis,
+      knowledgeSynthesisUsable: true,
+      knowledgeSynthesisDraft: synthesis.draft || null
     };
   },
 
@@ -59,17 +53,21 @@ window.AriKnowledgeMeaningInterpreter = {
       summary.knowledgeRouter?.knowledgeRetrievalResults ||
       [];
 
-    const first = results[0] || {};
+    const usable =
+      results.find(result => result?.usable === true) ||
+      results[0] ||
+      {};
 
     return {
       shouldUseKnowledge: summary.shouldUseKnowledge === true,
-      provider: summary.knowledgeProvider || first.provider || null,
-      confidence: summary.knowledgeConfidence || first.confidence || null,
-      answer: summary.knowledgeAnswer || first.answer || null,
+      provider: summary.knowledgeProvider || usable.provider || null,
+      confidence: summary.knowledgeConfidence || usable.confidence || null,
+      answer: summary.knowledgeAnswer || usable.answer || null,
       nodes:
         summary.knowledgeNodes ||
-        first.nodes ||
-        first.raw?.nodes ||
+        usable.nodes ||
+        usable.raw?.nodes ||
+        usable.raw?.matches ||
         []
     };
   },
@@ -86,12 +84,236 @@ window.AriKnowledgeMeaningInterpreter = {
     ).trim();
   },
 
+  buildSynthesis({
+    question = "",
+    q = "",
+    nodes = [],
+    style = "direct",
+    intent = "general",
+    provider = null,
+    confidence = null
+  } = {}) {
+    const mainNodes = nodes.slice(0, 4);
+    const topics = mainNodes.map(node => node.topic || node.lesson || "Untitled");
+
+    const mainIdea = this.buildMainIdea(mainNodes, q, style, intent);
+    const relevantFactors = this.buildRelevantFactors(mainNodes, q);
+    const userMeaning = this.buildUserMeaning(mainNodes, q, style, intent);
+    const practicalMove = this.buildPracticalMove(mainNodes, q, style, intent);
+    const caution = this.buildCaution(mainNodes, q, style, intent);
+    const draft = this.buildDraft({
+      mainIdea,
+      relevantFactors,
+      userMeaning,
+      practicalMove,
+      caution,
+      style,
+      intent
+    });
+
+    return {
+      usable: true,
+      synthesizerVersion: this.version,
+      style,
+      intent,
+      topic: topics[0] || "this",
+      topics,
+
+      mainIdea,
+      relevantFactors,
+      userMeaning,
+      practicalMove,
+      caution,
+      draft,
+
+      sourceProvider: provider,
+      sourceConfidence: confidence,
+      sourceNodes: mainNodes,
+      sourceNodeIds: mainNodes.map(node => node.knowledge_id || node.id).filter(Boolean)
+    };
+  },
+
+  buildMainIdea(nodes = [], q = "", style = "direct", intent = "general") {
+    const topics = nodes.map(node => String(node.topic || "").toLowerCase());
+
+    const hasConflict = topics.some(t => t.includes("conflict"));
+    const hasBurnout = topics.some(t => t.includes("burnout"));
+    const hasRest = topics.some(t => t.includes("rest") || t.includes("sleep"));
+    const hasBalance = topics.some(t => t.includes("balance"));
+    const hasOverwhelm = topics.some(t => t.includes("overwhelm"));
+
+    if (hasConflict && (hasBurnout || hasRest || hasOverwhelm)) {
+      return "This is probably not just a communication problem. Exhaustion is lowering patience, conflict is repeating, and the useful move is to repair the argument while also changing the recovery pattern underneath it.";
+    }
+
+    if (hasBurnout || hasOverwhelm) {
+      return "This sounds less like a character flaw and more like an overloaded system asking for adjustment.";
+    }
+
+    if (hasRest || hasBalance) {
+      return "The core issue is sustainability: your energy, responsibilities, and recovery need to be brought back into balance.";
+    }
+
+    const best = nodes[0] || {};
+    return (
+      this.cleanForUser(best.deep_understanding) ||
+      this.cleanForUser(best.summary) ||
+      this.cleanForUser(best.definition) ||
+      "There is a real pattern here worth responding to carefully."
+    );
+  },
+
+  buildRelevantFactors(nodes = [], q = "") {
+    const factors = [];
+
+    for (const node of nodes) {
+      const topic = String(node.topic || "").toLowerCase();
+
+      if (topic.includes("conflict")) {
+        factors.push("the argument needs repair, not a winner");
+      }
+
+      if (topic.includes("burnout") || topic.includes("overwhelm")) {
+        factors.push("exhaustion can reduce patience and emotional regulation");
+      }
+
+      if (topic.includes("rest") || topic.includes("sleep")) {
+        factors.push("recovery affects mood, judgment, and how hard normal problems feel");
+      }
+
+      if (topic.includes("balance") || topic.includes("energy")) {
+        factors.push("the plan has to match your actual energy after work");
+      }
+
+      if (topic.includes("stress")) {
+        factors.push("repeated stress patterns need structure, not shame");
+      }
+    }
+
+    return [...new Set(factors)].slice(0, 5);
+  },
+
+  buildUserMeaning(nodes = [], q = "", style = "direct", intent = "general") {
+    if (q.includes("wife") || q.includes("husband") || q.includes("partner") || q.includes("spouse")) {
+      return "For you, the move is to talk about the pattern instead of only the latest fight: “I’m coming home depleted, then I’m reacting poorly, and I don’t want that to become our normal.”";
+    }
+
+    if (q.includes("exhausted") || q.includes("tired") || q.includes("burned out")) {
+      return "The tiredness is not background noise. It is part of the problem and part of the solution.";
+    }
+
+    return "The useful move is to name the pattern clearly without turning it into blame.";
+  },
+
+  buildPracticalMove(nodes = [], q = "", style = "direct", intent = "general") {
+    if (q.includes("wife") || q.includes("husband") || q.includes("partner") || q.includes("spouse")) {
+      return "Have the conversation before the next argument, not during it. Lead with ownership, then ask for a practical adjustment: decompression time after work, a calmer time to talk, and one shared plan for responsibilities.";
+    }
+
+    if (intent === "advice") {
+      return "Start with one small structural change: protect recovery, reduce one pressure point, and communicate the need before resentment builds.";
+    }
+
+    return "Start with one realistic next step instead of trying to fix the whole pattern at once.";
+  },
+
+  buildCaution(nodes = [], q = "", style = "direct", intent = "general") {
+    if (q.includes("arguing") || q.includes("fight") || q.includes("conflict")) {
+      return "Do not wait until both people are already activated. That is when the conversation is least likely to go well.";
+    }
+
+    if (q.includes("burnout") || q.includes("exhausted") || q.includes("tired")) {
+      return "Do not treat exhaustion as laziness or a moral failure. Treat it as data.";
+    }
+
+    return "Avoid making this about blame first. Make it about the pattern and the next repair.";
+  },
+
+  buildDraft({
+    mainIdea = "",
+    relevantFactors = [],
+    userMeaning = "",
+    practicalMove = "",
+    caution = "",
+    style = "direct",
+    intent = "general"
+  } = {}) {
+    if (style === "conversation") {
+      return [
+        mainIdea,
+        "",
+        userMeaning,
+        "",
+        practicalMove,
+        "",
+        caution
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    return [
+      mainIdea,
+      relevantFactors.length
+        ? `Relevant factors: ${relevantFactors.join("; ")}.`
+        : null,
+      userMeaning,
+      practicalMove,
+      caution
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  },
+
+  rankNodes(nodes = [], q = "") {
+    return [...nodes]
+      .map(node => ({
+        ...node,
+        __synthesisScore: this.nodeScore(node, q)
+      }))
+      .sort((a, b) => b.__synthesisScore - a.__synthesisScore);
+  },
+
+  nodeScore(node = {}, q = "") {
+    const text = [
+      node.topic,
+      node.summary,
+      node.definition,
+      node.purpose,
+      node.importance,
+      node.how_it_works,
+      node.deep_understanding,
+      node.how_ari_should_use_this,
+      Array.isArray(node.recognition_patterns) ? node.recognition_patterns.join(" ") : "",
+      Array.isArray(node.common_user_questions) ? node.common_user_questions.join(" ") : "",
+      Array.isArray(node.practical_applications) ? node.practical_applications.join(" ") : ""
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    const words = q
+      .split(/\W+/)
+      .filter(word => word.length > 3);
+
+    let score = 0;
+
+    for (const word of words) {
+      if (text.includes(word)) score += 2;
+    }
+
+    if (node.weightedScore) score += Number(node.weightedScore) * 10;
+    if (node.similarity) score += Number(node.similarity) * 5;
+    if (node.topic) score += 1;
+
+    return score;
+  },
+
   detectStyle(q = "") {
     if (/\b(define|definition|what is|textbook|technical|scientific|explain fully|explain in detail)\b/.test(q)) {
       return "textbook";
     }
 
-    if (/\b(i feel|i'm|im|my|me|what'?s going on|what is going on|help|what should i do|why am i)\b/.test(q)) {
+    if (/\b(i feel|i'm|im|my|me|help|what should i do|how should i|why am i|wife|husband|girlfriend|boyfriend|partner)\b/.test(q)) {
       return "conversation";
     }
 
@@ -103,7 +325,7 @@ window.AriKnowledgeMeaningInterpreter = {
       return "definition";
     }
 
-    if (/\b(what should i do|how do i|help|where do i start|what can i do|advice|fix|improve|deal with)\b/.test(q)) {
+    if (/\b(what should i do|how should i|how do i|help|where do i start|what can i do|advice|fix|improve|deal with|approach)\b/.test(q)) {
       return "advice";
     }
 
@@ -112,128 +334,6 @@ window.AriKnowledgeMeaningInterpreter = {
     }
 
     return "general";
-  },
-
-  buildDirectAnswer(node = {}, q = "", style = "direct", intent = "general") {
-    const topic = String(node.topic || node.lesson || "this").toLowerCase();
-    const definition = this.cleanForUser(node.definition || "");
-    const summary = this.cleanForUser(node.summary || "");
-
-    if (intent === "definition") {
-      return definition || summary || `${topic} is the main idea here.`;
-    }
-
-    if (/\b(can|does|could)\b/.test(q)) {
-      return style === "conversation"
-        ? `Yeah — ${topic} can definitely affect that.`
-        : `Yes — ${topic} can affect that.`;
-    }
-
-    if (/\bwhat'?s going on|what is going on|why\b/.test(q)) {
-      return style === "conversation"
-        ? `What’s probably happening is that ${topic} is hitting more than one part of your life at once.`
-        : `${topic} may be affecting multiple areas at once.`;
-    }
-
-    if (intent === "advice") {
-      return style === "conversation"
-        ? `Yeah — ${topic} may be part of what is going on.`
-        : `${topic} is probably the right place to start.`;
-    }
-
-    return style === "conversation"
-      ? `This sounds connected to ${topic}.`
-      : summary || definition || `${topic} is relevant here.`;
-  },
-
-  pickBestSupport(node = {}, q = "", style = "direct") {
-    const summary = this.cleanForUser(node.summary || "");
-    const deep = this.cleanForUser(node.deep_understanding || "");
-    const use = this.cleanForUser(node.how_ari_should_use_this || "");
-    const source = deep || use || summary || "";
-
-    if (!source) return "";
-
-    const sentences = this.splitSentences(source);
-
-    const scored = sentences
-      .map(sentence => ({
-        sentence,
-        score: this.relevanceScore(sentence, q)
-      }))
-      .sort((a, b) => b.score - a.score);
-
-    let best = scored[0]?.sentence || sentences[0] || "";
-
-    if (style === "conversation") {
-      best = this.makeConversational(best);
-    }
-
-    return best;
-  },
-
-  buildMeaningForUser(node = {}, q = "", style = "direct") {
-    const topic = String(node.topic || node.lesson || "this").toLowerCase();
-
-    if (style === "conversation" && topic.includes("sleep")) {
-      return "So if you’re more reactive with people, it may be a recovery problem before it’s a personality problem.";
-    }
-
-    const practical = Array.isArray(node.practical_applications)
-      ? node.practical_applications
-      : [];
-
-    const cleaned = practical
-      .map(item => this.cleanPractical(item))
-      .filter(Boolean);
-
-    return cleaned[0] || `The useful move is to treat ${topic} as a real factor, not as a character flaw.`;
-  },
-
-  buildNextStep(node = {}, q = "", style = "direct", intent = "general") {
-    const topic = String(node.topic || node.lesson || "this").toLowerCase();
-
-    if (style === "conversation" && topic.includes("sleep")) {
-      return "Start by protecting one sleep block or one recovery habit before trying to fix everything else.";
-    }
-
-    const practical = Array.isArray(node.practical_applications)
-      ? node.practical_applications
-      : [];
-
-    const cleaned = practical
-      .map(item => this.cleanPractical(item))
-      .filter(Boolean);
-
-    return cleaned[0] || "Start with one small realistic change instead of trying to fix everything at once.";
-  },
-
-  makeConversational(text = "") {
-    return String(text || "")
-      .replace(
-        /\bPoor sleep can amplify stress, worsen mood, weaken discipline, reduce patience, increase cravings, impair judgment, and make ordinary problems feel much harder\./i,
-        "When sleep is off, your patience, mood, cravings, and judgment can all take a hit."
-      )
-      .replace(/\bSleep is not wasted time\.\s*/i, "")
-      .replace(/\bIt is one of the core systems that allows humans to\b/i, "It helps you")
-      .trim();
-  },
-
-  cleanPractical(text = "") {
-    const cleaned = String(text || "")
-      .replace(/^Ask about\b/i, "Look at")
-      .replace(/^Encourage\b/i, "Try")
-      .replace(/^Support\b/i, "Build around")
-      .replace(/^Connect\b/i, "Remember that")
-      .replace(/^Avoid shaming.*$/i, "Don’t turn this into a shame issue; treat it as a solvable pattern")
-      .replace(/^Recommend medical evaluation\b/i, "Consider medical evaluation")
-      .replace(/\busers report\b/gi, "you notice")
-      .replace(/\busers\b/gi, "you")
-      .replace(/\buser\b/gi, "you")
-      .replace(/\.$/, "")
-      .trim();
-
-    return cleaned ? `${cleaned}.` : "";
   },
 
   cleanForUser(text = "") {
@@ -247,40 +347,18 @@ window.AriKnowledgeMeaningInterpreter = {
       .trim();
   },
 
-  splitSentences(text = "") {
-    return String(text || "")
-      .split(/(?<=[.!?])\s+/)
-      .map(s => s.trim())
-      .filter(Boolean);
-  },
-
-  relevanceScore(sentence = "", q = "") {
-    const s = String(sentence || "").toLowerCase();
-    const words = String(q || "")
-      .toLowerCase()
-      .split(/\W+/)
-      .filter(word => word.length > 3);
-
-    let score = 0;
-
-    for (const word of words) {
-      if (s.includes(word)) score += 2;
-    }
-
-    if (s.includes("affect")) score += 1;
-    if (s.includes("because")) score += 1;
-    if (s.includes("can")) score += 1;
-    if (s.includes("not")) score -= 0.5;
-
-    return score;
-  },
-
-  noInterpretation(reason = "Knowledge meaning interpretation not needed.") {
+  noInterpretation(reason = "Knowledge meaning synthesis not needed.") {
     return {
       knowledgeMeaningInterpreterRan: true,
       knowledgeMeaningInterpreterVersion: this.version,
-      knowledgeMeaningInterpreterSource: "ari-knowledge-meaning-interpreter",
+      knowledgeMeaningInterpreterSource: "ari-knowledge-meaning-synthesizer",
+      knowledgeMeaningUsable: false,
+      knowledgeSynthesisUsable: false,
       knowledgeMeaning: {
+        usable: false,
+        reason
+      },
+      knowledgeSynthesis: {
         usable: false,
         reason
       }
