@@ -65,6 +65,7 @@ version: "1.6.5",
     "ari/meaning/ari-situation-map-engine.js",
 
     "ari/governance/ari-triage-engine.js",
+    "ari/governance/ari-multi-lane-response-planner.js",
     "ari/governance/ari-situation-contract.js",
 
     "ari/language/ari-lexical-grounding-engine.js",
