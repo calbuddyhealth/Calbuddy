@@ -1,67 +1,70 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
-// Purpose: Detect what the user is doing conversationally before lane/triage.
-// V2.2.2 — Evidence-Weighted Developer Artifact Detection / Meta Question Safe / Advisory Only
+// Purpose: Detect conversational signals before lane/triage.
+// V2.3.0 — Meaning-Safe Signal Collector / Emotional Support Protected / Keyword Trap Reduced / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.2.2",
+  version: "2.3.0",
 
   patterns: {
     developerNouns:
-      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|interface|html|css|javascript|js|file|code|function|engine|pipeline|github|vercel|supabase|index\.html|style|class|element|div|container|modal|menu|tab|navbar|dashboard|meter|search bar|input|form|repo|repository|codebase|api)\b/,
+      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|interface|html|css|javascript|js|file|code|function|engine|pipeline|github|vercel|supabase|index\.html|style\.css|class|element|div|container|modal|menu|tab|navbar|dashboard|meter|search bar|input|form|repo|repository|codebase|api)\b/,
 
     developerAction:
       /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch|implement|wire|connect|load|disable|enable)\b/,
 
     modificationVerb:
-      /\b(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|make|turn|switch|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable|edit|patch)\b/,
+      /\b(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|turn|switch|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable|edit|patch)\b/,
 
     creationVerb:
       /\b(create|build|make|generate|design|add new|set up|scaffold)\b/,
 
     investigationVerb:
-      /\b(debug|inspect|check|find|figure out|why is|why isn't|why does|not working|broken|issue|bug|error|failing)\b/,
+      /\b(debug|inspect|check|find|figure out|why is|why isn't|why does|not working|broken|issue|bug|error|failing|bottleneck|trickle down|root cause)\b/,
 
     layoutLanguage:
       /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|bottom tabs|top bar|search bar|meter|dashboard|profile button|hamburger|greeting box|action grid)\b/,
 
     codeLanguage:
-      /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|class|script|style|component|api|repo|repository)\b/,
+      /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|style\.css|class|script|component|api|repo|repository)\b/,
 
     languageRequest:
       /\b(translate|translation|bible verse|verse|quote|scripture|meaning|interpret|interpret this|what does this mean|what does this say|what is this saying)\b/,
 
-ariPreferenceQuestion:
-  /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what kind of .* do you like|what would you choose|what would you prefer|what matters to you|what do you value|your values|your beliefs|your taste|your style|your personality|who are you|what are you|tell me about yourself)\b/,
+    ariPreferenceQuestion:
+      /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what kind of .* do you like|what would you choose|what would you prefer|what matters to you|what do you value|your values|your beliefs|your taste|your style|your personality|who are you|what are you|tell me about yourself)\b/,
 
     metaDeveloperQuestion:
-      /\b(should ari|should it|does it|will it|would it|can it|trigger|detect|classify|identify|semantic|keyword|keyterm|routing|conversation function|artifact modification|file context|developer request|treat this|treat it)\b/,
+      /\b(should ari|should it|does it|will it|would it|can it|trigger|detect|classify|identify|semantic|keyword|keyterm|routing|conversation function|artifact modification|file context|developer request|treat this|treat it|outdated|brittle|regex|pattern|signal)\b/,
 
     humanLifeContext:
-      /\b(career|family|freedom|regret|ambition|ego|wise|choice|responsible|stable career|betting on myself)\b/,
+      /\b(career|family|freedom|regret|ambition|ego|wise|choice|responsible|stable career|betting on myself|life|future|identity|values)\b/,
 
     directAnswer:
-      /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because)\b/,
+      /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because|what caused|what cause|root cause)\b/,
 
     actionRequest:
-      /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement)\b/,
+      /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement|patch|upgrade)\b/,
 
     decision:
-      /\b(should i|should we|which one|which option|better|choose|decide|worth it|pros and cons|compare|best move|recommend|do i|do we)\b/,
+      /\b(should i|should we|which one|which option|which is better|what is better|better option|better choice|choose|decide|worth it|pros and cons|compare|best move|recommend)\b/,
 
     relationship:
       /\b(wife|husband|spouse|partner|girlfriend|boyfriend|family|kid|kids|child|children|father|mother|mom|dad)\b/,
 
     emotion:
-      /\b(sad|mad|angry|hurt|upset|bothered|worried|scared|anxious|stressed|overwhelmed|agitated|frustrated|lonely|depressed)\b/,
+      /\b(sad|mad|angry|hurt|upset|bothered|worried|scared|anxious|stressed|overwhelmed|agitated|frustrated|lonely|depressed|down|burned out|exhausted|tired|heavy|rough)\b/,
 
     directEmotion:
-      /\b(i'?m|i am|i feel|i felt|feeling|felt)\s+(sad|mad|angry|hurt|upset|worried|scared|anxious|stressed|overwhelmed|lonely|depressed|frustrated)\b|\b(that bothered me|it bothered me|i was bothered|i got upset|i am upset|i'm upset)\b/,
+      /\b(i'?m|i am|i feel|i felt|feeling|felt)\s+(really|very|pretty|so|kinda|kind of|super|extremely|a little|sort of|honestly|just)?\s*(sad|mad|angry|hurt|upset|worried|scared|anxious|stressed|overwhelmed|lonely|depressed|frustrated|down|burned out|exhausted|tired|heavy)\b|\b(that bothered me|it bothered me|i was bothered|i got upset|i am upset|i'm upset)\b/,
+
+    emotionalSupportRequest:
+      /\b(long day|bad day|rough day|hard day|heavy day|need to talk|talk to someone|someone to talk|feel better|need someone|i feel .*sad|i feel .*down|i feel .*lonely|i feel .*overwhelmed|i feel .*stressed|i feel .*exhausted|i just need to vent|can i vent|listen to me|be here with me)\b/,
 
     boundary:
-      /\b(not trying to fix|don'?t fix|just listen|just venting|that'?s all|i only want|i don'?t want advice|no advice)\b/,
+      /\b(not trying to fix|don'?t fix|just listen|just venting|that'?s all|i only want|i don'?t want advice|no advice|just be here|just talk to me)\b/,
 
     medical:
       /\b(pain|fever|bleeding|pregnant|chest|breathing|faint|vomit|diarrhea|swallow|cough|stroke|seizure)\b/,
@@ -124,7 +127,9 @@ ariPreferenceQuestion:
 
       dominantUserMove: primary.name,
       responseBias: this.getResponseBias(primary.name, signals),
-      confidence: primary.score,
+
+      confidence: Math.min(primary.score, 82),
+      rawConfidence: primary.score,
 
       signalProfile: signals,
 
@@ -132,6 +137,7 @@ ariPreferenceQuestion:
       decisionNeeded: signals.decisionNeeded,
       relationshipContext: signals.relationshipContext,
       emotionalWeight: signals.emotionalWeight,
+      emotionalSupportRequest: signals.emotionalSupportRequest,
       currentTurnIsConcrete: signals.currentTurnIsConcrete,
       shouldBlockFixing: signals.boundaryPresent && !signals.actionRequest,
 
@@ -147,14 +153,17 @@ ariPreferenceQuestion:
       quotedOrImportedText: signals.quotedOrImportedText,
       metaDeveloperQuestion: signals.metaDeveloperQuestion,
 
-      authority: "advisory_conversation_function_only",
+      authority: "weak_signal_collector_only",
+      requiresSemanticConfirmation: true,
       cannotSet: [
         "primaryLane",
         "triagePrimaryLane",
         "situationContractPrimary",
         "finalResponse",
         "riskLevel",
-        "override"
+        "override",
+        "shouldUseKnowledge",
+        "bypassKnowledge"
       ]
     };
   },
@@ -178,7 +187,7 @@ ariPreferenceQuestion:
       this.hasType(observations, "question_phrase") ||
       this.hasType(observations, "question_mark_count") ||
       /^(what|why|how|when|where|who|is|are|do|does|can|should|would|could)\b/.test(text) ||
-      /\b(i don'?t know why|not sure why|why would|why did|why is|why was|could it be|does that mean|is it because)\b/.test(text);
+      /\b(i don'?t know why|not sure why|why would|why did|why is|why was|could it be|does that mean|is it because|what caused|what cause)\b/.test(text);
 
     const developerNouns = this.patterns.developerNouns.test(text);
     const developerAction = this.patterns.developerAction.test(text);
@@ -188,14 +197,14 @@ ariPreferenceQuestion:
     const layoutLanguage = this.patterns.layoutLanguage.test(text);
     const codeLanguage = this.patterns.codeLanguage.test(text);
 
-const ariPreferenceQuestion =
-  this.patterns.ariPreferenceQuestion.test(text) &&
-  /\b(you|your|ari|yourself)\b/.test(text);
+    const ariPreferenceQuestion =
+      this.patterns.ariPreferenceQuestion.test(text) &&
+      /\b(you|your|ari|yourself)\b/.test(text);
 
-const languageOrInterpretationRequest =
-  !ariPreferenceQuestion &&
-  this.patterns.languageRequest.test(text);
-    
+    const languageOrInterpretationRequest =
+      !ariPreferenceQuestion &&
+      this.patterns.languageRequest.test(text);
+
     const languageTeacherRequest = languageOrInterpretationRequest;
     const translationOrQuoteRequest = languageOrInterpretationRequest;
 
@@ -206,7 +215,12 @@ const languageOrInterpretationRequest =
     const metaDeveloperQuestion =
       hasQuestion &&
       this.patterns.metaDeveloperQuestion.test(text) &&
-      (developerNouns || codeLanguage || layoutLanguage || /\b(ari|artifact|developer|file context|semantic|routing)\b/.test(text));
+      (
+        developerNouns ||
+        codeLanguage ||
+        layoutLanguage ||
+        /\b(ari|artifact|developer|file context|semantic|routing|classifier|classification|regex|keyword|keyterm|signal|pattern)\b/.test(text)
+      );
 
     const humanLifeContext = this.patterns.humanLifeContext.test(text);
 
@@ -243,31 +257,6 @@ const languageOrInterpretationRequest =
       artifactCreationRequest ||
       artifactInvestigationRequest;
 
-    const directAnswerNeeded =
-  hasQuestion ||
-  ariPreferenceQuestion ||
-  languageTeacherRequest ||
-  developerArtifactRequest ||
-  metaDeveloperQuestion ||
-  this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
-  this.patterns.directAnswer.test(text);
-
-    const actionRequest =
-      developerArtifactRequest ||
-      (
-        !metaDeveloperQuestion &&
-        this.patterns.actionRequest.test(text)
-      );
-
-    const decisionNeeded =
-      this.patterns.decision.test(text) ||
-      this.hasType(observations, "option_language") ||
-      this.hasTypeValue(observations, "slot_signal", "option_language");
-
-    const relationshipContext =
-      this.patterns.relationship.test(text) ||
-      this.hasType(observations, "relationship_reference");
-
     const emotionPresent =
       this.patterns.emotion.test(text) ||
       this.hasType(observations, "emotion_word");
@@ -275,7 +264,39 @@ const languageOrInterpretationRequest =
     const directEmotionDisclosure =
       this.patterns.directEmotion.test(text);
 
+    const emotionalSupportRequest =
+      this.patterns.emotionalSupportRequest.test(text);
+
     const boundaryPresent = this.patterns.boundary.test(text);
+
+    const actionRequest =
+      developerArtifactRequest ||
+      (
+        !metaDeveloperQuestion &&
+        !emotionalSupportRequest &&
+        this.patterns.actionRequest.test(text)
+      );
+
+    const decisionNeeded =
+      !emotionalSupportRequest &&
+      (
+        this.patterns.decision.test(text) ||
+        this.hasType(observations, "option_language") ||
+        this.hasTypeValue(observations, "slot_signal", "option_language")
+      );
+
+    const directAnswerNeeded =
+      hasQuestion ||
+      ariPreferenceQuestion ||
+      languageTeacherRequest ||
+      developerArtifactRequest ||
+      metaDeveloperQuestion ||
+      this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
+      this.patterns.directAnswer.test(text);
+
+    const relationshipContext =
+      this.patterns.relationship.test(text) ||
+      this.hasType(observations, "relationship_reference");
 
     const buildContext =
       developerArtifactRequest ||
@@ -302,6 +323,7 @@ const languageOrInterpretationRequest =
       this.patterns.shortFollowUp.test(text);
 
     const currentTurnIsConcrete =
+      emotionalSupportRequest ||
       developerArtifactRequest ||
       (
         words.length >= 14 &&
@@ -316,12 +338,18 @@ const languageOrInterpretationRequest =
     const expectsCodeOrArtifact = developerArtifactRequest;
 
     let emotionalWeight = "none";
-    if (emotionPresent || directEmotionDisclosure) emotionalWeight = "medium";
+
+    if (emotionPresent || directEmotionDisclosure) {
+      emotionalWeight = "medium";
+    }
+
     if (
-      directEmotionDisclosure &&
-      !directAnswerNeeded &&
-      !decisionNeeded &&
-      !actionRequest
+      emotionalSupportRequest ||
+      (
+        directEmotionDisclosure &&
+        !decisionNeeded &&
+        !actionRequest
+      )
     ) {
       emotionalWeight = "high";
     }
@@ -334,6 +362,7 @@ const languageOrInterpretationRequest =
       relationshipContext,
       emotionPresent,
       directEmotionDisclosure,
+      emotionalSupportRequest,
       emotionalWeight,
       boundaryPresent,
       buildContext,
@@ -343,7 +372,8 @@ const languageOrInterpretationRequest =
       correction,
       shortFollowUp,
       currentTurnIsConcrete,
-ariPreferenceQuestion,
+      ariPreferenceQuestion,
+
       githubEvidenceAvailable,
       developerNouns,
       developerAction,
@@ -397,13 +427,22 @@ ariPreferenceQuestion,
       add("correction_or_clarification", 88, "User appears to be correcting or clarifying prior meaning.");
     }
 
-if (signals.ariPreferenceQuestion) {
-  add(
-    "memory_or_identity_request",
-    96,
-    "User is asking Ari about Ari's preferences, identity, values, taste, or personality."
-  );
-}
+    if (signals.emotionalSupportRequest) {
+      add(
+        "emotional_disclosure",
+        98,
+        "User is seeking emotional support, comfort, companionship, or someone to talk to."
+      );
+    }
+
+    if (signals.ariPreferenceQuestion) {
+      add(
+        "memory_or_identity_request",
+        96,
+        "User is asking Ari about Ari's preferences, identity, values, taste, or personality."
+      );
+    }
+
     if (signals.languageTeacherRequest) {
       add(
         "language_or_interpretation_request",
@@ -519,24 +558,23 @@ if (signals.ariPreferenceQuestion) {
   rankFunctions(functions = [], signals = {}) {
     return functions
       .map(fn => {
-  let score = fn.score;
+        let score = fn.score;
 
-  if (signals.ariPreferenceQuestion) {
-    if (fn.name === "memory_or_identity_request") {
-      score += 30;
-    }
+        if (signals.emotionalSupportRequest) {
+          if (fn.name === "emotional_disclosure") score += 30;
+          if (fn.name === "decision_support") score -= 70;
+          if (fn.name === "explanation_or_information_question") score -= 18;
+          if (fn.name === "build_or_debug_request") score -= 45;
+        }
 
-    if (fn.name === "explanation_or_information_question") {
-      score -= 35;
-    }
+        if (signals.ariPreferenceQuestion) {
+          if (fn.name === "memory_or_identity_request") score += 30;
+          if (fn.name === "explanation_or_information_question") score -= 35;
+          if (fn.name === "language_or_interpretation_request") score -= 50;
+        }
 
-    if (fn.name === "language_or_interpretation_request") {
-      score -= 50;
-    }
-  }
-
-  if (
-    signals.developerArtifactRequest &&
+        if (
+          signals.developerArtifactRequest &&
           [
             "developer_artifact_request",
             "artifact_modification_request",
@@ -617,7 +655,7 @@ if (signals.ariPreferenceQuestion) {
         }
 
         if (!signals.decisionNeeded && fn.name === "decision_support") {
-          score -= 25;
+          score -= 35;
         }
 
         if (
@@ -625,7 +663,8 @@ if (signals.ariPreferenceQuestion) {
           (
             signals.directAnswerNeeded ||
             signals.decisionNeeded ||
-            signals.directEmotionDisclosure
+            signals.directEmotionDisclosure ||
+            signals.emotionalSupportRequest
           )
         ) {
           score -= 10;
@@ -634,7 +673,6 @@ if (signals.ariPreferenceQuestion) {
         if (
           fn.name === "emotional_disclosure" &&
           signals.directEmotionDisclosure &&
-          !signals.directAnswerNeeded &&
           !signals.decisionNeeded &&
           !signals.actionRequest
         ) {
@@ -643,6 +681,10 @@ if (signals.ariPreferenceQuestion) {
 
         if (fn.name === "build_or_debug_request" && signals.actionRequest) {
           score += 15;
+        }
+
+        if (fn.name === "safety_or_risk_disclosure") {
+          score += 40;
         }
 
         return {
@@ -657,10 +699,15 @@ if (signals.ariPreferenceQuestion) {
   getBlockedFunctions(primary, functions = [], signals = {}) {
     if (
       primary === "emotional_disclosure" &&
-      signals.emotionalWeight === "high" &&
-      signals.boundaryPresent
+      signals.emotionalWeight === "high"
     ) {
-      return ["build_or_debug_request", "instruction_request"];
+      return [
+        "decision_support",
+        "unnecessary_clarification",
+        "curriculum_first_response",
+        "knowledge_first_response",
+        "build_or_debug_request"
+      ];
     }
 
     if (primary === "language_or_interpretation_request") {
@@ -743,9 +790,9 @@ if (signals.ariPreferenceQuestion) {
 
       emotional_disclosure: {
         preferredLaneBias: "emotion",
-        responseShape: "presence_then_grounding",
+        responseShape: "warm_presence_then_invite_talking",
         instruction:
-          "Acknowledge the emotional signal, then give a grounded next step if useful."
+          "Lead with emotional presence. Do not start with curriculum, advice, optimization, or knowledge retrieval. Acknowledge the feeling, stay with the user, and invite them to share what happened."
       },
 
       emotional_signal_present: {
@@ -768,7 +815,7 @@ if (signals.ariPreferenceQuestion) {
         preferredLaneBias: "executive_decision",
         responseShape: "decision_framework",
         instruction:
-          "Name the tradeoff, separate options, and recommend a next step."
+          "Name the tradeoff, separate options, and recommend a next step. Do not treat 'feel better' as a decision request."
       },
 
       relationship_or_family_context: {
