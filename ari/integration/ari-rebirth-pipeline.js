@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.3 — Developer Artifact Planner Bridge
+// V4.2.4 — Mouth Planner Merge / Communication Planner Removed
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.3",
+  version: "4.2.4",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -816,51 +816,47 @@ mark("after knowledgeMeaningInterpreter");
     };
     mark("after humanLanguage");
 
-    // 0.95 Communication Planner
-    mark("before communicationPlanner");
-    merge(await runEngine(
-      window.AriCommunicationPlanner,
-      ["plan"],
-      {
-        communicationPlannerRan: false,
-        communicationPlannerSource: "not-loaded",
-        communicationPlan: null
-      }
-    ));
-    mark("after communicationPlanner");
+    // 0.95 Mouth Director / Expression Planner
+mark("before mouthDirector");
+const mouthDirectorResult = await runEngine(
+  window.AriMouthDirector,
+  ["direct", "plan"],
+  {
+    mouthDirectorRan: false,
+    mouthDirectorSource: "not-loaded",
+    expressionPlan: null,
+    blueprintHint: null,
+    responseRules: summary.responseRules || [],
+    responseAvoid: [],
+    responseRequired: []
+  }
+);
 
-    // 1.00 Mouth Director
-    mark("before mouthDirector");
-    const mouthDirector = await runEngine(
-      window.AriMouthDirector,
-      ["direct"],
-      {}
-    );
+summary = {
+  ...summary,
+  ...mouthDirectorResult,
+  mouthDirector: mouthDirectorResult,
+  expressionPlan: mouthDirectorResult.expressionPlan || null,
+  blueprintHint: mouthDirectorResult.blueprintHint || null,
+  communicationPlan:
+    mouthDirectorResult.communicationPlan ||
+    summary.communicationPlan ||
+    null,
+  mouthDirective:
+    mouthDirectorResult.mouthDirective ||
+    summary.mouthDirective ||
+    null,
+  responseRules:
+    mouthDirectorResult.responseRules ||
+    summary.responseRules ||
+    [],
+  responseAvoid:
+    mouthDirectorResult.responseAvoid || [],
+  responseRequired:
+    mouthDirectorResult.responseRequired || []
+};
 
-    summary = {
-      ...summary,
-      mouthDirector,
-      mouthDirectorRan: Boolean(window.AriMouthDirector),
-      mouthDirectorSource: window.AriMouthDirector
-        ? "ari-mouth-director"
-        : "not-loaded",
-      mouthExplanationLevel: mouthDirector.explanationLevel || null,
-      mouthResponsePattern:
-        summary.responseShape ||
-        mouthDirector.responsePattern ||
-        null,
-      mouthMaxBodySections: mouthDirector.maxBodySections ?? null,
-      mouthAskBeforeTeaching:
-        mouthDirector.askBeforeTeaching ?? null,
-      mouthAllows: {
-        meaning: mouthDirector.allowMeaning ?? null,
-        emotion: mouthDirector.allowEmotion ?? null,
-        truth: mouthDirector.allowTruth ?? null,
-        wisdom: mouthDirector.allowWisdom ?? null,
-        action: mouthDirector.allowAction ?? null
-      }
-    };
-    mark("after mouthDirector");
+mark("after mouthDirector");
         // 1.10 Composer Bridge
     mark("before composerBridge");
     const composerPacketResult =
@@ -1214,7 +1210,17 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
 
       requiredBehaviors: [],
       forbiddenBehaviors: [],
+responseAvoid:
+  summary.responseAvoid || [],
 
+responseRequired:
+  summary.responseRequired || [],
+
+expressionPlan:
+  summary.expressionPlan || null,
+
+blueprintHint:
+  summary.blueprintHint || null,
       mouthDirective:
         summary.situationContract?.mouthDirective ||
         summary.mouthDirector ||
@@ -1669,8 +1675,9 @@ character:
     console.log("===== KNOWLEDGE MEANING INTERPRETER =====", summary.knowledgeMeaning);
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile);
-    console.log("===== COMMUNICATION PLAN =====", summary.communicationPlan);
-    console.log("===== MOUTH DIRECTOR =====", summary.mouthDirector);
+    console.log("===== EXPRESSION PLAN =====", summary.expressionPlan);
+console.log("===== BLUEPRINT HINT =====", summary.blueprintHint);
+console.log("===== MOUTH DIRECTOR =====", summary.mouthDirector);
     console.log("===== COMPOSER PACKET =====", summary.composerPacket);
     console.log("===== AI WRITER =====", summary.aiWriter);
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
