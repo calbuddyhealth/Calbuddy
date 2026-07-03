@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.5.0 — Advisory Situation Mapper Only
+// V8.5.1 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.5.0",
+  version: "8.5.1",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -867,7 +867,7 @@ readSemanticPriority(map) {
       ...(Array.isArray(secondary) ? secondary : [])
     ].filter(Boolean);
 
-  if (!priority && !secondary.length) return;
+  if (!priority && (!Array.isArray(secondary) || !secondary.length)) return;
 
   map.semanticPriority = {
     available: true,
@@ -890,16 +890,17 @@ readSemanticPriority(map) {
         )
       : [],
     shouldUseMultiLaneResponse:
-      priority?.shouldPreserveSecondaryFrames === true ||
-      priority?.hasMultipleQuestions === true ||
-      secondary.length >= 1,
-    suggestedPlannerUse:
-      priority?.suggestedPlannerUse ||
-      (
-        secondary.length >= 1
-          ? "multi_lane_planner_recommended"
-          : "single_or_simple_response_ok"
-      ),
+  priority?.shouldPreserveSecondaryFrames === true ||
+  priority?.hasMultipleQuestions === true ||
+  (Array.isArray(secondary) && secondary.length >= 1),
+
+suggestedPlannerUse:
+  priority?.suggestedPlannerUse ||
+  (
+    Array.isArray(secondary) && secondary.length >= 1
+      ? "multi_lane_planner_recommended"
+      : "single_or_simple_response_ok"
+  ),
     authority: "semantic_priority_handoff_only"
   };
 
