@@ -1,12 +1,12 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert current user language into structured conceptual meaning.
-// V2.2.0 — Multi-Domain Meaning / Priority Handoff / Planner Ready
+// V2.2.1 — Multi-Domain Meaning / Priority Handoff / Planner Ready
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "2.2.0",
+  version: "2.2.1",
 
   build(input = {}) {
     const summary = input.summary || input || {};
@@ -608,8 +608,9 @@ window.AriSemanticFrameBuilder = {
       );
 
     return {
-      primary: primaryFrame?.frameType || null,
-      ordered: priority,
+  primary: primaryFrame?.frameType || null,
+  secondary: priority.filter(item => item.role === "support"),
+  ordered: priority,
       hasMultipleFrames: priority.length > 1,
       hasMultipleQuestions,
       shouldPreserveSecondaryFrames: priority.length > 1 || hasMultipleQuestions,
