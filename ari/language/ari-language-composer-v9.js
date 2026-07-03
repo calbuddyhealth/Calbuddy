@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.2.0 — Writer Validation Reason / Current Draft First / No Stale History
+// V9.2.1 — Writer Validation Reason / Current Draft First / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.2.0",
+  version: "9.2.1",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -281,93 +281,185 @@ composeSupabaseKnowledge(packet = {}) {
 
   if (!knowledge.shouldUseKnowledge || !nodes.length) return "";
 
-  const primary = nodes[0] || {};
-  const topic = primary.topic || primary.lesson || "this";
-  const definition = primary.definition || "";
-  const summary = primary.summary || "";
-  const deep = primary.deep_understanding || "";
-  const use = primary.how_ari_should_use_this || "";
-  const practical = Array.isArray(primary.practical_applications)
-    ? primary.practical_applications.slice(0, 3)
-    : [];
-  const misconceptions = Array.isArray(primary.misconceptions)
-    ? primary.misconceptions.slice(0, 2)
-    : [];
+  const plan = packet.communicationPlan || {};
+  const budget = plan.languageBudget || {};
+  const maxSentences = budget.maxSentences || 5;
 
-  const related = nodes
-    .slice(1, 4)
-    .map(n => n.topic || n.lesson)
-    .filter(Boolean);
-
-  const isAdvice =
-    /\b(what should i do|how do i|help|where do i start|what can i do|advice|fix|improve|deal with)\b/.test(q);
+  const node = nodes[0] || {};
+  const topic = node.topic || node.lesson || "this";
+  const definition = this.cleanForUser(node.definition || "");
+  const summary = this.cleanForUser(node.summary || "");
+  const deep = this.cleanForUser(node.deep_understanding || "");
+  const use = this.cleanForUser(node.how_ari_should_use_this || "");
 
   const isDefinition =
     /\b(what is|define|meaning of|what does.*mean)\b/.test(q);
 
-  const isWhy =
-    /\b(why|what'?s going on|what is going on|how does|explain)\b/.test(q);
+  const isAdvice =
+    /\b(what should i do|how do i|help|where do i start|what can i do|advice|fix|improve|deal with)\b/.test(q);
+
+  const isCause =
+    /\b(why|what'?s going on|what is going on|how does|can .* affect|does .* affect|explain)\b/.test(q);
 
   const userState =
     /\b(i am|i'm|im|i feel|my|me|i have|i keep|i can'?t|i cannot)\b/.test(q);
 
-  const intro = userState
-    ? `This sounds connected to ${topic.toLowerCase()}.`
-    : `${topic} matters here.`;
+  let sentences = [];
 
   if (isDefinition) {
-    return [
-      definition || summary || `${topic} is the main concept here.`,
-      deep ? this.cleanForUser(deep) : "",
-      practical.length ? `In practice: ${this.joinShort(practical)}.` : ""
-    ].filter(Boolean).join(" ");
+    sentences = [
+      definition || summary || `${topic} is the main idea here.`,
+      this.pickBestSupport({ q, summary, deep, use })
+    ];
+  } else if (isAdvice) {
+    sentences = [
+      userState
+        ? `Yes — ${topic.toLowerCase()} may be part of what is going on.`
+        : `${topic} is probably the right place to start.`,
+      this.pickBestSupport({ q, summary, deep, use }),
+      this.buildOneNextStep(node, q)
+    ];
+  } else if (isCause || userState) {
+    sentences = [
+      this.buildDirectAnswer(topic, q),
+      this.pickBestSupport({ q, summary, deep, use }),
+      this.buildMeaningForUser(node, q)
+    ];
+  } else {
+    sentences = [
+      summary || definition || `${topic} matters here.`,
+      this.pickBestSupport({ q, summary, deep, use })
+    ];
   }
 
-  if (isAdvice) {
-    return [
-      intro,
-      use ? this.cleanForUser(use) : summary,
-      practical.length ? `A good next step is: ${this.joinShort(practical)}.` : "",
-      related.length ? `This may also connect with ${related.join(", ")}.` : ""
-    ].filter(Boolean).join(" ");
+  return this.polishResponse(sentences, maxSentences);
+},
+
+buildDirectAnswer(topic = "", q = "") {
+  const lowerTopic = String(topic || "this").toLowerCase();
+
+  if (/\b(can|does|could)\b/.test(q)) {
+    return `Yes — ${lowerTopic} can absolutely affect that.`;
   }
 
-  if (isWhy || userState) {
-    return [
-      intro,
-      summary || definition,
-      deep ? this.cleanForUser(deep) : "",
-      misconceptions.length ? `One thing not to do: ${this.joinShort(misconceptions)}.` : "",
-      practical.length ? `Start simple: ${this.joinShort(practical)}.` : "",
-      related.length ? `It may also connect with ${related.join(", ")}.` : ""
-    ].filter(Boolean).join(" ");
+  if (/\bwhat'?s going on|what is going on|why\b/.test(q)) {
+    return `What’s probably happening is that ${lowerTopic} is affecting more than one part of your life at once.`;
   }
 
-  return [
-    summary || definition || `This connects to ${topic}.`,
-    use ? this.cleanForUser(use) : "",
-    related.length ? `It may also connect with ${related.join(", ")}.` : ""
-  ].filter(Boolean).join(" ");
+  return `This sounds connected to ${lowerTopic}.`;
+},
+
+pickBestSupport({ q = "", summary = "", deep = "", use = "" } = {}) {
+  const source = deep || use || summary || "";
+  if (!source) return "";
+
+  const sentences = this.splitSentences(source);
+
+  const scored = sentences
+    .map(sentence => ({
+      sentence,
+      score: this.relevanceScore(sentence, q)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.sentence || sentences[0] || "";
+},
+
+buildMeaningForUser(node = {}, q = "") {
+  const practical = Array.isArray(node.practical_applications)
+    ? node.practical_applications
+    : [];
+
+  const cleaned = practical
+    .map(item => this.cleanPractical(item))
+    .filter(Boolean);
+
+  if (cleaned.length) {
+    return cleaned[0];
+  }
+
+  const topic = String(node.topic || node.lesson || "this").toLowerCase();
+  return `The useful move is to treat ${topic} as a real factor, not as a character flaw or lack of willpower.`;
+},
+
+buildOneNextStep(node = {}, q = "") {
+  const practical = Array.isArray(node.practical_applications)
+    ? node.practical_applications
+    : [];
+
+  const cleaned = practical
+    .map(item => this.cleanPractical(item))
+    .filter(Boolean);
+
+  return cleaned[0] || "Start with one small realistic change instead of trying to fix everything at once.";
+},
+
+cleanPractical(text = "") {
+  return String(text || "")
+    .replace(/^Ask about\b/i, "Look at")
+    .replace(/^Encourage\b/i, "Try")
+    .replace(/^Support\b/i, "Build around")
+    .replace(/^Connect\b/i, "Remember that")
+    .replace(/^Avoid shaming.*$/i, "Don’t turn this into a shame issue; treat it as a solvable pattern")
+    .replace(/^Recommend medical evaluation\b/i, "Consider medical evaluation")
+    .replace(/\busers\b/gi, "you")
+    .replace(/\buser\b/gi, "you")
+    .replace(/\.$/, "")
+    .trim() + ".";
 },
 
 cleanForUser(text = "") {
   return String(text || "")
-    .replace(/\bAri should\b/gi, "A good response is to")
-    .replace(/\bHelp Ari\b/gi, "The goal is to")
+    .replace(/\bAri should\b/gi, "")
+    .replace(/\bHelp Ari recognize when\b/gi, "This matters when")
+    .replace(/\bHelp Ari\b/gi, "The point is to")
     .replace(/\busers\b/gi, "people")
     .replace(/\buser\b/gi, "person")
+    .replace(/\s+/g, " ")
     .trim();
 },
 
-joinShort(items = []) {
-  return items
+splitSentences(text = "") {
+  return String(text || "")
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+},
+
+relevanceScore(sentence = "", q = "") {
+  const s = String(sentence || "").toLowerCase();
+  const words = String(q || "")
+    .toLowerCase()
+    .split(/\W+/)
+    .filter(word => word.length > 3);
+
+  let score = 0;
+  for (const word of words) {
+    if (s.includes(word)) score += 2;
+  }
+
+  if (s.includes("affect")) score += 1;
+  if (s.includes("because")) score += 1;
+  if (s.includes("can")) score += 1;
+  if (s.includes("not")) score -= 0.5;
+
+  return score;
+},
+
+polishResponse(sentences = [], maxSentences = 5) {
+  const seen = new Set();
+
+  return sentences
     .filter(Boolean)
-    .map(item =>
-      String(item)
-        .replace(/\.$/, "")
-        .trim()
-    )
-    .join("; ");
+    .map(s => String(s).trim())
+    .filter(s => {
+      const key = s.toLowerCase().replace(/[^\w\s]/g, "").slice(0, 80);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, maxSentences)
+    .join(" ");
 },
 
   composeLocal(packet = {}, activeDialogueState = null, characterIdentity = null) {
