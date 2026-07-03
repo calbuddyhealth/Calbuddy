@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.3 — Supabase Character Knowledge First / Local Fallback / Values Inference
+// V1.1.4 — Supabase Character Knowledge First / Local Fallback / Values Inference
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.3",
+  version: "1.1.4",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
