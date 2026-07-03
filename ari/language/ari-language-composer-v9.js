@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.2.3 — Writer Validation Reason / Current Draft First / No Stale History
+// V9.2.4 — Blueprint Draft First / Writer Validation Reason / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.2.3",
+  version: "9.2.4",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -169,8 +169,15 @@ readCharacterIdentity({ packet = {}, summary = {}, input = {} } = {}) {
   );
 },
 
-  getCurrentWriterDraft({ packet = {}, summary = {}, input = {} } = {}) {
+    getCurrentWriterDraft({ packet = {}, summary = {}, input = {} } = {}) {
     const candidates = [
+      packet.blueprintWriterDraft,
+      summary.blueprintWriterDraft,
+      input.blueprintWriterDraft,
+      packet.blueprintWriter?.draft,
+      summary.blueprintWriter?.draft,
+      input.blueprintWriter?.draft,
+
       packet.evidence?.aiWriter?.draft,
       packet.aiWriterDraft,
       summary.aiWriterDraft,
@@ -549,6 +556,13 @@ polishResponse(sentences = [], maxSentences = 5, style = "conversation") {
   },
 
 resolveWriterValidation(packet = {}) {
+  if (
+    packet.blueprintWriterDraft ||
+    packet.blueprintWriter?.draft
+  ) {
+    return "blueprint_writer_draft";
+  }
+
   const aiWriter = packet.evidence?.aiWriter || {};
 
   if (aiWriter.usedAI === true) {
