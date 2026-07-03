@@ -1,12 +1,12 @@
 // ari/language/ari-lexical-grounding-engine.js
 // Ari Lexical Grounding Engine
 // Purpose: Map user language into grounded, reusable phrases for downstream systems.
-// V3.0.2 — Universal Lexical Grounding / No Final Authority
+// V3.0.3 — Composer Component Grounding
 
 window.Ari = window.Ari || {};
 
 window.AriLexicalGroundingEngine = {
-  version: "3.0.2",
+  version: "3.0.3",
 
   ground(input = {}) {
     const summary = input.summary || input || {};
@@ -62,7 +62,8 @@ window.AriLexicalGroundingEngine = {
     this.mapTimelineTerms(grounding, text, normalized);
     this.mapBodyTerms(grounding, text, normalized);
     this.mapBuilderTerms(grounding, text, normalized);
-    this.mapRelationshipTerms(grounding, text, normalized);
+this.mapComposerTerms(grounding, text, normalized);
+this.mapRelationshipTerms(grounding, text, normalized);
     this.mapEmotionTerms(grounding, text, normalized);
     
 
@@ -301,14 +302,30 @@ window.AriLexicalGroundingEngine = {
 
   mapBuilderTerms(grounding, text) {
     const builderTerm = this.findFirst(text, [
-      /\b(login page|homepage|button|meter|composer|pipeline|reasoning engine|observer|contract|app|website|code|file|function|api|supabase|github|vercel|html|javascript|css|lexical grounding engine|thread understanding engine)\b/gi,
-      /my\s+[^.?!,;]{1,40}\s+(is broken|is not working|keeps crashing|doesn't work|doesn’t work)/gi
+     /\b(login page|homepage|button|meter|composer|language composer|composer bridge|composer packet|pipeline|reasoning engine|observer|observer network|contract|situation contract|mouth director|expression planner|blueprint|blueprint selector|blueprint writer|ai writer|human language|lexical grounding|semantic frame|lane splitter|multi lane planner|multi-lane planner|knowledge router|knowledge meaning interpreter|thread understanding engine|thread question|continuity|supabase|github|vercel|api|app|website|code|file|function|engine|html|javascript|css)\b/gi,
+ /my\s+[^.?!,;]{1,40}\s+(is broken|is not working|keeps crashing|doesn't work|doesn’t work)/gi
     ]);
 
     if (builderTerm) {
       this.setConcept(grounding, "thing_to_fix", builderTerm, "User named a concrete build or technical phrase.", 0.8);
     }
   },
+
+mapComposerTerms(grounding, text) {
+  const composerTerm = this.findFirst(text, [
+    /\b(composer bridge|composer packet|language composer|ai writer|blueprint writer|mouth director|expression planner|human language|lexical grounding)\b/gi
+  ]);
+
+  if (composerTerm) {
+    this.setConcept(
+      grounding,
+      "composer_component",
+      composerTerm,
+      "User referenced a downstream language generation component.",
+      0.88
+    );
+  }
+},
 
   mapRelationshipTerms(grounding, text) {
     const person = this.findFirst(text, [
@@ -361,6 +378,7 @@ window.AriLexicalGroundingEngine = {
       constraintPhrase: map.constraint_phrase || null,
 
       bodyProblem: map.body_problem || null,
+      composerComponent: map.composer_component || null,
       thingToFix: map.thing_to_fix || null,
       personOrRelationship: map.person_or_relationship || null,
       feltState: map.felt_state || null,
