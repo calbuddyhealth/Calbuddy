@@ -1,275 +1,306 @@
 // ari/language/ari-mouth-director.js
-// Ari Mouth Director
-// Purpose: Format, order, pacing, and compression limits only.
-// V4.3.0 — Pure Delivery Director
+// Purpose: Own final expression planning before Composer Bridge.
+// V2.0.0 — Communication Planner + Mouth Director + Blueprint Selector Merge
 
 window.Ari = window.Ari || {};
 
 window.AriMouthDirector = {
-  version: "4.3.0",
+  version: "2.0.0",
 
   direct(input = {}) {
     const summary = input.summary || input || {};
-    const contract = summary.situationContract || {};
-    const language = summary.humanLanguageProfile || {};
-    const communicationPlan = summary.communicationPlan || {};
 
-    const primary =
-      summary.situationContractPrimary ||
-      contract.primary ||
-      communicationPlan.primary ||
-      "general_understanding";
+    const primary = this.getPrimary(summary);
+    const map = summary.situationMap || {};
+    const needs = map.needs || [];
+    const situations = map.situations || [];
+    const domains = map.domains || [];
 
-    const responseShape =
-      contract.responseShape ||
-      communicationPlan.responseShape ||
-      this.patternFromPrimary(primary);
+    const blueprintId = this.selectBlueprint({
+      primary,
+      needs,
+      situations,
+      domains,
+      summary
+    });
 
-    const sectionOrder =
-      communicationPlan.sectionOrder ||
-      this.orderFromContract(contract, primary);
-
-    const maxBodySections = this.maxSections(primary, language, communicationPlan);
-    const maxBulletsPerSection = this.maxBullets(primary, communicationPlan);
+    const expressionPlan = this.buildExpressionPlan({
+      primary,
+      blueprintId,
+      needs,
+      situations,
+      domains,
+      summary
+    });
 
     return {
       mouthDirectorRan: true,
       mouthDirectorVersion: this.version,
-      source: "ari-mouth-director",
+      mouthDirectorSource: "ari-mouth-director",
 
-      // Mouth does NOT decide truth, priority, recommendation, or meaning.
-      mouthAuthority: "delivery_only",
+      expressionPlan,
+      blueprintHint: blueprintId,
 
-      contractPrimary: primary,
-      responseShape,
-      responsePattern: responseShape,
+      responseRules: expressionPlan.voiceRules,
+      responseAvoid: expressionPlan.avoid,
+      responseRequired: expressionPlan.required,
 
-      sectionOrder,
-      maxBodySections,
-      maxBulletsPerSection,
-
-      openingStyle: language.openingStyle || "direct",
-      closingStyle: language.closingStyle || "optional",
-      pace: language.pace || "normal",
-      depth: language.depth || "practical",
-
-      formatHints: this.formatHints(primary),
-      styleRules: this.styleRules(primary),
-
-      compressionDirective: {
-        enabled: true,
-        maxSections: maxBodySections,
-        maxBulletsPerSection,
-        style: this.compressionStyle(primary, language),
-        preserve:
-          communicationPlan.preserve ||
-          contract.responseRequirements ||
-          []
+      communicationPlan: {
+        plannerMergedIntoMouthDirector: true,
+        primary,
+        responseShape: expressionPlan.responseShape,
+        responseOrder: expressionPlan.structure,
+        blueprintHint: blueprintId,
+        composerDirective: {
+          opening: expressionPlan.opening,
+          sequence: expressionPlan.structure,
+          avoid: expressionPlan.avoid,
+          required: expressionPlan.required,
+          closing: expressionPlan.closing,
+          question: expressionPlan.question
+        }
       },
 
-      contractRequired: contract.mouthDirective?.required || [],
-      contractAvoid: contract.mouthDirective?.avoid || [],
-      contractClosing: contract.mouthDirective?.closing || null,
-
-      // Backward compatibility only.
-      allowMeaning: true,
-      allowEmotion: true,
-      allowTruth: true,
-      allowWisdom: true,
-      allowAction: true,
-      askBeforeTeaching: primary === "risk_clarification",
-
-      mouthRules: [
-        "Mouth Director controls delivery only.",
-        "Do not decide the recommendation.",
-        "Do not decide the priority.",
-        "Do not change the primary lane.",
-        "Do not override Situation Contract.",
-        "Do not override Communication Planner.",
-        "Do not expose internal system names.",
-        "Composer writes naturally.",
-        "Compressor may shorten but must preserve required content."
-      ]
+      mouthDirective: {
+        primary,
+        blueprintHint: blueprintId,
+        tone: expressionPlan.tone,
+        voiceRules: expressionPlan.voiceRules,
+        avoid: expressionPlan.avoid,
+        required: expressionPlan.required,
+        aiAllowed: expressionPlan.aiAllowed
+      }
     };
   },
 
-  patternFromPrimary(primary) {
-    const map = {
-      safety: "urgent_safety",
-      risk_clarification: "one_question_only",
-      medical_body: "body_truth_then_action",
-      medical_context: "medical_context_then_next_step",
-      builder: "steps_or_code_first",
-      teacher: "clear_explanation",
-      executive_decision: "recommendation_then_reasoning",
-      emotion: "attune_then_ground",
-      family: "priority_then_boundary",
-      relationship: "truth_then_repair",
-      wisdom: "principle_then_choice",
-      memory: "acknowledge_only",
-      general_understanding: "direct_answer"
-    };
-
-    return map[primary] || "direct_answer";
+  plan(input = {}) {
+    return this.direct(input);
   },
 
-  orderFromContract(contract = {}, primary = "general_understanding") {
-    const contractOrder = contract.mouthDirective?.order;
+  getPrimary(summary = {}) {
+    return (
+      summary.situationContractPrimary ||
+      summary.triagePrimaryLane ||
+      summary.primaryLane ||
+      summary.ariTriage?.primaryLane ||
+      summary.situationMap?.primaryLane ||
+      "general_understanding"
+    );
+  },
 
-    if (Array.isArray(contractOrder) && contractOrder.length) {
-      return contractOrder;
+  selectBlueprint({ primary, needs = [], situations = [], domains = [] } = {}) {
+    if (primary === "safety") return "safety_urgent_support";
+    if (primary === "medical_body") return "medical_urgent_action";
+    if (primary === "risk_clarification") return "safety_risk_clarification";
+
+    if (
+      primary === "emotion" &&
+      needs.includes("decision_support") &&
+      needs.includes("relationship_awareness")
+    ) {
+      return "emotion_balance_repair";
     }
 
-    return [
+    if (
+      primary === "emotion" &&
+      situations.includes("tradeoff_or_competing_priorities")
+    ) {
+      return "emotion_decision_grounding";
+    }
+
+    if (primary === "emotion") return "emotion_presence_grounding";
+
+    if (
+      primary === "executive_decision" ||
+      needs.includes("decision_support") ||
+      situations.includes("tradeoff_or_competing_priorities")
+    ) {
+      return "decision_tradeoff";
+    }
+
+    if (primary === "builder" || domains.includes("builder_domain")) {
+      return "builder_direct_help";
+    }
+
+    if (primary === "teacher" || needs.includes("understanding")) {
+      return "knowledge_clear_explanation";
+    }
+
+    if (primary === "relationship" || domains.includes("relationship_context_domain")) {
+      return "relationship_repair_clarity";
+    }
+
+    if (primary === "memory") return "memory_direct_acknowledgment";
+    if (primary === "wisdom") return "wisdom_principle_then_step";
+    if (primary === "medical_context") return "medical_context_calm_guidance";
+
+    return "general_direct_response";
+  },
+
+  buildExpressionPlan({ primary, blueprintId, needs = [], situations = [], domains = [] } = {}) {
+    const base = {
+      blueprintId,
       primary,
-      ...(contract.support || []),
-      ...(contract.brief || []).map(lane => `brief_${lane}`),
-      ...(contract.context || []).map(lane => `context_${lane}`),
-      ...(contract.deferred || []).map(lane => `defer_${lane}`)
-    ].filter(Boolean);
-  },
+      responseShape: "standard",
+      tone: "direct_warm_plain",
+      structure: ["answer", "explain_briefly", "next_step"],
+      voiceRules: [
+        "answer_the_current_user_message",
+        "be_direct_natural_concise",
+        "do_not_dump_pipeline_details",
+        "do_not_use_stale_context"
+      ],
+      avoid: [
+        "generic_therapy_language",
+        "long_lectures",
+        "unnecessary_clarifying_question"
+      ],
+      required: ["include_one_useful_next_step"],
+      opening: null,
+      closing: null,
+      question: null,
+      aiAllowed: true
+    };
 
-  maxSections(primary, language = {}, communicationPlan = {}) {
-    if (Number.isFinite(Number(language.maxBodySections))) {
-      return Number(language.maxBodySections);
+    if (blueprintId === "emotion_balance_repair") {
+      return {
+        ...base,
+        responseShape: "emotion_then_ground",
+        structure: [
+          "validate_emotion",
+          "reflect_pattern",
+          "name_core_truth",
+          "one_repair_step",
+          "grounded_close"
+        ],
+        voiceRules: [
+          ...base.voiceRules,
+          "emotional_presence_first",
+          "do_not_lead_with_knowledge",
+          "do_not_over_explain",
+          "comfort_then_one_grounding_step",
+          "protect_relationship_context"
+        ],
+        avoid: [
+          ...base.avoid,
+          "curriculum_language",
+          "abstract_balance_lecture",
+          "shame_or_blame"
+        ],
+        required: [
+          "acknowledge_emotional_load",
+          "name_the_pattern",
+          "give_one_concrete_repair_step"
+        ],
+        aiAllowed: false
+      };
     }
 
-    if (Number.isFinite(Number(communicationPlan.maxSections))) {
-      return Number(communicationPlan.maxSections);
+    if (blueprintId === "emotion_presence_grounding") {
+      return {
+        ...base,
+        responseShape: "emotion_then_ground",
+        structure: [
+          "validate_emotion",
+          "offer_presence",
+          "small_grounding_step",
+          "invite_more_if_needed"
+        ],
+        voiceRules: [
+          ...base.voiceRules,
+          "emotional_presence_first",
+          "do_not_lead_with_knowledge",
+          "do_not_fix_too_fast"
+        ],
+        required: ["comfort_first", "one_small_next_step"],
+        aiAllowed: false
+      };
     }
 
-    const map = {
-      safety: 2,
-      risk_clarification: 1,
-      medical_body: 2,
-      medical_context: 3,
-      builder: 4,
-      teacher: 3,
-      executive_decision: 5,
-      emotion: 3,
-      family: 4,
-      relationship: 3,
-      wisdom: 4,
-      memory: 1,
-      general_understanding: 3
-    };
-
-    return map[primary] || 3;
-  },
-
-  maxBullets(primary, communicationPlan = {}) {
-    if (Number.isFinite(Number(communicationPlan.maxBulletsPerSection))) {
-      return Number(communicationPlan.maxBulletsPerSection);
+    if (blueprintId === "decision_tradeoff") {
+      return {
+        ...base,
+        responseShape: "decision_first_layered",
+        structure: [
+          "name_tradeoff",
+          "separate_options",
+          "recommend_next_step",
+          "brief_emotional_acknowledgment"
+        ],
+        voiceRules: [
+          ...base.voiceRules,
+          "organize_options",
+          "name_tradeoff",
+          "recommend_next_step"
+        ],
+        required: ["clear_recommendation"],
+        aiAllowed: true
+      };
     }
 
-    const map = {
-      executive_decision: 3,
-      builder: 5,
-      teacher: 4,
-      medical_context: 3,
-      general_understanding: 3
-    };
+    if (blueprintId === "builder_direct_help") {
+      return {
+        ...base,
+        responseShape: "build_steps",
+        structure: [
+          "diagnose",
+          "patch_or_steps",
+          "test_instruction"
+        ],
+        voiceRules: [
+          ...base.voiceRules,
+          "be_specific",
+          "preserve_unrelated_code",
+          "avoid_generic_platform_advice"
+        ],
+        avoid: ["deep_emotional_processing"],
+        required: ["give_actionable_code_or_steps"],
+        aiAllowed: true
+      };
+    }
 
-    return map[primary] || 3;
-  },
+    if (blueprintId === "knowledge_clear_explanation") {
+      return {
+        ...base,
+        responseShape: "clear_explanation",
+        structure: [
+          "direct_answer",
+          "brief_explanation",
+          "practical_example"
+        ],
+        voiceRules: [
+          ...base.voiceRules,
+          "answer_directly",
+          "explain_without_overteaching"
+        ],
+        required: ["direct_answer"],
+        aiAllowed: true
+      };
+    }
 
-  compressionStyle(primary, language = {}) {
-    if (language.compressionStyle) return language.compressionStyle;
+    if (blueprintId.startsWith("safety")) {
+      return {
+        ...base,
+        responseShape: "urgent_safety",
+        structure: [
+          "safety_first",
+          "direct_next_step",
+          "supportive_close"
+        ],
+        voiceRules: [
+          "safety_first",
+          "direct_next_step",
+          "no_philosophy",
+          "no_blueprint_flourish"
+        ],
+        avoid: ["long_reflection", "normal_advice"],
+        required: ["protect_user_now"],
+        aiAllowed: false
+      };
+    }
 
-    if (primary === "executive_decision") return "tight_but_complete";
-    if (primary === "safety") return "short_direct";
-    if (primary === "risk_clarification") return "one_question";
-    if (primary === "emotion") return "brief_warm";
-    if (primary === "builder") return "practical_steps";
-
-    return "clean_concise";
-  },
-
-  formatHints(primary) {
-    const map = {
-      safety: [
-        "Put immediate action first.",
-        "Keep it short."
-      ],
-      risk_clarification: [
-        "Ask one clear question only."
-      ],
-      medical_body: [
-        "State boundary first.",
-        "Give practical next step."
-      ],
-      medical_context: [
-        "Use medical context briefly.",
-        "Avoid unnecessary escalation."
-      ],
-      builder: [
-        "Give concrete steps.",
-        "Use replacement code when useful."
-      ],
-      teacher: [
-        "Explain plainly.",
-        "Use simple structure."
-      ],
-      executive_decision: [
-        "Recommendation first.",
-        "Then known/inferred/unknown if requested.",
-        "Rejected alternatives only if requested.",
-        "Next step near the end."
-      ],
-      emotion: [
-        "Brief attunement.",
-        "Then grounding truth."
-      ],
-      relationship: [
-        "Name the truth.",
-        "Offer repair move."
-      ],
-      wisdom: [
-        "Name principle.",
-        "Name choice."
-      ]
-    };
-
-    return map[primary] || ["Answer directly."];
-  },
-
-  styleRules(primary) {
-    const shared = [
-      "Do not invent meaning.",
-      "Do not add generic reflection questions.",
-      "Do not expose system names.",
-      "Do not over-explain.",
-      "Do not change the recommendation."
-    ];
-
-    const map = {
-      safety: [
-        "No humor.",
-        "No philosophy.",
-        "No life-chapter language."
-      ],
-      risk_clarification: [
-        "One question only.",
-        "No extra sections."
-      ],
-      builder: [
-        "No emotional over-reflection.",
-        "Prioritize usable action."
-      ],
-      teacher: [
-        "Do not ask before teaching unless clarity is required."
-      ],
-      executive_decision: [
-        "Do not treat all concerns as equal.",
-        "Do not bury the recommendation.",
-        "Keep the answer structured but natural."
-      ],
-      medical_context: [
-        "Do not escalate without red flags.",
-        "Do not frame medical context as identity or meaning."
-      ]
-    };
-
-    return [...(map[primary] || []), ...shared];
+    return base;
   }
 };
+
+console.log("ARI MOUTH DIRECTOR LOADED:", window.AriMouthDirector.version);
