@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.8 — Writer Validation Reason / Current Draft First / No Stale History
+// V9.1.9 — Writer Validation Reason / Current Draft First / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.8",
+  version: "9.1.9",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -64,6 +64,18 @@ const characterIdentity = this.readCharacterIdentity({ packet, summary, input })
         characterIdentity
       );
     }
+
+const knowledgeDraft = this.composeSupabaseKnowledge(packet);
+
+if (knowledgeDraft) {
+  return this.returnFinal(
+    knowledgeDraft,
+    "deterministic_supabase_knowledge_composed",
+    packet,
+    activeDialogueState,
+    characterIdentity
+  );
+}
 
     const aiDraft = this.getCurrentWriterDraft({ packet, summary, input });
 
@@ -260,6 +272,36 @@ readCharacterIdentity({ packet = {}, summary = {}, input = {} } = {}) {
       characterIdentity
     );
   },
+
+composeSupabaseKnowledge(packet = {}) {
+  const knowledge = packet.evidence?.knowledge || {};
+  const nodes = Array.isArray(knowledge.nodes) ? knowledge.nodes : [];
+  const q = String(packet.userQuestion || "").toLowerCase();
+
+  if (!knowledge.shouldUseKnowledge || !nodes.length) return "";
+
+  const primary = nodes[0] || {};
+  const topic = primary.topic || primary.lesson || "this";
+  const summary = primary.summary || "";
+  const how = primary.how_ari_should_use_this || primary.deep_understanding || "";
+  const related = nodes.slice(1, 4).map(n => n.topic || n.lesson).filter(Boolean);
+
+  if (topic.toLowerCase().includes("sleep") || q.includes("exhausted") || q.includes("sleep")) {
+    return [
+      "What’s probably happening is your system is overloaded, and poor sleep may be the first domino.",
+      "When sleep is off, it can make cravings worse, lower patience, increase irritability, weaken focus, and make stress feel heavier than usual.",
+      q.includes("eating") ? "The junk food piece may be part of the same cycle: low sleep and stress can push your body toward quick energy, then the crash makes everything harder." : "",
+      q.includes("snapping") ? "The snapping at people is a sign your emotional regulation may be running on empty, not that you’re a bad person." : "",
+      "Start with the simplest bottleneck: protect sleep/recovery first, stabilize one decent meal, and reduce one stressor instead of trying to fix your whole life at once."
+    ].filter(Boolean).join(" ");
+  }
+
+  return [
+    summary || `This sounds connected to ${topic}.`,
+    how ? how : "",
+    related.length ? `It may also connect with ${related.join(", ")}.` : ""
+  ].filter(Boolean).join(" ");
+},
 
   composeLocal(packet = {}, activeDialogueState = null, characterIdentity = null) {
     const q = String(packet.userQuestion || "").trim();
