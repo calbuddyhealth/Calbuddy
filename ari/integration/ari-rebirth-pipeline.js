@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.1.9 — Character/Supabase Before General Knowledge Router
+// V4.2.0 — Knowledge Router + Meaning Interpreter Wired
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.1.9",
+  version: "4.2.0",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -693,6 +693,7 @@ summary.composerCharacter = {
 
 mark("after characterExpression");
 
+// 0.83 Knowledge Router
 mark("before knowledgeRouter");
 
 const knowledgeRouterResult = await runEngine(
@@ -711,6 +712,21 @@ summary = {
 };
 
 mark("after knowledgeRouter");
+
+// 0.84 Knowledge Meaning Interpreter
+mark("before knowledgeMeaningInterpreter");
+
+merge(await runEngine(
+  window.AriKnowledgeMeaningInterpreter,
+  ["interpret"],
+  {
+    knowledgeMeaningInterpreterRan: false,
+    knowledgeMeaningUsable: false,
+    knowledgeMeaning: null
+  }
+));
+
+mark("after knowledgeMeaningInterpreter");
 
     // 0.85 Lexical Grounding
     mark("before lexicalGrounding");
@@ -1606,6 +1622,7 @@ character:
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== COGNITIVE EXECUTIVE =====", summary.cognitiveExecutive);
     console.log("===== KNOWLEDGE ROUTER =====", summary.knowledgeRouter);
+    console.log("===== KNOWLEDGE MEANING INTERPRETER =====", summary.knowledgeMeaning);
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile);
     console.log("===== COMMUNICATION PLAN =====", summary.communicationPlan);
