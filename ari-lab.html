@@ -204,6 +204,10 @@ function formatKnowledgeMeaning(summary = {}) {
       return [
         `Composer Packet Ready: ${summary.composerPacketReady || summary.composerPacket?.ready ? "yes" : "no"}`,
         `Composer Packet Primary: ${summary.composerPacket?.primary || summary.composerPacketPrimary || "none"}`,
+        `Blueprint Writer Ran: ${summary.blueprintWriterRan ? "yes" : "no"}`,
+`Blueprint Writer Version: ${summary.blueprintWriterVersion || "none"}`,
+`Blueprint Writer Source: ${summary.blueprintWriterSource || "none"}`,
+`Blueprint Draft: ${summary.blueprintWriterDraft || "none"}`,
         `AI Writer Ran: ${summary.aiWriterRan ? "yes" : "no"}`,
         `AI Writer Used AI: ${summary.aiWriterUsedAI ? "yes" : "no"}`,
         `AI Writer Source: ${summary.aiWriterSource || "none"}`,
