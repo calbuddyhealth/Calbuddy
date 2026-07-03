@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.2.5 — Conversation Mode / Direct Question / Anti-Drift Upgrade
+// V3.2.6 — Planner Handoff / Developer Artifact Contract
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.2.5",
+  version: "3.2.6",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -29,6 +29,7 @@ const planner =
     this.applyPrimaryLane(contract, map, triage);
     this.applyLaneProfile(contract);
     this.applyTriageLanes(contract, triage, map);
+  this.applyPlannerHandoff(contract, planner);
    this.applySituationThesis(contract, map);
      this.applyMedicalContextProtection(contract, safety, map, triage);
     this.applyClarity(contract, safety, map);
@@ -713,13 +714,15 @@ buildExecutiveConclusion(
   },
 
   applyMouthDirective(contract) {
-    contract.mouthDirective.order = [
-      contract.primary,
-      ...contract.support,
-      ...contract.brief.map(lane => `brief_${lane}`),
-      ...contract.context.map(lane => `context_${lane}`),
-      ...contract.deferred.map(lane => `defer_${lane}`)
-    ];
+    if (!contract.mouthDirective.order?.length) {
+  contract.mouthDirective.order = [
+    contract.primary,
+    ...contract.support,
+    ...contract.brief.map(lane => `brief_${lane}`),
+    ...contract.context.map(lane => `context_${lane}`),
+    ...contract.deferred.map(lane => `defer_${lane}`)
+  ];
+}
 
     contract.mouthDirective.required = [
       ...(contract.mouthDirective.required || []),
