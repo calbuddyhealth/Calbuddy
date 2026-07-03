@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.0.1 — Six-Core / SearchOrder Router / Supabase V3 Compatible
+// V4.0.2 — Six-Core / SearchOrder Router / Supabase V3 Compatible
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.0.1",
+  version: "4.0.2",
 
   cores: {
     character: "character_core",
@@ -189,319 +189,207 @@ if (characterActuallyAnswered) {
     };
   },
     routeCores(summary = {}, question = "", requires = {}) {
-    const text = this.normalizeText(question);
+  const text = this.normalizeText(question);
 
-    const signals = {
-      character: 0,
-      relationship: 0,
-      memory: 0,
-      life: 0,
-      knowledge: 0,
-      growth: 0
-    };
+  const signals = {
+    character: 0,
+    relationship: 0,
+    memory: 0,
+    life: 0,
+    knowledge: 0,
+    growth: 0
+  };
 
-    const add = (core, amount = 1) => {
-      if (signals[core] === undefined) return;
-      signals[core] += amount;
-    };
+  const add = (core, amount = 1) => {
+    if (signals[core] === undefined) return;
+    signals[core] += amount;
+  };
 
-    const primary =
-      summary.situationContractPrimary ||
-      summary.primaryLane ||
-      summary.triagePrimaryLane ||
-      summary.triage?.primaryLane ||
-      "";
+  const primary =
+    summary.situationContractPrimary ||
+    summary.primaryLane ||
+    summary.triagePrimaryLane ||
+    summary.triage?.primaryLane ||
+    "";
 
-    const semanticFrame =
-      summary.primarySemanticFrame ||
-      summary.activeSemanticFrame ||
-      summary.semanticFrameOutput?.primaryFrame ||
-      "";
+  const intent =
+    summary.conversationIntent ||
+    summary.semanticIntent ||
+    summary.laneSplitterSemanticIntent ||
+    summary.responseIntent ||
+    "";
 
-    const intent =
-      summary.conversationIntent ||
-      summary.semanticIntent ||
-      summary.laneSplitterSemanticIntent ||
-      summary.responseIntent ||
-      "";
+  const functionType =
+    summary.primaryFunction ||
+    summary.conversationFunction?.primaryFunction ||
+    "";
 
-    const functionType =
-      summary.primaryFunction ||
-      summary.conversationFunction?.primaryFunction ||
-      "";
+  const domains = summary.situationMap?.domains || summary.domains || [];
+  const needs = summary.situationMap?.needs || summary.needs || [];
+  const questions = summary.situationMap?.questions || summary.questions || [];
 
-    const domains =
-      summary.situationMap?.domains ||
-      summary.domains ||
-      [];
+  if (requires.knowledgeGraph === true) add("knowledge", 2);
+  if (requires.systemKnowledge === true) add("knowledge", 2);
+  if (requires.userMemory === true) add("relationship", 2);
+  if (requires.liveVerification === true) add("knowledge", 2);
 
-    const needs =
-      summary.situationMap?.needs ||
-      summary.needs ||
-      [];
+  if (primary === "ari_self" || primary === "companion") add("character", 4);
+  if (primary === "teacher" || primary === "medical_context") add("knowledge", 3);
 
-    const questions =
-      summary.situationMap?.questions ||
-      summary.questions ||
-      [];
+  if (primary === "executive_decision") {
+    add("life", 2);
+    add("relationship", 2);
+    add("knowledge", 1);
+  }
 
-    if (requires.knowledgeGraph === true) add("knowledge", 2);
-    if (requires.systemKnowledge === true) add("knowledge", 2);
-    if (requires.userMemory === true) add("relationship", 2);
-    if (requires.liveVerification === true) add("knowledge", 2);
+  if (primary === "builder") {
+    add("knowledge", 2);
+    add("memory", 1);
+  }
 
-    if (primary === "ari_self" || primary === "companion") add("character", 4);
-    if (primary === "teacher" || primary === "medical_context") add("knowledge", 3);
-    if (primary === "executive_decision") {
-      add("life", 2);
-      add("knowledge", 1);
-      add("relationship", 1);
-    }
-    if (primary === "builder") {
-      add("knowledge", 2);
-      add("memory", 1);
-    }
+  if (functionType === "developer_artifact_request" || functionType === "build_or_debug_request") {
+    add("knowledge", 3);
+    add("memory", 1);
+  }
 
-    if (functionType === "developer_artifact_request" || functionType === "build_or_debug_request") {
-      add("knowledge", 3);
-      add("memory", 1);
-    }
+  if (intent === "answer_question" || intent === "explain" || intent === "teach_clearly") {
+    add("knowledge", 3);
+  }
 
-    if (intent === "answer_question" || intent === "explain" || intent === "teach_clearly") {
-      add("knowledge", 3);
-    }
+  if (intent === "decision_support" || needs.includes("decision_support")) {
+    add("life", 3);
+    add("relationship", 2);
+    add("knowledge", 1);
+  }
 
-    if (intent === "decision_support" || needs.includes("decision_support")) {
-      add("life", 3);
-      add("relationship", 1);
-      add("knowledge", 1);
-    }
+  if (intent === "implementation_help" || needs.includes("action_or_build_help")) {
+    add("life", 2);
+    add("knowledge", 2);
+  }
 
-    if (intent === "implementation_help" || needs.includes("action_or_build_help")) {
-      add("life", 2);
-      add("knowledge", 2);
-    }
+  if (domains.includes("relationship_domain") || domains.includes("personal_domain")) {
+    add("relationship", 4);
+  }
 
-    if (intent === "summarize" || intent === "rewrite" || intent === "write") {
-      add("knowledge", 1);
-      add("memory", 1);
-    }
+  if (domains.includes("life_domain") || domains.includes("planning_domain")) {
+    add("life", 3);
+  }
 
-    if (
-      domains.includes("knowledge_domain") ||
-      questions.includes("knowledge_question") ||
-      questions.includes("instruction_question")
-    ) {
-      add("knowledge", 3);
-    }
+  if (domains.includes("knowledge_domain") || questions.includes("knowledge_question")) {
+    add("knowledge", 3);
+  }
 
-    if (
-      domains.includes("relationship_domain") ||
-      domains.includes("personal_domain") ||
-      needs.includes("personalization")
-    ) {
-      add("relationship", 3);
-    }
+  if (domains.includes("memory_domain") || domains.includes("continuity_domain")) {
+    add("memory", 3);
+  }
 
-    if (
-      domains.includes("memory_domain") ||
-      domains.includes("continuity_domain") ||
-      summary.laneSplit?.routing?.useThread === true ||
-      summary.laneSplit?.routing?.useMemory === true
-    ) {
-      add("memory", 3);
-    }
+  if (domains.includes("growth_domain") || domains.includes("reflection_domain")) {
+    add("growth", 3);
+  }
 
-    if (
-      domains.includes("life_domain") ||
-      domains.includes("planning_domain") ||
-      needs.includes("prioritization") ||
-      needs.includes("planning")
-    ) {
-      add("life", 3);
-    }
+  const relationshipWords = [
+    "wife", "husband", "girlfriend", "boyfriend", "partner", "spouse",
+    "relationship", "marriage", "married", "arguing", "argument",
+    "fight", "fighting", "conflict", "tension", "communication",
+    "trust", "boundaries", "forgiveness", "commitment"
+  ];
 
-    if (
-      domains.includes("growth_domain") ||
-      domains.includes("reflection_domain")
-    ) {
-      add("growth", 3);
-    }
+  const lifeWords = [
+    "exhausted", "tired", "sleep", "sleeping", "fatigue", "burnout",
+    "burned out", "stress", "stressed", "overwhelmed", "work",
+    "after work", "mood", "irritable", "snapping", "health",
+    "wellness", "self-care", "self care", "nutrition", "exercise"
+  ];
 
-    if (
-      this.hasAny(text, [
-        "who are you",
-        "what are you",
-        "tell me about yourself",
-        "your purpose",
-        "your mission",
-        "your values",
-        "your personality",
-        "your favorite",
-        "do you identify",
-        "are you ai",
-        "are you real",
-        "your worldview",
-        "what do you believe",
-        "what do you stand for"
-      ])
-    ) {
-      add("character", 4);
-    }
+  const characterWords = [
+    "who are you", "what are you", "tell me about yourself",
+    "your purpose", "your mission", "your values", "your personality",
+    "your favorite", "are you ai", "are you real", "your worldview",
+    "what do you believe", "what do you stand for"
+  ];
 
-    if (
-      this.hasAny(text, [
-        "about me",
-        "do you remember me",
-        "my goal",
-        "my goals",
-        "my preferences",
-        "my communication style",
-        "what do you know about me"
-      ])
-    ) {
-      add("relationship", 4);
-    }
+  const memoryWords = [
+    "earlier", "last time", "previously", "where did we leave off",
+    "what did we decide", "continue from", "resume", "what was the last step"
+  ];
 
-    if (
-      this.hasAny(text, [
-        "earlier",
-        "last time",
-        "previously",
-        "where did we leave off",
-        "what did we decide",
-        "continue from",
-        "resume",
-        "what was the last step",
-        "what did you say before"
-      ])
-    ) {
-      add("memory", 4);
-    }
+  const growthWords = [
+    "can you change", "can you grow", "evolve", "evolution",
+    "reflection", "growth journal", "character audit", "preference change"
+  ];
 
-    if (
-      this.hasAny(text, [
-        "stressed",
-        "overwhelmed",
-        "prioritize",
-        "dilemma",
-        "what should i work on",
-        "to do",
-        "todo",
-        "task",
-        "deadline",
-        "current situation",
-        "right now",
-        "this week",
-        "today",
-        "exhausted",
-"tired",
-"sleep",
-"sleeping",
-"sleeping badly",
-"eating junk",
-"nutrition",
-"exercise",
-"burnout",
-"burned out",
-"snapping",
-"irritable",
-"health",
-"wellness",
-"self-care",
-"self care"
-      ])
-    ) {
-      add("life", 4);
-    }
+  if (this.hasAny(text, characterWords)) add("character", 4);
+  if (this.hasAny(text, memoryWords)) add("memory", 4);
+  if (this.hasAny(text, growthWords)) add("growth", 4);
 
-    if (
-      this.hasAny(text, [
-        "can you change",
-        "can you grow",
-        "evolve",
-        "evolution",
-        "reflection",
-        "why did you change",
-        "growth journal",
-        "character audit",
-        "preference change"
-      ])
-    ) {
-      add("growth", 4);
-    }
+  const hasRelationshipSignal = this.hasAny(text, relationshipWords);
+  const hasLifeSignal = this.hasAny(text, lifeWords);
 
-    if (
-      this.hasAny(text, [
-        "what",
-        "who",
-        "when",
-        "where",
-        "why",
-        "how",
-        "explain",
-        "teach",
-        "compare",
-        "difference",
-        "define",
-        "calculate",
-        "calories",
-        "code",
-        "debug",
-        "fix",
-        "build",
-        "implement"
-      ])
-    ) {
-      add("knowledge", 1);
-    }
+  if (hasRelationshipSignal) add("relationship", 5);
+  if (hasLifeSignal) add("life", 4);
 
-    const ordered = Object.entries(signals)
-      .map(([key, score]) => ({
-        key,
-        core: this.cores[key],
-        score
-      }))
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score);
+  if (hasRelationshipSignal && hasLifeSignal) {
+    add("relationship", 2);
+    add("life", 2);
+    add("knowledge", 1);
+  }
 
-    if (!ordered.length) {
-      return {
-        shouldRetrieve: false,
-        primaryCore: null,
-        secondaryCores: [],
-        searchOrder: [],
-        confidence: "none",
-        allowOpenAI: true,
-        signals,
-        reason: "No meaningful knowledge-core signal found."
-      };
-    }
+  if (
+    this.hasAny(text, [
+      "what", "who", "when", "where", "why", "how",
+      "explain", "teach", "compare", "difference", "define",
+      "should", "recommend", "best", "help"
+    ])
+  ) {
+    add("knowledge", 1);
+  }
 
-    const primaryCore = ordered[0].core;
-    const secondaryCores = ordered.slice(1, 4).map(item => item.core);
+  const ordered = Object.entries(signals)
+    .map(([key, score]) => ({
+      key,
+      core: this.cores[key],
+      score
+    }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score);
 
-    const searchOrder = ordered.slice(0, 4).map((item, index) => ({
-      core: item.core,
-      weight: this.scoreToWeight(item.score, index)
-    }));
-
-    const confidence =
-      ordered[0].score >= 4 ? "high" :
-      ordered[0].score >= 2 ? "medium" :
-      "low";
-
+  if (!ordered.length) {
     return {
-      shouldRetrieve: true,
-      primaryCore,
-      secondaryCores,
-      searchOrder,
-      confidence,
-      allowOpenAI: primaryCore !== this.cores.character && primaryCore !== this.cores.growth,
+      shouldRetrieve: false,
+      primaryCore: null,
+      secondaryCores: [],
+      searchOrder: [],
+      confidence: "none",
+      allowOpenAI: true,
       signals,
-      reason: `Knowledge router selected ${primaryCore}.`
+      reason: "No meaningful knowledge-core signal found."
     };
-  },
+  }
+
+  const primaryCore = ordered[0].core;
+  const secondaryCores = ordered.slice(1, 4).map(item => item.core);
+
+  const searchOrder = ordered.slice(0, 4).map((item, index) => ({
+    core: item.core,
+    weight: this.scoreToWeight(item.score, index)
+  }));
+
+  const confidence =
+    ordered[0].score >= 5 ? "high" :
+    ordered[0].score >= 3 ? "medium" :
+    "low";
+
+  return {
+    shouldRetrieve: true,
+    primaryCore,
+    secondaryCores,
+    searchOrder,
+    confidence,
+    allowOpenAI: primaryCore !== this.cores.character && primaryCore !== this.cores.growth,
+    signals,
+    reason: `Knowledge router selected ${primaryCore}.`
+  };
+},
 
   scoreToWeight(score = 1, index = 0) {
     const base = Math.max(0.35, Math.min(1, Number(score || 1) / 5));
