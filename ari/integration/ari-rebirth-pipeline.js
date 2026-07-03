@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.1 — Knowledge Router + Meaning Interpreter Wired
+// V4.2.3 — Developer Artifact Planner Bridge
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.1",
+  version: "4.2.3",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -450,7 +450,8 @@ window.AriRebirthPipeline = {
       ...situationMap
     };
     mark("after situationMap");
-        // 0.40 Triage
+                
+         // 0.40 Triage
     mark("before triageEngine");
     const triageOutput = await runEngine(
       window.AriTriageEngine,
@@ -483,6 +484,48 @@ window.AriRebirthPipeline = {
       responseConstraints: triageResult.responseConstraints || []
     };
     mark("after triageEngine");
+
+// 0.43 Multi-Lane Planner
+
+mark("before multiLanePlanner");
+
+const multiLanePlan = await runEngine(
+
+  window.AriMultiLaneResponsePlanner,
+
+  ["plan"],
+
+  {
+
+    multiLanePlannerRan: false,
+
+    source: "not-loaded",
+
+    primaryLane: summary.triage?.primaryLane || null,
+
+    responseShape: summary.triage?.responseShape || null,
+
+    responseOrder: [],
+
+    composerDirective: {}
+
+  }
+
+);
+
+summary = {
+
+  ...summary,
+
+  multiLanePlan,
+
+  responsePlan: multiLanePlan,
+
+  multiLaneResponsePlan: multiLanePlan
+
+};
+
+mark("after multiLanePlanner");
 
     // 0.45 Situation Contract
     mark("before situationContract");
@@ -1324,6 +1367,7 @@ character:
       summary.primaryFunction === "developer_artifact_request" ||
       summary.primaryFunction === "build_or_debug_request" ||
       summary.situationContractPrimary === "builder" ||
+      summary.situationContractPrimary === "developer_artifact" ||
       /\b(code|file|github|repo|commit|patch|function|html|css|javascript|api|engine|bug|fix|update|edit|build|implement|developer|composer|pipeline|latency|slow|bottleneck|performance|diagnose)\b/i.test(text);
 
     if (!isDeveloperRequest) return summary;
@@ -1618,6 +1662,7 @@ character:
     console.log("===== LANE SPLIT =====", summary.laneSplit);
     console.log("===== SITUATION MAP =====", summary.situationMap);
     console.log("===== TRIAGE =====", summary.triage);
+    console.log("===== MULTI-LANE PLANNER =====", summary.multiLanePlan);
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== COGNITIVE EXECUTIVE =====", summary.cognitiveExecutive);
     console.log("===== KNOWLEDGE ROUTER =====", summary.knowledgeRouter);
