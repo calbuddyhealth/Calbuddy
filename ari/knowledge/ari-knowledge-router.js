@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.0.4 — Wisdom Skip / Required Knowledge Fallback / Timing Visible
+// V4.0.5 — Wisdom Skip / Required Knowledge Fallback / Timing Visible
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.0.4",
+  version: "4.0.5",
 
   cores: {
     character: "character_core",
@@ -26,6 +26,12 @@ window.AriKnowledgeRouter = {
     if (!question) {
       return this.noKnowledge("No usable question for knowledge routing.");
     }
+
+if (this.shouldBlockKnowledgeForEmotionalSupport(summary, question)) {
+  return this.noKnowledge(
+    "Emotional support requires presence first; knowledge retrieval blocked."
+  );
+}
 
     const characterReasoning = summary.characterReasoning || {};
 const characterType = String(
@@ -681,11 +687,62 @@ if (
     };
   },
 
+shouldBlockKnowledgeForEmotionalSupport(summary = {}, question = "") {
+  const primary =
+    summary.situationContractPrimary ||
+    summary.triagePrimaryLane ||
+    summary.primaryLane ||
+    summary.triage?.primaryLane ||
+    summary.ariTriage?.primaryLane ||
+    "";
+
+  const responseShape =
+    summary.triageResponseShape ||
+    summary.responseShape ||
+    summary.ariTriage?.responseShape ||
+    "";
+
+  const constraints = [
+    ...(summary.triageResponseConstraints || []),
+    ...(summary.ariTriage?.responseConstraints || []),
+    ...(summary.responseConstraints || [])
+  ];
+
+  const classifierType =
+    summary.conversationType ||
+    summary.universalConversationClassifier?.conversationType ||
+    summary.classifier?.conversationType ||
+    "";
+
+  const classifierIntent =
+    summary.conversationIntent ||
+    summary.universalConversationClassifier?.conversationIntent ||
+    summary.classifier?.conversationIntent ||
+    "";
+
+  const upstreamSaysPresenceFirst =
+    primary === "emotion" ||
+    responseShape === "emotion_then_ground" ||
+    classifierType === "emotional_support_request" ||
+    classifierIntent === "comfort_and_grounding" ||
+    constraints.includes("emotional_presence_first") ||
+    constraints.includes("do_not_lead_with_knowledge");
+
+  const upstreamExplicitlyNeedsKnowledge =
+    constraints.includes("knowledge_required") ||
+    constraints.includes("use_knowledge_graph") ||
+    constraints.includes("requires_factual_grounding") ||
+    constraints.includes("requires_live_verification");
+
+  return upstreamSaysPresenceFirst && !upstreamExplicitlyNeedsKnowledge;
+},
   legacyShouldUseKnowledge(summary = {}, question = "", coreRoute = {}, requires = {}) {
   const lower = String(question || "").toLowerCase();
 
   if (!lower.trim()) return false;
-
+if (this.shouldBlockKnowledgeForEmotionalSupport(summary, question)) {
+  return false;
+}
   if (
     requires.knowledgeGraph === true ||
     requires.systemKnowledge === true ||
@@ -716,7 +773,7 @@ if (
     /\b(what should i do|what do i do|what would you do|do you think|advice|wisdom|best move|next step)\b/.test(lower);
 
   const needsStoredKnowledge =
-    /\b(define|definition|what is|explain|teach|compare|difference|medical|symptom|diagnosis|medication|law|policy|current|latest|today|price|weather|score|code|debug|github|file|remember|previous|earlier)\b/.test(lower);
+    /\b(define|definition|what is|explain|teach|compare|difference|medical|symptom|diagnosis|medication|law|policy|current|latest|price|weather|score|code|debug|github|file|remember|previous|earlier)\b/.test(lower);
 
   if (needsStoredKnowledge) return true;
 
