@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.2.1 — Trusted Knowledge Grounding / No Second AI After Router Retrieval
+// V1.2.2 — Trusted Knowledge Grounding / No Second AI After Router Retrieval
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.2.1",
+  version: "1.2.2",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -40,6 +40,15 @@ if (routerOpenAIKnowledge?.text) {
     if (trusted?.text) {
       return this.returnDraft(trusted.text, trusted.reason || "trusted_answer", false);
     }
+
+const blueprintDraft = this.resolveBlueprintDraft(safePacket);
+if (blueprintDraft?.text) {
+  return this.returnDraft(
+    blueprintDraft.text,
+    blueprintDraft.reason,
+    false
+  );
+}
 
     const instruction = this.buildInstruction(safePacket);
 
@@ -373,6 +382,46 @@ formatKnowledgeAnswer(knowledge = {}) {
       (repoContext && codeAction)
     );
   },
+
+resolveBlueprintDraft(packet = {}) {
+  const blueprintId =
+    packet.blueprintHint ||
+    packet.expressionPlan?.blueprintId ||
+    packet.mouthDirective?.blueprintHint ||
+    "";
+
+  const aiAllowed =
+    packet.expressionPlan?.aiAllowed ??
+    packet.mouthDirective?.aiAllowed ??
+    true;
+
+  const question = String(packet.userQuestion || "").toLowerCase();
+
+  if (blueprintId === "emotion_balance_repair") {
+    return {
+      reason: "local_blueprint_emotion_balance_repair",
+      text:
+        "Yeah — this is one of those moments where the code isn’t the enemy, but the imbalance is. Your body, mood, and marriage are starting to pay the bill. Do one repair move today: take a 10-minute walk, then tell your wife, “You’re right to worry. I’ve been off balance, and I’m going to protect time for my health and for us.” Then make the rule simple: body and marriage before more coding."
+    };
+  }
+
+  if (blueprintId === "emotion_presence_grounding") {
+    return {
+      reason: "local_blueprint_emotion_presence_grounding",
+      text:
+        "Yeah, I hear you. Don’t try to solve your whole life from this mood. Do one small stabilizing thing first: stand up, drink water, step outside for 5–10 minutes, then come back and decide the next move with a clearer head."
+    };
+  }
+
+  if (blueprintId?.startsWith("safety") || aiAllowed === false) {
+    return {
+      reason: "local_blueprint_ai_not_allowed",
+      text: this.localDraftText(packet)
+    };
+  }
+
+  return null;
+},
 
   buildInstruction(packet = {}) {
     const developerRelevant = this.isDeveloperRelevant(packet);
