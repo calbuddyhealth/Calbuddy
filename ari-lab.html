@@ -151,6 +151,19 @@ function formatKnowledgeRouter(summary = {}) {
   ].join("\n");
 }
 
+function formatKnowledgeMeaning(summary = {}) {
+  return [
+    `Interpreter Ran: ${summary.knowledgeMeaningInterpreterRan ? "yes" : "no"}`,
+    `Usable: ${summary.knowledgeMeaningUsable ? "yes" : "no"}`,
+    `Style: ${summary.knowledgeMeaning?.style || "none"}`,
+    `Topic: ${summary.knowledgeMeaning?.topic || "none"}`,
+    "",
+    `Draft: ${summary.knowledgeMeaning?.draft || "none"}`,
+    "",
+    `Full Meaning: ${JSON.stringify(summary.knowledgeMeaning || null, null, 2)}`
+  ].join("\n");
+}
+
     function formatDeveloperLayer(summary = {}) {
       return [
         `Developer Layer Ran: ${summary.developerLayerRan ? "yes" : "no"}`,
@@ -194,6 +207,7 @@ function formatKnowledgeRouter(summary = {}) {
         section("CORE ROUTING", formatCoreRouting(summary)),
         section("COGNITIVE EXECUTIVE", formatCognitiveExecutive(summary)),
         section("KNOWLEDGE ROUTER", formatKnowledgeRouter(summary)),
+        section("KNOWLEDGE MEANING INTERPRETER", formatKnowledgeMeaning(summary)),
         section("DEVELOPER LAYER", formatDeveloperLayer(summary)),
         section("COMPOSER", formatComposer(summary)),
         section("FINAL SUMMARY", JSON.stringify(summary, null, 2))
