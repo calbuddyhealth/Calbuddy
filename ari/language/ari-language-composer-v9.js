@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.2.4 — Blueprint Draft First / Writer Validation Reason / No Stale History
+// V9.2.5 — Blueprint Draft First / Writer Validation Reason / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.2.4",
+  version: "9.2.5",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -82,7 +82,7 @@ if (knowledgeDraft) {
     if (aiDraft) {
       return this.returnFinal(
         aiDraft,
-        this.resolveWriterValidation(packet),
+        this.resolveWriterValidation(packet, aiDraft),
         packet,
         activeDialogueState,
         characterIdentity
@@ -555,11 +555,17 @@ polishResponse(sentences = [], maxSentences = 5, style = "conversation") {
     );
   },
 
-resolveWriterValidation(packet = {}) {
-  if (
-    packet.blueprintWriterDraft ||
+resolveWriterValidation(packet = {}, selectedDraft = "") {
+  const draft = String(selectedDraft || "").trim();
+
+  const blueprintDrafts = [
+    packet.blueprintWriterDraft,
     packet.blueprintWriter?.draft
-  ) {
+  ]
+    .map(x => String(x || "").trim())
+    .filter(Boolean);
+
+  if (blueprintDrafts.includes(draft)) {
     return "blueprint_writer_draft";
   }
 
