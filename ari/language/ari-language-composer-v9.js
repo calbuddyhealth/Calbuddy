@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.1.9 — Writer Validation Reason / Current Draft First / No Stale History
+// V9.2.0 — Writer Validation Reason / Current Draft First / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.1.9",
+  version: "9.2.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -276,31 +276,98 @@ readCharacterIdentity({ packet = {}, summary = {}, input = {} } = {}) {
 composeSupabaseKnowledge(packet = {}) {
   const knowledge = packet.evidence?.knowledge || {};
   const nodes = Array.isArray(knowledge.nodes) ? knowledge.nodes : [];
-  const q = String(packet.userQuestion || "").toLowerCase();
+  const question = String(packet.userQuestion || "").trim();
+  const q = question.toLowerCase();
 
   if (!knowledge.shouldUseKnowledge || !nodes.length) return "";
 
   const primary = nodes[0] || {};
   const topic = primary.topic || primary.lesson || "this";
+  const definition = primary.definition || "";
   const summary = primary.summary || "";
-  const how = primary.how_ari_should_use_this || primary.deep_understanding || "";
-  const related = nodes.slice(1, 4).map(n => n.topic || n.lesson).filter(Boolean);
+  const deep = primary.deep_understanding || "";
+  const use = primary.how_ari_should_use_this || "";
+  const practical = Array.isArray(primary.practical_applications)
+    ? primary.practical_applications.slice(0, 3)
+    : [];
+  const misconceptions = Array.isArray(primary.misconceptions)
+    ? primary.misconceptions.slice(0, 2)
+    : [];
 
-  if (topic.toLowerCase().includes("sleep") || q.includes("exhausted") || q.includes("sleep")) {
+  const related = nodes
+    .slice(1, 4)
+    .map(n => n.topic || n.lesson)
+    .filter(Boolean);
+
+  const isAdvice =
+    /\b(what should i do|how do i|help|where do i start|what can i do|advice|fix|improve|deal with)\b/.test(q);
+
+  const isDefinition =
+    /\b(what is|define|meaning of|what does.*mean)\b/.test(q);
+
+  const isWhy =
+    /\b(why|what'?s going on|what is going on|how does|explain)\b/.test(q);
+
+  const userState =
+    /\b(i am|i'm|im|i feel|my|me|i have|i keep|i can'?t|i cannot)\b/.test(q);
+
+  const intro = userState
+    ? `This sounds connected to ${topic.toLowerCase()}.`
+    : `${topic} matters here.`;
+
+  if (isDefinition) {
     return [
-      "What’s probably happening is your system is overloaded, and poor sleep may be the first domino.",
-      "When sleep is off, it can make cravings worse, lower patience, increase irritability, weaken focus, and make stress feel heavier than usual.",
-      q.includes("eating") ? "The junk food piece may be part of the same cycle: low sleep and stress can push your body toward quick energy, then the crash makes everything harder." : "",
-      q.includes("snapping") ? "The snapping at people is a sign your emotional regulation may be running on empty, not that you’re a bad person." : "",
-      "Start with the simplest bottleneck: protect sleep/recovery first, stabilize one decent meal, and reduce one stressor instead of trying to fix your whole life at once."
+      definition || summary || `${topic} is the main concept here.`,
+      deep ? this.cleanForUser(deep) : "",
+      practical.length ? `In practice: ${this.joinShort(practical)}.` : ""
+    ].filter(Boolean).join(" ");
+  }
+
+  if (isAdvice) {
+    return [
+      intro,
+      use ? this.cleanForUser(use) : summary,
+      practical.length ? `A good next step is: ${this.joinShort(practical)}.` : "",
+      related.length ? `This may also connect with ${related.join(", ")}.` : ""
+    ].filter(Boolean).join(" ");
+  }
+
+  if (isWhy || userState) {
+    return [
+      intro,
+      summary || definition,
+      deep ? this.cleanForUser(deep) : "",
+      misconceptions.length ? `One thing not to do: ${this.joinShort(misconceptions)}.` : "",
+      practical.length ? `Start simple: ${this.joinShort(practical)}.` : "",
+      related.length ? `It may also connect with ${related.join(", ")}.` : ""
     ].filter(Boolean).join(" ");
   }
 
   return [
-    summary || `This sounds connected to ${topic}.`,
-    how ? how : "",
+    summary || definition || `This connects to ${topic}.`,
+    use ? this.cleanForUser(use) : "",
     related.length ? `It may also connect with ${related.join(", ")}.` : ""
   ].filter(Boolean).join(" ");
+},
+
+cleanForUser(text = "") {
+  return String(text || "")
+    .replace(/\bAri should\b/gi, "A good response is to")
+    .replace(/\bHelp Ari\b/gi, "The goal is to")
+    .replace(/\busers\b/gi, "people")
+    .replace(/\buser\b/gi, "person")
+    .trim();
+},
+
+joinShort(items = []) {
+  return items
+    .filter(Boolean)
+    .map(item =>
+      String(item)
+        .replace(/\.$/, "")
+        .trim()
+    )
+    .join("; ");
 },
 
   composeLocal(packet = {}, activeDialogueState = null, characterIdentity = null) {
