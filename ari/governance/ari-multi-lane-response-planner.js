@@ -1,15 +1,18 @@
 // ari/governance/ari-multi-lane-response-planner.js
 // Ari Multi-Lane Response Planner
 // Purpose: Advanced attention distribution system.
-// Reads Situation Map. Does NOT perform raw pattern recognition.
-// V2.0
+// Reads Triage first, then Situation Map / planner handoff.
+// V2.1.0
+
+window.Ari = window.Ari || {};
 
 window.AriMultiLaneResponsePlanner = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   plan(input = {}) {
     const summary = input.summary || input || {};
-    const map = summary.situationMap || summary || {};
+    const map = summary.situationMap || {};
+    const triage = summary.ariTriage || summary.triage || {};
 
     const plan = {
       multiLanePlannerRan: true,
@@ -51,69 +54,116 @@ window.AriMultiLaneResponsePlanner = {
 
       fallbackMode: null,
       confidence: 0.7,
-      reasons: []
+      reasons: [],
+
+      authority: "planner_handoff_only"
     };
 
-    this.choosePrimaryLane(summary, map, plan);
-    this.buildLaneCandidates(map, plan);
-    this.weightLanes(map, plan);
-    this.assignLaneRoles(map, plan);
-    this.applyConflictRules(map, plan);
+    this.choosePrimaryLane(summary, map, triage, plan);
+    this.buildLaneCandidates(summary, map, triage, plan);
+    this.weightLanes(map, triage, plan);
+    this.assignLaneRoles(map, triage, plan);
+    this.applyConflictRules(map, triage, plan);
     this.assignBudgets(plan);
-    this.assignResponseShape(map, plan);
-    this.buildComposerDirective(map, plan);
-    this.checkBlindSpots(map, plan);
+    this.assignResponseShape(map, triage, plan);
+    this.buildComposerDirective(map, triage, plan);
+    this.checkBlindSpots(map, triage, plan);
     this.finalize(plan);
 
     return plan;
   },
 
-  addUnique(list, item) {
-    if (item && !list.includes(item)) list.push(item);
-  },
-
-  clamp(n, min = 0, max = 100) {
-    return Math.max(min, Math.min(max, Number(n) || 0));
-  },
-
-  choosePrimaryLane(summary, map, plan) {
-    if (map.primaryLaneSuggestion) {
-      plan.primaryLane = map.primaryLaneSuggestion;
-      plan.reasons.push(`Primary lane from Situation Map: ${map.primaryLaneSuggestion}.`);
+  choosePrimaryLane(summary = {}, map = {}, triage = {}, plan = {}) {
+    if (triage.primaryLane) {
+      plan.primaryLane = triage.primaryLane;
+      plan.reasons.push(`Primary lane from Triage: ${triage.primaryLane}.`);
       return;
     }
 
-    if (summary.responseIntent === "protect_safety") {
-      plan.primaryLane = "safety";
-    } else if (summary.organismNeedsStabilization) {
-      plan.primaryLane = "medical_body";
-    } else if (summary.domainLeadOrgan) {
-      plan.primaryLane = summary.domainLeadOrgan;
-    } else {
-      plan.primaryLane = "understanding";
-      plan.fallbackMode = "missing_situation_map_or_primary_lane";
+    const plannerHandoff =
+      map.plannerHandoff ||
+      map.triageHandoff?.plannerHandoff ||
+      {};
+
+    if (plannerHandoff.primaryLaneCandidate?.lane) {
+      plan.primaryLane = plannerHandoff.primaryLaneCandidate.lane;
+      plan.reasons.push(`Primary lane from planner handoff: ${plan.primaryLane}.`);
+      return;
     }
 
-    plan.reasons.push(`Primary lane inferred from existing summary: ${plan.primaryLane}.`);
+    const topCandidate =
+      map.triageCandidates?.[0] ||
+      map.laneEvidence?.[0] ||
+      null;
+
+    if (topCandidate?.lane) {
+      plan.primaryLane = topCandidate.lane;
+      plan.reasons.push(`Primary lane from map lane evidence: ${plan.primaryLane}.`);
+      return;
+    }
+
+    plan.primaryLane = "teacher";
+    plan.fallbackMode = "missing_triage_or_planner_handoff";
+    plan.reasons.push("Primary lane fallback used.");
   },
 
-  buildLaneCandidates(map, plan) {
+  buildLaneCandidates(summary = {}, map = {}, triage = {}, plan = {}) {
+    const plannerHandoff =
+      map.plannerHandoff ||
+      map.triageHandoff?.plannerHandoff ||
+      {};
+
     const base = [plan.primaryLane];
 
-    (map.supportLaneSuggestions || []).forEach(lane => base.push(lane));
-    (map.deferredLaneSuggestions || []).forEach(lane => base.push(lane));
+    (triage.supportLanes || []).forEach(lane => base.push(lane));
+    (triage.briefLanes || []).forEach(lane => base.push(lane));
+    (triage.contextLanes || []).forEach(lane => base.push(lane));
+    (triage.deferredLanes || []).forEach(lane => base.push(lane));
+    (triage.blockedLanes || []).forEach(lane => base.push(lane));
+
+    (plannerHandoff.orderedLaneCandidates || []).forEach(item => {
+      if (item?.lane) base.push(item.lane);
+    });
+
+    (map.triageCandidates || []).forEach(item => {
+      if (item?.lane) base.push(item.lane);
+    });
+
+    (map.laneEvidence || []).forEach(item => {
+      if (item?.lane) base.push(item.lane);
+    });
 
     const domainToLane = {
       safety_domain: "safety",
       medical_body_domain: "medical_body",
+      medical_context_domain: "medical_context",
+
       emotion_domain: "emotion",
+      emotion_context_domain: "emotion",
+
       relationship_connection_domain: "relationship",
+      relationship_context_domain: "relationship",
+
       family_caregiving_domain: "family",
+      family_context_domain: "family",
+
       career_contribution_domain: "career",
+      career_work_domain: "career",
+
       money_resources_domain: "financial",
+      financial_resource_domain: "financial",
+
       creative_building_domain: "builder",
+      builder_domain: "builder",
+
+      developer_artifact_domain: "developer_artifact",
+
       knowledge_learning_domain: "teacher",
+      knowledge_domain: "teacher",
+
       wisdom_values_domain: "wisdom",
+      wisdom_domain: "wisdom",
+
       memory_preference_domain: "memory"
     };
 
@@ -123,6 +173,7 @@ window.AriMultiLaneResponsePlanner = {
 
     base.forEach(lane => {
       if (!lane) return;
+
       if (!plan.lanes.some(l => l.name === lane)) {
         plan.lanes.push({
           name: lane,
@@ -136,7 +187,10 @@ window.AriMultiLaneResponsePlanner = {
     });
   },
 
-  weightLanes(map, plan) {
+  weightLanes(map = {}, triage = {}, plan = {}) {
+    const needs = map.needs || [];
+    const situations = map.situations || [];
+
     const setWeight = (lane, amount, reason) => {
       const item = plan.lanes.find(l => l.name === lane);
       if (!item) return;
@@ -148,17 +202,24 @@ window.AriMultiLaneResponsePlanner = {
 
     setWeight(plan.primaryLane, 70, "Primary lane receives base attention.");
 
-    if (map.urgency === "critical") {
-      setWeight("safety", 100, "Critical urgency gives safety maximum authority.");
-      setWeight("medical_body", 80, "Critical urgency often requires body stabilization.");
+    if (triage.primaryLane === plan.primaryLane) {
+      setWeight(plan.primaryLane, 20, "Triage-selected primary lane receives extra authority.");
     }
 
-    if (map.urgency === "high") {
+    if (needs.includes("developer_artifact_operation")) {
+      setWeight("developer_artifact", 90, "Developer artifact operation need detected.");
+    }
+
+    if (map.urgency === "critical" || triage.urgency === "critical") {
+      setWeight("safety", 100, "Critical urgency gives safety maximum authority.");
+      setWeight("medical_body", 80, "Critical urgency may require body stabilization.");
+    }
+
+    if (map.urgency === "high" || triage.urgency === "high") {
       setWeight("medical_body", 90, "High urgency gives body lane priority.");
       setWeight("safety", 65, "High urgency requires safety awareness.");
     }
 
-    const needs = map.needs || [];
     if (needs.includes("stabilization")) setWeight("medical_body", 80, "Stabilization need detected.");
     if (needs.includes("emotional_attunement")) setWeight("emotion", 65, "Emotional attunement need detected.");
     if (needs.includes("decision_support")) setWeight("executive_decision", 70, "Decision support need detected.");
@@ -166,9 +227,7 @@ window.AriMultiLaneResponsePlanner = {
     if (needs.includes("understanding")) setWeight("teacher", 55, "Understanding need detected.");
     if (needs.includes("wisdom_or_value_clarity")) setWeight("wisdom", 55, "Wisdom/value clarity need detected.");
     if (needs.includes("memory_acknowledgment")) setWeight("memory", 90, "Memory request should be acknowledged directly.");
-    if (needs.includes("protection_of_relationships")) setWeight("family", 50, "Relationship protection need detected.");
 
-    const situations = map.situations || [];
     if (situations.includes("family_or_caregiving_context")) setWeight("family", 45, "Family/caregiving context detected.");
     if (situations.includes("close_relationship_context")) setWeight("relationship", 40, "Close relationship context detected.");
     if (situations.includes("resource_or_financial_pressure")) setWeight("financial", 45, "Financial pressure detected.");
@@ -186,11 +245,23 @@ window.AriMultiLaneResponsePlanner = {
     plan.lanes.sort((a, b) => b.weight - a.weight);
   },
 
-  assignLaneRoles(map, plan) {
+  assignLaneRoles(map = {}, triage = {}, plan = {}) {
     plan.lanes.forEach(lane => {
       if (lane.name === plan.primaryLane) {
         lane.role = "primary";
         lane.maxSentences = 3;
+      } else if ((triage.briefLanes || []).includes(lane.name)) {
+        lane.role = "brief";
+        lane.maxSentences = 1;
+      } else if ((triage.contextLanes || []).includes(lane.name)) {
+        lane.role = "context";
+        lane.maxSentences = 1;
+      } else if ((triage.deferredLanes || []).includes(lane.name)) {
+        lane.role = "defer";
+        lane.maxSentences = 0;
+      } else if ((triage.blockedLanes || []).includes(lane.name)) {
+        lane.role = "block";
+        lane.maxSentences = 0;
       } else if (lane.weight >= 65) {
         lane.role = "answer";
         lane.maxSentences = 2;
@@ -202,7 +273,7 @@ window.AriMultiLaneResponsePlanner = {
         lane.maxSentences = 1;
       }
 
-      if (lane.name === "emotion" && lane.name !== plan.primaryLane) {
+      if (lane.name === "emotion" && lane.name !== plan.primaryLane && lane.role !== "defer") {
         lane.role = "validate";
         lane.maxSentences = 1;
       }
@@ -216,11 +287,13 @@ window.AriMultiLaneResponsePlanner = {
     });
   },
 
-  applyConflictRules(map, plan) {
+  applyConflictRules(map = {}, triage = {}, plan = {}) {
     const hasLane = name => plan.lanes.some(l => l.name === name);
+
     const setRole = (name, role, maxSentences = 1) => {
       const lane = plan.lanes.find(l => l.name === name);
       if (!lane) return;
+
       lane.role = role;
       lane.maxSentences = maxSentences;
       plan.laneRoles[name] = role;
@@ -230,12 +303,14 @@ window.AriMultiLaneResponsePlanner = {
       plan.primaryLane === "safety" ||
       plan.primaryLane === "medical_body" ||
       map.urgency === "critical" ||
-      map.urgency === "high";
+      map.urgency === "high" ||
+      triage.urgency === "critical" ||
+      triage.urgency === "high";
 
     if (safetyLead) {
       plan.conflictRules.push("safety_or_body_leads_all_other_lanes");
 
-      ["builder", "teacher", "wisdom", "career", "financial"].forEach(lane => {
+      ["builder", "developer_artifact", "teacher", "wisdom", "career", "financial"].forEach(lane => {
         if (hasLane(lane)) {
           setRole(lane, "defer", 0);
           this.addUnique(plan.deferredLanes, lane);
@@ -254,6 +329,17 @@ window.AriMultiLaneResponsePlanner = {
       plan.maxSentences = 5;
     }
 
+    if (plan.primaryLane === "developer_artifact") {
+      plan.conflictRules.push("developer_artifact_leads_code_or_file_operations");
+
+      ["emotion", "wisdom", "family", "relationship"].forEach(lane => {
+        if (hasLane(lane)) {
+          setRole(lane, "defer", 0);
+          this.addUnique(plan.deferredLanes, lane);
+        }
+      });
+    }
+
     if (hasLane("emotion") && hasLane("builder") && plan.primaryLane === "builder") {
       plan.conflictRules.push("builder_can_lead_but_emotion_must_be_acknowledged");
       setRole("emotion", "validate", 1);
@@ -270,12 +356,13 @@ window.AriMultiLaneResponsePlanner = {
     }
   },
 
-  assignBudgets(plan) {
+  assignBudgets(plan = {}) {
     plan.lanes.forEach(lane => {
       if (lane.role === "primary") lane.budget = "major";
       else if (lane.role === "answer") lane.budget = "moderate";
       else if (lane.role === "validate") lane.budget = "one_sentence";
       else if (lane.role === "brief") lane.budget = "one_sentence";
+      else if (lane.role === "context") lane.budget = "one_sentence";
       else if (lane.role === "acknowledge") lane.budget = "one_sentence";
       else if (lane.role === "defer") lane.budget = "defer_only";
       else if (lane.role === "block") lane.budget = "none";
@@ -285,7 +372,12 @@ window.AriMultiLaneResponsePlanner = {
     });
 
     plan.supportLanes = plan.lanes
-      .filter(l => ["answer", "validate", "brief", "acknowledge"].includes(l.role))
+      .filter(l => ["answer", "validate", "brief", "context", "acknowledge"].includes(l.role))
+      .map(l => l.name)
+      .filter(name => name !== plan.primaryLane);
+
+    plan.briefLanes = plan.lanes
+      .filter(l => ["brief", "validate"].includes(l.role))
       .map(l => l.name)
       .filter(name => name !== plan.primaryLane);
 
@@ -298,9 +390,20 @@ window.AriMultiLaneResponsePlanner = {
       .map(l => l.name);
   },
 
-  assignResponseShape(map, plan) {
+  assignResponseShape(map = {}, triage = {}, plan = {}) {
+    if (triage.responseShape) {
+      plan.responseShape = triage.responseShape;
+    }
+
     if (plan.primaryLane === "safety" || plan.primaryLane === "medical_body") {
       plan.responseShape = "safety_first_layered";
+      return;
+    }
+
+    if (plan.primaryLane === "developer_artifact") {
+      plan.responseShape = "developer_artifact_operation";
+      plan.maxSections = 2;
+      plan.maxSentences = 8;
       return;
     }
 
@@ -330,8 +433,20 @@ window.AriMultiLaneResponsePlanner = {
     plan.responseShape = "single_lane";
   },
 
-  buildComposerDirective(map, plan) {
+  buildComposerDirective(map = {}, triage = {}, plan = {}) {
     const d = plan.composerDirective;
+
+    if (plan.responseShape === "developer_artifact_operation") {
+      d.opening = "Answer with the exact code/file action first.";
+      d.required.push("Use the provided artifact/file context.");
+      d.required.push("Give a concrete patch or placement instruction.");
+      d.required.push("Preserve unrelated code.");
+      d.avoid.push("Do not give generic platform advice.");
+      d.avoid.push("Do not ask unnecessary clarification.");
+      d.sequence.push("State exactly where the change goes.");
+      d.sequence.push("Provide the patch or replacement block.");
+      return;
+    }
 
     if (plan.responseShape === "safety_first_layered") {
       d.opening = "Lead with the urgent safety/body concern first.";
@@ -379,13 +494,21 @@ window.AriMultiLaneResponsePlanner = {
     d.opening = "Answer the primary lane directly.";
   },
 
-  checkBlindSpots(map, plan) {
-    if ((map.domains || []).includes("emotion_domain") && !plan.supportLanes.includes("emotion") && plan.primaryLane !== "emotion") {
+  checkBlindSpots(map = {}, triage = {}, plan = {}) {
+    if (
+      ((map.domains || []).includes("emotion_domain") ||
+        (map.domains || []).includes("emotion_context_domain")) &&
+      !plan.supportLanes.includes("emotion") &&
+      plan.primaryLane !== "emotion"
+    ) {
       plan.blindSpots.push("emotion_detected_but_not_preserved");
     }
 
-    if ((map.responseRequirements || []).includes("medical_boundary_and_next_step") && !["safety", "medical_body"].includes(plan.primaryLane)) {
-      plan.blindSpots.push("medical_boundary_detected_but_not_primary");
+    if (
+      (map.responseRequirements || []).includes("medical_boundary_and_next_step") &&
+      !["safety", "medical_body", "medical_context"].includes(plan.primaryLane)
+    ) {
+      plan.blindSpots.push("medical_boundary_detected_but_not_primary_or_context");
     }
 
     if ((map.questions || []).length >= 2 && !plan.shouldAcknowledgeMultipleSituations) {
@@ -400,17 +523,23 @@ window.AriMultiLaneResponsePlanner = {
       plan.blindSpots.push("decision_need_detected_but_no_decision_lane");
     }
 
+    if ((map.needs || []).includes("developer_artifact_operation") && !plan.lanes.some(l => l.name === "developer_artifact")) {
+      plan.blindSpots.push("developer_artifact_need_detected_but_no_artifact_lane");
+    }
+
     if (plan.blindSpots.length) {
       plan.responseRisks.push("planner_detected_possible_attention_mismatch");
       plan.confidence = Math.max(0.45, plan.confidence - 0.15);
     }
   },
 
-  finalize(plan) {
+  finalize(plan = {}) {
     plan.responseOrder = plan.lanes
       .filter(l => l.role !== "block")
       .map(l => {
         if (l.role === "defer") return `defer_${l.name}`;
+        if (l.role === "context") return `context_${l.name}`;
+        if (l.role === "brief") return `brief_${l.name}`;
         return l.name;
       });
 
@@ -421,9 +550,22 @@ window.AriMultiLaneResponsePlanner = {
     });
 
     if (!plan.primaryLane) {
-      plan.primaryLane = "understanding";
+      plan.primaryLane = "teacher";
       plan.fallbackMode = "no_primary_lane_found";
       plan.confidence = 0.4;
     }
+  },
+
+  addUnique(list, item) {
+    if (Array.isArray(list) && item && !list.includes(item)) list.push(item);
+  },
+
+  clamp(n, min = 0, max = 100) {
+    return Math.max(min, Math.min(max, Number(n) || 0));
   }
 };
+
+console.log(
+  "ARI MULTI LANE RESPONSE PLANNER LOADED:",
+  window.AriMultiLaneResponsePlanner?.version
+);
