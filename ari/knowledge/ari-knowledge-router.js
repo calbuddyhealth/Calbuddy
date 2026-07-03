@@ -66,7 +66,7 @@ if (characterActuallyAnswered) {
       return this.noKnowledge(
         "Knowledge retrieval ran, but no usable knowledge was found.",
         true,
-        { knowledgeRetrievalPlan: plan, knowledgeRetrievalResults: results }
+        { knowledgeRetrievalPlan: plan, knowledgeRetrievalResults: this.lightResults(results) }
       );
     }
 
@@ -77,7 +77,7 @@ if (characterActuallyAnswered) {
 
       shouldUseKnowledge: true,
       knowledgeRetrievalPlan: plan,
-      knowledgeRetrievalResults: results,
+      knowledgeRetrievalResults: this.lightResults(results),
 
       primaryCore: plan.primaryCore,
       secondaryCores: plan.secondaryCores,
@@ -96,15 +96,15 @@ if (characterActuallyAnswered) {
         best.provider === "openai" ? best.source || "api/knowledge" : null,
 
       knowledgeNodes: best.nodes || [],
-      searchedCores: best.raw?.searchedCores || best.searchedCores || [],
-      coreResults: best.raw?.coreResults || best.coreResults || [],
+      searchedCores: best.searchedCores || [],
+      coreResults: best.coreResults || [],
 
       mealEstimate: best.mealEstimate || null,
       foodAnalysis: best.foodAnalysis || null,
       nutritionEstimate: best.nutritionEstimate || null,
       pendingAction: best.pendingAction || null,
 
-      rawKnowledgeResult: best.raw || null,
+      rawKnowledgeResult: null,
       knowledgeReason: plan.reason
     };
   },
@@ -614,6 +614,21 @@ if (characterActuallyAnswered) {
 
     return usable[0];
   },
+    
+    lightResults(results = []) {
+  return results.map(result => ({
+    provider: result.provider,
+    usable: result.usable,
+    confidence: result.confidence,
+    sources: result.sources || [],
+    nodes: Array.isArray(result.nodes) ? result.nodes : [],
+    searchedCores: result.searchedCores || [],
+    searchOrder: result.searchOrder || [],
+    error: result.error || null,
+    reason: result.reason || null
+  }));
+},
+    
     unavailable(provider = "unknown", reason = "Provider unavailable.") {
     return {
       provider,
