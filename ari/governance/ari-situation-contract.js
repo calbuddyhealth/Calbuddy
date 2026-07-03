@@ -1,12 +1,12 @@
 // ari/governance/ari-situation-contract.js
 // Ari Situation Contract
 // Purpose: Authoritative contract governor for Ari Rebirth.
-// V3.2.6 — Planner Handoff / Developer Artifact Contract
+// V3.2.7 — Planner Handoff / Safety-Protected Developer Artifact Contract
 
 window.Ari = window.Ari || {};
 
 window.AriSituationContract = {
-  version: "3.2.6",
+  version: "3.2.7",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -251,6 +251,7 @@ if (confirmedPriorContext)  {
       questions.includes("instruction_question") ||
       situations.includes("implementation_help_request") ||
       domains.includes("builder_domain") ||
+domains.includes("developer_artifact_domain") ||
       /\b(send it|give me the code|update it|fix this|next|done)\b/.test(raw)
     ) {
       contract.questionMode = {
@@ -258,7 +259,9 @@ if (confirmedPriorContext)  {
         isDirectQuestion: true,
         isInstruction: true,
         isDecision: false,
-        isDebugging: domains.includes("builder_domain"),
+        isDebugging:
+  domains.includes("builder_domain") ||
+  domains.includes("developer_artifact_domain"),
         shouldAnswerImmediately: true,
         mayAskClarifyingQuestion: false,
         reason: "User is asking for action or implementation."
@@ -453,6 +456,7 @@ applyConversationFunctionPriority(contract, map = {}, triage = {}, summary = {})
   },
 
 applyPlannerHandoff(contract, planner = {}) {
+  if (contract.authority === "absolute") return;
   if (!planner.multiLanePlannerRan) return;
 
   if (planner.responseShape) {
