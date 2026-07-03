@@ -1,12 +1,12 @@
 // ari/knowledge/ari-supabase-knowledge-client.js
 // Ari Supabase Knowledge Client
 // Purpose: Retrieve Ari Knowledge Graph + system knowledge from Supabase.
-// V0.3.2 — Relaxed Semantic + Keyword Fallback / Six-Core Compatible
+// V0.3.1 — Relaxed Semantic + Keyword Fallback / Six-Core Compatible
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseKnowledgeClient = {
-  version: "0.3.2",
+  version: "0.3.1",
 
   async searchKnowledgeGraph({ summary = {}, question = "" } = {}) {
     const cleanQuestion = String(question || "").trim();
@@ -56,8 +56,8 @@ window.AriSupabaseKnowledgeClient = {
         action: "semantic_search_ari_nodes",
         query,
         searchOrder,
-        limit: 12,
-        limitPerCore: 5,
+        limit: 6,
+        limitPerCore: 3,
         minSimilarity
       })
     });
@@ -101,7 +101,7 @@ window.AriSupabaseKnowledgeClient = {
       .from("ari_knowledge_nodes")
       .select("*")
       .or(filters)
-      .limit(12);
+      .limit(8);
 
     if (cores.length) {
   query = query.in("domain", cores);
@@ -116,7 +116,7 @@ window.AriSupabaseKnowledgeClient = {
         __ariScore: this.keywordScore(node, terms, cores)
       }))
       .sort((a, b) => b.__ariScore - a.__ariScore)
-      .slice(0, 8);
+      .slice(0, 6);
 
     return {
       matches,
@@ -205,47 +205,58 @@ window.AriSupabaseKnowledgeClient = {
   },
 
   formatNodes(nodes = [], source = "ari_knowledge_nodes", terms = [], rawSearch = null) {
-    if (!Array.isArray(nodes) || nodes.length === 0) {
-      return this.empty("No matching knowledge nodes found.");
-    }
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return this.empty("No matching knowledge nodes found.");
+  }
 
-    const answer = nodes
-      .map(node =>
-        [
-          `Topic: ${node.topic || "Untitled"}`,
-          node.definition ? `Definition: ${node.definition}` : null,
-          node.summary ? `Summary: ${node.summary}` : null,
-          node.purpose ? `Purpose: ${node.purpose}` : null,
-          node.importance ? `Importance: ${node.importance}` : null,
-          node.how_it_works ? `How it works: ${node.how_it_works}` : null,
-          node.deep_understanding ? `Deep understanding: ${node.deep_understanding}` : null
-        ].filter(Boolean).join("\n")
-      )
-      .join("\n\n");
+  const trimmedNodes = nodes.slice(0, 6).map(node => ({
+    id: node.id,
+    domain: node.domain,
+    subdomain: node.subdomain,
+    topic: node.topic,
+    summary: node.summary,
+    definition: node.definition,
+    purpose: node.purpose,
+    importance: node.importance,
+    how_it_works: node.how_it_works,
+    deep_understanding: node.deep_understanding,
+    how_ari_should_use_this: node.how_ari_should_use_this,
+    knowledge_id: node.knowledge_id,
+    knowledge_type: node.knowledge_type,
+    core: node.core,
+    similarity: node.similarity,
+    weightedScore: node.weightedScore,
+    __ariScore: node.__ariScore
+  }));
 
-    const bestScore =
-      nodes[0]?.weightedScore ||
-      nodes[0]?.similarity ||
-      nodes[0]?.__ariScore ||
-      0;
+  const bestScore =
+    trimmedNodes[0]?.weightedScore ||
+    trimmedNodes[0]?.similarity ||
+    trimmedNodes[0]?.__ariScore ||
+    0;
 
-    return {
-      finalResponse: null,
-      knowledgeAnswer: answer,
-      answer,
-      confidence: bestScore >= 0.5 ? "high" : "medium",
-      sources: [source],
-      nodes,
-      provider: "supabase",
-      usable: true,
-      searchTerms: terms,
-      bestScore,
-      searchedCores: rawSearch?.searchedCores || [],
-      searchOrder: rawSearch?.searchOrder || [],
-      coreResults: rawSearch?.coreResults || [],
-      rawSearch
-    };
-  },
+  return {
+    finalResponse: null,
+
+    // Important: do not build giant answer text here.
+    knowledgeAnswer: null,
+    answer: null,
+
+    confidence: bestScore >= 0.5 ? "high" : "medium",
+    sources: [source],
+    nodes: trimmedNodes,
+    provider: "supabase",
+    usable: trimmedNodes.length > 0,
+    searchTerms: terms,
+    bestScore,
+    searchedCores: rawSearch?.searchedCores || [],
+    searchOrder: rawSearch?.searchOrder || [],
+
+    // Keep raw heavy data out of normal runtime.
+    coreResults: [],
+    rawSearch: null
+  };
+},
 
   empty(reason = "No matching knowledge found.") {
     return {
