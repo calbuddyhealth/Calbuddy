@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.4 — Mouth Planner Merge / Communication Planner Removed
+// V4.2.5 — Mouth Planner Merge / Communication Planner Removed
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.4",
+  version: "4.2.5",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -877,6 +877,31 @@ mark("after mouthDirector");
     }
     mark("after composerBridge");
 
+// 1.15 Blueprint Writer
+if (!developerResponseLocked) {
+  mark("before blueprintWriter");
+
+  const blueprintWriterResult =
+  window.AriBlueprintWriter?.write
+    ? await window.AriBlueprintWriter.write({
+        composerPacket: summary.composerPacket,
+        summary
+      })
+    : { blueprintWriterRan: false };
+
+  summary = {
+    ...summary,
+    ...blueprintWriterResult,
+    blueprintWriter: blueprintWriterResult,
+    blueprintWriterDraft:
+      blueprintWriterResult.draft ||
+      blueprintWriterResult.blueprintWriterDraft ||
+      null
+  };
+
+  mark("after blueprintWriter");
+}
+
     // 1.20 AI Writer
 const hasKnowledgeSynthesisAnswer =
   summary.knowledgeSynthesisUsable === true &&
@@ -946,7 +971,11 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
   const aiWriterResult =
     window.AriAIWriter?.write
       ? await window.AriAIWriter.write({
-          composerPacket: summary.composerPacket,
+          composerPacket: {
+  ...summary.composerPacket,
+  blueprintWriterDraft: summary.blueprintWriterDraft || null,
+  blueprintWriter: summary.blueprintWriter || null
+},
           summary
         })
       : { aiWriterRan: false };
@@ -973,13 +1002,16 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
         window.AriLanguageComposer;
 
       const composerResult =
-        composerEngine?.compose
-          ? await composerEngine.compose({
-              composerPacket: summary.composerPacket,
-              summary
-            })
-          : {};
-
+  composerEngine?.compose
+    ? await composerEngine.compose({
+        composerPacket: {
+          ...summary.composerPacket,
+          blueprintWriterDraft: summary.blueprintWriterDraft || null,
+          blueprintWriter: summary.blueprintWriter || null
+        },
+        summary
+      })
+    : {};
       const composerFinal =
         composerResult.finalResponse ||
         composerResult.languageBody ||
@@ -991,8 +1023,9 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
         ...composerResult,
         finalResponse:
   summary.finalResponse ||
-  composerFinal ||
-  summary.aiWriterDraft ||
+composerFinal ||
+summary.blueprintWriterDraft ||
+summary.aiWriterDraft ||
   "I’m here, but Ari could not compose a final response."
       };
 
@@ -1679,6 +1712,7 @@ character:
 console.log("===== BLUEPRINT HINT =====", summary.blueprintHint);
 console.log("===== MOUTH DIRECTOR =====", summary.mouthDirector);
     console.log("===== COMPOSER PACKET =====", summary.composerPacket);
+    console.log("===== BLUEPRINT WRITER =====", summary.blueprintWriter);
     console.log("===== AI WRITER =====", summary.aiWriter);
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
     console.log("===== DEVELOPER LAYER =====", summary.developerHandoff || summary.developerUnderstanding);
