@@ -1,12 +1,136 @@
 // ari/knowledge/ari-supabase-knowledge-client.js
 // Ari Supabase Knowledge Client
 // Purpose: Retrieve Ari Knowledge Graph + system knowledge from Supabase.
-// V0.3.0 — Six-Core SearchOrder / Router-Compatible / Semantic-Safe
+// V0.3.1 — Relaxed Semantic + Keyword Fallback / Six-Core Compatible
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseKnowledgeClient = {
-  version: "0.3.0",
+  version: "0.3.1",
+
+  async searchKnowledgeGraph({ summary = {}, question = "" } = {}) {
+    const cleanQuestion = String(question || "").trim();
+    if (!cleanQuestion) return this.empty("No usable semantic knowledge query.");
+
+    try {
+      const router = summary.knowledgeRouter || summary.knowledgeRetrievalPlan || {};
+      const searchOrder =
+        router.searchOrder ||
+        router.cores ||
+        summary.searchOrder ||
+        [{ core: "knowledge_core", weight: 1.0 }];
+
+      const semantic = await this.semanticSearch(cleanQuestion, searchOrder, 0.22);
+
+      if (semantic.matches.length) {
+        return this.formatNodes(
+          semantic.matches,
+          "ari_knowledge_nodes_semantic",
+          [cleanQuestion],
+          semantic.raw
+        );
+      }
+
+      const keyword = await this.keywordFallbackSearch(cleanQuestion, searchOrder);
+
+      if (keyword.matches.length) {
+        return this.formatNodes(
+          keyword.matches,
+          "ari_knowledge_nodes_keyword_fallback",
+          this.extractSearchTerms(cleanQuestion),
+          keyword.raw
+        );
+      }
+
+      return this.empty("No semantic or keyword knowledge node matched.");
+    } catch (error) {
+      return this.error(error);
+    }
+  },
+
+  async semanticSearch(query = "", searchOrder = [], minSimilarity = 0.22) {
+    const response = await fetch("/api/knowledge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "semantic_search_ari_nodes",
+        query,
+        searchOrder,
+        limit: 12,
+        limitPerCore: 5,
+        minSimilarity
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Semantic knowledge search failed.");
+    }
+
+    return {
+      matches: Array.isArray(data.matches) ? data.matches : [],
+      raw: data
+    };
+  },
+
+  async keywordFallbackSearch(question = "", searchOrder = []) {
+    const supabase = this.getClient();
+    if (!supabase) return { matches: [], raw: { reason: "Supabase client unavailable." } };
+
+    const terms = this.extractSearchTerms(question);
+    if (!terms.length) return { matches: [], raw: { reason: "No keyword fallback terms." } };
+
+    const cores = searchOrder
+      .map(item => item.core)
+      .filter(Boolean);
+
+    const columns = [
+      "topic",
+      "summary",
+      "purpose",
+      "importance",
+      "how_ari_should_use_this",
+      "definition",
+      "deep_understanding"
+    ];
+
+    const filters = this.buildOrFilter(terms, columns);
+
+    let query = supabase
+      .from("ari_knowledge_nodes")
+      .select("*")
+      .or(filters)
+      .limit(12);
+
+    if (cores.length) {
+      query = query.in("core", cores);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const matches = (data || [])
+      .map(node => ({
+        ...node,
+        __ariScore: this.keywordScore(node, terms, cores)
+      }))
+      .sort((a, b) => b.__ariScore - a.__ariScore)
+      .slice(0, 8);
+
+    return {
+      matches,
+      raw: {
+        success: true,
+        fallback: "keyword",
+        query: question,
+        searchOrder,
+        searchedCores: cores,
+        terms,
+        count: matches.length
+      }
+    };
+  },
 
   getClient() {
     return (
@@ -21,93 +145,30 @@ window.AriSupabaseKnowledgeClient = {
     );
   },
 
-  async searchKnowledgeGraph({ summary = {}, question = "" } = {}) {
-    const cleanQuestion = String(question || "").trim();
+  keywordScore(node = {}, terms = [], cores = []) {
+    const text = [
+      node.topic,
+      node.summary,
+      node.purpose,
+      node.importance,
+      node.how_ari_should_use_this,
+      node.definition,
+      node.deep_understanding,
+      Array.isArray(node.practical_applications)
+        ? node.practical_applications.join(" ")
+        : ""
+    ].join(" ").toLowerCase();
 
-    if (!cleanQuestion) {
-      return this.empty("No usable semantic knowledge query.");
+    let score = 0;
+
+    for (const term of terms) {
+      if (text.includes(term)) score += 2;
     }
 
-    try {
-      const router =
-        summary.knowledgeRouter ||
-        summary.knowledgeRetrievalPlan ||
-        {};
+    if (cores.includes(node.core)) score += 2;
+    if (node.topic) score += 1;
 
-      const searchOrder =
-        router.searchOrder ||
-        router.cores ||
-        summary.searchOrder ||
-        [{ core: "knowledge_core", weight: 1.0 }];
-
-      const response = await fetch("/api/knowledge", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          action: "semantic_search_ari_nodes",
-          query: cleanQuestion,
-          searchOrder,
-          limit: 8,
-          limitPerCore: 3,
-          minSimilarity: 0.35
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Semantic knowledge search failed.");
-      }
-
-      const matches = Array.isArray(data.matches) ? data.matches : [];
-
-      if (!matches.length) {
-        return this.empty("No semantic knowledge node passed the relevance threshold.");
-      }
-
-      return this.formatNodes(
-        matches,
-        "ari_knowledge_nodes_semantic",
-        [cleanQuestion],
-        data
-      );
-    } catch (error) {
-      return this.error(error);
-    }
-  },
-
-  async searchSystemKnowledge({ question = "" } = {}) {
-    const supabase = this.getClient();
-
-    if (!supabase) return this.unavailable("Supabase client unavailable.");
-
-    const terms = this.extractSearchTerms(question);
-    if (!terms.length) return this.empty("No usable system knowledge query.");
-
-    try {
-      const filters = this.buildOrFilter(terms, [
-        "topic",
-        "summary",
-        "decision",
-        "reason",
-        "file_path",
-        "status"
-      ]);
-
-      const { data, error } = await supabase
-        .from("ari_system_knowledge")
-        .select("*")
-        .or(filters)
-        .limit(10);
-
-      if (error) throw error;
-
-      return this.formatSystemKnowledge((data || []).slice(0, 5), terms);
-    } catch (error) {
-      return this.error(error);
-    }
+    return score;
   },
 
   extractSearchTerms(question = "") {
@@ -116,39 +177,31 @@ window.AriSupabaseKnowledgeClient = {
       "is", "are", "was", "were", "the", "a", "an",
       "of", "to", "for", "in", "on", "and", "or",
       "does", "do", "did", "can", "you", "me", "my",
-      "about", "explain", "define", "tell"
+      "about", "explain", "define", "tell", "should",
+      "approach", "because"
     ]);
 
     return String(question || "")
       .toLowerCase()
+      .replace(/[’‘]/g, "'")
       .replace(/[^\w\s-]/g, " ")
       .split(/\s+/)
       .map(word => word.trim())
       .filter(word => word.length >= 3)
       .filter(word => !stopWords.has(word))
-      .slice(0, 8);
+      .slice(0, 10);
   },
 
   buildOrFilter(terms = [], columns = []) {
-    const safeTerms = terms
-      .map(term => this.escapeSupabaseFilterTerm(term))
-      .filter(Boolean);
-
-    const filters = [];
-
-    for (const term of safeTerms) {
-      for (const column of columns) {
-        filters.push(`${column}.ilike.%${term}%`);
-      }
-    }
-
-    return filters.join(",");
+    return terms
+      .flatMap(term =>
+        columns.map(column => `${column}.ilike.%${this.escapeSupabaseFilterTerm(term)}%`)
+      )
+      .join(",");
   },
 
   escapeSupabaseFilterTerm(term = "") {
-    return String(term || "")
-      .replace(/[%(),]/g, "")
-      .trim();
+    return String(term || "").replace(/[%(),]/g, "").trim();
   },
 
   formatNodes(nodes = [], source = "ari_knowledge_nodes", terms = [], rawSearch = null) {
@@ -157,20 +210,17 @@ window.AriSupabaseKnowledgeClient = {
     }
 
     const answer = nodes
-      .map(node => {
-        return [
+      .map(node =>
+        [
           `Topic: ${node.topic || "Untitled"}`,
           node.definition ? `Definition: ${node.definition}` : null,
           node.summary ? `Summary: ${node.summary}` : null,
           node.purpose ? `Purpose: ${node.purpose}` : null,
           node.importance ? `Importance: ${node.importance}` : null,
           node.how_it_works ? `How it works: ${node.how_it_works}` : null,
-          node.deep_understanding ? `Deep understanding: ${node.deep_understanding}` : null,
-          node.universal_principle ? `Universal principle: ${node.universal_principle}` : null
-        ]
-          .filter(Boolean)
-          .join("\n");
-      })
+          node.deep_understanding ? `Deep understanding: ${node.deep_understanding}` : null
+        ].filter(Boolean).join("\n")
+      )
       .join("\n\n");
 
     const bestScore =
@@ -197,39 +247,6 @@ window.AriSupabaseKnowledgeClient = {
     };
   },
 
-  formatSystemKnowledge(rows = [], terms = []) {
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return this.empty("No matching system knowledge found.");
-    }
-
-    const answer = rows
-      .map(row => {
-        return [
-          row.topic ? `Topic: ${row.topic}` : null,
-          row.summary ? `Summary: ${row.summary}` : null,
-          row.decision ? `Decision: ${row.decision}` : null,
-          row.reason ? `Reason: ${row.reason}` : null,
-          row.file_path ? `File: ${row.file_path}` : null,
-          row.status ? `Status: ${row.status}` : null
-        ]
-          .filter(Boolean)
-          .join("\n");
-      })
-      .join("\n\n");
-
-    return {
-      finalResponse: null,
-      knowledgeAnswer: answer,
-      answer,
-      confidence: "medium",
-      sources: ["ari_system_knowledge"],
-      nodes: rows,
-      provider: "supabase",
-      usable: true,
-      searchTerms: terms
-    };
-  },
-
   empty(reason = "No matching knowledge found.") {
     return {
       finalResponse: null,
@@ -244,20 +261,9 @@ window.AriSupabaseKnowledgeClient = {
     };
   },
 
-  unavailable(reason = "Supabase unavailable.") {
-    return {
-      ...this.empty(reason),
-      error: reason
-    };
-  },
-
   error(error = null) {
     const message = error?.message || String(error || "Unknown Supabase error.");
-
-    return {
-      ...this.empty(message),
-      error: message
-    };
+    return { ...this.empty(message), error: message };
   }
 };
 
