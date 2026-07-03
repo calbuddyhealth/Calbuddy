@@ -1,7 +1,7 @@
 // ari/meaning/ari-situation-map-engine.js
 // Ari Situation Map Engine
 // Purpose: Build a universal situation map from upstream signals.
-// V8.4.3 — Advisory Situation Mapper Only
+// V8.5.0 — Advisory Situation Mapper Only
 // Boundary:
 // - DOES collect signals from Safety Gate, Observer, Thread Understanding, Entity Resolver, and Classifier.
 // - DOES map domains, situations, needs, risks, constraints, and candidate lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriSituationMapEngine = {
-  version: "8.4.3",
+  version: "8.5.0",
 
 build(input = {}) {
   const summary = input.summary || input || {};
@@ -95,6 +95,7 @@ build(input = {}) {
 
   this.collectUpstreamSignals(map);
   this.readSemanticSituation(map);
+  this.readSemanticPriority(map);
   this.detectQuestions(map);
  
    this.detectDomains(map);
@@ -114,6 +115,7 @@ this.buildSituationTheses(map);
 this.detectContradictions(map);
 this.detectAmbiguity(map);
 this.applyClarificationGovernor(map);
+this.buildPlannerHandoff(map);
 this.buildTriageHandoff(map);
 this.runMapIntegrityCheck(map);
 this.syncLegacyCompatibility(map);
@@ -186,6 +188,29 @@ createEmptyMap({
       inheritedContext: null,
       handoff: null,
       continuityFrame: null
+    },
+
+    semanticPriority: {
+      available: false,
+      primary: null,
+      secondary: [],
+      ordered: [],
+      shouldUseMultiLaneResponse: false,
+      suggestedPlannerUse: "single_or_simple_response_ok",
+      authority: "semantic_priority_handoff_only"
+    },
+
+    plannerHandoff: {
+      ready: false,
+      primaryLaneCandidate: null,
+      orderedLaneCandidates: [],
+      responseOrder: [],
+      mustAnswer: [],
+      shouldBrieflyAcknowledge: [],
+      mayDefer: [],
+      constraints: [],
+      reason: null,
+      authority: "handoff_only"
     },
 
     upstreamSignals: {
@@ -817,30 +842,198 @@ if (isDeveloperArtifactRequest) {
   }
 },
 
+readSemanticPriority(map) {
+  const frame = map.rawSemanticFrame || {};
+  const handoff = frame.handoff || {};
+  const priority =
+    frame.framePriority ||
+    handoff.framePriority ||
+    frame.semanticSummary?.framePriority ||
+    null;
+
+  const secondary =
+    frame.secondaryFrames ||
+    handoff.secondaryMeanings ||
+    frame.semanticSummary?.secondaryMeanings ||
+    [];
+
+  if (!priority && !secondary.length) return;
+
+  map.semanticPriority = {
+    available: true,
+    primary:
+      priority?.primary ||
+      map.semanticSituation?.currentTurnMeaning?.frameType ||
+      null,
+    secondary: Array.isArray(secondary)
+      ? secondary.map(item =>
+          typeof item === "string"
+            ? { frameType: item }
+            : item
+        )
+      : [],
+    ordered: priority?.ordered || [],
+    shouldUseMultiLaneResponse:
+      priority?.shouldPreserveSecondaryFrames === true ||
+      priority?.hasMultipleQuestions === true ||
+      secondary.length >= 2,
+    suggestedPlannerUse:
+      priority?.suggestedPlannerUse ||
+      (
+        secondary.length >= 2
+          ? "multi_lane_planner_recommended"
+          : "single_or_simple_response_ok"
+      ),
+    authority: "semantic_priority_handoff_only"
+  };
+
+  if (map.semanticPriority.shouldUseMultiLaneResponse) {
+    map.shouldUseMultiLaneResponse = true;
+    this.add(map.responseRequirements, "preserve_multiple_user_needs");
+    this.add(map.responseConstraints, "answer_primary_need_first");
+    this.add(map.responseConstraints, "do_not_collapse_multi_domain_prompt");
+  }
+
+  map.reasons.push(
+    `Semantic priority read: ${map.semanticPriority.primary || "unknown"} with ${map.semanticPriority.secondary.length} secondary frame(s).`
+  );
+},
+
+buildPlannerHandoff(map) {
+  const laneFromFrame = frame => {
+    const type = this.normalize(frame.frameType || frame.primaryMeaning || "");
+    const domain = this.normalize(frame.domain || "");
+    const intent = this.normalize(frame.intent || "");
+    const combined = `${type} ${domain} ${intent}`;
+
+    if (combined.includes("developer_artifact") || combined.includes("artifact_modification")) return "developer_artifact";
+    if (combined.includes("debug") || combined.includes("build") || combined.includes("code") || combined.includes("ari_architecture")) return "builder";
+    if (combined.includes("decision") || combined.includes("evaluate") || combined.includes("priority")) return "executive_decision";
+    if (combined.includes("medical") || combined.includes("body") || combined.includes("health")) return "medical_context";
+    if (combined.includes("relationship")) return "relationship";
+    if (combined.includes("family")) return "family";
+    if (combined.includes("emotion")) return "emotion";
+    if (combined.includes("identity")) return "identity";
+    if (combined.includes("wisdom") || combined.includes("values")) return "wisdom";
+    if (combined.includes("ari_self") || combined.includes("preference")) return "ari_self";
+    if (combined.includes("information") || combined.includes("explain") || combined.includes("understand")) return "teacher";
+
+    return null;
+  };
+
+  const ordered = [];
+
+  const addLane = (lane, score = 50, reason = "") => {
+    if (!lane) return;
+    const existing = ordered.find(item => item.lane === lane);
+
+    if (existing) {
+      existing.score = Math.max(existing.score, score);
+      if (reason && !existing.reasons.includes(reason)) existing.reasons.push(reason);
+      return;
+    }
+
+    ordered.push({
+      lane,
+      score,
+      reasons: reason ? [reason] : []
+    });
+  };
+
+  (map.laneEvidence || []).forEach(item => {
+    addLane(item.lane, item.score || 50, item.reasons?.[0] || "Lane evidence from Situation Map.");
+  });
+
+  if (map.semanticPriority?.available) {
+    (map.semanticPriority.ordered || []).forEach((item, index) => {
+      addLane(
+        laneFromFrame(item),
+        Math.max(45, 92 - index * 8),
+        "Semantic priority stack from Frame Builder."
+      );
+    });
+
+    (map.semanticPriority.secondary || []).forEach((item, index) => {
+      addLane(
+        laneFromFrame(item),
+        Math.max(40, 76 - index * 6),
+        "Secondary semantic frame should be preserved as support context."
+      );
+    });
+  }
+
+  ordered.sort((a, b) => b.score - a.score);
+
+  const primary = ordered[0] || null;
+  const support = ordered.slice(1, 4);
+
+  map.plannerHandoff = {
+    ready: true,
+    primaryLaneCandidate: primary,
+    orderedLaneCandidates: ordered.slice(0, 8),
+    responseOrder: ordered.slice(0, 5).map(item => item.lane),
+    mustAnswer: primary ? [primary.lane] : [],
+    shouldBrieflyAcknowledge: support.map(item => item.lane),
+    mayDefer: ordered.slice(4).map(item => item.lane),
+    constraints: [
+      ...(map.responseConstraints || []),
+      ...(map.responseRequirements || [])
+    ],
+    reason:
+      primary?.reasons?.[0] ||
+      "Planner handoff built from lane evidence and semantic priority.",
+    authority: "handoff_only"
+  };
+
+  map.reasons.push("Planner handoff built for multi-lane response planning.");
+},
+
 buildTriageHandoff(map) {
   map.triageHandoff = {
     ready: true,
     authority: "handoff_only",
+
     situationFamily: map.situationFamily || this.inferSituationFamily(map),
     primaryNeed: map.primaryNeed || map.needs[0] || "general_understanding",
+
     semanticSituation: map.semanticSituation,
+    semanticPriority: map.semanticPriority,
+    plannerHandoff: map.plannerHandoff,
+
     canonical: map.canonical,
-    evidence: map.evidenceModel.weightedSignals.slice(0, 8),
-    recommendedPriorities: map.laneEvidence.slice(0, 6),
+
+    evidence: map.evidenceModel.weightedSignals.slice(0, 12),
+
+    recommendedPriorities:
+      map.plannerHandoff?.orderedLaneCandidates?.length
+        ? map.plannerHandoff.orderedLaneCandidates
+        : map.laneEvidence.slice(0, 8),
+
+    responseOrder:
+      map.plannerHandoff?.responseOrder || [],
+
+    mustAnswer:
+      map.plannerHandoff?.mustAnswer || [],
+
+    shouldBrieflyAcknowledge:
+      map.plannerHandoff?.shouldBrieflyAcknowledge || [],
+
+    mayDefer:
+      map.plannerHandoff?.mayDefer || [],
+
     constraints: map.responseConstraints,
     ambiguity: map.ambiguity,
     contradictions: map.contradictions,
+
     risk: {
-  level: map.riskLevel,
-  type: map.riskType,
-  override: map.override,
-  primaryRisk: map.primaryRisk,
-  rankedRisks: map.rankedRisks
-}
+      level: map.riskLevel,
+      type: map.riskType,
+      override: map.override,
+      primaryRisk: map.primaryRisk,
+      rankedRisks: map.rankedRisks
+    }
   };
 },
-
-  
 
 mapSemanticDomainToSituationDomain(map, domain) {
   const domainMap = {
