@@ -1,12 +1,12 @@
 // ari/knowledge/ari-supabase-knowledge-client.js
 // Ari Supabase Knowledge Client
 // Purpose: Retrieve Ari Knowledge Graph + system knowledge from Supabase.
-// V0.3.3 — Relaxed Semantic + Keyword Fallback / Six-Core Compatible
+// V0.3.4 — Relaxed Semantic + Keyword Fallback / Six-Core Compatible
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseKnowledgeClient = {
-  version: "0.3.3",
+  version: "0.3.4",
 
   async searchKnowledgeGraph({ summary = {}, question = "" } = {}) {
     const cleanQuestion = String(question || "").trim();
@@ -223,9 +223,10 @@ window.AriSupabaseKnowledgeClient = {
     how_ari_should_use_this: node.how_ari_should_use_this,
     knowledge_id: node.knowledge_id,
     knowledge_type: node.knowledge_type,
-    core: node.core,
+    core: node.core || node.domain,
     similarity: node.similarity,
     weightedScore: node.weightedScore,
+    routerWeight: node.routerWeight,
     __ariScore: node.__ariScore
   }));
 
@@ -237,23 +238,26 @@ window.AriSupabaseKnowledgeClient = {
 
   return {
     finalResponse: null,
-
-    // Important: do not build giant answer text here.
     knowledgeAnswer: null,
     answer: null,
 
     confidence: bestScore >= 0.5 ? "high" : "medium",
     sources: [source],
     nodes: trimmedNodes,
+
     provider: "supabase",
     usable: trimmedNodes.length > 0,
+
     searchTerms: terms,
     bestScore,
+
     searchedCores: rawSearch?.searchedCores || [],
     searchOrder: rawSearch?.searchOrder || [],
+    coreResults: rawSearch?.coreResults || [],
 
-    // Keep raw heavy data out of normal runtime.
-    coreResults: [],
+    timing: rawSearch?.timing || null,
+    knowledgeApiTiming: rawSearch?.timing || null,
+
     rawSearch: null
   };
 },
