@@ -116,17 +116,16 @@ knowledgeApiTiming: best.timing || null,
     const coreRoute = this.routeCores(summary, question, requires);
 
     const needsKnowledge =
-      coreRoute.shouldRetrieve === true ||
-      requires.knowledgeGraph === true ||
-      requires.systemKnowledge === true ||
-      requires.userMemory === true ||
-      requires.liveVerification === true ||
-      this.legacyShouldUseKnowledge(summary, question);
+  requires.knowledgeGraph === true ||
+  requires.systemKnowledge === true ||
+  requires.userMemory === true ||
+  requires.liveVerification === true ||
+  this.legacyShouldUseKnowledge(summary, question, coreRoute, requires);
 
     if (!needsKnowledge) {
       return {
         shouldRetrieve: false,
-        reason: "No knowledge core was needed for this turn.",
+        reason: "Wisdom/advice turn can be answered from the normal reasoning/composer path without Supabase retrieval.",
         primaryCore: null,
         secondaryCores: [],
         searchOrder: [],
@@ -669,80 +668,49 @@ knowledgeApiTiming: best.timing || null,
     };
   },
 
-  legacyShouldUseKnowledge(summary = {}, question = "") {
-    const lower = String(question || "").toLowerCase();
+  legacyShouldUseKnowledge(summary = {}, question = "", coreRoute = {}, requires = {}) {
+  const lower = String(question || "").toLowerCase();
 
-    const contract = summary.situationContract || {};
-    const triage = summary.ariTriage || summary.triage || {};
-    const map = summary.situationMap || {};
-    const responseIntent = summary.responseIntent || "";
+  if (!lower.trim()) return false;
 
-    const primary =
-      contract.primary ||
-      summary.situationContractPrimary ||
-      triage.primaryLane ||
-      summary.triagePrimaryLane ||
-      "";
+  if (
+    requires.knowledgeGraph === true ||
+    requires.systemKnowledge === true ||
+    requires.userMemory === true ||
+    requires.liveVerification === true
+  ) {
+    return true;
+  }
 
-    const domains = map.domains || summary.domains || [];
-    const needs = map.needs || summary.needs || [];
-    const questions = map.questions || summary.questions || [];
+  const primary =
+    summary.situationContractPrimary ||
+    summary.primaryLane ||
+    summary.triagePrimaryLane ||
+    summary.triage?.primaryLane ||
+    "";
 
-    if (!lower.trim()) return false;
+  const responseIntent =
+    summary.responseIntent ||
+    summary.conversationIntent ||
+    summary.semanticIntent ||
+    "";
 
-    if (summary.resolvedUserQuestion || summary.threadQuestion?.resolvedUserQuestion) return true;
-    if (summary.semanticExpectsDirectAnswer === true) return true;
-    if (summary.directAnswerNeeded === true) return true;
+  const isJudgmentOrWisdom =
+    primary === "executive_decision" ||
+    primary === "companion" ||
+    responseIntent === "decision_support" ||
+    responseIntent === "relationship_context_support" ||
+    /\b(what should i do|what do i do|what would you do|do you think|advice|wisdom|best move|next step)\b/.test(lower);
 
-    if (
-      [
-        "teacher",
-        "builder",
-        "executive_decision",
-        "medical_context",
-        "ari_self",
-        "writer",
-        "companion"
-      ].includes(primary)
-    ) return true;
+  const needsStoredKnowledge =
+    /\b(define|definition|what is|explain|teach|compare|difference|medical|symptom|diagnosis|medication|law|policy|current|latest|today|price|weather|score|code|debug|github|file|remember|previous|earlier)\b/.test(lower);
 
-    if (
-      [
-        "teach_clearly",
-        "explain",
-        "answer_question",
-        "implementation_help",
-        "decision_support",
-        "write",
-        "rewrite",
-        "summarize"
-      ].includes(responseIntent)
-    ) return true;
+  if (needsStoredKnowledge) return true;
 
-    if (domains.includes("knowledge_domain")) return true;
-    if (domains.includes("builder_domain")) return true;
-    if (domains.includes("writing_domain")) return true;
-    if (domains.includes("relationship_domain")) return true;
-    if (domains.includes("memory_domain")) return true;
-    if (domains.includes("life_domain")) return true;
-    if (domains.includes("growth_domain")) return true;
+  if (isJudgmentOrWisdom) return false;
 
-    if (needs.includes("understanding")) return true;
-    if (needs.includes("decision_support")) return true;
-    if (needs.includes("action_or_build_help")) return true;
-    if (needs.includes("writing_or_rewrite")) return true;
-    if (needs.includes("calculation")) return true;
-    if (needs.includes("conversation")) return true;
-    if (needs.includes("planning")) return true;
-    if (needs.includes("prioritization")) return true;
-    if (needs.includes("personalization")) return true;
-
-    if (questions.includes("knowledge_question")) return true;
-    if (questions.includes("instruction_question")) return true;
-    if (questions.includes("decision_question")) return true;
-
-    return /\b(what|who|when|where|why|how|explain|teach|compare|difference|should|recommend|best|fix|debug|code|help|write|rewrite|summarize|favorite|color|stressed|overwhelmed|remember|previous|earlier|task|todo|dilemma|priority|prioritize|change|evolve|reflection)\b/.test(lower);
-  },
+  return coreRoute.shouldRetrieve === true && coreRoute.confidence === "high";
+},
 
   getQuestion(summary = {}) {
     return String(
