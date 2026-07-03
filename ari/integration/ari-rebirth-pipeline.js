@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.0 — Knowledge Router + Meaning Interpreter Wired
+// V4.2.1 — Knowledge Router + Meaning Interpreter Wired
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.0",
+  version: "4.2.1",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -839,6 +839,10 @@ mark("after knowledgeMeaningInterpreter");
     mark("after composerBridge");
 
     // 1.20 AI Writer
+const hasKnowledgeSynthesisAnswer =
+  summary.knowledgeSynthesisUsable === true &&
+  String(summary.knowledgeSynthesisDraft || "").trim().length > 40;
+
 const shouldBypassAIWriterForCharacter =
   summary.characterReasoning?.characterAnswerAvailable === true &&
   (
@@ -846,7 +850,31 @@ const shouldBypassAIWriterForCharacter =
     summary.composerCharacter?.draft
   );
 
-if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
+if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
+  mark("before aiWriter");
+
+  const knowledgeDraft = summary.knowledgeSynthesisDraft;
+
+  summary = {
+    ...summary,
+    finalResponse: knowledgeDraft,
+    aiWriterRan: false,
+    aiWriterUsedAI: false,
+    aiWriterSource: "bypassed_knowledge_synthesis",
+    aiWriterDraft: knowledgeDraft,
+    aiWriterBypassReason:
+      "Supabase knowledge synthesis already produced a usable answer.",
+    aiWriter: {
+      aiWriterRan: false,
+      aiWriterUsedAI: false,
+      aiWriterSource: "bypassed_knowledge_synthesis",
+      draft: knowledgeDraft
+    }
+  };
+
+  mark("after aiWriter");
+
+} else if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
   mark("before aiWriter");
 
   const characterDraft =
@@ -856,6 +884,7 @@ if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
 
   summary = {
     ...summary,
+    finalResponse: characterDraft,
     aiWriterRan: false,
     aiWriterUsedAI: false,
     aiWriterSource: "bypassed_character_reasoning",
@@ -870,23 +899,8 @@ if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
     }
   };
 
-  summary.composerPacket = {
-    ...summary.composerPacket,
-    evidence: {
-      ...(summary.composerPacket.evidence || {}),
-      aiWriter: {
-        ran: false,
-        usedAI: false,
-        draft: characterDraft,
-        source: "bypassed_character_reasoning",
-        version: null,
-        fallbackReason:
-          "Character reasoning already produced a complete answer."
-      }
-    }
-  };
-
   mark("after aiWriter");
+
 } else if (!developerResponseLocked) {
   mark("before aiWriter");
 
@@ -906,21 +920,6 @@ if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
       aiWriterResult.draft ||
       aiWriterResult.aiWriterDraft ||
       null
-  };
-
-  summary.composerPacket = {
-    ...summary.composerPacket,
-    evidence: {
-      ...(summary.composerPacket.evidence || {}),
-      aiWriter: {
-        ran: summary.aiWriterRan === true,
-        usedAI: summary.aiWriterUsedAI === true,
-        draft: summary.aiWriterDraft || null,
-        source: summary.aiWriterSource || null,
-        version: summary.aiWriterVersion || null,
-        fallbackReason: summary.aiWriterFallbackReason || null
-      }
-    }
   };
 
   mark("after aiWriter");
@@ -952,10 +951,10 @@ if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
         ...summary,
         ...composerResult,
         finalResponse:
-          composerFinal ||
-          summary.aiWriterDraft ||
-          summary.finalResponse ||
-          "I’m here, but Ari could not compose a final response."
+  summary.finalResponse ||
+  composerFinal ||
+  summary.aiWriterDraft ||
+  "I’m here, but Ari could not compose a final response."
       };
 
       mark("after AriLanguageComposer");
