@@ -1,11 +1,11 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.1.0 — Character Reasoning + Stable Preference Handoff
+// V1.1.1 — Character Reasoning + Stable Preference Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
@@ -116,9 +116,10 @@ const characterIdentity =
             "use_unlocked_developer_packet_as_advisory_context_only",
             "ignore_developer_or_github_evidence_when_current_question_is_not_developer_related",
             ...(contract.responseRules ||
-              summary.responseRules ||
-              summary.responseConstraints ||
-              [])
+  summary.responseRules ||
+  summary.responseConstraints ||
+  []),
+...(mouth.responseRules || [])
           ],
 
       requiredBehaviors: developerLocked
@@ -147,9 +148,35 @@ const characterIdentity =
             ...(contract.forbiddenBehaviors || [])
           ],
 
-      mouthDirective: contract.mouthDirective || mouth || null,
-      communicationPlan,
-     activeDialogueState,
+      mouthDirective:
+  contract.mouthDirective ||
+  summary.mouthDirective ||
+  mouth ||
+  null,
+
+communicationPlan,
+
+expressionPlan:
+  summary.expressionPlan ||
+  mouth.expressionPlan ||
+  null,
+
+blueprintHint:
+  summary.blueprintHint ||
+  mouth.blueprintHint ||
+  null,
+
+responseAvoid:
+  summary.responseAvoid ||
+  mouth.responseAvoid ||
+  [],
+
+responseRequired:
+  summary.responseRequired ||
+  mouth.responseRequired ||
+  [],
+
+activeDialogueState,
       character,
 characterIdentity,
       humanLanguageProfile: summary.humanLanguageProfile || {},
