@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.9 — Developer Artifact Lane Support
+// V2.3.0 — Developer Artifact Lane Support
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.9",
+  version: "2.3.0",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -26,7 +26,30 @@ window.AriTriageEngine = {
       {};
 
     const triage = this.createEmptyTriage(map);
+const emotionalSupportOverride =
+  this.isEmotionalSupportRequest(summary, map);
 
+if (emotionalSupportOverride) {
+  this.addCandidate(
+    triage,
+    "emotion",
+    99,
+    "Emotional support request detected; presence and grounding lead.",
+    "emotional_support_override"
+  );
+
+  this.addMany(triage.responseConstraints, [
+    "emotional_presence_first",
+    "do_not_lead_with_knowledge",
+    "do_not_lead_with_executive_decision",
+    "do_not_ask_unnecessary_clarification",
+    "comfort_then_one_grounding_step"
+  ]);
+
+  triage.audit.notes.push(
+    "Emotional support override applied before normal triage collection."
+  );
+}
     this.collectSafetyCandidate(safety, triage);
     this.collectConversationFunctionCandidate(summary, triage);
     this.collectMetaDeveloperRoutingCandidate(summary, map, triage);
@@ -854,20 +877,19 @@ if (primary === "developer_artifact") {
       safety: 100,
       medical_body: 95,
       risk_clarification: 90,
-      clarification: 70,
-      medical_context: 55,
+      clarification: 58,
+medical_context: 55,
 
-      memory: 50,
-      developer_artifact: 58,
-      builder: 48,
-      executive_decision: 60,
-      teacher: 42,
+memory: 50,
+developer_artifact: 58,
+builder: 48,
+executive_decision: 54,
+teacher: 42,
 
-      relationship: 36,
-      family: 36,
-      emotion: 52,
-      wisdom: 28,
-
+relationship: 36,
+family: 36,
+emotion: 72,
+wisdom: 28,
       life_chapter: 20,
       deep_emotion: 18,
       general_understanding: 10
@@ -903,6 +925,48 @@ if (primary === "developer_artifact") {
     if (!Number.isFinite(n)) return 0.6;
     return n > 1 ? n / 100 : n;
   },
+
+isEmotionalSupportRequest(summary = {}, map = {}) {
+  const text = String(
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    map.rawUserText ||
+    map.resolvedText ||
+    map.text ||
+    ""
+  ).toLowerCase();
+
+  const classifierType =
+    summary.conversationType ||
+    summary.universalConversationClassifier?.conversationType ||
+    summary.classifier?.conversationType ||
+    "";
+
+  const classifierIntent =
+    summary.conversationIntent ||
+    summary.universalConversationClassifier?.conversationIntent ||
+    summary.classifier?.conversationIntent ||
+    "";
+
+  const cf = summary.conversationFunction || {};
+  const cfPrimary =
+    cf.primaryFunction ||
+    cf.dominantUserMove ||
+    "";
+
+  const emotionalText =
+    /\b(sad|upset|hurt|lonely|depressed|overwhelmed|stressed|anxious|scared|down|burned out|exhausted|hate feeling this way|need to talk|talk to someone|long day|bad day|rough day|hard day|feel better|don'?t know what to do)\b/.test(text);
+
+  return (
+    classifierType === "emotional_support_request" ||
+    classifierIntent === "comfort_and_grounding" ||
+    cfPrimary === "emotional_disclosure" ||
+    map.situationFamily === "emotion" ||
+    map.primaryNeed === "emotional_attunement" ||
+    emotionalText
+  );
+},
 
 isMetaDeveloperRoutingQuestion(summary = {}, map = {}) {
   const text = String(
