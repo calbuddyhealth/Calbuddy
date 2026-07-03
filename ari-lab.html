@@ -122,6 +122,28 @@
       ].join("\n");
     }
 
+function formatMultiLanePlanner(summary = {}) {
+  const plan =
+    summary.multiLanePlan ||
+    summary.responsePlan ||
+    summary.multiLaneResponsePlan ||
+    {};
+
+  return [
+    `Planner Ran: ${plan.multiLanePlannerRan ? "yes" : "no"}`,
+    `Planner Version: ${plan.multiLanePlannerVersion || "none"}`,
+    `Primary Lane: ${plan.primaryLane || "none"}`,
+    `Response Shape: ${plan.responseShape || "none"}`,
+    `Response Order: ${Array.isArray(plan.responseOrder) ? plan.responseOrder.join(", ") : "none"}`,
+    "",
+    `Support Lanes: ${JSON.stringify(plan.supportLanes || [], null, 2)}`,
+    `Brief Lanes: ${JSON.stringify(plan.briefLanes || [], null, 2)}`,
+    `Deferred Lanes: ${JSON.stringify(plan.deferredLanes || [], null, 2)}`,
+    "",
+    `Composer Directive: ${JSON.stringify(plan.composerDirective || null, null, 2)}`
+  ].join("\n");
+}
+
 function formatCognitiveExecutive(summary = {}) {
   const ace = summary.cognitiveExecutive || {};
 
@@ -205,6 +227,7 @@ function formatKnowledgeMeaning(summary = {}) {
 
         section("TIMING", formatTiming(summary)),
         section("CORE ROUTING", formatCoreRouting(summary)),
+        section("MULTI-LANE PLANNER", formatMultiLanePlanner(summary)),
         section("COGNITIVE EXECUTIVE", formatCognitiveExecutive(summary)),
         section("KNOWLEDGE ROUTER", formatKnowledgeRouter(summary)),
         section("KNOWLEDGE MEANING INTERPRETER", formatKnowledgeMeaning(summary)),
