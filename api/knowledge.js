@@ -1,4 +1,4 @@
-// api/knowledge.js
+// api/knowledge.js 
 // CalBuddy / Ari Knowledge API
 // Purpose: Router-driven six-core Supabase retrieval + Ari OpenAI knowledge client.
 // V3.0.3 — Six-Core / Lower Similarity / Domain-Based Retrieval
