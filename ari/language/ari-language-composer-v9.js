@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.2.1 — Writer Validation Reason / Current Draft First / No Stale History
+// V9.2.2 — Writer Validation Reason / Current Draft First / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.2.1",
+  version: "9.2.2",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -402,8 +402,9 @@ cleanPractical(text = "") {
     .replace(/^Connect\b/i, "Remember that")
     .replace(/^Avoid shaming.*$/i, "Don’t turn this into a shame issue; treat it as a solvable pattern")
     .replace(/^Recommend medical evaluation\b/i, "Consider medical evaluation")
-    .replace(/\busers\b/gi, "you")
-    .replace(/\buser\b/gi, "you")
+    .replace(/\busers report\b/gi, "you notice")
+.replace(/\busers\b/gi, "you")
+.replace(/\buser\b/gi, "you")
     .replace(/\.$/, "")
     .trim() + ".";
 },
