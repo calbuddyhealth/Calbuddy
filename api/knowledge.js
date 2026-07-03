@@ -1,7 +1,7 @@
 // api/knowledge.js
 // CalBuddy / Ari Knowledge API
 // Purpose: Router-driven six-core Supabase retrieval + Ari OpenAI knowledge client.
-// V3.0.2 — Six-Core / Multi-Core Semantic Retrieval / Legacy-Safe
+// V3.0.3 — Six-Core / Lower Similarity / Domain-Based Retrieval
 
 const VALID_KNOWLEDGE_CORES = [
   "character_core",
@@ -103,7 +103,7 @@ async function handleSemanticSearchAriNodes(req, res, body = {}) {
     req.method === "GET" ? req.query.minSimilarity : body.minSimilarity,
     0,
     1,
-    0.35
+    0.22
   );
 
   const searchOrder = normalizeSearchOrder(req, body);
