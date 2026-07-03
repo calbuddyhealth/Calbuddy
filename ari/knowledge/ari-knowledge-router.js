@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.0.2 — Six-Core / SearchOrder Router / Supabase V3 Compatible
+// V4.0.3 — Six-Core / SearchOrder Router / Supabase V3 Compatible
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.0.2",
+  version: "4.0.3",
 
   cores: {
     character: "character_core",
@@ -98,6 +98,9 @@ if (characterActuallyAnswered) {
       knowledgeNodes: best.nodes || [],
       searchedCores: best.searchedCores || [],
       coreResults: best.coreResults || [],
+
+knowledgeTiming: best.timing || null,
+knowledgeApiTiming: best.timing || null,
 
       mealEstimate: best.mealEstimate || null,
       foodAnalysis: best.foodAnalysis || null,
@@ -554,7 +557,8 @@ if (characterActuallyAnswered) {
         sources: [],
         nodes: [],
         raw: null,
-        reason: "No result returned."
+        reason: "No result returned.",
+        timing: null
       };
     }
 
@@ -566,7 +570,11 @@ if (characterActuallyAnswered) {
       result.text ||
       null;
 
-    const nodes = Array.isArray(result.nodes) ? result.nodes : [];
+    const nodes = Array.isArray(result.nodes)
+      ? result.nodes
+      : Array.isArray(result.matches)
+        ? result.matches
+        : [];
 
     const sources =
       result.knowledgeSources ||
@@ -594,6 +602,8 @@ if (characterActuallyAnswered) {
       searchOrder: result.searchOrder || [],
       coreResults: result.coreResults || [],
 
+      timing: result.timing || result.knowledgeApiTiming || null,
+
       mealEstimate: result.mealEstimate || null,
       foodAnalysis: result.foodAnalysis || null,
       nutritionEstimate: result.nutritionEstimate || null,
@@ -615,19 +625,21 @@ if (characterActuallyAnswered) {
     return usable[0];
   },
     
-    lightResults(results = []) {
-  return results.map(result => ({
-    provider: result.provider,
-    usable: result.usable,
-    confidence: result.confidence,
-    sources: result.sources || [],
-    nodes: Array.isArray(result.nodes) ? result.nodes : [],
-    searchedCores: result.searchedCores || [],
-    searchOrder: result.searchOrder || [],
-    error: result.error || null,
-    reason: result.reason || null
-  }));
-},
+      lightResults(results = []) {
+    return results.map(result => ({
+      provider: result.provider,
+      usable: result.usable,
+      confidence: result.confidence,
+      sources: result.sources || [],
+      nodes: Array.isArray(result.nodes) ? result.nodes : [],
+      searchedCores: result.searchedCores || [],
+      searchOrder: result.searchOrder || [],
+      coreResults: result.coreResults || [],
+      timing: result.timing || null,
+      error: result.error || null,
+      reason: result.reason || null
+    }));
+  },
     
     unavailable(provider = "unknown", reason = "Provider unavailable.") {
     return {
