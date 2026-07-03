@@ -364,6 +364,13 @@ function formatKnowledgeMeaning(summary = {}) {
                 run.summary?.situationContract?.primary ||
                 null
             },
+            
+            planner: {
+  ran: run.summary?.multiLanePlan?.multiLanePlannerRan || false,
+  primaryLane: run.summary?.multiLanePlan?.primaryLane || null,
+  responseShape: run.summary?.multiLanePlan?.responseShape || null,
+  responseOrder: run.summary?.multiLanePlan?.responseOrder || []
+},
             composer: {
               aiWriterRan: run.summary?.aiWriterRan || false,
               aiWriterUsedAI: run.summary?.aiWriterUsedAI || false,
