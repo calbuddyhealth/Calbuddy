@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.0.0 — Six-Core / SearchOrder Router / Supabase V3 Compatible
+// V4.0.1 — Six-Core / SearchOrder Router / Supabase V3 Compatible
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.0.0",
+  version: "4.0.1",
 
   cores: {
     character: "character_core",
@@ -27,14 +27,24 @@ window.AriKnowledgeRouter = {
       return this.noKnowledge("No usable question for knowledge routing.");
     }
 
-    if (
-      summary.characterReasoning?.characterAnswerAvailable === true ||
-      summary.characterAnswerAvailable === true
-    ) {
-      return this.noKnowledge(
-        "Character reasoning already produced the Ari identity/preference/worldview answer."
-      );
-    }
+    const characterReasoning = summary.characterReasoning || {};
+const characterType = String(
+  characterReasoning.type || ""
+).toLowerCase();
+
+const characterActuallyAnswered =
+  characterReasoning.characterAnswerAvailable === true &&
+  (
+    characterType.includes("identity") ||
+    characterType.includes("preference") ||
+    characterType.includes("worldview")
+  );
+
+if (characterActuallyAnswered) {
+  return this.noKnowledge(
+    "Character reasoning already produced a valid Ari identity/preference/worldview answer."
+  );
+}
 
     const plan = this.buildPlan(summary, question, requires);
 
@@ -383,7 +393,23 @@ window.AriKnowledgeRouter = {
         "current situation",
         "right now",
         "this week",
-        "today"
+        "today",
+        "exhausted",
+"tired",
+"sleep",
+"sleeping",
+"sleeping badly",
+"eating junk",
+"nutrition",
+"exercise",
+"burnout",
+"burned out",
+"snapping",
+"irritable",
+"health",
+"wellness",
+"self-care",
+"self care"
       ])
     ) {
       add("life", 4);
