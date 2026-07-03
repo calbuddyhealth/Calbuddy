@@ -1,7 +1,7 @@
 // api/knowledge.js 
 // CalBuddy / Ari Knowledge API
 // Purpose: Router-driven six-core Supabase retrieval + Ari OpenAI knowledge client.
-// V3.0.4 — Six-Core / Lower Similarity / Domain-Based Retrieval
+// V3.0.5 — Semantic Retrieval Timing / Embedding Cache Diagnostics / RPC Profiling
 
 const VALID_KNOWLEDGE_CORES = [
   "character_core",
@@ -11,8 +11,6 @@ const VALID_KNOWLEDGE_CORES = [
   "knowledge_core",
   "growth_core"
 ];
-
-const LEGACY_DOMAINS = ["ari_legacy"];
 
 const DEFAULT_SEARCH_ORDER = [
   { core: "knowledge_core", weight: 1.0 }
@@ -45,12 +43,6 @@ export default async function handler(req, res) {
       return await handleOpenAIKnowledge(req, res);
     }
 
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return res.status(500).json({
-        error: "Missing Supabase server environment variables."
-      });
-    }
-
     return res.status(400).json({ error: "Unknown knowledge action." });
   } catch (error) {
     return res.status(500).json({
@@ -60,21 +52,16 @@ export default async function handler(req, res) {
 }
 
 async function handleSemanticSearchAriNodes(req, res, body = {}) {
+  const totalStart = Date.now();
+  const timing = {};
+
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({
-      error: "Missing Supabase server environment variables."
-    });
+    return res.status(500).json({ error: "Missing Supabase server environment variables." });
   }
 
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ error: "Missing OPENAI_API_KEY." });
   }
-
-  const headers = {
-    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    "Content-Type": "application/json"
-  };
 
   const query =
     req.method === "GET"
@@ -85,20 +72,7 @@ async function handleSemanticSearchAriNodes(req, res, body = {}) {
     return res.status(400).json({ error: "Missing semantic search query." });
   }
 
-  const limit = clampNumber(
-    req.method === "GET" ? req.query.limit : body.limit,
-    1,
-    30,
-    8
-  );
-
-  const limitPerCore = clampNumber(
-    req.method === "GET" ? req.query.limitPerCore : body.limitPerCore,
-    1,
-    10,
-    5
-  );
-
+  const limit = clampNumber(req.method === "GET" ? req.query.limit : body.limit, 1, 30, 6);
   const minSimilarity = clampNumber(
     req.method === "GET" ? req.query.minSimilarity : body.minSimilarity,
     0,
@@ -107,72 +81,93 @@ async function handleSemanticSearchAriNodes(req, res, body = {}) {
   );
 
   const searchOrder = normalizeSearchOrder(req, body);
-
-  const queryEmbedding = await getQueryEmbedding(query);
-
   const domains = searchOrder.map(item => item.core);
 
-const rpcResponse = await fetch(
-  `${process.env.SUPABASE_URL}/rest/v1/rpc/match_ari_knowledge_nodes`,
-  {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      query_embedding: queryEmbedding,
-      match_domains: domains,
-      match_count: limit,
-      min_similarity: minSimilarity
-    })
+  const embeddingStart = Date.now();
+  const embeddingResult = await getQueryEmbedding(query);
+  timing.embeddingMs = Date.now() - embeddingStart;
+  timing.embeddingCacheHit = embeddingResult.cacheHit;
+
+  const rpcStart = Date.now();
+
+  const rpcResponse = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/rpc/match_ari_knowledge_nodes`,
+    {
+      method: "POST",
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query_embedding: embeddingResult.embedding,
+        match_domains: domains,
+        match_count: limit,
+        min_similarity: minSimilarity
+      })
+    }
+  );
+
+  const rpcData = await rpcResponse.json();
+  timing.supabaseRpcMs = Date.now() - rpcStart;
+
+  if (!rpcResponse.ok) {
+    return res.status(rpcResponse.status).json({
+      error: rpcData?.message || rpcData?.error || "Supabase vector RPC failed.",
+      details: rpcData,
+      timing: {
+        ...timing,
+        totalMs: Date.now() - totalStart
+      }
+    });
   }
-);
 
-const rpcData = await rpcResponse.json();
+  const mergeStart = Date.now();
 
-if (!rpcResponse.ok) {
-  return res.status(rpcResponse.status).json({
-    error: rpcData?.message || rpcData?.error || "Supabase vector RPC failed.",
-    details: rpcData
-  });
-}
+  const weightByCore = Object.fromEntries(
+    searchOrder.map(item => [item.core, Number(item.weight || 1)])
+  );
 
-const weightByCore = Object.fromEntries(
-  searchOrder.map(item => [item.core, Number(item.weight || 1)])
-);
+  const merged = (Array.isArray(rpcData) ? rpcData : [])
+    .map(node => {
+      const weight = weightByCore[node.domain] || 1;
+      const confidence = Number(node.confidence || 1);
 
-const merged = (rpcData || [])
-  .map(node => {
-    const weight = weightByCore[node.domain] || 1;
-    const confidence = Number(node.confidence || 0.8);
+      return {
+        ...node,
+        core: node.domain,
+        routerWeight: weight,
+        weightedScore: Number(node.similarity || 0) * weight * confidence
+      };
+    })
+    .sort((a, b) => b.weightedScore - a.weightedScore)
+    .slice(0, limit);
+
+  const coreResults = searchOrder.map(item => {
+    const coreMatches = merged.filter(node => node.domain === item.core);
+
     return {
-      ...node,
-      core: node.domain,
-      routerWeight: weight,
-      weightedScore: Number(node.similarity || 0) * weight * confidence
+      core: item.core,
+      weight: item.weight,
+      success: true,
+      count: coreMatches.length,
+      bestSimilarity: coreMatches[0]?.similarity || 0,
+      bestWeightedScore: coreMatches[0]?.weightedScore || 0
     };
-  })
-  .sort((a, b) => b.weightedScore - a.weightedScore)
-  .slice(0, limit);
+  });
 
-const coreResults = searchOrder.map(item => {
-  const coreMatches = merged.filter(node => node.domain === item.core);
-  return {
-    core: item.core,
-    weight: item.weight,
-    success: true,
-    count: coreMatches.length,
-    bestSimilarity: coreMatches[0]?.similarity || 0,
-    bestWeightedScore: coreMatches[0]?.weightedScore || 0
-  };
-});
+  timing.mergeMs = Date.now() - mergeStart;
+  timing.totalMs = Date.now() - totalStart;
 
   return res.status(200).json({
     success: true,
     query,
     searchOrder,
-    searchedCores: searchOrder.map(item => item.core),
+    searchedCores: domains,
     count: merged.length,
     matches: merged,
-    coreResults
+    coreResults,
+    timing
   });
 }
 
@@ -200,10 +195,7 @@ function normalizeSearchOrder(req, body = {}) {
   const normalized = parsed
     .map(item => {
       if (typeof item === "string") {
-        return {
-          core: item,
-          weight: 1.0
-        };
+        return { core: item, weight: 1.0 };
       }
 
       return {
@@ -220,33 +212,60 @@ function normalizeSearchOrder(req, body = {}) {
   return normalized.length ? normalized : DEFAULT_SEARCH_ORDER;
 }
 
-function isLegacyNode(node = {}) {
-  return (
-    LEGACY_DOMAINS.includes(node.domain) ||
-    (Array.isArray(node.tags) && node.tags.includes("legacy"))
-  );
-}
-
-function dedupeNodes(nodes = []) {
-  const seen = new Set();
-  const result = [];
-
-  for (const node of nodes) {
-    const key = node.knowledge_id || node.id || `${node.domain}:${node.topic}`;
-
-    if (seen.has(key)) continue;
-
-    seen.add(key);
-    result.push(node);
-  }
-
-  return result;
-}
-
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(max, Math.max(min, number));
+}
+
+async function getQueryEmbedding(query = "") {
+  const cleanQuery = String(query || "").trim().toLowerCase();
+  const cached = QUERY_EMBEDDING_CACHE.get(cleanQuery);
+
+  if (
+    cached &&
+    Array.isArray(cached.embedding) &&
+    Date.now() - cached.createdAt < QUERY_EMBEDDING_CACHE_TTL_MS
+  ) {
+    return {
+      embedding: cached.embedding,
+      cacheHit: true
+    };
+  }
+
+  const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "text-embedding-3-small",
+      input: query
+    })
+  });
+
+  const embeddingData = await embeddingResponse.json();
+
+  if (!embeddingResponse.ok) {
+    throw new Error(embeddingData?.error?.message || "Embedding failed.");
+  }
+
+  const embedding = embeddingData?.data?.[0]?.embedding;
+
+  if (!Array.isArray(embedding)) {
+    throw new Error("No embedding returned.");
+  }
+
+  QUERY_EMBEDDING_CACHE.set(cleanQuery, {
+    embedding,
+    createdAt: Date.now()
+  });
+
+  return {
+    embedding,
+    cacheHit: false
+  };
 }
 
 async function handleOpenAIKnowledge(req, res) {
@@ -296,24 +315,12 @@ You are Ari.
 You are the OpenAI language brain for Ari Rebirth.
 Your job is to turn Ari Rebirth's instruction and context into a natural final answer.
 
-Authority order:
-1. Safety and medical risk boundaries
-2. The user's resolved question
-3. The provided AI instruction
-4. Situation contract and triage
-5. Ari character voice and communication style
-
 Rules:
 - Answer the user's actual question.
 - Follow the AI instruction closely when provided.
-- Use the provided context to shape the answer.
 - Do not mention internal systems, pipeline names, contracts, triage, or hidden architecture.
-- Do not output placeholders.
-- Do not sound robotic.
 - Be natural, useful, direct, and concise.
 - If the user is asking for code, provide code.
-- If the user is asking for a patch, provide the patch.
-- If unsure, say what is missing and what to inspect next.
 - Never claim a file was edited, committed, or deployed unless the app confirms it.
 
 Return only valid JSON.
@@ -333,18 +340,7 @@ ARI REBIRTH AI INSTRUCTION:
 ${String(aiInstruction || "").trim() || "No special instruction provided."}
 
 CONTEXT:
-${JSON.stringify(
-  {
-    character,
-    contract,
-    triage,
-    situation,
-    continuity,
-    language
-  },
-  null,
-  2
-)}
+${JSON.stringify({ character, contract, triage, situation, continuity, language }, null, 2)}
 
 Return JSON only:
 {
@@ -381,14 +377,12 @@ Return JSON only:
     });
   }
 
-  const raw = data.choices?.[0]?.message?.content || "{}";
-
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
   } catch {
     parsed = {
-      answer: raw,
+      answer: data.choices?.[0]?.message?.content || "",
       confidence: "medium",
       sources: [],
       notes: "Model returned non-JSON content."
@@ -415,86 +409,4 @@ Return JSON only:
     source: "openai_knowledge",
     success: true
   });
-}
-
-async function getQueryEmbedding(query = "") {
-  const cleanQuery = String(query || "").trim().toLowerCase();
-  const cached = QUERY_EMBEDDING_CACHE.get(cleanQuery);
-
-  if (
-    cached &&
-    Array.isArray(cached.embedding) &&
-    Date.now() - cached.createdAt < QUERY_EMBEDDING_CACHE_TTL_MS
-  ) {
-    return cached.embedding;
-  }
-
-  const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "text-embedding-3-small",
-      input: query
-    })
-  });
-
-  const embeddingData = await embeddingResponse.json();
-
-  if (!embeddingResponse.ok) {
-    throw new Error(embeddingData?.error?.message || "Embedding failed.");
-  }
-
-  const embedding = embeddingData?.data?.[0]?.embedding;
-
-  if (!Array.isArray(embedding)) {
-    throw new Error("No embedding returned.");
-  }
-
-  QUERY_EMBEDDING_CACHE.set(cleanQuery, {
-    embedding,
-    createdAt: Date.now()
-  });
-
-  return embedding;
-}
-
-function parseVector(value) {
-  if (Array.isArray(value)) return value;
-
-  if (typeof value === "string") {
-    return value
-      .replace("[", "")
-      .replace("]", "")
-      .split(",")
-      .map(Number)
-      .filter(Number.isFinite);
-  }
-
-  return [];
-}
-
-function cosineSimilarity(a = [], b = []) {
-  const vectorA = parseVector(a);
-  const vectorB = parseVector(b);
-
-  if (!vectorA.length || !vectorB.length || vectorA.length !== vectorB.length) {
-    return 0;
-  }
-
-  let dot = 0;
-  let magA = 0;
-  let magB = 0;
-
-  for (let i = 0; i < vectorA.length; i++) {
-    dot += vectorA[i] * vectorB[i];
-    magA += vectorA[i] * vectorA[i];
-    magB += vectorB[i] * vectorB[i];
-  }
-
-  if (!magA || !magB) return 0;
-
-  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
