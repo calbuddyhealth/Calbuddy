@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast reusable local drafts from expression blueprints.
-// V1.0.1 — Blueprint Families / Supabase Knowledge Drafts / AI-Safe Handoff
+// V1.1.0 — Knowledge Meaning Packet Aware / Blueprint-Safe / AI Writer Friendly
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.0.1",
+  version: "1.1.0",
 
   write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -15,18 +15,43 @@ window.AriBlueprintWriter = {
       return this.returnDraft("", "blueprint_packet_missing", false);
     }
 
-    const knowledgeDraft = this.composeSupabaseKnowledge(packet);
+    const knowledgeMeaning = this.getKnowledgeMeaning(packet);
 
-    if (knowledgeDraft) {
+    if (knowledgeMeaning?.usable) {
+      const blueprint = this.resolveKnowledgeBlueprint(packet, knowledgeMeaning);
+      const draft = this.renderKnowledgeDraft({ packet, question, knowledgeMeaning, blueprint });
+
       return this.returnDraft(
-        knowledgeDraft,
-        "blueprint_supabase_knowledge_draft",
+        draft,
+        "blueprint_knowledge_meaning_packet",
         true,
         {
-          id: "supabase_knowledge_draft",
+          ...blueprint,
+          strategy: "knowledge_meaning",
+          responseGoal: "answer_from_knowledge_meaning",
+          aiAllowed: true,
+          knowledgeMeaningUsed: true,
+          knowledgeAnswerMode: knowledgeMeaning.answerMode,
+          knowledgeDomain: knowledgeMeaning.domain,
+          knowledgeIntent: knowledgeMeaning.intent,
+          aiWritingInstructions: knowledgeMeaning.composerInstruction || "",
+          blueprintInstruction: knowledgeMeaning.blueprintInstruction || ""
+        }
+      );
+    }
+
+    const legacyKnowledgeDraft = this.composeSupabaseKnowledge(packet);
+
+    if (legacyKnowledgeDraft) {
+      return this.returnDraft(
+        legacyKnowledgeDraft,
+        "blueprint_legacy_supabase_knowledge_draft",
+        true,
+        {
+          id: "legacy_supabase_knowledge_draft",
           strategy: "knowledge",
           responseGoal: "answer_from_retrieved_knowledge",
-          aiAllowed: false
+          aiAllowed: true
         }
       );
     }
@@ -43,12 +68,230 @@ window.AriBlueprintWriter = {
       return this.returnDraft("", "blueprint_no_local_draft", false, blueprint);
     }
 
-    return this.returnDraft(
-      draft,
-      `blueprint_${blueprint.id}`,
-      true,
-      blueprint
+    return this.returnDraft(draft, `blueprint_${blueprint.id}`, true, blueprint);
+  },
+
+  getKnowledgeMeaning(packet = {}) {
+    return (
+      packet.evidence?.knowledgeMeaning ||
+      packet.evidence?.knowledgeSynthesis ||
+      packet.knowledgeMeaning ||
+      packet.knowledgeSynthesis ||
+      packet.summary?.knowledgeMeaning ||
+      packet.summary?.knowledgeSynthesis ||
+      null
     );
+  },
+
+  resolveKnowledgeBlueprint(packet = {}, meaning = {}) {
+    const mode = meaning.answerMode || "general_knowledge";
+
+    const map = {
+      identity_or_character: "knowledge_identity_answer",
+      memory_recall: "knowledge_memory_recall",
+      medical_guidance: "knowledge_medical_guidance",
+      developer: "knowledge_developer_analysis",
+      definition: "knowledge_definition",
+      explanation: "knowledge_explanation",
+      decision: "knowledge_decision",
+      relationship_advice: "knowledge_relationship_advice",
+      relationship_meaning: "knowledge_relationship_advice",
+      life_advice: "knowledge_life_advice",
+      advice: "knowledge_life_advice",
+      writing: "knowledge_writing_context",
+      general_knowledge: "knowledge_clear_explanation"
+    };
+
+    const id = map[mode] || "knowledge_clear_explanation";
+
+    return this.blueprints[id] || this.blueprints.knowledge_clear_explanation;
+  },
+
+  renderKnowledgeDraft({ packet = {}, question = "", knowledgeMeaning = {}, blueprint = {} } = {}) {
+    const mode = knowledgeMeaning.answerMode || "general_knowledge";
+    const domain = knowledgeMeaning.domain || "general";
+    const intent = knowledgeMeaning.intent || "general";
+
+    const directAnswer = this.cleanForUser(knowledgeMeaning.directAnswer || "");
+    const keyFacts = Array.isArray(knowledgeMeaning.keyFacts)
+      ? knowledgeMeaning.keyFacts.map(x => this.cleanForUser(x)).filter(Boolean)
+      : [];
+
+    const cautions = Array.isArray(knowledgeMeaning.cautions)
+      ? knowledgeMeaning.cautions.map(x => this.cleanForUser(x)).filter(Boolean)
+      : [];
+
+    const doNotSay = Array.isArray(knowledgeMeaning.doNotSay)
+      ? knowledgeMeaning.doNotSay
+      : [];
+
+    switch (mode) {
+      case "identity_or_character":
+        return this.renderIdentityKnowledge({ directAnswer, keyFacts, cautions });
+
+      case "memory_recall":
+        return this.renderMemoryKnowledge({ directAnswer, keyFacts, cautions });
+
+      case "medical_guidance":
+        return this.renderMedicalKnowledge({ directAnswer, keyFacts, cautions });
+
+      case "developer":
+        return this.renderDeveloperKnowledge({ directAnswer, keyFacts, cautions });
+
+      case "definition":
+        return this.renderDefinitionKnowledge({ directAnswer, keyFacts });
+
+      case "explanation":
+        return this.renderExplanationKnowledge({ question, directAnswer, keyFacts, domain, intent });
+
+      case "decision":
+        return this.renderDecisionKnowledge({ directAnswer, keyFacts, cautions });
+
+      case "relationship_advice":
+      case "relationship_meaning":
+        return this.renderRelationshipKnowledge({ directAnswer, keyFacts, cautions });
+
+      case "life_advice":
+      case "advice":
+        return this.renderAdviceKnowledge({ directAnswer, keyFacts, cautions });
+
+      case "writing":
+        return directAnswer || "Use the retrieved knowledge as context for the writing request.";
+
+      default:
+        return this.renderGeneralKnowledge({ directAnswer, keyFacts, cautions, doNotSay });
+    }
+  },
+
+  renderIdentityKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    const answer = directAnswer || keyFacts[0] || "I don’t have a fixed answer for that in my saved character knowledge.";
+    return this.polishResponse([
+      answer,
+      keyFacts[1] || "",
+      cautions.includes("Do not invent unsupported Ari preferences, memories, or personality facts.")
+        ? "So I should answer honestly instead of making up a fake preference."
+        : ""
+    ], 3, "conversation");
+  },
+
+  renderMemoryKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "Here’s what I can pull from memory.",
+      keyFacts[1] || "",
+      cautions[0] || ""
+    ], 3, "direct");
+  },
+
+  renderMedicalKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "This is worth treating carefully.",
+      keyFacts[1] || "",
+      cautions[0] || "If symptoms are severe, worsening, unusual, or come with red flags, contact a clinician."
+    ], 4, "conversation");
+  },
+
+  renderDeveloperKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "The code evidence points to a specific bottleneck.",
+      keyFacts[1] || "",
+      cautions[0] || ""
+    ], 4, "direct");
+  },
+
+  renderDefinitionKnowledge({ directAnswer = "", keyFacts = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "Here’s the clean definition.",
+      keyFacts[1] || ""
+    ], 3, "textbook");
+  },
+
+  renderExplanationKnowledge({ question = "", directAnswer = "", keyFacts = [], domain = "", intent = "" } = {}) {
+    const q = String(question || "").toLowerCase();
+
+    const asksCanAffect = /\b(can|does|could)\b/.test(q);
+    const asksSleepMoodCravings =
+      q.includes("sleep") &&
+      (q.includes("mood") || q.includes("cravings"));
+
+    if (asksSleepMoodCravings) {
+      return this.polishResponse([
+        "Yes — sleep can affect both mood and cravings.",
+        "Poor sleep can make you more irritable, less patient, and more emotionally reactive.",
+        "It can also increase cravings because tired brains tend to push harder for quick energy and comfort.",
+        "So if your mood or appetite feels off, sleep is one of the first foundation pieces to check."
+      ], 4, "direct");
+    }
+
+    if (asksCanAffect) {
+      return this.polishResponse([
+        this.makeYesAnswer(question),
+        this.bestUserFacingFact(keyFacts, directAnswer),
+        keyFacts[1] || ""
+      ], 3, "direct");
+    }
+
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "Yes, that connection makes sense.",
+      keyFacts[1] || "",
+      keyFacts[2] || ""
+    ], 4, "direct");
+  },
+
+  renderDecisionKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "This is mainly a tradeoff decision.",
+      keyFacts[1] || "",
+      cautions[0] || "The safest move is usually the next reversible step, not the biggest irreversible leap."
+    ], 4, "direct");
+  },
+
+  renderRelationshipKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "This is about the pattern, not just the latest argument.",
+      keyFacts[1] || "",
+      cautions[0] || "Keep the first move about repair, not blame."
+    ], 3, "conversation");
+  },
+
+  renderAdviceKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "The main move is to turn this into one practical next step.",
+      keyFacts[1] || "",
+      cautions[0] || ""
+    ], 3, "conversation");
+  },
+
+  renderGeneralKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
+    return this.polishResponse([
+      directAnswer || keyFacts[0] || "Yes — that matters here.",
+      keyFacts[1] || "",
+      cautions[0] || ""
+    ], 3, "direct");
+  },
+
+  makeYesAnswer(question = "") {
+    const q = String(question || "").toLowerCase();
+
+    if (q.includes("sleep")) return "Yes — sleep can definitely affect that.";
+    if (q.includes("stress")) return "Yes — stress can definitely affect that.";
+    if (q.includes("nutrition") || q.includes("food")) return "Yes — nutrition can definitely affect that.";
+
+    return "Yes — it can affect that.";
+  },
+
+  bestUserFacingFact(keyFacts = [], directAnswer = "") {
+    const all = [directAnswer, ...keyFacts].map(x => this.cleanForUser(x)).filter(Boolean);
+
+    const badPatterns = [
+      /\btreat .* as\b/i,
+      /\bari should\b/i,
+      /\bhelp ari\b/i,
+      /\bwhen people describe\b/i,
+      /\bconsider whether\b/i
+    ];
+
+    const userFacing = all.find(text => !badPatterns.some(pattern => pattern.test(text)));
+    return userFacing || all[0] || "";
   },
 
   resolveBlueprint(packet = {}) {
@@ -119,61 +362,41 @@ window.AriBlueprintWriter = {
 
     if (!knowledge.shouldUseKnowledge || !nodes.length) return "";
 
-    const plan = packet.communicationPlan || {};
-    const budget = plan.languageBudget || {};
-    const maxSentences = budget.maxSentences || 5;
-
     const node = nodes[0] || {};
     const topic = node.topic || node.lesson || "this";
 
     const definition = this.cleanForUser(node.definition || "");
     const summary = this.cleanForUser(node.summary || "");
     const deep = this.cleanForUser(node.deep_understanding || "");
-    const use = this.cleanForUser(node.how_ari_should_use_this || "");
 
     const style = this.detectKnowledgeStyle(q);
 
     const isDefinition =
       /\b(what is|define|definition|meaning of|what does.*mean)\b/.test(q);
 
-    const isAdvice =
-      /\b(what should i do|how do i|help|where do i start|what can i do|advice|fix|improve|deal with)\b/.test(q);
-
     const isCause =
-      /\b(why|what'?s going on|what is going on|how does|can .* affect|does .* affect|explain)\b/.test(q);
-
-    const userState =
-      /\b(i am|i'm|im|i feel|my|me|i have|i keep|i can'?t|i cannot)\b/.test(q);
+      /\b(why|what'?s going on|what is going on|how does|can .* affect|does .* affect|could .* affect|explain)\b/.test(q);
 
     let sentences = [];
 
     if (isDefinition || style === "textbook") {
       sentences = [
         definition || summary || `${topic} is the main idea here.`,
-        this.pickBestSupport({ q, summary, deep, use, style })
+        this.pickBestSupport({ q, summary, deep, style })
       ];
-    } else if (isAdvice) {
-      sentences = [
-        userState
-          ? `Yeah — ${String(topic).toLowerCase()} may be part of what is going on.`
-          : `${topic} is probably the right place to start.`,
-        this.pickBestSupport({ q, summary, deep, use, style }),
-        this.buildOneNextStep(node, q)
-      ];
-    } else if (isCause || userState) {
+    } else if (isCause) {
       sentences = [
         this.buildDirectAnswer(topic, q, style),
-        this.pickBestSupport({ q, summary, deep, use, style }),
-        this.buildMeaningForUser(node, q)
+        this.pickBestSupport({ q, summary, deep, style })
       ];
     } else {
       sentences = [
         summary || definition || `${topic} matters here.`,
-        this.pickBestSupport({ q, summary, deep, use, style })
+        this.pickBestSupport({ q, summary, deep, style })
       ];
     }
 
-    return this.polishResponse(sentences, maxSentences, style);
+    return this.polishResponse(sentences, 4, style);
   },
 
   detectKnowledgeStyle(q = "") {
@@ -212,8 +435,8 @@ window.AriBlueprintWriter = {
       : `${lowerTopic} is relevant here.`;
   },
 
-  pickBestSupport({ q = "", summary = "", deep = "", use = "", style = "conversation" } = {}) {
-    const source = deep || use || summary || "";
+  pickBestSupport({ q = "", summary = "", deep = "", style = "conversation" } = {}) {
+    const source = deep || summary || "";
     if (!source) return "";
 
     const sentences = this.splitSentences(source);
@@ -238,59 +461,6 @@ window.AriBlueprintWriter = {
     }
 
     return best;
-  },
-
-  buildMeaningForUser(node = {}, q = "") {
-    const topic = String(node.topic || node.lesson || "this").toLowerCase();
-
-    if (topic.includes("sleep")) {
-      return "So if you’re more reactive with people, it may be a recovery problem before it’s a personality problem.";
-    }
-
-    const practical = Array.isArray(node.practical_applications)
-      ? node.practical_applications
-      : [];
-
-    const cleaned = practical
-      .map(item => this.cleanPractical(item))
-      .filter(Boolean);
-
-    return cleaned[0] || `The useful move is to treat ${topic} as a real factor, not as a character flaw.`;
-  },
-
-  buildOneNextStep(node = {}, q = "") {
-    const topic = String(node.topic || node.lesson || "this").toLowerCase();
-
-    if (topic.includes("sleep")) {
-      return "Start by protecting one sleep block or one recovery habit before trying to fix everything else.";
-    }
-
-    const practical = Array.isArray(node.practical_applications)
-      ? node.practical_applications
-      : [];
-
-    const cleaned = practical
-      .map(item => this.cleanPractical(item))
-      .filter(Boolean);
-
-    return cleaned[0] || "Start with one small realistic change instead of trying to fix everything at once.";
-  },
-
-  cleanPractical(text = "") {
-    const cleaned = String(text || "")
-      .replace(/^Ask about\b/i, "Look at")
-      .replace(/^Encourage\b/i, "Try")
-      .replace(/^Support\b/i, "Build around")
-      .replace(/^Connect\b/i, "Remember that")
-      .replace(/^Avoid shaming.*$/i, "Don’t turn this into a shame issue; treat it as a solvable pattern")
-      .replace(/^Recommend medical evaluation\b/i, "Consider medical evaluation")
-      .replace(/\busers report\b/gi, "you notice")
-      .replace(/\busers\b/gi, "you")
-      .replace(/\buser\b/gi, "you")
-      .replace(/\.$/, "")
-      .trim();
-
-    return cleaned ? `${cleaned}.` : "";
   },
 
   cleanForUser(text = "") {
@@ -355,35 +525,91 @@ window.AriBlueprintWriter = {
   },
 
   blueprints: {
+    knowledge_identity_answer: {
+      id: "knowledge_identity_answer",
+      strategy: "identity",
+      responseGoal: "answer_character_question",
+      structure: ["direct_answer", "grounding", "honest_boundary"],
+      aiAllowed: true
+    },
+
+    knowledge_memory_recall: {
+      id: "knowledge_memory_recall",
+      strategy: "memory",
+      responseGoal: "answer_from_memory",
+      structure: ["known_fact", "context", "uncertainty_if_needed"],
+      aiAllowed: true
+    },
+
+    knowledge_medical_guidance: {
+      id: "knowledge_medical_guidance",
+      strategy: "medical",
+      responseGoal: "safe_guidance",
+      structure: ["direct_answer", "practical_guidance", "red_flags"],
+      medicalBoundary: true,
+      aiAllowed: true
+    },
+
+    knowledge_developer_analysis: {
+      id: "knowledge_developer_analysis",
+      strategy: "developer",
+      responseGoal: "diagnose_and_patch",
+      structure: ["diagnosis", "evidence", "patch"],
+      aiAllowed: true
+    },
+
+    knowledge_definition: {
+      id: "knowledge_definition",
+      strategy: "define",
+      responseGoal: "clear_definition",
+      structure: ["definition", "meaning", "example_if_useful"],
+      aiAllowed: true
+    },
+
+    knowledge_explanation: {
+      id: "knowledge_explanation",
+      strategy: "explain",
+      responseGoal: "clear_causal_answer",
+      structure: ["direct_answer", "mechanism", "practical_implication"],
+      aiAllowed: true
+    },
+
+    knowledge_decision: {
+      id: "knowledge_decision",
+      strategy: "decision",
+      responseGoal: "choose_next_step",
+      structure: ["tradeoff", "recommendation", "next_step"],
+      aiAllowed: true
+    },
+
+    knowledge_relationship_advice: {
+      id: "knowledge_relationship_advice",
+      strategy: "relationship",
+      responseGoal: "repair_or_understand_pattern",
+      structure: ["name_pattern", "reduce_blame", "repair_step"],
+      aiAllowed: true
+    },
+
+    knowledge_life_advice: {
+      id: "knowledge_life_advice",
+      strategy: "life_advice",
+      responseGoal: "practical_next_step",
+      structure: ["direct_answer", "meaning", "one_step"],
+      aiAllowed: true
+    },
+
+    knowledge_writing_context: {
+      id: "knowledge_writing_context",
+      strategy: "writing_context",
+      responseGoal: "support_writing_task",
+      structure: ["context_only"],
+      aiAllowed: true
+    },
+
     emotion_presence_grounding: {
       id: "emotion_presence_grounding",
       strategy: "present",
       responseGoal: "stabilize",
-      pacing: "slow",
-      empathy: "high",
-      directness: "medium",
-      warmth: "high",
-      bluntness: "low",
-      structure: ["acknowledge", "reflect_pattern", "one_grounding_step", "steady_close"],
-      openingMove: "acknowledge_emotion",
-      coreMove: "stabilize_before_solving",
-      closingStyle: "quiet_confidence",
-      questionStyle: "none",
-      askLimit: 0,
-      validateEmotion: true,
-      challengeThinking: false,
-      teachConcept: false,
-      actionCount: 1,
-      adviceStyle: "one_step",
-      explanationDepth: "low",
-      exampleAllowed: false,
-      optimism: "quiet",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: true
     },
 
@@ -391,31 +617,6 @@ window.AriBlueprintWriter = {
       id: "emotion_balance_repair",
       strategy: "repair",
       responseGoal: "restore_balance",
-      pacing: "slow",
-      empathy: "high",
-      directness: "medium",
-      warmth: "high",
-      bluntness: "medium",
-      structure: ["acknowledge", "name_pattern", "one_repair_step", "steady_close"],
-      openingMove: "name_emotional_load",
-      coreMove: "protect_relationship_and_body",
-      closingStyle: "grounded",
-      questionStyle: "none",
-      askLimit: 0,
-      validateEmotion: true,
-      challengeThinking: true,
-      teachConcept: false,
-      actionCount: 1,
-      adviceStyle: "repair_step",
-      explanationDepth: "low",
-      exampleAllowed: true,
-      optimism: "quiet",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: false
     },
 
@@ -423,31 +624,6 @@ window.AriBlueprintWriter = {
       id: "decision_tradeoff",
       strategy: "organize",
       responseGoal: "choose_next_step",
-      pacing: "medium",
-      empathy: "medium",
-      directness: "high",
-      warmth: "medium",
-      bluntness: "medium",
-      structure: ["name_tradeoff", "separate_options", "recommend_next_step"],
-      openingMove: "name_tradeoff",
-      coreMove: "prioritize",
-      closingStyle: "clear_next_step",
-      questionStyle: "optional",
-      askLimit: 1,
-      validateEmotion: false,
-      challengeThinking: true,
-      teachConcept: false,
-      actionCount: 1,
-      adviceStyle: "recommendation",
-      explanationDepth: "medium",
-      exampleAllowed: true,
-      optimism: "realistic",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: true
     },
 
@@ -455,31 +631,6 @@ window.AriBlueprintWriter = {
       id: "builder_direct_help",
       strategy: "build",
       responseGoal: "fix_or_patch",
-      pacing: "fast",
-      empathy: "low",
-      directness: "high",
-      warmth: "low",
-      bluntness: "medium",
-      structure: ["diagnose", "patch", "test"],
-      openingMove: "skip_fluff",
-      coreMove: "specific_fix",
-      closingStyle: "test_instruction",
-      questionStyle: "only_if_needed",
-      askLimit: 1,
-      validateEmotion: false,
-      challengeThinking: false,
-      teachConcept: true,
-      actionCount: 2,
-      adviceStyle: "steps",
-      explanationDepth: "medium",
-      exampleAllowed: true,
-      optimism: "practical",
-      humorAllowed: true,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "technical_plain",
       aiAllowed: true
     },
 
@@ -487,31 +638,6 @@ window.AriBlueprintWriter = {
       id: "knowledge_clear_explanation",
       strategy: "explain",
       responseGoal: "understand",
-      pacing: "medium",
-      empathy: "low",
-      directness: "high",
-      warmth: "medium",
-      bluntness: "low",
-      structure: ["direct_answer", "brief_explanation", "example"],
-      openingMove: "answer_first",
-      coreMove: "plain_explanation",
-      closingStyle: "optional_example",
-      questionStyle: "none",
-      askLimit: 0,
-      validateEmotion: false,
-      challengeThinking: false,
-      teachConcept: true,
-      actionCount: 0,
-      adviceStyle: "explain",
-      explanationDepth: "medium",
-      exampleAllowed: true,
-      optimism: "neutral",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: true
     },
 
@@ -519,31 +645,6 @@ window.AriBlueprintWriter = {
       id: "relationship_repair_clarity",
       strategy: "repair",
       responseGoal: "reduce_conflict",
-      pacing: "slow",
-      empathy: "high",
-      directness: "medium",
-      warmth: "high",
-      bluntness: "low",
-      structure: ["name_truth", "own_part", "repair_step"],
-      openingMove: "name_relationship_truth",
-      coreMove: "repair_trust",
-      closingStyle: "calm_next_step",
-      questionStyle: "optional",
-      askLimit: 1,
-      validateEmotion: true,
-      challengeThinking: true,
-      teachConcept: false,
-      actionCount: 1,
-      adviceStyle: "repair_step",
-      explanationDepth: "low",
-      exampleAllowed: true,
-      optimism: "quiet",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: true
     },
 
@@ -551,31 +652,7 @@ window.AriBlueprintWriter = {
       id: "medical_context_calm_guidance",
       strategy: "guide",
       responseGoal: "safe_next_step",
-      pacing: "calm",
-      empathy: "medium",
-      directness: "high",
-      warmth: "medium",
-      bluntness: "medium",
-      structure: ["calm_boundary", "likely_next_step", "red_flags"],
-      openingMove: "medical_first",
-      coreMove: "safe_guidance",
-      closingStyle: "red_flags",
-      questionStyle: "only_if_needed",
-      askLimit: 1,
-      validateEmotion: true,
-      challengeThinking: false,
-      teachConcept: true,
-      actionCount: 1,
-      adviceStyle: "safety_first",
-      explanationDepth: "medium",
-      exampleAllowed: false,
-      optimism: "careful",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "medical",
       medicalBoundary: true,
-      legalBoundary: false,
-      uncertaintyStyle: "careful",
       aiAllowed: true
     },
 
@@ -583,31 +660,6 @@ window.AriBlueprintWriter = {
       id: "safety_urgent_support",
       strategy: "protect",
       responseGoal: "immediate_safety",
-      pacing: "fast",
-      empathy: "medium",
-      directness: "maximum",
-      warmth: "medium",
-      bluntness: "high",
-      structure: ["safety_first", "direct_action", "support"],
-      openingMove: "urgent_direct",
-      coreMove: "protect_now",
-      closingStyle: "supportive",
-      questionStyle: "minimal",
-      askLimit: 1,
-      validateEmotion: false,
-      challengeThinking: false,
-      teachConcept: false,
-      actionCount: 1,
-      adviceStyle: "urgent_step",
-      explanationDepth: "low",
-      exampleAllowed: false,
-      optimism: "grounded",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "urgent",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "direct",
       aiAllowed: false
     },
 
@@ -615,31 +667,6 @@ window.AriBlueprintWriter = {
       id: "memory_direct_acknowledgment",
       strategy: "acknowledge",
       responseGoal: "confirm",
-      pacing: "fast",
-      empathy: "low",
-      directness: "high",
-      warmth: "medium",
-      bluntness: "low",
-      structure: ["acknowledge"],
-      openingMove: "confirm",
-      coreMove: "store_or_acknowledge",
-      closingStyle: "none",
-      questionStyle: "none",
-      askLimit: 0,
-      validateEmotion: false,
-      challengeThinking: false,
-      teachConcept: false,
-      actionCount: 0,
-      adviceStyle: "none",
-      explanationDepth: "none",
-      exampleAllowed: false,
-      optimism: "neutral",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: false
     },
 
@@ -647,31 +674,6 @@ window.AriBlueprintWriter = {
       id: "wisdom_principle_then_step",
       strategy: "principle",
       responseGoal: "clarify_values",
-      pacing: "measured",
-      empathy: "medium",
-      directness: "high",
-      warmth: "medium",
-      bluntness: "medium",
-      structure: ["principle", "application", "next_step"],
-      openingMove: "principle_first",
-      coreMove: "clarify_choice",
-      closingStyle: "choice_point",
-      questionStyle: "optional",
-      askLimit: 1,
-      validateEmotion: false,
-      challengeThinking: true,
-      teachConcept: true,
-      actionCount: 1,
-      adviceStyle: "principle_then_step",
-      explanationDepth: "medium",
-      exampleAllowed: true,
-      optimism: "realistic",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: true
     },
 
@@ -679,31 +681,6 @@ window.AriBlueprintWriter = {
       id: "general_direct_response",
       strategy: "answer",
       responseGoal: "help",
-      pacing: "medium",
-      empathy: "medium",
-      directness: "high",
-      warmth: "medium",
-      bluntness: "low",
-      structure: ["answer", "brief_reason", "next_step"],
-      openingMove: "answer_first",
-      coreMove: "be_useful",
-      closingStyle: "optional",
-      questionStyle: "none",
-      askLimit: 0,
-      validateEmotion: false,
-      challengeThinking: false,
-      teachConcept: false,
-      actionCount: 1,
-      adviceStyle: "direct",
-      explanationDepth: "medium",
-      exampleAllowed: true,
-      optimism: "neutral",
-      humorAllowed: false,
-      profanityAllowed: false,
-      safetyMode: "normal",
-      medicalBoundary: false,
-      legalBoundary: false,
-      uncertaintyStyle: "plain",
       aiAllowed: true
     }
   },
@@ -724,5 +701,7 @@ window.AriBlueprintWriter = {
     };
   }
 };
+
+window.Ari.blueprintWriter = window.AriBlueprintWriter;
 
 console.log("ARI BLUEPRINT WRITER LOADED:", window.AriBlueprintWriter.version);
