@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.2.7 — Evidence Weighted Arbitration Engine
+// V2.2.9 — Developer Artifact Lane Support
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriTriageEngine = {
-  version: "2.2.7",
+  version: "2.2.9",
 
   run(input = {}) {
     const summary = input.summary || input || {};
@@ -30,6 +30,7 @@ window.AriTriageEngine = {
     this.collectSafetyCandidate(safety, triage);
     this.collectConversationFunctionCandidate(summary, triage);
     this.collectMetaDeveloperRoutingCandidate(summary, map, triage);
+    this.collectSemanticPriorityCandidates(map, handoff, triage);
     this.collectHandoffCandidates(handoff, triage);
     this.collectSituationCandidates(map, triage);
     this.collectUniversalCandidates(map, triage, summary);
@@ -268,6 +269,44 @@ collectMetaDeveloperRoutingCandidate(summary = {}, map = {}, triage = {}) {
   triage.audit.notes.push(
     "Meta developer routing guard applied; teacher lane preferred."
   );
+},
+
+collectSemanticPriorityCandidates(map = {}, handoff = {}, triage = {}) {
+  const planner =
+    map.plannerHandoff ||
+    handoff.plannerHandoff ||
+    {};
+
+  const semanticPriority =
+    map.semanticPriority ||
+    handoff.semanticPriority ||
+    {};
+
+  if (planner.ready) {
+    (planner.orderedLaneCandidates || []).forEach(item => {
+      this.addCandidate(
+        triage,
+        item.lane,
+        item.score || 60,
+        item.reasons?.[0] || "Planner handoff candidate from semantic priority.",
+        "semantic_priority_planner_handoff"
+      );
+    });
+
+    this.addMany(triage.responseConstraints, planner.constraints || []);
+  }
+
+  if (semanticPriority.available) {
+    if (semanticPriority.shouldUseMultiLaneResponse) {
+      this.add(triage.responseConstraints, "preserve_multiple_user_needs");
+      this.add(triage.responseConstraints, "answer_primary_need_first");
+      this.add(triage.responseConstraints, "do_not_collapse_multi_domain_prompt");
+    }
+
+    triage.audit.notes.push(
+      `Semantic priority available: ${semanticPriority.primary || "unknown"}.`
+    );
+  }
 },
 
   collectHandoffCandidates(handoff = {}, triage = {}) {
@@ -721,6 +760,17 @@ enforceSafetyGateAuthority(safety = {}, triage = {}) {
       return;
     }
 
+if (primary === "developer_artifact") {
+  this.addMany(triage.deferredLanes, ["emotion", "wisdom", "life_chapter", "deep_emotion"]);
+  this.addMany(triage.responseConstraints, [
+    "use_artifact_context",
+    "produce_code_or_patch",
+    "preserve_unrelated_code",
+    "avoid_generic_platform_advice"
+  ]);
+  triage.responseShape = "developer_artifact_operation";
+}
+
     if (primary === "builder") {
       this.addMany(triage.deferredLanes, ["emotion", "wisdom", "life_chapter", "deep_emotion"]);
       this.addMany(triage.responseConstraints, ["give_steps_or_code", "do_not_over_reflect", "do_not_ask_wisdom_question"]);
@@ -808,6 +858,7 @@ enforceSafetyGateAuthority(safety = {}, triage = {}) {
       medical_context: 55,
 
       memory: 50,
+      developer_artifact: 58,
       builder: 48,
       executive_decision: 60,
       teacher: 42,
@@ -833,6 +884,7 @@ enforceSafetyGateAuthority(safety = {}, triage = {}) {
       risk_clarification: "clarify_risk_only",
       clarification: "clarify_then_answer",
       teacher: "clear_explanation",
+      developer_artifact: "developer_artifact_operation",
       builder: "build_steps",
       executive_decision: "decision_first_layered",
       emotion: "emotion_then_ground",
