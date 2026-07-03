@@ -845,17 +845,27 @@ if (isDeveloperArtifactRequest) {
 readSemanticPriority(map) {
   const frame = map.rawSemanticFrame || {};
   const handoff = frame.handoff || {};
+  const summary = frame.semanticSummary || {};
+
   const priority =
     frame.framePriority ||
     handoff.framePriority ||
-    frame.semanticSummary?.framePriority ||
+    summary.framePriority ||
     null;
 
   const secondary =
     frame.secondaryFrames ||
+    priority?.secondary ||
     handoff.secondaryMeanings ||
-    frame.semanticSummary?.secondaryMeanings ||
+    summary.secondaryMeanings ||
     [];
+
+  const ordered =
+    priority?.ordered ||
+    [
+      priority?.primary,
+      ...(Array.isArray(secondary) ? secondary : [])
+    ].filter(Boolean);
 
   if (!priority && !secondary.length) return;
 
@@ -872,15 +882,21 @@ readSemanticPriority(map) {
             : item
         )
       : [],
-    ordered: priority?.ordered || [],
+    ordered: Array.isArray(ordered)
+      ? ordered.map(item =>
+          typeof item === "string"
+            ? { frameType: item }
+            : item
+        )
+      : [],
     shouldUseMultiLaneResponse:
       priority?.shouldPreserveSecondaryFrames === true ||
       priority?.hasMultipleQuestions === true ||
-      secondary.length >= 2,
+      secondary.length >= 1,
     suggestedPlannerUse:
       priority?.suggestedPlannerUse ||
       (
-        secondary.length >= 2
+        secondary.length >= 1
           ? "multi_lane_planner_recommended"
           : "single_or_simple_response_ok"
       ),
@@ -946,19 +962,25 @@ buildPlannerHandoff(map) {
 
   if (map.semanticPriority?.available) {
     (map.semanticPriority.ordered || []).forEach((item, index) => {
-      addLane(
-        laneFromFrame(item),
-        Math.max(45, 92 - index * 8),
-        "Semantic priority stack from Frame Builder."
-      );
+      const lane = laneFromFrame(item);
+if (lane) {
+  addLane(
+    lane,
+    Math.max(45, 92 - index * 8),
+    "Semantic priority stack from Frame Builder."
+  );
+}
     });
 
     (map.semanticPriority.secondary || []).forEach((item, index) => {
-      addLane(
-        laneFromFrame(item),
-        Math.max(40, 76 - index * 6),
-        "Secondary semantic frame should be preserved as support context."
-      );
+      const lane = laneFromFrame(item);
+if (lane) {
+  addLane(
+    lane,
+    Math.max(40, 76 - index * 6),
+    "Secondary semantic frame should be preserved as support context."
+  );
+}
     });
   }
 
@@ -3041,6 +3063,33 @@ if (typeof map.situationNarrative !== "string") {
       authority: "handoff_only"
     };
   }
+
+if (!map.semanticPriority || typeof map.semanticPriority !== "object") {
+  map.semanticPriority = {
+    available: false,
+    primary: null,
+    secondary: [],
+    ordered: [],
+    shouldUseMultiLaneResponse: false,
+    suggestedPlannerUse: "single_or_simple_response_ok",
+    authority: "semantic_priority_handoff_only"
+  };
+}
+
+if (!map.plannerHandoff || typeof map.plannerHandoff !== "object") {
+  map.plannerHandoff = {
+    ready: false,
+    primaryLaneCandidate: null,
+    orderedLaneCandidates: [],
+    responseOrder: [],
+    mustAnswer: [],
+    shouldBrieflyAcknowledge: [],
+    mayDefer: [],
+    constraints: [],
+    reason: null,
+    authority: "handoff_only"
+  };
+}
 
   map.integrityCheckRan = true;
   return map;
