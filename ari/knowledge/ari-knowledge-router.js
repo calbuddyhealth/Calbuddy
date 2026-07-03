@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.0.3 — Six-Core / SearchOrder Router / Supabase V3 Compatible
+// V4.0.4 — Wisdom Skip / Required Knowledge Fallback / Timing Visible
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.0.3",
+  version: "4.0.4",
 
   cores: {
     character: "character_core",
@@ -114,7 +114,20 @@ knowledgeApiTiming: best.timing || null,
 
   buildPlan(summary = {}, question = "", requires = {}) {
     const coreRoute = this.routeCores(summary, question, requires);
-
+if (
+  (requires.knowledgeGraph === true ||
+    requires.systemKnowledge === true ||
+    requires.liveVerification === true) &&
+  (!Array.isArray(coreRoute.searchOrder) || coreRoute.searchOrder.length === 0)
+) {
+  coreRoute.shouldRetrieve = true;
+  coreRoute.primaryCore = this.cores.knowledge;
+  coreRoute.secondaryCores = [];
+  coreRoute.searchOrder = [{ core: this.cores.knowledge, weight: 1.0 }];
+  coreRoute.confidence = "medium";
+  coreRoute.allowOpenAI = true;
+  coreRoute.reason = "Required knowledge retrieval defaulted to knowledge_core.";
+}
     const needsKnowledge =
   requires.knowledgeGraph === true ||
   requires.systemKnowledge === true ||
