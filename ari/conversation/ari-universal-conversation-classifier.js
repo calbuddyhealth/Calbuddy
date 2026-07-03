@@ -1,15 +1,16 @@
 // ari/conversation/ari-universal-conversation-classifier.js
 // Ari Universal Conversation Classifier
-// Purpose: Classify conversation type only. No routing, no final lane authority.
-// V3.2.0 — Safer Lexical Matching / Domain Priority / Fast Semantic Handoff
+// Purpose: Early broad conversation tagging only.
+// V3.3.0 — Weak Classifier / Semantic Confirmation Required / Emotional Distress Protected
 
 window.Ari = window.Ari || {};
 
 window.AriUniversalConversationClassifier = {
-  version: "3.2.0",
+  version: "3.3.0",
 
   classify(input = {}) {
     const summary = input.summary || input || {};
+
     const rawText =
       summary.userMessage ||
       summary.message ||
@@ -47,33 +48,25 @@ window.AriUniversalConversationClassifier = {
       thread.semanticState?.semanticFrame ||
       null;
 
-    const signals = this.buildSemanticSignals({
+    const signals = this.buildSignals({
       text,
       rawText,
       observations,
-      thread,
-      semanticFrame,
       conversationFunction,
-      summary
+      semanticFrame,
+      thread
     });
 
-    const candidates = [];
-
-    this.addSemanticCandidates(candidates, signals);
-    this.addQuestionCandidates(candidates, text, observations, thread, signals);
-    this.addTaskCandidates(candidates, text, signals);
-    this.addDomainCandidates(candidates, text, observations, thread, signals);
-    this.addIntentCandidates(candidates, text, observations, thread, signals);
-
+    const candidates = this.buildCandidates(signals);
     const ranked = this.rank(candidates, signals);
 
     const top = ranked[0] || {
       type: "general_conversation",
+      intent: "respond_normally",
       score: 50,
       confidence: "low",
-      intent: "respond_normally",
       responseHint: "Respond normally.",
-      reasons: ["No strong conversation type detected."]
+      reasons: ["No strong broad conversation tag detected."]
     };
 
     return {
@@ -84,15 +77,19 @@ window.AriUniversalConversationClassifier = {
 
       conversationType: top.type,
       conversationIntent: top.intent,
-      score: top.score,
-      confidence: top.confidence,
+      score: Math.min(top.score, 72),
+      rawScore: top.score,
+      confidence: this.confidenceLabel(Math.min(top.score, 72)),
       responseHint: top.responseHint || "Respond normally.",
       reasons: top.reasons || [],
 
       semanticSignals: signals,
       candidates: ranked.slice(0, 7),
 
-      authority: "classification_only",
+      authority: "weak_classification_only",
+      requiresSemanticConfirmation: true,
+      confidenceCap: 72,
+
       cannotSet: [
         "primaryLane",
         "primaryLaneSuggestion",
@@ -102,47 +99,22 @@ window.AriUniversalConversationClassifier = {
         "override",
         "finalResponse",
         "medicalEscalation",
-        "mouthPattern"
+        "mouthPattern",
+        "shouldUseKnowledge",
+        "bypassKnowledge"
       ]
     };
   },
 
-  buildSemanticSignals({
-    text,
-    rawText,
-    observations,
-    thread,
-    semanticFrame,
-    conversationFunction,
-    summary
-  }) {
-    const frame =
-      semanticFrame?.currentTurnFrame ||
-      semanticFrame?.primaryFrame ||
-      semanticFrame?.currentTurnMeaning ||
-      semanticFrame ||
-      {};
-
-    const handoff = semanticFrame?.handoff || {};
-
-    const semanticMeaning = this.normalize(
-      frame.frameType ||
-      frame.primaryMeaning ||
-      handoff.currentMeaning ||
-      ""
-    );
-
-    const semanticDomain = this.normalize(
-      frame.domain ||
-      handoff.domain ||
-      ""
-    );
-
-    const semanticIntent = this.normalize(
-      frame.intent ||
-      handoff.intent ||
-      ""
-    );
+  buildSignals({
+    text = "",
+    rawText = "",
+    observations = [],
+    conversationFunction = {},
+    semanticFrame = null,
+    thread = {}
+  } = {}) {
+    const functionSignals = conversationFunction.signalProfile || {};
 
     const functionPrimary = this.normalize(
       conversationFunction.primaryFunction ||
@@ -150,7 +122,9 @@ window.AriUniversalConversationClassifier = {
       ""
     );
 
-    const functionSignals = conversationFunction.signalProfile || {};
+    const functionMetaDeveloper =
+      conversationFunction.metaDeveloperQuestion === true ||
+      functionSignals.metaDeveloperQuestion === true;
 
     const functionDeveloperArtifact =
       conversationFunction.developerArtifactRequest === true ||
@@ -160,12 +134,110 @@ window.AriUniversalConversationClassifier = {
       conversationFunction.expectsCodeOrArtifact === true ||
       functionSignals.expectsCodeOrArtifact === true;
 
-    const functionMetaDeveloper =
-      conversationFunction.metaDeveloperQuestion === true ||
-      functionSignals.metaDeveloperQuestion === true;
+    const frame =
+      semanticFrame?.currentTurnFrame ||
+      semanticFrame?.primaryFrame ||
+      semanticFrame?.currentTurnMeaning ||
+      semanticFrame ||
+      {};
+
+    const semanticDomain = this.normalize(frame.domain || semanticFrame?.domain || "");
+    const semanticIntent = this.normalize(frame.intent || semanticFrame?.intent || "");
+    const semanticMeaning = this.normalize(
+      frame.frameType ||
+      frame.primaryMeaning ||
+      frame.meaning ||
+      semanticFrame?.meaning ||
+      ""
+    );
 
     const hasQuestion = this.hasQuestion(text, observations, thread);
-    const isShort = text.split(" ").filter(Boolean).length <= 6;
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const isShort = wordCount <= 6;
+
+    const emotionalWords = this.hasAny(text, [
+      "sad",
+      "upset",
+      "hurt",
+      "mad",
+      "angry",
+      "worried",
+      "scared",
+      "anxious",
+      "stressed",
+      "overwhelmed",
+      "lonely",
+      "depressed",
+      "down",
+      "burned out",
+      "exhausted",
+      "tired",
+      "hate feeling this way"
+    ]) || this.hasType(observations, "emotion_word");
+
+    const directEmotionDisclosure =
+      /\b(i'?m|i am|i feel|i felt|feeling|felt|i got|i became|i was)\s+(really|very|pretty|so|kinda|kind of|super|extremely|a little|sort of|honestly|just)?\s*(sad|upset|hurt|mad|angry|worried|scared|anxious|stressed|overwhelmed|lonely|depressed|down|burned out|exhausted|tired)\b/i.test(text);
+
+    const emotionalSupportRequest =
+      emotionalWords &&
+      (
+        directEmotionDisclosure ||
+        this.hasAny(text, [
+          "long day",
+          "bad day",
+          "rough day",
+          "hard day",
+          "heavy day",
+          "need to talk",
+          "talk to someone",
+          "someone to talk",
+          "need someone",
+          "feel better",
+          "hate feeling this way",
+          "don't know what to do",
+          "dont know what to do",
+          "i don't know what to do",
+          "i dont know what to do",
+          "can i vent",
+          "just need to vent",
+          "listen to me",
+          "be here with me"
+        ])
+      );
+
+    const distressActionUncertainty =
+      emotionalWords &&
+      this.hasAny(text, [
+        "don't know what to do",
+        "dont know what to do",
+        "i don't know what to do",
+        "i dont know what to do",
+        "what do i do"
+      ]);
+
+    const actionAsk =
+      !emotionalSupportRequest &&
+      this.hasAny(text, [
+        "what should i do",
+        "what should we do",
+        "should i",
+        "should we",
+        "best move",
+        "next step",
+        "recommend",
+        "which option",
+        "which one",
+        "pros and cons",
+        "compare"
+      ]);
+
+    const decisionStructure =
+      !emotionalSupportRequest &&
+      (
+        actionAsk ||
+        this.hasAny(text, ["either", "option", "choose between", "compare"]) ||
+        this.hasType(observations, "contrast_or_tradeoff_connector")
+      );
 
     const metaDeveloperQuestion =
       functionMetaDeveloper ||
@@ -187,87 +259,247 @@ window.AriUniversalConversationClassifier = {
           "keyterm",
           "routing",
           "conversation function",
-          "artifact modification",
           "file context",
           "developer request",
           "treat this",
-          "treat it"
+          "outdated",
+          "brittle",
+          "regex",
+          "pattern",
+          "signal"
         ]) &&
         this.hasAny(text, [
           "ari",
-          "artifact",
-          "developer",
-          "file context",
+          "classifier",
+          "classification",
           "semantic",
           "routing",
           "code",
           "file",
-          "builder"
+          "pipeline",
+          "function",
+          "engine",
+          "keyword",
+          "keyterm"
         ])
       );
 
-    const speechAct = this.detectSpeechAct(text, observations, hasQuestion);
+    const builderOrSystem =
+      functionDeveloperArtifact ||
+      functionExpectsCode ||
+      this.hasAny(text, [
+        "code",
+        "file",
+        "bug",
+        "debug",
+        "fix this",
+        "not working",
+        "function",
+        "engine",
+        "pipeline",
+        "github",
+        "vercel",
+        "supabase",
+        "javascript",
+        "html",
+        "css",
+        "api",
+        "repo",
+        "repository"
+      ]);
 
-    const outputRequest = this.detectOutputRequest(
-      text,
-      observations,
-      semanticIntent,
-      {
-        metaDeveloperQuestion,
-        functionDeveloperArtifact,
-        functionExpectsCode,
-        functionPrimary
-      }
-    );
+    const explicitCodeRequest =
+      !metaDeveloperQuestion &&
+      (
+        functionDeveloperArtifact ||
+        functionExpectsCode ||
+        this.hasAny(text, [
+          "send code",
+          "full code",
+          "replace this file",
+          "update this file",
+          "patch this file",
+          "rewrite this file",
+          "implement this",
+          "fix the code"
+        ])
+      );
 
-    const uncertaintyType = this.detectUncertaintyType(text, observations);
+    const languageOrInterpretation =
+      this.hasAny(text, [
+        "translate",
+        "translation",
+        "interpret this",
+        "what does this mean",
+        "what does this say",
+        "meaning",
+        "bible verse",
+        "scripture",
+        "quote"
+      ]);
 
-    const relationshipStake = this.detectRelationshipStake(text, observations);
-    const workStake = this.detectWorkStake(text, observations);
-    const medicalStake = this.detectMedicalStake(text, observations);
-    const animalStake = this.detectAnimalStake(text, observations);
-    const timePressure = this.detectTimePressure(text, observations);
-    const referenceDependency = this.detectReferenceDependency(text, observations, isShort);
-    const emotionalLoad = this.detectEmotionalLoad(text, observations);
-    const decisionStructure = this.detectDecisionStructure(text, observations);
+    const writingTask =
+      this.hasAny(text, [
+        "rewrite",
+        "write",
+        "draft",
+        "make this sound",
+        "email",
+        "text message",
+        "caption",
+        "essay",
+        "paper",
+        "paragraph"
+      ]);
 
-    const domain = this.detectDomain(
-      text,
-      observations,
-      thread,
-      semanticDomain,
-      {
-        metaDeveloperQuestion,
-        functionPrimary,
-        functionDeveloperArtifact,
-        relationshipStake,
-        workStake,
-        medicalStake,
-        animalStake
-      }
-    );
+    const calculationTask =
+      this.hasAny(text, [
+        "calculate",
+        "convert",
+        "percent",
+        "how much",
+        "how many",
+        "in dollars",
+        "in pesos"
+      ]);
 
-    const userNeed = this.detectUserNeed(
-      text,
-      observations,
-      semanticMeaning,
-      semanticIntent,
-      outputRequest,
-      {
-        metaDeveloperQuestion,
-        functionPrimary
-      }
-    );
+    const medicalOrBody =
+      this.hasAny(text, [
+        "pain",
+        "fever",
+        "bleeding",
+        "pregnant",
+        "chest",
+        "breathing",
+        "faint",
+        "vomit",
+        "diarrhea",
+        "swallow",
+        "symptom",
+        "stroke",
+        "seizure"
+      ]) || this.hasType(observations, "body_symptom");
+
+    const relationshipOrFamily =
+      this.hasAny(text, [
+        "wife",
+        "husband",
+        "spouse",
+        "partner",
+        "girlfriend",
+        "boyfriend",
+        "family",
+        "kids",
+        "children",
+        "father",
+        "mother",
+        "mom",
+        "dad",
+        "married"
+      ]) ||
+      this.hasType(observations, "relationship_reference") ||
+      this.hasType(observations, "family_reference");
+
+    const financial =
+      this.hasAny(text, [
+        "money",
+        "debt",
+        "pay",
+        "salary",
+        "budget",
+        "lease",
+        "loan",
+        "credit",
+        "rent"
+      ]);
+
+    const petOrAnimal =
+      this.hasAny(text, [
+        "cat",
+        "dog",
+        "pet",
+        "kitten",
+        "puppy",
+        "vet",
+        "flower safe",
+        "toxic to cats"
+      ]);
+
+    const memoryOrIdentity =
+      this.hasAny(text, [
+        "remember",
+        "forget",
+        "save this",
+        "from now on",
+        "who are you",
+        "what are you",
+        "your favorite",
+        "do you like",
+        "your personality"
+      ]);
+
+    const referenceDependency =
+      isShort &&
+      this.hasAny(text, ["it", "that", "this", "they", "them", "her", "him"]);
+
+    let broadDomain = "general_understanding";
+
+    if (semanticDomain.includes("emotion")) broadDomain = "emotion";
+    else if (metaDeveloperQuestion) broadDomain = "general_understanding";
+    else if (builderOrSystem) broadDomain = "builder_or_system";
+    else if (medicalOrBody) broadDomain = "medical_or_body";
+    else if (relationshipOrFamily) broadDomain = "relationship_or_family";
+    else if (financial) broadDomain = "financial";
+    else if (petOrAnimal) broadDomain = "animal_health_or_pet";
+    else if (writingTask) broadDomain = "writing";
+    else if (calculationTask) broadDomain = "calculation";
+    else if (memoryOrIdentity) broadDomain = "memory_or_identity";
+    else if (emotionalWords) broadDomain = "emotion";
+
+    let broadNeed = "general_response";
+
+    if (emotionalSupportRequest) broadNeed = "emotional_attunement";
+    else if (metaDeveloperQuestion) broadNeed = "understanding";
+    else if (explicitCodeRequest) broadNeed = "implementation_help";
+    else if (writingTask) broadNeed = "produce_or_revise_text";
+    else if (calculationTask) broadNeed = "calculate";
+    else if (languageOrInterpretation) broadNeed = "understanding";
+    else if (actionAsk || decisionStructure) broadNeed = "decision_or_action_guidance";
+    else if (hasQuestion) broadNeed = "understanding";
+    else if (memoryOrIdentity) broadNeed = "memory_or_identity";
+    else if (emotionalWords) broadNeed = "emotional_attunement";
 
     return {
       rawText,
       normalizedText: text,
 
-      speechAct,
-      userNeed,
-      domain,
-      uncertaintyType,
-      outputRequest,
+      hasQuestion,
+      wordCount,
+      isShort,
+
+      broadDomain,
+      broadNeed,
+
+      emotionalWords,
+      directEmotionDisclosure,
+      emotionalSupportRequest,
+      distressActionUncertainty,
+
+      actionAsk,
+      decisionStructure,
+
+      metaDeveloperQuestion,
+      builderOrSystem,
+      explicitCodeRequest,
+      languageOrInterpretation,
+      writingTask,
+      calculationTask,
+      medicalOrBody,
+      relationshipOrFamily,
+      financial,
+      petOrAnimal,
+      memoryOrIdentity,
+      referenceDependency,
 
       conversationFunction: {
         available: Boolean(conversationFunction && Object.keys(conversationFunction).length),
@@ -285,559 +517,276 @@ window.AriUniversalConversationClassifier = {
         confidence: frame.confidence || semanticFrame?.confidence || null
       },
 
-      relationshipStake,
-      workStake,
-      medicalStake,
-      animalStake,
-      timePressure,
-      referenceDependency,
-      emotionalLoad,
-      decisionStructure,
-
-      hasQuestion,
-      isShort,
-      currentTurnCompleteEnough: !referenceDependency.needsPriorContext,
-
-      authority: "semantic_signal_handoff_only"
+      authority: "weak_semantic_signal_handoff_only"
     };
   },
 
-  detectSpeechAct(text, observations, hasQuestion) {
-    if (hasQuestion) return "question";
+  buildCandidates(signals = {}) {
+    const candidates = [];
 
-    if (this.hasAny(text, ["please", "can you", "send me", "give me", "make", "create", "update", "fix"])) {
-      return "request_or_command";
-    }
+    const add = item => this.add(candidates, item);
 
-    if (this.hasAny(text, ["i feel", "i'm feeling", "i am feeling", "i'm upset", "i'm worried", "i don't know"])) {
-      return "disclosure";
-    }
-
-    if (this.hasAny(text, ["remember", "don't forget", "save this", "from now on"])) {
-      return "memory_instruction";
-    }
-
-    return "statement";
-  },
-
-  detectOutputRequest(text, observations, semanticIntent, flags = {}) {
-    if (flags.metaDeveloperQuestion) return "answer";
-
-    if (
-      flags.functionDeveloperArtifact ||
-      flags.functionExpectsCode ||
-      flags.functionPrimary === "developer_artifact_request" ||
-      flags.functionPrimary === "artifact_modification_request" ||
-      flags.functionPrimary === "artifact_creation_request" ||
-      flags.functionPrimary === "artifact_investigation_request"
-    ) {
-      return "code";
-    }
-
-    if (this.hasAny(text, ["send code", "full code", "paste", "replace", "update this file"])) return "code";
-    if (this.hasAny(text, ["rewrite", "write", "draft", "make this sound", "email", "text message"])) return "written_text";
-    if (this.hasAny(text, ["calculate", "how much", "convert", "percent"])) return "calculation";
-    if (this.hasAny(text, ["what should", "should i", "best move", "next step", "what do i do", "what do you think i should do"])) return "recommendation";
-
-    if (semanticIntent.includes("calculate")) return "calculation";
-    if (semanticIntent.includes("produce") || semanticIntent.includes("revise")) return "written_text";
-    if (semanticIntent.includes("implement") || semanticIntent.includes("debug")) return "code";
-    if (semanticIntent.includes("evaluate") || semanticIntent.includes("choose")) return "recommendation";
-
-    return "answer";
-  },
-
-  detectDomain(text, observations, thread, semanticDomain, flags = {}) {
-    if (flags.metaDeveloperQuestion) return "general_understanding";
-
-    if (
-      flags.functionDeveloperArtifact ||
-      flags.functionPrimary === "developer_artifact_request" ||
-      flags.functionPrimary === "artifact_modification_request" ||
-      flags.functionPrimary === "artifact_creation_request" ||
-      flags.functionPrimary === "artifact_investigation_request"
-    ) {
-      return "builder_or_system";
-    }
-
-    if (semanticDomain) {
-      if (semanticDomain.includes("relationship") || semanticDomain.includes("family")) return "relationship_or_family";
-      if (semanticDomain.includes("builder") || semanticDomain.includes("code") || semanticDomain.includes("debug")) return "builder_or_system";
-      if (semanticDomain.includes("writing")) return "writing";
-      if (semanticDomain.includes("calculation") || semanticDomain.includes("math")) return "calculation";
-      if (semanticDomain.includes("emotion")) return "emotion";
-      if (semanticDomain.includes("memory")) return "memory";
-      if (semanticDomain.includes("health") || semanticDomain.includes("medical") || semanticDomain.includes("body")) return "medical_or_body";
-      if (semanticDomain.includes("animal") && !flags.relationshipStake?.present) return "animal_health_or_pet";
-      if (semanticDomain.includes("general") || semanticDomain.includes("knowledge")) return "general_understanding";
-    }
-
-    if (flags.relationshipStake?.present) return "relationship_or_family";
-    if (flags.workStake?.present) return "work_or_accountability";
-    if (flags.medicalStake?.present) return "medical_or_body";
-
-    if (
-      flags.animalStake?.present &&
-      !flags.relationshipStake?.present &&
-      !flags.workStake?.present &&
-      !flags.medicalStake?.present
-    ) {
-      return "animal_health_or_pet";
-    }
-
-    if (this.hasAny(text, ["code", "bug", "debug", "github", "function", "engine", "pipeline", "file", "javascript"])) return "builder_or_system";
-    if (this.hasAny(text, ["money", "debt", "pay", "salary", "budget", "lease", "loan", "credit"])) return "financial";
-    if (this.hasAny(text, ["rewrite", "write", "draft", "email", "essay", "paper"])) return "writing";
-    if (this.hasAny(text, ["calculate", "convert", "percent", "how much"])) return "calculation";
-
-    if (this.hasType(observations, "relationship_reference")) return "relationship_or_family";
-    if (this.hasType(observations, "body_symptom")) return "medical_or_body";
-    if (this.hasType(observations, "building_reference")) return "builder_or_system";
-    if (this.hasType(observations, "money_reference")) return "financial";
-    if (this.hasType(observations, "work_reference")) return "work_or_accountability";
-
-    return "general_understanding";
-  },
-
-  detectUserNeed(text, observations, semanticMeaning, semanticIntent, outputRequest, flags = {}) {
-    if (flags.metaDeveloperQuestion) return "understanding";
-
-    if (outputRequest === "code") return "implementation_help";
-    if (outputRequest === "written_text") return "produce_or_revise_text";
-    if (outputRequest === "calculation") return "calculate";
-    if (outputRequest === "recommendation") return "decision_or_action_guidance";
-
-    if (
-      semanticMeaning.includes("information") ||
-      semanticIntent.includes("obtain") ||
-      semanticIntent.includes("clarification") ||
-      this.hasAny(text, ["why", "how", "what is", "what are", "explain"])
-    ) {
-      return "understanding";
-    }
-
-    if (this.hasAny(text, ["i'm upset", "i feel", "i'm worried", "sad", "angry", "hurt", "burned out", "stressed", "overwhelmed"])) {
-      return "emotional_attunement";
-    }
-
-    if (this.hasAny(text, ["remember", "don't forget", "save this", "from now on"])) {
-      return "memory_or_preference";
-    }
-
-    return "general_response";
-  },
-
-  addSemanticCandidates(candidates, signals) {
-    const s = signals;
-
-    if (s.conversationFunction.metaDeveloperQuestion) {
-      this.add(candidates, {
-        type: "meta_developer_routing_question",
-        intent: "explain_developer_routing_behavior",
+    if (signals.emotionalSupportRequest) {
+      add({
+        type: "emotional_support_request",
+        intent: "comfort_and_grounding",
         score: 96,
-        responseHint: "Answer the developer routing/classification question directly. Do not trigger code patch behavior.",
+        responseHint:
+          "Lead with warmth and presence. Do not treat emotional helplessness as a decision question.",
         reasons: [
-          "Conversation Function marked this as a meta developer question.",
-          "The user is asking about classification behavior, not requesting an artifact edit."
+          "Emotional distress is present.",
+          "User appears to need support, grounding, or someone to talk to."
         ]
       });
     }
 
-    if (
-      s.userNeed === "implementation_help" &&
-      s.domain === "builder_or_system"
-    ) {
-      this.add(candidates, {
+    if (signals.metaDeveloperQuestion) {
+      add({
+        type: "meta_developer_routing_question",
+        intent: "explain_developer_routing_behavior",
+        score: 94,
+        responseHint:
+          "Answer the routing/classification question directly. Do not trigger code patch behavior.",
+        reasons: ["User is asking about Ari/system classification behavior."]
+      });
+    }
+
+    if (signals.explicitCodeRequest) {
+      add({
         type: "builder_task",
         intent: "implementation_help",
-        score: 95,
+        score: 92,
         responseHint: "Help with code or system implementation.",
-        reasons: ["Semantic signals indicate build/debug/implementation help."]
+        reasons: ["User is asking for code or system implementation help."]
       });
     }
 
-    if (
-      s.userNeed === "understanding" &&
-      s.domain === "general_understanding"
-    ) {
-      this.add(candidates, {
-        type: "explanation_or_information_question",
-        intent: "explain_or_answer",
-        score: s.conversationFunction.metaDeveloperQuestion ? 94 : 82,
-        responseHint: "Answer directly, then explain briefly.",
-        reasons: ["User appears to want understanding or explanation."]
-      });
-    }
-
-    if (
-      s.userNeed === "decision_or_action_guidance" ||
-      s.decisionStructure?.present
-    ) {
-      this.add(candidates, {
-        type: "decision_or_action_question",
-        intent: "decision_or_action_guidance",
-        score: 88,
-        responseHint: "Give a clear recommendation or next step.",
-        reasons: ["User is asking what action to take or weighing options."]
-      });
-    }
-
-    if (
-      s.domain === "relationship_or_family" &&
-      s.emotionalLoad?.present
-    ) {
-      this.add(candidates, {
-        type: "relationship_or_family_context",
-        intent: "relationship_context_support",
-        score: 89,
-        responseHint: "Support the relationship context while giving practical guidance.",
-        reasons: ["Relationship context and emotional load are both present."]
-      });
-    }
-
-    if (s.domain === "animal_health_or_pet") {
-      this.add(candidates, {
-        type: "animal_health_or_pet_context",
-        intent: "pet_health_support",
-        score: 76,
-        responseHint: "Treat as pet/animal health context only when animal evidence is strong.",
-        reasons: ["Animal or pet context detected."]
-      });
-    }
-  },
-
-  addQuestionCandidates(candidates, text, observations, thread, signals) {
-    if (this.hasQuestion(text, observations, thread)) {
-      this.add(candidates, {
-        type: "question_or_follow_up",
-        intent: "answer_question",
-        score: 65,
-        reasons: ["User is asking a question."]
-      });
-    }
-
-    if (signals.userNeed === "decision_or_action_guidance") {
-      this.add(candidates, {
-        type: "decision_or_action_question",
-        intent: "decision_or_action_guidance",
-        score: 84,
-        reasons: ["User is asking what action to take."]
-      });
-    }
-
-    if (signals.uncertaintyType === "meaning_or_explanation_uncertainty") {
-      this.add(candidates, {
-        type: "explanation_or_possibility_question",
-        intent: "explain_possibility",
-        score: 78,
-        reasons: ["User is asking for explanation or possibility testing."]
-      });
-    }
-  },
-
-  addTaskCandidates(candidates, text, signals) {
-    if (signals.outputRequest === "code") {
-      this.add(candidates, {
-        type: "builder_task",
-        intent: "implementation_help",
-        score: 90,
-        responseHint: "Help with code or system implementation.",
-        reasons: ["User is working on code, files, or system behavior."]
-      });
-    }
-
-    if (signals.outputRequest === "written_text") {
-      this.add(candidates, {
+    if (signals.writingTask) {
+      add({
         type: "writing_task",
         intent: "produce_or_revise_text",
-        score: 86,
+        score: 88,
+        responseHint: "Write or revise the requested text.",
         reasons: ["User is asking for writing or rewriting help."]
       });
     }
 
-    if (signals.outputRequest === "calculation") {
-      this.add(candidates, {
+    if (signals.calculationTask) {
+      add({
         type: "calculation_task",
         intent: "calculate",
-        score: 84,
-        reasons: ["User is asking for calculation."]
+        score: 86,
+        responseHint: "Calculate directly.",
+        reasons: ["User is asking for calculation or conversion."]
       });
     }
-  },
 
-  addDomainCandidates(candidates, text, observations, thread, signals) {
-    if (signals.conversationFunction.metaDeveloperQuestion) return;
+    if (signals.languageOrInterpretation) {
+      add({
+        type: "language_or_interpretation_request",
+        intent: "explain_or_translate",
+        score: 84,
+        responseHint: "Translate, interpret, or explain the text directly.",
+        reasons: ["User is asking for meaning, interpretation, or translation."]
+      });
+    }
 
-    const domain = signals.domain;
+    if (signals.decisionStructure || signals.actionAsk) {
+      add({
+        type: "decision_or_action_question",
+        intent: "decision_or_action_guidance",
+        score: 82,
+        responseHint: "Give practical guidance or a recommended next step.",
+        reasons: ["User appears to be asking what action to take or weighing options."]
+      });
+    }
 
-    const domainMap = {
-      animal_health_or_pet: {
+    if (signals.medicalOrBody) {
+      add({
+        type: "medical_or_body_concern",
+        intent: "health_context_support",
+        score: 84,
+        responseHint: "Handle health/body context carefully.",
+        reasons: ["Health or body concern detected."]
+      });
+    }
+
+    if (signals.relationshipOrFamily) {
+      add({
+        type: "relationship_or_family_context",
+        intent: "relationship_context_support",
+        score: signals.emotionalWords ? 84 : 78,
+        responseHint: "Support the relationship/family context.",
+        reasons: ["Relationship or family context detected."]
+      });
+    }
+
+    if (signals.petOrAnimal) {
+      add({
         type: "animal_health_or_pet_context",
         intent: "pet_health_support",
         score: 76,
-        reason: "Animal or pet context detected."
-      },
-      medical_or_body: {
-        type: "medical_or_body_concern",
-        intent: "health_context_support",
-        score: 88,
-        reason: "Health or body concern detected."
-      },
-      work_or_accountability: {
-        type: "work_or_accountability_context",
-        intent: "workplace_guidance",
-        score: 86,
-        reason: "Workplace or accountability context detected."
-      },
-      relationship_or_family: {
-        type: "relationship_or_family_context",
-        intent: "relationship_context_support",
-        score: 88,
-        reason: "Close relationship or family context detected."
-      },
-      financial: {
+        responseHint: "Treat as pet/animal context when animal evidence is strong.",
+        reasons: ["Animal or pet context detected."]
+      });
+    }
+
+    if (signals.financial) {
+      add({
         type: "financial_or_resource_context",
         intent: "financial_resource_guidance",
+        score: 76,
+        responseHint: "Support financial/resource reasoning.",
+        reasons: ["Financial or resource context detected."]
+      });
+    }
+
+    if (signals.memoryOrIdentity) {
+      add({
+        type: "memory_or_identity_request",
+        intent: "memory_or_identity",
         score: 82,
-        reason: "Financial or resource context detected."
-      }
-    };
-
-    const mapped = domainMap[domain];
-
-    if (mapped) {
-      this.add(candidates, {
-        type: mapped.type,
-        intent: mapped.intent,
-        score: mapped.score,
-        reasons: [mapped.reason]
+        responseHint: "Handle memory or identity request directly.",
+        reasons: ["Memory, preference, or identity language detected."]
       });
     }
-  },
 
-  addIntentCandidates(candidates, text, observations, thread, signals) {
-    const intent =
-      thread.resolvedMeaning?.intent ||
-      thread.impliedQuestion?.type ||
-      null;
-
-    if (intent && intent !== "respond_normally") {
-      this.add(candidates, {
-        type: "thread_contextual_intent",
-        intent,
-        score: signals.conversationFunction.metaDeveloperQuestion ? 35 : 82,
-        reasons: [`Thread supplied intent: ${intent}.`]
+    if (
+      signals.hasQuestion &&
+      !signals.emotionalSupportRequest &&
+      !signals.explicitCodeRequest &&
+      !signals.writingTask &&
+      !signals.calculationTask
+    ) {
+      add({
+        type: "question_or_follow_up",
+        intent: "answer_question",
+        score: 65,
+        responseHint: "Answer the question directly.",
+        reasons: ["User is asking a question."]
       });
     }
+
+    if (signals.emotionalWords && !signals.emotionalSupportRequest) {
+      add({
+        type: "emotional_signal_present",
+        intent: "brief_attunement_then_answer",
+        score: 64,
+        responseHint:
+          "Acknowledge the emotion briefly, then continue with the main task.",
+        reasons: ["Emotion language is present as context."]
+      });
+    }
+
+    if (!candidates.length) {
+      add({
+        type: "general_conversation",
+        intent: "respond_normally",
+        score: 50,
+        responseHint: "Respond normally.",
+        reasons: ["No strong broad conversation tag detected."]
+      });
+    }
+
+    return candidates;
   },
 
   rank(candidates = [], signals = {}) {
     return candidates
-      .map(c => {
-        let score = Math.max(0, Math.min(100, Number(c.score || 0)));
+      .map(candidate => {
+        let score = Number(candidate.score || 0);
 
-        if (
-          signals.conversationFunction.metaDeveloperQuestion &&
-          [
-            "builder_task",
-            "animal_health_or_pet_context",
-            "medical_or_body_concern"
-          ].includes(c.type)
-        ) {
-          score -= 60;
+        if (signals.emotionalSupportRequest) {
+          if (candidate.type === "emotional_support_request") score += 20;
+
+          if (
+            [
+              "decision_or_action_question",
+              "question_or_follow_up",
+              "explanation_or_information_question"
+            ].includes(candidate.type)
+          ) {
+            score -= 65;
+          }
+
+          if (
+            [
+              "medical_or_body_concern",
+              "relationship_or_family_context"
+            ].includes(candidate.type)
+          ) {
+            score -= 10;
+          }
         }
 
-        if (
-          signals.conversationFunction.metaDeveloperQuestion &&
-          [
-            "meta_developer_routing_question",
-            "explanation_or_information_question"
-          ].includes(c.type)
-        ) {
-          score += 12;
+        if (signals.distressActionUncertainty && candidate.type === "decision_or_action_question") {
+          score -= 75;
         }
 
-        if (
-          c.type === "animal_health_or_pet_context" &&
-          (
-            signals.relationshipStake?.present ||
-            signals.workStake?.present ||
-            signals.decisionStructure?.present
-          )
-        ) {
-          score -= 35;
+        if (signals.metaDeveloperQuestion) {
+          if (
+            [
+              "meta_developer_routing_question",
+              "question_or_follow_up"
+            ].includes(candidate.type)
+          ) {
+            score += 12;
+          }
+
+          if (
+            [
+              "builder_task",
+              "medical_or_body_concern",
+              "animal_health_or_pet_context"
+            ].includes(candidate.type)
+          ) {
+            score -= 60;
+          }
         }
 
-        if (
-          c.type === "relationship_or_family_context" &&
-          signals.relationshipStake?.present &&
-          signals.emotionalLoad?.present
-        ) {
+        if (signals.explicitCodeRequest && candidate.type === "builder_task") {
+          score += 10;
+        }
+
+        if (signals.referenceDependency && candidate.type === "question_or_follow_up") {
           score += 8;
-        }
-
-        if (
-          c.type === "decision_or_action_question" &&
-          signals.decisionStructure?.present
-        ) {
-          score += 6;
         }
 
         score = Math.max(0, Math.min(100, score));
 
         return {
-          ...c,
+          ...candidate,
           score,
-          confidence: this.confidenceLabel(score)
+          confidence: this.confidenceLabel(Math.min(score, 72))
         };
       })
-      .filter(c => c.score > 0)
+      .filter(candidate => candidate.score > 0)
       .sort((a, b) => b.score - a.score);
   },
 
-  detectUncertaintyType(text, observations) {
-    if (this.hasAny(text, ["i don't know if", "i dont know if", "not sure if", "could it be", "was it because", "is it because"])) {
-      return "cause_uncertainty";
-    }
-
-    if (this.hasAny(text, ["or", "either", "option", "choose between", "compare"])) {
-      return "choice_uncertainty";
-    }
-
-    if (this.hasAny(text, ["what does that mean", "does that mean", "why", "how come"])) {
-      return "meaning_or_explanation_uncertainty";
-    }
-
-    if (this.hasType(observations, "missing_anchor_signal") || this.hasType(observations, "reference_signal")) {
-      return "reference_uncertainty";
-    }
-
-    return "none";
-  },
-
-  detectRelationshipStake(text, observations) {
-    const present =
-      this.hasAny(text, ["wife", "husband", "spouse", "partner", "girlfriend", "boyfriend", "family", "kids", "children", "married"]) ||
-      this.hasType(observations, "relationship_reference") ||
-      this.hasType(observations, "family_reference");
-
-    const tension =
-      this.hasAny(text, ["upset", "hurt", "argument", "arguing", "fight", "fighting", "mad", "cold feet", "rushing", "pressure", "trust", "lied", "communication"]);
-
-    return {
-      present,
-      tension,
-      confidence: present ? (tension ? 0.9 : 0.76) : 0
-    };
-  },
-
-  detectWorkStake(text, observations) {
-    const present =
-      this.hasAny(text, ["work", "job", "boss", "manager", "coworker", "leadership", "policy", "report", "shift", "night shift", "after work"]) ||
-      this.hasType(observations, "work_reference");
-
-    return {
-      present,
-      confidence: present ? 0.78 : 0
-    };
-  },
-
-  detectMedicalStake(text, observations) {
-    const present =
-      this.hasAny(text, ["pain", "fever", "bleeding", "pregnant", "chest", "breathing", "faint", "vomit", "diarrhea", "swallow", "symptom"]) ||
-      this.hasType(observations, "body_symptom");
-
-    return {
-      present,
-      confidence: present ? 0.82 : 0
-    };
-  },
-
-  detectAnimalStake(text, observations) {
-    const present =
-      this.hasAny(text, ["cat", "dog", "pet", "kitten", "puppy", "vet", "flea", "tick"]) ||
-      this.hasType(observations, "animal_reference") ||
-      this.hasType(observations, "pet_reference");
-
-    return {
-      present,
-      confidence: present ? 0.82 : 0
-    };
-  },
-
-  detectTimePressure(text, observations) {
-    const present =
-      this.hasAny(text, ["today", "tonight", "right now", "now", "urgent", "asap", "soon", "deadline"]) ||
-      this.hasType(observations, "current_time");
-
-    return {
-      present,
-      value: present ? "near_term_or_current" : "none",
-      confidence: present ? 0.78 : 0
-    };
-  },
-
-  detectReferenceDependency(text, observations, isShort) {
-    const hasReference =
-      this.hasAny(text, ["it", "that", "this", "her", "him", "they"]) ||
-      this.hasType(observations, "reference_signal");
-
-    const missingAnchor =
-      this.hasType(observations, "missing_anchor_signal");
-
-    return {
-      hasReference,
-      missingAnchor,
-      needsPriorContext: Boolean(isShort && (hasReference || missingAnchor)),
-      confidence: isShort && (hasReference || missingAnchor) ? 0.84 : 0.35
-    };
-  },
-
-  detectEmotionalLoad(text, observations) {
-    const present =
-      this.hasAny(text, ["upset", "hurt", "sad", "mad", "angry", "worried", "scared", "stressed", "overwhelmed", "burned out", "burnout", "exhausted"]) ||
-      this.hasType(observations, "emotion_word");
-
-    return {
-      present,
-      intensity: present ? "low_to_moderate" : "none",
-      confidence: present ? 0.76 : 0
-    };
-  },
-
-  detectDecisionStructure(text, observations) {
-    const hasOptions =
-      this.hasAny(text, ["or", "either", "option", "choose", "between"]) ||
-      this.hasType(observations, "contrast_or_tradeoff_connector");
-
-    const hasActionAsk =
-      this.hasAny(text, ["what should", "should i", "what do i do", "what do you think i should do", "next step", "best move"]);
-
-    return {
-      present: hasOptions || hasActionAsk,
-      hasOptions,
-      hasActionAsk,
-      confidence: hasActionAsk ? 0.88 : hasOptions ? 0.76 : 0
-    };
-  },
-
-  hasQuestion(text, observations, thread) {
+  hasQuestion(text, observations = [], thread = {}) {
     return (
       text.includes("?") ||
       this.hasType(observations, "question_mark_count") ||
       this.hasType(observations, "question_phrase") ||
-      Boolean(thread.impliedQuestion?.type)
+      Boolean(thread.impliedQuestion?.type) ||
+      /^(what|why|how|when|where|who|is|are|do|does|can|should|would|could)\b/i.test(text)
     );
   },
 
   add(candidates, item) {
     if (!item?.type) return;
 
-    const existing = candidates.find(c => c.type === item.type);
+    const existing = candidates.find(candidate => candidate.type === item.type);
 
     if (existing) {
-      existing.score = Math.min(100, existing.score + Math.round(item.score * 0.25));
-      existing.reasons = [...new Set([...(existing.reasons || []), ...(item.reasons || [])])];
+      existing.score = Math.min(100, existing.score + Math.round(Number(item.score || 0) * 0.25));
+      existing.reasons = [
+        ...new Set([
+          ...(existing.reasons || []),
+          ...(item.reasons || [])
+        ])
+      ];
 
       if (!existing.responseHint && item.responseHint) {
         existing.responseHint = item.responseHint;
@@ -848,18 +797,18 @@ window.AriUniversalConversationClassifier = {
 
     candidates.push({
       ...item,
-      confidence: this.confidenceLabel(item.score)
+      confidence: this.confidenceLabel(Math.min(item.score || 0, 72))
     });
   },
 
   confidenceLabel(score = 0) {
-    if (score >= 85) return "high";
-    if (score >= 65) return "medium";
-    return "low";
+    if (score >= 68) return "medium";
+    if (score >= 45) return "low";
+    return "very_low";
   },
 
   hasType(observations = [], type = "") {
-    return observations.some(o => o.type === type);
+    return observations.some(observation => observation.type === type);
   },
 
   hasAny(text = "", terms = []) {
