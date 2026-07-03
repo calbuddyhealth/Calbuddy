@@ -1,12 +1,12 @@
 // ari/conversation/ari-universal-conversation-classifier.js
 // Ari Universal Conversation Classifier
 // Purpose: Classify conversation type only. No routing, no final lane authority.
-// V3.1.1 — Conversation Function Aware / Meta Developer Safe / Advisory Only
+// V3.2.0 — Safer Lexical Matching / Domain Priority / Fast Semantic Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriUniversalConversationClassifier = {
-  version: "3.1.1",
+  version: "3.2.0",
 
   classify(input = {}) {
     const summary = input.summary || input || {};
@@ -222,6 +222,15 @@ window.AriUniversalConversationClassifier = {
 
     const uncertaintyType = this.detectUncertaintyType(text, observations);
 
+    const relationshipStake = this.detectRelationshipStake(text, observations);
+    const workStake = this.detectWorkStake(text, observations);
+    const medicalStake = this.detectMedicalStake(text, observations);
+    const animalStake = this.detectAnimalStake(text, observations);
+    const timePressure = this.detectTimePressure(text, observations);
+    const referenceDependency = this.detectReferenceDependency(text, observations, isShort);
+    const emotionalLoad = this.detectEmotionalLoad(text, observations);
+    const decisionStructure = this.detectDecisionStructure(text, observations);
+
     const domain = this.detectDomain(
       text,
       observations,
@@ -230,7 +239,11 @@ window.AriUniversalConversationClassifier = {
       {
         metaDeveloperQuestion,
         functionPrimary,
-        functionDeveloperArtifact
+        functionDeveloperArtifact,
+        relationshipStake,
+        workStake,
+        medicalStake,
+        animalStake
       }
     );
 
@@ -245,12 +258,6 @@ window.AriUniversalConversationClassifier = {
         functionPrimary
       }
     );
-
-    const relationshipStake = this.detectRelationshipStake(text, observations);
-    const timePressure = this.detectTimePressure(text, observations);
-    const referenceDependency = this.detectReferenceDependency(text, observations, isShort);
-    const emotionalLoad = this.detectEmotionalLoad(text, observations);
-    const decisionStructure = this.detectDecisionStructure(text, observations);
 
     return {
       rawText,
@@ -279,6 +286,9 @@ window.AriUniversalConversationClassifier = {
       },
 
       relationshipStake,
+      workStake,
+      medicalStake,
+      animalStake,
       timePressure,
       referenceDependency,
       emotionalLoad,
@@ -294,15 +304,19 @@ window.AriUniversalConversationClassifier = {
 
   detectSpeechAct(text, observations, hasQuestion) {
     if (hasQuestion) return "question";
+
     if (this.hasAny(text, ["please", "can you", "send me", "give me", "make", "create", "update", "fix"])) {
       return "request_or_command";
     }
+
     if (this.hasAny(text, ["i feel", "i'm feeling", "i am feeling", "i'm upset", "i'm worried", "i don't know"])) {
       return "disclosure";
     }
+
     if (this.hasAny(text, ["remember", "don't forget", "save this", "from now on"])) {
       return "memory_instruction";
     }
+
     return "statement";
   },
 
@@ -323,7 +337,8 @@ window.AriUniversalConversationClassifier = {
     if (this.hasAny(text, ["send code", "full code", "paste", "replace", "update this file"])) return "code";
     if (this.hasAny(text, ["rewrite", "write", "draft", "make this sound", "email", "text message"])) return "written_text";
     if (this.hasAny(text, ["calculate", "how much", "convert", "percent"])) return "calculation";
-    if (this.hasAny(text, ["what should", "should i", "best move", "next step", "what do i do"])) return "recommendation";
+    if (this.hasAny(text, ["what should", "should i", "best move", "next step", "what do i do", "what do you think i should do"])) return "recommendation";
+
     if (semanticIntent.includes("calculate")) return "calculation";
     if (semanticIntent.includes("produce") || semanticIntent.includes("revise")) return "written_text";
     if (semanticIntent.includes("implement") || semanticIntent.includes("debug")) return "code";
@@ -347,22 +362,31 @@ window.AriUniversalConversationClassifier = {
 
     if (semanticDomain) {
       if (semanticDomain.includes("relationship") || semanticDomain.includes("family")) return "relationship_or_family";
-      if (semanticDomain.includes("health") || semanticDomain.includes("medical") || semanticDomain.includes("body")) return "medical_or_body";
-      if (semanticDomain.includes("animal")) return "animal_health_or_pet";
       if (semanticDomain.includes("builder") || semanticDomain.includes("code") || semanticDomain.includes("debug")) return "builder_or_system";
       if (semanticDomain.includes("writing")) return "writing";
       if (semanticDomain.includes("calculation") || semanticDomain.includes("math")) return "calculation";
       if (semanticDomain.includes("emotion")) return "emotion";
       if (semanticDomain.includes("memory")) return "memory";
+      if (semanticDomain.includes("health") || semanticDomain.includes("medical") || semanticDomain.includes("body")) return "medical_or_body";
+      if (semanticDomain.includes("animal") && !flags.relationshipStake?.present) return "animal_health_or_pet";
       if (semanticDomain.includes("general") || semanticDomain.includes("knowledge")) return "general_understanding";
     }
 
-    if (this.hasAny(text, ["cat", "dog", "pet", "kitten", "puppy", "vet", "flea", "tick"])) return "animal_health_or_pet";
-    if (this.hasAny(text, ["pain", "fever", "bleeding", "pregnant", "chest", "breathing", "faint", "vomit", "diarrhea", "swallow", "symptom"])) return "medical_or_body";
+    if (flags.relationshipStake?.present) return "relationship_or_family";
+    if (flags.workStake?.present) return "work_or_accountability";
+    if (flags.medicalStake?.present) return "medical_or_body";
+
+    if (
+      flags.animalStake?.present &&
+      !flags.relationshipStake?.present &&
+      !flags.workStake?.present &&
+      !flags.medicalStake?.present
+    ) {
+      return "animal_health_or_pet";
+    }
+
     if (this.hasAny(text, ["code", "bug", "debug", "github", "function", "engine", "pipeline", "file", "javascript"])) return "builder_or_system";
-    if (this.hasAny(text, ["wife", "husband", "spouse", "partner", "girlfriend", "boyfriend", "family", "kids", "children", "married"])) return "relationship_or_family";
     if (this.hasAny(text, ["money", "debt", "pay", "salary", "budget", "lease", "loan", "credit"])) return "financial";
-    if (this.hasAny(text, ["work", "job", "boss", "manager", "coworker", "leadership", "policy", "report"])) return "work_or_accountability";
     if (this.hasAny(text, ["rewrite", "write", "draft", "email", "essay", "paper"])) return "writing";
     if (this.hasAny(text, ["calculate", "convert", "percent", "how much"])) return "calculation";
 
@@ -392,7 +416,7 @@ window.AriUniversalConversationClassifier = {
       return "understanding";
     }
 
-    if (this.hasAny(text, ["i'm upset", "i feel", "i'm worried", "sad", "angry", "hurt"])) {
+    if (this.hasAny(text, ["i'm upset", "i feel", "i'm worried", "sad", "angry", "hurt", "burned out", "stressed", "overwhelmed"])) {
       return "emotional_attunement";
     }
 
@@ -445,12 +469,38 @@ window.AriUniversalConversationClassifier = {
       });
     }
 
+    if (
+      s.userNeed === "decision_or_action_guidance" ||
+      s.decisionStructure?.present
+    ) {
+      this.add(candidates, {
+        type: "decision_or_action_question",
+        intent: "decision_or_action_guidance",
+        score: 88,
+        responseHint: "Give a clear recommendation or next step.",
+        reasons: ["User is asking what action to take or weighing options."]
+      });
+    }
+
+    if (
+      s.domain === "relationship_or_family" &&
+      s.emotionalLoad?.present
+    ) {
+      this.add(candidates, {
+        type: "relationship_or_family_context",
+        intent: "relationship_context_support",
+        score: 89,
+        responseHint: "Support the relationship context while giving practical guidance.",
+        reasons: ["Relationship context and emotional load are both present."]
+      });
+    }
+
     if (s.domain === "animal_health_or_pet") {
       this.add(candidates, {
         type: "animal_health_or_pet_context",
         intent: "pet_health_support",
-        score: 92,
-        responseHint: "Treat as pet/animal health context.",
+        score: 76,
+        responseHint: "Treat as pet/animal health context only when animal evidence is strong.",
         reasons: ["Animal or pet context detected."]
       });
     }
@@ -524,7 +574,7 @@ window.AriUniversalConversationClassifier = {
       animal_health_or_pet: {
         type: "animal_health_or_pet_context",
         intent: "pet_health_support",
-        score: 92,
+        score: 76,
         reason: "Animal or pet context detected."
       },
       medical_or_body: {
@@ -542,7 +592,7 @@ window.AriUniversalConversationClassifier = {
       relationship_or_family: {
         type: "relationship_or_family_context",
         intent: "relationship_context_support",
-        score: 84,
+        score: 88,
         reason: "Close relationship or family context detected."
       },
       financial: {
@@ -607,6 +657,32 @@ window.AriUniversalConversationClassifier = {
           score += 12;
         }
 
+        if (
+          c.type === "animal_health_or_pet_context" &&
+          (
+            signals.relationshipStake?.present ||
+            signals.workStake?.present ||
+            signals.decisionStructure?.present
+          )
+        ) {
+          score -= 35;
+        }
+
+        if (
+          c.type === "relationship_or_family_context" &&
+          signals.relationshipStake?.present &&
+          signals.emotionalLoad?.present
+        ) {
+          score += 8;
+        }
+
+        if (
+          c.type === "decision_or_action_question" &&
+          signals.decisionStructure?.present
+        ) {
+          score += 6;
+        }
+
         score = Math.max(0, Math.min(100, score));
 
         return {
@@ -646,12 +722,46 @@ window.AriUniversalConversationClassifier = {
       this.hasType(observations, "family_reference");
 
     const tension =
-      this.hasAny(text, ["upset", "hurt", "argument", "mad", "cold feet", "rushing", "pressure", "trust", "lied"]);
+      this.hasAny(text, ["upset", "hurt", "argument", "arguing", "fight", "fighting", "mad", "cold feet", "rushing", "pressure", "trust", "lied", "communication"]);
 
     return {
       present,
       tension,
-      confidence: present ? (tension ? 0.86 : 0.74) : 0
+      confidence: present ? (tension ? 0.9 : 0.76) : 0
+    };
+  },
+
+  detectWorkStake(text, observations) {
+    const present =
+      this.hasAny(text, ["work", "job", "boss", "manager", "coworker", "leadership", "policy", "report", "shift", "night shift", "after work"]) ||
+      this.hasType(observations, "work_reference");
+
+    return {
+      present,
+      confidence: present ? 0.78 : 0
+    };
+  },
+
+  detectMedicalStake(text, observations) {
+    const present =
+      this.hasAny(text, ["pain", "fever", "bleeding", "pregnant", "chest", "breathing", "faint", "vomit", "diarrhea", "swallow", "symptom"]) ||
+      this.hasType(observations, "body_symptom");
+
+    return {
+      present,
+      confidence: present ? 0.82 : 0
+    };
+  },
+
+  detectAnimalStake(text, observations) {
+    const present =
+      this.hasAny(text, ["cat", "dog", "pet", "kitten", "puppy", "vet", "flea", "tick"]) ||
+      this.hasType(observations, "animal_reference") ||
+      this.hasType(observations, "pet_reference");
+
+    return {
+      present,
+      confidence: present ? 0.82 : 0
     };
   },
 
@@ -685,23 +795,23 @@ window.AriUniversalConversationClassifier = {
 
   detectEmotionalLoad(text, observations) {
     const present =
-      this.hasAny(text, ["upset", "hurt", "sad", "mad", "angry", "worried", "scared", "stressed", "overwhelmed"]) ||
+      this.hasAny(text, ["upset", "hurt", "sad", "mad", "angry", "worried", "scared", "stressed", "overwhelmed", "burned out", "burnout", "exhausted"]) ||
       this.hasType(observations, "emotion_word");
 
     return {
       present,
       intensity: present ? "low_to_moderate" : "none",
-      confidence: present ? 0.72 : 0
+      confidence: present ? 0.76 : 0
     };
   },
 
   detectDecisionStructure(text, observations) {
     const hasOptions =
-      this.hasAny(text, [" or ", "either", "option", "choose", "between"]) ||
+      this.hasAny(text, ["or", "either", "option", "choose", "between"]) ||
       this.hasType(observations, "contrast_or_tradeoff_connector");
 
     const hasActionAsk =
-      this.hasAny(text, ["what should", "should i", "what do i do", "next step", "best move"]);
+      this.hasAny(text, ["what should", "should i", "what do i do", "what do you think i should do", "next step", "best move"]);
 
     return {
       present: hasOptions || hasActionAsk,
@@ -754,7 +864,19 @@ window.AriUniversalConversationClassifier = {
 
   hasAny(text = "", terms = []) {
     const normalizedText = this.normalize(text);
-    return terms.some(term => normalizedText.includes(this.normalize(term)));
+
+    return terms.some(term => {
+      const normalizedTerm = this.normalize(term);
+      if (!normalizedTerm) return false;
+
+      const escaped = normalizedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+      if (!normalizedTerm.includes(" ")) {
+        return new RegExp(`\\b${escaped}\\b`, "i").test(normalizedText);
+      }
+
+      return normalizedText.includes(normalizedTerm);
+    });
   },
 
   normalize(value = "") {
