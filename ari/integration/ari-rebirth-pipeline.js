@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.6 — Mouth Planner Merge / Communication Planner Removed
+// V4.2.8 — Mouth Planner Merge / Communication Planner Removed
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.6",
+  version: "4.2.8",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -904,7 +904,9 @@ if (!developerResponseLocked) {
 
     // 1.20 AI Writer
 const hasKnowledgeSynthesisAnswer = false;
-
+const shouldSkipAIWriterForBlueprint =
+  !developerResponseLocked &&
+  String(summary.blueprintWriterDraft || "").trim().length > 0;
 const shouldBypassAIWriterForCharacter =
   summary.characterReasoning?.characterAnswerAvailable === true &&
   (
@@ -963,6 +965,25 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
 
   mark("after aiWriter");
 
+} else if (shouldSkipAIWriterForBlueprint) {
+  mark("before aiWriter");
+
+  summary = {
+    ...summary,
+    aiWriterRan: false,
+    aiWriterUsedAI: false,
+    aiWriterSource: "skipped_blueprint_writer_draft",
+    aiWriterDraft: summary.blueprintWriterDraft,
+    aiWriterBypassReason: "Blueprint Writer already produced a usable draft.",
+    aiWriter: {
+      aiWriterRan: false,
+      aiWriterUsedAI: false,
+      aiWriterSource: "skipped_blueprint_writer_draft",
+      draft: summary.blueprintWriterDraft
+    }
+  };
+  
+    mark("after aiWriter");
 } else if (!developerResponseLocked) {
   mark("before aiWriter");
 
