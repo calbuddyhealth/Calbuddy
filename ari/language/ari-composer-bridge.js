@@ -1,11 +1,11 @@
 // ari/language/ari-composer-bridge.js
 // Purpose: Build one clean composer packet from contract + downstream context.
-// V1.1.2 — Character Reasoning + Stable Preference Handoff
+// V1.1.3 — Character Reasoning + Stable Preference Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "1.1.2",
+  version: "1.1.3",
 
   build(summary = {}) {
     const contract = summary.situationContract || {};
@@ -348,6 +348,22 @@ knowledge: {
   retrievalPlan: summary.knowledgeRetrievalPlan || null,
   retrievalResults: summary.knowledgeRetrievalResults || []
 },
+
+knowledgeMeaning:
+  summary.knowledgeMeaning ||
+  summary.knowledgeSynthesis ||
+  null,
+
+knowledgeSynthesis:
+  summary.knowledgeSynthesis ||
+  summary.knowledgeMeaning ||
+  null,
+
+blueprintKnowledgeHandoff:
+  summary.blueprintKnowledgeHandoff ||
+  summary.knowledgeMeaning?.blueprintHandoff ||
+  summary.knowledgeSynthesis?.blueprintHandoff ||
+  null,
 
       aiWriter: {
         ran: summary.aiWriterRan === true,
