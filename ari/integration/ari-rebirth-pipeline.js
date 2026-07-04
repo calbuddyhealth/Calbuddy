@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.5 — Mouth Planner Merge / Communication Planner Removed
+// V4.2.6 — Mouth Planner Merge / Communication Planner Removed
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.5",
+  version: "4.2.6",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -903,9 +903,7 @@ if (!developerResponseLocked) {
 }
 
     // 1.20 AI Writer
-const hasKnowledgeSynthesisAnswer =
-  summary.knowledgeSynthesisUsable === true &&
-  String(summary.knowledgeSynthesisDraft || "").trim().length > 40;
+const hasKnowledgeSynthesisAnswer = false;
 
 const shouldBypassAIWriterForCharacter =
   summary.characterReasoning?.characterAnswerAvailable === true &&
@@ -1022,10 +1020,10 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
         ...summary,
         ...composerResult,
         finalResponse:
+  composerFinal ||
+  summary.blueprintWriterDraft ||
+  summary.aiWriterDraft ||
   summary.finalResponse ||
-composerFinal ||
-summary.blueprintWriterDraft ||
-summary.aiWriterDraft ||
   "I’m here, but Ari could not compose a final response."
       };
 
