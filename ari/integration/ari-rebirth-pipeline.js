@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.9 — Mouth Planner Merge / Communication Planner Removed
+// V4.3.0 — Candidate Drafts / Blueprint Quality Gate / AI Writer Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.9",
+  version: "4.3.0",
 
   async run(systemSummary = {}) {
     const debugTiming =
