@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.2.8 — Mouth Planner Merge / Communication Planner Removed
+// V4.2.9 — Mouth Planner Merge / Communication Planner Removed
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.2.8",
+  version: "4.2.9",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -906,7 +906,7 @@ if (!developerResponseLocked) {
 const hasKnowledgeSynthesisAnswer = false;
 const shouldSkipAIWriterForBlueprint =
   !developerResponseLocked &&
-  String(summary.blueprintWriterDraft || "").trim().length > 0;
+  this.isUsableBlueprintDraft(summary.blueprintWriterDraft, summary);
 const shouldBypassAIWriterForCharacter =
   summary.characterReasoning?.characterAnswerAvailable === true &&
   (
@@ -1707,6 +1707,30 @@ character:
     summary.threadState = threadState;
 
     return summary;
+  },
+
+  isUsableBlueprintDraft(draft = "", summary = {}) {
+    const text = String(draft || "").trim();
+
+    if (text.length < 20) return false;
+
+    const lower = text.toLowerCase();
+
+    const metaBad = [
+      "answer the direct question",
+      "explain only enough",
+      "don’t turn every answer",
+      "don't turn every answer",
+      "blueprint writer",
+      "the user is asking",
+      "the simplest way to think about it is"
+    ];
+
+    if (metaBad.some(phrase => lower.includes(phrase))) {
+      return false;
+    }
+
+    return true;
   },
 
   debugLog(summary = {}, reasoningResult = {}) {
