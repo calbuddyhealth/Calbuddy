@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.3.0 — Candidate Drafts / Blueprint Quality Gate / AI Writer Fallback
+// V4.3.1 — Candidate Drafts / Blueprint Quality Gate / AI Writer Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.3.0",
+  version: "4.3.1",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -911,9 +911,11 @@ summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
 
     // 1.20 AI Writer
 const hasKnowledgeSynthesisAnswer = false;
-const shouldSkipAIWriterForBlueprint =
-  !developerResponseLocked &&
-  this.isUsableBlueprintDraft(summary.blueprintWriterDraft, summary);
+const blueprintUsable = this.isUsableBlueprintDraft(
+  summary.blueprintWriterDraft,
+  summary
+);
+
 const shouldBypassAIWriterForCharacter =
   summary.characterReasoning?.characterAnswerAvailable === true &&
   (
@@ -921,11 +923,15 @@ const shouldBypassAIWriterForCharacter =
     summary.composerCharacter?.draft
   );
 
+const shouldRunAIWriter =
+  !developerResponseLocked &&
+  !blueprintUsable &&
+  !shouldBypassAIWriterForCharacter;
+
 if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
   mark("before aiWriter");
 
   const knowledgeDraft = summary.knowledgeSynthesisDraft;
-
   summary = {
     ...summary,
     finalResponse: knowledgeDraft,
@@ -979,26 +985,7 @@ summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
 
   mark("after aiWriter");
 
-} else if (shouldSkipAIWriterForBlueprint) {
-  mark("before aiWriter");
-
-  summary = {
-    ...summary,
-    aiWriterRan: false,
-    aiWriterUsedAI: false,
-    aiWriterSource: "skipped_blueprint_writer_draft",
-    aiWriterDraft: summary.blueprintWriterDraft,
-    aiWriterBypassReason: "Blueprint Writer already produced a usable draft.",
-    aiWriter: {
-      aiWriterRan: false,
-      aiWriterUsedAI: false,
-      aiWriterSource: "skipped_blueprint_writer_draft",
-      draft: summary.blueprintWriterDraft
-    }
-  };
-  
-    mark("after aiWriter");
-} else if (!developerResponseLocked) {
+} else if (shouldRunAIWriter) {
   mark("before aiWriter");
 
   const aiWriterResult =
@@ -1034,6 +1021,29 @@ summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
   mark("after aiWriter");
 }
 
+
+mark("before responseCandidateArbiter");
+
+const arbiterResult =
+  window.AriResponseCandidateArbiter?.choose
+    ? window.AriResponseCandidateArbiter.choose({
+        summary,
+        candidates: summary.candidateDrafts || []
+      })
+    : null;
+
+summary = {
+  ...summary,
+  ...(arbiterResult || {}),
+  selectedDraft:
+    arbiterResult?.selectedDraft ||
+    summary.aiWriterDraft ||
+    summary.blueprintWriterDraft ||
+    null
+};
+
+mark("after responseCandidateArbiter");
+
     // 1.30 V9 Composer
     if (!developerResponseLocked) {
       mark("before AriLanguageComposer");
@@ -1047,6 +1057,7 @@ summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
     ? await composerEngine.compose({
         composerPacket: {
   ...summary.composerPacket,
+  selectedDraft: summary.selectedDraft || null,
   blueprintWriterDraft: summary.blueprintWriterDraft || null,
   blueprintWriter: summary.blueprintWriter || null,
   aiWriterDraft: summary.aiWriterDraft || null,
@@ -1067,9 +1078,10 @@ summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
         ...composerResult,
         finalResponse:
   composerFinal ||
-summary.aiWriterDraft ||
-summary.blueprintWriterDraft ||
-summary.finalResponse ||
+  summary.selectedDraft ||
+  summary.aiWriterDraft ||
+  summary.blueprintWriterDraft ||
+  summary.finalResponse ||
   "I’m here, but Ari could not compose a final response."
       };
 
