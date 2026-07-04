@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response writer from sealed composerPacket only.
-// V9.2.6 — Blueprint Draft First / Supabase Knowledge Removed / No Stale History
+// V9.2.7 — Blueprint Draft First / Supabase Knowledge Removed / No Stale History
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.2.6",
+  version: "9.2.7",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -166,41 +166,41 @@ window.AriLanguageComposerV9 = {
   },
 
   getCurrentWriterDraft({ packet = {}, summary = {}, input = {} } = {}) {
-    const candidates = [
-      packet.blueprintWriterDraft,
-      summary.blueprintWriterDraft,
-      input.blueprintWriterDraft,
-      packet.blueprintWriter?.draft,
-      summary.blueprintWriter?.draft,
-      input.blueprintWriter?.draft,
+  const candidates = [
+    packet.blueprintWriterDraft,
+    summary.blueprintWriterDraft,
+    input.blueprintWriterDraft,
+    packet.blueprintWriter?.draft,
+    summary.blueprintWriter?.draft,
+    input.blueprintWriter?.draft,
 
-      packet.evidence?.aiWriter?.draft,
-      packet.aiWriterDraft,
-      summary.aiWriterDraft,
-      input.aiWriterDraft,
+    packet.evidence?.aiWriter?.draft,
+    packet.aiWriterDraft,
+    summary.aiWriterDraft,
+    input.aiWriterDraft
+  ];
 
-      packet.draft,
-      summary.draft,
-      input.draft,
-      summary.currentWriterOutput,
-      summary.writerOutput,
-      summary.languageBody,
-      summary.languageBodyOutput
-    ];
+  for (const candidate of candidates) {
+    const text = String(candidate || "").trim();
+    if (!text) continue;
+    if (this.isStaleOrWrongContextReply(text, packet)) continue;
+    return text;
+  }
 
-    for (const candidate of candidates) {
-      const text = String(candidate || "").trim();
-      if (!text) continue;
-      if (this.isStaleOrWrongContextReply(text, packet)) continue;
-      return text;
-    }
-
-    return "";
-  },
+  return "";
+},
 
   isStaleOrWrongContextReply(text = "", packet = {}) {
     const t = String(text || "").toLowerCase();
     const q = String(packet.userQuestion || "").toLowerCase();
+
+const diagnosticKnowledgePreview =
+  /^mode:\s*\w+/i.test(t) &&
+  t.includes("domain:") &&
+  t.includes("intent:") &&
+  t.includes("direct answer:");
+
+if (diagnosticKnowledgePreview) return true;
 
     const fileReply =
       t.includes("i read ") ||
