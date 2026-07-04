@@ -1036,10 +1036,10 @@ summary = {
   ...summary,
   ...(arbiterResult || {}),
   selectedDraft:
-    arbiterResult?.selectedDraft ||
-    summary.aiWriterDraft ||
-    summary.blueprintWriterDraft ||
-    null
+  arbiterResult?.selectedDraft ||
+  summary.aiWriterDraft ||
+  summary.blueprintWriterDraft ||
+  null
 };
 
 mark("after responseCandidateArbiter");
@@ -1074,16 +1074,16 @@ mark("after responseCandidateArbiter");
         null;
 
       summary = {
-        ...summary,
-        ...composerResult,
-        finalResponse:
-  composerFinal ||
-  summary.selectedDraft ||
-  summary.aiWriterDraft ||
-  summary.blueprintWriterDraft ||
-  summary.finalResponse ||
-  "I’m here, but Ari could not compose a final response."
-      };
+  ...summary,
+  ...composerResult,
+  finalResponse:
+    composerFinal ||
+    summary.selectedDraft ||
+    summary.blueprintWriterDraft ||
+    summary.aiWriterDraft ||
+    summary.finalResponse ||
+    "I’m here, but Ari could not compose a final response."
+};
 
       mark("after AriLanguageComposer");
     }
