@@ -1,11 +1,11 @@
 // ari/continuity/ari-conversation-meaning-history.js
 // Purpose: Preserve conversation meaning across turns without poisoning new topics.
-// V2.1.0 — Clean Meaning Ledger / Safe Inheritance / Topic Shift Protection
+// V2.1.1 — Clean Meaning Ledger / Safe Inheritance / Topic Shift Protection
 
 window.Ari = window.Ari || {};
 
 window.Ari.conversationMeaningHistory = {
-  version: "2.1.0",
+  version: "2.1.1",
   maxHistory: 16,
 
   build(summary = {}) {
@@ -207,7 +207,7 @@ window.Ari.conversationMeaningHistory = {
       resolved,
       openLoop: !resolved,
 
-      finalResponse: summary.finalResponse || null,
+      finalResponse: this.getSafeFinalResponse(summary),
       createdAt: new Date().toISOString()
     };
 
@@ -511,6 +511,38 @@ window.Ari.conversationMeaningHistory = {
       null
     );
   },
+
+getSafeFinalResponse(summary = {}) {
+  const candidates = [
+    summary.languageBody,
+    summary.languageSections?.[0],
+    summary.composerResult?.finalResponse,
+    summary.composerResult?.languageBody,
+    summary.blueprintWriterDraft,
+    summary.aiWriterDraft,
+    summary.finalResponse
+  ];
+
+  for (const candidate of candidates) {
+    const text = String(candidate || "").trim();
+    if (!text) continue;
+    if (this.isDiagnosticPreview(text)) continue;
+    return text;
+  }
+
+  return null;
+},
+
+isDiagnosticPreview(text = "") {
+  const t = String(text || "").toLowerCase();
+
+  return (
+    /^mode:\s*\w+/i.test(t) &&
+    t.includes("domain:") &&
+    t.includes("intent:") &&
+    t.includes("direct answer:")
+  );
+},
 
   makeTurnId() {
     return `turn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
