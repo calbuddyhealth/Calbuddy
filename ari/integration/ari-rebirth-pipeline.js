@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.3.1 — Candidate Drafts / Blueprint Quality Gate / AI Writer Fallback
+// V4.3.2 — Candidate Drafts / Blueprint Quality Gate / AI Writer Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.3.1",
+  version: "4.3.2",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -1079,8 +1079,8 @@ mark("after responseCandidateArbiter");
   finalResponse:
     composerFinal ||
     summary.selectedDraft ||
-    summary.blueprintWriterDraft ||
     summary.aiWriterDraft ||
+    summary.blueprintWriterDraft ||
     summary.finalResponse ||
     "I’m here, but Ari could not compose a final response."
 };
