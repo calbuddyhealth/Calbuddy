@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.6.8 — Blueprint Writer Loaded
+// V1.6.9 — Blueprint Writer Loaded
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.6.8",
+version: "1.6.9",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -389,23 +389,31 @@ return this.makeResponse({
   },
 
   extractReply(summary = {}) {
-  return this.cleanReply(
-    summary.finalResponse ||
-      summary.compressedResponse ||
-      summary.languageBody ||
-      summary.languageBodyOutput ||
-      (summary.developerResponseLocked ? summary.developerHandoff?.reply : null) ||
-(summary.developerResponseLocked ? summary.developerHandoff?.finalResponse : null) ||
-(summary.developerResponseLocked ? summary.developerIntent?.reply : null) ||
-      summary.languageComposerOutput ||
-      summary.response ||
-      summary.answer ||
-      summary.situationContract?.clarity?.question ||
-      summary.synthesisRecommendedQuestion ||
-      summary.salienceQuestion ||
-      summary.recommendedRecoveryQuestion ||
-      "I heard you, but I need a cleaner response path."
-  );
+  const candidates = [
+    summary.finalResponse,
+    summary.compressedResponse,
+    summary.languageBody,
+    summary.languageBodyOutput,
+    summary.developerResponseLocked ? summary.developerHandoff?.reply : null,
+    summary.developerResponseLocked ? summary.developerHandoff?.finalResponse : null,
+    summary.developerResponseLocked ? summary.developerIntent?.reply : null,
+    summary.languageComposerOutput,
+    summary.response,
+    summary.answer,
+    summary.situationContract?.clarity?.question,
+    summary.synthesisRecommendedQuestion,
+    summary.salienceQuestion,
+    summary.recommendedRecoveryQuestion
+  ];
+
+  for (const candidate of candidates) {
+    const text = String(candidate || "").trim();
+    if (!text) continue;
+    if (this.isDiagnosticPreview(text)) continue;
+    return this.cleanReply(text);
+  }
+
+  return "I heard you, but I need a cleaner response path.";
 },
 
     extractFileEvidenceReply(summary = {}) {
@@ -589,6 +597,17 @@ return this.makeResponse({
       ...matches.map(item => `Line ${item.line}: ${item.text.trim()}`)
     ].join("\n");
   },
+
+isDiagnosticPreview(text = "") {
+  const t = String(text || "").toLowerCase();
+
+  return (
+    /^mode:\s*\w+/i.test(t) &&
+    t.includes("domain:") &&
+    t.includes("intent:") &&
+    t.includes("direct answer:")
+  );
+},
 
   cleanReply(reply) {
     const text = String(reply || "").trim();
