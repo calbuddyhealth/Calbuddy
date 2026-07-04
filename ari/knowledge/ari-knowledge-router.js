@@ -119,6 +119,16 @@ knowledgeApiTiming: best.timing || null,
   },
 
   buildPlan(summary = {}, question = "", requires = {}) {
+    if (this.canAnswerWithBlueprintOnly(summary, question, requires)) {
+  return {
+    shouldRetrieve: false,
+    reason: "Simple teacher explanation can be answered by Blueprint Writer without Supabase retrieval.",
+    primaryCore: null,
+    secondaryCores: [],
+    searchOrder: [],
+    sources: []
+  };
+}
     const coreRoute = this.routeCores(summary, question, requires);
 if (
   (requires.knowledgeGraph === true ||
@@ -736,6 +746,31 @@ shouldBlockKnowledgeForEmotionalSupport(summary = {}, question = "") {
 
   return upstreamSaysPresenceFirst && !upstreamExplicitlyNeedsKnowledge;
 },
+  
+  canAnswerWithBlueprintOnly(summary = {}, question = "", requires = {}) {
+  const text = this.normalizeText(question);
+
+  const primary =
+    summary.situationContractPrimary ||
+    summary.primaryLane ||
+    summary.triagePrimaryLane ||
+    summary.triage?.primaryLane ||
+    "";
+
+  const isSimpleTeacher =
+    primary === "teacher" &&
+    text.length < 120 &&
+    /\b(does|is|are|can|why|how|what)\b/.test(text);
+
+  const needsHighAccuracy =
+    requires.liveVerification === true ||
+    requires.systemKnowledge === true ||
+    requires.userMemory === true ||
+    /\b(current|latest|today|price|law|policy|diagnosis|medication|dose|pregnant|bleeding|chest pain|emergency|github|code|file|supabase)\b/.test(text);
+
+  return isSimpleTeacher && !needsHighAccuracy;
+},
+  
   legacyShouldUseKnowledge(summary = {}, question = "", coreRoute = {}, requires = {}) {
   const lower = String(question || "").toLowerCase();
 
