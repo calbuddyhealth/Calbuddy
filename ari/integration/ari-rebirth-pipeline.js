@@ -899,6 +899,13 @@ if (!developerResponseLocked) {
       null
   };
 
+summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
+  source: "blueprint_writer",
+  text: summary.blueprintWriterDraft,
+  priority: 60,
+  usable: this.isUsableBlueprintDraft(summary.blueprintWriterDraft, summary)
+});
+
   mark("after blueprintWriter");
 }
 
@@ -935,6 +942,13 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
       draft: knowledgeDraft
     }
   };
+
+summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
+  source: "ai_writer",
+  text: summary.aiWriterDraft,
+  priority: 80,
+  usable: Boolean(String(summary.aiWriterDraft || "").trim())
+});
 
   mark("after aiWriter");
 
@@ -993,7 +1007,8 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
           composerPacket: {
   ...summary.composerPacket,
   blueprintWriterDraft: summary.blueprintWriterDraft || null,
-  blueprintWriter: summary.blueprintWriter || null
+  blueprintWriter: summary.blueprintWriter || null,
+  candidateDrafts: summary.candidateDrafts || []
 },
           summary
         })
@@ -1008,6 +1023,13 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
       aiWriterResult.aiWriterDraft ||
       null
   };
+
+summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
+  source: "ai_writer",
+  text: summary.aiWriterDraft,
+  priority: 80,
+  usable: Boolean(String(summary.aiWriterDraft || "").trim())
+});
 
   mark("after aiWriter");
 }
@@ -1024,10 +1046,13 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
   composerEngine?.compose
     ? await composerEngine.compose({
         composerPacket: {
-          ...summary.composerPacket,
-          blueprintWriterDraft: summary.blueprintWriterDraft || null,
-          blueprintWriter: summary.blueprintWriter || null
-        },
+  ...summary.composerPacket,
+  blueprintWriterDraft: summary.blueprintWriterDraft || null,
+  blueprintWriter: summary.blueprintWriter || null,
+  aiWriterDraft: summary.aiWriterDraft || null,
+  aiWriter: summary.aiWriter || null,
+  candidateDrafts: summary.candidateDrafts || []
+},
         summary
       })
     : {};
@@ -1042,9 +1067,9 @@ if (!developerResponseLocked && hasKnowledgeSynthesisAnswer) {
         ...composerResult,
         finalResponse:
   composerFinal ||
-  summary.blueprintWriterDraft ||
-  summary.aiWriterDraft ||
-  summary.finalResponse ||
+summary.aiWriterDraft ||
+summary.blueprintWriterDraft ||
+summary.finalResponse ||
   "I’m here, but Ari could not compose a final response."
       };
 
@@ -1708,6 +1733,20 @@ character:
 
     return summary;
   },
+
+addCandidateDraft(existing = [], candidate = {}) {
+  const text = String(candidate.text || "").trim();
+  if (!text) return Array.isArray(existing) ? existing : [];
+
+  return [
+    ...(Array.isArray(existing) ? existing : []),
+    {
+      ...candidate,
+      text,
+      createdAt: Date.now()
+    }
+  ];
+},
 
   isUsableBlueprintDraft(draft = "", summary = {}) {
     const text = String(draft || "").trim();
