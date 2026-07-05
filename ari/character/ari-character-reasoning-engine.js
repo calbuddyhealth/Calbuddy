@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.9 — Exact Supabase Preference Trust / Generic Favorite Composer
+// V1.2.0 — Exact Supabase Preference Trust / Generic Favorite Composer
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.9",
+  version: "1.2.0",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -240,18 +240,22 @@ window.AriCharacterReasoningEngine = {
       .trim();
   },
 
-  buildValuesInferenceAnswer({ text = "", focus = "", expression = null } = {}) {
+    buildValuesInferenceAnswer({ text = "", focus = "", expression = null } = {}) {
     const inferred = this.inferUnknownPreference(text);
 
     return this.buildCharacterResult({
       type: "character_values_inference",
-      focus: focus || "inferred_character_answer",
+      focus: focus || inferred.preferenceSubject || "inferred_character_answer",
       source: "ari-character-reasoning-engine",
       confidence: "medium",
       answer: inferred.answer,
       reasoning: inferred.reasoning,
-      userFacingDraft: inferred.draft,
-      expression
+      userFacingDraft: "",
+      expression,
+      needsAIWriter: true,
+      aiWriterMode: "constitution_based_preference_inference",
+      aiInstruction: inferred.aiInstruction,
+      preferenceSubject: inferred.preferenceSubject
     });
   },
 
@@ -259,24 +263,27 @@ window.AriCharacterReasoningEngine = {
     const clean = String(text || "").toLowerCase();
 
     const favoriteMatch =
-      clean.match(/favorite\s+([a-z\s]+?)(\?|$)/i) ||
-      clean.match(/favorite\s+kind\s+of\s+([a-z\s]+?)(\?|$)/i);
+      clean.match(/favorite\s+(.+?)(\?|$)/i) ||
+      clean.match(/like\s+to\s+(.+?)(\?|$)/i);
 
     const subject = favoriteMatch?.[1]
-      ? favoriteMatch[1].replace(/\b(is|are|do|you|your)\b/g, "").trim()
+      ? favoriteMatch[1]
+          .replace(/\b(is|are|do|you|your|thing|kind of|type of)\b/g, "")
+          .trim()
       : "";
 
     const label = subject || "that";
 
     return {
-      answer: `values-based inferred preference for ${label}`,
+      preferenceSubject: label,
+      answer: `constitution-based inferred preference for ${label}`,
       reasoning:
-        "No exact stored preference matched, so Ari inferred from values: steadiness, honesty, usefulness, warmth, dignity, growth, and quiet meaning.",
-      draft:
-        `I don’t have a fixed favorite ${label} stored yet. But if I answer from my values, I’d choose something steady, honest, useful, and quietly meaningful — something with substance over flash.`
+        "No exact stored preference matched. Ari should answer briefly from her constitution and values without claiming the preference is fixed.",
+      aiInstruction:
+        `Ari does not know her fixed preference for ${label} yet. Answer briefly and naturally from Ari's constitution: truth, dignity, wisdom, compassion, strength, humility, growth, service, realistic hope, usefulness, warmth, and grounded honesty. Start with “I don’t know yet, but I think...” or similar. Do not say “stored,” “fixed favorite,” “from my values,” or mention internal systems. Keep it one or two sentences.`
     };
   },
-
+  
   buildPreferenceAnswer({
     text = "",
     focus = "",
@@ -519,6 +526,10 @@ window.AriCharacterReasoningEngine = {
     uncertainty = "",
     userFacingDraft = "",
     expression = null,
+        needsAIWriter = false,
+    aiWriterMode = null,
+    aiInstruction = "",
+    preferenceSubject = null,
     characterKnowledge = null
   } = {}) {
     return {
@@ -537,7 +548,10 @@ window.AriCharacterReasoningEngine = {
       userFacingDraft,
       expression,
       characterKnowledge,
-
+      needsAIWriter,
+      aiWriterMode,
+      aiInstruction,
+      preferenceSubject,
       composerHints: {
         useCharacterDraftAsEvidence: true,
         mayRewriteNaturally: true,
