@@ -771,7 +771,100 @@ merge(await runEngine(
 
 mark("after knowledgeMeaningInterpreter");
 
-    // 0.85 Lexical Grounding
+
+// 0.845 Language Understanding
+mark("before languageUnderstanding");
+const languageUnderstandingResult = await runEngine(
+  window.AriLanguageUnderstandingEngine || window.Ari?.languageUnderstandingEngine,
+  ["understand", "analyze"],
+  { languageUnderstandingRan: false, usable: false, source: "not-loaded" }
+);
+
+summary = {
+  ...summary,
+  ...languageUnderstandingResult,
+  languageUnderstanding: languageUnderstandingResult
+};
+mark("after languageUnderstanding");
+
+// 0.846 Semantic Understanding
+mark("before semanticUnderstanding");
+const semanticUnderstandingResult = await runEngine(
+  window.AriSemanticUnderstandingEngine || window.Ari?.semanticUnderstandingEngine,
+  ["understand", "analyze"],
+  { semanticUnderstandingRan: false, usable: false, source: "not-loaded" }
+);
+
+summary = {
+  ...summary,
+  ...semanticUnderstandingResult,
+  semanticUnderstanding: semanticUnderstandingResult
+};
+mark("after semanticUnderstanding");
+
+// 0.847 Event Understanding
+mark("before eventUnderstanding");
+const eventUnderstandingResult = await runEngine(
+  window.AriEventUnderstandingEngine || window.Ari?.eventUnderstandingEngine,
+  ["understand"],
+  { eventUnderstandingRan: false, usable: false, source: "not-loaded" }
+);
+
+summary = {
+  ...summary,
+  ...eventUnderstandingResult,
+  eventUnderstanding: eventUnderstandingResult
+};
+mark("after eventUnderstanding");
+
+// 0.848 Meaning Interpreter
+mark("before meaningInterpreter");
+const meaningInterpretationResult = await runEngine(
+  window.AriMeaningInterpreter || window.Ari?.meaningInterpreter,
+  ["interpret"],
+  { meaningInterpreterRan: false, usable: false, source: "not-loaded" }
+);
+
+summary = {
+  ...summary,
+  ...meaningInterpretationResult,
+  meaningInterpretation: meaningInterpretationResult
+};
+mark("after meaningInterpreter");
+
+// 0.849 Human State Builder
+mark("before humanStateBuilder");
+const humanStateResult = await runEngine(
+  window.AriHumanStateBuilder || window.Ari?.humanStateBuilder,
+  ["build"],
+  { humanStateBuilderRan: false, usable: false, source: "not-loaded" }
+);
+
+summary = {
+  ...summary,
+  ...humanStateResult,
+  humanState: humanStateResult
+};
+mark("after humanStateBuilder");
+
+// 0.850 Response Planner
+mark("before responsePlanner");
+const responsePlannerResult = await runEngine(
+  window.AriResponsePlanner || window.Ari?.responsePlanner,
+  ["plan"],
+  { responsePlannerRan: false, usable: false, source: "not-loaded" }
+);
+
+summary = {
+  ...summary,
+  ...responsePlannerResult,
+  ariResponsePlan: responsePlannerResult,
+  understandingResponsePlan: responsePlannerResult
+};
+
+mark("after responsePlanner");
+
+    // 0.851 Lexical Grounding
     mark("before lexicalGrounding");
     merge(await runEngine(
       window.AriLexicalGroundingEngine,
@@ -1315,7 +1408,17 @@ blueprintHint:
         summary.mouthDirector ||
         null,
 
+meaningInterpretation:
+  summary.meaningInterpretation || null,
 
+humanState:
+  summary.humanState || null,
+
+responsePlan:
+  summary.ariResponsePlan ||
+  summary.understandingResponsePlan ||
+  summary.responsePlan ||
+  null,
 
       communicationPlan:
         summary.communicationPlan || null,
@@ -1801,8 +1904,14 @@ addCandidateDraft(existing = [], candidate = {}) {
     console.log("===== KNOWLEDGE ROUTER =====", summary.knowledgeRouter);
     console.log("===== KNOWLEDGE MEANING INTERPRETER =====", summary.knowledgeMeaning);
     console.log("===== REASONING =====", reasoningResult);
-    console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile);
+    console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile); 
     console.log("===== EXPRESSION PLAN =====", summary.expressionPlan);
+console.log("===== LANGUAGE UNDERSTANDING =====", summary.languageUnderstanding);
+console.log("===== SEMANTIC UNDERSTANDING =====", summary.semanticUnderstanding);
+console.log("===== EVENT UNDERSTANDING =====", summary.eventUnderstanding);
+console.log("===== MEANING INTERPRETER =====", summary.meaningInterpretation);
+console.log("===== HUMAN STATE =====", summary.humanState);
+console.log("===== RESPONSE PLANNER =====", summary.ariResponsePlan);
 console.log("===== BLUEPRINT HINT =====", summary.blueprintHint);
 console.log("===== MOUTH DIRECTOR =====", summary.mouthDirector);
     console.log("===== COMPOSER PACKET =====", summary.composerPacket);
