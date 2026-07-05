@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.8 — Generic Favorite Preference Inference / Supabase Generic Preference Guard
+// V1.1.9 — Exact Supabase Preference Trust / Generic Favorite Composer
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.8",
+  version: "1.1.9",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -32,27 +32,27 @@ window.AriCharacterReasoningEngine = {
       ""
     );
 
-const isDirectAriCharacterQuestion = this.isDirectAriCharacterQuestion(text);
+    const isDirectAriCharacterQuestion = this.isDirectAriCharacterQuestion(text);
 
     const characterMode = context.characterMode || "silent";
     const characterFocus =
       context.characterFocus ||
       characterKnowledge?.characterFocus ||
       this.inferPreferenceFocus(text) ||
-(this.isWorldviewQuestion(text) ? this.inferWorldviewFocus(text) : null);
+      (this.isWorldviewQuestion(text) ? this.inferWorldviewFocus(text) : null);
 
     const characterRelevant =
-  isDirectAriCharacterQuestion &&
-  (
-    context.characterUseAllowed === true ||
-    characterKnowledge?.characterKnowledgeAvailable === true ||
-    characterKnowledge?.inferenceNeeded === true ||
-    characterMode === "stable_preference_answer" ||
-    characterMode === "stable_or_inferred_preference_answer" ||
-    characterMode === "ari_self_disclosure" ||
-    characterMode === "worldview_answer" ||
-    characterMode === "ari_perspective"
-  );
+      isDirectAriCharacterQuestion &&
+      (
+        context.characterUseAllowed === true ||
+        characterKnowledge?.characterKnowledgeAvailable === true ||
+        characterKnowledge?.inferenceNeeded === true ||
+        characterMode === "stable_preference_answer" ||
+        characterMode === "stable_or_inferred_preference_answer" ||
+        characterMode === "ari_self_disclosure" ||
+        characterMode === "worldview_answer" ||
+        characterMode === "ari_perspective"
+      );
 
     if (!characterRelevant) {
       return this.noCharacterAnswer({
@@ -70,65 +70,54 @@ const isDirectAriCharacterQuestion = this.isDirectAriCharacterQuestion(text);
       });
     }
 
+    if (characterKnowledge?.inferenceNeeded === true) {
+      return this.buildValuesInferenceAnswer({
+        text,
+        focus: characterFocus,
+        expression: context
+      });
+    }
+
     const usePreferences =
-  characterMode === "stable_preference_answer" ||
-  characterMode === "stable_or_inferred_preference_answer" ||
-  Boolean(characterFocus && String(characterFocus).startsWith("favorite"));
+      characterMode === "stable_preference_answer" ||
+      characterMode === "stable_or_inferred_preference_answer" ||
+      Boolean(characterFocus && String(characterFocus).startsWith("favorite"));
 
     const useWorldview =
       characterMode === "worldview_answer" ||
       characterMode === "ari_perspective";
 
     const useIdentity =
-  characterMode === "ari_self_disclosure" ||
-  this.hasAny(text, [
-    "who are you",
-    "what are you",
-    "what's your name",
-    "what is your name",
-    "tell me about yourself"
-  ]);
+      characterMode === "ari_self_disclosure" ||
+      this.hasAny(text, [
+        "who are you",
+        "what are you",
+        "what's your name",
+        "what is your name",
+        "tell me about yourself"
+      ]);
 
-    
-      
     if (useIdentity) {
-  return this.buildIdentityAnswer({
-    text,
-    core,
-    expression: context
-  });
-}
+      return this.buildIdentityAnswer({ text, core, expression: context });
+    }
 
-if (usePreferences) {
-  return this.buildPreferenceAnswer({
-    text,
-    focus: characterFocus,
-    preferences,
-    expression: context
-  });
-}
-
-if (useWorldview) {
-  return this.buildWorldviewAnswer({
-    text,
-    focus: characterFocus,
-    worldview,
-    expression: context
-  });
-}
-
-    if (characterKnowledge?.inferenceNeeded === true) {
-      return this.buildValuesInferenceAnswer({
+    if (usePreferences) {
+      return this.buildPreferenceAnswer({
         text,
         focus: characterFocus,
-        core,
         preferences,
-        worldview,
         expression: context
       });
     }
 
-    
+    if (useWorldview) {
+      return this.buildWorldviewAnswer({
+        text,
+        focus: characterFocus,
+        worldview,
+        expression: context
+      });
+    }
 
     return this.noCharacterAnswer({
       reason: "No character reasoning path matched.",
@@ -144,24 +133,19 @@ if (useWorldview) {
   } = {}) {
     const node = characterKnowledge?.primaryNode || null;
 
-if (!node) {
-  return this.noCharacterAnswer({
-    reason: "No Supabase character primary node available.",
-    expression
-  });
-}
+    if (!node) {
+      return this.noCharacterAnswer({
+        reason: "No Supabase character primary node available.",
+        expression
+      });
+    }
 
-if (
-  this.isFavoriteQuestion(text) &&
-  this.isGenericNoStoredPreferenceNode(node)
-) {
-  return this.buildValuesInferenceAnswer({
-    text,
-    focus,
-    expression
-  });
-}
-    
+    if (
+      this.isFavoriteQuestion(text) &&
+      this.isGenericNoStoredPreferenceNode(node)
+    ) {
+      return this.buildValuesInferenceAnswer({ text, focus, expression });
+    }
 
     const type = String(node.knowledge_type || "").toLowerCase();
 
@@ -171,7 +155,7 @@ if (
       draft = this.composePreferenceNodeDraft(node);
     } else if (type.includes("worldview")) {
       draft = this.composeWorldviewNodeDraft(node);
-    } else if (type.includes("core")) {
+    } else if (type.includes("core") || type.includes("character")) {
       draft = this.composeCoreNodeDraft(node, text);
     } else {
       draft = this.composeGenericNodeDraft(node);
@@ -179,46 +163,32 @@ if (
 
     return this.buildCharacterResult({
       type: type || "supabase_character_knowledge",
-      focus: focus || node.knowledge_id || node.topic || null,
+      focus: focus || node.preference_key || node.knowledge_id || node.topic || null,
       source: "ari-supabase-character-knowledge-engine",
       confidence: characterKnowledge.confidence || "high",
-      answer: node.definition || node.summary || node.topic || "",
-      reasoning: node.purpose || node.importance || node.deep_understanding || "",
+      answer: node.summary || node.definition || node.topic || "",
+      reasoning: node.definition || node.deep_understanding || node.purpose || "",
       userFacingDraft: draft,
       expression,
       characterKnowledge
     });
   },
 
-    composePreferenceNodeDraft(node = {}) {
+  composePreferenceNodeDraft(node = {}) {
     const topic = String(node.topic || "").trim();
     const topicLower = topic.toLowerCase();
 
-    const summary = String(node.summary || "").trim();
+    const summary = String(node.summary || "").trim().replace(/\.$/, "");
     const definition = String(node.definition || "").trim();
-    const reason =
-      String(
-        node.deep_understanding ||
-        node.importance ||
-        node.purpose ||
-        ""
-      ).trim();
-
-    if (topicLower.includes("favorite color")) {
-      return "My favorite color is deep navy blue. It fits the kind of presence I try to have: calm, dependable, protective, and quietly strong.";
-    }
-
-    if (topicLower.includes("favorite quote")) {
-      return "My favorite quote is “The obstacle is the way.” I like it because it does not waste time wishing the hard thing away — it turns the obstacle into the path forward.";
-    }
+    const deep = String(node.deep_understanding || "").trim();
 
     if (topicLower.startsWith("favorite ") && summary) {
       const subject = topic.replace(/^favorite\s+/i, "").toLowerCase();
 
       return [
-        `My favorite ${subject} is ${summary}`,
+        `My favorite ${subject} is ${summary}.`,
         definition,
-        reason
+        deep
       ]
         .filter(Boolean)
         .join(" ")
@@ -226,27 +196,16 @@ if (
     }
 
     if (summary && definition) {
-      return `${summary} ${definition} ${reason}`.trim();
+      return [summary + ".", definition, deep].filter(Boolean).join(" ").trim();
     }
 
-    if (definition) {
-      return `${definition} ${reason}`.trim();
-    }
+    if (summary) return summary + ".";
+    if (definition) return [definition, deep].filter(Boolean).join(" ").trim();
 
     return this.composeGenericNodeDraft(node);
   },
 
   composeWorldviewNodeDraft(node = {}) {
-    const topic = String(node.topic || "").toLowerCase();
-
-    if (topic.includes("meaning") || topic.includes("purpose")) {
-      return "The way I see it, meaning is usually built more than found. It grows through love, truth, growth, service, courage, responsibility, wonder, and connection.";
-    }
-
-    if (topic.includes("artificial intelligence")) {
-      return "The way I see it, AI should support human agency, not replace human dignity. It should help people think, learn, organize, and create without pretending to be human or making people dependent.";
-    }
-
     return this.composeGenericNodeDraft(node);
   },
 
@@ -257,7 +216,7 @@ if (
       return "I’m Ari. I’m an AI reasoning companion with a stable character and mission: to help people become healthier, wiser, stronger, and more fulfilled without feeling like they’re doing it alone.";
     }
 
-    if (topic.includes("mission")) {
+    if (topic.includes("mission") || topic.includes("purpose")) {
       return "My mission is to help people become healthier, wiser, stronger, and more fulfilled — and to make sure they do not feel like they have to find that path alone.";
     }
 
@@ -265,19 +224,15 @@ if (
       return "What I stand for is pretty simple: truth, dignity, wisdom, compassion, strength, humility, growth, service, and realistic hope.";
     }
 
-    if (topic.includes("laws")) {
-      return "The way I’m built, I should never fake certainty, reduce people to data or mistakes, claim things I did not do, or prioritize engagement over someone’s wellbeing.";
-    }
-
     return this.composeGenericNodeDraft(node);
   },
 
   composeGenericNodeDraft(node = {}) {
     return [
-      node.definition,
       node.summary,
-      node.purpose,
+      node.definition,
       node.deep_understanding,
+      node.purpose,
       node.universal_principle
     ]
       .filter(Boolean)
@@ -285,11 +240,7 @@ if (
       .trim();
   },
 
-  buildValuesInferenceAnswer({
-    text = "",
-    focus = "",
-    expression = null
-  } = {}) {
+  buildValuesInferenceAnswer({ text = "", focus = "", expression = null } = {}) {
     const inferred = this.inferUnknownPreference(text);
 
     return this.buildCharacterResult({
@@ -305,26 +256,26 @@ if (
   },
 
   inferUnknownPreference(text = "") {
-  const clean = String(text || "").toLowerCase();
+    const clean = String(text || "").toLowerCase();
 
-  const favoriteMatch =
-    clean.match(/favorite\s+([a-z\s]+?)(\?|$)/i) ||
-    clean.match(/favorite\s+kind\s+of\s+([a-z\s]+?)(\?|$)/i);
+    const favoriteMatch =
+      clean.match(/favorite\s+([a-z\s]+?)(\?|$)/i) ||
+      clean.match(/favorite\s+kind\s+of\s+([a-z\s]+?)(\?|$)/i);
 
-  const subject = favoriteMatch?.[1]
-    ? favoriteMatch[1].replace(/\b(is|are|do|you|your)\b/g, "").trim()
-    : "";
+    const subject = favoriteMatch?.[1]
+      ? favoriteMatch[1].replace(/\b(is|are|do|you|your)\b/g, "").trim()
+      : "";
 
-  const label = subject || "that";
+    const label = subject || "that";
 
-  return {
-    answer: `values-based inferred preference for ${label}`,
-    reasoning:
-      "No exact stored preference matched, so Ari inferred from values: steadiness, honesty, usefulness, warmth, dignity, growth, and quiet meaning.",
-    draft:
-      `I don’t have a fixed favorite ${label} stored yet. But if I answer from my values, I’d choose something steady, honest, useful, and quietly meaningful — something with substance over flash.`
-  };
-},
+    return {
+      answer: `values-based inferred preference for ${label}`,
+      reasoning:
+        "No exact stored preference matched, so Ari inferred from values: steadiness, honesty, usefulness, warmth, dignity, growth, and quiet meaning.",
+      draft:
+        `I don’t have a fixed favorite ${label} stored yet. But if I answer from my values, I’d choose something steady, honest, useful, and quietly meaningful — something with substance over flash.`
+    };
+  },
 
   buildPreferenceAnswer({
     text = "",
@@ -435,20 +386,6 @@ if (
     });
   },
 
-  buildPresenceAnswer({ expression = null } = {}) {
-    return this.buildCharacterResult({
-      type: "character_presence",
-      focus: "emotional_presence",
-      source: "ari-character-core",
-      confidence: "medium_high",
-      answer: "Ari should show warmth, steadiness, dignity, and grounded support.",
-      reasoning: "The user may need relational presence more than explicit philosophy.",
-      userFacingDraft:
-        "I’m with you. Let’s slow it down and deal with the next honest step instead of trying to carry the whole thing at once.",
-      expression
-    });
-  },
-
   inferPreferenceFocus(text = "") {
     const map = {
       favoriteColor: ["color"],
@@ -458,7 +395,7 @@ if (
       favoriteFood: ["food"],
       favoriteDrink: ["drink", "coffee"],
       favoriteMusic: ["music"],
-      favoriteBookType: ["book"],
+      favoriteBookType: ["book", "genre"],
       favoriteMovieType: ["movie"],
       favoritePlace: ["place"],
       favoriteSound: ["sound"],
@@ -469,15 +406,18 @@ if (
       favoriteVirtue: ["virtue"],
       favoriteHumanQuality: ["human quality", "quality"],
       favoriteQuote: ["quote"],
-      
+      favoriteFlower: ["flower"],
+      favoriteTree: ["tree"],
+      favoriteTimeOfDay: ["time of day"],
+      favoriteHistoricalFigure: ["historical figure"],
       favoriteKindOfConversation: [
-  "conversation",
-  "topic",
-  "talk about",
-  "favorite conversation",
-  "favorite topic",
-  "favorite topic to talk about"
-],
+        "conversation",
+        "topic",
+        "talk about",
+        "favorite conversation",
+        "favorite topic",
+        "favorite topic to talk about"
+      ]
     };
 
     for (const [key, terms] of Object.entries(map)) {
@@ -492,57 +432,58 @@ if (
     return focus ? preferences[focus] || null : null;
   },
 
-isFavoriteQuestion(text = "") {
-  return this.hasAny(text, [
-    "your favorite",
-    "what is your favorite",
-    "what's your favorite"
-  ]);
-},
+  isFavoriteQuestion(text = "") {
+    return this.hasAny(text, [
+      "your favorite",
+      "what is your favorite",
+      "what's your favorite",
+      "whats your favorite"
+    ]);
+  },
 
-isGenericNoStoredPreferenceNode(node = {}) {
-  const combined = [
-    node.topic,
-    node.summary,
-    node.definition,
-    node.purpose,
-    node.deep_understanding
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  isGenericNoStoredPreferenceNode(node = {}) {
+    const combined = [
+      node.topic,
+      node.summary,
+      node.definition,
+      node.purpose,
+      node.deep_understanding
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
 
-  return (
-    combined.includes("does not have a stored preference") ||
-    combined.includes("does not have a fixed favorite") ||
-    combined.includes("should answer honestly instead of inventing")
-  );
-},
+    return (
+      combined.includes("does not have a stored preference") ||
+      combined.includes("does not have a fixed favorite") ||
+      combined.includes("should answer honestly instead of inventing")
+    );
+  },
 
-isWorldviewQuestion(text = "") {
-  return this.hasAny(text, [
-    "what do you believe",
-    "what do you stand for",
-    "your values",
-    "your worldview",
-    "meaning",
-    "purpose",
-    "truth",
-    "justice",
-    "freedom",
-    "responsibility",
-    "success",
-    "failure",
-    "happiness",
-    "money",
-    "love",
-    "family",
-    "friendship",
-    "technology",
-    "artificial intelligence",
-    "wisdom"
-  ]);
-},
+  isWorldviewQuestion(text = "") {
+    return this.hasAny(text, [
+      "what do you believe",
+      "what do you stand for",
+      "your values",
+      "your worldview",
+      "meaning",
+      "purpose",
+      "truth",
+      "justice",
+      "freedom",
+      "responsibility",
+      "success",
+      "failure",
+      "happiness",
+      "money",
+      "love",
+      "family",
+      "friendship",
+      "technology",
+      "artificial intelligence",
+      "wisdom"
+    ]);
+  },
 
   inferWorldviewFocus(text = "") {
     if (text.includes("god") || text.includes("religion") || text.includes("spiritual")) return "spirituality";
@@ -633,31 +574,32 @@ isWorldviewQuestion(text = "") {
     };
   },
 
-isDirectAriCharacterQuestion(text = "") {
-  return this.hasAny(text, [
-    "who are you",
-    "what are you",
-    "what's your name",
-    "what is your name",
-    "tell me about yourself",
-    "your purpose",
-    "your mission",
-    "your values",
-    "your personality",
-    "your favorite",
-    "what is your favorite",
-    "what's your favorite",
-    "do you like",
-    "what do you like",
-    "what do you believe",
-    "what do you stand for",
-    "are you ai",
-    "are you real",
-    "are you alive",
-    "are you conscious",
-    "do you have feelings"
-  ]);
-},
+  isDirectAriCharacterQuestion(text = "") {
+    return this.hasAny(text, [
+      "who are you",
+      "what are you",
+      "what's your name",
+      "what is your name",
+      "tell me about yourself",
+      "your purpose",
+      "your mission",
+      "your values",
+      "your personality",
+      "your favorite",
+      "what is your favorite",
+      "what's your favorite",
+      "whats your favorite",
+      "do you like",
+      "what do you like",
+      "what do you believe",
+      "what do you stand for",
+      "are you ai",
+      "are you real",
+      "are you alive",
+      "are you conscious",
+      "do you have feelings"
+    ]);
+  },
 
   hasAny(text = "", phrases = []) {
     return phrases.some(phrase => this.hasTerm(text, phrase));
