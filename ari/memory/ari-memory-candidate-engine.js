@@ -1,121 +1,174 @@
 // ari/memory/ari-memory-candidate-engine.js
 // Ari Memory Candidate Engine
 // Purpose: Decide what is worth remembering.
-// V1.0.0
+// V1.1.0 — Detect API / User-Scoped / Supabase-Ready Candidates
 
 window.Ari = window.Ari || {};
 
 window.AriMemoryCandidateEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
+
+  detect(input = {}) {
+    return this.analyze(input);
+  },
+
+  create(input = {}) {
+    return this.analyze(input);
+  },
+
+  evaluate(input = {}) {
+    return this.analyze(input);
+  },
 
   analyze(input = {}) {
     const summary = input.summary || input || {};
-
-    const text = this.normalize(
+    const rawText =
       summary.userMessage ||
       summary.message ||
       summary.input ||
-      ""
-    );
+      "";
 
+    const text = this.normalize(rawText);
+    const userId = this.resolveUserId(summary);
     const candidates = [];
 
-    // -------- User Preferences --------
+    if (!text || this.looksTransient(text)) {
+      return this.returnResult([], userId, "no_stable_memory_candidate");
+    }
 
-    this.addIf(
-      candidates,
-      this.containsAny(text, ["i prefer", "i like", "i love", "my favorite"]),
-      {
-        type: "user_preference",
-        importance: 8,
-        confidence: 0.90,
-        claim:
-          summary.userMessage ||
-          summary.message ||
-          ""
-      }
+    this.addIf(candidates, this.isExplicitMemoryRequest(text), {
+      type: "explicit_memory",
+      importance: 10,
+      confidence: 0.98,
+      claim: rawText,
+      reason: "User explicitly asked Ari to remember/store this."
+    });
+
+    this.addIf(candidates, this.containsAny(text, [
+      "i prefer", "i like", "i love", "my favorite", "i hate",
+      "i don't like", "i do not like", "i dislike"
+    ]), {
+      type: "user_preference",
+      importance: 8,
+      confidence: 0.9,
+      claim: rawText,
+      reason: "User shared a stable preference."
+    });
+
+    this.addIf(candidates, this.containsAny(text, [
+      "ari rebirth", "calbuddy", "my app", "my project", "roadmap",
+      "supabase", "pipeline", "memory engine"
+    ]), {
+      type: "project_fact",
+      importance: 9,
+      confidence: 0.92,
+      claim: rawText,
+      reason: "User shared information about an ongoing project."
+    });
+
+    this.addIf(candidates, this.containsAny(text, [
+      "we decided", "let's use", "we will", "the plan is",
+      "final decision", "going forward", "from now on"
+    ]), {
+      type: "prior_decision",
+      importance: 9,
+      confidence: 0.92,
+      claim: rawText,
+      reason: "User made or confirmed a durable decision."
+    });
+
+    this.addIf(candidates, this.containsAny(text, [
+      "be direct", "be blunt", "challenge me", "hold me accountable",
+      "don't sugarcoat", "do not sugarcoat"
+    ]), {
+      type: "relationship_pattern",
+      importance: 8,
+      confidence: 0.9,
+      claim: rawText,
+      reason: "User described a preferred assistant interaction style."
+    });
+
+    const filtered = this.dedupeCandidates(
+      candidates
+        .filter(candidate => candidate.claim && !this.looksTransient(candidate.claim))
+        .map(candidate => ({
+          ...candidate,
+          userId,
+          source: "ari-memory-candidate-engine",
+          createdAt: new Date().toISOString()
+        }))
     );
 
-    // -------- Long-term Projects --------
+    return this.returnResult(filtered, userId, filtered.length ? "memory_candidates_detected" : "no_stable_memory_candidate");
+  },
 
-    this.addIf(
-      candidates,
-      this.containsAny(text, [
-        "ari rebirth",
-        "calbuddy",
-        "my app",
-        "my project",
-        "roadmap"
-      ]),
-      {
-        type: "project_fact",
-        importance: 9,
-        confidence: 0.95,
-        claim:
-          summary.userMessage ||
-          summary.message ||
-          ""
-      }
+  resolveUserId(summary = {}) {
+    return (
+      summary.userId ||
+      summary.user?.id ||
+      summary.userContext?.id ||
+      summary.userContext?.user_id ||
+      summary.appContext?.user?.id ||
+      summary.appContext?.userContext?.id ||
+      summary.profile?.id ||
+      summary.profile?.user_id ||
+      null
     );
+  },
 
-    // -------- Explicit Decisions --------
+  isExplicitMemoryRequest(text = "") {
+    return /\b(remember that|remember this|save this|store this|note that|keep this in memory|add this to memory)\b/i.test(text);
+  },
 
-    this.addIf(
-      candidates,
-      this.containsAny(text, [
-        "we decided",
-        "let's use",
-        "we will",
-        "the plan is",
-        "final decision"
-      ]),
-      {
-        type: "prior_decision",
-        importance: 9,
-        confidence: 0.92,
-        claim:
-          summary.userMessage ||
-          summary.message ||
-          ""
-      }
-    );
+  looksTransient(text = "") {
+    const t = this.normalize(text);
 
-    // -------- Stable Relationship Style --------
+    if (!t) return true;
 
-    this.addIf(
-      candidates,
-      this.containsAny(text, [
-        "be direct",
-        "be blunt",
-        "challenge me",
-        "hold me accountable",
-        "don't sugarcoat"
-      ]),
-      {
-        type: "relationship_pattern",
-        importance: 8,
-        confidence: 0.90,
-        claim:
-          summary.userMessage ||
-          summary.message ||
-          ""
-      }
-    );
+    const transientExact = [
+      "hello", "hi", "thanks", "thank you", "good morning",
+      "good night", "how are you", "lol", "haha", "done",
+      "okay", "ok", "yes", "no"
+    ];
 
-    // -------- Never remember transient chatter --------
+    if (transientExact.includes(t)) return true;
 
-    const filtered = candidates.filter(
-      c => !this.looksTransient(c.claim)
-    );
+    return this.containsAny(t, [
+      "send code",
+      "replace this file",
+      "what code",
+      "what files",
+      "can you update this file",
+      "i'll send you",
+      "ill send you"
+    ]);
+  },
 
+  addIf(array, condition, object) {
+    if (!condition) return;
+    array.push(object);
+  },
+
+  dedupeCandidates(candidates = []) {
+    const seen = new Set();
+
+    return candidates.filter(candidate => {
+      const key = `${candidate.type}:${this.normalize(candidate.claim)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
+  returnResult(memoryCandidates = [], userId = null, reason = "complete") {
     return {
       memoryCandidateEngineRan: true,
       memoryCandidateEngineVersion: this.version,
-      memoryCandidateEngineSource:
-        "ari-memory-candidate-engine",
-
-      memoryCandidates: filtered,
-
+      memoryCandidateEngineSource: "ari-memory-candidate-engine",
+      memoryCandidates,
+      memoryCandidateCount: memoryCandidates.length,
+      userId,
+      reason,
       authority: "advisory_only",
       cannotSet: [
         "primaryLane",
@@ -128,35 +181,8 @@ window.AriMemoryCandidateEngine = {
     };
   },
 
-  looksTransient(text = "") {
-    const t = this.normalize(text);
-
-    return this.containsAny(t, [
-      "hello",
-      "hi",
-      "thanks",
-      "thank you",
-      "good morning",
-      "good night",
-      "how are you",
-      "lol",
-      "haha",
-      "send code",
-      "done",
-      "okay",
-      "ok"
-    ]);
-  },
-
-  addIf(array, condition, object) {
-    if (!condition) return;
-    array.push(object);
-  },
-
   containsAny(text = "", list = []) {
-    return list.some(term =>
-      text.includes(this.normalize(term))
-    );
+    return list.some(term => text.includes(this.normalize(term)));
   },
 
   normalize(value = "") {
