@@ -1,7 +1,7 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.3.7 — Arbiter-Gated AI Writer
+// V4.3.7 — Arbiter-Gated AI Writer / Memory-Only Supabase
 
 window.Ari = window.Ari || {};
 
@@ -655,25 +655,25 @@ mark("after characterContext");
 
 
 
-// 0.805 Supabase Character Knowledge
+// 0.805 Supabase Character Knowledge — DISABLED
 mark("before supabaseCharacterKnowledge");
-const supabaseCharacterKnowledgeResult = await runEngine(
-  window.AriSupabaseCharacterKnowledgeEngine,
-  ["retrieve"],
-  {
-    supabaseCharacterKnowledgeRan: false,
-    characterKnowledgeAvailable: false,
-    inferenceNeeded: false,
-    nodes: []
-  }
-);
+
+const supabaseCharacterKnowledgeResult = {
+  supabaseCharacterKnowledgeRan: false,
+  characterKnowledgeAvailable: false,
+  inferenceNeeded: false,
+  nodes: [],
+  source: "disabled",
+  reason: "Supabase character knowledge disabled. Supabase is reserved for memory retrieval/storage only."
+};
 
 summary = {
   ...summary,
-  ...supabaseCharacterKnowledgeResult,
   supabaseCharacterKnowledge: supabaseCharacterKnowledgeResult,
-  characterKnowledge: supabaseCharacterKnowledgeResult
+  characterKnowledge: supabaseCharacterKnowledgeResult,
+  characterKnowledgeAvailable: false
 };
+
 mark("after supabaseCharacterKnowledge");
 
 // 0.81 Character Reasoning
