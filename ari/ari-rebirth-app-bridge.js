@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.7.0 — Response Candidate Arbiter Loaded
+// V1.7.1 — Ontology + Understanding Chain Loaded
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.7.0",
+version: "1.7.1",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -133,6 +133,33 @@ version: "1.7.0",
 "ari/cognition/ari-cognitive-executive.js",
 "ari/knowledge/ari-knowledge-router.js",
 "ari/knowledge/ari-knowledge-meaning-interpreter.js",
+
+// Event ontology
+"ari/ontology/events/ari-event-ontology-life-transitions.js",
+"ari/ontology/events/ari-event-ontology-relationships.js",
+"ari/ontology/events/ari-event-ontology-family-parenthood.js",
+"ari/ontology/events/ari-event-ontology-social-life.js",
+"ari/ontology/events/ari-event-ontology-education.js",
+"ari/ontology/events/ari-event-ontology-career-military.js",
+"ari/ontology/events/ari-event-ontology-health.js",
+"ari/ontology/events/ari-event-ontology-mental-health.js",
+"ari/ontology/events/ari-event-ontology-finance-legal.js",
+"ari/ontology/events/ari-event-ontology-crisis-achievement-lifestyle-tech.js",
+"ari/ontology/events/ari-event-ontology-index.js",
+
+// Meaning ontology
+"ari/ontology/meaning/ari-meaning-ontology.js",
+"ari/ontology/meaning/ari-meaning-modifiers.js",
+"ari/ontology/meaning/ari-meaning-impacts.js",
+
+// New understanding chain
+"ari/understanding/ari-language-understanding-engine.js",
+"ari/understanding/ari-semantic-understanding-engine.js",
+"ari/understanding/ari-event-understanding-engine.js",
+"ari/understanding/ari-meaning-interpreter.js",
+"ari/understanding/ari-human-state-builder.js",
+"ari/understanding/ari-response-planner.js",
+
 "ari/integration/ari-rebirth-pipeline.js"
   ],
 
