@@ -51,9 +51,11 @@ precheck(input = {}) {
 
   const best = result.selectedCandidate;
   const needsAIWriter =
-    !best ||
-    best.source !== "blueprint_writer" ||
-    this.needsAIRepair(best, context, packet);
+  !best ||
+  (
+    best.source === "blueprint_writer" &&
+    this.needsAIRepair(best, context, packet)
+  );
 
   return {
     ...result,
