@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.7.1 — Ontology + Understanding Chain Loaded
+// V1.7.2 — Memory Context Builder Loaded / Dual Salience Removed
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.7.1",
+version: "1.7.2",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -54,6 +54,7 @@ version: "1.7.1",
 
     "ari/memory/ari-memory-ranking-engine.js",
     "ari/memory/ari-memory-retrieval-engine.js",
+    "ari/memory/ari-memory-context-builder.js",
     "ari/memory/ari-memory-candidate-engine.js",
 
     "ari/relationship/ari-relationship-engine.js",
@@ -79,7 +80,6 @@ version: "1.7.1",
 "ari/character/ari-character-preferences.js",
 "ari/character/ari-worldview.js",
 "ari/character/ari-character-context-engine.js",
-"ari/character/ari-supabase-character-knowledge-engine.js",
 "ari/character/ari-character-reasoning-engine.js",
 "ari/character/ari-character-expression-engine.js",
 "ari/language/ari-ai-writer.js",
@@ -88,7 +88,6 @@ version: "1.7.1",
     "ari/language/ari-language-composer-v9.js",
     "ari/language/ari-language-composer.js",
 
-    "ari/observer-system/ari-dual-salience-system.js",
     "ari/observer-system/ari-observer-hierarchy-engine.js",
     "ari/observer-system/ari-observation-ledger.js",
     "ari/observer-system/ari-question-understanding.js",
