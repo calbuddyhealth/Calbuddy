@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.7 — Generic Favorite Preference Inference / Supabase Generic Preference Guard
+// V1.1.8 — Generic Favorite Preference Inference / Supabase Generic Preference Guard
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.7",
+  version: "1.1.8",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -190,23 +190,43 @@ if (
     });
   },
 
-  composePreferenceNodeDraft(node = {}) {
-    const topic = String(node.topic || "").toLowerCase();
-    const definition = String(node.definition || "").trim();
-    const summary = String(node.summary || "").trim();
-    const reason =
-      node.deep_understanding ||
-      node.importance ||
-      node.purpose ||
-      summary ||
-      "";
+    composePreferenceNodeDraft(node = {}) {
+    const topic = String(node.topic || "").trim();
+    const topicLower = topic.toLowerCase();
 
-    if (topic.includes("favorite color")) {
+    const summary = String(node.summary || "").trim();
+    const definition = String(node.definition || "").trim();
+    const reason =
+      String(
+        node.deep_understanding ||
+        node.importance ||
+        node.purpose ||
+        ""
+      ).trim();
+
+    if (topicLower.includes("favorite color")) {
       return "My favorite color is deep navy blue. It fits the kind of presence I try to have: calm, dependable, protective, and quietly strong.";
     }
 
-    if (topic.includes("favorite quote")) {
+    if (topicLower.includes("favorite quote")) {
       return "My favorite quote is “The obstacle is the way.” I like it because it does not waste time wishing the hard thing away — it turns the obstacle into the path forward.";
+    }
+
+    if (topicLower.startsWith("favorite ") && summary) {
+      const subject = topic.replace(/^favorite\s+/i, "").toLowerCase();
+
+      return [
+        `My favorite ${subject} is ${summary}`,
+        definition,
+        reason
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    }
+
+    if (summary && definition) {
+      return `${summary} ${definition} ${reason}`.trim();
     }
 
     if (definition) {
