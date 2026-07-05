@@ -208,8 +208,10 @@ window.AriMemoryStore = {
     for (const table of tables) {
       try {
         const { error } = await client
-          .from(table)
-          .insert(row);
+  .from(table)
+  .upsert(row, {
+    onConflict: "user_id,claim"
+  });
 
         if (!error) {
           return {
