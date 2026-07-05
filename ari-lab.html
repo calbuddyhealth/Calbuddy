@@ -208,6 +208,15 @@ function formatKnowledgeMeaning(summary = {}) {
 `Blueprint Writer Version: ${summary.blueprintWriterVersion || "none"}`,
 `Blueprint Writer Source: ${summary.blueprintWriterSource || "none"}`,
 `Blueprint Draft: ${summary.blueprintWriterDraft || "none"}`,
+        `Arbiter Ran: ${summary.responseCandidateArbiterRan ? "yes" : "no"}`,
+`Arbiter Version: ${summary.responseCandidateArbiterVersion || "none"}`,
+`Selected Draft Source: ${summary.selectedDraftSource || "none"}`,
+`Selected Draft Reason: ${summary.selectedDraftReason || "none"}`,
+`Selected Draft: ${summary.selectedDraft || "none"}`,
+        "",
+"Candidate Drafts:",
+JSON.stringify(summary.candidateDrafts || [], null, 2),
+"",
         `AI Writer Ran: ${summary.aiWriterRan ? "yes" : "no"}`,
         `AI Writer Used AI: ${summary.aiWriterUsedAI ? "yes" : "no"}`,
         `AI Writer Source: ${summary.aiWriterSource || "none"}`,
@@ -376,11 +385,30 @@ function formatKnowledgeMeaning(summary = {}) {
   responseOrder: run.summary?.multiLanePlan?.responseOrder || []
 },
             composer: {
-              aiWriterRan: run.summary?.aiWriterRan || false,
-              aiWriterUsedAI: run.summary?.aiWriterUsedAI || false,
-              composerVersion: run.summary?.composerVersion || null,
-              composerValidation: run.summary?.composerValidation || null
-            },
+  aiWriterRan: run.summary?.aiWriterRan || false,
+  aiWriterUsedAI: run.summary?.aiWriterUsedAI || false,
+
+  responseCandidateArbiterRan:
+    run.summary?.responseCandidateArbiterRan || false,
+
+responseCandidateArbiterVersion:
+  run.summary?.responseCandidateArbiterVersion || null,
+
+  selectedDraftSource:
+    run.summary?.selectedDraftSource || null,
+
+  selectedDraftReason:
+    run.summary?.selectedDraftReason || null,
+
+  selectedDraft:
+    run.summary?.selectedDraft || null,
+
+  composerVersion:
+    run.summary?.composerVersion || null,
+
+  composerValidation:
+    run.summary?.composerValidation || null
+},
             summary: run.summary
           });
         }
