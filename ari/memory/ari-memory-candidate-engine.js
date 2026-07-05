@@ -134,14 +134,9 @@ window.AriMemoryCandidateEngine = {
     if (transientExact.includes(t)) return true;
 
     return this.containsAny(t, [
-      "send code",
-      "replace this file",
-      "what code",
-      "what files",
-      "can you update this file",
-      "i'll send you",
-      "ill send you"
-    ]);
+  "send code",
+  "replace this file"
+]);
   },
 
   addIf(array, condition, object) {
