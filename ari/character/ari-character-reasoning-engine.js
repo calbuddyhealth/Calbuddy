@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.6 — Generic Favorite Preference Inference / Worldview Guarded
+// V1.1.7 — Generic Favorite Preference Inference / Supabase Generic Preference Guard
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.6",
+  version: "1.1.7",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -144,12 +144,24 @@ if (useWorldview) {
   } = {}) {
     const node = characterKnowledge?.primaryNode || null;
 
-    if (!node) {
-      return this.noCharacterAnswer({
-        reason: "No Supabase character primary node available.",
-        expression
-      });
-    }
+if (!node) {
+  return this.noCharacterAnswer({
+    reason: "No Supabase character primary node available.",
+    expression
+  });
+}
+
+if (
+  this.isFavoriteQuestion(text) &&
+  this.isGenericNoStoredPreferenceNode(node)
+) {
+  return this.buildValuesInferenceAnswer({
+    text,
+    focus,
+    expression
+  });
+}
+    
 
     const type = String(node.knowledge_type || "").toLowerCase();
 
@@ -459,6 +471,33 @@ if (useWorldview) {
     const focus = this.inferPreferenceFocus(text);
     return focus ? preferences[focus] || null : null;
   },
+
+isFavoriteQuestion(text = "") {
+  return this.hasAny(text, [
+    "your favorite",
+    "what is your favorite",
+    "what's your favorite"
+  ]);
+},
+
+isGenericNoStoredPreferenceNode(node = {}) {
+  const combined = [
+    node.topic,
+    node.summary,
+    node.definition,
+    node.purpose,
+    node.deep_understanding
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    combined.includes("does not have a stored preference") ||
+    combined.includes("does not have a fixed favorite") ||
+    combined.includes("should answer honestly instead of inventing")
+  );
+},
 
 isWorldviewQuestion(text = "") {
   return this.hasAny(text, [
