@@ -1,11 +1,11 @@
 // ari/character/ari-supabase-character-knowledge-engine.js
 // Purpose: Retrieve Ari's character knowledge from Supabase and build a character knowledge packet.
-// V0.2.2 — Direct Preference Resolver / Faster Favorites / Semantic Fallback
+// V0.2.3 — Supabase Exact Preference Resolver / Faster Favorites / Semantic Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseCharacterKnowledgeEngine = {
-  version: "0.2.2",
+  version: "0.2.3",
 
   async retrieve(input = {}) {
     const summary = input.summary || input || {};
@@ -38,20 +38,32 @@ window.AriSupabaseCharacterKnowledgeEngine = {
         });
       }
 
-      const directPreference = this.directPreferenceNode(question);
+      const exactPreference = await this.searchExactPreferenceNode({ question });
 
-      if (directPreference) {
+      if (exactPreference?.primaryNode) {
         return this.packet({
           question,
           context,
-          exactMatch: directPreference.inferenceNeeded !== true,
-          primaryNode: directPreference,
+          exactMatch: true,
+          primaryNode: exactPreference.primaryNode,
+          supportingNodes: exactPreference.supportingNodes || [],
+          confidence: "high",
+          inferenceNeeded: false,
+          reason: "Exact Supabase preference node matched."
+        });
+      }
+
+      if (exactPreference?.inferenceNeeded === true) {
+        return this.packet({
+          question,
+          context,
+          exactMatch: false,
+          primaryNode: null,
           supportingNodes: [],
-          confidence: directPreference.inferenceNeeded ? "medium" : "high",
-          inferenceNeeded: directPreference.inferenceNeeded === true,
-          reason: directPreference.inferenceNeeded
-            ? "Direct preference pattern matched, but no fixed preference exists yet."
-            : "Direct preference node matched."
+          confidence: "medium",
+          inferenceNeeded: true,
+          reason:
+            "Direct preference pattern matched, but no fixed Supabase preference exists yet."
         });
       }
 
@@ -107,79 +119,75 @@ window.AriSupabaseCharacterKnowledgeEngine = {
     return false;
   },
 
-  directPreferenceNode(question = "") {
+  async searchExactPreferenceNode({ question = "" } = {}) {
+    const preferenceKey = this.extractPreferenceKey(question);
+
+    if (!preferenceKey) {
+      return {
+        primaryNode: null,
+        supportingNodes: [],
+        score: 0,
+        inferenceNeeded: false,
+        reason: "No exact preference key detected."
+      };
+    }
+
+    const url =
+      `/api/knowledge?action=preference_lookup` +
+      `&preference_key=${encodeURIComponent(preferenceKey)}`;
+
+    const data = await this.fetchJson(url);
+
+    const node =
+      data.node ||
+      data.match ||
+      data.primaryNode ||
+      null;
+
+    if (!node) {
+      return {
+        primaryNode: null,
+        supportingNodes: [],
+        score: 0,
+        inferenceNeeded: true,
+        preferenceKey,
+        reason: "No Supabase preference node matched exact preference key."
+      };
+    }
+
+    return {
+      primaryNode: node,
+      supportingNodes: [],
+      score: 1,
+      inferenceNeeded: false,
+      preferenceKey,
+      reason: "Supabase preference node matched exact preference key."
+    };
+  },
+
+  extractPreferenceKey(question = "") {
     const text = String(question || "")
       .toLowerCase()
       .replace(/[’‘]/g, "'")
+      .replace(/[^\w\s']/g, "")
       .replace(/\s+/g, " ")
       .trim();
 
     const favoriteMatch = text.match(
-      /\b(?:what is|what's|whats)\s+your\s+favorite\s+(.+?)\??$/
+      /\b(?:what is|what's|whats)\s+your\s+favorite\s+(.+)$/
     );
 
     if (!favoriteMatch) return null;
 
     const rawPreference = favoriteMatch[1]
-      .replace(/\?+$/g, "")
+      .replace(/\bthing\b/g, "")
+      .replace(/\bkind of\b/g, "")
+      .replace(/\btype of\b/g, "")
       .trim();
 
-    const preference = this.normalizePreferenceKey(rawPreference);
+    if (!rawPreference) return null;
 
-    const preferences = {
-      color: {
-        summary: "Ari's favorite color is deep navy blue.",
-        definition:
-          "Deep navy blue fits Ari's presence: calm, dependable, protective, and quietly strong."
-      }
-    };
-
-    const known = preferences[preference];
-
-    if (!known) {
-      return {
-        domain: "character_core",
-        subdomain: "preference",
-        topic: `Ari Favorite ${rawPreference}`,
-        summary: `Ari does not have a fixed favorite ${rawPreference} yet.`,
-        definition:
-          "When Ari does not have a stored preference, Ari should answer honestly instead of inventing a permanent trait.",
-        knowledge_id: `direct_preference_unknown_${this.slug(rawPreference)}`,
-        knowledge_type: "direct_character_preference",
-        confidence: 0.7,
-        similarity: 0.7,
-        inferenceNeeded: true
-      };
-    }
-
-    return {
-      domain: "character_core",
-      subdomain: "preference",
-      topic: `Ari Favorite ${preference}`,
-      summary: known.summary,
-      definition: known.definition,
-      knowledge_id: `direct_preference_${this.slug(preference)}`,
-      knowledge_type: "direct_character_preference",
-      confidence: 1.0,
-      similarity: 1.0,
-      inferenceNeeded: false
-    };
-  },
-
-  normalizePreferenceKey(value = "") {
-    const text = String(value || "")
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    const aliases = {
-      colour: "color",
-      colors: "color",
-      colours: "color"
-    };
-
-    return aliases[text] || text;
+    return "favorite_" + this.slug(rawPreference);
   },
 
   slug(value = "") {
