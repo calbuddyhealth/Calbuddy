@@ -37,12 +37,12 @@ window.AriMemoryCandidateEngine = {
     }
 
     this.addIf(candidates, this.isExplicitMemoryRequest(text), {
-      type: "explicit_memory",
-      importance: 10,
-      confidence: 0.98,
-      claim: rawText,
-      reason: "User explicitly asked Ari to remember/store this."
-    });
+  type: "explicit_memory",
+  importance: 10,
+  confidence: 0.98,
+  claim: this.stripMemoryCommand(rawText),
+  reason: "User explicitly asked Ari to remember/store this."
+});
 
     this.addIf(candidates, this.containsAny(text, [
       "i prefer", "i like", "i love", "my favorite", "i hate",
@@ -94,6 +94,7 @@ window.AriMemoryCandidateEngine = {
         .map(candidate => ({
           ...candidate,
           userId,
+          displayClaim: this.toUserFacingClaim(candidate.claim),
           source: "ari-memory-candidate-engine",
           createdAt: new Date().toISOString()
         }))
@@ -179,6 +180,29 @@ window.AriMemoryCandidateEngine = {
   containsAny(text = "", list = []) {
     return list.some(term => text.includes(this.normalize(term)));
   },
+
+stripMemoryCommand(text = "") {
+  return String(text || "")
+    .replace(
+      /^\s*(remember that|remember this|save this|store this|note that|keep this in memory|add this to memory)\s*/i,
+      ""
+    )
+    .replace(/[.!?]\s*$/, "")
+    .trim();
+},
+
+toUserFacingClaim(text = "") {
+  return String(text || "")
+    .replace(/^\s*(remember that|remember this|save this|store this|note that|keep this in memory|add this to memory)\s*/i, "")
+    .replace(/\bmy\b/gi, "your")
+    .replace(/\bi am\b/gi, "you are")
+    .replace(/\bi'm\b/gi, "you’re")
+    .replace(/\bi like\b/gi, "you like")
+    .replace(/\bi love\b/gi, "you love")
+    .replace(/\bi hate\b/gi, "you hate")
+    .replace(/[.!?]\s*$/, "")
+    .trim();
+},
 
   normalize(value = "") {
     return String(value || "")
