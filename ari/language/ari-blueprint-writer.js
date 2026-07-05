@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.6 — Response Plan Aware / Human State Guided
+// V1.3.7 — Response Plan Aware / Human State Guided
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.6",
+  version: "1.3.7",
 
     write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -16,6 +16,27 @@ window.AriBlueprintWriter = {
     }
 
     const q = question.toLowerCase();
+
+const memoryLikePreference =
+  /\b(my favorite|one of my favorite|i prefer|i like|i love|i hate|i dislike)\b/i.test(question);
+
+if (memoryLikePreference) {
+  const displayClaim = this.toUserFacingClaim(question);
+
+  return this.returnDraft(
+    displayClaim
+      ? `Got it — I’ll save that ${displayClaim}.`
+      : "Got it — I’ll save that.",
+    "implicit_preference_memory_acknowledgment",
+    true,
+    {
+      id: "memory_direct_acknowledgment",
+      strategy: "memory",
+      responseGoal: "confirm_memory_saved",
+      aiAllowed: false
+    }
+  );
+}
 
     if (/\b(remember that|remember this|save this|store this|note that|add this to memory)\b/.test(q)) {
   const displayClaim =
@@ -1083,13 +1104,18 @@ getMemoryDisplayClaim(packet = {}) {
 
 toUserFacingClaim(text = "") {
   return String(text || "")
+    .replace(/^\s*(hey ari,?\s*)/i, "")
     .replace(/^\s*(remember that|remember this|save this|store this|note that|keep this in memory|add this to memory)\s*/i, "")
+    .replace(/\bone of my favorite\b/gi, "one of your favorite")
+    .replace(/\bmy favorite\b/gi, "your favorite")
     .replace(/\bmy\b/gi, "your")
     .replace(/\bi am\b/gi, "you are")
     .replace(/\bi'm\b/gi, "you’re")
+    .replace(/\bi prefer\b/gi, "you prefer")
     .replace(/\bi like\b/gi, "you like")
     .replace(/\bi love\b/gi, "you love")
     .replace(/\bi hate\b/gi, "you hate")
+    .replace(/\bi dislike\b/gi, "you dislike")
     .replace(/[.!?]\s*$/, "")
     .trim();
 },
