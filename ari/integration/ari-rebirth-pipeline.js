@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.3.6 — Arbiter-Gated AI Writer
+// V4.3.7 — Arbiter-Gated AI Writer
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.3.6",
+  version: "4.3.7",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -736,40 +736,102 @@ summary.composerCharacter = {
 
 mark("after characterExpression");
 
-// 0.83 Knowledge Router
-mark("before knowledgeRouter");
+// 0.83 Memory Retrieval Only
+mark("before memoryRetrieval");
 
-const knowledgeRouterResult = await runEngine(
-  window.AriKnowledgeRouter,
-  ["route"],
-  {
-    knowledgeRouterRan: false,
-    shouldUseKnowledge: false
-  }
-);
+const shouldRetrieveMemory =
+  summary.laneSplit?.routing?.useMemory === true ||
+  summary.cognitiveExecutive?.requires?.userMemory === true ||
+  /\b(remember|do you remember|what did i say|what do you know about me|my preference|my goal|last time|previously|before)\b/i.test(
+    String(summary.userMessage || summary.message || summary.input || "")
+  );
+
+const memoryRetrievalResult =
+  shouldRetrieveMemory && window.AriMemoryRetrievalEngine
+    ? await runEngine(
+        window.AriMemoryRetrievalEngine,
+        ["retrieve", "search", "recall"],
+        {
+          memoryRetrievalRan: false,
+          memoryRetrievalSource: "not-loaded",
+          memoryAvailable: false,
+          memories: [],
+          usableMemories: []
+        }
+      )
+    : {
+        memoryRetrievalRan: false,
+        memoryRetrievalSource: "skipped",
+        memoryAvailable: false,
+        memories: [],
+        usableMemories: [],
+        reason: shouldRetrieveMemory
+          ? "memory_retrieval_engine_not_loaded"
+          : "memory_not_needed_for_current_turn"
+      };
 
 summary = {
   ...summary,
-  ...knowledgeRouterResult,
-  knowledgeRouter: knowledgeRouterResult
+  memoryRetrieval: memoryRetrievalResult,
+  memoryRetrievalRan: memoryRetrievalResult.memoryRetrievalRan === true,
+  memoryRetrievalSource:
+    memoryRetrievalResult.memoryRetrievalSource ||
+    memoryRetrievalResult.source ||
+    "unknown",
+  memoryAvailable:
+    memoryRetrievalResult.memoryAvailable === true ||
+    Boolean(memoryRetrievalResult.usableMemories?.length),
+  memories:
+    memoryRetrievalResult.memories ||
+    memoryRetrievalResult.results ||
+    [],
+  usableMemories:
+    memoryRetrievalResult.usableMemories ||
+    memoryRetrievalResult.memories ||
+    []
 };
 
-mark("after knowledgeRouter");
+mark("after memoryRetrieval");
 
-// 0.84 Knowledge Meaning Interpreter
-mark("before knowledgeMeaningInterpreter");
+// 0.84 Memory Context Builder Only
+mark("before memoryContextBuilder");
 
-merge(await runEngine(
-  window.AriKnowledgeMeaningInterpreter,
-  ["interpret"],
-  {
-    knowledgeMeaningInterpreterRan: false,
-    knowledgeMeaningUsable: false,
-    knowledgeMeaning: null
-  }
-));
+const memoryContextResult =
+  summary.memoryAvailable === true && window.AriMemoryContextBuilder
+    ? await runEngine(
+        window.AriMemoryContextBuilder,
+        ["build", "create"],
+        {
+          memoryContextBuilderRan: false,
+          memoryContextSource: "not-loaded",
+          memoryContext: null,
+          memoryFacts: []
+        }
+      )
+    : {
+        memoryContextBuilderRan: false,
+        memoryContextSource: "skipped",
+        memoryContext: null,
+        memoryFacts: [],
+        reason: summary.memoryAvailable
+          ? "memory_context_builder_not_loaded"
+          : "no_usable_memories"
+      };
 
-mark("after knowledgeMeaningInterpreter");
+summary = {
+  ...summary,
+  memoryContext: memoryContextResult.memoryContext || null,
+  memoryContextResult,
+  memoryContextBuilderRan:
+    memoryContextResult.memoryContextBuilderRan === true,
+  memoryFacts:
+    memoryContextResult.memoryFacts ||
+    memoryContextResult.usableFacts ||
+    summary.usableMemories ||
+    []
+};
+
+mark("after memoryContextBuilder");
 
 
 // 0.845 Language Understanding
@@ -1481,7 +1543,12 @@ character:
         developerHandoff: summary.developerHandoff || null,
         developerResponse: summary.developerResponse || null,
         developerReply: summary.developerReply || null,
-        aiWriter: {
+       memory: {
+  retrieval: summary.memoryRetrieval || null,
+  context: summary.memoryContext || null,
+  facts: summary.memoryFacts || summary.usableMemories || []
+},
+         aiWriter: {
           ran: summary.aiWriterRan === true,
           usedAI: summary.aiWriterUsedAI === true,
           draft: summary.aiWriterDraft || null,
@@ -1924,8 +1991,8 @@ addCandidateDraft(existing = [], candidate = {}) {
     console.log("===== MULTI-LANE PLANNER =====", summary.multiLanePlan);
     console.log("===== CONTRACT =====", summary.situationContract);
     console.log("===== COGNITIVE EXECUTIVE =====", summary.cognitiveExecutive);
-    console.log("===== KNOWLEDGE ROUTER =====", summary.knowledgeRouter);
-    console.log("===== KNOWLEDGE MEANING INTERPRETER =====", summary.knowledgeMeaning);
+    console.log("===== MEMORY RETRIEVAL =====", summary.memoryRetrieval);
+console.log("===== MEMORY CONTEXT =====", summary.memoryContextResult || summary.memoryContext);
     console.log("===== REASONING =====", reasoningResult);
     console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile); 
     console.log("===== EXPRESSION PLAN =====", summary.expressionPlan);
