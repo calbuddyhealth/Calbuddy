@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.2.4 — Response Plan Priority Fallback
+// V1.2.5 — Response Plan Priority Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.2.4",
+  version: "1.2.5",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
