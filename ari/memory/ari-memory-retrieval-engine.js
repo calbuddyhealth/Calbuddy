@@ -1,12 +1,12 @@
 // ari/memory/ari-memory-retrieval-engine.js
 // Ari Memory Retrieval Engine
-// Purpose: Retrieve relevant advisory memories without controlling routing.
-// V1.0.0
+// Purpose: Retrieve relevant advisory memories only when memory is actually needed.
+// V1.1.0 — Supabase-Memory-Only / Advisory Context / No Routing Authority
 
 window.Ari = window.Ari || {};
 
 window.AriMemoryRetrievalEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   async retrieve(input = {}) {
     const summary = input.summary || input || {};
@@ -17,6 +17,12 @@ window.AriMemoryRetrievalEngine = {
       ""
     );
 
+    const shouldRetrieve = this.shouldRetrieveMemory(summary, text);
+
+    if (!shouldRetrieve.value) {
+      return this.skipped(text, shouldRetrieve.reason);
+    }
+
     const storeMemories = await this.loadMemories(summary);
     const localMemories = this.getLocalFallbackMemories(summary);
 
@@ -25,30 +31,28 @@ window.AriMemoryRetrievalEngine = {
       ...localMemories
     ]);
 
-    let rankedResult = null;
-
-    if (
-      window.AriMemoryRankingEngine &&
-      typeof window.AriMemoryRankingEngine.rank === "function"
-    ) {
-      rankedResult = window.AriMemoryRankingEngine.rank({
-        ...summary,
-        memories: allMemories
-      });
-    }
+    const rankedResult =
+      window.AriMemoryRankingEngine?.rank
+        ? window.AriMemoryRankingEngine.rank({
+            ...summary,
+            memories: allMemories
+          })
+        : null;
 
     const rankedMemories =
       rankedResult?.rankedMemories ||
-      allMemories.map(memory => ({
-        ...memory,
-        retrievalScore: this.basicScore(memory, text)
-      })).sort((a, b) => b.retrievalScore - a.retrievalScore);
+      allMemories
+        .map(memory => ({
+          ...memory,
+          retrievalScore: this.basicScore(memory, text)
+        }))
+        .sort((a, b) => b.retrievalScore - a.retrievalScore);
 
-    const relevantMemories = rankedMemories
-      .filter(memory => memory.retrievalScore >= 20 || memory.pinned === true)
+    const usableMemories = rankedMemories
+      .filter(memory => memory.pinned === true || memory.retrievalScore >= 20)
       .slice(0, 7);
 
-    const memoryContext = this.buildMemoryContext(relevantMemories);
+    const memoryContext = this.buildMemoryContext(usableMemories);
 
     return {
       memoryRetrievalEngineRan: true,
@@ -56,11 +60,16 @@ window.AriMemoryRetrievalEngine = {
       memoryRetrievalEngineSource: "ari-memory-retrieval-engine",
 
       memoryRetrievalQuery: text,
+      memoryRetrievalReason: shouldRetrieve.reason,
       memoryStoreAvailable: storeMemories.length > 0,
       rawMemoryCount: allMemories.length,
-      retrievedMemories: relevantMemories,
+
+      memories: usableMemories,
+      usableMemories,
+      retrievedMemories: usableMemories,
       rankedMemories,
       memoryContext,
+      memoryAvailable: usableMemories.length > 0,
 
       authority: "advisory_context_only",
       cannotSet: [
@@ -76,12 +85,49 @@ window.AriMemoryRetrievalEngine = {
     };
   },
 
+  shouldRetrieveMemory(summary = {}, text = "") {
+    if (summary.laneSplit?.routing?.useMemory === true) {
+      return { value: true, reason: "lane_split_requested_memory" };
+    }
+
+    if (summary.cognitiveExecutive?.requires?.userMemory === true) {
+      return { value: true, reason: "cognitive_executive_requested_user_memory" };
+    }
+
+    if (
+      /\b(remember|do you remember|what did i say|what do you know about me|my preference|my goal|last time|previously|before|what did we decide|did we decide)\b/i.test(text)
+    ) {
+      return { value: true, reason: "explicit_memory_recall_request" };
+    }
+
+    return { value: false, reason: "memory_not_needed_for_current_turn" };
+  },
+
+  skipped(query = "", reason = "memory_not_needed_for_current_turn") {
+    return {
+      memoryRetrievalEngineRan: false,
+      memoryRetrievalEngineVersion: this.version,
+      memoryRetrievalEngineSource: "ari-memory-retrieval-engine",
+      memoryRetrievalSource: "skipped",
+      memoryRetrievalQuery: query,
+      reason,
+
+      memoryStoreAvailable: false,
+      rawMemoryCount: 0,
+      memories: [],
+      usableMemories: [],
+      retrievedMemories: [],
+      rankedMemories: [],
+      memoryContext: null,
+      memoryAvailable: false,
+
+      authority: "advisory_context_only"
+    };
+  },
+
   async loadMemories(summary = {}) {
     try {
-      if (
-        window.AriMemoryStore &&
-        typeof window.AriMemoryStore.loadRelevant === "function"
-      ) {
+      if (window.AriMemoryStore?.loadRelevant) {
         const result = await window.AriMemoryStore.loadRelevant(summary);
         return Array.isArray(result?.memories) ? result.memories : [];
       }
@@ -95,14 +141,12 @@ window.AriMemoryRetrievalEngine = {
   getLocalFallbackMemories(summary = {}) {
     const memories = [];
 
-    const projectMemories =
+    const seed =
       window.Ari?.localMemorySeed ||
       summary.localMemorySeed ||
       [];
 
-    if (Array.isArray(projectMemories)) {
-      memories.push(...projectMemories);
-    }
+    if (Array.isArray(seed)) memories.push(...seed);
 
     const continuity = summary.continuityState || summary.threadState || {};
 
@@ -114,27 +158,10 @@ window.AriMemoryRetrievalEngine = {
         claim: `Current topic is ${continuity.currentTopic}.`,
         tags: [continuity.currentTopic, "current topic", "thread"],
         keywords: [continuity.currentTopic, "thread", "continuity"],
-        importance: 8,
-        confidence: 0.85,
+        importance: 5,
+        confidence: 0.75,
         source: "conversation_continuity",
         temporary: true
-      });
-    }
-
-    if (Array.isArray(continuity.unresolvedItems)) {
-      continuity.unresolvedItems.forEach((item, index) => {
-        memories.push({
-          id: `unresolved_item_${index}`,
-          type: "conversation_thread",
-          domain: "active_context",
-          claim: item,
-          tags: ["unresolved", "next step", "thread"],
-          keywords: String(item).toLowerCase().split(/\s+/).slice(0, 8),
-          importance: 7,
-          confidence: 0.8,
-          source: "conversation_continuity",
-          temporary: true
-        });
       });
     }
 
@@ -149,7 +176,6 @@ window.AriMemoryRetrievalEngine = {
       priorDecisions: [],
       relationshipPatterns: [],
       activeThreadFacts: [],
-      conflicts: [],
       confidence: 0,
       authority: "advisory_context_only"
     };
@@ -191,7 +217,6 @@ window.AriMemoryRetrievalEngine = {
     });
 
     context.confidence = this.averageConfidence(context.relevantMemories);
-
     return context;
   },
 
@@ -208,17 +233,17 @@ window.AriMemoryRetrievalEngine = {
       ...(memory.keywords || [])
     ].filter(Boolean).join(" "));
 
-    const words = text.split(/\s+/).filter(word => word.length > 3);
-
-    words.forEach(word => {
-      if (haystack.includes(word)) score += 6;
-    });
+    text.split(/\s+/)
+      .filter(word => word.length > 3)
+      .forEach(word => {
+        if (haystack.includes(word)) score += 6;
+      });
 
     if (memory.importance != null) score += Math.min(20, Number(memory.importance) || 0);
     if (memory.confidence != null) score += Math.min(10, (Number(memory.confidence) || 0) * 10);
     if (memory.pinned === true) score += 100;
 
-    return score;
+    return Math.round(score);
   },
 
   dedupeMemories(memories = []) {
