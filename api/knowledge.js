@@ -1,7 +1,7 @@
 // api/knowledge.js 
 // CalBuddy / Ari Knowledge API
 // Purpose: Router-driven six-core Supabase retrieval + Ari OpenAI knowledge client.
-// V3.0.5 — Semantic Retrieval Timing / Embedding Cache Diagnostics / RPC Profiling
+// V3.0.6 — Preference Lookup Endpoint / Semantic Retrieval Timing
 
 const VALID_KNOWLEDGE_CORES = [
   "character_core",
@@ -28,6 +28,10 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const action = req.method === "GET" ? req.query.action : body.action;
 
+if (action === "preference_lookup") {
+  return await handlePreferenceLookup(req, res, body);
+}
+
     if (action === "semantic_search_ari_nodes") {
       return await handleSemanticSearchAriNodes(req, res, body);
     }
@@ -49,6 +53,60 @@ export default async function handler(req, res) {
       error: error.message || "Knowledge API failed."
     });
   }
+}
+
+async function handlePreferenceLookup(req, res, body = {}) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return res.status(500).json({
+      error: "Missing Supabase server environment variables."
+    });
+  }
+
+  const preferenceKey =
+    req.method === "GET"
+      ? String(req.query.preference_key || "")
+      : String(body.preference_key || "");
+
+  if (!preferenceKey.trim()) {
+    return res.status(400).json({
+      error: "Missing preference_key."
+    });
+  }
+
+  const response = await fetch(
+    `${process.env.SUPABASE_URL}/rest/v1/ari_knowledge_nodes` +
+      `?domain=eq.character_core` +
+      `&subdomain=eq.preferences` +
+      `&preference_key=eq.${encodeURIComponent(preferenceKey)}` +
+      `&limit=1`,
+    {
+      method: "GET",
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return res.status(response.status).json({
+      error: data?.message || data?.error || "Preference lookup failed.",
+      details: data
+    });
+  }
+
+  const node = Array.isArray(data) ? data[0] || null : null;
+
+  return res.status(200).json({
+    success: true,
+    preference_key: preferenceKey,
+    node,
+    match: node,
+    primaryNode: node
+  });
 }
 
 async function handleSemanticSearchAriNodes(req, res, body = {}) {
