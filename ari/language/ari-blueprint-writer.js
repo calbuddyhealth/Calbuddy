@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
-// Purpose: Fast deterministic sentence planning + local draft rendering from expression blueprints.
-// V1.2.0 — Deterministic Sentence Planner / Renderer / Naturalizer
+// Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
+// V1.3.0 — Conversation Planner / Primitive Renderer / No Coaching Too Fast
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -19,46 +19,29 @@ window.AriBlueprintWriter = {
 
     if (knowledgeMeaning?.usable) {
       const blueprint = this.resolveKnowledgeBlueprint(packet, knowledgeMeaning);
-      const draft = this.renderKnowledgeDraft({
-        packet,
-        question,
-        knowledgeMeaning,
-        blueprint
-      });
+      const draft = this.renderKnowledgeDraft({ packet, question, knowledgeMeaning, blueprint });
 
-      return this.returnDraft(
-        draft,
-        "blueprint_knowledge_meaning_packet",
-        true,
-        {
-          ...blueprint,
-          strategy: "knowledge_meaning",
-          responseGoal: "answer_from_knowledge_meaning",
-          aiAllowed: true,
-          knowledgeMeaningUsed: true,
-          knowledgeAnswerMode: knowledgeMeaning.answerMode,
-          knowledgeDomain: knowledgeMeaning.domain,
-          knowledgeIntent: knowledgeMeaning.intent,
-          aiWritingInstructions: knowledgeMeaning.composerInstruction || "",
-          blueprintInstruction: knowledgeMeaning.blueprintInstruction || ""
-        }
-      );
+      return this.returnDraft(draft, "blueprint_knowledge_meaning_packet", true, {
+        ...blueprint,
+        strategy: "knowledge_meaning",
+        responseGoal: "answer_from_knowledge_meaning",
+        aiAllowed: true,
+        knowledgeMeaningUsed: true,
+        knowledgeAnswerMode: knowledgeMeaning.answerMode,
+        knowledgeDomain: knowledgeMeaning.domain,
+        knowledgeIntent: knowledgeMeaning.intent
+      });
     }
 
     const legacyKnowledgeDraft = this.composeSupabaseKnowledge(packet);
 
     if (legacyKnowledgeDraft) {
-      return this.returnDraft(
-        legacyKnowledgeDraft,
-        "blueprint_legacy_supabase_knowledge_draft",
-        true,
-        {
-          id: "legacy_supabase_knowledge_draft",
-          strategy: "knowledge",
-          responseGoal: "answer_from_retrieved_knowledge",
-          aiAllowed: true
-        }
-      );
+      return this.returnDraft(legacyKnowledgeDraft, "blueprint_legacy_supabase_knowledge_draft", true, {
+        id: "legacy_supabase_knowledge_draft",
+        strategy: "knowledge",
+        responseGoal: "answer_from_retrieved_knowledge",
+        aiAllowed: true
+      });
     }
 
     const blueprint = this.resolveBlueprint(packet);
@@ -67,12 +50,13 @@ window.AriBlueprintWriter = {
       return this.returnDraft("", "no_matching_blueprint", false);
     }
 
-    const sentencePlan = this.buildSentencePlan({ packet, blueprint, question });
-    const draft = this.renderSentencePlan({
+    const conversationPlan = this.buildConversationPlan({ packet, blueprint, question });
+
+    const draft = this.renderConversationPlan({
       packet,
       blueprint,
       question,
-      sentencePlan
+      conversationPlan
     });
 
     if (!draft) {
@@ -81,28 +65,25 @@ window.AriBlueprintWriter = {
 
     return this.returnDraft(draft, `blueprint_${blueprint.id}`, true, {
       ...blueprint,
-      sentencePlan,
-      deterministicSentencePlanner: true
+      conversationPlan,
+      deterministicConversationPlanner: true
     });
   },
 
-  buildSentencePlan({ packet = {}, blueprint = {}, question = "" } = {}) {
+  buildConversationPlan({ packet = {}, blueprint = {}, question = "" } = {}) {
     const id = blueprint.id || "general_direct_response";
-    const primary = String(packet.primary || "").toLowerCase();
+    const q = String(question || "").toLowerCase();
+
+    const emotionKind = this.detectEmotionKind(q);
 
     const plans = {
-      emotion_presence_grounding: [
-        "attune",
-        "do_not_solve_from_mood",
-        "stabilizing_step",
-        "return_with_clearer_head"
-      ],
+      emotion_presence_grounding: this.emotionPresencePlan(emotionKind),
 
       emotion_balance_repair: [
         "attune",
         "name_imbalance",
         "name_cost",
-        "repair_step"
+        "repair_invitation"
       ],
 
       decision_tradeoff: [
@@ -163,7 +144,8 @@ window.AriBlueprintWriter = {
 
     return {
       id,
-      primary,
+      primary: String(packet.primary || "").toLowerCase(),
+      emotionKind,
       moves: plans[id] || plans.general_direct_response,
       maxSentences: this.resolveMaxSentences(packet, id),
       tone: packet.humanLanguageProfile?.tone || "direct_warm_plain",
@@ -171,23 +153,50 @@ window.AriBlueprintWriter = {
     };
   },
 
-  renderSentencePlan({
-    packet = {},
-    blueprint = {},
-    question = "",
-    sentencePlan = {}
-  } = {}) {
-    const moves = Array.isArray(sentencePlan.moves) ? sentencePlan.moves : [];
+  emotionPresencePlan(emotionKind = "general") {
+    if (emotionKind === "sad") {
+      return [
+        "sadness_attune",
+        "sadness_validate",
+        "invite_context"
+      ];
+    }
+
+    if (emotionKind === "anxious" || emotionKind === "overwhelmed") {
+      return [
+        "anxiety_attune",
+        "anxiety_validate",
+        "offer_grounding_choice"
+      ];
+    }
+
+    if (emotionKind === "angry" || emotionKind === "frustrated") {
+      return [
+        "anger_attune",
+        "anger_validate",
+        "invite_context"
+      ];
+    }
+
+    return [
+      "attune",
+      "gentle_validation",
+      "invite_context"
+    ];
+  },
+
+  renderConversationPlan({ packet = {}, blueprint = {}, question = "", conversationPlan = {} } = {}) {
+    const moves = Array.isArray(conversationPlan.moves) ? conversationPlan.moves : [];
     const sentences = [];
 
     for (const move of moves) {
-      const sentence = this.renderMove({ move, packet, blueprint, question });
+      const sentence = this.renderMove({ move, packet, blueprint, question, conversationPlan });
       if (sentence) sentences.push(sentence);
     }
 
     return this.naturalize(sentences, {
       packet,
-      maxSentences: sentencePlan.maxSentences || 4,
+      maxSentences: conversationPlan.maxSentences || 4,
       style: this.resolveStyle(packet)
     });
   },
@@ -217,17 +226,35 @@ window.AriBlueprintWriter = {
     const q = String(question || "").toLowerCase();
 
     const moveMap = {
+      sadness_attune:
+        "I’m sorry you’re feeling sad.",
+
+      sadness_validate:
+        "That can feel heavy, especially when you don’t know what to do with it.",
+
+      invite_context:
+        "Do you want to tell me what happened, or did it just hit you out of nowhere?",
+
+      anxiety_attune:
+        "Yeah, I’m here with you.",
+
+      anxiety_validate:
+        "When everything feels loud at once, the first move is not to solve your whole life.",
+
+      offer_grounding_choice:
+        "We can either talk through what triggered it, or start with one small grounding step.",
+
+      anger_attune:
+        "Yeah, I can feel the frustration in that.",
+
+      anger_validate:
+        "Before trying to fix it, it probably helps to name what actually set you off.",
+
       attune:
-        "Yeah, I hear you.",
+        "Yeah, I’m here with you.",
 
-      do_not_solve_from_mood:
-        "Don’t try to solve the whole thing from this mood.",
-
-      stabilizing_step:
-        "Do one stabilizing move first: stand up, drink some water, and take five to ten minutes away from the screen.",
-
-      return_with_clearer_head:
-        "Then come back and choose the next step with a clearer head.",
+      gentle_validation:
+        "That sounds like something worth slowing down with.",
 
       name_imbalance:
         "The thing itself may not be the enemy, but the imbalance is.",
@@ -235,14 +262,14 @@ window.AriBlueprintWriter = {
       name_cost:
         "Your body, mood, and relationship are starting to pay the bill.",
 
-      repair_step:
-        "Make one repair move today: take a short walk, then say the true thing plainly without turning it into a debate.",
+      repair_invitation:
+        "Start with one repair move, not a whole life overhaul.",
 
       name_tradeoff:
         `The real issue is the tradeoff, not just ${decision}.`,
 
       separate_questions:
-        "Separate it into two questions: what matters most right now, and what can wait without causing damage.",
+        "Separate it into two questions: what matters most right now, and what can wait without causing damage?",
 
       recommend_priority:
         "I’d choose the option that protects the highest-priority thing first.",
@@ -266,10 +293,10 @@ window.AriBlueprintWriter = {
         this.directAnswerFor(question, object),
 
       brief_explanation:
-        "The useful move is to answer the actual question first, then explain only enough to make it usable.",
+        "Answer the actual question first, then explain only enough to make it useful.",
 
       usable_example:
-        "That keeps the response clear instead of turning every answer into a lecture.",
+        "That keeps the response clear instead of turning it into a lecture.",
 
       name_relationship_truth:
         "The move is not to win the argument.",
@@ -321,6 +348,13 @@ window.AriBlueprintWriter = {
     return moveMap[move] || "";
   },
 
+  detectEmotionKind(q = "") {
+    if (/\b(sad|down|depressed|heavy|cry|crying)\b/.test(q)) return "sad";
+    if (/\b(anxious|anxiety|panic|overwhelmed|stressed|worried)\b/.test(q)) return "anxious";
+    if (/\b(angry|mad|furious|frustrated|annoyed)\b/.test(q)) return "angry";
+    return "general";
+  },
+
   directAnswerFor(question = "", object = "this") {
     const q = String(question || "").toLowerCase();
 
@@ -344,6 +378,7 @@ window.AriBlueprintWriter = {
 
     if (blueprintId.includes("safety")) return 3;
     if (blueprintId.includes("memory")) return 1;
+    if (blueprintId === "emotion_presence_grounding") return 3;
     if (profile.pace === "brief") return 2;
     if (profile.depth === "minimal") return 2;
     if (profile.depth === "technical") return 4;
@@ -445,7 +480,6 @@ window.AriBlueprintWriter = {
     };
 
     const id = map[mode] || "knowledge_clear_explanation";
-
     return this.blueprints[id] || this.blueprints.knowledge_clear_explanation;
   },
 
@@ -524,15 +558,11 @@ window.AriBlueprintWriter = {
   },
 
   detectKnowledgeStyle(q = "") {
-    if (
-      /\b(define|definition|what is|textbook|explain fully|explain in detail|technical|scientific)\b/.test(q)
-    ) {
+    if (/\b(define|definition|what is|textbook|explain fully|explain in detail|technical|scientific)\b/.test(q)) {
       return "textbook";
     }
 
-    if (
-      /\b(i feel|i'm|im|my|me|what'?s going on|what is going on|help|what should i do|why am i)\b/.test(q)
-    ) {
+    if (/\b(i feel|i'm|im|my|me|what'?s going on|what is going on|help|what should i do|why am i)\b/.test(q)) {
       return "conversation";
     }
 
@@ -715,8 +745,8 @@ window.AriBlueprintWriter = {
 
     emotion_presence_grounding: {
       id: "emotion_presence_grounding",
-      strategy: "present",
-      responseGoal: "stabilize",
+      strategy: "presence",
+      responseGoal: "help_user_feel_understood_before_solving",
       aiAllowed: false
     },
 
