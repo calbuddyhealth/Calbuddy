@@ -64,10 +64,11 @@ window.AriBlueprintWriter = {
     }
 
     return this.returnDraft(draft, `blueprint_${conversationPlan.id}`, true, {
-      ...blueprint,
-      conversationPlan,
-      deterministicConversationPlanner: true
-    });
+  ...blueprint,
+  id: conversationPlan.id,
+  conversationPlan,
+  deterministicConversationPlanner: true
+});
   },
 
   buildConversationPlan({ packet = {}, blueprint = {}, question = "" } = {}) {
