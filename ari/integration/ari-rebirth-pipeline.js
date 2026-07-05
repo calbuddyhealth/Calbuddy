@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.3.7 — Arbiter-Gated AI Writer / Memory-Only Supabase
+// V4.3.8 — Arbiter-Gated AI Writer / Memory-Only Supabase
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.3.7",
+  version: "4.3.8",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -782,13 +782,15 @@ summary = {
     memoryRetrievalResult.memoryAvailable === true ||
     Boolean(memoryRetrievalResult.usableMemories?.length),
   memories:
-    memoryRetrievalResult.memories ||
-    memoryRetrievalResult.results ||
-    [],
+  memoryRetrievalResult.memories ||
+  memoryRetrievalResult.retrievedMemories ||
+  memoryRetrievalResult.results ||
+  [],
   usableMemories:
-    memoryRetrievalResult.usableMemories ||
-    memoryRetrievalResult.memories ||
-    []
+  memoryRetrievalResult.usableMemories ||
+  memoryRetrievalResult.retrievedMemories ||
+  memoryRetrievalResult.memories ||
+  []
 };
 
 mark("after memoryRetrieval");
@@ -797,9 +799,10 @@ mark("after memoryRetrieval");
 mark("before memoryContextBuilder");
 
 const memoryContextResult =
-  summary.memoryAvailable === true && window.AriMemoryContextBuilder
+  summary.memoryAvailable === true &&
+(window.AriMemoryContextBuilder || window.Ari?.memoryContextBuilder)
     ? await runEngine(
-        window.AriMemoryContextBuilder,
+        window.AriMemoryContextBuilder || window.Ari?.memoryContextBuilder,
         ["build", "create"],
         {
           memoryContextBuilderRan: false,
