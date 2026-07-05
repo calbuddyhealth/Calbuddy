@@ -1,11 +1,11 @@
 // ari/knowledge/ari-knowledge-meaning-interpreter.js
 // Purpose: Convert retrieved knowledge nodes into a structured meaning packet for Blueprint Writer / Composer.
-// V2.1.0 — Answer-Safe Node Filter / Internal Templates Blocked
+// V2.1.1 — Answer-Safe Node Filter / Internal Templates Blocked
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeMeaningInterpreter = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   interpret(input = {}) {
     const summary = input.summary || input || {};
@@ -13,17 +13,19 @@ window.AriKnowledgeMeaningInterpreter = {
     const q = this.normalize(question);
 
     const knowledge = this.getKnowledge(summary);
-    const nodes = knowledge.nodes;
+const nodes = knowledge.nodes;
+
+if (!knowledge.shouldUseKnowledge || !Array.isArray(nodes) || !nodes.length) {
+  return this.noInterpretation("No usable knowledge nodes to synthesize.");
+}
+
 const answerSafeNodes = this.filterAnswerSafeNodes(nodes);
 
-if (knowledge.shouldUseKnowledge && Array.isArray(nodes) && nodes.length && !answerSafeNodes.length) {
+if (!answerSafeNodes.length) {
   return this.noInterpretation("Only internal/template knowledge nodes returned; blocked from final answer.");
 }
-    if (!knowledge.shouldUseKnowledge || !Array.isArray(nodes) || !nodes.length) {
-      return this.noInterpretation("No usable knowledge nodes to synthesize.");
-    }
 
-    const rankedNodes = this.rankNodes(answerSafeNodes, q).slice(0, 6);
+const rankedNodes = this.rankNodes(answerSafeNodes, q).slice(0, 6);
     const style = this.detectStyle(q);
     const intent = this.detectIntent(q);
     const domain = this.detectDomain(rankedNodes, q);
