@@ -1,11 +1,11 @@
 // ari/knowledge/ari-knowledge-meaning-interpreter.js
 // Purpose: Convert retrieved knowledge nodes into a structured meaning packet for Blueprint Writer / Composer.
-// V2.0.0 — Answer-Mode Meaning Packet Builder / Blueprint-Safe / Low-Template
+// V2.1.0 — Answer-Safe Node Filter / Internal Templates Blocked
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeMeaningInterpreter = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   interpret(input = {}) {
     const summary = input.summary || input || {};
@@ -14,12 +14,16 @@ window.AriKnowledgeMeaningInterpreter = {
 
     const knowledge = this.getKnowledge(summary);
     const nodes = knowledge.nodes;
+const answerSafeNodes = this.filterAnswerSafeNodes(nodes);
 
+if (knowledge.shouldUseKnowledge && Array.isArray(nodes) && nodes.length && !answerSafeNodes.length) {
+  return this.noInterpretation("Only internal/template knowledge nodes returned; blocked from final answer.");
+}
     if (!knowledge.shouldUseKnowledge || !Array.isArray(nodes) || !nodes.length) {
       return this.noInterpretation("No usable knowledge nodes to synthesize.");
     }
 
-    const rankedNodes = this.rankNodes(nodes, q).slice(0, 6);
+    const rankedNodes = this.rankNodes(answerSafeNodes, q).slice(0, 6);
     const style = this.detectStyle(q);
     const intent = this.detectIntent(q);
     const domain = this.detectDomain(rankedNodes, q);
@@ -99,6 +103,31 @@ window.AriKnowledgeMeaningInterpreter = {
       ""
     ).trim();
   },
+
+filterAnswerSafeNodes(nodes = []) {
+  const blockedTypes = [
+    "relationship_template",
+    "memory_template",
+    "character_template",
+    "life_template",
+    "growth_template",
+    "communication_template",
+    "identity_template"
+  ];
+
+  return nodes.filter(node => {
+    const type = String(node.knowledge_type || "").toLowerCase();
+    const id = String(node.knowledge_id || node.id || "").toLowerCase();
+    const topic = String(node.topic || "").toLowerCase();
+
+    if (blockedTypes.includes(type)) return false;
+    if (type.includes("template")) return false;
+    if (id.includes("_template_")) return false;
+    if (topic.startsWith("user ") && type.includes("template")) return false;
+
+    return true;
+  });
+},
 
   buildModePacket({
     question = "",
