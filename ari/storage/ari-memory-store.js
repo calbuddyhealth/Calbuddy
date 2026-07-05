@@ -1,12 +1,12 @@
 // ari/storage/ari-memory-store.js
 // Ari Memory Store
 // Purpose: Load/save Ari memories.
-// V1.2.0 — Supabase First / Session Fallback / Memory-Only
+// V1.2.1 — Supabase First / Session Fallback / Memory-Only
 
 window.Ari = window.Ari || {};
 
 window.AriMemoryStore = {
-  version: "1.2.0",
+  version: "1.2.1",
 
   tableName: "ari_user_memory",
   fallbackTableName: "user_memory",
