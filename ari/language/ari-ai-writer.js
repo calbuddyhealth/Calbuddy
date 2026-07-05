@@ -41,17 +41,25 @@ if (routerOpenAIKnowledge?.text) {
       return this.returnDraft(trusted.text, trusted.reason || "trusted_answer", false);
     }
 
-const plannedDraft = this.localResponsePlanDraft(safePacket);
-if (plannedDraft) {
-  return this.returnDraft(plannedDraft, "local_response_plan_draft", false);
+const forceAIRepair =
+  safePacket.aiRepairReason ||
+  safePacket.responseCandidateArbiter?.needsAIWriter === true;
+
+if (!forceAIRepair) {
+  const plannedDraft = this.localResponsePlanDraft(safePacket);
+  if (plannedDraft) {
+    return this.returnDraft(plannedDraft, "local_response_plan_draft", false);
+  }
 }
-const blueprintDraft = this.resolveBlueprintDraft(safePacket);
-if (blueprintDraft?.text) {
-  return this.returnDraft(
-    blueprintDraft.text,
-    blueprintDraft.reason,
-    false
-  );
+if (!forceAIRepair) {
+  const blueprintDraft = this.resolveBlueprintDraft(safePacket);
+  if (blueprintDraft?.text) {
+    return this.returnDraft(
+      blueprintDraft.text,
+      blueprintDraft.reason,
+      false
+    );
+  }
 }
 
     const instruction = this.buildInstruction(safePacket);
@@ -512,8 +520,14 @@ RULES:
   const trusted = this.resolveTrustedAnswer(packet);
   if (trusted?.text) return trusted.text;
 
-const planned = this.localResponsePlanDraft(packet);
-if (planned) return planned;
+const forceAIRepair =
+  packet.aiRepairReason ||
+  packet.responseCandidateArbiter?.needsAIWriter === true;
+
+if (!forceAIRepair) {
+  const planned = this.localResponsePlanDraft(packet);
+  if (planned) return planned;
+}
 
   const developerRelevant = this.isDeveloperRelevant(packet);
     const developerPacket =
