@@ -1,11 +1,11 @@
 // ari/character/ari-supabase-character-knowledge-engine.js
 // Purpose: Retrieve Ari's character knowledge from Supabase and build a character knowledge packet.
-// V0.2.3 — Supabase Exact Preference Resolver / Faster Favorites / Semantic Fallback
+// V0.2.4 — Exact Preference Lookup / Semantic Fallback / Inference Last
 
 window.Ari = window.Ari || {};
 
 window.AriSupabaseCharacterKnowledgeEngine = {
-  version: "0.2.3",
+  version: "0.2.4",
 
   async retrieve(input = {}) {
     const summary = input.summary || input || {};
@@ -34,6 +34,7 @@ window.AriSupabaseCharacterKnowledgeEngine = {
           primaryNode: direct,
           supportingNodes: [],
           confidence: "high",
+          inferenceNeeded: false,
           reason: "Direct character node matched."
         });
       }
@@ -53,20 +54,6 @@ window.AriSupabaseCharacterKnowledgeEngine = {
         });
       }
 
-      if (exactPreference?.inferenceNeeded === true) {
-        return this.packet({
-          question,
-          context,
-          exactMatch: false,
-          primaryNode: null,
-          supportingNodes: [],
-          confidence: "medium",
-          inferenceNeeded: true,
-          reason:
-            "Direct preference pattern matched, but no fixed Supabase preference exists yet."
-        });
-      }
-
       const semantic = await this.searchSemanticCharacterNodes({ question });
 
       if (semantic.primaryNode) {
@@ -75,8 +62,9 @@ window.AriSupabaseCharacterKnowledgeEngine = {
           context,
           exactMatch: semantic.score >= 0.75,
           primaryNode: semantic.primaryNode,
-          supportingNodes: semantic.supportingNodes,
+          supportingNodes: semantic.supportingNodes || [],
           confidence: semantic.score >= 0.55 ? "high" : "medium",
+          inferenceNeeded: false,
           reason: "Semantic character node matched."
         });
       }
@@ -90,7 +78,7 @@ window.AriSupabaseCharacterKnowledgeEngine = {
         confidence: "low",
         inferenceNeeded: true,
         reason:
-          "No semantic character node matched. Character inference may be needed."
+          "No exact or semantic character node matched. Character inference may be needed."
       });
     } catch (error) {
       return this.error(error);
@@ -149,7 +137,7 @@ window.AriSupabaseCharacterKnowledgeEngine = {
         primaryNode: null,
         supportingNodes: [],
         score: 0,
-        inferenceNeeded: true,
+        inferenceNeeded: false,
         preferenceKey,
         reason: "No Supabase preference node matched exact preference key."
       };
