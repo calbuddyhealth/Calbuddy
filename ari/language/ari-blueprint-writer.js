@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.1 — Conversation Planner / Primitive Renderer / No Coaching Too Fast
+// V1.3.2 — Conversation Planner / Primitive Renderer / No Coaching Too Fast
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.1",
+  version: "1.3.2",
 
   write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -63,7 +63,7 @@ window.AriBlueprintWriter = {
       return this.returnDraft("", "blueprint_no_local_draft", false, blueprint);
     }
 
-    return this.returnDraft(draft, `blueprint_${blueprint.id}`, true, {
+    return this.returnDraft(draft, `blueprint_${conversationPlan.id}`, true, {
       ...blueprint,
       conversationPlan,
       deterministicConversationPlanner: true
@@ -76,6 +76,13 @@ window.AriBlueprintWriter = {
 
     const emotionKind = this.detectEmotionKind(q);
 const relationshipContext = this.extractRelationshipContext(question);
+    
+    const relationshipTone = this.detectRelationshipTone(q);
+const safeBlueprintId =
+  id === "relationship_repair_clarity" && relationshipTone === "positive"
+    ? "relationship_positive_connection"
+    : id;
+    
     const plans = {
       emotion_presence_grounding: this.emotionPresencePlan(emotionKind),
 
@@ -85,6 +92,12 @@ const relationshipContext = this.extractRelationshipContext(question);
         "name_cost",
         "repair_invitation"
       ],
+
+relationship_positive_connection: [
+  "acknowledge_kind_gesture",
+  "name_emotional_impact",
+  "warm_reflection"
+],
 
       decision_tradeoff: [
         "name_tradeoff",
@@ -143,12 +156,13 @@ const relationshipContext = this.extractRelationshipContext(question);
     };
 
     return {
-      id,
+      id: safeBlueprintId,
       primary: String(packet.primary || "").toLowerCase(),
       emotionKind,
       relationshipContext,
-      moves: plans[id] || plans.general_direct_response,
-      maxSentences: this.resolveMaxSentences(packet, id),
+      moves: plans[safeBlueprintId] || plans.general_direct_response,
+      maxSentences: this.resolveMaxSentences(packet, safeBlueprintId),
+      relationshipTone,
       tone: packet.humanLanguageProfile?.tone || "direct_warm_plain",
       naturalizer: true
     };
@@ -277,6 +291,15 @@ invite_context:
 
       offer_grounding_choice:
         "We can either talk through what triggered it, or start with one small grounding step.",
+
+acknowledge_kind_gesture:
+  "That was really thoughtful of her.",
+
+name_emotional_impact:
+  "After a rough week, having someone show up for you like that can mean a lot.",
+
+warm_reflection:
+  "I’m glad it made your whole day.",
 
       anger_attune:
         "Yeah, I can feel the frustration in that.",
@@ -411,6 +434,18 @@ renderInviteContext(conversationPlan = {}) {
   }
 
   return "Do you want to tell me what happened, or did it just hit you out of nowhere?";
+},
+
+detectRelationshipTone(q = "") {
+  const positive =
+    /\b(surprised me|made my day|made my whole day|thoughtful|sweet|kind|caring|grateful|happy|loved|appreciated|dinner|gift|supportive)\b/.test(q);
+
+  const conflict =
+    /\b(argument|argued|fight|fighting|disagreement|conflict|tension|mad|angry|hurt|upset)\b/.test(q);
+
+  if (positive && !conflict) return "positive";
+  if (conflict) return "repair";
+  return "neutral";
 },
 
   detectEmotionKind(q = "") {
