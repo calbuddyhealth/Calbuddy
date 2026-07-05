@@ -1,12 +1,12 @@
 // ari/storage/ari-memory-store.js
 // Ari Memory Store
 // Purpose: Load/save Ari memories.
-// V1.2.2 — Supabase Schema Aligned / User-Scoped / Session Fallback
+// V1.2.3 — Supabase Schema Aligned / User-Scoped / Session Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriMemoryStore = {
-  version: "1.2.2",
+  version: "1.2.3",
 
   tableName: "ari_user_memory",
 
@@ -122,114 +122,125 @@ window.AriMemoryStore = {
   },
 
   async loadFromSupabase(summary = {}, query = "") {
-    const client = this.getSupabaseClient();
+  const client = this.getSupabaseClient();
 
-    if (!client) {
-      return { success: false, reason: "supabase_client_not_available" };
-    }
+  if (!client) {
+    return { success: false, reason: "supabase_client_not_available" };
+  }
 
-    const userId = await this.getUserId(client, summary);
+  const userId = await this.getUserId(client, summary);
 
-    try {
-      let request = client
-        .from(this.tableName)
-        .select("*")
-        .order("updated_at", { ascending: false })
-        .limit(50);
+  if (!userId) {
+    return { success: false, reason: "no_user_id_session_only" };
+  }
 
-      if (userId) {
-        request = request.eq("user_id", userId);
-      }
+  try {
+    const { data, error } = await client
+      .from(this.tableName)
+      .select("*")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(50);
 
-      const { data, error } = await request;
-
-      if (error) {
-        return {
-          success: false,
-          reason: error.message || "supabase_load_failed"
-        };
-      }
-
-      const memories = (Array.isArray(data) ? data : [])
-        .map(row => this.fromSupabaseRow(row))
-        .filter(memory => query ? this.memoryMatchesQuery(memory, query) : true);
-
-      return {
-        success: true,
-        memories,
-        source: `supabase:${this.tableName}`,
-        userId
-      };
-    } catch (error) {
-      console.warn("AriMemoryStore Supabase load failed:", error);
-
+    if (error) {
       return {
         success: false,
-        reason: error?.message || "supabase_load_failed"
+        reason: error.message || "supabase_load_failed"
       };
     }
-  },
+
+    const memories = (Array.isArray(data) ? data : [])
+      .map(row => this.fromSupabaseRow(row))
+      .filter(memory => query ? this.memoryMatchesQuery(memory, query) : true);
+
+    return {
+      success: true,
+      memories,
+      source: `supabase:${this.tableName}`,
+      userId
+    };
+  } catch (error) {
+    console.warn("AriMemoryStore Supabase load failed:", error);
+
+    return {
+      success: false,
+      reason: error?.message || "supabase_load_failed"
+    };
+  }
+},
 
   async saveToSupabase(memory = {}) {
-    const client = this.getSupabaseClient();
+  const client = this.getSupabaseClient();
 
-    if (!client) {
-      return { success: false, reason: "supabase_client_not_available" };
-    }
+  if (!client) {
+    return { success: false, reason: "supabase_client_not_available" };
+  }
 
-    const userId = await this.getUserId(client, memory);
+  const userId = await this.getUserId(client, memory);
 
-    const row = {
-      user_id: userId || memory.userId || null,
-      memory_type: memory.type || "general",
-      topic: memory.domain || memory.key || memory.type || "general",
-      content: memory.claim,
-      importance: memory.importance ?? 5,
-      confidence: memory.confidence ?? 0.75,
-      tags: Array.isArray(memory.tags) ? memory.tags : [],
-      updated_at: new Date().toISOString()
-    };
+  if (!userId) {
+    return { success: false, reason: "no_user_id_session_only" };
+  }
 
-    try {
-      const { error } = await client
-        .from(this.tableName)
-        .upsert(row, {
-          onConflict: "user_id,content"
-        });
+  const row = {
+    user_id: userId,
+    memory_type: memory.type || "general",
+    topic: memory.domain || memory.key || memory.type || "general",
+    content: memory.claim,
+    importance: memory.importance ?? 5,
+    confidence: memory.confidence ?? 0.75,
+    tags: Array.isArray(memory.tags) ? memory.tags : [],
+    updated_at: new Date().toISOString()
+  };
 
-      if (error) {
-        console.warn("AriMemoryStore Supabase save failed:", error);
+  try {
+    const { error } = await client
+      .from(this.tableName)
+      .upsert(row, {
+        onConflict: "user_id,content"
+      });
 
-        return {
-          success: false,
-          reason: error.message || "supabase_save_failed",
-          userId
-        };
-      }
-
-      return {
-        success: true,
-        source: `supabase:${this.tableName}`,
-        userId
-      };
-    } catch (error) {
-      console.warn("AriMemoryStore Supabase save error:", error);
+    if (error) {
+      console.warn("AriMemoryStore Supabase save failed:", error);
 
       return {
         success: false,
-        reason: error?.message || "supabase_save_failed",
+        reason: error.message || "supabase_save_failed",
         userId
       };
     }
-  },
+
+    return {
+      success: true,
+      source: `supabase:${this.tableName}`,
+      userId
+    };
+  } catch (error) {
+    console.warn("AriMemoryStore Supabase save error:", error);
+
+    return {
+      success: false,
+      reason: error?.message || "supabase_save_failed",
+      userId
+    };
+  }
+},
 
   getSupabaseClient() {
-    return (
-      window.supabaseClient ||
-      window.CalBuddy?.supabase ||
-      null
-    );
-  },
+
+  return (
+
+    window.supabaseClient ||
+
+    window.CalBuddy?.supabase ||
+
+    window.supabase ||
+
+    null
+
+  );
+
+},
 
   async getUserId(client, source = {}) {
     if (source.userId || source.user_id) {
