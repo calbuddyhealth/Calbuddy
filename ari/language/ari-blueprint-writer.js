@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.5 — Response Plan Aware / Human State Guided
+// V1.3.6 — Response Plan Aware / Human State Guided
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.5",
+  version: "1.3.6",
 
     write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -18,25 +18,24 @@ window.AriBlueprintWriter = {
     const q = question.toLowerCase();
 
     if (/\b(remember that|remember this|save this|store this|note that|add this to memory)\b/.test(q)) {
-      const remembered = question
-        .replace(/^\s*(remember that|remember this|save this|store this|note that|add this to memory)\s*/i, "")
-        .replace(/[.!?]\s*$/, "")
-        .trim();
+  const displayClaim =
+    this.getMemoryDisplayClaim(packet) ||
+    this.toUserFacingClaim(question);
 
-      return this.returnDraft(
-        remembered
-          ? `Got it — I’ll remember that ${remembered}.`
-          : "Got it — I’ll remember that.",
-        "explicit_memory_acknowledgment",
-        true,
-        {
-          id: "memory_direct_acknowledgment",
-          strategy: "memory",
-          responseGoal: "confirm_memory_saved",
-          aiAllowed: false
-        }
-      );
+  return this.returnDraft(
+    displayClaim
+      ? `Got it — I’ll save that ${displayClaim}.`
+      : "Got it — I’ll save that.",
+    "explicit_memory_acknowledgment",
+    true,
+    {
+      id: "memory_direct_acknowledgment",
+      strategy: "memory",
+      responseGoal: "confirm_memory_saved",
+      aiAllowed: false
     }
+  );
+}
 
     const knowledgeMeaning = this.getKnowledgeMeaning(packet);
 
@@ -1068,6 +1067,31 @@ getResponsePlanMoves(responsePlan = {}) {
   };
 
   return moves.map(move => map[move] || move).filter(Boolean);
+},
+
+getMemoryDisplayClaim(packet = {}) {
+  const candidates =
+    packet.memoryCandidates ||
+    packet.evidence?.memoryCandidates ||
+    packet.summary?.memoryCandidates ||
+    [];
+
+  const candidate = Array.isArray(candidates) ? candidates[0] : null;
+
+  return String(candidate?.displayClaim || "").trim();
+},
+
+toUserFacingClaim(text = "") {
+  return String(text || "")
+    .replace(/^\s*(remember that|remember this|save this|store this|note that|keep this in memory|add this to memory)\s*/i, "")
+    .replace(/\bmy\b/gi, "your")
+    .replace(/\bi am\b/gi, "you are")
+    .replace(/\bi'm\b/gi, "you’re")
+    .replace(/\bi like\b/gi, "you like")
+    .replace(/\bi love\b/gi, "you love")
+    .replace(/\bi hate\b/gi, "you hate")
+    .replace(/[.!?]\s*$/, "")
+    .trim();
 },
 
   returnDraft(text = "", reason = "fallback", usedBlueprint = false, blueprint = null) {
