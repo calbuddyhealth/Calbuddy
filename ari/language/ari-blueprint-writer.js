@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
-// Purpose: Fast reusable local drafts from expression blueprints.
-// V1.1.0 — Knowledge Meaning Packet Aware / Blueprint-Safe / AI Writer Friendly
+// Purpose: Fast deterministic sentence planning + local draft rendering from expression blueprints.
+// V1.2.0 — Deterministic Sentence Planner / Renderer / Naturalizer
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -19,7 +19,12 @@ window.AriBlueprintWriter = {
 
     if (knowledgeMeaning?.usable) {
       const blueprint = this.resolveKnowledgeBlueprint(packet, knowledgeMeaning);
-      const draft = this.renderKnowledgeDraft({ packet, question, knowledgeMeaning, blueprint });
+      const draft = this.renderKnowledgeDraft({
+        packet,
+        question,
+        knowledgeMeaning,
+        blueprint
+      });
 
       return this.returnDraft(
         draft,
@@ -62,13 +67,350 @@ window.AriBlueprintWriter = {
       return this.returnDraft("", "no_matching_blueprint", false);
     }
 
-    const draft = this.renderDraft({ packet, blueprint, question });
+    const sentencePlan = this.buildSentencePlan({ packet, blueprint, question });
+    const draft = this.renderSentencePlan({
+      packet,
+      blueprint,
+      question,
+      sentencePlan
+    });
 
     if (!draft) {
       return this.returnDraft("", "blueprint_no_local_draft", false, blueprint);
     }
 
-    return this.returnDraft(draft, `blueprint_${blueprint.id}`, true, blueprint);
+    return this.returnDraft(draft, `blueprint_${blueprint.id}`, true, {
+      ...blueprint,
+      sentencePlan,
+      deterministicSentencePlanner: true
+    });
+  },
+
+  buildSentencePlan({ packet = {}, blueprint = {}, question = "" } = {}) {
+    const id = blueprint.id || "general_direct_response";
+    const primary = String(packet.primary || "").toLowerCase();
+
+    const plans = {
+      emotion_presence_grounding: [
+        "attune",
+        "do_not_solve_from_mood",
+        "stabilizing_step",
+        "return_with_clearer_head"
+      ],
+
+      emotion_balance_repair: [
+        "attune",
+        "name_imbalance",
+        "name_cost",
+        "repair_step"
+      ],
+
+      decision_tradeoff: [
+        "name_tradeoff",
+        "separate_questions",
+        "recommend_priority",
+        "small_next_step"
+      ],
+
+      builder_direct_help: [
+        "confirm_practical",
+        "identify_target",
+        "contained_patch",
+        "test_before_more_changes"
+      ],
+
+      knowledge_clear_explanation: [
+        "direct_answer",
+        "brief_explanation",
+        "usable_example"
+      ],
+
+      relationship_repair_clarity: [
+        "name_relationship_truth",
+        "reduce_blame",
+        "repair_script",
+        "one_next_step"
+      ],
+
+      medical_context_calm_guidance: [
+        "calm_medical_frame",
+        "safe_first_step",
+        "red_flags"
+      ],
+
+      memory_direct_acknowledgment: [
+        "simple_ack"
+      ],
+
+      wisdom_principle_then_step: [
+        "principle",
+        "apply_principle",
+        "next_step"
+      ],
+
+      safety_urgent_support: [
+        "pause",
+        "immediate_safety",
+        "trusted_help"
+      ],
+
+      general_direct_response: [
+        "direct_answer",
+        "brief_explanation",
+        "one_next_step"
+      ]
+    };
+
+    return {
+      id,
+      primary,
+      moves: plans[id] || plans.general_direct_response,
+      maxSentences: this.resolveMaxSentences(packet, id),
+      tone: packet.humanLanguageProfile?.tone || "direct_warm_plain",
+      naturalizer: true
+    };
+  },
+
+  renderSentencePlan({
+    packet = {},
+    blueprint = {},
+    question = "",
+    sentencePlan = {}
+  } = {}) {
+    const moves = Array.isArray(sentencePlan.moves) ? sentencePlan.moves : [];
+    const sentences = [];
+
+    for (const move of moves) {
+      const sentence = this.renderMove({ move, packet, blueprint, question });
+      if (sentence) sentences.push(sentence);
+    }
+
+    return this.naturalize(sentences, {
+      packet,
+      maxSentences: sentencePlan.maxSentences || 4,
+      style: this.resolveStyle(packet)
+    });
+  },
+
+  renderMove({ move = "", packet = {}, question = "" } = {}) {
+    const terms = packet.evidence?.lexicalGrounding?.preferredTerms || {};
+
+    const component =
+      terms.composerComponent?.short ||
+      terms.thingToFix?.short ||
+      "this part";
+
+    const bodyProblem =
+      terms.bodyProblem?.short ||
+      "that symptom";
+
+    const decision =
+      terms.decisionOption?.short ||
+      terms.centralTradeoff?.short ||
+      "the choice";
+
+    const object =
+      terms.object?.short ||
+      terms.topic?.short ||
+      "this";
+
+    const q = String(question || "").toLowerCase();
+
+    const moveMap = {
+      attune:
+        "Yeah, I hear you.",
+
+      do_not_solve_from_mood:
+        "Don’t try to solve the whole thing from this mood.",
+
+      stabilizing_step:
+        "Do one stabilizing move first: stand up, drink some water, and take five to ten minutes away from the screen.",
+
+      return_with_clearer_head:
+        "Then come back and choose the next step with a clearer head.",
+
+      name_imbalance:
+        "The thing itself may not be the enemy, but the imbalance is.",
+
+      name_cost:
+        "Your body, mood, and relationship are starting to pay the bill.",
+
+      repair_step:
+        "Make one repair move today: take a short walk, then say the true thing plainly without turning it into a debate.",
+
+      name_tradeoff:
+        `The real issue is the tradeoff, not just ${decision}.`,
+
+      separate_questions:
+        "Separate it into two questions: what matters most right now, and what can wait without causing damage.",
+
+      recommend_priority:
+        "I’d choose the option that protects the highest-priority thing first.",
+
+      small_next_step:
+        "Then make the next step small enough to actually do.",
+
+      confirm_practical:
+        "Yes — keep this practical.",
+
+      identify_target:
+        `For ${component}, identify the exact file or function before changing anything.`,
+
+      contained_patch:
+        "Make one contained patch instead of mixing three ideas together.",
+
+      test_before_more_changes:
+        "Then test the output before touching the next layer.",
+
+      direct_answer:
+        this.directAnswerFor(question, object),
+
+      brief_explanation:
+        "The useful move is to answer the actual question first, then explain only enough to make it usable.",
+
+      usable_example:
+        "That keeps the response clear instead of turning every answer into a lecture.",
+
+      name_relationship_truth:
+        "The move is not to win the argument.",
+
+      reduce_blame:
+        "It is to lower the temperature and repair trust.",
+
+      repair_script:
+        "Say the true thing plainly, own your part without over-apologizing, and ask for one concrete next step.",
+
+      one_next_step:
+        "Keep the next move small, specific, and doable.",
+
+      calm_medical_frame:
+        `For ${bodyProblem}, treat it seriously but don’t panic.`,
+
+      safe_first_step:
+        "Start with the safest simple step: monitor severity and avoid anything that clearly worsens it.",
+
+      red_flags:
+        "If it is severe, worsening, unusual, or comes with red flags, contact a clinician.",
+
+      simple_ack:
+        "Got it. I’ll keep that in mind.",
+
+      principle:
+        "The principle is simple: don’t let urgency pretend to be importance.",
+
+      apply_principle:
+        "Protect what matters long term, not just what feels loud right now.",
+
+      next_step:
+        "Choose the next honest step and do that first.",
+
+      pause:
+        "Pause everything else and focus on immediate safety.",
+
+      immediate_safety:
+        "Get away from the danger if you can and contact emergency help or a trusted person nearby.",
+
+      trusted_help:
+        "Do not handle this alone."
+    };
+
+    if (move === "direct_answer" && q.includes("what do you like to do")) {
+      return "I don’t know yet, but I think I’d like helping people make sense of things and find the next honest step.";
+    }
+
+    return moveMap[move] || "";
+  },
+
+  directAnswerFor(question = "", object = "this") {
+    const q = String(question || "").toLowerCase();
+
+    if (q.includes("can") || q.includes("does") || q.includes("could")) {
+      return "Yes — it can affect that.";
+    }
+
+    if (q.includes("what is") || q.includes("what's")) {
+      return `${object} is the main thing to understand here.`;
+    }
+
+    if (q.includes("why")) {
+      return "The short answer is that more than one pressure is probably stacking together.";
+    }
+
+    return "Yes. The clean move is to answer the current question directly.";
+  },
+
+  resolveMaxSentences(packet = {}, blueprintId = "") {
+    const profile = packet.humanLanguageProfile || {};
+
+    if (blueprintId.includes("safety")) return 3;
+    if (blueprintId.includes("memory")) return 1;
+    if (profile.pace === "brief") return 2;
+    if (profile.depth === "minimal") return 2;
+    if (profile.depth === "technical") return 4;
+
+    return 4;
+  },
+
+  resolveStyle(packet = {}) {
+    const profile = packet.humanLanguageProfile || {};
+    if (profile.tone?.includes("medical")) return "medical";
+    if (profile.tone?.includes("developer")) return "builder";
+    if (profile.tone?.includes("warm")) return "conversation";
+    return "direct";
+  },
+
+  naturalize(sentences = [], options = {}) {
+    const maxSentences = options.maxSentences || 4;
+    const packet = options.packet || {};
+    const banned = packet.humanLanguageProfile?.bannedPhrases || [];
+
+    let cleaned = sentences
+      .filter(Boolean)
+      .map(sentence => String(sentence).trim())
+      .filter(Boolean)
+      .map(sentence => this.cleanForUser(sentence))
+      .filter(sentence => !this.containsBannedPhrase(sentence, banned));
+
+    cleaned = this.removeDuplicateSentences(cleaned);
+    cleaned = this.smoothSentenceFlow(cleaned);
+    cleaned = cleaned.slice(0, maxSentences);
+
+    return cleaned.join(" ").trim();
+  },
+
+  removeDuplicateSentences(sentences = []) {
+    const seen = new Set();
+
+    return sentences.filter(sentence => {
+      const key = sentence
+        .toLowerCase()
+        .replace(/[^\w\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 90);
+
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
+  smoothSentenceFlow(sentences = []) {
+    return sentences.map(sentence =>
+      String(sentence || "")
+        .replace(/\s+/g, " ")
+        .replace(/\bdo not\b/gi, "don’t")
+        .replace(/\bI would\b/gi, "I’d")
+        .replace(/\bIt is\b/gi, "It’s")
+        .trim()
+    );
+  },
+
+  containsBannedPhrase(sentence = "", banned = []) {
+    const lower = String(sentence || "").toLowerCase();
+    return banned.some(phrase =>
+      lower.includes(String(phrase || "").toLowerCase())
+    );
   },
 
   getKnowledgeMeaning(packet = {}) {
@@ -107,12 +449,9 @@ window.AriBlueprintWriter = {
     return this.blueprints[id] || this.blueprints.knowledge_clear_explanation;
   },
 
-  renderKnowledgeDraft({ packet = {}, question = "", knowledgeMeaning = {}, blueprint = {} } = {}) {
-    const mode = knowledgeMeaning.answerMode || "general_knowledge";
-    const domain = knowledgeMeaning.domain || "general";
-    const intent = knowledgeMeaning.intent || "general";
-
+  renderKnowledgeDraft({ question = "", knowledgeMeaning = {} } = {}) {
     const directAnswer = this.cleanForUser(knowledgeMeaning.directAnswer || "");
+
     const keyFacts = Array.isArray(knowledgeMeaning.keyFacts)
       ? knowledgeMeaning.keyFacts.map(x => this.cleanForUser(x)).filter(Boolean)
       : [];
@@ -121,177 +460,12 @@ window.AriBlueprintWriter = {
       ? knowledgeMeaning.cautions.map(x => this.cleanForUser(x)).filter(Boolean)
       : [];
 
-    const doNotSay = Array.isArray(knowledgeMeaning.doNotSay)
-      ? knowledgeMeaning.doNotSay
-      : [];
-
-    switch (mode) {
-      case "identity_or_character":
-        return this.renderIdentityKnowledge({ directAnswer, keyFacts, cautions });
-
-      case "memory_recall":
-        return this.renderMemoryKnowledge({ directAnswer, keyFacts, cautions });
-
-      case "medical_guidance":
-        return this.renderMedicalKnowledge({ directAnswer, keyFacts, cautions });
-
-      case "developer":
-        return this.renderDeveloperKnowledge({ directAnswer, keyFacts, cautions });
-
-      case "definition":
-        return this.renderDefinitionKnowledge({ directAnswer, keyFacts });
-
-      case "explanation":
-        return this.renderExplanationKnowledge({ question, directAnswer, keyFacts, domain, intent });
-
-      case "decision":
-        return this.renderDecisionKnowledge({ directAnswer, keyFacts, cautions });
-
-      case "relationship_advice":
-      case "relationship_meaning":
-        return this.renderRelationshipKnowledge({ directAnswer, keyFacts, cautions });
-
-      case "life_advice":
-      case "advice":
-        return this.renderAdviceKnowledge({ directAnswer, keyFacts, cautions });
-
-      case "writing":
-        return directAnswer || "Use the retrieved knowledge as context for the writing request.";
-
-      default:
-        return this.renderGeneralKnowledge({ directAnswer, keyFacts, cautions, doNotSay });
-    }
-  },
-
-  renderIdentityKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    const answer = directAnswer || keyFacts[0] || "I don’t have a fixed answer for that in my saved character knowledge.";
     return this.polishResponse([
-      answer,
+      directAnswer || keyFacts[0] || this.directAnswerFor(question),
       keyFacts[1] || "",
-      cautions.includes("Do not invent unsupported Ari preferences, memories, or personality facts.")
-        ? "So I should answer honestly instead of making up a fake preference."
-        : ""
-    ], 3, "conversation");
-  },
-
-  renderMemoryKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "Here’s what I can pull from memory.",
-      keyFacts[1] || "",
-      cautions[0] || ""
-    ], 3, "direct");
-  },
-
-  renderMedicalKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "This is worth treating carefully.",
-      keyFacts[1] || "",
-      cautions[0] || "If symptoms are severe, worsening, unusual, or come with red flags, contact a clinician."
-    ], 4, "conversation");
-  },
-
-  renderDeveloperKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "The code evidence points to a specific bottleneck.",
-      keyFacts[1] || "",
+      keyFacts[2] || "",
       cautions[0] || ""
     ], 4, "direct");
-  },
-
-  renderDefinitionKnowledge({ directAnswer = "", keyFacts = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "Here’s the clean definition.",
-      keyFacts[1] || ""
-    ], 3, "textbook");
-  },
-
-  renderExplanationKnowledge({ question = "", directAnswer = "", keyFacts = [], domain = "", intent = "" } = {}) {
-    const q = String(question || "").toLowerCase();
-
-    const asksCanAffect = /\b(can|does|could)\b/.test(q);
-    const asksSleepMoodCravings =
-      q.includes("sleep") &&
-      (q.includes("mood") || q.includes("cravings"));
-
-    if (asksSleepMoodCravings) {
-      return this.polishResponse([
-        "Yes — sleep can affect both mood and cravings.",
-        "Poor sleep can make you more irritable, less patient, and more emotionally reactive.",
-        "It can also increase cravings because tired brains tend to push harder for quick energy and comfort.",
-        "So if your mood or appetite feels off, sleep is one of the first foundation pieces to check."
-      ], 4, "direct");
-    }
-
-    if (asksCanAffect) {
-      return this.polishResponse([
-        this.makeYesAnswer(question),
-        this.bestUserFacingFact(keyFacts, directAnswer),
-        keyFacts[1] || ""
-      ], 3, "direct");
-    }
-
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "Yes, that connection makes sense.",
-      keyFacts[1] || "",
-      keyFacts[2] || ""
-    ], 4, "direct");
-  },
-
-  renderDecisionKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "This is mainly a tradeoff decision.",
-      keyFacts[1] || "",
-      cautions[0] || "The safest move is usually the next reversible step, not the biggest irreversible leap."
-    ], 4, "direct");
-  },
-
-  renderRelationshipKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "This is about the pattern, not just the latest argument.",
-      keyFacts[1] || "",
-      cautions[0] || "Keep the first move about repair, not blame."
-    ], 3, "conversation");
-  },
-
-  renderAdviceKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "The main move is to turn this into one practical next step.",
-      keyFacts[1] || "",
-      cautions[0] || ""
-    ], 3, "conversation");
-  },
-
-  renderGeneralKnowledge({ directAnswer = "", keyFacts = [], cautions = [] } = {}) {
-    return this.polishResponse([
-      directAnswer || keyFacts[0] || "Yes — that matters here.",
-      keyFacts[1] || "",
-      cautions[0] || ""
-    ], 3, "direct");
-  },
-
-  makeYesAnswer(question = "") {
-    const q = String(question || "").toLowerCase();
-
-    if (q.includes("sleep")) return "Yes — sleep can definitely affect that.";
-    if (q.includes("stress")) return "Yes — stress can definitely affect that.";
-    if (q.includes("nutrition") || q.includes("food")) return "Yes — nutrition can definitely affect that.";
-
-    return "Yes — it can affect that.";
-  },
-
-  bestUserFacingFact(keyFacts = [], directAnswer = "") {
-    const all = [directAnswer, ...keyFacts].map(x => this.cleanForUser(x)).filter(Boolean);
-
-    const badPatterns = [
-      /\btreat .* as\b/i,
-      /\bari should\b/i,
-      /\bhelp ari\b/i,
-      /\bwhen people describe\b/i,
-      /\bconsider whether\b/i
-    ];
-
-    const userFacing = all.find(text => !badPatterns.some(pattern => pattern.test(text)));
-    return userFacing || all[0] || "";
   },
 
   resolveBlueprint(packet = {}) {
@@ -302,56 +476,6 @@ window.AriBlueprintWriter = {
       "general_direct_response";
 
     return this.blueprints[id] || this.blueprints.general_direct_response;
-  },
-
-  renderDraft({ packet = {}, blueprint = {}, question = "" } = {}) {
-    const terms = packet.evidence?.lexicalGrounding?.preferredTerms || {};
-    const component =
-      terms.composerComponent?.short ||
-      terms.thingToFix?.short ||
-      "that";
-
-    const bodyProblem = terms.bodyProblem?.short || "that pain";
-
-    const decision =
-      terms.decisionOption?.short ||
-      terms.centralTradeoff?.short ||
-      "the choice";
-
-    switch (blueprint.id) {
-      case "emotion_presence_grounding":
-        return "Yeah, I hear you. Don’t try to solve the whole thing from this mood. Do one stabilizing move first: stand up, drink some water, and take 5–10 minutes away from the screen. Then come back and choose the next step with a clearer head.";
-
-      case "emotion_balance_repair":
-        return "Yeah — this is one of those moments where the thing itself may not be the enemy, but the imbalance is. Your body, mood, and relationship are starting to pay the bill. Do one repair move today: take a 10-minute walk, then say, “You’re right to worry. I’ve been off balance, and I’m going to protect time for my health and for us.”";
-
-      case "decision_tradeoff":
-        return `The real issue is the tradeoff, not just ${decision}. Separate it into two questions: what matters most right now, and what can wait without causing damage. My move would be: pick the option that protects the highest-priority thing first, then make the next step small enough to actually do.`;
-
-      case "builder_direct_help":
-        return `Yes — for ${component}, keep it practical: identify the exact file, make one contained patch, then test the timing/output before changing anything else. Don’t merge three more ideas into this until the current path is stable.`;
-
-      case "knowledge_clear_explanation":
-        return "Yes. The simplest way to think about it is: answer the direct question first, then explain only enough to make the answer usable. Don’t turn every answer into a lecture.";
-
-      case "relationship_repair_clarity":
-        return "The move is not to win the argument. It is to lower the temperature and repair trust. Say the true thing plainly, own your part without over-apologizing, and ask for one concrete next step you both can actually do.";
-
-      case "medical_context_calm_guidance":
-        return `For ${bodyProblem}, treat it seriously but don’t panic. Start with the safest simple step: monitor severity, avoid anything that worsens it, and contact a clinician if it is severe, worsening, unusual, or comes with red flags.`;
-
-      case "memory_direct_acknowledgment":
-        return "Got it. I’ll keep that in mind.";
-
-      case "wisdom_principle_then_step":
-        return "The principle is simple: don’t let urgency pretend to be importance. Pick the next move that protects what matters long term, not just what feels loud right now.";
-
-      case "safety_urgent_support":
-        return "Pause everything else and focus on immediate safety. Get away from the danger if you can, contact emergency help or a trusted person nearby, and do not handle this alone.";
-
-      default:
-        return "Yes. The clean move is to answer the current question directly, keep it specific, and give one useful next step instead of overcomplicating it.";
-    }
   },
 
   composeSupabaseKnowledge(packet = {}) {
@@ -448,19 +572,7 @@ window.AriBlueprintWriter = {
       }))
       .sort((a, b) => b.score - a.score);
 
-    let best = scored[0]?.sentence || sentences[0] || "";
-
-    if (style === "conversation") {
-      best = best
-        .replace(
-          /\bPoor sleep can amplify stress, worsen mood, weaken discipline, reduce patience, increase cravings, impair judgment, and make ordinary problems feel much harder\./i,
-          "When sleep is off, your patience, mood, cravings, and judgment can all take a hit."
-        )
-        .replace(/\bSleep is not wasted time\.\s*/i, "")
-        .replace(/\bIt is one of the core systems that allows humans to\b/i, "It helps you");
-    }
-
-    return best;
+    return scored[0]?.sentence || sentences[0] || "";
   },
 
   cleanForUser(text = "") {
@@ -504,24 +616,19 @@ window.AriBlueprintWriter = {
   },
 
   polishResponse(sentences = [], maxSentences = 5, style = "conversation") {
-    const seen = new Set();
+    const cleaned = this.removeDuplicateSentences(
+      sentences
+        .filter(Boolean)
+        .map(s => this.cleanForUser(s))
+        .filter(Boolean)
+    );
 
-    let cleaned = sentences
-      .filter(Boolean)
-      .map(s => String(s).trim())
-      .filter(s => {
-        const key = s.toLowerCase().replace(/[^\w\s]/g, "").slice(0, 80);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, maxSentences);
+    const limited =
+      style === "conversation"
+        ? cleaned.slice(0, Math.min(cleaned.length, 3))
+        : cleaned.slice(0, maxSentences);
 
-    if (style === "conversation") {
-      cleaned = cleaned.slice(0, Math.min(cleaned.length, 3));
-    }
-
-    return cleaned.join(" ");
+    return limited.join(" ").trim();
   },
 
   blueprints: {
@@ -610,7 +717,7 @@ window.AriBlueprintWriter = {
       id: "emotion_presence_grounding",
       strategy: "present",
       responseGoal: "stabilize",
-      aiAllowed: true
+      aiAllowed: false
     },
 
     emotion_balance_repair: {
