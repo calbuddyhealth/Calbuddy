@@ -1,11 +1,11 @@
 // ari/language/ari-response-candidate-arbiter.js
 // Purpose: Choose the best final response candidate before Composer.
-// V1.0.1 — Candidate Arbitration / Code-Aware / Blueprint Guarded / Stable Output Fields
+// V1.1.0 — Candidate Arbitration / Code-Aware / Blueprint Guarded / Stable Output Fields
 
 window.Ari = window.Ari || {};
 
 window.AriResponseCandidateArbiter = {
-  version: "1.0.1",
+  version: "1.1.0",
 
   choose(input = {}) {
     const summary = input.summary || input || {};
@@ -42,6 +42,28 @@ window.AriResponseCandidateArbiter = {
       finalResponseCandidate: winner?.text || null
     };
   },
+
+precheck(input = {}) {
+  const result = this.choose(input);
+  const summary = input.summary || input || {};
+  const packet = input.composerPacket || summary.composerPacket || {};
+  const context = this.getContext(summary, packet);
+
+  const best = result.selectedCandidate;
+  const needsAIWriter =
+    !best ||
+    best.source !== "blueprint_writer" ||
+    this.needsAIRepair(best, context, packet);
+
+  return {
+    ...result,
+    arbiterPrecheckRan: true,
+    needsAIWriter,
+    aiRepairReason: needsAIWriter
+      ? this.getAIRepairReason(best, context, packet)
+      : null
+  };
+},
 
   collectCandidates(summary = {}, packet = {}) {
     const candidates = [];
@@ -220,6 +242,63 @@ window.AriResponseCandidateArbiter = {
       score
     };
   },
+
+needsAIRepair(candidate = {}, context = {}, packet = {}) {
+  const text = String(candidate.text || "").toLowerCase();
+  const question = context.text || "";
+  const plan = packet.responsePlan || {};
+
+  if (!candidate.text) return true;
+  if (candidate.source !== "blueprint_writer") return false;
+
+  const asksForQuote =
+    /\b(bible quote|quote|verse|scripture)\b/.test(question);
+
+  if (asksForQuote && !/[“"].+[”"]|psalm|proverbs|matthew|john|romans|isaiah/i.test(candidate.text)) {
+    return true;
+  }
+
+  const asksDirectContent =
+    /\b(give me|tell me|send me|write me|make me|show me)\b/.test(question);
+
+  const asksClarifyingInstead =
+    /\bdo you want|would you like|are you asking|i don’t want to assume|i don't want to assume\b/.test(text);
+
+  if (asksDirectContent && asksClarifyingInstead) {
+    return true;
+  }
+
+  if (plan.currentNeed === "clear_information" && asksClarifyingInstead) {
+    return true;
+  }
+
+  if (this.isBadBlueprintMeta(text)) {
+    return true;
+  }
+
+  return false;
+},
+
+getAIRepairReason(candidate = {}, context = {}, packet = {}) {
+  if (!candidate) return "no_usable_blueprint_candidate";
+
+  const question = context.text || "";
+  const text = String(candidate.text || "").toLowerCase();
+
+  if (/\b(bible quote|quote|verse|scripture)\b/.test(question)) {
+    return "blueprint_failed_direct_quote_request";
+  }
+
+  if (/\bdo you want|i don’t want to assume|i don't want to assume\b/.test(text)) {
+    return "blueprint_asked_clarifying_question_for_direct_request";
+  }
+
+  if (this.isBadBlueprintMeta(text)) {
+    return "blueprint_meta_or_template_output";
+  }
+
+  return "blueprint_quality_too_low";
+},
 
   isBadBlueprintMeta(text = "") {
     const bad = [
