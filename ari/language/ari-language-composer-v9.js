@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response renderer from sealed composerPacket + selected arbiter draft.
-// V9.3.0 — Thin Composer / Arbiter-First / No Draft Re-Arbitration
+// V9.3.1 — Thin Composer / Honest Unknown Fallback / No Empty Ari Reply
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.3.0",
+  version: "9.3.1",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -299,14 +299,12 @@ window.AriLanguageComposerV9 = {
     }
 
     return this.returnFinal(
-      q
-        ? "I can answer that, but the selected writer draft was missing. I’m using a safe fallback instead of pulling from old conversation history."
-        : "Yeah. I’m here.",
-      "general_fallback",
-      packet,
-      activeDialogueState,
-      characterIdentity
-    );
+  this.honestUnknownFallback(),
+  "honest_unknown_fallback",
+  packet,
+  activeDialogueState,
+  characterIdentity
+);
   },
 
   readActiveDialogueState({ packet = {}, summary = {}, input = {} } = {}) {
@@ -342,6 +340,10 @@ window.AriLanguageComposerV9 = {
     );
   },
 
+honestUnknownFallback() {
+  return "I know what you're asking, but I don't know the answer right now. I'd rather be honest than make something up.";
+},
+
   returnFinal(
     text = "",
     validation = "passed",
@@ -349,7 +351,9 @@ window.AriLanguageComposerV9 = {
     activeDialogueState = null,
     characterIdentity = null
   ) {
-    const finalText = String(text || "").trim() || "Yeah. I’m here.";
+    const finalText =
+  String(text || "").trim() ||
+  this.honestUnknownFallback();
 
     return {
       languageMode: packet?.primary || "general_understanding",
