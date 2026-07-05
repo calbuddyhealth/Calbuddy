@@ -1,11 +1,11 @@
 // ari/language/ari-ai-writer.js
 // Purpose: AI drafting only. Does not choose lane or override packet.
-// V1.2.2 — Trusted Knowledge Grounding / No Second AI After Router Retrieval
+// V1.2.4 — Response Plan Priority Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "1.2.2",
+  version: "1.2.4",
 
   async write(input = {}) {
     const packet = input.composerPacket || input;
@@ -41,6 +41,10 @@ if (routerOpenAIKnowledge?.text) {
       return this.returnDraft(trusted.text, trusted.reason || "trusted_answer", false);
     }
 
+const plannedDraft = this.localResponsePlanDraft(safePacket);
+if (plannedDraft) {
+  return this.returnDraft(plannedDraft, "local_response_plan_draft", false);
+}
 const blueprintDraft = this.resolveBlueprintDraft(safePacket);
 if (blueprintDraft?.text) {
   return this.returnDraft(
@@ -443,6 +447,18 @@ ${packet.responseShape || "clear_explanation"}
 RESPONSE RULES:
 ${(packet.responseRules || []).map(x => "- " + x).join("\n") || "- Answer directly."}
 
+MEANING INTERPRETATION:
+${JSON.stringify(packet.meaningInterpretation || {}, null, 2)}
+
+HUMAN STATE:
+${JSON.stringify(packet.humanState || {}, null, 2)}
+
+RESPONSE PLAN:
+${JSON.stringify(packet.responsePlan || {}, null, 2)}
+
+BLUEPRINT DRAFT:
+${packet.blueprintWriterDraft || ""}
+
 THESIS:
 ${JSON.stringify(packet.thesis || {}, null, 2)}
 
@@ -476,6 +492,11 @@ RULES:
 - Do not use stale GitHub/file evidence unless developer relevance is yes.
 - Do not render unlocked developer packets as final answers; locked developer replies may be used only if locked is true.
 - Do not invent missing facts or dump JSON/internal pipeline details unless asked.
+- Treat RESPONSE PLAN as the main writing plan when present.
+- Follow responseMoves, advicePolicy, required, avoid, and writerInstructions.
+- If coachingPermissionRequired is true, validate first and ask permission before giving advice.
+- If BLUEPRINT DRAFT is good, you may improve it naturally without changing its intent.
+- If BLUEPRINT DRAFT is weak, write a better answer using MEANING INTERPRETATION, HUMAN STATE, and RESPONSE PLAN.
 - Never say “according to my Constitution” unless the user explicitly asks about Ari's internal design; use natural values language instead.
 - Be direct, natural, concise, and specific.
 `.trim();
@@ -490,6 +511,9 @@ RULES:
 
   const trusted = this.resolveTrustedAnswer(packet);
   if (trusted?.text) return trusted.text;
+
+const planned = this.localResponsePlanDraft(packet);
+if (planned) return planned;
 
   const developerRelevant = this.isDeveloperRelevant(packet);
     const developerPacket =
@@ -533,6 +557,40 @@ RULES:
 
     return `I read ${filePath}. I should answer only from the visible file evidence and clearly name what is missing before suggesting a patch.`;
   },
+
+localResponsePlanDraft(packet = {}) {
+  const plan = packet.responsePlan || {};
+  const question = String(packet.userQuestion || "").toLowerCase();
+  const currentNeed = plan.currentNeed || "";
+  const moves = Array.isArray(plan.responseMoves) ? plan.responseMoves : [];
+
+  if (!plan.usable || !moves.length) return "";
+
+  if (
+    currentNeed === "validation_before_coaching" &&
+    /\b(fat|weight|body)\b/.test(question)
+  ) {
+    if (plan.coachingPermissionRequired === true) {
+      return "Yeah, that can feel shitty when you notice your body changing in a way you don’t like. That might be weight, habits, stress, sleep, or just self-judgment talking — I wouldn’t jump straight to shame. Do you want me to help you figure out what changed, or are you just venting right now?";
+    }
+
+    return "Yeah, that can feel shitty when you notice your body changing in a way you don’t like. Start by checking what changed recently: eating, drinking, sleep, stress, activity, or schedule.";
+  }
+
+  if (currentNeed === "shared_positive_emotion") {
+    return "Hell yeah — that’s worth feeling good about. Let yourself actually take the win for a second.";
+  }
+
+  if (currentNeed === "emotional_presence") {
+    return "Yeah, I’m here with you. That sounds heavy, and we don’t have to fix it all in one breath. Do you want to tell me what happened?";
+  }
+
+  if (currentNeed === "reflect_then_clarify") {
+    return "I think there’s something real underneath that, but I don’t want to assume the wrong need. Do you want advice, or do you mainly want me to understand it first?";
+  }
+
+  return "";
+},
 
   generalFallback(packet = {}) {
     const question = String(packet.userQuestion || "").trim();
