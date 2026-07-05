@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.1.0 — Need-Gated Supabase Retrieval / UserMemory Is Not Auto-Retrieved
+// V4.1.1 — Need-Gated Supabase Retrieval / UserMemory Is Not Auto-Retrieved
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.1.0",
+  version: "4.1.1",
 
   cores: {
     character: "character_core",
@@ -270,8 +270,7 @@ if (
     /\b(calbuddy|ari rebirth|supabase|github|code|file|function|bug|patch|app bridge|pipeline|knowledge router|blueprint writer|composer)\b/.test(text);
 
   const asksForMedicalOrSafetyKnowledge =
-    /\b(pregnant|pregnancy|symptom|pain|bleeding|fever|medicine|medication|dose|doctor|hospital|emergency|diagnosis|medical)\b/.test(text);
-
+  /\b(bleeding|fever|medicine|medication|dose|doctor|hospital|emergency|diagnosis|medical advice|red flags|urgent care|er|should i go in)\b/.test(text);
   const asksForSpecificLearnedKnowledge =
     /\b(according to|stored node|knowledge node|what did you learn|saved rule|based on my saved|based on what you know about me)\b/.test(text);
 
