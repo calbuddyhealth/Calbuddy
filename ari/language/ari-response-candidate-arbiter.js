@@ -1,17 +1,16 @@
 // ari/language/ari-response-candidate-arbiter.js
 // Purpose: Choose the best final response candidate before Composer.
-// V1.0.0 — Candidate Arbitration / Code-Aware / Blueprint Guarded
+// V1.0.1 — Candidate Arbitration / Code-Aware / Blueprint Guarded / Stable Output Fields
 
 window.Ari = window.Ari || {};
 
 window.AriResponseCandidateArbiter = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   choose(input = {}) {
     const summary = input.summary || input || {};
     const packet = input.composerPacket || summary.composerPacket || {};
     const candidates = this.collectCandidates(summary, packet);
-
     const context = this.getContext(summary, packet);
 
     const scored = candidates
@@ -21,6 +20,10 @@ window.AriResponseCandidateArbiter = {
 
     const winner = scored[0] || null;
 
+    const selectedDraftReason = winner
+      ? `Selected ${winner.source} with score ${winner.score}.`
+      : "No usable response candidate found.";
+
     return {
       responseCandidateArbiterRan: true,
       responseCandidateArbiterVersion: this.version,
@@ -28,14 +31,15 @@ window.AriResponseCandidateArbiter = {
 
       selectedCandidate: winner,
       selectedDraft: winner?.text || null,
+      selectedDraftSource: winner?.source || null,
+      selectedDraftReason,
+
+      // Backward compatibility
       selectedSource: winner?.source || null,
+      reason: selectedDraftReason,
 
       candidateScores: scored,
-      finalResponseCandidate: winner?.text || null,
-
-      reason: winner
-        ? `Selected ${winner.source} with score ${winner.score}.`
-        : "No usable response candidate found."
+      finalResponseCandidate: winner?.text || null
     };
   },
 
@@ -178,7 +182,7 @@ window.AriResponseCandidateArbiter = {
 
     const isCodeCandidate =
       candidate.taskType === "coding" ||
-      candidate.source.includes("developer") ||
+      String(candidate.source || "").includes("developer") ||
       candidate.evidence?.includesCodeBlock === true ||
       /```|function\s+\w+|const\s+\w+|let\s+\w+|return\s+|=>/.test(text);
 
@@ -194,7 +198,7 @@ window.AriResponseCandidateArbiter = {
       }
 
       if (
-        candidate.source.includes("developer") &&
+        String(candidate.source || "").includes("developer") &&
         candidate.evidence?.groundedInCurrentFile !== true
       ) {
         score -= 35;
