@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.6.9 — Blueprint Writer Loaded
+// V1.7.0 — Response Candidate Arbiter Loaded
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.6.9",
+version: "1.7.0",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -73,6 +73,7 @@ version: "1.6.9",
 "ari/language/ari-mouth-director.js",
 "ari/language/ari-composer-bridge.js",
    "ari/language/ari-blueprint-writer.js",
+  "ari/language/ari-response-candidate-arbiter.js",
     // NEW composer pathway
 "ari/character/ari-character-core.js",
 "ari/character/ari-character-preferences.js",
