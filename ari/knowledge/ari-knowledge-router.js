@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.0.6 — Wisdom Skip / Required Knowledge Fallback / Timing Visible
+// V4.1.0 — Need-Gated Supabase Retrieval / UserMemory Is Not Auto-Retrieved
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.0.6",
+  version: "4.1.0",
 
   cores: {
     character: "character_core",
@@ -161,10 +161,8 @@ if (
   retrievalGate.allowed === true ||
   requires.knowledgeGraph === true ||
   requires.systemKnowledge === true ||
-  requires.userMemory === true ||
   requires.liveVerification === true ||
   this.legacyShouldUseKnowledge(summary, question, coreRoute, requires);
-
     if (!needsKnowledge) {
       return {
         shouldRetrieve: false,
@@ -237,11 +235,10 @@ if (
   const text = this.normalizeText(question);
 
   if (
-    requires.knowledgeGraph === true ||
-    requires.systemKnowledge === true ||
-    requires.userMemory === true ||
-    requires.liveVerification === true
-  ) {
+  requires.knowledgeGraph === true ||
+  requires.systemKnowledge === true ||
+  requires.liveVerification === true
+) {
     return {
       allowed: true,
       reason: "ACE explicitly required stored, system, graph, memory, or live knowledge."
@@ -345,10 +342,8 @@ if (
   const questions = summary.situationMap?.questions || summary.questions || [];
 
   if (requires.knowledgeGraph === true) add("knowledge", 2);
-  if (requires.systemKnowledge === true) add("knowledge", 2);
-  if (requires.userMemory === true) add("relationship", 2);
-  if (requires.liveVerification === true) add("knowledge", 2);
-
+if (requires.systemKnowledge === true) add("knowledge", 2);
+if (requires.liveVerification === true) add("knowledge", 2);
   if (primary === "ari_self" || primary === "companion") add("character", 4);
   if (primary === "teacher" || primary === "medical_context") add("knowledge", 3);
 
@@ -850,7 +845,6 @@ shouldBlockKnowledgeForEmotionalSupport(summary = {}, question = "") {
   const needsHighAccuracy =
     requires.liveVerification === true ||
     requires.systemKnowledge === true ||
-    requires.userMemory === true ||
     /\b(current|latest|today|price|law|policy|diagnosis|medication|dose|pregnant|bleeding|chest pain|emergency|github|code|file|supabase)\b/.test(text);
 
   return isSimpleTeacher && !needsHighAccuracy;
@@ -866,7 +860,6 @@ if (this.shouldBlockKnowledgeForEmotionalSupport(summary, question)) {
   if (
     requires.knowledgeGraph === true ||
     requires.systemKnowledge === true ||
-    requires.userMemory === true ||
     requires.liveVerification === true
   ) {
     return true;
@@ -893,8 +886,7 @@ if (this.shouldBlockKnowledgeForEmotionalSupport(summary, question)) {
     /\b(what should i do|what do i do|what would you do|do you think|advice|wisdom|best move|next step)\b/.test(lower);
 
   const needsStoredKnowledge =
-    /\b(define|definition|what is|explain|teach|compare|difference|medical|symptom|diagnosis|medication|law|policy|current|latest|price|weather|score|code|debug|github|file|remember|previous|earlier)\b/.test(lower);
-
+  /\b(define|definition|what is|explain|teach|compare|difference|medical|symptom|diagnosis|medication|law|policy|current|latest|price|weather|score|code|debug|github|file|remember)\b/.test(lower);
   if (needsStoredKnowledge) return true;
 
   if (isJudgmentOrWisdom) return false;
