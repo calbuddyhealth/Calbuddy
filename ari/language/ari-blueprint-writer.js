@@ -386,7 +386,8 @@ renderSadnessAttune(conversationPlan = {}) {
   const ctx = conversationPlan.relationshipContext || {};
 
   if (ctx.hasRelationshipContext && ctx.phrase) {
-    return `I’m sorry you’re carrying that after an ${ctx.phrase}.`;
+    const article = ctx.conflict ? "an" : "a";
+    return `I’m sorry you’re carrying that after ${article} ${ctx.phrase}.`;
   }
 
   return "I’m sorry you’re feeling sad.";
