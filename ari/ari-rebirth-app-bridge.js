@@ -391,9 +391,10 @@ return this.makeResponse({
 
   extractReply(summary = {}) {
   const candidates = [
-    summary.finalResponse,
-    summary.compressedResponse,
-    summary.languageBody,
+  summary.finalResponse,
+  summary.selectedDraft,
+  summary.compressedResponse,
+  summary.languageBody,
     summary.languageBodyOutput,
     summary.developerResponseLocked ? summary.developerHandoff?.reply : null,
     summary.developerResponseLocked ? summary.developerHandoff?.finalResponse : null,
