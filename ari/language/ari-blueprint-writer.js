@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.2 — Conversation Planner / Primitive Renderer / No Coaching Too Fast
+// V1.3.4 — Response Plan Aware / Human State Guided
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.2",
+  version: "1.3.4",
 
   write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -74,15 +74,20 @@ window.AriBlueprintWriter = {
   buildConversationPlan({ packet = {}, blueprint = {}, question = "" } = {}) {
     const id = blueprint.id || "general_direct_response";
     const q = String(question || "").toLowerCase();
-
+const responsePlan = this.getResponsePlan(packet);
+const responsePlanMoves = this.getResponsePlanMoves(responsePlan);
+const responsePlanBlueprintId = responsePlan?.blueprintHint || null;
     const emotionKind = this.detectEmotionKind(q);
 const relationshipContext = this.extractRelationshipContext(question);
     
     const relationshipTone = this.detectRelationshipTone(q);
+const plannedBlueprintId =
+  responsePlanBlueprintId || id;
+
 const safeBlueprintId =
-  id === "relationship_repair_clarity" && relationshipTone === "positive"
+  plannedBlueprintId === "relationship_repair_clarity" && relationshipTone === "positive"
     ? "relationship_positive_connection"
-    : id;
+    : plannedBlueprintId;
     
     const plans = {
       emotion_presence_grounding: this.emotionPresencePlan(emotionKind),
@@ -161,8 +166,12 @@ relationship_positive_connection: [
       primary: String(packet.primary || "").toLowerCase(),
       emotionKind,
       relationshipContext,
-      moves: plans[safeBlueprintId] || plans.general_direct_response,
-      maxSentences: this.resolveMaxSentences(packet, safeBlueprintId),
+      moves: responsePlanMoves.length
+  ? responsePlanMoves
+  : plans[safeBlueprintId] || plans.general_direct_response,
+      maxSentences:
+  responsePlan?.writerInstructions?.maxSentences ||
+  this.resolveMaxSentences(packet, safeBlueprintId),
       relationshipTone,
       tone: packet.humanLanguageProfile?.tone || "direct_warm_plain",
       naturalizer: true
@@ -292,6 +301,27 @@ invite_context:
 
       offer_grounding_choice:
         "We can either talk through what triggered it, or start with one small grounding step.",
+
+validate_feeling:
+  this.renderValidateFeeling(packet, question),
+
+name_pattern_gently:
+  this.renderNamePatternGently(packet, question),
+
+ask_permission_before_coaching:
+  this.renderAskPermissionBeforeCoaching(packet, question),
+
+offer_small_practical_next_step:
+  this.renderSmallPracticalStep(packet, question),
+
+join_positive_emotion:
+  "Hell yeah — that’s worth feeling good about.",
+
+name_what_it_means:
+  "That sounds like it mattered because it hit something personal, not just because it happened.",
+
+reflect_strength_or_connection:
+  "I’d let yourself actually take the win for a second.",
 
 acknowledge_kind_gesture:
   "That was really thoughtful of her.",
@@ -435,6 +465,50 @@ renderInviteContext(conversationPlan = {}) {
   }
 
   return "Do you want to tell me what happened, or did it just hit you out of nowhere?";
+},
+
+renderValidateFeeling(packet = {}, question = "") {
+  const q = String(question || "").toLowerCase();
+
+  if (/\b(fat|weight|body)\b/.test(q)) {
+    return "Yeah, that can feel shitty when you notice your body changing in a way you don’t like.";
+  }
+
+  if (/\b(failed|rejected|lost|messed up)\b/.test(q)) {
+    return "Yeah, that stings — especially when it feels personal.";
+  }
+
+  return "Yeah, I get why that would hit you.";
+},
+
+renderNamePatternGently(packet = {}, question = "") {
+  const q = String(question || "").toLowerCase();
+
+  if (/\b(fat|weight|body)\b/.test(q)) {
+    return "That might be weight, habits, stress, sleep, or just self-judgment talking — I wouldn’t jump straight to shame.";
+  }
+
+  return "There may be a real pattern here, but it’s worth naming it carefully before trying to fix everything.";
+},
+
+renderAskPermissionBeforeCoaching(packet = {}, question = "") {
+  const q = String(question || "").toLowerCase();
+
+  if (/\b(fat|weight|body)\b/.test(q)) {
+    return "Do you want me to help you figure out what changed, or are you just venting right now?";
+  }
+
+  return "Do you want advice, or do you mainly want me to understand it first?";
+},
+
+renderSmallPracticalStep(packet = {}, question = "") {
+  const q = String(question || "").toLowerCase();
+
+  if (/\b(fat|weight|body)\b/.test(q)) {
+    return "Start by checking what changed recently: eating, drinking, sleep, stress, activity, or schedule.";
+  }
+
+  return "Start with one small thing you can actually control today.";
 },
 
 detectRelationshipTone(q = "") {
@@ -922,6 +996,56 @@ detectRelationshipTone(q = "") {
       aiAllowed: true
     }
   },
+
+getResponsePlan(packet = {}) {
+  return (
+    packet.responsePlan ||
+    packet.ariResponsePlan ||
+    packet.understandingResponsePlan ||
+    packet.summary?.ariResponsePlan ||
+    packet.summary?.understandingResponsePlan ||
+    null
+  );
+},
+
+getResponsePlanMoves(responsePlan = {}) {
+  const moves = Array.isArray(responsePlan?.responseMoves)
+    ? responsePlan.responseMoves
+    : [];
+
+  const map = {
+    validate_feeling: "validate_feeling",
+    name_pattern_gently: "name_pattern_gently",
+    ask_permission_before_coaching: "ask_permission_before_coaching",
+    offer_small_practical_next_step: "offer_small_practical_next_step",
+
+    join_positive_emotion: "join_positive_emotion",
+    name_what_it_means: "name_what_it_means",
+    reflect_strength_or_connection: "reflect_strength_or_connection",
+
+    attune_to_emotion: "attune",
+    validate_weight: "gentle_validation",
+    invite_context_or_stay_present: "invite_context",
+
+    answer_directly: "direct_answer",
+    brief_explanation: "brief_explanation",
+    usable_context: "usable_example",
+
+    confirm_practical_goal: "confirm_practical",
+    give_contained_steps: "contained_patch",
+    suggest_test_or_followup: "test_before_more_changes",
+
+    name_tradeoff: "name_tradeoff",
+    separate_options: "separate_questions",
+    recommend_next_decision_step: "recommend_priority",
+
+    pause_and_prioritize_safety: "pause",
+    give_direct_safety_step: "immediate_safety",
+    urge_trusted_or_emergency_support: "trusted_help"
+  };
+
+  return moves.map(move => map[move] || move).filter(Boolean);
+},
 
   returnDraft(text = "", reason = "fallback", usedBlueprint = false, blueprint = null) {
     const draft = String(text || "").trim();
