@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.0 — Conversation Planner / Primitive Renderer / No Coaching Too Fast
+// V1.3.1 — Conversation Planner / Primitive Renderer / No Coaching Too Fast
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.0",
+  version: "1.3.1",
 
   write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -75,7 +75,7 @@ window.AriBlueprintWriter = {
     const q = String(question || "").toLowerCase();
 
     const emotionKind = this.detectEmotionKind(q);
-
+const relationshipContext = this.extractRelationshipContext(question);
     const plans = {
       emotion_presence_grounding: this.emotionPresencePlan(emotionKind),
 
@@ -146,6 +146,7 @@ window.AriBlueprintWriter = {
       id,
       primary: String(packet.primary || "").toLowerCase(),
       emotionKind,
+      relationshipContext,
       moves: plans[id] || plans.general_direct_response,
       maxSentences: this.resolveMaxSentences(packet, id),
       tone: packet.humanLanguageProfile?.tone || "direct_warm_plain",
@@ -185,6 +186,39 @@ window.AriBlueprintWriter = {
     ];
   },
 
+extractRelationshipContext(question = "") {
+  const text = String(question || "").trim();
+  const q = text.toLowerCase();
+
+  const relationship =
+    q.includes("wife") ? "wife" :
+    q.includes("husband") ? "husband" :
+    q.includes("girlfriend") ? "girlfriend" :
+    q.includes("boyfriend") ? "boyfriend" :
+    q.includes("partner") ? "partner" :
+    null;
+
+  const conflict =
+    /\b(argument|argued|fight|fighting|disagreement|conflict)\b/.test(q);
+
+  if (!relationship && !conflict) {
+    return {
+      hasRelationshipContext: false
+    };
+  }
+
+  return {
+    hasRelationshipContext: true,
+    relationship,
+    conflict,
+    phrase: relationship && conflict
+      ? `argument with your ${relationship}`
+      : relationship
+        ? `situation with your ${relationship}`
+        : "relationship situation"
+  };
+},
+
   renderConversationPlan({ packet = {}, blueprint = {}, question = "", conversationPlan = {} } = {}) {
     const moves = Array.isArray(conversationPlan.moves) ? conversationPlan.moves : [];
     const sentences = [];
@@ -201,7 +235,7 @@ window.AriBlueprintWriter = {
     });
   },
 
-  renderMove({ move = "", packet = {}, question = "" } = {}) {
+  renderMove({ move = "", packet = {}, question = "", conversationPlan = {} } = {}) {
     const terms = packet.evidence?.lexicalGrounding?.preferredTerms || {};
 
     const component =
@@ -227,13 +261,13 @@ window.AriBlueprintWriter = {
 
     const moveMap = {
       sadness_attune:
-        "I’m sorry you’re feeling sad.",
+  this.renderSadnessAttune(conversationPlan),
 
-      sadness_validate:
-        "That can feel heavy, especially when you don’t know what to do with it.",
+sadness_validate:
+  this.renderSadnessValidate(conversationPlan),
 
-      invite_context:
-        "Do you want to tell me what happened, or did it just hit you out of nowhere?",
+invite_context:
+  this.renderInviteContext(conversationPlan),
 
       anxiety_attune:
         "Yeah, I’m here with you.",
@@ -347,6 +381,36 @@ window.AriBlueprintWriter = {
 
     return moveMap[move] || "";
   },
+
+renderSadnessAttune(conversationPlan = {}) {
+  const ctx = conversationPlan.relationshipContext || {};
+
+  if (ctx.hasRelationshipContext && ctx.phrase) {
+    return `I’m sorry you’re carrying that after an ${ctx.phrase}.`;
+  }
+
+  return "I’m sorry you’re feeling sad.";
+},
+
+renderSadnessValidate(conversationPlan = {}) {
+  const ctx = conversationPlan.relationshipContext || {};
+
+  if (ctx.hasRelationshipContext) {
+    return "Arguments with someone close can linger even after the moment has passed.";
+  }
+
+  return "That can feel heavy, especially when you don’t know what to do with it.";
+},
+
+renderInviteContext(conversationPlan = {}) {
+  const ctx = conversationPlan.relationshipContext || {};
+
+  if (ctx.hasRelationshipContext) {
+    return "What happened between you two?";
+  }
+
+  return "Do you want to tell me what happened, or did it just hit you out of nowhere?";
+},
 
   detectEmotionKind(q = "") {
     if (/\b(sad|down|depressed|heavy|cry|crying)\b/.test(q)) return "sad";
