@@ -1,12 +1,12 @@
 // ari/knowledge/ari-knowledge-router.js
 // Ari Knowledge Router
 // Purpose: Decide which Ari knowledge cores should be searched.
-// V4.0.5 — Wisdom Skip / Required Knowledge Fallback / Timing Visible
+// V4.0.6 — Wisdom Skip / Required Knowledge Fallback / Timing Visible
 
 window.Ari = window.Ari || {};
 
 window.AriKnowledgeRouter = {
-  version: "4.0.5",
+  version: "4.0.6",
 
   cores: {
     character: "character_core",
@@ -129,6 +129,19 @@ knowledgeApiTiming: best.timing || null,
     sources: []
   };
 }
+    const retrievalGate = this.shouldUseStoredKnowledge(summary, question, requires);
+
+if (!retrievalGate.allowed) {
+  return {
+    shouldRetrieve: false,
+    reason: retrievalGate.reason,
+    primaryCore: null,
+    secondaryCores: [],
+    searchOrder: [],
+    sources: [],
+    retrievalGate
+  };
+}
     const coreRoute = this.routeCores(summary, question, requires);
 if (
   (requires.knowledgeGraph === true ||
@@ -145,6 +158,7 @@ if (
   coreRoute.reason = "Required knowledge retrieval defaulted to knowledge_core.";
 }
     const needsKnowledge =
+  retrievalGate.allowed === true ||
   requires.knowledgeGraph === true ||
   requires.systemKnowledge === true ||
   requires.userMemory === true ||
@@ -219,6 +233,77 @@ if (
       routeConfidence: coreRoute.confidence || "medium"
     };
   },
+    shouldUseStoredKnowledge(summary = {}, question = "", requires = {}) {
+  const text = this.normalizeText(question);
+
+  if (
+    requires.knowledgeGraph === true ||
+    requires.systemKnowledge === true ||
+    requires.userMemory === true ||
+    requires.liveVerification === true
+  ) {
+    return {
+      allowed: true,
+      reason: "ACE explicitly required stored, system, graph, memory, or live knowledge."
+    };
+  }
+
+  const primary =
+    summary.situationContractPrimary ||
+    summary.primaryLane ||
+    summary.triagePrimaryLane ||
+    summary.triage?.primaryLane ||
+    "";
+
+  const normalConversationLanes = [
+    "emotion",
+    "relationship",
+    "clarification",
+    "casual",
+    "companion"
+  ];
+
+  const asksForMemory =
+    /\b(remember|what do you remember|did i tell you|what do you know about me|my profile|my history|last time|previously|earlier|what did we decide|where did we leave off|continue from|resume)\b/.test(text);
+
+  const asksForAriIdentity =
+    /\b(who are you|what are you|your personality|ari personality|ari's personality|your values|your purpose|your mission|your worldview|what do you believe|what do you stand for)\b/.test(text);
+
+  const asksForProjectKnowledge =
+    /\b(calbuddy|ari rebirth|supabase|github|code|file|function|bug|patch|app bridge|pipeline|knowledge router|blueprint writer|composer)\b/.test(text);
+
+  const asksForMedicalOrSafetyKnowledge =
+    /\b(pregnant|pregnancy|symptom|pain|bleeding|fever|medicine|medication|dose|doctor|hospital|emergency|diagnosis|medical)\b/.test(text);
+
+  const asksForSpecificLearnedKnowledge =
+    /\b(according to|stored node|knowledge node|what did you learn|saved rule|based on my saved|based on what you know about me)\b/.test(text);
+
+  const allowed =
+    asksForMemory ||
+    asksForAriIdentity ||
+    asksForProjectKnowledge ||
+    asksForMedicalOrSafetyKnowledge ||
+    asksForSpecificLearnedKnowledge;
+
+  if (allowed) {
+    return {
+      allowed: true,
+      reason: "Message asks for stored facts, durable memory, Ari/project knowledge, medical knowledge, or specific learned knowledge."
+    };
+  }
+
+  if (normalConversationLanes.includes(String(primary).toLowerCase())) {
+    return {
+      allowed: false,
+      reason: "Normal emotional/relationship/companion turn; answer from conversation reasoning without Supabase."
+    };
+  }
+
+  return {
+    allowed: false,
+    reason: "No explicit need for stored knowledge."
+  };
+},
     routeCores(summary = {}, question = "", requires = {}) {
   const text = this.normalizeText(question);
 
@@ -356,7 +441,7 @@ if (
   const hasRelationshipSignal = this.hasAny(text, relationshipWords);
   const hasLifeSignal = this.hasAny(text, lifeWords);
 
-  if (hasRelationshipSignal) add("relationship", 5);
+  if (hasRelationshipSignal) add("relationship", 2);
   if (hasLifeSignal) add("life", 4);
 
   if (hasRelationshipSignal && hasLifeSignal) {
@@ -814,7 +899,7 @@ if (this.shouldBlockKnowledgeForEmotionalSupport(summary, question)) {
 
   if (isJudgmentOrWisdom) return false;
 
-  return coreRoute.shouldRetrieve === true && coreRoute.confidence === "high";
+  return false;
 },
 
   getQuestion(summary = {}) {
