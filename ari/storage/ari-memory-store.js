@@ -1,15 +1,14 @@
 // ari/storage/ari-memory-store.js
 // Ari Memory Store
 // Purpose: Load/save Ari memories.
-// V1.2.1 — Supabase First / Session Fallback / Memory-Only
+// V1.2.2 — Supabase Schema Aligned / User-Scoped / Session Fallback
 
 window.Ari = window.Ari || {};
 
 window.AriMemoryStore = {
-  version: "1.2.1",
+  version: "1.2.2",
 
   tableName: "ari_user_memory",
-  fallbackTableName: "user_memory",
 
   async loadRelevant(summary = {}) {
     const query = this.normalize(
@@ -29,7 +28,8 @@ window.AriMemoryStore = {
         memoryAvailable: supabaseResult.memories.length > 0,
         memories: supabaseResult.memories,
         usableMemories: supabaseResult.memories,
-        source: supabaseResult.source
+        source: supabaseResult.source,
+        userId: supabaseResult.userId || null
       };
     }
 
@@ -73,19 +73,6 @@ window.AriMemoryStore = {
     const savedMemory = this.normalizeMemory(memory);
     const supabaseResult = await this.saveToSupabase(savedMemory);
 
-    if (supabaseResult.success) {
-      this.saveSessionCopy(savedMemory);
-
-      return {
-        success: true,
-        memoryStoreRan: true,
-        memoryStoreVersion: this.version,
-        memoryStoreSource: "ari-memory-store",
-        savedMemory,
-        source: supabaseResult.source
-      };
-    }
-
     this.saveSessionCopy(savedMemory);
 
     return {
@@ -94,8 +81,9 @@ window.AriMemoryStore = {
       memoryStoreVersion: this.version,
       memoryStoreSource: "ari-memory-store",
       savedMemory,
-      source: "session_fallback",
-      supabaseError: supabaseResult.reason || null
+      source: supabaseResult.success ? supabaseResult.source : "session_fallback",
+      userId: supabaseResult.userId || savedMemory.userId || null,
+      supabaseError: supabaseResult.success ? null : supabaseResult.reason || null
     };
   },
 
@@ -135,53 +123,56 @@ window.AriMemoryStore = {
 
   async loadFromSupabase(summary = {}, query = "") {
     const client = this.getSupabaseClient();
+
     if (!client) {
       return { success: false, reason: "supabase_client_not_available" };
     }
 
     const userId = await this.getUserId(client, summary);
 
-    const tables = [this.tableName, this.fallbackTableName];
+    try {
+      let request = client
+        .from(this.tableName)
+        .select("*")
+        .order("updated_at", { ascending: false })
+        .limit(50);
 
-    for (const table of tables) {
-      try {
-        let request = client
-          .from(table)
-          .select("*")
-          .order("updated_at", { ascending: false })
-          .limit(50);
-
-        if (userId) {
-          request = request.eq("user_id", userId);
-        }
-
-        const { data, error } = await request;
-
-        if (error) {
-          continue;
-        }
-
-        const normalized = (Array.isArray(data) ? data : [])
-          .map(row => this.fromSupabaseRow(row))
-          .filter(memory =>
-            query ? this.memoryMatchesQuery(memory, query) : true
-          );
-
-        return {
-          success: true,
-          memories: normalized,
-          source: `supabase:${table}`
-        };
-      } catch (error) {
-        console.warn("AriMemoryStore Supabase load failed:", table, error);
+      if (userId) {
+        request = request.eq("user_id", userId);
       }
-    }
 
-    return { success: false, reason: "supabase_load_failed" };
+      const { data, error } = await request;
+
+      if (error) {
+        return {
+          success: false,
+          reason: error.message || "supabase_load_failed"
+        };
+      }
+
+      const memories = (Array.isArray(data) ? data : [])
+        .map(row => this.fromSupabaseRow(row))
+        .filter(memory => query ? this.memoryMatchesQuery(memory, query) : true);
+
+      return {
+        success: true,
+        memories,
+        source: `supabase:${this.tableName}`,
+        userId
+      };
+    } catch (error) {
+      console.warn("AriMemoryStore Supabase load failed:", error);
+
+      return {
+        success: false,
+        reason: error?.message || "supabase_load_failed"
+      };
+    }
   },
 
   async saveToSupabase(memory = {}) {
     const client = this.getSupabaseClient();
+
     if (!client) {
       return { success: false, reason: "supabase_client_not_available" };
     }
@@ -190,49 +181,51 @@ window.AriMemoryStore = {
 
     const row = {
       user_id: userId || memory.userId || null,
-      type: memory.type || "general",
-      domain: memory.domain || "general",
-      key: memory.key || null,
-      claim: memory.claim,
-      tags: memory.tags || [],
-      keywords: memory.keywords || [],
+      memory_type: memory.type || "general",
+      topic: memory.domain || memory.key || memory.type || "general",
+      content: memory.claim,
       importance: memory.importance ?? 5,
       confidence: memory.confidence ?? 0.75,
-      reason: memory.reason || null,
-      source: memory.source || "ari-memory-store",
+      tags: Array.isArray(memory.tags) ? memory.tags : [],
       updated_at: new Date().toISOString()
     };
 
-    const tables = [this.tableName, this.fallbackTableName];
+    try {
+      const { error } = await client
+        .from(this.tableName)
+        .upsert(row, {
+          onConflict: "user_id,content"
+        });
 
-    for (const table of tables) {
-      try {
-        const { error } = await client
-  .from(table)
-  .upsert(row, {
-    onConflict: "user_id,claim"
-  });
+      if (error) {
+        console.warn("AriMemoryStore Supabase save failed:", error);
 
-        if (!error) {
-          return {
-            success: true,
-            source: `supabase:${table}`
-          };
-        }
-
-        console.warn("AriMemoryStore Supabase save failed:", table, error);
-      } catch (error) {
-        console.warn("AriMemoryStore Supabase save error:", table, error);
+        return {
+          success: false,
+          reason: error.message || "supabase_save_failed",
+          userId
+        };
       }
-    }
 
-    return { success: false, reason: "supabase_save_failed" };
+      return {
+        success: true,
+        source: `supabase:${this.tableName}`,
+        userId
+      };
+    } catch (error) {
+      console.warn("AriMemoryStore Supabase save error:", error);
+
+      return {
+        success: false,
+        reason: error?.message || "supabase_save_failed",
+        userId
+      };
+    }
   },
 
   getSupabaseClient() {
     return (
       window.supabaseClient ||
-      window.supabase ||
       window.CalBuddy?.supabase ||
       null
     );
@@ -247,6 +240,18 @@ window.AriMemoryStore = {
       return source.appContext.user.id;
     }
 
+    if (source.appContext?.userContext?.id) {
+      return source.appContext.userContext.id;
+    }
+
+    if (source.user?.id) {
+      return source.user.id;
+    }
+
+    if (source.userContext?.id) {
+      return source.userContext.id;
+    }
+
     try {
       const result = await client.auth?.getUser?.();
       return result?.data?.user?.id || null;
@@ -258,19 +263,18 @@ window.AriMemoryStore = {
   fromSupabaseRow(row = {}) {
     return {
       id: row.id || this.createId("mem"),
-      userId: row.user_id || row.userId || null,
-      type: row.type || row.memory_type || "general",
-      domain: row.domain || "general",
-      key: row.key || row.memory_key || null,
-      claim: row.claim || row.text || row.memory || row.content || "",
+      userId: row.user_id || null,
+      type: row.memory_type || "general",
+      domain: row.topic || "general",
+      key: row.topic || null,
+      claim: row.content || "",
       tags: Array.isArray(row.tags) ? row.tags : [],
-      keywords: Array.isArray(row.keywords) ? row.keywords : [],
+      keywords: this.extractKeywords(row.content || ""),
       importance: Number(row.importance ?? 5),
       confidence: Number(row.confidence ?? 0.75),
-      reason: row.reason || null,
-      source: row.source || "supabase_memory",
-      createdAt: row.created_at || row.createdAt || null,
-      updatedAt: row.updated_at || row.updatedAt || null
+      source: "supabase_memory",
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null
     };
   },
 
@@ -281,7 +285,7 @@ window.AriMemoryStore = {
       id: memory.id || this.createId("mem"),
       userId: memory.userId || memory.user_id || null,
       type: memory.type || "general",
-      domain: memory.domain || "general",
+      domain: memory.domain || memory.topic || "general",
       key: memory.key || null,
       claim,
       tags: Array.isArray(memory.tags) ? memory.tags : [],
@@ -310,6 +314,7 @@ window.AriMemoryStore = {
 
   memoryMatchesQuery(memory = {}, query = "") {
     const q = this.normalize(query);
+
     const haystack = this.normalize([
       memory.claim,
       memory.type,
