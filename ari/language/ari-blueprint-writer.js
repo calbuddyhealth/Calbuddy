@@ -1,18 +1,41 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.4 — Response Plan Aware / Human State Guided
+// V1.3.5 — Response Plan Aware / Human State Guided
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.4",
+  version: "1.3.5",
 
-  write(input = {}) {
+    write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
     const question = String(packet.userQuestion || "").trim();
 
     if (!packet?.ready || !question) {
       return this.returnDraft("", "blueprint_packet_missing", false);
+    }
+
+    const q = question.toLowerCase();
+
+    if (/\b(remember that|remember this|save this|store this|note that|add this to memory)\b/.test(q)) {
+      const remembered = question
+        .replace(/^\s*(remember that|remember this|save this|store this|note that|add this to memory)\s*/i, "")
+        .replace(/[.!?]\s*$/, "")
+        .trim();
+
+      return this.returnDraft(
+        remembered
+          ? `Got it — I’ll remember that ${remembered}.`
+          : "Got it — I’ll remember that.",
+        "explicit_memory_acknowledgment",
+        true,
+        {
+          id: "memory_direct_acknowledgment",
+          strategy: "memory",
+          responseGoal: "confirm_memory_saved",
+          aiAllowed: false
+        }
+      );
     }
 
     const knowledgeMeaning = this.getKnowledgeMeaning(packet);
