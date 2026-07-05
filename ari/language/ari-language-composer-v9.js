@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
-// Purpose: Final response writer from sealed composerPacket only.
-// V9.2.7 — Blueprint Draft First / Supabase Knowledge Removed / No Stale History
+// Purpose: Final response renderer from sealed composerPacket + selected arbiter draft.
+// V9.3.0 — Thin Composer / Arbiter-First / No Draft Re-Arbitration
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.2.7",
+  version: "9.3.0",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
@@ -19,38 +19,14 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    const developerPacket =
-      packet.developerPacket ||
-      packet.evidence?.developerPacket ||
-      summary.composerDeveloperPacket ||
-      null;
+    const activeDialogueState = this.readActiveDialogueState({ packet, summary, input });
+    const characterIdentity = this.readCharacterIdentity({ packet, summary, input });
 
-    const activeDialogueState = this.readActiveDialogueState({
-      packet,
-      summary,
-      input
-    });
-
-    const characterIdentity = this.readCharacterIdentity({
-      packet,
-      summary,
-      input
-    });
-
-    if (this.isLockedDeveloperPacket(developerPacket)) {
+    const lockedReply = this.getLockedReply(packet, summary);
+    if (lockedReply) {
       return this.returnFinal(
-        developerPacket.reply,
-        "developer_packet_locked_reply",
-        packet,
-        activeDialogueState,
-        characterIdentity
-      );
-    }
-
-    if (this.isLockedDeveloperHandoff(packet)) {
-      return this.returnFinal(
-        packet.evidence.developerHandoff.reply,
-        "developer_handoff_locked_reply",
+        lockedReply,
+        "locked_developer_reply",
         packet,
         activeDialogueState,
         characterIdentity
@@ -69,12 +45,12 @@ window.AriLanguageComposerV9 = {
       );
     }
 
-    const writerDraft = this.getCurrentWriterDraft({ packet, summary, input });
+    const selectedDraft = this.getSelectedDraft({ packet, summary, input });
 
-    if (writerDraft) {
+    if (selectedDraft) {
       return this.returnFinal(
-        writerDraft,
-        this.resolveWriterValidation(packet, writerDraft),
+        selectedDraft,
+        this.resolveSelectedDraftValidation({ packet, summary, selectedDraft }),
         packet,
         activeDialogueState,
         characterIdentity
@@ -88,19 +64,101 @@ window.AriLanguageComposerV9 = {
     return this.composeLocal(packet, activeDialogueState, characterIdentity);
   },
 
-  isLockedDeveloperPacket(developerPacket = null) {
-    return Boolean(
+  getLockedReply(packet = {}, summary = {}) {
+    const developerPacket =
+      packet.developerPacket ||
+      packet.evidence?.developerPacket ||
+      summary.composerDeveloperPacket ||
+      null;
+
+    if (
       developerPacket?.enabled === true &&
       developerPacket.locked === true &&
       String(developerPacket.reply || "").trim()
-    );
+    ) {
+      return String(developerPacket.reply).trim();
+    }
+
+    const handoff =
+      packet.evidence?.developerHandoff ||
+      summary.developerHandoff ||
+      null;
+
+    if (
+      handoff?.responseLocked === true &&
+      String(handoff.reply || handoff.finalResponse || "").trim()
+    ) {
+      return String(handoff.reply || handoff.finalResponse).trim();
+    }
+
+    return "";
   },
 
-  isLockedDeveloperHandoff(packet = {}) {
-    return Boolean(
-      packet.evidence?.developerHandoff?.responseLocked === true &&
-      String(packet.evidence?.developerHandoff?.reply || "").trim()
-    );
+  getSelectedDraft({ packet = {}, summary = {}, input = {} } = {}) {
+    const candidates = [
+      packet.selectedDraft,
+      packet.finalResponseCandidate,
+      summary.selectedDraft,
+      summary.finalResponseCandidate,
+      input.selectedDraft,
+
+      // Legacy fallback only if arbiter did not provide anything.
+      packet.blueprintWriterDraft,
+      summary.blueprintWriterDraft,
+      packet.evidence?.aiWriter?.draft,
+      packet.aiWriterDraft,
+      summary.aiWriterDraft
+    ];
+
+    for (const candidate of candidates) {
+      const text = String(candidate || "").trim();
+      if (!text) continue;
+      if (this.isStaleOrWrongContextReply(text, packet)) continue;
+      return text;
+    }
+
+    return "";
+  },
+
+  resolveSelectedDraftValidation({ packet = {}, summary = {}, selectedDraft = "" } = {}) {
+    const draft = String(selectedDraft || "").trim();
+
+    if (
+      draft &&
+      (
+        draft === String(packet.selectedDraft || "").trim() ||
+        draft === String(summary.selectedDraft || "").trim() ||
+        draft === String(packet.finalResponseCandidate || "").trim() ||
+        draft === String(summary.finalResponseCandidate || "").trim()
+      )
+    ) {
+      return summary.selectedDraftSource
+        ? `arbiter_selected_${summary.selectedDraftSource}`
+        : "arbiter_selected_draft";
+    }
+
+    const blueprintDraft = String(
+      packet.blueprintWriterDraft ||
+      summary.blueprintWriterDraft ||
+      ""
+    ).trim();
+
+    if (draft && draft === blueprintDraft) {
+      return "blueprint_writer_draft";
+    }
+
+    const aiDraft = String(
+      packet.evidence?.aiWriter?.draft ||
+      packet.aiWriterDraft ||
+      summary.aiWriterDraft ||
+      ""
+    ).trim();
+
+    if (draft && draft === aiDraft) {
+      return "ai_writer_draft";
+    }
+
+    return "writer_fallback";
   },
 
   isDeveloperRelevant(packet = {}) {
@@ -132,75 +190,17 @@ window.AriLanguageComposerV9 = {
     );
   },
 
-  readActiveDialogueState({ packet = {}, summary = {}, input = {} } = {}) {
-    return (
-      packet.activeDialogueState ||
-      packet.evidence?.activeDialogueState ||
-      packet.assembledContext?.activeDialogueState ||
-      packet.advisoryContext?.activeDialogueState ||
-      packet.continuityContext?.activeDialogueState ||
-      summary.activeDialogueState ||
-      summary.assembledContext?.activeDialogueState ||
-      summary.advisoryContext?.activeDialogueState ||
-      summary.continuityContext?.activeDialogueState ||
-      summary.threadUnderstanding?.activeDialogueState ||
-      input.activeDialogueState ||
-      null
-    );
-  },
-
-  readCharacterIdentity({ packet = {}, summary = {}, input = {} } = {}) {
-    return (
-      packet.characterIdentity ||
-      packet.evidence?.characterIdentity ||
-      packet.assembledContext?.characterIdentity ||
-      packet.advisoryContext?.characterIdentity ||
-      packet.continuityContext?.characterIdentity ||
-      summary.characterIdentity ||
-      summary.assembledContext?.characterIdentity ||
-      summary.advisoryContext?.characterIdentity ||
-      summary.continuityContext?.characterIdentity ||
-      input.characterIdentity ||
-      null
-    );
-  },
-
-  getCurrentWriterDraft({ packet = {}, summary = {}, input = {} } = {}) {
-  const candidates = [
-    packet.blueprintWriterDraft,
-    summary.blueprintWriterDraft,
-    input.blueprintWriterDraft,
-    packet.blueprintWriter?.draft,
-    summary.blueprintWriter?.draft,
-    input.blueprintWriter?.draft,
-
-    packet.evidence?.aiWriter?.draft,
-    packet.aiWriterDraft,
-    summary.aiWriterDraft,
-    input.aiWriterDraft
-  ];
-
-  for (const candidate of candidates) {
-    const text = String(candidate || "").trim();
-    if (!text) continue;
-    if (this.isStaleOrWrongContextReply(text, packet)) continue;
-    return text;
-  }
-
-  return "";
-},
-
   isStaleOrWrongContextReply(text = "", packet = {}) {
     const t = String(text || "").toLowerCase();
     const q = String(packet.userQuestion || "").toLowerCase();
 
-const diagnosticKnowledgePreview =
-  /^mode:\s*\w+/i.test(t) &&
-  t.includes("domain:") &&
-  t.includes("intent:") &&
-  t.includes("direct answer:");
+    const diagnosticKnowledgePreview =
+      /^mode:\s*\w+/i.test(t) &&
+      t.includes("domain:") &&
+      t.includes("intent:") &&
+      t.includes("direct answer:");
 
-if (diagnosticKnowledgePreview) return true;
+    if (diagnosticKnowledgePreview) return true;
 
     const fileReply =
       t.includes("i read ") ||
@@ -209,9 +209,7 @@ if (diagnosticKnowledgePreview) return true;
       t.includes("github evidence") ||
       t.includes("file content");
 
-    const userAsksCode = this.isDeveloperRelevant(packet);
-
-    if (fileReply && !userAsksCode) return true;
+    if (fileReply && !this.isDeveloperRelevant(packet)) return true;
 
     const staleIndexReply =
       t.includes("i read index.html") &&
@@ -278,11 +276,7 @@ if (diagnosticKnowledgePreview) return true;
 
   composeLocal(packet = {}, activeDialogueState = null, characterIdentity = null) {
     const q = String(packet.userQuestion || "").trim();
-
-    const character =
-      packet.character ||
-      packet.evidence?.character ||
-      null;
+    const character = packet.character || packet.evidence?.character || null;
 
     if (character?.enabled && character?.draft) {
       return this.returnFinal(
@@ -296,7 +290,7 @@ if (diagnosticKnowledgePreview) return true;
 
     if (this.isDeveloperRelevant(packet)) {
       return this.returnFinal(
-        "I need current file evidence or a current writer draft before giving a code patch. I should not reuse an older conversation-history answer.",
+        "I need current file evidence or a selected writer draft before giving a code patch. I should not reuse an older conversation-history answer.",
         "developer_guarded",
         packet,
         activeDialogueState,
@@ -306,7 +300,7 @@ if (diagnosticKnowledgePreview) return true;
 
     return this.returnFinal(
       q
-        ? "I can answer that, but the current writer draft was missing. I’m using a safe fallback instead of pulling from old conversation history."
+        ? "I can answer that, but the selected writer draft was missing. I’m using a safe fallback instead of pulling from old conversation history."
         : "Yeah. I’m here.",
       "general_fallback",
       packet,
@@ -315,30 +309,36 @@ if (diagnosticKnowledgePreview) return true;
     );
   },
 
-  resolveWriterValidation(packet = {}, selectedDraft = "") {
-    const draft = String(selectedDraft || "").trim();
-
-    const blueprintDrafts = [
-      packet.blueprintWriterDraft,
-      packet.blueprintWriter?.draft
-    ]
-      .map(x => String(x || "").trim())
-      .filter(Boolean);
-
-    if (blueprintDrafts.includes(draft)) {
-      return "blueprint_writer_draft";
-    }
-
-    const aiWriter = packet.evidence?.aiWriter || {};
-
-    if (aiWriter.usedAI === true) {
-      return "ai_writer_draft";
-    }
-
+  readActiveDialogueState({ packet = {}, summary = {}, input = {} } = {}) {
     return (
-      aiWriter.fallbackReason ||
-      aiWriter.reason ||
-      "writer_fallback"
+      packet.activeDialogueState ||
+      packet.evidence?.activeDialogueState ||
+      packet.assembledContext?.activeDialogueState ||
+      packet.advisoryContext?.activeDialogueState ||
+      packet.continuityContext?.activeDialogueState ||
+      summary.activeDialogueState ||
+      summary.assembledContext?.activeDialogueState ||
+      summary.advisoryContext?.activeDialogueState ||
+      summary.continuityContext?.activeDialogueState ||
+      summary.threadUnderstanding?.activeDialogueState ||
+      input.activeDialogueState ||
+      null
+    );
+  },
+
+  readCharacterIdentity({ packet = {}, summary = {}, input = {} } = {}) {
+    return (
+      packet.characterIdentity ||
+      packet.evidence?.characterIdentity ||
+      packet.assembledContext?.characterIdentity ||
+      packet.advisoryContext?.characterIdentity ||
+      packet.continuityContext?.characterIdentity ||
+      summary.characterIdentity ||
+      summary.assembledContext?.characterIdentity ||
+      summary.advisoryContext?.characterIdentity ||
+      summary.continuityContext?.characterIdentity ||
+      input.characterIdentity ||
+      null
     );
   },
 
@@ -358,10 +358,12 @@ if (diagnosticKnowledgePreview) return true;
       finalResponse: finalText,
       composerVersion: this.version,
       source: "ari-language-composer-v9",
-      composerUsedAI: validation === "ai_writer_draft",
+      composerUsedAI: validation === "ai_writer_draft" || validation.includes("ai_writer"),
       composerValidation: validation,
       composerDebug: {
         usedPacket: true,
+        thinComposer: true,
+        arbiterFirst: true,
         staleHistoryFinalResponseIgnored: true,
         supabaseKnowledgeComposerRemoved: true,
         developerRelevant: this.isDeveloperRelevant(packet || {}),
