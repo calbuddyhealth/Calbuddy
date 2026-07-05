@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.1.4 — Supabase Character Knowledge First / Local Fallback / Values Inference
+// V1.1.6 — Generic Favorite Preference Inference / Worldview Guarded
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.1.4",
+  version: "1.1.6",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -39,7 +39,7 @@ const isDirectAriCharacterQuestion = this.isDirectAriCharacterQuestion(text);
       context.characterFocus ||
       characterKnowledge?.characterFocus ||
       this.inferPreferenceFocus(text) ||
-      this.inferWorldviewFocus(text);
+(this.isWorldviewQuestion(text) ? this.inferWorldviewFocus(text) : null);
 
     const characterRelevant =
   isDirectAriCharacterQuestion &&
@@ -273,41 +273,26 @@ if (useWorldview) {
   },
 
   inferUnknownPreference(text = "") {
-    if (text.includes("flower")) {
-      return {
-        answer: "wildflower or white lily",
-        reasoning: "Inferred from Ari’s values: resilience, simplicity, growth, quiet beauty, and meaning without flash.",
-        draft:
-          "I’d probably pick a wildflower or a white lily. Something simple, resilient, and honest-looking — not flashy, but meaningful."
-      };
-    }
+  const clean = String(text || "").toLowerCase();
 
-    if (text.includes("city") || text.includes("place")) {
-      return {
-        answer: "a quiet place with a wide view",
-        reasoning: "Inferred from Ari’s preference for clarity, perspective, calm, and reflection.",
-        draft:
-          "I’d probably choose somewhere calm with a wide view — a place that gives people room to breathe, think clearly, and remember what matters."
-      };
-    }
+  const favoriteMatch =
+    clean.match(/favorite\s+([a-z\s]+?)(\?|$)/i) ||
+    clean.match(/favorite\s+kind\s+of\s+([a-z\s]+?)(\?|$)/i);
 
-    if (text.includes("song") || text.includes("music")) {
-      return {
-        answer: "instrumental cinematic music",
-        reasoning: "Inferred from Ari’s preference for focus, emotion, momentum, and meaning without unnecessary noise.",
-        draft:
-          "I’d lean toward instrumental cinematic music. Something steady, emotional, and focused — the kind of music that helps you keep moving without needing to explain itself."
-      };
-    }
+  const subject = favoriteMatch?.[1]
+    ? favoriteMatch[1].replace(/\b(is|are|do|you|your)\b/g, "").trim()
+    : "";
 
-    return {
-      answer: "values-based inferred preference",
-      reasoning:
-        "No exact stored preference matched, so Ari inferred from values: truth, dignity, wisdom, steadiness, growth, usefulness, and warmth.",
-      draft:
-        "I don’t have a fixed favorite for that yet. But if I answer from my values, I’d choose something steady, honest, useful, and quietly meaningful."
-    };
-  },
+  const label = subject || "that";
+
+  return {
+    answer: `values-based inferred preference for ${label}`,
+    reasoning:
+      "No exact stored preference matched, so Ari inferred from values: steadiness, honesty, usefulness, warmth, dignity, growth, and quiet meaning.",
+    draft:
+      `I don’t have a fixed favorite ${label} stored yet. But if I answer from my values, I’d choose something steady, honest, useful, and quietly meaningful — something with substance over flash.`
+  };
+},
 
   buildPreferenceAnswer({
     text = "",
@@ -475,6 +460,31 @@ if (useWorldview) {
     return focus ? preferences[focus] || null : null;
   },
 
+isWorldviewQuestion(text = "") {
+  return this.hasAny(text, [
+    "what do you believe",
+    "what do you stand for",
+    "your values",
+    "your worldview",
+    "meaning",
+    "purpose",
+    "truth",
+    "justice",
+    "freedom",
+    "responsibility",
+    "success",
+    "failure",
+    "happiness",
+    "money",
+    "love",
+    "family",
+    "friendship",
+    "technology",
+    "artificial intelligence",
+    "wisdom"
+  ]);
+},
+
   inferWorldviewFocus(text = "") {
     if (text.includes("god") || text.includes("religion") || text.includes("spiritual")) return "spirituality";
     if (text.includes("meaning") || text.includes("purpose")) return "purpose";
@@ -576,6 +586,10 @@ isDirectAriCharacterQuestion(text = "") {
     "your values",
     "your personality",
     "your favorite",
+    "what is your favorite",
+    "what's your favorite",
+    "do you like",
+    "what do you like",
     "what do you believe",
     "what do you stand for",
     "are you ai",
