@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.7.2 — Memory Context Builder Loaded / Dual Salience Removed
+// V1.7.3 — Memory Context Builder Loaded / Dual Salience Removed
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.7.2",
+version: "1.7.3",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -284,6 +284,10 @@ mark("before AriRebirthPipeline.run");
 summary = await window.AriRebirthPipeline.run(summary);
 mark("after AriRebirthPipeline.run");
 
+mark("before saveMemoryCandidates");
+summary = await this.saveMemoryCandidates(summary);
+mark("after saveMemoryCandidates");
+
 mark("before attachDeveloperIntent");
 summary = this.attachDeveloperIntent(summary);
 mark("after attachDeveloperIntent");
@@ -414,6 +418,32 @@ return this.makeResponse({
 
     return summary;
   },
+
+async saveMemoryCandidates(summary = {}) {
+  const candidates =
+    summary.memoryCandidates ||
+    summary.memoryCandidateEngine?.memoryCandidates ||
+    summary.memoryCandidateResult?.memoryCandidates ||
+    [];
+
+  if (
+    !Array.isArray(candidates) ||
+    candidates.length === 0 ||
+    !window.AriMemoryStore ||
+    typeof window.AriMemoryStore.saveCandidates !== "function"
+  ) {
+    return summary;
+  }
+
+  const result = await window.AriMemoryStore.saveCandidates(candidates);
+
+  return {
+    ...summary,
+    memorySaveResult: result,
+    memorySaved: result?.savedCount > 0,
+    memorySavedCount: result?.savedCount || 0
+  };
+},
 
   extractReply(summary = {}) {
   const candidates = [
