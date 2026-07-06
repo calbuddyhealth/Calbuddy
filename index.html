@@ -326,37 +326,17 @@ function resetAriAfterDelay(delay = 120000) {
 }
 
 function chooseAriReaction(message = "") {
-  const text = message.toLowerCase();
-
-  if (text.includes("sad") || text.includes("bad day") || text.includes("relapse") || text.includes("failed")) {
-    return { pose: "sad" };
-  }
-
-  if (text.includes("thank") || text.includes("beautiful") || text.includes("love you")) {
-    return { pose: "shy" };
-  }
-
-  if (text.includes("fat") || text.includes("gained") || text.includes("weight gain")) {
-    return { pose: "concerned" };
-  }
-
-  return { pose: "thinking" };
+  return { pose: "idleOpen" };
 }
 
 function applyAriAfterResponseEmotion(message = "", reply = "") {
-  const combined = `${message} ${reply}`.toLowerCase();
+  ariBusy = false;
 
-  if (combined.includes("great job") || combined.includes("congrats") || combined.includes("nice work")) {
-    setAriPose("celebrate");
-  } else if (combined.includes("sorry") || combined.includes("rough")) {
-    setAriPose("concerned");
-  } else if (combined.includes("yes") || combined.includes("good news")) {
-    setAriPose("goodNews");
+  if (ariFirstReplyCompleted) {
+    setAriAvatar("avatarOpen");
   } else {
-    setAriPose("idleOpen");
+    setAriHero("heroOpen");
   }
-
-  resetAriAfterDelay();
 }
 
 function toggleMenu() {
@@ -487,10 +467,9 @@ async function sendAriMessage() {
   const message = input.value.trim();
   if (!message) return;
 
-  const reaction = chooseAriReaction(message);
-
   ariConversationStarted = true;
-  interruptAri(reaction.pose);
+ariBusy = false;
+setAriPose("idleOpen");
 
   input.value = "";
   autoResizeAriInput();
@@ -538,7 +517,7 @@ async function sendAriMessage() {
     await refreshHomeDashboard();
 
   } catch (error) {
-    setAriPose("concerned");
+    setAriPose("idleOpen");
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
@@ -574,7 +553,7 @@ async function confirmAriAction() {
   const result = await CalBuddy.confirmPendingAction();
 
   addAriMessage(result.reply || "Done.", "ari");
-  setAriPose("celebrate");
+  setAriPose("idleOpen");
   hidePendingAction();
 
   await refreshHomeDashboard();
