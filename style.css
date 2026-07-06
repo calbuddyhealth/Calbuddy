@@ -1111,3 +1111,34 @@ main#ariApp .ari-bottom-input {
 main#ariApp.ari-v1-home {
   padding-bottom: 170px !important;
 }
+/* =====================================================
+ARI V1 — FIX COMPOSER TAP BLOCKED BY MENU OVERLAY
+===================================================== */
+
+main#ariApp #menuOverlay,
+.ari-v1-home #menuOverlay,
+#menuOverlay {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+main#ariApp #menuOverlay.show,
+.ari-v1-home #menuOverlay.show,
+#menuOverlay.show,
+main#ariApp #menuOverlay.open,
+.ari-v1-home #menuOverlay.open,
+#menuOverlay.open {
+  display: block !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+}
+main#ariApp .ari-bottom-input {
+  z-index: 200 !important;
+}
+
+main#ariApp .ari-input-shell,
+main#ariApp #ariInput,
+main#ariApp .ari-send-btn {
+  pointer-events: auto !important;
+}
