@@ -1478,3 +1478,79 @@ main#ariApp .ari-welcome {
     transform: translate(-50%, -50%) scale(1.08);
   }
 }
+/* =====================================================
+ARI V2 COMMAND CONSOLE
+===================================================== */
+
+main#ariApp .ari-bottom-input{
+    bottom:calc(env(safe-area-inset-bottom) + 12px)!important;
+    padding:12px 14px 18px!important;
+}
+
+main#ariApp .ari-input-shell{
+
+    min-height:138px!important;
+    border-radius:38px!important;
+
+    padding:22px 18px 18px 22px!important;
+
+    display:flex!important;
+    align-items:center!important;
+
+    overflow:hidden!important;
+
+    background:
+      linear-gradient(160deg,
+      rgba(13,27,48,.82),
+      rgba(6,14,29,.95))!important;
+
+    border:1px solid rgba(103,232,249,.45)!important;
+
+    box-shadow:
+      0 0 18px rgba(34,211,238,.18),
+      0 0 60px rgba(34,211,238,.10),
+      inset 0 1px 0 rgba(255,255,255,.15),
+      inset 0 -24px 42px rgba(0,0,0,.32)!important;
+}
+
+main#ariApp #ariInput{
+
+    min-height:92px!important;
+    max-height:92px!important;
+
+    padding-top:18px!important;
+
+    font-size:21px!important;
+    line-height:1.35!important;
+    font-weight:800!important;
+
+    display:flex!important;
+    align-items:center!important;
+}
+
+main#ariApp #ariInput::placeholder{
+
+    font-size:20px!important;
+    line-height:1.35!important;
+    font-weight:750!important;
+
+    color:rgba(240,248,255,.70)!important;
+}
+
+main#ariApp .ari-send-btn{
+
+    width:72px!important;
+    height:72px!important;
+    min-width:72px!important;
+
+    border-radius:50%!important;
+
+    margin-left:14px!important;
+
+    font-size:28px!important;
+
+    box-shadow:
+      0 0 22px rgba(34,211,238,.45),
+      0 0 54px rgba(34,211,238,.24),
+      inset 0 1px 0 rgba(255,255,255,.32)!important;
+}
