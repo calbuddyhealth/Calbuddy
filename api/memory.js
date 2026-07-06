@@ -1,100 +1,116 @@
+// api/memory.js
+// Ari / CalBuddy Memory API
+// Purpose: Save and retrieve user-scoped Ari memories.
+// V2.0.0 — ari_user_memory schema aligned
+
 export default async function handler(req, res) {
-if (req.method !== "POST") {
-return res.status(405).json({ error: "Method not allowed" });
-}
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-try {
-const {
-action,
-user_id,
-memory_type,
-memory_key,
-memory_value,
-source = "conversation"
-} = req.body;
+  try {
+    const {
+      action,
+      user_id,
+      memory_type = "general",
+      memory_key = null,
+      memory_value,
+      content,
+      topic,
+      importance = 5,
+      confidence = 0.75,
+      tags = []
+    } = req.body || {};
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-return res.status(500).json({
-error: "Missing Supabase server environment variables."
-});
-}
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({
+        error: "Missing Supabase server environment variables."
+      });
+    }
 
-if (!user_id) {
-return res.status(400).json({ error: "Missing user_id." });
-}
+    if (!user_id) {
+      return res.status(400).json({ error: "Missing user_id." });
+    }
 
-const headers = {
-apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-"Content-Type": "application/json"
-};
+    const headers = {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json"
+    };
 
-if (action === "save_memory") {
-if (!memory_type || !memory_value) {
-return res.status(400).json({
-error: "memory_type and memory_value are required."
-});
-}
+    if (action === "save_memory") {
+      const memoryContent = String(content || memory_value || "").trim();
 
-const response = await fetch(
-`${process.env.SUPABASE_URL}/rest/v1/user_memory`,
-{
-method: "POST",
-headers: {
-...headers,
-Prefer: "return=representation"
-},
-body: JSON.stringify({
-user_id,
-memory_type,
-memory_key,
-memory_value,
-source,
-updated_at: new Date().toISOString()
-})
-}
-);
+      if (!memoryContent) {
+        return res.status(400).json({
+          error: "memory_value or content is required."
+        });
+      }
 
-const data = await response.json();
+      const memoryTopic =
+        String(topic || memory_key || memory_type || "general").trim() ||
+        "general";
 
-if (!response.ok) {
-return res.status(response.status).json({ error: data });
-}
+      const response = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/ari_user_memory?on_conflict=user_id,content`,
+        {
+          method: "POST",
+          headers: {
+            ...headers,
+            Prefer: "resolution=merge-duplicates,return=representation"
+          },
+          body: JSON.stringify({
+            user_id,
+            memory_type,
+            topic: memoryTopic,
+            content: memoryContent,
+            importance: Number(importance || 5),
+            confidence: Number(confidence || 0.75),
+            tags: Array.isArray(tags) ? tags : [],
+            updated_at: new Date().toISOString()
+          })
+        }
+      );
 
-return res.status(200).json({
-success: true,
-memory: data?.[0] || null
-});
-}
+      const data = await response.json();
 
-if (action === "get_memories") {
-const response = await fetch(
-`${process.env.SUPABASE_URL}/rest/v1/user_memory?user_id=eq.${user_id}&order=updated_at.desc&limit=30`,
-{
-method: "GET",
-headers
-}
-);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: data });
+      }
 
-const data = await response.json();
+      return res.status(200).json({
+        success: true,
+        memory: data?.[0] || null
+      });
+    }
 
-if (!response.ok) {
-return res.status(response.status).json({ error: data });
-}
+    if (action === "get_memories") {
+      const response = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/ari_user_memory?user_id=eq.${user_id}&order=updated_at.desc&limit=50`,
+        {
+          method: "GET",
+          headers
+        }
+      );
 
-return res.status(200).json({
-success: true,
-memories: data || []
-});
-}
+      const data = await response.json();
 
-return res.status(400).json({
-error: "Unknown memory action."
-});
+      if (!response.ok) {
+        return res.status(response.status).json({ error: data });
+      }
 
-} catch (error) {
-return res.status(500).json({
-error: error.message || "Memory API failed."
-});
-}
+      return res.status(200).json({
+        success: true,
+        memories: data || []
+      });
+    }
+
+    return res.status(400).json({
+      error: "Unknown memory action."
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || "Memory API failed."
+    });
+  }
 }
