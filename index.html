@@ -152,13 +152,17 @@ const ARI_WELCOME_QUESTIONS = [
 ];
 
 function setRotatingWelcomeQuestion() {
+  const input = document.getElementById("ariInput");
   const question = document.getElementById("ariWelcomeQuestion");
-  if (!question) return;
+  if (!input) return;
 
   const savedIndex = Number(localStorage.getItem("ariWelcomeQuestionIndex") || 0);
   const nextIndex = savedIndex % ARI_WELCOME_QUESTIONS.length;
+  const prompt = ARI_WELCOME_QUESTIONS[nextIndex];
 
-  question.textContent = ARI_WELCOME_QUESTIONS[nextIndex];
+  input.placeholder = prompt;
+
+  if (question) question.textContent = "";
 
   localStorage.setItem(
     "ariWelcomeQuestionIndex",
@@ -464,8 +468,14 @@ function addAriMessage(text, sender = "ari") {
 function setAriComposerThinking(isThinking) {
   const input = document.getElementById("ariInput");
   const button = document.getElementById("ariSendBtn");
+  const shell = document.querySelector(".ari-input-shell");
+  const app = document.getElementById("ariApp");
 
   if (!input || !button) return;
+
+  shell?.classList.toggle("thinking", isThinking);
+  app?.classList.toggle("ari-system-thinking", isThinking);
+  app?.classList.toggle("ari-thinking-mode", isThinking);
 
   if (isThinking) {
     input.disabled = true;
@@ -475,7 +485,7 @@ function setAriComposerThinking(isThinking) {
     button.onclick = stopAriThinking;
   } else {
     input.disabled = false;
-    input.placeholder = "Tell Ari something...";
+    setRotatingWelcomeQuestion();
     button.textContent = "➤";
     button.classList.remove("ari-stop-btn");
     button.onclick = sendAriMessage;
