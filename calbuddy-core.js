@@ -4,9 +4,25 @@
 // Handles auth, reset windows, meals, goals, weight, burned calories,
 // AI context, pending actions, barcode/photo hooks, dashboard refresh hooks.
 window.CalBuddy = window.CalBuddy || {};
-CalBuddy.version = "3.5.7";
+CalBuddy.version = "3.5.8";
 CalBuddy.pendingAction = null;
 CalBuddy.currentMood = "idle";
+
+CalBuddy.exposeSupabaseToAri = function () {
+  const client =
+    window.calbuddySupabase ||
+    window.supabaseClient ||
+    window.CalBuddy?.supabase ||
+    null;
+
+  if (!client) return null;
+
+  window.CalBuddy.supabase = client;
+  window.supabaseClient = client;
+
+  return client;
+};
+
 /* -----------------------------
 BASIC HELPERS
 ----------------------------- */
@@ -1122,6 +1138,8 @@ CalBuddy.askAri = async function ({ message, history = [], debugTiming = false }
   
   const user = await CalBuddy.requireUser();
 mark("requireUser complete");
+
+CalBuddy.exposeSupabaseToAri();
 
 if (!message || !message.trim()) {
     throw new Error("Message is required.");
