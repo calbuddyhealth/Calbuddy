@@ -1207,3 +1207,65 @@ main#ariApp.ari-keyboard-mode .ari-hero-img {
   max-width: 96vw !important;
   transform: translateY(-115px) !important;
 }
+
+/* =====================================================
+ARI V1 — iOS KEYBOARD / NO PAGE SCROLL FIX
+===================================================== */
+
+html,
+body {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+body {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+}
+
+main#ariApp.ari-v1-home {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: env(safe-area-inset-top) 14px 0 !important;
+}
+
+main#ariApp .ari-header {
+  flex-shrink: 0 !important;
+}
+
+main#ariApp .ari-welcome {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding-bottom: 120px !important;
+}
+
+main#ariApp .ari-conversation-shell {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 120px !important;
+}
+
+main#ariApp .ari-thread {
+  overflow: visible !important;
+}
+
+main#ariApp .ari-bottom-input {
+  position: sticky !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: 430px !important;
+  flex-shrink: 0 !important;
+  z-index: 200 !important;
+  padding: 10px 0 calc(env(safe-area-inset-bottom) + 12px) !important;
+}
