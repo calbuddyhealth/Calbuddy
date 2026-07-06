@@ -1554,3 +1554,147 @@ main#ariApp .ari-send-btn{
       0 0 54px rgba(34,211,238,.24),
       inset 0 1px 0 rgba(255,255,255,.32)!important;
 }
+/* =====================================================
+ARI V2 — AI REACTOR SEND BUTTON
+===================================================== */
+
+main#ariApp .ari-send-btn{
+
+    position:relative!important;
+
+    width:60px!important;
+    height:60px!important;
+    min-width:60px!important;
+
+    margin-left:12px!important;
+
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+
+    border:none!important;
+    border-radius:50%!important;
+
+    color:#ffffff!important;
+    font-size:22px!important;
+    font-weight:900!important;
+
+    cursor:pointer!important;
+
+    background:
+      radial-gradient(circle at 32% 28%,
+        rgba(255,255,255,.30),
+        transparent 22%),
+      radial-gradient(circle,
+        #45d8ff 0%,
+        #1da9ff 48%,
+        #0b3e77 100%)!important;
+
+    box-shadow:
+      0 0 18px rgba(34,211,238,.45),
+      0 0 42px rgba(34,211,238,.22),
+      inset 0 1px 0 rgba(255,255,255,.28)!important;
+
+    transition:
+      transform .18s ease,
+      box-shadow .25s ease;
+}
+
+/* rotating reactor ring */
+
+main#ariApp .ari-send-btn::before{
+
+    content:"";
+
+    position:absolute;
+    inset:-6px;
+
+    border-radius:50%;
+
+    border:2px solid rgba(103,232,249,.32);
+
+    border-top-color:#67e8f9;
+    border-right-color:#22d3ee;
+
+    animation:ariReactorRotate 8s linear infinite;
+}
+
+/* glowing energy core */
+
+main#ariApp .ari-send-btn::after{
+
+    content:"";
+
+    position:absolute;
+    inset:10px;
+
+    border-radius:50%;
+
+    background:
+      radial-gradient(circle,
+      rgba(255,255,255,.30),
+      transparent 72%);
+
+    pointer-events:none;
+
+    animation:ariCorePulse 4.5s ease-in-out infinite;
+}
+
+/* hover / tap */
+
+main#ariApp .ari-send-btn:hover{
+    transform:scale(1.05);
+}
+
+main#ariApp .ari-send-btn:active{
+    transform:scale(.93);
+}
+
+/* Thinking mode */
+
+main#ariApp.ari-thinking-mode .ari-send-btn::before{
+
+    animation:
+      ariReactorRotate 1s linear infinite;
+
+    border-color:rgba(103,232,249,.55);
+    border-top-color:#ffffff;
+    border-right-color:#67e8f9;
+
+    box-shadow:
+      0 0 14px rgba(34,211,238,.8);
+}
+
+main#ariApp.ari-thinking-mode .ari-send-btn{
+
+    box-shadow:
+      0 0 26px rgba(34,211,238,.65),
+      0 0 60px rgba(34,211,238,.34),
+      inset 0 1px 0 rgba(255,255,255,.32)!important;
+}
+
+/* Animations */
+
+@keyframes ariReactorRotate{
+
+    from{
+        transform:rotate(0deg);
+    }
+
+    to{
+        transform:rotate(360deg);
+    }
+}
+
+@keyframes ariCorePulse{
+
+    0%,100%{
+        opacity:.45;
+        transform:scale(.94);
+    }
+
+    50%{
+        opacity:1;
+        transform:scale(1.06);
+    }
+}
