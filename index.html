@@ -143,12 +143,14 @@ const ARI_ASSETS = {
 };
 
 const ARI_WELCOME_QUESTIONS = [
+  "Ask me anything.",
+  "What's on your mind?",
   "Tell me about yourself.",
-  "What’s something I should know about you?",
-  "What are you working toward right now?",
-  "What would make today a win?",
-  "What’s something you care about?",
-  "What brings you here today?"
+  "What are you working on?",
+  "Need help with something?",
+  "What's your next goal?",
+  "What should we solve today?",
+  "Teach me something."
 ];
 
 function setRotatingWelcomeQuestion() {
@@ -426,9 +428,6 @@ function setText(id, value) {
 function autoResizeAriInput() {
   const input = document.getElementById("ariInput");
   if (!input) return;
-
-  input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 180) + "px";
 }
 
 function handleAriEnter(event) {
