@@ -807,3 +807,60 @@ main#ariApp .ari-input-shell {
   width: 100% !important;
   max-width: 100% !important;
 }
+
+/* =====================================================
+ARI V1 BRAND FONT UPGRADE — CINZEL + ORBITRON
+===================================================== */
+
+main#ariApp .ari-wordmark {
+  font-family: "Cinzel", serif !important;
+  font-weight: 900 !important;
+  font-size: 42px !important;
+  letter-spacing: 0.20em !important;
+  color: #f8fdff !important;
+  text-decoration: none !important;
+  line-height: 0.95 !important;
+
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.28),
+    0 0 10px rgba(255,255,255,0.16),
+    0 0 24px rgba(34,211,238,0.20),
+    0 0 38px rgba(34,211,238,0.10) !important;
+}
+
+main#ariApp .ari-wordmark::first-letter {
+  color: #22d3ee !important;
+  text-shadow:
+    0 0 6px rgba(34,211,238,0.95),
+    0 0 14px rgba(34,211,238,0.75),
+    0 0 30px rgba(34,211,238,0.45) !important;
+}
+
+main#ariApp .ari-engine-line {
+  font-family: "Orbitron", sans-serif !important;
+  font-optical-sizing: auto !important;
+  font-weight: 800 !important;
+  font-style: normal !important;
+
+  margin-top: 7px !important;
+  font-size: 9.5px !important;
+  letter-spacing: 0.24em !important;
+  text-transform: uppercase !important;
+
+  color: #e8fbff !important;
+
+  text-shadow:
+    0 0 4px rgba(34,211,238,0.72),
+    0 0 10px rgba(34,211,238,0.55),
+    0 0 22px rgba(34,211,238,0.32) !important;
+}
+
+main#ariApp .ari-engine-line span {
+  color: #22d3ee !important;
+
+  text-shadow:
+    0 0 6px rgba(34,211,238,1),
+    0 0 14px rgba(34,211,238,0.82),
+    0 0 28px rgba(34,211,238,0.52),
+    0 0 46px rgba(34,211,238,0.28) !important;
+}
