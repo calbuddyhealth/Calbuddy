@@ -1192,3 +1192,18 @@ main#ariApp .ari-send-btn {
     transform: translateY(-3px) scale(1.08);
   }
 }
+main#ariApp.ari-keyboard-mode .ari-welcome-prompt {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+main#ariApp.ari-keyboard-mode .ari-bottom-input {
+  bottom: calc(env(safe-area-inset-bottom) + 8px) !important;
+}
+
+main#ariApp.ari-keyboard-mode .ari-hero-img {
+  width: 385px !important;
+  max-width: 96vw !important;
+  transform: translateY(-115px) !important;
+}
