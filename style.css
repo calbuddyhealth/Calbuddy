@@ -1086,7 +1086,7 @@ main#ariApp .ari-hero-img {
 main#ariApp .ari-welcome-prompt {
   position: fixed !important;
   left: 50% !important;
-  bottom: 145px !important;
+  bottom: 140px !important;
   transform: translateX(-50%) !important;
   width: min(92vw, 390px) !important;
   z-index: 55 !important;
