@@ -879,7 +879,7 @@ main#ariApp .ari-welcome {
 main#ariApp .ari-hero-img {
   width: 385px !important;
   max-width: 96vw !important;
-  transform: translateY(-70px) !important;
+  transform: translateY(-90px) !important;
 }
 
 main#ariApp .ari-welcome-prompt {
