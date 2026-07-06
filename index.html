@@ -171,7 +171,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   enterAriWelcomeMode();
   setRotatingWelcomeQuestion();
   startAriBlinkLoop();
-
+setupAriKeyboardStability();
   await setupHomeAuth();
   await refreshHomeDashboard();
 
@@ -513,6 +513,21 @@ function stopAriThinking() {
   ariBusy = false;
   setAriPose("idleOpen");
   setAriComposerThinking(false);
+}
+
+function setAriTypingMode(isTyping) {
+  const app = document.getElementById("ariApp");
+  if (!app) return;
+
+  app.classList.toggle("ari-keyboard-mode", isTyping);
+}
+
+function setupAriKeyboardStability() {
+  const input = document.getElementById("ariInput");
+  if (!input) return;
+
+  input.addEventListener("focus", () => setAriTypingMode(true));
+  input.addEventListener("blur", () => setAriTypingMode(false));
 }
 
 async function sendAriMessage() {
