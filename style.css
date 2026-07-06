@@ -659,3 +659,59 @@ body {
   bottom: env(safe-area-inset-bottom) !important;
   padding-bottom: 18px !important;
 }
+/* =====================================================
+ARI V1 HORIZONTAL OVERFLOW FIX
+===================================================== */
+
+html,
+body {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  background: #040b18 !important;
+}
+
+.ari-v1-home {
+  width: 100% !important;
+  max-width: 430px !important;
+  margin: 0 auto !important;
+  overflow-x: hidden !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+.ari-header {
+  width: 100% !important;
+  overflow: visible !important;
+}
+
+.ari-brand-center {
+  max-width: 180px !important;
+}
+
+.ari-wordmark {
+  font-size: 34px !important;
+}
+
+.ari-engine-line {
+  font-size: 8px !important;
+  letter-spacing: 0.24em !important;
+}
+
+.ari-header .profile-btn {
+  min-width: 82px !important;
+  max-width: 82px !important;
+  font-size: 13px !important;
+  padding: 0 10px !important;
+}
+
+.ari-bottom-input {
+  width: 100% !important;
+  max-width: 430px !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+.ari-input-shell {
+  max-width: 100% !important;
+}
