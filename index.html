@@ -69,7 +69,12 @@
     alt="Ari"
   />
 
-  <h1 class="ari-welcome-question">How can I help today?</h1>
+  <div class="ari-welcome-prompt">
+  <p class="ari-prompt-kicker">Let Ari get to know you.</p>
+  <h1 id="ariWelcomeQuestion" class="ari-welcome-question">
+    Tell me about yourself.
+  </h1>
+</div>
 </section>
 
 <section class="ari-conversation-shell" id="ariConversationShell">
@@ -89,7 +94,7 @@
     <textarea
       id="ariInput"
       rows="1"
-      placeholder="Message Ari..."
+      placeholder="Tell Ari something..."
       oninput="autoResizeAriInput()"
       onkeydown="handleAriEnter(event)"
     ></textarea>
@@ -135,9 +140,34 @@ const ARI_ASSETS = {
   pointing: "assets/ari/ari-pointing-finger.png"
 };
 
+const ARI_WELCOME_QUESTIONS = [
+  "Tell me about yourself.",
+  "What’s something I should know about you?",
+  "What are you working toward right now?",
+  "What would make today a win?",
+  "What’s something you care about?",
+  "What brings you here today?"
+];
+
+function setRotatingWelcomeQuestion() {
+  const question = document.getElementById("ariWelcomeQuestion");
+  if (!question) return;
+
+  const savedIndex = Number(localStorage.getItem("ariWelcomeQuestionIndex") || 0);
+  const nextIndex = savedIndex % ARI_WELCOME_QUESTIONS.length;
+
+  question.textContent = ARI_WELCOME_QUESTIONS[nextIndex];
+
+  localStorage.setItem(
+    "ariWelcomeQuestionIndex",
+    String((nextIndex + 1) % ARI_WELCOME_QUESTIONS.length)
+  );
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   preloadAriAssets();
   enterAriWelcomeMode();
+  setRotatingWelcomeQuestion();
   startAriBlinkLoop();
 
   await setupHomeAuth();
