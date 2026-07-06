@@ -1395,3 +1395,17 @@ main#ariApp:has(#ariInput:disabled)::after {
     filter: brightness(1.28);
   }
 }
+
+/* =====================================================
+ARI V1 — FINAL COMPOSER QUESTION CLEANUP
+===================================================== */
+
+main#ariApp .ari-welcome-prompt,
+main#ariApp .ari-welcome-question {
+  display: none !important;
+}
+
+main#ariApp #ariInput::placeholder {
+  color: rgba(226, 232, 240, 0.62) !important;
+  font-weight: 850 !important;
+}
