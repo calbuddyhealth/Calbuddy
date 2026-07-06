@@ -616,3 +616,46 @@ ARI V1 SIDE MENU FINAL FIX
   inset: 0 !important;
   z-index: 9998 !important;
 }
+/* =====================================================
+ARI V1 MOBILE VIEWPORT + HERO POSITION FIX
+===================================================== */
+
+html,
+body {
+  background: #040b18 !important;
+}
+
+.ari-v1-home {
+  width: 100vw !important;
+  max-width: 430px !important;
+  min-height: 100dvh !important;
+  padding-top: env(safe-area-inset-top) !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+  padding-bottom: 120px !important;
+}
+
+.ari-header {
+  height: 82px !important;
+}
+
+.ari-welcome {
+  min-height: calc(100dvh - 210px) !important;
+  justify-content: flex-start !important;
+  padding-top: 120px !important;
+  padding-bottom: 0 !important;
+}
+
+.ari-hero-img {
+  width: 360px !important;
+  max-width: 92vw !important;
+}
+
+.ari-welcome-question {
+  margin-top: 8px !important;
+}
+
+.ari-bottom-input {
+  bottom: env(safe-area-inset-bottom) !important;
+  padding-bottom: 18px !important;
+}
