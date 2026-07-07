@@ -870,12 +870,6 @@ window.AriConversationFunctionEngine = {
         instruction: "Handle memory or identity request directly."
       },
 
-      memory_or_identity_request: {
-        preferredLaneBias: "memory_or_identity",
-        responseShape: "answer_or_acknowledge",
-        instruction: "Handle memory or identity request directly."
-      },
-
       creative_generation: {
         preferredLaneBias: "creative",
         responseShape: "generate_requested_output",
