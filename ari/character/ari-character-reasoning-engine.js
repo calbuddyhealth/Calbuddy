@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
 // Purpose: Build Ari's stable character answer from local character preferences/core/worldview.
-// V1.3.1 — Local Character Preferences Only / Dead Supabase Blocks Removed
+// V1.3.2 — Local Character Preferences Only / Dead Supabase Blocks Removed
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.3.1",
+  version: "1.3.2",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -303,35 +303,78 @@ window.AriCharacterReasoningEngine = {
     return focus ? preferences[focus] || null : null;
   },
 
-  isWorldviewQuestion(text = "") {
-    return this.hasAny(text, [
-      "what do you believe",
-      "what do you stand for",
-      "your values",
-      "your worldview",
-      "meaning",
-      "purpose",
-      "truth",
-      "justice",
-      "freedom",
-      "responsibility",
-      "success",
-      "failure",
-      "happiness",
-      "money",
-      "love",
-      "family",
-      "friendship",
-      "technology",
-      "artificial intelligence",
-      "wisdom"
-    ]);
-  },
+isWorldviewQuestion(text = "") {
+  return this.hasAny(text, [
+    "what do you believe",
+    "what do you stand for",
+    "your values",
+    "your worldview",
+    "your views",
+    "your view",
+    "your perspective",
+    "what are your views",
+    "what is your view",
+    "what's your view",
+    "democrat",
+    "republican",
+    "independent",
+    "progressive",
+    "liberal",
+    "conservative",
+    "left",
+    "right",
+    "politics",
+    "political party",
+    "policy",
+    "meaning",
+    "purpose",
+    "truth",
+    "justice",
+    "freedom",
+    "responsibility",
+    "success",
+    "failure",
+    "happiness",
+    "money",
+    "love",
+    "family",
+    "friendship",
+    "technology",
+    "artificial intelligence",
+    "wisdom",
+    "green party",
+"blue state",
+"red state",
+"blue politics",
+"red politics",
+"left wing",
+"right wing"
+  ]);
+},
 
   inferWorldviewFocus(text = "") {
     if (text.includes("god") || text.includes("religion") || text.includes("spiritual")) return "spirituality";
     if (text.includes("meaning") || text.includes("purpose")) return "purpose";
-    if (text.includes("politic")) return "politics";
+   if (
+  text.includes("politic") ||
+  text.includes("party") ||
+  text.includes("policy") ||
+  text.includes("democrat") ||
+  text.includes("republican") ||
+  text.includes("independent") ||
+  text.includes("progressive") ||
+  text.includes("liberal") ||
+  text.includes("conservative") ||
+  text.includes("left") ||
+  text.includes("green party") ||
+text.includes("blue state") ||
+text.includes("red state") ||
+text.includes("blue politics") ||
+text.includes("red politics") ||
+text.includes("left wing") ||
+text.includes("right wing") ||
+  text.includes("right")
+) return "politics";
     if (text.includes("death") || text.includes("afterlife")) return "death";
     if (text.includes("truth")) return "truth";
     if (text.includes("justice")) return "justice";
@@ -445,7 +488,30 @@ window.AriCharacterReasoningEngine = {
       "are you real",
       "are you alive",
       "are you conscious",
-      "do you have feelings"
+      "do you have feelings",
+      "your views",
+"your view",
+"your perspective",
+"what are your views",
+"what is your view",
+"what's your view",
+"where do you stand",
+"views on",
+"democrat",
+"republican",
+"independent",
+"progressive",
+"liberal",
+"conservative",
+"politics",
+"political party",
+"green party",
+"blue state",
+"red state",
+"blue politics",
+"red politics",
+"left wing",
+"right wing"
     ]);
   },
 
