@@ -1,6 +1,6 @@
 // ari/medical/operations/ari-medical-action-engine.js
 // Purpose: Build a unified clinical action plan from all Ari Medical engines.
-// V1.0.0 — Medical Action Engine / Workflow Orchestrator
+// V1.0.1 — Medical Action Engine / Workflow Orchestrator
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
@@ -8,7 +8,7 @@ window.Ari.medical.operations =
   window.Ari.medical.operations || {};
 
 window.Ari.medical.operations.actionEngine = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   build(room = {}) {
     const registry =
@@ -71,8 +71,12 @@ window.Ari.medical.operations.actionEngine = {
         }
 
         if (item?.actionId) {
-          actions.push(item.actionId);
-        }
+  actions.push(item.actionId);
+}
+
+if (item?.umkoId) {
+  actions.push(item.umkoId);
+}
 
       });
 
