@@ -1,11 +1,11 @@
 // ari/language/ari-language-composer-v9.js
 // Purpose: Final response renderer from sealed composerPacket + selected arbiter draft.
-// V9.3.1 — Thin Composer / Honest Unknown Fallback / No Empty Ari Reply
+// V9.3.2 — Thin Composer / Honest Unknown Fallback / No Empty Ari Reply
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposerV9 = {
-  version: "9.3.1",
+  version: "9.3.2",
 
   async compose(input = {}) {
     const summary = input.summary || input || {};
