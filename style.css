@@ -1882,3 +1882,76 @@ main#ariApp .ari-engine-line::after {
     filter: brightness(1.35);
   }
 }
+/* =====================================================
+ARI V2 — NEON R BOOT FLICKER
+===================================================== */
+
+main#ariApp .ari-r {
+  display: inline-block;
+  color: #f8ffff !important;
+  text-shadow:
+    0 0 5px rgba(255,255,255,.95),
+    0 0 12px rgba(34,211,238,.95),
+    0 0 26px rgba(34,211,238,.65),
+    0 0 48px rgba(34,211,238,.36) !important;
+  animation:
+    ariRBootFlicker 1.9s ease-in-out 1,
+    ariRIdleFlicker 32s linear infinite 4s;
+}
+
+main#ariApp.ari-thinking-mode .ari-r {
+  animation: none !important;
+  opacity: 1 !important;
+  filter: brightness(1.25) !important;
+}
+
+@keyframes ariRBootFlicker {
+  0% { opacity: 0; filter: brightness(.15); }
+  8% { opacity: 1; filter: brightness(1.4); }
+  14% { opacity: .12; filter: brightness(.2); }
+  22% { opacity: 1; filter: brightness(1.2); }
+  31% { opacity: .28; filter: brightness(.3); }
+  42% { opacity: 1; filter: brightness(1.35); }
+  52% { opacity: .08; filter: brightness(.15); }
+  64% { opacity: .95; filter: brightness(1.1); }
+  72% { opacity: .22; filter: brightness(.25); }
+  84% { opacity: 1; filter: brightness(1.45); }
+  100% { opacity: 1; filter: brightness(1); }
+}
+
+@keyframes ariRIdleFlicker {
+  0%, 96%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+
+  96.3% {
+    opacity: .25;
+    filter: brightness(.25);
+  }
+
+  96.8% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+
+  97.2% {
+    opacity: .18;
+    filter: brightness(.22);
+  }
+
+  97.7% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+
+  98.1% {
+    opacity: .35;
+    filter: brightness(.35);
+  }
+
+  98.6% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
