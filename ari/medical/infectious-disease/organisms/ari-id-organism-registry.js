@@ -1,6 +1,6 @@
 // ari/medical/infectious-disease/organisms/ari-id-organism-registry.js
 // Purpose: Register all infectious disease organism modules into Ari Medical knowledge.
-// V1.0.0 — Infectious Disease Organism Registry Loader / UMKO Standard
+// V1.0.1 — Infectious Disease Organism Registry Loader / UMKO Standard
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
@@ -10,7 +10,7 @@ window.Ari.medical.infectiousDisease.organisms =
   window.Ari.medical.infectiousDisease.organisms || {};
 
 window.Ari.medical.infectiousDisease.organismRegistry = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   register() {
     const registry = window.Ari.medical.knowledgeRegistry;
@@ -42,17 +42,30 @@ window.Ari.medical.infectiousDisease.organismRegistry = {
   },
 
   from(key = "") {
-    const module = window.Ari.medical.infectiousDisease.organisms?.[key];
 
-    if (!module?.entries) return [];
+  const organisms =
+    window.Ari.medical.infectiousDisease.organisms || {};
 
-    try {
-      return module.entries();
-    } catch (error) {
-      console.warn(`ARI ID ORGANISM REGISTRY: failed loading ${key}`, error);
-      return [];
-    }
-  },
+  const module =
+    organisms[key] ||
+    organisms.bacteria?.[key] ||
+    organisms.viruses?.[key] ||
+    organisms.fungi?.[key] ||
+    organisms.parasites?.[key];
+
+  if (!module?.entries) return [];
+
+  try {
+    return module.entries();
+  } catch (error) {
+    console.warn(
+      `ARI ID ORGANISM REGISTRY: failed loading ${key}`,
+      error
+    );
+    return [];
+  }
+
+},
 
   status() {
     const modules = [
@@ -67,7 +80,13 @@ window.Ari.medical.infectiousDisease.organismRegistry = {
       organismRegistryVersion: this.version,
       modules: modules.map(key => ({
         key,
-        loaded: Boolean(window.Ari.medical.infectiousDisease.organisms?.[key])
+        loaded: Boolean(
+  window.Ari.medical.infectiousDisease.organisms?.[key] ||
+  window.Ari.medical.infectiousDisease.organisms?.bacteria?.[key] ||
+  window.Ari.medical.infectiousDisease.organisms?.viruses?.[key] ||
+  window.Ari.medical.infectiousDisease.organisms?.fungi?.[key] ||
+  window.Ari.medical.infectiousDisease.organisms?.parasites?.[key]
+)
       })),
       totalEntries: this.entries().length,
       advisoryOnly: true
