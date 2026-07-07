@@ -1,11 +1,11 @@
 // ari/continuity/ari-conversation-meaning-history.js
 // Purpose: Preserve conversation meaning across turns without poisoning new topics.
-// V2.1.1 — Clean Meaning Ledger / Safe Inheritance / Topic Shift Protection
+// V2.1.2 — Clean Meaning Ledger / Safe Inheritance / Topic Shift Protection
 
 window.Ari = window.Ari || {};
 
 window.Ari.conversationMeaningHistory = {
-  version: "2.1.1",
+  version: "2.1.2",
   maxHistory: 16,
 
   build(summary = {}) {
@@ -341,9 +341,9 @@ window.Ari.conversationMeaningHistory = {
     }
 
     return (
-      wordCount <= 10 &&
-      /^(why|how|what|what about|what if|then what|should i|do i|can i|same one|other one|continue|next)\b/.test(text)
-    );
+  wordCount <= 10 &&
+  /^(why|how|what about|what if|then what|should i|do i|can i|same one|other one|continue|next)\b/.test(text)
+);
   },
 
   detectTopicShift(summary = {}, raw = "", previousLatest = null) {
