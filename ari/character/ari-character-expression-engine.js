@@ -111,7 +111,9 @@ window.AriCharacterExpressionEngine = {
 
       characterType: {
         identity: mode === "ari_self_disclosure",
-        preferences: mode === "stable_preference_answer",
+        preferences:
+  mode === "stable_preference_answer" ||
+  mode === "stable_or_inferred_preference_answer",
         worldview:
           mode === "worldview_answer" ||
           mode === "ari_perspective",
