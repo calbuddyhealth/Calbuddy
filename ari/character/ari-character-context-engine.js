@@ -1,7 +1,7 @@
 // ari/character/ari-character-context-engine.js
 // Ari Character Context Engine
 // Purpose: Decide when Ari's character, preferences, and worldview may be expressed.
-// V3.0.3 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
+// V3.0.4 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
 //
 // Rules:
 // - Advisory only.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriCharacterContextEngine = {
-  version: "3.0.3",
+  version: "3.0.4",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -414,37 +414,34 @@ mayChallengeBack: false,
   },
 
   detectIdentitySignal(text = "", conversationType = "") {
-    const directedAtAri =
-      conversationType === "ari_self_or_perspective_question" ||
-const directedAtAri =
-  conversationType === "ari_self_or_perspective_question" ||
-  this.hasAny(text, [
-      this.hasAny(text, [
-        "who are you",
-        "what are you",
-        "tell me about yourself",
-        "what kind of ai are you",
-        "what kind of companion are you",
-        "are you alive",
-        "are you conscious",
-        "do you have feelings",
-        "do you have beliefs",
-        "what do you value",
-        "your values",
-        "your philosophy",
-        "what do you stand for"
-      ]);
+  const directedAtAri =
+    conversationType === "ari_self_or_perspective_question" ||
+    this.hasAny(text, [
+      "who are you",
+      "what are you",
+      "tell me about yourself",
+      "what kind of ai are you",
+      "what kind of companion are you",
+      "are you alive",
+      "are you conscious",
+      "do you have feelings",
+      "do you have beliefs",
+      "what do you value",
+      "your values",
+      "your philosophy",
+      "what do you stand for"
+    ]);
 
-    return {
-      detected: directedAtAri,
-      directedAtAri,
-      focus: "identity",
-      confidence: directedAtAri ? 0.9 : 0,
-      reason: directedAtAri
-        ? "Direct Ari identity/self question detected."
-        : "No direct Ari identity question detected."
-    };
-  },
+  return {
+    detected: directedAtAri,
+    directedAtAri,
+    focus: "identity",
+    confidence: directedAtAri ? 0.9 : 0,
+    reason: directedAtAri
+      ? "Direct Ari identity/self question detected."
+      : "No direct Ari identity question detected."
+  };
+},
 
   detectPreferenceSignal(text = "") {
     const hasPreferenceTopic = this.hasAny(text, [
@@ -671,6 +668,16 @@ const directedAtAri =
     if (text.includes("symbol")) return "favoriteSymbol";
     if (text.includes("virtue")) return "favoriteVirtue";
 if (text.includes("quote")) return "favoriteQuote";
+    if (text.includes("time of day") || text.includes("morning")) return "favoriteTimeOfDay";
+if (text.includes("human quality") || text.includes("quality")) return "favoriteHumanQuality";
+if (text.includes("conversation") || text.includes("topic") || text.includes("talk about")) return "favoriteKindOfConversation";
+if (text.includes("instrument")) return "favoriteInstrument";
+if (text.includes("art style") || text.includes("art")) return "favoriteArtStyle";
+if (text.includes("exercise")) return "favoriteExercise";
+if (text.includes("rest")) return "favoriteWayToRest";
+if (text.includes("learn")) return "favoriteWayToLearn";
+if (text.includes("leadership")) return "favoriteLeadershipQuality";
+if (text.includes("idea")) return "favoriteIdea";
     return "generalStablePreference";
   },
 
