@@ -1,7 +1,7 @@
 // ari/character/ari-character-context-engine.js
 // Ari Character Context Engine
 // Purpose: Decide when Ari's character, preferences, and worldview may be expressed.
-// V3.0.4 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
+// V3.0.5 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
 //
 // Rules:
 // - Advisory only.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriCharacterContextEngine = {
-  version: "3.0.4",
+  version: "3.0.5",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -486,7 +486,17 @@ mayChallengeBack: false,
   },
 
   detectWorldviewSignal(text = "") {
-    const hasWorldviewTopic = this.hasAny(text, [
+    const politicalTopic = this.isPoliticalTopic(text);
+    const hasWorldviewTopic =
+  politicalTopic ||
+  this.hasAny(text, [
+      
+      "your views",
+"your view",
+"your perspective",
+"what are your views",
+"what is your view",
+"what's your view",
       "meaning of life",
       "purpose of life",
       "do you believe in god",
@@ -530,6 +540,12 @@ mayChallengeBack: false,
 
     const directBeliefQuestion =
       this.hasAny(text, [
+        "your views",
+"your view",
+"your perspective",
+"what are your views",
+"what is your view",
+"what's your view",
         "do you believe",
         "your beliefs",
         "your values",
@@ -559,7 +575,12 @@ mayChallengeBack: false,
 
   detectOpinionSignal(text = "") {
     const hasOpinionLanguage = this.hasAny(text, [
-      "what do you think",
+     "what are your views",
+"your views",
+"views on",
+"how do you view",
+"where do you stand",
+       "what do you think",
       "do you think",
       "in your opinion",
       "what's your opinion",
@@ -683,8 +704,21 @@ if (text.includes("idea")) return "favoriteIdea";
 
   inferWorldviewFocus(text = "") {
     if (text.includes("god") || text.includes("religion") || text.includes("spiritual")) return "spirituality";
+  
     if (text.includes("meaning") || text.includes("purpose")) return "purpose";
-    if (text.includes("politic") || text.includes("republican") || text.includes("democrat")) return "politics";
+    if (
+  this.isPoliticalTopic(text) ||
+  text.includes("politic") ||
+  text.includes("party") ||
+  text.includes("republican") ||
+  text.includes("democrat") ||
+  text.includes("liberal") ||
+  text.includes("conservative") ||
+  text.includes("progressive") ||
+  text.includes("independent") ||
+  text.includes("left") ||
+  text.includes("right")
+) return "politics";
     if (text.includes("death") || text.includes("afterlife")) return "death";
     if (text.includes("truth")) return "truth";
     if (text.includes("justice")) return "justice";
@@ -732,6 +766,47 @@ if (text.includes("idea")) return "favoriteIdea";
       "what is your"
     ]);
   },
+
+isPoliticalTopic(text = "") {
+  const directPoliticalTerms = [
+    "democrat", "democrats",
+    "republican", "republicans",
+    "independent", "independents",
+    "liberal", "liberals",
+    "conservative", "conservatives",
+    "progressive", "progressives",
+    "moderate", "moderates",
+    "socialist", "socialists",
+    "libertarian", "libertarians",
+    "green party",
+    "constitution party",
+    "left wing",
+    "right wing",
+    "far left",
+    "far right",
+    "center left",
+    "center right",
+    "politics",
+    "political party",
+    "political views",
+    "policy",
+    "policies"
+  ];
+
+  const colorPoliticalTerms = [
+    "blue state",
+    "red state",
+    "blue party",
+    "red party",
+    "blue politics",
+    "red politics"
+  ];
+
+  return (
+    this.hasAny(text, directPoliticalTerms) ||
+    this.hasAny(text, colorPoliticalTerms)
+  );
+},
 
   /* ===========================================================
      DEFAULT HINTS / UTILITIES
