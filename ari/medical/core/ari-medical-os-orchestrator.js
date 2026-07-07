@@ -1,17 +1,18 @@
 // ari/medical/core/ari-medical-os-orchestrator.js
 // Purpose: Run Ari Medical OS engines in the correct order.
-// V1.0.0 — Medical OS Orchestrator / Situation Room Pipeline
+// V1.1.0 — Medical OS Orchestrator / Escalation-Aware Pipeline
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
 
 window.Ari.medical.osOrchestrator = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   run(input = {}) {
     const situationRoom = window.Ari.medical.executive?.situationRoom;
     const infectionControl = window.Ari.medical.infectiousDisease?.infectionControl?.engine;
     const monitoringEngine = window.Ari.medical.monitoring?.engine;
+    const escalationEngine = window.Ari.medical.executive?.escalationEngine;
     const hospitalOps = window.Ari.medical.operations?.hospitalOperationsEngine;
     const executive = window.Ari.medical.executive?.clinicalExecutiveEngine;
     const whyEngine = window.Ari.medical.executive?.whyEngine;
@@ -32,14 +33,23 @@ window.Ari.medical.osOrchestrator = {
       context: input.context || {}
     });
 
+    const text =
+      input.userMessage ||
+      input.message ||
+      input.input ||
+      room.chiefComplaint ||
+      "";
+
     if (infectionControl?.writeToRoom) {
-      room = infectionControl.writeToRoom(room, {
-        text: input.userMessage || input.message || input.input || room.chiefComplaint
-      });
+      room = infectionControl.writeToRoom(room, { text });
     }
 
     if (monitoringEngine?.writeToRoom) {
       room = monitoringEngine.writeToRoom(room);
+    }
+
+    if (escalationEngine?.writeToRoom) {
+      room = escalationEngine.writeToRoom(room, { text });
     }
 
     const operations = hospitalOps?.build
