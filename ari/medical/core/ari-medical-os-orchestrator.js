@@ -1,12 +1,12 @@
 // ari/medical/core/ari-medical-os-orchestrator.js
 // Purpose: Run Ari Medical OS engines in the correct order.
-// V1.4.0 — Medical OS Orchestrator / Reportable + Exposure-Aware Pipeline
+// V1.5.0 — Medical OS Orchestrator / Reportable + Exposure-Aware Pipeline
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
 
 window.Ari.medical.osOrchestrator = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   run(input = {}) {
     const situationRoom = window.Ari.medical.executive?.situationRoom;
@@ -22,6 +22,9 @@ window.Ari.medical.osOrchestrator = {
 
 const stiReasoningEngine =
   window.Ari.medical.infectiousDisease?.sti?.reasoningEngine;
+
+const antibioticSelectionEngine =
+  window.Ari.medical.infectiousDisease?.antibiotics?.selectionEngine;
 
     const monitoringEngine = window.Ari.medical.monitoring?.engine;
     const escalationEngine = window.Ari.medical.executive?.escalationEngine;
@@ -67,6 +70,10 @@ const stiReasoningEngine =
 
 if (stiReasoningEngine?.writeToRoom) {
   room = stiReasoningEngine.writeToRoom(room, { text });
+}
+
+if (antibioticSelectionEngine?.writeToRoom) {
+  room = antibioticSelectionEngine.writeToRoom(room, { text });
 }
 
     if (monitoringEngine?.writeToRoom) {
