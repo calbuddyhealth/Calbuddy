@@ -1,16 +1,25 @@
 // ari/medical/core/ari-medical-os-orchestrator.js
 // Purpose: Run Ari Medical OS engines in the correct order.
-// V1.2.0 — Medical OS Orchestrator / Escalation-Aware Pipeline
+// V1.3.0 — Medical OS Orchestrator / Reportable + Exposure-Aware Pipeline
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
 
 window.Ari.medical.osOrchestrator = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   run(input = {}) {
     const situationRoom = window.Ari.medical.executive?.situationRoom;
-    const infectionControl = window.Ari.medical.infectiousDisease?.infectionControl?.engine;
+
+    const infectionControl =
+      window.Ari.medical.infectiousDisease?.infectionControl?.engine;
+
+    const reportableDiseaseEngine =
+      window.Ari.medical.infectiousDisease?.infectionControl?.reportableDiseaseEngine;
+
+    const exposureManagementEngine =
+      window.Ari.medical.infectiousDisease?.infectionControl?.exposureManagementEngine;
+
     const monitoringEngine = window.Ari.medical.monitoring?.engine;
     const escalationEngine = window.Ari.medical.executive?.escalationEngine;
     const priorityEngine = window.Ari.medical.executive?.priorityEngine;
@@ -45,6 +54,14 @@ window.Ari.medical.osOrchestrator = {
       room = infectionControl.writeToRoom(room, { text });
     }
 
+    if (reportableDiseaseEngine?.writeToRoom) {
+      room = reportableDiseaseEngine.writeToRoom(room, { text });
+    }
+
+    if (exposureManagementEngine?.writeToRoom) {
+      room = exposureManagementEngine.writeToRoom(room, { text });
+    }
+
     if (monitoringEngine?.writeToRoom) {
       room = monitoringEngine.writeToRoom(room);
     }
@@ -53,9 +70,9 @@ window.Ari.medical.osOrchestrator = {
       room = escalationEngine.writeToRoom(room, { text });
     }
 
-if (priorityEngine?.writeToRoom) {
-  room = priorityEngine.writeToRoom(room, { text });
-}
+    if (priorityEngine?.writeToRoom) {
+      room = priorityEngine.writeToRoom(room, { text });
+    }
 
     const operations = hospitalOps?.build
       ? hospitalOps.build(room)
