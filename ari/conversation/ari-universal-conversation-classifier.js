@@ -425,18 +425,31 @@ window.AriUniversalConversationClassifier = {
         "toxic to cats"
       ]);
 
-    const memoryOrIdentity =
-      this.hasAny(text, [
-        "remember",
-        "forget",
-        "save this",
-        "from now on",
-        "who are you",
-        "what are you",
-        "your favorite",
-        "do you like",
-        "your personality"
-      ]);
+    const asksAriPreference =
+  /\b(what is|what's|whats|what are)\s+your\s+(favorite|favourite|preference|opinion)\b/i.test(text) ||
+  /\bwhat\s+do\s+you\s+(like|prefer|love|hate|dislike)\b/i.test(text);
+
+const explicitMemoryRequest =
+  this.hasAny(text, [
+    "remember",
+    "forget",
+    "save this",
+    "store this",
+    "note that",
+    "from now on"
+  ]);
+
+const identityQuestion =
+  this.hasAny(text, [
+    "who are you",
+    "what are you",
+    "your personality"
+  ]);
+
+const memoryOrIdentity =
+  explicitMemoryRequest ||
+  identityQuestion ||
+  asksAriPreference;
 
     const referenceDependency =
       isShort &&
@@ -642,10 +655,14 @@ window.AriUniversalConversationClassifier = {
     }
 
     if (signals.memoryOrIdentity) {
-      add({
-        type: "memory_or_identity_request",
-        intent: "memory_or_identity",
-        score: 82,
+  add({
+    type: signals.asksAriPreference
+      ? "ari_identity_preference_question"
+      : "memory_or_identity_request",
+    intent: signals.asksAriPreference
+      ? "answer_ari_identity_preference"
+      : "memory_or_identity",
+    score: signals.asksAriPreference ? 78 : 82,
         responseHint: "Handle memory or identity request directly.",
         reasons: ["Memory, preference, or identity language detected."]
       });
