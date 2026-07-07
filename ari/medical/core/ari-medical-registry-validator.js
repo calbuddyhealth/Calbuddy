@@ -1,15 +1,18 @@
 // ari/medical/core/ari-medical-registry-validator.js
 // Purpose: Validate Ari Medical registries against the UMKO standard.
-// V2.0.0 — Universal Medical Registry Validator / Global QA
+// V2.1.0 — Universal Medical Registry Validator / Global QA
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
 
 window.Ari.medical.registryValidator = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   requiredFields: [
     "id",
+    "umkoId",
+"versionId",
+"status",
     "className",
     "aliases",
     "systems",
@@ -92,6 +95,7 @@ window.Ari.medical.registryValidator = {
       }
     });
 
+this.checkUmkoBase(entry, module, report);
     this.checkArrayFields(entry, module, report);
     this.checkAliases(entry, module, report);
     this.checkDecisionRules(entry, module, report);
@@ -100,6 +104,34 @@ window.Ari.medical.registryValidator = {
     this.checkReferences(entry, module, report);
     this.checkRelatedKnowledge(entry, module, report);
   },
+
+checkUmkoBase(entry = {}, module = {}, report = {}) {
+  const spec = window.Ari.medical.umkoSpec;
+
+  if (spec?.validateBase) {
+    const result = spec.validateBase(entry);
+
+    if (!result.valid) {
+      result.errors.forEach(error => {
+        report.errors.push({
+          module: module.id,
+          entry: entry.id || "unknown",
+          type: "umko_base_invalid",
+          error
+        });
+      });
+    }
+  }
+
+  if (entry.umkoId && spec?.isValidUmkoId && !spec.isValidUmkoId(entry.umkoId)) {
+    report.errors.push({
+      module: module.id,
+      entry: entry.id || "unknown",
+      type: "invalid_umko_id",
+      umkoId: entry.umkoId
+    });
+  }
+},
 
   checkArrayFields(entry = {}, module = {}, report = {}) {
     const arrayFields = [
