@@ -1,21 +1,24 @@
 // ari/medical/core/ari-medical-knowledge-registry.js
 // Purpose: Central registry for Ari Medical knowledge modules.
-// V1.0.0 — Medical Knowledge Registry / Plug-in Architecture / Advisory Only
+// V1.1.0 — Schema-Aware Medical Knowledge Registry / Legacy Compatible
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
 
 window.Ari.medical.knowledgeRegistry = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   modules: {},
 
   register(module = {}) {
     const id = String(module.id || "").trim();
 
-    if (!id) {
-      return this.error("Knowledge module missing id.");
-    }
+    if (!id) return this.error("Knowledge module missing id.");
+
+    const rawEntries = Array.isArray(module.entries) ? module.entries : [];
+    const entries = rawEntries.map(entry =>
+      this.normalizeEntry(entry, module)
+    );
 
     this.modules[id] = {
       id,
@@ -25,16 +28,67 @@ window.Ari.medical.knowledgeRegistry = {
       source: module.source || id,
       updated: module.updated || null,
       advisoryOnly: module.advisoryOnly !== false,
-
-      entries: Array.isArray(module.entries) ? module.entries : [],
+      entries,
       aliases: module.aliases || {},
       metadata: module.metadata || {}
     };
 
+    return { registered: true, id, count: entries.length };
+  },
+
+  normalizeEntry(entry = {}, module = {}) {
+    const schema = window.Ari.medical.knowledgeSchema;
+
+    const schemaEntry = entry?.schema?.name === "ari-medical-knowledge-schema"
+      ? entry
+      : module.category === "medication_class"
+        ? schema?.normalizeLegacyMedication?.(entry) || entry
+        : schema?.create?.(entry) || entry;
+
+    return this.withLegacyFields(schemaEntry);
+  },
+
+  withLegacyFields(entry = {}) {
     return {
-      registered: true,
-      id,
-      count: this.modules[id].entries.length
+      ...entry,
+
+      name: entry.name || entry.identity?.name || "",
+      className: entry.className || entry.identity?.className || entry.identity?.name || "",
+      aliases: entry.aliases || entry.identity?.aliases || [],
+      systems: entry.systems || entry.identity?.systems || [],
+
+      riskTags: entry.riskTags || entry.recognition?.riskTags || [],
+      interactionRisks: entry.interactionRisks || entry.interactions?.riskTags || [],
+
+      commonEffects: entry.commonEffects || entry.effects?.common || [],
+      seriousEffects: entry.seriousEffects || entry.effects?.serious || [],
+      withdrawalEffects: entry.withdrawalEffects || entry.effects?.withdrawal || [],
+      overdoseEffects: entry.overdoseEffects || entry.effects?.overdose || [],
+      toxicityEffects: entry.toxicityEffects || entry.effects?.toxicity || [],
+
+      warningSigns: entry.warningSigns || entry.safety?.redFlags || [],
+      contraindications: entry.contraindications || entry.safety?.contraindications || [],
+      precautions: entry.precautions || entry.safety?.precautions || [],
+
+      monitoring:
+        entry.monitoring ||
+        [
+          ...(entry.monitoring?.symptoms || []),
+          ...(entry.monitoring?.labs || []),
+          ...(entry.monitoring?.vitals || [])
+        ],
+
+      pediatricCaution:
+        entry.pediatricCaution ??
+        entry.populations?.pediatrics?.caution ??
+        false,
+
+      pregnancyCaution:
+        entry.pregnancyCaution ??
+        entry.populations?.pregnancy?.caution ??
+        false,
+
+      schemaNormalized: true
     };
   },
 
@@ -61,7 +115,7 @@ window.Ari.medical.knowledgeRegistry = {
       if (category && module.category !== category) return;
 
       module.entries.forEach(entry => {
-        const score = this.scoreEntry(text, entry, module);
+        const score = this.scoreEntry(text, entry);
 
         if (score > 0) {
           results.push({
@@ -77,9 +131,7 @@ window.Ari.medical.knowledgeRegistry = {
       });
     });
 
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+    return results.sort((a, b) => b.score - a.score).slice(0, limit);
   },
 
   findByAlias(value = "", options = {}) {
@@ -131,7 +183,7 @@ window.Ari.medical.knowledgeRegistry = {
       );
   },
 
-  scoreEntry(query = "", entry = {}, module = {}) {
+  scoreEntry(query = "", entry = {}) {
     let score = 0;
 
     const fields = [
@@ -144,12 +196,13 @@ window.Ari.medical.knowledgeRegistry = {
       ...(entry.commonEffects || []),
       ...(entry.seriousEffects || []),
       ...(entry.warningSigns || []),
-      ...(entry.relatedSymptoms || []),
+      ...(entry.riskTags || []),
+      ...(entry.interactionRisks || []),
       ...(entry.systems || []),
-      ...(entry.tags || [])
-    ]
-      .filter(Boolean)
-      .map(value => String(value).toLowerCase());
+      ...(entry.recognition?.symptomLinks || []),
+      ...(entry.recognition?.patternLinks || []),
+      ...(entry.education?.clinicianPrompt || [])
+    ].filter(Boolean).map(value => String(value).toLowerCase());
 
     fields.forEach(field => {
       if (field === query) score += 50;
@@ -166,7 +219,8 @@ window.Ari.medical.knowledgeRegistry = {
       entry.name,
       entry.className,
       entry.label,
-      ...(entry.aliases || [])
+      ...(entry.aliases || []),
+      ...(entry.identity?.aliases || [])
     ].filter(Boolean);
   },
 
@@ -182,10 +236,7 @@ window.Ari.medical.knowledgeRegistry = {
   },
 
   error(message = "") {
-    return {
-      registered: false,
-      error: message
-    };
+    return { registered: false, error: message };
   },
 
   status() {
