@@ -1,12 +1,12 @@
 // ari/conversation/ari-universal-conversation-classifier.js
 // Ari Universal Conversation Classifier
 // Purpose: Early broad conversation tagging only.
-// V3.3.0 — Weak Classifier / Semantic Confirmation Required / Emotional Distress Protected
+// V3.3.1 — Weak Classifier / Semantic Confirmation Required / Emotional Distress Protected
 
 window.Ari = window.Ari || {};
 
 window.AriUniversalConversationClassifier = {
-  version: "3.3.0",
+  version: "3.3.1",
 
   classify(input = {}) {
     const summary = input.summary || input || {};
@@ -512,6 +512,9 @@ const memoryOrIdentity =
       financial,
       petOrAnimal,
       memoryOrIdentity,
+      asksAriPreference,
+explicitMemoryRequest,
+identityQuestion,
       referenceDependency,
 
       conversationFunction: {
