@@ -1,12 +1,12 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
 // Purpose: Detect conversational signals before lane/triage.
-// V2.3.0 — Meaning-Safe Signal Collector / Emotional Support Protected / Keyword Trap Reduced / Advisory Only
+// V2.3.1 — Meaning-Safe Signal Collector / Emotional Support Protected / Keyword Trap Reduced / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.3.0",
+  version: "2.3.1",
 
   patterns: {
     developerNouns:
@@ -436,12 +436,12 @@ window.AriConversationFunctionEngine = {
     }
 
     if (signals.ariPreferenceQuestion) {
-      add(
-        "memory_or_identity_request",
-        96,
-        "User is asking Ari about Ari's preferences, identity, values, taste, or personality."
-      );
-    }
+  add(
+    "ari_identity_preference_question",
+    96,
+    "User is asking Ari about Ari's preferences, identity, values, taste, or personality."
+  );
+}
 
     if (signals.languageTeacherRequest) {
       add(
@@ -568,10 +568,11 @@ window.AriConversationFunctionEngine = {
         }
 
         if (signals.ariPreferenceQuestion) {
-          if (fn.name === "memory_or_identity_request") score += 30;
-          if (fn.name === "explanation_or_information_question") score -= 35;
-          if (fn.name === "language_or_interpretation_request") score -= 50;
-        }
+  if (fn.name === "ari_identity_preference_question") score += 30;
+  if (fn.name === "memory_or_identity_request") score -= 40;
+  if (fn.name === "explanation_or_information_question") score -= 20;
+  if (fn.name === "language_or_interpretation_request") score -= 50;
+}
 
         if (
           signals.developerArtifactRequest &&
@@ -855,6 +856,18 @@ window.AriConversationFunctionEngine = {
         responseShape: "reuse_context_if_safe",
         instruction:
           "Use prior context only if the current turn is not a complete new situation."
+      },
+
+      ari_identity_preference_question: {
+        preferredLaneBias: "identity",
+        responseShape: "answer_ari_preference",
+        instruction: "Answer Ari self-preference or identity questions directly. Do not treat them as memory saves."
+      },
+
+      memory_or_identity_request: {
+        preferredLaneBias: "memory_or_identity",
+        responseShape: "answer_or_acknowledge",
+        instruction: "Handle memory or identity request directly."
       },
 
       memory_or_identity_request: {
