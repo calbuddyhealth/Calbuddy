@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.7 — Response Plan Aware / Human State Guided
+// V1.3.8 — Response Plan Aware / Human State Guided
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.7",
+  version: "1.3.8",
 
     write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -119,6 +119,9 @@ if (memoryLikePreference) {
     const q = String(question || "").toLowerCase();
 const responsePlan = this.getResponsePlan(packet);
 const responsePlanMoves = this.getResponsePlanMoves(responsePlan);
+const safeResponsePlanMoves = this.responsePlanMatchesCurrentQuestion(responsePlan, question)
+  ? responsePlanMoves
+  : [];
 const responsePlanBlueprintId = responsePlan?.blueprintHint || null;
     const emotionKind = this.detectEmotionKind(q);
 const relationshipContext = this.extractRelationshipContext(question);
@@ -209,8 +212,8 @@ relationship_positive_connection: [
       primary: String(packet.primary || "").toLowerCase(),
       emotionKind,
       relationshipContext,
-      moves: responsePlanMoves.length
-  ? responsePlanMoves
+      moves: safeResponsePlanMoves.length
+  ? safeResponsePlanMoves
   : plans[safeBlueprintId] || plans.general_direct_response,
       maxSentences:
   responsePlan?.writerInstructions?.maxSentences ||
@@ -1039,6 +1042,30 @@ detectRelationshipTone(q = "") {
       aiAllowed: true
     }
   },
+
+responsePlanMatchesCurrentQuestion(responsePlan = {}, question = "") {
+  if (!responsePlan) return false;
+
+  const planQuestion = String(
+    responsePlan.userQuestion ||
+    responsePlan.question ||
+    responsePlan.resolvedUserQuestion ||
+    responsePlan.sourceQuestion ||
+    ""
+  ).trim();
+
+  if (!planQuestion) return false;
+
+  return this.normalize(planQuestion) === this.normalize(question);
+},
+
+normalize(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+},
 
 getResponsePlan(packet = {}) {
   return (
