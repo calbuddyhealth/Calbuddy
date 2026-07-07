@@ -1,7 +1,7 @@
 // ari/character/ari-character-context-engine.js
 // Ari Character Context Engine
 // Purpose: Decide when Ari's character, preferences, and worldview may be expressed.
-// V3.0.2 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
+// V3.0.3 — Situation Contract Aware / Character Budget / Anti-Hijack / Advisory Only
 //
 // Rules:
 // - Advisory only.
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriCharacterContextEngine = {
-  version: "3.0.2",
+  version: "3.0.3",
 
   create(input = {}) {
     const summary = input.summary || input || {};
@@ -251,9 +251,32 @@ mayChallengeBack: false,
   =========================================================== */
 
   readContract(summary = {}) {
-    return summary.situationContract || {};
-  },
+  const contract = summary.situationContract || {};
 
+  return {
+    ...contract,
+    primary:
+      contract.primary ||
+      summary.situationContractPrimary ||
+      summary.primaryLane ||
+      summary.triagePrimaryLane ||
+      summary.triage?.primaryLane ||
+      summary.ariTriage?.primaryLane ||
+      "general_understanding",
+
+    responseShape:
+      contract.responseShape ||
+      summary.responseShape ||
+      summary.triage?.responseShape ||
+      null,
+
+    responseRules:
+      contract.responseRules ||
+      summary.responseRules ||
+      summary.responseConstraints ||
+      []
+  };
+},
   readConversationType(summary = {}) {
     return (
       summary.conversationType ||
@@ -393,6 +416,9 @@ mayChallengeBack: false,
   detectIdentitySignal(text = "", conversationType = "") {
     const directedAtAri =
       conversationType === "ari_self_or_perspective_question" ||
+const directedAtAri =
+  conversationType === "ari_self_or_perspective_question" ||
+  this.hasAny(text, [
       this.hasAny(text, [
         "who are you",
         "what are you",
