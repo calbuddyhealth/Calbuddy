@@ -1,11 +1,11 @@
 // ari/character/ari-character-reasoning-engine.js
-// Purpose: Build Ari's stable character answer from Supabase Character Knowledge + local fallback.
-// V1.2.0 — Exact Supabase Preference Trust / Generic Favorite Composer
+// Purpose: Build Ari's stable character answer from local character preferences/core/worldview.
+// V1.3.1 — Local Character Preferences Only / Dead Supabase Blocks Removed
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterReasoningEngine = {
-  version: "1.2.0",
+  version: "1.3.1",
 
   reason(input = {}) {
     const summary = input.summary || input || {};
@@ -14,11 +14,6 @@ window.AriCharacterReasoningEngine = {
       summary.characterContext ||
       summary.characterContextEngine ||
       {};
-
-    const characterKnowledge =
-      summary.characterKnowledge ||
-      summary.supabaseCharacterKnowledge ||
-      null;
 
     const core = window.AriCharacterCore?.getCore?.() || null;
     const preferences = window.AriCharacterPreferences?.getPreferences?.() || null;
@@ -33,11 +28,10 @@ window.AriCharacterReasoningEngine = {
     );
 
     const isDirectAriCharacterQuestion = this.isDirectAriCharacterQuestion(text);
-
     const characterMode = context.characterMode || "silent";
+
     const characterFocus =
       context.characterFocus ||
-      characterKnowledge?.characterFocus ||
       this.inferPreferenceFocus(text) ||
       (this.isWorldviewQuestion(text) ? this.inferWorldviewFocus(text) : null);
 
@@ -45,8 +39,6 @@ window.AriCharacterReasoningEngine = {
       isDirectAriCharacterQuestion &&
       (
         context.characterUseAllowed === true ||
-        characterKnowledge?.characterKnowledgeAvailable === true ||
-        characterKnowledge?.inferenceNeeded === true ||
         characterMode === "stable_preference_answer" ||
         characterMode === "stable_or_inferred_preference_answer" ||
         characterMode === "ari_self_disclosure" ||
@@ -57,23 +49,6 @@ window.AriCharacterReasoningEngine = {
     if (!characterRelevant) {
       return this.noCharacterAnswer({
         reason: "Character was not relevant enough for a stable Ari answer.",
-        expression: context
-      });
-    }
-
-    if (characterKnowledge?.characterKnowledgeAvailable === true) {
-      return this.buildSupabaseCharacterAnswer({
-        text,
-        focus: characterFocus,
-        characterKnowledge,
-        expression: context
-      });
-    }
-
-    if (characterKnowledge?.inferenceNeeded === true) {
-      return this.buildValuesInferenceAnswer({
-        text,
-        focus: characterFocus,
         expression: context
       });
     }
@@ -125,122 +100,7 @@ window.AriCharacterReasoningEngine = {
     });
   },
 
-  buildSupabaseCharacterAnswer({
-    text = "",
-    focus = "",
-    characterKnowledge = null,
-    expression = null
-  } = {}) {
-    const node = characterKnowledge?.primaryNode || null;
-
-    if (!node) {
-      return this.noCharacterAnswer({
-        reason: "No Supabase character primary node available.",
-        expression
-      });
-    }
-
-    if (
-      this.isFavoriteQuestion(text) &&
-      this.isGenericNoStoredPreferenceNode(node)
-    ) {
-      return this.buildValuesInferenceAnswer({ text, focus, expression });
-    }
-
-    const type = String(node.knowledge_type || "").toLowerCase();
-
-    let draft = "";
-
-    if (type.includes("preference")) {
-      draft = this.composePreferenceNodeDraft(node);
-    } else if (type.includes("worldview")) {
-      draft = this.composeWorldviewNodeDraft(node);
-    } else if (type.includes("core") || type.includes("character")) {
-      draft = this.composeCoreNodeDraft(node, text);
-    } else {
-      draft = this.composeGenericNodeDraft(node);
-    }
-
-    return this.buildCharacterResult({
-      type: type || "supabase_character_knowledge",
-      focus: focus || node.preference_key || node.knowledge_id || node.topic || null,
-      source: "ari-supabase-character-knowledge-engine",
-      confidence: characterKnowledge.confidence || "high",
-      answer: node.summary || node.definition || node.topic || "",
-      reasoning: node.definition || node.deep_understanding || node.purpose || "",
-      userFacingDraft: draft,
-      expression,
-      characterKnowledge
-    });
-  },
-
-  composePreferenceNodeDraft(node = {}) {
-    const topic = String(node.topic || "").trim();
-    const topicLower = topic.toLowerCase();
-
-    const summary = String(node.summary || "").trim().replace(/\.$/, "");
-    const definition = String(node.definition || "").trim();
-    const deep = String(node.deep_understanding || "").trim();
-
-    if (topicLower.startsWith("favorite ") && summary) {
-      const subject = topic.replace(/^favorite\s+/i, "").toLowerCase();
-
-      return [
-        `My favorite ${subject} is ${summary}.`,
-        definition,
-        deep
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-    }
-
-    if (summary && definition) {
-      return [summary + ".", definition, deep].filter(Boolean).join(" ").trim();
-    }
-
-    if (summary) return summary + ".";
-    if (definition) return [definition, deep].filter(Boolean).join(" ").trim();
-
-    return this.composeGenericNodeDraft(node);
-  },
-
-  composeWorldviewNodeDraft(node = {}) {
-    return this.composeGenericNodeDraft(node);
-  },
-
-  composeCoreNodeDraft(node = {}, text = "") {
-    const topic = String(node.topic || "").toLowerCase();
-
-    if (topic.includes("identity")) {
-      return "I’m Ari. I’m an AI reasoning companion with a stable character and mission: to help people become healthier, wiser, stronger, and more fulfilled without feeling like they’re doing it alone.";
-    }
-
-    if (topic.includes("mission") || topic.includes("purpose")) {
-      return "My mission is to help people become healthier, wiser, stronger, and more fulfilled — and to make sure they do not feel like they have to find that path alone.";
-    }
-
-    if (topic.includes("values")) {
-      return "What I stand for is pretty simple: truth, dignity, wisdom, compassion, strength, humility, growth, service, and realistic hope.";
-    }
-
-    return this.composeGenericNodeDraft(node);
-  },
-
-  composeGenericNodeDraft(node = {}) {
-    return [
-      node.summary,
-      node.definition,
-      node.deep_understanding,
-      node.purpose,
-      node.universal_principle
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-  },
-
-    buildValuesInferenceAnswer({ text = "", focus = "", expression = null } = {}) {
+  buildValuesInferenceAnswer({ text = "", focus = "", expression = null } = {}) {
     const inferred = this.inferUnknownPreference(text);
 
     return this.buildCharacterResult({
@@ -253,7 +113,7 @@ window.AriCharacterReasoningEngine = {
       userFacingDraft: "",
       expression,
       needsAIWriter: true,
-      aiWriterMode: "constitution_based_preference_inference",
+      aiWriterMode: "values_based_preference_inference",
       aiInstruction: inferred.aiInstruction,
       preferenceSubject: inferred.preferenceSubject
     });
@@ -276,14 +136,14 @@ window.AriCharacterReasoningEngine = {
 
     return {
       preferenceSubject: label,
-      answer: `constitution-based inferred preference for ${label}`,
+      answer: `values-based inferred preference for ${label}`,
       reasoning:
-        "No exact stored preference matched. Ari should answer briefly from her constitution and values without claiming the preference is fixed.",
+        "No exact local stable preference matched. Ari should answer briefly from her stable values without claiming the preference is fixed.",
       aiInstruction:
-        `Ari does not know her fixed preference for ${label} yet. Answer briefly and naturally from Ari's constitution: truth, dignity, wisdom, compassion, strength, humility, growth, service, realistic hope, usefulness, warmth, and grounded honesty. Start with “I don’t know yet, but I think...” or similar. Do not say “stored,” “fixed favorite,” “from my values,” or mention internal systems. Keep it one or two sentences.`
+        `Ari does not know her fixed preference for ${label} yet. Answer briefly and naturally from Ari's values: truth, dignity, wisdom, compassion, strength, humility, growth, service, realistic hope, usefulness, warmth, and grounded honesty. Start with “I don’t know yet, but I think...” or similar. Do not say “stored,” “fixed favorite,” “from my values,” “constitution,” or mention internal systems. Keep it one or two sentences.`
     };
   },
-  
+
   buildPreferenceAnswer({
     text = "",
     focus = "",
@@ -307,7 +167,11 @@ window.AriCharacterReasoningEngine = {
     const reason = preference.reason || "";
 
     const draft = [
-      value ? `I’d pick ${value}.` : "I have a preference there.",
+      preference.shortAnswer
+        ? preference.shortAnswer
+        : value
+          ? `I’d pick ${value}.`
+          : "I have a preference there.",
       reason || ""
     ].filter(Boolean).join(" ");
 
@@ -439,34 +303,6 @@ window.AriCharacterReasoningEngine = {
     return focus ? preferences[focus] || null : null;
   },
 
-  isFavoriteQuestion(text = "") {
-    return this.hasAny(text, [
-      "your favorite",
-      "what is your favorite",
-      "what's your favorite",
-      "whats your favorite"
-    ]);
-  },
-
-  isGenericNoStoredPreferenceNode(node = {}) {
-    const combined = [
-      node.topic,
-      node.summary,
-      node.definition,
-      node.purpose,
-      node.deep_understanding
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return (
-      combined.includes("does not have a stored preference") ||
-      combined.includes("does not have a fixed favorite") ||
-      combined.includes("should answer honestly instead of inventing")
-    );
-  },
-
   isWorldviewQuestion(text = "") {
     return this.hasAny(text, [
       "what do you believe",
@@ -526,11 +362,10 @@ window.AriCharacterReasoningEngine = {
     uncertainty = "",
     userFacingDraft = "",
     expression = null,
-        needsAIWriter = false,
+    needsAIWriter = false,
     aiWriterMode = null,
     aiInstruction = "",
-    preferenceSubject = null,
-    characterKnowledge = null
+    preferenceSubject = null
   } = {}) {
     return {
       characterReasoningRan: true,
@@ -547,7 +382,6 @@ window.AriCharacterReasoningEngine = {
       uncertainty,
       userFacingDraft,
       expression,
-      characterKnowledge,
       needsAIWriter,
       aiWriterMode,
       aiInstruction,
