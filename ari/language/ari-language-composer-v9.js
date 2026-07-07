@@ -94,26 +94,95 @@ window.AriLanguageComposerV9 = {
     return "";
   },
 
-  getSelectedDraft({ packet = {}, summary = {}, input = {} } = {}) {
-    const candidates = [
-      packet.selectedDraft,
-      packet.finalResponseCandidate,
-      summary.selectedDraft,
-      summary.finalResponseCandidate,
-      input.selectedDraft,
+normalize(value = "") {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  },
 
-      // Legacy fallback only if arbiter did not provide anything.
-      packet.blueprintWriterDraft,
-      summary.blueprintWriterDraft,
-      packet.evidence?.aiWriter?.draft,
-      packet.aiWriterDraft,
-      summary.aiWriterDraft
+    getSelectedDraft({ packet = {}, summary = {}, input = {} } = {}) {
+    const currentQuestion = String(
+      packet.userQuestion ||
+      summary.userMessage ||
+      summary.message ||
+      input.userQuestion ||
+      input.message ||
+      ""
+    ).trim();
+
+    const candidates = [
+      {
+        text: packet.selectedDraft,
+        question: packet.selectedDraftQuestion || packet.userQuestion,
+        source: "packet.selectedDraft"
+      },
+      {
+        text: packet.finalResponseCandidate,
+        question: packet.finalResponseQuestion || packet.userQuestion,
+        source: "packet.finalResponseCandidate"
+      },
+      {
+        text: summary.selectedDraft,
+        question: summary.selectedDraftQuestion || summary.userMessage,
+        source: "summary.selectedDraft"
+      },
+      {
+        text: summary.finalResponseCandidate,
+        question: summary.finalResponseQuestion || summary.userMessage,
+        source: "summary.finalResponseCandidate"
+      },
+      {
+        text: input.selectedDraft,
+        question: input.selectedDraftQuestion || input.userQuestion || input.message,
+        source: "input.selectedDraft"
+      },
+
+      // Current-turn writer fallbacks
+      {
+        text: packet.blueprintWriterDraft,
+        question: packet.userQuestion,
+        source: "packet.blueprintWriterDraft"
+      },
+      {
+        text: summary.blueprintWriterDraft,
+        question: summary.userMessage || summary.message,
+        source: "summary.blueprintWriterDraft"
+      },
+      {
+        text: packet.evidence?.aiWriter?.draft,
+        question: packet.userQuestion,
+        source: "packet.evidence.aiWriter.draft"
+      },
+      {
+        text: packet.aiWriterDraft,
+        question: packet.userQuestion,
+        source: "packet.aiWriterDraft"
+      },
+      {
+        text: summary.aiWriterDraft,
+        question: summary.userMessage || summary.message,
+        source: "summary.aiWriterDraft"
+      }
     ];
 
     for (const candidate of candidates) {
-      const text = String(candidate || "").trim();
+      const text = String(candidate.text || "").trim();
       if (!text) continue;
+
+      const candidateQuestion = String(candidate.question || "").trim();
+
+      if (
+        currentQuestion &&
+        candidateQuestion &&
+        this.normalize(candidateQuestion) !== this.normalize(currentQuestion)
+      ) {
+        continue;
+      }
+
       if (this.isStaleOrWrongContextReply(text, packet)) continue;
+
       return text;
     }
 
