@@ -1,12 +1,12 @@
 // ari/context/ari-context-assembler.js
 // Ari Context Assembler
 // Purpose: Safely assemble continuity, memory, relationship, thread, entity, and semantic-frame context.
-// V1.8.1 — Active Dialogue + Character Identity Handoff / Advisory Only
+// V1.8.2 — Active Dialogue + Character Identity Handoff / No Character Re-run
 
 window.Ari = window.Ari || {};
 
 window.AriContextAssembler = {
-  version: "1.8.1",
+  version: "1.8.2",
 
   assemble(input = {}) {
     const summary = input.summary || input || {};
@@ -1010,14 +1010,10 @@ addActiveDialogueStateFacts(context = {}) {
   
   addCharacterIdentity(context = {}, summary = {}) {
   const characterContext =
-    summary.characterContext ||
-    summary.characterContextEngine ||
-    summary.characterExpression?.characterContext ||
-    (
-      window.AriCharacterContextEngine?.create
-        ? window.AriCharacterContextEngine.create({ summary })
-        : null
-    );
+  summary.characterContext ||
+  summary.characterContextEngine ||
+  summary.characterExpression?.characterContext ||
+  null;
 
   if (!characterContext) return;
 
