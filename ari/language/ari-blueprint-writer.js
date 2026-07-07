@@ -1,11 +1,11 @@
 // ari/language/ari-blueprint-writer.js
 // Purpose: Fast deterministic conversation planning + local draft rendering from expression blueprints.
-// V1.3.8 — Response Plan Aware / Human State Guided
+// V1.3.9 — Response Plan Aware / Human State Guided
 
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "1.3.8",
+  version: "1.3.9",
 
     write(input = {}) {
     const packet = input.composerPacket || input.packet || input || {};
@@ -119,10 +119,15 @@ if (memoryLikePreference) {
     const q = String(question || "").toLowerCase();
 const responsePlan = this.getResponsePlan(packet);
 const responsePlanMoves = this.getResponsePlanMoves(responsePlan);
-const safeResponsePlanMoves = this.responsePlanMatchesCurrentQuestion(responsePlan, question)
+const responsePlanIsCurrent = this.responsePlanMatchesCurrentQuestion(responsePlan, question);
+
+const safeResponsePlanMoves = responsePlanIsCurrent
   ? responsePlanMoves
   : [];
-const responsePlanBlueprintId = responsePlan?.blueprintHint || null;
+
+const responsePlanBlueprintId = responsePlanIsCurrent
+  ? responsePlan?.blueprintHint || null
+  : null;
     const emotionKind = this.detectEmotionKind(q);
 const relationshipContext = this.extractRelationshipContext(question);
     
@@ -723,14 +728,24 @@ detectRelationshipTone(q = "") {
     ], 4, "direct");
   },
 
-  resolveBlueprint(packet = {}) {
-    const id =
+    resolveBlueprint(packet = {}) {
+    const question = String(packet.userQuestion || "").trim();
+
+    const rawId =
       packet.blueprintHint ||
       packet.expressionPlan?.blueprintId ||
       packet.mouthDirective?.blueprintHint ||
       "general_direct_response";
 
-    return this.blueprints[id] || this.blueprints.general_direct_response;
+    const builderLike =
+      rawId === "builder_direct_help" ||
+      rawId === "knowledge_developer_analysis";
+
+    if (builderLike && !this.isDeveloperQuestion(question)) {
+      return this.blueprints.general_direct_response;
+    }
+
+    return this.blueprints[rawId] || this.blueprints.general_direct_response;
   },
 
   composeSupabaseKnowledge(packet = {}) {
@@ -1066,6 +1081,12 @@ normalize(value = "") {
     .replace(/\s+/g, " ")
     .trim();
 },
+
+  isDeveloperQuestion(question = "") {
+    return /\b(code|file|bug|error|github|repo|repository|function|patch|debug|fix|edit|html|css|javascript|supabase|vercel|deploy)\b/i.test(
+      String(question || "")
+    );
+  },
 
 getResponsePlan(packet = {}) {
   return (
