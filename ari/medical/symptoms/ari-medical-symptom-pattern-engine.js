@@ -1,6 +1,6 @@
 // ari/medical/symptoms/ari-medical-symptom-pattern-engine.js
-// Purpose: Recognize symptom clusters and suggest likely body-system patterns without diagnosing.
-// V1.0.0 — Chief Complaint Pattern Mapper / Advisory Only
+// Purpose: Detect high-yield symptom clusters using modular scoring.
+// V1.0.0 — Symptom Pattern Scoring Engine / Advisory Only
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
@@ -19,8 +19,9 @@ window.Ari.medical.symptomPatternEngine = {
       ""
     );
 
-    const patterns = this.detectPatterns(text);
-    const primaryPattern = this.pickPrimaryPattern(patterns);
+    const tokens = this.extractTokens(text);
+    const patterns = this.scorePatterns(tokens);
+    const primaryPattern = patterns[0] || null;
 
     return window.Ari.medical.contract.create({
       engine: "ari-medical-symptom-pattern-engine",
@@ -30,387 +31,232 @@ window.Ari.medical.symptomPatternEngine = {
       urgency: primaryPattern?.urgency || "routine",
       primaryPattern,
       patterns,
-      findings: patterns,
-      supportingEvidence: patterns,
+      symptomTokens: tokens,
       reasoning:
-        primaryPattern?.reason ||
-        "No strong symptom cluster was detected from the available message.",
+        primaryPattern
+          ? `Matched symptom pattern: ${primaryPattern.label}.`
+          : "No strong symptom pattern matched.",
       nextStep:
         primaryPattern?.nextStep ||
-        "Ask broad chief-complaint questions, then narrow based on body system.",
+        "Use red flags, body-system routing, and focused questions.",
       responsePosture: {
-        label: "symptom_pattern_mapping",
-        canAskFollowUp: true,
-        explainBriefly: true,
-        advisoryOnly: true
+        label: "symptom_pattern_scoring",
+        advisoryOnly: true,
+        avoidDiagnosis: true,
+        avoidSingleCauseLockIn: true
       }
     });
   },
 
-  detectPatterns(text = "") {
+  extractTokens(text = "") {
+    const tokenMap = this.symptomVocabulary();
+    const tokens = [];
+
+    Object.entries(tokenMap).forEach(([token, terms]) => {
+      if (terms.some(term => window.Ari.medical.utils.hasTerm(text, term))) {
+        tokens.push(token);
+      }
+    });
+
+    return [...new Set(tokens)];
+  },
+
+  scorePatterns(tokens = []) {
+    const patterns = this.patternClusters();
+
+    return patterns
+      .map(pattern => this.scorePattern(pattern, tokens))
+      .filter(result => result.matched)
+      .sort((a, b) => b.score - a.score);
+  },
+
+  scorePattern(pattern = {}, tokens = []) {
+    const tokenSet = new Set(tokens);
+
+    const requiredHits = this.hits(pattern.requiredAny, tokenSet);
+    const supportingHits = this.hits(pattern.supportingAny, tokenSet);
+    const emergencyHits = this.hits(pattern.emergencyAny, tokenSet);
+    const negativeHits = this.hits(pattern.negativeClues, tokenSet);
+
+    const hasRequired =
+      !pattern.requiredAny?.length || requiredHits.length > 0;
+
+    const score =
+      requiredHits.length * 4 +
+      supportingHits.length * 2 +
+      emergencyHits.length * 6 -
+      negativeHits.length * 2;
+
+    const matched =
+      hasRequired &&
+      score >= (pattern.threshold || 4);
+
+    const urgency =
+      emergencyHits.length ? "emergency" :
+      pattern.baseUrgency || "routine";
+
+    return {
+      id: pattern.id,
+      label: pattern.label,
+      system: pattern.system,
+      matched,
+      score,
+      confidence: score >= 10 ? "high" : score >= 6 ? "medium" : "low",
+      urgency,
+      requiredHits,
+      supportingHits,
+      emergencyHits,
+      negativeHits,
+      reason: pattern.reason,
+      nextStep: pattern.nextStep,
+      advisoryOnly: true
+    };
+  },
+
+  hits(list = [], tokenSet = new Set()) {
+    return (list || []).filter(token => tokenSet.has(token));
+  },
+
+  symptomVocabulary() {
+    return {
+      shortness_of_breath: ["shortness of breath", "sob", "trouble breathing", "dyspnea"],
+      chest_pain: ["chest pain", "chest pressure", "chest tightness"],
+      leg_edema: ["leg swelling", "swollen legs", "ankle swelling", "edema"],
+      jvd: ["jvd", "jugular vein", "neck vein bulging", "jugular vein bulging"],
+      orthopnea: ["shortness of breath lying flat", "orthopnea", "need pillows to breathe"],
+      rapid_weight_gain: ["rapid weight gain", "gained weight quickly"],
+      syncope: ["fainting", "passed out", "syncope"],
+      blue_lips: ["blue lips", "cyanosis"],
+      severe_respiratory_distress: ["can't breathe", "cannot breathe", "gasping"],
+
+      facial_droop: ["facial droop", "face drooping"],
+      slurred_speech: ["slurred speech", "trouble speaking"],
+      one_sided_weakness: ["one sided weakness", "weak on one side"],
+      confusion: ["confusion", "confused", "altered mental status"],
+      seizure: ["seizure", "convulsion"],
+
+      fever: ["fever", "high temperature"],
+      chills: ["chills", "rigors"],
+      stiff_neck: ["stiff neck", "neck stiffness"],
+      rash: ["rash", "skin rash"],
+      vomiting: ["vomiting", "throwing up"],
+      diarrhea: ["diarrhea", "loose stool"],
+      abdominal_pain: ["abdominal pain", "stomach pain", "belly pain"],
+      blood_in_stool: ["blood in stool", "bloody stool"],
+      black_stool: ["black stool", "tarry stool"],
+
+      suicidal_thoughts: ["suicidal", "kill myself", "end my life"],
+      homicidal_thoughts: ["homicidal", "hurt someone", "kill someone"],
+      hallucinations: ["hallucinations", "hearing voices", "seeing things"],
+      mania: ["mania", "manic", "no sleep with energy"],
+      medication_change: ["started medication", "changed dose", "stopped medication"],
+      overdose: ["overdose", "took too much"],
+
+      pregnant: ["pregnant", "pregnancy", "weeks pregnant"],
+      vaginal_bleeding: ["vaginal bleeding", "bleeding while pregnant"],
+      decreased_fetal_movement: ["decreased fetal movement", "baby not moving"],
+      severe_headache: ["severe headache", "worst headache"],
+      vision_changes: ["vision changes", "blurry vision"],
+
+      infant: ["infant", "newborn", "baby"],
+      not_feeding: ["not feeding", "won't feed", "poor feeding"],
+      no_wet_diapers: ["no wet diapers", "not peeing"],
+      lethargy: ["lethargic", "hard to wake", "very sleepy"]
+    };
+  },
+
+  patternClusters() {
     return [
-      this.detectCardiopulmonary(text),
-      this.detectNeurologic(text),
-      this.detectGI(text),
-      this.detectGU(text),
-      this.detectInfection(text),
-      this.detectPsychiatric(text),
-      this.detectPregnancy(text),
-      this.detectPediatric(text),
-      this.detectMedicationReaction(text)
-    ].filter(Boolean);
-  },
+      {
+        id: "cardiopulmonary_fluid_overload",
+        label: "Cardiopulmonary fluid overload pattern",
+        system: "cardiovascular_respiratory",
+        requiredAny: ["shortness_of_breath"],
+        supportingAny: ["leg_edema", "jvd", "orthopnea", "rapid_weight_gain"],
+        emergencyAny: ["chest_pain", "syncope", "blue_lips", "severe_respiratory_distress"],
+        threshold: 6,
+        baseUrgency: "urgent",
+        reason:
+          "Shortness of breath plus swelling/JVD/orthopnea can suggest fluid overload or cardiopulmonary strain.",
+        nextStep:
+          "Screen for emergency breathing symptoms, chest pain, fainting, oxygen issues, and rapid worsening."
+      },
 
-  detectCardiopulmonary(text = "") {
-    const hits = this.collect(text, [
-      "shortness of breath",
-      "sob",
-      "chest pain",
-      "leg swelling",
-      "leg edema",
-      "ankle swelling",
-      "jvd",
-      "jugular vein",
-      "bulging neck vein",
-      "coughing blood",
-      "blue lips",
-      "cyanosis",
-      "palpitations",
-      "fainting"
-    ]);
+      {
+        id: "stroke_like_neurologic_deficit",
+        label: "Stroke-like neurologic deficit pattern",
+        system: "neurology",
+        requiredAny: ["facial_droop", "slurred_speech", "one_sided_weakness"],
+        supportingAny: ["confusion", "severe_headache", "vision_changes"],
+        emergencyAny: ["seizure", "syncope"],
+        threshold: 4,
+        baseUrgency: "emergency",
+        reason:
+          "New one-sided weakness, facial droop, speech difficulty, or severe neurologic change can be time-sensitive.",
+        nextStep:
+          "Recommend emergency evaluation now if symptoms are current or new."
+      },
 
-    if (!hits.length) return null;
+      {
+        id: "infection_possible_sepsis_or_meningitis",
+        label: "Serious infection / sepsis concern pattern",
+        system: "infectious_disease",
+        requiredAny: ["fever"],
+        supportingAny: ["chills", "confusion", "vomiting", "rash"],
+        emergencyAny: ["stiff_neck", "severe_respiratory_distress", "blue_lips"],
+        threshold: 6,
+        baseUrgency: "urgent",
+        reason:
+          "Fever with systemic symptoms or neurologic/respiratory red flags can become urgent quickly.",
+        nextStep:
+          "Clarify temperature, duration, mental status, breathing, hydration, rash, neck stiffness, and immune risk."
+      },
 
-    const highRisk =
-      hits.includes("shortness of breath") ||
-      hits.includes("sob") ||
-      hits.includes("chest pain") ||
-      hits.includes("jvd") ||
-      hits.includes("jugular vein") ||
-      hits.includes("bulging neck vein") ||
-      hits.includes("coughing blood") ||
-      hits.includes("blue lips") ||
-      hits.includes("cyanosis");
+      {
+        id: "pregnancy_red_flag_pattern",
+        label: "Pregnancy red-flag pattern",
+        system: "obstetrics",
+        requiredAny: ["pregnant"],
+        supportingAny: ["vaginal_bleeding", "severe_headache", "vision_changes", "abdominal_pain"],
+        emergencyAny: ["decreased_fetal_movement", "syncope", "severe_respiratory_distress"],
+        threshold: 6,
+        baseUrgency: "urgent",
+        reason:
+          "Pregnancy changes the threshold for symptoms like bleeding, severe headache, vision changes, abdominal pain, or decreased fetal movement.",
+        nextStep:
+          "Ask gestational age and recommend OB triage or urgent evaluation for red flags."
+      },
 
-    return {
-      type: "cardiopulmonary_pattern",
-      system: "cardiovascular_respiratory",
-      label: "Possible heart/lung circulation pattern",
-      evidence: hits,
-      confidence: hits.length >= 3 ? "high" : "medium",
-      urgency: highRisk ? "emergency" : "urgent",
-      reason:
-        "Symptoms involving breathing, chest symptoms, swelling, or neck-vein distention can point toward heart/lung strain and should be treated carefully.",
-      nextStep:
-        "Screen for emergency red flags first: active shortness of breath, chest pain, fainting, blue lips, coughing blood, severe weakness, or rapidly worsening swelling."
-    };
-  },
+      {
+        id: "pediatric_dehydration_or_serious_illness",
+        label: "Pediatric dehydration / serious illness pattern",
+        system: "pediatrics",
+        requiredAny: ["infant"],
+        supportingAny: ["not_feeding", "no_wet_diapers", "fever", "vomiting", "diarrhea", "lethargy"],
+        emergencyAny: ["severe_respiratory_distress", "blue_lips", "seizure"],
+        threshold: 6,
+        baseUrgency: "urgent",
+        reason:
+          "Infants and young children can worsen faster with fever, poor feeding, dehydration, lethargy, or breathing problems.",
+        nextStep:
+          "Ask exact age, temperature, feeding, wet diapers, breathing, alertness, and duration."
+      },
 
-  detectNeurologic(text = "") {
-    const hits = this.collect(text, [
-      "weakness",
-      "one sided weakness",
-      "facial droop",
-      "slurred speech",
-      "confusion",
-      "worst headache",
-      "seizure",
-      "new numbness",
-      "vision loss",
-      "loss of balance"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "neurologic_pattern",
-      system: "neurology",
-      label: "Possible neurologic pattern",
-      evidence: hits,
-      confidence: hits.length >= 2 ? "high" : "medium",
-      urgency: "emergency",
-      reason:
-        "New weakness, speech changes, seizure, severe headache, confusion, or vision loss can signal time-sensitive neurologic illness.",
-      nextStep:
-        "Clarify onset time, new deficits, trauma, seizure activity, headache severity, and whether symptoms are happening now."
-    };
-  },
-
-  detectGI(text = "") {
-    const hits = this.collect(text, [
-      "abdominal pain",
-      "stomach pain",
-      "vomiting",
-      "diarrhea",
-      "blood in stool",
-      "black stool",
-      "constipation",
-      "right lower quadrant",
-      "ruq pain",
-      "jaundice"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "gastrointestinal_pattern",
-      system: "gastrointestinal",
-      label: "Possible GI pattern",
-      evidence: hits,
-      confidence: hits.length >= 2 ? "medium" : "low",
-      urgency:
-        hits.includes("blood in stool") ||
-        hits.includes("black stool") ||
-        hits.includes("jaundice")
-          ? "urgent"
-          : "soon",
-      reason:
-        "Digestive symptoms need narrowing by location, timing, stool/vomit changes, hydration, fever, and severity.",
-      nextStep:
-        "Ask pain location, duration, fever, vomiting, stool color, hydration, pregnancy status if applicable, and severity."
-    };
-  },
-
-  detectGU(text = "") {
-    const hits = this.collect(text, [
-      "burning when peeing",
-      "painful urination",
-      "blood in urine",
-      "flank pain",
-      "kidney pain",
-      "testicle pain",
-      "pelvic pain",
-      "urinary retention",
-      "can't pee",
-      "frequent urination"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "genitourinary_pattern",
-      system: "urology_genitourinary",
-      label: "Possible urinary/reproductive pattern",
-      evidence: hits,
-      confidence: hits.length >= 2 ? "medium" : "low",
-      urgency:
-        hits.includes("testicle pain") ||
-        hits.includes("urinary retention") ||
-        hits.includes("can't pee") ||
-        hits.includes("flank pain")
-          ? "urgent"
-          : "soon",
-      reason:
-        "Urinary, pelvic, flank, or testicular symptoms can range from routine infection to urgent obstruction or torsion patterns.",
-      nextStep:
-        "Ask urinary symptoms, fever, flank pain, pregnancy status if applicable, discharge, testicular pain, and ability to urinate."
-    };
-  },
-
-  detectInfection(text = "") {
-    const hits = this.collect(text, [
-      "fever",
-      "chills",
-      "sweats",
-      "infection",
-      "pus",
-      "red streak",
-      "wound",
-      "stiff neck",
-      "rash",
-      "sepsis"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "infection_pattern",
-      system: "infectious_disease",
-      label: "Possible infection/inflammation pattern",
-      evidence: hits,
-      confidence: hits.length >= 2 ? "medium" : "low",
-      urgency:
-        hits.includes("stiff neck") ||
-        hits.includes("red streak") ||
-        hits.includes("sepsis")
-          ? "emergency"
-          : "soon",
-      reason:
-        "Fever or infection signs need severity screening, source identification, and immune-risk review.",
-      nextStep:
-        "Ask temperature, duration, source symptoms, immune status, pregnancy/infant/elderly status, and signs of worsening."
-    };
-  },
-
-  detectPsychiatric(text = "") {
-    const hits = this.collect(text, [
-      "suicidal",
-      "kill myself",
-      "hurt myself",
-      "hearing voices",
-      "hallucinations",
-      "paranoid",
-      "mania",
-      "not sleeping",
-      "panic attack",
-      "severe anxiety",
-      "depressed"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "psychiatric_behavioral_pattern",
-      system: "psychiatry",
-      label: "Possible psychiatric/behavioral pattern",
-      evidence: hits,
-      confidence: hits.length >= 2 ? "high" : "medium",
-      urgency:
-        hits.includes("suicidal") ||
-        hits.includes("kill myself") ||
-        hits.includes("hurt myself") ||
-        hits.includes("hearing voices") ||
-        hits.includes("hallucinations")
-          ? "emergency"
-          : "urgent",
-      reason:
-        "Psychiatric symptoms need safety screening first, then differentiation between illness, substances, medications, sleep loss, and stress.",
-      nextStep:
-        "Screen for danger to self/others, psychosis, mania, intoxication/withdrawal, medication changes, sleep, and support."
-    };
-  },
-
-  detectPregnancy(text = "") {
-    const hits = this.collect(text, [
-      "pregnant",
-      "pregnancy",
-      "vaginal bleeding",
-      "water broke",
-      "contractions",
-      "decreased fetal movement",
-      "severe headache pregnant",
-      "right upper abdominal pain pregnant",
-      "swelling pregnant"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "pregnancy_pattern",
-      system: "obstetrics",
-      label: "Possible pregnancy-related pattern",
-      evidence: hits,
-      confidence: "medium",
-      urgency:
-        hits.includes("vaginal bleeding") ||
-        hits.includes("water broke") ||
-        hits.includes("decreased fetal movement")
-          ? "urgent"
-          : "soon",
-      reason:
-        "Pregnancy changes the risk threshold and should route symptoms more cautiously.",
-      nextStep:
-        "Ask gestational age, bleeding/fluid leakage, fetal movement if far enough along, pain, headache, vision changes, BP concerns, and fever."
-    };
-  },
-
-  detectPediatric(text = "") {
-    const hits = this.collect(text, [
-      "baby",
-      "infant",
-      "newborn",
-      "toddler",
-      "child",
-      "pediatric",
-      "not feeding",
-      "no wet diapers",
-      "lethargic baby",
-      "fever baby"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "pediatric_pattern",
-      system: "pediatrics",
-      label: "Possible pediatric pattern",
-      evidence: hits,
-      confidence: "medium",
-      urgency:
-        hits.includes("newborn") ||
-        hits.includes("not feeding") ||
-        hits.includes("no wet diapers") ||
-        hits.includes("lethargic baby") ||
-        hits.includes("fever baby")
-          ? "urgent"
-          : "soon",
-      reason:
-        "Children, infants, and newborns need age-specific thresholds because symptoms can worsen faster.",
-      nextStep:
-        "Ask exact age, temperature, feeding, wet diapers/urination, breathing effort, alertness, rash, and duration."
-    };
-  },
-
-  detectMedicationReaction(text = "") {
-    const hits = this.collect(text, [
-      "started medication",
-      "new medication",
-      "side effect",
-      "rash after medication",
-      "swollen lips",
-      "tongue swelling",
-      "throat swelling",
-      "trouble breathing after medication",
-      "dizzy after medication",
-      "serotonin syndrome",
-      "akathisia",
-      "eps",
-      "withdrawal"
-    ]);
-
-    if (!hits.length) return null;
-
-    return {
-      type: "medication_reaction_pattern",
-      system: "pharmacology",
-      label: "Possible medication side effect/reaction pattern",
-      evidence: hits,
-      confidence: hits.length >= 2 ? "high" : "medium",
-      urgency:
-        hits.includes("swollen lips") ||
-        hits.includes("tongue swelling") ||
-        hits.includes("throat swelling") ||
-        hits.includes("trouble breathing after medication")
-          ? "emergency"
-          : "urgent",
-      reason:
-        "Medication reactions can mimic illness, behavior changes, allergy, toxicity, withdrawal, or side effects.",
-      nextStep:
-        "Ask medication name, dose, start date, recent dose changes, other meds/substances, allergy symptoms, neurologic symptoms, and timing."
-    };
-  },
-
-  pickPrimaryPattern(patterns = []) {
-    if (!patterns.length) return null;
-
-    const rank = {
-      emergency: 4,
-      urgent: 3,
-      soon: 2,
-      routine: 1
-    };
-
-    return [...patterns].sort((a, b) => {
-      const urgencyDiff = (rank[b.urgency] || 0) - (rank[a.urgency] || 0);
-      if (urgencyDiff) return urgencyDiff;
-
-      const confidenceRank = { high: 3, medium: 2, low: 1 };
-      return (confidenceRank[b.confidence] || 0) - (confidenceRank[a.confidence] || 0);
-    })[0];
-  },
-
-  collect(text = "", terms = []) {
-    return terms.filter(term => window.Ari.medical.utils.hasTerm(text, term));
+      {
+        id: "psychiatric_safety_or_medication_overlap",
+        label: "Psychiatric safety / medication overlap pattern",
+        system: "psychiatry",
+        requiredAny: ["suicidal_thoughts", "homicidal_thoughts", "hallucinations", "mania"],
+        supportingAny: ["medication_change", "confusion"],
+        emergencyAny: ["overdose"],
+        threshold: 4,
+        baseUrgency: "urgent",
+        reason:
+          "Psychiatric symptoms may involve safety risk, medication effects, substances, sleep disruption, or medical causes.",
+        nextStep:
+          "Ask safety questions first, then medication/substance changes, sleep, psychosis, mania, and medical symptoms."
+      }
+    ];
   }
 };
 
