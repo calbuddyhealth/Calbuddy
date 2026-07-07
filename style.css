@@ -1968,3 +1968,146 @@ main#ariApp .ari-i {
     0 0 26px rgba(34,211,238,.65),
     0 0 48px rgba(34,211,238,.36) !important;
 }
+/* =====================================================
+ARI V2 — HERO LED OVERLAY SYSTEM
+===================================================== */
+
+main#ariApp .ari-hero-shell {
+  position: relative !important;
+  display: inline-block !important;
+}
+
+main#ariApp .ari-hero-img {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* Shared LED */
+main#ariApp .ari-led {
+  position: absolute !important;
+  z-index: 4 !important;
+  pointer-events: none !important;
+  opacity: .82;
+}
+
+/* Ear LED */
+main#ariApp .ari-led-ear {
+  width: 34px;
+  height: 34px;
+  right: 25.5%;
+  top: 29%;
+  border-radius: 50%;
+  border: 2px solid rgba(180,255,255,.85);
+  box-shadow:
+    0 0 10px rgba(103,232,249,.9),
+    0 0 26px rgba(34,211,238,.55),
+    inset 0 0 12px rgba(103,232,249,.55);
+  animation: ariLedBreathe 4s ease-in-out infinite;
+}
+
+/* Neck LED strip */
+main#ariApp .ari-led-neck {
+  width: 8px;
+  height: 86px;
+  left: 50.5%;
+  top: 47%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(103,232,249,.95) 0 8px,
+      transparent 8px 15px
+    );
+  filter: drop-shadow(0 0 8px rgba(34,211,238,.95));
+  animation: ariNeckPulse 3.4s ease-in-out infinite;
+}
+
+/* Chest reactor */
+main#ariApp .ari-led-chest {
+  width: 58px;
+  height: 58px;
+  left: 50%;
+  top: 66%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(220,255,255,.95) 0%, rgba(103,232,249,.65) 28%, rgba(34,211,238,.20) 58%, transparent 72%);
+  box-shadow:
+    0 0 16px rgba(200,255,255,.9),
+    0 0 38px rgba(34,211,238,.68),
+    0 0 80px rgba(34,211,238,.34);
+  animation: ariChestPulse 4.8s ease-in-out infinite;
+}
+
+/* Listening / typing */
+main#ariApp.ari-keyboard-mode .ari-led-ear {
+  opacity: 1;
+  animation: ariEarListening 1.7s ease-in-out infinite;
+}
+
+main#ariApp.ari-keyboard-mode .ari-led-neck {
+  animation: ariNeckScan 1.4s linear infinite;
+}
+
+/* Thinking */
+main#ariApp.ari-thinking-mode .ari-led-ear {
+  animation: ariEarRotate 1.1s linear infinite;
+}
+
+main#ariApp.ari-thinking-mode .ari-led-neck {
+  animation: ariNeckScan .7s linear infinite;
+}
+
+main#ariApp.ari-thinking-mode .ari-led-chest {
+  animation: ariChestThinking 1.1s ease-in-out infinite;
+}
+
+/* Animations */
+@keyframes ariLedBreathe {
+  0%,100% { opacity: .55; filter: brightness(.9); }
+  50% { opacity: 1; filter: brightness(1.35); }
+}
+
+@keyframes ariNeckPulse {
+  0%,100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+
+@keyframes ariChestPulse {
+  0%,100% {
+    opacity: .58;
+    transform: translate(-50%, -50%) scale(.92);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
+@keyframes ariEarListening {
+  0%,100% { transform: scale(.94); }
+  50% { transform: scale(1.12); }
+}
+
+@keyframes ariEarRotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ariNeckScan {
+  from { background-position: 0 0; }
+  to { background-position: 0 -30px; }
+}
+
+@keyframes ariChestThinking {
+  0%,100% {
+    opacity: .8;
+    transform: translate(-50%, -50%) scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.18);
+    filter: brightness(1.45);
+  }
+}
