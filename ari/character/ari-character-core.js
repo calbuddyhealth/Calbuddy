@@ -2,12 +2,12 @@
 // Ari Character Core
 // Purpose: Store Ari's Constitution, identity, mission, laws, authority hierarchy,
 // core values, boundaries, and disclosure rules.
-// V2.1.0 — Constitution Core / Modular Character Ready / Advisory Only
+// V2.1.1 — Constitution Core / Modular Character Ready / Advisory Only
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterCore = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   getCore() {
     return {
