@@ -1,157 +1,207 @@
 // ari/medical/executive/ari-clinical-executive-engine.js
-// Purpose: Central coordinator for Ari Clinical Intelligence.
-// V1.0.0 — Executive Router / Safety First / Advisory Only
+// Purpose: Prioritize Ari Medical findings and decide what matters first.
+// V1.0.0 — Clinical Executive Engine / Priority + Escalation
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
+window.Ari.medical.executive = window.Ari.medical.executive || {};
 
-window.Ari.medical.clinicalExecutive = {
+window.Ari.medical.executive.clinicalExecutiveEngine = {
   version: "1.0.0",
 
-  run(input = {}) {
-    const summary = input.summary || input || {};
-    const text = window.Ari.medical.utils.normalize(
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      summary.normalizedMessage ||
-      ""
-    );
+  evaluate(room = {}) {
+    const signals = this.collectSignals(room);
+    const dangerLevel = this.determineDangerLevel(signals);
+    const highestConcern = this.highestConcern(signals);
+    const priority = this.priorityFor(dangerLevel);
+    const nextBestStep = this.nextBestStep(signals, dangerLevel);
 
-    const activated = this.shouldActivate(text);
+    return {
+      engine: "ari-clinical-executive-engine",
+      version: this.version,
 
-    if (!activated) {
-      return window.Ari.medical.contract.create({
+      dangerLevel,
+      highestConcern,
+      priority,
+      nextBestStep,
+
+      needsEscalation: ["critical", "high"].includes(dangerLevel),
+      needsMoreInfo: this.needsMoreInfo(signals),
+
+      signals,
+      advisoryOnly: true
+    };
+  },
+
+  writeToRoom(room = {}) {
+    const result = this.evaluate(room);
+
+    room.executiveSummary = {
+      ...(room.executiveSummary || {}),
+      dangerLevel: result.dangerLevel,
+      priority: result.priority,
+      highestConcern: result.highestConcern,
+      nextBestStep: result.nextBestStep,
+      needsEscalation: result.needsEscalation,
+      needsMoreInfo: result.needsMoreInfo
+    };
+
+    const situationRoom = window.Ari.medical.executive?.situationRoom;
+
+    if (situationRoom?.audit) {
+      situationRoom.audit(room, {
         engine: "ari-clinical-executive-engine",
-        version: this.version,
-        activated: false,
-        confidence: "low",
-        reasoning: "No medical or body-health concern detected."
+        action: "executive_summary_updated",
+        section: "executiveSummary",
+        rationale: [
+          result.highestConcern,
+          result.nextBestStep
+        ].filter(Boolean)
       });
     }
 
-    const population = this.detectPopulation(text);
-    const redFlags = this.detectRedFlags(text);
-    const urgency = redFlags.length ? "emergency" : "routine";
+    room.updatedAt = new Date().toISOString();
 
-    return window.Ari.medical.contract.create({
-      engine: "ari-clinical-executive-engine",
-      version: this.version,
-      activated: true,
-      confidence: "medium",
-      urgency,
-      population,
-      redFlags,
-      findings: [],
-      supportingEvidence: redFlags,
-      missingEvidence: this.getBroadQuestions(text),
-      reasoning:
-        "Medical concern detected. Executive engine activated and screened for immediate red flags.",
-      safetyMessage:
-        urgency === "emergency"
-          ? "This combination may be urgent. The safest next step is emergency evaluation now."
-          : null
-    });
+    return room;
   },
 
-  shouldActivate(text = "") {
-    return window.Ari.medical.utils.hasAny(text, [
-      "pain",
-      "fever",
-      "shortness of breath",
-      "sob",
-      "chest pain",
-      "dizzy",
-      "swelling",
-      "edema",
-      "rash",
-      "bleeding",
-      "vomiting",
-      "diarrhea",
-      "headache",
-      "pregnant",
-      "baby",
-      "infant",
-      "child",
-      "medication",
-      "side effect",
-      "lab result",
-      "blood pressure",
-      "heart rate",
-      "oxygen",
-      "infection",
-      "anxiety",
-      "depression",
-      "psychosis",
-      "suicidal"
-    ]);
+  collectSignals(room = {}) {
+    const text = this.roomText(room);
+
+    return {
+      redFlagCount: Array.isArray(room.redFlags) ? room.redFlags.length : 0,
+      riskCount: Array.isArray(room.risks) ? room.risks.length : 0,
+      precautionCount: Array.isArray(room.precautions) ? room.precautions.length : 0,
+      uncertaintyCount: Array.isArray(room.uncertainties) ? room.uncertainties.length : 0,
+      questionCount: Array.isArray(room.questions) ? room.questions.length : 0,
+
+      shock: this.hasAny(text, ["shock", "hypotension", "bp 82", "low blood pressure"]),
+      sepsis: this.hasAny(text, ["sepsis", "septic", "lactate", "bacteremia"]),
+      airway: this.hasAny(text, ["airway", "stridor", "drooling", "throat swelling"]),
+      respiratoryDistress: this.hasAny(text, ["shortness of breath", "trouble breathing", "hypoxia", "blue lips"]),
+      neurologicEmergency: this.hasAny(text, ["stroke", "facial droop", "slurred speech", "seizure", "confusion"]),
+      anaphylaxis: this.hasAny(text, ["anaphylaxis", "swollen tongue", "throat swelling", "hives trouble breathing"]),
+
+      airborneRisk: this.hasAny(text, ["PRECAUTION-AIRBORNE", "tuberculosis", "measles"]),
+      dropletRisk: this.hasAny(text, ["PRECAUTION-DROPLET", "meningococcus", "influenza", "covid", "rsv"]),
+      entericRisk: this.hasAny(text, ["PRECAUTION-CONTACT-ENTERIC", "c diff", "watery diarrhea"]),
+
+      rapidResponseAction: this.hasAny(text, ["ACTION-CALL-RAPID-RESPONSE", "ACT-EMERG-RRT-0001"]),
+      sepsisBundleAction: this.hasAny(text, ["ACTION-START-SEPSIS-BUNDLE", "ACT-EMERG-SEPSIS-0001"])
+    };
   },
 
-  detectPopulation(text = "") {
-    if (window.Ari.medical.utils.hasAny(text, ["newborn", "neonate"])) return "neonatal";
-    if (window.Ari.medical.utils.hasAny(text, ["baby", "infant", "toddler", "child", "kid"])) return "pediatric";
-    if (window.Ari.medical.utils.hasAny(text, ["pregnant", "pregnancy"])) return "pregnant";
-    if (window.Ari.medical.utils.hasAny(text, ["postpartum", "gave birth"])) return "postpartum";
-    if (window.Ari.medical.utils.hasAny(text, ["elderly", "geriatric", "older adult"])) return "geriatric";
-    return "adult";
+  determineDangerLevel(signals = {}) {
+    if (
+      signals.shock ||
+      signals.airway ||
+      signals.anaphylaxis ||
+      signals.rapidResponseAction
+    ) {
+      return "critical";
+    }
+
+    if (
+      signals.sepsis ||
+      signals.sepsisBundleAction ||
+      signals.respiratoryDistress ||
+      signals.neurologicEmergency ||
+      signals.airborneRisk
+    ) {
+      return "high";
+    }
+
+    if (
+      signals.redFlagCount > 0 ||
+      signals.dropletRisk ||
+      signals.entericRisk ||
+      signals.precautionCount > 1
+    ) {
+      return "moderate";
+    }
+
+    return "low";
   },
 
-  detectRedFlags(text = "") {
-    const evidence = [];
+  highestConcern(signals = {}) {
+    if (signals.airway) return "Airway risk";
+    if (signals.anaphylaxis) return "Possible severe allergic reaction";
+    if (signals.shock) return "Hemodynamic instability";
+    if (signals.sepsis || signals.sepsisBundleAction) return "Possible sepsis";
+    if (signals.respiratoryDistress) return "Respiratory distress";
+    if (signals.neurologicEmergency) return "Possible neurologic emergency";
+    if (signals.airborneRisk) return "Possible airborne infection risk";
+    if (signals.dropletRisk) return "Possible droplet-transmitted infection risk";
+    if (signals.entericRisk) return "Possible enteric/contact infection risk";
+    if (signals.redFlagCount > 0) return "Medical red flags present";
 
-    const add = claim =>
-      evidence.push(
-        window.Ari.medical.utils.evidence(
-          "red_flag",
-          claim,
-          0.9,
-          "ari-clinical-executive-engine"
-        )
-      );
-
-    if (window.Ari.medical.utils.hasAny(text, ["chest pain"])) {
-      add("Chest pain reported.");
-    }
-
-    if (window.Ari.medical.utils.hasAny(text, ["shortness of breath", "sob", "difficulty breathing"])) {
-      add("Shortness of breath or breathing difficulty reported.");
-    }
-
-    if (window.Ari.medical.utils.hasAny(text, ["blue lips", "cyanosis"])) {
-      add("Possible cyanosis reported.");
-    }
-
-    if (window.Ari.medical.utils.hasAny(text, ["fainting", "passed out", "syncope"])) {
-      add("Syncope or fainting reported.");
-    }
-
-    if (window.Ari.medical.utils.hasAny(text, ["suicidal", "kill myself", "self harm"])) {
-      add("Possible self-harm risk reported.");
-    }
-
-    if (window.Ari.medical.utils.hasAny(text, ["one sided weakness", "facial droop", "slurred speech"])) {
-      add("Possible stroke symptoms reported.");
-    }
-
-    return evidence;
+    return "No high-priority danger signal detected";
   },
 
-  getBroadQuestions(text = "") {
-    if (!this.shouldActivate(text)) return [];
+  priorityFor(dangerLevel = "low") {
+    if (dangerLevel === "critical") return "immediate";
+    if (dangerLevel === "high") return "urgent";
+    if (dangerLevel === "moderate") return "same_day";
+    return "routine";
+  },
 
-    return [
-      "When did this start?",
-      "How severe is it?",
-      "Is it getting better, worse, or staying the same?",
-      "Any chest pain, trouble breathing, fainting, confusion, or severe weakness?",
-      "Any major medical history, pregnancy, recent surgery, or new medications?"
-    ];
+  nextBestStep(signals = {}, dangerLevel = "low") {
+    if (dangerLevel === "critical") {
+      return "Escalate immediately according to clinical setting and institutional policy.";
+    }
+
+    if (signals.sepsis || signals.sepsisBundleAction) {
+      return "Prioritize sepsis evaluation, cultures, lactate, antibiotics, fluids, monitoring, and provider notification as appropriate.";
+    }
+
+    if (signals.airborneRisk) {
+      return "Initiate airborne precautions and notify Infection Prevention according to local protocol.";
+    }
+
+    if (signals.dropletRisk) {
+      return "Initiate droplet precautions while clarifying organism, symptoms, exposure, and risk factors.";
+    }
+
+    if (signals.entericRisk) {
+      return "Initiate contact-enteric precautions and clarify diarrhea severity, testing, hydration, and exposure risk.";
+    }
+
+    if (signals.uncertaintyCount > 0 || signals.questionCount > 0) {
+      return "Ask the highest-yield missing questions before narrowing the plan.";
+    }
+
+    return "Continue routine assessment, education, and safety guidance.";
+  },
+
+  needsMoreInfo(signals = {}) {
+    return signals.uncertaintyCount > 0 || signals.questionCount > 0;
+  },
+
+  roomText(room = {}) {
+    return JSON.stringify(room || {}).toLowerCase();
+  },
+
+  hasAny(text = "", terms = []) {
+    const clean = this.normalize(text);
+    return terms.some(term => clean.includes(this.normalize(term)));
+  },
+
+  normalize(value = "") {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[_-]/g, " ")
+      .replace(/[^\w\s'.-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 };
 
-window.AriClinicalExecutiveEngine = window.Ari.medical.clinicalExecutive;
+window.AriClinicalExecutiveEngine =
+  window.Ari.medical.executive.clinicalExecutiveEngine;
 
 console.log(
   "ARI CLINICAL EXECUTIVE ENGINE LOADED:",
-  window.Ari.medical.clinicalExecutive.version
+  window.Ari.medical.executive.clinicalExecutiveEngine.version
 );
