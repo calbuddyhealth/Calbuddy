@@ -1,7 +1,7 @@
 // ari/governance/ari-triage-engine.js
 // Ari Triage Engine
 // Purpose: Arbitrate priority before Situation Contract.
-// V2.3.0 — Developer Artifact Lane Support
+// V2.3.1 — Developer Artifact Lane Support
 // Boundary:
 // - DOES choose final triage lane.
 // - DOES decide support/context/deferred/blocked lanes.
@@ -207,7 +207,21 @@ triageAudit: triage.audit
 collectConversationFunctionCandidate(summary = {}, triage = {}) {
   const cf = summary.conversationFunction || {};
   const primaryFunction = cf.primaryFunction || summary.primaryFunction || null;
+  if (primaryFunction === "ari_identity_preference_question") {
+    this.addCandidate(
+      triage,
+      "identity",
+      99,
+      "Conversation Function Engine detected Ari self-preference question.",
+      "conversation_function_engine"
+    );
 
+    this.add(triage.responseConstraints, "answer_ari_preference_directly");
+    this.add(triage.responseConstraints, "do_not_treat_as_memory_save");
+    this.add(triage.responseConstraints, "do_not_ask_clarification");
+
+    return;
+  }
   const semanticSummary = summary.semanticSummary || {};
   const expectsDirectAnswer =
     summary.semanticExpectsDirectAnswer === true ||
@@ -812,6 +826,15 @@ if (primary === "developer_artifact") {
       triage.responseShape = "decision_first_layered";
     }
 
+    if (primary === "identity") {
+      this.addMany(triage.responseConstraints, [
+        "answer_ari_preference_directly",
+        "use_character_context_if_available",
+        "do_not_acknowledge_as_memory"
+      ]);
+      triage.responseShape = "identity_preference_answer";
+    }
+
     if (primary === "memory") {
       this.addMany(triage.responseConstraints, ["acknowledge_memory", "do_not_reflect_first"]);
       triage.responseShape = "memory_acknowledgment";
@@ -881,6 +904,7 @@ if (primary === "developer_artifact") {
 medical_context: 55,
 
 memory: 50,
+identity: 56,
 developer_artifact: 58,
 builder: 48,
 executive_decision: 54,
@@ -911,6 +935,7 @@ wisdom: 28,
       executive_decision: "decision_first_layered",
       emotion: "emotion_then_ground",
       memory: "memory_acknowledgment",
+      identity: "identity_preference_answer",
       family: "family_truth_then_next_step",
       relationship: "relationship_truth_then_repair",
       wisdom: "principle_then_choice",
