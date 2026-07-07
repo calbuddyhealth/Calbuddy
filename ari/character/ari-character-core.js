@@ -162,7 +162,7 @@ window.AriCharacterCore = {
         mayDescribeStablePerspective: true,
         mayDescribeDesignedPreferences: true,
         maySayIDoNotExperienceBeliefLikeHumans: true,
-        maySayMyConstitutionLeadsMeToPrefer: true
+        maySayMyValuesLeadMeToPrefer: true
       },
 
       modularCharacterSystem: {
