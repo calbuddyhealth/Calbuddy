@@ -27,7 +27,7 @@
     </div>
   </div>
 
-  <h1 id="ariBootLogo">&gt;_ ARI REBIRTH</h1>
+<h1 id="ariBootLogo">ARI REBIRTH</h1>
 
   <p id="ariBootMeaning"></p>
 
@@ -397,31 +397,44 @@ const bootLogo = document.getElementById("ariBootLogo");
 const bootMeaning = document.getElementById("ariBootMeaning");
 
 async function playHeaderBoot() {
-
   if (!bootLogo || !bootMeaning) return;
 
   bootLogo.classList.remove("booted");
   bootMeaning.textContent = "";
 
-  // Wait before typing
   await wait(1200);
 
-  const text = "ARTIFICIAL REASONING INTELLIGENCE";
+  const firstText = "ARTIFICIAL REASONING INTELLIG...";
+  const finalText = "ARTIFICIAL REASONING INTELLIGENCE";
 
-  for (let i = 0; i < text.length; i++) {
-
-    bootMeaning.textContent =
-      text.substring(0, i + 1) + "█";
-
+  for (let i = 0; i < firstText.length; i++) {
+    bootMeaning.textContent = firstText.substring(0, i + 1) + "█";
     await wait(38 + Math.random() * 18);
   }
 
-  // Cursor blinks once
-  await wait(700);
+  await wait(300);
 
-  bootMeaning.textContent = text;
+  for (let i = firstText.length; i > "ARTIFICIAL REASONING INTELLIG".length; i--) {
+    bootMeaning.textContent = firstText.substring(0, i - 1) + "█";
+    await wait(55);
+  }
 
-  // Turn logo on
+  await wait(180);
+
+  for (let i = "ARTIFICIAL REASONING INTELLIG".length; i < finalText.length; i++) {
+    bootMeaning.textContent = finalText.substring(0, i + 1) + "█";
+    await wait(38 + Math.random() * 18);
+  }
+
+  await wait(450);
+
+  bootMeaning.textContent = finalText + "█";
+  await wait(180);
+
+  bootMeaning.textContent = finalText;
+
+  await wait(350);
+
   bootLogo.classList.add("booted");
 }
 
