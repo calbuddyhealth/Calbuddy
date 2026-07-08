@@ -1,6 +1,6 @@
 // ari/medical/infectious-disease/ari-infectious-disease-orchestrator.js
 // Purpose: Run Ari Infectious Disease subsystem engines in order.
-// V1.0.0 — Infectious Disease Orchestrator / Subsystem Pipeline
+// V1.0.1 — Infectious Disease Orchestrator / Subsystem Pipeline
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
@@ -8,7 +8,7 @@ window.Ari.medical.infectiousDisease =
   window.Ari.medical.infectiousDisease || {};
 
 window.Ari.medical.infectiousDisease.orchestrator = {
-  version: "1.0.0",
+  version: "1.0.1",
 
   run(room = {}, input = {}) {
     const text =
@@ -18,7 +18,7 @@ window.Ari.medical.infectiousDisease.orchestrator = {
       input.input ||
       room.chiefComplaint ||
       "";
-
+console.log("ARI ID ORCHESTRATOR RUNNING:", this.version);
     const infectionControl =
       window.Ari.medical.infectiousDisease?.infectionControl?.engine;
 
