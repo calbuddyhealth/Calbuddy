@@ -3069,3 +3069,80 @@ body.ari-auth-body::before {
   min-height: 66px !important;
   border-radius: 22px !important;
 }
+
+/* ARI AUTH — SPACE TERMINAL UPGRADE */
+
+body.ari-auth-body .ari-chip-core {
+  display: none !important;
+}
+
+body.ari-auth-body .ari-auth-card {
+  position: relative !important;
+  overflow: hidden !important;
+  border-radius: 22px !important;
+  background:
+    linear-gradient(90deg, rgba(87,255,231,.08) 1px, transparent 1px),
+    linear-gradient(rgba(87,255,231,.055) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(87,255,231,.20), transparent 34%),
+    linear-gradient(180deg, rgba(3,16,30,.94), rgba(2,6,23,.96)) !important;
+  background-size: 38px 38px, 38px 38px, auto, auto !important;
+}
+
+body.ari-auth-body .ari-auth-card::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 18px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(165,243,252,.9), transparent);
+  box-shadow: 0 0 18px rgba(87,255,231,.55);
+  animation: ariAuthScan 3.2s ease-in-out infinite;
+}
+
+body.ari-auth-body .ari-auth-card::after {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(87,255,231,.12);
+  pointer-events: none;
+}
+
+body.ari-auth-body .ari-auth-brand h1 {
+  margin-top: 12px !important;
+  text-shadow:
+    0 0 8px rgba(207,250,254,.7),
+    0 0 24px rgba(87,255,231,.38),
+    0 0 56px rgba(87,255,231,.18) !important;
+}
+
+body.ari-auth-body .ari-auth-tabs,
+body.ari-auth-body .ari-auth-field,
+body.ari-auth-body .ari-auth-main-btn,
+body.ari-auth-body .ari-auth-link-btn,
+body.ari-auth-body .ari-auth-message {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+body.ari-auth-body .ari-auth-field input {
+  background:
+    linear-gradient(180deg, rgba(2,6,23,.86), rgba(1,8,18,.92)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 0 18px rgba(87,255,231,.06) !important;
+}
+
+body.ari-auth-body .ari-auth-field input:focus {
+  border-color: rgba(165,243,252,.75) !important;
+  box-shadow:
+    0 0 0 1px rgba(165,243,252,.18),
+    0 0 24px rgba(87,255,231,.20),
+    inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+
+@keyframes ariAuthScan {
+  0%, 100% { opacity: .35; transform: translateX(-8px); }
+  50% { opacity: 1; transform: translateX(8px); }
+}
