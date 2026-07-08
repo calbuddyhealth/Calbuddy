@@ -3274,3 +3274,74 @@ body.ari-auth-body .ari-auth-field::after {
 body.ari-auth-body input {
   caret-color: transparent !important;
 }
+
+/* =====================================================
+ARI INIT SCREEN — TRUE BLACK TERMINAL BOOT
+===================================================== */
+
+body.ari-auth-body .ari-init-screen {
+  min-height: 100dvh !important;
+  width: 100% !important;
+  background: #000 !important;
+  color: #9ffcff !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  padding: 46px 22px !important;
+}
+
+body.ari-auth-body .ari-terminal-shell,
+body.ari-auth-body .ari-init-terminal {
+  width: 100% !important;
+  min-height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+body.ari-auth-body .terminal-grid,
+body.ari-auth-body .terminal-glow {
+  display: none !important;
+}
+
+body.ari-auth-body .ari-init-terminal {
+  display: block !important;
+  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
+}
+
+body.ari-auth-body .ari-init-line {
+  min-height: 24px !important;
+  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
+  font-size: 15px !important;
+  line-height: 1.55 !important;
+  letter-spacing: 0.02em !important;
+  color: #9ffcff !important;
+  text-shadow:
+    0 0 5px rgba(159, 252, 255, 0.45),
+    0 0 14px rgba(34, 211, 238, 0.20) !important;
+}
+
+body.ari-auth-body .ari-init-big {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #9ffcff !important;
+}
+
+body.ari-auth-body .ari-init-name,
+body.ari-auth-body .ari-memory-line {
+  color: #9ffcff !important;
+  text-shadow:
+    0 0 5px rgba(159, 252, 255, 0.45),
+    0 0 14px rgba(34, 211, 238, 0.20) !important;
+}
+
+body.ari-auth-body .ari-terminal-cursor {
+  display: inline-block !important;
+  margin-left: 4px !important;
+  color: #9ffcff !important;
+  animation: ariCursorBlink 0.75s steps(1) infinite !important;
+}
