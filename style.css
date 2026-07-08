@@ -3909,3 +3909,53 @@ ARI SIDE MENU — HOLOGRAPHIC CARD POLISH
     background-position: 100% 50%, center, center;
   }
 }
+
+/* =====================================================
+ARI SIDE MENU — CUSTOM FUTURE ICONS
+===================================================== */
+
+.ari-v1-home .ari-nav-link {
+  gap: 14px !important;
+}
+
+.ari-v1-home .ari-nav-icon {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(103,232,249,.58) !important;
+  display: grid !important;
+  place-items: center !important;
+  color: rgba(200,255,255,.96) !important;
+  box-shadow:
+    0 0 12px rgba(34,211,238,.38),
+    inset 0 0 12px rgba(34,211,238,.10) !important;
+}
+
+/* Identity icon */
+.ari-v1-home .nav-identity .ari-nav-icon::before {
+  content: "◇";
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
+
+/* Goals icon */
+.ari-v1-home .nav-goals .ari-nav-icon::before {
+  content: "◎";
+  font-size: 24px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
+
+/* Conversations icon */
+.ari-v1-home .nav-conversations .ari-nav-icon::before {
+  content: "◌";
+  font-size: 24px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
+
+/* Account icon */
+.ari-v1-home .nav-account .ari-nav-icon::before {
+  content: "⌬";
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
