@@ -2121,3 +2121,47 @@ body:has(.ari-goals-page) main {
   display: block !important;
   padding-bottom: 180px !important;
 }
+/* =====================================================
+ARI V2 — PREMIUM HAMBURGER CLOSE BUTTON
+===================================================== */
+
+.ari-side-menu .ari-close-menu {
+  position: absolute !important;
+  top: calc(env(safe-area-inset-top) + 22px) !important;
+  right: 26px !important;
+
+  width: 62px !important;
+  height: 62px !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  border-radius: 50% !important;
+  border: 1px solid rgba(200, 255, 255, 0.42) !important;
+
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255,255,255,0.22), transparent 22%),
+    linear-gradient(145deg, rgba(103,232,249,0.16), rgba(2,6,23,0.82)) !important;
+
+  color: rgba(230, 255, 255, 0.96) !important;
+
+  font-size: 42px !important;
+  font-weight: 300 !important;
+  line-height: 1 !important;
+
+  box-shadow:
+    0 0 0 6px rgba(34,211,238,0.06),
+    0 0 26px rgba(34,211,238,0.34),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -12px 24px rgba(0,0,0,0.32) !important;
+
+  text-shadow:
+    0 0 8px rgba(200,255,255,0.85),
+    0 0 20px rgba(34,211,238,0.48) !important;
+
+  cursor: pointer !important;
+}
+
+.ari-side-menu .ari-close-menu:active {
+  transform: scale(0.92) !important;
+}
