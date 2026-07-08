@@ -316,20 +316,6 @@ const response = this.makeResponse({
   analysis
 });
 
-this.saveAriConversation(cleanMessage, reply, [
-  {
-    role: "user",
-    content: cleanMessage,
-    created_at: new Date().toISOString()
-  },
-  {
-    role: "ari",
-    content: reply,
-    emotion,
-    created_at: new Date().toISOString()
-  }
-]);
-
 return response;
     } catch (error) {
       console.error("ARI REBIRTH APP BRIDGE ERROR:", error);
@@ -744,20 +730,6 @@ isDiagnosticPreview(text = "") {
 
     return [];
   },
-
-saveAriConversation(title, preview, messages = []) {
-  const history = JSON.parse(localStorage.getItem("ariConversationHistory") || "[]");
-
-  history.push({
-    id: Date.now(),
-    title: String(title || "Conversation").slice(0, 80),
-    preview: String(preview || "").slice(0, 180),
-    messages,
-    created_at: new Date().toISOString()
-  });
-
-  localStorage.setItem("ariConversationHistory", JSON.stringify(history.slice(-100)));
-},
 
   makeResponse({
     reply,
