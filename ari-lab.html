@@ -7,9 +7,9 @@
 </head>
 
 <body>
-  <main style="max-width: 760px; margin: 40px auto; padding: 20px; font-family: system-ui;">
+  <main style="max-width: 900px; margin: 40px auto; padding: 20px; font-family: system-ui;">
     <h1>Ari Lab</h1>
-    <p>A clean test space for Ari Rebirth. Scripts are loaded by the App Bridge, not manually duplicated here.</p>
+    <p>A clean test space for Ari Rebirth + Medical OS debugging.</p>
 
     <textarea
       id="ariInput"
@@ -22,12 +22,8 @@
         Analyze with Ari
       </button>
 
-      <button id="ariDiagnosticBtn" style="padding: 12px 18px; font-weight: 700;">
-        Run Readiness Diagnostic
-      </button>
-
-      <button id="ariIntegrationBtn" style="padding: 12px 18px; font-weight: 700;">
-        Run Developer Layout Test
+      <button id="ariMedicalDebugBtn" style="padding: 12px 18px; font-weight: 700;">
+        Medical OS Debug
       </button>
 
       <button id="ariClearBtn" style="padding: 12px 18px; font-weight: 700;">
@@ -41,12 +37,45 @@
     ></pre>
   </main>
 
-  <!-- Minimal Lab Loader -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js"></script>
+  <script src="supabase-config.js"></script>
   <script src="calbuddy-core.js"></script>
+
   <script src="ari/ari-rebirth-app-bridge.js"></script>
-  <script src="ari/testing/ari-readiness-diagnostic.js"></script>
+
+  <!-- Medical OS Core -->
+  <script src="ari/medical/executive/ari-clinical-situation-room.js"></script>
+  <script src="ari/medical/executive/ari-medical-audit-engine.js"></script>
+  <script src="ari/medical/operations/ari-medical-action-registry.js"></script>
+  <script src="ari/medical/operations/ari-medical-action-engine.js"></script>
+  <script src="ari/medical/operations/ari-hospital-action-resolver.js"></script>
+  <script src="ari/medical/operations/ari-hospital-operations-engine.js"></script>
+  <script src="ari/medical/monitoring/ari-monitoring-registry.js"></script>
+  <script src="ari/medical/monitoring/ari-monitoring-engine.js"></script>
+  <script src="ari/medical/executive/ari-escalation-engine.js"></script>
+  <script src="ari/medical/executive/ari-clinical-priority-engine.js"></script>
+  <script src="ari/medical/executive/ari-clinical-executive-engine.js"></script>
+  <script src="ari/medical/executive/ari-medical-why-engine.js"></script>
+  <script src="ari/medical/executive/ari-medical-timeline-engine.js"></script>
+  <script src="ari/medical/communication/ari-medical-communication-engine.js"></script>
+
+  <!-- Infectious Disease -->
+  <script src="ari/medical/infectious-disease/infection-control/ari-precaution-registry.js"></script>
+  <script src="ari/medical/infectious-disease/infection-control/ari-id-infection-control-engine.js"></script>
+  <script src="ari/medical/infectious-disease/infection-control/ari-reportable-disease-registry.js"></script>
+  <script src="ari/medical/infectious-disease/infection-control/ari-reportable-disease-engine.js"></script>
+  <script src="ari/medical/infectious-disease/infection-control/ari-post-exposure-prophylaxis-registry.js"></script>
+  <script src="ari/medical/infectious-disease/infection-control/ari-exposure-management-engine.js"></script>
+  <script src="ari/medical/infectious-disease/sti/ari-sti-registry.js"></script>
+  <script src="ari/medical/infectious-disease/sti/ari-sti-reasoning-engine.js"></script>
+  <script src="ari/medical/infectious-disease/antibiotics/ari-antibiotic-spectrum-registry.js"></script>
+  <script src="ari/medical/infectious-disease/antibiotics/ari-culture-interpretation-engine.js"></script>
+  <script src="ari/medical/infectious-disease/antibiotics/ari-antibiotic-selection-engine.js"></script>
+  <script src="ari/medical/infectious-disease/ari-infectious-disease-orchestrator.js"></script>
+
+  <!-- Medical OS Orchestrator + Test Harness -->
+  <script src="ari/medical/core/ari-medical-os-orchestrator.js"></script>
+  <script src="ari/medical/core/ari-medical-os-test-harness.js"></script>
 
   <script>
     const output = () => document.getElementById("ariOutput");
@@ -108,124 +137,6 @@
         .join("\n");
     }
 
-    function formatCoreRouting(summary = {}) {
-      return [
-        `Safety: ${summary.safetyContextGateRan ? "ran" : "not run"}`,
-        `Observer: ${summary.observerEvidenceRan ? "ran" : "not run"}`,
-        `Conversation Function: ${summary.primaryFunction || "none"}`,
-        `Classifier Type: ${summary.conversationType || "none"}`,
-        `Semantic Intent: ${summary.semanticIntent || "none"}`,
-        `Lane: ${summary.lane || "none"}`,
-        `Triage Primary: ${summary.triagePrimaryLane || summary.triage?.primaryLane || "none"}`,
-        `Contract Primary: ${summary.situationContractPrimary || summary.situationContract?.primary || "none"}`,
-        `Response Shape: ${summary.responseShape || summary.situationContract?.responseShape || "none"}`
-      ].join("\n");
-    }
-
-function formatMultiLanePlanner(summary = {}) {
-  const plan =
-    summary.multiLanePlan ||
-    summary.responsePlan ||
-    summary.multiLaneResponsePlan ||
-    {};
-
-  return [
-    `Planner Ran: ${plan.multiLanePlannerRan ? "yes" : "no"}`,
-    `Planner Version: ${plan.multiLanePlannerVersion || "none"}`,
-    `Primary Lane: ${plan.primaryLane || "none"}`,
-    `Response Shape: ${plan.responseShape || "none"}`,
-    `Response Order: ${Array.isArray(plan.responseOrder) ? plan.responseOrder.join(", ") : "none"}`,
-    "",
-    `Support Lanes: ${JSON.stringify(plan.supportLanes || [], null, 2)}`,
-    `Brief Lanes: ${JSON.stringify(plan.briefLanes || [], null, 2)}`,
-    `Deferred Lanes: ${JSON.stringify(plan.deferredLanes || [], null, 2)}`,
-    "",
-    `Composer Directive: ${JSON.stringify(plan.composerDirective || null, null, 2)}`
-  ].join("\n");
-}
-
-function formatCognitiveExecutive(summary = {}) {
-  const ace = summary.cognitiveExecutive || {};
-
-  return [
-    `ACE Ran: ${summary.ariExecutiveRan ? "yes" : "no"}`,
-    `ACE Version: ${summary.ariExecutiveVersion || "none"}`,
-    `Authority: ${ace.authority || "none"}`,
-    `Cognitive State: ${ace.cognitiveState || "none"}`,
-    `Primary: ${ace.primary || "none"}`,
-    `Activate: ${Array.isArray(ace.activate) ? ace.activate.join(", ") : "none"}`,
-    `Requires: ${ace.requires ? JSON.stringify(ace.requires, null, 2) : "none"}`
-  ].join("\n");
-}
-
-function formatKnowledgeRouter(summary = {}) {
-  return [
-    `Router Ran: ${summary.knowledgeRouterRan ? "yes" : "no"}`,
-    `Router Version: ${summary.knowledgeRouterVersion || "none"}`,
-    `Should Use Knowledge: ${summary.shouldUseKnowledge ? "yes" : "no"}`,
-    `Provider: ${summary.knowledgeProvider || "none"}`,
-    `Confidence: ${summary.knowledgeConfidence || "none"}`,
-    `Reason: ${summary.knowledgeReason || "none"}`,
-    "",
-    `Retrieval Plan: ${JSON.stringify(summary.knowledgeRetrievalPlan || null, null, 2)}`,
-    "",
-    `Retrieval Results: ${JSON.stringify(summary.knowledgeRetrievalResults || null, null, 2)}`
-  ].join("\n");
-}
-
-function formatKnowledgeMeaning(summary = {}) {
-  return [
-    `Interpreter Ran: ${summary.knowledgeMeaningInterpreterRan ? "yes" : "no"}`,
-    `Usable: ${summary.knowledgeMeaningUsable ? "yes" : "no"}`,
-    `Style: ${summary.knowledgeMeaning?.style || "none"}`,
-    `Topic: ${summary.knowledgeMeaning?.topic || "none"}`,
-    "",
-    `Draft: ${summary.knowledgeMeaning?.draft || "none"}`,
-    "",
-    `Full Meaning: ${JSON.stringify(summary.knowledgeMeaning || null, null, 2)}`
-  ].join("\n");
-}
-
-    function formatDeveloperLayer(summary = {}) {
-      return [
-        `Developer Layer Ran: ${summary.developerLayerRan ? "yes" : "no"}`,
-        `Developer Intent: ${summary.developerIntent?.type || summary.developerIntent?.intent || "none"}`,
-        `Developer Locked: ${summary.developerResponseLocked ? "yes" : "no"}`,
-        `Response Locked: ${summary.responseLocked ? "yes" : "no"}`,
-        `Code Evidence Ran: ${summary.codeEvidenceRan ? "yes" : "no"}`,
-        `Patch Can Patch Now: ${summary.patchCanPatchNow === true ? "yes" : "no"}`,
-        `Patch Reason: ${summary.patchDecisionReason || "none"}`,
-        `GitHub Evidence Available: ${summary.githubEvidenceAvailable ? "yes" : "no"}`,
-        `GitHub File: ${summary.githubEvidence?.filePath || "none"}`
-      ].join("\n");
-    }
-
-    function formatComposer(summary = {}) {
-      return [
-        `Composer Packet Ready: ${summary.composerPacketReady || summary.composerPacket?.ready ? "yes" : "no"}`,
-        `Composer Packet Primary: ${summary.composerPacket?.primary || summary.composerPacketPrimary || "none"}`,
-        `Blueprint Writer Ran: ${summary.blueprintWriterRan ? "yes" : "no"}`,
-`Blueprint Writer Version: ${summary.blueprintWriterVersion || "none"}`,
-`Blueprint Writer Source: ${summary.blueprintWriterSource || "none"}`,
-`Blueprint Draft: ${summary.blueprintWriterDraft || "none"}`,
-        `Arbiter Ran: ${summary.responseCandidateArbiterRan ? "yes" : "no"}`,
-`Arbiter Version: ${summary.responseCandidateArbiterVersion || "none"}`,
-`Selected Draft Source: ${summary.selectedDraftSource || "none"}`,
-`Selected Draft Reason: ${summary.selectedDraftReason || "none"}`,
-`Selected Draft: ${summary.selectedDraft || "none"}`,
-        "",
-"Candidate Drafts:",
-JSON.stringify(summary.candidateDrafts || [], null, 2),
-"",
-        `AI Writer Ran: ${summary.aiWriterRan ? "yes" : "no"}`,
-        `AI Writer Used AI: ${summary.aiWriterUsedAI ? "yes" : "no"}`,
-        `AI Writer Source: ${summary.aiWriterSource || "none"}`,
-        `Composer Version: ${summary.composerVersion || "none"}`,
-        `Composer Source: ${summary.source || summary.composerSource || "none"}`,
-        `Composer Validation: ${summary.composerValidation || "none"}`
-      ].join("\n");
-    }
-
     function formatFinalSummary(run = {}) {
       const summary = run.summary || {};
 
@@ -237,95 +148,45 @@ JSON.stringify(summary.candidateDrafts || [], null, 2),
         `Emotion:\n${run.emotion || "none"}`,
         "",
         `Source:\n${run.source || "none"}`,
-
         section("TIMING", formatTiming(summary)),
-        section("CORE ROUTING", formatCoreRouting(summary)),
-        section("MULTI-LANE PLANNER", formatMultiLanePlanner(summary)),
-        section("COGNITIVE EXECUTIVE", formatCognitiveExecutive(summary)),
-        section("KNOWLEDGE ROUTER", formatKnowledgeRouter(summary)),
-        section("KNOWLEDGE MEANING INTERPRETER", formatKnowledgeMeaning(summary)),
-        section("DEVELOPER LAYER", formatDeveloperLayer(summary)),
-        section("COMPOSER", formatComposer(summary)),
         section("FINAL SUMMARY", JSON.stringify(summary, null, 2))
       ].join("\n");
     }
 
-    async function runLayoutIntegrationTest() {
-      const homepageContext = `
-<section class="ari-action-grid three-actions">
-  <a href="goals.html" class="ari-action-tile">My Goals</a>
-  <a href="progress.html" class="ari-action-tile">Progress</a>
-  <button class="ari-action-tile">Conversations</button>
-</section>
-`;
-
-      const tests = [
-        {
-          id: "remove_conversations",
-          prompt: "Remove the Conversations button from the homepage.",
-          mustInclude: ["goals.html", "progress.html"],
-          mustNotInclude: ["Conversations"]
-        },
-        {
-          id: "rename_my_goals",
-          prompt: "Rename My Goals to Goals.",
-          mustInclude: ["Goals"],
-          mustNotInclude: ["My Goals"]
-        },
-        {
-          id: "change_bottom_tiles",
-          prompt: "Change the homepage bottom tiles to Goals, Log Food, and Progress.",
-          mustInclude: ["Goals", "Log Food", "Progress"],
-          mustNotInclude: ["Conversations"]
-        }
+    function engineStatus() {
+      const checks = [
+        ["Situation Room", window.AriClinicalSituationRoom],
+        ["Infectious Disease Orchestrator", window.AriInfectiousDiseaseOrchestrator],
+        ["Medical OS Orchestrator", window.AriMedicalOSOrchestrator],
+        ["Monitoring Engine", window.AriMonitoringEngine],
+        ["Escalation Engine", window.AriEscalationEngine],
+        ["Priority Engine", window.AriClinicalPriorityEngine],
+        ["Hospital Operations Engine", window.AriHospitalOperationsEngine],
+        ["Why Engine", window.AriMedicalWhyEngine],
+        ["Communication Engine", window.AriMedicalCommunicationEngine],
+        ["Test Harness", window.AriMedicalOSTestHarness]
       ];
 
-      const results = [];
+      return checks.map(([name, obj]) => ({
+        name,
+        loaded: Boolean(obj),
+        version: obj?.version || "none"
+      }));
+    }
 
-      for (const test of tests) {
-        const run = await runAriOnce(test.prompt, {
-          appMode: "layout-integration-test",
-          testMode: true,
-          githubFileContext: {
-            filePath: "index.html",
-            content: homepageContext
-          }
-        });
-
-        const proposedCode =
-          run.raw?.proposedCode ||
-          run.raw?.proposedHtml ||
-          run.raw?.action?.proposedCode ||
-          run.raw?.action?.proposedHtml ||
-          run.summary?.proposedCode ||
-          run.summary?.proposedHtml ||
-          run.reply ||
-          "";
-
-        const missingRequired = test.mustInclude.filter(
-          item => !proposedCode.includes(item)
-        );
-
-        const forbiddenFound = test.mustNotInclude.filter(
-          item => proposedCode.includes(item)
-        );
-
-        results.push({
-          id: test.id,
-          prompt: test.prompt,
-          passed: missingRequired.length === 0 && forbiddenFound.length === 0,
-          missingRequired,
-          forbiddenFound,
-          reply: run.reply,
-          proposedCode,
-          developerIntent: run.summary?.developerIntent || null,
-          developerLayerRan: run.summary?.developerLayerRan || false,
-          patchCanPatchNow: run.summary?.patchCanPatchNow || false,
-          timing: run.summary?.pipelineTiming || []
-        });
-      }
-
-      return results;
+    function formatMedicalDebug(result = {}) {
+      return [
+        "===== ARI MEDICAL OS DEBUG =====",
+        "",
+        section("ENGINE STATUS", JSON.stringify(engineStatus(), null, 2)),
+        section("RESPONSE", result.response || "none"),
+        section("EXECUTIVE SUMMARY", JSON.stringify(result.room?.executiveSummary || null, null, 2)),
+        section("OPERATIONS", JSON.stringify(result.operations || null, null, 2)),
+        section("MONITORING", JSON.stringify(result.monitoring || null, null, 2)),
+        section("WHY", JSON.stringify(result.why || null, null, 2)),
+        section("SITUATION ROOM", JSON.stringify(result.room || null, null, 2)),
+        section("FULL RESULT", JSON.stringify(result, null, 2))
+      ].join("\n");
     }
 
     document.getElementById("ariAnalyzeBtn").addEventListener("click", async () => {
@@ -345,111 +206,33 @@ JSON.stringify(summary.candidateDrafts || [], null, 2),
       }
     });
 
-    document.getElementById("ariDiagnosticBtn").addEventListener("click", async () => {
+    document.getElementById("ariMedicalDebugBtn").addEventListener("click", () => {
       try {
-        if (!window.Ari?.readinessDiagnostic) {
-          print("Ari Readiness Diagnostic not loaded.");
+        const message = document.getElementById("ariInput").value.trim();
+
+        if (!message) {
+          print("Enter a medical scenario first.");
           return;
         }
 
-        const responseMap = {};
-        const fullRuns = [];
-
-        for (const testCase of window.Ari.readinessDiagnostic.testCases) {
-          const run = await runAriOnce(testCase.prompt);
-          responseMap[testCase.id] = run.reply;
-
-          fullRuns.push({
-            id: testCase.id,
-            category: testCase.category,
-            prompt: testCase.prompt,
-            rebirthResponse: run.reply,
-            emotion: run.emotion,
-            source: run.source,
-            timing: run.summary?.pipelineTiming || [],
-            coreRouting: {
-              primaryFunction: run.summary?.primaryFunction || null,
-              conversationType: run.summary?.conversationType || null,
-              semanticIntent: run.summary?.semanticIntent || null,
-              lane: run.summary?.lane || null,
-              contractPrimary:
-                run.summary?.situationContractPrimary ||
-                run.summary?.situationContract?.primary ||
-                null
-            },
-            
-            planner: {
-  ran: run.summary?.multiLanePlan?.multiLanePlannerRan || false,
-  primaryLane: run.summary?.multiLanePlan?.primaryLane || null,
-  responseShape: run.summary?.multiLanePlan?.responseShape || null,
-  responseOrder: run.summary?.multiLanePlan?.responseOrder || []
-},
-            composer: {
-  aiWriterRan: run.summary?.aiWriterRan || false,
-  aiWriterUsedAI: run.summary?.aiWriterUsedAI || false,
-
-  responseCandidateArbiterRan:
-    run.summary?.responseCandidateArbiterRan || false,
-
-responseCandidateArbiterVersion:
-  run.summary?.responseCandidateArbiterVersion || null,
-
-  selectedDraftSource:
-    run.summary?.selectedDraftSource || null,
-
-  selectedDraftReason:
-    run.summary?.selectedDraftReason || null,
-
-  selectedDraft:
-    run.summary?.selectedDraft || null,
-
-  composerVersion:
-    run.summary?.composerVersion || null,
-
-  composerValidation:
-    run.summary?.composerValidation || null
-},
-            summary: run.summary
-          });
+        if (!window.AriMedicalOSOrchestrator?.run) {
+          print("Ari Medical OS Orchestrator is not loaded.");
+          return;
         }
 
-        const results = window.Ari.readinessDiagnostic.testCases.map(testCase => {
-          return window.Ari.readinessDiagnostic.analyzeResponse(
-            testCase,
-            responseMap[testCase.id]
-          );
+        const result = window.AriMedicalOSOrchestrator.run({
+          userMessage: message,
+          chiefComplaint: message,
+          context: {
+            source: "ari-lab-medical-debug",
+            debugMode: true
+          }
         });
 
-        const grade = window.Ari.readinessDiagnostic.grade(results);
-
-        print(
-          `===== ARI READINESS DIAGNOSTIC =====\n\n` +
-          `Average Score:\n${grade.averageScore}\n\n` +
-          `Readiness:\n${grade.readiness}\n\n` +
-          `Recommendation:\n${grade.recommendation}\n\n` +
-          section("WEAK AREAS", JSON.stringify(grade.weakAreas, null, 2)) +
-          section("FULL RESULTS", JSON.stringify(results, null, 2)) +
-          section("FULL ARI RUNS", JSON.stringify(fullRuns, null, 2))
-        );
+        print(formatMedicalDebug(result));
       } catch (error) {
-        console.error("[ARI DIAGNOSTIC ERROR]", error);
-        print(`===== ARI DIAGNOSTIC ERROR =====\n\n${error.message}\n\n${error.stack}`);
-      }
-    });
-
-    document.getElementById("ariIntegrationBtn").addEventListener("click", async () => {
-      try {
-        const results = await runLayoutIntegrationTest();
-        const passedCount = results.filter(result => result.passed).length;
-
-        print(
-          `===== ARI HOMEPAGE LAYOUT INTEGRATION TEST =====\n\n` +
-          `Passed:\n${passedCount}/${results.length}\n\n` +
-          JSON.stringify(results, null, 2)
-        );
-      } catch (error) {
-        console.error("[ARI LAYOUT INTEGRATION ERROR]", error);
-        print(`===== ARI LAYOUT INTEGRATION ERROR =====\n\n${error.message}\n\n${error.stack}`);
+        console.error("[ARI MEDICAL DEBUG ERROR]", error);
+        print(`===== ARI MEDICAL DEBUG ERROR =====\n\n${error.message}\n\n${error.stack}`);
       }
     });
 
