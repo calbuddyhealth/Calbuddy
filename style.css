@@ -2823,3 +2823,153 @@ ARI AUTH — FUTURE CHIP LOGIN
 .hidden {
   display: none !important;
 }
+/* =====================================================
+ARI AUTH PATCH — CLEANER PHONE FIT + BETTER TECH LOOK
+===================================================== */
+
+.ari-auth-page {
+  width: 100% !important;
+  max-width: 430px !important;
+  min-height: 100dvh !important;
+  margin: 0 auto !important;
+  padding: 90px 18px 110px !important;
+  display: block !important;
+}
+
+.ari-auth-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-radius: 24px !important;
+  padding: 34px 18px 28px !important;
+  border: 1px solid rgba(87,255,231,.24) !important;
+  background:
+    linear-gradient(180deg, rgba(4,18,30,.84), rgba(2,6,23,.92)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(87,255,231,.05) 0px,
+      rgba(87,255,231,.05) 1px,
+      transparent 1px,
+      transparent 34px
+    ) !important;
+  box-shadow:
+    0 0 30px rgba(87,255,231,.10),
+    inset 0 0 28px rgba(87,255,231,.035) !important;
+}
+
+.ari-auth-body {
+  background:
+    radial-gradient(circle at 50% 32%, rgba(87,255,231,.16), transparent 30%),
+    radial-gradient(circle at 18% 55%, rgba(87,255,231,.08), transparent 26%),
+    radial-gradient(circle at 82% 62%, rgba(250,204,21,.055), transparent 26%),
+    linear-gradient(180deg, #020916 0%, #020617 100%) !important;
+}
+
+.ari-chip-core {
+  width: 58px !important;
+  height: 58px !important;
+  margin-bottom: 18px !important;
+  opacity: .85 !important;
+}
+
+.chip-ring {
+  inset: 3px !important;
+  border-radius: 14px !important;
+  border-color: rgba(87,255,231,.34) !important;
+}
+
+.chip-ring.ring2 {
+  inset: 13px !important;
+  border-color: rgba(250,204,21,.34) !important;
+}
+
+.chip-grid {
+  width: 34px !important;
+  height: 34px !important;
+  gap: 4px !important;
+}
+
+.chip-grid span {
+  border-radius: 4px !important;
+}
+
+.ari-auth-brand h1 {
+  font-size: clamp(2.15rem, 10vw, 3.15rem) !important;
+  letter-spacing: .16em !important;
+  line-height: 1.05 !important;
+  margin: 0 0 34px !important;
+}
+
+.ari-auth-tabs {
+  gap: 12px !important;
+  margin-bottom: 24px !important;
+}
+
+.ari-auth-tab {
+  min-height: 48px !important;
+  border-radius: 18px !important;
+}
+
+.ari-auth-field {
+  margin-top: 18px !important;
+}
+
+.ari-auth-field label {
+  font-size: .74rem !important;
+  letter-spacing: .22em !important;
+}
+
+.ari-auth-field input {
+  min-height: 58px !important;
+  border-radius: 18px !important;
+  background: rgba(1, 7, 18, .76) !important;
+  border-color: rgba(87,255,231,.24) !important;
+  font-size: 1.08rem !important;
+}
+
+.ari-auth-main-btn {
+  min-height: 62px !important;
+  border-radius: 20px !important;
+  margin-top: 22px !important;
+  background: rgba(87,255,231,.075) !important;
+}
+
+.ari-auth-main-btn.ready {
+  background:
+    linear-gradient(135deg, rgba(40,210,225,.75), rgba(15,118,150,.70)) !important;
+  color: white !important;
+}
+
+.ari-auth-main-btn.gold {
+  border-color: rgba(250,204,21,.42) !important;
+}
+
+.ari-auth-main-btn.gold.ready {
+  background:
+    linear-gradient(135deg, rgba(250,204,21,.88), rgba(146,86,7,.84)) !important;
+  color: #150f00 !important;
+}
+
+.ari-auth-link-btn {
+  margin-top: 20px !important;
+}
+
+/* terminal should feel bigger and less cheap */
+.ari-init-screen {
+  width: 100% !important;
+}
+
+.ari-terminal-shell {
+  min-height: 62vh !important;
+  border-radius: 24px !important;
+  margin-top: 120px !important;
+}
+
+.ari-init-terminal {
+  min-height: 62vh !important;
+  padding: 34px 22px !important;
+  gap: 24px !important;
+}
+
+.ari-init-big {
+  font-size: clamp(1.6rem, 7vw, 2.45rem) !important;
+}
