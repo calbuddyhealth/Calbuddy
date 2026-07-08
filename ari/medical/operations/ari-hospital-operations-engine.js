@@ -1,6 +1,6 @@
 // ari/medical/operations/ari-hospital-operations-engine.js
 // Purpose: Build an organized hospital-facing plan from Ari Medical outputs.
-// V1.1.0 — Hospital Operations Engine / Resolver-Aware Workflow
+// V1.2.0 — Hospital Operations Engine / Resolver-Only Workflow
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
@@ -8,21 +8,13 @@ window.Ari.medical.operations =
   window.Ari.medical.operations || {};
 
 window.Ari.medical.operations.hospitalOperationsEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   build(room = {}) {
     const actionEngine = window.Ari.medical.operations.actionEngine;
     const resolver = window.Ari.medical.operations.hospitalActionResolver;
-    const infectionControl =
-      window.Ari.medical.infectiousDisease?.infectionControl?.engine;
 
-    let workingRoom = room;
-
-    if (infectionControl?.writeToRoom) {
-      workingRoom = infectionControl.writeToRoom(workingRoom, {
-        room: workingRoom
-      });
-    }
+    const workingRoom = room;
 
     const rawActionPlan = actionEngine?.build
       ? actionEngine.build(workingRoom)
@@ -90,7 +82,7 @@ window.Ari.medical.operations.hospitalOperationsEngine = {
       confidence: "medium",
       priority: result.dangerLevel === "high" ? "high" : "routine",
       rationale: [
-        "Hospital operations plan assembled, resolved, grouped, and safety-checked."
+        "Hospital operations plan assembled from existing Situation Room data without re-running clinical engines."
       ]
     });
 
