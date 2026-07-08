@@ -1,30 +1,18 @@
 // ari/medical/core/ari-medical-os-orchestrator.js
 // Purpose: Run Ari Medical OS engines in the correct order.
-// V1.5.0 — Medical OS Orchestrator / Reportable + Exposure-Aware Pipeline
+// V1.6.0 — Medical OS Orchestrator / Subsystem-Aware Pipeline
 
 window.Ari = window.Ari || {};
 window.Ari.medical = window.Ari.medical || {};
 
 window.Ari.medical.osOrchestrator = {
-  version: "1.5.0",
+  version: "1.6.0",
 
   run(input = {}) {
     const situationRoom = window.Ari.medical.executive?.situationRoom;
 
-    const infectionControl =
-      window.Ari.medical.infectiousDisease?.infectionControl?.engine;
-
-    const reportableDiseaseEngine =
-      window.Ari.medical.infectiousDisease?.infectionControl?.reportableDiseaseEngine;
-
-    const exposureManagementEngine =
-      window.Ari.medical.infectiousDisease?.infectionControl?.exposureManagementEngine;
-
-const stiReasoningEngine =
-  window.Ari.medical.infectiousDisease?.sti?.reasoningEngine;
-
-const antibioticSelectionEngine =
-  window.Ari.medical.infectiousDisease?.antibiotics?.selectionEngine;
+    const infectiousDisease =
+      window.Ari.medical.infectiousDisease?.orchestrator;
 
     const monitoringEngine = window.Ari.medical.monitoring?.engine;
     const escalationEngine = window.Ari.medical.executive?.escalationEngine;
@@ -56,25 +44,9 @@ const antibioticSelectionEngine =
       room.chiefComplaint ||
       "";
 
-    if (infectionControl?.writeToRoom) {
-      room = infectionControl.writeToRoom(room, { text });
+    if (infectiousDisease?.run) {
+      room = infectiousDisease.run(room, { text });
     }
-
-    if (reportableDiseaseEngine?.writeToRoom) {
-      room = reportableDiseaseEngine.writeToRoom(room, { text });
-    }
-
-    if (exposureManagementEngine?.writeToRoom) {
-      room = exposureManagementEngine.writeToRoom(room, { text });
-    }
-
-if (stiReasoningEngine?.writeToRoom) {
-  room = stiReasoningEngine.writeToRoom(room, { text });
-}
-
-if (antibioticSelectionEngine?.writeToRoom) {
-  room = antibioticSelectionEngine.writeToRoom(room, { text });
-}
 
     if (monitoringEngine?.writeToRoom) {
       room = monitoringEngine.writeToRoom(room);
