@@ -15,10 +15,21 @@
   <section class="ari-auth-card" id="authCard">
 
     <div class="ari-auth-brand">
-      <p class="ari-auth-kicker">CALBUDDY HEALTH</p>
-      <h1>ARI REBIRTH</h1>
-      <p class="ari-auth-subtitle">Secure access terminal</p>
+
+  <div class="ari-chip-core">
+    <div class="chip-ring"></div>
+    <div class="chip-ring ring2"></div>
+
+    <div class="chip-grid">
+      <span></span><span></span><span></span>
+      <span></span><span class="core"></span><span></span>
+      <span></span><span></span><span></span>
     </div>
+  </div>
+
+  <h1>ARI REBIRTH</h1>
+
+</div>
 
     <div class="ari-auth-tabs">
       <button id="showLoginBtn" class="ari-auth-tab active" type="button">Sign In</button>
@@ -66,9 +77,22 @@
     </p>
   </section>
 
-  <section class="ari-init-screen hidden" id="initScreen">
-    <div id="initTerminal" class="ari-init-terminal"></div>
-  </section>
+ <section class="ari-init-screen hidden" id="initScreen">
+
+    <div class="ari-terminal-shell">
+
+        <div class="terminal-glow"></div>
+
+        <div class="terminal-grid"></div>
+
+        <div
+            id="initTerminal"
+            class="ari-init-terminal">
+        </div>
+
+    </div>
+
+</section>
 
 </main>
 
@@ -214,10 +238,10 @@ async function startInitialization(name = "", isReturning = true) {
     : "> Welcome.";
 
   const lines = [
-    `> Initializing <span class="ari-init-name">ARI</span>...`,
-    "> Identity verified.",
-    `<span class="ari-memory-line">> Memory link established.</span>`,
-    welcomeLine
+    `<span class="ari-init-big">> Initializing <span class="ari-init-name">ARI</span>...</span>`,
+    `<span class="ari-init-big">> Identity verified.</span>`,
+    `<span class="ari-init-big ari-memory-line">> Memory link established.</span>`,
+    `<span class="ari-init-big">${welcomeLine}</span>`
   ];
 
   initTerminal.innerHTML = "";
