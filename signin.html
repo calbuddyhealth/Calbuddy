@@ -389,7 +389,44 @@ forgotPasswordBtn.addEventListener("click", async () => {
   }
 });
 
+// =====================================================
+// ARI HEADER BOOT ANIMATION
+// =====================================================
+
+const bootLogo = document.getElementById("ariBootLogo");
+const bootMeaning = document.getElementById("ariBootMeaning");
+
+async function playHeaderBoot() {
+
+  if (!bootLogo || !bootMeaning) return;
+
+  bootLogo.classList.remove("booted");
+  bootMeaning.textContent = "";
+
+  // Wait before typing
+  await wait(1200);
+
+  const text = "Artificial Reasoning Intelligence";
+
+  for (let i = 0; i < text.length; i++) {
+
+    bootMeaning.textContent =
+      text.substring(0, i + 1) + "█";
+
+    await wait(38 + Math.random() * 18);
+  }
+
+  // Cursor blinks once
+  await wait(700);
+
+  bootMeaning.textContent = text;
+
+  // Turn logo on
+  bootLogo.classList.add("booted");
+}
+
 setMode("login");
+playHeaderBoot();
 </script>
 </body>
 </html>
