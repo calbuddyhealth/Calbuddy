@@ -1,210 +1,369 @@
+<!-- signin.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Sign In - CalBuddy</title>
+<title>Sign In - ARI Rebirth</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 
-<body>
-<main class="app">
-<header class="top-bar">
-<button class="menu-btn" onclick="window.location.href='index.html'">←</button>
+<body class="ari-auth-body">
 
-<h1 class="logo">
-<span class="cal">Cal</span><span class="buddy">Buddy</span>
-</h1>
-</header>
+<main class="ari-auth-page">
 
-<section class="hero-card" style="display:block; padding:28px;">
-<h2>Sign In</h2>
+  <section class="ari-auth-card" id="authCard">
 
-<input id="email" type="email" placeholder="Email" autocomplete="email"
-style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;" />
+    <div class="ari-auth-brand">
+      <p class="ari-auth-kicker">CALBUDDY HEALTH</p>
+      <h1>ARI REBIRTH</h1>
+      <p class="ari-auth-subtitle">Secure access terminal</p>
+    </div>
 
-<input id="password" type="password" placeholder="Password" autocomplete="current-password"
-style="width:100%; padding:14px; margin:10px 0; border-radius:14px; border:1px solid #ddd;" />
+    <div class="ari-auth-tabs">
+      <button id="showLoginBtn" class="ari-auth-tab active" type="button">Sign In</button>
+      <button id="showSignupBtn" class="ari-auth-tab" type="button">Create</button>
+    </div>
 
-<button id="loginBtn" type="button" class="signin-btn" style="width:100%; margin-top:12px;">
-Sign In
-</button>
+    <div id="signupNameWrap" class="ari-auth-field hidden">
+      <label>What should Ari call you?</label>
+      <input id="displayName" type="text" placeholder="Display name" autocomplete="name" />
+    </div>
 
-<button id="signupBtn" type="button" class="goals-pill" style="width:100%; margin-top:12px;">
-Create Account
-</button>
+    <div class="ari-auth-field">
+      <label>Email</label>
+      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+    </div>
 
-<button id="forgotPasswordBtn" type="button"
-style="width:100%; margin-top:14px; background:none; border:none; color:#6d3df2; font-weight:900; cursor:pointer;">
-Forgot Password?
-</button>
+    <div class="ari-auth-field">
+      <label>Password</label>
+      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+    </div>
 
-<p id="authMessage" style="margin-top:16px; font-weight:700;"></p>
-</section>
+    <div id="confirmPasswordWrap" class="ari-auth-field hidden">
+      <label>Confirm Password</label>
+      <input id="confirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password" />
+    </div>
+
+    <button id="loginBtn" type="button" class="ari-auth-main-btn">ENTER</button>
+    <button id="signupBtn" type="button" class="ari-auth-main-btn gold hidden">CREATE ACCOUNT</button>
+
+    <button id="forgotPasswordBtn" type="button" class="ari-auth-link-btn">
+      Forgot Password?
+    </button>
+
+    <p id="authMessage" class="ari-auth-message"></p>
+  </section>
+
+  <section class="ari-auth-card hidden" id="verifyCard">
+    <div class="ari-auth-brand">
+      <p class="ari-auth-kicker">EMAIL VERIFICATION</p>
+      <h1>CHECK YOUR EMAIL</h1>
+      <p class="ari-auth-subtitle">Waiting for verification<span class="ari-terminal-cursor">█</span></p>
+    </div>
+    <p id="verifyMessage" class="ari-auth-message">
+      We sent a verification link. Once verified, Ari will initialize automatically.
+    </p>
+  </section>
+
+  <section class="ari-init-screen hidden" id="initScreen">
+    <div id="initTerminal" class="ari-init-terminal"></div>
+  </section>
+
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js?v=8"></script>
+<script src="supabase-config.js?v=10"></script>
 
 <script>
 const emailInput = document.getElementById("email");
 const passwordInput = document.getElementById("password");
+const confirmPasswordInput = document.getElementById("confirmPassword");
+const displayNameInput = document.getElementById("displayName");
+
 const message = document.getElementById("authMessage");
+const verifyMessage = document.getElementById("verifyMessage");
+
 const loginBtn = document.getElementById("loginBtn");
 const signupBtn = document.getElementById("signupBtn");
 const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
 
+const showLoginBtn = document.getElementById("showLoginBtn");
+const showSignupBtn = document.getElementById("showSignupBtn");
+
+const signupNameWrap = document.getElementById("signupNameWrap");
+const confirmPasswordWrap = document.getElementById("confirmPasswordWrap");
+
+const authCard = document.getElementById("authCard");
+const verifyCard = document.getElementById("verifyCard");
+const initScreen = document.getElementById("initScreen");
+const initTerminal = document.getElementById("initTerminal");
+
+let authMode = "login";
+let verifyPoll = null;
+
 function setMessage(text) {
-message.textContent = text;
+  message.textContent = text || "";
 }
 
-function validateInputs() {
-const email = emailInput.value.trim();
-const password = passwordInput.value.trim();
+function setMode(mode) {
+  authMode = mode;
+  setMessage("");
 
-if (!email) {
-setMessage("Enter your email.");
-return null;
+  const isSignup = mode === "signup";
+
+  showLoginBtn.classList.toggle("active", !isSignup);
+  showSignupBtn.classList.toggle("active", isSignup);
+
+  signupNameWrap.classList.toggle("hidden", !isSignup);
+  confirmPasswordWrap.classList.toggle("hidden", !isSignup);
+
+  loginBtn.classList.toggle("hidden", isSignup);
+  signupBtn.classList.toggle("hidden", !isSignup);
+
+  forgotPasswordBtn.classList.toggle("hidden", isSignup);
+
+  updateButtonState();
 }
 
-if (!password) {
-setMessage("Enter your password.");
-return null;
+function updateButtonState() {
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+  const confirmPassword = confirmPasswordInput.value.trim();
+  const displayName = displayNameInput.value.trim();
+
+  if (authMode === "login") {
+    const ready = email && password.length >= 6;
+    loginBtn.textContent = ready ? "INITIALIZE" : "ENTER";
+    loginBtn.classList.toggle("ready", ready);
+    return;
+  }
+
+  const ready =
+    displayName &&
+    email &&
+    password.length >= 6 &&
+    confirmPassword.length >= 6 &&
+    password === confirmPassword;
+
+  signupBtn.classList.toggle("ready", ready);
 }
 
-if (password.length < 6) {
-setMessage("Password must be at least 6 characters.");
-return null;
+[emailInput, passwordInput, confirmPasswordInput, displayNameInput].forEach(input => {
+  input.addEventListener("input", updateButtonState);
+});
+
+showLoginBtn.addEventListener("click", () => setMode("login"));
+showSignupBtn.addEventListener("click", () => setMode("signup"));
+
+function validateLogin() {
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+
+  if (!email) return setMessage("Enter your email."), null;
+  if (!password) return setMessage("Enter your password."), null;
+  if (password.length < 6) return setMessage("Password must be at least 6 characters."), null;
+
+  return { email, password };
 }
 
-return { email, password };
+function validateSignup() {
+  const displayName = displayNameInput.value.trim();
+  const email = emailInput.value.trim();
+  const password = passwordInput.value.trim();
+  const confirmPassword = confirmPasswordInput.value.trim();
+
+  if (!displayName) return setMessage("Enter what Ari should call you."), null;
+  if (!email) return setMessage("Enter your email."), null;
+  if (!password) return setMessage("Enter your password."), null;
+  if (password.length < 6) return setMessage("Password must be at least 6 characters."), null;
+  if (password !== confirmPassword) return setMessage("Passwords do not match."), null;
+
+  return { displayName, email, password };
 }
 
-async function createUserProfile(user) {
-if (!user || !user.id) return;
+async function createUserProfile(user, displayName = "") {
+  if (!user || !user.id) return;
 
-const { error } = await window.calbuddySupabase
-.from("profiles")
-.upsert(
-{
-id: user.id,
-email: user.email || "",
-daily_calorie_goal: 2100,
-reset_hour: 4,
-updated_at: new Date().toISOString()
-},
-{ onConflict: "id" }
-);
+  const { error } = await window.calbuddySupabase
+    .from("profiles")
+    .upsert(
+      {
+        id: user.id,
+        email: user.email || "",
+        display_name: displayName || user.user_metadata?.display_name || "",
+        daily_calorie_goal: 2100,
+        reset_hour: 4,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "id" }
+    );
 
-if (error) {
-console.error("Profile save error:", error.message);
-setMessage("Signed in, but profile could not be saved: " + error.message);
+  if (error) {
+    console.error("Profile save error:", error.message);
+  }
 }
+
+async function startInitialization(name = "", isReturning = true) {
+  authCard.classList.add("hidden");
+  verifyCard.classList.add("hidden");
+  initScreen.classList.remove("hidden");
+
+  const welcomeLine = isReturning && name
+    ? `> Welcome back, ${name}.`
+    : "> Welcome.";
+
+  const lines = [
+    `> Initializing <span class="ari-init-name">ARI</span>...`,
+    "> Identity verified.",
+    `<span class="ari-memory-line">> Memory link established.</span>`,
+    welcomeLine
+  ];
+
+  initTerminal.innerHTML = "";
+
+  for (const line of lines) {
+    const row = document.createElement("div");
+    row.className = "ari-init-line";
+    initTerminal.appendChild(row);
+
+    row.innerHTML = line + `<span class="ari-terminal-cursor">█</span>`;
+    await wait(650);
+
+    const cursor = row.querySelector(".ari-terminal-cursor");
+    if (cursor) cursor.remove();
+
+    await wait(250);
+  }
+
+  await wait(500);
+  window.location.href = "index.html";
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 loginBtn.addEventListener("click", async () => {
-const values = validateInputs();
-if (!values) return;
+  const values = validateLogin();
+  if (!values) return;
 
-loginBtn.disabled = true;
-setMessage("Signing in...");
+  loginBtn.disabled = true;
+  setMessage("Verifying identity...");
 
-try {
-const { data, error } =
-await window.calbuddySupabase.auth.signInWithPassword({
-email: values.email,
-password: values.password
-});
+  try {
+    const { data, error } = await window.calbuddySupabase.auth.signInWithPassword({
+      email: values.email,
+      password: values.password
+    });
 
-if (error) {
-setMessage(error.message);
-loginBtn.disabled = false;
-return;
-}
+    if (error) {
+      setMessage(error.message);
+      loginBtn.disabled = false;
+      return;
+    }
 
-if (data?.user) {
-await createUserProfile(data.user);
-setMessage("Signed in successfully.");
-window.location.href = "index.html";
-return;
-}
-
-setMessage("Sign in failed. Please try again.");
-loginBtn.disabled = false;
-
-} catch (err) {
-console.error(err);
-setMessage("Sign in error. Please try again.");
-loginBtn.disabled = false;
-}
+    if (data?.user) {
+      await createUserProfile(data.user);
+      const name =
+        data.user.user_metadata?.display_name ||
+        data.user.email?.split("@")[0] ||
+        "";
+      await startInitialization(name, true);
+    }
+  } catch (err) {
+    console.error(err);
+    setMessage("Sign in error. Please try again.");
+    loginBtn.disabled = false;
+  }
 });
 
 signupBtn.addEventListener("click", async () => {
-const values = validateInputs();
-if (!values) return;
+  const values = validateSignup();
+  if (!values) return;
 
-signupBtn.disabled = true;
-setMessage("Creating account...");
+  signupBtn.disabled = true;
+  setMessage("Creating account...");
 
-try {
-const { data, error } =
-await window.calbuddySupabase.auth.signUp({
-email: values.email,
-password: values.password
+  try {
+    const { data, error } = await window.calbuddySupabase.auth.signUp({
+      email: values.email,
+      password: values.password,
+      options: {
+        data: {
+          display_name: values.displayName
+        }
+      }
+    });
+
+    if (error) {
+      setMessage(error.message);
+      signupBtn.disabled = false;
+      return;
+    }
+
+    if (data?.user) {
+      await createUserProfile(data.user, values.displayName);
+    }
+
+    authCard.classList.add("hidden");
+    verifyCard.classList.remove("hidden");
+    startVerificationWatch(values.displayName);
+
+  } catch (err) {
+    console.error(err);
+    setMessage("Account creation error. Please try again.");
+    signupBtn.disabled = false;
+  }
 });
 
-if (error) {
-setMessage(error.message);
-signupBtn.disabled = false;
-return;
-}
+function startVerificationWatch(displayName = "") {
+  if (verifyPoll) clearInterval(verifyPoll);
 
-if (data?.user) {
-await createUserProfile(data.user);
-}
+  verifyPoll = setInterval(async () => {
+    const { data } = await window.calbuddySupabase.auth.getSession();
 
-setMessage("Account created. Check your email if confirmation is required.");
-signupBtn.disabled = false;
-
-} catch (err) {
-console.error(err);
-setMessage("Account creation error. Please try again.");
-signupBtn.disabled = false;
+    if (data?.session?.user?.email_confirmed_at) {
+      clearInterval(verifyPoll);
+      await createUserProfile(data.session.user, displayName);
+      await startInitialization(displayName, false);
+    }
+  }, 3000);
 }
-});
 
 forgotPasswordBtn.addEventListener("click", async () => {
-const email = emailInput.value.trim();
+  const email = emailInput.value.trim();
 
-if (!email) {
-setMessage("Enter your email first, then tap Forgot Password.");
-return;
-}
+  if (!email) {
+    setMessage("Enter your email first, then tap Forgot Password.");
+    return;
+  }
 
-forgotPasswordBtn.disabled = true;
-setMessage("Sending password reset email...");
+  forgotPasswordBtn.disabled = true;
+  setMessage("Sending password reset email...");
 
-try {
-const { error } =
-await window.calbuddySupabase.auth.resetPasswordForEmail(email, {
-redirectTo: window.location.origin + "/reset-password.html"
+  try {
+    const { error } = await window.calbuddySupabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/reset-password.html"
+    });
+
+    if (error) {
+      setMessage(error.message);
+      forgotPasswordBtn.disabled = false;
+      return;
+    }
+
+    setMessage("Password reset email sent. Check your inbox.");
+    forgotPasswordBtn.disabled = false;
+
+  } catch (err) {
+    console.error(err);
+    setMessage("Unable to send reset email. Try again.");
+    forgotPasswordBtn.disabled = false;
+  }
 });
 
-if (error) {
-setMessage(error.message);
-forgotPasswordBtn.disabled = false;
-return;
-}
-
-setMessage("Password reset email sent. Check your inbox.");
-forgotPasswordBtn.disabled = false;
-
-} catch (err) {
-console.error(err);
-setMessage("Unable to send reset email. Try again.");
-forgotPasswordBtn.disabled = false;
-}
-});
+setMode("login");
 </script>
 </body>
 </html>
