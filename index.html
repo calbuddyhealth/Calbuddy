@@ -366,12 +366,12 @@ async function setupHomeAuth() {
     authButton.textContent = "Sign Out";
     authButton.onclick = async () => {
       await window.calbuddySupabase.auth.signOut();
-      window.location.href = "signin.html";
+      window.location.replace("signin.html");
     };
   } else {
     authButton.textContent = "Sign In";
     authButton.onclick = () => {
-      window.location.href = "signin.html";
+      window.location.replace("signin.html");
     };
   }
 }
