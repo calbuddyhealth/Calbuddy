@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<!--
+=====================================================
+ARI REBIRTH
+File: identity.html
+Version: 1.0.0
+Purpose:
+  My Identity page for ARI Rebirth.
+
+Responsibilities:
+  - Let the user teach Ari who they are as a person.
+  - Save social/personal identity details to the profiles table.
+  - Store preferred name/display name for Ari.
+  - Store optional personal context such as birthday, occupation, interests, and about-me notes.
+
+Non-responsibilities:
+  - Does not manage login/security.
+  - Does not change password or email.
+  - Does not calculate calories.
+  - Does not own health goals, weight, height, or calorie data.
+
+Dependencies:
+  - style.css
+  - Supabase CDN
+  - supabase-config.js
+=====================================================
+-->
+
+<title>My Identity - ARI Rebirth</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+
+<style>
+:root {
+  --ari-bg:#020617;
+  --ari-panel:rgba(8,20,38,.78);
+  --ari-cyan:#22d3ee;
+  --ari-cyan-soft:#67e8f9;
+  --ari-cyan-pale:#cffafe;
+  --ari-text:#f8fafc;
+  --ari-muted:#94a3b8;
+  --ari-border:rgba(103,232,249,.24);
+}
+
+* { box-sizing:border-box; }
+
+body {
+  margin:0;
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34,211,238,.18), transparent 30%),
+    radial-gradient(circle at 16% 25%, rgba(34,211,238,.10), transparent 30%),
+    radial-gradient(circle at 88% 78%, rgba(103,232,249,.08), transparent 32%),
+    linear-gradient(180deg,#020617 0%,#07111f 48%,#020617 100%);
+  color:var(--ari-text);
+  font-family:Orbitron,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  overflow-x:hidden;
+}
+
+body::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background-image:
+    linear-gradient(rgba(103,232,249,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103,232,249,.045) 1px, transparent 1px);
+  background-size:42px 42px;
+  mask-image:radial-gradient(circle at center, black 0%, transparent 76%);
+  pointer-events:none;
+}
+
+body::after {
+  content:"";
+  position:fixed;
+  inset:-30%;
+  z-index:0;
+  background:linear-gradient(115deg,transparent 42%,rgba(103,232,249,.10) 50%,transparent 58%);
+  animation:ariIdentitySweep 8s linear infinite;
+  pointer-events:none;
+}
+
+@keyframes ariIdentitySweep {
+  from { transform:translateX(-12%) translateY(8%); }
+  to { transform:translateX(12%) translateY(-8%); }
+}
+
+.ari-identity-page {
+  position:relative;
+  z-index:2;
+  width:min(430px,100%);
+  min-height:100dvh;
+  margin:0 auto;
+  padding:14px 16px 140px;
+}
+
+.ari-identity-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0 18px;
+}
+
+.ari-back-btn,.ari-mini-btn {
+  border:1px solid var(--ari-border);
+  border-radius:16px;
+  min-height:42px;
+  padding:10px 14px;
+  background:rgba(2,6,23,.72);
+  color:var(--ari-cyan-pale);
+  font-family:inherit;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 0 18px rgba(34,211,238,.08);
+}
+
+.ari-brand-mark { text-align:center; flex:1; }
+
+.ari-brand-title {
+  margin:0;
+  font-family:Audiowide,Orbitron,sans-serif;
+  font-size:1.24rem;
+  letter-spacing:.10em;
+  color:var(--ari-text);
+  text-shadow:0 0 18px rgba(34,211,238,.28);
+}
+
+.ari-brand-subtitle {
+  margin:3px 0 0;
+  font-size:.62rem;
+  letter-spacing:.22em;
+  color:var(--ari-cyan-soft);
+  font-weight:800;
+}
+
+.ari-page-hero,.ari-panel {
+  border:1px solid var(--ari-border);
+  background:linear-gradient(180deg,rgba(15,23,42,.92),rgba(2,6,23,.72));
+  box-shadow:0 0 34px rgba(34,211,238,.12), inset 0 0 30px rgba(103,232,249,.04);
+  overflow:hidden;
+}
+
+.ari-page-hero {
+  margin:8px 0 18px;
+  padding:24px 20px;
+  border-radius:28px;
+  position:relative;
+}
+
+.ari-page-hero::before {
+  content:"";
+  position:absolute;
+  top:0;
+  left:12%;
+  right:12%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--ari-cyan-soft),transparent);
+  opacity:.8;
+}
+
+.ari-page-kicker {
+  margin:0 0 8px;
+  color:var(--ari-cyan-soft);
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+}
+
+.ari-page-title {
+  margin:0;
+  font-size:2rem;
+  line-height:1;
+  letter-spacing:.05em;
+  font-family:Audiowide,Orbitron,sans-serif;
+}
+
+.ari-page-description {
+  margin:12px 0 0;
+  color:var(--ari-muted);
+  line-height:1.55;
+  font-size:.92rem;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-panel {
+  margin-top:16px;
+  border-radius:26px;
+}
+
+.ari-panel-header { padding:18px 18px 10px; }
+
+.ari-section-title {
+  margin:0;
+  font-size:.78rem;
+  letter-spacing:.20em;
+  text-transform:uppercase;
+  color:var(--ari-cyan-soft);
+  font-weight:900;
+}
+
+.ari-section-subtitle {
+  margin:8px 0 0;
+  color:var(--ari-muted);
+  font-size:.84rem;
+  line-height:1.45;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-form { padding:0 18px 18px; }
+.ari-field { margin-top:16px; }
+
+.ari-label {
+  display:block;
+  color:var(--ari-cyan-soft);
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+
+.ari-input,.ari-textarea {
+  width:100%;
+  border:1px solid rgba(103,232,249,.22);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(2,6,23,.84),rgba(8,47,73,.30));
+  color:var(--ari-text);
+  font:inherit;
+  font-size:.92rem;
+  font-weight:800;
+  padding:14px 15px;
+  outline:none;
+}
+
+.ari-textarea {
+  min-height:116px;
+  resize:vertical;
+  line-height:1.45;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-input:focus,.ari-textarea:focus {
+  border-color:rgba(103,232,249,.62);
+  box-shadow:0 0 22px rgba(34,211,238,.15);
+}
+
+.ari-input::placeholder,.ari-textarea::placeholder { color:rgba(203,213,225,.45); }
+
+.ari-hint {
+  margin:8px 0 0;
+  color:var(--ari-muted);
+  font-size:.76rem;
+  line-height:1.35;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-chip-grid {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+
+.ari-chip {
+  border:1px solid rgba(103,232,249,.22);
+  border-radius:999px;
+  padding:8px 10px;
+  background:rgba(2,6,23,.64);
+  color:var(--ari-cyan-pale);
+  font-size:.72rem;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.ari-chip.active {
+  background:rgba(34,211,238,.18);
+  border-color:rgba(103,232,249,.62);
+  color:white;
+  box-shadow:0 0 16px rgba(34,211,238,.15);
+}
+
+.ari-primary-action {
+  width:100%;
+  margin-top:18px;
+  border:1px solid rgba(103,232,249,.44);
+  border-radius:20px;
+  min-height:56px;
+  background:linear-gradient(135deg,rgba(8,145,178,.95),rgba(34,211,238,.88));
+  color:white;
+  font-family:inherit;
+  font-weight:950;
+  letter-spacing:.08em;
+  cursor:pointer;
+  box-shadow:0 0 24px rgba(34,211,238,.26), inset 0 0 20px rgba(255,255,255,.10);
+}
+
+.ari-status {
+  min-height:22px;
+  margin:14px 2px 0;
+  color:var(--ari-cyan-pale);
+  font-size:.78rem;
+  font-weight:850;
+  line-height:1.35;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-status.error { color:#fecaca; }
+.ari-status.success { color:#bbf7d0; }
+
+.ari-footer-note {
+  margin:18px 4px 0;
+  color:var(--ari-muted);
+  font-size:.74rem;
+  line-height:1.45;
+  text-align:center;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+@media (min-width:768px) {
+  .ari-identity-page { width:min(520px,100%); padding-top:24px; }
+  .ari-page-title { font-size:2.4rem; }
+  .ari-page-hero,.ari-panel { border-radius:30px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  body::after { animation:none; }
+}
+</style>
+</head>
+
+<body>
+<main class="ari-identity-page" id="ariIdentityPage">
+
+<header class="ari-identity-header">
+  <button class="ari-back-btn" type="button" onclick="goHome()">←</button>
+  <div class="ari-brand-mark" aria-label="ARI Rebirth">
+    <h1 class="ari-brand-title">ARI</h1>
+    <p class="ari-brand-subtitle">REBIRTH</p>
+  </div>
+  <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
+</header>
+
+<section class="ari-page-hero">
+  <p class="ari-page-kicker">Identity Module</p>
+  <h2 class="ari-page-title">My Identity</h2>
+  <p class="ari-page-description">
+    Tell Ari who you are. This is personal context, not account security and not health goal data.
+  </p>
+</section>
+
+<section class="ari-panel">
+  <div class="ari-panel-header">
+    <h3 class="ari-section-title">Core Identity</h3>
+    <p class="ari-section-subtitle">These details help Ari address you naturally.</p>
+  </div>
+
+  <form class="ari-form" onsubmit="event.preventDefault(); saveIdentity();">
+    <div class="ari-field">
+      <label class="ari-label" for="displayName">What should Ari call you?</label>
+      <input id="displayName" class="ari-input" type="text" placeholder="Example: Jose" autocomplete="name" />
+    </div>
+
+    <div class="ari-field">
+      <label class="ari-label" for="birthday">Birthday</label>
+      <input id="birthday" class="ari-input" type="date" />
+      <p class="ari-hint">Optional. Later Ari can use this for age-aware context and milestones.</p>
+    </div>
+
+    <div class="ari-field">
+      <label class="ari-label" for="pronouns">Pronouns</label>
+      <input id="pronouns" class="ari-input" type="text" placeholder="Example: he/him, she/her, they/them" />
+    </div>
+
+    <div class="ari-field">
+      <label class="ari-label" for="location">Location</label>
+      <input id="location" class="ari-input" type="text" placeholder="Example: San Diego, CA" />
+    </div>
+
+    <div class="ari-field">
+      <label class="ari-label" for="occupation">Occupation / Role</label>
+      <input id="occupation" class="ari-input" type="text" placeholder="Example: Nurse, student, parent, founder" />
+    </div>
+
+    <div class="ari-field">
+      <label class="ari-label" for="languages">Languages</label>
+      <input id="languages" class="ari-input" type="text" placeholder="Example: English, Spanish" />
+    </div>
+  </form>
+</section>
+
+<section class="ari-panel">
+  <div class="ari-panel-header">
+    <h3 class="ari-section-title">Interests</h3>
+    <p class="ari-section-subtitle">Choose a few. You can also type your own interests below.</p>
+  </div>
+
+  <div class="ari-form">
+    <div class="ari-chip-grid" id="interestChips">
+      <button class="ari-chip" type="button" data-interest="Fitness">Fitness</button>
+      <button class="ari-chip" type="button" data-interest="Medicine">Medicine</button>
+      <button class="ari-chip" type="button" data-interest="Technology">Technology</button>
+      <button class="ari-chip" type="button" data-interest="AI">AI</button>
+      <button class="ari-chip" type="button" data-interest="Sports">Sports</button>
+      <button class="ari-chip" type="button" data-interest="Travel">Travel</button>
+      <button class="ari-chip" type="button" data-interest="Music">Music</button>
+      <button class="ari-chip" type="button" data-interest="Movies">Movies</button>
+      <button class="ari-chip" type="button" data-interest="Gaming">Gaming</button>
+      <button class="ari-chip" type="button" data-interest="Food">Food</button>
+    </div>
+
+    <div class="ari-field">
+      <label class="ari-label" for="interests">Other Interests</label>
+      <textarea id="interests" class="ari-textarea" placeholder="Example: I like soccer, sci-fi movies, coding, and learning about medicine."></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="ari-panel">
+  <div class="ari-panel-header">
+    <h3 class="ari-section-title">About Me</h3>
+    <p class="ari-section-subtitle">This is the most human part. Tell Ari anything you want her to understand.</p>
+  </div>
+
+  <div class="ari-form">
+    <div class="ari-field">
+      <label class="ari-label" for="aboutMe">Anything you'd like Ari to know?</label>
+      <textarea id="aboutMe" class="ari-textarea" placeholder="Example: I work nights. I’m building a project. I want Ari to be honest with me. I care about family."></textarea>
+      <p class="ari-hint">Later Ari can learn from this and turn important details into long-term memory.</p>
+    </div>
+
+    <button class="ari-primary-action" type="button" onclick="saveIdentity()">SAVE IDENTITY</button>
+    <div id="identityStatus" class="ari-status" role="status" aria-live="polite"></div>
+  </div>
+</section>
+
+<p class="ari-footer-note">
+  My Identity teaches Ari who you are. Health details belong in My Health Goals. Account security belongs in My Account.
+</p>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+
+<script>
+const IDENTITY_VERSION = "1.0.0";
+let selectedInterests = [];
+
+document.addEventListener("DOMContentLoaded", async () => {
+  setupInterestChips();
+  await loadIdentity();
+});
+
+function goHome() {
+  window.location.replace("index.html");
+}
+
+function setStatus(message = "", type = "") {
+  const statusEl = document.getElementById("identityStatus");
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove("error", "success");
+  if (type) statusEl.classList.add(type);
+}
+
+async function getSessionOrRedirect() {
+  if (!window.calbuddySupabase) {
+    setStatus("Supabase is not loaded. Check supabase-config.js.", "error");
+    return null;
+  }
+
+  const { data: { session }, error } = await window.calbuddySupabase.auth.getSession();
+
+  if (error) {
+    setStatus(error.message, "error");
+    return null;
+  }
+
+  if (!session) {
+    window.location.replace("signin.html");
+    return null;
+  }
+
+  return session;
+}
+
+function setupInterestChips() {
+  document.querySelectorAll(".ari-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const interest = chip.dataset.interest;
+      if (!interest) return;
+
+      chip.classList.toggle("active");
+
+      if (chip.classList.contains("active")) {
+        if (!selectedInterests.includes(interest)) selectedInterests.push(interest);
+      } else {
+        selectedInterests = selectedInterests.filter((item) => item !== interest);
+      }
+    });
+  });
+}
+
+function setField(id, value = "") {
+  const el = document.getElementById(id);
+  if (el) el.value = value || "";
+}
+
+function getField(id) {
+  const el = document.getElementById(id);
+  return el ? String(el.value || "").trim() : "";
+}
+
+function applyInterestChips(interestsText = "") {
+  const normalized = String(interestsText || "").toLowerCase();
+
+  document.querySelectorAll(".ari-chip").forEach((chip) => {
+    const interest = chip.dataset.interest;
+    if (!interest) return;
+
+    const active = normalized.includes(interest.toLowerCase());
+    chip.classList.toggle("active", active);
+
+    if (active && !selectedInterests.includes(interest)) {
+      selectedInterests.push(interest);
+    }
+  });
+}
+
+function buildInterestsValue() {
+  const typed = getField("interests");
+  const chipText = selectedInterests.join(", ");
+  if (chipText && typed) return chipText + ". " + typed;
+  if (chipText) return chipText;
+  return typed;
+}
+
+async function loadIdentity() {
+  const session = await getSessionOrRedirect();
+  if (!session) return;
+
+  setStatus("Loading identity...", "");
+
+  const { data, error } = await window.calbuddySupabase
+    .from("profiles")
+    .select("display_name,birthday,pronouns,location,occupation,languages,interests,about_me")
+    .eq("id", session.user.id)
+    .single();
+
+  if (error) {
+    console.warn("Identity load warning:", error.message);
+    setStatus("Identity ready. Some fields may need database columns before cloud save works.", "");
+    return;
+  }
+
+  setField("displayName", data?.display_name || session.user?.user_metadata?.display_name || "");
+  setField("birthday", data?.birthday || "");
+  setField("pronouns", data?.pronouns || "");
+  setField("location", data?.location || "");
+  setField("occupation", data?.occupation || "");
+  setField("languages", data?.languages || "");
+  setField("interests", data?.interests || "");
+  setField("aboutMe", data?.about_me || "");
+
+  selectedInterests = [];
+  applyInterestChips(data?.interests || "");
+
+  setStatus("Identity loaded.", "success");
+}
+
+async function saveIdentity() {
+  const session = await getSessionOrRedirect();
+  if (!session) return;
+
+  const displayName = getField("displayName");
+
+  if (!displayName) {
+    setStatus("Please enter what Ari should call you.", "error");
+    return;
+  }
+
+  setStatus("Saving identity...", "");
+
+  const payload = {
+    id: session.user.id,
+    email: session.user.email || null,
+    display_name: displayName,
+    birthday: getField("birthday") || null,
+    pronouns: getField("pronouns") || null,
+    location: getField("location") || null,
+    occupation: getField("occupation") || null,
+    languages: getField("languages") || null,
+    interests: buildInterestsValue() || null,
+    about_me: getField("aboutMe") || null,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await window.calbuddySupabase
+    .from("profiles")
+    .upsert(payload, { onConflict: "id" });
+
+  if (error) {
+    setStatus(error.message, "error");
+    return;
+  }
+
+  await window.calbuddySupabase.auth.updateUser({
+    data: { display_name: displayName }
+  });
+
+  setStatus("Identity saved. Ari will remember what you shared.", "success");
+}
+</script>
+
+</body>
+</html>
