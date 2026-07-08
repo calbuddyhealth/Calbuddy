@@ -2025,3 +2025,39 @@ body::after {
     padding-bottom: 140px;
   }
 }
+/* =====================================================
+ARI ACCOUNT PAGE — SCROLL FIX
+Only applies to account.html
+===================================================== */
+
+body:has(.ari-account-page) {
+  position: static !important;
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  display: block !important;
+}
+
+html:has(.ari-account-page) {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-y: auto !important;
+}
+
+body:has(.ari-account-page)::before,
+body:has(.ari-account-page)::after {
+  z-index: 0;
+}
+
+body:has(.ari-account-page)::before,
+body:has(.ari-account-page)::after {
+  position: fixed;
+}
+
+.ari-account-page {
+  position: relative;
+  z-index: 2;
+  min-height: 100dvh;
+  padding-bottom: 160px !important;
+}
