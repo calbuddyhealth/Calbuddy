@@ -1968,3 +1968,60 @@ main#ariApp .ari-i {
     0 0 26px rgba(34,211,238,.65),
     0 0 48px rgba(34,211,238,.36) !important;
 }
+
+/* =====================================================
+   ARI ACCOUNT PAGE — SCROLL + DESKTOP STABILITY PATCH
+===================================================== */
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body {
+  position: relative;
+}
+
+body::before,
+body::after {
+  z-index: 0;
+}
+
+.ari-account-page {
+  position: relative;
+  z-index: 2;
+  min-height: 100dvh;
+  padding-bottom: 120px;
+}
+
+/* Desktop/laptop view */
+@media (min-width: 768px) {
+  .ari-account-page {
+    width: min(520px, 100%);
+    padding-top: 24px;
+  }
+
+  .ari-page-title {
+    font-size: 2.4rem;
+  }
+
+  .ari-page-hero,
+  .ari-panel {
+    border-radius: 30px;
+  }
+}
+
+/* Prevent weird Safari fixed-background scroll issues */
+@supports (-webkit-touch-callout: none) {
+  body::before,
+  body::after {
+    position: absolute;
+  }
+
+  .ari-account-page {
+    padding-bottom: 140px;
+  }
+}
