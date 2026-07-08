@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
 // Purpose: Run Ari's communication chain in correct order.
-// V4.3.8 — Arbiter-Gated AI Writer / Memory-Only Supabase
+// V4.3.9 — Arbiter-Gated AI Writer / Memory-Only Supabase
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.3.8",
+  version: "4.3.9",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -1326,7 +1326,7 @@ mark("after responseCandidateArbiter");
     mark("before saveFinalThreadState");
     await this.saveFinalThreadState(summary);
     mark("after saveFinalThreadState");
-
+this.saveAriConversationHistory(summary);
     // 1.80 Optional Review Console, debug only
     if (debugTiming && window.AriSituationReviewConsole) {
       const situationReview = await runEngine(
@@ -1979,6 +1979,56 @@ addCandidateDraft(existing = [], candidate = {}) {
 
     return true;
   },
+
+saveAriConversationHistory(summary = {}) {
+  try {
+    const userMessage =
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      "";
+
+    const ariReply =
+      summary.finalResponse ||
+      summary.selectedDraft ||
+      summary.aiWriterDraft ||
+      summary.blueprintWriterDraft ||
+      "";
+
+    if (!userMessage || !ariReply) return;
+
+    const history = JSON.parse(
+      localStorage.getItem("ariConversationHistory") || "[]"
+    );
+
+    history.push({
+      id: Date.now(),
+      title: String(userMessage).slice(0, 80),
+      preview: String(ariReply).slice(0, 180),
+      messages: [
+        {
+          role: "user",
+          content: userMessage,
+          created_at: new Date().toISOString()
+        },
+        {
+          role: "ari",
+          content: ariReply,
+          emotion: summary.emotion || null,
+          created_at: new Date().toISOString()
+        }
+      ],
+      created_at: new Date().toISOString()
+    });
+
+    localStorage.setItem(
+      "ariConversationHistory",
+      JSON.stringify(history.slice(-100))
+    );
+  } catch (error) {
+    console.warn("Ari conversation history save failed:", error);
+  }
+},
 
   debugLog(summary = {}, reasoningResult = {}) {
     console.log("===== ARI REBIRTH PIPELINE =====", this.version);
