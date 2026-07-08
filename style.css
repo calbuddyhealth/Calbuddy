@@ -3660,3 +3660,118 @@ ARI SIDE MENU — FUTURISTIC GLASS COMMAND NAV
     opacity: 0;
   }
 }
+/* =====================================================
+ARI SIDE MENU — WIDTH FIX + ORBITRON GLOW TABS
+===================================================== */
+
+.ari-v1-home .ari-side-menu,
+.ari-v1-home .side-menu {
+  box-sizing: border-box !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+  overflow-x: hidden !important;
+}
+
+.ari-v1-home .ari-side-menu *,
+.ari-v1-home .side-menu * {
+  box-sizing: border-box !important;
+}
+
+.ari-v1-home .ari-side-menu a,
+.ari-v1-home .side-menu a {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+
+  padding: 0 16px !important;
+
+  font-family: "Orbitron", "Courier New", monospace !important;
+  font-size: clamp(16px, 4.5vw, 20px) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+
+  color: rgba(235, 255, 255, 0.96) !important;
+
+  border: 1px solid rgba(103, 232, 249, 0.42) !important;
+
+  box-shadow:
+    0 0 14px rgba(34, 211, 238, 0.18),
+    0 0 34px rgba(34, 211, 238, 0.08),
+    0 12px 30px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 22px rgba(34, 211, 238, 0.045) !important;
+
+  text-shadow:
+    0 0 6px rgba(200, 255, 255, 0.58),
+    0 0 14px rgba(34, 211, 238, 0.34) !important;
+}
+
+/* stronger LED glow line inside every tab */
+.ari-v1-home .ari-side-menu a span,
+.ari-v1-home .side-menu a span {
+  min-width: 0 !important;
+}
+
+/* glowing aura edge */
+.ari-v1-home .ari-side-menu a::before,
+.ari-v1-home .side-menu a::before {
+  opacity: 1 !important;
+  left: 12px !important;
+  top: auto !important;
+  bottom: 9px !important;
+  width: calc(100% - 58px) !important;
+  height: 2px !important;
+  transform: none !important;
+  border-radius: 999px !important;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(103,232,249,.45),
+      rgba(200,255,255,.95),
+      rgba(103,232,249,.45),
+      transparent
+    ) !important;
+  box-shadow:
+    0 0 8px rgba(34,211,238,.75),
+    0 0 18px rgba(34,211,238,.35) !important;
+  animation: ariNavLedPulse 4.6s ease-in-out infinite !important;
+}
+
+/* arrow stays inside screen */
+.ari-v1-home .ari-side-menu a::after,
+.ari-v1-home .side-menu a::after {
+  flex-shrink: 0 !important;
+  margin-left: 10px !important;
+  font-size: 26px !important;
+}
+
+/* press glow */
+.ari-v1-home .ari-side-menu a:active,
+.ari-v1-home .side-menu a:active {
+  transform: scale(0.985) !important;
+  border-color: rgba(200, 255, 255, 0.86) !important;
+  box-shadow:
+    0 0 22px rgba(34, 211, 238, 0.38),
+    0 0 52px rgba(34, 211, 238, 0.18),
+    inset 0 1px 0 rgba(255,255,255,.20),
+    inset 0 0 28px rgba(34,211,238,.10) !important;
+}
+
+@keyframes ariNavLedPulse {
+  0%, 100% {
+    opacity: 0.38;
+    filter: brightness(0.85);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+}
