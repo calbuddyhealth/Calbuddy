@@ -573,7 +573,7 @@ Version: 1.0.0
 document.addEventListener("DOMContentLoaded", loadAccount);
 
 function goHome() {
-  window.location.href = "index.html";
+    window.location.replace("index.html");
 }
 
 function setStatus(message = "", type = "") {
@@ -686,7 +686,7 @@ async function resetPassword() {
 
 async function logoutUser() {
   if (!window.calbuddySupabase) {
-    window.location.href = "signin.html";
+    window.location.replace("signin.html");
     return;
   }
 
@@ -701,7 +701,7 @@ async function logoutUser() {
     return;
   }
 
-  window.location.href = "signin.html";
+  window.location.replace("signin.html");
 }
 </script>
 
