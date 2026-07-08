@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Profile - CalBuddy</title>
+<title>Profile - ARI Rebirth</title>
 
 <link rel="stylesheet" href="style.css">
 
@@ -26,10 +26,33 @@
   margin-top: 0;
 }
 
+.profile-label {
+  margin: 15px 0 8px;
+  font-weight: 800;
+}
+
 .profile-email {
-  margin: 15px 0;
+  margin: 10px 0 15px;
   font-weight: 700;
   word-break: break-word;
+}
+
+.profile-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(45, 212, 191, 0.45);
+  background: rgba(2, 6, 23, 0.85);
+  color: white;
+  font-weight: 800;
+  outline: none;
+  margin-bottom: 10px;
+}
+
+.profile-input:focus {
+  border-color: #67e8f9;
+  box-shadow: 0 0 18px rgba(103, 232, 249, 0.25);
 }
 
 .profile-btn {
@@ -48,13 +71,26 @@
 }
 
 .secondary-btn {
-  background: #8b5cf6;
+  background: #0891b2;
   color: white;
 }
 
 .danger-btn {
   background: #ef4444;
   color: white;
+}
+
+.home-btn {
+  background: linear-gradient(135deg,#0891b2,#22d3ee);
+  color: white;
+  margin-bottom: 16px;
+}
+
+.status-text {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #67e8f9;
 }
 </style>
 
@@ -64,34 +100,38 @@
 <main class="profile-page">
 
 <h1>
-<span class="cal">Cal</span><span class="buddy">Buddy</span>
+<span class="cal">ARI</span><span class="buddy"> Rebirth</span>
 </h1>
 
 <div class="profile-card">
 
-<div style="margin-bottom:20px;">
-
 <button
-onclick="window.location.href='index.html'"
-style="
-width:100%;
-padding:12px;
-border:none;
-border-radius:14px;
-font-weight:900;
-cursor:pointer;
-background:linear-gradient(135deg,#6d3df2,#079c9d);
-color:white;
-margin-bottom:16px;
-">
+class="profile-btn home-btn"
+onclick="window.location.href='index.html'">
 🏠 Home
 </button>
 
-<h2>Profile</h2>
+<h2>My Identity</h2>
 
-</div>
+<p class="profile-label">What should Ari call you?</p>
 
-<p>Email Address</p>
+<input
+id="displayName"
+class="profile-input"
+type="text"
+placeholder="Enter your display name"
+autocomplete="name"
+/>
+
+<button
+class="profile-btn primary-btn"
+onclick="saveDisplayName()">
+Save Display Name
+</button>
+
+<div id="profileStatus" class="status-text"></div>
+
+<p class="profile-label">Email Address</p>
 
 <div id="userEmail" class="profile-email">
 Loading...
@@ -129,11 +169,96 @@ Back Home
 <script src="supabase-config.js"></script>
 
 <script>
-
 document.addEventListener("DOMContentLoaded", loadProfile);
 
 async function loadProfile() {
+  const { data, error } =
+    await window.calbuddySupabase.auth.getSession();
 
+  if (error || !data?.session) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  const user = data.session.user;
+
+  document.getElementById("userEmail").textContent =
+    user.email || "No email found.";
+
+  const { data: profile, error: profileError } =
+    await window.calbuddySupabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .single();
+
+  if (profileError) {
+    console.warn("Profile load warning:", profileError.message);
+    return;
+  }
+
+  document.getElementById("displayName").value =
+    profile?.display_name || user.user_metadata?.display_name || "";
+}
+
+async function saveDisplayName() {
+  const statusEl = document.getElementById("profileStatus");
+  statusEl.textContent = "";
+
+  const {
+    data: { session },
+    error: sessionError
+  } = await window.calbuddySupabase.auth.getSession();
+
+  if (sessionError || !session) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  const displayName =
+    document.getElementById("displayName").value.trim();
+
+  if (!displayName) {
+    statusEl.textContent = "Please enter what Ari should call you.";
+    return;
+  }
+
+  const { error } =
+    await window.calbuddySupabase
+      .from("profiles")
+      .upsert(
+        {
+          id: session.user.id,
+          email: session.user.email,
+          display_name: displayName,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: "id"
+        }
+      );
+
+  if (error) {
+    statusEl.textContent = error.message;
+    return;
+  }
+
+  await window.calbuddySupabase.auth.updateUser({
+    data: {
+      display_name: displayName
+    }
+  });
+
+  statusEl.textContent = "Display name updated.";
+}
+
+async function logoutUser() {
+  await window.calbuddySupabase.auth.signOut();
+  sessionStorage.removeItem("ari_boot_intro");
+  window.location.href = "signin.html";
+}
+
+async function resetPassword() {
   const { data } =
     await window.calbuddySupabase.auth.getSession();
 
@@ -141,22 +266,6 @@ async function loadProfile() {
     window.location.href = "signin.html";
     return;
   }
-
-  document.getElementById("userEmail").textContent =
-    data.session.user.email;
-}
-
-async function logoutUser() {
-
-  await window.calbuddySupabase.auth.signOut();
-
-  window.location.href = "signin.html";
-}
-
-async function resetPassword() {
-
-  const { data } =
-    await window.calbuddySupabase.auth.getSession();
 
   const email = data.session.user.email;
 
@@ -169,13 +278,10 @@ async function resetPassword() {
     }
   );
 
-  alert(
-    "Password reset email sent."
-  );
+  alert("Password reset email sent.");
 }
 
 async function changeEmail() {
-
   const newEmail =
     prompt("Enter your new email address:");
 
@@ -191,11 +297,8 @@ async function changeEmail() {
     return;
   }
 
-  alert(
-    "Confirmation email sent to your new address."
-  );
+  alert("Confirmation email sent to your new address.");
 }
-
 </script>
 
 </body>
