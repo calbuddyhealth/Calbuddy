@@ -2287,3 +2287,231 @@ ARI MEMORY VAULT — GOLD CHIP STYLE
   background: rgba(239, 68, 68, .12);
   color: #fecaca;
 }
+
+/* =====================================================
+ARI AUTH LOGIN — PALE CYAN TERMINAL
+===================================================== */
+
+.ari-auth-body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(103, 232, 249, .16), transparent 32%),
+    radial-gradient(circle at 20% 35%, rgba(34, 211, 238, .08), transparent 34%),
+    linear-gradient(180deg, #020617 0%, #03111f 48%, #020617 100%);
+  color: #eaffff;
+  font-family: Orbitron, system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+.ari-auth-page {
+  width: min(430px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 48px 18px;
+  display: grid;
+  place-items: center;
+}
+
+.ari-auth-card {
+  width: 100%;
+  border: 1px solid rgba(165, 243, 252, .28);
+  border-radius: 30px;
+  padding: 26px 20px;
+  background:
+    linear-gradient(180deg, rgba(8, 20, 34, .92), rgba(2, 6, 23, .88));
+  box-shadow:
+    0 0 34px rgba(103, 232, 249, .14),
+    inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.ari-auth-brand {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.ari-auth-kicker {
+  margin: 0 0 8px;
+  font-size: .62rem;
+  letter-spacing: .28em;
+  color: rgba(165, 243, 252, .62);
+  font-weight: 900;
+}
+
+.ari-auth-brand h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: .18em;
+  color: rgba(207, 250, 254, .92);
+  text-shadow:
+    0 0 10px rgba(103, 232, 249, .35),
+    0 0 28px rgba(103, 232, 249, .16);
+}
+
+.ari-auth-subtitle {
+  margin: 10px 0 0;
+  font-size: .75rem;
+  color: rgba(186, 230, 253, .62);
+}
+
+.ari-auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.ari-auth-tab {
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(165, 243, 252, .18);
+  background: rgba(2, 6, 23, .54);
+  color: rgba(207, 250, 254, .58);
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ari-auth-tab.active {
+  color: #ecfeff;
+  border-color: rgba(165, 243, 252, .46);
+  background: rgba(8, 47, 73, .38);
+  box-shadow: 0 0 18px rgba(103, 232, 249, .12);
+}
+
+.ari-auth-field {
+  margin-top: 14px;
+}
+
+.ari-auth-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: .68rem;
+  letter-spacing: .16em;
+  color: rgba(165, 243, 252, .72);
+  text-transform: uppercase;
+  font-weight: 900;
+}
+
+.ari-auth-field input {
+  width: 100%;
+  border: 1px solid rgba(165, 243, 252, .22);
+  border-radius: 18px;
+  padding: 15px;
+  background: rgba(2, 6, 23, .76);
+  color: white;
+  outline: none;
+  font: inherit;
+  font-size: .9rem;
+}
+
+.ari-auth-field input:focus {
+  border-color: rgba(165, 243, 252, .62);
+  box-shadow: 0 0 18px rgba(103, 232, 249, .16);
+}
+
+.ari-auth-main-btn {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(165, 243, 252, .28);
+  background: rgba(8, 20, 34, .88);
+  color: rgba(207, 250, 254, .62);
+  font-family: inherit;
+  font-weight: 950;
+  letter-spacing: .16em;
+  cursor: pointer;
+}
+
+.ari-auth-main-btn.ready {
+  color: white;
+  border-color: rgba(165, 243, 252, .78);
+  background: linear-gradient(135deg, rgba(8, 145, 178, .72), rgba(14, 116, 144, .46));
+  box-shadow:
+    0 0 18px rgba(103, 232, 249, .34),
+    0 0 42px rgba(103, 232, 249, .14);
+}
+
+.ari-auth-main-btn.gold.ready {
+  border-color: rgba(251, 191, 36, .8);
+  background: linear-gradient(135deg, rgba(251, 191, 36, .82), rgba(120, 53, 15, .78));
+  color: #1c1200;
+  box-shadow:
+    0 0 18px rgba(251, 191, 36, .32),
+    0 0 44px rgba(251, 191, 36, .14);
+}
+
+.ari-auth-link-btn {
+  width: 100%;
+  margin-top: 16px;
+  border: none;
+  background: transparent;
+  color: rgba(165, 243, 252, .62);
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ari-auth-message {
+  min-height: 22px;
+  margin: 16px 0 0;
+  color: rgba(207, 250, 254, .74);
+  font-size: .78rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.ari-init-screen {
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.ari-init-terminal {
+  width: 100%;
+  max-width: 390px;
+  border: 1px solid rgba(165, 243, 252, .24);
+  border-radius: 26px;
+  padding: 24px 20px;
+  background: rgba(2, 6, 23, .88);
+  box-shadow: 0 0 42px rgba(103, 232, 249, .14);
+}
+
+.ari-init-line {
+  min-height: 32px;
+  color: rgba(34, 211, 238, .9);
+  font-size: .88rem;
+  letter-spacing: .06em;
+  font-weight: 850;
+}
+
+.ari-init-name {
+  color: rgba(207, 250, 254, .96);
+  text-shadow: 0 0 10px rgba(165, 243, 252, .42);
+}
+
+.ari-memory-line {
+  animation: ariMemoryFlash .8s ease-in-out 1;
+}
+
+.ari-terminal-cursor {
+  display: inline-block;
+  margin-left: 4px;
+  color: rgba(207, 250, 254, .9);
+  animation: ariCursorBlink .7s step-end infinite;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@keyframes ariCursorBlink {
+  50% { opacity: 0; }
+}
+
+@keyframes ariMemoryFlash {
+  0%, 100% { color: rgba(34, 211, 238, .9); }
+  45% { color: rgba(251, 191, 36, .95); text-shadow: 0 0 14px rgba(251, 191, 36, .34); }
+}
