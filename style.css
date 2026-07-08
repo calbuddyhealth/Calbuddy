@@ -3345,3 +3345,48 @@ body.ari-auth-body .ari-terminal-cursor {
   color: #9ffcff !important;
   animation: ariCursorBlink 0.75s steps(1) infinite !important;
 }
+/* =====================================================
+ARI AUTH — HEADER BOOT REVEAL
+===================================================== */
+
+body.ari-auth-body #ariBootLogo {
+  opacity: 0.34 !important;
+  filter: brightness(0.55) !important;
+  transition: none !important;
+}
+
+body.ari-auth-body #ariBootLogo.booted {
+  opacity: 1 !important;
+  filter: brightness(1.35) !important;
+  color: rgba(145, 255, 255, 0.98) !important;
+  text-shadow:
+    0 0 6px rgba(145,255,255,.95),
+    0 0 18px rgba(87,255,231,.68),
+    0 0 42px rgba(87,255,231,.34),
+    0 0 72px rgba(87,255,231,.18) !important;
+  animation: ariLogoPowerOn .8s steps(1) 1 !important;
+}
+
+body.ari-auth-body #ariBootMeaning {
+  min-height: 24px !important;
+  margin: -18px 0 28px !important;
+  font-family: "Courier New", monospace !important;
+  font-size: clamp(.62rem, 2.6vw, .86rem) !important;
+  letter-spacing: .12em !important;
+  color: rgba(145,255,255,.82) !important;
+  text-shadow:
+    0 0 5px rgba(145,255,255,.36),
+    0 0 14px rgba(87,255,231,.16) !important;
+  white-space: nowrap !important;
+}
+
+@keyframes ariLogoPowerOn {
+  0% { opacity: .12; filter: brightness(.25); }
+  10% { opacity: 1; filter: brightness(1.8); }
+  18% { opacity: .18; filter: brightness(.25); }
+  30% { opacity: .92; filter: brightness(1.2); }
+  42% { opacity: .28; filter: brightness(.4); }
+  58% { opacity: 1; filter: brightness(1.9); }
+  72% { opacity: .62; filter: brightness(.9); }
+  100% { opacity: 1; filter: brightness(1.35); }
+}
