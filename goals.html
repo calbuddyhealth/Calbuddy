@@ -3,563 +3,1219 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>My Goals - CalBuddy</title>
+
+<!--
+=====================================================
+ARI REBIRTH
+File: goals.html
+Version: 2.0.0
+Purpose:
+  My Goals page for ARI Rebirth.
+
+Responsibilities:
+  - Own the Health Goals module.
+  - Store health/body inputs used for calorie calculations.
+  - Calculate daily calorie goal, maintenance calories, BMI, and estimated goal timeline.
+  - Show a Health Progress tab inside the Health Goals module.
+  - Save/load existing health goal data from Supabase profiles table and localStorage fallback.
+
+Non-responsibilities:
+  - Does not manage account security.
+  - Does not store social identity.
+  - Does not replace the general Progress page.
+  - Does not manage meal history UI.
+
+Dependencies:
+  - style.css
+  - Supabase CDN
+  - supabase-config.js
+
+Existing profile fields preserved:
+  - age
+  - sex
+  - weight_lbs
+  - height_in
+  - activity_level
+  - goal
+  - target_weight_lbs
+  - weekly_weight_change_goal
+  - daily_calorie_goal
+
+Optional new fields used if present:
+  - diet_preference
+  - diet_other
+  - food_allergies
+  - medical_conditions
+  - calories_burned_today
+=====================================================
+-->
+
+<title>My Goals - ARI Rebirth</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 
 <style>
-.goals-card {
-display: block;
-padding: 32px;
+:root {
+  --ari-bg:#020617;
+  --ari-panel:rgba(8,20,38,.78);
+  --ari-cyan:#22d3ee;
+  --ari-cyan-soft:#67e8f9;
+  --ari-cyan-pale:#cffafe;
+  --ari-text:#f8fafc;
+  --ari-muted:#94a3b8;
+  --ari-border:rgba(103,232,249,.24);
+  --ari-danger:#ef4444;
+  --ari-warning:#f59e0b;
+  --ari-success:#22c55e;
 }
 
-.goal-group {
-margin-bottom: 22px;
+* { box-sizing:border-box; }
+
+body {
+  margin:0;
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34,211,238,.18), transparent 30%),
+    radial-gradient(circle at 16% 25%, rgba(34,211,238,.10), transparent 30%),
+    radial-gradient(circle at 88% 78%, rgba(103,232,249,.08), transparent 32%),
+    linear-gradient(180deg,#020617 0%,#07111f 48%,#020617 100%);
+  color:var(--ari-text);
+  font-family:Orbitron,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  overflow-x:hidden;
 }
 
-.goal-group label {
-display: block;
-font-weight: 700;
-margin-bottom: 8px;
-color: #111827;
+body::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background-image:
+    linear-gradient(rgba(103,232,249,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103,232,249,.045) 1px, transparent 1px);
+  background-size:42px 42px;
+  mask-image:radial-gradient(circle at center, black 0%, transparent 76%);
+  pointer-events:none;
 }
 
-.goal-group input,
-.goal-group select {
-width: 100%;
-box-sizing: border-box;
-padding: 14px;
-font-size: 16px;
-border-radius: 14px;
-border: 1px solid #d8d8d8;
-background: white;
+body::after {
+  content:"";
+  position:fixed;
+  inset:-30%;
+  z-index:0;
+  background:linear-gradient(115deg,transparent 42%,rgba(103,232,249,.10) 50%,transparent 58%);
+  animation:ariGoalsSweep 8s linear infinite;
+  pointer-events:none;
 }
 
-.helper-text {
-margin-top: 8px;
-font-weight: 700;
-color: #374151;
+@keyframes ariGoalsSweep {
+  from { transform:translateX(-12%) translateY(8%); }
+  to { transform:translateX(12%) translateY(-8%); }
 }
 
-.activity-guide {
-display: none;
-font-size: 0.95rem;
-line-height: 1.45;
-margin: 14px 0 22px;
-padding: 16px;
-border-radius: 18px;
-background: #f0fbfb;
+.ari-goals-page {
+  position:relative;
+  z-index:2;
+  width:min(430px,100%);
+  min-height:100dvh;
+  margin:0 auto;
+  padding:14px 16px 150px;
 }
 
-.result-card {
-margin-top: 24px;
-padding: 24px;
-border-radius: 24px;
-background: #f4fff8;
+.ari-goals-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0 18px;
 }
 
-.calorie-number {
-font-size: 2.8rem;
-font-weight: 900;
-color: #18a558;
-margin: 14px 0;
+.ari-back-btn,.ari-mini-btn {
+  border:1px solid var(--ari-border);
+  border-radius:16px;
+  min-height:42px;
+  padding:10px 14px;
+  background:rgba(2,6,23,.72);
+  color:var(--ari-cyan-pale);
+  font-family:inherit;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 0 18px rgba(34,211,238,.08);
 }
 
-.mini-card {
-margin-top: 16px;
-padding: 16px;
-border-radius: 18px;
-background: #f8f5ff;
-font-weight: 700;
+.ari-brand-mark { text-align:center; flex:1; }
+
+.ari-brand-title {
+  margin:0;
+  font-family:Audiowide,Orbitron,sans-serif;
+  font-size:1.24rem;
+  letter-spacing:.10em;
+  color:var(--ari-text);
+  text-shadow:0 0 18px rgba(34,211,238,.28);
 }
 
-.warning-card {
-display: none;
-margin-top: 16px;
-padding: 16px;
-border-radius: 18px;
-background: #fff7ed;
-color: #9a3412;
-font-weight: 800;
+.ari-brand-subtitle {
+  margin:3px 0 0;
+  font-size:.62rem;
+  letter-spacing:.22em;
+  color:var(--ari-cyan-soft);
+  font-weight:800;
 }
 
-.save-message {
-margin-top: 14px;
-font-weight: 800;
-color: #18a558;
-text-align: center;
+.ari-page-hero,.ari-panel {
+  border:1px solid var(--ari-border);
+  background:linear-gradient(180deg,rgba(15,23,42,.92),rgba(2,6,23,.72));
+  box-shadow:0 0 34px rgba(34,211,238,.12), inset 0 0 30px rgba(103,232,249,.04);
+  overflow:hidden;
+}
+
+.ari-page-hero {
+  margin:8px 0 18px;
+  padding:24px 20px;
+  border-radius:28px;
+  position:relative;
+}
+
+.ari-page-hero::before {
+  content:"";
+  position:absolute;
+  top:0;
+  left:12%;
+  right:12%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--ari-cyan-soft),transparent);
+  opacity:.8;
+}
+
+.ari-page-kicker {
+  margin:0 0 8px;
+  color:var(--ari-cyan-soft);
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+}
+
+.ari-page-title {
+  margin:0;
+  font-size:2rem;
+  line-height:1;
+  letter-spacing:.05em;
+  font-family:Audiowide,Orbitron,sans-serif;
+}
+
+.ari-page-description {
+  margin:12px 0 0;
+  color:var(--ari-muted);
+  line-height:1.55;
+  font-size:.92rem;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-tabs {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin:0 0 16px;
+}
+
+.ari-tab-btn {
+  border:1px solid rgba(103,232,249,.28);
+  border-radius:18px;
+  min-height:50px;
+  background:rgba(2,6,23,.72);
+  color:var(--ari-cyan-pale);
+  font-family:inherit;
+  font-weight:950;
+  cursor:pointer;
+  box-shadow:0 0 18px rgba(34,211,238,.06);
+}
+
+.ari-tab-btn.active {
+  color:white;
+  border-color:rgba(103,232,249,.70);
+  background:linear-gradient(135deg,rgba(8,145,178,.86),rgba(34,211,238,.42));
+  box-shadow:0 0 24px rgba(34,211,238,.20);
+}
+
+.ari-tab-panel { display:none; }
+.ari-tab-panel.active { display:block; }
+
+.ari-panel {
+  margin-top:16px;
+  border-radius:26px;
+}
+
+.ari-panel-header { padding:18px 18px 10px; }
+
+.ari-section-title {
+  margin:0;
+  font-size:.78rem;
+  letter-spacing:.20em;
+  text-transform:uppercase;
+  color:var(--ari-cyan-soft);
+  font-weight:900;
+}
+
+.ari-section-subtitle {
+  margin:8px 0 0;
+  color:var(--ari-muted);
+  font-size:.84rem;
+  line-height:1.45;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-form { padding:0 18px 18px; }
+.ari-field { margin-top:16px; }
+
+.ari-label {
+  display:block;
+  color:var(--ari-cyan-soft);
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+
+.ari-input,.ari-select,.ari-textarea {
+  width:100%;
+  border:1px solid rgba(103,232,249,.22);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(2,6,23,.84),rgba(8,47,73,.30));
+  color:var(--ari-text);
+  font:inherit;
+  font-size:.92rem;
+  font-weight:800;
+  padding:14px 15px;
+  outline:none;
+}
+
+.ari-select option {
+  color:#020617;
+  background:white;
+}
+
+.ari-textarea {
+  min-height:96px;
+  resize:vertical;
+  line-height:1.45;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-input:focus,.ari-select:focus,.ari-textarea:focus {
+  border-color:rgba(103,232,249,.62);
+  box-shadow:0 0 22px rgba(34,211,238,.15);
+}
+
+.ari-input::placeholder,.ari-textarea::placeholder { color:rgba(203,213,225,.45); }
+
+.ari-hint {
+  margin:8px 0 0;
+  color:var(--ari-muted);
+  font-size:.76rem;
+  line-height:1.35;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-meter-card {
+  margin-top:16px;
+  border-radius:28px;
+  border:1px solid rgba(103,232,249,.34);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34,211,238,.18), transparent 38%),
+    linear-gradient(180deg,rgba(15,23,42,.94),rgba(2,6,23,.78));
+  padding:22px 18px;
+  text-align:center;
+  box-shadow:0 0 30px rgba(34,211,238,.14);
+}
+
+.ari-meter-label {
+  margin:0;
+  font-size:.72rem;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  color:var(--ari-cyan-soft);
+  font-weight:950;
+}
+
+.ari-meter-number {
+  margin:8px 0 4px;
+  font-family:Audiowide,Orbitron,sans-serif;
+  font-size:2.7rem;
+  line-height:1;
+  color:white;
+  text-shadow:0 0 24px rgba(34,211,238,.34);
+}
+
+.ari-meter-subtext {
+  margin:0;
+  color:var(--ari-muted);
+  font-size:.86rem;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:750;
+}
+
+.ari-result-grid {
+  display:grid;
+  gap:10px;
+  padding:0 18px 18px;
+}
+
+.ari-stat-card {
+  border:1px solid rgba(103,232,249,.18);
+  border-radius:20px;
+  background:rgba(2,6,23,.64);
+  padding:14px;
+}
+
+.ari-stat-label {
+  margin:0 0 6px;
+  color:var(--ari-cyan-soft);
+  font-size:.66rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:900;
+}
+
+.ari-stat-value {
+  margin:0;
+  color:white;
+  font-size:.95rem;
+  line-height:1.35;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:800;
+}
+
+.ari-warning {
+  display:none;
+  margin:14px 18px 0;
+  border:1px solid rgba(245,158,11,.35);
+  border-radius:18px;
+  background:rgba(245,158,11,.12);
+  color:#fde68a;
+  padding:12px;
+  font-size:.82rem;
+  line-height:1.35;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:800;
+}
+
+.ari-primary-action {
+  width:100%;
+  margin-top:18px;
+  border:1px solid rgba(103,232,249,.44);
+  border-radius:20px;
+  min-height:56px;
+  background:linear-gradient(135deg,rgba(8,145,178,.95),rgba(34,211,238,.88));
+  color:white;
+  font-family:inherit;
+  font-weight:950;
+  letter-spacing:.08em;
+  cursor:pointer;
+  box-shadow:0 0 24px rgba(34,211,238,.26), inset 0 0 20px rgba(255,255,255,.10);
+}
+
+.ari-secondary-action {
+  width:100%;
+  margin-top:10px;
+  border:1px solid rgba(103,232,249,.24);
+  border-radius:18px;
+  min-height:48px;
+  background:rgba(2,6,23,.72);
+  color:var(--ari-cyan-pale);
+  font-family:inherit;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.ari-status {
+  min-height:22px;
+  margin:14px 2px 0;
+  color:var(--ari-cyan-pale);
+  font-size:.78rem;
+  font-weight:850;
+  line-height:1.35;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-status.error { color:#fecaca; }
+.ari-status.success { color:#bbf7d0; }
+
+.ari-footer-note {
+  margin:18px 4px 0;
+  color:var(--ari-muted);
+  font-size:.74rem;
+  line-height:1.45;
+  text-align:center;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+@media (min-width:768px) {
+  .ari-goals-page { width:min(520px,100%); padding-top:24px; }
+  .ari-page-title { font-size:2.4rem; }
+  .ari-page-hero,.ari-panel,.ari-meter-card { border-radius:30px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  body::after { animation:none; }
 }
 </style>
 </head>
 
 <body>
-<main class="app">
-<header class="top-bar">
-<button class="menu-btn" onclick="window.location.href='index.html'">≡</button>
+<main class="ari-goals-page" id="ariGoalsPage">
 
-<h1 class="logo">
-<span class="cal">Cal</span><span class="buddy">Buddy</span>
-</h1>
-
-<button class="signin-btn" onclick="window.location.href='index.html'">← Back</button>
+<header class="ari-goals-header">
+  <button class="ari-back-btn" type="button" onclick="goHome()">←</button>
+  <div class="ari-brand-mark" aria-label="ARI Rebirth">
+    <h1 class="ari-brand-title">ARI</h1>
+    <p class="ari-brand-subtitle">REBIRTH</p>
+  </div>
+  <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
 </header>
 
-<section class="hero-card goals-card">
-<h2>🎯 My Goals</h2>
-
-<div class="goal-group">
-<label for="name">Name</label>
-<input id="name" type="text" placeholder="Enter your name" />
-</div>
-
-<div class="goal-group">
-<label for="age">Age</label>
-<input id="age" type="number" step="1" value="34" />
-</div>
-
-<div class="goal-group">
-<label for="sex">Sex</label>
-<select id="sex">
-<option value="male" selected>Male</option>
-<option value="female">Female</option>
-</select>
-</div>
-
-<div class="goal-group">
-<label for="weight">Current Weight (lbs)</label>
-<input id="weight" type="number" step="0.1" value="185.2" />
-</div>
-
-<div class="goal-group">
-<label for="height">Height (inches)</label>
-<input id="height" type="number" step="0.1" value="69.8" />
-<p id="heightConversion" class="helper-text">Equivalent: —</p>
-</div>
-
-<div class="goal-group">
-<label for="activity">Activity Level</label>
-<select id="activity">
-<option value="1.2">🛋 Sedentary</option>
-<option value="1.375">🚶 Lightly Active</option>
-<option value="1.55" selected>🏃 Moderately Active</option>
-<option value="1.725">🔥 Very Active</option>
-<option value="1.9">⚡ Athlete / Extremely Active</option>
-</select>
-</div>
-
-<button class="goals-pill" type="button" onclick="toggleActivityGuide()" style="width:100%; margin-bottom:18px;">
-ⓘ What do these activity levels mean?
-</button>
-
-<div id="activityGuide" class="activity-guide">
-<p><strong>🛋 Sedentary:</strong> Little or no exercise. Mostly sitting.</p>
-<p><strong>🚶 Lightly Active:</strong> Walking often or light exercise 1–3 days/week.</p>
-<p><strong>🏃 Moderately Active:</strong> Exercise 3–5 days/week or active job.</p>
-<p><strong>🔥 Very Active:</strong> Hard exercise 6–7 days/week or physical work.</p>
-<p><strong>⚡ Athlete:</strong> Intense daily training or multiple workouts/day.</p>
-</div>
-
-<div class="goal-group">
-<label for="goalMode">Goal</label>
-<select id="goalMode">
-<option value="lose" selected>Lose Weight</option>
-<option value="maintain">Maintain Weight</option>
-<option value="gain">Gain Weight</option>
-</select>
-</div>
-
-<div class="goal-group">
-<label for="targetWeight">Target Weight (lbs)</label>
-<input id="targetWeight" type="number" step="0.1" value="175.0" />
-</div>
-
-<div class="goal-group" id="weeklyChangeGroup">
-<label for="weeklyChange">Weekly Weight Change Goal</label>
-<select id="weeklyChange">
-<option value="0.25">0.25 lb/week</option>
-<option value="0.5">0.5 lb/week</option>
-<option value="1" selected>1 lb/week</option>
-<option value="1.5">1.5 lb/week</option>
-<option value="2">2 lb/week</option>
-</select>
-<p id="goalModeHelper" class="helper-text">For weight loss, this creates a calorie deficit.</p>
-</div>
-
-<div class="result-card">
-<h3>Daily Calorie Goal</h3>
-<p id="calorieGoal" class="calorie-number">— kcal</p>
-<p id="goalExplanation">Auto-calculated from your profile and goal.</p>
-
-<div id="warningBox" class="warning-card">
-⚠️ This goal may be too aggressive. Consider a slower weekly goal.
-</div>
-
-<div id="maintenanceBox" class="mini-card">Maintenance calories: —</div>
-<div id="bmiBox" class="mini-card">BMI: —</div>
-<div id="timeToGoal" class="mini-card">Estimated time to goal: —</div>
-<div id="goalDate" class="mini-card">Estimated goal date: —</div>
-</div>
-
-<button id="saveGoalsBtn" class="signin-btn" style="width:100%; margin-top:22px;">
-Save Goals
-</button>
-
-<p id="saveMessage" class="save-message"></p>
+<section class="ari-page-hero">
+  <p class="ari-page-kicker">Goals Module</p>
+  <h2 class="ari-page-title">My Goals</h2>
+  <p class="ari-page-description">
+    Health is the first goal domain. Later this same system can expand into mental health, finances, learning, and more.
+  </p>
 </section>
+
+<div class="ari-tabs">
+  <button id="healthGoalsTab" class="ari-tab-btn active" type="button" onclick="showHealthTab('goals')">
+    Health Goals
+  </button>
+  <button id="healthProgressTab" class="ari-tab-btn" type="button" onclick="showHealthTab('progress')">
+    Health Progress
+  </button>
+</div>
+
+<section id="healthGoalsPanel" class="ari-tab-panel active">
+
+  <div class="ari-meter-card">
+    <p class="ari-meter-label">Calories Left</p>
+    <h3 id="caloriesLeftText" class="ari-meter-number">—</h3>
+    <p class="ari-meter-subtext">
+      <span id="caloriesConsumedText">0</span> / <span id="dailyGoalText">—</span> kcal today
+    </p>
+  </div>
+
+  <section class="ari-panel">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">Current Body</h3>
+      <p class="ari-section-subtitle">These health inputs affect daily calorie calculations.</p>
+    </div>
+
+    <div class="ari-form">
+      <div class="ari-field">
+        <label class="ari-label" for="age">Age</label>
+        <input id="age" class="ari-input" type="number" step="1" value="34" />
+        <p class="ari-hint">Later this can be calculated from birthday in My Identity.</p>
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="sex">Sex</label>
+        <select id="sex" class="ari-select">
+          <option value="male" selected>Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="weight">Current Weight (lbs)</label>
+        <input id="weight" class="ari-input" type="number" step="0.1" value="185.2" />
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="height">Height (inches)</label>
+        <input id="height" class="ari-input" type="number" step="0.1" value="69.8" />
+        <p id="heightConversion" class="ari-hint">Equivalent: —</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="ari-panel">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">Goal Settings</h3>
+      <p class="ari-section-subtitle">Tell Ari what you are trying to do with your health.</p>
+    </div>
+
+    <div class="ari-form">
+      <div class="ari-field">
+        <label class="ari-label" for="activity">Activity Level</label>
+        <select id="activity" class="ari-select">
+          <option value="1.2">Sedentary</option>
+          <option value="1.375">Lightly Active</option>
+          <option value="1.55" selected>Moderately Active</option>
+          <option value="1.725">Very Active</option>
+          <option value="1.9">Athlete / Extremely Active</option>
+        </select>
+      </div>
+
+      <button class="ari-secondary-action" type="button" onclick="toggleActivityGuide()">
+        What do these activity levels mean?
+      </button>
+
+      <div id="activityGuide" class="ari-hint" style="display:none; margin-top:14px;">
+        Sedentary: little/no exercise. Lightly active: light activity 1–3 days/week. Moderately active: exercise 3–5 days/week. Very active: hard activity most days. Athlete: intense daily training.
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="goalMode">Goal</label>
+        <select id="goalMode" class="ari-select">
+          <option value="lose" selected>Lose Weight</option>
+          <option value="maintain">Maintain Weight</option>
+          <option value="gain">Gain Weight</option>
+        </select>
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="targetWeight">Target Weight (lbs)</label>
+        <input id="targetWeight" class="ari-input" type="number" step="0.1" value="175.0" />
+      </div>
+
+      <div class="ari-field" id="weeklyChangeGroup">
+        <label class="ari-label" for="weeklyChange">Weekly Weight Change Goal</label>
+        <select id="weeklyChange" class="ari-select">
+          <option value="0.25">0.25 lb/week</option>
+          <option value="0.5">0.5 lb/week</option>
+          <option value="1" selected>1 lb/week</option>
+          <option value="1.5">1.5 lb/week</option>
+          <option value="2">2 lb/week</option>
+        </select>
+        <p id="goalModeHelper" class="ari-hint">For weight loss, this creates a calorie deficit.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="ari-panel">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">Nutrition Context</h3>
+      <p class="ari-section-subtitle">These are not identity fields. They help Ari reason about your health goals.</p>
+    </div>
+
+    <div class="ari-form">
+      <div class="ari-field">
+        <label class="ari-label" for="dietPreference">Diet Preference</label>
+        <select id="dietPreference" class="ari-select">
+          <option value="none" selected>None</option>
+          <option value="mediterranean">Mediterranean</option>
+          <option value="vegetarian">Vegetarian</option>
+          <option value="vegan">Vegan</option>
+          <option value="pescatarian">Pescatarian</option>
+          <option value="keto">Keto</option>
+          <option value="low_carb">Low Carb</option>
+          <option value="paleo">Paleo</option>
+          <option value="gluten_free">Gluten Free</option>
+          <option value="dairy_free">Dairy Free</option>
+          <option value="halal">Halal</option>
+          <option value="kosher">Kosher</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="ari-field" id="dietOtherGroup" style="display:none;">
+        <label class="ari-label" for="dietOther">Tell Ari about your diet</label>
+        <textarea id="dietOther" class="ari-textarea" placeholder="Example: I avoid red meat but eat fish."></textarea>
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="foodAllergies">Food Allergies</label>
+        <textarea id="foodAllergies" class="ari-textarea" placeholder="Example: peanuts, shellfish, dairy, or none."></textarea>
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label" for="medicalConditions">Medical Conditions Ari should consider</label>
+        <textarea id="medicalConditions" class="ari-textarea" placeholder="Optional. Example: diabetes, hypertension, pregnancy, kidney disease."></textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="ari-panel">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">Daily Actions</h3>
+      <p class="ari-section-subtitle">Quick health actions. Later these can become beautiful modals and history logs.</p>
+    </div>
+
+    <div class="ari-form">
+      <button class="ari-secondary-action" type="button" onclick="logWeightQuick()">Log Weight</button>
+      <button class="ari-secondary-action" type="button" onclick="logCaloriesBurnedQuick()">Log Calories Burned</button>
+    </div>
+  </section>
+
+  <section class="ari-panel">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">Calculated Health Goal</h3>
+      <p id="goalExplanation" class="ari-section-subtitle">Auto-calculated from your health data and goal.</p>
+    </div>
+
+    <div id="warningBox" class="ari-warning">
+      This goal may be too aggressive. Consider a slower weekly goal.
+    </div>
+
+    <div class="ari-result-grid">
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Daily Calorie Goal</p>
+        <p id="calorieGoal" class="ari-stat-value">— kcal</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Maintenance Calories</p>
+        <p id="maintenanceBox" class="ari-stat-value">—</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">BMI</p>
+        <p id="bmiBox" class="ari-stat-value">—</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Estimated Time</p>
+        <p id="timeToGoal" class="ari-stat-value">—</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Estimated Goal Date</p>
+        <p id="goalDate" class="ari-stat-value">—</p>
+      </div>
+    </div>
+
+    <div class="ari-form">
+      <button id="saveGoalsBtn" class="ari-primary-action" type="button">SAVE HEALTH GOALS</button>
+      <div id="saveMessage" class="ari-status" role="status" aria-live="polite"></div>
+    </div>
+  </section>
+
+</section>
+
+<section id="healthProgressPanel" class="ari-tab-panel">
+  <section class="ari-panel">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">My Health Progress</h3>
+      <p class="ari-section-subtitle">Progress belongs inside each goal domain. This tab summarizes health progress without asking you to log weight here.</p>
+    </div>
+
+    <div class="ari-result-grid">
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Current Weight</p>
+        <p id="progressWeight" class="ari-stat-value">—</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Target Weight</p>
+        <p id="progressTargetWeight" class="ari-stat-value">—</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">BMI</p>
+        <p id="progressBmi" class="ari-stat-value">—</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Calories</p>
+        <p id="progressCalories" class="ari-stat-value">—</p>
+      </div>
+      <div class="ari-stat-card">
+        <p class="ari-stat-label">Timeline</p>
+        <p id="progressTimeline" class="ari-stat-value">—</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="ari-footer-note">
+    Weight logging now belongs in Health Goals or My Identity. This progress tab is for trends and summaries.
+  </p>
+</section>
+
+<p class="ari-footer-note">
+  My Goals is a domain framework. Today it contains Health Goals. Tomorrow it can contain Mental Health, Financial, Career, and Learning goals.
+</p>
+
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js?v=8"></script>
 
 <script>
+const GOALS_VERSION = "2.0.0";
+
 const goalInputs = [
-"name",
-"age",
-"sex",
-"weight",
-"height",
-"activity",
-"goalMode",
-"targetWeight",
-"weeklyChange"
+  "age",
+  "sex",
+  "weight",
+  "height",
+  "activity",
+  "goalMode",
+  "targetWeight",
+  "weeklyChange",
+  "dietPreference",
+  "dietOther",
+  "foodAllergies",
+  "medicalConditions"
 ];
 
-goalInputs.forEach((id) => {
-const element = document.getElementById(id);
-if (!element) return;
-element.addEventListener("input", calculateGoals);
-element.addEventListener("change", calculateGoals);
+document.addEventListener("DOMContentLoaded", async () => {
+  goalInputs.forEach((id) => {
+    const element = document.getElementById(id);
+    if (!element) return;
+    element.addEventListener("input", calculateGoals);
+    element.addEventListener("change", calculateGoals);
+  });
+
+  document.getElementById("dietPreference")?.addEventListener("change", updateDietOtherUI);
+  document.getElementById("saveGoalsBtn")?.addEventListener("click", saveGoals);
+
+  await loadSavedGoals();
+  calculateGoals();
 });
 
+function goHome() {
+  window.location.replace("index.html");
+}
+
+function showHealthTab(tab) {
+  const isGoals = tab === "goals";
+
+  document.getElementById("healthGoalsTab")?.classList.toggle("active", isGoals);
+  document.getElementById("healthProgressTab")?.classList.toggle("active", !isGoals);
+  document.getElementById("healthGoalsPanel")?.classList.toggle("active", isGoals);
+  document.getElementById("healthProgressPanel")?.classList.toggle("active", !isGoals);
+
+  calculateGoals();
+}
+
+function setStatus(message = "", type = "") {
+  const statusEl = document.getElementById("saveMessage");
+  if (!statusEl) return;
+
+  statusEl.textContent = message;
+  statusEl.classList.remove("error", "success");
+
+  if (type) {
+    statusEl.classList.add(type);
+  }
+}
+
 function toggleActivityGuide() {
-const guide = document.getElementById("activityGuide");
-guide.style.display = guide.style.display === "block" ? "none" : "block";
+  const guide = document.getElementById("activityGuide");
+  if (!guide) return;
+  guide.style.display = guide.style.display === "block" ? "none" : "block";
+}
+
+function updateDietOtherUI() {
+  const preference = document.getElementById("dietPreference")?.value;
+  const group = document.getElementById("dietOtherGroup");
+  if (!group) return;
+  group.style.display = preference === "other" ? "block" : "none";
 }
 
 function updateHeightConversion(heightInches) {
-const conversion = document.getElementById("heightConversion");
+  const conversion = document.getElementById("heightConversion");
 
-if (!heightInches || heightInches <= 0) {
-conversion.textContent = "Equivalent: —";
-return;
-}
+  if (!conversion) return;
 
-const feet = Math.floor(heightInches / 12);
-const inches = (heightInches - feet * 12).toFixed(1);
-conversion.textContent = `Equivalent: ${feet} ft ${inches} in`;
+  if (!heightInches || heightInches <= 0) {
+    conversion.textContent = "Equivalent: —";
+    return;
+  }
+
+  const feet = Math.floor(heightInches / 12);
+  const inches = (heightInches - feet * 12).toFixed(1);
+  conversion.textContent = `Equivalent: ${feet} ft ${inches} in`;
 }
 
 function getBmiCategory(bmi) {
-if (bmi < 18.5) return "Below healthy range";
-if (bmi < 25) return "Healthy range";
-if (bmi < 30) return "Working toward healthy range";
-return "Above healthy range";
+  if (bmi < 18.5) return "Below healthy range";
+  if (bmi < 25) return "Healthy range";
+  if (bmi < 30) return "Working toward healthy range";
+  return "Above healthy range";
 }
 
 function updateGoalModeUI() {
-const goalMode = document.getElementById("goalMode").value;
-const weeklyGroup = document.getElementById("weeklyChangeGroup");
-const helper = document.getElementById("goalModeHelper");
+  const goalMode = document.getElementById("goalMode")?.value;
+  const weeklyGroup = document.getElementById("weeklyChangeGroup");
+  const helper = document.getElementById("goalModeHelper");
 
-if (goalMode === "maintain") {
-weeklyGroup.style.display = "none";
-} else {
-weeklyGroup.style.display = "block";
-}
+  if (!goalMode || !weeklyGroup || !helper) return;
 
-if (goalMode === "lose") {
-helper.textContent = "For weight loss, this creates a calorie deficit.";
-} else if (goalMode === "gain") {
-helper.textContent = "For weight gain, this creates a calorie surplus.";
-}
+  weeklyGroup.style.display = goalMode === "maintain" ? "none" : "block";
+
+  if (goalMode === "lose") {
+    helper.textContent = "For weight loss, this creates a calorie deficit.";
+  } else if (goalMode === "gain") {
+    helper.textContent = "For weight gain, this creates a calorie surplus.";
+  }
 }
 
 function calculateGoals() {
-updateGoalModeUI();
+  updateGoalModeUI();
+  updateDietOtherUI();
 
-const age = parseFloat(document.getElementById("age").value);
-const sex = document.getElementById("sex").value;
-const weightLbs = parseFloat(document.getElementById("weight").value);
-const heightInches = parseFloat(document.getElementById("height").value);
-const activity = parseFloat(document.getElementById("activity").value);
-const goalMode = document.getElementById("goalMode").value;
-const targetWeight = parseFloat(document.getElementById("targetWeight").value);
-const weeklyChange = parseFloat(document.getElementById("weeklyChange").value);
+  const age = parseFloat(document.getElementById("age")?.value);
+  const sex = document.getElementById("sex")?.value;
+  const weightLbs = parseFloat(document.getElementById("weight")?.value);
+  const heightInches = parseFloat(document.getElementById("height")?.value);
+  const activity = parseFloat(document.getElementById("activity")?.value);
+  const goalMode = document.getElementById("goalMode")?.value;
+  const targetWeight = parseFloat(document.getElementById("targetWeight")?.value);
+  const weeklyChange = parseFloat(document.getElementById("weeklyChange")?.value);
 
-updateHeightConversion(heightInches);
+  updateHeightConversion(heightInches);
 
-if (!age || !weightLbs || !heightInches || !activity) {
-document.getElementById("calorieGoal").textContent = "— kcal";
-document.getElementById("maintenanceBox").textContent = "Maintenance calories: —";
-document.getElementById("bmiBox").textContent = "BMI: —";
-document.getElementById("timeToGoal").textContent = "Estimated time to goal: —";
-document.getElementById("goalDate").textContent = "Estimated goal date: —";
-return null;
-}
+  if (!age || !weightLbs || !heightInches || !activity) {
+    setText("calorieGoal", "— kcal");
+    setText("maintenanceBox", "—");
+    setText("bmiBox", "—");
+    setText("timeToGoal", "—");
+    setText("goalDate", "—");
+    setText("caloriesLeftText", "—");
+    return null;
+  }
 
-const weightKg = weightLbs / 2.20462;
-const heightCm = heightInches * 2.54;
+  const weightKg = weightLbs / 2.20462;
+  const heightCm = heightInches * 2.54;
 
-let bmr;
+  let bmr;
 
-if (sex === "male") {
-bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
-} else {
-bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
-}
+  if (sex === "male") {
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+  } else {
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+  }
 
-const maintenance = Math.round(bmr * activity);
-let calorieGoal = maintenance;
+  const maintenance = Math.round(bmr * activity);
+  let calorieGoal = maintenance;
 
-if (goalMode === "lose") {
-calorieGoal = Math.round(maintenance - weeklyChange * 500);
-}
+  if (goalMode === "lose") {
+    calorieGoal = Math.round(maintenance - weeklyChange * 500);
+  }
 
-if (goalMode === "gain") {
-calorieGoal = Math.round(maintenance + weeklyChange * 500);
-}
+  if (goalMode === "gain") {
+    calorieGoal = Math.round(maintenance + weeklyChange * 500);
+  }
 
-document.getElementById("calorieGoal").textContent = `${calorieGoal} kcal`;
-document.getElementById("maintenanceBox").textContent =
-`Maintenance calories: ${maintenance} kcal`;
+  setText("calorieGoal", `${calorieGoal} kcal`);
+  setText("maintenanceBox", `${maintenance} kcal`);
 
-const explanation = document.getElementById("goalExplanation");
+  const explanation = document.getElementById("goalExplanation");
 
-if (goalMode === "lose") {
-explanation.textContent = "This target helps create a calorie deficit for gradual weight loss.";
-} else if (goalMode === "gain") {
-explanation.textContent = "This target helps create a calorie surplus for gradual weight gain.";
-} else {
-explanation.textContent = "This target is estimated to help maintain your current weight.";
-}
+  if (explanation) {
+    if (goalMode === "lose") {
+      explanation.textContent = "This target helps create a calorie deficit for gradual weight loss.";
+    } else if (goalMode === "gain") {
+      explanation.textContent = "This target helps create a calorie surplus for gradual weight gain.";
+    } else {
+      explanation.textContent = "This target is estimated to help maintain your current weight.";
+    }
+  }
 
-const warningBox = document.getElementById("warningBox");
+  const warningBox = document.getElementById("warningBox");
 
-if (
-goalMode === "lose" &&
-((sex === "male" && calorieGoal < 1500) || (sex === "female" && calorieGoal < 1200))
-) {
-warningBox.style.display = "block";
-} else {
-warningBox.style.display = "none";
-}
+  if (warningBox) {
+    if (
+      goalMode === "lose" &&
+      ((sex === "male" && calorieGoal < 1500) || (sex === "female" && calorieGoal < 1200))
+    ) {
+      warningBox.style.display = "block";
+    } else {
+      warningBox.style.display = "none";
+    }
+  }
 
-const bmi = (weightLbs / (heightInches * heightInches)) * 703;
+  const bmi = (weightLbs / (heightInches * heightInches)) * 703;
+  const bmiText = `${bmi.toFixed(1)} — ${getBmiCategory(bmi)}`;
 
-document.getElementById("bmiBox").textContent =
-`BMI: ${bmi.toFixed(1)} — ${getBmiCategory(bmi)}`;
+  setText("bmiBox", bmiText);
+  setText("progressBmi", bmiText);
 
-updateTimeAndDate(weightLbs, targetWeight, weeklyChange, goalMode);
+  const timeline = updateTimeAndDate(weightLbs, targetWeight, weeklyChange, goalMode);
+  updateCaloriesMeter(calorieGoal);
+  updateProgressSummary({
+    weightLbs,
+    targetWeight,
+    calorieGoal,
+    bmiText,
+    timeline
+  });
 
-return {
-name: document.getElementById("name").value.trim(),
-age,
-sex,
-weightLbs,
-heightInches,
-activity,
-goalMode,
-targetWeight,
-weeklyChange,
-calorieGoal,
-maintenance
-};
+  return {
+    age,
+    sex,
+    weightLbs,
+    heightInches,
+    activity,
+    goalMode,
+    targetWeight,
+    weeklyChange,
+    calorieGoal,
+    maintenance,
+    dietPreference: getValue("dietPreference"),
+    dietOther: getValue("dietOther"),
+    foodAllergies: getValue("foodAllergies"),
+    medicalConditions: getValue("medicalConditions")
+  };
 }
 
 function updateTimeAndDate(currentWeight, targetWeight, weeklyChange, goalMode) {
-const timeBox = document.getElementById("timeToGoal");
-const dateBox = document.getElementById("goalDate");
+  if (goalMode === "maintain") {
+    setText("timeToGoal", "Maintaining current weight");
+    setText("goalDate", "Not applicable");
+    return "Maintaining current weight";
+  }
 
-if (goalMode === "maintain") {
-timeBox.textContent = "Estimated time to goal: maintaining current weight";
-dateBox.textContent = "Estimated goal date: not applicable";
-return;
+  if (!currentWeight || !targetWeight || !weeklyChange) {
+    setText("timeToGoal", "—");
+    setText("goalDate", "—");
+    return "—";
+  }
+
+  let poundsToGoal;
+
+  if (goalMode === "lose") {
+    poundsToGoal = currentWeight - targetWeight;
+  } else {
+    poundsToGoal = targetWeight - currentWeight;
+  }
+
+  if (poundsToGoal <= 0) {
+    setText("timeToGoal", "Already at or past target");
+    setText("goalDate", "—");
+    return "Already at or past target";
+  }
+
+  const weeks = poundsToGoal / weeklyChange;
+  const months = weeks / 4.345;
+
+  const estimatedGoalDate = new Date();
+  estimatedGoalDate.setDate(estimatedGoalDate.getDate() + Math.round(weeks * 7));
+
+  const timeText = `${weeks.toFixed(1)} weeks (~${months.toFixed(1)} months)`;
+  const dateText = estimatedGoalDate.toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+
+  setText("timeToGoal", timeText);
+  setText("goalDate", dateText);
+
+  return timeText;
 }
 
-if (!currentWeight || !targetWeight || !weeklyChange) {
-timeBox.textContent = "Estimated time to goal: —";
-dateBox.textContent = "Estimated goal date: —";
-return;
+function updateCaloriesMeter(goal) {
+  const consumed = Number(localStorage.getItem("calbuddyCaloriesConsumed") || 0);
+  const burned = Number(localStorage.getItem("calbuddyCaloriesBurned") || 0);
+  const netConsumed = Math.max(consumed - burned, 0);
+  const caloriesLeft = Math.max(goal - netConsumed, 0);
+
+  setText("caloriesLeftText", caloriesLeft.toLocaleString());
+  setText("caloriesConsumedText", netConsumed.toLocaleString());
+  setText("dailyGoalText", goal.toLocaleString());
 }
 
-let poundsToGoal;
+function updateProgressSummary(summary = {}) {
+  const { weightLbs, targetWeight, calorieGoal, bmiText, timeline } = summary;
 
-if (goalMode === "lose") {
-poundsToGoal = currentWeight - targetWeight;
-} else {
-poundsToGoal = targetWeight - currentWeight;
+  setText("progressWeight", weightLbs ? `${weightLbs} lb` : "—");
+  setText("progressTargetWeight", targetWeight ? `${targetWeight} lb` : "—");
+  setText("progressBmi", bmiText || "—");
+  setText("progressCalories", calorieGoal ? `${calorieGoal} kcal/day` : "—");
+  setText("progressTimeline", timeline || "—");
 }
 
-if (poundsToGoal <= 0) {
-timeBox.textContent = "Estimated time to goal: already at or past target";
-dateBox.textContent = "Estimated goal date: —";
-return;
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
 }
 
-const weeks = poundsToGoal / weeklyChange;
-const months = weeks / 4.345;
-
-const estimatedGoalDate = new Date();
-estimatedGoalDate.setDate(estimatedGoalDate.getDate() + Math.round(weeks * 7));
-
-timeBox.textContent =
-`Estimated time to goal: ${weeks.toFixed(1)} weeks (~${months.toFixed(1)} months)`;
-
-dateBox.textContent =
-`Estimated goal date: ${estimatedGoalDate.toLocaleDateString(undefined, {
-month: "long",
-day: "numeric",
-year: "numeric"
-})}`;
+function getValue(id) {
+  const element = document.getElementById(id);
+  return element ? String(element.value || "").trim() : "";
 }
 
 async function getCurrentUser() {
-if (!window.calbuddySupabase) return null;
+  if (!window.calbuddySupabase) return null;
 
-const { data, error } = await window.calbuddySupabase.auth.getSession();
+  const { data, error } = await window.calbuddySupabase.auth.getSession();
 
-if (error || !data.session) {
-return null;
-}
+  if (error || !data.session) {
+    return null;
+  }
 
-return data.session.user;
+  return data.session.user;
 }
 
 async function saveGoals() {
-const calculated = calculateGoals();
+  const calculated = calculateGoals();
 
-if (!calculated || !calculated.calorieGoal) {
-document.getElementById("saveMessage").textContent =
-"Please complete your goal information first.";
-return;
+  if (!calculated || !calculated.calorieGoal) {
+    setStatus("Please complete your health goal information first.", "error");
+    return;
+  }
+
+  const goals = {
+    age: calculated.age,
+    sex: calculated.sex,
+    weight: calculated.weightLbs,
+    height: calculated.heightInches,
+    activity: calculated.activity,
+    goalMode: calculated.goalMode,
+    targetWeight: calculated.targetWeight,
+    weeklyChange: calculated.weeklyChange,
+    calorieGoal: calculated.calorieGoal,
+    dietPreference: calculated.dietPreference,
+    dietOther: calculated.dietOther,
+    foodAllergies: calculated.foodAllergies,
+    medicalConditions: calculated.medicalConditions
+  };
+
+  localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
+  localStorage.setItem("calbuddyDailyCalorieGoal", calculated.calorieGoal);
+
+  const user = await getCurrentUser();
+
+  if (user) {
+    const profilePayload = {
+      id: user.id,
+      email: user.email || null,
+      age: Number(goals.age),
+      sex: goals.sex,
+      weight_lbs: Number(goals.weight),
+      height_in: Number(goals.height),
+      activity_level: String(goals.activity),
+      goal: goals.goalMode,
+      target_weight_lbs: Number(goals.targetWeight),
+      weekly_weight_change_goal: Number(goals.weeklyChange),
+      daily_calorie_goal: Number(calculated.calorieGoal),
+      updated_at: new Date().toISOString()
+    };
+
+    await trySaveOptionalHealthFields(profilePayload, goals);
+
+    const { error } = await window.calbuddySupabase
+      .from("profiles")
+      .upsert(profilePayload, { onConflict: "id" });
+
+    if (error) {
+      setStatus("Saved on this device, but cloud profile did not save: " + error.message, "error");
+      return;
+    }
+
+    setStatus(`Health goals saved. Daily target: ${calculated.calorieGoal} kcal`, "success");
+  } else {
+    setStatus("Health goals saved on this device. Sign in to save them to your profile.", "success");
+  }
 }
 
-const goals = {
-name: calculated.name,
-age: calculated.age,
-sex: calculated.sex,
-weight: calculated.weightLbs,
-height: calculated.heightInches,
-activity: calculated.activity,
-goalMode: calculated.goalMode,
-targetWeight: calculated.targetWeight,
-weeklyChange: calculated.weeklyChange,
-calorieGoal: calculated.calorieGoal
-};
-
-localStorage.setItem("calbuddyGoals", JSON.stringify(goals));
-localStorage.setItem("calbuddyDailyCalorieGoal", calculated.calorieGoal);
-
-const user = await getCurrentUser();
-
-if (user) {
-const { error } = await window.calbuddySupabase
-.from("profiles")
-.upsert(
-{
-id: user.id,
-email: user.email || null,
-name: goals.name || null,
-age: Number(goals.age),
-sex: goals.sex,
-weight_lbs: Number(goals.weight),
-height_in: Number(goals.height),
-activity_level: String(goals.activity),
-goal: goals.goalMode,
-target_weight_lbs: Number(goals.targetWeight),
-weekly_weight_change_goal: Number(goals.weeklyChange),
-daily_calorie_goal: Number(calculated.calorieGoal),
-updated_at: new Date().toISOString()
-},
-{
-onConflict: "id"
-}
-);
-
-if (error) {
-document.getElementById("saveMessage").textContent =
-"Saved on this device, but cloud profile did not save: " + error.message;
-return;
-}
-
-document.getElementById("saveMessage").textContent =
-`✅ Goals saved to your profile. Daily target: ${calculated.calorieGoal} kcal`;
-} else {
-document.getElementById("saveMessage").textContent =
-"✅ Goals saved on this device. Sign in to save them to your profile.";
-}
+async function trySaveOptionalHealthFields(profilePayload, goals) {
+  profilePayload.diet_preference = goals.dietPreference || null;
+  profilePayload.diet_other = goals.dietOther || null;
+  profilePayload.food_allergies = goals.foodAllergies || null;
+  profilePayload.medical_conditions = goals.medicalConditions || null;
 }
 
 async function loadSavedGoals() {
-const user = await getCurrentUser();
+  const user = await getCurrentUser();
 
-if (user) {
-const { data, error } = await window.calbuddySupabase
-.from("profiles")
-.select("*")
-.eq("id", user.id)
-.single();
+  if (user) {
+    const { data, error } = await window.calbuddySupabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
 
-if (!error && data) {
-if (data.name) document.getElementById("name").value = data.name;
-if (data.age) document.getElementById("age").value = data.age;
-if (data.sex) document.getElementById("sex").value = data.sex;
-if (data.weight_lbs) document.getElementById("weight").value = data.weight_lbs;
-if (data.height_in) document.getElementById("height").value = data.height_in;
-if (data.activity_level) document.getElementById("activity").value = data.activity_level;
-if (data.goal) document.getElementById("goalMode").value = data.goal;
-if (data.target_weight_lbs) document.getElementById("targetWeight").value = data.target_weight_lbs;
-if (data.weekly_weight_change_goal) document.getElementById("weeklyChange").value = data.weekly_weight_change_goal;
+    if (!error && data) {
+      applyGoals({
+        age: data.age,
+        sex: data.sex,
+        weight: data.weight_lbs,
+        height: data.height_in,
+        activity: data.activity_level,
+        goalMode: data.goal,
+        targetWeight: data.target_weight_lbs,
+        weeklyChange: data.weekly_weight_change_goal,
+        calorieGoal: data.daily_calorie_goal,
+        dietPreference: data.diet_preference,
+        dietOther: data.diet_other,
+        foodAllergies: data.food_allergies,
+        medicalConditions: data.medical_conditions
+      });
 
-if (data.daily_calorie_goal) {
-localStorage.setItem("calbuddyDailyCalorieGoal", data.daily_calorie_goal);
+      if (data.daily_calorie_goal) {
+        localStorage.setItem("calbuddyDailyCalorieGoal", data.daily_calorie_goal);
+      }
+
+      calculateGoals();
+      return;
+    }
+  }
+
+  const savedGoals = localStorage.getItem("calbuddyGoals");
+
+  if (!savedGoals) {
+    calculateGoals();
+    return;
+  }
+
+  try {
+    applyGoals(JSON.parse(savedGoals));
+  } catch (error) {
+    console.warn("Could not parse saved goals:", error.message);
+  }
+
+  calculateGoals();
 }
 
-const localGoals = {
-name: data.name,
-age: data.age,
-sex: data.sex,
-weight: data.weight_lbs,
-height: data.height_in,
-activity: data.activity_level,
-goalMode: data.goal,
-targetWeight: data.target_weight_lbs,
-weeklyChange: data.weekly_weight_change_goal,
-calorieGoal: data.daily_calorie_goal
-};
+function applyGoals(goals = {}) {
+  setInputValue("age", goals.age || "34");
+  setInputValue("sex", goals.sex || "male");
+  setInputValue("weight", goals.weight || "185.2");
+  setInputValue("height", goals.height || "69.8");
+  setInputValue("activity", goals.activity || "1.55");
+  setInputValue("goalMode", goals.goalMode || "lose");
+  setInputValue("targetWeight", goals.targetWeight || "175.0");
+  setInputValue("weeklyChange", goals.weeklyChange || "1");
+  setInputValue("dietPreference", goals.dietPreference || "none");
+  setInputValue("dietOther", goals.dietOther || "");
+  setInputValue("foodAllergies", goals.foodAllergies || "");
+  setInputValue("medicalConditions", goals.medicalConditions || "");
 
-localStorage.setItem("calbuddyGoals", JSON.stringify(localGoals));
-calculateGoals();
-return;
-}
-}
+  updateDietOtherUI();
 
-const savedGoals = localStorage.getItem("calbuddyGoals");
-
-if (!savedGoals) {
-calculateGoals();
-return;
+  if (goals.calorieGoal) {
+    localStorage.setItem("calbuddyDailyCalorieGoal", goals.calorieGoal);
+  }
 }
 
-const goals = JSON.parse(savedGoals);
-
-document.getElementById("name").value = goals.name || "";
-document.getElementById("age").value = goals.age || "34";
-document.getElementById("sex").value = goals.sex || "male";
-document.getElementById("weight").value = goals.weight || "185.2";
-document.getElementById("height").value = goals.height || "69.8";
-document.getElementById("activity").value = goals.activity || "1.55";
-document.getElementById("goalMode").value = goals.goalMode || "lose";
-document.getElementById("targetWeight").value = goals.targetWeight || "175.0";
-document.getElementById("weeklyChange").value = goals.weeklyChange || "1";
-
-calculateGoals();
+function setInputValue(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.value = value;
 }
 
-document.getElementById("saveGoalsBtn").addEventListener("click", saveGoals);
+function logWeightQuick() {
+  const current = document.getElementById("weight")?.value || "";
+  const next = prompt("Enter today's weight:", current);
 
-loadSavedGoals().then(() => {
-calculateGoals();
-});
+  if (!next) return;
+
+  setInputValue("weight", next);
+  calculateGoals();
+  setStatus("Weight updated. Press Save Health Goals to save it.", "");
+}
+
+function logCaloriesBurnedQuick() {
+  const current = localStorage.getItem("calbuddyCaloriesBurned") || "0";
+  const burned = prompt("Calories burned today:", current);
+
+  if (burned === null) return;
+
+  localStorage.setItem("calbuddyCaloriesBurned", Number(burned) || 0);
+  calculateGoals();
+  setStatus("Calories burned updated.", "success");
+}
 </script>
+
 </body>
 </html>
