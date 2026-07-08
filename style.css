@@ -3194,7 +3194,8 @@ body.ari-auth-body .ari-auth-brand h1 {
 }
 
 body.ari-auth-body .ari-auth-brand h1::before {
-  content: ">_ ";
+  content: none !important;
+  display: none !important;
 }
 
 body.ari-auth-body .ari-auth-tab,
