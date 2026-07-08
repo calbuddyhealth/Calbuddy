@@ -1600,7 +1600,7 @@ function clearSections() {
   document.getElementById("searchSection").classList.remove("show");
   document.getElementById("manualSection").classList.remove("show");
 
-  document.querySelector(".ari-panel")?.classList.remove("show");
+document.querySelector(".entry-panel")?.classList.remove("show");
 
   document.getElementById("results").innerHTML = "";
   document.getElementById("successMessage").textContent = "";
@@ -1621,7 +1621,7 @@ function selectMode(mode) {
 
   clearSections();
 
-document.querySelector(".ari-panel")?.classList.add("show");
+document.querySelector(".entry-panel")?.classList.add("show");
 
   if (mode === "meal") {
     document.getElementById("mealOptions").classList.add("show");
@@ -1640,6 +1640,9 @@ document.querySelector(".ari-panel")?.classList.add("show");
 
 function selectMealType(type) {
   selectedMealType = type;
+
+  document.querySelector(".entry-panel")?.classList.add("show");
+
   document.querySelectorAll(".ari-meal-type button").forEach(button => {
     button.classList.toggle("active", button.textContent === type);
   });
@@ -2208,7 +2211,8 @@ function setupNutritionToggle() {
   const intake = document.querySelector(".intake-list");
   if (!intake) return;
 
-  intake.addEventListener("click", () => {
+  intake.addEventListener("click", event => {
+    if (event.target.closest("button")) return;
     intake.classList.toggle("open");
   });
 }
