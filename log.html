@@ -816,6 +816,80 @@ body::after {
 @media (prefers-reduced-motion:reduce) {
   body::after,.ari-console::before,.ari-command-shell::before,.ari-status-dot,.ari-salad-mark { animation:none; }
 }
+
+/* =====================================================
+LOG PATCH FINAL V2 — SCROLL + SOFT GOV SPACE CONSOLE
+===================================================== */
+
+html,
+body {
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body {
+  position: static !important;
+  display: block !important;
+  touch-action: auto !important;
+}
+
+.ari-nutrition-page {
+  height: auto !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
+  padding-bottom: 220px !important;
+}
+
+.ari-brand-title {
+  font-family: "Orbitron", monospace !important;
+  color: rgba(210,255,170,.82) !important;
+  font-size: 2rem !important;
+  letter-spacing: .26em !important;
+  text-shadow:
+    0 0 2px rgba(185,255,122,.32),
+    0 0 7px rgba(124,255,59,.18) !important;
+  filter: brightness(.62) saturate(.72) !important;
+}
+
+.ari-brand-subtitle,
+.ari-section-title,
+.ari-mode-title,
+.ari-console-status,
+.ari-ready-pill,
+.intake-list h3 {
+  font-family: "Orbitron", monospace !important;
+  letter-spacing: .18em !important;
+  font-weight: 800 !important;
+}
+
+.ari-footer-note,
+.ari-section-subtitle {
+  display: none !important;
+}
+
+.ari-console-send {
+  border-radius: 16px !important;
+  transform: none !important;
+  background:
+    linear-gradient(135deg, rgba(5, 35, 20, .96), rgba(61, 145, 49, .72)) !important;
+  box-shadow:
+    0 0 10px rgba(124,255,59,.18),
+    inset 0 1px 0 rgba(255,255,255,.12) !important;
+}
+
+.ari-console-send::before {
+  content: "▸" !important;
+  font-family: "Orbitron", monospace !important;
+  transform: none !important;
+  font-size: 2rem !important;
+  color: rgba(236,255,232,.88) !important;
+  filter: none !important;
+}
 </style>
 </head>
 
@@ -834,21 +908,14 @@ body::after {
   <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
 </header>
 
-<section class="ari-page-hero">
-  <p class="ari-page-kicker">Console</p>
-  <h2 class="ari-page-title">Nutrition Console</h2>
-</section>
-
-<section class="ari-console" aria-labelledby="nutritionConsoleTitle">
+<section class="ari-console">
   <div class="ari-console-header">
     <div class="ari-console-status">
       <span class="ari-status-dot"></span>
       <span id="ariNutritionStatus">ARI ONLINE</span>
     </div>
-    <div class="ari-ready-pill">READY</div>
+   <div id="ariReadyPill" class="ari-ready-pill">Listening</div>
   </div>
-
-  <h3 id="nutritionConsoleTitle" class="ari-console-title">Describe what you ate or drank...</h3>
 
   <div class="ari-command-shell">
     <div class="ari-console-input-row">
@@ -890,7 +957,7 @@ body::after {
 
 <section class="ari-panel">
   <div class="ari-panel-header">
-    <h3 class="ari-section-title">Entry Panel</h3>
+    <h3 class="ari-section-title">Manual Entry</h3>
     <p class="ari-section-subtitle">Meal and drink searches, or manual calorie entry, appear here only when needed.</p>
   </div>
 
@@ -999,10 +1066,6 @@ body::after {
   </div>
 </section>
 
-<p class="ari-footer-note">
-  Nutrition Console is designed to feel like consulting Ari, not filling out a spreadsheet.
-</p>
-
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1043,7 +1106,7 @@ function rotateNutritionPrompt() {
   promptIndex += 1;
 }
 
-setInterval(rotateNutritionPrompt, 2200);
+setInterval(rotateNutritionPrompt, 5500);
 
 function safeNumber(value, fallback = 0) {
   const number = Number(value);
@@ -1150,9 +1213,12 @@ function updateWindowNote(windowInfo) {
   note.textContent = `Reset window: ${formatDisplayTime(windowInfo.start)} – ${formatDisplayTime(windowInfo.end)}`;
 }
 
-function setStatusText(text) {
+function setStatusText(text, pillText = "") {
   const status = document.getElementById("ariNutritionStatus");
+  const pill = document.getElementById("ariReadyPill");
+
   if (status) status.textContent = text;
+  if (pill && pillText) pill.textContent = pillText;
 }
 
 function estimateFromText(text) {
@@ -1228,7 +1294,7 @@ function analyzeWithAri() {
 
   if (!text) return;
 
-  setStatusText("ANALYZING");
+  setStatusText("ANALYZING", "Estimating");
 
   setTimeout(() => {
     estimatedMeal = estimateFromText(text);
@@ -1244,7 +1310,7 @@ function analyzeWithAri() {
       <button class="ari-primary-action" type="button" onclick="logAriEstimate()">Log Meal</button>
       <button class="ari-secondary-action" type="button" onclick="editAriEstimate()">Edit Manually</button>
     `;
-    setStatusText("READY");
+    setStatusText("READY", "Review");
   }, 900);
 }
 
@@ -1255,7 +1321,7 @@ async function logAriEstimate() {
   document.getElementById("ariAiResult").classList.remove("show");
   document.getElementById("ariAiResult").innerHTML = "";
   estimatedMeal = null;
-  setStatusText("ARI ONLINE");
+  setStatusText("ARI ONLINE", "Listening");
 }
 
 function editAriEstimate() {
