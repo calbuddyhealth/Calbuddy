@@ -8,7 +8,7 @@
 =====================================================
 ARI REBIRTH
 File: goals.html
-Version: 2.1.0
+Version: 2.1.1
 Purpose:
   My Goals page for ARI Rebirth.
 
@@ -393,8 +393,11 @@ body::after {
 }
 
 .ari-calorie-card .ari-meter-number {
-  color: #dffcff;
+  color: rgba(207,250,254,.88);
   animation: ariCalorieNumberFlicker var(--calorie-flicker-speed) linear infinite;
+  text-shadow:
+    0 0 5px rgba(207,250,254,.42),
+    0 0 14px rgba(34,211,238,.30) !important;
 }
 
 .ari-calorie-card.calorie-low .ari-meter-number {
@@ -413,11 +416,11 @@ body::after {
 .ari-calorie-card.calorie-over .ari-meter-label,
 .ari-calorie-card.calorie-over .ari-meter-number,
 .ari-calorie-card.calorie-over .ari-log-intake-label {
-  color: #fecaca !important;
+  color: rgba(254,202,202,.90) !important;
   text-shadow:
-    0 0 8px rgba(254,202,202,.85),
-    0 0 22px rgba(239,68,68,.72),
-    0 0 42px rgba(239,68,68,.34) !important;
+    0 0 5px rgba(254,202,202,.48),
+    0 0 14px rgba(239,68,68,.42),
+    0 0 26px rgba(239,68,68,.20) !important;
 }
 
 .ari-calorie-card.calorie-over .ari-meter-number {
@@ -484,42 +487,41 @@ body::after {
 
 @keyframes ariCalorieNumberFlicker {
   0%, 100% {
-    opacity: .88;
-    filter: brightness(1);
+    opacity: .86;
+    filter: brightness(.96);
     text-shadow:
-      0 0 8px rgba(207,250,254,.75),
-      0 0 22px rgba(34,211,238,.56),
-      0 0 44px rgba(34,211,238,.24);
+      0 0 4px rgba(207,250,254,.34),
+      0 0 12px rgba(34,211,238,.24);
   }
 
   8% {
-    opacity: 1;
-    filter: brightness(1.35);
+    opacity: .94;
+    filter: brightness(1.06);
   }
 
   10% {
-    opacity: .72;
-    filter: brightness(.82);
+    opacity: .80;
+    filter: brightness(.92);
   }
 
   13% {
-    opacity: 1;
-    filter: brightness(1.18);
+    opacity: .92;
+    filter: brightness(1.02);
   }
 
   50% {
-    opacity: .96;
-    filter: brightness(1.08);
+    opacity: .90;
+    filter: brightness(1);
   }
 
   78% {
     opacity: .82;
-    filter: brightness(.95);
+    filter: brightness(.94);
   }
 
   82% {
-    opacity: 1;
-    filter: brightness(1.32);
+    opacity: .95;
+    filter: brightness(1.08);
   }
 }
 
@@ -672,7 +674,7 @@ body::after {
 <main class="ari-goals-page" id="ariGoalsPage">
 
 <header class="ari-goals-header">
-  <button class="ari-back-btn" type="button" onclick="goHome()">←</button>
+  <button class="ari-back-btn" type="button" onclick="goBack()">←</button>
   <div class="ari-brand-mark" aria-label="ARI Rebirth">
     <h1 class="ari-brand-title">ARI</h1>
     <p class="ari-brand-subtitle">REBIRTH</p>
@@ -716,6 +718,18 @@ body::after {
 
     <span class="ari-log-intake-label">LOG INTAKE</span>
   </a>
+
+  <section class="ari-panel">
+    <div class="ari-panel-header">
+      <h3 class="ari-section-title">Daily Actions</h3>
+      <p class="ari-section-subtitle">Quick health actions. Later these can become beautiful modals and history logs.</p>
+    </div>
+
+    <div class="ari-form">
+      <button class="ari-secondary-action" type="button" onclick="logWeightQuick()">Log Weight</button>
+      <button class="ari-secondary-action" type="button" onclick="logCaloriesBurnedQuick()">Log Calories Burned</button>
+    </div>
+  </section>
 
   <section class="ari-panel">
     <div class="ari-panel-header">
@@ -850,18 +864,6 @@ body::after {
 
   <section class="ari-panel">
     <div class="ari-panel-header">
-      <h3 class="ari-section-title">Daily Actions</h3>
-      <p class="ari-section-subtitle">Quick health actions. Later these can become beautiful modals and history logs.</p>
-    </div>
-
-    <div class="ari-form">
-      <button class="ari-secondary-action" type="button" onclick="logWeightQuick()">Log Weight</button>
-      <button class="ari-secondary-action" type="button" onclick="logCaloriesBurnedQuick()">Log Calories Burned</button>
-    </div>
-  </section>
-
-  <section class="ari-panel">
-    <div class="ari-panel-header">
       <h3 class="ari-section-title">Calculated Health Goal</h3>
       <p id="goalExplanation" class="ari-section-subtitle">Auto-calculated from your health data and goal.</p>
     </div>
@@ -978,6 +980,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadSavedGoals();
   calculateGoals();
 });
+
+function goBack() {
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+
+  window.location.replace("index.html");
+}
 
 function goHome() {
   window.location.replace("index.html");
