@@ -2089,10 +2089,12 @@ body:has(.ari-account-page) .ari-account-page {
 ARI NON-HOME PAGES — FORCE SCROLL FIX
 ===================================================== */
 
-html:has(.ari-identity-page),
 html:has(.ari-account-page),
+html:has(.ari-identity-page),
+html:has(.ari-goals-page),
+body:has(.ari-account-page),
 body:has(.ari-identity-page),
-body:has(.ari-account-page) {
+body:has(.ari-goals-page) {
   height: auto !important;
   min-height: 100% !important;
   max-height: none !important;
@@ -2100,16 +2102,18 @@ body:has(.ari-account-page) {
   overflow-y: auto !important;
 }
 
+body:has(.ari-account-page),
 body:has(.ari-identity-page),
-body:has(.ari-account-page) {
+body:has(.ari-goals-page) {
   position: static !important;
   inset: auto !important;
   display: block !important;
   touch-action: auto !important;
 }
 
+body:has(.ari-account-page) main,
 body:has(.ari-identity-page) main,
-body:has(.ari-account-page) main {
+body:has(.ari-goals-page) main {
   height: auto !important;
   min-height: 100dvh !important;
   max-height: none !important;
