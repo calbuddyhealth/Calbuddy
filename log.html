@@ -1083,6 +1083,71 @@ body {
   width: 44px !important;
   min-width: 44px !important;
 }
+/* =====================================================
+LOG STABILITY PATCH — FREEZE + EXTRA SCROLL FIX
+===================================================== */
+
+html,
+body {
+  height: auto !important;
+  min-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body {
+  position: relative !important;
+  touch-action: pan-y !important;
+}
+
+body::after,
+.ari-console::before,
+.ari-command-shell::before,
+.ari-status-dot,
+.ari-salad-mark {
+  animation: none !important;
+}
+
+.ari-nutrition-page {
+  min-height: 100dvh !important;
+  padding-bottom: 32px !important;
+  overflow: visible !important;
+}
+
+.ari-panel.entry-panel {
+  display: none !important;
+}
+
+.ari-panel.entry-panel.show {
+  display: block !important;
+}
+
+.intake-list {
+  max-height: 86px !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+}
+
+.intake-list.open {
+  max-height: none !important;
+}
+
+.intake-list .nutrition-total-grid,
+.intake-list #todayIntakeItems,
+.intake-list .window-note {
+  display: none !important;
+}
+
+.intake-list.open .nutrition-total-grid,
+.intake-list.open #todayIntakeItems,
+.intake-list.open .window-note {
+  display: grid !important;
+}
+
+.intake-list.open #todayIntakeItems {
+  display: block !important;
+}
+
 
 </style>
 </head>
@@ -1149,7 +1214,7 @@ body {
   </div>
 </section>
 
-<section class="ari-panel">
+<section class="ari-panel entry-panel">
   <div class="ari-panel-header">
     <h3 class="ari-section-title">Manual Entry</h3>
     <p class="ari-section-subtitle">Meal and drink searches, or manual calorie entry, appear here only when needed.</p>
@@ -1534,6 +1599,9 @@ function clearSections() {
   document.getElementById("mealOptions").classList.remove("show");
   document.getElementById("searchSection").classList.remove("show");
   document.getElementById("manualSection").classList.remove("show");
+
+  document.querySelector(".ari-panel")?.classList.remove("show");
+
   document.getElementById("results").innerHTML = "";
   document.getElementById("successMessage").textContent = "";
 }
@@ -1552,6 +1620,8 @@ function selectMode(mode) {
   if (mode === "calories") document.getElementById("calorieTab").classList.add("active");
 
   clearSections();
+
+document.querySelector(".ari-panel")?.classList.add("show");
 
   if (mode === "meal") {
     document.getElementById("mealOptions").classList.add("show");
@@ -2134,9 +2204,18 @@ async function handlePendingCalBuddyMeal() {
   }
 }
 
+function setupNutritionToggle() {
+  const intake = document.querySelector(".intake-list");
+  if (!intake) return;
+
+  intake.addEventListener("click", () => {
+    intake.classList.toggle("open");
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   rotateNutritionPrompt();
-
+setupNutritionToggle();
   const params = new URLSearchParams(window.location.search);
   const mode = params.get("mode");
 
