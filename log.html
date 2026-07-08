@@ -890,6 +890,104 @@ body {
   color: rgba(236,255,232,.88) !important;
   filter: none !important;
 }
+/* =====================================================
+LOG FINAL PATCH V3 — SCROLL + SOFT GREEN + SPACE TERMINAL
+===================================================== */
+
+html,
+body {
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body {
+  position: static !important;
+  display: block !important;
+  touch-action: pan-y !important;
+}
+
+body::before,
+body::after {
+  position: absolute !important;
+}
+
+.ari-nutrition-page {
+  height: auto !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
+  padding-bottom: 240px !important;
+}
+
+.ari-brand-title {
+  font-family: "Orbitron", monospace !important;
+  font-size: 1.95rem !important;
+  letter-spacing: .24em !important;
+  color: rgba(214, 255, 184, .72) !important;
+  text-shadow:
+    0 0 2px rgba(185,255,122,.24),
+    0 0 6px rgba(124,255,59,.14) !important;
+  filter: none !important;
+}
+
+.ari-salad-mark {
+  filter:
+    drop-shadow(0 0 3px rgba(124,255,59,.28)) !important;
+  opacity: .78 !important;
+}
+
+.ari-brand-subtitle,
+.ari-section-title,
+.ari-mode-title,
+.ari-console-status,
+.ari-ready-pill,
+.intake-list h3,
+.ari-label {
+  font-family: "Orbitron", monospace !important;
+  letter-spacing: .18em !important;
+  font-weight: 800 !important;
+}
+
+#ariNutritionInput {
+  font-family: "Orbitron", monospace !important;
+  font-size: .92rem !important;
+  letter-spacing: .04em !important;
+  font-weight: 600 !important;
+}
+
+#ariNutritionInput::placeholder {
+  color: rgba(207, 255, 178, .54) !important;
+  text-shadow: none !important;
+  font-family: "Orbitron", monospace !important;
+}
+
+.ari-console-send {
+  border-radius: 16px !important;
+  transform: none !important;
+  background:
+    linear-gradient(135deg, rgba(5,32,18,.96), rgba(45,112,39,.78)) !important;
+  box-shadow:
+    0 0 8px rgba(124,255,59,.16),
+    inset 0 1px 0 rgba(255,255,255,.10) !important;
+}
+
+.ari-console-send::before {
+  content: "▸" !important;
+  font-family: "Orbitron", monospace !important;
+  font-size: 2rem !important;
+  color: rgba(232,255,225,.82) !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+.ari-footer-note,
+.ari-section-subtitle {
+  display: none !important;
+}
 </style>
 </head>
 
