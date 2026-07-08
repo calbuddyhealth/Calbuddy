@@ -1,16 +1,15 @@
 // =====================================================
 // ARI REBIRTH
 // File: conversation-history.js
-// Version: 1.0.0
+// Version: 2.0.0
 // Purpose:
-//   Stores and displays Ari conversation history.
+//   Displays Ari's recent Memory Vault.
 //
 // Features:
 //   • Save conversation
-//   • Load conversation history
-//   • Delete individual conversations
-//   • Clear all conversations
-//   • Safe to load on every page
+//   • Show Today & Yesterday only
+//   • Delete conversation
+//   • Clear history
 // =====================================================
 
 const historyList = document.getElementById("conversationHistoryList");
@@ -31,9 +30,57 @@ function saveAriConversation(title, preview, messages = []) {
 
   localStorage.setItem(
     "ariConversationHistory",
-    JSON.stringify(history)
+    JSON.stringify(history.slice(-100))
   );
+}
 
+function isToday(date) {
+  const today = new Date();
+
+  return (
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate()
+  );
+}
+
+function isYesterday(date) {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  return (
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate()
+  );
+}
+
+function createConversationCard(item) {
+
+  const card = document.createElement("div");
+  card.className = "ari-history-card";
+
+  card.innerHTML = `
+    <strong>${item.title}</strong>
+
+    <p>${item.preview}</p>
+
+    <small>
+      ${new Date(item.created_at).toLocaleString()}
+    </small>
+
+    <div class="intake-actions">
+
+      <button
+        class="delete-intake-btn"
+        onclick="deleteConversation(${item.id})">
+        Delete
+      </button>
+
+    </div>
+  `;
+
+  return card;
 }
 
 function loadConversationHistory() {
@@ -42,54 +89,66 @@ function loadConversationHistory() {
 
   const history = JSON.parse(
     localStorage.getItem("ariConversationHistory") || "[]"
-  );
-
-  if (!history.length) {
-    historyList.innerHTML = `
-      <p class="window-note">
-        No saved conversations yet.
-      </p>
-    `;
-    return;
-  }
+  ).reverse();
 
   historyList.innerHTML = "";
 
-  history
-    .slice()
-    .reverse()
-    .forEach(item => {
+  const todayItems = [];
+  const yesterdayItems = [];
 
-      const card = document.createElement("div");
-      card.className = "ari-history-card";
+  history.forEach(item => {
 
-      card.innerHTML = `
-        <strong>${item.title}</strong>
+    if (!item.created_at) return;
 
-        <p>${item.preview}</p>
+    const date = new Date(item.created_at);
 
-        <small>
-          ${
-            item.created_at
-              ? new Date(item.created_at).toLocaleString()
-              : ""
-          }
-        </small>
+    if (isToday(date)) {
+      todayItems.push(item);
+    }
+    else if (isYesterday(date)) {
+      yesterdayItems.push(item);
+    }
 
-        <div class="intake-actions">
+  });
 
-          <button
-            class="delete-intake-btn"
-            onclick="deleteConversation(${item.id})">
-            Delete
-          </button>
+  if (!todayItems.length && !yesterdayItems.length) {
 
-        </div>
-      `;
+    historyList.innerHTML = `
+      <p class="window-note">
+        No recent conversations yet.
+      </p>
+    `;
 
-      historyList.appendChild(card);
+    return;
+  }
 
+  if (todayItems.length) {
+
+    historyList.innerHTML += `
+      <h3 class="ari-history-section-title">
+        Today
+      </h3>
+    `;
+
+    todayItems.forEach(item => {
+      historyList.appendChild(createConversationCard(item));
     });
+
+  }
+
+  if (yesterdayItems.length) {
+
+    historyList.innerHTML += `
+      <h3 class="ari-history-section-title">
+        Yesterday
+      </h3>
+    `;
+
+    yesterdayItems.forEach(item => {
+      historyList.appendChild(createConversationCard(item));
+    });
+
+  }
 
 }
 
@@ -128,9 +187,9 @@ function getConversationHistory() {
 
 function getConversationById(id) {
 
-  const history = getConversationHistory();
-
-  return history.find(item => item.id === id);
+  return getConversationHistory().find(
+    item => item.id === id
+  );
 
 }
 
