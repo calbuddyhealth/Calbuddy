@@ -3257,3 +3257,20 @@ body.ari-auth-body .ari-auth-link-btn {
 body.ari-auth-body .ari-auth-link-btn::before {
   content: "> ";
 }
+
+/* =====================================================
+ARI AUTH — REMOVE FAKE BLINKING CURSORS
+===================================================== */
+
+body.ari-auth-body .ari-auth-tab.active::after,
+body.ari-auth-body .ari-auth-main-btn::before,
+body.ari-auth-body .ari-auth-field::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+}
+
+/* Optional: also hide the real typing caret */
+body.ari-auth-body input {
+  caret-color: transparent !important;
+}
