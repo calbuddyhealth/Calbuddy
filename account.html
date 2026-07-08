@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<!--
+=====================================================
+ARI REBIRTH
+File: account.html
+Version: 1.0.0
+Purpose:
+  My Account page for ARI Rebirth.
+
+Responsibilities:
+  - Show signed-in user's email.
+  - Allow email change.
+  - Allow password reset email.
+  - Sign out.
+  - Reserve future areas for privacy, notifications, data export, and account deletion.
+
+Non-responsibilities:
+  - Does not store personal identity information.
+  - Does not store health goals.
+  - Does not calculate calories.
+  - Does not teach Ari who the user is.
+
+Dependencies:
+  - style.css
+  - Supabase CDN
+  - supabase-config.js
+=====================================================
+-->
+
+<title>My Account - ARI Rebirth</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css" />
+
+<style>
+/* =====================================================
+   ARI REBIRTH — ACCOUNT PAGE V1.0.0
+   These local styles are temporary.
+   Later we will move shared styles into style.css.
+===================================================== */
+
+:root {
+  --ari-bg: #020617;
+  --ari-panel: rgba(8, 20, 38, 0.78);
+  --ari-panel-strong: rgba(15, 23, 42, 0.94);
+  --ari-cyan: #22d3ee;
+  --ari-cyan-soft: #67e8f9;
+  --ari-cyan-pale: #cffafe;
+  --ari-text: #f8fafc;
+  --ari-muted: #94a3b8;
+  --ari-border: rgba(103, 232, 249, 0.24);
+  --ari-danger: #ef4444;
+  --ari-warning: #f97316;
+  --ari-success: #22c55e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.18), transparent 30%),
+    radial-gradient(circle at 15% 25%, rgba(34, 211, 238, 0.10), transparent 28%),
+    radial-gradient(circle at 85% 75%, rgba(103, 232, 249, 0.08), transparent 30%),
+    linear-gradient(180deg, #020617 0%, #07111f 48%, #020617 100%);
+  color: var(--ari-text);
+  font-family: Orbitron, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(103, 232, 249, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.045) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black 0%, transparent 76%);
+  pointer-events: none;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: -30%;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    rgba(103, 232, 249, 0.10) 50%,
+    transparent 58%
+  );
+  animation: ariAccountSweep 8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes ariAccountSweep {
+  from {
+    transform: translateX(-12%) translateY(8%);
+  }
+  to {
+    transform: translateX(12%) translateY(-8%);
+  }
+}
+
+.ari-account-page {
+  position: relative;
+  z-index: 2;
+  width: min(430px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 14px 16px 32px;
+}
+
+.ari-account-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 18px;
+}
+
+.ari-back-btn,
+.ari-mini-btn {
+  border: 1px solid var(--ari-border);
+  border-radius: 16px;
+  min-height: 42px;
+  padding: 10px 14px;
+  background: rgba(2, 6, 23, 0.72);
+  color: var(--ari-cyan-pale);
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.08);
+}
+
+.ari-back-btn:active,
+.ari-mini-btn:active,
+.ari-action-card:active,
+.ari-primary-action:active {
+  transform: scale(0.985);
+}
+
+.ari-brand-mark {
+  text-align: center;
+  flex: 1;
+}
+
+.ari-brand-title {
+  margin: 0;
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: 1.24rem;
+  letter-spacing: 0.10em;
+  color: var(--ari-text);
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.28);
+}
+
+.ari-brand-subtitle {
+  margin: 3px 0 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  color: var(--ari-cyan-soft);
+  font-weight: 800;
+}
+
+.ari-page-hero {
+  margin: 8px 0 18px;
+  padding: 24px 20px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.72));
+  border: 1px solid var(--ari-border);
+  box-shadow:
+    0 0 34px rgba(34, 211, 238, 0.12),
+    inset 0 0 30px rgba(103, 232, 249, 0.04);
+  overflow: hidden;
+  position: relative;
+}
+
+.ari-page-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ari-cyan-soft), transparent);
+  opacity: 0.8;
+}
+
+.ari-page-kicker {
+  margin: 0 0 8px;
+  color: var(--ari-cyan-soft);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+.ari-page-title {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  font-family: Audiowide, Orbitron, sans-serif;
+}
+
+.ari-page-description {
+  margin: 12px 0 0;
+  color: var(--ari-muted);
+  line-height: 1.55;
+  font-size: 0.92rem;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 650;
+}
+
+.ari-panel {
+  margin-top: 16px;
+  border-radius: 26px;
+  border: 1px solid var(--ari-border);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.70));
+  box-shadow:
+    0 0 26px rgba(34, 211, 238, 0.10),
+    inset 0 0 24px rgba(103, 232, 249, 0.035);
+  overflow: hidden;
+}
+
+.ari-panel-header {
+  padding: 18px 18px 10px;
+}
+
+.ari-section-title {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--ari-cyan-soft);
+  font-weight: 900;
+}
+
+.ari-section-subtitle {
+  margin: 8px 0 0;
+  color: var(--ari-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 650;
+}
+
+.ari-account-email-box {
+  margin: 0 18px 18px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.ari-field-label {
+  display: block;
+  color: var(--ari-cyan-soft);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.ari-email-value {
+  color: var(--ari-text);
+  font-size: 0.96rem;
+  font-weight: 850;
+  word-break: break-word;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ari-action-list {
+  padding: 0 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.ari-action-card {
+  width: 100%;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 20px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  background:
+    linear-gradient(135deg, rgba(2, 6, 23, 0.86), rgba(8, 47, 73, 0.46));
+  color: var(--ari-text);
+  font-family: inherit;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
+}
+
+.ari-action-card:hover {
+  border-color: rgba(103, 232, 249, 0.5);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.16);
+}
+
+.ari-action-card[disabled] {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.ari-action-card[disabled]:hover {
+  border-color: rgba(103, 232, 249, 0.18);
+  box-shadow: none;
+}
+
+.ari-action-title {
+  margin: 0;
+  color: var(--ari-text);
+  font-weight: 950;
+  font-size: 0.92rem;
+  letter-spacing: 0.05em;
+}
+
+.ari-action-text {
+  margin: 6px 0 0;
+  color: var(--ari-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 650;
+}
+
+.ari-action-arrow {
+  color: var(--ari-cyan-soft);
+  font-weight: 900;
+  font-size: 1.4rem;
+  text-shadow: 0 0 12px rgba(103, 232, 249, 0.35);
+}
+
+.ari-coming-soon {
+  color: var(--ari-muted);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.ari-primary-action {
+  width: calc(100% - 28px);
+  margin: 2px 14px 16px;
+  border: 1px solid rgba(103, 232, 249, 0.44);
+  border-radius: 20px;
+  min-height: 54px;
+  background:
+    linear-gradient(135deg, rgba(8, 145, 178, 0.95), rgba(34, 211, 238, 0.88));
+  color: white;
+  font-family: inherit;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  box-shadow:
+    0 0 24px rgba(34, 211, 238, 0.26),
+    inset 0 0 20px rgba(255, 255, 255, 0.10);
+}
+
+.ari-danger-panel {
+  border-color: rgba(239, 68, 68, 0.30);
+}
+
+.ari-danger-card {
+  border-color: rgba(239, 68, 68, 0.26);
+  background:
+    linear-gradient(135deg, rgba(30, 6, 8, 0.88), rgba(69, 10, 10, 0.48));
+}
+
+.ari-danger-card .ari-action-arrow,
+.ari-danger-card .ari-action-title {
+  color: #fecaca;
+}
+
+.ari-status {
+  min-height: 22px;
+  margin: 8px 16px 0;
+  color: var(--ari-cyan-pale);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.35;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ari-status.error {
+  color: #fecaca;
+}
+
+.ari-status.success {
+  color: #bbf7d0;
+}
+
+.ari-footer-note {
+  margin: 18px 4px 0;
+  color: var(--ari-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  text-align: center;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 650;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    animation: none;
+  }
+
+  .ari-action-card,
+  .ari-primary-action,
+  .ari-back-btn,
+  .ari-mini-btn {
+    transition: none;
+  }
+}
+</style>
+</head>
+
+<body>
+<main class="ari-account-page" id="ariAccountPage">
+
+  <header class="ari-account-header">
+    <button class="ari-back-btn" type="button" onclick="goHome()">←</button>
+
+    <div class="ari-brand-mark" aria-label="ARI Rebirth">
+      <h1 class="ari-brand-title">ARI</h1>
+      <p class="ari-brand-subtitle">REBIRTH</p>
+    </div>
+
+    <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
+  </header>
+
+  <section class="ari-page-hero">
+    <p class="ari-page-kicker">Account Control</p>
+    <h2 class="ari-page-title">My Account</h2>
+    <p class="ari-page-description">
+      Manage your sign-in, security, and account access. This page does not change what Ari knows about you.
+    </p>
+  </section>
+
+  <section class="ari-panel" aria-labelledby="accountEmailTitle">
+    <div class="ari-panel-header">
+      <h3 id="accountEmailTitle" class="ari-section-title">Signed In As</h3>
+      <p class="ari-section-subtitle">This is the email address connected to your ARI account.</p>
+    </div>
+
+    <div class="ari-account-email-box">
+      <span class="ari-field-label">Email Address</span>
+      <div id="userEmail" class="ari-email-value">Loading...</div>
+    </div>
+
+    <div id="accountStatus" class="ari-status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="ari-panel" aria-labelledby="accountActionsTitle">
+    <div class="ari-panel-header">
+      <h3 id="accountActionsTitle" class="ari-section-title">Account</h3>
+      <p class="ari-section-subtitle">Change how you access ARI Rebirth.</p>
+    </div>
+
+    <div class="ari-action-list">
+      <button class="ari-action-card" type="button" onclick="changeEmail()">
+        <span>
+          <p class="ari-action-title">Change Email</p>
+          <p class="ari-action-text">Update the email used to sign into your account.</p>
+        </span>
+        <span class="ari-action-arrow">→</span>
+      </button>
+
+      <button class="ari-action-card" type="button" onclick="resetPassword()">
+        <span>
+          <p class="ari-action-title">Change Password</p>
+          <p class="ari-action-text">Send yourself a secure password reset link.</p>
+        </span>
+        <span class="ari-action-arrow">→</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="ari-panel" aria-labelledby="securityTitle">
+    <div class="ari-panel-header">
+      <h3 id="securityTitle" class="ari-section-title">Security & Privacy</h3>
+      <p class="ari-section-subtitle">Reserved for future ARI Rebirth account controls.</p>
+    </div>
+
+    <div class="ari-action-list">
+      <button class="ari-action-card" type="button" disabled>
+        <span>
+          <p class="ari-action-title">Privacy Settings</p>
+          <p class="ari-action-text">Control how your data is used across ARI modules.</p>
+        </span>
+        <span class="ari-coming-soon">SOON</span>
+      </button>
+
+      <button class="ari-action-card" type="button" disabled>
+        <span>
+          <p class="ari-action-title">Notifications</p>
+          <p class="ari-action-text">Choose how ARI checks in with you.</p>
+        </span>
+        <span class="ari-coming-soon">SOON</span>
+      </button>
+
+      <button class="ari-action-card" type="button" disabled>
+        <span>
+          <p class="ari-action-title">Export My Data</p>
+          <p class="ari-action-text">Download your ARI Rebirth data when this feature is ready.</p>
+        </span>
+        <span class="ari-coming-soon">SOON</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="ari-panel ari-danger-panel" aria-labelledby="dangerTitle">
+    <div class="ari-panel-header">
+      <h3 id="dangerTitle" class="ari-section-title">Session</h3>
+      <p class="ari-section-subtitle">Sign out when you're finished using this device.</p>
+    </div>
+
+    <button class="ari-primary-action" type="button" onclick="logoutUser()">
+      SIGN OUT
+    </button>
+
+    <div class="ari-action-list">
+      <button class="ari-action-card ari-danger-card" type="button" disabled>
+        <span>
+          <p class="ari-action-title">Delete Account</p>
+          <p class="ari-action-text">Permanent account deletion will be added later with safety confirmation.</p>
+        </span>
+        <span class="ari-coming-soon">SOON</span>
+      </button>
+    </div>
+  </section>
+
+  <p class="ari-footer-note">
+    My Account manages access only. Personal details belong in My Identity. Health data belongs in My Health Goals.
+  </p>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+
+<script>
+/*
+=====================================================
+ARI REBIRTH
+account.html script
+Version: 1.0.0
+=====================================================
+*/
+
+document.addEventListener("DOMContentLoaded", loadAccount);
+
+function goHome() {
+  window.location.href = "index.html";
+}
+
+function setStatus(message = "", type = "") {
+  const statusEl = document.getElementById("accountStatus");
+  if (!statusEl) return;
+
+  statusEl.textContent = message;
+  statusEl.classList.remove("error", "success");
+
+  if (type) {
+    statusEl.classList.add(type);
+  }
+}
+
+async function getSessionOrRedirect() {
+  if (!window.calbuddySupabase) {
+    setStatus("Supabase is not loaded. Check supabase-config.js.", "error");
+    return null;
+  }
+
+  const {
+    data: { session },
+    error
+  } = await window.calbuddySupabase.auth.getSession();
+
+  if (error) {
+    setStatus(error.message, "error");
+    return null;
+  }
+
+  if (!session) {
+    window.location.href = "signin.html";
+    return null;
+  }
+
+  return session;
+}
+
+async function loadAccount() {
+  const session = await getSessionOrRedirect();
+  if (!session) return;
+
+  const emailEl = document.getElementById("userEmail");
+  if (emailEl) {
+    emailEl.textContent = session.user?.email || "No email found.";
+  }
+
+  setStatus("Account session active.", "success");
+}
+
+async function changeEmail() {
+  const session = await getSessionOrRedirect();
+  if (!session) return;
+
+  const currentEmail = session.user?.email || "";
+  const newEmail = prompt("Enter your new email address:", currentEmail);
+
+  if (!newEmail) {
+    return;
+  }
+
+  const cleanEmail = String(newEmail).trim();
+
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    setStatus("Please enter a valid email address.", "error");
+    return;
+  }
+
+  setStatus("Sending confirmation email...", "");
+
+  const { error } = await window.calbuddySupabase.auth.updateUser({
+    email: cleanEmail
+  });
+
+  if (error) {
+    setStatus(error.message, "error");
+    return;
+  }
+
+  setStatus("Confirmation email sent to your new address.", "success");
+}
+
+async function resetPassword() {
+  const session = await getSessionOrRedirect();
+  if (!session) return;
+
+  const email = session.user?.email;
+
+  if (!email) {
+    setStatus("No email address found for this account.", "error");
+    return;
+  }
+
+  setStatus("Sending password reset email...", "");
+
+  const { error } = await window.calbuddySupabase.auth.resetPasswordForEmail(
+    email,
+    {
+      redirectTo: window.location.origin + "/reset-password.html"
+    }
+  );
+
+  if (error) {
+    setStatus(error.message, "error");
+    return;
+  }
+
+  setStatus("Password reset email sent.", "success");
+}
+
+async function logoutUser() {
+  if (!window.calbuddySupabase) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  setStatus("Signing out...", "");
+
+  sessionStorage.removeItem("ari_boot_intro");
+
+  const { error } = await window.calbuddySupabase.auth.signOut();
+
+  if (error) {
+    setStatus(error.message, "error");
+    return;
+  }
+
+  window.location.href = "signin.html";
+}
+</script>
+
+</body>
+</html>
