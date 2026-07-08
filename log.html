@@ -891,7 +891,7 @@ body {
   filter: none !important;
 }
 /* =====================================================
-LOG FINAL PATCH V3 — SCROLL + SOFT GREEN + SPACE TERMINAL
+LOG FINAL PATCH V4 — CLEAN NUTRITION CONSOLE
 ===================================================== */
 
 html,
@@ -925,19 +925,18 @@ body::after {
 
 .ari-brand-title {
   font-family: "Orbitron", monospace !important;
-  font-size: 1.95rem !important;
+  font-size: 1.9rem !important;
   letter-spacing: .24em !important;
-  color: rgba(214, 255, 184, .72) !important;
+  color: rgba(214,255,184,.68) !important;
   text-shadow:
-    0 0 2px rgba(185,255,122,.24),
-    0 0 6px rgba(124,255,59,.14) !important;
+    0 0 2px rgba(185,255,122,.20),
+    0 0 5px rgba(124,255,59,.10) !important;
   filter: none !important;
 }
 
 .ari-salad-mark {
-  filter:
-    drop-shadow(0 0 3px rgba(124,255,59,.28)) !important;
-  opacity: .78 !important;
+  opacity: .72 !important;
+  filter: drop-shadow(0 0 3px rgba(124,255,59,.22)) !important;
 }
 
 .ari-brand-subtitle,
@@ -952,6 +951,11 @@ body::after {
   font-weight: 800 !important;
 }
 
+.ari-footer-note,
+.ari-section-subtitle {
+  display: none !important;
+}
+
 #ariNutritionInput {
   font-family: "Orbitron", monospace !important;
   font-size: .92rem !important;
@@ -960,7 +964,7 @@ body::after {
 }
 
 #ariNutritionInput::placeholder {
-  color: rgba(207, 255, 178, .54) !important;
+  color: rgba(207,255,178,.50) !important;
   text-shadow: none !important;
   font-family: "Orbitron", monospace !important;
 }
@@ -971,7 +975,7 @@ body::after {
   background:
     linear-gradient(135deg, rgba(5,32,18,.96), rgba(45,112,39,.78)) !important;
   box-shadow:
-    0 0 8px rgba(124,255,59,.16),
+    0 0 8px rgba(124,255,59,.14),
     inset 0 1px 0 rgba(255,255,255,.10) !important;
 }
 
@@ -979,13 +983,12 @@ body::after {
   content: "▸" !important;
   font-family: "Orbitron", monospace !important;
   font-size: 2rem !important;
-  color: rgba(232,255,225,.82) !important;
+  color: rgba(232,255,225,.80) !important;
   transform: none !important;
   filter: none !important;
 }
 
-.ari-footer-note,
-.ari-section-subtitle {
+.ari-console-send span {
   display: none !important;
 }
 </style>
