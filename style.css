@@ -3146,3 +3146,114 @@ body.ari-auth-body .ari-auth-field input:focus {
   0%, 100% { opacity: .35; transform: translateX(-8px); }
   50% { opacity: 1; transform: translateX(8px); }
 }
+
+/* =====================================================
+ARI AUTH — DARK SPACE TERMINAL FINAL
+===================================================== */
+
+body.ari-auth-body {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(87,255,231,.08), transparent 34%),
+    linear-gradient(180deg, #00040a 0%, #020814 52%, #00040a 100%) !important;
+}
+
+body.ari-auth-body::before {
+  opacity: .18 !important;
+  background-size: 32px 32px !important;
+}
+
+body.ari-auth-body .ari-auth-card {
+  border-radius: 0 !important;
+  padding: 42px 18px 34px !important;
+  background:
+    linear-gradient(90deg, rgba(87,255,231,.045) 1px, transparent 1px),
+    linear-gradient(rgba(87,255,231,.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(1,8,15,.94), rgba(0,2,7,.98)) !important;
+  background-size: 32px 32px, 32px 32px, auto !important;
+  border: 1px solid rgba(87,255,231,.52) !important;
+  box-shadow:
+    0 0 30px rgba(87,255,231,.14),
+    inset 0 0 42px rgba(87,255,231,.035) !important;
+  clip-path: polygon(
+    22px 0,
+    calc(100% - 22px) 0,
+    100% 22px,
+    100% calc(100% - 22px),
+    calc(100% - 22px) 100%,
+    22px 100%,
+    0 calc(100% - 22px),
+    0 22px
+  );
+}
+
+body.ari-auth-body .ari-auth-brand h1 {
+  font-family: "Courier New", monospace !important;
+  font-size: clamp(2.05rem, 9vw, 3rem) !important;
+  letter-spacing: .22em !important;
+  color: rgba(105,255,255,.92) !important;
+}
+
+body.ari-auth-body .ari-auth-brand h1::before {
+  content: ">_ ";
+}
+
+body.ari-auth-body .ari-auth-tab,
+body.ari-auth-body .ari-auth-main-btn,
+body.ari-auth-body .ari-auth-field input {
+  border-radius: 3px !important;
+  font-family: "Courier New", monospace !important;
+  border-color: rgba(87,255,231,.55) !important;
+  background: rgba(0,3,10,.72) !important;
+}
+
+body.ari-auth-body .ari-auth-tab.active::after,
+body.ari-auth-body .ari-auth-main-btn::before,
+body.ari-auth-body .ari-auth-field::after {
+  content: "█";
+  color: rgba(105,255,255,.75);
+  animation: ariCursorBlink .8s steps(1) infinite;
+}
+
+body.ari-auth-body .ari-auth-field {
+  position: relative;
+}
+
+body.ari-auth-body .ari-auth-field::after {
+  position: absolute;
+  left: 31px;
+  bottom: 19px;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+body.ari-auth-body .ari-auth-field input:not(:placeholder-shown) + span,
+body.ari-auth-body .ari-auth-field input:focus + span {
+  display: none;
+}
+
+body.ari-auth-body .ari-auth-field label {
+  font-family: "Courier New", monospace !important;
+  letter-spacing: .18em !important;
+}
+
+body.ari-auth-body .ari-auth-field label::before {
+  content: "> ";
+}
+
+body.ari-auth-body .ari-auth-main-btn {
+  position: relative !important;
+  color: rgba(105,255,255,.90) !important;
+}
+
+body.ari-auth-body .ari-auth-main-btn::before {
+  position: absolute;
+  left: 28px;
+}
+
+body.ari-auth-body .ari-auth-link-btn {
+  font-family: "Courier New", monospace !important;
+}
+
+body.ari-auth-body .ari-auth-link-btn::before {
+  content: "> ";
+}
