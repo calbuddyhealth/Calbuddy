@@ -3,150 +3,1006 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Log Intake - CalBuddy</title>
+
+<!--
+=====================================================
+ARI REBIRTH
+File: log.html
+Version: 2.1.0
+Purpose:
+  Nutrition Console for ARI Rebirth.
+
+Updates:
+  - Nutrition Intelligence moved to top brand line only.
+  - Removed redundant hero text and hint text.
+  - Removed visible "nutrition input" label.
+  - Rotating examples live inside the composer placeholder.
+  - Salad/lettuce-style digital submit button.
+  - Meal type buttons only show after tapping Meal.
+  - Manual Tools panel removed.
+  - Manual calorie entry opens through + Calories.
+=====================================================
+-->
+
+<title>Nutrition Console - ARI Rebirth</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
 
 <style>
-.log-card { display: block; padding: 24px; }
-.log-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 18px; }
-.log-tab { padding: 12px; border: none; border-radius: 18px; font-weight: 900; font-size: 0.85rem; background: #f1f5f9; cursor: pointer; }
-.log-tab.active { background: #14b8a6; color: white; }
-
-.meal-options { display: none; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
-.meal-option { padding: 12px; border: none; border-radius: 16px; background: #f8f5ff; font-weight: 900; cursor: pointer; }
-.meal-option.active { background: #8b5cf6; color: white; }
-
-.search-section, .manual-section, .history-section, .favorites-section { display: none; margin-top: 14px; }
-.search-section label, .manual-section label { display: block; font-weight: 900; margin-bottom: 8px; }
-.search-section input, .manual-section input, .manual-section select {
-width: 100%; box-sizing: border-box; padding: 14px; border-radius: 16px;
-border: 1px solid #d8d8d8; font-size: 16px; margin-bottom: 10px;
+:root {
+  --ari-bg:#020617;
+  --ari-deep:#00150d;
+  --ari-panel:#03140f;
+  --ari-panel-2:#061f14;
+  --ari-grid:rgba(132, 255, 99, .045);
+  --ari-green:#7CFF3B;
+  --ari-green-soft:#B9FF7A;
+  --ari-lime:#D7FF57;
+  --ari-mint:#B8FFD2;
+  --ari-cyan:#57FFE7;
+  --ari-text:#f8fafc;
+  --ari-muted:#93a7a0;
+  --ari-border:rgba(124,255,59,.35);
+  --ari-danger:#ef4444;
+  --ari-warning:#f59e0b;
 }
 
-.search-button, .manual-save-btn { width: 100%; margin-top: 8px; }
+* { box-sizing:border-box; }
 
-.food-result, .history-card, .favorite-card {
-margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
+html,
+body {
+  width:100%;
+  min-height:100%;
+  overflow-x:hidden;
 }
 
-.food-result h3 { margin: 0 0 6px; }
+body {
+  margin:0;
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(124,255,59,.16), transparent 32%),
+    radial-gradient(circle at 18% 24%, rgba(87,255,231,.08), transparent 30%),
+    radial-gradient(circle at 86% 76%, rgba(215,255,87,.09), transparent 30%),
+    linear-gradient(180deg,#020617 0%,#02130c 48%,#020617 100%);
+  color:var(--ari-text);
+  font-family:Orbitron,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
 
-.macro-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
-.macro-box { background: white; border-radius: 14px; padding: 10px; font-weight: 900; text-align: center; }
+body::before {
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image:
+    linear-gradient(var(--ari-grid) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(87,255,231,.035) 1px, transparent 1px);
+  background-size:42px 42px;
+  mask-image:radial-gradient(circle at center, black 0%, transparent 76%);
+}
 
-.multiplier-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0; }
-.multiplier-row button { border: none; border-radius: 12px; padding: 8px 12px; font-weight: 900; cursor: pointer; }
-.multiplier-value { font-weight: 950; font-size: 1.1rem; }
+body::after {
+  content:"";
+  position:fixed;
+  inset:-30%;
+  z-index:0;
+  background:linear-gradient(115deg,transparent 42%,rgba(124,255,59,.10) 50%,transparent 58%);
+  animation:ariNutritionSweep 9s linear infinite;
+  pointer-events:none;
+}
 
-.add-food-btn { width: 100%; margin-top: 10px; }
+@keyframes ariNutritionSweep {
+  from { transform:translateX(-12%) translateY(8%); }
+  to { transform:translateX(12%) translateY(-8%); }
+}
 
-.intake-list { margin-top: 24px; padding: 18px; border-radius: 22px; background: #f4fff8; }
-.intake-item { padding: 12px 0; border-bottom: 1px solid #d1fae5; font-weight: 700; }
-.intake-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.intake-actions button { border: none; border-radius: 12px; padding: 6px 10px; cursor: pointer; font-weight: 900; }
+.ari-nutrition-page {
+  position:relative;
+  z-index:2;
+  width:min(430px,100%);
+  min-height:100dvh;
+  margin:0 auto;
+  padding:14px 16px 150px;
+}
 
-.delete-intake-btn { background: #fff1f2; color: #be123c; }
-.repeat-btn { background: #eefcef; color: #15803d; }
-.favorite-btn { background: #fff7ed; color: #f97316; }
+/* Header */
 
-.total-box { margin-top: 16px; padding: 14px; border-radius: 18px; background: white; font-weight: 900; }
-.success-message { margin-top: 14px; font-weight: 900; color: #18a558; text-align: center; }
-.window-note { margin: 8px 0 0; font-size: 0.85rem; color: #64748b; font-weight: 800; }
+.ari-nutrition-header {
+  display:grid;
+  grid-template-columns:64px 1fr 92px;
+  align-items:center;
+  gap:8px;
+  padding:10px 0 18px;
+}
+
+.ari-back-btn,
+.ari-mini-btn {
+  border:1px solid rgba(124,255,59,.36);
+  border-radius:18px;
+  min-height:50px;
+  background:rgba(2,6,23,.72);
+  color:var(--ari-mint);
+  font-family:inherit;
+  font-weight:950;
+  cursor:pointer;
+  box-shadow:
+    0 0 20px rgba(124,255,59,.14),
+    inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.ari-back-btn {
+  width:58px;
+  font-size:1.35rem;
+}
+
+.ari-mini-btn {
+  width:88px;
+  justify-self:end;
+}
+
+.ari-brand-mark {
+  text-align:center;
+}
+
+.ari-brand-title-row {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+
+.ari-salad-mark {
+  display:inline-flex;
+  width:42px;
+  height:42px;
+  align-items:center;
+  justify-content:center;
+  font-size:2rem;
+  filter:
+    drop-shadow(0 0 8px rgba(124,255,59,.65))
+    drop-shadow(0 0 18px rgba(215,255,87,.32));
+  animation:ariLeafFloat 4.8s ease-in-out infinite;
+}
+
+@keyframes ariLeafFloat {
+  0%,100% { transform:translateY(0) rotate(-4deg); }
+  50% { transform:translateY(-3px) rotate(4deg); }
+}
+
+.ari-brand-title {
+  margin:0;
+  font-family:Audiowide,Orbitron,sans-serif;
+  font-size:2.2rem;
+  letter-spacing:.20em;
+  color:var(--ari-green-soft);
+  text-shadow:
+    0 0 8px rgba(185,255,122,.75),
+    0 0 22px rgba(124,255,59,.42),
+    0 0 44px rgba(124,255,59,.22);
+}
+
+.ari-brand-subtitle {
+  position:relative;
+  margin:5px 0 0;
+  font-size:.62rem;
+  letter-spacing:.28em;
+  color:var(--ari-green-soft);
+  font-weight:900;
+  text-transform:uppercase;
+  text-shadow:0 0 14px rgba(124,255,59,.45);
+}
+
+/* Hero */
+
+.ari-page-hero,
+.ari-panel,
+.ari-console,
+.intake-list {
+  border:1px solid var(--ari-border);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(124,255,59,.16), transparent 26%),
+    linear-gradient(180deg,rgba(3,20,15,.94),rgba(2,6,23,.78));
+  box-shadow:
+    0 0 34px rgba(124,255,59,.13),
+    inset 0 0 30px rgba(124,255,59,.035);
+  overflow:hidden;
+}
+
+.ari-page-hero {
+  margin:8px 0 18px;
+  padding:24px 20px;
+  border-radius:28px;
+  position:relative;
+}
+
+.ari-page-hero::before {
+  content:"";
+  position:absolute;
+  top:0;
+  left:12%;
+  right:12%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--ari-green-soft),transparent);
+  opacity:.85;
+}
+
+.ari-page-kicker {
+  margin:0 0 10px;
+  color:var(--ari-green-soft);
+  font-size:.72rem;
+  font-weight:950;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+}
+
+.ari-page-title {
+  margin:0;
+  font-size:1.95rem;
+  line-height:1;
+  letter-spacing:.04em;
+  font-family:Orbitron,system-ui,sans-serif;
+  font-weight:900;
+  color:white;
+  text-shadow:0 0 18px rgba(124,255,59,.16);
+}
+
+/* Console */
+
+.ari-console {
+  position:relative;
+  border-radius:30px;
+  padding:18px;
+  isolation:isolate;
+}
+
+.ari-console::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  padding:2px;
+  background:conic-gradient(
+    from -90deg,
+    rgba(215,255,87,.95),
+    rgba(124,255,59,.36),
+    rgba(87,255,231,.30),
+    rgba(185,255,122,.80),
+    rgba(215,255,87,.95)
+  );
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask-composite:exclude;
+  z-index:-1;
+  opacity:.58;
+  animation:ariConsoleAura 5s ease-in-out infinite;
+}
+
+@keyframes ariConsoleAura {
+  0%,100% { opacity:.40; filter:brightness(.92); }
+  50% { opacity:.82; filter:brightness(1.25); }
+}
+
+.ari-console-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.ari-console-status {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:var(--ari-green-soft);
+  font-size:.72rem;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  font-weight:950;
+}
+
+.ari-status-dot {
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:var(--ari-green);
+  box-shadow:
+    0 0 10px rgba(124,255,59,.90),
+    0 0 22px rgba(215,255,87,.38);
+  animation:ariStatusPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes ariStatusPulse {
+  0%,100% { opacity:.75; transform:scale(.92); }
+  50% { opacity:1; transform:scale(1.16); }
+}
+
+.ari-ready-pill {
+  border:1px solid rgba(124,255,59,.30);
+  border-radius:12px;
+  padding:8px 12px;
+  color:var(--ari-green-soft);
+  background:rgba(124,255,59,.10);
+  font-size:.68rem;
+  font-weight:950;
+  letter-spacing:.08em;
+}
+
+.ari-console-title {
+  margin:0 0 12px;
+  font-size:1.02rem;
+  color:white;
+  font-weight:850;
+  letter-spacing:.01em;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-command-shell {
+  position:relative;
+  border:1px solid rgba(124,255,59,.46);
+  border-radius:24px;
+  padding:18px 14px 14px;
+  background:
+    radial-gradient(circle at 88% 80%, rgba(215,255,87,.18), transparent 30%),
+    linear-gradient(145deg,rgba(0,20,12,.92),rgba(2,6,23,.72));
+  box-shadow:
+    0 0 22px rgba(124,255,59,.18),
+    0 0 44px rgba(215,255,87,.08),
+    inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.ari-command-shell::before {
+  content:"";
+  position:absolute;
+  top:10px;
+  left:20px;
+  right:20px;
+  height:2px;
+  border-radius:999px;
+  background:linear-gradient(90deg,transparent,rgba(124,255,59,.36),rgba(215,255,87,.98),rgba(185,255,122,.44),transparent);
+  background-size:220% 100%;
+  box-shadow:0 0 12px rgba(124,255,59,.75);
+  animation:ariGreenScan 3.1s linear infinite;
+}
+
+@keyframes ariGreenScan {
+  from { background-position:120% 0; }
+  to { background-position:-120% 0; }
+}
+
+.ari-console-input-row {
+  display:grid;
+  grid-template-columns:1fr 64px;
+  gap:12px;
+  align-items:end;
+}
+
+#ariNutritionInput {
+  width:100%;
+  min-height:96px;
+  max-height:170px;
+  resize:vertical;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:rgba(248,250,252,.96);
+  font:inherit;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:1rem;
+  line-height:1.45;
+  font-weight:750;
+  padding:22px 2px 4px;
+}
+
+#ariNutritionInput::placeholder {
+  color:rgba(215,255,87,.78);
+  text-shadow:0 0 12px rgba(124,255,59,.22);
+}
+
+.ari-console-send {
+  width:64px;
+  height:64px;
+  border:1px solid rgba(215,255,87,.58);
+  border-radius:24px 18px 24px 18px;
+  background:
+    radial-gradient(circle at 36% 26%, rgba(255,255,255,.34), transparent 18%),
+    radial-gradient(circle at 50% 60%, rgba(215,255,87,.34), transparent 45%),
+    linear-gradient(135deg,rgba(124,255,59,.92),rgba(20,83,45,.88));
+  color:white;
+  font-size:1.55rem;
+  font-weight:950;
+  box-shadow:
+    0 0 22px rgba(124,255,59,.46),
+    0 0 44px rgba(215,255,87,.18),
+    inset 0 1px 0 rgba(255,255,255,.22);
+  cursor:pointer;
+  transform:rotate(-8deg);
+}
+
+.ari-console-send::before {
+  content:"🥬";
+  display:block;
+  transform:rotate(8deg);
+  filter:drop-shadow(0 0 7px rgba(215,255,87,.70));
+}
+
+.ari-console-send span {
+  display:none;
+}
+
+.ari-ai-result {
+  display:none;
+  margin-top:14px;
+  border-radius:22px;
+  border:1px solid rgba(124,255,59,.24);
+  background:rgba(2,6,23,.64);
+  padding:14px;
+}
+
+.ari-ai-result.show { display:block; }
+
+.ari-ai-result h3 {
+  margin:0 0 10px;
+  color:var(--ari-green-soft);
+  font-size:.84rem;
+  letter-spacing:.15em;
+  text-transform:uppercase;
+}
+
+.ari-estimate-grid {
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+}
+
+.ari-estimate-box {
+  border-radius:16px;
+  background:rgba(15,23,42,.82);
+  border:1px solid rgba(124,255,59,.16);
+  padding:11px;
+}
+
+.ari-estimate-box span {
+  display:block;
+  color:var(--ari-muted);
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.10em;
+  font-weight:900;
+}
+
+.ari-estimate-box strong {
+  display:block;
+  margin-top:5px;
+  color:white;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+/* Quick Actions */
+
+.ari-mode-panel {
+  margin-top:18px;
+  border:1px solid rgba(124,255,59,.28);
+  border-radius:26px;
+  padding:16px;
+  background:linear-gradient(180deg,rgba(3,20,15,.76),rgba(2,6,23,.68));
+  box-shadow:0 0 24px rgba(124,255,59,.08);
+}
+
+.ari-mode-title {
+  margin:0 0 12px;
+  color:var(--ari-green-soft);
+  font-size:.74rem;
+  letter-spacing:.20em;
+  text-transform:uppercase;
+  font-weight:950;
+}
+
+.ari-mode-chips {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+}
+
+.ari-mode-chip {
+  min-height:72px;
+  border:1px solid rgba(124,255,59,.24);
+  border-radius:18px;
+  background:
+    radial-gradient(circle at 18% 18%,rgba(124,255,59,.12),transparent 34%),
+    rgba(2,6,23,.66);
+  color:var(--ari-mint);
+  font-family:inherit;
+  font-size:.76rem;
+  font-weight:950;
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+  gap:4px;
+}
+
+.ari-mode-chip small {
+  display:block;
+  color:rgba(220,252,231,.58);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:.66rem;
+  font-weight:700;
+}
+
+.ari-mode-chip.active {
+  color:white;
+  border-color:rgba(215,255,87,.70);
+  background:linear-gradient(135deg,rgba(124,255,59,.26),rgba(87,255,231,.10));
+  box-shadow:0 0 22px rgba(124,255,59,.16);
+}
+
+.ari-meal-type {
+  display:none;
+  grid-template-columns:repeat(4,1fr);
+  gap:7px;
+  margin:14px 0 0;
+}
+
+.ari-meal-type.show {
+  display:grid;
+}
+
+.ari-meal-type button {
+  min-height:38px;
+  border:1px solid rgba(124,255,59,.18);
+  border-radius:999px;
+  background:rgba(2,6,23,.60);
+  color:rgba(220,252,231,.78);
+  font-family:inherit;
+  font-size:.64rem;
+  font-weight:950;
+  cursor:pointer;
+}
+
+.ari-meal-type button.active {
+  color:white;
+  background:rgba(124,255,59,.22);
+  border-color:rgba(215,255,87,.62);
+}
+
+/* Panels and forms */
+
+.ari-panel {
+  margin-top:16px;
+  border-radius:26px;
+}
+
+.ari-panel-header { padding:18px 18px 10px; }
+
+.ari-section-title {
+  margin:0;
+  font-size:.78rem;
+  letter-spacing:.20em;
+  text-transform:uppercase;
+  color:var(--ari-green-soft);
+  font-weight:900;
+}
+
+.ari-section-subtitle {
+  margin:8px 0 0;
+  color:var(--ari-muted);
+  font-size:.84rem;
+  line-height:1.45;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.ari-form { padding:0 18px 18px; }
+.ari-field { margin-top:14px; }
+
+.ari-label {
+  display:block;
+  color:var(--ari-green-soft);
+  font-size:.68rem;
+  font-weight:900;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+
+.ari-input,.ari-select {
+  width:100%;
+  border:1px solid rgba(124,255,59,.22);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(2,6,23,.84),rgba(20,83,45,.20));
+  color:var(--ari-text);
+  font:inherit;
+  font-size:.92rem;
+  font-weight:800;
+  padding:14px 15px;
+  outline:none;
+}
+
+.ari-select option {
+  color:#020617;
+  background:white;
+}
+
+.ari-primary-action,
+.ari-secondary-action {
+  width:100%;
+  margin-top:10px;
+  border-radius:18px;
+  min-height:50px;
+  font-family:inherit;
+  font-weight:950;
+  cursor:pointer;
+}
+
+.ari-primary-action {
+  border:1px solid rgba(215,255,87,.46);
+  background:linear-gradient(135deg,rgba(124,255,59,.86),rgba(22,163,74,.78));
+  color:#03140f;
+  box-shadow:0 0 24px rgba(124,255,59,.24);
+}
+
+.ari-secondary-action {
+  border:1px solid rgba(124,255,59,.22);
+  background:rgba(2,6,23,.68);
+  color:var(--ari-mint);
+}
+
+.search-section,
+.manual-section,
+.history-section,
+.favorites-section {
+  display:none;
+}
+
+.search-section.show,
+.manual-section.show,
+.history-section.show,
+.favorites-section.show {
+  display:block;
+}
+
+.food-result,.history-card,.favorite-card,.intake-item {
+  margin-top:12px;
+  padding:14px;
+  border-radius:20px;
+  background:rgba(2,6,23,.62);
+  border:1px solid rgba(124,255,59,.16);
+  color:white;
+}
+
+.food-result h3 {
+  margin:0 0 7px;
+  font-size:1rem;
+}
+
+.food-result p,.history-card p,.favorite-card p,.intake-item p {
+  color:rgba(226,232,240,.78);
+  margin:6px 0;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+.macro-row,.nutrition-total-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  margin:10px 0;
+}
+
+.macro-box,.nutrition-total-box {
+  border:1px solid rgba(124,255,59,.14);
+  background:rgba(15,23,42,.82);
+  border-radius:16px;
+  padding:10px;
+  font-weight:900;
+  text-align:center;
+  color:white;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.multiplier-row {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  margin:12px 0;
+}
+
+.multiplier-row button {
+  border:none;
+  border-radius:12px;
+  padding:8px 12px;
+  font-weight:900;
+  cursor:pointer;
+  background:rgba(124,255,59,.16);
+  color:var(--ari-mint);
+}
+
+.multiplier-value {
+  font-weight:950;
+  font-size:1.1rem;
+}
+
+/* Intake */
+
+.intake-list {
+  margin-top:16px;
+  border-radius:28px;
+  padding:18px;
+}
+
+.intake-list h3 {
+  margin:0;
+  color:white;
+  font-family:Orbitron,system-ui,sans-serif;
+  font-weight:900;
+  letter-spacing:.10em;
+  text-transform:uppercase;
+}
+
+.window-note {
+  margin:8px 0 0;
+  font-size:.78rem;
+  color:var(--ari-muted);
+  font-weight:750;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.nutrition-total-grid {
+  grid-template-columns:1fr 1fr;
+  margin-top:14px;
+}
+
+.nutrition-total-box span {
+  display:block;
+  color:var(--ari-green-soft);
+  font-size:.65rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.nutrition-total-box strong {
+  display:block;
+  margin-top:5px;
+  font-size:1.05rem;
+}
+
+.intake-actions {
+  display:flex;
+  gap:7px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+
+.intake-actions button {
+  border:none;
+  border-radius:999px;
+  padding:8px 10px;
+  cursor:pointer;
+  font-weight:900;
+}
+
+.delete-intake-btn { background:rgba(239,68,68,.14); color:#fecaca; }
+.repeat-btn { background:rgba(124,255,59,.14); color:#bbf7d0; }
+.favorite-btn { background:rgba(245,158,11,.14); color:#fde68a; }
+
+.success-message {
+  min-height:22px;
+  margin:14px 2px 0;
+  color:var(--ari-mint);
+  font-size:.80rem;
+  font-weight:850;
+  line-height:1.35;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-footer-note {
+  margin:18px 4px 0;
+  color:var(--ari-muted);
+  font-size:.74rem;
+  line-height:1.45;
+  text-align:center;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:650;
+}
+
+@media (min-width:768px) {
+  .ari-nutrition-page { width:min(520px,100%); padding-top:24px; }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  body::after,.ari-console::before,.ari-command-shell::before,.ari-status-dot,.ari-salad-mark { animation:none; }
+}
 </style>
 </head>
 
 <body>
-<main class="app">
+<main class="ari-nutrition-page">
 
-<header class="top-bar">
-<button class="menu-btn" onclick="window.location.href='index.html'">☰</button>
-<h1 class="logo"><span class="cal">Cal</span><span class="buddy">Buddy</span></h1>
-<button class="signin-btn" onclick="window.location.href='index.html'">← Back</button>
+<header class="ari-nutrition-header">
+  <button class="ari-back-btn" type="button" onclick="goBack()">←</button>
+  <div class="ari-brand-mark" aria-label="ARI Nutrition Intelligence">
+    <div class="ari-brand-title-row">
+      <span class="ari-salad-mark">🥬</span>
+      <h1 class="ari-brand-title">ARI</h1>
+    </div>
+    <p class="ari-brand-subtitle">Nutrition Intelligence</p>
+  </div>
+  <button class="ari-mini-btn" type="button" onclick="goHome()">Home</button>
 </header>
 
-<section class="hero-card log-card">
-
-<div class="log-tabs">
-<button class="log-tab" id="mealTab" type="button" onclick="selectMode('meal')">🍽️ Add Meal</button>
-<button class="log-tab" id="drinkTab" type="button" onclick="selectMode('drink')">🥤 Add Drink</button>
-<button class="log-tab" id="calorieTab" type="button" onclick="selectMode('calories')">🔢 Add Calories</button>
-<button class="log-tab" id="historyTab" type="button" onclick="selectMode('history')">📖 Meal History</button>
-<button class="log-tab" id="favoritesTab" type="button" onclick="selectMode('favorites')">⭐ Favorites</button>
-</div>
-
-<div id="mealOptions" class="meal-options">
-<button class="meal-option" type="button" onclick="selectMealType('Breakfast')">Breakfast</button>
-<button class="meal-option" type="button" onclick="selectMealType('Lunch')">Lunch</button>
-<button class="meal-option" type="button" onclick="selectMealType('Dinner')">Dinner</button>
-<button class="meal-option" type="button" onclick="selectMealType('Snack')">Snack</button>
-</div>
-
-<div id="searchSection" class="search-section">
-<label id="searchLabel">Search food</label>
-<input id="foodSearchInput" type="text" placeholder="Type food item" />
-<button class="signin-btn search-button" type="button" onclick="searchFood()">🔍 Search</button>
-</div>
-
-<div id="manualSection" class="manual-section">
-<label>Food / Item Name</label>
-<input id="manualFoodName" type="text" placeholder="Example: homemade pasta" />
-
-<label>Calories</label>
-<input id="manualCalories" type="number" step="1" placeholder="Example: 650" />
-
-<label>Protein (g)</label>
-<input id="manualProtein" type="number" step="0.1" placeholder="Optional" />
-
-<label>Carbs (g)</label>
-<input id="manualCarbs" type="number" step="0.1" placeholder="Optional" />
-
-<label>Fat (g)</label>
-<input id="manualFat" type="number" step="0.1" placeholder="Optional" />
-
-<label>Serving Size</label>
-<input id="manualServing" type="text" placeholder="Example: 1 bowl, 8 oz, 100 g" />
-
-<label>Category</label>
-<select id="manualCategory">
-<option value="Breakfast">Breakfast</option>
-<option value="Lunch">Lunch</option>
-<option value="Dinner">Dinner</option>
-<option value="Snack">Snack</option>
-<option value="Drink">Drink</option>
-</select>
-
-<button class="signin-btn manual-save-btn" type="button" onclick="saveManualCalories()">Save</button>
-</div>
-
-<div id="historySection" class="history-section">
-<h3>Meal History</h3>
-<button class="signin-btn" type="button" onclick="repeatPreviousWindow()">🔁 Repeat Previous Reset Window</button>
-<p>Showing the last 14 days.</p>
-<div id="historyItems"></div>
-</div>
-
-<div id="favoritesSection" class="favorites-section">
-<h3>Favorite Meals</h3>
-<div id="favoriteItems"></div>
-</div>
-
-<div id="results"></div>
-<div id="successMessage" class="success-message"></div>
-
-<div class="intake-list">
-<h3>Current Intake</h3>
-<p class="window-note" id="windowNote">Reset window loading...</p>
-<div id="todayIntakeItems"></div>
-
-<div class="total-box">
-<p><strong>Total Calories:</strong> <span id="totalConsumedText">0</span> kcal</p>
-<p><strong>Protein:</strong> <span id="totalProteinText">0</span> g</p>
-<p><strong>Carbs:</strong> <span id="totalCarbsText">0</span> g</p>
-<p><strong>Fat:</strong> <span id="totalFatText">0</span> g</p>
-</div>
-</div>
-
+<section class="ari-page-hero">
+  <p class="ari-page-kicker">Console</p>
+  <h2 class="ari-page-title">Nutrition Console</h2>
 </section>
+
+<section class="ari-console" aria-labelledby="nutritionConsoleTitle">
+  <div class="ari-console-header">
+    <div class="ari-console-status">
+      <span class="ari-status-dot"></span>
+      <span id="ariNutritionStatus">ARI ONLINE</span>
+    </div>
+    <div class="ari-ready-pill">READY</div>
+  </div>
+
+  <h3 id="nutritionConsoleTitle" class="ari-console-title">Describe what you ate or drank...</h3>
+
+  <div class="ari-command-shell">
+    <div class="ari-console-input-row">
+      <textarea id="ariNutritionInput" placeholder="I had two tacos and a Coke..."></textarea>
+      <button class="ari-console-send" type="button" onclick="analyzeWithAri()" aria-label="Analyze with Ari">
+        <span>➤</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="ariAiResult" class="ari-ai-result"></div>
+</section>
+
+<section class="ari-mode-panel">
+  <p class="ari-mode-title">Quick Actions</p>
+
+  <div class="ari-mode-chips">
+    <button class="ari-mode-chip" id="mealTab" type="button" onclick="selectMode('meal')">
+      🍽 Meal
+      <small>Add food</small>
+    </button>
+    <button class="ari-mode-chip" id="drinkTab" type="button" onclick="selectMode('drink')">
+      🥤 Drink
+      <small>Add drink</small>
+    </button>
+    <button class="ari-mode-chip" id="calorieTab" type="button" onclick="selectMode('calories')">
+      ＋ Calories
+      <small>Manual</small>
+    </button>
+  </div>
+
+  <div id="mealOptions" class="ari-meal-type">
+    <button type="button" onclick="selectMealType('Breakfast')">Breakfast</button>
+    <button type="button" onclick="selectMealType('Lunch')">Lunch</button>
+    <button type="button" onclick="selectMealType('Dinner')">Dinner</button>
+    <button type="button" onclick="selectMealType('Snack')">Snack</button>
+  </div>
+</section>
+
+<section class="ari-panel">
+  <div class="ari-panel-header">
+    <h3 class="ari-section-title">Entry Panel</h3>
+    <p class="ari-section-subtitle">Meal and drink searches, or manual calorie entry, appear here only when needed.</p>
+  </div>
+
+  <div class="ari-form">
+    <div id="searchSection" class="search-section">
+      <div class="ari-field">
+        <label id="searchLabel" class="ari-label">Search food</label>
+        <input id="foodSearchInput" class="ari-input" type="text" placeholder="Type food item" />
+      </div>
+      <button class="ari-primary-action" type="button" onclick="searchFood()">Search USDA</button>
+    </div>
+
+    <div id="manualSection" class="manual-section">
+      <div class="ari-field">
+        <label class="ari-label">Food / Item Name</label>
+        <input id="manualFoodName" class="ari-input" type="text" placeholder="Example: homemade pasta" />
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label">Calories</label>
+        <input id="manualCalories" class="ari-input" type="number" step="1" placeholder="Example: 650" />
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label">Protein (g)</label>
+        <input id="manualProtein" class="ari-input" type="number" step="0.1" placeholder="Optional" />
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label">Carbs (g)</label>
+        <input id="manualCarbs" class="ari-input" type="number" step="0.1" placeholder="Optional" />
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label">Fat (g)</label>
+        <input id="manualFat" class="ari-input" type="number" step="0.1" placeholder="Optional" />
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label">Serving Size</label>
+        <input id="manualServing" class="ari-input" type="text" placeholder="Example: 1 bowl, 8 oz, 100 g" />
+      </div>
+
+      <div class="ari-field">
+        <label class="ari-label">Category</label>
+        <select id="manualCategory" class="ari-select">
+          <option value="Breakfast">Breakfast</option>
+          <option value="Lunch">Lunch</option>
+          <option value="Dinner">Dinner</option>
+          <option value="Snack">Snack</option>
+          <option value="Drink">Drink</option>
+        </select>
+      </div>
+
+      <button class="ari-primary-action" type="button" onclick="saveManualCalories()">Save Intake</button>
+    </div>
+
+    <div id="results"></div>
+    <div id="successMessage" class="success-message"></div>
+  </div>
+</section>
+
+<section class="intake-list">
+  <h3>Today’s Nutrition</h3>
+  <p class="window-note" id="windowNote">Reset window loading...</p>
+  <div id="todayIntakeItems"></div>
+
+  <div class="nutrition-total-grid">
+    <div class="nutrition-total-box">
+      <span>Calories</span>
+      <strong><span id="totalConsumedText">0</span> kcal</strong>
+    </div>
+    <div class="nutrition-total-box">
+      <span>Protein</span>
+      <strong><span id="totalProteinText">0</span> g</strong>
+    </div>
+    <div class="nutrition-total-box">
+      <span>Carbs</span>
+      <strong><span id="totalCarbsText">0</span> g</strong>
+    </div>
+    <div class="nutrition-total-box">
+      <span>Fat</span>
+      <strong><span id="totalFatText">0</span> g</strong>
+    </div>
+  </div>
+</section>
+
+<section class="ari-panel">
+  <div class="ari-panel-header">
+    <h3 class="ari-section-title">Recent & Saved</h3>
+    <p class="ari-section-subtitle">History and favorites stay tucked away until you need them.</p>
+  </div>
+
+  <div class="ari-form">
+    <button class="ari-secondary-action" type="button" onclick="toggleHistory()">History</button>
+    <button class="ari-secondary-action" type="button" onclick="toggleFavorites()">Favorites</button>
+    <button class="ari-secondary-action" type="button" onclick="repeatPreviousWindow()">Repeat Previous Reset Window</button>
+
+    <div id="historySection" class="history-section">
+      <div id="historyItems"></div>
+    </div>
+
+    <div id="favoritesSection" class="favorites-section">
+      <div id="favoriteItems"></div>
+    </div>
+  </div>
+</section>
+
+<p class="ari-footer-note">
+  Nutrition Console is designed to feel like consulting Ari, not filling out a spreadsheet.
+</p>
+
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -155,732 +1011,885 @@ margin-top: 14px; padding: 16px; border-radius: 18px; background: #f8fafc;
 <script>
 let currentMode = "";
 let selectedMealType = "";
+let estimatedMeal = null;
+
+const nutritionPrompts = [
+  "I had two tacos and a Coke...",
+  "Homemade pasta...",
+  "Protein shake...",
+  "Two beers...",
+  "Chicken burrito for lunch...",
+  "+350 calories..."
+];
+
+let promptIndex = 0;
+
+function goBack() {
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+  window.location.replace("index.html");
+}
+
+function goHome() {
+  window.location.replace("index.html");
+}
+
+function rotateNutritionPrompt() {
+  const input = document.getElementById("ariNutritionInput");
+  if (!input || document.activeElement === input || input.value.trim()) return;
+  input.placeholder = nutritionPrompts[promptIndex % nutritionPrompts.length];
+  promptIndex += 1;
+}
+
+setInterval(rotateNutritionPrompt, 2200);
 
 function safeNumber(value, fallback = 0) {
-const number = Number(value);
-return Number.isFinite(number) ? number : fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
 function formatLocalDate(date) {
-const year = date.getFullYear();
-const month = String(date.getMonth() + 1).padStart(2, "0");
-const day = String(date.getDate()).padStart(2, "0");
-return `${year}-${month}-${day}`;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatDisplayTime(date) {
-return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function roundMacro(value) {
-const num = Number(value || 0);
-return Math.round(num * 10) / 10;
+  const num = Number(value || 0);
+  return Math.round(num * 10) / 10;
 }
 
 function convertTo24Hour(hour, ampm) {
-hour = Number(hour);
-if (ampm === "AM" && hour === 12) return 0;
-if (ampm === "PM" && hour !== 12) return hour + 12;
-return hour;
+  hour = Number(hour);
+  if (ampm === "AM" && hour === 12) return 0;
+  if (ampm === "PM" && hour !== 12) return hour + 12;
+  return hour;
 }
 
 async function getCurrentUser() {
-if (!window.calbuddySupabase) return null;
+  if (!window.calbuddySupabase) return null;
 
-const { data, error } = await window.calbuddySupabase.auth.getSession();
-if (error || !data.session) return null;
+  const { data, error } = await window.calbuddySupabase.auth.getSession();
+  if (error || !data.session) return null;
 
-return data.session.user;
+  return data.session.user;
 }
 
 async function getResetTime() {
-const saved = localStorage.getItem("calbuddyResetTime");
-const user = await getCurrentUser();
+  const saved = localStorage.getItem("calbuddyResetTime");
+  const user = await getCurrentUser();
 
-if (user && window.calbuddySupabase) {
-const { data, error } = await window.calbuddySupabase
-.from("profiles")
-.select("reset_hour, reset_minute, reset_ampm")
-.eq("id", user.id)
-.maybeSingle();
+  if (user && window.calbuddySupabase) {
+    const { data, error } = await window.calbuddySupabase
+      .from("profiles")
+      .select("reset_hour, reset_minute, reset_ampm")
+      .eq("id", user.id)
+      .maybeSingle();
 
-if (!error && data) {
-const resetTime = {
-hour: safeNumber(data.reset_hour, 4),
-minute: safeNumber(data.reset_minute, 0),
-ampm: data.reset_ampm || "AM"
-};
+    if (!error && data) {
+      const resetTime = {
+        hour: safeNumber(data.reset_hour, 4),
+        minute: safeNumber(data.reset_minute, 0),
+        ampm: data.reset_ampm || "AM"
+      };
 
-localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
-return resetTime;
-}
-}
+      localStorage.setItem("calbuddyResetTime", JSON.stringify(resetTime));
+      return resetTime;
+    }
+  }
 
-if (saved) {
-try {
-return JSON.parse(saved);
-} catch {
-return { hour: 4, minute: 0, ampm: "AM" };
-}
-}
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return { hour: 4, minute: 0, ampm: "AM" };
+    }
+  }
 
-return { hour: 4, minute: 0, ampm: "AM" };
+  return { hour: 4, minute: 0, ampm: "AM" };
 }
 
 async function getNutritionWindow(offset = 0) {
-const reset = await getResetTime();
-const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
-const now = new Date();
+  const reset = await getResetTime();
+  const resetHour24 = convertTo24Hour(reset.hour, reset.ampm);
+  const now = new Date();
 
-const start = new Date();
-start.setHours(resetHour24, Number(reset.minute), 0, 0);
+  const start = new Date();
+  start.setHours(resetHour24, Number(reset.minute), 0, 0);
 
-if (now < start) {
-start.setDate(start.getDate() - 1);
-}
+  if (now < start) {
+    start.setDate(start.getDate() - 1);
+  }
 
-start.setDate(start.getDate() + offset);
+  start.setDate(start.getDate() + offset);
 
-const end = new Date(start);
-end.setDate(end.getDate() + 1);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
 
-const resetKey = `${String(resetHour24).padStart(2, "0")}${String(reset.minute).padStart(2, "0")}`;
+  const resetKey = `${String(resetHour24).padStart(2, "0")}${String(reset.minute).padStart(2, "0")}`;
 
-return {
-start,
-end,
-dateKey: `${formatLocalDate(start)}_${resetKey}`,
-nutritionDate: formatLocalDate(start)
-};
+  return {
+    start,
+    end,
+    dateKey: `${formatLocalDate(start)}_${resetKey}`,
+    nutritionDate: formatLocalDate(start)
+  };
 }
 
 function updateWindowNote(windowInfo) {
-const note = document.getElementById("windowNote");
-if (!note) return;
+  const note = document.getElementById("windowNote");
+  if (!note) return;
 
-note.textContent = `Current reset window: ${formatDisplayTime(windowInfo.start)} – ${formatDisplayTime(windowInfo.end)}`;
+  note.textContent = `Reset window: ${formatDisplayTime(windowInfo.start)} – ${formatDisplayTime(windowInfo.end)}`;
+}
+
+function setStatusText(text) {
+  const status = document.getElementById("ariNutritionStatus");
+  if (status) status.textContent = text;
+}
+
+function estimateFromText(text) {
+  const clean = String(text || "").trim();
+  const numberMatch = clean.match(/^\+?\s*(\d{2,5})\s*(cal|calories|kcal)?$/i);
+
+  if (numberMatch) {
+    const calories = Number(numberMatch[1]);
+    return {
+      name: "Manual calorie estimate",
+      calories,
+      protein_g: 0,
+      carbs_g: 0,
+      fat_g: 0,
+      serving_size: "Ari quick calories",
+      category: selectedMealType || "Snack"
+    };
+  }
+
+  const lower = clean.toLowerCase();
+  let calories = 450;
+  let protein = 20;
+  let carbs = 45;
+  let fat = 16;
+
+  if (lower.includes("beer")) {
+    calories = lower.includes("two") || lower.includes("2") ? 300 : 150;
+    protein = 0; carbs = lower.includes("two") || lower.includes("2") ? 26 : 13; fat = 0;
+  } else if (lower.includes("pizza")) {
+    calories = lower.includes("two") || lower.includes("2") ? 600 : 300;
+    protein = lower.includes("two") || lower.includes("2") ? 24 : 12;
+    carbs = lower.includes("two") || lower.includes("2") ? 70 : 35;
+    fat = lower.includes("two") || lower.includes("2") ? 24 : 12;
+  } else if (lower.includes("taco")) {
+    calories = lower.includes("two") || lower.includes("2") ? 520 : 260;
+    protein = lower.includes("two") || lower.includes("2") ? 28 : 14;
+    carbs = lower.includes("two") || lower.includes("2") ? 52 : 26;
+    fat = lower.includes("two") || lower.includes("2") ? 22 : 11;
+  } else if (lower.includes("burrito") || lower.includes("chipotle")) {
+    calories = 760; protein = 38; carbs = 86; fat = 28;
+  } else if (lower.includes("pasta") || lower.includes("alfredo")) {
+    calories = 680; protein = 28; carbs = 72; fat = 30;
+  } else if (lower.includes("salad")) {
+    calories = lower.includes("chicken") ? 420 : 260;
+    protein = lower.includes("chicken") ? 32 : 8;
+    carbs = 22; fat = lower.includes("chicken") ? 18 : 14;
+  } else if (lower.includes("eggs") || lower.includes("egg")) {
+    calories = 320; protein = 22; carbs = 20; fat = 18;
+  } else if (lower.includes("coffee")) {
+    calories = lower.includes("cream") || lower.includes("latte") ? 180 : 5;
+    protein = lower.includes("latte") ? 9 : 0;
+    carbs = lower.includes("latte") ? 18 : 0;
+    fat = lower.includes("cream") || lower.includes("latte") ? 7 : 0;
+  } else if (lower.includes("shake") || lower.includes("protein")) {
+    calories = 250; protein = 30; carbs = 14; fat = 5;
+  }
+
+  return {
+    name: clean.length > 48 ? clean.slice(0, 48) + "..." : clean,
+    calories,
+    protein_g: protein,
+    carbs_g: carbs,
+    fat_g: fat,
+    serving_size: "Ari estimate",
+    category: selectedMealType || "Meal"
+  };
+}
+
+function analyzeWithAri() {
+  const input = document.getElementById("ariNutritionInput");
+  const result = document.getElementById("ariAiResult");
+  const text = input?.value.trim();
+
+  if (!text) return;
+
+  setStatusText("ANALYZING");
+
+  setTimeout(() => {
+    estimatedMeal = estimateFromText(text);
+    result.classList.add("show");
+    result.innerHTML = `
+      <h3>Nutrition Analysis</h3>
+      <div class="ari-estimate-grid">
+        <div class="ari-estimate-box"><span>Calories</span><strong>${estimatedMeal.calories} kcal</strong></div>
+        <div class="ari-estimate-box"><span>Protein</span><strong>${roundMacro(estimatedMeal.protein_g)} g</strong></div>
+        <div class="ari-estimate-box"><span>Carbs</span><strong>${roundMacro(estimatedMeal.carbs_g)} g</strong></div>
+        <div class="ari-estimate-box"><span>Fat</span><strong>${roundMacro(estimatedMeal.fat_g)} g</strong></div>
+      </div>
+      <button class="ari-primary-action" type="button" onclick="logAriEstimate()">Log Meal</button>
+      <button class="ari-secondary-action" type="button" onclick="editAriEstimate()">Edit Manually</button>
+    `;
+    setStatusText("READY");
+  }, 900);
+}
+
+async function logAriEstimate() {
+  if (!estimatedMeal) return;
+  await addToIntake(estimatedMeal);
+  document.getElementById("ariNutritionInput").value = "";
+  document.getElementById("ariAiResult").classList.remove("show");
+  document.getElementById("ariAiResult").innerHTML = "";
+  estimatedMeal = null;
+  setStatusText("ARI ONLINE");
+}
+
+function editAriEstimate() {
+  if (!estimatedMeal) return;
+  selectMode("calories");
+  document.getElementById("manualFoodName").value = estimatedMeal.name || "";
+  document.getElementById("manualCalories").value = estimatedMeal.calories || "";
+  document.getElementById("manualProtein").value = estimatedMeal.protein_g || "";
+  document.getElementById("manualCarbs").value = estimatedMeal.carbs_g || "";
+  document.getElementById("manualFat").value = estimatedMeal.fat_g || "";
+  document.getElementById("manualServing").value = estimatedMeal.serving_size || "";
+  document.getElementById("manualCategory").value = estimatedMeal.category || "Snack";
 }
 
 function clearSections() {
-document.getElementById("mealOptions").style.display = "none";
-document.getElementById("searchSection").style.display = "none";
-document.getElementById("manualSection").style.display = "none";
-document.getElementById("historySection").style.display = "none";
-document.getElementById("favoritesSection").style.display = "none";
-document.getElementById("results").innerHTML = "";
-document.getElementById("successMessage").textContent = "";
+  document.getElementById("mealOptions").classList.remove("show");
+  document.getElementById("searchSection").classList.remove("show");
+  document.getElementById("manualSection").classList.remove("show");
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("successMessage").textContent = "";
 }
 
 function selectMode(mode) {
-currentMode = mode;
-selectedMealType = mode === "drink" ? "Drink" : "";
+  currentMode = mode;
+  selectedMealType = mode === "drink" ? "Drink" : selectedMealType;
 
-["meal", "drink", "calorie", "history", "favorites"].forEach(name => {
-const btn = document.getElementById(name + "Tab");
-if (btn) btn.classList.remove("active");
-});
+  ["meal", "drink", "calorie"].forEach(name => {
+    const btn = document.getElementById(name + "Tab");
+    if (btn) btn.classList.remove("active");
+  });
 
-if (mode === "meal") document.getElementById("mealTab").classList.add("active");
-if (mode === "drink") document.getElementById("drinkTab").classList.add("active");
-if (mode === "calories") document.getElementById("calorieTab").classList.add("active");
-if (mode === "history") document.getElementById("historyTab").classList.add("active");
-if (mode === "favorites") document.getElementById("favoritesTab").classList.add("active");
+  if (mode === "meal") document.getElementById("mealTab").classList.add("active");
+  if (mode === "drink") document.getElementById("drinkTab").classList.add("active");
+  if (mode === "calories") document.getElementById("calorieTab").classList.add("active");
 
-clearSections();
+  clearSections();
 
-if (mode === "meal") document.getElementById("mealOptions").style.display = "grid";
+  if (mode === "meal") {
+    document.getElementById("mealOptions").classList.add("show");
+  }
 
-if (mode === "drink") {
-document.getElementById("searchSection").style.display = "block";
-document.getElementById("searchLabel").textContent = "Search drink";
-document.getElementById("foodSearchInput").placeholder = "Example: orange juice";
-}
+  if (mode === "drink") {
+    document.getElementById("searchSection").classList.add("show");
+    document.getElementById("searchLabel").textContent = "Search drink";
+    document.getElementById("foodSearchInput").placeholder = "Example: orange juice";
+  }
 
-if (mode === "calories") document.getElementById("manualSection").style.display = "block";
-
-if (mode === "history") {
-document.getElementById("historySection").style.display = "block";
-renderMealHistory();
-}
-
-if (mode === "favorites") {
-document.getElementById("favoritesSection").style.display = "block";
-renderFavorites();
-}
+  if (mode === "calories") {
+    document.getElementById("manualSection").classList.add("show");
+  }
 }
 
 function selectMealType(type) {
-selectedMealType = type;
+  selectedMealType = type;
+  document.querySelectorAll(".ari-meal-type button").forEach(button => {
+    button.classList.toggle("active", button.textContent === type);
+  });
 
-document.querySelectorAll(".meal-option").forEach(button => {
-button.classList.toggle("active", button.textContent === type);
-});
-
-document.getElementById("searchSection").style.display = "block";
-document.getElementById("manualSection").style.display = "none";
-document.getElementById("searchLabel").textContent = `Search food for ${type}`;
-document.getElementById("foodSearchInput").placeholder = "Example: chicken burrito";
-document.getElementById("results").innerHTML = "";
-document.getElementById("successMessage").textContent = "";
+  document.getElementById("searchSection").classList.add("show");
+  document.getElementById("manualSection").classList.remove("show");
+  document.getElementById("searchLabel").textContent = `Search food for ${type}`;
+  document.getElementById("foodSearchInput").placeholder = "Example: chicken burrito";
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("successMessage").textContent = "";
 }
 
 function scoreFoodResult(food, query) {
-const desc = (food.description || "").toLowerCase();
-const brand = food.brandName || "";
-const dataType = (food.dataType || "").toLowerCase();
-const q = query.toLowerCase();
+  const desc = (food.description || "").toLowerCase();
+  const brand = food.brandName || "";
+  const dataType = (food.dataType || "").toLowerCase();
+  const q = query.toLowerCase();
 
-let score = 0;
+  let score = 0;
 
-if (!brand) score += 40;
-if (dataType.includes("foundation")) score += 40;
-if (dataType.includes("sr legacy")) score += 35;
-if (desc === q) score += 100;
-if (desc === `${q}, raw`) score += 95;
-if (desc.includes(`${q}, raw`)) score += 80;
-if (desc.startsWith(q)) score += 50;
-if (desc.includes("raw")) score += 20;
-if (desc.includes("baked")) score += 5;
+  if (!brand) score += 40;
+  if (dataType.includes("foundation")) score += 40;
+  if (dataType.includes("sr legacy")) score += 35;
+  if (desc === q) score += 100;
+  if (desc === `${q}, raw`) score += 95;
+  if (desc.includes(`${q}, raw`)) score += 80;
+  if (desc.startsWith(q)) score += 50;
+  if (desc.includes("raw")) score += 20;
+  if (desc.includes("baked")) score += 5;
 
-if (brand) score -= 30;
-if (desc.includes("peanut butter")) score -= 40;
-if (desc.includes("flavored")) score -= 15;
-if (desc.includes("candy")) score -= 20;
+  if (brand) score -= 30;
+  if (desc.includes("peanut butter")) score -= 40;
+  if (desc.includes("flavored")) score -= 15;
+  if (desc.includes("candy")) score -= 20;
 
-return score;
+  return score;
 }
 
 async function searchFood() {
-const query = document.getElementById("foodSearchInput").value.trim();
-const results = document.getElementById("results");
+  const query = document.getElementById("foodSearchInput").value.trim();
+  const results = document.getElementById("results");
 
-if (!currentMode) {
-results.innerHTML = "<p>Please choose Add Meal, Add Drink, or Add Calories first.</p>";
-return;
-}
+  if (!currentMode) {
+    results.innerHTML = "<p>Please choose Meal, Drink, or Calories first.</p>";
+    return;
+  }
 
-if (currentMode === "meal" && !selectedMealType) {
-results.innerHTML = "<p>Please choose Breakfast, Lunch, Dinner, or Snack first.</p>";
-return;
-}
+  if (currentMode === "meal" && !selectedMealType) {
+    results.innerHTML = "<p>Please choose Breakfast, Lunch, Dinner, or Snack first.</p>";
+    return;
+  }
 
-if (!query) {
-results.innerHTML = "<p>Please type a food or drink to search.</p>";
-return;
-}
+  if (!query) {
+    results.innerHTML = "<p>Please type a food or drink to search.</p>";
+    return;
+  }
 
-results.innerHTML = "<p>Searching...</p>";
+  results.innerHTML = "<p>Searching...</p>";
 
-try {
-const url =
-`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=25&api_key=DEMO_KEY`;
+  try {
+    const url =
+      `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=25&api_key=DEMO_KEY`;
 
-const response = await fetch(url);
-const data = await response.json();
+    const response = await fetch(url);
+    const data = await response.json();
 
-if (!data.foods || data.foods.length === 0) {
-results.innerHTML = "<p>No results found.</p>";
-return;
-}
+    if (!data.foods || data.foods.length === 0) {
+      results.innerHTML = "<p>No results found.</p>";
+      return;
+    }
 
-const sortedFoods = data.foods.sort((a, b) => {
-return scoreFoodResult(b, query) - scoreFoodResult(a, query);
-});
+    const sortedFoods = data.foods.sort((a, b) => {
+      return scoreFoodResult(b, query) - scoreFoodResult(a, query);
+    });
 
-results.innerHTML = "";
+    results.innerHTML = "";
 
-sortedFoods.slice(0, 10).forEach(food => {
-const nutrients = food.foodNutrients || [];
+    sortedFoods.slice(0, 10).forEach(food => {
+      const nutrients = food.foodNutrients || [];
 
-const getNutrient = (names) => {
-const found = nutrients.find(nutrient =>
-names.some(name =>
-nutrient.nutrientName?.toLowerCase().includes(name.toLowerCase())
-)
-);
-return found?.value ?? 0;
-};
+      const getNutrient = (names) => {
+        const found = nutrients.find(nutrient =>
+          names.some(name =>
+            nutrient.nutrientName?.toLowerCase().includes(name.toLowerCase())
+          )
+        );
+        return found?.value ?? 0;
+      };
 
-const baseCalories = Math.round(Number(getNutrient(["Energy"]) || 0));
-const baseProtein = Number(getNutrient(["Protein"]) || 0);
-const baseCarbs = Number(getNutrient(["Carbohydrate"]) || 0);
-const baseFat = Number(getNutrient(["Total lipid", "Total Fat"]) || 0);
+      const baseCalories = Math.round(Number(getNutrient(["Energy"]) || 0));
+      const baseProtein = Number(getNutrient(["Protein"]) || 0);
+      const baseCarbs = Number(getNutrient(["Carbohydrate"]) || 0);
+      const baseFat = Number(getNutrient(["Total lipid", "Total Fat"]) || 0);
 
-const servingSize =
-food.servingSize && food.servingSizeUnit
-? `${food.servingSize} ${food.servingSizeUnit}`
-: food.householdServingFullText || "100 g";
+      const servingSize =
+        food.servingSize && food.servingSizeUnit
+          ? `${food.servingSize} ${food.servingSizeUnit}`
+          : food.householdServingFullText || "100 g";
 
-let multiplier = 1;
+      let multiplier = 1;
 
-const card = document.createElement("div");
-card.className = "food-result";
+      const card = document.createElement("div");
+      card.className = "food-result";
 
-function renderCardValues() {
-const adjustedCalories = Math.round(baseCalories * multiplier);
-const adjustedProtein = roundMacro(baseProtein * multiplier);
-const adjustedCarbs = roundMacro(baseCarbs * multiplier);
-const adjustedFat = roundMacro(baseFat * multiplier);
+      function renderCardValues() {
+        const adjustedCalories = Math.round(baseCalories * multiplier);
+        const adjustedProtein = roundMacro(baseProtein * multiplier);
+        const adjustedCarbs = roundMacro(baseCarbs * multiplier);
+        const adjustedFat = roundMacro(baseFat * multiplier);
 
-card.innerHTML = `
-<h3>${food.description}</h3>
-<p>${food.brandName ? food.brandName : "USDA FoodData Central"}</p>
-<p>🍽️ Serving: ${servingSize}</p>
+        card.innerHTML = `
+          <h3>${food.description}</h3>
+          <p>${food.brandName ? food.brandName : "USDA FoodData Central"}</p>
+          <p>Serving: ${servingSize}</p>
 
-<div class="multiplier-row">
-<button type="button" class="minus-btn">−</button>
-<span class="multiplier-value">${multiplier.toFixed(1)}x serving</span>
-<button type="button" class="plus-btn">+</button>
-</div>
+          <div class="multiplier-row">
+            <button type="button" class="minus-btn">−</button>
+            <span class="multiplier-value">${multiplier.toFixed(1)}x serving</span>
+            <button type="button" class="plus-btn">+</button>
+          </div>
 
-<p><strong>${adjustedCalories} kcal</strong></p>
+          <p><strong>${adjustedCalories} kcal</strong></p>
 
-<div class="macro-row">
-<div class="macro-box">💪<br>${adjustedProtein}g<br>Protein</div>
-<div class="macro-box">🍞<br>${adjustedCarbs}g<br>Carbs</div>
-<div class="macro-box">🥑<br>${adjustedFat}g<br>Fat</div>
-</div>
+          <div class="macro-row">
+            <div class="macro-box">${adjustedProtein}g<br>Protein</div>
+            <div class="macro-box">${adjustedCarbs}g<br>Carbs</div>
+            <div class="macro-box">${adjustedFat}g<br>Fat</div>
+          </div>
 
-<button class="signin-btn add-food-btn" type="button">
-Add to ${selectedMealType}
-</button>
-`;
+          <button class="ari-primary-action add-food-btn" type="button">
+            Add to ${selectedMealType}
+          </button>
+        `;
 
-card.querySelector(".minus-btn").addEventListener("click", () => {
-multiplier = Math.max(0.5, multiplier - 0.5);
-renderCardValues();
-});
+        card.querySelector(".minus-btn").addEventListener("click", () => {
+          multiplier = Math.max(0.5, multiplier - 0.5);
+          renderCardValues();
+        });
 
-card.querySelector(".plus-btn").addEventListener("click", () => {
-multiplier += 0.5;
-renderCardValues();
-});
+        card.querySelector(".plus-btn").addEventListener("click", () => {
+          multiplier += 0.5;
+          renderCardValues();
+        });
 
-card.querySelector(".add-food-btn").addEventListener("click", async event => {
-event.target.disabled = true;
-event.target.textContent = "Added ✅";
+        card.querySelector(".add-food-btn").addEventListener("click", async event => {
+          event.target.disabled = true;
+          event.target.textContent = "Added";
 
-await addToIntake({
-name: food.description,
-calories: adjustedCalories,
-category: selectedMealType,
-protein_g: adjustedProtein,
-carbs_g: adjustedCarbs,
-fat_g: adjustedFat,
-serving_size: servingSize,
-multiplier
-});
-});
-}
+          await addToIntake({
+            name: food.description,
+            calories: adjustedCalories,
+            category: selectedMealType,
+            protein_g: adjustedProtein,
+            carbs_g: adjustedCarbs,
+            fat_g: adjustedFat,
+            serving_size: servingSize,
+            multiplier
+          });
+        });
+      }
 
-renderCardValues();
-results.appendChild(card);
-});
+      renderCardValues();
+      results.appendChild(card);
+    });
 
-} catch (error) {
-results.innerHTML = `<p>Search failed: ${error.message}</p>`;
-}
+  } catch (error) {
+    results.innerHTML = `<p>Search failed: ${error.message}</p>`;
+  }
 }
 
 async function saveManualCalories() {
-const name = document.getElementById("manualFoodName").value.trim();
-const calories = Number(document.getElementById("manualCalories").value);
-const protein = Number(document.getElementById("manualProtein").value || 0);
-const carbs = Number(document.getElementById("manualCarbs").value || 0);
-const fat = Number(document.getElementById("manualFat").value || 0);
-const serving = document.getElementById("manualServing").value.trim();
-const category = document.getElementById("manualCategory").value;
+  const name = document.getElementById("manualFoodName").value.trim();
+  const calories = Number(document.getElementById("manualCalories").value);
+  const protein = Number(document.getElementById("manualProtein").value || 0);
+  const carbs = Number(document.getElementById("manualCarbs").value || 0);
+  const fat = Number(document.getElementById("manualFat").value || 0);
+  const serving = document.getElementById("manualServing").value.trim();
+  const category = document.getElementById("manualCategory").value;
 
-if (!name) {
-document.getElementById("successMessage").textContent = "Please enter a food or item name.";
-return;
-}
+  if (!name) {
+    document.getElementById("successMessage").textContent = "Please enter a food or item name.";
+    return;
+  }
 
-if (!calories || calories <= 0) {
-document.getElementById("successMessage").textContent = "Please enter a valid calorie amount.";
-return;
-}
+  if (!calories || calories <= 0) {
+    document.getElementById("successMessage").textContent = "Please enter a valid calorie amount.";
+    return;
+  }
 
-await addToIntake({
-name,
-calories: Math.round(calories),
-category,
-protein_g: protein,
-carbs_g: carbs,
-fat_g: fat,
-serving_size: serving || "Manual entry",
-multiplier: 1
-});
+  await addToIntake({
+    name,
+    calories: Math.round(calories),
+    category,
+    protein_g: protein,
+    carbs_g: carbs,
+    fat_g: fat,
+    serving_size: serving || "Manual entry",
+    multiplier: 1
+  });
 
-document.getElementById("manualFoodName").value = "";
-document.getElementById("manualCalories").value = "";
-document.getElementById("manualProtein").value = "";
-document.getElementById("manualCarbs").value = "";
-document.getElementById("manualFat").value = "";
-document.getElementById("manualServing").value = "";
+  document.getElementById("manualFoodName").value = "";
+  document.getElementById("manualCalories").value = "";
+  document.getElementById("manualProtein").value = "";
+  document.getElementById("manualCarbs").value = "";
+  document.getElementById("manualFat").value = "";
+  document.getElementById("manualServing").value = "";
 }
 
 async function addToIntake(meal) {
-const user = await getCurrentUser();
-const windowInfo = await getNutritionWindow();
-const createdAt = new Date().toISOString();
+  const user = await getCurrentUser();
+  const windowInfo = await getNutritionWindow();
+  const createdAt = new Date().toISOString();
 
-const mealToSave = {
-name: meal.name,
-calories: Number(meal.calories || 0),
-category: meal.category || "Meal",
-nutrition_date: windowInfo.nutritionDate,
-protein_g: Number(meal.protein_g || 0),
-carbs_g: Number(meal.carbs_g || 0),
-fat_g: Number(meal.fat_g || 0),
-serving_size: meal.serving_size || null,
-multiplier: Number(meal.multiplier || 1),
-is_favorite: Boolean(meal.is_favorite || false),
-created_at: createdAt
-};
+  const mealToSave = {
+    name: meal.name,
+    calories: Number(meal.calories || 0),
+    category: meal.category || "Meal",
+    nutrition_date: windowInfo.nutritionDate,
+    protein_g: Number(meal.protein_g || 0),
+    carbs_g: Number(meal.carbs_g || 0),
+    fat_g: Number(meal.fat_g || 0),
+    serving_size: meal.serving_size || null,
+    multiplier: Number(meal.multiplier || 1),
+    is_favorite: Boolean(meal.is_favorite || false),
+    created_at: createdAt
+  };
 
-if (user) {
-const { error } = await window.calbuddySupabase
-.from("meals")
-.insert({ user_id: user.id, ...mealToSave });
+  if (user) {
+    const { error } = await window.calbuddySupabase
+      .from("meals")
+      .insert({ user_id: user.id, ...mealToSave });
 
-if (error) {
-saveMealLocally(mealToSave);
-document.getElementById("successMessage").textContent =
-"Meal saved on this device, but cloud save failed: " + error.message;
-} else {
-document.getElementById("successMessage").textContent =
-`✅ Added to ${mealToSave.category}: ${mealToSave.name} — ${mealToSave.calories} kcal`;
-}
-} else {
-saveMealLocally(mealToSave);
-document.getElementById("successMessage").textContent =
-`✅ Added to ${mealToSave.category}: ${mealToSave.name} — ${mealToSave.calories} kcal`;
-}
+    if (error) {
+      saveMealLocally(mealToSave);
+      document.getElementById("successMessage").textContent =
+        "Saved on this device, but cloud save failed: " + error.message;
+    } else {
+      document.getElementById("successMessage").textContent =
+        `Added to ${mealToSave.category}: ${mealToSave.name} — ${mealToSave.calories} kcal`;
+    }
+  } else {
+    saveMealLocally(mealToSave);
+    document.getElementById("successMessage").textContent =
+      `Added to ${mealToSave.category}: ${mealToSave.name} — ${mealToSave.calories} kcal`;
+  }
 
-const searchInput = document.getElementById("foodSearchInput");
-if (searchInput) searchInput.value = "";
+  const searchInput = document.getElementById("foodSearchInput");
+  if (searchInput) searchInput.value = "";
 
-document.getElementById("results").innerHTML = "";
-await renderTodayIntake();
+  document.getElementById("results").innerHTML = "";
+  await renderTodayIntake();
 }
 
 function saveMealLocally(meal) {
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+  const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
-meals.push({
-id: Date.now(),
-date: meal.nutrition_date,
-...meal,
-source: "local"
-});
+  meals.push({
+    id: Date.now(),
+    date: meal.nutrition_date,
+    ...meal,
+    source: "local"
+  });
 
-localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
+  localStorage.setItem("calbuddyMeals", JSON.stringify(meals));
 }
 
 async function getMealsInWindow(windowInfo) {
-const user = await getCurrentUser();
+  const user = await getCurrentUser();
 
-if (user) {
-const { data, error } = await window.calbuddySupabase
-.from("meals")
-.select("*")
-.eq("user_id", user.id)
-.gte("created_at", windowInfo.start.toISOString())
-.lt("created_at", windowInfo.end.toISOString())
-.order("created_at", { ascending: true });
+  if (user) {
+    const { data, error } = await window.calbuddySupabase
+      .from("meals")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("created_at", windowInfo.start.toISOString())
+      .lt("created_at", windowInfo.end.toISOString())
+      .order("created_at", { ascending: true });
 
-if (!error && data) {
-return data.map(meal => ({ ...meal, source: "supabase" }));
-}
-}
+    if (!error && data) {
+      return data.map(meal => ({ ...meal, source: "supabase" }));
+    }
+  }
 
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+  const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
 
-return meals
-.filter(meal => {
-const created = new Date(meal.created_at || meal.createdAt || meal.date || meal.nutrition_date);
-return created >= windowInfo.start && created < windowInfo.end;
-})
-.map(meal => ({ ...meal, source: "local" }));
-}
-
-async function getTodaysMeals() {
-const windowInfo = await getNutritionWindow();
-return getMealsInWindow(windowInfo);
+  return meals
+    .filter(meal => {
+      const created = new Date(meal.created_at || meal.createdAt || meal.date || meal.nutrition_date);
+      return created >= windowInfo.start && created < windowInfo.end;
+    })
+    .map(meal => ({ ...meal, source: "local" }));
 }
 
 async function repeatMeal(meal) {
-await addToIntake({
-name: meal.name,
-calories: meal.calories,
-category: meal.category,
-protein_g: meal.protein_g,
-carbs_g: meal.carbs_g,
-fat_g: meal.fat_g,
-serving_size: meal.serving_size,
-multiplier: meal.multiplier || 1,
-is_favorite: false
-});
+  await addToIntake({
+    name: meal.name,
+    calories: meal.calories,
+    category: meal.category,
+    protein_g: meal.protein_g,
+    carbs_g: meal.carbs_g,
+    fat_g: meal.fat_g,
+    serving_size: meal.serving_size,
+    multiplier: meal.multiplier || 1,
+    is_favorite: false
+  });
 }
 
 async function repeatPreviousWindow() {
-const previousWindow = await getNutritionWindow(-1);
-const previousMeals = await getMealsInWindow(previousWindow);
+  const previousWindow = await getNutritionWindow(-1);
+  const previousMeals = await getMealsInWindow(previousWindow);
 
-if (!previousMeals.length) {
-document.getElementById("successMessage").textContent =
-"No meals found from the previous reset window.";
-return;
-}
+  if (!previousMeals.length) {
+    document.getElementById("successMessage").textContent =
+      "No meals found from the previous reset window.";
+    return;
+  }
 
-for (const meal of previousMeals) {
-await repeatMeal(meal);
-}
+  for (const meal of previousMeals) {
+    await repeatMeal(meal);
+  }
 
-document.getElementById("successMessage").textContent =
-`🔁 Repeated ${previousMeals.length} meals from the previous reset window.`;
+  document.getElementById("successMessage").textContent =
+    `Repeated ${previousMeals.length} meals from the previous reset window.`;
 }
 
 async function favoriteMeal(id, source) {
-if (source === "supabase") {
-const { error } = await window.calbuddySupabase
-.from("meals")
-.update({ is_favorite: true })
-.eq("id", id);
+  if (source === "supabase") {
+    const { error } = await window.calbuddySupabase
+      .from("meals")
+      .update({ is_favorite: true })
+      .eq("id", id);
 
-if (error) {
-document.getElementById("successMessage").textContent =
-"Could not favorite meal: " + error.message;
-return;
-}
-} else {
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
-const updatedMeals = meals.map(meal =>
-String(meal.id) === String(id) ? { ...meal, is_favorite: true } : meal
-);
-localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
-}
+    if (error) {
+      document.getElementById("successMessage").textContent =
+        "Could not favorite meal: " + error.message;
+      return;
+    }
+  } else {
+    const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+    const updatedMeals = meals.map(meal =>
+      String(meal.id) === String(id) ? { ...meal, is_favorite: true } : meal
+    );
+    localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
+  }
 
-document.getElementById("successMessage").textContent = "⭐ Added to favorites.";
-await renderTodayIntake();
+  document.getElementById("successMessage").textContent = "Added to favorites.";
+  await renderTodayIntake();
 }
 
 async function deleteIntakeItem(id, source) {
-if (source === "supabase") {
-const { error } = await window.calbuddySupabase
-.from("meals")
-.delete()
-.eq("id", id);
+  if (source === "supabase") {
+    const { error } = await window.calbuddySupabase
+      .from("meals")
+      .delete()
+      .eq("id", id);
 
-if (error) {
-document.getElementById("successMessage").textContent =
-"Could not delete cloud meal: " + error.message;
-return;
-}
-} else {
-const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
-const updatedMeals = meals.filter(meal => String(meal.id) !== String(id));
-localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
-}
+    if (error) {
+      document.getElementById("successMessage").textContent =
+        "Could not delete cloud meal: " + error.message;
+      return;
+    }
+  } else {
+    const meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]");
+    const updatedMeals = meals.filter(meal => String(meal.id) !== String(id));
+    localStorage.setItem("calbuddyMeals", JSON.stringify(updatedMeals));
+  }
 
-document.getElementById("successMessage").textContent =
-"🗑️ Item removed. Calories updated.";
+  document.getElementById("successMessage").textContent =
+    "Item removed. Calories updated.";
 
-await renderTodayIntake();
+  await renderTodayIntake();
 }
 
 async function renderTodayIntake() {
-const itemsDiv = document.getElementById("todayIntakeItems");
-const totalText = document.getElementById("totalConsumedText");
-const proteinText = document.getElementById("totalProteinText");
-const carbsText = document.getElementById("totalCarbsText");
-const fatText = document.getElementById("totalFatText");
+  const itemsDiv = document.getElementById("todayIntakeItems");
+  const totalText = document.getElementById("totalConsumedText");
+  const proteinText = document.getElementById("totalProteinText");
+  const carbsText = document.getElementById("totalCarbsText");
+  const fatText = document.getElementById("totalFatText");
 
-const windowInfo = await getNutritionWindow();
-updateWindowNote(windowInfo);
+  const windowInfo = await getNutritionWindow();
+  updateWindowNote(windowInfo);
 
-const meals = await getMealsInWindow(windowInfo);
+  const meals = await getMealsInWindow(windowInfo);
 
-if (meals.length === 0) {
-itemsDiv.innerHTML = "<p>No meals logged in this reset window.</p>";
-totalText.textContent = "0";
-proteinText.textContent = "0";
-carbsText.textContent = "0";
-fatText.textContent = "0";
-localStorage.setItem("calbuddyCaloriesConsumed", 0);
-return;
-}
+  if (meals.length === 0) {
+    itemsDiv.innerHTML = "<p class='window-note'>No meals logged in this reset window.</p>";
+    totalText.textContent = "0";
+    proteinText.textContent = "0";
+    carbsText.textContent = "0";
+    fatText.textContent = "0";
+    localStorage.setItem("calbuddyCaloriesConsumed", 0);
+    return;
+  }
 
-itemsDiv.innerHTML = "";
+  itemsDiv.innerHTML = "";
 
-meals.forEach(meal => {
-const item = document.createElement("div");
-item.className = "intake-item";
+  meals.forEach(meal => {
+    const item = document.createElement("div");
+    item.className = "intake-item";
 
-item.innerHTML = `
-<strong>${meal.category}: ${meal.name}</strong>
-<p>${Math.round(meal.calories)} kcal</p>
-<p>${roundMacro(meal.protein_g)}g P • ${roundMacro(meal.carbs_g)}g C • ${roundMacro(meal.fat_g)}g F</p>
-<p>Serving: ${meal.serving_size || "-"} ${meal.multiplier ? `• ${meal.multiplier}x` : ""}</p>
+    item.innerHTML = `
+      <strong>${meal.category}: ${meal.name}</strong>
+      <p>${Math.round(meal.calories)} kcal</p>
+      <p>${roundMacro(meal.protein_g)}g P • ${roundMacro(meal.carbs_g)}g C • ${roundMacro(meal.fat_g)}g F</p>
+      <p>Serving: ${meal.serving_size || "-"} ${meal.multiplier ? `• ${meal.multiplier}x` : ""}</p>
 
-<div class="intake-actions">
-<button class="favorite-btn" type="button">⭐ Favorite</button>
-<button class="repeat-btn" type="button">🔁 Repeat</button>
-<button class="delete-intake-btn" type="button">🗑️ Delete</button>
-</div>
-`;
+      <div class="intake-actions">
+        <button class="favorite-btn" type="button">Favorite</button>
+        <button class="repeat-btn" type="button">Repeat</button>
+        <button class="delete-intake-btn" type="button">Delete</button>
+      </div>
+    `;
 
-item.querySelector(".delete-intake-btn").addEventListener("click", () => {
-deleteIntakeItem(meal.id, meal.source);
-});
+    item.querySelector(".delete-intake-btn").addEventListener("click", () => {
+      deleteIntakeItem(meal.id, meal.source);
+    });
 
-item.querySelector(".repeat-btn").addEventListener("click", () => {
-repeatMeal(meal);
-});
+    item.querySelector(".repeat-btn").addEventListener("click", () => {
+      repeatMeal(meal);
+    });
 
-item.querySelector(".favorite-btn").addEventListener("click", () => {
-favoriteMeal(meal.id, meal.source);
-});
+    item.querySelector(".favorite-btn").addEventListener("click", () => {
+      favoriteMeal(meal.id, meal.source);
+    });
 
-itemsDiv.appendChild(item);
-});
+    itemsDiv.appendChild(item);
+  });
 
-const total = meals.reduce((sum, item) => sum + Number(item.calories || 0), 0);
-const protein = meals.reduce((sum, item) => sum + Number(item.protein_g || 0), 0);
-const carbs = meals.reduce((sum, item) => sum + Number(item.carbs_g || 0), 0);
-const fat = meals.reduce((sum, item) => sum + Number(item.fat_g || 0), 0);
+  const total = meals.reduce((sum, item) => sum + Number(item.calories || 0), 0);
+  const protein = meals.reduce((sum, item) => sum + Number(item.protein_g || 0), 0);
+  const carbs = meals.reduce((sum, item) => sum + Number(item.carbs_g || 0), 0);
+  const fat = meals.reduce((sum, item) => sum + Number(item.fat_g || 0), 0);
 
-totalText.textContent = Math.round(total).toLocaleString();
-proteinText.textContent = roundMacro(protein);
-carbsText.textContent = roundMacro(carbs);
-fatText.textContent = roundMacro(fat);
+  totalText.textContent = Math.round(total).toLocaleString();
+  proteinText.textContent = roundMacro(protein);
+  carbsText.textContent = roundMacro(carbs);
+  fatText.textContent = roundMacro(fat);
 
-localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
+  localStorage.setItem("calbuddyCaloriesConsumed", Math.round(total));
 }
 
 async function renderMealHistory() {
-const container = document.getElementById("historyItems");
-const user = await getCurrentUser();
+  const container = document.getElementById("historyItems");
+  const user = await getCurrentUser();
 
-const today = new Date();
-const start = new Date();
-start.setDate(today.getDate() - 14);
+  const today = new Date();
+  const start = new Date();
+  start.setDate(today.getDate() - 14);
 
-let meals = [];
+  let meals = [];
 
-if (user) {
-const { data, error } = await window.calbuddySupabase
-.from("meals")
-.select("*")
-.eq("user_id", user.id)
-.gte("created_at", start.toISOString())
-.order("created_at", { ascending: false });
+  if (user) {
+    const { data, error } = await window.calbuddySupabase
+      .from("meals")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("created_at", start.toISOString())
+      .order("created_at", { ascending: false });
 
-if (!error && data) meals = data;
-} else {
-meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
-.filter(meal => new Date(meal.created_at || meal.date || meal.nutrition_date) >= start);
-}
+    if (!error && data) meals = data;
+  } else {
+    meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
+      .filter(meal => new Date(meal.created_at || meal.date || meal.nutrition_date) >= start);
+  }
 
-container.innerHTML = meals.length ? "" : "<p>No meal history yet.</p>";
+  container.innerHTML = meals.length ? "" : "<p class='window-note'>No meal history yet.</p>";
 
-meals.forEach(meal => {
-const card = document.createElement("div");
-card.className = "history-card";
+  meals.forEach(meal => {
+    const card = document.createElement("div");
+    card.className = "history-card";
 
-const displayDate = meal.created_at
-? new Date(meal.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-: meal.nutrition_date || meal.date;
+    const displayDate = meal.created_at
+      ? new Date(meal.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : meal.nutrition_date || meal.date;
 
-card.innerHTML = `
-<strong>${displayDate} — ${meal.category}</strong>
-<p>${meal.name}</p>
-<p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
-<button class="signin-btn" type="button">🔁 Repeat Now</button>
-`;
+    card.innerHTML = `
+      <strong>${displayDate} — ${meal.category}</strong>
+      <p>${meal.name}</p>
+      <p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
+      <button class="ari-secondary-action" type="button">Repeat Now</button>
+    `;
 
-card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
-container.appendChild(card);
-});
+    card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
+    container.appendChild(card);
+  });
 }
 
 async function renderFavorites() {
-const container = document.getElementById("favoriteItems");
-const user = await getCurrentUser();
-let meals = [];
+  const container = document.getElementById("favoriteItems");
+  const user = await getCurrentUser();
+  let meals = [];
 
-if (user) {
-const { data, error } = await window.calbuddySupabase
-.from("meals")
-.select("*")
-.eq("user_id", user.id)
-.eq("is_favorite", true)
-.order("created_at", { ascending: false });
+  if (user) {
+    const { data, error } = await window.calbuddySupabase
+      .from("meals")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_favorite", true)
+      .order("created_at", { ascending: false });
 
-if (!error && data) meals = data;
-} else {
-meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
-.filter(meal => meal.is_favorite);
+    if (!error && data) meals = data;
+  } else {
+    meals = JSON.parse(localStorage.getItem("calbuddyMeals") || "[]")
+      .filter(meal => meal.is_favorite);
+  }
+
+  container.innerHTML = meals.length ? "" : "<p class='window-note'>No favorite meals yet.</p>";
+
+  meals.forEach(meal => {
+    const card = document.createElement("div");
+    card.className = "favorite-card";
+    card.innerHTML = `
+      <strong>${meal.name}</strong>
+      <p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
+      <button class="ari-secondary-action" type="button">Add Again Now</button>
+    `;
+
+    card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
+    container.appendChild(card);
+  });
 }
 
-container.innerHTML = meals.length ? "" : "<p>No favorite meals yet.</p>";
+async function toggleHistory() {
+  const section = document.getElementById("historySection");
+  section.classList.toggle("show");
+  if (section.classList.contains("show")) await renderMealHistory();
+}
 
-meals.forEach(meal => {
-const card = document.createElement("div");
-card.className = "favorite-card";
-card.innerHTML = `
-<strong>${meal.name}</strong>
-<p>${meal.calories} kcal • ${roundMacro(meal.protein_g)}P / ${roundMacro(meal.carbs_g)}C / ${roundMacro(meal.fat_g)}F</p>
-<button class="signin-btn" type="button">Add Again Now</button>
-`;
-
-card.querySelector("button").addEventListener("click", () => repeatMeal(meal));
-container.appendChild(card);
-});
+async function toggleFavorites() {
+  const section = document.getElementById("favoritesSection");
+  section.classList.toggle("show");
+  if (section.classList.contains("show")) await renderFavorites();
 }
 
 async function handlePendingCalBuddyMeal() {
-const pending = localStorage.getItem("calbuddyPendingMealToLog");
-if (!pending) return;
+  const pending = localStorage.getItem("calbuddyPendingMealToLog");
+  if (!pending) return;
 
-try {
-const meal = JSON.parse(pending);
+  try {
+    const meal = JSON.parse(pending);
 
-if (meal && meal.name && meal.calories) {
-await addToIntake({
-name: meal.name,
-calories: meal.calories,
-category: meal.category || "Meal",
-protein_g: meal.protein_g || 0,
-carbs_g: meal.carbs_g || 0,
-fat_g: meal.fat_g || 0,
-serving_size: meal.serving_size || "Added by CalBuddy",
-multiplier: meal.multiplier || 1
-});
+    if (meal && meal.name && meal.calories) {
+      await addToIntake({
+        name: meal.name,
+        calories: meal.calories,
+        category: meal.category || "Meal",
+        protein_g: meal.protein_g || 0,
+        carbs_g: meal.carbs_g || 0,
+        fat_g: meal.fat_g || 0,
+        serving_size: meal.serving_size || "Added by CalBuddy",
+        multiplier: meal.multiplier || 1
+      });
 
-document.getElementById("successMessage").textContent =
-`✅ CalBuddy added: ${meal.name} — ${meal.calories} kcal`;
+      document.getElementById("successMessage").textContent =
+        `CalBuddy added: ${meal.name} — ${meal.calories} kcal`;
 
-localStorage.removeItem("calbuddyPendingMealToLog");
-}
-} catch {
-localStorage.removeItem("calbuddyPendingMealToLog");
-}
+      localStorage.removeItem("calbuddyPendingMealToLog");
+    }
+  } catch {
+    localStorage.removeItem("calbuddyPendingMealToLog");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-const params = new URLSearchParams(window.location.search);
-const mode = params.get("mode");
+  rotateNutritionPrompt();
 
-if (mode === "meal") selectMode("meal");
-else if (mode === "drink") selectMode("drink");
-else if (mode === "repeat") selectMode("history");
-else if (mode === "favorite") selectMode("favorites");
-else selectMode("meal");
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get("mode");
 
-await handlePendingCalBuddyMeal();
-await renderTodayIntake();
+  if (mode === "meal") selectMode("meal");
+  else if (mode === "drink") selectMode("drink");
+  else if (mode === "repeat") {
+    await toggleHistory();
+  } else if (mode === "favorite") {
+    await toggleFavorites();
+  }
+
+  await handlePendingCalBuddyMeal();
+  await renderTodayIntake();
 });
 </script>
 </body>
