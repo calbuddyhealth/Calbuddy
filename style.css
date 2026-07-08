@@ -3775,3 +3775,137 @@ ARI SIDE MENU — WIDTH FIX + ORBITRON GLOW TABS
     filter: brightness(1.35);
   }
 }
+/* =====================================================
+ARI SIDE MENU — HOLOGRAPHIC CARD POLISH
+===================================================== */
+
+/* menu opens like glass materializing */
+.ari-v1-home .ari-side-menu.open,
+.ari-v1-home .side-menu.open {
+  animation: ariMenuMaterialize 0.38s ease both !important;
+}
+
+/* cards appear one by one */
+.ari-v1-home .ari-side-menu.open a,
+.ari-v1-home .side-menu.open a {
+  animation: ariNavCardIn 0.42s ease both;
+}
+
+.ari-v1-home .ari-side-menu.open a:nth-of-type(1),
+.ari-v1-home .side-menu.open a:nth-of-type(1) {
+  animation-delay: 0.04s;
+}
+
+.ari-v1-home .ari-side-menu.open a:nth-of-type(2),
+.ari-v1-home .side-menu.open a:nth-of-type(2) {
+  animation-delay: 0.09s;
+}
+
+.ari-v1-home .ari-side-menu.open a:nth-of-type(3),
+.ari-v1-home .side-menu.open a:nth-of-type(3) {
+  animation-delay: 0.14s;
+}
+
+.ari-v1-home .ari-side-menu.open a:nth-of-type(4),
+.ari-v1-home .side-menu.open a:nth-of-type(4) {
+  animation-delay: 0.19s;
+}
+
+/* breathing aura */
+.ari-v1-home .ari-side-menu a,
+.ari-v1-home .side-menu a {
+  animation: ariNavCardBreath 5.4s ease-in-out infinite;
+}
+
+/* holographic moving reflection */
+.ari-v1-home .ari-side-menu a .ari-nav-shine,
+.ari-v1-home .side-menu a .ari-nav-shine {
+  display: none;
+}
+
+/* use extra layer without HTML changes */
+.ari-v1-home .ari-side-menu a::after,
+.ari-v1-home .side-menu a::after {
+  content: "›" !important;
+  position: relative !important;
+  z-index: 3 !important;
+  margin-left: auto !important;
+}
+
+/* add shimmer using background animation */
+.ari-v1-home .ari-side-menu a {
+  background-size: 220% 100%, auto, auto !important;
+  animation:
+    ariNavCardBreath 5.4s ease-in-out infinite,
+    ariNavGlassShimmer 7s ease-in-out infinite !important;
+}
+
+/* top glass reflection */
+.ari-v1-home .ari-side-menu a span,
+.ari-v1-home .side-menu a span {
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+/* press feels powered */
+.ari-v1-home .ari-side-menu a:active,
+.ari-v1-home .side-menu a:active {
+  filter: brightness(1.28) saturate(1.15) !important;
+}
+
+/* animations */
+@keyframes ariMenuMaterialize {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes ariNavCardIn {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.96);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes ariNavCardBreath {
+  0%, 100% {
+    box-shadow:
+      0 0 14px rgba(34,211,238,.16),
+      0 0 34px rgba(34,211,238,.07),
+      0 12px 30px rgba(0,0,0,.32),
+      inset 0 1px 0 rgba(255,255,255,.14),
+      inset 0 0 22px rgba(34,211,238,.045);
+  }
+
+  50% {
+    box-shadow:
+      0 0 22px rgba(34,211,238,.30),
+      0 0 54px rgba(34,211,238,.14),
+      0 14px 34px rgba(0,0,0,.36),
+      inset 0 1px 0 rgba(255,255,255,.20),
+      inset 0 0 30px rgba(34,211,238,.09);
+  }
+}
+
+@keyframes ariNavGlassShimmer {
+  0%, 100% {
+    background-position: 0% 50%, center, center;
+  }
+
+  50% {
+    background-position: 100% 50%, center, center;
+  }
+}
