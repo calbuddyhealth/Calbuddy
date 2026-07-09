@@ -233,3 +233,88 @@ main#ariApp #ariHeaderAvatar {
     filter: drop-shadow(0 0 13px rgba(34,211,238,.42));
   }
 }
+
+/* =====================================================
+ARI HEADER — GLASS LED HAMBURGER + EXIT BUTTON
+===================================================== */
+
+main#ariApp .ari-menu-toggle {
+  position: relative !important;
+  width: 58px !important;
+  height: 58px !important;
+  min-width: 58px !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(165, 243, 252, 0.46) !important;
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255,255,255,.22), transparent 24%),
+    linear-gradient(145deg, rgba(103,232,249,.16), rgba(2,6,23,.86)) !important;
+  display: grid !important;
+  place-items: center !important;
+  box-shadow:
+    0 0 0 7px rgba(34,211,238,.06),
+    0 0 24px rgba(34,211,238,.34),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -10px 22px rgba(0,0,0,.35) !important;
+  overflow: hidden !important;
+}
+
+main#ariApp .ari-menu-toggle span {
+  position: absolute !important;
+  width: 25px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: rgba(200,255,255,.95) !important;
+  box-shadow:
+    0 0 8px rgba(200,255,255,.9),
+    0 0 18px rgba(34,211,238,.58) !important;
+  transition: transform .25s ease, opacity .2s ease, top .25s ease !important;
+}
+
+main#ariApp .ari-menu-toggle span:nth-child(1) {
+  top: 20px !important;
+}
+
+main#ariApp .ari-menu-toggle span:nth-child(2) {
+  top: 28px !important;
+}
+
+main#ariApp .ari-menu-toggle span:nth-child(3) {
+  top: 36px !important;
+}
+
+main#ariApp .ari-menu-toggle.open span:nth-child(1) {
+  top: 28px !important;
+  transform: rotate(45deg) !important;
+}
+
+main#ariApp .ari-menu-toggle.open span:nth-child(2) {
+  opacity: 0 !important;
+  transform: scaleX(0) !important;
+}
+
+main#ariApp .ari-menu-toggle.open span:nth-child(3) {
+  top: 28px !important;
+  transform: rotate(-45deg) !important;
+}
+
+main#ariApp .ari-menu-toggle:active {
+  transform: scale(.94) !important;
+}
+
+/* Exit button */
+
+main#ariApp .profile-btn.ari-exit-btn {
+  border-color: rgba(248, 113, 113, .58) !important;
+  color: #fecaca !important;
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255,255,255,.16), transparent 24%),
+    linear-gradient(145deg, rgba(127,29,29,.34), rgba(2,6,23,.86)) !important;
+  box-shadow:
+    0 0 0 6px rgba(239,68,68,.05),
+    0 0 22px rgba(239,68,68,.28),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -10px 22px rgba(0,0,0,.35) !important;
+  text-shadow:
+    0 0 8px rgba(254,202,202,.7),
+    0 0 18px rgba(239,68,68,.42) !important;
+}
