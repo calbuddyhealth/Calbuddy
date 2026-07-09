@@ -51,7 +51,7 @@ ARI CONVERSATIONS — THREAD / MESSAGE UI
   white-space: pre-wrap;
 }
 
-.ari-label {
+.ari-message-label {
   display: block;
   font-size: 11px;
   font-weight: 950;
@@ -64,7 +64,7 @@ ARI CONVERSATIONS — THREAD / MESSAGE UI
   border: 1px solid rgba(125, 211, 252, 0.14);
 }
 
-.ari-ai .ari-label {
+.ari-ai .ari-message-label {
   color: #67e8f9;
 }
 
@@ -75,7 +75,7 @@ ARI CONVERSATIONS — THREAD / MESSAGE UI
   border: 1px solid rgba(34, 211, 238, 0.22);
 }
 
-.ari-user .ari-label {
+.ari-user .ari-message-label {
   color: rgba(244,248,255,0.72);
 }
 
@@ -99,12 +99,27 @@ ARI CONVERSATION HISTORY
   border-radius: 22px;
   border: 1px solid rgba(103,232,249,.18);
   background:
-    linear-gradient(180deg,
+    linear-gradient(
+      180deg,
       rgba(15,23,42,.88),
-      rgba(2,6,23,.76));
+      rgba(2,6,23,.76)
+    );
   box-shadow:
     0 0 22px rgba(34,211,238,.08),
     inset 0 1px 0 rgba(255,255,255,.05);
+
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.ari-history-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(103,232,249,.34);
+  box-shadow:
+    0 0 28px rgba(34,211,238,.14),
+    inset 0 1px 0 rgba(255,255,255,.08);
 }
 
 .ari-history-card strong {
@@ -144,6 +159,7 @@ ARI CONVERSATION HISTORY
   font-size: 0.8rem;
   font-weight: 800;
   cursor: pointer;
+
   transition:
     background .2s ease,
     border-color .2s ease,
