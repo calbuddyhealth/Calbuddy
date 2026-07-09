@@ -157,20 +157,6 @@ main#ariApp .ari-bottom-input {
   padding: 10px 0 calc(env(safe-area-inset-bottom) + 12px) !important;
 }
 
-/* =====================================================
-ARI V1 — FINAL COMPOSER QUESTION CLEANUP
-===================================================== */
-
-main#ariApp .ari-welcome-prompt,
-main#ariApp .ari-welcome-question {
-  display: none !important;
-}
-
-main#ariApp #ariInput::placeholder {
-  color: rgba(226, 232, 240, 0.62) !important;
-  font-weight: 850 !important;
-}
-
 
 /* =====================================================
 ARI V2 — TRANSPARENT GLASS REACTOR SEND BUTTON
