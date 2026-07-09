@@ -288,29 +288,56 @@ function updateAriAvatarMood(mood = "idle") {
 }
 
 function startAriBlinkLoop() {
-  clearInterval(ariBlinkInterval);
+  clearTimeout(ariBlinkInterval);
+  scheduleNextAriBlink();
+}
 
-  ariBlinkInterval = setInterval(() => {
-    if (ariBusy) return;
+function scheduleNextAriBlink() {
+  const nextBlinkDelay = 2600 + Math.random() * 7200;
 
-    if (ariFirstReplyCompleted) {
-      setAriAvatar("avatarClosed");
-
-      clearTimeout(ariBlinkTimeout);
-      ariBlinkTimeout = setTimeout(() => {
-        if (!ariBusy) setAriAvatar("avatarOpen");
-      }, 150);
-
-      return;
+  ariBlinkInterval = setTimeout(async () => {
+    if (!ariBusy) {
+      await performAriBlink();
     }
 
-    setAriHero("heroClosed");
+    scheduleNextAriBlink();
+  }, nextBlinkDelay);
+}
 
-    clearTimeout(ariBlinkTimeout);
-    ariBlinkTimeout = setTimeout(() => {
-      if (!ariBusy) setAriHero("heroOpen");
-    }, 150);
-  }, 30000);
+async function performAriBlink() {
+  const longBlink = Math.random() < 0.14;
+  const doubleBlink = !longBlink && Math.random() < 0.22;
+
+  const blinkDuration = longBlink
+    ? 520 + Math.random() * 260
+    : 90 + Math.random() * 190;
+
+  closeAriEyes();
+  await wait(blinkDuration);
+  openAriEyes();
+
+  if (doubleBlink) {
+    await wait(120 + Math.random() * 100);
+    closeAriEyes();
+    await wait(85 + Math.random() * 150);
+    openAriEyes();
+  }
+}
+
+function closeAriEyes() {
+  if (ariFirstReplyCompleted) {
+    setAriAvatar("avatarClosed");
+  } else {
+    setAriHero("heroClosed");
+  }
+}
+
+function openAriEyes() {
+  if (ariFirstReplyCompleted) {
+    setAriAvatar("avatarOpen");
+  } else {
+    setAriHero("heroOpen");
+  }
 }
 
 function interruptAri(poseKey) {
