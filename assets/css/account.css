@@ -65,16 +65,3 @@ body:has(.ari-account-page)::after {
 
 }
 
-/* =====================================================
-ARI ACCOUNT ANIMATIONS
-===================================================== */
-
-@keyframes ariAccountSweep {
-  from {
-    transform: translateX(-12%) translateY(8%);
-  }
-
-  to {
-    transform: translateX(12%) translateY(-8%);
-  }
-}
