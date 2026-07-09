@@ -1133,3 +1133,212 @@ main#ariApp .ari-bottom-input {
 main#ariApp.ari-v1-home {
   padding-bottom: 170px !important;
 }
+/* =====================================================
+ARI V1 — LIVING BACKGROUND + THINKING LED
+===================================================== */
+
+main#ariApp.ari-v1-home::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.34;
+  background:
+    radial-gradient(circle at 50% 31%, rgba(34, 211, 238, 0.18), transparent 23%),
+    radial-gradient(circle at 20% 42%, rgba(59, 130, 246, 0.10), transparent 20%),
+    radial-gradient(circle at 80% 58%, rgba(34, 211, 238, 0.08), transparent 22%),
+    repeating-radial-gradient(circle at 50% 38%, rgba(34, 211, 238, 0.12) 0 1px, transparent 1px 18px);
+  mix-blend-mode: screen;
+  animation: ariAmbientPulse 10s ease-in-out infinite;
+}
+
+main#ariApp .ari-welcome::before {
+  content: "";
+  position: absolute;
+  inset: -40px -20px 90px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.28;
+  background-image:
+    linear-gradient(30deg, rgba(34,211,238,0.10) 1px, transparent 1px),
+    linear-gradient(150deg, rgba(34,211,238,0.06) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(circle at 50% 44%, black 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle at 50% 44%, black 0%, transparent 72%);
+  animation: ariGridDrift 18s linear infinite;
+}
+
+main#ariApp .ari-input-shell::before {
+  animation: ariLedIdle 5.5s ease-in-out infinite;
+}
+
+main#ariApp.ari-thinking-mode .ari-input-shell::before,
+main#ariApp:has(#ariInput:disabled) .ari-input-shell::before {
+  height: 3px;
+  opacity: 1;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(103, 232, 249, 0.20) 18%,
+      rgba(34, 211, 238, 1) 48%,
+      rgba(147, 197, 253, 1) 52%,
+      rgba(34, 211, 238, 1) 56%,
+      rgba(103, 232, 249, 0.20) 82%,
+      transparent 100%
+    );
+  background-size: 220% 100%;
+  animation: ariLedThinking 1.15s linear infinite;
+  box-shadow:
+    0 0 10px rgba(34, 211, 238, 0.95),
+    0 0 22px rgba(34, 211, 238, 0.62),
+    0 0 42px rgba(59, 130, 246, 0.32);
+}
+
+main#ariApp.ari-thinking-mode::after,
+main#ariApp:has(#ariInput:disabled)::after {
+  opacity: 0.48;
+  animation: ariThinkingField 2.2s ease-in-out infinite;
+}
+
+@keyframes ariAmbientPulse {
+  0%, 100% {
+    opacity: 0.26;
+    transform: scale(1);
+    filter: brightness(0.95);
+  }
+
+  50% {
+    opacity: 0.42;
+    transform: scale(1.018);
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes ariGridDrift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 46px 46px, -46px 46px;
+  }
+}
+
+@keyframes ariLedIdle {
+  0%, 100% {
+    opacity: 0.42;
+    filter: brightness(0.9);
+  }
+
+  50% {
+    opacity: 0.88;
+    filter: brightness(1.25);
+  }
+}
+
+@keyframes ariLedThinking {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes ariThinkingField {
+  0%, 100% {
+    opacity: 0.34;
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 0.58;
+    filter: brightness(1.28);
+  }
+}
+
+/* =====================================================
+ARI V1 — FINAL COMPOSER QUESTION CLEANUP
+===================================================== */
+
+main#ariApp .ari-welcome-prompt,
+main#ariApp .ari-welcome-question {
+  display: none !important;
+}
+
+main#ariApp #ariInput::placeholder {
+  color: rgba(226, 232, 240, 0.62) !important;
+  font-weight: 850 !important;
+}
+
+/* =====================================================
+ARI V1 — PREMIUM COMPOSER + HALO FINAL TWEAK
+===================================================== */
+
+/* stronger soft halo behind Ari */
+main#ariApp .ari-welcome::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 37%;
+  width: 360px;
+  height: 360px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: -1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(34, 211, 238, 0.22), transparent 62%);
+  filter: blur(18px);
+  animation: ariHeroHaloPulse 8s ease-in-out infinite;
+}
+
+/* taller premium composer */
+main#ariApp .ari-input-shell {
+  min-height: 98px !important;
+  padding: 18px 16px 16px 24px !important;
+  border-radius: 40px !important;
+}
+
+/* vertically center placeholder/input better */
+main#ariApp #ariInput {
+  min-height: 62px !important;
+  padding: 18px 0 8px !important;
+  font-size: 19px !important;
+  line-height: 1.35 !important;
+}
+
+/* bigger integrated send button */
+main#ariApp .ari-send-btn {
+  width: 64px !important;
+  min-width: 64px !important;
+  height: 64px !important;
+  margin-bottom: 1px !important;
+}
+
+/* LED position for taller composer */
+main#ariApp .ari-input-shell::before {
+  top: 12px !important;
+  left: 32px !important;
+  right: 92px !important;
+}
+
+/* tighten dead space slightly */
+main#ariApp .ari-welcome {
+  padding-bottom: 86px !important;
+}
+
+@keyframes ariHeroHaloPulse {
+  0%, 100% {
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  50% {
+    opacity: 0.72;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
