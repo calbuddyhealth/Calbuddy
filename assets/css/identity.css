@@ -1,0 +1,6 @@
+/* Identity icon */
+.ari-v1-home .nav-identity .ari-nav-icon::before {
+  content: "◇";
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
