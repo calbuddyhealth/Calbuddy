@@ -1,1 +1,322 @@
-.
+/* =====================================================
+ARI AUTH — RESTORED FUTURE LOGIN
+===================================================== */
+
+body.ari-auth-body {
+  margin: 0;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: Orbitron, system-ui, sans-serif;
+  color: #eaffff;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(87,255,231,.22), transparent 28%),
+    radial-gradient(circle at 12% 24%, rgba(87,255,231,.12), transparent 26%),
+    radial-gradient(circle at 88% 78%, rgba(250,204,21,.10), transparent 28%),
+    linear-gradient(180deg, #020617 0%, #03101a 48%, #020617 100%);
+}
+
+body.ari-auth-body * {
+  box-sizing: border-box;
+}
+
+body.ari-auth-body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(87,255,231,.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(87,255,231,.045) 1px, transparent 1px);
+  background-size: 34px 34px;
+  opacity: .65;
+  mask-image: radial-gradient(circle at center, black 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at center, black 0%, transparent 78%);
+}
+
+.ari-auth-page {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 42px 18px;
+  display: grid;
+  place-items: center;
+}
+
+.ari-auth-card {
+  width: 100%;
+  border: 1px solid rgba(87,255,231,.32);
+  border-radius: 30px;
+  padding: 28px 20px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(87,255,231,.18), transparent 34%),
+    linear-gradient(180deg, rgba(2,12,22,.92), rgba(2,6,23,.78));
+  box-shadow:
+    0 0 42px rgba(87,255,231,.12),
+    inset 0 0 30px rgba(87,255,231,.05);
+}
+
+.ari-auth-brand {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.ari-auth-brand h1 {
+  margin: 16px 0 0;
+  font-family: Orbitron, system-ui, sans-serif;
+  font-size: 2rem;
+  letter-spacing: .18em;
+  color: rgba(210,255,255,.92);
+  text-shadow:
+    0 0 8px rgba(87,255,231,.48),
+    0 0 22px rgba(87,255,231,.20);
+}
+
+.ari-chip-core {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+.chip-ring {
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(87,255,231,.36);
+  border-radius: 24px;
+  box-shadow: 0 0 22px rgba(87,255,231,.18);
+  animation: ariChipPulse 2.6s ease-in-out infinite;
+}
+
+.chip-ring.ring2 {
+  inset: 20px;
+  border-color: rgba(250,204,21,.34);
+  animation-delay: .8s;
+}
+
+.chip-grid {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.chip-grid span {
+  border-radius: 5px;
+  background: rgba(87,255,231,.26);
+  box-shadow: 0 0 12px rgba(87,255,231,.28);
+  animation: ariChipBlink 2.2s infinite;
+}
+
+.chip-grid .core {
+  background: rgba(250,204,21,.84);
+  box-shadow: 0 0 18px rgba(250,204,21,.55);
+}
+
+/* Tabs */
+
+.ari-auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.ari-auth-tab {
+  min-height: 44px;
+  border: 1px solid rgba(87,255,231,.22);
+  border-radius: 999px;
+  background: rgba(2,6,23,.62);
+  color: rgba(210,255,255,.68);
+  font-weight: 900;
+  font-family: Orbitron, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.ari-auth-tab.active {
+  color: white;
+  border-color: rgba(87,255,231,.56);
+  background: rgba(87,255,231,.10);
+  box-shadow: 0 0 18px rgba(87,255,231,.16);
+}
+
+/* Fields */
+
+.ari-auth-field {
+  margin-top: 14px;
+}
+
+.ari-auth-field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: .68rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: rgba(180,255,255,.74);
+  font-weight: 900;
+}
+
+.ari-auth-field input {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 18px;
+  border: 1px solid rgba(87,255,231,.22);
+  background: rgba(2,6,23,.72);
+  color: white;
+  padding: 0 15px;
+  font-size: 1rem;
+  outline: none;
+  font-family: inherit;
+}
+
+.ari-auth-field input:focus {
+  border-color: rgba(87,255,231,.62);
+  box-shadow: 0 0 18px rgba(87,255,231,.14);
+}
+
+/* Main button */
+
+.ari-auth-main-btn {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 18px;
+  border: 1px solid rgba(87,255,231,.38);
+  border-radius: 18px;
+  background: rgba(87,255,231,.10);
+  color: rgba(210,255,255,.82);
+  font-family: Orbitron, system-ui, sans-serif;
+  font-weight: 950;
+  letter-spacing: .18em;
+  cursor: pointer;
+}
+
+.ari-auth-main-btn.ready {
+  background: linear-gradient(135deg, rgba(87,255,231,.9), rgba(14,165,233,.72));
+  color: #02131c;
+  box-shadow: 0 0 28px rgba(87,255,231,.32);
+}
+
+.ari-auth-main-btn.gold,
+.ari-auth-main-btn.gold.ready {
+  border-color: rgba(250,204,21,.52);
+}
+
+.ari-auth-main-btn.gold.ready {
+  background: linear-gradient(135deg, rgba(250,204,21,.94), rgba(161,98,7,.80));
+  color: #1b1300;
+  box-shadow: 0 0 30px rgba(250,204,21,.28);
+}
+
+.ari-auth-link-btn {
+  width: 100%;
+  margin-top: 16px;
+  border: 0;
+  background: transparent;
+  color: rgba(87,255,231,.72);
+  font-weight: 900;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ari-auth-message {
+  min-height: 24px;
+  margin-top: 16px;
+  text-align: center;
+  color: rgba(226,252,255,.82);
+  font-weight: 800;
+}
+
+/* Boot screen */
+
+.ari-init-screen {
+  width: 100%;
+}
+
+.ari-terminal-shell {
+  position: relative;
+  min-height: 72vh;
+  border-radius: 32px;
+  border: 1px solid rgba(87,255,231,.34);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 15%, rgba(87,255,231,.18), transparent 34%),
+    linear-gradient(180deg, rgba(2,12,22,.95), rgba(2,6,23,.88));
+  box-shadow:
+    0 0 55px rgba(87,255,231,.18),
+    inset 0 0 40px rgba(87,255,231,.05);
+}
+
+.ari-init-terminal {
+  position: relative;
+  z-index: 2;
+  padding: 42px 24px;
+  min-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+}
+
+.ari-init-line {
+  font-family: Orbitron, system-ui, sans-serif;
+  line-height: 1.2;
+}
+
+.ari-init-big {
+  font-size: clamp(1.35rem, 6vw, 2.25rem);
+  color: rgba(87,255,231,.92);
+  text-shadow: 0 0 16px rgba(87,255,231,.30);
+  font-weight: 900;
+}
+
+.ari-init-name {
+  color: rgba(210,255,255,.96);
+  text-shadow: 0 0 18px rgba(210,255,255,.42);
+}
+
+.ari-memory-line {
+  color: rgba(250,204,21,.88);
+  text-shadow: 0 0 18px rgba(250,204,21,.30);
+}
+
+.ari-terminal-cursor {
+  margin-left: 8px;
+  color: rgba(210,255,255,.95);
+  animation: ariCursorBlink .75s steps(1) infinite;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@keyframes ariChipPulse {
+  0%, 100% {
+    opacity: .45;
+    transform: scale(.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes ariChipBlink {
+  0%, 100% {
+    opacity: .35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes ariCursorBlink {
+  50% {
+    opacity: 0;
+  }
+}
