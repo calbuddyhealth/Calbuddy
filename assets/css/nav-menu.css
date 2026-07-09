@@ -388,3 +388,102 @@ ARI NAV MENU — CLEAN FINAL
   background: rgba(34,211,238,.10);
   border-bottom: none !important;
 }
+
+/* Nav dashboard */
+
+.nav-dashboard-card {
+  margin: 8px 0 26px;
+  padding: 24px 18px 22px;
+  border-radius: 32px;
+  background: rgba(8, 18, 37, 0.82);
+  border: 1px solid rgba(34, 211, 238, 0.38);
+  box-shadow:
+    0 0 34px rgba(34, 211, 238, 0.15),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+}
+
+.nav-dashboard-label {
+  margin: 0 0 12px;
+  text-align: center;
+  color: #67e8f9;
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 0.28em;
+}
+
+.nav-meter-wrap {
+  position: relative;
+  height: 210px;
+}
+
+.nav-meter {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.nav-meter-bg,
+.nav-meter-fill {
+  fill: none;
+  stroke-width: 22;
+  stroke-linecap: round;
+}
+
+.nav-meter-bg {
+  stroke: rgba(148, 163, 184, 0.24);
+}
+
+.nav-meter-fill {
+  stroke: #22d3ee;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  filter:
+    drop-shadow(0 8px 12px rgba(34,211,238,0.25))
+    drop-shadow(0 0 18px rgba(34,211,238,0.38));
+  transition: stroke-dashoffset 0.9s ease, stroke 0.35s ease;
+}
+
+.nav-meter-fill.nav-meter-yellow {
+  stroke: #f59e0b;
+}
+
+.nav-meter-fill.nav-meter-red {
+  stroke: #ef4444;
+}
+
+.nav-meter-text {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  width: 90%;
+}
+
+.nav-meter-text h2 {
+  margin: 0;
+  color: white;
+  font-size: 64px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.nav-meter-text span {
+  display: block;
+  margin-top: 10px;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.nav-dashboard-link {
+  display: block;
+  margin-top: 8px;
+  text-align: center;
+  color: #67e8f9 !important;
+  font-size: 16px !important;
+  padding: 12px !important;
+  border-radius: 18px;
+  background: rgba(34, 211, 238, 0.10);
+  border-bottom: none !important;
+}
