@@ -78,3 +78,91 @@ ARI CONVERSATIONS — THREAD / MESSAGE UI
 .ari-user .ari-label {
   color: rgba(244,248,255,0.72);
 }
+
+/* =====================================================
+ARI CONVERSATION HISTORY
+===================================================== */
+
+.ari-history-section-title {
+  margin: 22px 0 14px;
+  padding-left: 4px;
+  color: #67e8f9;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ari-history-card {
+  margin-bottom: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(103,232,249,.18);
+  background:
+    linear-gradient(180deg,
+      rgba(15,23,42,.88),
+      rgba(2,6,23,.76));
+  box-shadow:
+    0 0 22px rgba(34,211,238,.08),
+    inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.ari-history-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.ari-history-card p {
+  margin: 0 0 12px;
+  color: #cbd5e1;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+.ari-history-card small {
+  display: block;
+  margin-bottom: 14px;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.conversation-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.delete-conversation-btn {
+  border: 1px solid rgba(239,68,68,.35);
+  border-radius: 14px;
+  padding: 10px 16px;
+  background: rgba(239,68,68,.10);
+  color: #fecaca;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background .2s ease,
+    border-color .2s ease,
+    transform .15s ease;
+}
+
+.delete-conversation-btn:hover {
+  background: rgba(239,68,68,.18);
+  border-color: rgba(239,68,68,.60);
+}
+
+.delete-conversation-btn:active {
+  transform: scale(.97);
+}
+
+.window-note {
+  margin: 30px 0;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
