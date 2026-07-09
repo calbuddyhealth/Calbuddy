@@ -637,4 +637,10 @@ ARI NAV MENU — CLEAN FINAL
   border-bottom: none !important;
 }
 
+/* Identity icon */
+.ari-v1-home .nav-identity .ari-nav-icon::before {
+  content: "◇";
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
 .ari-v1-home .nav-account .ari-nav-icon::before
