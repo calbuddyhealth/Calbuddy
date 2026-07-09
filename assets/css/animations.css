@@ -196,3 +196,17 @@ ARI ANIMATIONS
   0%, 100% { background-position: 0% 50%, center, center; }
   50% { background-position: 100% 50%, center, center; }
 }
+
+/* =====================================================
+ARI ACCOUNT ANIMATIONS
+===================================================== */
+
+@keyframes ariAccountSweep {
+  from {
+    transform: translateX(-12%) translateY(8%);
+  }
+
+  to {
+    transform: translateX(12%) translateY(-8%);
+  }
+}
