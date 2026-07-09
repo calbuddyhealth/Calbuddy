@@ -65,3 +65,387 @@ body:has(.ari-account-page)::after {
 
 }
 
+/* =====================================================
+ARI ACCOUNT PAGE
+===================================================== */
+
+:root {
+  --ari-bg: #020617;
+  --ari-panel: rgba(8, 20, 38, 0.78);
+  --ari-panel-strong: rgba(15, 23, 42, 0.94);
+  --ari-cyan: #22d3ee;
+  --ari-cyan-soft: #67e8f9;
+  --ari-cyan-pale: #cffafe;
+  --ari-text: #f8fafc;
+  --ari-muted: #94a3b8;
+  --ari-border: rgba(103, 232, 249, 0.24);
+  --ari-danger: #ef4444;
+  --ari-warning: #f97316;
+  --ari-success: #22c55e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34,211,238,.18), transparent 30%),
+    radial-gradient(circle at 15% 25%, rgba(34,211,238,.10), transparent 28%),
+    radial-gradient(circle at 85% 75%, rgba(103,232,249,.08), transparent 30%),
+    linear-gradient(180deg,#020617 0%,#07111f 48%,#020617 100%);
+  color: var(--ari-text);
+  font-family: Orbitron, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(103,232,249,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103,232,249,.045) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black 0%, transparent 76%);
+  pointer-events: none;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: -30%;
+  background:
+    linear-gradient(
+      115deg,
+      transparent 42%,
+      rgba(103,232,249,.10) 50%,
+      transparent 58%
+    );
+  animation: ariAccountSweep 8s linear infinite;
+  pointer-events: none;
+}
+
+.ari-account-page {
+  position: relative;
+  z-index: 2;
+  width: min(430px,100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 14px 16px 32px;
+}
+
+.ari-account-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 18px;
+}
+
+.ari-back-btn,
+.ari-mini-btn {
+  border: 1px solid var(--ari-border);
+  border-radius: 16px;
+  min-height: 42px;
+  padding: 10px 14px;
+  background: rgba(2,6,23,.72);
+  color: var(--ari-cyan-pale);
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(34,211,238,.08);
+}
+
+.ari-back-btn:active,
+.ari-mini-btn:active,
+.ari-action-card:active,
+.ari-primary-action:active {
+  transform: scale(.985);
+}
+
+.ari-brand-mark {
+  text-align: center;
+  flex: 1;
+}
+
+.ari-brand-title {
+  margin: 0;
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: 1.24rem;
+  letter-spacing: .10em;
+  color: var(--ari-text);
+  text-shadow: 0 0 18px rgba(34,211,238,.28);
+}
+
+.ari-brand-subtitle {
+  margin: 3px 0 0;
+  font-size: .62rem;
+  letter-spacing: .22em;
+  color: var(--ari-cyan-soft);
+  font-weight: 800;
+}
+
+.ari-page-hero {
+  margin: 8px 0 18px;
+  padding: 24px 20px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg,rgba(15,23,42,.92),rgba(2,6,23,.72));
+  border: 1px solid var(--ari-border);
+  box-shadow:
+    0 0 34px rgba(34,211,238,.12),
+    inset 0 0 30px rgba(103,232,249,.04);
+  overflow: hidden;
+  position: relative;
+}
+
+.ari-page-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      var(--ari-cyan-soft),
+      transparent
+    );
+  opacity: .8;
+}
+
+.ari-page-kicker {
+  margin: 0 0 8px;
+  color: var(--ari-cyan-soft);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+}
+
+.ari-page-title {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1;
+  letter-spacing: .05em;
+  font-family: Audiowide, Orbitron, sans-serif;
+}
+
+.ari-page-description {
+  margin: 12px 0 0;
+  color: var(--ari-muted);
+  line-height: 1.55;
+  font-size: .92rem;
+  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight: 650;
+}
+
+.ari-panel {
+  margin-top: 16px;
+  border-radius: 26px;
+  border: 1px solid var(--ari-border);
+  background:
+    linear-gradient(180deg,rgba(15,23,42,.88),rgba(2,6,23,.70));
+  box-shadow:
+    0 0 26px rgba(34,211,238,.10),
+    inset 0 0 24px rgba(103,232,249,.035);
+  overflow: hidden;
+}
+
+.ari-panel-header {
+  padding: 18px 18px 10px;
+}
+
+.ari-section-title {
+  margin: 0;
+  font-size: .78rem;
+  letter-spacing: .20em;
+  text-transform: uppercase;
+  color: var(--ari-cyan-soft);
+  font-weight: 900;
+}
+
+.ari-section-subtitle {
+  margin: 8px 0 0;
+  color: var(--ari-muted);
+  font-size: .84rem;
+  line-height: 1.45;
+  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight: 650;
+}
+
+.ari-account-email-box {
+  margin: 0 18px 18px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(103,232,249,.18);
+  background: rgba(2,6,23,.72);
+}
+
+.ari-field-label {
+  display: block;
+  color: var(--ari-cyan-soft);
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.ari-email-value {
+  color: var(--ari-text);
+  font-size: .96rem;
+  font-weight: 850;
+  word-break: break-word;
+  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-action-list {
+  padding: 0 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.ari-action-card {
+  width: 100%;
+  border: 1px solid rgba(103,232,249,.18);
+  border-radius: 20px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  background:
+    linear-gradient(135deg,rgba(2,6,23,.86),rgba(8,47,73,.46));
+  color: var(--ari-text);
+  font-family: inherit;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
+}
+
+.ari-action-card:hover {
+  border-color: rgba(103,232,249,.5);
+  box-shadow: 0 0 22px rgba(34,211,238,.16);
+}
+
+.ari-action-card[disabled] {
+  opacity: .56;
+  cursor: not-allowed;
+}
+
+.ari-action-card[disabled]:hover {
+  border-color: rgba(103,232,249,.18);
+  box-shadow: none;
+}
+
+.ari-action-title {
+  margin: 0;
+  color: white;
+  font-weight: 950;
+  font-size: .92rem;
+  letter-spacing: .05em;
+}
+
+.ari-action-text {
+  margin: 6px 0 0;
+  color: var(--ari-muted);
+  font-size: .78rem;
+  line-height: 1.35;
+  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+.ari-action-arrow {
+  color: var(--ari-cyan-soft);
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.ari-coming-soon {
+  color: var(--ari-muted);
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: .62rem;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+
+.ari-primary-action {
+  width: calc(100% - 28px);
+  margin: 2px 14px 16px;
+  min-height: 54px;
+  border: 1px solid rgba(103,232,249,.44);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg,rgba(8,145,178,.95),rgba(34,211,238,.88));
+  color: white;
+  font-family: inherit;
+  font-weight: 950;
+  letter-spacing: .08em;
+  cursor: pointer;
+  box-shadow:
+    0 0 24px rgba(34,211,238,.26),
+    inset 0 0 20px rgba(255,255,255,.10);
+}
+
+.ari-danger-panel {
+  border-color: rgba(239,68,68,.30);
+}
+
+.ari-danger-card {
+  border-color: rgba(239,68,68,.26);
+  background:
+    linear-gradient(135deg,rgba(30,6,8,.88),rgba(69,10,10,.48));
+}
+
+.ari-danger-card .ari-action-title,
+.ari-danger-card .ari-action-arrow {
+  color: #fecaca;
+}
+
+.ari-status {
+  min-height: 22px;
+  margin: 8px 16px 0;
+  color: var(--ari-cyan-pale);
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+.ari-status.error {
+  color: #fecaca;
+}
+
+.ari-status.success {
+  color: #bbf7d0;
+}
+
+.ari-footer-note {
+  margin: 18px 4px 0;
+  text-align: center;
+  color: var(--ari-muted);
+  font-size: .74rem;
+  line-height: 1.45;
+  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    animation: none;
+  }
+
+  .ari-action-card,
+  .ari-primary-action,
+  .ari-back-btn,
+  .ari-mini-btn {
+    transition: none;
+  }
+}
