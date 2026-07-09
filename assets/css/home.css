@@ -1342,3 +1342,68 @@ main#ariApp .ari-welcome {
     transform: translate(-50%, -50%) scale(1.08);
   }
 }
+/* =====================================================
+ARI IDLE LIFE — BREATHING + SOFT GLOW
+===================================================== */
+
+main#ariApp .ari-hero-img {
+  animation:
+    ariOrganicBreath 3.8s ease-in-out infinite,
+    ariOrganicGlow 5.8s ease-in-out infinite !important;
+  transform-origin: center bottom !important;
+}
+
+main#ariApp #ariHeaderAvatar {
+  animation:
+    ariAvatarBreath 4.2s ease-in-out infinite,
+    ariAvatarGlow 6.2s ease-in-out infinite !important;
+  transform-origin: center bottom !important;
+}
+
+@keyframes ariOrganicBreath {
+  0%, 100% {
+    transform: translateY(-115px) translateX(0) scale(1);
+  }
+
+  35% {
+    transform: translateY(-118px) translateX(1px) scale(1.008);
+  }
+
+  70% {
+    transform: translateY(-116px) translateX(-1px) scale(1.004);
+  }
+}
+
+@keyframes ariOrganicGlow {
+  0%, 100% {
+    filter:
+      drop-shadow(0 24px 34px rgba(0,0,0,0.45))
+      drop-shadow(0 0 14px rgba(34,211,238,0.16));
+  }
+
+  50% {
+    filter:
+      drop-shadow(0 26px 38px rgba(0,0,0,0.48))
+      drop-shadow(0 0 26px rgba(34,211,238,0.30));
+  }
+}
+
+@keyframes ariAvatarBreath {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-1px) scale(1.025);
+  }
+}
+
+@keyframes ariAvatarGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(34,211,238,0.18));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 13px rgba(34,211,238,0.42));
+  }
+}
