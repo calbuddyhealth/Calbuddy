@@ -41,3 +41,177 @@ ARI HOME PAGE LAYOUT ONLY
   padding-bottom: 86px;
   transition: opacity 0.45s ease, transform 0.6s ease;
 }
+
+/* =====================================================
+ARI HOME PAGE
+===================================================== */
+
+.ari-v1-home {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 10px 14px 100px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 6%, rgba(34, 211, 238, 0.20), transparent 30%),
+    radial-gradient(circle at 18% 22%, rgba(59, 130, 246, 0.14), transparent 32%),
+    linear-gradient(180deg, #020617 0%, #07111f 48%, #020617 100%);
+  color: #f8fafc;
+  font-family: Orbitron, system-ui, sans-serif;
+}
+
+/* =====================================================
+HOME HEADER / BRAND
+===================================================== */
+
+.ari-header {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+}
+
+.ari-header-v4 {
+  padding: 8px 2px 4px;
+}
+
+.ari-brand-right {
+  text-align: right;
+  text-decoration: none;
+  color: inherit;
+}
+
+.ari-brand-title {
+  display: block;
+  font-family: Audiowide, Orbitron, sans-serif;
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.34);
+}
+
+.ari-brand-subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #67e8f9;
+}
+
+/* =====================================================
+WELCOME STATE
+===================================================== */
+
+.ari-welcome {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  min-height: calc(100dvh - 180px);
+  text-align: center;
+}
+
+.ari-welcome-prompt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 150px;
+  padding: 0 12px;
+  transition:
+    opacity 0.25s ease,
+    visibility 0.25s ease;
+}
+
+.ari-welcome-question {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 1.1rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+/* =====================================================
+PENDING ACTION BAR
+===================================================== */
+
+.pending-action-bar {
+  display: none;
+  margin: 14px 2px 0;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  background: rgba(2, 6, 23, 0.78);
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.pending-action-bar.show {
+  display: block;
+}
+
+.pending-action-bar p {
+  margin: 0 0 12px;
+  color: #e0f2fe;
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.pending-action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.pending-action-buttons button {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  background: rgba(34, 211, 238, 0.12);
+  color: #cffafe;
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pending-action-buttons button:active {
+  transform: scale(0.97);
+}
+
+/* =====================================================
+STATE HELPERS
+===================================================== */
+
+.welcome-mode .ari-conversation-shell {
+  display: none;
+}
+
+.conversation-mode .ari-welcome {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ari-keyboard-mode .ari-welcome-prompt {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* =====================================================
+DESKTOP
+===================================================== */
+
+@media (min-width: 768px) {
+  .ari-v1-home {
+    max-width: 520px;
+  }
+
+  .ari-brand-title {
+    font-size: 1.55rem;
+  }
+}
