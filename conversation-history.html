@@ -1,28 +1,102 @@
-<!-- conversation-history.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Conversation History - ARI Rebirth</title>
-<link rel="stylesheet" href="css/history.css" />
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Memory Vault | ARI Rebirth</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/conversation-history.css">
+
 </head>
 
 <body>
-<main class="ari-history-page">
-  <header class="ari-history-header">
-    <button type="button" onclick="window.location.href='index.html'">←</button>
-    <h1>Memory Vault</h1>
-  </header>
 
-  <section class="ari-history-panel">
-    <h2>Today & Yesterday</h2>
-    <div id="conversationHistoryList">
-      <p>No saved conversations yet.</p>
-    </div>
-  </section>
+<main class="ari-history-page">
+
+<header class="ari-history-header">
+
+<button
+class="ari-back-btn"
+type="button"
+onclick="window.location.href='index.html'">
+
+←
+
+</button>
+
+<div class="ari-brand-mark">
+
+<h1 class="ari-brand-title">
+ARI
+</h1>
+
+<p class="ari-brand-subtitle">
+REBIRTH
+</p>
+
+</div>
+
+<button
+class="ari-mini-btn"
+type="button"
+onclick="clearConversationHistory()">
+
+Clear
+
+</button>
+
+</header>
+
+<section class="ari-page-hero">
+
+<p class="ari-page-kicker">
+Memory
+</p>
+
+<h2 class="ari-page-title">
+Memory Vault
+</h2>
+
+<p class="ari-page-description">
+
+These are Ari's recent conversations.
+Older conversations automatically expire after yesterday to keep the Memory Vault clean.
+
+</p>
+
+</section>
+
+<section class="ari-history-panel">
+
+<h3 class="ari-history-section-title">
+
+Today & Yesterday
+
+</h3>
+
+<div id="conversationHistoryList">
+
+<p class="window-note">
+
+Loading conversations...
+
+</p>
+
+</div>
+
+</section>
+
 </main>
 
-<script src="conversation-history.js"></script>
+<script src="js/conversation-history.js"></script>
+
 </body>
 </html>
