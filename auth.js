@@ -1,6 +1,4 @@
-// CalBuddy Auth Helper Functions
-// ARI Rebirth Auth Upgrade
-// Adds display_name support, new/returning user flags, and boot intro handoff.
+// Ari Auth Helper Functions
 
 async function createUserProfile(user, displayName = "") {
   if (!user || !user.id) return;
@@ -19,9 +17,7 @@ async function createUserProfile(user, displayName = "") {
 
   const { error } = await window.calbuddySupabase
     .from("profiles")
-    .upsert(profilePayload, {
-      onConflict: "id"
-    });
+    .upsert(profilePayload, { onConflict: "id" });
 
   if (error) {
     console.error("Profile creation error:", error.message);
@@ -33,25 +29,15 @@ async function signUp(email, password, displayName) {
   const cleanPassword = String(password || "");
   const cleanDisplayName = String(displayName || "").trim();
 
-  if (!cleanEmail) {
-    return { success: false, error: "Please enter your email." };
-  }
-
-  if (!cleanPassword) {
-    return { success: false, error: "Please enter a password." };
-  }
-
-  if (!cleanDisplayName) {
-    return { success: false, error: "Please enter what Ari should call you." };
-  }
+  if (!cleanEmail) return { success: false, error: "Please enter your email." };
+  if (!cleanPassword) return { success: false, error: "Please enter a password." };
+  if (!cleanDisplayName) return { success: false, error: "Please enter what Ari should call you." };
 
   const { data, error } = await window.calbuddySupabase.auth.signUp({
     email: cleanEmail,
     password: cleanPassword,
     options: {
-      data: {
-        display_name: cleanDisplayName
-      }
+      data: { display_name: cleanDisplayName }
     }
   });
 
@@ -75,13 +61,8 @@ async function signIn(email, password) {
   const cleanEmail = String(email || "").trim();
   const cleanPassword = String(password || "");
 
-  if (!cleanEmail) {
-    return { success: false, error: "Please enter your email." };
-  }
-
-  if (!cleanPassword) {
-    return { success: false, error: "Please enter your password." };
-  }
+  if (!cleanEmail) return { success: false, error: "Please enter your email." };
+  if (!cleanPassword) return { success: false, error: "Please enter your password." };
 
   const { data, error } = await window.calbuddySupabase.auth.signInWithPassword({
     email: cleanEmail,
@@ -122,9 +103,7 @@ async function getCurrentUser() {
     error
   } = await window.calbuddySupabase.auth.getSession();
 
-  if (error || !session) {
-    return null;
-  }
+  if (error || !session) return null;
 
   return session.user;
 }
