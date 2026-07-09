@@ -1,660 +1,15 @@
-/* ARI AUTH — SPACE TERMINAL UPGRADE */
-
-body.ari-auth-body .ari-chip-core {
-  display: none !important;
-}
-
-body.ari-auth-body .ari-auth-card {
-  position: relative !important;
-  overflow: hidden !important;
-  border-radius: 22px !important;
-  background:
-    linear-gradient(90deg, rgba(87,255,231,.08) 1px, transparent 1px),
-    linear-gradient(rgba(87,255,231,.055) 1px, transparent 1px),
-    radial-gradient(circle at 50% 0%, rgba(87,255,231,.20), transparent 34%),
-    linear-gradient(180deg, rgba(3,16,30,.94), rgba(2,6,23,.96)) !important;
-  background-size: 38px 38px, 38px 38px, auto, auto !important;
-}
-
-body.ari-auth-body .ari-auth-card::before {
-  content: "";
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  top: 18px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(165,243,252,.9), transparent);
-  box-shadow: 0 0 18px rgba(87,255,231,.55);
-  animation: ariAuthScan 3.2s ease-in-out infinite;
-}
-
-body.ari-auth-body .ari-auth-card::after {
-  content: "";
-  position: absolute;
-  inset: 10px;
-  border-radius: 18px;
-  border: 1px solid rgba(87,255,231,.12);
-  pointer-events: none;
-}
-
-body.ari-auth-body .ari-auth-brand h1 {
-  margin-top: 12px !important;
-  text-shadow:
-    0 0 8px rgba(207,250,254,.7),
-    0 0 24px rgba(87,255,231,.38),
-    0 0 56px rgba(87,255,231,.18) !important;
-}
-
-body.ari-auth-body .ari-auth-tabs,
-body.ari-auth-body .ari-auth-field,
-body.ari-auth-body .ari-auth-main-btn,
-body.ari-auth-body .ari-auth-link-btn,
-body.ari-auth-body .ari-auth-message {
-  position: relative !important;
-  z-index: 2 !important;
-}
-
-body.ari-auth-body .ari-auth-field input {
-  background:
-    linear-gradient(180deg, rgba(2,6,23,.86), rgba(1,8,18,.92)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.06),
-    0 0 18px rgba(87,255,231,.06) !important;
-}
-
-body.ari-auth-body .ari-auth-field input:focus {
-  border-color: rgba(165,243,252,.75) !important;
-  box-shadow:
-    0 0 0 1px rgba(165,243,252,.18),
-    0 0 24px rgba(87,255,231,.20),
-    inset 0 1px 0 rgba(255,255,255,.08) !important;
-}
-
-@keyframes ariAuthScan {
-  0%, 100% { opacity: .35; transform: translateX(-8px); }
-  50% { opacity: 1; transform: translateX(8px); }
-}
-
 /* =====================================================
-ARI AUTH — DARK SPACE TERMINAL FINAL
-===================================================== */
-
-body.ari-auth-body {
-  background:
-    radial-gradient(circle at 50% 18%, rgba(87,255,231,.08), transparent 34%),
-    linear-gradient(180deg, #00040a 0%, #020814 52%, #00040a 100%) !important;
-}
-
-body.ari-auth-body::before {
-  opacity: .18 !important;
-  background-size: 32px 32px !important;
-}
-
-body.ari-auth-body .ari-auth-card {
-  border-radius: 0 !important;
-  padding: 42px 18px 34px !important;
-  background:
-    linear-gradient(90deg, rgba(87,255,231,.045) 1px, transparent 1px),
-    linear-gradient(rgba(87,255,231,.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(1,8,15,.94), rgba(0,2,7,.98)) !important;
-  background-size: 32px 32px, 32px 32px, auto !important;
-  border: 1px solid rgba(87,255,231,.52) !important;
-  box-shadow:
-    0 0 30px rgba(87,255,231,.14),
-    inset 0 0 42px rgba(87,255,231,.035) !important;
-  clip-path: polygon(
-    22px 0,
-    calc(100% - 22px) 0,
-    100% 22px,
-    100% calc(100% - 22px),
-    calc(100% - 22px) 100%,
-    22px 100%,
-    0 calc(100% - 22px),
-    0 22px
-  );
-}
-
-body.ari-auth-body .ari-auth-brand h1 {
-  font-family: "Courier New", monospace !important;
-  font-size: clamp(2.05rem, 9vw, 3rem) !important;
-  letter-spacing: .22em !important;
-  color: rgba(105,255,255,.92) !important;
-}
-
-body.ari-auth-body .ari-auth-brand h1::before {
-  content: none !important;
-  display: none !important;
-}
-
-body.ari-auth-body .ari-auth-tab,
-body.ari-auth-body .ari-auth-main-btn,
-body.ari-auth-body .ari-auth-field input {
-  border-radius: 3px !important;
-  font-family: "Courier New", monospace !important;
-  border-color: rgba(87,255,231,.55) !important;
-  background: rgba(0,3,10,.72) !important;
-}
-
-body.ari-auth-body .ari-auth-tab.active::after,
-body.ari-auth-body .ari-auth-main-btn::before,
-body.ari-auth-body .ari-auth-field::after {
-  content: "█";
-  color: rgba(105,255,255,.75);
-  animation: ariCursorBlink .8s steps(1) infinite;
-}
-
-body.ari-auth-body .ari-auth-field {
-  position: relative;
-}
-
-body.ari-auth-body .ari-auth-field::after {
-  position: absolute;
-  left: 31px;
-  bottom: 19px;
-  font-size: 1rem;
-  pointer-events: none;
-}
-
-body.ari-auth-body .ari-auth-field input:not(:placeholder-shown) + span,
-body.ari-auth-body .ari-auth-field input:focus + span {
-  display: none;
-}
-
-body.ari-auth-body .ari-auth-field label {
-  font-family: "Courier New", monospace !important;
-  letter-spacing: .18em !important;
-}
-
-body.ari-auth-body .ari-auth-field label::before {
-  content: "> ";
-}
-
-body.ari-auth-body .ari-auth-main-btn {
-  position: relative !important;
-  color: rgba(105,255,255,.90) !important;
-}
-
-body.ari-auth-body .ari-auth-main-btn::before {
-  position: absolute;
-  left: 28px;
-}
-
-body.ari-auth-body .ari-auth-link-btn {
-  font-family: "Courier New", monospace !important;
-}
-
-body.ari-auth-body .ari-auth-link-btn::before {
-  content: "> ";
-}
-
-/* =====================================================
-ARI AUTH — REMOVE FAKE BLINKING CURSORS
-===================================================== */
-
-body.ari-auth-body .ari-auth-tab.active::after,
-body.ari-auth-body .ari-auth-main-btn::before,
-body.ari-auth-body .ari-auth-field::after {
-  content: none !important;
-  display: none !important;
-  animation: none !important;
-}
-
-/* Optional: also hide the real typing caret */
-body.ari-auth-body input {
-  caret-color: transparent !important;
-}
-
-/* =====================================================
-ARI INIT SCREEN — TRUE BLACK TERMINAL BOOT
-===================================================== */
-
-body.ari-auth-body .ari-init-screen {
-  min-height: 100dvh !important;
-  width: 100% !important;
-  background: #000 !important;
-  color: #9ffcff !important;
-  display: flex !important;
-  align-items: flex-start !important;
-  justify-content: flex-start !important;
-  padding: 46px 22px !important;
-}
-
-body.ari-auth-body .ari-terminal-shell,
-body.ari-auth-body .ari-init-terminal {
-  width: 100% !important;
-  min-height: auto !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  border-radius: 0 !important;
-  background: #000 !important;
-  box-shadow: none !important;
-  overflow: visible !important;
-}
-
-body.ari-auth-body .terminal-grid,
-body.ari-auth-body .terminal-glow {
-  display: none !important;
-}
-
-body.ari-auth-body .ari-init-terminal {
-  display: block !important;
-  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
-}
-
-body.ari-auth-body .ari-init-line {
-  min-height: 24px !important;
-  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
-  font-size: 15px !important;
-  line-height: 1.55 !important;
-  letter-spacing: 0.02em !important;
-  color: #9ffcff !important;
-  text-shadow:
-    0 0 5px rgba(159, 252, 255, 0.45),
-    0 0 14px rgba(34, 211, 238, 0.20) !important;
-}
-
-body.ari-auth-body .ari-init-big {
-  font-size: 15px !important;
-  font-weight: 700 !important;
-  color: #9ffcff !important;
-}
-
-body.ari-auth-body .ari-init-name,
-body.ari-auth-body .ari-memory-line {
-  color: #9ffcff !important;
-  text-shadow:
-    0 0 5px rgba(159, 252, 255, 0.45),
-    0 0 14px rgba(34, 211, 238, 0.20) !important;
-}
-
-body.ari-auth-body .ari-terminal-cursor {
-  display: inline-block !important;
-  margin-left: 4px !important;
-  color: #9ffcff !important;
-  animation: ariCursorBlink 0.75s steps(1) infinite !important;
-}
-/* =====================================================
-ARI AUTH — HEADER BOOT REVEAL
-===================================================== */
-
-body.ari-auth-body #ariBootLogo {
-  opacity: 0.34 !important;
-  filter: brightness(0.55) !important;
-  transition: none !important;
-}
-
-body.ari-auth-body #ariBootLogo.booted {
-  opacity: 1 !important;
-  filter: brightness(1.35) !important;
-  color: rgba(145, 255, 255, 0.98) !important;
-  text-shadow:
-    0 0 6px rgba(145,255,255,.95),
-    0 0 18px rgba(87,255,231,.68),
-    0 0 42px rgba(87,255,231,.34),
-    0 0 72px rgba(87,255,231,.18) !important;
-  animation: ariLogoPowerOn .8s steps(1) 1 !important;
-}
-
-body.ari-auth-body #ariBootMeaning {
-  min-height: 24px !important;
-  margin: -18px 0 28px !important;
-  font-family: "Courier New", monospace !important;
-  font-size: clamp(.62rem, 2.6vw, .86rem) !important;
-  letter-spacing: .12em !important;
-  color: rgba(145,255,255,.82) !important;
-  text-shadow:
-    0 0 5px rgba(145,255,255,.36),
-    0 0 14px rgba(87,255,231,.16) !important;
-  white-space: nowrap !important;
-}
-
-@keyframes ariLogoPowerOn {
-  0% { opacity: .12; filter: brightness(.25); }
-  10% { opacity: 1; filter: brightness(1.8); }
-  18% { opacity: .18; filter: brightness(.25); }
-  30% { opacity: .92; filter: brightness(1.2); }
-  42% { opacity: .28; filter: brightness(.4); }
-  58% { opacity: 1; filter: brightness(1.9); }
-  72% { opacity: .62; filter: brightness(.9); }
-  100% { opacity: 1; filter: brightness(1.35); }
-}
-
-/* =====================================================
-ARI AUTH — DARK SPACE TERMINAL FINAL
-===================================================== */
-
-body.ari-auth-body {
-  background:
-    radial-gradient(circle at 50% 18%, rgba(87,255,231,.08), transparent 34%),
-    linear-gradient(180deg, #00040a 0%, #020814 52%, #00040a 100%) !important;
-}
-
-body.ari-auth-body::before {
-  opacity: .18 !important;
-  background-size: 32px 32px !important;
-}
-
-body.ari-auth-body .ari-auth-card {
-  border-radius: 0 !important;
-  padding: 42px 18px 34px !important;
-  background:
-    linear-gradient(90deg, rgba(87,255,231,.045) 1px, transparent 1px),
-    linear-gradient(rgba(87,255,231,.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(1,8,15,.94), rgba(0,2,7,.98)) !important;
-  background-size: 32px 32px, 32px 32px, auto !important;
-  border: 1px solid rgba(87,255,231,.52) !important;
-  box-shadow:
-    0 0 30px rgba(87,255,231,.14),
-    inset 0 0 42px rgba(87,255,231,.035) !important;
-  clip-path: polygon(
-    22px 0,
-    calc(100% - 22px) 0,
-    100% 22px,
-    100% calc(100% - 22px),
-    calc(100% - 22px) 100%,
-    22px 100%,
-    0 calc(100% - 22px),
-    0 22px
-  );
-}
-
-body.ari-auth-body .ari-auth-brand h1 {
-  font-family: "Courier New", monospace !important;
-  font-size: clamp(2.05rem, 9vw, 3rem) !important;
-  letter-spacing: .22em !important;
-  color: rgba(105,255,255,.92) !important;
-}
-
-body.ari-auth-body .ari-auth-brand h1::before {
-  content: none !important;
-  display: none !important;
-}
-
-body.ari-auth-body .ari-auth-tab,
-body.ari-auth-body .ari-auth-main-btn,
-body.ari-auth-body .ari-auth-field input {
-  border-radius: 3px !important;
-  font-family: "Courier New", monospace !important;
-  border-color: rgba(87,255,231,.55) !important;
-  background: rgba(0,3,10,.72) !important;
-}
-
-body.ari-auth-body .ari-auth-tab.active::after,
-body.ari-auth-body .ari-auth-main-btn::before,
-body.ari-auth-body .ari-auth-field::after {
-  content: "█";
-  color: rgba(105,255,255,.75);
-  animation: ariCursorBlink .8s steps(1) infinite;
-}
-
-body.ari-auth-body .ari-auth-field {
-  position: relative;
-}
-
-body.ari-auth-body .ari-auth-field::after {
-  position: absolute;
-  left: 31px;
-  bottom: 19px;
-  font-size: 1rem;
-  pointer-events: none;
-}
-
-body.ari-auth-body .ari-auth-field input:not(:placeholder-shown) + span,
-body.ari-auth-body .ari-auth-field input:focus + span {
-  display: none;
-}
-
-body.ari-auth-body .ari-auth-field label {
-  font-family: "Courier New", monospace !important;
-  letter-spacing: .18em !important;
-}
-
-body.ari-auth-body .ari-auth-field label::before {
-  content: "> ";
-}
-
-body.ari-auth-body .ari-auth-main-btn {
-  position: relative !important;
-  color: rgba(105,255,255,.90) !important;
-}
-
-body.ari-auth-body .ari-auth-main-btn::before {
-  position: absolute;
-  left: 28px;
-}
-
-body.ari-auth-body .ari-auth-link-btn {
-  font-family: "Courier New", monospace !important;
-}
-
-body.ari-auth-body .ari-auth-link-btn::before {
-  content: "> ";
-}
-
-/* =====================================================
-ARI AUTH — REMOVE FAKE BLINKING CURSORS
-===================================================== */
-
-body.ari-auth-body .ari-auth-tab.active::after,
-body.ari-auth-body .ari-auth-main-btn::before,
-body.ari-auth-body .ari-auth-field::after {
-  content: none !important;
-  display: none !important;
-  animation: none !important;
-}
-
-/* Optional: also hide the real typing caret */
-body.ari-auth-body input {
-  caret-color: transparent !important;
-}
-
-/* =====================================================
-ARI INIT SCREEN — TRUE BLACK TERMINAL BOOT
-===================================================== */
-
-body.ari-auth-body .ari-init-screen {
-  min-height: 100dvh !important;
-  width: 100% !important;
-  background: #000 !important;
-  color: #9ffcff !important;
-  display: flex !important;
-  align-items: flex-start !important;
-  justify-content: flex-start !important;
-  padding: 46px 22px !important;
-}
-
-body.ari-auth-body .ari-terminal-shell,
-body.ari-auth-body .ari-init-terminal {
-  width: 100% !important;
-  min-height: auto !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  border-radius: 0 !important;
-  background: #000 !important;
-  box-shadow: none !important;
-  overflow: visible !important;
-}
-
-body.ari-auth-body .terminal-grid,
-body.ari-auth-body .terminal-glow {
-  display: none !important;
-}
-
-body.ari-auth-body .ari-init-terminal {
-  display: block !important;
-  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
-}
-
-body.ari-auth-body .ari-init-line {
-  min-height: 24px !important;
-  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
-  font-size: 15px !important;
-  line-height: 1.55 !important;
-  letter-spacing: 0.02em !important;
-  color: #9ffcff !important;
-  text-shadow:
-    0 0 5px rgba(159, 252, 255, 0.45),
-    0 0 14px rgba(34, 211, 238, 0.20) !important;
-}
-
-body.ari-auth-body .ari-init-big {
-  font-size: 15px !important;
-  font-weight: 700 !important;
-  color: #9ffcff !important;
-}
-
-body.ari-auth-body .ari-init-name,
-body.ari-auth-body .ari-memory-line {
-  color: #9ffcff !important;
-  text-shadow:
-    0 0 5px rgba(159, 252, 255, 0.45),
-    0 0 14px rgba(34, 211, 238, 0.20) !important;
-}
-
-body.ari-auth-body .ari-terminal-cursor {
-  display: inline-block !important;
-  margin-left: 4px !important;
-  color: #9ffcff !important;
-  animation: ariCursorBlink 0.75s steps(1) infinite !important;
-}
-/* =====================================================
-ARI AUTH — HEADER BOOT REVEAL
-===================================================== */
-
-body.ari-auth-body #ariBootLogo {
-  opacity: 0.34 !important;
-  filter: brightness(0.55) !important;
-  transition: none !important;
-}
-
-body.ari-auth-body #ariBootLogo.booted {
-  opacity: 1 !important;
-  filter: brightness(1.35) !important;
-  color: rgba(145, 255, 255, 0.98) !important;
-  text-shadow:
-    0 0 6px rgba(145,255,255,.95),
-    0 0 18px rgba(87,255,231,.68),
-    0 0 42px rgba(87,255,231,.34),
-    0 0 72px rgba(87,255,231,.18) !important;
-  animation: ariLogoPowerOn .8s steps(1) 1 !important;
-}
-
-body.ari-auth-body #ariBootMeaning {
-  min-height: 24px !important;
-  margin: -18px 0 28px !important;
-  font-family: "Courier New", monospace !important;
-  font-size: clamp(.62rem, 2.6vw, .86rem) !important;
-  letter-spacing: .12em !important;
-  color: rgba(145,255,255,.82) !important;
-  text-shadow:
-    0 0 5px rgba(145,255,255,.36),
-    0 0 14px rgba(87,255,231,.16) !important;
-  white-space: nowrap !important;
-}
-
-@keyframes ariLogoPowerOn {
-  0% { opacity: .12; filter: brightness(.25); }
-  10% { opacity: 1; filter: brightness(1.8); }
-  18% { opacity: .18; filter: brightness(.25); }
-  30% { opacity: .92; filter: brightness(1.2); }
-  42% { opacity: .28; filter: brightness(.4); }
-  58% { opacity: 1; filter: brightness(1.9); }
-  72% { opacity: .62; filter: brightness(.9); }
-  100% { opacity: 1; filter: brightness(1.35); }
-}
-
-/* ARI AUTH — SPACE TERMINAL UPGRADE */
-
-body.ari-auth-body .ari-chip-core {
-  display: none !important;
-}
-
-body.ari-auth-body .ari-auth-card {
-  position: relative !important;
-  overflow: hidden !important;
-  border-radius: 22px !important;
-  background:
-    linear-gradient(90deg, rgba(87,255,231,.08) 1px, transparent 1px),
-    linear-gradient(rgba(87,255,231,.055) 1px, transparent 1px),
-    radial-gradient(circle at 50% 0%, rgba(87,255,231,.20), transparent 34%),
-    linear-gradient(180deg, rgba(3,16,30,.94), rgba(2,6,23,.96)) !important;
-  background-size: 38px 38px, 38px 38px, auto, auto !important;
-}
-
-body.ari-auth-body .ari-auth-card::before {
-  content: "";
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  top: 18px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(165,243,252,.9), transparent);
-  box-shadow: 0 0 18px rgba(87,255,231,.55);
-  animation: ariAuthScan 3.2s ease-in-out infinite;
-}
-
-body.ari-auth-body .ari-auth-card::after {
-  content: "";
-  position: absolute;
-  inset: 10px;
-  border-radius: 18px;
-  border: 1px solid rgba(87,255,231,.12);
-  pointer-events: none;
-}
-
-body.ari-auth-body .ari-auth-brand h1 {
-  margin-top: 12px !important;
-  text-shadow:
-    0 0 8px rgba(207,250,254,.7),
-    0 0 24px rgba(87,255,231,.38),
-    0 0 56px rgba(87,255,231,.18) !important;
-}
-
-body.ari-auth-body .ari-auth-tabs,
-body.ari-auth-body .ari-auth-field,
-body.ari-auth-body .ari-auth-main-btn,
-body.ari-auth-body .ari-auth-link-btn,
-body.ari-auth-body .ari-auth-message {
-  position: relative !important;
-  z-index: 2 !important;
-}
-
-body.ari-auth-body .ari-auth-field input {
-  background:
-    linear-gradient(180deg, rgba(2,6,23,.86), rgba(1,8,18,.92)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.06),
-    0 0 18px rgba(87,255,231,.06) !important;
-}
-
-body.ari-auth-body .ari-auth-field input:focus {
-  border-color: rgba(165,243,252,.75) !important;
-  box-shadow:
-    0 0 0 1px rgba(165,243,252,.18),
-    0 0 24px rgba(87,255,231,.20),
-    inset 0 1px 0 rgba(255,255,255,.08) !important;
-}
-
-@keyframes ariAuthScan {
-  0%, 100% { opacity: .35; transform: translateX(-8px); }
-  50% { opacity: 1; transform: translateX(8px); }
-}
-/* =====================================================
-ARI AUTH HARD RESET — FIX PHONE EDGES + CLEAN LOGIN
+ARI AUTH — PAGE RESET
 ===================================================== */
 
 body.ari-auth-body,
 html:has(.ari-auth-body) {
   width: 100% !important;
-  height: auto !important;
   min-height: 100dvh !important;
+  margin: 0 !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
   position: static !important;
-  inset: auto !important;
-  display: block !important;
   background: #020617 !important;
 }
 
@@ -664,9 +19,10 @@ body.ari-auth-body * {
 
 body.ari-auth-body {
   font-family: Orbitron, system-ui, sans-serif !important;
+  color: #eaffff !important;
   background:
-    radial-gradient(circle at 50% 30%, rgba(87,255,231,.18), transparent 34%),
-    linear-gradient(180deg, #020617 0%, #03101a 52%, #020617 100%) !important;
+    radial-gradient(circle at 50% 18%, rgba(87,255,231,.10), transparent 34%),
+    linear-gradient(180deg, #00040a 0%, #020814 52%, #00040a 100%) !important;
 }
 
 body.ari-auth-body::before {
@@ -675,11 +31,15 @@ body.ari-auth-body::before {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(87,255,231,.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(87,255,231,.045) 1px, transparent 1px);
-  background-size: 42px 42px;
-  opacity: .45;
+    linear-gradient(rgba(87,255,231,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(87,255,231,.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: .22;
 }
+
+/* =====================================================
+ARI AUTH — CARD LAYOUT
+===================================================== */
 
 .ari-auth-page {
   width: 100% !important;
@@ -691,157 +51,24 @@ body.ari-auth-body::before {
 }
 
 .ari-auth-card {
-  width: 100% !important;
-  max-width: 100% !important;
-  border-radius: 28px !important;
-  padding: 36px 18px 30px !important;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(87,255,231,.18), transparent 38%),
-    linear-gradient(180deg, rgba(5,18,31,.92), rgba(2,6,23,.94)) !important;
-  border: 1px solid rgba(87,255,231,.32) !important;
-  box-shadow:
-    0 0 34px rgba(87,255,231,.14),
-    inset 0 0 26px rgba(87,255,231,.04) !important;
-}
-
-.ari-chip-core {
-  display: none !important;
-}
-
-.ari-auth-brand h1 {
-  margin: 0 0 34px !important;
-  font-size: clamp(2.25rem, 10vw, 3.05rem) !important;
-  letter-spacing: .17em !important;
-  line-height: 1.05 !important;
-}
-
-.ari-auth-tabs {
-  gap: 12px !important;
-  margin-bottom: 24px !important;
-}
-
-.ari-auth-tab {
-  min-height: 52px !important;
-  border-radius: 18px !important;
-}
-
-.ari-auth-field input {
-  width: 100% !important;
-  min-height: 62px !important;
-  border-radius: 18px !important;
-  background: rgba(2,6,23,.78) !important;
-  color: white !important;
-}
-
-.ari-auth-main-btn {
-  min-height: 66px !important;
-  border-radius: 22px !important;
-}
-
-/* ARI AUTH — SPACE TERMINAL UPGRADE */
-
-body.ari-auth-body .ari-chip-core {
-  display: none !important;
-}
-
-body.ari-auth-body .ari-auth-card {
   position: relative !important;
   overflow: hidden !important;
-  border-radius: 22px !important;
-  background:
-    linear-gradient(90deg, rgba(87,255,231,.08) 1px, transparent 1px),
-    linear-gradient(rgba(87,255,231,.055) 1px, transparent 1px),
-    radial-gradient(circle at 50% 0%, rgba(87,255,231,.20), transparent 34%),
-    linear-gradient(180deg, rgba(3,16,30,.94), rgba(2,6,23,.96)) !important;
-  background-size: 38px 38px, 38px 38px, auto, auto !important;
-}
-
-body.ari-auth-body .ari-auth-card::before {
-  content: "";
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  top: 18px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(165,243,252,.9), transparent);
-  box-shadow: 0 0 18px rgba(87,255,231,.55);
-  animation: ariAuthScan 3.2s ease-in-out infinite;
-}
-
-body.ari-auth-body .ari-auth-card::after {
-  content: "";
-  position: absolute;
-  inset: 10px;
-  border-radius: 18px;
-  border: 1px solid rgba(87,255,231,.12);
-  pointer-events: none;
-}
-
-body.ari-auth-body .ari-auth-brand h1 {
-  margin-top: 12px !important;
-  text-shadow:
-    0 0 8px rgba(207,250,254,.7),
-    0 0 24px rgba(87,255,231,.38),
-    0 0 56px rgba(87,255,231,.18) !important;
-}
-
-body.ari-auth-body .ari-auth-tabs,
-body.ari-auth-body .ari-auth-field,
-body.ari-auth-body .ari-auth-main-btn,
-body.ari-auth-body .ari-auth-link-btn,
-body.ari-auth-body .ari-auth-message {
-  position: relative !important;
-  z-index: 2 !important;
-}
-
-body.ari-auth-body .ari-auth-field input {
-  background:
-    linear-gradient(180deg, rgba(2,6,23,.86), rgba(1,8,18,.92)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.06),
-    0 0 18px rgba(87,255,231,.06) !important;
-}
-
-body.ari-auth-body .ari-auth-field input:focus {
-  border-color: rgba(165,243,252,.75) !important;
-  box-shadow:
-    0 0 0 1px rgba(165,243,252,.18),
-    0 0 24px rgba(87,255,231,.20),
-    inset 0 1px 0 rgba(255,255,255,.08) !important;
-}
-
-@keyframes ariAuthScan {
-  0%, 100% { opacity: .35; transform: translateX(-8px); }
-  50% { opacity: 1; transform: translateX(8px); }
-}
-
-/* =====================================================
-ARI AUTH — DARK SPACE TERMINAL FINAL
-===================================================== */
-
-body.ari-auth-body {
-  background:
-    radial-gradient(circle at 50% 18%, rgba(87,255,231,.08), transparent 34%),
-    linear-gradient(180deg, #00040a 0%, #020814 52%, #00040a 100%) !important;
-}
-
-body.ari-auth-body::before {
-  opacity: .18 !important;
-  background-size: 32px 32px !important;
-}
-
-body.ari-auth-body .ari-auth-card {
-  border-radius: 0 !important;
+  width: 100% !important;
   padding: 42px 18px 34px !important;
+
+  border: 1px solid rgba(87,255,231,.52) !important;
+  border-radius: 0 !important;
+
   background:
     linear-gradient(90deg, rgba(87,255,231,.045) 1px, transparent 1px),
     linear-gradient(rgba(87,255,231,.035) 1px, transparent 1px),
     linear-gradient(180deg, rgba(1,8,15,.94), rgba(0,2,7,.98)) !important;
   background-size: 32px 32px, 32px 32px, auto !important;
-  border: 1px solid rgba(87,255,231,.52) !important;
+
   box-shadow:
     0 0 30px rgba(87,255,231,.14),
     inset 0 0 42px rgba(87,255,231,.035) !important;
+
   clip-path: polygon(
     22px 0,
     calc(100% - 22px) 0,
@@ -854,101 +81,210 @@ body.ari-auth-body .ari-auth-card {
   );
 }
 
-body.ari-auth-body .ari-auth-brand h1 {
+.ari-auth-card::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 18px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(165,243,252,.9), transparent);
+  box-shadow: 0 0 18px rgba(87,255,231,.55);
+  animation: ariAuthScan 3.2s ease-in-out infinite;
+}
+
+.ari-auth-card::after {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px solid rgba(87,255,231,.12);
+  pointer-events: none;
+}
+
+.ari-chip-core {
+  display: none !important;
+}
+
+/* =====================================================
+ARI AUTH — BRAND
+===================================================== */
+
+.ari-auth-brand {
+  position: relative !important;
+  z-index: 2 !important;
+  text-align: center !important;
+}
+
+.ari-auth-brand h1 {
+  margin: 12px 0 28px !important;
   font-family: "Courier New", monospace !important;
   font-size: clamp(2.05rem, 9vw, 3rem) !important;
   letter-spacing: .22em !important;
   color: rgba(105,255,255,.92) !important;
+  text-shadow:
+    0 0 8px rgba(207,250,254,.7),
+    0 0 24px rgba(87,255,231,.38),
+    0 0 56px rgba(87,255,231,.18) !important;
 }
 
-body.ari-auth-body .ari-auth-brand h1::before {
-  content: none !important;
-  display: none !important;
+/* =====================================================
+ARI AUTH — BOOT LOGO
+===================================================== */
+
+#ariBootLogo {
+  opacity: .34 !important;
+  filter: brightness(.55) !important;
 }
 
-body.ari-auth-body .ari-auth-tab,
-body.ari-auth-body .ari-auth-main-btn,
-body.ari-auth-body .ari-auth-field input {
-  border-radius: 3px !important;
+#ariBootLogo.booted {
+  opacity: 1 !important;
+  filter: brightness(1.35) !important;
+  color: rgba(145,255,255,.98) !important;
+  text-shadow:
+    0 0 6px rgba(145,255,255,.95),
+    0 0 18px rgba(87,255,231,.68),
+    0 0 42px rgba(87,255,231,.34),
+    0 0 72px rgba(87,255,231,.18) !important;
+  animation: ariLogoPowerOn .8s steps(1) 1 !important;
+}
+
+#ariBootMeaning {
+  min-height: 24px !important;
+  margin: -18px 0 28px !important;
   font-family: "Courier New", monospace !important;
-  border-color: rgba(87,255,231,.55) !important;
+  font-size: clamp(.62rem, 2.6vw, .86rem) !important;
+  letter-spacing: .12em !important;
+  color: rgba(145,255,255,.82) !important;
+  white-space: nowrap !important;
+}
+
+/* =====================================================
+ARI AUTH — TABS / FIELDS / BUTTONS
+===================================================== */
+
+.ari-auth-tabs,
+.ari-auth-field,
+.ari-auth-main-btn,
+.ari-auth-link-btn,
+.ari-auth-message {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+.ari-auth-tabs {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 12px !important;
+  margin-bottom: 24px !important;
+}
+
+.ari-auth-tab,
+.ari-auth-main-btn,
+.ari-auth-field input {
+  font-family: "Courier New", monospace !important;
+  border-radius: 3px !important;
+  border: 1px solid rgba(87,255,231,.55) !important;
   background: rgba(0,3,10,.72) !important;
 }
 
-body.ari-auth-body .ari-auth-tab.active::after,
-body.ari-auth-body .ari-auth-main-btn::before,
-body.ari-auth-body .ari-auth-field::after {
-  content: "█";
-  color: rgba(105,255,255,.75);
-  animation: ariCursorBlink .8s steps(1) infinite;
+.ari-auth-tab {
+  min-height: 52px !important;
+  color: rgba(145,255,255,.72) !important;
+  font-weight: 900 !important;
 }
 
-body.ari-auth-body .ari-auth-field {
-  position: relative;
+.ari-auth-tab.active {
+  color: rgba(220,255,255,.98) !important;
+  box-shadow: 0 0 18px rgba(87,255,231,.20) !important;
 }
 
-body.ari-auth-body .ari-auth-field::after {
-  position: absolute;
-  left: 31px;
-  bottom: 19px;
-  font-size: 1rem;
-  pointer-events: none;
+.ari-auth-field {
+  margin-top: 14px !important;
 }
 
-body.ari-auth-body .ari-auth-field input:not(:placeholder-shown) + span,
-body.ari-auth-body .ari-auth-field input:focus + span {
-  display: none;
-}
-
-body.ari-auth-body .ari-auth-field label {
+.ari-auth-field label {
+  display: block !important;
+  margin-bottom: 8px !important;
   font-family: "Courier New", monospace !important;
+  font-size: .68rem !important;
+  letter-spacing: .18em !important;
+  text-transform: uppercase !important;
+  color: rgba(180,255,255,.74) !important;
+}
+
+.ari-auth-field label::before {
+  content: "> ";
+}
+
+.ari-auth-field input {
+  width: 100% !important;
+  min-height: 62px !important;
+  padding: 0 15px !important;
+  color: white !important;
+  outline: none !important;
+  caret-color: auto !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 0 18px rgba(87,255,231,.06) !important;
+}
+
+.ari-auth-field input:focus {
+  border-color: rgba(165,243,252,.75) !important;
+  box-shadow:
+    0 0 0 1px rgba(165,243,252,.18),
+    0 0 24px rgba(87,255,231,.20),
+    inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+
+.ari-auth-main-btn {
+  width: 100% !important;
+  min-height: 66px !important;
+  margin-top: 18px !important;
+  color: rgba(105,255,255,.90) !important;
+  font-weight: 950 !important;
   letter-spacing: .18em !important;
 }
 
-body.ari-auth-body .ari-auth-field label::before {
-  content: "> ";
+.ari-auth-main-btn.ready {
+  background: linear-gradient(135deg, rgba(87,255,231,.9), rgba(14,165,233,.72)) !important;
+  color: #02131c !important;
+  box-shadow: 0 0 28px rgba(87,255,231,.32) !important;
 }
 
-body.ari-auth-body .ari-auth-main-btn {
-  position: relative !important;
-  color: rgba(105,255,255,.90) !important;
+.ari-auth-main-btn.gold.ready {
+  background: linear-gradient(135deg, rgba(250,204,21,.94), rgba(161,98,7,.80)) !important;
+  color: #1b1300 !important;
+  border-color: rgba(250,204,21,.62) !important;
+  box-shadow: 0 0 30px rgba(250,204,21,.28) !important;
 }
 
-body.ari-auth-body .ari-auth-main-btn::before {
-  position: absolute;
-  left: 28px;
-}
-
-body.ari-auth-body .ari-auth-link-btn {
+.ari-auth-link-btn {
+  width: 100% !important;
+  margin-top: 16px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(87,255,231,.72) !important;
   font-family: "Courier New", monospace !important;
+  font-weight: 900 !important;
 }
 
-body.ari-auth-body .ari-auth-link-btn::before {
+.ari-auth-link-btn::before {
   content: "> ";
 }
 
-/* =====================================================
-ARI AUTH — REMOVE FAKE BLINKING CURSORS
-===================================================== */
-
-body.ari-auth-body .ari-auth-tab.active::after,
-body.ari-auth-body .ari-auth-main-btn::before,
-body.ari-auth-body .ari-auth-field::after {
-  content: none !important;
-  display: none !important;
-  animation: none !important;
-}
-
-/* Optional: also hide the real typing caret */
-body.ari-auth-body input {
-  caret-color: transparent !important;
+.ari-auth-message {
+  min-height: 24px !important;
+  margin-top: 16px !important;
+  text-align: center !important;
+  color: rgba(226,252,255,.82) !important;
+  font-weight: 800 !important;
 }
 
 /* =====================================================
-ARI INIT SCREEN — TRUE BLACK TERMINAL BOOT
+ARI AUTH — INIT SCREEN
 ===================================================== */
 
-body.ari-auth-body .ari-init-screen {
+.ari-init-screen {
   min-height: 100dvh !important;
   width: 100% !important;
   background: #000 !important;
@@ -959,8 +295,8 @@ body.ari-auth-body .ari-init-screen {
   padding: 46px 22px !important;
 }
 
-body.ari-auth-body .ari-terminal-shell,
-body.ari-auth-body .ari-init-terminal {
+.ari-terminal-shell,
+.ari-init-terminal {
   width: 100% !important;
   min-height: auto !important;
   margin: 0 !important;
@@ -972,81 +308,63 @@ body.ari-auth-body .ari-init-terminal {
   overflow: visible !important;
 }
 
-body.ari-auth-body .terminal-grid,
-body.ari-auth-body .terminal-glow {
+.terminal-grid,
+.terminal-glow {
   display: none !important;
 }
 
-body.ari-auth-body .ari-init-terminal {
+.ari-init-terminal {
   display: block !important;
-  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
+  font-family: "Courier New", monospace !important;
 }
 
-body.ari-auth-body .ari-init-line {
+.ari-init-line {
   min-height: 24px !important;
-  font-family: "Courier New", "IBM Plex Mono", "JetBrains Mono", monospace !important;
+  font-family: "Courier New", monospace !important;
   font-size: 15px !important;
   line-height: 1.55 !important;
-  letter-spacing: 0.02em !important;
   color: #9ffcff !important;
-  text-shadow:
-    0 0 5px rgba(159, 252, 255, 0.45),
-    0 0 14px rgba(34, 211, 238, 0.20) !important;
 }
 
-body.ari-auth-body .ari-init-big {
+.ari-init-big,
+.ari-init-name,
+.ari-memory-line {
   font-size: 15px !important;
   font-weight: 700 !important;
   color: #9ffcff !important;
 }
 
-body.ari-auth-body .ari-init-name,
-body.ari-auth-body .ari-memory-line {
-  color: #9ffcff !important;
-  text-shadow:
-    0 0 5px rgba(159, 252, 255, 0.45),
-    0 0 14px rgba(34, 211, 238, 0.20) !important;
-}
-
-body.ari-auth-body .ari-terminal-cursor {
+.ari-terminal-cursor {
   display: inline-block !important;
   margin-left: 4px !important;
   color: #9ffcff !important;
-  animation: ariCursorBlink 0.75s steps(1) infinite !important;
+  animation: ariCursorBlink .75s steps(1) infinite !important;
 }
+
+.hidden {
+  display: none !important;
+}
+
 /* =====================================================
-ARI AUTH — HEADER BOOT REVEAL
+ARI AUTH — ANIMATIONS
 ===================================================== */
 
-body.ari-auth-body #ariBootLogo {
-  opacity: 0.34 !important;
-  filter: brightness(0.55) !important;
-  transition: none !important;
+@keyframes ariAuthScan {
+  0%, 100% {
+    opacity: .35;
+    transform: translateX(-8px);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(8px);
+  }
 }
 
-body.ari-auth-body #ariBootLogo.booted {
-  opacity: 1 !important;
-  filter: brightness(1.35) !important;
-  color: rgba(145, 255, 255, 0.98) !important;
-  text-shadow:
-    0 0 6px rgba(145,255,255,.95),
-    0 0 18px rgba(87,255,231,.68),
-    0 0 42px rgba(87,255,231,.34),
-    0 0 72px rgba(87,255,231,.18) !important;
-  animation: ariLogoPowerOn .8s steps(1) 1 !important;
-}
-
-body.ari-auth-body #ariBootMeaning {
-  min-height: 24px !important;
-  margin: -18px 0 28px !important;
-  font-family: "Courier New", monospace !important;
-  font-size: clamp(.62rem, 2.6vw, .86rem) !important;
-  letter-spacing: .12em !important;
-  color: rgba(145,255,255,.82) !important;
-  text-shadow:
-    0 0 5px rgba(145,255,255,.36),
-    0 0 14px rgba(87,255,231,.16) !important;
-  white-space: nowrap !important;
+@keyframes ariCursorBlink {
+  50% {
+    opacity: 0;
+  }
 }
 
 @keyframes ariLogoPowerOn {
