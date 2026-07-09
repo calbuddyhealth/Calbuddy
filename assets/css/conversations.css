@@ -78,15 +78,3 @@ ARI CONVERSATIONS — THREAD / MESSAGE UI
 .ari-user .ari-label {
   color: rgba(244,248,255,0.72);
 }
-
-@keyframes conversationFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
