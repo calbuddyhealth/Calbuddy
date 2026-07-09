@@ -1,26 +1,15 @@
 // =====================================================
 // ARI REBIRTH
 // File: conversation-history.js
-// Version: 2.1.0
-// Purpose:
-//   Displays Ari's recent Memory Vault.
-//
-// Features:
-//   • Save conversation
-//   • Automatically keeps Today & Yesterday only
-//   • Delete conversation
-//   • Clear history
-//   • Safe to load on every page
+// Version: 2.1.1
+// Purpose: Displays Ari's recent Memory Vault.
 // =====================================================
 
-const historyList = document.getElementById("conversationHistoryList");
-
-// -----------------------------------------------------
-// Keep only Today + Yesterday
-// -----------------------------------------------------
+function getHistoryList() {
+  return document.getElementById("conversationHistoryList");
+}
 
 function keepOnlyTodayAndYesterday(history = []) {
-
   const now = new Date();
 
   const today = new Date(now);
@@ -29,27 +18,14 @@ function keepOnlyTodayAndYesterday(history = []) {
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
-  return history.filter(item => {
-
+  return history.filter((item) => {
     if (!item.created_at) return false;
-
-    const created = new Date(item.created_at);
-
-    return created >= yesterday;
-
+    return new Date(item.created_at) >= yesterday;
   });
-
 }
 
-// -----------------------------------------------------
-// Save Conversation
-// -----------------------------------------------------
-
 function saveAriConversation(title, preview, messages = []) {
-
-  let history = JSON.parse(
-    localStorage.getItem("ariConversationHistory") || "[]"
-  );
+  let history = JSON.parse(localStorage.getItem("ariConversationHistory") || "[]");
 
   history = keepOnlyTodayAndYesterday(history);
 
@@ -61,252 +37,148 @@ function saveAriConversation(title, preview, messages = []) {
     created_at: new Date().toISOString()
   });
 
-  localStorage.setItem(
-    "ariConversationHistory",
-    JSON.stringify(history)
-  );
-
+  localStorage.setItem("ariConversationHistory", JSON.stringify(history));
 }
 
-// -----------------------------------------------------
-// Date Helpers
-// -----------------------------------------------------
-
 function isToday(date) {
-
   const today = new Date();
 
   return (
-
     date.getFullYear() === today.getFullYear() &&
     date.getMonth() === today.getMonth() &&
     date.getDate() === today.getDate()
-
   );
-
 }
 
 function isYesterday(date) {
-
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
   return (
-
     date.getFullYear() === yesterday.getFullYear() &&
     date.getMonth() === yesterday.getMonth() &&
     date.getDate() === yesterday.getDate()
-
   );
-
 }
 
-// -----------------------------------------------------
-// Card Builder
-// -----------------------------------------------------
-
 function createConversationCard(item) {
-
   const card = document.createElement("div");
   card.className = "ari-history-card";
 
-  card.innerHTML = `
+  const title = document.createElement("strong");
+  title.textContent = item.title || "Conversation";
 
-    <strong>${item.title}</strong>
+  const preview = document.createElement("p");
+  preview.textContent = item.preview || "";
 
-    <p>${item.preview}</p>
+  const date = document.createElement("small");
+  date.textContent = item.created_at
+    ? new Date(item.created_at).toLocaleString()
+    : "";
 
-    <small>
-      ${new Date(item.created_at).toLocaleString()}
-    </small>
+  const actions = document.createElement("div");
+  actions.className = "conversation-actions";
 
-    <div class="intake-actions">
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "delete-conversation-btn";
+  deleteBtn.type = "button";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.addEventListener("click", () => deleteConversation(item.id));
 
-      <button
-        class="delete-intake-btn"
-        onclick="deleteConversation(${item.id})">
+  actions.appendChild(deleteBtn);
 
-        Delete
-
-      </button>
-
-    </div>
-
-  `;
+  card.appendChild(title);
+  card.appendChild(preview);
+  card.appendChild(date);
+  card.appendChild(actions);
 
   return card;
-
 }
 
-// -----------------------------------------------------
-// Load History
-// -----------------------------------------------------
-
 function loadConversationHistory() {
-
+  const historyList = getHistoryList();
   if (!historyList) return;
 
-  let history = JSON.parse(
-    localStorage.getItem("ariConversationHistory") || "[]"
-  );
-
-  // Automatically remove anything older than yesterday
+  let history = JSON.parse(localStorage.getItem("ariConversationHistory") || "[]");
 
   history = keepOnlyTodayAndYesterday(history);
 
-  localStorage.setItem(
-    "ariConversationHistory",
-    JSON.stringify(history)
-  );
+  localStorage.setItem("ariConversationHistory", JSON.stringify(history));
 
   history.reverse();
-
   historyList.innerHTML = "";
 
   const todayItems = [];
   const yesterdayItems = [];
 
-  history.forEach(item => {
-
+  history.forEach((item) => {
     if (!item.created_at) return;
 
     const date = new Date(item.created_at);
 
     if (isToday(date)) {
-
       todayItems.push(item);
-
     } else if (isYesterday(date)) {
-
       yesterdayItems.push(item);
-
     }
-
   });
 
   if (!todayItems.length && !yesterdayItems.length) {
-
-    historyList.innerHTML = `
-
-      <p class="window-note">
-
-        No recent conversations yet.
-
-      </p>
-
-    `;
-
+    const empty = document.createElement("p");
+    empty.className = "window-note";
+    empty.textContent = "No recent conversations yet.";
+    historyList.appendChild(empty);
     return;
-
   }
 
   if (todayItems.length) {
+    const heading = document.createElement("h3");
+    heading.className = "ari-history-section-title";
+    heading.textContent = "Today";
+    historyList.appendChild(heading);
 
-    historyList.innerHTML += `
-
-      <h3 class="ari-history-section-title">
-
-        Today
-
-      </h3>
-
-    `;
-
-    todayItems.forEach(item => {
+    todayItems.forEach((item) => {
       historyList.appendChild(createConversationCard(item));
     });
-
   }
 
   if (yesterdayItems.length) {
+    const heading = document.createElement("h3");
+    heading.className = "ari-history-section-title";
+    heading.textContent = "Yesterday";
+    historyList.appendChild(heading);
 
-    historyList.innerHTML += `
-
-      <h3 class="ari-history-section-title">
-
-        Yesterday
-
-      </h3>
-
-    `;
-
-    yesterdayItems.forEach(item => {
+    yesterdayItems.forEach((item) => {
       historyList.appendChild(createConversationCard(item));
     });
-
   }
-
 }
-
-// -----------------------------------------------------
-// Delete Conversation
-// -----------------------------------------------------
 
 function deleteConversation(id) {
+  let history = JSON.parse(localStorage.getItem("ariConversationHistory") || "[]");
 
-  let history = JSON.parse(
-    localStorage.getItem("ariConversationHistory") || "[]"
-  );
+  history = history.filter((item) => item.id !== id);
 
-  history = history.filter(item => item.id !== id);
-
-  localStorage.setItem(
-    "ariConversationHistory",
-    JSON.stringify(history)
-  );
+  localStorage.setItem("ariConversationHistory", JSON.stringify(history));
 
   loadConversationHistory();
-
 }
-
-// -----------------------------------------------------
-// Clear All
-// -----------------------------------------------------
 
 function clearConversationHistory() {
-
   localStorage.removeItem("ariConversationHistory");
-
   loadConversationHistory();
-
 }
 
-// -----------------------------------------------------
-// Getters
-// -----------------------------------------------------
-
 function getConversationHistory() {
-
   return keepOnlyTodayAndYesterday(
-
-    JSON.parse(
-      localStorage.getItem("ariConversationHistory") || "[]"
-    )
-
+    JSON.parse(localStorage.getItem("ariConversationHistory") || "[]")
   );
-
 }
 
 function getConversationById(id) {
-
-  return getConversationHistory().find(
-
-    item => item.id === id
-
-  );
-
+  return getConversationHistory().find((item) => item.id === id);
 }
 
-// -----------------------------------------------------
-// Initialize
-// -----------------------------------------------------
-
 document.addEventListener("DOMContentLoaded", () => {
-
-  if (historyList) {
-
-    loadConversationHistory();
-
-  }
-
+  loadConversationHistory();
 });
