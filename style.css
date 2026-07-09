@@ -28,84 +28,11 @@ ARI DESIGN SYSTEM V1 — HOME
   background-size: 34px 34px;
 }
 
-/* Header */
-
-.ari-header {
-  height: 72px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  z-index: 30;
-}
-
-.ari-header .menu-btn,
-.ari-header .profile-btn {
-  margin: 0;
-  height: 46px;
-  min-width: 54px;
-  border-radius: 18px;
-  border: 1px solid rgba(125, 211, 252, 0.45);
-  background: rgba(8, 18, 37, 0.72);
-  color: white;
-  font-weight: 950;
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.14);
-}
-
-.ari-header .profile-btn {
-  min-width: 88px;
-  font-size: 14px;
-}
-
-.ari-brand-center {
-  position: absolute;
-  left: 50%;
-  top: 8px;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.ari-wordmark {
-  color: #22d3ee;
-  text-decoration: none;
-  font-size: 38px;
-  font-weight: 950;
-  letter-spacing: 0.16em;
-  line-height: 0.95;
-  text-shadow:
-    0 0 12px rgba(34, 211, 238, 0.45),
-    0 0 28px rgba(34, 211, 238, 0.20);
-}
-
-.ari-engine-line {
-  margin: 4px 0 0;
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.32em;
-  color: rgba(244, 248, 255, 0.82);
-  white-space: nowrap;
-}
-
-.ari-engine-line span {
-  color: #22d3ee;
-  text-shadow: 0 0 12px rgba(34, 211, 238, 0.55);
-}
-
 /* Header avatar hidden at first */
 
 .ari-header-avatar-shell {
   display: none;
-  width: 42px;
-  height: 42px;
-  margin-bottom: 4px;
   border-radius: 50%;
-  border: 1px solid rgba(34, 211, 238, 0.65);
-  background: rgba(8, 18, 37, 0.8);
-  box-shadow:
-    0 0 18px rgba(34, 211, 238, 0.30),
-    inset 0 1px 0 rgba(255,255,255,0.14);
   overflow: hidden;
 }
 
@@ -113,11 +40,6 @@ ARI DESIGN SYSTEM V1 — HOME
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.conversation-mode .ari-header-avatar-shell {
-  display: block;
-  animation: avatarArrive 0.55s ease both;
 }
 
 /* Welcome mode */
@@ -716,139 +638,6 @@ body {
   max-width: 100% !important;
 }
 
-
-/* =====================================================
-ARI V1 HARD CENTER + HEADER FIX
-===================================================== */
-
-html,
-body {
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow-x: hidden !important;
-  background: #040b18 !important;
-}
-
-body {
-  display: flex !important;
-  justify-content: center !important;
-}
-
-main#ariApp.ari-v1-home {
-  box-sizing: border-box !important;
-  width: min(100vw, 430px) !important;
-  max-width: 430px !important;
-  margin: 0 auto !important;
-  padding: env(safe-area-inset-top) 14px 120px !important;
-  position: relative !important;
-  left: auto !important;
-  right: auto !important;
-  transform: none !important;
-}
-
-/* Header layout */
-main#ariApp .ari-header {
-  width: 100% !important;
-  height: 82px !important;
-  display: grid !important;
-  grid-template-columns: 64px 1fr 92px !important;
-  align-items: center !important;
-  gap: 8px !important;
-  position: relative !important;
-}
-
-/* Bigger hamburger */
-main#ariApp .menu-btn {
-  width: 58px !important;
-  min-width: 58px !important;
-  height: 58px !important;
-  padding: 0 !important;
-  display: grid !important;
-  place-items: center !important;
-  font-size: 28px !important;
-  line-height: 1 !important;
-}
-
-/* Keep logo centered in grid, not absolute */
-main#ariApp .ari-brand-center {
-  position: static !important;
-  transform: none !important;
-  max-width: none !important;
-  justify-self: center !important;
-}
-
-/* Sign in fully inside screen */
-main#ariApp .profile-btn {
-  width: 88px !important;
-  min-width: 88px !important;
-  max-width: 88px !important;
-  height: 58px !important;
-  padding: 0 !important;
-  font-size: 14px !important;
-  justify-self: end !important;
-}
-
-/* Input fully inside screen */
-main#ariApp .ari-bottom-input {
-  box-sizing: border-box !important;
-  width: min(100vw, 430px) !important;
-  max-width: 430px !important;
-  left: 50% !important;
-  right: auto !important;
-  transform: translateX(-50%) !important;
-  padding-left: 14px !important;
-  padding-right: 14px !important;
-}
-
-main#ariApp .ari-input-shell {
-  box-sizing: border-box !important;
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* =====================================================
-ARI V1 BRAND FONT UPGRADE — AUDIOWIDE + ORBITRON
-===================================================== */
-
-main#ariApp .ari-wordmark {
-  font-family: "Audiowide", sans-serif !important;
-  font-weight: 400 !important;
-  font-size: 42px !important;
-  letter-spacing: 0.16em !important;
-  color: #22d3ee !important;
-  text-decoration: none !important;
-  line-height: 0.95 !important;
-
-  text-shadow:
-    0 0 6px rgba(34,211,238,0.95),
-    0 0 14px rgba(34,211,238,0.78),
-    0 0 30px rgba(34,211,238,0.48),
-    0 0 52px rgba(34,211,238,0.24) !important;
-}
-
-main#ariApp .ari-wordmark::first-letter {
-  color: #f8fdff !important;
-  text-shadow:
-    0 0 6px rgba(255,255,255,0.72),
-    0 0 16px rgba(34,211,238,0.58),
-    0 0 32px rgba(34,211,238,0.35) !important;
-}
-
-main#ariApp .ari-engine-line {
-  font-family: "Orbitron", sans-serif !important;
-  font-weight: 800 !important;
-  margin-top: 7px !important;
-  font-size: 9.5px !important;
-  letter-spacing: 0.24em !important;
-  text-transform: uppercase !important;
-  color: #c8ffff !important;
-
-  text-shadow:
-    0 0 4px rgba(200,255,255,0.65),
-  .ari-engine-lineorm: translateY(-115px) !important;
-}
 
 main#ariApp .ari-welcome-prompt {
   margin-top: -24px !important;
@@ -4184,70 +3973,6 @@ ARI DESIGN SYSTEM V1 — HOME
   background-size: 34px 34px;
 }
 
-/* Header */
-
-.ari-header {
-  height: 72px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  z-index: 30;
-}
-
-.ari-header .menu-btn,
-.ari-header .profile-btn {
-  margin: 0;
-  height: 46px;
-  min-width: 54px;
-  border-radius: 18px;
-  border: 1px solid rgba(125, 211, 252, 0.45);
-  background: rgba(8, 18, 37, 0.72);
-  color: white;
-  font-weight: 950;
-  box-shadow: 0 0 18px rgba(34, 211, 238, 0.14);
-}
-
-.ari-header .profile-btn {
-  min-width: 88px;
-  font-size: 14px;
-}
-
-.ari-brand-center {
-  position: absolute;
-  left: 50%;
-  top: 8px;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.ari-wordmark {
-  color: #22d3ee;
-  text-decoration: none;
-  font-size: 38px;
-  font-weight: 950;
-  letter-spacing: 0.16em;
-  line-height: 0.95;
-  text-shadow:
-    0 0 12px rgba(34, 211, 238, 0.45),
-    0 0 28px rgba(34, 211, 238, 0.20);
-}
-
-.ari-engine-line {
-  margin: 4px 0 0;
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.32em;
-  color: rgba(244, 248, 255, 0.82);
-  white-space: nowrap;
-}
-
-.ari-engine-line span {
-  color: #22d3ee;
-  text-shadow: 0 0 12px rgba(34, 211, 238, 0.55);
-}
 
 /* Header avatar hidden at first */
 
