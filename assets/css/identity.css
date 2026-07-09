@@ -1,1 +1,24 @@
-.
+/* =====================================================
+ARI IDENTITY / ACCOUNT PAGE SCROLL FIX
+===================================================== */
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+}
+
+body:has(.ari-identity-page),
+body:has(.ari-account-page) {
+  position: relative !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+}
+
+body:has(.ari-identity-page) .ari-identity-page,
+body:has(.ari-account-page) .ari-account-page {
+  min-height: 100dvh !important;
+  padding-bottom: 140px !important;
+  overflow: visible !important;
+}
