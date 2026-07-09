@@ -8410,3 +8410,52 @@ main#ariApp:has(#ariInput:disabled) .ari-brand-right {
     filter: brightness(1.65);
   }
 }
+
+/* =====================================================
+ARI HOME HEADER — CENTER AVATAR + BIGGER BRAND
+===================================================== */
+
+main#ariApp .ari-header {
+  grid-template-columns: 74px 1fr 132px !important;
+}
+
+main#ariApp .ari-brand-center {
+  justify-self: center !important;
+  align-self: start !important;
+  margin-top: 2px !important;
+}
+
+main#ariApp .ari-header-avatar-shell {
+  display: block !important;
+  width: 62px !important;
+  height: 62px !important;
+  margin: 0 auto !important;
+  border-width: 2px !important;
+  box-shadow:
+    0 0 16px rgba(34, 211, 238, 0.55),
+    0 0 34px rgba(34, 211, 238, 0.28),
+    inset 0 1px 0 rgba(255,255,255,0.20) !important;
+}
+
+main#ariApp .ari-wordmark,
+main#ariApp .ari-engine-line {
+  display: none !important;
+}
+
+main#ariApp .ari-brand-right {
+  justify-self: end !important;
+  width: 132px !important;
+  text-align: right !important;
+}
+
+main#ariApp .ari-brand-title {
+  font-size: 34px !important;
+  line-height: 0.9 !important;
+  letter-spacing: .14em !important;
+}
+
+main#ariApp .ari-brand-subtitle {
+  font-size: 10px !important;
+  margin-top: 7px !important;
+  letter-spacing: .18em !important;
+}
