@@ -319,3 +319,72 @@ ARI NAV / MENU ANIMATIONS
     background-position: 100% 50%, center, center;
   }
 }
+/* =====================================================
+ARI COMPOSER — ANIMATIONS
+===================================================== */
+
+@keyframes ariComposerBreath {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(34, 211, 238, 0.16),
+      0 0 42px rgba(34, 211, 238, 0.07),
+      0 24px 60px rgba(0, 0, 0, 0.46),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -18px 34px rgba(0, 0, 0, 0.28);
+  }
+
+  50% {
+    box-shadow:
+      0 0 28px rgba(34, 211, 238, 0.25),
+      0 0 58px rgba(34, 211, 238, 0.11),
+      0 24px 60px rgba(0, 0, 0, 0.46),
+      inset 0 1px 0 rgba(255, 255, 255, 0.19),
+      inset 0 -18px 34px rgba(0, 0, 0, 0.28);
+  }
+}
+
+@keyframes ariLedIdle {
+  0%, 100% {
+    opacity: 0.42;
+    filter: brightness(0.9);
+  }
+
+  50% {
+    opacity: 0.88;
+    filter: brightness(1.25);
+  }
+}
+
+@keyframes ariLedThinking {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes ariReactorRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ariReactorRotateReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes ariTypingPulse {
+  0%, 80%, 100% {
+    opacity: 0.35;
+    transform: translateY(0) scale(0.88);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.08);
+  }
+}
