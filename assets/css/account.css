@@ -232,3 +232,9 @@ body:has(.ari-account-page) .ari-account-page {
   padding-bottom: 140px !important;
   overflow: visible !important;
 }
+/* Account icon */
+.ari-v1-home .nav-account .ari-nav-icon::before {
+  content: "⌬";
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
