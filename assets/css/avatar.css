@@ -2,22 +2,18 @@
 ARI AVATAR
 ===================================================== */
 
-/* Header avatar */
-
-.ari-header-avatar-shell {
+main#ariApp .ari-header-avatar-shell {
   display: none;
   border-radius: 50%;
   overflow: hidden;
 }
 
-.ari-header-avatar-shell img,
+main#ariApp .ari-header-avatar-shell img,
 main#ariApp #ariHeaderAvatar {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-
-/* Hero avatar */
 
 main#ariApp .ari-hero-img {
   width: 385px !important;
@@ -26,31 +22,23 @@ main#ariApp .ari-hero-img {
   object-fit: contain;
   transform: translateY(-115px) !important;
   transform-origin: center bottom !important;
-
   animation:
     ariOrganicBreath 3.8s ease-in-out infinite,
     ariOrganicGlow 5.8s ease-in-out infinite !important;
 }
 
-/* Header avatar idle animation */
-
 main#ariApp #ariHeaderAvatar {
   transform-origin: center bottom !important;
-
   animation:
     ariAvatarBreath 4.2s ease-in-out infinite,
     ariAvatarGlow 6.2s ease-in-out infinite !important;
 }
-
-/* Thinking state */
 
 main#ariApp.ari-thinking-mode .ari-header-avatar-shell {
   animation:
     avatarArrive 0.55s ease both,
     avatarThinkingRing 1.2s ease-in-out infinite;
 }
-
-/* Premium halo behind Ari */
 
 main#ariApp .ari-welcome::after {
   content: "";
