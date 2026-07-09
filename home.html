@@ -13,25 +13,23 @@
 <body>
 <main class="ari-v1-home" id="ariApp">
 
-<header class="top-bar ari-header">
+<header class="top-bar ari-header ari-header-v3">
   <button class="menu-btn ari-menu-toggle" type="button" onclick="toggleMenu()" aria-label="Open menu">
-  <span></span>
-  <span></span>
-  <span></span>
-</button>
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
 
-  <div class="ari-brand-center">
+  <div class="ari-character-center">
     <div class="ari-header-avatar-shell" id="ariHeaderAvatarShell">
       <img id="ariHeaderAvatar" src="assets/ari/avatar-idle-open.png" alt="Ari avatar" />
     </div>
-
-    <a class="ari-wordmark" href="home.html" aria-label="ARI Home">
-  A<span class="ari-r">R</span><span class="ari-i">I</span>
-</a>
-    <p class="ari-engine-line"><span>REBIRTH</span> ENGINE</p>
   </div>
 
-  <button class="profile-btn" id="authButton" type="button">Sign In</button>
+  <a class="ari-brand-right" href="home.html" aria-label="ARI Home">
+    <span class="ari-brand-title">ARI</span>
+    <span class="ari-brand-subtitle">REBIRTH </span>
+  </a>
 </header>
 
 <nav id="sideMenu" class="side-menu ari-side-menu">
@@ -401,24 +399,12 @@ function toggleMenu() {
 }
 
 async function setupHomeAuth() {
-  const authButton = document.getElementById("authButton");
-  if (!authButton || !window.calbuddySupabase) return;
+  if (!window.calbuddySupabase) return;
 
   const { data } = await window.calbuddySupabase.auth.getSession();
 
-  if (data?.session) {
-    authButton.textContent = "Exit";
-authButton.classList.add("ari-exit-btn");
-    authButton.onclick = async () => {
-      await window.calbuddySupabase.auth.signOut();
-      window.location.replace("signin.html");
-    };
-  } else {
-    authButton.textContent = "Sign In";
-authButton.classList.remove("ari-exit-btn");
-    authButton.onclick = () => {
-      window.location.replace("signin.html");
-    };
+  if (!data?.session) {
+    window.location.replace("signin.html");
   }
 }
 
