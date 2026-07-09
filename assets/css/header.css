@@ -1,1 +1,139 @@
-.
+
+
+
+
+
+/* =====================================================
+ARI HEADER RIGHT BRAND — SYNC WITH GO BUTTON
+===================================================== */
+
+main#ariApp .ari-brand-right {
+  justify-self: end !important;
+  text-align: right !important;
+  text-decoration: none !important;
+  font-family: "Orbitron", sans-serif !important;
+  animation: ariLedTextPulse 4.8s ease-in-out infinite !important;
+}
+
+main#ariApp .ari-brand-title {
+  display: block !important;
+  font-size: 21px !important;
+  font-weight: 900 !important;
+  letter-spacing: .18em !important;
+  color: #e8ffff !important;
+  text-shadow:
+    0 0 5px rgba(232,255,255,1),
+    0 0 12px rgba(34,211,238,.9),
+    0 0 26px rgba(34,211,238,.48) !important;
+}
+
+main#ariApp .ari-brand-subtitle {
+  display: block !important;
+  margin-top: 3px !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+  letter-spacing: .16em !important;
+  color: rgba(200,255,255,.92) !important;
+  white-space: nowrap !important;
+  text-shadow:
+    0 0 4px rgba(200,255,255,.95),
+    0 0 10px rgba(34,211,238,.80),
+    0 0 22px rgba(34,211,238,.42) !important;
+}
+
+main#ariApp .ari-brand-right::after {
+  content: "";
+  display: block;
+  height: 1px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(103,232,249,.35),
+    rgba(200,255,255,.95),
+    rgba(103,232,249,.35),
+    transparent
+  );
+  box-shadow:
+    0 0 8px rgba(34,211,238,.8),
+    0 0 18px rgba(34,211,238,.45);
+}
+
+/* Thinking sync */
+main#ariApp.ari-thinking-mode .ari-brand-right,
+main#ariApp:has(#ariInput:disabled) .ari-brand-right {
+  animation: ariBrandThinkingPulse 1.15s ease-in-out infinite !important;
+}
+
+@keyframes ariBrandThinkingPulse {
+  0%, 100% {
+    opacity: .78;
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.65);
+  }
+}
+/* =====================================================
+ARI HEADER FINAL — CLEAN HOME / CONVERSATION STATE
+===================================================== */
+
+main#ariApp .ari-header-v4 {
+  height: 86px !important;
+  display: grid !important;
+  grid-template-columns: 74px 1fr 170px !important;
+  align-items: center !important;
+  gap: 8px !important;
+  position: relative !important;
+  z-index: 50 !important;
+}
+
+main#ariApp .ari-header-v4 .ari-menu-toggle {
+  grid-column: 1 !important;
+  justify-self: start !important;
+}
+
+main#ariApp .ari-header-v4 .ari-brand-right {
+  grid-column: 3 !important;
+  justify-self: end !important;
+  width: 170px !important;
+  text-align: right !important;
+  position: static !important;
+  transform: none !important;
+}
+
+main#ariApp .ari-header-v4 .ari-header-avatar-shell {
+  display: none !important;
+  grid-column: 2 !important;
+}
+
+main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell {
+  display: flex !important;
+  justify-self: center !important;
+  align-self: center !important;
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  min-height: 92px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  border: 2px solid rgba(103, 232, 249, 0.9) !important;
+  background: rgba(2, 8, 18, 0.9) !important;
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.75),
+    0 0 44px rgba(34, 211, 238, 0.34),
+    inset 0 1px 0 rgba(255,255,255,0.22) !important;
+}
+
+main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transform: scale(1.18) !important;
+}
+
