@@ -1,0 +1,595 @@
+/* =====================================================
+ARI REBIRTH
+File: nutrition.css
+Version: 3.0.0
+Purpose:
+Nutrition Console styling.
+
+Contains:
+- Variables
+- Base Layout
+- Header
+- Hero
+- Nutrition Console
+
+Animations:
+See animations.css
+===================================================== */
+
+
+/* =====================================================
+VARIABLES
+===================================================== */
+
+:root {
+  --ari-bg:#020617;
+  --ari-deep:#00150d;
+  --ari-panel:#03140f;
+  --ari-panel-2:#061f14;
+
+  --ari-grid:rgba(132,255,99,.045);
+
+  --ari-green:#7CFF3B;
+  --ari-green-soft:#B9FF7A;
+  --ari-lime:#D7FF57;
+  --ari-mint:#B8FFD2;
+  --ari-cyan:#57FFE7;
+
+  --ari-text:#f8fafc;
+  --ari-muted:#93a7a0;
+
+  --ari-border:rgba(124,255,59,.35);
+
+  --ari-danger:#ef4444;
+  --ari-warning:#f59e0b;
+}
+
+
+/* =====================================================
+BASE
+===================================================== */
+
+*{
+    box-sizing:border-box;
+}
+
+html,
+body{
+    width:100%;
+    max-width:100%;
+    height:auto;
+    min-height:100%;
+    overflow-x:hidden;
+    overflow-y:auto;
+}
+
+body{
+
+    margin:0;
+
+    position:relative;
+    display:block;
+
+    min-height:100vh;
+
+    touch-action:pan-y;
+
+    background:
+
+        radial-gradient(circle at 50% 0%,
+            rgba(124,255,59,.16),
+            transparent 32%),
+
+        radial-gradient(circle at 18% 24%,
+            rgba(87,255,231,.08),
+            transparent 30%),
+
+        radial-gradient(circle at 86% 76%,
+            rgba(215,255,87,.09),
+            transparent 30%),
+
+        linear-gradient(
+            180deg,
+            #020617 0%,
+            #02130c 48%,
+            #020617 100%
+        );
+
+    color:var(--ari-text);
+
+    font-family:
+        Orbitron,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+
+/* =====================================================
+BACKGROUND EFFECTS
+===================================================== */
+
+body::before{
+
+    content:"";
+
+    position:absolute;
+    inset:0;
+
+    pointer-events:none;
+
+    background-image:
+
+        linear-gradient(
+            var(--ari-grid) 1px,
+            transparent 1px
+        ),
+
+        linear-gradient(
+            90deg,
+            rgba(87,255,231,.035) 1px,
+            transparent 1px
+        );
+
+    background-size:42px 42px;
+
+    mask-image:
+        radial-gradient(circle at center,
+        black 0%,
+        transparent 76%);
+}
+
+body::after{
+
+    content:"";
+
+    position:absolute;
+    inset:-30%;
+
+    pointer-events:none;
+
+    background:
+
+        linear-gradient(
+            115deg,
+            transparent 42%,
+            rgba(124,255,59,.10) 50%,
+            transparent 58%
+        );
+
+    animation:ariNutritionSweep 9s linear infinite;
+}
+
+
+/* =====================================================
+PAGE
+===================================================== */
+
+.ari-nutrition-page{
+
+    position:relative;
+
+    z-index:2;
+
+    width:100%;
+    max-width:430px;
+
+    margin:0 auto;
+
+    min-height:100dvh;
+
+    overflow:visible;
+
+    padding:
+
+        14px
+        16px
+        32px;
+}
+
+
+/* =====================================================
+HEADER
+===================================================== */
+
+.ari-nutrition-header{
+
+    display:grid;
+
+    grid-template-columns:
+
+        64px
+        1fr
+        92px;
+
+    align-items:center;
+
+    gap:8px;
+
+    padding:
+
+        10px
+        0
+        18px;
+}
+
+.ari-back-btn,
+.ari-mini-btn{
+
+    border:
+
+        1px solid
+        rgba(124,255,59,.36);
+
+    border-radius:18px;
+
+    min-height:50px;
+
+    background:
+
+        rgba(2,6,23,.72);
+
+    color:var(--ari-mint);
+
+    font-family:inherit;
+
+    font-weight:950;
+
+    cursor:pointer;
+
+    box-shadow:
+
+        0 0 20px rgba(124,255,59,.14),
+
+        inset
+        0 1px 0
+        rgba(255,255,255,.08);
+}
+
+.ari-back-btn{
+
+    width:58px;
+
+    font-size:1.35rem;
+}
+
+.ari-mini-btn{
+
+    width:88px;
+
+    justify-self:end;
+}
+
+.ari-brand-mark{
+
+    text-align:center;
+}
+
+.ari-brand-title-row{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    gap:10px;
+}
+
+.ari-salad-mark{
+
+    display:inline-flex;
+
+    width:42px;
+    height:42px;
+
+    align-items:center;
+    justify-content:center;
+
+    font-size:2rem;
+
+    filter:
+
+        drop-shadow(
+            0 0 8px
+            rgba(124,255,59,.65)
+        )
+
+        drop-shadow(
+            0 0 18px
+            rgba(215,255,87,.32)
+        );
+
+    animation:ariLeafFloat 4.8s ease-in-out infinite;
+}
+
+.ari-brand-title{
+
+    margin:0;
+
+    font-family:"Orbitron",monospace;
+
+    font-size:1.9rem;
+
+    letter-spacing:.24em;
+
+    color:rgba(214,255,184,.68);
+
+    text-shadow:
+
+        0 0 2px rgba(185,255,122,.20),
+
+        0 0 5px rgba(124,255,59,.10);
+}
+
+.ari-brand-subtitle{
+
+    margin:5px 0 0;
+
+    font-size:.62rem;
+
+    letter-spacing:.18em;
+
+    color:var(--ari-green-soft);
+
+    font-family:"Orbitron",monospace;
+
+    font-weight:800;
+
+    text-transform:uppercase;
+}
+
+
+/* =====================================================
+COMMON PANEL
+===================================================== */
+
+.ari-page-hero,
+.ari-panel,
+.ari-console,
+.intake-list{
+
+    border:
+
+        1px solid
+        var(--ari-border);
+
+    background:
+
+        radial-gradient(
+            circle at 92% 0%,
+            rgba(124,255,59,.16),
+            transparent 26%
+        ),
+
+        linear-gradient(
+            180deg,
+            rgba(3,20,15,.94),
+            rgba(2,6,23,.78)
+        );
+
+    box-shadow:
+
+        0 0 34px rgba(124,255,59,.13),
+
+        inset
+        0 0 30px
+        rgba(124,255,59,.035);
+
+    overflow:hidden;
+}
+
+
+/* =====================================================
+HERO
+===================================================== */
+
+.ari-page-hero{
+
+    margin:
+
+        8px
+        0
+        18px;
+
+    padding:
+
+        24px
+        20px;
+
+    border-radius:28px;
+
+    position:relative;
+}
+
+.ari-page-hero::before{
+
+    content:"";
+
+    position:absolute;
+
+    top:0;
+    left:12%;
+    right:12%;
+
+    height:1px;
+
+    background:
+
+        linear-gradient(
+            90deg,
+            transparent,
+            var(--ari-green-soft),
+            transparent
+        );
+
+    opacity:.85;
+}
+
+.ari-page-kicker{
+
+    margin:0 0 10px;
+
+    color:var(--ari-green-soft);
+
+    font-size:.72rem;
+
+    font-weight:950;
+
+    letter-spacing:.22em;
+
+    text-transform:uppercase;
+}
+
+.ari-page-title{
+
+    margin:0;
+
+    font-size:1.95rem;
+
+    line-height:1;
+
+    letter-spacing:.04em;
+
+    font-family:Orbitron,sans-serif;
+
+    font-weight:900;
+
+    color:white;
+}
+
+
+/* =====================================================
+NUTRITION CONSOLE
+===================================================== */
+
+.ari-console{
+
+    position:relative;
+
+    border-radius:30px;
+
+    padding:18px;
+
+    isolation:isolate;
+}
+
+.ari-console::before{
+
+    content:"";
+
+    position:absolute;
+
+    inset:0;
+
+    border-radius:inherit;
+
+    padding:2px;
+
+    background:
+
+        conic-gradient(
+
+            from -90deg,
+
+            rgba(215,255,87,.95),
+
+            rgba(124,255,59,.36),
+
+            rgba(87,255,231,.30),
+
+            rgba(185,255,122,.80),
+
+            rgba(215,255,87,.95)
+
+        );
+
+    -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+
+    -webkit-mask-composite:xor;
+
+    mask-composite:exclude;
+
+    z-index:-1;
+
+    opacity:.58;
+
+    animation:ariConsoleAura 5s ease-in-out infinite;
+}
+
+.ari-console-header{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    gap:12px;
+
+    margin-bottom:16px;
+}
+
+.ari-console-status{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:8px;
+
+    color:var(--ari-green-soft);
+
+    font-size:.72rem;
+
+    letter-spacing:.18em;
+
+    text-transform:uppercase;
+
+    font-family:"Orbitron",monospace;
+
+    font-weight:800;
+}
+
+.ari-status-dot{
+
+    width:9px;
+    height:9px;
+
+    border-radius:50%;
+
+    background:var(--ari-green);
+
+    box-shadow:
+
+        0 0 10px rgba(124,255,59,.90),
+
+        0 0 22px rgba(215,255,87,.38);
+
+    animation:ariStatusPulse 2.5s ease-in-out infinite;
+}
+
+.ari-ready-pill{
+
+    border:1px solid rgba(124,255,59,.30);
+
+    border-radius:12px;
+
+    padding:8px 12px;
+
+    background:rgba(124,255,59,.10);
+
+    color:var(--ari-green-soft);
+
+    font-family:"Orbitron",monospace;
+
+    font-size:.68rem;
+
+    letter-spacing:.18em;
+
+    font-weight:800;
+}
