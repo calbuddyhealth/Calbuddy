@@ -220,3 +220,84 @@ ARI ACCOUNT ANIMATIONS
     transform: translateX(12%) translateY(-8%);
   }
 }
+/* =====================================================
+ARI NUTRITION ANIMATIONS
+===================================================== */
+
+@keyframes ariNutritionSweep {
+  from {
+    transform: translateX(-12%) translateY(8%);
+  }
+
+  to {
+    transform: translateX(12%) translateY(-8%);
+  }
+}
+
+@keyframes ariLeafFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+
+  50% {
+    transform: translateY(-3px) rotate(4deg);
+  }
+}
+
+@keyframes ariConsoleAura {
+  0%, 100% {
+    opacity: .40;
+    filter: brightness(.92);
+  }
+
+  50% {
+    opacity: .82;
+    filter: brightness(1.25);
+  }
+}
+
+@keyframes ariStatusPulse {
+  0%, 100% {
+    opacity: .75;
+    transform: scale(.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.16);
+  }
+}
+
+@keyframes ariGreenScan {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes ariCommandBlink {
+  0%, 100% {
+    opacity: .38;
+    transform: translateX(0);
+  }
+
+  50% {
+    opacity: .82;
+    transform: translateX(2px);
+  }
+}
+
+@keyframes ariCommandReady {
+  0%, 100% {
+    opacity: .72;
+    transform: translateX(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(4px);
+  }
+}
