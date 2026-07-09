@@ -289,22 +289,25 @@ function updateAriAvatarMood(mood = "idle") {
 
 function startAriBlinkLoop() {
   clearTimeout(ariBlinkInterval);
+  clearTimeout(ariBlinkTimeout);
   scheduleNextAriBlink();
 }
 
 function scheduleNextAriBlink() {
   const nextBlinkDelay = 2600 + Math.random() * 7200;
 
-  ariBlinkInterval = setTimeout(async () => {
-    if (!ariBusy) {
-      await performAriBlink();
-    }
-
-    scheduleNextAriBlink();
+  ariBlinkInterval = setTimeout(() => {
+    performAriBlink();
   }, nextBlinkDelay);
 }
 
-async function performAriBlink() {
+function performAriBlink() {
+  if (ariBusy) {
+    openAriEyes();
+    scheduleNextAriBlink();
+    return;
+  }
+
   const longBlink = Math.random() < 0.14;
   const doubleBlink = !longBlink && Math.random() < 0.22;
 
@@ -313,15 +316,26 @@ async function performAriBlink() {
     : 90 + Math.random() * 190;
 
   closeAriEyes();
-  await wait(blinkDuration);
-  openAriEyes();
 
-  if (doubleBlink) {
-    await wait(120 + Math.random() * 100);
-    closeAriEyes();
-    await wait(85 + Math.random() * 150);
+  ariBlinkTimeout = setTimeout(() => {
     openAriEyes();
-  }
+
+    if (doubleBlink && !ariBusy) {
+      ariBlinkTimeout = setTimeout(() => {
+        closeAriEyes();
+
+        ariBlinkTimeout = setTimeout(() => {
+          openAriEyes();
+          scheduleNextAriBlink();
+        }, 85 + Math.random() * 150);
+
+      }, 120 + Math.random() * 100);
+
+    } else {
+      scheduleNextAriBlink();
+    }
+
+  }, blinkDuration);
 }
 
 function closeAriEyes() {
@@ -344,6 +358,7 @@ function interruptAri(poseKey) {
   ariBusy = true;
   clearTimeout(ariResetTimeout);
   clearTimeout(ariBlinkTimeout);
+  openAriEyes();
   setAriPose(poseKey);
 }
 
