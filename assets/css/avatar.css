@@ -1,0 +1,88 @@
+/* =====================================================
+ARI AVATAR
+===================================================== */
+
+/* Header avatar */
+
+.ari-header-avatar-shell {
+  display: none;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.ari-header-avatar-shell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Hero */
+
+.ari-hero-img {
+  width: 330px;
+  max-width: 92vw;
+  height: auto;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 24px 34px rgba(0,0,0,0.45))
+    drop-shadow(0 0 18px rgba(34,211,238,0.18));
+  animation: ariHeroBreathe 4.6s ease-in-out infinite;
+}
+
+/* Thinking state */
+
+.ari-thinking-mode .ari-header-avatar-shell {
+  animation:
+    avatarArrive 0.55s ease both,
+    avatarThinkingRing 1.2s ease-in-out infinite;
+}
+
+/* Mobile sizing */
+
+.ari-hero-img {
+  width: 360px !important;
+  max-width: 92vw !important;
+}
+
+/* Hero positioning */
+
+main#ariApp .ari-hero-img {
+  width: 385px !important;
+  max-width: 96vw !important;
+  transform: translateY(-115px) !important;
+}
+
+/* Premium halo */
+
+main#ariApp .ari-welcome::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 37%;
+  width: 360px;
+  height: 360px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: -1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(34,211,238,0.22), transparent 62%);
+  filter: blur(18px);
+  animation: ariHeroHaloPulse 8s ease-in-out infinite;
+}
+
+/* Organic idle */
+
+main#ariApp .ari-hero-img {
+  animation:
+    ariOrganicBreath 3.8s ease-in-out infinite,
+    ariOrganicGlow 5.8s ease-in-out infinite !important;
+  transform-origin: center bottom !important;
+}
+
+main#ariApp #ariHeaderAvatar {
+  animation:
+    ariAvatarBreath 4.2s ease-in-out infinite,
+    ariAvatarGlow 6.2s ease-in-out infinite !important;
+  transform-origin: center bottom !important;
+}
