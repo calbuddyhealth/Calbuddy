@@ -92,7 +92,6 @@ ARI NAV MENU — CLEAN FINAL
   position: absolute !important;
   top: calc(env(safe-area-inset-top) + 34px) !important;
   left: 50% !important;
-  right: auto !important;
   transform: translateX(-50%) !important;
 
   width: 74px !important;
@@ -159,8 +158,6 @@ ARI NAV MENU — CLEAN FINAL
   z-index: 2 !important;
 
   width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
   min-height: 78px !important;
 
   display: flex !important;
@@ -172,7 +169,6 @@ ARI NAV MENU — CLEAN FINAL
 
   border-radius: 24px !important;
   border: 1px solid rgba(103,232,249,.42) !important;
-  border-bottom: 1px solid rgba(103,232,249,.42) !important;
 
   background:
     linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.018)),
@@ -202,62 +198,20 @@ ARI NAV MENU — CLEAN FINAL
   -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
 
   overflow: hidden !important;
-
   animation:
     ariNavCardBreath 5.4s ease-in-out infinite,
     ariNavGlassShimmer 7s ease-in-out infinite !important;
-
-  transition:
-    transform .18s ease,
-    border-color .18s ease,
-    box-shadow .18s ease,
-    background .18s ease,
-    filter .18s ease !important;
 }
-
-.ari-v1-home .ari-side-menu.open a,
-.ari-v1-home .side-menu.open a {
-  animation:
-    ariNavCardIn 0.42s ease both,
-    ariNavCardBreath 5.4s ease-in-out infinite,
-    ariNavGlassShimmer 7s ease-in-out infinite !important;
-}
-
-.ari-v1-home .ari-side-menu.open a:nth-of-type(1),
-.ari-v1-home .side-menu.open a:nth-of-type(1) {
-  animation-delay: 0.04s;
-}
-
-.ari-v1-home .ari-side-menu.open a:nth-of-type(2),
-.ari-v1-home .side-menu.open a:nth-of-type(2) {
-  animation-delay: 0.09s;
-}
-
-.ari-v1-home .ari-side-menu.open a:nth-of-type(3),
-.ari-v1-home .side-menu.open a:nth-of-type(3) {
-  animation-delay: 0.14s;
-}
-
-.ari-v1-home .ari-side-menu.open a:nth-of-type(4),
-.ari-v1-home .side-menu.open a:nth-of-type(4) {
-  animation-delay: 0.19s;
-}
-
-/* LED line */
 
 .ari-v1-home .ari-side-menu a::before,
 .ari-v1-home .side-menu a::before {
   content: "";
   position: absolute;
   left: 12px !important;
-  right: auto !important;
   bottom: 9px !important;
-  top: auto !important;
   width: calc(100% - 58px) !important;
   height: 2px !important;
   border-radius: 999px !important;
-  opacity: 1 !important;
-  transform: none !important;
   pointer-events: none;
 
   background:
@@ -280,9 +234,6 @@ ARI NAV MENU — CLEAN FINAL
 .ari-v1-home .ari-side-menu a::after,
 .ari-v1-home .side-menu a::after {
   content: "›" !important;
-  position: relative !important;
-  z-index: 3 !important;
-  flex-shrink: 0 !important;
   margin-left: auto !important;
   color: rgba(103,232,249,.78);
   font-size: 26px !important;
@@ -294,11 +245,6 @@ ARI NAV MENU — CLEAN FINAL
   transform: scale(.985) !important;
   border-color: rgba(200,255,255,.86) !important;
   filter: brightness(1.28) saturate(1.15) !important;
-  box-shadow:
-    0 0 22px rgba(34,211,238,.38),
-    0 0 52px rgba(34,211,238,.18),
-    inset 0 1px 0 rgba(255,255,255,.20),
-    inset 0 0 28px rgba(34,211,238,.10) !important;
 }
 
 .ari-v1-home .ari-side-menu hr,
@@ -325,25 +271,21 @@ ARI NAV MENU — CLEAN FINAL
 .ari-v1-home .nav-identity .ari-nav-icon::before {
   content: "◇";
   font-size: 22px;
-  text-shadow: 0 0 10px rgba(103,232,249,.8);
 }
 
 .ari-v1-home .nav-goals .ari-nav-icon::before {
   content: "◎";
   font-size: 24px;
-  text-shadow: 0 0 10px rgba(103,232,249,.8);
 }
 
 .ari-v1-home .nav-conversations .ari-nav-icon::before {
   content: "◌";
   font-size: 24px;
-  text-shadow: 0 0 10px rgba(103,232,249,.8);
 }
 
 .ari-v1-home .nav-account .ari-nav-icon::before {
   content: "⌬";
   font-size: 22px;
-  text-shadow: 0 0 10px rgba(103,232,249,.8);
 }
 
 /* Dashboard meter inside nav */
@@ -446,201 +388,3 @@ ARI NAV MENU — CLEAN FINAL
   background: rgba(34,211,238,.10);
   border-bottom: none !important;
 }
-
-/* Animations used only by nav */
-
-@keyframes ariMenuGridDrift {
-  from { background-position: 0 0, 0 0; }
-  to { background-position: 34px 34px, -34px 34px; }
-}
-
-@keyframes ariMenuScan {
-  0%, 100% {
-    opacity: .12;
-    transform: translateY(-40px);
-  }
-
-  50% {
-    opacity: .38;
-    transform: translateY(30px);
-  }
-}
-
-@keyframes ariMenuReactorSpin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes ariMenuMaterialize {
-  from {
-    opacity: 0;
-    filter: blur(12px);
-  }
-
-  to {
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
-@keyframes ariNavCardIn {
-  from {
-    opacity: 0;
-    transform: translateX(-18px) scale(.96);
-    filter: blur(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-    filter: blur(0);
-  }
-}
-
-@keyframes ariNavLedPulse {
-  0%, 100% {
-    opacity: .38;
-    filter: brightness(.85);
-  }
-
-  50% {
-    opacity: 1;
-    filter: brightness(1.35);
-  }
-}
-
-@keyframes ariNavCardBreath {
-  0%, 100% {
-    box-shadow:
-      0 0 14px rgba(34,211,238,.16),
-      0 0 34px rgba(34,211,238,.07),
-      0 12px 30px rgba(0,0,0,.32),
-      inset 0 1px 0 rgba(255,255,255,.14),
-      inset 0 0 22px rgba(34,211,238,.045);
-  }
-
-  50% {
-    box-shadow:
-      0 0 22px rgba(34,211,238,.30),
-      0 0 54px rgba(34,211,238,.14),
-      0 14px 34px rgba(0,0,0,.36),
-      inset 0 1px 0 rgba(255,255,255,.20),
-      inset 0 0 30px rgba(34,211,238,.09);
-  }
-}
-
-@keyframes ariNavGlassShimmer {
-  0%, 100% {
-    background-position: 0% 50%, center, center;
-  }
-
-  50% {
-    background-position: 100% 50%, center, center;
-  }
-}
-
-/* Nav dashboard */
-
-.nav-dashboard-card {
-  margin: 8px 0 26px;
-  padding: 24px 18px 22px;
-  border-radius: 32px;
-  background: rgba(8, 18, 37, 0.82);
-  border: 1px solid rgba(34, 211, 238, 0.38);
-  box-shadow:
-    0 0 34px rgba(34, 211, 238, 0.15),
-    inset 0 1px 0 rgba(255,255,255,0.10);
-}
-
-.nav-dashboard-label {
-  margin: 0 0 12px;
-  text-align: center;
-  color: #67e8f9;
-  font-size: 14px;
-  font-weight: 950;
-  letter-spacing: 0.28em;
-}
-
-.nav-meter-wrap {
-  position: relative;
-  height: 210px;
-}
-
-.nav-meter {
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-.nav-meter-bg,
-.nav-meter-fill {
-  fill: none;
-  stroke-width: 22;
-  stroke-linecap: round;
-}
-
-.nav-meter-bg {
-  stroke: rgba(148, 163, 184, 0.24);
-}
-
-.nav-meter-fill {
-  stroke: #22d3ee;
-  stroke-dasharray: 100;
-  stroke-dashoffset: 0;
-  filter:
-    drop-shadow(0 8px 12px rgba(34,211,238,0.25))
-    drop-shadow(0 0 18px rgba(34,211,238,0.38));
-  transition: stroke-dashoffset 0.9s ease, stroke 0.35s ease;
-}
-
-.nav-meter-fill.nav-meter-yellow {
-  stroke: #f59e0b;
-}
-
-.nav-meter-fill.nav-meter-red {
-  stroke: #ef4444;
-}
-
-.nav-meter-text {
-  position: absolute;
-  left: 50%;
-  top: 58%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  width: 90%;
-}
-
-.nav-meter-text h2 {
-  margin: 0;
-  color: white;
-  font-size: 64px;
-  line-height: 1;
-  font-weight: 950;
-}
-
-.nav-meter-text span {
-  display: block;
-  margin-top: 10px;
-  color: rgba(226, 232, 240, 0.78);
-  font-size: 20px;
-  font-weight: 850;
-}
-
-.nav-dashboard-link {
-  display: block;
-  margin-top: 8px;
-  text-align: center;
-  color: #67e8f9 !important;
-  font-size: 16px !important;
-  padding: 12px !important;
-  border-radius: 18px;
-  background: rgba(34, 211, 238, 0.10);
-  border-bottom: none !important;
-}
-
-/* Identity icon */
-.ari-v1-home .nav-identity .ari-nav-icon::before {
-  content: "◇";
-  font-size: 22px;
-  text-shadow: 0 0 10px rgba(103,232,249,.8);
-}
-.ari-v1-home .nav-account .ari-nav-icon::before
