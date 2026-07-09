@@ -210,3 +210,13 @@ ARI ACCOUNT ANIMATIONS
     transform: translateX(12%) translateY(-8%);
   }
 }
+
+@keyframes ariIdentitySweep {
+  from {
+    transform: translateX(-12%) translateY(8%);
+  }
+
+  to {
+    transform: translateX(12%) translateY(-8%);
+  }
+}
