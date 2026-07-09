@@ -8568,3 +8568,50 @@ main#ariApp.ari-thinking-mode .ari-header-v4 .ari-brand-right,
 main#ariApp:has(#ariInput:disabled) .ari-header-v4 .ari-brand-right {
   animation: ariBrandThinkingPulse 1.15s ease-in-out infinite !important;
 }
+
+/* =====================================================
+ARI HEADER V4 — CONVERSATION AVATAR FIX
+===================================================== */
+
+main#ariApp .ari-header-v4 {
+  grid-template-columns: 74px 1fr 170px !important;
+}
+
+/* Home screen: avatar hidden */
+main#ariApp.welcome-mode .ari-header-v4 .ari-header-avatar-shell {
+  display: none !important;
+}
+
+/* Conversation screen: avatar centered and bigger */
+main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell {
+  display: flex !important;
+  grid-column: 2 !important;
+  justify-self: center !important;
+  align-self: center !important;
+
+  width: 86px !important;
+  height: 86px !important;
+  min-width: 86px !important;
+  min-height: 86px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  border-radius: 50% !important;
+  overflow: hidden !important;
+
+  border: 2px solid rgba(103, 232, 249, 0.9) !important;
+  background: rgba(2, 8, 18, 0.9) !important;
+
+  box-shadow:
+    0 0 20px rgba(34, 211, 238, 0.75),
+    0 0 44px rgba(34, 211, 238, 0.34),
+    inset 0 1px 0 rgba(255,255,255,0.22) !important;
+}
+
+main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transform: scale(1.18) !important;
+}
