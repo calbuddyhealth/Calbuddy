@@ -847,33 +847,7 @@ main#ariApp .ari-engine-line {
 
   text-shadow:
     0 0 4px rgba(200,255,255,0.65),
-    0 0 10px rgba(200,255,255,0.42),
-    0 0 20px rgba(34,211,238,0.26) !important;
-}
-
-main#ariApp .ari-engine-line span {
-  color: #c8ffff !important;
-  text-shadow:
-    0 0 4px rgba(200,255,255,0.75),
-    0 0 10px rgba(200,255,255,0.48),
-    0 0 22px rgba(34,211,238,0.30) !important;
-}
-/* =====================================================
-ARI V1 — RAISE ARI + GLASS COMPOSER UPGRADE
-===================================================== */
-
-/* Raise Ari + prompt */
-main#ariApp .ari-welcome {
-  min-height: calc(100dvh - 175px) !important;
-  justify-content: flex-start !important;
-  padding-top: 68px !important;
-  padding-bottom: 0 !important;
-}
-
-main#ariApp .ari-hero-img {
-  width: 385px !important;
-  max-width: 96vw !important;
-  transform: translateY(-115px) !important;
+  .ari-engine-lineorm: translateY(-115px) !important;
 }
 
 main#ariApp .ari-welcome-prompt {
@@ -8359,5 +8333,80 @@ main#ariApp #ariHeaderAvatar {
 
   50% {
     filter: drop-shadow(0 0 13px rgba(34,211,238,0.42));
+  }
+}
+
+/* =====================================================
+ARI HEADER RIGHT BRAND — SYNC WITH GO BUTTON
+===================================================== */
+
+main#ariApp .ari-brand-right {
+  justify-self: end !important;
+  text-align: right !important;
+  text-decoration: none !important;
+  font-family: "Orbitron", sans-serif !important;
+  animation: ariLedTextPulse 4.8s ease-in-out infinite !important;
+}
+
+main#ariApp .ari-brand-title {
+  display: block !important;
+  font-size: 21px !important;
+  font-weight: 900 !important;
+  letter-spacing: .18em !important;
+  color: #e8ffff !important;
+  text-shadow:
+    0 0 5px rgba(232,255,255,1),
+    0 0 12px rgba(34,211,238,.9),
+    0 0 26px rgba(34,211,238,.48) !important;
+}
+
+main#ariApp .ari-brand-subtitle {
+  display: block !important;
+  margin-top: 3px !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+  letter-spacing: .16em !important;
+  color: rgba(200,255,255,.92) !important;
+  white-space: nowrap !important;
+  text-shadow:
+    0 0 4px rgba(200,255,255,.95),
+    0 0 10px rgba(34,211,238,.80),
+    0 0 22px rgba(34,211,238,.42) !important;
+}
+
+main#ariApp .ari-brand-right::after {
+  content: "";
+  display: block;
+  height: 1px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(103,232,249,.35),
+    rgba(200,255,255,.95),
+    rgba(103,232,249,.35),
+    transparent
+  );
+  box-shadow:
+    0 0 8px rgba(34,211,238,.8),
+    0 0 18px rgba(34,211,238,.45);
+}
+
+/* Thinking sync */
+main#ariApp.ari-thinking-mode .ari-brand-right,
+main#ariApp:has(#ariInput:disabled) .ari-brand-right {
+  animation: ariBrandThinkingPulse 1.15s ease-in-out infinite !important;
+}
+
+@keyframes ariBrandThinkingPulse {
+  0%, 100% {
+    opacity: .78;
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.65);
   }
 }
