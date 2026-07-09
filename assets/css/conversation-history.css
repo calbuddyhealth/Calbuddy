@@ -1,1 +1,184 @@
-.
+/* =====================================================
+ARI CONVERSATIONS — THREAD / MESSAGE UI
+===================================================== */
+
+.ari-conversation-shell {
+  position: relative;
+  z-index: 5;
+  display: none;
+  padding: 12px 0 24px;
+}
+
+.conversation-mode .ari-welcome {
+  opacity: 0;
+  transform: translateY(-36px) scale(0.86);
+  pointer-events: none;
+  position: absolute;
+  inset: 72px 0 auto;
+}
+
+.conversation-mode .ari-conversation-shell {
+  display: block;
+  min-height: calc(100vh - 180px);
+  padding-bottom: 110px;
+  animation: conversationFadeIn 0.45s ease both;
+}
+
+.ari-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 8px 2px 24px;
+  background: transparent !important;
+  border: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.ari-message {
+  max-width: 86%;
+  padding: 13px 15px;
+  border-radius: 20px;
+  line-height: 1.45;
+}
+
+.ari-message p {
+  margin: 4px 0 0;
+  color: #f4f8ff;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: pre-wrap;
+}
+
+.ari-message-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+}
+
+.ari-ai {
+  align-self: flex-start;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(125, 211, 252, 0.14);
+}
+
+.ari-ai .ari-message-label {
+  color: #67e8f9;
+}
+
+.ari-user {
+  align-self: flex-end;
+  text-align: right;
+  background: rgba(34, 211, 238, 0.14);
+  border: 1px solid rgba(34, 211, 238, 0.22);
+}
+
+.ari-user .ari-message-label {
+  color: rgba(244,248,255,0.72);
+}
+
+/* =====================================================
+ARI CONVERSATION HISTORY
+===================================================== */
+
+.ari-history-section-title {
+  margin: 22px 0 14px;
+  padding-left: 4px;
+  color: #67e8f9;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ari-history-card {
+  margin-bottom: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(103,232,249,.18);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15,23,42,.88),
+      rgba(2,6,23,.76)
+    );
+  box-shadow:
+    0 0 22px rgba(34,211,238,.08),
+    inset 0 1px 0 rgba(255,255,255,.05);
+
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.ari-history-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(103,232,249,.34);
+  box-shadow:
+    0 0 28px rgba(34,211,238,.14),
+    inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.ari-history-card strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.ari-history-card p {
+  margin: 0 0 12px;
+  color: #cbd5e1;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+.ari-history-card small {
+  display: block;
+  margin-bottom: 14px;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.conversation-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.delete-conversation-btn {
+  border: 1px solid rgba(239,68,68,.35);
+  border-radius: 14px;
+  padding: 10px 16px;
+  background: rgba(239,68,68,.10);
+  color: #fecaca;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+
+  transition:
+    background .2s ease,
+    border-color .2s ease,
+    transform .15s ease;
+}
+
+.delete-conversation-btn:hover {
+  background: rgba(239,68,68,.18);
+  border-color: rgba(239,68,68,.60);
+}
+
+.delete-conversation-btn:active {
+  transform: scale(.97);
+}
+
+.window-note {
+  margin: 30px 0;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
