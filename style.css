@@ -8117,83 +8117,6 @@ ARI SIDE MENU — CUSTOM FUTURE ICONS
 }
 
 /* =====================================================
-ARI HEADER — GLASS LED HAMBURGER
-===================================================== */
-
-main#ariApp .ari-menu-toggle {
-  position: relative !important;
-  width: 58px !important;
-  height: 58px !important;
-  min-width: 58px !important;
-
-  border-radius: 50% !important;
-  border: 1px solid rgba(165, 243, 252, 0.46) !important;
-
-  background:
-    radial-gradient(circle at 32% 24%, rgba(255,255,255,.22), transparent 24%),
-    linear-gradient(145deg, rgba(103,232,249,.16), rgba(2,6,23,.86)) !important;
-
-  display: grid !important;
-  place-items: center !important;
-
-  box-shadow:
-    0 0 0 7px rgba(34,211,238,.06),
-    0 0 24px rgba(34,211,238,.34),
-    inset 0 1px 0 rgba(255,255,255,.22),
-    inset 0 -10px 22px rgba(0,0,0,.35) !important;
-
-  overflow: hidden !important;
-}
-
-main#ariApp .ari-menu-toggle span {
-  position: absolute !important;
-  width: 25px !important;
-  height: 2px !important;
-  border-radius: 999px !important;
-  background: rgba(200,255,255,.95) !important;
-
-  box-shadow:
-    0 0 8px rgba(200,255,255,.9),
-    0 0 18px rgba(34,211,238,.58) !important;
-
-  transition:
-    transform .25s ease,
-    opacity .2s ease,
-    top .25s ease !important;
-}
-
-main#ariApp .ari-menu-toggle span:nth-child(1) {
-  top: 20px !important;
-}
-
-main#ariApp .ari-menu-toggle span:nth-child(2) {
-  top: 28px !important;
-}
-
-main#ariApp .ari-menu-toggle span:nth-child(3) {
-  top: 36px !important;
-}
-
-/* opened state */
-main#ariApp .ari-menu-toggle.open span:nth-child(1) {
-  top: 28px !important;
-  transform: rotate(45deg) !important;
-}
-
-main#ariApp .ari-menu-toggle.open span:nth-child(2) {
-  opacity: 0 !important;
-  transform: scaleX(0) !important;
-}
-
-main#ariApp .ari-menu-toggle.open span:nth-child(3) {
-  top: 28px !important;
-  transform: rotate(-45deg) !important;
-}
-
-main#ariApp .ari-menu-toggle:active {
-  transform: scale(.94) !important;
-}
-/* =====================================================
 ARI HEADER — GLASS LED HAMBURGER + EXIT BUTTON
 ===================================================== */
 
@@ -8410,199 +8333,53 @@ main#ariApp:has(#ariInput:disabled) .ari-brand-right {
     filter: brightness(1.65);
   }
 }
-
 /* =====================================================
-ARI HOME HEADER — CENTER AVATAR + BIGGER BRAND
-===================================================== */
-
-main#ariApp .ari-header {
-  grid-template-columns: 74px 1fr 132px !important;
-}
-
-main#ariApp .ari-brand-center {
-  justify-self: center !important;
-  align-self: start !important;
-  margin-top: 2px !important;
-}
-
-main#ariApp .ari-header-avatar-shell {
-  display: none !important;
-  width: 70px !important;
-  height: 70px !important;
-  margin: 0 auto !important;
-  border-width: 2px !important;
-  box-shadow:
-    0 0 16px rgba(34, 211, 238, 0.55),
-    0 0 34px rgba(34, 211, 238, 0.28),
-    inset 0 1px 0 rgba(255,255,255,0.20) !important;
-}
-
-main#ariApp.conversation-mode .ari-header-avatar-shell {
-  display: flex !important;
-}
-
-main#ariApp .ari-wordmark,
-main#ariApp .ari-engine-line {
-  display: none !important;
-}
-
-main#ariApp .ari-brand-right {
-  justify-self: end !important;
-  width: 132px !important;
-  text-align: right !important;
-}
-
-main#ariApp .ari-brand-title {
-  font-size: 34px !important;
-  line-height: 0.9 !important;
-  letter-spacing: .14em !important;
-}
-
-main#ariApp .ari-brand-subtitle {
-  font-size: 10px !important;
-  margin-top: 7px !important;
-  letter-spacing: .18em !important;
-}
-
-/* =====================================================
-ARI HEADER V4 — LEFT MENU / CENTER AVATAR / RIGHT BRAND
+ARI HEADER FINAL — CLEAN HOME / CONVERSATION STATE
 ===================================================== */
 
 main#ariApp .ari-header-v4 {
   height: 86px !important;
   display: grid !important;
-  grid-template-columns: 74px 1fr 146px !important;
+  grid-template-columns: 74px 1fr 170px !important;
   align-items: center !important;
   gap: 8px !important;
   position: relative !important;
   z-index: 50 !important;
 }
 
-/* Center avatar — hidden until conversation starts */
+main#ariApp .ari-header-v4 .ari-menu-toggle {
+  grid-column: 1 !important;
+  justify-self: start !important;
+}
+
+main#ariApp .ari-header-v4 .ari-brand-right {
+  grid-column: 3 !important;
+  justify-self: end !important;
+  width: 170px !important;
+  text-align: right !important;
+  position: static !important;
+  transform: none !important;
+}
+
 main#ariApp .ari-header-v4 .ari-header-avatar-shell {
   display: none !important;
-  justify-self: center !important;
-  width: 68px !important;
-  height: 68px !important;
-  margin: 0 !important;
-  border-radius: 50% !important;
-  border: 2px solid rgba(103, 232, 249, 0.72) !important;
-  background: rgba(8, 18, 37, 0.82) !important;
-  box-shadow:
-    0 0 18px rgba(34, 211, 238, 0.55),
-    0 0 38px rgba(34, 211, 238, 0.28),
-    inset 0 1px 0 rgba(255,255,255,0.20) !important;
-  overflow: hidden !important;
-}
-
-main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-main#ariApp .ari-header-v4 .ari-header-avatar-shell img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
-
-/* Right ARI brand */
-main#ariApp .ari-header-v4 .ari-brand-right {
-  justify-self: end !important;
-  width: 146px !important;
-  text-align: right !important;
-  text-decoration: none !important;
-  font-family: "Orbitron", sans-serif !important;
-  animation: ariLedTextPulse 4.8s ease-in-out infinite !important;
-}
-
-main#ariApp .ari-header-v4 .ari-brand-title {
-  display: block !important;
-  font-size: 34px !important;
-  line-height: 0.9 !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.14em !important;
-  color: #e8ffff !important;
-  text-shadow:
-    0 0 5px rgba(232,255,255,1),
-    0 0 12px rgba(34,211,238,.9),
-    0 0 26px rgba(34,211,238,.48) !important;
-}
-
-main#ariApp .ari-header-v4 .ari-brand-subtitle {
-  display: block !important;
-  margin-top: 7px !important;
-  font-size: 9.5px !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.15em !important;
-  color: rgba(200,255,255,.92) !important;
-  white-space: nowrap !important;
-  text-shadow:
-    0 0 4px rgba(200,255,255,.95),
-    0 0 10px rgba(34,211,238,.80),
-    0 0 22px rgba(34,211,238,.42) !important;
-}
-
-main#ariApp .ari-header-v4 .ari-brand-right::after {
-  content: "";
-  display: block;
-  height: 1px;
-  margin-top: 5px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(103,232,249,.35),
-    rgba(200,255,255,.95),
-    rgba(103,232,249,.35),
-    transparent
-  );
-  box-shadow:
-    0 0 8px rgba(34,211,238,.8),
-    0 0 18px rgba(34,211,238,.45);
-}
-
-/* Thinking sync */
-main#ariApp.ari-thinking-mode .ari-header-v4 .ari-brand-right,
-main#ariApp:has(#ariInput:disabled) .ari-header-v4 .ari-brand-right {
-  animation: ariBrandThinkingPulse 1.15s ease-in-out infinite !important;
-}
-
-/* =====================================================
-ARI HEADER V4 — CONVERSATION AVATAR FIX
-===================================================== */
-
-main#ariApp .ari-header-v4 {
-  grid-template-columns: 74px 1fr 170px !important;
-}
-
-/* Home screen: avatar hidden */
-main#ariApp.welcome-mode .ari-header-v4 .ari-header-avatar-shell {
-  display: none !important;
-}
-
-/* Conversation screen: avatar centered and bigger */
-main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell {
-  display: flex !important;
   grid-column: 2 !important;
+}
+
+main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell {
+  display: flex !important;
   justify-self: center !important;
   align-self: center !important;
-
-  width: 86px !important;
-  height: 86px !important;
-  min-width: 86px !important;
-  min-height: 86px !important;
-
+  width: 92px !important;
+  height: 92px !important;
+  min-width: 92px !important;
+  min-height: 92px !important;
   margin: 0 !important;
   padding: 0 !important;
-
   border-radius: 50% !important;
   overflow: hidden !important;
-
   border: 2px solid rgba(103, 232, 249, 0.9) !important;
   background: rgba(2, 8, 18, 0.9) !important;
-
   box-shadow:
     0 0 20px rgba(34, 211, 238, 0.75),
     0 0 44px rgba(34, 211, 238, 0.34),
@@ -8615,3 +8392,4 @@ main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell img {
   object-fit: cover !important;
   transform: scale(1.18) !important;
 }
+
