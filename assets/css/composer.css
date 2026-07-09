@@ -441,4 +441,127 @@ main#ariApp .ari-bottom-input {
   z-index: 200 !important;
   padding: 10px 0 calc(env(safe-area-inset-bottom) + 12px) !important;
 }
+/* =====================================================
+ARI V2 — TRANSPARENT GLASS REACTOR SEND BUTTON
+===================================================== */
 
+main#ariApp .ari-send-btn {
+  position: relative !important;
+
+  width: 58px !important;
+  height: 58px !important;
+  min-width: 58px !important;
+  margin-left: 12px !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  border-radius: 50% !important;
+  border: 1px solid rgba(180, 255, 255, 0.35) !important;
+
+  color: rgba(200, 255, 255, 0.94) !important;
+  font-size: 22px !important;
+  font-weight: 950 !important;
+  text-shadow:
+    0 0 6px rgba(200, 255, 255, 0.85),
+    0 0 14px rgba(34, 211, 238, 0.55) !important;
+
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255,255,255,0.30), transparent 18%),
+    radial-gradient(circle at 50% 52%, rgba(103,232,249,0.30), transparent 42%),
+    linear-gradient(145deg, rgba(180,255,255,0.14), rgba(4,11,24,0.44)) !important;
+
+  backdrop-filter: blur(12px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(170%) !important;
+
+  box-shadow:
+    0 0 0 5px rgba(34,211,238,0.08),
+    0 0 0 10px rgba(34,211,238,0.035),
+    0 0 24px rgba(34,211,238,0.42),
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    inset 0 -10px 22px rgba(4,11,24,0.38) !important;
+
+  overflow: visible !important;
+}
+
+/* segmented reactor ring */
+main#ariApp .ari-send-btn::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+
+  background:
+    conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      rgba(200,255,255,0.95) 24deg,
+      transparent 48deg,
+      transparent 110deg,
+      rgba(34,211,238,0.85) 146deg,
+      transparent 184deg,
+      transparent 250deg,
+      rgba(147,197,253,0.70) 286deg,
+      transparent 330deg
+    );
+
+  mask: radial-gradient(circle, transparent 59%, black 62%, black 70%, transparent 73%);
+  -webkit-mask: radial-gradient(circle, transparent 59%, black 62%, black 70%, transparent 73%);
+
+  animation: ariReactorRotate 7s linear infinite;
+  opacity: 0.9;
+}
+
+/* dotted outer halo */
+main#ariApp .ari-send-btn::after {
+  content: "";
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(200,255,255,0.62) 0deg 3deg,
+      transparent 3deg 10deg
+    );
+
+  mask: radial-gradient(circle, transparent 73%, black 75%, black 78%, transparent 80%);
+  -webkit-mask: radial-gradient(circle, transparent 73%, black 75%, black 78%, transparent 80%);
+
+  animation: ariReactorRotateReverse 14s linear infinite;
+  opacity: 0.42;
+}
+
+/* thinking state */
+main#ariApp.ari-thinking-mode .ari-send-btn::before {
+  animation-duration: 0.9s;
+  opacity: 1;
+}
+
+main#ariApp.ari-thinking-mode .ari-send-btn::after {
+  animation-duration: 2s;
+  opacity: 0.75;
+}
+
+main#ariApp.ari-thinking-mode .ari-send-btn {
+  box-shadow:
+    0 0 0 5px rgba(34,211,238,0.13),
+    0 0 0 10px rgba(34,211,238,0.06),
+    0 0 30px rgba(34,211,238,0.62),
+    0 0 62px rgba(34,211,238,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.32),
+    inset 0 -10px 22px rgba(4,11,24,0.38) !important;
+}
+
+@keyframes ariReactorRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ariReactorRotateReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
