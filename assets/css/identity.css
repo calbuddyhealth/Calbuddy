@@ -4,3 +4,5 @@
   font-size: 22px;
   text-shadow: 0 0 10px rgba(103,232,249,.8);
 }
+body:has(.ari-identity-page),
+body:has(.ari-identity-page) .ari-identity-page
