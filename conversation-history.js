@@ -178,6 +178,15 @@ function getConversationHistory() {
 function getConversationById(id) {
   return getConversationHistory().find((item) => item.id === id);
 }
+function goBack() {
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+
+  window.location.replace("home.html");
+}
+
 
 document.addEventListener("DOMContentLoaded", () => {
   loadConversationHistory();
