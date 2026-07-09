@@ -349,8 +349,13 @@ function applyAriAfterResponseEmotion(message = "", reply = "") {
 }
 
 function toggleMenu() {
-  document.getElementById("sideMenu")?.classList.toggle("open");
-  document.getElementById("menuOverlay")?.classList.toggle("show");
+  const menu = document.getElementById("sideMenu");
+  const overlay = document.getElementById("menuOverlay");
+  const toggle = document.querySelector(".ari-menu-toggle");
+
+  menu?.classList.toggle("open");
+  overlay?.classList.toggle("show");
+  toggle?.classList.toggle("open");
 }
 
 async function setupHomeAuth() {
