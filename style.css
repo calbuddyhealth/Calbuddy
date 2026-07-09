@@ -8459,3 +8459,15 @@ main#ariApp .ari-brand-subtitle {
   margin-top: 7px !important;
   letter-spacing: .18em !important;
 }
+
+/* ==========================================
+HEADER AVATAR ONLY DURING CONVERSATION
+========================================== */
+
+.welcome-mode .ari-header-avatar-shell {
+    display: none !important;
+}
+
+.conversation-mode .ari-header-avatar-shell {
+    display: flex !important;
+}
