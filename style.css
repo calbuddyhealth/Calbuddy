@@ -8426,7 +8426,7 @@ main#ariApp .ari-brand-center {
 }
 
 main#ariApp .ari-header-avatar-shell {
-  display: block !important;
+  display: none !important;
   width: 70px !important;
   height: 70px !important;
   margin: 0 auto !important;
@@ -8435,6 +8435,10 @@ main#ariApp .ari-header-avatar-shell {
     0 0 16px rgba(34, 211, 238, 0.55),
     0 0 34px rgba(34, 211, 238, 0.28),
     inset 0 1px 0 rgba(255,255,255,0.20) !important;
+}
+
+main#ariApp.conversation-mode .ari-header-avatar-shell {
+  display: flex !important;
 }
 
 main#ariApp .ari-wordmark,
