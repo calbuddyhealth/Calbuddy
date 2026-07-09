@@ -365,13 +365,15 @@ async function setupHomeAuth() {
   const { data } = await window.calbuddySupabase.auth.getSession();
 
   if (data?.session) {
-    authButton.textContent = "Sign Out";
+    authButton.textContent = "Exit";
+authButton.classList.add("ari-exit-btn");
     authButton.onclick = async () => {
       await window.calbuddySupabase.auth.signOut();
       window.location.replace("signin.html");
     };
   } else {
     authButton.textContent = "Sign In";
+authButton.classList.remove("ari-exit-btn");
     authButton.onclick = () => {
       window.location.replace("signin.html");
     };
