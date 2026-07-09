@@ -203,3 +203,119 @@ ARI ANIMATIONS
     filter:drop-shadow(0 0 13px rgba(34,211,238,.42));
   }
 }
+
+/* =====================================================
+ARI NAV / MENU ANIMATIONS
+===================================================== */
+
+@keyframes ariMenuGridDrift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 34px 34px, -34px 34px;
+  }
+}
+
+@keyframes ariMenuScan {
+  0%, 100% {
+    opacity: .12;
+    transform: translateY(-40px);
+  }
+
+  50% {
+    opacity: .38;
+    transform: translateY(30px);
+  }
+}
+
+@keyframes ariMenuReactorSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ariMenuCardSweep {
+  from {
+    left: -45%;
+    opacity: 0;
+  }
+
+  35% {
+    opacity: 1;
+  }
+
+  to {
+    left: 110%;
+    opacity: 0;
+  }
+}
+
+@keyframes ariNavLedPulse {
+  0%, 100% {
+    opacity: 0.38;
+    filter: brightness(0.85);
+  }
+
+  50% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+}
+
+@keyframes ariMenuMaterialize {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes ariNavCardIn {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.96);
+    filter: blur(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes ariNavCardBreath {
+  0%, 100% {
+    box-shadow:
+      0 0 14px rgba(34,211,238,.16),
+      0 0 34px rgba(34,211,238,.07),
+      0 12px 30px rgba(0,0,0,.32),
+      inset 0 1px 0 rgba(255,255,255,.14),
+      inset 0 0 22px rgba(34,211,238,.045);
+  }
+
+  50% {
+    box-shadow:
+      0 0 22px rgba(34,211,238,.30),
+      0 0 54px rgba(34,211,238,.14),
+      0 14px 34px rgba(0,0,0,.36),
+      inset 0 1px 0 rgba(255,255,255,.20),
+      inset 0 0 30px rgba(34,211,238,.09);
+  }
+}
+
+@keyframes ariNavGlassShimmer {
+  0%, 100% {
+    background-position: 0% 50%, center, center;
+  }
+
+  50% {
+    background-position: 100% 50%, center, center;
+  }
+}
