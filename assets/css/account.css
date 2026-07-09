@@ -1,62 +1,5 @@
 /* =====================================================
-   ARI ACCOUNT PAGE — SCROLL + DESKTOP STABILITY PATCH
-===================================================== */
-
-html,
-body {
-  width: 100%;
-  min-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-body {
-  position: relative;
-}
-
-body::before,
-body::after {
-  z-index: 0;
-}
-
-.ari-account-page {
-  position: relative;
-  z-index: 2;
-  min-height: 100dvh;
-  padding-bottom: 120px;
-}
-
-/* Desktop/laptop view */
-@media (min-width: 768px) {
-  .ari-account-page {
-    width: min(520px, 100%);
-    padding-top: 24px;
-  }
-
-  .ari-page-title {
-    font-size: 2.4rem;
-  }
-
-  .ari-page-hero,
-  .ari-panel {
-    border-radius: 30px;
-  }
-}
-
-/* Prevent weird Safari fixed-background scroll issues */
-@supports (-webkit-touch-callout: none) {
-  body::before,
-  body::after {
-    position: absolute;
-  }
-
-  .ari-account-page {
-    padding-bottom: 140px;
-  }
-}
-/* =====================================================
-ARI ACCOUNT PAGE — SCROLL FIX
-Only applies to account.html
+   ARI ACCOUNT PAGE — SCROLL + DESKTOP STABILITY
 ===================================================== */
 
 body:has(.ari-account-page) {
@@ -76,12 +19,8 @@ html:has(.ari-account-page) {
 
 body:has(.ari-account-page)::before,
 body:has(.ari-account-page)::after {
-  z-index: 0;
-}
-
-body:has(.ari-account-page)::before,
-body:has(.ari-account-page)::after {
   position: fixed;
+  z-index: 0;
 }
 
 .ari-account-page {
@@ -89,63 +28,15 @@ body:has(.ari-account-page)::after {
   z-index: 2;
   min-height: 100dvh;
   padding-bottom: 160px !important;
-}
-
-/* =====================================================
-ARI IDENTITY / ACCOUNT PAGE SCROLL FIX
-===================================================== */
-
-html,
-body {
-  width: 100%;
-  min-height: 100%;
-}
-
-body:has(.ari-identity-page),
-body:has(.ari-account-page) {
-  position: relative !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  height: auto !important;
-}
-
-body:has(.ari-identity-page) .ari-identity-page,
-body:has(.ari-account-page) .ari-account-page {
-  min-height: 100dvh !important;
-  padding-bottom: 140px !important;
   overflow: visible !important;
 }
 
 /* =====================================================
-   ARI ACCOUNT PAGE — SCROLL + DESKTOP STABILITY PATCH
+   Desktop / Tablet
 ===================================================== */
 
-html,
-body {
-  width: 100%;
-  min-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-body {
-  position: relative;
-}
-
-body::before,
-body::after {
-  z-index: 0;
-}
-
-.ari-account-page {
-  position: relative;
-  z-index: 2;
-  min-height: 100dvh;
-  padding-bottom: 120px;
-}
-
-/* Desktop/laptop view */
 @media (min-width: 768px) {
+
   .ari-account-page {
     width: min(520px, 100%);
     padding-top: 24px;
@@ -159,82 +50,17 @@ body::after {
   .ari-panel {
     border-radius: 30px;
   }
+
 }
 
-/* Prevent weird Safari fixed-background scroll issues */
+/* =====================================================
+   Safari Fix
+===================================================== */
+
 @supports (-webkit-touch-callout: none) {
-  body::before,
-  body::after {
-    position: absolute;
-  }
 
   .ari-account-page {
-    padding-bottom: 140px;
+    padding-bottom: 140px !important;
   }
-}
-/* =====================================================
-ARI ACCOUNT PAGE — SCROLL FIX
-Only applies to account.html
-===================================================== */
 
-body:has(.ari-account-page) {
-  position: static !important;
-  height: auto !important;
-  min-height: 100dvh !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  display: block !important;
-}
-
-html:has(.ari-account-page) {
-  height: auto !important;
-  min-height: 100% !important;
-  overflow-y: auto !important;
-}
-
-body:has(.ari-account-page)::before,
-body:has(.ari-account-page)::after {
-  z-index: 0;
-}
-
-body:has(.ari-account-page)::before,
-body:has(.ari-account-page)::after {
-  position: fixed;
-}
-
-.ari-account-page {
-  position: relative;
-  z-index: 2;
-  min-height: 100dvh;
-  padding-bottom: 160px !important;
-}
-/* =====================================================
-ARI IDENTITY / ACCOUNT PAGE SCROLL FIX
-===================================================== */
-
-html,
-body {
-  width: 100%;
-  min-height: 100%;
-}
-
-body:has(.ari-identity-page),
-body:has(.ari-account-page) {
-  position: relative !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  height: auto !important;
-}
-
-body:has(.ari-identity-page) .ari-identity-page,
-body:has(.ari-account-page) .ari-account-page {
-  min-height: 100dvh !important;
-  padding-bottom: 140px !important;
-  overflow: visible !important;
-}
-/* Account icon */
-.ari-v1-home .nav-account .ari-nav-icon::before {
-  content: "⌬";
-  font-size: 22px;
-  text-shadow: 0 0 10px rgba(103,232,249,.8);
 }
