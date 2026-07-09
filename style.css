@@ -1,32 +1,4 @@
 
-/* =====================================================
-ARI V1 SIDE MENU FINAL FIX
-===================================================== */
-
-.ari-v1-home .side-menu,
-.ari-v1-home .ari-side-menu {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100dvh !important;
-  max-width: none !important;
-  transform: translateX(-105%) !important;
-  transition: transform 0.28s ease !important;
-  z-index: 9999 !important;
-}
-
-.ari-v1-home .side-menu.open,
-.ari-v1-home .ari-side-menu.open {
-  transform: translateX(0) !important;
-}
-
-.ari-v1-home #menuOverlay {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 9998 !important;
-}
-
 
 /* =====================================================
 ARI V1 — FINAL COMPOSER QUESTION CLEANUP
