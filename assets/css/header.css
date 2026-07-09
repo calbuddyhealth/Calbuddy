@@ -133,3 +133,103 @@ main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell img {
   transform: scale(1.18) !important;
 }
 
+/* =====================================================
+ARI HEADER
+===================================================== */
+
+.ari-header {
+  height: 82px !important;
+  width: 100% !important;
+  overflow: visible !important;
+}
+
+.ari-header-avatar-shell {
+  display: none;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.ari-header-avatar-shell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ari-thinking-mode .ari-header-avatar-shell {
+  animation:
+    avatarArrive 0.55s ease both,
+    avatarThinkingRing 1.2s ease-in-out infinite;
+}
+
+.ari-brand-center {
+  max-width: 180px !important;
+}
+
+.ari-wordmark {
+  font-size: 34px !important;
+}
+
+.ari-engine-line {
+  font-size: 8px !important;
+  letter-spacing: 0.24em !important;
+}
+
+.ari-header .profile-btn {
+  min-width: 82px !important;
+  max-width: 82px !important;
+  font-size: 13px !important;
+  padding: 0 10px !important;
+}
+
+main#ariApp #ariHeaderAvatar {
+  animation:
+    ariAvatarBreath 4.2s ease-in-out infinite,
+    ariAvatarGlow 6.2s ease-in-out infinite !important;
+  transform-origin: center bottom !important;
+}
+
+@keyframes avatarArrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.82);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes avatarThinkingRing {
+  0%,100% {
+    box-shadow:
+      0 0 12px rgba(34,211,238,.24),
+      inset 0 1px 0 rgba(255,255,255,.14);
+  }
+
+  50% {
+    box-shadow:
+      0 0 26px rgba(34,211,238,.58),
+      inset 0 1px 0 rgba(255,255,255,.20);
+  }
+}
+
+@keyframes ariAvatarBreath {
+  0%,100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-1px) scale(1.025);
+  }
+}
+
+@keyframes ariAvatarGlow {
+  0%,100% {
+    filter: drop-shadow(0 0 6px rgba(34,211,238,.18));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 13px rgba(34,211,238,.42));
+  }
+}
