@@ -1,1 +1,92 @@
-.
+/* =====================================================
+ARI CONVERSATIONS — THREAD / MESSAGE UI
+===================================================== */
+
+.ari-conversation-shell {
+  position: relative;
+  z-index: 5;
+  display: none;
+  padding: 12px 0 24px;
+}
+
+.conversation-mode .ari-welcome {
+  opacity: 0;
+  transform: translateY(-36px) scale(0.86);
+  pointer-events: none;
+  position: absolute;
+  inset: 72px 0 auto;
+}
+
+.conversation-mode .ari-conversation-shell {
+  display: block;
+  min-height: calc(100vh - 180px);
+  padding-bottom: 110px;
+  animation: conversationFadeIn 0.45s ease both;
+}
+
+.ari-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 8px 2px 24px;
+  background: transparent !important;
+  border: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.ari-message {
+  max-width: 86%;
+  padding: 13px 15px;
+  border-radius: 20px;
+  line-height: 1.45;
+}
+
+.ari-message p {
+  margin: 4px 0 0;
+  color: #f4f8ff;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: pre-wrap;
+}
+
+.ari-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+}
+
+.ari-ai {
+  align-self: flex-start;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(125, 211, 252, 0.14);
+}
+
+.ari-ai .ari-label {
+  color: #67e8f9;
+}
+
+.ari-user {
+  align-self: flex-end;
+  text-align: right;
+  background: rgba(34, 211, 238, 0.14);
+  border: 1px solid rgba(34, 211, 238, 0.22);
+}
+
+.ari-user .ari-label {
+  color: rgba(244,248,255,0.72);
+}
+
+@keyframes conversationFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
