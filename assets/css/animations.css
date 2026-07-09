@@ -1,1 +1,205 @@
-.
+/* =====================================================
+ARI ANIMATIONS
+===================================================== */
+
+/* Conversation */
+
+@keyframes conversationFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hero breathing */
+
+@keyframes ariHeroBreathe {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-4px) scale(1.012);
+  }
+}
+
+/* Header avatar */
+
+@keyframes avatarArrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.82);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes avatarThinkingRing {
+  0%, 100% {
+    box-shadow:
+      0 0 12px rgba(34,211,238,.24),
+      inset 0 1px 0 rgba(255,255,255,.14);
+  }
+
+  50% {
+    box-shadow:
+      0 0 26px rgba(34,211,238,.58),
+      inset 0 1px 0 rgba(255,255,255,.20);
+  }
+}
+
+/* Composer */
+
+@keyframes ariComposerBreath {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(34,211,238,.16),
+      0 0 42px rgba(34,211,238,.07),
+      0 24px 60px rgba(0,0,0,.46),
+      inset 0 1px 0 rgba(255,255,255,.16),
+      inset 0 -18px 34px rgba(0,0,0,.28);
+  }
+
+  50% {
+    box-shadow:
+      0 0 28px rgba(34,211,238,.25),
+      0 0 58px rgba(34,211,238,.11),
+      0 24px 60px rgba(0,0,0,.46),
+      inset 0 1px 0 rgba(255,255,255,.19),
+      inset 0 -18px 34px rgba(0,0,0,.28);
+  }
+}
+
+/* Ambient background */
+
+@keyframes ariAmbientPulse {
+  0%,100% {
+    opacity:.26;
+    transform:scale(1);
+    filter:brightness(.95);
+  }
+
+  50% {
+    opacity:.42;
+    transform:scale(1.018);
+    filter:brightness(1.12);
+  }
+}
+
+@keyframes ariGridDrift {
+  from {
+    background-position:0 0,0 0;
+  }
+
+  to {
+    background-position:46px 46px,-46px 46px;
+  }
+}
+
+/* LED */
+
+@keyframes ariLedIdle {
+  0%,100% {
+    opacity:.42;
+    filter:brightness(.9);
+  }
+
+  50% {
+    opacity:.88;
+    filter:brightness(1.25);
+  }
+}
+
+@keyframes ariLedThinking {
+  from {
+    background-position:120% 0;
+  }
+
+  to {
+    background-position:-120% 0;
+  }
+}
+
+@keyframes ariThinkingField {
+  0%,100% {
+    opacity:.34;
+    filter:brightness(1);
+  }
+
+  50% {
+    opacity:.58;
+    filter:brightness(1.28);
+  }
+}
+
+/* Premium hero halo */
+
+@keyframes ariHeroHaloPulse {
+  0%,100% {
+    opacity:.42;
+    transform:translate(-50%,-50%) scale(1);
+  }
+
+  50% {
+    opacity:.72;
+    transform:translate(-50%,-50%) scale(1.08);
+  }
+}
+
+/* Organic idle */
+
+@keyframes ariOrganicBreath {
+  0%,100% {
+    transform:translateY(-115px) translateX(0) scale(1);
+  }
+
+  35% {
+    transform:translateY(-118px) translateX(1px) scale(1.008);
+  }
+
+  70% {
+    transform:translateY(-116px) translateX(-1px) scale(1.004);
+  }
+}
+
+@keyframes ariOrganicGlow {
+  0%,100% {
+    filter:
+      drop-shadow(0 24px 34px rgba(0,0,0,.45))
+      drop-shadow(0 0 14px rgba(34,211,238,.16));
+  }
+
+  50% {
+    filter:
+      drop-shadow(0 26px 38px rgba(0,0,0,.48))
+      drop-shadow(0 0 26px rgba(34,211,238,.30));
+  }
+}
+
+@keyframes ariAvatarBreath {
+  0%,100% {
+    transform:translateY(0) scale(1);
+  }
+
+  50% {
+    transform:translateY(-1px) scale(1.025);
+  }
+}
+
+@keyframes ariAvatarGlow {
+  0%,100% {
+    filter:drop-shadow(0 0 6px rgba(34,211,238,.18));
+  }
+
+  50% {
+    filter:drop-shadow(0 0 13px rgba(34,211,238,.42));
+  }
+}
