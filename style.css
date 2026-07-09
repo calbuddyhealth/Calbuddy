@@ -8464,3 +8464,107 @@ main#ariApp .ari-brand-subtitle {
   letter-spacing: .18em !important;
 }
 
+/* =====================================================
+ARI HEADER V4 — LEFT MENU / CENTER AVATAR / RIGHT BRAND
+===================================================== */
+
+main#ariApp .ari-header-v4 {
+  height: 86px !important;
+  display: grid !important;
+  grid-template-columns: 74px 1fr 146px !important;
+  align-items: center !important;
+  gap: 8px !important;
+  position: relative !important;
+  z-index: 50 !important;
+}
+
+/* Center avatar — hidden until conversation starts */
+main#ariApp .ari-header-v4 .ari-header-avatar-shell {
+  display: none !important;
+  justify-self: center !important;
+  width: 68px !important;
+  height: 68px !important;
+  margin: 0 !important;
+  border-radius: 50% !important;
+  border: 2px solid rgba(103, 232, 249, 0.72) !important;
+  background: rgba(8, 18, 37, 0.82) !important;
+  box-shadow:
+    0 0 18px rgba(34, 211, 238, 0.55),
+    0 0 38px rgba(34, 211, 238, 0.28),
+    inset 0 1px 0 rgba(255,255,255,0.20) !important;
+  overflow: hidden !important;
+}
+
+main#ariApp.conversation-mode .ari-header-v4 .ari-header-avatar-shell {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+main#ariApp .ari-header-v4 .ari-header-avatar-shell img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* Right ARI brand */
+main#ariApp .ari-header-v4 .ari-brand-right {
+  justify-self: end !important;
+  width: 146px !important;
+  text-align: right !important;
+  text-decoration: none !important;
+  font-family: "Orbitron", sans-serif !important;
+  animation: ariLedTextPulse 4.8s ease-in-out infinite !important;
+}
+
+main#ariApp .ari-header-v4 .ari-brand-title {
+  display: block !important;
+  font-size: 34px !important;
+  line-height: 0.9 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.14em !important;
+  color: #e8ffff !important;
+  text-shadow:
+    0 0 5px rgba(232,255,255,1),
+    0 0 12px rgba(34,211,238,.9),
+    0 0 26px rgba(34,211,238,.48) !important;
+}
+
+main#ariApp .ari-header-v4 .ari-brand-subtitle {
+  display: block !important;
+  margin-top: 7px !important;
+  font-size: 9.5px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.15em !important;
+  color: rgba(200,255,255,.92) !important;
+  white-space: nowrap !important;
+  text-shadow:
+    0 0 4px rgba(200,255,255,.95),
+    0 0 10px rgba(34,211,238,.80),
+    0 0 22px rgba(34,211,238,.42) !important;
+}
+
+main#ariApp .ari-header-v4 .ari-brand-right::after {
+  content: "";
+  display: block;
+  height: 1px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(103,232,249,.35),
+    rgba(200,255,255,.95),
+    rgba(103,232,249,.35),
+    transparent
+  );
+  box-shadow:
+    0 0 8px rgba(34,211,238,.8),
+    0 0 18px rgba(34,211,238,.45);
+}
+
+/* Thinking sync */
+main#ariApp.ari-thinking-mode .ari-header-v4 .ari-brand-right,
+main#ariApp:has(#ariInput:disabled) .ari-header-v4 .ari-brand-right {
+  animation: ariBrandThinkingPulse 1.15s ease-in-out infinite !important;
+}
