@@ -37,11 +37,11 @@ function goBack() {
     return;
   }
 
-  window.location.replace("index.html");
+  window.location.replace("home.html");
 }
 
 function goHome() {
-  window.location.replace("index.html");
+  window.location.replace("home.html");
 }
 
 function showHealthTab(tab) {
@@ -354,17 +354,6 @@ function getValue(id) {
   return element ? String(element.value || "").trim() : "";
 }
 
-async function getCurrentUser() {
-  if (!window.calbuddySupabase) return null;
-
-  const { data, error } = await window.calbuddySupabase.auth.getSession();
-
-  if (error || !data.session) {
-    return null;
-  }
-
-  return data.session.user;
-}
 
 async function saveGoals() {
   const calculated = calculateGoals();
