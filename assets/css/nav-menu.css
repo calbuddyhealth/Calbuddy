@@ -26,3 +26,400 @@ ARI V1 SIDE MENU FINAL FIX
   z-index: 9998 !important;
 }
 
+/* =====================================================
+ARI SIDE MENU — FUTURISTIC GLASS COMMAND NAV
+===================================================== */
+
+.ari-v1-home .ari-side-menu,
+.ari-v1-home .side-menu {
+  background:
+    radial-gradient(circle at 50% 8%, rgba(34,211,238,.22), transparent 26%),
+    radial-gradient(circle at 50% 42%, rgba(34,211,238,.08), transparent 38%),
+    linear-gradient(180deg, rgba(1,12,24,.94), rgba(2,6,23,.98)) !important;
+
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+
+  padding: calc(env(safe-area-inset-top) + 132px) 22px 34px !important;
+  overflow: hidden !important;
+}
+
+/* animated grid */
+.ari-v1-home .ari-side-menu::before,
+.ari-v1-home .side-menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .22;
+  background-image:
+    linear-gradient(rgba(103,232,249,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103,232,249,.055) 1px, transparent 1px);
+  background-size: 34px 34px;
+  animation: ariMenuGridDrift 18s linear infinite;
+}
+
+/* soft scan glow */
+.ari-v1-home .ari-side-menu::after,
+.ari-v1-home .side-menu::after {
+  content: "";
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: 0;
+  height: 180px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(103,232,249,.20),
+    rgba(103,232,249,.04),
+    transparent
+  );
+  filter: blur(18px);
+  animation: ariMenuScan 7s ease-in-out infinite;
+}
+
+/* reactor close button */
+.ari-v1-home .ari-side-menu .ari-close-menu,
+.ari-v1-home .side-menu .ari-close-menu,
+.ari-v1-home .ari-side-menu .close-menu,
+.ari-v1-home .side-menu .close-menu {
+  position: absolute !important;
+  top: calc(env(safe-area-inset-top) + 34px) !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+
+  width: 74px !important;
+  height: 74px !important;
+  border-radius: 50% !important;
+
+  display: grid !important;
+  place-items: center !important;
+
+  border: 1px solid rgba(200,255,255,.44) !important;
+
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255,255,255,.22), transparent 22%),
+    radial-gradient(circle, rgba(103,232,249,.20), rgba(2,6,23,.88) 68%) !important;
+
+  color: rgba(230,255,255,.96) !important;
+  font-size: 46px !important;
+  font-weight: 300 !important;
+  line-height: 1 !important;
+
+  box-shadow:
+    0 0 0 10px rgba(34,211,238,.055),
+    0 0 34px rgba(34,211,238,.42),
+    inset 0 1px 0 rgba(255,255,255,.26),
+    inset 0 -14px 28px rgba(0,0,0,.38) !important;
+
+  text-shadow:
+    0 0 8px rgba(200,255,255,.95),
+    0 0 24px rgba(34,211,238,.58) !important;
+
+  z-index: 3 !important;
+}
+
+/* rotating reactor ring */
+.ari-v1-home .ari-side-menu .ari-close-menu::before,
+.ari-v1-home .side-menu .ari-close-menu::before,
+.ari-v1-home .ari-side-menu .close-menu::before,
+.ari-v1-home .side-menu .close-menu::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      transparent 0deg,
+      rgba(200,255,255,.85) 34deg,
+      transparent 70deg,
+      transparent 150deg,
+      rgba(34,211,238,.75) 190deg,
+      transparent 230deg,
+      transparent 300deg,
+      rgba(147,197,253,.60) 330deg,
+      transparent 360deg
+    );
+  mask: radial-gradient(circle, transparent 59%, black 62%, black 70%, transparent 73%);
+  -webkit-mask: radial-gradient(circle, transparent 59%, black 62%, black 70%, transparent 73%);
+  animation: ariMenuReactorSpin 10s linear infinite;
+  pointer-events: none;
+}
+
+/* command cards */
+.ari-v1-home .ari-side-menu a,
+.ari-v1-home .side-menu a {
+  position: relative !important;
+  z-index: 2 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  min-height: 78px !important;
+
+  margin: 0 0 14px !important;
+  padding: 0 20px !important;
+
+  border-radius: 24px !important;
+  border: 1px solid rgba(103,232,249,.22) !important;
+
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.018)),
+    radial-gradient(circle at 0% 0%, rgba(103,232,249,.13), transparent 34%),
+    rgba(2,6,23,.42) !important;
+
+  color: rgba(245,253,255,.95) !important;
+
+  font-family: "Courier New", monospace !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  letter-spacing: -.02em !important;
+  text-decoration: none !important;
+
+  border-bottom: 1px solid rgba(103,232,249,.22) !important;
+
+  box-shadow:
+    0 12px 30px rgba(0,0,0,.26),
+    0 0 20px rgba(34,211,238,.06),
+    inset 0 1px 0 rgba(255,255,255,.13) !important;
+
+  backdrop-filter: blur(18px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
+
+  overflow: hidden !important;
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease,
+    background .18s ease !important;
+}
+
+/* edge light sweep */
+.ari-v1-home .ari-side-menu a::before,
+.ari-v1-home .side-menu a::before {
+  content: "";
+  position: absolute;
+  left: -40%;
+  top: 0;
+  width: 38%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(200,255,255,.18),
+    transparent
+  );
+  transform: skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ari-v1-home .ari-side-menu a::after,
+.ari-v1-home .side-menu a::after {
+  content: "›";
+  margin-left: auto;
+  color: rgba(103,232,249,.78);
+  font-size: 34px;
+  text-shadow: 0 0 12px rgba(34,211,238,.55);
+}
+
+.ari-v1-home .ari-side-menu a:active,
+.ari-v1-home .side-menu a:active {
+  transform: scale(.985) translateY(1px) !important;
+  border-color: rgba(165,243,252,.68) !important;
+  box-shadow:
+    0 0 24px rgba(34,211,238,.28),
+    inset 0 1px 0 rgba(255,255,255,.18) !important;
+}
+
+.ari-v1-home .ari-side-menu a:active::before,
+.ari-v1-home .side-menu a:active::before {
+  animation: ariMenuCardSweep .45s ease 1;
+}
+
+/* hide old line separators feeling */
+.ari-v1-home .ari-side-menu hr,
+.ari-v1-home .side-menu hr {
+  display: none !important;
+}
+
+/* bottom atmospheric fade */
+.ari-v1-home .ari-side-menu {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.08),
+    inset 0 -90px 120px rgba(0,0,0,.30) !important;
+}
+
+/* animations */
+@keyframes ariMenuGridDrift {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 34px 34px, -34px 34px;
+  }
+}
+
+@keyframes ariMenuScan {
+  0%, 100% {
+    opacity: .12;
+    transform: translateY(-40px);
+  }
+
+  50% {
+    opacity: .38;
+    transform: translateY(30px);
+  }
+}
+
+@keyframes ariMenuReactorSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ariMenuCardSweep {
+  from {
+    left: -45%;
+    opacity: 0;
+  }
+
+  35% {
+    opacity: 1;
+  }
+
+  to {
+    left: 110%;
+    opacity: 0;
+  }
+}
+
+/* =====================================================
+ARI SIDE MENU — CUSTOM FUTURE ICONS
+===================================================== */
+
+.ari-v1-home .ari-nav-link {
+  gap: 14px !important;
+}
+
+.ari-v1-home .ari-nav-icon {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(103,232,249,.58) !important;
+  display: grid !important;
+  place-items: center !important;
+  color: rgba(200,255,255,.96) !important;
+  box-shadow:
+    0 0 12px rgba(34,211,238,.38),
+    inset 0 0 12px rgba(34,211,238,.10) !important;
+}
+
+/* Identity icon */
+.ari-v1-home .nav-identity .ari-nav-icon::before {
+  content: "◇";
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
+
+/* Goals icon */
+.ari-v1-home .nav-goals .ari-nav-icon::before {
+  content: "◎";
+  font-size: 24px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
+
+/* Conversations icon */
+.ari-v1-home .nav-conversations .ari-nav-icon::before {
+  content: "◌";
+  font-size: 24px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
+
+/* Account icon */
+.ari-v1-home .nav-account .ari-nav-icon::before {
+  content: "⌬";
+  font-size: 22px;
+  text-shadow: 0 0 10px rgba(103,232,249,.8);
+}
+
+/* =====================================================
+ARI HEADER — GLASS LED HAMBURGER + EXIT BUTTON
+===================================================== */
+
+main#ariApp .ari-menu-toggle {
+  position: relative !important;
+  width: 58px !important;
+  height: 58px !important;
+  min-width: 58px !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(165, 243, 252, 0.46) !important;
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255,255,255,.22), transparent 24%),
+    linear-gradient(145deg, rgba(103,232,249,.16), rgba(2,6,23,.86)) !important;
+  display: grid !important;
+  place-items: center !important;
+  box-shadow:
+    0 0 0 7px rgba(34,211,238,.06),
+    0 0 24px rgba(34,211,238,.34),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -10px 22px rgba(0,0,0,.35) !important;
+  overflow: hidden !important;
+}
+
+main#ariApp .ari-menu-toggle span {
+  position: absolute !important;
+  width: 25px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: rgba(200,255,255,.95) !important;
+  box-shadow:
+    0 0 8px rgba(200,255,255,.9),
+    0 0 18px rgba(34,211,238,.58) !important;
+  transition: transform .25s ease, opacity .2s ease, top .25s ease !important;
+}
+
+main#ariApp .ari-menu-toggle span:nth-child(1) { top: 20px !important; }
+main#ariApp .ari-menu-toggle span:nth-child(2) { top: 28px !important; }
+main#ariApp .ari-menu-toggle span:nth-child(3) { top: 36px !important; }
+
+main#ariApp .ari-menu-toggle.open span:nth-child(1) {
+  top: 28px !important;
+  transform: rotate(45deg) !important;
+}
+
+main#ariApp .ari-menu-toggle.open span:nth-child(2) {
+  opacity: 0 !important;
+  transform: scaleX(0) !important;
+}
+
+main#ariApp .ari-menu-toggle.open span:nth-child(3) {
+  top: 28px !important;
+  transform: rotate(-45deg) !important;
+}
+
+main#ariApp .ari-menu-toggle:active {
+  transform: scale(.94) !important;
+}
+
+/* Exit button */
+main#ariApp .profile-btn.ari-exit-btn {
+  border-color: rgba(248, 113, 113, .58) !important;
+  color: #fecaca !important;
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255,255,255,.16), transparent 24%),
+    linear-gradient(145deg, rgba(127,29,29,.34), rgba(2,6,23,.86)) !important;
+  box-shadow:
+    0 0 0 6px rgba(239,68,68,.05),
+    0 0 22px rgba(239,68,68,.28),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -10px 22px rgba(0,0,0,.35) !important;
+  text-shadow:
+    0 0 8px rgba(254,202,202,.7),
+    0 0 18px rgba(239,68,68,.42) !important;
+}
+
+
