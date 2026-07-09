@@ -3,61 +3,68 @@ ARI ANIMATIONS
 ===================================================== */
 
 /* Conversation */
-
 @keyframes conversationFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Hero breathing */
-
+/* Hero */
 @keyframes ariHeroBreathe {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-
-  50% {
-    transform: translateY(-4px) scale(1.012);
-  }
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.012); }
 }
 
-/* Header avatar */
+@keyframes ariHeroHaloPulse {
+  0%,100% { opacity:.42; transform:translate(-50%,-50%) scale(1); }
+  50% { opacity:.72; transform:translate(-50%,-50%) scale(1.08); }
+}
 
+/* Avatar */
 @keyframes avatarArrive {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.82);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(8px) scale(0.82); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes avatarThinkingRing {
   0%, 100% {
-    box-shadow:
-      0 0 12px rgba(34,211,238,.24),
-      inset 0 1px 0 rgba(255,255,255,.14);
+    box-shadow: 0 0 12px rgba(34,211,238,.24), inset 0 1px 0 rgba(255,255,255,.14);
   }
-
   50% {
-    box-shadow:
-      0 0 26px rgba(34,211,238,.58),
-      inset 0 1px 0 rgba(255,255,255,.20);
+    box-shadow: 0 0 26px rgba(34,211,238,.58), inset 0 1px 0 rgba(255,255,255,.20);
+  }
+}
+
+@keyframes ariAvatarBreath {
+  0%,100% { transform:translateY(0) scale(1); }
+  50% { transform:translateY(-1px) scale(1.025); }
+}
+
+@keyframes ariAvatarGlow {
+  0%,100% { filter:drop-shadow(0 0 6px rgba(34,211,238,.18)); }
+  50% { filter:drop-shadow(0 0 13px rgba(34,211,238,.42)); }
+}
+
+/* Ari idle */
+@keyframes ariOrganicBreath {
+  0%,100% { transform:translateY(-115px) translateX(0) scale(1); }
+  35% { transform:translateY(-118px) translateX(1px) scale(1.008); }
+  70% { transform:translateY(-116px) translateX(-1px) scale(1.004); }
+}
+
+@keyframes ariOrganicGlow {
+  0%,100% {
+    filter:
+      drop-shadow(0 24px 34px rgba(0,0,0,.45))
+      drop-shadow(0 0 14px rgba(34,211,238,.16));
+  }
+  50% {
+    filter:
+      drop-shadow(0 26px 38px rgba(0,0,0,.48))
+      drop-shadow(0 0 26px rgba(34,211,238,.30));
   }
 }
 
 /* Composer */
-
 @keyframes ariComposerBreath {
   0%, 100% {
     box-shadow:
@@ -67,7 +74,6 @@ ARI ANIMATIONS
       inset 0 1px 0 rgba(255,255,255,.16),
       inset 0 -18px 34px rgba(0,0,0,.28);
   }
-
   50% {
     box-shadow:
       0 0 28px rgba(34,211,238,.25),
@@ -78,202 +84,80 @@ ARI ANIMATIONS
   }
 }
 
-/* Ambient background */
-
-@keyframes ariAmbientPulse {
-  0%,100% {
-    opacity:.26;
-    transform:scale(1);
-    filter:brightness(.95);
-  }
-
-  50% {
-    opacity:.42;
-    transform:scale(1.018);
-    filter:brightness(1.12);
-  }
-}
-
-@keyframes ariGridDrift {
-  from {
-    background-position:0 0,0 0;
-  }
-
-  to {
-    background-position:46px 46px,-46px 46px;
-  }
-}
-
-/* LED */
-
 @keyframes ariLedIdle {
-  0%,100% {
-    opacity:.42;
-    filter:brightness(.9);
-  }
-
-  50% {
-    opacity:.88;
-    filter:brightness(1.25);
-  }
+  0%,100% { opacity:.42; filter:brightness(.9); }
+  50% { opacity:.88; filter:brightness(1.25); }
 }
 
 @keyframes ariLedThinking {
-  from {
-    background-position:120% 0;
-  }
+  from { background-position:120% 0; }
+  to { background-position:-120% 0; }
+}
 
-  to {
-    background-position:-120% 0;
+@keyframes ariReactorRotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ariReactorRotateReverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes ariTypingPulse {
+  0%, 80%, 100% {
+    opacity: 0.35;
+    transform: translateY(0) scale(0.88);
   }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.08);
+  }
+}
+
+/* Ambient */
+@keyframes ariAmbientPulse {
+  0%,100% { opacity:.26; transform:scale(1); filter:brightness(.95); }
+  50% { opacity:.42; transform:scale(1.018); filter:brightness(1.12); }
+}
+
+@keyframes ariGridDrift {
+  from { background-position:0 0,0 0; }
+  to { background-position:46px 46px,-46px 46px; }
 }
 
 @keyframes ariThinkingField {
-  0%,100% {
-    opacity:.34;
-    filter:brightness(1);
-  }
-
-  50% {
-    opacity:.58;
-    filter:brightness(1.28);
-  }
+  0%,100% { opacity:.34; filter:brightness(1); }
+  50% { opacity:.58; filter:brightness(1.28); }
 }
 
-/* Premium hero halo */
-
-@keyframes ariHeroHaloPulse {
-  0%,100% {
-    opacity:.42;
-    transform:translate(-50%,-50%) scale(1);
-  }
-
-  50% {
-    opacity:.72;
-    transform:translate(-50%,-50%) scale(1.08);
-  }
-}
-
-/* Organic idle */
-
-@keyframes ariOrganicBreath {
-  0%,100% {
-    transform:translateY(-115px) translateX(0) scale(1);
-  }
-
-  35% {
-    transform:translateY(-118px) translateX(1px) scale(1.008);
-  }
-
-  70% {
-    transform:translateY(-116px) translateX(-1px) scale(1.004);
-  }
-}
-
-@keyframes ariOrganicGlow {
-  0%,100% {
-    filter:
-      drop-shadow(0 24px 34px rgba(0,0,0,.45))
-      drop-shadow(0 0 14px rgba(34,211,238,.16));
-  }
-
-  50% {
-    filter:
-      drop-shadow(0 26px 38px rgba(0,0,0,.48))
-      drop-shadow(0 0 26px rgba(34,211,238,.30));
-  }
-}
-
-@keyframes ariAvatarBreath {
-  0%,100% {
-    transform:translateY(0) scale(1);
-  }
-
-  50% {
-    transform:translateY(-1px) scale(1.025);
-  }
-}
-
-@keyframes ariAvatarGlow {
-  0%,100% {
-    filter:drop-shadow(0 0 6px rgba(34,211,238,.18));
-  }
-
-  50% {
-    filter:drop-shadow(0 0 13px rgba(34,211,238,.42));
-  }
-}
-
-/* =====================================================
-ARI NAV / MENU ANIMATIONS
-===================================================== */
-
+/* Nav / Menu */
 @keyframes ariMenuGridDrift {
-  from {
-    background-position: 0 0, 0 0;
-  }
-
-  to {
-    background-position: 34px 34px, -34px 34px;
-  }
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 34px 34px, -34px 34px; }
 }
 
 @keyframes ariMenuScan {
-  0%, 100% {
-    opacity: .12;
-    transform: translateY(-40px);
-  }
-
-  50% {
-    opacity: .38;
-    transform: translateY(30px);
-  }
+  0%, 100% { opacity: .12; transform: translateY(-40px); }
+  50% { opacity: .38; transform: translateY(30px); }
 }
 
 @keyframes ariMenuReactorSpin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes ariMenuCardSweep {
-  from {
-    left: -45%;
-    opacity: 0;
-  }
-
-  35% {
-    opacity: 1;
-  }
-
-  to {
-    left: 110%;
-    opacity: 0;
-  }
+  from { left: -45%; opacity: 0; }
+  35% { opacity: 1; }
+  to { left: 110%; opacity: 0; }
 }
 
 @keyframes ariNavLedPulse {
-  0%, 100% {
-    opacity: 0.38;
-    filter: brightness(0.85);
-  }
-
-  50% {
-    opacity: 1;
-    filter: brightness(1.35);
-  }
+  0%, 100% { opacity: 0.38; filter: brightness(0.85); }
+  50% { opacity: 1; filter: brightness(1.35); }
 }
 
 @keyframes ariMenuMaterialize {
-  from {
-    opacity: 0;
-    filter: blur(12px);
-  }
-
-  to {
-    opacity: 1;
-    filter: blur(0);
-  }
+  from { opacity: 0; filter: blur(12px); }
+  to { opacity: 1; filter: blur(0); }
 }
 
 @keyframes ariNavCardIn {
@@ -282,7 +166,6 @@ ARI NAV / MENU ANIMATIONS
     transform: translateX(-18px) scale(0.96);
     filter: blur(8px);
   }
-
   to {
     opacity: 1;
     transform: translateX(0) scale(1);
@@ -299,7 +182,6 @@ ARI NAV / MENU ANIMATIONS
       inset 0 1px 0 rgba(255,255,255,.14),
       inset 0 0 22px rgba(34,211,238,.045);
   }
-
   50% {
     box-shadow:
       0 0 22px rgba(34,211,238,.30),
@@ -311,96 +193,6 @@ ARI NAV / MENU ANIMATIONS
 }
 
 @keyframes ariNavGlassShimmer {
-  0%, 100% {
-    background-position: 0% 50%, center, center;
-  }
-
-  50% {
-    background-position: 100% 50%, center, center;
-  }
-}
-/* =====================================================
-ARI COMPOSER — ANIMATIONS
-===================================================== */
-
-@keyframes ariComposerBreath {
-  0%, 100% {
-    box-shadow:
-      0 0 20px rgba(34, 211, 238, 0.16),
-      0 0 42px rgba(34, 211, 238, 0.07),
-      0 24px 60px rgba(0, 0, 0, 0.46),
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
-      inset 0 -18px 34px rgba(0, 0, 0, 0.28);
-  }
-
-  50% {
-    box-shadow:
-      0 0 28px rgba(34, 211, 238, 0.25),
-      0 0 58px rgba(34, 211, 238, 0.11),
-      0 24px 60px rgba(0, 0, 0, 0.46),
-      inset 0 1px 0 rgba(255, 255, 255, 0.19),
-      inset 0 -18px 34px rgba(0, 0, 0, 0.28);
-  }
-}
-
-@keyframes ariLedIdle {
-  0%, 100% {
-    opacity: 0.42;
-    filter: brightness(0.9);
-  }
-
-  50% {
-    opacity: 0.88;
-    filter: brightness(1.25);
-  }
-}
-
-@keyframes ariLedThinking {
-  from {
-    background-position: 120% 0;
-  }
-
-  to {
-    background-position: -120% 0;
-  }
-}
-
-@keyframes ariReactorRotate {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes ariReactorRotateReverse {
-  to {
-    transform: rotate(-360deg);
-  }
-}
-
-@keyframes ariTypingPulse {
-  0%, 80%, 100% {
-    opacity: 0.35;
-    transform: translateY(0) scale(0.88);
-  }
-
-  40% {
-    opacity: 1;
-    transform: translateY(-3px) scale(1.08);
-  }
-}
-
-/* =====================================================
-ARI CONVERSATIONS — ANIMATIONS
-===================================================== */
-
-@keyframes conversationFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  0%, 100% { background-position: 0% 50%, center, center; }
+  50% { background-position: 100% 50%, center, center; }
 }
