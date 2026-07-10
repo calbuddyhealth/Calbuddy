@@ -199,13 +199,29 @@ async function handleSignup() {
     }
 
     if (data?.user) {
-      await createUserProfile(data.user, values.displayName);
-    }
+  await createUserProfile(data.user, values.displayName);
+}
 
-    authCard.classList.add("hidden");
-    verifyCard.classList.remove("hidden");
+document.activeElement?.blur();
 
-    startVerificationWatch(values.displayName);
+authCard.classList.add("hidden");
+verifyCard.classList.remove("hidden");
+
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    verifyCard.scrollIntoView({
+      behavior: "auto",
+      block: "start"
+    });
+  });
+});
+
+startVerificationWatch(values.displayName);
   } catch (err) {
     console.error(err);
     setMessage("Account creation error. Please try again.");
