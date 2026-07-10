@@ -438,3 +438,47 @@ main#ariApp.ari-keyboard-mode .ari-bottom-input {
     transition: none;
   }
 }
+/* =====================================================
+   COMPOSER — MOBILE VIEWPORT CONTAINMENT FIX
+===================================================== */
+
+main#ariApp .ari-bottom-input {
+  left: 50%;
+  right: auto;
+
+  width: min(100%, 430px);
+  max-width: 100vw;
+
+  padding-right: 14px;
+  padding-left: 14px;
+
+  box-sizing: border-box;
+
+  transform: translateX(-50%);
+}
+
+main#ariApp .ari-input-shell {
+  width: 100%;
+  max-width: 100%;
+
+  box-sizing: border-box;
+}
+
+main#ariApp #ariInput {
+  min-width: 0;
+}
+
+@media (max-width: 430px) {
+  main#ariApp .ari-bottom-input {
+    width: 100vw;
+    max-width: 100vw;
+
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  main#ariApp .ari-input-shell {
+    padding-left: 18px;
+    padding-right: 12px;
+  }
+}
