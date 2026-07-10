@@ -104,7 +104,7 @@ main#ariApp .ari-input-shell {
 
   width: 100%;
   max-width: 100%;
-  min-height: 98px;
+  min-height: 124px;
 
   gap: 12px;
 
@@ -114,10 +114,6 @@ main#ariApp .ari-input-shell {
     16px
     24px;
 
-  /*
-    Visible overflow is intentional. The send reactor's
-    outer rings extend beyond the shell.
-  */
   overflow: visible;
 
   border: 1px solid rgba(103, 232, 249, 0.56);
@@ -264,13 +260,13 @@ main#ariApp #ariInput {
 
   width: 100%;
   min-width: 0;
-  min-height: 62px;
+  min-height: 88px;
   max-height: 180px;
 
   padding:
     18px
     0
-    8px;
+    10px;
 
   overflow-y: auto;
 
@@ -293,18 +289,6 @@ main#ariApp #ariInput {
 
   -webkit-appearance: none;
   appearance: none;
-}
-
-main#ariApp #ariInput::placeholder {
-  color: rgba(226, 232, 240, 0.62);
-
-  font-weight: 800;
-
-  opacity: 1;
-}
-
-main#ariApp #ariInput:disabled {
-  cursor: not-allowed;
 }
 
 
