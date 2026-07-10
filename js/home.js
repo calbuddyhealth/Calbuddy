@@ -381,10 +381,12 @@ function addAriMessage(text, sender = "ari") {
   if (!messages) return null;
 
   const div = document.createElement("div");
-  div.className = `ari-message ${sender === "user" ? "ari-user" : "ari-ai"}`;
+
+  div.className =
+    `ari-message ${sender === "user" ? "ari-user" : "ari-ai"}`;
 
   const label = document.createElement("span");
-  label.className = "ari-label";
+  label.className = "ari-message-label";
   label.textContent = sender === "user" ? "You" : "Ari";
 
   const body = document.createElement("p");
@@ -394,8 +396,18 @@ function addAriMessage(text, sender = "ari") {
   div.appendChild(body);
   messages.appendChild(div);
 
+  /*
+    Wait until conversation mode has rendered before scrolling.
+    Two animation frames allow display/layout changes to settle.
+  */
   requestAnimationFrame(() => {
-    div.scrollIntoView({ behavior: "smooth", block: "end" });
+    requestAnimationFrame(() => {
+      div.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest"
+      });
+    });
   });
 
   return div;
@@ -487,7 +499,14 @@ async function sendAriMessage() {
 
   ariConversationStarted = true;
   ariBusy = false;
+
   setAriPose("idleOpen");
+
+  /*
+    Reveal the conversation layout before inserting
+    or scrolling to any messages.
+  */
+  enterAriConversationMode();
 
   input.value = "";
   autoResizeAriInput();
@@ -502,7 +521,11 @@ async function sendAriMessage() {
   const thinkingMessage = addAriTypingMessage();
   ariCurrentThinkingMessage = thinkingMessage;
 
-  ariChatHistory.push({ role: "user", content: message });
+  ariChatHistory.push({
+    role: "user",
+    content: message
+  });
+
   ariChatHistory = ariChatHistory.slice(-10);
 
   try {
@@ -518,22 +541,37 @@ async function sendAriMessage() {
 
     if (ariStopped) return;
 
-    const reply = response.reply || "Hmm. I had trouble answering that. Try again.";
+    const reply =
+      response.reply ||
+      "Hmm. I had trouble answering that. Try again.";
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
-      if (body) body.textContent = reply;
+
+      if (body) {
+        body.textContent = reply;
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            thinkingMessage.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+              inline: "nearest"
+            });
+          });
+        });
+      }
     }
 
-    ariChatHistory.push({ role: "assistant", content: reply });
+    ariChatHistory.push({
+      role: "assistant",
+      content: reply
+    });
+
     ariChatHistory = ariChatHistory.slice(-10);
 
+    ariFirstReplyCompleted = true;
     applyAriAfterResponseEmotion(message, reply);
-
-    if (!ariFirstReplyCompleted) {
-      ariFirstReplyCompleted = true;
-      setTimeout(enterAriConversationMode, 450);
-    }
 
     if (response.pendingAction) {
       showPendingAction(response.pendingAction);
@@ -547,13 +585,25 @@ async function sendAriMessage() {
 
     if (thinkingMessage) {
       const body = thinkingMessage.querySelector("p");
-      if (body) body.textContent = error.message || "Something glitched. Try again in a second.";
+
+      if (body) {
+        body.textContent =
+          error.message ||
+          "Something glitched. Try again in a second.";
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            thinkingMessage.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+              inline: "nearest"
+            });
+          });
+        });
+      }
     }
 
-    if (!ariFirstReplyCompleted) {
-      ariFirstReplyCompleted = true;
-      setTimeout(enterAriConversationMode, 450);
-    }
+    ariFirstReplyCompleted = true;
 
     resetAriAfterDelay();
   } finally {
