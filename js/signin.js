@@ -369,17 +369,37 @@ signupBtn.addEventListener("click", handleSignup);
 forgotPasswordBtn.addEventListener("click", handleForgotPassword);
 
 async function initializeSignInPage() {
+  const params = new URLSearchParams(window.location.search);
+
+  const justVerified =
+    params.get("verified") === "1";
+
+  const authCode =
+    params.get("code");
+
   try {
-    const session = await getCurrentSession();
+    if (authCode) {
+      const { error: exchangeError } =
+        await window.calbuddySupabase.auth.exchangeCodeForSession(
+          authCode
+        );
+
+      if (exchangeError) {
+        console.warn(
+          "Verification session exchange failed:",
+          exchangeError.message
+        );
+      }
+    }
+
+    let session = await getCurrentSession();
+
+    if (justVerified && !session) {
+      await wait(500);
+      session = await getCurrentSession();
+    }
 
     if (session?.user) {
-      const params = new URLSearchParams(
-        window.location.search
-      );
-
-      const justVerified =
-        params.get("verified") === "1";
-
       const displayName =
         session.user.user_metadata?.display_name ||
         session.user.email?.split("@")[0] ||
@@ -389,6 +409,12 @@ async function initializeSignInPage() {
         await createUserProfile(
           session.user,
           displayName
+        );
+
+        window.history.replaceState(
+          {},
+          document.title,
+          "/signin.html"
         );
 
         await startInitialization(
