@@ -114,22 +114,21 @@ main#ariApp.conversation-mode
 
 main#ariApp .ari-header-v4 .ari-brand-title {
   display: block;
-
   margin: 0;
 
   color: #e8ffff;
 
-  font-size: clamp(22px, 6.2vw, 27px);
+  font-size: clamp(30px, 8vw, 40px);
   font-weight: 900;
-  line-height: 1;
-  letter-spacing: 0.10em;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
 
   white-space: nowrap;
 
   text-shadow:
-    0 0 5px rgba(232, 255, 255, 1),
-    0 0 12px rgba(34, 211, 238, 0.90),
-    0 0 26px rgba(34, 211, 238, 0.48);
+    0 0 5px rgba(232,255,255,1),
+    0 0 12px rgba(34,211,238,.90),
+    0 0 26px rgba(34,211,238,.48);
 }
 
 
@@ -139,25 +138,22 @@ main#ariApp .ari-header-v4 .ari-brand-title {
 
 main#ariApp .ari-header-v4 .ari-brand-subtitle {
   display: block;
+  margin-top: 2px;
 
-  margin-top: 4px;
+  color: rgba(200,255,255,.92);
 
-  color: rgba(200, 255, 255, 0.92);
-
-  font-size: clamp(7px, 2vw, 9px);
+  font-size: clamp(11px, 2.8vw, 14px);
   font-weight: 900;
-  line-height: 1.2;
-  letter-spacing: 0.10em;
+  line-height: 1.1;
+  letter-spacing: 0.18em;
 
   white-space: nowrap;
 
   text-shadow:
-    0 0 4px rgba(200, 255, 255, 0.95),
-    0 0 10px rgba(34, 211, 238, 0.80),
-    0 0 22px rgba(34, 211, 238, 0.42);
+    0 0 4px rgba(200,255,255,.95),
+    0 0 10px rgba(34,211,238,.80),
+    0 0 22px rgba(34,211,238,.42);
 }
-
-
 /* =====================================================
    BRAND LED LINE
 ===================================================== */
@@ -498,14 +494,14 @@ main#ariApp
   }
 
   main#ariApp .ari-header-v4 .ari-brand-title {
-    font-size: 20px;
-    letter-spacing: 0.08em;
-  }
+  font-size: 27px;
+  letter-spacing: 0.04em;
+}
 
-  main#ariApp .ari-header-v4 .ari-brand-subtitle {
-    font-size: 7px;
-    letter-spacing: 0.07em;
-  }
+main#ariApp .ari-header-v4 .ari-brand-subtitle {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
 
   main#ariApp.conversation-mode
     .ari-header-v4
@@ -540,14 +536,14 @@ main#ariApp
   }
 
   main#ariApp .ari-header-v4 .ari-brand-title {
-    font-size: 18px;
-    letter-spacing: 0.06em;
-  }
+  font-size: 24px;
+  letter-spacing: 0.03em;
+}
 
-  main#ariApp .ari-header-v4 .ari-brand-subtitle {
-    font-size: 6px;
-    letter-spacing: 0.05em;
-  }
+main#ariApp .ari-header-v4 .ari-brand-subtitle {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
 
   main#ariApp.conversation-mode
     .ari-header-v4
