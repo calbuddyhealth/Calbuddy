@@ -413,3 +413,70 @@ main#ariApp .profile-btn.ari-exit-btn {
     transition: none;
   }
 }
+/* =====================================================
+   HEADER BRAND — MOBILE POSITION / SIZE FIX
+===================================================== */
+
+main#ariApp .ari-header,
+main#ariApp .ari-header-v4 {
+  grid-template-columns:
+    64px
+    minmax(0, 1fr)
+    minmax(150px, 190px);
+
+  width: 100%;
+  padding-right: 6px;
+  padding-left: 6px;
+
+  box-sizing: border-box;
+}
+
+main#ariApp .ari-header-v4 .ari-brand-right,
+main#ariApp .ari-brand-right {
+  grid-column: 3;
+
+  justify-self: end;
+
+  width: auto;
+  max-width: 190px;
+
+  padding-right: 0;
+
+  text-align: right;
+
+  overflow: visible;
+}
+
+main#ariApp .ari-brand-title {
+  font-size: clamp(20px, 6vw, 27px);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+main#ariApp .ari-brand-subtitle {
+  font-size: clamp(7px, 2.1vw, 9px);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+@media (max-width: 390px) {
+  main#ariApp .ari-header,
+  main#ariApp .ari-header-v4 {
+    grid-template-columns:
+      58px
+      minmax(0, 1fr)
+      minmax(138px, 168px);
+
+    gap: 4px;
+  }
+
+  main#ariApp .ari-brand-title {
+    font-size: 19px;
+    letter-spacing: 0.10em;
+  }
+
+  main#ariApp .ari-brand-subtitle {
+    font-size: 7px;
+    letter-spacing: 0.09em;
+  }
+}
