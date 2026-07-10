@@ -1,39 +1,48 @@
 /* =====================================================
-ARI COMPOSER — OVERLAY TAP FIX
+   ARI COMPOSER
+   Version: 1.1.0
+   Purpose:
+   - Keep the composer docked above the mobile safe area
+   - Prevent hidden navigation overlays from blocking taps
+   - Style the textarea, send reactor, and thinking states
+   - Support keyboard mode and reduced motion
 ===================================================== */
-
-main#ariApp #menuOverlay,
-.ari-v1-home #menuOverlay,
+/* =====================================================
+   OVERLAY TAP PROTECTION
+===================================================== */
+/*
+   The navigation overlay must not capture taps while closed.
+   Because #menuOverlay is an ID, additional selectors such as
+   main#ariApp #menuOverlay and .ari-v1-home #menuOverlay are
+   unnecessary unless duplicate IDs exist, which should be avoided.
+*/
 #menuOverlay {
   display: none !important;
-  pointer-events: none !important;
   opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
-
-main#ariApp #menuOverlay.show,
-.ari-v1-home #menuOverlay.show,
-#menuOverlay.show,
-main#ariApp #menuOverlay.open,
-.ari-v1-home #menuOverlay.open,
-#menuOverlay.open {
+/*
+   Supports either .show or .open so existing JavaScript remains
+   compatible.
+*/
+#menuOverlay:is(.show, .open) {
   display: block !important;
-  pointer-events: auto !important;
   opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
-
 /* =====================================================
-ARI COMPOSER — BASE DOCK
+   BASE DOCK
 ===================================================== */
-
 main#ariApp .ari-bottom-input {
   position: fixed;
-  left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 28px);
-  width: 100%;
-  max-width: 430px;
-  transform: translateX(-50%);
   z-index: 200;
+  left: 50%;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  width: min(100%, 430px);
   padding: 10px 14px 14px;
+  transform: translateX(-50%);
   background:
     linear-gradient(
       180deg,
@@ -41,49 +50,70 @@ main#ariApp .ari-bottom-input {
       rgba(4, 11, 24, 0.72) 38%,
       rgba(4, 11, 24, 0.96) 100%
     );
+  pointer-events: none;
 }
-
+/*
+   The dock itself ignores taps outside the composer shell.
+   Interactive composer children restore pointer events.
+*/
 main#ariApp .ari-input-shell {
   position: relative;
-  width: 100%;
-  max-width: 100%;
-  min-height: 98px;
+  isolation: isolate;
   display: flex;
   align-items: flex-end;
+  width: 100%;
+  min-height: 98px;
   gap: 12px;
   padding: 18px 16px 16px 24px;
-  border-radius: 40px;
-  overflow: hidden;
-  pointer-events: auto;
-
-  background:
-    linear-gradient(145deg, rgba(10, 22, 42, 0.72), rgba(5, 12, 28, 0.92)),
-    radial-gradient(circle at 12% 0%, rgba(125, 211, 252, 0.16), transparent 34%);
-
+  /*
+     Must remain visible so the send button's outer rotating
+     pseudo-elements are not clipped by the shell.
+  */
+  overflow: visible;
   border: 1px solid rgba(103, 232, 249, 0.56);
-
+  border-radius: 40px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(10, 22, 42, 0.72),
+      rgba(5, 12, 28, 0.92)
+    ),
+    radial-gradient(
+      circle at 12% 0%,
+      rgba(125, 211, 252, 0.16),
+      transparent 34%
+    );
   box-shadow:
     0 0 22px rgba(34, 211, 238, 0.18),
     0 0 46px rgba(34, 211, 238, 0.08),
     0 24px 60px rgba(0, 0, 0, 0.46),
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     inset 0 -18px 34px rgba(0, 0, 0, 0.28);
-
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  animation: ariComposerBreath 7s ease-in-out infinite;
+  backdrop-filter:
+    blur(22px)
+    saturate(150%);
+  -webkit-backdrop-filter:
+    blur(22px)
+    saturate(150%);
+  animation:
+    ariComposerBreath 7s ease-in-out infinite;
+  pointer-events: auto;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
-
+/* =====================================================
+   COMPOSER LED
+===================================================== */
 main#ariApp .ari-input-shell::before {
   content: "";
   position: absolute;
+  z-index: 1;
+  top: 12px;
   left: 32px;
   right: 92px;
-  top: 12px;
   height: 2px;
   border-radius: 999px;
-  pointer-events: none;
-  opacity: 0.78;
   background:
     linear-gradient(
       90deg,
@@ -96,25 +126,35 @@ main#ariApp .ari-input-shell::before {
   box-shadow:
     0 0 8px rgba(34, 211, 238, 0.75),
     0 0 18px rgba(34, 211, 238, 0.38);
-  animation: ariLedIdle 5.5s ease-in-out infinite;
+  opacity: 0.78;
+  animation:
+    ariLedIdle 5.5s ease-in-out infinite;
+  pointer-events: none;
 }
-
+/* =====================================================
+   GLASS HIGHLIGHT
+===================================================== */
 main#ariApp .ari-input-shell::after {
   content: "";
   position: absolute;
-  inset: 1px 1px auto 1px;
+  z-index: 0;
+  top: 1px;
+  right: 1px;
+  left: 1px;
   height: 50%;
-  border-radius: 40px 40px 24px 24px;
-  pointer-events: none;
+  border-radius: 39px 39px 24px 24px;
   background:
     linear-gradient(
       180deg,
-      rgba(255,255,255,0.08),
-      rgba(255,255,255,0.015),
+      rgba(255, 255, 255, 0.08),
+      rgba(255, 255, 255, 0.015),
       transparent
     );
+  pointer-events: none;
 }
-
+/* =====================================================
+   FOCUS STATE
+===================================================== */
 main#ariApp .ari-input-shell:focus-within {
   border-color: rgba(103, 232, 249, 0.86);
   box-shadow:
@@ -124,184 +164,277 @@ main#ariApp .ari-input-shell:focus-within {
     inset 0 1px 0 rgba(255, 255, 255, 0.20),
     inset 0 -18px 34px rgba(0, 0, 0, 0.28);
 }
-
 /* =====================================================
-ARI COMPOSER — TEXTAREA
+   TEXTAREA
 ===================================================== */
-
 main#ariApp #ariInput {
   position: relative;
   z-index: 2;
-  flex: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: 62px;
   max-height: 180px;
+  padding: 18px 0 8px;
+  overflow-y: auto;
   resize: none;
-  border: none;
-  outline: none;
+  border: 0;
+  outline: 0;
   background: transparent;
   color: rgba(244, 248, 255, 0.96);
+  font-family: inherit;
   font-size: 19px;
   font-weight: 800;
   line-height: 1.35;
-  padding: 18px 0 8px;
+  caret-color: #67e8f9;
   pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
 }
-
 main#ariApp #ariInput::placeholder {
   color: rgba(226, 232, 240, 0.62);
-  font-weight: 850;
+  font-weight: 800;
+  opacity: 1;
 }
-
+main#ariApp #ariInput:disabled {
+  cursor: not-allowed;
+}
 /* =====================================================
-ARI COMPOSER — SEND BUTTON
+   SEND BUTTON
 ===================================================== */
-
 main#ariApp .ari-send-btn {
   position: relative;
   z-index: 3;
-  width: 58px;
-  height: 58px;
-  min-width: 58px;
-  margin-left: 12px;
-  margin-bottom: 1px;
   display: grid;
   place-items: center;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(180, 255, 255, 0.35);
-  color: rgba(200, 255, 255, 0.94);
-  font-size: 22px;
-  font-weight: 950;
-  cursor: pointer;
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 1px;
   overflow: visible;
-  pointer-events: auto;
-
+  border: 1px solid rgba(180, 255, 255, 0.35);
+  border-radius: 50%;
   background:
-    radial-gradient(circle at 34% 26%, rgba(255,255,255,0.30), transparent 18%),
-    radial-gradient(circle at 50% 52%, rgba(103,232,249,0.30), transparent 42%),
-    linear-gradient(145deg, rgba(180,255,255,0.14), rgba(4,11,24,0.44));
-
+    radial-gradient(
+      circle at 34% 26%,
+      rgba(255, 255, 255, 0.30),
+      transparent 18%
+    ),
+    radial-gradient(
+      circle at 50% 52%,
+      rgba(103, 232, 249, 0.30),
+      transparent 42%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(180, 255, 255, 0.14),
+      rgba(4, 11, 24, 0.44)
+    );
+  color: rgba(200, 255, 255, 0.94);
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
   box-shadow:
-    0 0 0 5px rgba(34,211,238,0.08),
-    0 0 0 10px rgba(34,211,238,0.035),
-    0 0 24px rgba(34,211,238,0.42),
-    inset 0 1px 0 rgba(255,255,255,0.28),
-    inset 0 -10px 22px rgba(4,11,24,0.38);
+    0 0 0 5px rgba(34, 211, 238, 0.08),
+    0 0 0 10px rgba(34, 211, 238, 0.035),
+    0 0 24px rgba(34, 211, 238, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -10px 22px rgba(4, 11, 24, 0.38);
+  pointer-events: auto;
+  transition:
+    filter 120ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
 }
-
 main#ariApp .ari-send-btn::before {
   content: "";
   position: absolute;
   inset: -10px;
   border-radius: 50%;
-  pointer-events: none;
   background:
     conic-gradient(
       from 0deg,
       transparent 0deg,
-      rgba(200,255,255,0.95) 24deg,
+      rgba(200, 255, 255, 0.95) 24deg,
       transparent 48deg,
       transparent 110deg,
-      rgba(34,211,238,0.85) 146deg,
+      rgba(34, 211, 238, 0.85) 146deg,
       transparent 184deg,
       transparent 250deg,
-      rgba(147,197,253,0.70) 286deg,
+      rgba(147, 197, 253, 0.70) 286deg,
       transparent 330deg
     );
-  mask: radial-gradient(circle, transparent 59%, black 62%, black 70%, transparent 73%);
-  -webkit-mask: radial-gradient(circle, transparent 59%, black 62%, black 70%, transparent 73%);
-  animation: ariReactorRotate 7s linear infinite;
+  -webkit-mask:
+    radial-gradient(
+      circle,
+      transparent 59%,
+      #000 62%,
+      #000 70%,
+      transparent 73%
+    );
+  mask:
+    radial-gradient(
+      circle,
+      transparent 59%,
+      #000 62%,
+      #000 70%,
+      transparent 73%
+    );
   opacity: 0.9;
+  animation:
+    ariReactorRotate 7s linear infinite;
+  pointer-events: none;
 }
-
 main#ariApp .ari-send-btn::after {
   content: "";
   position: absolute;
   inset: -16px;
   border-radius: 50%;
-  pointer-events: none;
   background:
     repeating-conic-gradient(
       from 0deg,
-      rgba(200,255,255,0.62) 0deg 3deg,
+      rgba(200, 255, 255, 0.62) 0deg 3deg,
       transparent 3deg 10deg
     );
-  mask: radial-gradient(circle, transparent 73%, black 75%, black 78%, transparent 80%);
-  -webkit-mask: radial-gradient(circle, transparent 73%, black 75%, black 78%, transparent 80%);
-  animation: ariReactorRotateReverse 14s linear infinite;
+  -webkit-mask:
+    radial-gradient(
+      circle,
+      transparent 73%,
+      #000 75%,
+      #000 78%,
+      transparent 80%
+    );
+  mask:
+    radial-gradient(
+      circle,
+      transparent 73%,
+      #000 75%,
+      #000 78%,
+      transparent 80%
+    );
   opacity: 0.42;
+  animation:
+    ariReactorRotateReverse 14s linear infinite;
+  pointer-events: none;
 }
-
-/* =====================================================
-ARI COMPOSER — STATES
-===================================================== */
-
-main#ariApp.ari-thinking-mode .ari-input-shell::before,
-main#ariApp:has(#ariInput:disabled) .ari-input-shell::before {
-  height: 3px;
-  opacity: 1;
-  background-size: 220% 100%;
-  animation: ariLedThinking 1.15s linear infinite;
+main#ariApp .ari-send-btn:not(:disabled):hover {
+  filter: brightness(1.1);
 }
-
-main#ariApp.ari-thinking-mode .ari-send-btn::before {
-  animation-duration: 0.9s;
-  opacity: 1;
-}
-
-main#ariApp.ari-thinking-mode .ari-send-btn::after {
-  animation-duration: 2s;
-  opacity: 0.75;
-}
-
-main#ariApp .ari-send-btn:active {
+main#ariApp .ari-send-btn:not(:disabled):active {
   transform: scale(0.94);
   filter: brightness(1.15);
 }
-
+main#ariApp .ari-send-btn:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 5px;
+}
 main#ariApp .ari-send-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+  filter: none;
 }
-
+/* =====================================================
+   STOP BUTTON
+===================================================== */
 main#ariApp .ari-stop-btn {
   background:
-    radial-gradient(circle at 32% 24%, rgba(255,255,255,0.28), transparent 24%),
-    linear-gradient(135deg, #ef4444 0%, #fb7185 100%);
+    radial-gradient(
+      circle at 32% 24%,
+      rgba(255, 255, 255, 0.28),
+      transparent 24%
+    ),
+    linear-gradient(
+      135deg,
+      #ef4444 0%,
+      #fb7185 100%
+    );
 }
-
 /* =====================================================
-ARI COMPOSER — TYPING DOTS
+   THINKING / DISABLED STATES
 ===================================================== */
-
+main#ariApp.ari-thinking-mode .ari-input-shell::before,
+main#ariApp:has(#ariInput:disabled) .ari-input-shell::before {
+  height: 3px;
+  background-size: 220% 100%;
+  opacity: 1;
+  animation:
+    ariLedThinking 1.15s linear infinite;
+}
+main#ariApp.ari-thinking-mode .ari-send-btn::before {
+  opacity: 1;
+  animation-duration: 0.9s;
+}
+main#ariApp.ari-thinking-mode .ari-send-btn::after {
+  opacity: 0.75;
+  animation-duration: 2s;
+}
+/* =====================================================
+   TYPING DOTS
+===================================================== */
 main#ariApp .ari-typing-dots {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
   min-height: 20px;
+  gap: 7px;
   padding: 4px 2px;
 }
-
 main#ariApp .ari-typing-dots span {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: #67e8f9;
-  animation: ariTypingPulse 1.15s ease-in-out infinite;
+  animation:
+    ariTypingPulse 1.15s ease-in-out infinite;
 }
-
 main#ariApp .ari-typing-dots span:nth-child(2) {
   animation-delay: 0.16s;
 }
-
 main#ariApp .ari-typing-dots span:nth-child(3) {
   animation-delay: 0.32s;
 }
-
 /* =====================================================
-ARI COMPOSER — KEYBOARD MODE
+   KEYBOARD MODE
 ===================================================== */
-
 main#ariApp.ari-keyboard-mode .ari-bottom-input {
-  bottom: calc(env(safe-area-inset-bottom) + 8px);
+  bottom: calc(8px + env(safe-area-inset-bottom));
+}
+/* =====================================================
+   SMALL MOBILE SCREENS
+===================================================== */
+@media (max-width: 380px) {
+  main#ariApp .ari-bottom-input {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+  main#ariApp .ari-input-shell {
+    gap: 8px;
+    padding-right: 12px;
+    padding-left: 18px;
+  }
+  main#ariApp #ariInput {
+    font-size: 17px;
+  }
+  main#ariApp .ari-send-btn {
+    flex-basis: 54px;
+    width: 54px;
+    height: 54px;
+  }
+}
+/* =====================================================
+   REDUCED MOTION
+===================================================== */
+@media (prefers-reduced-motion: reduce) {
+  main#ariApp .ari-input-shell,
+  main#ariApp .ari-input-shell::before,
+  main#ariApp .ari-send-btn::before,
+  main#ariApp .ari-send-btn::after,
+  main#ariApp .ari-typing-dots span {
+    animation: none;
+  }
+  main#ariApp .ari-input-shell,
+  main#ariApp .ari-send-btn {
+    transition: none;
+  }
 }
