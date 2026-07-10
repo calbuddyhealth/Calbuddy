@@ -233,7 +233,7 @@
     padding-left: 10px;
   }
   .ari-welcome {
-    padding-top: 104px;
+    padding-top: 20px;
   }
   .ari-welcome-prompt {
     bottom: 142px;
@@ -262,7 +262,7 @@
   .ari-welcome {
     min-height: calc(100vh - 210px);
     min-height: calc(100dvh - 210px);
-    padding-top: 130px;
+    padding-top: 40px;
   }
   .ari-welcome-question {
     font-size: 1.2rem;
