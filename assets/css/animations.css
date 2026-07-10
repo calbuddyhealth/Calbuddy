@@ -463,3 +463,73 @@
     transform: translateX(4px);
   }
 }
+/* =====================================================
+   AUTHENTICATION
+===================================================== */
+
+@keyframes ariAuthScan {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateX(-8px);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(8px);
+  }
+}
+
+@keyframes ariCursorBlink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ariLogoPowerOn {
+  0% {
+    opacity: 0.12;
+    filter: brightness(0.25);
+  }
+
+  10% {
+    opacity: 1;
+    filter: brightness(1.8);
+  }
+
+  18% {
+    opacity: 0.18;
+    filter: brightness(0.25);
+  }
+
+  30% {
+    opacity: 0.92;
+    filter: brightness(1.2);
+  }
+
+  42% {
+    opacity: 0.28;
+    filter: brightness(0.4);
+  }
+
+  58% {
+    opacity: 1;
+    filter: brightness(1.9);
+  }
+
+  72% {
+    opacity: 0.62;
+    filter: brightness(0.9);
+  }
+
+  100% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+}
