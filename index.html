@@ -3,12 +3,39 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
 <title>ARI Rebirth</title>
 </head>
 
 <body>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+
 <script>
-  window.location.replace("signin.html");
+(async function routeAriUser() {
+  try {
+    const {
+      data: { session },
+      error
+    } = await window.calbuddySupabase.auth.getSession();
+
+    if (error) {
+      console.warn("Session check warning:", error.message);
+    }
+
+    if (session?.user) {
+      window.location.replace("home.html");
+      return;
+    }
+
+    window.location.replace("signin.html");
+  } catch (error) {
+    console.error("Startup routing error:", error);
+    window.location.replace("signin.html");
+  }
+})();
 </script>
+
 </body>
 </html>
