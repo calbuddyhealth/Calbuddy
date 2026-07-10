@@ -1,15 +1,16 @@
 /* =====================================================
    ARI ANIMATIONS
-   Version: 1.1.0
+   Version: 1.2.0
    Purpose:
    - Central animation library for Ari Rebirth
    - Conversation and avatar motion
    - Hero and composer effects
+   - Header and brand effects
    - Ambient background effects
    - Navigation and menu effects
    - Account, identity, and nutrition page effects
    Important:
-   - Animation assignments belong in the page/component CSS.
+   - Animation assignments belong in component/page CSS.
    - This file should contain keyframes only.
 ===================================================== */
 /* =====================================================
@@ -129,6 +130,31 @@
     filter:
       drop-shadow(0 26px 38px rgba(0, 0, 0, 0.48))
       drop-shadow(0 0 26px rgba(34, 211, 238, 0.30));
+  }
+}
+/* =====================================================
+   HEADER / BRAND
+===================================================== */
+@keyframes ariLedTextPulse {
+  0%,
+  100% {
+    opacity: 0.88;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.18);
+  }
+}
+@keyframes ariBrandThinkingPulse {
+  0%,
+  100% {
+    opacity: 0.78;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.65);
   }
 }
 /* =====================================================
@@ -346,8 +372,8 @@
 }
 /* =====================================================
    SHARED PAGE SWEEP
-   These three animation names intentionally share the
-   same motion so existing page CSS remains compatible.
+   These animation names intentionally use the same motion
+   so existing page CSS remains compatible.
 ===================================================== */
 @keyframes ariAccountSweep {
   from {
