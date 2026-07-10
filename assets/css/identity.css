@@ -1,469 +1,740 @@
+/* =====================================================
+   ARI IDENTITY PAGE
+   File: identity.css
+   Version: 1.1.0
+   Purpose:
+   - Style the My Identity page
+   - Provide stable page scrolling
+   - Style identity forms, chips, actions, and status messages
+   - Keep identity-page styles isolated from other Ari pages
+   Dependencies:
+   - animations.css
+     - ariIdentitySweep
+   Notes:
+   - Shared animation keyframes belong in animations.css.
+   - Shared non-home scrolling rules may remain in layout.css.
+===================================================== */
+/* =====================================================
+   DESIGN TOKENS
+===================================================== */
 :root {
   --ari-bg: #020617;
-  --ari-panel: rgba(8,20,38,.78);
+  --ari-panel: rgba(8, 20, 38, 0.78);
   --ari-cyan: #22d3ee;
   --ari-cyan-soft: #67e8f9;
   --ari-cyan-pale: #cffafe;
   --ari-text: #f8fafc;
   --ari-muted: #94a3b8;
-  --ari-border: rgba(103,232,249,.24);
+  --ari-border: rgba(103, 232, 249, 0.24);
+  --ari-danger: #ef4444;
+  --ari-success: #22c55e;
 }
-
-* {
+/* =====================================================
+   BOX SIZING
+===================================================== */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(34,211,238,.18), transparent 30%),
-    radial-gradient(circle at 16% 25%, rgba(34,211,238,.10), transparent 30%),
-    radial-gradient(circle at 88% 78%, rgba(103,232,249,.08), transparent 32%),
-    linear-gradient(180deg,#020617 0%,#07111f 48%,#020617 100%);
-  color: var(--ari-text);
-  font-family: Orbitron, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+/* =====================================================
+   IDENTITY PAGE DOCUMENT
+===================================================== */
+html:has(.ari-identity-page) {
+  width: 100%;
+  height: auto;
+  min-height: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
 }
-
-body::before {
+body:has(.ari-identity-page) {
+  position: static;
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(34, 211, 238, 0.18),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 16% 25%,
+      rgba(34, 211, 238, 0.10),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 88% 78%,
+      rgba(103, 232, 249, 0.08),
+      transparent 32%
+    ),
+    linear-gradient(
+      180deg,
+      #020617 0%,
+      #07111f 48%,
+      #020617 100%
+    );
+  color: var(--ari-text);
+  font-family:
+    Orbitron,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+/* =====================================================
+   BACKGROUND EFFECTS
+===================================================== */
+body:has(.ari-identity-page)::before {
   content: "";
   position: fixed;
+  z-index: 0;
   inset: 0;
-  z-index: 0;
   background-image:
-    linear-gradient(rgba(103,232,249,.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(103,232,249,.045) 1px, transparent 1px);
+    linear-gradient(
+      rgba(103, 232, 249, 0.045) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(103, 232, 249, 0.045) 1px,
+      transparent 1px
+    );
   background-size: 42px 42px;
-  mask-image: radial-gradient(circle at center, black 0%, transparent 76%);
+  -webkit-mask-image:
+    radial-gradient(
+      circle at center,
+      #000 0%,
+      transparent 76%
+    );
+  mask-image:
+    radial-gradient(
+      circle at center,
+      #000 0%,
+      transparent 76%
+    );
   pointer-events: none;
 }
-
-body::after {
+body:has(.ari-identity-page)::after {
   content: "";
   position: fixed;
-  inset: -30%;
   z-index: 0;
-  background: linear-gradient(
-    115deg,
-    transparent 42%,
-    rgba(103,232,249,.10) 50%,
-    transparent 58%
-  );
-  animation: ariIdentitySweep 8s linear infinite;
+  inset: -30%;
+  background:
+    linear-gradient(
+      115deg,
+      transparent 42%,
+      rgba(103, 232, 249, 0.10) 50%,
+      transparent 58%
+    );
+  animation:
+    ariIdentitySweep 8s linear infinite;
   pointer-events: none;
 }
-
+/* =====================================================
+   PAGE CONTAINER
+===================================================== */
 .ari-identity-page {
   position: relative;
   z-index: 2;
-  width: min(430px,100%);
+  width: min(430px, 100%);
+  min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: 14px 16px 140px;
+  padding:
+    calc(14px + env(safe-area-inset-top))
+    16px
+    calc(120px + env(safe-area-inset-bottom));
 }
-
-.ari-identity-header {
+/* =====================================================
+   HEADER
+===================================================== */
+.ari-identity-page .ari-identity-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 0 18px;
 }
-
-.ari-back-btn,
-.ari-mini-btn {
-  border: 1px solid var(--ari-border);
-  border-radius: 16px;
+.ari-identity-page .ari-back-btn,
+.ari-identity-page .ari-mini-btn {
   min-height: 42px;
   padding: 10px 14px;
-  background: rgba(2,6,23,.72);
+  border: 1px solid var(--ari-border);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.72);
   color: var(--ari-cyan-pale);
   font-family: inherit;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 0 18px rgba(34,211,238,.08);
-}
-
-.ari-brand-mark {
-  text-align: center;
-  flex: 1;
-}
-
-.ari-brand-title {
-  margin: 0;
-  font-family: Audiowide, Orbitron, sans-serif;
-  font-size: 1.24rem;
-  letter-spacing: .10em;
-  color: var(--ari-text);
-  text-shadow: 0 0 18px rgba(34,211,238,.28);
-}
-
-.ari-brand-subtitle {
-  margin: 3px 0 0;
-  font-size: .62rem;
-  letter-spacing: .22em;
-  color: var(--ari-cyan-soft);
-  font-weight: 800;
-}
-
-.ari-page-hero,
-.ari-panel {
-  border: 1px solid var(--ari-border);
-  background: linear-gradient(
-    180deg,
-    rgba(15,23,42,.92),
-    rgba(2,6,23,.72)
-  );
   box-shadow:
-    0 0 34px rgba(34,211,238,.12),
-    inset 0 0 30px rgba(103,232,249,.04);
-  overflow: hidden;
+    0 0 18px rgba(34, 211, 238, 0.08);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
 }
-
-.ari-page-hero {
+.ari-identity-page
+  :is(.ari-back-btn, .ari-mini-btn):not(:disabled):hover {
+  border-color: rgba(103, 232, 249, 0.52);
+  box-shadow:
+    0 0 22px rgba(34, 211, 238, 0.16);
+}
+.ari-identity-page
+  :is(.ari-back-btn, .ari-mini-btn):not(:disabled):active {
+  transform: scale(0.97);
+}
+.ari-identity-page
+  :is(.ari-back-btn, .ari-mini-btn):focus-visible {
+  outline: 2px solid var(--ari-cyan-soft);
+  outline-offset: 3px;
+}
+.ari-identity-page
+  :is(.ari-back-btn, .ari-mini-btn):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* =====================================================
+   BRAND
+===================================================== */
+.ari-identity-page .ari-brand-mark {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.ari-identity-page .ari-brand-title {
+  margin: 0;
+  color: var(--ari-text);
+  font-family:
+    Audiowide,
+    Orbitron,
+    sans-serif;
+  font-size: 1.24rem;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.10em;
+  text-shadow:
+    0 0 18px rgba(34, 211, 238, 0.28);
+  overflow-wrap: anywhere;
+}
+.ari-identity-page .ari-brand-subtitle {
+  margin: 3px 0 0;
+  color: var(--ari-cyan-soft);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.22em;
+}
+/* =====================================================
+   SHARED SURFACES
+===================================================== */
+.ari-identity-page .ari-page-hero,
+.ari-identity-page .ari-panel {
+  overflow: hidden;
+  border: 1px solid var(--ari-border);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 23, 42, 0.92),
+      rgba(2, 6, 23, 0.72)
+    );
+  box-shadow:
+    0 0 34px rgba(34, 211, 238, 0.12),
+    inset 0 0 30px rgba(103, 232, 249, 0.04);
+}
+/* =====================================================
+   PAGE HERO
+===================================================== */
+.ari-identity-page .ari-page-hero {
+  position: relative;
   margin: 8px 0 18px;
   padding: 24px 20px;
   border-radius: 28px;
-  position: relative;
 }
-
-.ari-page-hero::before {
+.ari-identity-page .ari-page-hero::before {
   content: "";
   position: absolute;
   top: 0;
-  left: 12%;
   right: 12%;
+  left: 12%;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--ari-cyan-soft),
-    transparent
-  );
-  opacity: .8;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      var(--ari-cyan-soft),
+      transparent
+    );
+  opacity: 0.8;
+  pointer-events: none;
 }
-
-.ari-page-kicker {
+.ari-identity-page .ari-page-kicker {
   margin: 0 0 8px;
   color: var(--ari-cyan-soft);
-  font-size: .68rem;
+  font-size: 0.68rem;
   font-weight: 900;
-  letter-spacing: .26em;
+  line-height: 1.3;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
 }
-
-.ari-page-title {
+.ari-identity-page .ari-page-title {
   margin: 0;
+  font-family:
+    Audiowide,
+    Orbitron,
+    sans-serif;
   font-size: 2rem;
   line-height: 1;
-  letter-spacing: .05em;
-  font-family: Audiowide, Orbitron, sans-serif;
+  letter-spacing: 0.05em;
 }
-
-.ari-page-description {
+.ari-identity-page .ari-page-description {
   margin: 12px 0 0;
   color: var(--ari-muted);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
   line-height: 1.55;
-  font-size: .92rem;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 650;
+  overflow-wrap: anywhere;
 }
-
-.ari-panel {
+/* =====================================================
+   PANEL
+===================================================== */
+.ari-identity-page .ari-panel {
   margin-top: 16px;
   border-radius: 26px;
 }
-
-.ari-panel-header {
+.ari-identity-page .ari-panel-header {
   padding: 18px 18px 10px;
 }
-
-.ari-section-title {
+.ari-identity-page .ari-section-title {
   margin: 0;
-  font-size: .78rem;
-  letter-spacing: .20em;
-  text-transform: uppercase;
   color: var(--ari-cyan-soft);
+  font-size: 0.78rem;
   font-weight: 900;
+  line-height: 1.35;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
 }
-
-.ari-section-subtitle {
+.ari-identity-page .ari-section-subtitle {
   margin: 8px 0 0;
   color: var(--ari-muted);
-  font-size: .84rem;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.84rem;
+  font-weight: 600;
   line-height: 1.45;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 650;
+  overflow-wrap: anywhere;
 }
-
-.ari-form {
+/* =====================================================
+   FORM
+===================================================== */
+.ari-identity-page .ari-form {
   padding: 0 18px 18px;
 }
-
-.ari-field {
+.ari-identity-page .ari-field {
   margin-top: 16px;
 }
-
-.ari-label {
+.ari-identity-page .ari-label {
   display: block;
-  color: var(--ari-cyan-soft);
-  font-size: .68rem;
-  font-weight: 900;
-  letter-spacing: .16em;
-  text-transform: uppercase;
   margin-bottom: 8px;
+  color: var(--ari-cyan-soft);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.3;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
-
-.ari-input,
-.ari-textarea {
+/* =====================================================
+   INPUTS
+===================================================== */
+.ari-identity-page .ari-input,
+.ari-identity-page .ari-textarea {
   width: 100%;
-  border: 1px solid rgba(103,232,249,.22);
+  padding: 14px 15px;
+  border: 1px solid rgba(103, 232, 249, 0.22);
   border-radius: 18px;
-  background: linear-gradient(
-    145deg,
-    rgba(2,6,23,.84),
-    rgba(8,47,73,.30)
-  );
+  outline: none;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(2, 6, 23, 0.84),
+      rgba(8, 47, 73, 0.30)
+    );
   color: var(--ari-text);
   font: inherit;
-  font-size: .92rem;
+  font-size: 0.92rem;
   font-weight: 800;
-  padding: 14px 15px;
-  outline: none;
+  caret-color: var(--ari-cyan-soft);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+  -webkit-appearance: none;
+  appearance: none;
 }
-
-.ari-textarea {
+.ari-identity-page .ari-textarea {
   min-height: 116px;
   resize: vertical;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-weight: 600;
   line-height: 1.45;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 650;
 }
-
-.ari-input:focus,
-.ari-textarea:focus {
-  border-color: rgba(103,232,249,.62);
-  box-shadow: 0 0 22px rgba(34,211,238,.15);
+.ari-identity-page
+  :is(.ari-input, .ari-textarea):focus {
+  border-color: rgba(103, 232, 249, 0.62);
+  box-shadow:
+    0 0 22px rgba(34, 211, 238, 0.15);
 }
-
-.ari-input::placeholder,
-.ari-textarea::placeholder {
-  color: rgba(203,213,225,.45);
+.ari-identity-page
+  :is(.ari-input, .ari-textarea):focus-visible {
+  outline: 2px solid rgba(103, 232, 249, 0.32);
+  outline-offset: 2px;
 }
-
-.ari-hint {
+.ari-identity-page
+  :is(.ari-input, .ari-textarea)::placeholder {
+  color: rgba(203, 213, 225, 0.45);
+  opacity: 1;
+}
+.ari-identity-page
+  :is(.ari-input, .ari-textarea):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* =====================================================
+   FIELD HINT
+===================================================== */
+.ari-identity-page .ari-hint {
   margin: 8px 0 0;
   color: var(--ari-muted);
-  font-size: .76rem;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
   line-height: 1.35;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 650;
+  overflow-wrap: anywhere;
 }
-
-.ari-chip-grid {
+/* =====================================================
+   CHIPS
+===================================================== */
+.ari-identity-page .ari-chip-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
-
-.ari-chip {
-  border: 1px solid rgba(103,232,249,.22);
+.ari-identity-page .ari-chip {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid rgba(103, 232, 249, 0.22);
   border-radius: 999px;
-  padding: 8px 10px;
-  background: rgba(2,6,23,.64);
+  background: rgba(2, 6, 23, 0.64);
   color: var(--ari-cyan-pale);
-  font-size: .72rem;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.ari-chip.active {
-  background: rgba(34,211,238,.18);
-  border-color: rgba(103,232,249,.62);
-  color: white;
-  box-shadow: 0 0 16px rgba(34,211,238,.15);
-}
-
-.ari-primary-action {
-  width: 100%;
-  margin-top: 18px;
-  border: 1px solid rgba(103,232,249,.44);
-  border-radius: 20px;
-  min-height: 56px;
-  background: linear-gradient(
-    135deg,
-    rgba(8,145,178,.95),
-    rgba(34,211,238,.88)
-  );
-  color: white;
   font-family: inherit;
-  font-weight: 950;
-  letter-spacing: .08em;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
+}
+.ari-identity-page .ari-chip:not(:disabled):hover {
+  border-color: rgba(103, 232, 249, 0.48);
+  background: rgba(34, 211, 238, 0.10);
+}
+.ari-identity-page .ari-chip:not(:disabled):active {
+  transform: scale(0.97);
+}
+.ari-identity-page .ari-chip.active,
+.ari-identity-page .ari-chip[aria-pressed="true"] {
+  border-color: rgba(103, 232, 249, 0.62);
+  background: rgba(34, 211, 238, 0.18);
+  color: #ffffff;
+  box-shadow:
+    0 0 16px rgba(34, 211, 238, 0.15);
+}
+.ari-identity-page .ari-chip:focus-visible {
+  outline: 2px solid var(--ari-cyan-soft);
+  outline-offset: 3px;
+}
+.ari-identity-page .ari-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* =====================================================
+   PRIMARY ACTION
+===================================================== */
+.ari-identity-page .ari-primary-action {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 18px;
+  padding: 12px 16px;
+  border: 1px solid rgba(103, 232, 249, 0.44);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(8, 145, 178, 0.95),
+      rgba(34, 211, 238, 0.88)
+    );
+  color: #ffffff;
+  font-family: inherit;
+  font-weight: 900;
+  letter-spacing: 0.08em;
   cursor: pointer;
   box-shadow:
-    0 0 24px rgba(34,211,238,.26),
-    inset 0 0 20px rgba(255,255,255,.10);
+    0 0 24px rgba(34, 211, 238, 0.26),
+    inset 0 0 20px rgba(255, 255, 255, 0.10);
+  transition:
+    box-shadow 160ms ease,
+    filter 160ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
 }
-
-.ari-status {
+.ari-identity-page
+  .ari-primary-action:not(:disabled):hover {
+  filter: brightness(1.07);
+  box-shadow:
+    0 0 30px rgba(34, 211, 238, 0.34),
+    inset 0 0 20px rgba(255, 255, 255, 0.12);
+}
+.ari-identity-page
+  .ari-primary-action:not(:disabled):active {
+  transform: scale(0.985);
+}
+.ari-identity-page .ari-primary-action:focus-visible {
+  outline: 2px solid var(--ari-cyan-soft);
+  outline-offset: 3px;
+}
+.ari-identity-page .ari-primary-action:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  filter: none;
+}
+/* =====================================================
+   STATUS
+===================================================== */
+.ari-identity-page .ari-status {
   min-height: 22px;
   margin: 14px 2px 0;
   color: var(--ari-cyan-pale);
-  font-size: .78rem;
-  font-weight: 850;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
   line-height: 1.35;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow-wrap: anywhere;
 }
-
-.ari-status.error {
+.ari-identity-page .ari-status.error {
   color: #fecaca;
 }
-
-.ari-status.success {
+.ari-identity-page .ari-status.success {
   color: #bbf7d0;
 }
-
-.ari-footer-note {
+/* =====================================================
+   FOOTER
+===================================================== */
+.ari-identity-page .ari-footer-note {
   margin: 18px 4px 0;
   color: var(--ari-muted);
-  font-size: .74rem;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
   line-height: 1.45;
   text-align: center;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 650;
-}
-
-@media (min-width: 768px) {
-  .ari-identity-page {
-    width: min(520px,100%);
-    padding-top: 24px;
-  }
-
-  .ari-page-title {
-    font-size: 2.4rem;
-  }
-
-  .ari-page-hero,
-  .ari-panel {
-    border-radius: 30px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body::after {
-    animation: none;
-  }
+  overflow-wrap: anywhere;
 }
 /* =====================================================
-ARI REBIRTH
-File: identity.css
-Version: 1.0.0
-
-Purpose:
-  Styles for the My Identity page.
-
-Responsibilities:
-  - Identity page layout
-  - Identity card
-  - Display name
-  - Email section
-  - Inputs
-  - Buttons
-  - Status messages
-
-Dependencies:
-  - animations.css (optional)
-
+   LEGACY PROFILE COMPATIBILITY
+   Keep only while older identity HTML still uses:
+   - .profile-page
+   - .profile-card
+   - .profile-input
+   - .profile-btn
+   Delete this section after the HTML is fully migrated
+   to the .ari-identity-page component system.
 ===================================================== */
-.profile-page {
+.ari-identity-page .profile-page {
+  width: 100%;
   max-width: 430px;
   margin: 0 auto;
   padding: 20px;
 }
-
-.profile-card {
-  background: rgba(255, 255, 255, 0.08);
+.ari-identity-page .profile-card {
+  margin-top: 20px;
+  padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 24px;
-  padding: 20px;
-  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.08);
 }
-
-.profile-card h2 {
+.ari-identity-page .profile-card h2 {
   margin-top: 0;
 }
-
-.profile-label {
+.ari-identity-page .profile-label {
   margin: 15px 0 8px;
   font-weight: 800;
 }
-
-.profile-email {
+.ari-identity-page .profile-email {
   margin: 10px 0 15px;
   font-weight: 700;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
-
-.profile-input {
+.ari-identity-page .profile-input {
   width: 100%;
-  box-sizing: border-box;
-  padding: 14px;
   margin-bottom: 10px;
-
-  border-radius: 14px;
+  padding: 14px;
   border: 1px solid rgba(45, 212, 191, 0.45);
-
-  background: rgba(2, 6, 23, 0.85);
-  color: white;
-
-  font-weight: 800;
+  border-radius: 14px;
   outline: none;
+  background: rgba(2, 6, 23, 0.85);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
 }
-
-.profile-input:focus {
+.ari-identity-page .profile-input:focus {
   border-color: #67e8f9;
-  box-shadow: 0 0 18px rgba(103, 232, 249, 0.25);
+  box-shadow:
+    0 0 18px rgba(103, 232, 249, 0.25);
 }
-
-.profile-btn {
+.ari-identity-page .profile-btn {
   width: 100%;
   margin-top: 10px;
-
   padding: 14px;
-
-  border: none;
+  border: 0;
   border-radius: 16px;
-
+  font-family: inherit;
   font-weight: 900;
   cursor: pointer;
 }
-
-.primary-btn {
+.ari-identity-page .profile-btn.primary-btn {
   background: #2dd4bf;
-  color: white;
+  color: #ffffff;
 }
-
-.secondary-btn {
+.ari-identity-page .profile-btn.secondary-btn {
   background: #0891b2;
-  color: white;
+  color: #ffffff;
 }
-
-.danger-btn {
+.ari-identity-page .profile-btn.danger-btn {
   background: #ef4444;
-  color: white;
+  color: #ffffff;
 }
-
-.home-btn {
-  background: linear-gradient(135deg, #0891b2, #22d3ee);
-  color: white;
+.ari-identity-page .profile-btn.home-btn {
   margin-bottom: 16px;
+  background:
+    linear-gradient(
+      135deg,
+      #0891b2,
+      #22d3ee
+    );
+  color: #ffffff;
 }
-
-.status-text {
+.ari-identity-page .status-text {
   margin-top: 10px;
+  color: #67e8f9;
   font-size: 14px;
   font-weight: 800;
-  color: #67e8f9;
+}
+/* =====================================================
+   SMALL MOBILE SCREENS
+===================================================== */
+@media (max-width: 380px) {
+  .ari-identity-page {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  .ari-identity-page .ari-page-hero {
+    padding: 21px 17px;
+    border-radius: 24px;
+  }
+  .ari-identity-page .ari-panel {
+    border-radius: 24px;
+  }
+  .ari-identity-page .ari-panel-header {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+  .ari-identity-page .ari-form {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+  .ari-identity-page .ari-page-title {
+    font-size: 1.75rem;
+  }
+}
+/* =====================================================
+   TABLET / DESKTOP
+===================================================== */
+@media (min-width: 768px) {
+  .ari-identity-page {
+    width: min(520px, 100%);
+    padding-top: 24px;
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+  .ari-identity-page .ari-page-title {
+    font-size: 2.4rem;
+  }
+  .ari-identity-page .ari-page-hero,
+  .ari-identity-page .ari-panel {
+    border-radius: 30px;
+  }
+}
+/* =====================================================
+   REDUCED MOTION
+===================================================== */
+@media (prefers-reduced-motion: reduce) {
+  body:has(.ari-identity-page)::after {
+    animation: none;
+  }
+  .ari-identity-page
+    :is(
+      .ari-back-btn,
+      .ari-mini-btn,
+      .ari-input,
+      .ari-textarea,
+      .ari-chip,
+      .ari-primary-action,
+      .profile-btn
+    ) {
+    transition: none;
+  }
 }
