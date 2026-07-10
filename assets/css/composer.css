@@ -51,7 +51,7 @@ main#ariApp {
 }
 
 main#ariApp.ari-keyboard-mode {
-  --ari-composer-bottom: 72px;
+  --ari-composer-bottom: 90px;
 }
 /* =====================================================
    COMPOSER DOCK
