@@ -128,6 +128,24 @@ function applyInterestChips(interestsText = "") {
   });
 }
 
+function getCustomInterests(interestsText = "") {
+  let customText = String(interestsText || "").trim();
+
+  selectedInterests.forEach((interest) => {
+    const escapedInterest = interest.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    customText = customText
+      .replace(new RegExp(`(^|,\\s*)${escapedInterest}(?=,|\\.|$)`, "gi"), "")
+      .trim();
+  });
+
+  return customText
+    .replace(/^,\s*/, "")
+    .replace(/,\s*,/g, ", ")
+    .replace(/^\.\s*/, "")
+    .trim();
+}
+
 function buildInterestsValue() {
   const typed = getField("interests");
   const chipText = selectedInterests.join(", ");
@@ -183,11 +201,11 @@ async function loadIdentity() {
   setField("location", data?.location || "");
   setField("occupation", data?.occupation || "");
   setField("languages", data?.languages || "");
-  setField("interests", data?.interests || "");
-  setField("aboutMe", data?.about_me || "");
+  const savedInterests = data?.interests || "";
 
-  applyInterestChips(data?.interests || "");
-
+applyInterestChips(savedInterests);
+setField("interests", getCustomInterests(savedInterests));
+setField("aboutMe", data?.about_me || "");
   setStatus("Identity loaded.", "success");
 }
 
