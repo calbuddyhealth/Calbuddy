@@ -142,7 +142,7 @@ async function startInitialization(name = "", isReturning = true) {
   }
 
   await wait(500);
-  window.location.href = "home.html";
+  window.location.replace("home.html");
 }
 
 async function handleLogin() {
@@ -309,5 +309,20 @@ loginBtn.addEventListener("click", handleLogin);
 signupBtn.addEventListener("click", handleSignup);
 forgotPasswordBtn.addEventListener("click", handleForgotPassword);
 
-setMode("login");
-playHeaderBoot();
+async function initializeSignInPage() {
+  try {
+    const session = await getCurrentSession();
+
+    if (session?.user) {
+      window.location.replace("home.html");
+      return;
+    }
+  } catch (error) {
+    console.warn("Existing session check failed:", error);
+  }
+
+  setMode("login");
+  await playHeaderBoot();
+}
+
+initializeSignInPage();
