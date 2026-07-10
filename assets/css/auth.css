@@ -779,17 +779,19 @@ body.ari-auth-body::before {
 
 .ari-auth-body .ari-init-screen {
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: center;
 
   width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
 
   padding:
-    calc(46px + env(safe-area-inset-top))
+    calc(32px + env(safe-area-inset-top))
     22px
-    calc(46px + env(safe-area-inset-bottom));
+    calc(32px + env(safe-area-inset-bottom));
+
+  overflow: hidden;
 
   background: #000000;
   color: #9ffcff;
@@ -800,10 +802,9 @@ body.ari-auth-body::before {
    TERMINAL SHELL
 ===================================================== */
 
-.ari-auth-body
-  :is(.ari-terminal-shell, .ari-init-terminal) {
+.ari-auth-body .ari-terminal-shell {
   width: 100%;
-  min-height: auto;
+  height: 220px;
 
   margin: 0;
   padding: 0;
@@ -816,6 +817,8 @@ body.ari-auth-body::before {
   background: #000000;
 
   box-shadow: none;
+
+  transform: translateY(-7vh);
 }
 
 .ari-auth-body
@@ -829,7 +832,19 @@ body.ari-auth-body::before {
 ===================================================== */
 
 .ari-auth-body .ari-init-terminal {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  width: 100%;
+  height: 220px;
+
+  margin: 0;
+  padding: 0;
+
+  overflow: visible;
+
+  background: #000000;
 
   font-family:
     "Courier New",
