@@ -1,49 +1,62 @@
 /* =====================================================
    ARI HOME PAGE
-   Version: 1.1.1 
+   File: home.css
+   Version: 1.1.2
+
    Purpose:
    - Control the home-page container and welcome state
    - Preserve safe-area spacing
    - Support conversation and keyboard modes
    - Style pending-action confirmations
+
    Non-responsibilities:
    - Header component styling belongs in header.css
    - Avatar styling belongs in avatar.css
    - Composer styling belongs in composer.css
-   - Conversation thread styling belongs in conversations.css
+   - Conversation thread styling belongs in conversation-history.css
+===================================================== */
+
 
 /* =====================================================
    WELCOME MODE — VIEWPORT LOCK
 ===================================================== */
 
-html:has(.ari-v1-home.welcome-mode),
-body:has(.ari-v1-home.welcome-mode) {
+html:has(main#ariApp.welcome-mode),
+body:has(main#ariApp.welcome-mode) {
   width: 100%;
   height: 100%;
   min-height: 100%;
+
   overflow: hidden;
+
   overscroll-behavior: none;
 }
 
-body:has(.ari-v1-home.welcome-mode) {
-  position: fixed;
-  inset: 0;
+body:has(main#ariApp.welcome-mode) {
+  margin: 0;
 }
+
 
 /* =====================================================
    HOME PAGE CONTAINER
 ===================================================== */
-.ari-v1-home {
+
+main#ariApp.ari-v1-home {
   position: relative;
+
   width: min(430px, 100%);
   min-height: 100vh;
   min-height: 100dvh;
+
   margin: 0 auto;
+
   padding:
     calc(10px + env(safe-area-inset-top))
     14px
     calc(120px + env(safe-area-inset-bottom));
-  overflow: hidden;
+
+  overflow-x: hidden;
+
   background:
     radial-gradient(
       circle at 50% 6%,
@@ -61,7 +74,9 @@ body:has(.ari-v1-home.welcome-mode) {
       #07111f 48%,
       #020617 100%
     );
+
   color: #f8fafc;
+
   font-family:
     Orbitron,
     system-ui,
@@ -69,28 +84,33 @@ body:has(.ari-v1-home.welcome-mode) {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+
   isolation: isolate;
 }
+
 
 /* =====================================================
    HOME STATE SCROLLING
 ===================================================== */
 
-.ari-v1-home.welcome-mode {
+main#ariApp.welcome-mode {
   height: 100vh;
   height: 100dvh;
-  min-height: 0;
+  min-height: 100dvh;
+
   overflow: hidden;
+
+  overscroll-behavior: none;
 }
 
-.ari-v1-home.conversation-mode {
+main#ariApp.conversation-mode {
   height: auto;
   min-height: 100vh;
   min-height: 100dvh;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
 
+  overflow-x: hidden;
+  overflow-y: visible;
+}
 /* =====================================================
    AMBIENT GRID
 ===================================================== */
