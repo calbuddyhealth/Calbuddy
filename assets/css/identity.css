@@ -356,3 +356,112 @@ body::after {
     animation: none;
   }
 }
+/* =====================================================
+ARI REBIRTH
+File: profile.css
+Version: 1.0.0
+
+Purpose:
+  Styles for the Profile page.
+
+Responsibilities:
+  - Profile page layout
+  - Profile card
+  - Inputs
+  - Buttons
+  - Status text
+
+Dependencies:
+  - animations.css (optional)
+===================================================== */
+
+.profile-page {
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.profile-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.profile-card h2 {
+  margin-top: 0;
+}
+
+.profile-label {
+  margin: 15px 0 8px;
+  font-weight: 800;
+}
+
+.profile-email {
+  margin: 10px 0 15px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.profile-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+  margin-bottom: 10px;
+
+  border-radius: 14px;
+  border: 1px solid rgba(45, 212, 191, 0.45);
+
+  background: rgba(2, 6, 23, 0.85);
+  color: white;
+
+  font-weight: 800;
+  outline: none;
+}
+
+.profile-input:focus {
+  border-color: #67e8f9;
+  box-shadow: 0 0 18px rgba(103, 232, 249, 0.25);
+}
+
+.profile-btn {
+  width: 100%;
+  margin-top: 10px;
+
+  padding: 14px;
+
+  border: none;
+  border-radius: 16px;
+
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.primary-btn {
+  background: #2dd4bf;
+  color: white;
+}
+
+.secondary-btn {
+  background: #0891b2;
+  color: white;
+}
+
+.danger-btn {
+  background: #ef4444;
+  color: white;
+}
+
+.home-btn {
+  background: linear-gradient(135deg, #0891b2, #22d3ee);
+  color: white;
+  margin-bottom: 16px;
+}
+
+.status-text {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #67e8f9;
+}
