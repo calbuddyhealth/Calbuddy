@@ -358,23 +358,25 @@ body::after {
 }
 /* =====================================================
 ARI REBIRTH
-File: profile.css
+File: identity.css
 Version: 1.0.0
 
 Purpose:
-  Styles for the Profile page.
+  Styles for the My Identity page.
 
 Responsibilities:
-  - Profile page layout
-  - Profile card
+  - Identity page layout
+  - Identity card
+  - Display name
+  - Email section
   - Inputs
   - Buttons
-  - Status text
+  - Status messages
 
 Dependencies:
   - animations.css (optional)
-===================================================== */
 
+===================================================== */
 .profile-page {
   max-width: 430px;
   margin: 0 auto;
