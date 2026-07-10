@@ -1,74 +1,15 @@
 /* =====================================================
-   ARI ACCOUNT PAGE — SCROLL + DESKTOP STABILITY
+   ARI ACCOUNT PAGE
+   Version: 1.1.0
+   Purpose:
+   - Account page visual system
+   - Stable page scrolling
+   - Mobile safe-area support
+   - Tablet and desktop layout
 ===================================================== */
-
-body:has(.ari-account-page) {
-  position: static !important;
-  height: auto !important;
-  min-height: 100dvh !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  display: block !important;
-}
-
-html:has(.ari-account-page) {
-  height: auto !important;
-  min-height: 100% !important;
-  overflow-y: auto !important;
-}
-
-body:has(.ari-account-page)::before,
-body:has(.ari-account-page)::after {
-  position: fixed;
-  z-index: 0;
-}
-
-.ari-account-page {
-  position: relative;
-  z-index: 2;
-  min-height: 100dvh;
-  padding-bottom: 160px !important;
-  overflow: visible !important;
-}
-
 /* =====================================================
-   Desktop / Tablet
+   Design Tokens
 ===================================================== */
-
-@media (min-width: 768px) {
-
-  .ari-account-page {
-    width: min(520px, 100%);
-    padding-top: 24px;
-  }
-
-  .ari-page-title {
-    font-size: 2.4rem;
-  }
-
-  .ari-page-hero,
-  .ari-panel {
-    border-radius: 30px;
-  }
-
-}
-
-/* =====================================================
-   Safari Fix
-===================================================== */
-
-@supports (-webkit-touch-callout: none) {
-
-  .ari-account-page {
-    padding-bottom: 140px !important;
-  }
-
-}
-
-/* =====================================================
-ARI ACCOUNT PAGE
-===================================================== */
-
 :root {
   --ari-bg: #020617;
   --ari-panel: rgba(8, 20, 38, 0.78);
@@ -83,60 +24,131 @@ ARI ACCOUNT PAGE
   --ari-warning: #f97316;
   --ari-success: #22c55e;
 }
-
-* {
+/* =====================================================
+   Box Sizing
+===================================================== */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(34,211,238,.18), transparent 30%),
-    radial-gradient(circle at 15% 25%, rgba(34,211,238,.10), transparent 28%),
-    radial-gradient(circle at 85% 75%, rgba(103,232,249,.08), transparent 30%),
-    linear-gradient(180deg,#020617 0%,#07111f 48%,#020617 100%);
-  color: var(--ari-text);
-  font-family: Orbitron, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+/* =====================================================
+   Account Page Body Reset
+===================================================== */
+html:has(.ari-account-page) {
+  height: auto;
+  min-height: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
 }
-
-body::before {
+body:has(.ari-account-page) {
+  position: static !important;
+  display: block !important;
+  width: 100%;
+  height: auto !important;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(34, 211, 238, 0.18),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 15% 25%,
+      rgba(34, 211, 238, 0.10),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 85% 75%,
+      rgba(103, 232, 249, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      #020617 0%,
+      #07111f 48%,
+      #020617 100%
+    );
+  color: var(--ari-text);
+  font-family:
+    Orbitron,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+/* =====================================================
+   Background Effects
+===================================================== */
+body:has(.ari-account-page)::before {
   content: "";
   position: fixed;
+  z-index: 0;
   inset: 0;
   background-image:
-    linear-gradient(rgba(103,232,249,.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(103,232,249,.045) 1px, transparent 1px);
+    linear-gradient(
+      rgba(103, 232, 249, 0.045) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(103, 232, 249, 0.045) 1px,
+      transparent 1px
+    );
   background-size: 42px 42px;
-  mask-image: radial-gradient(circle at center, black 0%, transparent 76%);
+  -webkit-mask-image:
+    radial-gradient(
+      circle at center,
+      black 0%,
+      transparent 76%
+    );
+  mask-image:
+    radial-gradient(
+      circle at center,
+      black 0%,
+      transparent 76%
+    );
   pointer-events: none;
 }
-
-body::after {
+body:has(.ari-account-page)::after {
   content: "";
   position: fixed;
+  z-index: 0;
   inset: -30%;
   background:
     linear-gradient(
       115deg,
       transparent 42%,
-      rgba(103,232,249,.10) 50%,
+      rgba(103, 232, 249, 0.10) 50%,
       transparent 58%
     );
   animation: ariAccountSweep 8s linear infinite;
   pointer-events: none;
 }
-
+/* =====================================================
+   Main Account Layout
+===================================================== */
 .ari-account-page {
   position: relative;
   z-index: 2;
-  width: min(430px,100%);
+  width: min(430px, 100%);
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: 14px 16px 32px;
+  padding:
+    14px
+    16px
+    calc(120px + env(safe-area-inset-bottom));
+  overflow: visible;
 }
-
+/* =====================================================
+   Header
+===================================================== */
 .ari-account-header {
   display: flex;
   align-items: center;
@@ -144,64 +156,87 @@ body::after {
   gap: 12px;
   padding: 10px 0 18px;
 }
-
 .ari-back-btn,
 .ari-mini-btn {
-  border: 1px solid var(--ari-border);
-  border-radius: 16px;
   min-height: 42px;
   padding: 10px 14px;
-  background: rgba(2,6,23,.72);
+  border: 1px solid var(--ari-border);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.72);
   color: var(--ari-cyan-pale);
   font-family: inherit;
   font-weight: 900;
   cursor: pointer;
-  box-shadow: 0 0 18px rgba(34,211,238,.08);
+  box-shadow:
+    0 0 18px rgba(34, 211, 238, 0.08);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
 }
-
+.ari-back-btn:hover,
+.ari-mini-btn:hover {
+  border-color: rgba(103, 232, 249, 0.5);
+  box-shadow:
+    0 0 22px rgba(34, 211, 238, 0.16);
+}
 .ari-back-btn:active,
-.ari-mini-btn:active,
-.ari-action-card:active,
-.ari-primary-action:active {
-  transform: scale(.985);
+.ari-mini-btn:active {
+  transform: scale(0.985);
 }
-
+.ari-back-btn:focus-visible,
+.ari-mini-btn:focus-visible,
+.ari-action-card:focus-visible,
+.ari-primary-action:focus-visible {
+  outline: 2px solid var(--ari-cyan-soft);
+  outline-offset: 3px;
+}
+/* =====================================================
+   Brand
+===================================================== */
 .ari-brand-mark {
-  text-align: center;
   flex: 1;
+  text-align: center;
 }
-
 .ari-brand-title {
   margin: 0;
-  font-family: Audiowide, Orbitron, sans-serif;
-  font-size: 1.24rem;
-  letter-spacing: .10em;
   color: var(--ari-text);
-  text-shadow: 0 0 18px rgba(34,211,238,.28);
+  font-family:
+    Audiowide,
+    Orbitron,
+    sans-serif;
+  font-size: 1.24rem;
+  letter-spacing: 0.10em;
+  text-shadow:
+    0 0 18px rgba(34, 211, 238, 0.28);
 }
-
 .ari-brand-subtitle {
   margin: 3px 0 0;
-  font-size: .62rem;
-  letter-spacing: .22em;
   color: var(--ari-cyan-soft);
+  font-size: 0.62rem;
   font-weight: 800;
+  letter-spacing: 0.22em;
 }
-
+/* =====================================================
+   Page Hero
+===================================================== */
 .ari-page-hero {
+  position: relative;
   margin: 8px 0 18px;
   padding: 24px 20px;
+  overflow: hidden;
+  border: 1px solid var(--ari-border);
   border-radius: 28px;
   background:
-    linear-gradient(180deg,rgba(15,23,42,.92),rgba(2,6,23,.72));
-  border: 1px solid var(--ari-border);
+    linear-gradient(
+      180deg,
+      rgba(15, 23, 42, 0.92),
+      rgba(2, 6, 23, 0.72)
+    );
   box-shadow:
-    0 0 34px rgba(34,211,238,.12),
-    inset 0 0 30px rgba(103,232,249,.04);
-  overflow: hidden;
-  position: relative;
+    0 0 34px rgba(34, 211, 238, 0.12),
+    inset 0 0 30px rgba(103, 232, 249, 0.04);
 }
-
 .ari-page-hero::before {
   content: "";
   position: absolute;
@@ -216,236 +251,332 @@ body::after {
       var(--ari-cyan-soft),
       transparent
     );
-  opacity: .8;
+  opacity: 0.8;
 }
-
 .ari-page-kicker {
   margin: 0 0 8px;
   color: var(--ari-cyan-soft);
-  font-size: .68rem;
+  font-size: 0.68rem;
   font-weight: 900;
-  letter-spacing: .26em;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
 }
-
 .ari-page-title {
   margin: 0;
+  font-family:
+    Audiowide,
+    Orbitron,
+    sans-serif;
   font-size: 2rem;
   line-height: 1;
-  letter-spacing: .05em;
-  font-family: Audiowide, Orbitron, sans-serif;
+  letter-spacing: 0.05em;
 }
-
 .ari-page-description {
   margin: 12px 0 0;
   color: var(--ari-muted);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
   line-height: 1.55;
-  font-size: .92rem;
-  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-weight: 650;
 }
-
+/* =====================================================
+   Panels
+===================================================== */
 .ari-panel {
   margin-top: 16px;
-  border-radius: 26px;
-  border: 1px solid var(--ari-border);
-  background:
-    linear-gradient(180deg,rgba(15,23,42,.88),rgba(2,6,23,.70));
-  box-shadow:
-    0 0 26px rgba(34,211,238,.10),
-    inset 0 0 24px rgba(103,232,249,.035);
   overflow: hidden;
+  border: 1px solid var(--ari-border);
+  border-radius: 26px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 23, 42, 0.88),
+      rgba(2, 6, 23, 0.70)
+    );
+  box-shadow:
+    0 0 26px rgba(34, 211, 238, 0.10),
+    inset 0 0 24px rgba(103, 232, 249, 0.035);
 }
-
 .ari-panel-header {
   padding: 18px 18px 10px;
 }
-
 .ari-section-title {
   margin: 0;
-  font-size: .78rem;
-  letter-spacing: .20em;
-  text-transform: uppercase;
   color: var(--ari-cyan-soft);
+  font-size: 0.78rem;
   font-weight: 900;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
 }
-
 .ari-section-subtitle {
   margin: 8px 0 0;
   color: var(--ari-muted);
-  font-size: .84rem;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.84rem;
+  font-weight: 600;
   line-height: 1.45;
-  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-weight: 650;
 }
-
+/* =====================================================
+   Account Email
+===================================================== */
 .ari-account-email-box {
   margin: 0 18px 18px;
   padding: 16px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
   border-radius: 18px;
-  border: 1px solid rgba(103,232,249,.18);
-  background: rgba(2,6,23,.72);
+  background: rgba(2, 6, 23, 0.72);
 }
-
 .ari-field-label {
   display: block;
-  color: var(--ari-cyan-soft);
-  font-size: .68rem;
-  font-weight: 900;
-  letter-spacing: .16em;
-  text-transform: uppercase;
   margin-bottom: 8px;
+  color: var(--ari-cyan-soft);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
-
 .ari-email-value {
   color: var(--ari-text);
-  font-size: .96rem;
-  font-weight: 850;
-  word-break: break-word;
-  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.96rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
 }
-
+/* =====================================================
+   Action List
+===================================================== */
 .ari-action-list {
-  padding: 0 14px 16px;
   display: grid;
   gap: 10px;
+  padding: 0 14px 16px;
 }
-
 .ari-action-card {
-  width: 100%;
-  border: 1px solid rgba(103,232,249,.18);
-  border-radius: 20px;
-  padding: 16px;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  width: 100%;
   gap: 12px;
-  text-align: left;
-  cursor: pointer;
+  padding: 16px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 20px;
   background:
-    linear-gradient(135deg,rgba(2,6,23,.86),rgba(8,47,73,.46));
+    linear-gradient(
+      135deg,
+      rgba(2, 6, 23, 0.86),
+      rgba(8, 47, 73, 0.46)
+    );
   color: var(--ari-text);
   font-family: inherit;
+  text-align: left;
+  cursor: pointer;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease,
     transform 120ms ease;
 }
-
-.ari-action-card:hover {
-  border-color: rgba(103,232,249,.5);
-  box-shadow: 0 0 22px rgba(34,211,238,.16);
+.ari-action-card:not(:disabled):hover {
+  border-color: rgba(103, 232, 249, 0.5);
+  box-shadow:
+    0 0 22px rgba(34, 211, 238, 0.16);
 }
-
+.ari-action-card:not(:disabled):active {
+  transform: scale(0.985);
+}
+.ari-action-card:disabled,
 .ari-action-card[disabled] {
-  opacity: .56;
+  opacity: 0.56;
   cursor: not-allowed;
 }
-
-.ari-action-card[disabled]:hover {
-  border-color: rgba(103,232,249,.18);
-  box-shadow: none;
-}
-
 .ari-action-title {
   margin: 0;
-  color: white;
-  font-weight: 950;
-  font-size: .92rem;
-  letter-spacing: .05em;
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
 }
-
 .ari-action-text {
   margin: 6px 0 0;
   color: var(--ari-muted);
-  font-size: .78rem;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.78rem;
   line-height: 1.35;
-  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
-
 .ari-action-arrow {
   color: var(--ari-cyan-soft);
   font-size: 1.4rem;
   font-weight: 900;
 }
-
 .ari-coming-soon {
-  color: var(--ari-muted);
-  border: 1px solid rgba(148,163,184,.18);
-  border-radius: 999px;
   padding: 5px 9px;
-  font-size: .62rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  color: var(--ari-muted);
+  font-size: 0.62rem;
   font-weight: 900;
-  letter-spacing: .09em;
+  letter-spacing: 0.09em;
+  white-space: nowrap;
 }
-
+/* =====================================================
+   Primary Action
+===================================================== */
 .ari-primary-action {
   width: calc(100% - 28px);
-  margin: 2px 14px 16px;
   min-height: 54px;
-  border: 1px solid rgba(103,232,249,.44);
+  margin: 2px 14px 16px;
+  border: 1px solid rgba(103, 232, 249, 0.44);
   border-radius: 20px;
   background:
-    linear-gradient(135deg,rgba(8,145,178,.95),rgba(34,211,238,.88));
-  color: white;
+    linear-gradient(
+      135deg,
+      rgba(8, 145, 178, 0.95),
+      rgba(34, 211, 238, 0.88)
+    );
+  color: #ffffff;
   font-family: inherit;
-  font-weight: 950;
-  letter-spacing: .08em;
+  font-weight: 900;
+  letter-spacing: 0.08em;
   cursor: pointer;
   box-shadow:
-    0 0 24px rgba(34,211,238,.26),
-    inset 0 0 20px rgba(255,255,255,.10);
+    0 0 24px rgba(34, 211, 238, 0.26),
+    inset 0 0 20px rgba(255, 255, 255, 0.10);
+  transition:
+    filter 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
 }
-
+.ari-primary-action:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 30px rgba(34, 211, 238, 0.34),
+    inset 0 0 20px rgba(255, 255, 255, 0.12);
+}
+.ari-primary-action:active {
+  transform: scale(0.985);
+}
+.ari-primary-action:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+  filter: none;
+}
+/* =====================================================
+   Danger State
+===================================================== */
 .ari-danger-panel {
-  border-color: rgba(239,68,68,.30);
+  border-color: rgba(239, 68, 68, 0.30);
 }
-
 .ari-danger-card {
-  border-color: rgba(239,68,68,.26);
+  border-color: rgba(239, 68, 68, 0.26);
   background:
-    linear-gradient(135deg,rgba(30,6,8,.88),rgba(69,10,10,.48));
+    linear-gradient(
+      135deg,
+      rgba(30, 6, 8, 0.88),
+      rgba(69, 10, 10, 0.48)
+    );
 }
-
+.ari-danger-card:not(:disabled):hover {
+  border-color: rgba(248, 113, 113, 0.52);
+  box-shadow:
+    0 0 22px rgba(239, 68, 68, 0.14);
+}
 .ari-danger-card .ari-action-title,
 .ari-danger-card .ari-action-arrow {
   color: #fecaca;
 }
-
+/* =====================================================
+   Status Messages
+===================================================== */
 .ari-status {
   min-height: 22px;
   margin: 8px 16px 0;
   color: var(--ari-cyan-pale);
-  font-size: .78rem;
-  font-weight: 850;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
-
 .ari-status.error {
   color: #fecaca;
 }
-
 .ari-status.success {
   color: #bbf7d0;
 }
-
+/* =====================================================
+   Footer
+===================================================== */
 .ari-footer-note {
   margin: 18px 4px 0;
-  text-align: center;
   color: var(--ari-muted);
-  font-size: .74rem;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.74rem;
   line-height: 1.45;
-  font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  text-align: center;
 }
-
+/* =====================================================
+   Animations
+===================================================== */
+@keyframes ariAccountSweep {
+  0% {
+    transform: translate3d(-8%, -4%, 0);
+  }
+  50% {
+    transform: translate3d(8%, 4%, 0);
+  }
+  100% {
+    transform: translate3d(-8%, -4%, 0);
+  }
+}
+/* =====================================================
+   Reduced Motion
+===================================================== */
 @media (prefers-reduced-motion: reduce) {
-  body::after {
+  body:has(.ari-account-page)::after {
     animation: none;
   }
-
   .ari-action-card,
   .ari-primary-action,
   .ari-back-btn,
   .ari-mini-btn {
     transition: none;
+  }
+}
+/* =====================================================
+   Tablet / Desktop
+===================================================== */
+@media (min-width: 768px) {
+  .ari-account-page {
+    width: min(520px, 100%);
+    padding-top: 24px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .ari-page-title {
+    font-size: 2.4rem;
+  }
+  .ari-page-hero,
+  .ari-panel {
+    border-radius: 30px;
   }
 }
