@@ -169,7 +169,7 @@ async function loadIdentity() {
       "display_name,birthday,pronouns,location,occupation,languages,interests,about_me"
     )
     .eq("id", session.user.id)
-    .single();
+.maybeSingle();
 
   if (error) {
     console.warn(
