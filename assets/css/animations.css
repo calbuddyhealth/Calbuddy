@@ -1,109 +1,191 @@
 /* =====================================================
-ARI ANIMATIONS
+   ARI ANIMATIONS
+   Version: 1.1.0
+   Purpose:
+   - Central animation library for Ari Rebirth
+   - Conversation and avatar motion
+   - Hero and composer effects
+   - Ambient background effects
+   - Navigation and menu effects
+   - Account, identity, and nutrition page effects
+   Important:
+   - Animation assignments belong in the page/component CSS.
+   - This file should contain keyframes only.
 ===================================================== */
-
-/* Conversation */
+/* =====================================================
+   CONVERSATION
+===================================================== */
 @keyframes conversationFadeIn {
-  from { opacity: 0; transform: translateY(18px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-
-/* Hero */
+/* =====================================================
+   HERO
+===================================================== */
 @keyframes ariHeroBreathe {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-4px) scale(1.012); }
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.012);
+  }
 }
-
 @keyframes ariHeroHaloPulse {
-  0%,100% { opacity:.42; transform:translate(-50%,-50%) scale(1); }
-  50% { opacity:.72; transform:translate(-50%,-50%) scale(1.08); }
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
 }
-
-/* Avatar */
+/* =====================================================
+   AVATAR
+===================================================== */
 @keyframes avatarArrive {
-  from { opacity: 0; transform: translateY(8px) scale(0.82); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
-
 @keyframes avatarThinkingRing {
-  0%, 100% {
-    box-shadow: 0 0 12px rgba(34,211,238,.24), inset 0 1px 0 rgba(255,255,255,.14);
+  0%,
+  100% {
+    box-shadow:
+      0 0 12px rgba(34, 211, 238, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
   }
   50% {
-    box-shadow: 0 0 26px rgba(34,211,238,.58), inset 0 1px 0 rgba(255,255,255,.20);
+    box-shadow:
+      0 0 26px rgba(34, 211, 238, 0.58),
+      inset 0 1px 0 rgba(255, 255, 255, 0.20);
   }
 }
-
 @keyframes ariAvatarBreath {
-  0%,100% { transform:translateY(0) scale(1); }
-  50% { transform:translateY(-1px) scale(1.025); }
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.025);
+  }
 }
-
 @keyframes ariAvatarGlow {
-  0%,100% { filter:drop-shadow(0 0 6px rgba(34,211,238,.18)); }
-  50% { filter:drop-shadow(0 0 13px rgba(34,211,238,.42)); }
+  0%,
+  100% {
+    filter:
+      drop-shadow(0 0 6px rgba(34, 211, 238, 0.18));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 13px rgba(34, 211, 238, 0.42));
+  }
 }
-
-/* Ari idle */
+/* =====================================================
+   ARI IDLE
+===================================================== */
 @keyframes ariOrganicBreath {
-  0%,100% { transform:translateY(-115px) translateX(0) scale(1); }
-  35% { transform:translateY(-118px) translateX(1px) scale(1.008); }
-  70% { transform:translateY(-116px) translateX(-1px) scale(1.004); }
+  0%,
+  100% {
+    transform:
+      translateY(-115px)
+      translateX(0)
+      scale(1);
+  }
+  35% {
+    transform:
+      translateY(-118px)
+      translateX(1px)
+      scale(1.008);
+  }
+  70% {
+    transform:
+      translateY(-116px)
+      translateX(-1px)
+      scale(1.004);
+  }
 }
-
 @keyframes ariOrganicGlow {
-  0%,100% {
+  0%,
+  100% {
     filter:
-      drop-shadow(0 24px 34px rgba(0,0,0,.45))
-      drop-shadow(0 0 14px rgba(34,211,238,.16));
+      drop-shadow(0 24px 34px rgba(0, 0, 0, 0.45))
+      drop-shadow(0 0 14px rgba(34, 211, 238, 0.16));
   }
   50% {
     filter:
-      drop-shadow(0 26px 38px rgba(0,0,0,.48))
-      drop-shadow(0 0 26px rgba(34,211,238,.30));
+      drop-shadow(0 26px 38px rgba(0, 0, 0, 0.48))
+      drop-shadow(0 0 26px rgba(34, 211, 238, 0.30));
   }
 }
-
-/* Composer */
+/* =====================================================
+   COMPOSER
+===================================================== */
 @keyframes ariComposerBreath {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow:
-      0 0 20px rgba(34,211,238,.16),
-      0 0 42px rgba(34,211,238,.07),
-      0 24px 60px rgba(0,0,0,.46),
-      inset 0 1px 0 rgba(255,255,255,.16),
-      inset 0 -18px 34px rgba(0,0,0,.28);
+      0 0 20px rgba(34, 211, 238, 0.16),
+      0 0 42px rgba(34, 211, 238, 0.07),
+      0 24px 60px rgba(0, 0, 0, 0.46),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -18px 34px rgba(0, 0, 0, 0.28);
   }
   50% {
     box-shadow:
-      0 0 28px rgba(34,211,238,.25),
-      0 0 58px rgba(34,211,238,.11),
-      0 24px 60px rgba(0,0,0,.46),
-      inset 0 1px 0 rgba(255,255,255,.19),
-      inset 0 -18px 34px rgba(0,0,0,.28);
+      0 0 28px rgba(34, 211, 238, 0.25),
+      0 0 58px rgba(34, 211, 238, 0.11),
+      0 24px 60px rgba(0, 0, 0, 0.46),
+      inset 0 1px 0 rgba(255, 255, 255, 0.19),
+      inset 0 -18px 34px rgba(0, 0, 0, 0.28);
   }
 }
-
 @keyframes ariLedIdle {
-  0%,100% { opacity:.42; filter:brightness(.9); }
-  50% { opacity:.88; filter:brightness(1.25); }
+  0%,
+  100% {
+    opacity: 0.42;
+    filter: brightness(0.9);
+  }
+  50% {
+    opacity: 0.88;
+    filter: brightness(1.25);
+  }
 }
-
 @keyframes ariLedThinking {
-  from { background-position:120% 0; }
-  to { background-position:-120% 0; }
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
 }
-
 @keyframes ariReactorRotate {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
-
 @keyframes ariReactorRotateReverse {
-  to { transform: rotate(-360deg); }
+  to {
+    transform: rotate(-360deg);
+  }
 }
-
 @keyframes ariTypingPulse {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     opacity: 0.35;
     transform: translateY(0) scale(0.88);
   }
@@ -112,54 +194,110 @@ ARI ANIMATIONS
     transform: translateY(-3px) scale(1.08);
   }
 }
-
-/* Ambient */
+/* =====================================================
+   AMBIENT
+===================================================== */
 @keyframes ariAmbientPulse {
-  0%,100% { opacity:.26; transform:scale(1); filter:brightness(.95); }
-  50% { opacity:.42; transform:scale(1.018); filter:brightness(1.12); }
+  0%,
+  100% {
+    opacity: 0.26;
+    transform: scale(1);
+    filter: brightness(0.95);
+  }
+  50% {
+    opacity: 0.42;
+    transform: scale(1.018);
+    filter: brightness(1.12);
+  }
 }
-
 @keyframes ariGridDrift {
-  from { background-position:0 0,0 0; }
-  to { background-position:46px 46px,-46px 46px; }
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      46px 46px,
+      -46px 46px;
+  }
 }
-
 @keyframes ariThinkingField {
-  0%,100% { opacity:.34; filter:brightness(1); }
-  50% { opacity:.58; filter:brightness(1.28); }
+  0%,
+  100% {
+    opacity: 0.34;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.58;
+    filter: brightness(1.28);
+  }
 }
-
-/* Nav / Menu */
+/* =====================================================
+   NAVIGATION / MENU
+===================================================== */
 @keyframes ariMenuGridDrift {
-  from { background-position: 0 0, 0 0; }
-  to { background-position: 34px 34px, -34px 34px; }
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      34px 34px,
+      -34px 34px;
+  }
 }
-
 @keyframes ariMenuScan {
-  0%, 100% { opacity: .12; transform: translateY(-40px); }
-  50% { opacity: .38; transform: translateY(30px); }
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: translateY(-40px);
+  }
+  50% {
+    opacity: 0.38;
+    transform: translateY(30px);
+  }
 }
-
 @keyframes ariMenuReactorSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
-
 @keyframes ariMenuCardSweep {
-  from { left: -45%; opacity: 0; }
-  35% { opacity: 1; }
-  to { left: 110%; opacity: 0; }
+  from {
+    left: -45%;
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    left: 110%;
+    opacity: 0;
+  }
 }
-
 @keyframes ariNavLedPulse {
-  0%, 100% { opacity: 0.38; filter: brightness(0.85); }
-  50% { opacity: 1; filter: brightness(1.35); }
+  0%,
+  100% {
+    opacity: 0.38;
+    filter: brightness(0.85);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
 }
-
 @keyframes ariMenuMaterialize {
-  from { opacity: 0; filter: blur(12px); }
-  to { opacity: 1; filter: blur(0); }
+  from {
+    opacity: 0;
+    filter: blur(12px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
 }
-
 @keyframes ariNavCardIn {
   from {
     opacity: 0;
@@ -172,130 +310,128 @@ ARI ANIMATIONS
     filter: blur(0);
   }
 }
-
 @keyframes ariNavCardBreath {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow:
-      0 0 14px rgba(34,211,238,.16),
-      0 0 34px rgba(34,211,238,.07),
-      0 12px 30px rgba(0,0,0,.32),
-      inset 0 1px 0 rgba(255,255,255,.14),
-      inset 0 0 22px rgba(34,211,238,.045);
+      0 0 14px rgba(34, 211, 238, 0.16),
+      0 0 34px rgba(34, 211, 238, 0.07),
+      0 12px 30px rgba(0, 0, 0, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      inset 0 0 22px rgba(34, 211, 238, 0.045);
   }
   50% {
     box-shadow:
-      0 0 22px rgba(34,211,238,.30),
-      0 0 54px rgba(34,211,238,.14),
-      0 14px 34px rgba(0,0,0,.36),
-      inset 0 1px 0 rgba(255,255,255,.20),
-      inset 0 0 30px rgba(34,211,238,.09);
+      0 0 22px rgba(34, 211, 238, 0.30),
+      0 0 54px rgba(34, 211, 238, 0.14),
+      0 14px 34px rgba(0, 0, 0, 0.36),
+      inset 0 1px 0 rgba(255, 255, 255, 0.20),
+      inset 0 0 30px rgba(34, 211, 238, 0.09);
   }
 }
-
 @keyframes ariNavGlassShimmer {
-  0%, 100% { background-position: 0% 50%, center, center; }
-  50% { background-position: 100% 50%, center, center; }
+  0%,
+  100% {
+    background-position:
+      0% 50%,
+      center,
+      center;
+  }
+  50% {
+    background-position:
+      100% 50%,
+      center,
+      center;
+  }
 }
-
 /* =====================================================
-ARI ACCOUNT ANIMATIONS
+   SHARED PAGE SWEEP
+   These three animation names intentionally share the
+   same motion so existing page CSS remains compatible.
 ===================================================== */
-
 @keyframes ariAccountSweep {
   from {
-    transform: translateX(-12%) translateY(8%);
+    transform: translate3d(-12%, 8%, 0);
   }
-
   to {
-    transform: translateX(12%) translateY(-8%);
+    transform: translate3d(12%, -8%, 0);
   }
 }
-
 @keyframes ariIdentitySweep {
   from {
-    transform: translateX(-12%) translateY(8%);
+    transform: translate3d(-12%, 8%, 0);
   }
-
   to {
-    transform: translateX(12%) translateY(-8%);
+    transform: translate3d(12%, -8%, 0);
+  }
+}
+@keyframes ariNutritionSweep {
+  from {
+    transform: translate3d(-12%, 8%, 0);
+  }
+  to {
+    transform: translate3d(12%, -8%, 0);
   }
 }
 /* =====================================================
-ARI NUTRITION ANIMATIONS
+   NUTRITION
 ===================================================== */
-
-@keyframes ariNutritionSweep {
-  from {
-    transform: translateX(-12%) translateY(8%);
-  }
-
-  to {
-    transform: translateX(12%) translateY(-8%);
-  }
-}
-
 @keyframes ariLeafFloat {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0) rotate(-4deg);
   }
-
   50% {
     transform: translateY(-3px) rotate(4deg);
   }
 }
-
 @keyframes ariConsoleAura {
-  0%, 100% {
-    opacity: .40;
-    filter: brightness(.92);
+  0%,
+  100% {
+    opacity: 0.40;
+    filter: brightness(0.92);
   }
-
   50% {
-    opacity: .82;
+    opacity: 0.82;
     filter: brightness(1.25);
   }
 }
-
 @keyframes ariStatusPulse {
-  0%, 100% {
-    opacity: .75;
-    transform: scale(.92);
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(0.92);
   }
-
   50% {
     opacity: 1;
     transform: scale(1.16);
   }
 }
-
 @keyframes ariGreenScan {
   from {
     background-position: 120% 0;
   }
-
   to {
     background-position: -120% 0;
   }
 }
-
 @keyframes ariCommandBlink {
-  0%, 100% {
-    opacity: .38;
+  0%,
+  100% {
+    opacity: 0.38;
     transform: translateX(0);
   }
-
   50% {
-    opacity: .82;
+    opacity: 0.82;
     transform: translateX(2px);
   }
 }
-
 @keyframes ariCommandReady {
-  0%, 100% {
-    opacity: .72;
+  0%,
+  100% {
+    opacity: 0.72;
     transform: translateX(0);
   }
-
   50% {
     opacity: 1;
     transform: translateX(4px);
