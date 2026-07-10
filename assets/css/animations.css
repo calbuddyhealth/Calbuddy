@@ -102,19 +102,21 @@
   0%,
   100% {
     transform:
-      translateY(-115px)
+      translateY(-145px)
       translateX(0)
       scale(1);
   }
+
   35% {
     transform:
-      translateY(-118px)
+      translateY(-148px)
       translateX(1px)
       scale(1.008);
   }
+
   70% {
     transform:
-      translateY(-116px)
+      translateY(-146px)
       translateX(-1px)
       scale(1.004);
   }
