@@ -262,19 +262,15 @@ main#ariApp.conversation-mode {
 /* =====================================================
    STATE HELPERS
 ===================================================== */
+
 .welcome-mode .ari-conversation-shell {
   display: none;
 }
-.conversation-mode .ari-welcome {
-  position: absolute;
-  inset: 72px 0 auto;
-  opacity: 0;
-  visibility: hidden;
-  transform:
-    translateY(-36px)
-    scale(0.86);
-  pointer-events: none;
+
+main#ariApp.conversation-mode .ari-welcome {
+  display: none !important;
 }
+
 .ari-keyboard-mode .ari-welcome-prompt {
   opacity: 0;
   visibility: hidden;
