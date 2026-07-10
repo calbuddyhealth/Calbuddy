@@ -1,36 +1,68 @@
 /* =====================================================
-ARI NON-HOME PAGES — FORCE SCROLL FIX
+   ARI NON-HOME PAGES — SCROLL STABILITY
+   Version: 1.1.0
+   Purpose:
+   - Restore normal document scrolling on non-home pages
+   - Override home-page fixed-height or locked-overflow rules
+   - Support account, identity, and goals pages
+   - Preserve mobile safe-area spacing
 ===================================================== */
-
-html:has(.ari-account-page),
-html:has(.ari-identity-page),
-html:has(.ari-goals-page),
-body:has(.ari-account-page),
-body:has(.ari-identity-page),
-body:has(.ari-goals-page) {
+/* =====================================================
+   SHARED NON-HOME PAGE SELECTORS
+===================================================== */
+html:has(
+  :is(
+    .ari-account-page,
+    .ari-identity-page,
+    .ari-goals-page
+  )
+) {
+  width: 100%;
   height: auto !important;
-  min-height: 100% !important;
+  min-height: 100%;
   max-height: none !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
 }
-
-body:has(.ari-account-page),
-body:has(.ari-identity-page),
-body:has(.ari-goals-page) {
+body:has(
+  :is(
+    .ari-account-page,
+    .ari-identity-page,
+    .ari-goals-page
+  )
+) {
   position: static !important;
   inset: auto !important;
   display: block !important;
-  touch-action: auto !important;
-}
-
-body:has(.ari-account-page) main,
-body:has(.ari-identity-page) main,
-body:has(.ari-goals-page) main {
+  width: 100%;
   height: auto !important;
-  min-height: 100dvh !important;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  touch-action: pan-y;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* =====================================================
+   NON-HOME PAGE MAIN CONTAINER
+===================================================== */
+body:has(
+  :is(
+    .ari-account-page,
+    .ari-identity-page,
+    .ari-goals-page
+  )
+) main {
+  position: relative;
+  display: block !important;
+  width: 100%;
+  height: auto !important;
+  min-height: 100vh;
+  min-height: 100dvh;
   max-height: none !important;
   overflow: visible !important;
-  display: block !important;
-  padding-bottom: 180px !important;
+  padding-bottom:
+    calc(140px + env(safe-area-inset-bottom)) !important;
 }
