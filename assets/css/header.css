@@ -252,6 +252,29 @@ main#ariApp.conversation-mode
 }
 
 /* =====================================================
+   HEADER AVATAR IMAGE
+===================================================== */
+
+main#ariApp.conversation-mode
+  .ari-header-v4
+  #ariHeaderAvatar {
+  display: block;
+  flex: 0 0 auto;
+
+  width: 145%;
+  height: 145%;
+  max-width: none;
+
+  object-fit: cover;
+  object-position: center 42%;
+
+  transform-origin: center;
+
+  animation:
+    ariAvatarGlow 6.2s ease-in-out infinite;
+}
+
+/* =====================================================
    AVATAR THINKING STATE
 ===================================================== */
 
@@ -483,8 +506,8 @@ main#ariApp .ari-header-v4 .ari-brand-subtitle {
   main#ariApp.conversation-mode
     .ari-header-v4
     .ari-header-avatar-shell {
-    width: 72px;
-    height: 72px;
+    width: 86px;
+    height: 86px;
   }
 }
 
@@ -525,8 +548,8 @@ main#ariApp .ari-header-v4 .ari-brand-subtitle {
   main#ariApp.conversation-mode
     .ari-header-v4
     .ari-header-avatar-shell {
-    width: 64px;
-    height: 64px;
+    width: 76px;
+    height: 76px;
   }
 }
 
