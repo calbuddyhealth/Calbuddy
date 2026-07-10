@@ -1,6 +1,8 @@
 /* =====================================================
    ARI CONVERSATIONS
-   Version: 1.1.0
+   File: conversation-history.css
+   Version: 1.1.1
+
    Purpose:
    - Control active conversation mode
    - Style user and Ari message bubbles
@@ -10,32 +12,32 @@
 /* =====================================================
    CONVERSATION SHELL
 ===================================================== */
-.ari-conversation-shell {
+
+main#ariApp .ari-conversation-shell {
   position: relative;
   z-index: 5;
+
   display: none;
+
   width: 100%;
+
+  margin: 0;
   padding: 12px 0 24px;
 }
 /* =====================================================
    CONVERSATION MODE
 ===================================================== */
-.conversation-mode .ari-welcome {
-  position: absolute;
-  inset: 72px 0 auto;
-  opacity: 0;
-  transform:
-    translateY(-36px)
-    scale(0.86);
-  pointer-events: none;
-  visibility: hidden;
-}
-.conversation-mode .ari-conversation-shell {
+
+main#ariApp.conversation-mode .ari-conversation-shell {
   display: block;
-  min-height: calc(100vh - 180px);
-  min-height: calc(100dvh - 180px);
+
+  width: 100%;
+  min-height: 0;
+
+  padding-top: 12px;
   padding-bottom:
-    calc(130px + env(safe-area-inset-bottom));
+    calc(310px + env(safe-area-inset-bottom));
+
   animation:
     conversationFadeIn 0.45s ease both;
 }
@@ -286,10 +288,6 @@
    TABLET / DESKTOP
 ===================================================== */
 @media (min-width: 768px) {
-  .conversation-mode .ari-conversation-shell {
-    padding-bottom:
-      calc(150px + env(safe-area-inset-bottom));
-  }
   .ari-message {
     max-width: 78%;
   }
@@ -297,14 +295,17 @@
 /* =====================================================
    REDUCED MOTION
 ===================================================== */
+
 @media (prefers-reduced-motion: reduce) {
-  .conversation-mode .ari-conversation-shell {
+  main#ariApp.conversation-mode .ari-conversation-shell {
     animation: none;
   }
+
   .ari-history-card,
   .delete-conversation-btn {
     transition: none;
   }
+
   .ari-history-card:hover {
     transform: none;
   }
