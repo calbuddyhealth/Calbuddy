@@ -1,116 +1,356 @@
 /* =====================================================
-ARI MEMORY VAULT — GOLD CHIP STYLE
+   ARI MEMORY VAULT — GOLD CHIP STYLE
+   Version: 1.1.0
+   Purpose:
+   - Style the Memory Vault / history page
+   - Keep gold history styles isolated from conversation history
+   - Support mobile safe areas and desktop layouts
 ===================================================== */
-
+/* =====================================================
+   PAGE
+===================================================== */
 .ari-history-page {
-  max-width: 430px;
+  position: relative;
+  width: min(430px, 100%);
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: 18px 16px 90px;
+  padding:
+    18px
+    16px
+    calc(90px + env(safe-area-inset-bottom));
   background:
-    radial-gradient(circle at 50% 0%, rgba(255, 199, 87, .18), transparent 34%),
-    linear-gradient(180deg, #020617, #090805 55%, #020617);
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(255, 199, 87, 0.18),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      #020617 0%,
+      #090805 55%,
+      #020617 100%
+    );
   color: #fff7d6;
 }
-
-.ari-history-header {
+/* =====================================================
+   HEADER
+===================================================== */
+.ari-history-page .ari-history-header {
   display: grid;
-  grid-template-columns: 54px 1fr;
+  grid-template-columns: 54px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   margin-bottom: 18px;
 }
-
-.ari-history-header button {
+.ari-history-page .ari-history-header button {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  min-width: 54px;
   min-height: 48px;
+  padding: 0;
+  border: 1px solid rgba(255, 199, 87, 0.35);
   border-radius: 16px;
-  border: 1px solid rgba(255, 199, 87, .35);
-  background: rgba(10, 8, 4, .8);
+  background: rgba(10, 8, 4, 0.80);
   color: #ffe7a3;
+  font-family: inherit;
   font-size: 1.3rem;
   font-weight: 900;
-}
-
-.ari-history-header h1 {
-  margin: 0;
-  font-family: Orbitron, system-ui, sans-serif;
-  font-size: 1.25rem;
-  letter-spacing: .18em;
-  color: #ffd56a;
-  text-transform: uppercase;
-  text-shadow: 0 0 18px rgba(255, 199, 87, .32);
-}
-
-.ari-history-panel {
-  position: relative;
-  border: 1px solid rgba(255, 199, 87, .38);
-  border-radius: 28px;
-  padding: 18px;
-  background:
-    linear-gradient(90deg, rgba(255, 199, 87, .07) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(18, 14, 6, .96), rgba(2, 6, 23, .88));
-  background-size: 28px 100%, auto;
+  line-height: 1;
+  cursor: pointer;
   box-shadow:
-    0 0 34px rgba(255, 199, 87, .12),
-    inset 0 0 28px rgba(255, 199, 87, .04);
+    0 0 16px rgba(255, 199, 87, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
 }
-
-.ari-history-panel h2 {
-  margin: 0 0 14px;
-  font-size: .75rem;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: rgba(255, 231, 163, .78);
+.ari-history-page .ari-history-header button:hover {
+  border-color: rgba(255, 213, 106, 0.62);
+  background: rgba(24, 18, 7, 0.92);
+  box-shadow:
+    0 0 22px rgba(255, 199, 87, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
-
-.ari-history-section-title {
-  margin: 20px 0 10px;
-  font-size: .72rem;
-  letter-spacing: .22em;
-  text-transform: uppercase;
+.ari-history-page .ari-history-header button:active {
+  transform: scale(0.96);
+}
+.ari-history-page .ari-history-header button:focus-visible {
+  outline: 2px solid #ffd56a;
+  outline-offset: 3px;
+}
+.ari-history-page .ari-history-header h1 {
+  min-width: 0;
+  margin: 0;
   color: #ffd56a;
+  font-family:
+    Orbitron,
+    system-ui,
+    sans-serif;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 18px rgba(255, 199, 87, 0.32);
+  overflow-wrap: anywhere;
 }
-
-.ari-history-card {
+/* =====================================================
+   MEMORY PANEL
+===================================================== */
+.ari-history-page .ari-history-panel {
+  position: relative;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 199, 87, 0.38);
+  border-radius: 28px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 199, 87, 0.07) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(18, 14, 6, 0.96),
+      rgba(2, 6, 23, 0.88)
+    );
+  background-size:
+    28px 100%,
+    auto;
+  box-shadow:
+    0 0 34px rgba(255, 199, 87, 0.12),
+    inset 0 0 28px rgba(255, 199, 87, 0.04);
+}
+.ari-history-page .ari-history-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 12%;
+  left: 12%;
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 231, 163, 0.88),
+      transparent
+    );
+  pointer-events: none;
+}
+.ari-history-page .ari-history-panel > h2 {
+  margin: 0 0 14px;
+  color: rgba(255, 231, 163, 0.78);
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1.35;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+}
+/* =====================================================
+   SECTION TITLE
+===================================================== */
+.ari-history-page .ari-history-section-title {
+  margin: 20px 0 10px;
+  color: #ffd56a;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.35;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+/* =====================================================
+   MEMORY CARDS
+===================================================== */
+.ari-history-page .ari-history-card {
+  position: relative;
+  width: 100%;
   margin-top: 12px;
   padding: 15px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 199, 87, 0.22);
   border-radius: 20px;
-  border: 1px solid rgba(255, 199, 87, .22);
   background:
-    radial-gradient(circle at 100% 0%, rgba(255, 199, 87, .14), transparent 32%),
-    rgba(10, 8, 4, .72);
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(255, 199, 87, 0.14),
+      transparent 32%
+    ),
+    rgba(10, 8, 4, 0.72);
   box-shadow:
-    0 0 18px rgba(255, 199, 87, .07),
-    inset 0 1px 0 rgba(255, 255, 255, .06);
+    0 0 18px rgba(255, 199, 87, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
-
-.ari-history-card strong {
+.ari-history-page .ari-history-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 213, 106, 0.38);
+  box-shadow:
+    0 0 26px rgba(255, 199, 87, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.ari-history-page .ari-history-card strong {
   display: block;
   color: #fff3bd;
-  font-size: .95rem;
+  font-size: 0.95rem;
+  font-weight: 900;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
-
-.ari-history-card p {
+.ari-history-page .ari-history-card p {
   margin: 8px 0;
-  color: rgba(255, 247, 214, .72);
-  font-family: system-ui, sans-serif;
-  font-size: .88rem;
+  color: rgba(255, 247, 214, 0.72);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ari-history-page .ari-history-card small {
+  display: block;
+  color: rgba(255, 213, 106, 0.68);
+  font-size: 0.72rem;
   line-height: 1.4;
 }
-
-.ari-history-card small {
-  color: rgba(255, 213, 106, .68);
-  font-size: .72rem;
-}
-
-.ari-history-card .intake-actions {
+/* =====================================================
+   CARD ACTIONS
+===================================================== */
+.ari-history-page .ari-history-card .intake-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   margin-top: 12px;
 }
-
-.ari-history-card .delete-intake-btn {
+.ari-history-page .ari-history-card .delete-intake-btn {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid rgba(239, 68, 68, 0.28);
   border-radius: 999px;
-  border: 1px solid rgba(239, 68, 68, .28);
-  background: rgba(239, 68, 68, .12);
+  background: rgba(239, 68, 68, 0.12);
   color: #fecaca;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
+}
+.ari-history-page
+  .ari-history-card
+  .delete-intake-btn:not(:disabled):hover {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(239, 68, 68, 0.20);
+}
+.ari-history-page
+  .ari-history-card
+  .delete-intake-btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+.ari-history-page
+  .ari-history-card
+  .delete-intake-btn:focus-visible {
+  outline: 2px solid #fca5a5;
+  outline-offset: 3px;
+}
+.ari-history-page
+  .ari-history-card
+  .delete-intake-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* =====================================================
+   EMPTY STATE
+===================================================== */
+.ari-history-page .window-note,
+.ari-history-page .ari-history-empty {
+  margin: 28px 0;
+  padding: 0 10px;
+  color: rgba(255, 247, 214, 0.58);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  text-align: center;
+}
+/* =====================================================
+   SMALL MOBILE SCREENS
+===================================================== */
+@media (max-width: 380px) {
+  .ari-history-page {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  .ari-history-page .ari-history-header {
+    grid-template-columns: 50px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .ari-history-page .ari-history-header button {
+    width: 50px;
+    min-width: 50px;
+  }
+  .ari-history-page .ari-history-header h1 {
+    font-size: 1.05rem;
+    letter-spacing: 0.14em;
+  }
+  .ari-history-page .ari-history-panel {
+    padding: 15px;
+    border-radius: 24px;
+  }
+  .ari-history-page .ari-history-card {
+    padding: 14px;
+  }
+  .ari-history-page .ari-history-card .intake-actions {
+    justify-content: stretch;
+  }
+  .ari-history-page .ari-history-card .delete-intake-btn {
+    width: 100%;
+  }
+}
+/* =====================================================
+   TABLET / DESKTOP
+===================================================== */
+@media (min-width: 768px) {
+  .ari-history-page {
+    width: min(540px, 100%);
+    padding-top: 28px;
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+  .ari-history-page .ari-history-panel {
+    padding: 22px;
+    border-radius: 30px;
+  }
+}
+/* =====================================================
+   REDUCED MOTION
+===================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .ari-history-page .ari-history-header button,
+  .ari-history-page .ari-history-card,
+  .ari-history-page .delete-intake-btn {
+    transition: none;
+  }
+  .ari-history-page .ari-history-card:hover {
+    transform: none;
+  }
 }
