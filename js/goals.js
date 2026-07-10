@@ -432,7 +432,7 @@ async function loadSavedGoals() {
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+.maybeSingle();
 
     if (!error && data) {
       applyGoals({
