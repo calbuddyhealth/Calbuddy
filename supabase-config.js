@@ -1,7 +1,26 @@
-// Supabase configuration
+// =====================================================
+// ARI REBIRTH
+// File: supabase-config.js
+// Purpose: Create and expose the shared Supabase client.
+// =====================================================
+
+// Replace these values with your actual Supabase project credentials.
 
 const SUPABASE_URL = "https://qmyrfdhveqqkhsynhzci.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Ol6fATXdLGiQiEKnImBwlA_Zq4544KA";
+
+
+if (!window.supabase) {
+  throw new Error(
+    "Supabase is not loaded. Load the Supabase CDN before supabase-config.js."
+  );
+}
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "SUPABASE_URL or SUPABASE_ANON_KEY is missing."
+  );
+}
 
 window.calbuddySupabase = window.supabase.createClient(
   SUPABASE_URL,
@@ -17,62 +36,30 @@ window.calbuddySupabase = window.supabase.createClient(
   }
 );
 
-// Expose Supabase client to Ari Rebirth
+// Expose the shared Supabase client to Ari Rebirth.
 window.CalBuddy = window.CalBuddy || {};
 window.CalBuddy.supabase = window.calbuddySupabase;
 window.supabaseClient = window.calbuddySupabase;
 
-// Get current session
-window.getCurrentSession = async function () {
-  const { data, error } = await window.calbuddySupabase.auth.getSession();
-
-  if (error) {
-    console.error("Session error:", error.message);
-    return null;
-  }
-
-  return data.session;
-};
-
-// Get current user
-window.getCurrentUser = async function () {
-  const session = await window.getCurrentSession();
-  return session?.user || null;
-};
-
-// Check if signed in
-window.isSignedIn = async function () {
-  const user = await window.getCurrentUser();
-  return !!user;
-};
-
-// Logout helper
-window.logoutUser = async function () {
-  try {
-    const { error } = await window.calbuddySupabase.auth.signOut();
-
-    if (error) {
-      console.error("Logout error:", error.message);
-      return;
-    }
-
-    window.location.href = "index.html";
-  } catch (error) {
-    console.error("Logout error:", error);
-  }
-};
-
-// Keep session fresh
+// Track basic authentication state changes.
 window.calbuddySupabase.auth.onAuthStateChange((event, session) => {
   console.log("Auth event:", event);
 
   if (session?.user) {
-    localStorage.setItem("calbuddyLastUserId", session.user.id);
-    localStorage.setItem("calbuddyLastUserEmail", session.user.email || "");
+    localStorage.setItem(
+      "calbuddyLastUserId",
+      session.user.id
+    );
+
+    localStorage.setItem(
+      "calbuddyLastUserEmail",
+      session.user.email || ""
+    );
   }
 
   if (event === "SIGNED_OUT") {
     localStorage.removeItem("calbuddyLastUserId");
     localStorage.removeItem("calbuddyLastUserEmail");
+    sessionStorage.removeItem("ari_boot_intro");
   }
 });
