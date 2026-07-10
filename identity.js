@@ -14,6 +14,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadIdentity();
 });
 
+function goBack() {
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+
+  window.location.replace("home.html");
+}
+
 function goHome() {
   window.location.replace("home.html");
 }
