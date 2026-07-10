@@ -1,6 +1,7 @@
 // =====================================================
 // ARI REBIRTH
 // File: identity.js
+// Version: 1.0.0
 // Purpose: Identity page behavior and Supabase profile saving.
 // =====================================================
 
@@ -35,7 +36,10 @@ async function getSessionOrRedirect() {
   }
 
   if (!window.calbuddySupabase) {
-    setStatus("Supabase is not loaded. Check supabase-config.js.", "error");
+    setStatus(
+      "Supabase is not loaded. Check supabase-config.js.",
+      "error"
+    );
     return null;
   }
 
@@ -70,34 +74,46 @@ function setupInterestChips() {
           selectedInterests.push(interest);
         }
       } else {
-        selectedInterests = selectedInterests.filter((item) => item !== interest);
+        selectedInterests = selectedInterests.filter(
+          (item) => item !== interest
+        );
       }
     });
   });
 }
 
 function setField(id, value = "") {
-  const el = document.getElementById(id);
-  if (el) el.value = value || "";
+  const element = document.getElementById(id);
+
+  if (element) {
+    element.value = value || "";
+  }
 }
 
 function getField(id) {
-  const el = document.getElementById(id);
-  return el ? String(el.value || "").trim() : "";
+  const element = document.getElementById(id);
+
+  return element
+    ? String(element.value || "").trim()
+    : "";
 }
 
 function applyInterestChips(interestsText = "") {
   const normalized = String(interestsText || "").toLowerCase();
 
+  selectedInterests = [];
+
   document.querySelectorAll(".ari-chip").forEach((chip) => {
     const interest = chip.dataset.interest;
     if (!interest) return;
 
-    const active = normalized.includes(interest.toLowerCase());
+    const active = normalized.includes(
+      interest.toLowerCase()
+    );
 
     chip.classList.toggle("active", active);
 
-    if (active && !selectedInterests.includes(interest)) {
+    if (active) {
       selectedInterests.push(interest);
     }
   });
@@ -107,31 +123,52 @@ function buildInterestsValue() {
   const typed = getField("interests");
   const chipText = selectedInterests.join(", ");
 
-  if (chipText && typed) return chipText + ". " + typed;
-  if (chipText) return chipText;
+  if (chipText && typed) {
+    return `${chipText}. ${typed}`;
+  }
 
-  return typed;
+  return chipText || typed;
 }
 
 async function loadIdentity() {
   const session = await getSessionOrRedirect();
   if (!session) return;
 
-  setStatus("Loading identity...", "");
+  setStatus("Loading identity...");
 
   const { data, error } = await window.calbuddySupabase
     .from("profiles")
-    .select("display_name,birthday,pronouns,location,occupation,languages,interests,about_me")
+    .select(
+      "display_name,birthday,pronouns,location,occupation,languages,interests,about_me"
+    )
     .eq("id", session.user.id)
     .single();
 
   if (error) {
-    console.warn("Identity load warning:", error.message);
-    setStatus("Identity ready. Some fields may need database columns before cloud save works.", "");
+    console.warn(
+      "Identity load warning:",
+      error.message
+    );
+
+    setField(
+      "displayName",
+      session.user?.user_metadata?.display_name || ""
+    );
+
+    setStatus(
+      "Identity ready. Some fields may not be available yet."
+    );
+
     return;
   }
 
-  setField("displayName", data?.display_name || session.user?.user_metadata?.display_name || "");
+  setField(
+    "displayName",
+    data?.display_name ||
+      session.user?.user_metadata?.display_name ||
+      ""
+  );
+
   setField("birthday", data?.birthday || "");
   setField("pronouns", data?.pronouns || "");
   setField("location", data?.location || "");
@@ -140,7 +177,6 @@ async function loadIdentity() {
   setField("interests", data?.interests || "");
   setField("aboutMe", data?.about_me || "");
 
-  selectedInterests = [];
   applyInterestChips(data?.interests || "");
 
   setStatus("Identity loaded.", "success");
@@ -153,11 +189,14 @@ async function saveIdentity() {
   const displayName = getField("displayName");
 
   if (!displayName) {
-    setStatus("Please enter what Ari should call you.", "error");
+    setStatus(
+      "Please enter what Ari should call you.",
+      "error"
+    );
     return;
   }
 
-  setStatus("Saving identity...", "");
+  setStatus("Saving identity...");
 
   const payload = {
     id: session.user.id,
@@ -175,177 +214,31 @@ async function saveIdentity() {
 
   const { error } = await window.calbuddySupabase
     .from("profiles")
-    .upsert(payload, { onConflict: "id" });
+    .upsert(payload, {
+      onConflict: "id"
+    });
 
   if (error) {
     setStatus(error.message, "error");
     return;
   }
 
-  await window.calbuddySupabase.auth.updateUser({
-    data: {
-      display_name: displayName
-    }
-  });
-
-  setStatus("Identity saved. Ari will remember what you shared.", "success");
-}
-
-/*
-=====================================================
-ARI REBIRTH
-File: identity.js
-Version: 1.0.0
-
-Purpose:
-  Controls the My Identity page.
-
-Responsibilities:
-  - Load authenticated user
-  - Load profile information
-  - Save display name
-  - Change email
-  - Reset password
-  - Log out
-
-Dependencies:
-  - Supabase
-  - supabase-config.js
-=====================================================
-*/
-
-document.addEventListener("DOMContentLoaded", loadProfile);
-
-async function loadProfile() {
-  const { data, error } =
-    await window.calbuddySupabase.auth.getSession();
-
-  if (error || !data?.session) {
-    window.location.href = "signin.html";
-    return;
-  }
-
-  const user = data.session.user;
-
-  document.getElementById("userEmail").textContent =
-    user.email || "No email found.";
-
-  const { data: profile, error: profileError } =
-    await window.calbuddySupabase
-      .from("profiles")
-      .select("display_name")
-      .eq("id", user.id)
-      .single();
-
-  if (profileError) {
-    console.warn("Profile load warning:", profileError.message);
-    return;
-  }
-
-  document.getElementById("displayName").value =
-    profile?.display_name ||
-    user.user_metadata?.display_name ||
-    "";
-}
-
-async function saveDisplayName() {
-  const statusEl = document.getElementById("profileStatus");
-  statusEl.textContent = "";
-
-  const {
-    data: { session },
-    error: sessionError
-  } = await window.calbuddySupabase.auth.getSession();
-
-  if (sessionError || !session) {
-    window.location.href = "signin.html";
-    return;
-  }
-
-  const displayName =
-    document.getElementById("displayName").value.trim();
-
-  if (!displayName) {
-    statusEl.textContent =
-      "Please enter what Ari should call you.";
-    return;
-  }
-
-  const { error } =
-    await window.calbuddySupabase
-      .from("profiles")
-      .upsert(
-        {
-          id: session.user.id,
-          email: session.user.email,
-          display_name: displayName,
-          updated_at: new Date().toISOString()
-        },
-        {
-          onConflict: "id"
-        }
-      );
-
-  if (error) {
-    statusEl.textContent = error.message;
-    return;
-  }
-
-  await window.calbuddySupabase.auth.updateUser({
-    data: {
-      display_name: displayName
-    }
-  });
-
-  statusEl.textContent = "Display name updated.";
-}
-
-async function logoutUser() {
-  await window.calbuddySupabase.auth.signOut();
-
-  sessionStorage.removeItem("ari_boot_intro");
-
-  window.location.href = "signin.html";
-}
-
-async function resetPassword() {
-  const { data } =
-    await window.calbuddySupabase.auth.getSession();
-
-  if (!data?.session) {
-    window.location.href = "signin.html";
-    return;
-  }
-
-  const email = data.session.user.email;
-
-  await window.calbuddySupabase.auth.resetPasswordForEmail(
-    email,
-    {
-      redirectTo:
-        window.location.origin +
-        "/reset-password.html"
-    }
-  );
-
-  alert("Password reset email sent.");
-}
-
-async function changeEmail() {
-  const newEmail =
-    prompt("Enter your new email address:");
-
-  if (!newEmail) return;
-
-  const { error } =
+  const { error: metadataError } =
     await window.calbuddySupabase.auth.updateUser({
-      email: newEmail
+      data: {
+        display_name: displayName
+      }
     });
 
-  if (error) {
-    alert(error.message);
-    return;
+  if (metadataError) {
+    console.warn(
+      "Display-name metadata warning:",
+      metadataError.message
+    );
   }
 
-  alert("Confirmation email sent to your new address.");
+  setStatus(
+    "Identity saved. Ari will remember what you shared.",
+    "success"
+  );
 }
