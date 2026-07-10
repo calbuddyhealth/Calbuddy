@@ -330,11 +330,40 @@ async function initializeSignInPage() {
     const session = await getCurrentSession();
 
     if (session?.user) {
+      const params = new URLSearchParams(
+        window.location.search
+      );
+
+      const justVerified =
+        params.get("verified") === "1";
+
+      const displayName =
+        session.user.user_metadata?.display_name ||
+        session.user.email?.split("@")[0] ||
+        "";
+
+      if (justVerified) {
+        await createUserProfile(
+          session.user,
+          displayName
+        );
+
+        await startInitialization(
+          displayName,
+          false
+        );
+
+        return;
+      }
+
       window.location.replace("home.html");
       return;
     }
   } catch (error) {
-    console.warn("Existing session check failed:", error);
+    console.warn(
+      "Existing session check failed:",
+      error
+    );
   }
 
   setMode("login");
