@@ -190,3 +190,162 @@ async function saveIdentity() {
 
   setStatus("Identity saved. Ari will remember what you shared.", "success");
 }
+
+/*
+=====================================================
+ARI REBIRTH
+File: identity.js
+Version: 1.0.0
+
+Purpose:
+  Controls the My Identity page.
+
+Responsibilities:
+  - Load authenticated user
+  - Load profile information
+  - Save display name
+  - Change email
+  - Reset password
+  - Log out
+
+Dependencies:
+  - Supabase
+  - supabase-config.js
+=====================================================
+*/
+
+document.addEventListener("DOMContentLoaded", loadProfile);
+
+async function loadProfile() {
+  const { data, error } =
+    await window.calbuddySupabase.auth.getSession();
+
+  if (error || !data?.session) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  const user = data.session.user;
+
+  document.getElementById("userEmail").textContent =
+    user.email || "No email found.";
+
+  const { data: profile, error: profileError } =
+    await window.calbuddySupabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", user.id)
+      .single();
+
+  if (profileError) {
+    console.warn("Profile load warning:", profileError.message);
+    return;
+  }
+
+  document.getElementById("displayName").value =
+    profile?.display_name ||
+    user.user_metadata?.display_name ||
+    "";
+}
+
+async function saveDisplayName() {
+  const statusEl = document.getElementById("profileStatus");
+  statusEl.textContent = "";
+
+  const {
+    data: { session },
+    error: sessionError
+  } = await window.calbuddySupabase.auth.getSession();
+
+  if (sessionError || !session) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  const displayName =
+    document.getElementById("displayName").value.trim();
+
+  if (!displayName) {
+    statusEl.textContent =
+      "Please enter what Ari should call you.";
+    return;
+  }
+
+  const { error } =
+    await window.calbuddySupabase
+      .from("profiles")
+      .upsert(
+        {
+          id: session.user.id,
+          email: session.user.email,
+          display_name: displayName,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: "id"
+        }
+      );
+
+  if (error) {
+    statusEl.textContent = error.message;
+    return;
+  }
+
+  await window.calbuddySupabase.auth.updateUser({
+    data: {
+      display_name: displayName
+    }
+  });
+
+  statusEl.textContent = "Display name updated.";
+}
+
+async function logoutUser() {
+  await window.calbuddySupabase.auth.signOut();
+
+  sessionStorage.removeItem("ari_boot_intro");
+
+  window.location.href = "signin.html";
+}
+
+async function resetPassword() {
+  const { data } =
+    await window.calbuddySupabase.auth.getSession();
+
+  if (!data?.session) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  const email = data.session.user.email;
+
+  await window.calbuddySupabase.auth.resetPasswordForEmail(
+    email,
+    {
+      redirectTo:
+        window.location.origin +
+        "/reset-password.html"
+    }
+  );
+
+  alert("Password reset email sent.");
+}
+
+async function changeEmail() {
+  const newEmail =
+    prompt("Enter your new email address:");
+
+  if (!newEmail) return;
+
+  const { error } =
+    await window.calbuddySupabase.auth.updateUser({
+      email: newEmail
+    });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  alert("Confirmation email sent to your new address.");
+}
