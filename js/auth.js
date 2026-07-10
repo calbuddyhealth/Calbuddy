@@ -51,6 +51,9 @@ async function signUpUser(email, password, displayName = "") {
     email: cleanEmail,
     password: cleanPassword,
     options: {
+      emailRedirectTo:
+        `${window.location.origin}/signin.html?verified=1`,
+
       data: {
         display_name: cleanDisplayName
       }
