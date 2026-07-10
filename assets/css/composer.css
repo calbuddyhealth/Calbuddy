@@ -52,7 +52,7 @@ main#ariApp .ari-bottom-input {
   z-index: 200;
 
   right: auto;
-  bottom: calc(135px + env(safe-area-inset-bottom));
+  bottom: calc(150px + env(safe-area-inset-bottom));
   left: 50%;
 
   width: min(100%, 430px);
