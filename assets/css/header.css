@@ -260,8 +260,8 @@ main#ariApp.conversation-mode
   display: block;
   flex: 0 0 auto;
 
-  width: 165%;
-  height: 165%;
+  width: 160%;
+  height: 160%;
   max-width: none;
 
   object-fit: cover;
