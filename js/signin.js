@@ -111,37 +111,62 @@ function wait(ms) {
 }
 
 async function startInitialization(name = "", isReturning = true) {
+  document.activeElement?.blur();
+
   authCard.classList.add("hidden");
   verifyCard.classList.add("hidden");
   initScreen.classList.remove("hidden");
 
-  const welcomeLine = isReturning && name
-    ? `> Welcome back, ${name}.`
-    : "> Welcome.";
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+
+  const welcomeLine =
+    isReturning && name
+      ? `> Welcome back, ${name}.`
+      : name
+        ? `> Welcome, ${name}.`
+        : "> Welcome.";
 
   const lines = [
+    ...(!isReturning
+      ? [
+          `<span class="ari-init-big">> Email verified.</span>`
+        ]
+      : []),
+
     `<span class="ari-init-big">> Initializing <span class="ari-init-name">ARI</span>...</span>`,
     `<span class="ari-init-big">> Identity verified.</span>`,
     `<span class="ari-init-big ari-memory-line">> Memory link established.</span>`,
+    `<span class="ari-init-big">> Synchronizing preferences...</span>`,
     `<span class="ari-init-big">${welcomeLine}</span>`
   ];
 
   initTerminal.innerHTML = "";
+
+  const lineDisplayTime = isReturning ? 260 : 320;
+  const linePauseTime = isReturning ? 70 : 90;
 
   for (const line of lines) {
     const row = document.createElement("div");
     row.className = "ari-init-line";
     initTerminal.appendChild(row);
 
-    row.innerHTML = line + `<span class="ari-terminal-cursor">█</span>`;
-    await wait(650);
+    row.innerHTML =
+      line +
+      `<span class="ari-terminal-cursor">█</span>`;
 
-    row.querySelector(".ari-terminal-cursor")?.remove();
+    await wait(lineDisplayTime);
 
-    await wait(250);
+    row
+      .querySelector(".ari-terminal-cursor")
+      ?.remove();
+
+    await wait(linePauseTime);
   }
 
-  await wait(500);
+  await wait(250);
+
   window.location.replace("home.html");
 }
 
