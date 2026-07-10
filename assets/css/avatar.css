@@ -36,15 +36,19 @@ main#ariApp.ari-thinking-mode .ari-header-avatar-shell {
 /* =====================================================
    HERO AVATAR
 ===================================================== */
+
 main#ariApp .ari-hero-img {
   display: block;
   width: min(385px, 96vw);
   max-width: 100%;
   height: auto;
+
   object-fit: contain;
   object-position: center bottom;
-  transform: translateY(-115px);
+
+  transform: translateY(-145px);
   transform-origin: center bottom;
+
   animation:
     ariOrganicBreath 3.8s ease-in-out infinite,
     ariOrganicGlow 5.8s ease-in-out infinite;
@@ -87,9 +91,11 @@ main#ariApp .ari-welcome::after {
   main#ariApp .ari-welcome::after {
     animation: none;
   }
+
   main#ariApp .ari-hero-img {
-    transform: translateY(-115px);
+    transform: translateY(-145px);
   }
+
   main#ariApp .ari-welcome::after {
     opacity: 0.42;
     transform: translate(-50%, -50%);
