@@ -110,6 +110,27 @@ function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function typeInitializationLine(row, finalHtml, speed = 12) {
+  const decoder = document.createElement("div");
+  decoder.innerHTML = finalHtml;
+
+  const plainText = decoder.textContent || "";
+  const cursor = document.createElement("span");
+
+  cursor.className = "ari-terminal-cursor";
+  cursor.textContent = "█";
+
+  row.textContent = "";
+  row.appendChild(cursor);
+
+  for (const character of plainText) {
+    cursor.insertAdjacentText("beforebegin", character);
+    await wait(speed);
+  }
+
+  row.innerHTML = finalHtml;
+}
+
 async function startInitialization(name = "", isReturning = true) {
   document.activeElement?.blur();
 
@@ -144,28 +165,25 @@ async function startInitialization(name = "", isReturning = true) {
 
   initTerminal.innerHTML = "";
 
-  const lineDisplayTime = isReturning ? 260 : 320;
-  const linePauseTime = isReturning ? 70 : 90;
+  const characterSpeed = isReturning ? 8 : 10;
+  const linePauseTime = isReturning ? 45 : 60;
 
   for (const line of lines) {
     const row = document.createElement("div");
     row.className = "ari-init-line";
+
     initTerminal.appendChild(row);
 
-    row.innerHTML =
-      line +
-      `<span class="ari-terminal-cursor">█</span>`;
-
-    await wait(lineDisplayTime);
-
-    row
-      .querySelector(".ari-terminal-cursor")
-      ?.remove();
+    await typeInitializationLine(
+      row,
+      line,
+      characterSpeed
+    );
 
     await wait(linePauseTime);
   }
 
-  await wait(250);
+  await wait(200);
 
   window.location.replace("home.html");
 }
