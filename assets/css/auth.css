@@ -355,21 +355,21 @@ body.ari-auth-body::before {
 }
 
 #ariBootMeaning {
-  min-height: 24px;
+  min-height: 28px;
 
   margin: -18px 0 28px;
 
-  color: rgba(145, 255, 255, 0.82);
+  color: rgba(145, 255, 255, 0.88);
 
   font-family:
     "Courier New",
     Courier,
     monospace;
 
-  font-size: clamp(0.62rem, 2.6vw, 0.86rem);
+  font-size: clamp(0.86rem, 3.6vw, 1.05rem);
   font-weight: 700;
   line-height: 1.45;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.10em;
 
   overflow-wrap: anywhere;
 }
@@ -899,9 +899,9 @@ body.ari-auth-body::before {
   }
 
   #ariBootMeaning {
-    font-size: 0.66rem;
-    letter-spacing: 0.08em;
-  }
+  font-size: 0.82rem;
+  letter-spacing: 0.07em;
+}
 
   .ari-auth-tabs {
     gap: 8px;
