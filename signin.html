@@ -1,100 +1,331 @@
-<!-- signin.html -->
+<!-- =====================================================
+ARI REBIRTH
+File: signin.html
+Version: 1.1.0
+
+Purpose:
+  Sign-in, account creation, verification, and boot flow.
+
+Dependencies:
+  - /css/animations.css
+  - /css/auth.css
+  - Supabase CDN
+  - /supabase-config.js
+  - /js/auth.js
+  - /js/signin.js
+===================================================== -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8" />
 
-<title>Sign In - ARI Rebirth</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
 
-<link rel="stylesheet" href="css/animations.css" />
-<link rel="stylesheet" href="css/auth.css" />
+  <title>Sign In - ARI Rebirth</title>
+
+  <!--
+    Prevent hidden authentication states from briefly appearing
+    before the external stylesheet finishes loading.
+  -->
+  <style>
+    .ari-auth-body .hidden {
+      display: none !important;
+    }
+  </style>
+
+  <link rel="stylesheet" href="/css/animations.css?v=15" />
+  <link rel="stylesheet" href="/css/auth.css?v=15" />
 </head>
 
 <body class="ari-auth-body">
 
-<main class="ari-auth-page">
+  <main class="ari-auth-page">
 
-  <section class="ari-auth-card" id="authCard">
+    <!-- =================================================
+         SIGN IN / CREATE ACCOUNT
+    ================================================== -->
 
-    <div class="ari-auth-brand">
-      <div class="ari-chip-core">
-        <div class="chip-ring"></div>
-        <div class="chip-ring ring2"></div>
+    <section
+      class="ari-auth-card"
+      id="authCard"
+    >
+      <div class="ari-auth-brand">
 
-        <div class="chip-grid">
-          <span></span><span></span><span></span>
-          <span></span><span class="core"></span><span></span>
-          <span></span><span></span><span></span>
+        <div
+          class="ari-chip-core"
+          aria-hidden="true"
+        >
+          <div class="chip-ring"></div>
+          <div class="chip-ring ring2"></div>
+
+          <div class="chip-grid">
+            <span></span>
+            <span></span>
+            <span></span>
+
+            <span></span>
+            <span class="core"></span>
+            <span></span>
+
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </div>
+
+        <h1 id="ariBootLogo">
+          ARI REBIRTH
+        </h1>
+
+        <p
+          id="ariBootMeaning"
+          aria-live="polite"
+        ></p>
       </div>
 
-      <h1 id="ariBootLogo">ARI REBIRTH</h1>
-      <p id="ariBootMeaning"></p>
-    </div>
+      <!-- ===============================================
+           MODE TABS
+      ================================================ -->
 
-    <div class="ari-auth-tabs">
-      <button id="showLoginBtn" class="ari-auth-tab active" type="button">Sign In</button>
-      <button id="showSignupBtn" class="ari-auth-tab" type="button">Create</button>
-    </div>
+      <div
+        class="ari-auth-tabs"
+        role="tablist"
+        aria-label="Authentication options"
+      >
+        <button
+          id="showLoginBtn"
+          class="ari-auth-tab active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+        >
+          Sign In
+        </button>
 
-    <div id="signupNameWrap" class="ari-auth-field hidden">
-      <label for="displayName">What should Ari call you?</label>
-      <input id="displayName" type="text" placeholder="Display name" autocomplete="name" />
-    </div>
+        <button
+          id="showSignupBtn"
+          class="ari-auth-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+        >
+          Create
+        </button>
+      </div>
 
-    <div class="ari-auth-field">
-      <label for="email">Email</label>
-      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
-    </div>
+      <!-- ===============================================
+           DISPLAY NAME
+      ================================================ -->
 
-    <div class="ari-auth-field">
-      <label for="password">Password</label>
-      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
-    </div>
+      <div
+        id="signupNameWrap"
+        class="ari-auth-field hidden"
+      >
+        <label for="displayName">
+          What should Ari call you?
+        </label>
 
-    <div id="confirmPasswordWrap" class="ari-auth-field hidden">
-      <label for="confirmPassword">Confirm Password</label>
-      <input id="confirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password" />
-    </div>
+        <input
+          id="displayName"
+          type="text"
+          placeholder="Display name"
+          autocomplete="name"
+        />
+      </div>
 
-    <button id="loginBtn" type="button" class="ari-auth-main-btn">ENTER</button>
-    <button id="signupBtn" type="button" class="ari-auth-main-btn gold hidden">CREATE ACCOUNT</button>
+      <!-- ===============================================
+           EMAIL
+      ================================================ -->
 
-    <button id="forgotPasswordBtn" type="button" class="ari-auth-link-btn">
-      Forgot Password?
-    </button>
+      <div class="ari-auth-field">
+        <label for="email">
+          Email
+        </label>
 
-    <p id="authMessage" class="ari-auth-message"></p>
-  </section>
+        <input
+          id="email"
+          type="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          inputmode="email"
+          autocapitalize="none"
+          spellcheck="false"
+        />
+      </div>
 
-  <section class="ari-auth-card hidden" id="verifyCard">
-    <div class="ari-auth-brand">
-      <p class="ari-auth-kicker">EMAIL VERIFICATION</p>
-      <h1>CHECK YOUR EMAIL</h1>
-      <p class="ari-auth-subtitle">
-        Waiting for verification<span class="ari-terminal-cursor">█</span>
+      <!-- ===============================================
+           PASSWORD
+      ================================================ -->
+
+      <div class="ari-auth-field">
+        <label for="password">
+          Password
+        </label>
+
+        <input
+          id="password"
+          type="password"
+          placeholder="Password"
+          autocomplete="current-password"
+        />
+      </div>
+
+      <!-- ===============================================
+           CONFIRM PASSWORD
+      ================================================ -->
+
+      <div
+        id="confirmPasswordWrap"
+        class="ari-auth-field hidden"
+      >
+        <label for="confirmPassword">
+          Confirm Password
+        </label>
+
+        <input
+          id="confirmPassword"
+          type="password"
+          placeholder="Confirm password"
+          autocomplete="new-password"
+        />
+      </div>
+
+      <!-- ===============================================
+           ACTIONS
+      ================================================ -->
+
+      <button
+        id="loginBtn"
+        type="button"
+        class="ari-auth-main-btn"
+      >
+        ENTER
+      </button>
+
+      <button
+        id="signupBtn"
+        type="button"
+        class="ari-auth-main-btn gold hidden"
+      >
+        CREATE ACCOUNT
+      </button>
+
+      <button
+        id="forgotPasswordBtn"
+        type="button"
+        class="ari-auth-link-btn"
+      >
+        Forgot Password?
+      </button>
+
+      <p
+        id="authMessage"
+        class="ari-auth-message"
+        role="status"
+        aria-live="polite"
+      ></p>
+    </section>
+
+    <!-- =================================================
+         EMAIL VERIFICATION
+    ================================================== -->
+
+    <section
+      class="ari-auth-card hidden"
+      id="verifyCard"
+      aria-live="polite"
+    >
+      <div class="ari-auth-brand">
+
+        <p class="ari-auth-kicker">
+          EMAIL VERIFICATION
+        </p>
+
+        <h1>
+          CHECK YOUR EMAIL
+        </h1>
+
+        <p class="ari-auth-subtitle">
+          Waiting for verification
+          <span
+            class="ari-terminal-cursor"
+            aria-hidden="true"
+          >█</span>
+        </p>
+      </div>
+
+      <p
+        id="verifyMessage"
+        class="ari-auth-message"
+        role="status"
+      >
+        We sent a verification link. Once verified, Ari will initialize automatically.
       </p>
-    </div>
+    </section>
 
-    <p id="verifyMessage" class="ari-auth-message">
-      We sent a verification link. Once verified, Ari will initialize automatically.
-    </p>
-  </section>
+    <!-- =================================================
+         INITIALIZATION TERMINAL
+    ================================================== -->
 
-  <section class="ari-init-screen hidden" id="initScreen">
-    <div class="ari-terminal-shell">
-      <div class="terminal-glow"></div>
-      <div class="terminal-grid"></div>
-      <div id="initTerminal" class="ari-init-terminal"></div>
-    </div>
-  </section>
+    <section
+      class="ari-init-screen hidden"
+      id="initScreen"
+      aria-live="polite"
+    >
+      <div class="ari-terminal-shell">
 
-</main>
+        <div
+          class="terminal-glow"
+          aria-hidden="true"
+        ></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js?v=10"></script>
-<script src="js/auth.js"></script>
-<script src="js/signin.js"></script>
+        <div
+          class="terminal-grid"
+          aria-hidden="true"
+        ></div>
+
+        <div
+          id="initTerminal"
+          class="ari-init-terminal"
+        ></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================
+       SCRIPTS
+
+       Order matters:
+       1. Supabase library
+       2. Supabase configuration
+       3. Shared authentication helpers
+       4. Sign-in page controller
+  ==================================================== -->
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+    defer
+  ></script>
+
+  <script
+    src="/supabase-config.js?v=10"
+    defer
+  ></script>
+
+  <script
+    src="/js/auth.js?v=12"
+    defer
+  ></script>
+
+  <script
+    src="/js/signin.js?v=12"
+    defer
+  ></script>
+
 </body>
 </html>
