@@ -232,11 +232,13 @@ main#ariApp.conversation-mode
   justify-self: center;
   align-self: center;
 
-  width: 82px;
-  height: 82px;
+  width: 96px;
+  height: 96px;
 
   margin: 0;
   padding: 0;
+
+  overflow: hidden;
 
   border: 2px solid rgba(103, 232, 249, 0.90);
   border-radius: 50%;
@@ -248,31 +250,6 @@ main#ariApp.conversation-mode
     0 0 44px rgba(34, 211, 238, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
-
-main#ariApp .ari-header-v4 .ari-header-avatar-shell img,
-main#ariApp .ari-header-v4 #ariHeaderAvatar {
-  display: block;
-
-  width: 100%;
-  height: 100%;
-
-  object-fit: cover;
-  object-position: center;
-
-  transform-origin: center bottom;
-
-  animation:
-    ariAvatarBreath 4.2s ease-in-out infinite,
-    ariAvatarGlow 6.2s ease-in-out infinite;
-}
-
-main#ariApp.conversation-mode
-  .ari-header-v4
-  .ari-header-avatar-shell
-  img {
-  transform: scale(1.18);
-}
-
 
 /* =====================================================
    AVATAR THINKING STATE
