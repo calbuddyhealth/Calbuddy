@@ -1,12 +1,12 @@
 // ari/pipelines/ari-executive-routing-pipeline.js
 // Ari Executive Routing Pipeline
 // Purpose: Decide which processing path Ari should use.
-// V1.1.0 — Existing Routing Decisions Migrated / Compatibility Mode
+// V1.2.0 — Structured Perception Handoff / Context-Response Lane Separation
 
 window.Ari = window.Ari || {};
 
 window.AriExecutiveRoutingPipeline = {
-  version: "1.1.0",
+  version: "1.2.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -67,32 +67,47 @@ window.AriExecutiveRoutingPipeline = {
     mark("before laneSplitter");
 
     const laneSplit =
-      window.Ari?.laneSplitterEngine?.split
-        ? await window.Ari.laneSplitterEngine.split({
-            summary: state,
+  window.Ari?.laneSplitterEngine?.split
+    ? await window.Ari.laneSplitterEngine.split({
+        summary: state,
 
-            perceptionPacket,
+        perceptionPacket,
 
-            routingEvidence:
-              state.routingEvidence ||
-              perceptionPacket.routingEvidence ||
-              null,
+        routingEvidence:
+          state.routingEvidence ||
+          perceptionPacket.routingEvidence?.raw ||
+          null,
 
-            semanticFrame:
-              state.semanticFrameOutput ||
-              perceptionPacket.semanticFrame ||
-              null,
+        routingPressures:
+          state.routingPressures ||
+          perceptionPacket.routingEvidence?.pressures ||
+          {},
 
-            primarySemanticFrame:
-              state.primarySemanticFrame ||
-              perceptionPacket.semanticFrame?.primaryFrame ||
-              null,
+        semanticFrame:
+          state.semanticFrameOutput ||
+          perceptionPacket.semantic?.raw ||
+          null,
 
-            semanticSummary:
-              state.semanticSummary ||
-              perceptionPacket.semanticFrame?.semanticSummary ||
-              null
-          })
+        primarySemanticFrame:
+          state.primarySemanticFrame ||
+          perceptionPacket.semantic?.primaryFrame ||
+          null,
+
+        semanticSummary:
+          state.semanticSummary ||
+          perceptionPacket.semantic?.summary ||
+          null,
+
+        semanticContinuity:
+          state.semanticContinuity ||
+          perceptionPacket.semantic?.continuity ||
+          {},
+
+        semanticAmbiguity:
+          state.semanticAmbiguity ||
+          perceptionPacket.semantic?.ambiguity ||
+          {}
+      })
         : {
             engine: "ari-lane-splitter-engine",
             source: "not-loaded",
@@ -227,47 +242,52 @@ window.AriExecutiveRoutingPipeline = {
           );
 
     state = {
-      ...state,
+  ...state,
 
-      routingContract,
+  routingContract,
 
-      conversationMode:
-        routingContract.mode ||
-        "unknown",
+  conversationMode:
+    routingContract.mode ||
+    "unknown",
 
-      primaryIntent:
-        routingContract.primaryIntent ||
-        "unknown",
+  primaryIntent:
+    routingContract.primaryIntent ||
+    "unknown",
 
-      secondaryIntents:
-        routingContract.secondaryIntents ||
-        [],
+  secondaryIntents:
+    routingContract.secondaryIntents ||
+    [],
 
-      conversationDomain:
-        routingContract.domain ||
-        "general",
+  conversationDomain:
+    routingContract.domain ||
+    "general",
 
-      primaryLane:
-        routingContract.primaryLane ||
-        state.lane ||
-        "direct_current_turn",
+  contextLane:
+    routingContract.contextLane ||
+    state.lane ||
+    "direct_current_turn",
 
-      requiredCapabilities:
-        routingContract.capabilities ||
-        [],
+  primaryLane:
+    routingContract.primaryLane ||
+    state.primaryLaneSuggestion ||
+    null,
 
-      selectedPlanner:
-        routingContract.planner ||
-        null,
+  requiredCapabilities:
+    routingContract.capabilities ||
+    [],
 
-      routingConfidence:
-        routingContract.confidence ||
-        {},
+  selectedPlanner:
+    routingContract.planner ||
+    null,
 
-      routingAuthority:
-        routingContract.authority ||
-        {}
-    };
+  routingConfidence:
+    routingContract.confidence ||
+    {},
+
+  routingAuthority:
+    routingContract.authority ||
+    {}
+};
 
     // =================================================
     // 5. Executive Packet
@@ -376,17 +396,24 @@ window.AriExecutiveRoutingPipeline = {
     summary = {},
     applicability = {}
   ) {
-    const conversationFunction =
-      summary.conversationFunction ||
-      {};
+    const perceptionPacket =
+  summary.perceptionPacket ||
+  {};
 
-    const classification =
-      summary.universalConversationClassification ||
-      {};
+const conversationFunction =
+  summary.conversationFunction ||
+  perceptionPacket.conversationFunction?.raw ||
+  {};
 
-    const semanticFrame =
-      summary.semanticFrameOutput ||
-      {};
+const classification =
+  summary.universalConversationClassification ||
+  perceptionPacket.classification?.raw ||
+  {};
+
+const semanticFrame =
+  summary.semanticFrameOutput ||
+  perceptionPacket.semantic?.raw ||
+  {};
 
     return {
       ready: true,
@@ -422,13 +449,19 @@ window.AriExecutiveRoutingPipeline = {
       secondaryIntents: [],
 
       domain:
-        semanticFrame.domain ||
-        semanticFrame.normalizedFrame?.domain ||
-        "general",
+  semanticFrame.domain ||
+  semanticFrame.primaryFrame?.domain ||
+  semanticFrame.normalizedFrame?.domain ||
+  perceptionPacket.routingHandoff?.domain ||
+  "general",
 
-      primaryLane:
-        summary.laneSplit?.lane ||
-        "direct_current_turn",
+      contextLane:
+  summary.laneSplit?.lane ||
+  "direct_current_turn",
+
+primaryLane:
+  summary.primaryLaneSuggestion ||
+  null,
 
       capabilities: [],
 
@@ -581,10 +614,15 @@ window.AriExecutiveRoutingPipeline = {
           summary.conversationDomain ||
           "general",
 
-        primaryLane:
-          summary.primaryLane ||
-          summary.lane ||
-          "direct_current_turn",
+        contextLane:
+  summary.routingContract?.contextLane ||
+  summary.lane ||
+  "direct_current_turn",
+
+primaryLane:
+  summary.routingContract?.primaryLane ||
+  summary.primaryLane ||
+  null,
 
         capabilities:
           summary.requiredCapabilities ||
@@ -648,57 +686,130 @@ window.AriExecutiveRoutingPipeline = {
   // ===================================================
 
   buildFallbackPerceptionPacket(summary = {}) {
-    return {
-      ready: false,
-      source:
-        "ari-executive-routing-pipeline-fallback",
-      version: this.version,
+  const message =
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    "";
 
-      message: {
-        raw:
-          summary.userMessage ||
-          summary.message ||
-          summary.input ||
-          "",
+  return {
+    ready: false,
+    source:
+      "ari-executive-routing-pipeline-fallback",
+    version: this.version,
 
-        normalized:
-          summary.normalizedMessage ||
-          ""
-      },
+    message: {
+      raw: message,
 
-      safetyScreen:
+      normalized:
+        summary.normalizedMessage ||
+        String(message).toLowerCase().trim()
+    },
+
+    safetyScreen: {
+      raw:
         summary.safetyContextGate ||
-        null,
+        null
+    },
 
-      observerEvidence:
+    observer: {
+      raw:
         summary.observerEvidence ||
         null,
 
-      conversationFunction:
+      observations:
+        summary.observations ||
+        []
+    },
+
+    conversationFunction: {
+      raw:
         summary.conversationFunction ||
         null,
 
-      universalClassification:
+      primary:
+        summary.conversationFunction?.primaryFunction ||
+        "unknown"
+    },
+
+    classification: {
+      raw:
         summary.universalConversationClassification ||
         null,
 
-      routingEvidence:
+      type:
+        summary.conversationType ||
+        "unknown",
+
+      intent:
+        summary.conversationIntent ||
+        "unknown"
+    },
+
+    routingEvidence: {
+      raw:
         summary.routingEvidence ||
         null,
 
-      semanticFrame:
+      pressures:
+        summary.routingPressures ||
+        {}
+    },
+
+    semantic: {
+      raw:
         summary.semanticFrameOutput ||
         null,
 
-      authority: {
-        canChooseFinalRoute: false,
-        canChoosePlanner: false,
-        canAnswerUser: false,
-        role:
-          "compatibility_perception_fallback"
-      }
-    };
-  }
+      primaryFrame:
+        summary.primarySemanticFrame ||
+        null,
+
+      summary:
+        summary.semanticSummary ||
+        null,
+
+      continuity:
+        summary.semanticContinuity ||
+        {},
+
+      ambiguity:
+        summary.semanticAmbiguity ||
+        {}
+    },
+
+    routingHandoff: {
+      conversationFunction:
+        summary.conversationFunction?.primaryFunction ||
+        "unknown",
+
+      classificationType:
+        summary.conversationType ||
+        "unknown",
+
+      classificationIntent:
+        summary.conversationIntent ||
+        "unknown",
+
+      semanticSummary:
+        summary.semanticSummary ||
+        null,
+
+      routingPressures:
+        summary.routingPressures ||
+        {}
+    },
+
+    authority: {
+      canChooseFinalRoute: false,
+      canChoosePlanner: false,
+      canAnswerUser: false,
+
+      role:
+        "compatibility_perception_fallback"
+    }
+  };
+}
 };
 
 console.log(
