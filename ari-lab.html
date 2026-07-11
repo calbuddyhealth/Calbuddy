@@ -18,18 +18,30 @@
     ></textarea>
 
     <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-      <button id="ariAnalyzeBtn" style="padding: 12px 18px; font-weight: 700;">
-        Analyze with Ari
-      </button>
+  <button
+    id="ariAnalyzeBtn"
+    type="button"
+    style="padding: 12px 18px; font-weight: 700;"
+  >
+    Analyze with Ari
+  </button>
 
-      <button id="ariMedicalDebugBtn" style="padding: 12px 18px; font-weight: 700;">
-        Medical OS Debug
-      </button>
+  <button
+    id="ariMedicalDebugBtn"
+    type="button"
+    style="padding: 12px 18px; font-weight: 700;"
+  >
+    Medical OS Debug
+  </button>
 
-      <button id="ariClearBtn" style="padding: 12px 18px; font-weight: 700;">
-        Clear Output
-      </button>
-    </div>
+  <button
+    id="ariClearBtn"
+    type="button"
+    style="padding: 12px 18px; font-weight: 700;"
+  >
+    Clear Output
+  </button>
+</div>
 
     <pre
       id="ariOutput"
@@ -138,20 +150,103 @@
     }
 
     function formatFinalSummary(run = {}) {
-      const summary = run.summary || {};
+  const summary = run.summary || {};
 
-      return [
-        "===== ARI REBIRTH APP RESPONSE =====",
-        "",
-        run.reply || "none",
-        "",
-        `Emotion:\n${run.emotion || "none"}`,
-        "",
-        `Source:\n${run.source || "none"}`,
-        section("TIMING", formatTiming(summary)),
-        section("FINAL SUMMARY", JSON.stringify(summary, null, 2))
-      ].join("\n");
+  const compactSummary = {
+    request: {
+      userMessage: summary.userMessage || null,
+      resolvedUserQuestion: summary.resolvedUserQuestion || null
+    },
+
+    lifecycle: {
+      architecture: summary.pipelineArchitecture || null,
+      complete: summary.pipelineLifecycleComplete === true,
+      layers: summary.pipelineLayers || {},
+      lifecycleErrors: summary.pipelineLifecycleErrors || []
+    },
+
+    perception: {
+      ran: summary.perceptionPipelineRan === true,
+      observationCount: summary.observationCount || 0,
+      primaryFunction:
+        summary.conversationFunction?.primaryFunction || null,
+      conversationType:
+        summary.universalConversationClassification?.conversationType || null,
+      conversationIntent:
+        summary.universalConversationClassification?.conversationIntent || null,
+      semanticSummary: summary.semanticSummary || null
+    },
+
+    routing: {
+      mode: summary.conversationMode || null,
+      primaryIntent: summary.primaryIntent || null,
+      domain: summary.conversationDomain || null,
+      contextLane: summary.contextLane || summary.lane || null,
+      primaryLane: summary.primaryLane || null,
+      planner: summary.selectedPlanner || null
+    },
+
+    deliberation: {
+      ran: summary.deliberationPipelineRan === true,
+      resolvedQuestion: summary.resolvedUserQuestion || null,
+      situation: summary.situationMap?.situations?.[0] || null,
+      triageLane: summary.triage?.primaryLane || null,
+      reasoningRan: summary.reasoningEngineRan === true,
+      memoryRetrievalRan: summary.memoryRetrievalRan === true,
+      responsePlannerRan: summary.responsePlannerRan === true
+    },
+
+    expression: {
+      ran: summary.expressionPipelineRan === true,
+      composerPacketReady: summary.composerPacket?.ready === true,
+      candidateCount: Array.isArray(summary.candidateDrafts)
+        ? summary.candidateDrafts.length
+        : 0,
+      selectedDraftSource: summary.selectedDraftSource || null,
+      blueprintWriterRan: summary.blueprintWriterRan === true,
+      aiWriterRan: summary.aiWriterRan === true,
+      languageComposerRan: summary.languageComposerRan === true
+    },
+
+    delivery: {
+      ran: summary.deliveryPipelineRan === true,
+      threadSaved: summary.threadSaveRan === true,
+      conversationHistorySaved:
+        summary.conversationHistorySaveRan === true,
+      memorySaved: summary.memorySaveRan === true,
+      healthy: summary.deliveryDiagnostics?.healthy === true,
+      warnings: summary.deliveryDiagnostics?.warnings || []
+    },
+
+    errors: {
+      deliberation: summary.deliberationStageErrors || [],
+      expression: summary.expressionStageErrors || [],
+      delivery: summary.deliveryStageErrors || []
+    },
+
+    finalResponse: {
+      text: summary.finalResponse || null,
+      source: summary.finalResponseSource || null,
+      usable: summary.finalResponseUsable !== false,
+      length: String(summary.finalResponse || "").length
     }
+  };
+
+  return [
+    "===== ARI REBIRTH APP RESPONSE =====",
+    "",
+    run.reply || "none",
+    "",
+    `Emotion:\n${run.emotion || "none"}`,
+    "",
+    `Source:\n${run.source || "none"}`,
+    section("TIMING", formatTiming(summary)),
+    section(
+      "COMPACT PIPELINE SUMMARY",
+      JSON.stringify(compactSummary, null, 2)
+    )
+  ].join("\n");
+}
 
     function engineStatus() {
       const checks = [
@@ -189,56 +284,140 @@
       ].join("\n");
     }
 
-    document.getElementById("ariAnalyzeBtn").addEventListener("click", async () => {
-      try {
-        const message = document.getElementById("ariInput").value.trim();
+    document
+  .getElementById("ariAnalyzeBtn")
+  .addEventListener("click", async event => {
+    event.preventDefault();
+    event.stopPropagation();
 
-        if (!message) {
-          print("Enter a message first.");
-          return;
-        }
+    const button = event.currentTarget;
 
-        const run = await runAriOnce(message);
-        print(formatFinalSummary(run));
-      } catch (error) {
-        console.error("[ARI LAB ERROR]", error);
-        print(`===== ARI LAB ERROR =====\n\n${error.message}\n\n${error.stack}`);
+    try {
+      const message =
+        document.getElementById("ariInput").value.trim();
+
+      if (!message) {
+        print("Enter a message first.");
+        return;
       }
-    });
 
-    document.getElementById("ariMedicalDebugBtn").addEventListener("click", () => {
-      try {
-        const message = document.getElementById("ariInput").value.trim();
+      button.disabled = true;
+      print("Loading Ari Rebirth...");
 
-        if (!message) {
-          print("Enter a medical scenario first.");
-          return;
-        }
+      const run = await runAriOnce(message);
 
-        if (!window.AriMedicalOSOrchestrator?.run) {
-          print("Ari Medical OS Orchestrator is not loaded.");
-          return;
-        }
+      print(formatFinalSummary(run));
+    } catch (error) {
+      console.error("[ARI LAB ERROR]", error);
 
-        const result = window.AriMedicalOSOrchestrator.run({
-          userMessage: message,
-          chiefComplaint: message,
-          context: {
-            source: "ari-lab-medical-debug",
-            debugMode: true
-          }
-        });
+      print([
+        "===== ARI LAB ERROR =====",
+        "",
+        error?.message || String(error),
+        "",
+        error?.stack || ""
+      ].join("\n"));
+    } finally {
+      button.disabled = false;
+    }
+  });
 
-        print(formatMedicalDebug(result));
-      } catch (error) {
-        console.error("[ARI MEDICAL DEBUG ERROR]", error);
-        print(`===== ARI MEDICAL DEBUG ERROR =====\n\n${error.message}\n\n${error.stack}`);
+    document
+  .getElementById("ariMedicalDebugBtn")
+  .addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    try {
+      const message =
+        document.getElementById("ariInput").value.trim();
+
+      if (!message) {
+        print("Enter a medical scenario first.");
+        return;
       }
-    });
 
-    document.getElementById("ariClearBtn").addEventListener("click", () => {
-      print("");
-    });
+      if (!window.AriMedicalOSOrchestrator?.run) {
+        print("Ari Medical OS Orchestrator is not loaded.");
+        return;
+      }
+
+      const result = window.AriMedicalOSOrchestrator.run({
+        userMessage: message,
+        chiefComplaint: message,
+        context: {
+          source: "ari-lab-medical-debug",
+          debugMode: true
+        }
+      });
+
+      print(formatMedicalDebug(result));
+    } catch (error) {
+      console.error("[ARI MEDICAL DEBUG ERROR]", error);
+
+      print([
+        "===== ARI MEDICAL DEBUG ERROR =====",
+        "",
+        error?.message || String(error),
+        "",
+        error?.stack || ""
+      ].join("\n"));
+    }
+  });
+
+    document
+  .getElementById("ariClearBtn")
+  .addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    print("");
+  });
+  
+  function showPriorAriLoadInterruption() {
+  const loadingCompleted =
+    sessionStorage.getItem("ariLoadingCompleted");
+
+  const attemptedScript =
+    sessionStorage.getItem("ariLastLoadingScript");
+
+  const lastSuccessfulScript =
+    sessionStorage.getItem("ariLastLoadedScript");
+
+  const attemptedIndex =
+    sessionStorage.getItem("ariLastLoadingIndex");
+
+  const lastSuccessfulIndex =
+    sessionStorage.getItem("ariLastLoadedIndex");
+
+  const loadError =
+    sessionStorage.getItem("ariLastLoadError");
+
+  if (
+    loadingCompleted === "false" &&
+    attemptedScript
+  ) {
+    print([
+      "===== ARI LOAD WAS INTERRUPTED =====",
+      "",
+      `Script being processed when the page reloaded:`,
+      attemptedScript,
+      "",
+      `Script index:`,
+      attemptedIndex || "unknown",
+      "",
+      `Last successful script:`,
+      lastSuccessfulScript || "none",
+      "",
+      `Last successful index:`,
+      lastSuccessfulIndex || "none",
+      "",
+      `Recorded load error:`,
+      loadError || "none"
+    ].join("\n"));
+  }
+}
+
+showPriorAriLoadInterruption();
   </script>
 </body>
 </html>
