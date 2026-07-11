@@ -151,13 +151,71 @@ version: "1.7.5",
 "ari/ontology/meaning/ari-meaning-modifiers.js",
 "ari/ontology/meaning/ari-meaning-impacts.js",
 
-// New understanding chain
+// =====================================================
+// UNDERSTANDING CHAIN
+// =====================================================
+
 "ari/understanding/ari-language-understanding-engine.js",
 "ari/understanding/ari-semantic-understanding-engine.js",
 "ari/understanding/ari-event-understanding-engine.js",
 "ari/understanding/ari-meaning-interpreter.js",
 "ari/understanding/ari-human-state-builder.js",
 "ari/understanding/ari-response-planner.js",
+
+// =====================================================
+// LAYER 1 — PERCEPTION
+// =====================================================
+
+"ari/pipelines/ari-perception-pipeline.js",
+
+// =====================================================
+// LAYER 2 — EXECUTIVE ROUTING
+// =====================================================
+
+"ari/pipelines/ari-executive-routing-pipeline.js",
+
+// =====================================================
+// LAYER 3 — DELIBERATION STAGES
+// =====================================================
+
+"ari/pipeline-stages/deliberation/ari-continuity-stage.js",
+"ari/pipeline-stages/deliberation/ari-safety-stage.js",
+"ari/pipeline-stages/deliberation/ari-situation-stage.js",
+"ari/pipeline-stages/deliberation/ari-reasoning-stage.js",
+"ari/pipeline-stages/deliberation/ari-memory-stage.js",
+"ari/pipeline-stages/deliberation/ari-understanding-stage.js",
+"ari/pipeline-stages/deliberation/ari-response-planning-stage.js",
+
+// Parent Deliberation Pipeline loads after its stages.
+"ari/pipelines/ari-deliberation-pipeline.js",
+
+// =====================================================
+// LAYER 4 — EXPRESSION STAGES
+// =====================================================
+
+"ari/pipeline-stages/expression/ari-character-stage.js",
+"ari/pipeline-stages/expression/ari-language-guidance-stage.js",
+"ari/pipeline-stages/expression/ari-draft-generation-stage.js",
+"ari/pipeline-stages/expression/ari-draft-arbitration-stage.js",
+"ari/pipeline-stages/expression/ari-final-composition-stage.js",
+
+// Parent Expression Pipeline loads after its stages.
+"ari/pipelines/ari-expression-pipeline.js",
+
+// =====================================================
+// LAYER 5 — DELIVERY STAGES
+// =====================================================
+
+"ari/pipeline-stages/delivery/ari-action-delivery-stage.js",
+"ari/pipeline-stages/delivery/ari-learning-persistence-stage.js",
+"ari/pipeline-stages/delivery/ari-delivery-diagnostics-stage.js",
+
+// Parent Delivery Pipeline loads after its stages.
+"ari/pipelines/ari-delivery-pipeline.js",
+
+// =====================================================
+// MASTER FIVE-LAYER PIPELINE — MUST LOAD LAST
+// =====================================================
 
 "ari/integration/ari-rebirth-pipeline.js"
   ],
@@ -333,19 +391,48 @@ return response;
 
 
   checkReadiness() {
-    if (
-      !window.AriRebirthPipeline ||
-      typeof window.AriRebirthPipeline.run !== "function"
-    ) {
-      return {
-        ready: false,
-        message: "Ari Rebirth pipeline is not loaded yet.",
-        error: "missing_AriRebirthPipeline_run"
-      };
-    }
+  const required = {
+    AriPerceptionPipeline:
+      window.AriPerceptionPipeline,
 
-    return { ready: true };
-  },
+    AriExecutiveRoutingPipeline:
+      window.AriExecutiveRoutingPipeline,
+
+    AriDeliberationPipeline:
+      window.AriDeliberationPipeline,
+
+    AriExpressionPipeline:
+      window.AriExpressionPipeline,
+
+    AriDeliveryPipeline:
+      window.AriDeliveryPipeline,
+
+    AriRebirthPipeline:
+      window.AriRebirthPipeline
+  };
+
+  const missing = Object.entries(required)
+    .filter(([, pipeline]) => {
+      return !pipeline || typeof pipeline.run !== "function";
+    })
+    .map(([name]) => name);
+
+  if (missing.length) {
+    return {
+      ready: false,
+
+      message:
+        `Ari Rebirth is missing required pipeline layers: ${missing.join(", ")}.`,
+
+      error:
+        `missing_pipeline_layers:${missing.join(",")}`
+    };
+  }
+
+  return {
+    ready: true
+  };
+},
 
   attachAppContext(summary = {}, cleanMessage = "", options = {}) {
   const normalizedMessage = cleanMessage.toLowerCase().trim();
