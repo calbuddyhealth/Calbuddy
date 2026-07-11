@@ -1,31 +1,17 @@
 // ari/pipelines/ari-deliberation-pipeline.js
 // Ari Deliberation Pipeline
-// Purpose: Resolve context, reasoning, safety, memory, and response strategy.
-// V1.1.0 — Existing Deliberation Chain Migrated / Deep Safety Ready
+// Purpose: Coordinate context, safety, situation, reasoning, memory,
+// understanding, and response planning stages.
+// V1.0.0 — Seven-Stage Deliberation Orchestrator
 
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "1.1.0",
+  version: "1.0.0",
 
   async run(summary = {}, runtime = {}) {
     const {
-      mark = () => {},
-
-      runEngine = async (
-        _engine,
-        _methods,
-        fallback = {}
-      ) => fallback,
-
-      preserveDeveloperEvidence =
-        state => state,
-
-      runDeveloperLayer =
-        async state => state,
-
-      applyContractBridge =
-        state => state
+      mark = () => {}
     } = runtime;
 
     let state = {
@@ -42,1117 +28,131 @@ window.AriDeliberationPipeline = {
       executivePacket
     };
 
-    const runInstructions =
-      executivePacket.runInstructions ||
-      state.routingContract?.run ||
-      {};
-
     // =================================================
-    // 1. Conditional Continuity Retrieval
+    // 1. Continuity Stage
     // =================================================
 
-    const shouldUseContinuity =
-      runInstructions.continuity === true ||
-      state.shouldUseContinuity === true ||
-      state.laneSplit?.routing?.useThread === true ||
-      state.laneSplit?.routing?.useMemory === true ||
-      state.laneSplit?.routing?.useRelationship === true;
-
-    state = {
-      ...state,
-      shouldUseContinuity
-    };
-
-    if (shouldUseContinuity) {
-      mark("before continuityEntryPoint");
-
-      const continuityResults =
-        window.Ari?.continuityEntryPoint?.enter
-          ? await window.Ari.continuityEntryPoint.enter({
-              summary: state,
-              executivePacket,
-              routingContract:
-                state.routingContract ||
-                null,
-              laneSplit:
-                state.laneSplit ||
-                null
-            })
-          : {
-              engine: "ari-continuity-entry-point",
-              source: "not-loaded",
-              ran: false,
-              reason:
-                "continuity_entry_point_not_loaded",
-
-              outputs: {
-                thread: null,
-                memory: null,
-                relationship: null
-              }
-            };
-
-      state = {
-        ...state,
-
-        continuityResults,
-
-        continuityEntryPointRan:
-          continuityResults.ran ??
-          false,
-
-        continuityEntryPointSource:
-          continuityResults.source ||
-          "not-loaded",
-
-        continuityEntryPointReason:
-          continuityResults.reason ||
-          null,
-
-        continuityEntryPointUsed:
-          continuityResults.used ||
-          {},
-
-        continuityEntryPointOutputs:
-          continuityResults.outputs ||
-          {},
-
-        continuityEntryPointWarnings:
-          continuityResults.warnings ||
-          []
-      };
-
-      mark("after continuityEntryPoint");
-
-      // -----------------------------------------------
-      // Continuity Packet
-      // -----------------------------------------------
-
-      mark("before continuityPacket");
-
-      const continuityPacket =
-        window.Ari?.continuityPacket?.build
-          ? await window.Ari.continuityPacket.build({
-              summary: state,
-
-              executivePacket,
-
-              routingContract:
-                state.routingContract ||
-                null,
-
-              laneSplit:
-                state.laneSplit ||
-                null,
-
-              continuityResults:
-                state.continuityResults ||
-                null
-            })
-          : {
-              engine: "ari-continuity-packet",
-              source: "not-loaded",
-              ran: false,
-              reason:
-                "continuity_packet_not_loaded",
-
-              usableFacts: [],
-              unresolvedReferences: [],
-
-              situationMapHandoff: {
-                ready: false,
-                shouldUseAsContext: false
-              }
-            };
-
-      state = {
-        ...state,
-
-        continuityPacket,
-
-        continuityPacketRan:
-          continuityPacket.ran ??
-          false,
-
-        continuityPacketSource:
-          continuityPacket.source ||
-          "not-loaded",
-
-        continuityType:
-          continuityPacket.continuityType ||
-          null,
-
-        continuityCurrentTurn:
-          continuityPacket.currentTurn ||
-          {},
-
-        continuityActiveThread:
-          continuityPacket.activeThread ||
-          {},
-
-        continuityReferencedContext:
-          continuityPacket.referencedContext ||
-          {},
-
-        continuityUsableFacts:
-          continuityPacket.usableFacts ||
-          [],
-
-        continuityUsableFactCount:
-          continuityPacket.usableFactCount ??
-          0,
-
-        continuityUnresolvedReferences:
-          continuityPacket.unresolvedReferences ||
-          [],
-
-        continuityUnresolvedReferenceCount:
-          continuityPacket.unresolvedReferenceCount ??
-          0,
-
-        continuityPacketConfidence:
-          continuityPacket.confidence ||
-          null,
-
-        continuitySituationMapHandoff:
-          continuityPacket.situationMapHandoff ||
-          {}
-      };
-
-      mark("after continuityPacket");
-    } else {
-      state = {
-        ...state,
-
-        continuityResults: null,
-
-        continuityPacket: {
-          engine:
-            "ari-continuity-packet",
-
-          source:
-            "skipped-by-executive-routing",
-
-          ran: false,
-
-          reason:
-            "continuity_not_required",
-
-          usableFacts: [],
-          unresolvedReferences: []
-        },
-
-        continuityPacketRan: false,
-        continuityPacketSource:
-          "skipped-by-executive-routing",
-
-        continuityUsableFacts: [],
-        continuityUsableFactCount: 0,
-        continuityUnresolvedReferences: [],
-        continuityUnresolvedReferenceCount: 0
-      };
-    }
-
-    // =================================================
-    // 2. Prior Meaning Compatibility
-    // =================================================
-
-    state = {
-      ...state,
-
-      priorMeaningForFollowUp:
-        state.latestConversationMeaning ||
-        state.threadState?.latestConversationMeaning ||
-        null,
-
-      conversationMeaningHistory:
-        state.conversationMeaningHistory ||
-        state.threadState?.conversationMeaningHistory ||
-        [],
-
-      activeSemanticTimeline:
-        state.activeSemanticTimeline ||
-        state.threadState?.activeSemanticTimeline ||
-        []
-    };
-
-    // =================================================
-    // 3. Thread Question Generator
-    // =================================================
-
-    mark("before threadQuestionGenerator");
-
-    const threadQuestion =
-      window.Ari?.threadQuestionGenerator?.generate
-        ? await window.Ari.threadQuestionGenerator.generate({
-            summary: state,
-
-            perceptionPacket:
-              state.perceptionPacket ||
-              null,
-
-            executivePacket,
-
-            continuityPacket:
-              state.continuityPacket ||
-              null
-          })
-        : {
-            threadQuestionGeneratorRan: false,
-            source: "not-loaded",
-
-            resolvedUserQuestion:
-              state.userMessage ||
-              state.message ||
-              state.input ||
-              "",
-
-            currentTurnWasResolved: false
-          };
-
-    state = {
-      ...state,
-      threadQuestion,
-      ...threadQuestion
-    };
-
-    mark("after threadQuestionGenerator");
-
-    // =================================================
-    // 4. Deep Safety Reasoning Placeholder
-    // =================================================
-
-    mark("before deepSafetyReasoning");
-
-    const shouldRunDeepSafety =
-      runInstructions.deepSafety === true ||
-      state.routingApplicability?.deepSafety === true ||
-      state.safetyContextGate
-        ?.requiresDeeperSafetyReview === true;
-
-    const deepSafetyResult =
-      shouldRunDeepSafety &&
-      window.AriDeepSafetyReasoningEngine
-        ? await runEngine(
-            window.AriDeepSafetyReasoningEngine,
-            ["evaluate", "reason", "analyze"],
-            {
-              deepSafetyReasoningRan: false,
-              source: "not-loaded",
-              applicable: false,
-              riskLevel: "unknown",
-              safetyAuthority: "none"
-            },
-            state
-          )
-        : {
-            deepSafetyReasoningRan: false,
-
-            source:
-              shouldRunDeepSafety
-                ? "not-loaded"
-                : "skipped-by-routing",
-
-            applicable: false,
-
-            riskLevel:
-              state.safetyContextGate?.riskLevel ||
-              "none",
-
-            riskType:
-              state.safetyContextGate?.riskType ||
-              "none",
-
-            safetyAuthority:
-              state.safetyContextGate
-                ?.shouldStopNormalResponse === true
-                ? "early_gate_override"
-                : "none",
-
-            reason:
-              shouldRunDeepSafety
-                ? "deep_safety_engine_not_loaded"
-                : "deep_safety_not_required"
-          };
-
-    state = {
-      ...state,
-
-      deepSafetyResult,
-
-      deepSafetyReasoning:
-        deepSafetyResult,
-
-      deepSafetyReasoningRan:
-        deepSafetyResult
-          .deepSafetyReasoningRan === true
-    };
-
-    mark("after deepSafetyReasoning");
-
-    // =================================================
-    // 5. Situation Map
-    // =================================================
-
-    const shouldRunSituationMap =
-      runInstructions.situationMap !== false &&
-      state.shouldRunSituationMap !== false;
-
-    mark("before situationMap");
-
-    const situationMap =
-      shouldRunSituationMap
-        ? await runEngine(
-            window.AriSituationMapEngine,
-            ["build", "create"],
-            {
-              situationMapRan: false,
-              source: "not-loaded",
-              situations: [],
-              domains: [],
-              needs: [],
-              risks: [],
-              questions: [],
-              laneCandidates: [],
-              responseRequirements: [],
-              responseConstraints: []
-            },
-            state
-          )
-        : {
-            situationMapRan: false,
-            source:
-              "skipped-by-executive-routing",
-
-            situations: [],
-            domains: [],
-            needs: [],
-            risks: [],
-            questions: [],
-            laneCandidates: [],
-            responseRequirements: [],
-            responseConstraints: [],
-
-            reason:
-              "situation_map_not_required"
-          };
-
-    state = {
-      ...state,
-      situationMap,
-      ...situationMap
-    };
-
-    mark("after situationMap");
-
-    // =================================================
-    // 6. Triage
-    // =================================================
-
-    const shouldRunTriage =
-      runInstructions.triage !== false &&
-      state.shouldRunTriage !== false;
-
-    mark("before triageEngine");
-
-    const triageOutput =
-      shouldRunTriage
-        ? await runEngine(
-            window.AriTriageEngine,
-            ["run", "triage"],
-            {},
-            state
-          )
-        : {
-            ariTriage: {
-              triageEngineRan: false,
-
-              triageEngineSource:
-                "skipped-by-executive-routing",
-
-              primaryLane: null,
-              supportLanes: [],
-              deferredLanes: [],
-              blockedLanes: [],
-              responseConstraints: [],
-              confidence: null,
-
-              reason:
-                "triage_not_required"
-            }
-          };
-
-    const triageResult =
-      triageOutput.ariTriage ||
-      {
-        triageEngineRan: false,
-        triageEngineSource:
-          "not-loaded",
-
-        primaryLane: null,
-        supportLanes: [],
-        deferredLanes: [],
-        blockedLanes: [],
-        responseConstraints: [],
-        confidence: null,
-
-        reason:
-          "Triage engine not loaded."
-      };
-
-    state = {
-      ...state,
-
-      ...triageOutput,
-
-      triage:
-        triageResult,
-
-      ...triageResult,
-
-      primaryLaneSuggestion:
-        triageResult.primaryLane ||
-        state.primaryLane ||
-        null,
-
-      supportLaneSuggestions:
-        triageResult.supportLanes ||
-        [],
-
-      deferredLaneSuggestions:
-        triageResult.deferredLanes ||
-        [],
-
-      blockedLanes:
-        triageResult.blockedLanes ||
-        [],
-
-      responseConstraints:
-        triageResult.responseConstraints ||
-        state.responseConstraints ||
-        []
-    };
-
-    mark("after triageEngine");
-
-    // =================================================
-    // 7. Multi-Lane Response Planner
-    // =================================================
-
-    mark("before multiLanePlanner");
-
-    const multiLanePlan =
-      await runEngine(
-        window.AriMultiLaneResponsePlanner,
-        ["plan"],
-        {
-          multiLanePlannerRan: false,
-          source: "not-loaded",
-
-          primaryLane:
-            state.routingContract?.primaryLane ||
-            state.triage?.primaryLane ||
-            null,
-
-          responseShape:
-            state.routingContract?.responseShape ||
-            state.triage?.responseShape ||
-            null,
-
-          responseOrder: [],
-          composerDirective: {}
-        },
-        state
-      );
-
-    state = {
-      ...state,
-
-      multiLanePlan,
-
-      responsePlan:
-        multiLanePlan,
-
-      multiLaneResponsePlan:
-        multiLanePlan
-    };
-
-    mark("after multiLanePlanner");
-
-    // =================================================
-    // 8. Situation Contract
-    // =================================================
-
-    mark("before situationContract");
-
-    const situationContractResult =
-      await runEngine(
-        window.AriSituationContract,
-        ["create", "build"],
-        {
-          situationContractRan: false,
-          source: "not-loaded",
-          situationContract: null
-        },
-        state
-      );
-
-    state = {
-      ...state,
-      ...(situationContractResult || {})
-    };
-
-    mark("after situationContract");
-
-    // =================================================
-    // 9. Contract Bridge
-    // =================================================
-
-    mark("before contractBridge");
+    mark("before continuityStage");
 
     state =
-      applyContractBridge(state);
-
-    mark("after contractBridge");
-
-    // =================================================
-    // 10. Cognitive Executive
-    // =================================================
-
-    mark("before cognitiveExecutive");
-
-    const cognitiveExecutiveResult =
-      await runEngine(
-        window.AriCognitiveExecutive,
-        ["plan"],
-        {
-          ariExecutiveRan: false,
-          ariExecutiveVersion: null,
-
-          cognitiveExecutive: {
-            source: "not-loaded",
-            authority: "none",
-            activate: [],
-            requires: {}
-          }
-        },
-        state
+      await this.runStage(
+        window.AriContinuityStage,
+        state,
+        runtime,
+        "continuity"
       );
 
-    state = {
-      ...state,
-
-      ...cognitiveExecutiveResult,
-
-      cognitiveExecutive:
-        cognitiveExecutiveResult.cognitiveExecutive ||
-        state.cognitiveExecutive ||
-        null
-    };
-
-    mark("after cognitiveExecutive");
+    mark("after continuityStage");
 
     // =================================================
-    // 11. Developer Layer
+    // 2. Safety Stage
     // =================================================
 
-    const shouldRunDeveloper =
-      runInstructions.developer === true ||
-      state.shouldRunDeveloperLayer === true;
-
-    mark("before runDeveloperLayer");
+    mark("before safetyStage");
 
     state =
-      shouldRunDeveloper
-        ? await runDeveloperLayer(state)
-        : {
-            ...state,
+      await this.runStage(
+        window.AriSafetyDeliberationStage,
+        state,
+        runtime,
+        "safety"
+      );
 
-            developerLayerRan: false,
+    mark("after safetyStage");
 
-            developerLayerSource:
-              "skipped-by-executive-routing",
+    // =================================================
+    // 3. Situation Stage
+    // =================================================
 
-            developerLayerSkipReason:
-              "developer_path_not_required"
-          };
-
-    mark("after runDeveloperLayer");
+    mark("before situationStage");
 
     state =
-      preserveDeveloperEvidence(state);
+      await this.runStage(
+        window.AriSituationStage,
+        state,
+        runtime,
+        "situation"
+      );
+
+    mark("after situationStage");
+
+    // =================================================
+    // 4. Reasoning Stage
+    // =================================================
+
+    mark("before reasoningStage");
 
     state =
-      applyContractBridge(state);
-
-    const developerResponseLocked =
-      Boolean(
-        state.responseLocked === true ||
-        state.developerResponseLocked === true ||
-        state.developerHandoff
-          ?.responseLocked === true ||
-        state.developerHandoff
-          ?.developerResponseLocked === true
+      await this.runStage(
+        window.AriReasoningStage,
+        state,
+        runtime,
+        "reasoning"
       );
 
-    if (
-      !developerResponseLocked &&
-      state.developerHandoff
-    ) {
-      state = {
-        ...state,
-
-        unlockedDeveloperHandoff:
-          state.developerHandoff,
-
-        developerIntent:
-          state.developerIntent ||
-          state.developerHandoff.developerIntent ||
-          null,
-
-        composerDeveloperPacket:
-          state.developerHandoff
-            .composerDeveloperPacket ||
-          state.composerDeveloperPacket ||
-          null,
-
-        developerHandoff: null,
-        developerResponse: null,
-        finalResponse: null,
-
-        responseLocked: false,
-        developerResponseLocked: false
-      };
-    }
-
-    state = {
-      ...state,
-      developerResponseLocked
-    };
+    mark("after reasoningStage");
 
     // =================================================
-    // 12. General Reasoning
+    // 5. Memory Stage
     // =================================================
 
-    const shouldRunHeavyReasoning =
-      runInstructions.heavyReasoning !== false &&
-      state.shouldRunHeavyReasoning !== false;
+    mark("before memoryStage");
 
-    mark("before AriReasoningEngine");
-
-    const reasoningResult =
-      shouldRunHeavyReasoning
-        ? await runEngine(
-            window.AriReasoningEngine,
-            ["create", "reason"],
-            {
-              reasoningEngineRan: false,
-              reasoningSource: "not-loaded",
-              reasoning: {},
-              reasoningAnswer: null,
-              reasoningRecommendation: null
-            },
-            state
-          )
-        : {
-            reasoningEngineRan: false,
-
-            reasoningSource:
-              "skipped-by-executive-routing",
-
-            reasoning: {},
-
-            reasoningAnswer: null,
-            reasoningRecommendation: null,
-
-            reason:
-              "heavy_reasoning_not_required"
-          };
-
-    state = {
-      ...state,
-
-      ...reasoningResult,
-
-      reasoning:
-        reasoningResult.reasoning ||
-        state.reasoning ||
-        {},
-
-      reasoningAnswer: null,
-      reasoningRecommendation: null
-    };
-
-    mark("after AriReasoningEngine");
-
-    // =================================================
-    // 13. Memory Retrieval
-    // =================================================
-
-    mark("before memoryRetrieval");
-
-    const shouldRetrieveMemory =
-      runInstructions.memory === true ||
-      state.shouldUseMemory === true ||
-      state.laneSplit?.routing?.useMemory === true ||
-      state.cognitiveExecutive?.requires
-        ?.userMemory === true ||
-      /\b(remember|do you remember|what did i say|what do you know about me|my preference|my goal|last time|previously|before)\b/i.test(
-        String(
-          state.userMessage ||
-          state.message ||
-          state.input ||
-          ""
-        )
+    state =
+      await this.runStage(
+        window.AriMemoryStage,
+        state,
+        runtime,
+        "memory"
       );
 
-    const memoryRetrievalResult =
-      shouldRetrieveMemory &&
-      window.AriMemoryRetrievalEngine
-        ? await runEngine(
-            window.AriMemoryRetrievalEngine,
-            ["retrieve", "search", "recall"],
-            {
-              memoryRetrievalRan: false,
-              memoryRetrievalSource:
-                "not-loaded",
-
-              memoryAvailable: false,
-              memories: [],
-              usableMemories: []
-            },
-            state
-          )
-        : {
-            memoryRetrievalRan: false,
-
-            memoryRetrievalSource:
-              shouldRetrieveMemory
-                ? "not-loaded"
-                : "skipped",
-
-            memoryAvailable: false,
-            memories: [],
-            usableMemories: [],
-
-            reason:
-              shouldRetrieveMemory
-                ? "memory_retrieval_engine_not_loaded"
-                : "memory_not_needed_for_current_turn"
-          };
-
-    state = {
-      ...state,
-
-      memoryRetrieval:
-        memoryRetrievalResult,
-
-      memoryRetrievalRan:
-        memoryRetrievalResult
-          .memoryRetrievalRan === true,
-
-      memoryRetrievalSource:
-        memoryRetrievalResult
-          .memoryRetrievalSource ||
-        memoryRetrievalResult.source ||
-        "unknown",
-
-      memoryAvailable:
-        memoryRetrievalResult
-          .memoryAvailable === true ||
-        Boolean(
-          memoryRetrievalResult
-            .usableMemories?.length
-        ),
-
-      memories:
-        memoryRetrievalResult.memories ||
-        memoryRetrievalResult
-          .retrievedMemories ||
-        memoryRetrievalResult.results ||
-        [],
-
-      usableMemories:
-        memoryRetrievalResult
-          .usableMemories ||
-        memoryRetrievalResult
-          .retrievedMemories ||
-        memoryRetrievalResult.memories ||
-        []
-    };
-
-    mark("after memoryRetrieval");
+    mark("after memoryStage");
 
     // =================================================
-    // 14. Memory Context Builder
+    // 6. Understanding Stage
     // =================================================
 
-    mark("before memoryContextBuilder");
+    mark("before understandingStage");
 
-    const memoryContextEngine =
-      window.AriMemoryContextBuilder ||
-      window.Ari?.memoryContextBuilder;
-
-    const memoryContextResult =
-      state.memoryAvailable === true &&
-      memoryContextEngine
-        ? await runEngine(
-            memoryContextEngine,
-            ["build", "create"],
-            {
-              memoryContextBuilderRan: false,
-              memoryContextSource:
-                "not-loaded",
-
-              memoryContext: null,
-              memoryFacts: []
-            },
-            state
-          )
-        : {
-            memoryContextBuilderRan: false,
-
-            memoryContextSource:
-              "skipped",
-
-            memoryContext: null,
-            memoryFacts: [],
-
-            reason:
-              state.memoryAvailable
-                ? "memory_context_builder_not_loaded"
-                : "no_usable_memories"
-          };
-
-    state = {
-      ...state,
-
-      memoryContext:
-        memoryContextResult.memoryContext ||
-        null,
-
-      memoryContextResult,
-
-      memoryContextBuilderRan:
-        memoryContextResult
-          .memoryContextBuilderRan === true,
-
-      memoryFacts:
-        memoryContextResult.memoryFacts ||
-        memoryContextResult.usableFacts ||
-        state.usableMemories ||
-        []
-    };
-
-    mark("after memoryContextBuilder");
-
-    // =================================================
-    // 15. Language Understanding
-    // =================================================
-
-    mark("before languageUnderstanding");
-
-    const languageUnderstandingResult =
-      await runEngine(
-        window.AriLanguageUnderstandingEngine ||
-        window.Ari?.languageUnderstandingEngine,
-
-        ["understand", "analyze"],
-
-        {
-          languageUnderstandingRan: false,
-          usable: false,
-          source: "not-loaded"
-        },
-
-        state
+    state =
+      await this.runStage(
+        window.AriUnderstandingStage,
+        state,
+        runtime,
+        "understanding"
       );
 
-    state = {
-      ...state,
-      ...languageUnderstandingResult,
-
-      languageUnderstanding:
-        languageUnderstandingResult
-    };
-
-    mark("after languageUnderstanding");
+    mark("after understandingStage");
 
     // =================================================
-    // 16. Semantic Understanding
+    // 7. Response Planning Stage
     // =================================================
 
-    mark("before semanticUnderstanding");
+    mark("before responsePlanningStage");
 
-    const semanticUnderstandingResult =
-      await runEngine(
-        window.AriSemanticUnderstandingEngine ||
-        window.Ari?.semanticUnderstandingEngine,
-
-        ["understand", "analyze"],
-
-        {
-          semanticUnderstandingRan: false,
-          usable: false,
-          source: "not-loaded"
-        },
-
-        state
+    state =
+      await this.runStage(
+        window.AriResponsePlanningStage,
+        state,
+        runtime,
+        "response_planning"
       );
 
-    state = {
-      ...state,
-      ...semanticUnderstandingResult,
-
-      semanticUnderstanding:
-        semanticUnderstandingResult
-    };
-
-    mark("after semanticUnderstanding");
+    mark("after responsePlanningStage");
 
     // =================================================
-    // 17. Event Understanding
-    // =================================================
-
-    mark("before eventUnderstanding");
-
-    const eventUnderstandingResult =
-      await runEngine(
-        window.AriEventUnderstandingEngine ||
-        window.Ari?.eventUnderstandingEngine,
-
-        ["understand"],
-
-        {
-          eventUnderstandingRan: false,
-          usable: false,
-          source: "not-loaded"
-        },
-
-        state
-      );
-
-    state = {
-      ...state,
-      ...eventUnderstandingResult,
-
-      eventUnderstanding:
-        eventUnderstandingResult
-    };
-
-    mark("after eventUnderstanding");
-
-    // =================================================
-    // 18. Meaning Interpreter
-    // =================================================
-
-    mark("before meaningInterpreter");
-
-    const meaningInterpretationResult =
-      await runEngine(
-        window.AriMeaningInterpreter ||
-        window.Ari?.meaningInterpreter,
-
-        ["interpret"],
-
-        {
-          meaningInterpreterRan: false,
-          usable: false,
-          source: "not-loaded"
-        },
-
-        state
-      );
-
-    state = {
-      ...state,
-      ...meaningInterpretationResult,
-
-      meaningInterpretation:
-        meaningInterpretationResult
-    };
-
-    mark("after meaningInterpreter");
-
-    // =================================================
-    // 19. Human State Builder
-    // =================================================
-
-    mark("before humanStateBuilder");
-
-    const humanStateResult =
-      await runEngine(
-        window.AriHumanStateBuilder ||
-        window.Ari?.humanStateBuilder,
-
-        ["build"],
-
-        {
-          humanStateBuilderRan: false,
-          usable: false,
-          source: "not-loaded"
-        },
-
-        state
-      );
-
-    state = {
-      ...state,
-      ...humanStateResult,
-
-      humanState:
-        humanStateResult
-    };
-
-    mark("after humanStateBuilder");
-
-    // =================================================
-    // 20. Response Planner
-    // =================================================
-
-    mark("before responsePlanner");
-
-    const responsePlannerResult =
-      await runEngine(
-        window.AriResponsePlanner ||
-        window.Ari?.responsePlanner,
-
-        ["plan"],
-
-        {
-          responsePlannerRan: false,
-          usable: false,
-          source: "not-loaded"
-        },
-
-        state
-      );
-
-    state = {
-      ...state,
-      ...responsePlannerResult,
-
-      ariResponsePlan:
-        responsePlannerResult,
-
-      understandingResponsePlan:
-        responsePlannerResult
-    };
-
-    mark("after responsePlanner");
-
-    // =================================================
-    // 21. Deliberation Packet
+    // Deliberation Packet
     // =================================================
 
     state.deliberationPacket =
       this.buildDeliberationPacket(state);
 
-    // Keep the original shell name available too.
+    // Temporary compatibility alias.
     state.deliberationContract =
       state.deliberationPacket;
 
-    state.deliberationPipelineRan = true;
+    state.deliberationPipelineRan =
+      true;
 
     state.deliberationPipelineSource =
       "ari-deliberation-pipeline";
@@ -1164,30 +164,138 @@ window.AriDeliberationPipeline = {
   },
 
   // ===================================================
+  // Stage runner
+  // ===================================================
+
+  async runStage(
+    stage,
+    summary = {},
+    runtime = {},
+    stageName = "unknown"
+  ) {
+    if (!stage || typeof stage.run !== "function") {
+      return {
+        ...summary,
+
+        [`${stageName}StageRan`]:
+          false,
+
+        [`${stageName}StageSource`]:
+          "not-loaded",
+
+        [`${stageName}StageError`]:
+          `The ${stageName} stage was not loaded.`,
+
+        deliberationStageErrors: [
+          ...(
+            Array.isArray(
+              summary.deliberationStageErrors
+            )
+              ? summary.deliberationStageErrors
+              : []
+          ),
+
+          {
+            stage:
+              stageName,
+
+            error:
+              "stage_not_loaded"
+          }
+        ]
+      };
+    }
+
+    try {
+      const result =
+        await stage.run(
+          summary,
+          runtime
+        );
+
+      if (!result || typeof result !== "object") {
+        return {
+          ...summary,
+
+          [`${stageName}StageRan`]:
+            false,
+
+          [`${stageName}StageSource`]:
+            "invalid-result",
+
+          [`${stageName}StageError`]:
+            `The ${stageName} stage returned an invalid result.`,
+
+          deliberationStageErrors: [
+            ...(
+              Array.isArray(
+                summary.deliberationStageErrors
+              )
+                ? summary.deliberationStageErrors
+                : []
+            ),
+
+            {
+              stage:
+                stageName,
+
+              error:
+                "invalid_stage_result"
+            }
+          ]
+        };
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        `Ari deliberation stage error: ${stageName}`,
+        error
+      );
+
+      return {
+        ...summary,
+
+        [`${stageName}StageRan`]:
+          false,
+
+        [`${stageName}StageSource`]:
+          "stage-error",
+
+        [`${stageName}StageError`]:
+          error?.message ||
+          String(error),
+
+        deliberationStageErrors: [
+          ...(
+            Array.isArray(
+              summary.deliberationStageErrors
+            )
+              ? summary.deliberationStageErrors
+              : []
+          ),
+
+          {
+            stage:
+              stageName,
+
+            error:
+              error?.message ||
+              String(error)
+          }
+        ]
+      };
+    }
+  },
+
+  // ===================================================
   // Deliberation Packet
   // ===================================================
 
   buildDeliberationPacket(summary = {}) {
-    const responsePlan =
-      summary.ariResponsePlan ||
-      summary.understandingResponsePlan ||
-      summary.multiLanePlan ||
-      summary.responsePlan ||
-      null;
-
-    const safety =
-      summary.deepSafetyResult ||
-      summary.safetyContextGate ||
-      null;
-
-    const developer =
-      summary.developerHandoff ||
-      summary.unlockedDeveloperHandoff ||
-      summary.developerUnderstanding ||
-      null;
-
     return {
-      ready: true,
+      ready:
+        true,
 
       source:
         "ari-deliberation-pipeline",
@@ -1212,7 +320,41 @@ window.AriDeliberationPipeline = {
         null,
 
       // -----------------------------------------------
-      // Resolved user request
+      // Stage packets
+      // -----------------------------------------------
+
+      stages: {
+        continuity:
+          summary.continuityStagePacket ||
+          null,
+
+        safety:
+          summary.safetyStagePacket ||
+          null,
+
+        situation:
+          summary.situationStagePacket ||
+          null,
+
+        reasoning:
+          summary.reasoningStagePacket ||
+          null,
+
+        memory:
+          summary.memoryStagePacket ||
+          null,
+
+        understanding:
+          summary.understandingStagePacket ||
+          null,
+
+        responsePlanning:
+          summary.responsePlanningStagePacket ||
+          null
+      },
+
+      // -----------------------------------------------
+      // Request
       // -----------------------------------------------
 
       request: {
@@ -1224,70 +366,42 @@ window.AriDeliberationPipeline = {
 
         resolved:
           summary.resolvedUserQuestion ||
-          summary.threadQuestion
-            ?.resolvedUserQuestion ||
           summary.userMessage ||
           summary.message ||
           summary.input ||
           "",
 
         currentTurnWasResolved:
-          summary.currentTurnWasResolved === true,
-
-        threadQuestion:
-          summary.threadQuestion ||
-          null
+          summary.currentTurnWasResolved === true
       },
 
       // -----------------------------------------------
       // Context
       // -----------------------------------------------
 
-      continuity: {
-        required:
+      context: {
+        contextLane:
+          summary.contextLane ||
+          summary.routingContract
+            ?.contextLane ||
+          null,
+
+        continuityRequired:
           summary.shouldUseContinuity === true,
 
-        ran:
-          summary.continuityPacketRan === true,
-
-        results:
-          summary.continuityResults ||
-          null,
-
-        packet:
-          summary.continuityPacket ||
-          null,
-
-        usableFacts:
+        continuityFacts:
           summary.continuityUsableFacts ||
+          [],
+
+        memoryAvailable:
+          summary.memoryAvailable === true,
+
+        memoryFacts:
+          summary.memoryFacts ||
           [],
 
         unresolvedReferences:
           summary.continuityUnresolvedReferences ||
-          []
-      },
-
-      memory: {
-        required:
-          summary.shouldUseMemory === true,
-
-        retrievalRan:
-          summary.memoryRetrievalRan === true,
-
-        available:
-          summary.memoryAvailable === true,
-
-        retrieval:
-          summary.memoryRetrieval ||
-          null,
-
-        context:
-          summary.memoryContext ||
-          null,
-
-        facts:
-          summary.memoryFacts ||
-          summary.usableMemories ||
           []
       },
 
@@ -1296,38 +410,42 @@ window.AriDeliberationPipeline = {
       // -----------------------------------------------
 
       safety: {
-        earlyGate:
-          summary.safetyContextGate ||
-          null,
-
-        deepReview:
-          summary.deepSafetyResult ||
-          null,
-
         applicable:
-          safety?.applicable === true ||
-          safety?.riskLevel !== "none",
+          summary.safetyApplicable === true,
 
         riskLevel:
-          safety?.riskLevel ||
+          summary.resolvedSafetyRiskLevel ||
+          summary.safetyDisposition
+            ?.riskLevel ||
           "none",
 
         riskType:
-          safety?.riskType ||
+          summary.resolvedSafetyRiskType ||
+          summary.safetyDisposition
+            ?.riskType ||
           "none",
 
         authority:
-          safety?.safetyAuthority ||
-          null,
+          summary.resolvedSafetyAuthority ||
+          summary.safetyDisposition
+            ?.safetyAuthority ||
+          "none",
 
-        constraints:
-          safety?.responseContract
-            ?.requiredBehaviors ||
-          []
+        shouldStopNormalResponse:
+          summary
+            .safetyShouldStopNormalResponse === true,
+
+        requiresClarification:
+          summary
+            .safetyRequiresClarification === true,
+
+        contract:
+          summary.safetyResponseContract ||
+          null
       },
 
       // -----------------------------------------------
-      // Situation and response lanes
+      // Situation and lanes
       // -----------------------------------------------
 
       situation: {
@@ -1349,14 +467,10 @@ window.AriDeliberationPipeline = {
 
         contextLane:
           summary.contextLane ||
-          summary.routingContract
-            ?.contextLane ||
           null,
 
         primaryLane:
           summary.primaryLane ||
-          summary.primaryLaneSuggestion ||
-          summary.triage?.primaryLane ||
           null,
 
         supportLanes:
@@ -1377,46 +491,70 @@ window.AriDeliberationPipeline = {
       // -----------------------------------------------
 
       reasoning: {
-        ran:
-          summary.reasoningEngineRan === true,
-
-        source:
-          summary.reasoningSource ||
+        cognitiveExecutive:
+          summary.cognitiveExecutive ||
           null,
 
-        result:
+        general:
           summary.reasoning ||
           {},
 
-        cognitiveExecutive:
-          summary.cognitiveExecutive ||
+        requirements:
+          summary.reasoningRequirements ||
+          null,
+
+        developer: {
+          applicable:
+            summary
+              .shouldRunDeveloperLayer === true,
+
+          ran:
+            summary.developerLayerRan === true,
+
+          responseLocked:
+            summary
+              .developerResponseLocked === true,
+
+          handoff:
+            summary.developerHandoff ||
+            summary.unlockedDeveloperHandoff ||
+            null,
+
+          composerPacket:
+            summary.composerDeveloperPacket ||
+            null
+        }
+      },
+
+      // -----------------------------------------------
+      // Memory
+      // -----------------------------------------------
+
+      memory: {
+        retrievalRan:
+          summary.memoryRetrievalRan === true,
+
+        contextBuilt:
+          summary.memoryContextBuilderRan === true,
+
+        available:
+          summary.memoryAvailable === true,
+
+        facts:
+          summary.memoryFacts ||
+          [],
+
+        context:
+          summary.memoryContext ||
+          null,
+
+        handoff:
+          summary.memoryHandoff ||
           null
       },
 
       // -----------------------------------------------
-      // Developer deliberation
-      // -----------------------------------------------
-
-      developer: {
-        applicable:
-          summary.shouldRunDeveloperLayer === true,
-
-        ran:
-          summary.developerLayerRan === true,
-
-        responseLocked:
-          summary.developerResponseLocked === true,
-
-        result:
-          developer,
-
-        composerPacket:
-          summary.composerDeveloperPacket ||
-          null
-      },
-
-      // -----------------------------------------------
-      // Understanding layers
+      // Understanding
       // -----------------------------------------------
 
       understanding: {
@@ -1438,22 +576,33 @@ window.AriDeliberationPipeline = {
 
         humanState:
           summary.humanState ||
+          null,
+
+        handoff:
+          summary.understandingHandoff ||
           null
       },
 
       // -----------------------------------------------
-      // Response strategy
+      // Final response strategy handoff
       // -----------------------------------------------
 
-      responseStrategy: {
-        plan:
-          responsePlan,
+      responseStrategy:
+        summary.responseStrategy ||
+        null,
 
-        responseShape:
-          summary.responseShape ||
-          summary.routingContract
-            ?.responseShape ||
+      responseControl: {
+        goal:
+          summary.responseGoal ||
           null,
+
+        shape:
+          summary.responseShape ||
+          null,
+
+        order:
+          summary.responseOrder ||
+          [],
 
         rules:
           summary.responseRules ||
@@ -1463,24 +612,20 @@ window.AriDeliberationPipeline = {
           summary.responseConstraints ||
           [],
 
-        required:
+        requiredBehaviors:
           summary.responseRequired ||
           [],
 
-        avoid:
+        forbiddenBehaviors:
           summary.responseAvoid ||
           [],
 
-        thesis:
-          summary.primarySituationThesis ||
-          null,
-
-        narrative:
-          summary.situationNarrative ||
-          null,
-
         communicationPlan:
           summary.communicationPlan ||
+          null,
+
+        composerDirective:
+          summary.composerDirective ||
           null
       },
 
@@ -1489,7 +634,17 @@ window.AriDeliberationPipeline = {
       // -----------------------------------------------
 
       quality: {
-        hasResolvedQuestion:
+        allStagesLoaded:
+          !(
+            summary.deliberationStageErrors
+              ?.length
+          ),
+
+        stageErrors:
+          summary.deliberationStageErrors ||
+          [],
+
+        hasResolvedRequest:
           Boolean(
             String(
               summary.resolvedUserQuestion ||
@@ -1499,30 +654,23 @@ window.AriDeliberationPipeline = {
           ),
 
         hasRoutingContract:
-          Boolean(summary.routingContract),
-
-        hasResponsePlan:
-          Boolean(responsePlan),
-
-        hasSituationContract:
-          Boolean(summary.situationContract),
-
-        hasReasoning:
           Boolean(
-            summary.reasoning &&
-            Object.keys(summary.reasoning)
-              .length
+            summary.routingContract
           ),
 
-        hasUsableContext:
+        hasSituationContract:
           Boolean(
-            summary.continuityUsableFacts
-              ?.length ||
-            summary.memoryFacts?.length
+            summary.situationContract
+          ),
+
+        hasResponseStrategy:
+          Boolean(
+            summary.responseStrategy
           ),
 
         developerResponseLocked:
-          summary.developerResponseLocked === true
+          summary
+            .developerResponseLocked === true
       },
 
       // -----------------------------------------------
@@ -1530,32 +678,59 @@ window.AriDeliberationPipeline = {
       // -----------------------------------------------
 
       authority: {
-        canRetrieveContext: true,
-        canEvaluateSafetyContext: true,
-        canPerformReasoning: true,
-        canDefineResponseStrategy: true,
+        canRetrieveContext:
+          true,
 
-        canChooseFinalRoute: false,
-        canChangeOfficialMode: false,
-        canChangeOfficialIntent: false,
+        canAdjudicateSafety:
+          true,
 
-        canWriteFinalLanguage: false,
-        canSelectFinalDraft: false,
-        canPersistState: false,
+        canModelSituation:
+          true,
+
+        canPerformReasoning:
+          true,
+
+        canRetrieveMemory:
+          true,
+
+        canInterpretMeaning:
+          true,
+
+        canDefineResponseStrategy:
+          true,
+
+        canChooseFinalRoute:
+          false,
+
+        canChangeOfficialMode:
+          false,
+
+        canChangeOfficialIntent:
+          false,
+
+        canWriteFinalLanguage:
+          false,
+
+        canSelectFinalDraft:
+          false,
+
+        canPersistState:
+          false,
 
         role:
-          "context_reasoning_and_response_strategy"
+          "deliberation_stage_orchestration_and_strategy_handoff"
       }
     };
   },
 
   // ===================================================
-  // Executive Packet Fallback
+  // Executive fallback
   // ===================================================
 
   buildFallbackExecutivePacket(summary = {}) {
     return {
-      ready: false,
+      ready:
+        false,
 
       source:
         "ari-deliberation-pipeline-fallback",
@@ -1601,40 +776,57 @@ window.AriDeliberationPipeline = {
       runInstructions: {
         continuity:
           Boolean(
-            summary.laneSplit?.routing
-              ?.useThread ||
-            summary.laneSplit?.routing
-              ?.useMemory ||
-            summary.laneSplit?.routing
-              ?.useRelationship
+            summary.laneSplit
+              ?.routing?.useThread ||
+            summary.laneSplit
+              ?.routing?.useMemory ||
+            summary.laneSplit
+              ?.routing?.useRelationship
           ),
 
         thread:
-          summary.laneSplit?.routing
-            ?.useThread === true,
+          summary.laneSplit
+            ?.routing?.useThread === true,
 
         memory:
-          summary.laneSplit?.routing
-            ?.useMemory === true,
+          summary.laneSplit
+            ?.routing?.useMemory === true,
 
         relationship:
-          summary.laneSplit?.routing
-            ?.useRelationship === true,
+          summary.laneSplit
+            ?.routing?.useRelationship === true,
 
-        deepSafety: false,
-        situationMap: true,
-        triage: true,
+        deepSafety:
+          false,
+
+        situationMap:
+          true,
+
+        triage:
+          true,
 
         developer:
           summary.shouldRunDeveloperLayer === true,
 
-        heavyReasoning: true,
-        fastPath: false
+        heavyReasoning:
+          true,
+
+        fastPath:
+          false
       },
 
       authority: {
-        canChooseRoute: false,
-        canPerformReasoning: false,
+        canChooseRoute:
+          false,
+
+        canChooseApplicability:
+          false,
+
+        canPerformReasoning:
+          false,
+
+        canWriteFinalLanguage:
+          false,
 
         role:
           "compatibility_executive_fallback"
