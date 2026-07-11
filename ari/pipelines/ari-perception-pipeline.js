@@ -1,12 +1,12 @@
 // ari/pipelines/ari-perception-pipeline.js
 // Ari Perception Pipeline
 // Purpose: Collect and structure evidence about the current user message.
-// V1.1.0 — Existing Perception Chain Migrated
+// V1.1.1 — Existing Perception Chain Migrated
 
 window.Ari = window.Ari || {};
 
 window.AriPerceptionPipeline = {
-  version: "1.1.0",
+  version: "1.1.1",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -300,55 +300,462 @@ window.AriPerceptionPipeline = {
   },
 
   buildPerceptionPacket(summary = {}) {
-    return {
-      ready: true,
-      source: "ari-perception-pipeline",
-      version: this.version,
+  const observer =
+    summary.observerEvidence ||
+    {};
 
-      message: {
-        raw:
-          summary.userMessage ||
-          summary.message ||
-          summary.input ||
-          "",
+  const conversationFunction =
+    summary.conversationFunction ||
+    {};
 
-        normalized:
-          summary.normalizedMessage ||
-          ""
-      },
+  const classification =
+    summary.universalConversationClassification ||
+    {};
 
-      safetyScreen:
-        summary.safetyContextGate ||
+  const routingEvidence =
+    summary.routingEvidence ||
+    {};
+
+  const semanticFrame =
+    summary.semanticFrameOutput ||
+    {};
+
+  const safetyScreen =
+    summary.safetyContextGate ||
+    null;
+
+  const observations =
+    observer.observations ||
+    summary.observations ||
+    [];
+
+  const primaryFrame =
+    semanticFrame.primaryFrame ||
+    semanticFrame.normalizedFrame ||
+    null;
+
+  const message =
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    "";
+
+  const normalizedMessage =
+    summary.normalizedMessage ||
+    String(message).toLowerCase().trim();
+
+  return {
+    ready: true,
+    source: "ari-perception-pipeline",
+    version: this.version,
+
+    // =================================================
+    // Original message
+    // =================================================
+
+    message: {
+      raw: message,
+      normalized: normalizedMessage,
+
+      length:
+        String(message).length,
+
+      wordCount:
+        String(normalizedMessage)
+          .split(/\s+/)
+          .filter(Boolean)
+          .length
+    },
+
+    // =================================================
+    // Early safety screening
+    // =================================================
+
+    safetyScreen: {
+      available:
+        Boolean(safetyScreen),
+
+      ran:
+        safetyScreen?.safetyContextGateRan === true,
+
+      riskLevel:
+        safetyScreen?.riskLevel ||
+        "none",
+
+      riskType:
+        safetyScreen?.riskType ||
+        "none",
+
+      primaryRisk:
+        safetyScreen?.primaryRisk ||
         null,
 
-      observerEvidence:
-        summary.observerEvidence ||
+      risks:
+        safetyScreen?.risks ||
+        [],
+
+      possibleOverride:
+        safetyScreen?.override ||
         null,
 
+      shouldStopNormalResponse:
+        safetyScreen?.shouldStopNormalResponse === true,
+
+      requiresClarification:
+        safetyScreen?.shouldAskRiskClarification === true ||
+        safetyScreen?.followUpNeeded === true,
+
+      evidence:
+        safetyScreen?.evidence ||
+        [],
+
+      reasons:
+        safetyScreen?.reasons ||
+        [],
+
+      raw:
+        safetyScreen
+    },
+
+    // =================================================
+    // Raw observations
+    // =================================================
+
+    observer: {
+      available:
+        observer.observerEvidenceRan === true,
+
+      source:
+        observer.observerEvidenceSource ||
+        observer.source ||
+        "unknown",
+
+      observations,
+
+      observationCount:
+        observer.observationCount ??
+        observations.length,
+
+      observedTypes:
+        observer.observedTypes ||
+        [...new Set(observations.map(item => item.type).filter(Boolean))],
+
+      observedValues:
+        observer.observedValues ||
+        [...new Set(observations.map(item => item.value).filter(Boolean))],
+
+      highestConfidenceObservation:
+  observations.length
+    ? [...observations].sort(
+        (a, b) =>
+          Number(b?.confidence || 0) -
+          Number(a?.confidence || 0)
+      )[0]
+    : null
+    },
+
+    // =================================================
+    // Communicative function evidence
+    // =================================================
+
+    conversationFunction: {
+      available:
+        conversationFunction.conversationFunctionRan === true,
+
+      primary:
+        conversationFunction.primaryFunction ||
+        "unknown",
+
+      support:
+        conversationFunction.supportFunctions ||
+        [],
+
+      blocked:
+        conversationFunction.blockedFunctions ||
+        [],
+
+      candidates:
+        conversationFunction.candidates ||
+        [],
+
+      responseBias:
+        conversationFunction.responseBias ||
+        null,
+
+      confidence:
+        conversationFunction.confidence ??
+        null,
+
+      raw:
+        conversationFunction
+    },
+
+    // =================================================
+    // Broad classification evidence
+    // =================================================
+
+    classification: {
+      available:
+        classification.universalConversationClassifierRan === true,
+
+      type:
+        classification.conversationType ||
+        "unknown",
+
+      intent:
+        classification.conversationIntent ||
+        "unknown",
+
+      responseHint:
+        classification.conversationResponseHint ||
+        null,
+
+      candidates:
+        classification.conversationCandidates ||
+        [],
+
+      confidence:
+        classification.confidence ??
+        classification.conversationConfidence ??
+        null,
+
+      raw:
+        classification
+    },
+
+    // =================================================
+    // Routing evidence only
+    // =================================================
+
+    routingEvidence: {
+      available:
+        summary.routingEvidenceRan === true,
+
+      source:
+        summary.routingEvidenceSource ||
+        routingEvidence.source ||
+        "unknown",
+
+      pressures:
+        routingEvidence.routingPressures ||
+        summary.routingPressures ||
+        {},
+
+      preservedObservations:
+        routingEvidence.preservedObserverEvidence ||
+        summary.preservedObserverEvidence ||
+        [],
+
+      preservedObservationCount:
+        routingEvidence.preservedObservationCount ??
+        summary.preservedObservationCount ??
+        0,
+
+      raw:
+        routingEvidence
+    },
+
+    // =================================================
+    // Structured semantic meaning
+    // =================================================
+
+    semantic: {
+      available:
+        semanticFrame.semanticFrameBuilderRan === true,
+
+      advisoryOnly:
+        semanticFrame.advisoryOnly !== false,
+
+      primaryFrame,
+
+      normalizedFrame:
+        semanticFrame.normalizedFrame ||
+        null,
+
+      secondaryFrames:
+        semanticFrame.secondaryFrames ||
+        [],
+
+      allFrames:
+        semanticFrame.allFrames ||
+        [],
+
+      summary:
+        semanticFrame.semanticSummary ||
+        summary.semanticSummary ||
+        null,
+
+      continuity:
+        semanticFrame.continuity ||
+        summary.semanticContinuity ||
+        {},
+
+      responseCharacteristics:
+        semanticFrame.responseCharacteristics ||
+        summary.semanticResponseCharacteristics ||
+        {},
+
+      emotionalOverlay:
+        semanticFrame.emotionalOverlay ||
+        summary.semanticEmotionalOverlay ||
+        {},
+
+      ambiguity:
+        semanticFrame.ambiguity ||
+        summary.semanticAmbiguity ||
+        {},
+
+      raw:
+        semanticFrame
+    },
+
+    // =================================================
+    // Signals for the Executive Routing layer
+    // These are evidence, not final decisions.
+    // =================================================
+
+    routingHandoff: {
       conversationFunction:
-        summary.conversationFunction ||
+        conversationFunction.primaryFunction ||
+        "unknown",
+
+      functionCandidates:
+        conversationFunction.candidates ||
+        [],
+
+      classificationType:
+        classification.conversationType ||
+        "unknown",
+
+      classificationIntent:
+        classification.conversationIntent ||
+        "unknown",
+
+      classificationCandidates:
+        classification.conversationCandidates ||
+        [],
+
+      semanticFrameType:
+        primaryFrame?.frameType ||
+        primaryFrame?.type ||
         null,
 
-      universalClassification:
-        summary.universalConversationClassification ||
+      semanticIntent:
+        primaryFrame?.intent ||
+        semanticFrame.normalizedFrame?.intent ||
         null,
 
-      routingEvidence:
-        summary.routingEvidence ||
+      semanticAction:
+        primaryFrame?.action ||
+        semanticFrame.normalizedFrame?.action ||
         null,
 
-      semanticFrame:
-        summary.semanticFrameOutput ||
+      requestedOutput:
+        primaryFrame?.requestedOutput ||
+        primaryFrame?.object?.type ||
+        semanticFrame.normalizedFrame?.requestedOutput ||
         null,
 
-      authority: {
-        canChooseFinalRoute: false,
-        canChoosePlanner: false,
-        canAnswerUser: false,
-        role: "evidence_and_meaning_only"
+      semanticSummary:
+        semanticFrame.semanticSummary ||
+        null,
+
+      routingPressures:
+        routingEvidence.routingPressures ||
+        {},
+
+      safetyStatus: {
+        riskLevel:
+          safetyScreen?.riskLevel ||
+          "none",
+
+        shouldStopNormalResponse:
+          safetyScreen?.shouldStopNormalResponse === true,
+
+        clarificationNeeded:
+          safetyScreen?.followUpNeeded === true
       }
-    };
-  }
+    },
+
+    // =================================================
+    // Quality and completeness
+    // =================================================
+
+    quality: {
+      hasMessage:
+        Boolean(String(message).trim()),
+
+      hasObservations:
+        observations.length > 0,
+
+      hasConversationFunction:
+        conversationFunction.primaryFunction &&
+        conversationFunction.primaryFunction !== "unknown",
+
+      hasClassification:
+        classification.conversationType &&
+        classification.conversationType !== "unknown",
+
+      hasSemanticFrame:
+        Boolean(primaryFrame),
+
+      hasSemanticSummary:
+        Boolean(semanticFrame.semanticSummary),
+
+      ambiguityPresent:
+        semanticFrame.ambiguity?.ambiguous === true ||
+        Boolean(
+          semanticFrame.ambiguity?.unresolvedReferences?.length
+        ),
+
+      missingInputs: [
+        !String(message).trim()
+          ? "message"
+          : null,
+
+        !observations.length
+          ? "observations"
+          : null,
+
+        !conversationFunction.primaryFunction ||
+        conversationFunction.primaryFunction === "unknown"
+          ? "conversation_function"
+          : null,
+
+        !classification.conversationType ||
+        classification.conversationType === "unknown"
+          ? "classification"
+          : null,
+
+        !primaryFrame
+          ? "semantic_frame"
+          : null
+      ].filter(Boolean)
+    },
+
+    // =================================================
+    // Authority boundary
+    // =================================================
+
+    authority: {
+      canObserveEvidence: true,
+      canRepresentMeaning: true,
+
+      canChooseFinalRoute: false,
+      canChooseMode: false,
+      canChooseFinalIntent: false,
+      canChooseCapabilities: false,
+      canChoosePlanner: false,
+
+      canDetermineFinalSafetySeverity: false,
+      canPerformDeliberation: false,
+      canAnswerUser: false,
+
+      role:
+        "evidence_and_structured_meaning_handoff"
+    }
+  };
+}
 };
 
 console.log(
