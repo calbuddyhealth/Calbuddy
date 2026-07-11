@@ -4,7 +4,7 @@
 // and select the strongest available draft.
 // V1.0.0 — Arbiter Precheck / AI Writer / Candidate Selection Orchestration
 
-window.Ari = window.Ari || {};
+window.Ari = window.Ari || {}; 
 
 window.AriDraftArbitrationStage = {
   version: "1.0.0",
