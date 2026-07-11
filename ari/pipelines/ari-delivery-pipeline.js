@@ -1,7 +1,8 @@
 // ari/pipelines/ari-delivery-pipeline.js
-// Ari Delivery and Learning Pipeline
-// Purpose: Execute approved actions and persist post-response state.
-// V1.0.0 — Five-Layer Architecture Foundation
+// Ari Delivery Pipeline
+// Purpose: Coordinate post-response action planning, learning,
+// persistence, diagnostics, and final delivery handoff.
+// V1.0.0 — Three-Stage Delivery Orchestrator
 
 window.Ari = window.Ari || {};
 
@@ -10,80 +11,684 @@ window.AriDeliveryPipeline = {
 
   async run(summary = {}, runtime = {}) {
     const {
-      mark = () => {},
-      runEngine = async (_engine, _methods, fallback = {}) => fallback
+      mark = () => {}
     } = runtime;
 
     let state = {
       ...summary,
-      activePipelineLayer: "delivery_and_learning"
+      activePipelineLayer: "delivery"
     };
 
-    const merge = result => {
-      state = {
-        ...state,
-        ...(result || {})
-      };
+    const expressionPacket =
+      state.expressionPacket ||
+      state.responseResult ||
+      this.buildFallbackExpressionPacket(state);
 
-      return state;
+    state = {
+      ...state,
+      expressionPacket
     };
 
-    /*
-      Existing post-response calls will be moved here.
+    // =================================================
+    // 1. Action Delivery Stage
+    // =================================================
 
-      Planned ownership:
+    mark("before actionDeliveryStage");
 
-      1. Rebirth Action Planner
-      2. Conversation Meaning History
-      3. Memory Candidate Detection
-      4. Memory Candidate Storage
-      5. Thread-State Save
-      6. Conversation-History Save
-      7. Optional Situation Review Console
-      8. Delivery diagnostics
-      9. UI delivery events, when added
-    */
+    state =
+      await this.runStage(
+        window.AriActionDeliveryStage,
+        state,
+        runtime,
+        "actionDelivery"
+      );
+
+    mark("after actionDeliveryStage");
+
+    // =================================================
+    // 2. Learning and Persistence Stage
+    // =================================================
+
+    mark("before learningPersistenceStage");
+
+    state =
+      await this.runStage(
+        window.AriLearningPersistenceStage,
+        state,
+        runtime,
+        "learningPersistence"
+      );
+
+    mark("after learningPersistenceStage");
+
+    // =================================================
+    // Mark Delivery Pipeline before diagnostics
+    // =================================================
+    //
+    // The Diagnostics Stage checks whether the Delivery
+    // layer ran. This preliminary status prevents it from
+    // incorrectly reporting the active layer as missing.
+    //
+    // The final status is written again after diagnostics.
+
+    state = {
+      ...state,
+
+      deliveryPipelineRan:
+        true,
+
+      deliveryPipelineSource:
+        "ari-delivery-pipeline",
+
+      deliveryPipelineVersion:
+        this.version
+    };
+
+    // =================================================
+    // 3. Delivery Diagnostics Stage
+    // =================================================
+
+    mark("before deliveryDiagnosticsStage");
+
+    state =
+      await this.runStage(
+        window.AriDeliveryDiagnosticsStage,
+        state,
+        runtime,
+        "deliveryDiagnostics"
+      );
+
+    mark("after deliveryDiagnosticsStage");
+
+    // =================================================
+    // Delivery Packet
+    // =================================================
+
+    state.deliveryPacket =
+      this.buildDeliveryPacket(state);
 
     state.deliveryResult =
-      this.buildDeliveryResult(state);
+      state.deliveryPacket;
 
-    state.deliveryPipelineRan = true;
-    state.deliveryPipelineSource = "ari-delivery-pipeline";
-    state.deliveryPipelineVersion = this.version;
+    state.deliveryPipelineRan =
+      true;
+
+    state.deliveryPipelineSource =
+      "ari-delivery-pipeline";
+
+    state.deliveryPipelineVersion =
+      this.version;
+
+    state.activePipelineLayer =
+      "complete";
 
     return state;
   },
 
-  buildDeliveryResult(summary = {}) {
+  // ===================================================
+  // Stage runner
+  // ===================================================
+
+  async runStage(
+    stage,
+    summary = {},
+    runtime = {},
+    stageName = "unknown"
+  ) {
+    if (
+      !stage ||
+      typeof stage.run !== "function"
+    ) {
+      return {
+        ...summary,
+
+        [`${stageName}StageRan`]:
+          false,
+
+        [`${stageName}StageSource`]:
+          "not-loaded",
+
+        [`${stageName}StageError`]:
+          `The ${stageName} stage was not loaded.`,
+
+        deliveryStageErrors: [
+          ...(
+            Array.isArray(
+              summary.deliveryStageErrors
+            )
+              ? summary.deliveryStageErrors
+              : []
+          ),
+
+          {
+            stage:
+              stageName,
+
+            error:
+              "stage_not_loaded"
+          }
+        ]
+      };
+    }
+
+    try {
+      const result =
+        await stage.run(
+          summary,
+          runtime
+        );
+
+      if (
+        !result ||
+        typeof result !== "object"
+      ) {
+        return {
+          ...summary,
+
+          [`${stageName}StageRan`]:
+            false,
+
+          [`${stageName}StageSource`]:
+            "invalid-result",
+
+          [`${stageName}StageError`]:
+            `The ${stageName} stage returned an invalid result.`,
+
+          deliveryStageErrors: [
+            ...(
+              Array.isArray(
+                summary.deliveryStageErrors
+              )
+                ? summary.deliveryStageErrors
+                : []
+            ),
+
+            {
+              stage:
+                stageName,
+
+              error:
+                "invalid_stage_result"
+            }
+          ]
+        };
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        `Ari delivery stage error: ${stageName}`,
+        error
+      );
+
+      return {
+        ...summary,
+
+        [`${stageName}StageRan`]:
+          false,
+
+        [`${stageName}StageSource`]:
+          "stage-error",
+
+        [`${stageName}StageError`]:
+          error?.message ||
+          String(error),
+
+        deliveryStageErrors: [
+          ...(
+            Array.isArray(
+              summary.deliveryStageErrors
+            )
+              ? summary.deliveryStageErrors
+              : []
+          ),
+
+          {
+            stage:
+              stageName,
+
+            error:
+              error?.message ||
+              String(error)
+          }
+        ]
+      };
+    }
+  },
+
+  // ===================================================
+  // Delivery Packet
+  // ===================================================
+
+  buildDeliveryPacket(summary = {}) {
+    const finalResponse =
+      String(
+        summary.finalResponse ||
+        ""
+      ).trim();
+
+    const deliveryErrors =
+      summary.deliveryStageErrors ||
+      [];
+
     return {
-      ready: true,
-      source: "ari-delivery-pipeline",
-      version: this.version,
+      ready:
+        Boolean(finalResponse),
 
-      finalResponseDelivered:
-        Boolean(String(summary.finalResponse || "").trim()),
+      source:
+        "ari-delivery-pipeline",
 
-      actionPlanningRan:
-        Boolean(summary.rebirthActionPlan),
+      version:
+        this.version,
 
-      threadSaved:
-        summary.threadSaveRan === true,
+      // -----------------------------------------------
+      // Input contracts
+      // -----------------------------------------------
 
-      memoryCandidateDetectionRan:
-        summary.memoryCandidateRan === true,
+      perceptionPacket:
+        summary.perceptionPacket ||
+        null,
 
-      memorySaved:
-        summary.memorySaveRan === true,
+      executivePacket:
+        summary.executivePacket ||
+        null,
 
-      conversationHistorySaved:
-        summary.conversationHistorySaveRan === true,
+      deliberationPacket:
+        summary.deliberationPacket ||
+        null,
+
+      expressionPacket:
+        summary.expressionPacket ||
+        null,
+
+      // -----------------------------------------------
+      // Stage packets
+      // -----------------------------------------------
+
+      stages: {
+        actionDelivery:
+          summary.actionDeliveryStagePacket ||
+          null,
+
+        learningPersistence:
+          summary.learningPersistenceStagePacket ||
+          null,
+
+        diagnostics:
+          summary.deliveryDiagnosticsStagePacket ||
+          null
+      },
+
+      // -----------------------------------------------
+      // Delivered response
+      // -----------------------------------------------
+
+      response: {
+        text:
+          finalResponse ||
+          null,
+
+        available:
+          Boolean(finalResponse),
+
+        usable:
+          summary.finalResponseUsable !== false &&
+          Boolean(finalResponse),
+
+        source:
+          summary.finalResponseSource ||
+          null,
+
+        length:
+          finalResponse.length,
+
+        warnings:
+          summary.finalResponseWarnings ||
+          [],
+
+        emotion:
+          summary.emotion ||
+          summary.expressionPacket
+            ?.result?.emotion ||
+          null
+      },
+
+      // -----------------------------------------------
+      // Actions
+      // -----------------------------------------------
+
+      actions: {
+        plannerRan:
+          summary.actionPlannerRan === true,
+
+        plan:
+          summary.rebirthActionPlan ||
+          null,
+
+        actions:
+          summary.plannedActions ||
+          [],
+
+        actionCount:
+          summary.plannedActions?.length ||
+          0,
+
+        requiresApproval:
+          summary.actionHandoff
+            ?.requiresApproval === true,
+
+        executable:
+          summary.actionHandoff
+            ?.executableActions ||
+          [],
+
+        blocked:
+          summary.actionHandoff
+            ?.blockedActions ||
+          [],
+
+        handoff:
+          summary.actionHandoff ||
+          null
+      },
+
+      // -----------------------------------------------
+      // Learning
+      // -----------------------------------------------
+
+      learning: {
+        meaningHistoryRan:
+          summary
+            .conversationMeaningHistoryRan === true,
+
+        latestMeaning:
+          summary.latestConversationMeaning ||
+          null,
+
+        meaningHistory:
+          summary.conversationMeaningHistory ||
+          [],
+
+        memoryCandidateDetectionRan:
+          summary.memoryCandidateRan === true,
+
+        memoryCandidates:
+          summary.memoryCandidates ||
+          [],
+
+        memorySaveRan:
+          summary.memorySaveRan === true,
+
+        memorySaveResult:
+          summary.memorySaveResult ||
+          null
+      },
+
+      // -----------------------------------------------
+      // Persistence
+      // -----------------------------------------------
+
+      persistence: {
+        threadSaved:
+          summary.threadSaveRan === true,
+
+        threadSaveSource:
+          summary.threadSaveSource ||
+          null,
+
+        threadSaveError:
+          summary.threadSaveError ||
+          null,
+
+        conversationHistorySaved:
+          summary
+            .conversationHistorySaveRan === true,
+
+        conversationHistorySource:
+          summary
+            .conversationHistorySaveSource ||
+          null,
+
+        conversationHistoryError:
+          summary
+            .conversationHistorySaveError ||
+          null,
+
+        handoff:
+          summary.learningPersistenceHandoff ||
+          null
+      },
+
+      // -----------------------------------------------
+      // Diagnostics
+      // -----------------------------------------------
+
+      diagnostics: {
+        healthy:
+          summary.deliveryDiagnostics
+            ?.healthy === true,
+
+        warnings:
+          summary.deliveryDiagnostics
+            ?.warnings ||
+          [],
+
+        layerStatus:
+          summary.deliveryDiagnostics
+            ?.layerStatus ||
+          {},
+
+        review:
+          summary.situationReview ||
+          null,
+
+        eventEmitted:
+          summary.deliveryEventEmitted === true,
+
+        eventSource:
+          summary.deliveryEventSource ||
+          null,
+
+        handoff:
+          summary.deliveryDiagnosticsHandoff ||
+          null
+      },
+
+      // -----------------------------------------------
+      // Full lifecycle status
+      // -----------------------------------------------
+
+      lifecycle: {
+        perception:
+          summary.perceptionPipelineRan === true,
+
+        executiveRouting:
+          summary
+            .executiveRoutingPipelineRan === true,
+
+        deliberation:
+          summary.deliberationPipelineRan === true,
+
+        expression:
+          summary.expressionPipelineRan === true,
+
+        delivery:
+          true,
+
+        complete:
+          summary.perceptionPipelineRan === true &&
+          summary
+            .executiveRoutingPipelineRan === true &&
+          summary.deliberationPipelineRan === true &&
+          summary.expressionPipelineRan === true &&
+          Boolean(finalResponse)
+      },
+
+      // -----------------------------------------------
+      // Quality
+      // -----------------------------------------------
+
+      quality: {
+        allDeliveryStagesLoaded:
+          deliveryErrors.length === 0,
+
+        stageErrors:
+          deliveryErrors,
+
+        finalResponseAvailable:
+          Boolean(finalResponse),
+
+        finalResponseUsable:
+          summary.finalResponseUsable !== false &&
+          Boolean(finalResponse),
+
+        actionsReviewed:
+          summary.actionDeliveryStageRan === true,
+
+        persistenceReviewed:
+          summary
+            .learningPersistenceStageRan === true,
+
+        diagnosticsCompleted:
+          summary
+            .deliveryDiagnosticsStageRan === true
+      },
+
+      // -----------------------------------------------
+      // Authority boundary
+      // -----------------------------------------------
 
       authority: {
-        canChangeFinalResponse: false,
-        canChangeRouting: false,
-        canExecuteApprovedActions: true,
-        canPersistState: true,
-        role: "delivery_persistence_and_learning"
+        canPlanPostResponseActions:
+          true,
+
+        canPersistConversationState:
+          true,
+
+        canPersistApprovedMemory:
+          true,
+
+        canReviewDeliveryHealth:
+          true,
+
+        canEmitDeliveryEvents:
+          true,
+
+        canChangeFinalResponse:
+          false,
+
+        canChangeOfficialRoute:
+          false,
+
+        canChangeSafetyDisposition:
+          false,
+
+        role:
+          "delivery_action_learning_persistence_and_diagnostics_handoff"
+      }
+    };
+  },
+
+  // ===================================================
+  // Expression fallback
+  // ===================================================
+
+  buildFallbackExpressionPacket(
+    summary = {}
+  ) {
+    const finalResponse =
+      String(
+        summary.finalResponse ||
+        summary.selectedDraft ||
+        summary.aiWriterDraft ||
+        summary.blueprintWriterDraft ||
+        ""
+      ).trim();
+
+    return {
+      ready:
+        Boolean(finalResponse),
+
+      source:
+        "ari-delivery-pipeline-fallback",
+
+      version:
+        this.version,
+
+      result: {
+        finalResponse:
+          finalResponse ||
+          null,
+
+        usable:
+          Boolean(finalResponse),
+
+        source:
+          summary.finalResponseSource ||
+          summary.selectedDraftSource ||
+          null,
+
+        length:
+          finalResponse.length,
+
+        warnings:
+          summary.finalResponseWarnings ||
+          [],
+
+        emotion:
+          summary.emotion ||
+          null
+      },
+
+      arbitration: {
+        selectedDraft:
+          summary.selectedDraft ||
+          null,
+
+        selectedSource:
+          summary.selectedDraftSource ||
+          null
+      },
+
+      responseControl: {
+        goal:
+          summary.responseGoal ||
+          null,
+
+        shape:
+          summary.responseShape ||
+          null,
+
+        order:
+          summary.responseOrder ||
+          [],
+
+        rules:
+          summary.responseRules ||
+          [],
+
+        constraints:
+          summary.responseConstraints ||
+          [],
+
+        requiredBehaviors:
+          summary.responseRequired ||
+          [],
+
+        forbiddenBehaviors:
+          summary.responseAvoid ||
+          []
+      },
+
+      authority: {
+        canExecuteActions:
+          false,
+
+        canPersistState:
+          false,
+
+        role:
+          "compatibility_expression_fallback"
       }
     };
   }
