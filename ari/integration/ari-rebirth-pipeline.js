@@ -1,12 +1,12 @@
 // ari/integration/ari-rebirth-pipeline.js
 // Ari Rebirth Pipeline
-// Purpose: Run Ari's communication chain in correct order.
-// V4.3.9 — Arbiter-Gated AI Writer / Memory-Only Supabase
+// Purpose: Coordinate Ari's five-layer communication lifecycle.
+// V5.0.1 — Compact Five-Layer Lifecycle Orchestrator
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "4.3.9",
+  version: "5.0.1",
 
   async run(systemSummary = {}) {
     const debugTiming =
@@ -16,11 +16,13 @@ window.AriRebirthPipeline = {
     const timingStart = performance.now();
     const timing = [];
 
-    let summary = this.normalizeInput(systemSummary);
-
-    summary.debugTiming = debugTiming;
-    summary.pipelineTiming = timing;
-    summary.pipelineTimingStart = timingStart;
+    let summary = {
+      ...this.normalizeInput(systemSummary),
+      debugTiming,
+      pipelineTiming: timing,
+      pipelineTimingStart: timingStart,
+      pipelineLifecycleErrors: []
+    };
 
     const mark = label => {
       if (!debugTiming) return;
@@ -38,38 +40,40 @@ window.AriRebirthPipeline = {
 
       mark("AriRebirthPipeline.run complete");
       console.table(timing);
+
       console.log(
         "[AriRebirthPipeline Timing] Total:",
-        Math.round(performance.now() - timingStart) + "ms"
+        `${Math.round(performance.now() - timingStart)}ms`
       );
     };
 
-    const runEngine = async (engine, methods = [], fallback = {}) => {
+    const runEngine = async (
+      engine,
+      methods = [],
+      fallback = {},
+      inputState = summary
+    ) => {
       if (!engine) return fallback;
 
       for (const method of methods) {
-        if (typeof engine[method] === "function") {
-          try {
-            const result = await engine[method](summary);
-            return result || fallback;
-          } catch (error) {
-            console.error("Ari pipeline engine error:", method, error);
-            return {
-              ...fallback,
-              error: error?.message || String(error)
-            };
-          }
+        if (typeof engine[method] !== "function") continue;
+
+        try {
+          const result = await engine[method](inputState);
+          return result || fallback;
+        } catch (error) {
+          console.error("Ari pipeline engine error:", method, error);
+
+          return {
+            ...fallback,
+            error: error?.message || String(error),
+            failedMethod: method,
+            engineVersion: engine?.version || null
+          };
         }
       }
 
       return fallback;
-    };
-
-    const merge = result => {
-      summary = {
-        ...summary,
-        ...(result || {})
-      };
     };
 
     mark("normalizeInput complete");
@@ -81,1286 +85,182 @@ window.AriRebirthPipeline = {
     summary = this.preserveDeveloperEvidence(summary);
     summary = this.preserveMealEstimate(summary);
 
-    // 0.10 Safety
-    mark("before safetyContextGate");
-    const safetyContextGate = await runEngine(
-      window.AriSafetyContextGate,
-      ["evaluate"],
+    const layerRuntime = {
+      mark,
+      runEngine,
+
+      preserveDeveloperEvidence: state =>
+        this.preserveDeveloperEvidence(state),
+
+      preserveMealEstimate: state =>
+        this.preserveMealEstimate(state),
+
+      runDeveloperLayer: state =>
+        this.runDeveloperLayer(state),
+
+      applyContractBridge: state =>
+        this.applyContractBridge(state),
+
+      buildFallbackComposerPacket: state =>
+        this.buildFallbackComposerPacket(state),
+
+      saveFinalThreadState: state =>
+        this.saveFinalThreadState(state),
+
+      saveAriConversationHistory: state =>
+        this.saveAriConversationHistory(state),
+
+      addCandidateDraft: (existing, candidate) =>
+        this.addCandidateDraft(existing, candidate),
+
+      isUsableBlueprintDraft: (draft, state) =>
+        this.isUsableBlueprintDraft(draft, state)
+    };
+
+    const layers = [
       {
-        safetyContextGateRan: false,
-        source: "not-loaded",
-        override: null,
-        riskLevel: "none",
-        riskType: "none",
-        followUpNeeded: false,
-        followUpQuestion: null,
-        shouldStopNormalResponse: false
-      }
-    );
-
-    summary = {
-      ...summary,
-      safetyContextGate,
-      ...safetyContextGate
-    };
-    mark("after safetyContextGate");
-
-    // 0.20 Observer
-    mark("before observerEvidence");
-    const observerResult = await runEngine(
-      window.Ari?.observerNetwork,
-      ["observe"],
+        name: "perception",
+        label: "perceptionPipeline",
+        pipeline: window.AriPerceptionPipeline
+      },
       {
-        observerEvidenceRan: false,
-        observerEvidenceSource: "not-loaded",
-        observations: [],
-        observationLedger: [],
-        observedTypes: [],
-        observedValues: [],
-        observationCount: 0
-      }
-    );
-
-    summary = {
-      ...summary,
-      observerEvidence: observerResult,
-      observer: observerResult,
-      ...observerResult,
-      observations: observerResult.observations || [],
-      observationLedger:
-        observerResult.observationLedger ||
-        observerResult.observations ||
-        [],
-      observedTypes: observerResult.observedTypes || [],
-      observedValues: observerResult.observedValues || [],
-      observationCount: observerResult.observationCount || 0
-    };
-    mark("after observerEvidence");
-
-    // 0.23 Conversation Function
-    mark("before conversationFunction");
-    const conversationFunctionResult = await runEngine(
-      window.AriConversationFunctionEngine,
-      ["analyze"],
+        name: "executiveRouting",
+        label: "executiveRoutingPipeline",
+        pipeline: window.AriExecutiveRoutingPipeline
+      },
       {
-        conversationFunctionRan: false,
-        conversationFunctionSource: "not-loaded",
-        primaryFunction: "unknown",
-        supportFunctions: [],
-        blockedFunctions: [],
-        candidates: [],
-        responseBias: null,
-        confidence: null
-      }
-    );
-
-    summary = {
-      ...summary,
-      conversationFunction: conversationFunctionResult,
-      ...conversationFunctionResult
-    };
-    mark("after conversationFunction");
-
-    // 0.25 Classifier
-    mark("before universalConversationClassifier");
-    const conversationResult = await runEngine(
-      window.AriUniversalConversationClassifier,
-      ["classify"],
+        name: "deliberation",
+        label: "deliberationPipeline",
+        pipeline: window.AriDeliberationPipeline
+      },
       {
-        universalConversationClassifierRan: false,
-        universalConversationClassifierSource: "not-loaded",
-        conversationType: "unknown",
-        conversationIntent: "unknown",
-        conversationResponseHint: null,
-        conversationCandidates: []
-      }
-    );
-
-    summary = {
-      ...summary,
-      ...conversationResult,
-      universalConversationClassification: conversationResult
-    };
-    mark("after universalConversationClassifier");
-
-    // 0.26 Routing Evidence
-    mark("before observerRoutingEvidence");
-    const routingEvidence =
-      window.Ari?.observerRoutingEvidence?.analyze
-        ? await window.Ari.observerRoutingEvidence.analyze({
-            summary,
-            observer: summary.observerEvidence
-          })
-        : {
-            engine: "ari-observer-routing-evidence",
-            source: "not-loaded",
-            routingPressures: {},
-            preservedObserverEvidence: summary.observations || []
-          };
-
-    summary = {
-      ...summary,
-      routingEvidence,
-      observerRoutingEvidence: routingEvidence,
-      routingEvidenceRan:
-        routingEvidence.engine === "ari-observer-routing-evidence",
-      routingEvidenceSource: routingEvidence.source || "not-loaded",
-      routingPressures: routingEvidence.routingPressures || {},
-      preservedObserverEvidence:
-        routingEvidence.preservedObserverEvidence || [],
-      preservedObservationCount:
-        routingEvidence.preservedObservationCount ?? 0
-    };
-    mark("after observerRoutingEvidence");
-        // 0.27 Semantic Frame
-    mark("before semanticFrameBuilder");
-    const semanticFrameOutput = await runEngine(
-      window.AriSemanticFrameBuilder || window.Ari?.semanticFrameBuilder,
-      ["build"],
+        name: "expression",
+        label: "expressionPipeline",
+        pipeline: window.AriExpressionPipeline
+      },
       {
-        semanticFrameBuilderRan: false,
-        semanticFrameBuilderVersion: null,
-        semanticFrameSource: "not-loaded",
-        advisoryOnly: true,
-        primaryFrame: null,
-        normalizedFrame: null,
-        secondaryFrames: [],
-        allFrames: [],
-        continuity: {},
-        responseCharacteristics: {},
-        emotionalOverlay: {},
-        ambiguity: {},
-        semanticSummary: null
+        name: "delivery",
+        label: "deliveryPipeline",
+        pipeline: window.AriDeliveryPipeline
       }
-    );
+    ];
 
-    summary = {
-      ...summary,
-      semanticFrameOutput,
-      semanticFrame: semanticFrameOutput,
-      activeSemanticFrame: semanticFrameOutput.primaryFrame || null,
-      primarySemanticFrame: semanticFrameOutput.primaryFrame || null,
-      semanticSummary: semanticFrameOutput.semanticSummary || null,
-      semanticContinuity: semanticFrameOutput.continuity || {},
-      semanticResponseCharacteristics:
-        semanticFrameOutput.responseCharacteristics || {},
-      semanticEmotionalOverlay:
-        semanticFrameOutput.emotionalOverlay || {},
-      semanticAmbiguity:
-        semanticFrameOutput.ambiguity || {}
-    };
-    mark("after semanticFrameBuilder");
+    for (const layer of layers) {
+      mark(`before ${layer.label}`);
 
-    // 0.28 Lane Splitter
-    mark("before laneSplitter");
-    const laneSplit =
-      window.Ari?.laneSplitterEngine?.split
-        ? await window.Ari.laneSplitterEngine.split({
-            summary,
-            routingEvidence: summary.routingEvidence,
-            semanticFrame: summary.semanticFrameOutput,
-            primarySemanticFrame: summary.primarySemanticFrame,
-            semanticSummary: summary.semanticSummary
-          })
-        : {
-            engine: "ari-lane-splitter-engine",
-            source: "not-loaded",
-            lane: "direct_current_turn",
-            routing: {
-              useCurrentTurn: true,
-              useThread: false,
-              useMemory: false,
-              useRelationship: false,
-              goStraightToSituationMap: true
-            }
-          };
-
-    summary = {
-      ...summary,
-      laneSplit,
-      lane: laneSplit.lane || "direct_current_turn",
-      routingDecision: laneSplit.routing || {},
-      laneSplitterRan:
-        laneSplit.engine === "ari-lane-splitter-engine",
-      laneSplitterSource: laneSplit.source || "not-loaded",
-      laneSplitterConfidence: laneSplit.confidence || null,
-      laneSplitterScores: laneSplit.scores || {},
-      laneSplitterSemanticAware:
-        Boolean(
-          summary.semanticFrameOutput?.semanticFrameBuilderRan ||
-          summary.semanticSummary ||
-          summary.semanticFrameOutput?.primaryFrame ||
-          summary.semanticFrameOutput?.normalizedFrame
-        ),
-      laneSplitterSemanticFirst: laneSplit.semanticFirst ?? false,
-      laneSplitterLexicalFallbackUsed:
-        laneSplit.lexicalFallbackUsed ?? false,
-      laneSplitterSemanticFrameType:
-        laneSplit.semanticFrameType || null,
-      laneSplitterSemanticIntent:
-        laneSplit.semanticIntent || null,
-      laneSplitterExplanation:
-        laneSplit.explanation || null
-    };
-    mark("after laneSplitter");
-
-    // 0.29 Continuity only when needed
-    const shouldUseContinuity =
-      summary.laneSplit?.routing?.useThread ||
-      summary.laneSplit?.routing?.useMemory ||
-      summary.laneSplit?.routing?.useRelationship;
-
-    if (shouldUseContinuity) {
-      mark("before continuityEntryPoint");
-      const continuityResults =
-        window.Ari?.continuityEntryPoint?.enter
-          ? await window.Ari.continuityEntryPoint.enter({
-              summary,
-              laneSplit: summary.laneSplit
-            })
-          : {
-              engine: "ari-continuity-entry-point",
-              source: "not-loaded",
-              ran: false,
-              reason: "continuity_entry_point_not_loaded",
-              outputs: {
-                thread: null,
-                memory: null,
-                relationship: null
-              }
-            };
-
-      summary = {
-        ...summary,
-        continuityResults,
-        continuityEntryPointRan: continuityResults.ran ?? false,
-        continuityEntryPointSource:
-          continuityResults.source || "not-loaded",
-        continuityEntryPointReason: continuityResults.reason || null,
-        continuityEntryPointUsed: continuityResults.used || {},
-        continuityEntryPointOutputs: continuityResults.outputs || {},
-        continuityEntryPointWarnings: continuityResults.warnings || []
-      };
-      mark("after continuityEntryPoint");
-
-      mark("before continuityPacket");
-      const continuityPacket =
-        window.Ari?.continuityPacket?.build
-          ? await window.Ari.continuityPacket.build({
-              summary,
-              laneSplit: summary.laneSplit,
-              continuityResults: summary.continuityResults
-            })
-          : {
-              engine: "ari-continuity-packet",
-              source: "not-loaded",
-              ran: false,
-              reason: "continuity_packet_not_loaded",
-              usableFacts: [],
-              unresolvedReferences: [],
-              situationMapHandoff: {
-                ready: false,
-                shouldUseAsContext: false
-              }
-            };
-
-      summary = {
-        ...summary,
-        continuityPacket,
-        continuityPacketRan: continuityPacket.ran ?? false,
-        continuityPacketSource:
-          continuityPacket.source || "not-loaded",
-        continuityType: continuityPacket.continuityType || null,
-        continuityCurrentTurn: continuityPacket.currentTurn || {},
-        continuityActiveThread: continuityPacket.activeThread || {},
-        continuityReferencedContext:
-          continuityPacket.referencedContext || {},
-        continuityUsableFacts: continuityPacket.usableFacts || [],
-        continuityUsableFactCount:
-          continuityPacket.usableFactCount ?? 0,
-        continuityUnresolvedReferences:
-          continuityPacket.unresolvedReferences || [],
-        continuityUnresolvedReferenceCount:
-          continuityPacket.unresolvedReferenceCount ?? 0,
-        continuityPacketConfidence:
-          continuityPacket.confidence || null,
-        continuitySituationMapHandoff:
-          continuityPacket.situationMapHandoff || {}
-      };
-      mark("after continuityPacket");
-    }
-
-    summary = {
-      ...summary,
-      priorMeaningForFollowUp:
-        summary.latestConversationMeaning ||
-        summary.threadState?.latestConversationMeaning ||
-        null,
-      conversationMeaningHistory:
-        summary.conversationMeaningHistory ||
-        summary.threadState?.conversationMeaningHistory ||
-        [],
-      activeSemanticTimeline:
-        summary.activeSemanticTimeline ||
-        summary.threadState?.activeSemanticTimeline ||
-        []
-    };
-
-    // 0.30 Thread Question
-    mark("before threadQuestionGenerator");
-    const threadQuestion =
-      window.Ari?.threadQuestionGenerator?.generate
-        ? await window.Ari.threadQuestionGenerator.generate({ summary })
-        : {
-            threadQuestionGeneratorRan: false,
-            source: "not-loaded",
-            resolvedUserQuestion: summary.userMessage,
-            currentTurnWasResolved: false
-          };
-
-    summary = {
-      ...summary,
-      threadQuestion,
-      ...threadQuestion
-    };
-    mark("after threadQuestionGenerator");
-
-    // 0.35 Situation Map
-    mark("before situationMap");
-    const situationMap = await runEngine(
-      window.AriSituationMapEngine,
-      ["build", "create"],
-      {
-        situationMapRan: false,
-        source: "not-loaded",
-        situations: [],
-        domains: [],
-        needs: [],
-        risks: [],
-        questions: [],
-        laneCandidates: [],
-        responseRequirements: [],
-        responseConstraints: []
-      }
-    );
-
-    summary = {
-      ...summary,
-      situationMap,
-      ...situationMap
-    };
-    mark("after situationMap");
-                
-         // 0.40 Triage
-    mark("before triageEngine");
-    const triageOutput = await runEngine(
-      window.AriTriageEngine,
-      ["run", "triage"],
-      {}
-    );
-
-    const triageResult =
-      triageOutput.ariTriage || {
-        triageEngineRan: false,
-        triageEngineSource: "not-loaded",
-        primaryLane: null,
-        supportLanes: [],
-        deferredLanes: [],
-        blockedLanes: [],
-        responseConstraints: [],
-        confidence: null,
-        reason: "Triage engine not loaded."
-      };
-
-    summary = {
-      ...summary,
-      ...triageOutput,
-      triage: triageResult,
-      ...triageResult,
-      primaryLaneSuggestion: triageResult.primaryLane || null,
-      supportLaneSuggestions: triageResult.supportLanes || [],
-      deferredLaneSuggestions: triageResult.deferredLanes || [],
-      blockedLanes: triageResult.blockedLanes || [],
-      responseConstraints: triageResult.responseConstraints || []
-    };
-    mark("after triageEngine");
-
-// 0.43 Multi-Lane Planner
-
-mark("before multiLanePlanner");
-
-const multiLanePlan = await runEngine(
-
-  window.AriMultiLaneResponsePlanner,
-
-  ["plan"],
-
-  {
-
-    multiLanePlannerRan: false,
-
-    source: "not-loaded",
-
-    primaryLane: summary.triage?.primaryLane || null,
-
-    responseShape: summary.triage?.responseShape || null,
-
-    responseOrder: [],
-
-    composerDirective: {}
-
-  }
-
-);
-
-summary = {
-
-  ...summary,
-
-  multiLanePlan,
-
-  responsePlan: multiLanePlan,
-
-  multiLaneResponsePlan: multiLanePlan
-
-};
-
-mark("after multiLanePlanner");
-
-    // 0.45 Situation Contract
-    mark("before situationContract");
-    merge(await runEngine(
-      window.AriSituationContract,
-      ["create", "build"],
-      {
-        situationContractRan: false,
-        source: "not-loaded",
-        situationContract: null
-      }
-    ));
-    mark("after situationContract");
-
-    mark("before contractBridge");
-    summary = this.applyContractBridge(summary);
-    mark("after contractBridge");
-
-// 0.50 Cognitive Executive
-mark("before cognitiveExecutive");
-const cognitiveExecutiveResult = await runEngine(
-  window.AriCognitiveExecutive,
-  ["plan"],
-  {
-    ariExecutiveRan: false,
-    ariExecutiveVersion: null,
-    cognitiveExecutive: {
-      source: "not-loaded",
-      authority: "none",
-      activate: [],
-      requires: {}
-    }
-  }
-);
-
-summary = {
-  ...summary,
-  ...cognitiveExecutiveResult,
-  cognitiveExecutive:
-    cognitiveExecutiveResult.cognitiveExecutive ||
-    summary.cognitiveExecutive ||
-    null
-};
-mark("after cognitiveExecutive");
-
-
-
-    // 0.60 Developer Layer
-    mark("before runDeveloperLayer");
-    summary = await this.runDeveloperLayer(summary);
-    mark("after runDeveloperLayer");
-
-    summary = this.preserveDeveloperEvidence(summary);
-    summary = this.applyContractBridge(summary);
-
-    const developerResponseLocked = Boolean(
-      summary.responseLocked === true ||
-      summary.developerResponseLocked === true ||
-      summary.developerHandoff?.responseLocked === true ||
-      summary.developerHandoff?.developerResponseLocked === true
-    );
-
-    if (!developerResponseLocked && summary.developerHandoff) {
-      summary.unlockedDeveloperHandoff = summary.developerHandoff;
-      summary.developerIntent =
-        summary.developerIntent ||
-        summary.developerHandoff.developerIntent ||
-        null;
-
-      summary.composerDeveloperPacket =
-        summary.developerHandoff.composerDeveloperPacket ||
-        summary.composerDeveloperPacket ||
-        null;
-
-      summary.developerHandoff = null;
-      summary.developerResponse = null;
-      summary.finalResponse = null;
-      summary.responseLocked = false;
-      summary.developerResponseLocked = false;
-    }
-
-    // 0.70 Reasoning
-    mark("before AriReasoningEngine");
-    const reasoningResult = await runEngine(
-      window.AriReasoningEngine,
-      ["create", "reason"],
-      {
-        reasoningEngineRan: false,
-        reasoningSource: "not-loaded",
-        reasoning: {},
-        reasoningAnswer: null,
-        reasoningRecommendation: null
-      }
-    );
-
-    summary = {
-      ...summary,
-      ...reasoningResult,
-      reasoning: reasoningResult.reasoning || summary.reasoning || {},
-      reasoningAnswer: null,
-      reasoningRecommendation: null
-    };
-    mark("after AriReasoningEngine");
-
-    // 0.80 Character Context
-mark("before characterContext");
-const characterContextResult = await runEngine(
-  window.AriCharacterContextEngine,
-  ["create"],
-  {
-    characterContextEngineRan: false,
-    characterContextEngineSource: "not-loaded",
-    characterUseAllowed: false,
-    characterVisibility: "background",
-    characterMode: "silent",
-    characterReason: "Character context engine not loaded.",
-    characterHints: {}
-  }
-);
-
-summary = {
-  ...summary,
-  ...characterContextResult,
-  characterContext: characterContextResult
-};
-mark("after characterContext");
-
-
-
-// 0.805 Supabase Character Knowledge — DISABLED
-mark("before supabaseCharacterKnowledge");
-
-const supabaseCharacterKnowledgeResult = {
-  supabaseCharacterKnowledgeRan: false,
-  characterKnowledgeAvailable: false,
-  inferenceNeeded: false,
-  nodes: [],
-  source: "disabled",
-  reason: "Supabase character knowledge disabled. Supabase is reserved for memory retrieval/storage only."
-};
-
-summary = {
-  ...summary,
-  supabaseCharacterKnowledge: supabaseCharacterKnowledgeResult,
-  characterKnowledge: supabaseCharacterKnowledgeResult,
-  characterKnowledgeAvailable: false
-};
-
-mark("after supabaseCharacterKnowledge");
-
-// 0.81 Character Reasoning
-mark("before characterReasoning");
-const characterReasoningResult = await runEngine(
-  window.AriCharacterReasoningEngine,
-  ["reason"],
-  {
-    characterReasoningRan: false,
-    characterReasoningSource: "not-loaded",
-    characterAnswerAvailable: false
-  }
-);
-
-summary = {
-  ...summary,
-  ...characterReasoningResult,
-  characterReasoning: characterReasoningResult
-};
-mark("after characterReasoning");
-
-// 0.82 Character Expression
-mark("before characterExpression");
-const characterExpressionResult = await runEngine(
-  window.AriCharacterExpressionEngine,
-  ["create"],
-  {
-    characterExpressionRan: false,
-    characterExpressionSource: "not-loaded",
-    characterRelevant: false,
-    composerCharacter: null,
-    composerCharacterPacket: null
-  }
-);
-
-summary = {
-  ...summary,
-  ...characterExpressionResult,
-  characterExpression: characterExpressionResult,
-  composerCharacter:
-    characterExpressionResult.composerCharacter ||
-    characterExpressionResult.composerCharacterPacket ||
-    null
-};
-
-summary.composerCharacter = {
-  ...(summary.composerCharacter || {}),
-  enabled:
-    summary.composerCharacter?.enabled === true ||
-    characterReasoningResult.characterAnswerAvailable === true,
-  draft:
-    characterReasoningResult.userFacingDraft ||
-    summary.composerCharacter?.draft ||
-    "",
-  reasoning:
-    characterReasoningResult.characterAnswerAvailable === true
-      ? characterReasoningResult
-      : summary.composerCharacter?.reasoning || null
-};
-
-mark("after characterExpression");
-
-// 0.83 Memory Retrieval Only
-mark("before memoryRetrieval");
-
-const shouldRetrieveMemory =
-  summary.laneSplit?.routing?.useMemory === true ||
-  summary.cognitiveExecutive?.requires?.userMemory === true ||
-  /\b(remember|do you remember|what did i say|what do you know about me|my preference|my goal|last time|previously|before)\b/i.test(
-    String(summary.userMessage || summary.message || summary.input || "")
-  );
-
-const memoryRetrievalResult =
-  shouldRetrieveMemory && window.AriMemoryRetrievalEngine
-    ? await runEngine(
-        window.AriMemoryRetrievalEngine,
-        ["retrieve", "search", "recall"],
-        {
-          memoryRetrievalRan: false,
-          memoryRetrievalSource: "not-loaded",
-          memoryAvailable: false,
-          memories: [],
-          usableMemories: []
-        }
-      )
-    : {
-        memoryRetrievalRan: false,
-        memoryRetrievalSource: "skipped",
-        memoryAvailable: false,
-        memories: [],
-        usableMemories: [],
-        reason: shouldRetrieveMemory
-          ? "memory_retrieval_engine_not_loaded"
-          : "memory_not_needed_for_current_turn"
-      };
-
-summary = {
-  ...summary,
-  memoryRetrieval: memoryRetrievalResult,
-  memoryRetrievalRan: memoryRetrievalResult.memoryRetrievalRan === true,
-  memoryRetrievalSource:
-    memoryRetrievalResult.memoryRetrievalSource ||
-    memoryRetrievalResult.source ||
-    "unknown",
-  memoryAvailable:
-    memoryRetrievalResult.memoryAvailable === true ||
-    Boolean(memoryRetrievalResult.usableMemories?.length),
-  memories:
-  memoryRetrievalResult.memories ||
-  memoryRetrievalResult.retrievedMemories ||
-  memoryRetrievalResult.results ||
-  [],
-  usableMemories:
-  memoryRetrievalResult.usableMemories ||
-  memoryRetrievalResult.retrievedMemories ||
-  memoryRetrievalResult.memories ||
-  []
-};
-
-mark("after memoryRetrieval");
-
-// 0.84 Memory Context Builder Only
-mark("before memoryContextBuilder");
-
-const memoryContextResult =
-  summary.memoryAvailable === true &&
-(window.AriMemoryContextBuilder || window.Ari?.memoryContextBuilder)
-    ? await runEngine(
-        window.AriMemoryContextBuilder || window.Ari?.memoryContextBuilder,
-        ["build", "create"],
-        {
-          memoryContextBuilderRan: false,
-          memoryContextSource: "not-loaded",
-          memoryContext: null,
-          memoryFacts: []
-        }
-      )
-    : {
-        memoryContextBuilderRan: false,
-        memoryContextSource: "skipped",
-        memoryContext: null,
-        memoryFacts: [],
-        reason: summary.memoryAvailable
-          ? "memory_context_builder_not_loaded"
-          : "no_usable_memories"
-      };
-
-summary = {
-  ...summary,
-  memoryContext: memoryContextResult.memoryContext || null,
-  memoryContextResult,
-  memoryContextBuilderRan:
-    memoryContextResult.memoryContextBuilderRan === true,
-  memoryFacts:
-    memoryContextResult.memoryFacts ||
-    memoryContextResult.usableFacts ||
-    summary.usableMemories ||
-    []
-};
-
-mark("after memoryContextBuilder");
-
-
-// 0.845 Language Understanding
-mark("before languageUnderstanding");
-const languageUnderstandingResult = await runEngine(
-  window.AriLanguageUnderstandingEngine || window.Ari?.languageUnderstandingEngine,
-  ["understand", "analyze"],
-  { languageUnderstandingRan: false, usable: false, source: "not-loaded" }
-);
-
-summary = {
-  ...summary,
-  ...languageUnderstandingResult,
-  languageUnderstanding: languageUnderstandingResult
-};
-mark("after languageUnderstanding");
-
-// 0.846 Semantic Understanding
-mark("before semanticUnderstanding");
-const semanticUnderstandingResult = await runEngine(
-  window.AriSemanticUnderstandingEngine || window.Ari?.semanticUnderstandingEngine,
-  ["understand", "analyze"],
-  { semanticUnderstandingRan: false, usable: false, source: "not-loaded" }
-);
-
-summary = {
-  ...summary,
-  ...semanticUnderstandingResult,
-  semanticUnderstanding: semanticUnderstandingResult
-};
-mark("after semanticUnderstanding");
-
-// 0.847 Event Understanding
-mark("before eventUnderstanding");
-const eventUnderstandingResult = await runEngine(
-  window.AriEventUnderstandingEngine || window.Ari?.eventUnderstandingEngine,
-  ["understand"],
-  { eventUnderstandingRan: false, usable: false, source: "not-loaded" }
-);
-
-summary = {
-  ...summary,
-  ...eventUnderstandingResult,
-  eventUnderstanding: eventUnderstandingResult
-};
-mark("after eventUnderstanding");
-
-// 0.848 Meaning Interpreter
-mark("before meaningInterpreter");
-const meaningInterpretationResult = await runEngine(
-  window.AriMeaningInterpreter || window.Ari?.meaningInterpreter,
-  ["interpret"],
-  { meaningInterpreterRan: false, usable: false, source: "not-loaded" }
-);
-
-summary = {
-  ...summary,
-  ...meaningInterpretationResult,
-  meaningInterpretation: meaningInterpretationResult
-};
-mark("after meaningInterpreter");
-
-// 0.849 Human State Builder
-mark("before humanStateBuilder");
-const humanStateResult = await runEngine(
-  window.AriHumanStateBuilder || window.Ari?.humanStateBuilder,
-  ["build"],
-  { humanStateBuilderRan: false, usable: false, source: "not-loaded" }
-);
-
-summary = {
-  ...summary,
-  ...humanStateResult,
-  humanState: humanStateResult
-};
-mark("after humanStateBuilder");
-
-// 0.850 Response Planner
-mark("before responsePlanner");
-const responsePlannerResult = await runEngine(
-  window.AriResponsePlanner || window.Ari?.responsePlanner,
-  ["plan"],
-  { responsePlannerRan: false, usable: false, source: "not-loaded" }
-);
-
-summary = {
-  ...summary,
-  ...responsePlannerResult,
-  ariResponsePlan: responsePlannerResult,
-  understandingResponsePlan: responsePlannerResult
-};
-
-mark("after responsePlanner");
-
-    // 0.851 Lexical Grounding
-    mark("before lexicalGrounding");
-    merge(await runEngine(
-      window.AriLexicalGroundingEngine,
-      ["ground"],
-      {
-        lexicalGroundingRan: false,
-        lexicalGroundingSource: "not-loaded",
-        lexicalGrounding: null,
-        preferredTerms: {},
-        conceptMap: {},
-        authority: {
-          canSetSituation: false,
-          canSetLane: false,
-          canSetContract: false,
-          canAnswerUser: false,
-          role: "expression_grounding_only"
-        }
-      }
-    ));
-    mark("after lexicalGrounding");
-
-    // 0.90 Human Language
-    mark("before humanLanguage");
-    const humanLanguageResult = await runEngine(
-      window.AriHumanLanguageEngine,
-      ["create"],
-      {
-        humanLanguageEngineRan: false,
-        humanLanguageSource: "not-loaded",
-        humanLanguageProfile: {}
-      }
-    );
-
-    summary = {
-      ...summary,
-      ...humanLanguageResult,
-      humanLanguage: humanLanguageResult,
-      humanLanguageProfile:
-        humanLanguageResult.humanLanguageProfile ||
-        summary.humanLanguageProfile ||
-        {}
-    };
-    mark("after humanLanguage");
-
-    // 0.95 Mouth Director / Expression Planner
-mark("before mouthDirector");
-const mouthDirectorResult = await runEngine(
-  window.AriMouthDirector,
-  ["direct", "plan"],
-  {
-    mouthDirectorRan: false,
-    mouthDirectorSource: "not-loaded",
-    expressionPlan: null,
-    blueprintHint: null,
-    responseRules: summary.responseRules || [],
-    responseAvoid: [],
-    responseRequired: []
-  }
-);
-
-summary = {
-  ...summary,
-  ...mouthDirectorResult,
-  mouthDirector: mouthDirectorResult,
-  expressionPlan: mouthDirectorResult.expressionPlan || null,
-  blueprintHint: mouthDirectorResult.blueprintHint || null,
-  communicationPlan:
-    mouthDirectorResult.communicationPlan ||
-    summary.communicationPlan ||
-    null,
-  mouthDirective:
-    mouthDirectorResult.mouthDirective ||
-    summary.mouthDirective ||
-    null,
-  responseRules:
-    mouthDirectorResult.responseRules ||
-    summary.responseRules ||
-    [],
-  responseAvoid:
-    mouthDirectorResult.responseAvoid || [],
-  responseRequired:
-    mouthDirectorResult.responseRequired || []
-};
-
-mark("after mouthDirector");
-        // 1.10 Composer Bridge
-    mark("before composerBridge");
-    const composerPacketResult =
-      window.AriComposerBridge?.build
-        ? await window.AriComposerBridge.build(summary)
-        : { composerPacketReady: false };
-
-    summary = {
-      ...summary,
-      ...composerPacketResult,
-      composerPacket:
-        composerPacketResult.composerPacket ||
-        this.buildFallbackComposerPacket(summary)
-    };
-
-    if (!summary.composerPacket?.ready) {
-      summary.composerPacket = this.buildFallbackComposerPacket(summary);
-    }
-   summary.composerPacket = {
-  ...summary.composerPacket,
-
-  meaningInterpretation:
-    summary.meaningInterpretation || summary.composerPacket.meaningInterpretation || null,
-
-  humanState:
-    summary.humanState || summary.composerPacket.humanState || null,
-
-  responsePlan:
-    summary.ariResponsePlan ||
-    summary.understandingResponsePlan ||
-    summary.composerPacket.responsePlan ||
-    summary.responsePlan ||
-    null
-};
-     mark("after composerBridge");
-
-// 1.15 Blueprint Writer
-if (!developerResponseLocked) {
-  mark("before blueprintWriter");
-
-  const blueprintWriterResult =
-  window.AriBlueprintWriter?.write
-    ? await window.AriBlueprintWriter.write({
-        composerPacket: summary.composerPacket,
-        summary
-      })
-    : { blueprintWriterRan: false };
-
-  summary = {
-    ...summary,
-    ...blueprintWriterResult,
-    blueprintWriter: blueprintWriterResult,
-    blueprintWriterDraft:
-      blueprintWriterResult.draft ||
-      blueprintWriterResult.blueprintWriterDraft ||
-      null
-  };
-
-summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
-  source: "blueprint_writer",
-  text: summary.blueprintWriterDraft,
-  priority: 60,
-  usable: this.isUsableBlueprintDraft(summary.blueprintWriterDraft, summary)
-});
-
-  mark("after blueprintWriter");
-}
-
-    // 1.20 Arbiter Precheck → AI Writer only if needed
-mark("before arbiterPrecheck");
-
-const arbiterPrecheck =
-  window.AriResponseCandidateArbiter?.precheck
-    ? window.AriResponseCandidateArbiter.precheck({
+      summary = await this.runPipelineLayer({
+        name: layer.name,
+        pipeline: layer.pipeline,
         summary,
-        composerPacket: summary.composerPacket,
-        candidates: summary.candidateDrafts || []
-      })
-    : {
-        arbiterPrecheckRan: false,
-        needsAIWriter: true,
-        aiRepairReason: "arbiter_precheck_not_loaded"
-      };
+        runtime: layerRuntime
+      });
 
-summary = {
-  ...summary,
-  arbiterPrecheck,
-  needsAIWriter: arbiterPrecheck.needsAIWriter === true,
-  aiRepairReason: arbiterPrecheck.aiRepairReason || null
-};
-
-mark("after arbiterPrecheck");
-
-const shouldBypassAIWriterForCharacter =
-  summary.characterReasoning?.characterAnswerAvailable === true &&
-  (
-    summary.characterReasoning?.userFacingDraft ||
-    summary.composerCharacter?.draft
-  );
-
-const shouldRunAIWriter =
-  !developerResponseLocked &&
-  summary.needsAIWriter === true &&
-  !shouldBypassAIWriterForCharacter;
-
-if (!developerResponseLocked && shouldBypassAIWriterForCharacter) {
-  mark("before aiWriter");
-
-  const characterDraft =
-    summary.characterReasoning?.userFacingDraft ||
-    summary.composerCharacter?.draft ||
-    null;
-
-  summary = {
-    ...summary,
-    finalResponse: characterDraft,
-    aiWriterRan: false,
-    aiWriterUsedAI: false,
-    aiWriterSource: "bypassed_character_reasoning",
-    aiWriterDraft: characterDraft,
-    aiWriterBypassReason:
-      "Character reasoning already produced a complete answer.",
-    aiWriter: {
-      aiWriterRan: false,
-      aiWriterUsedAI: false,
-      aiWriterSource: "bypassed_character_reasoning",
-      draft: characterDraft
+      mark(`after ${layer.label}`);
     }
-  };
-
-  mark("after aiWriter");
-
-} else if (shouldRunAIWriter) {
-  mark("before aiWriter");
-
-  const aiWriterResult =
-    window.AriAIWriter?.write
-      ? await window.AriAIWriter.write({
-          composerPacket: {
-            ...summary.composerPacket,
-            responseCandidateArbiter: summary.arbiterPrecheck || null,
-            aiRepairReason: summary.aiRepairReason || null,
-            meaningInterpretation:
-              summary.meaningInterpretation ||
-              summary.composerPacket.meaningInterpretation ||
-              null,
-            humanState:
-              summary.humanState ||
-              summary.composerPacket.humanState ||
-              null,
-            responsePlan:
-              summary.ariResponsePlan ||
-              summary.understandingResponsePlan ||
-              summary.composerPacket.responsePlan ||
-              null,
-            blueprintWriterDraft: summary.blueprintWriterDraft || null,
-            blueprintWriter: summary.blueprintWriter || null,
-            candidateDrafts: summary.candidateDrafts || []
-          },
-          summary
-        })
-      : { aiWriterRan: false };
-
-  summary = {
-    ...summary,
-    ...aiWriterResult,
-    aiWriter: aiWriterResult,
-    aiWriterDraft:
-      aiWriterResult.draft ||
-      aiWriterResult.aiWriterDraft ||
-      null
-  };
-
-  summary.candidateDrafts = this.addCandidateDraft(summary.candidateDrafts, {
-    source: "ai_writer",
-    text: summary.aiWriterDraft,
-    priority: 80,
-    usable: Boolean(String(summary.aiWriterDraft || "").trim()),
-    evidence: {
-      usedAI: summary.aiWriterUsedAI === true,
-      repairReason: summary.aiRepairReason || null
-    }
-  });
-
-  mark("after aiWriter");
-}
-
-mark("before responseCandidateArbiter");
-
-const arbiterResult =
-  window.AriResponseCandidateArbiter?.choose
-    ? window.AriResponseCandidateArbiter.choose({
-        summary,
-        composerPacket: summary.composerPacket,
-        candidates: summary.candidateDrafts || []
-      })
-    : null;
-
-summary = {
-  ...summary,
-  ...(arbiterResult || {}),
-  selectedDraft:
-    arbiterResult?.selectedDraft ||
-    summary.aiWriterDraft ||
-    summary.blueprintWriterDraft ||
-    null
-};
-
-mark("after responseCandidateArbiter");
-
-    // 1.30 V9 Composer
-    if (!developerResponseLocked) {
-      mark("before AriLanguageComposer");
-
-      const composerEngine =
-        window.AriLanguageComposerV9 ||
-        window.AriLanguageComposer;
-
-      const composerResult =
-  composerEngine?.compose
-    ? await composerEngine.compose({
-        composerPacket: {
-  ...summary.composerPacket,
-  selectedDraft: summary.selectedDraft || null,
-  blueprintWriterDraft: summary.blueprintWriterDraft || null,
-  blueprintWriter: summary.blueprintWriter || null,
-  aiWriterDraft: summary.aiWriterDraft || null,
-  aiWriter: summary.aiWriter || null,
-  candidateDrafts: summary.candidateDrafts || []
-},
-        summary
-      })
-    : {};
-      const composerFinal =
-        composerResult.finalResponse ||
-        composerResult.languageBody ||
-        composerResult.languageComposerOutput ||
-        null;
-
-      summary = {
-  ...summary,
-  ...composerResult,
-  finalResponse:
-    composerFinal ||
-    summary.selectedDraft ||
-    summary.aiWriterDraft ||
-    summary.blueprintWriterDraft ||
-    summary.finalResponse ||
-    "I’m here, but Ari could not compose a final response."
-};
-
-      mark("after AriLanguageComposer");
-    }
-
-    summary = this.preserveMealEstimate(summary);
-
-    // 1.40 Action Planner
-    if (window.Ari?.rebirthActionPlanner?.plan) {
-      summary = window.Ari.rebirthActionPlanner.plan(summary);
-    }
-
-    // 1.50 Conversation Meaning History
-    const conversationMeaningHistory =
-      window.Ari?.conversationMeaningHistory?.build
-        ? await window.Ari.conversationMeaningHistory.build(summary)
-        : {
-            conversationMeaningHistoryRan: false,
-            source: "not-loaded",
-            conversationMeaningHistory:
-              summary.conversationMeaningHistory || [],
-            latestConversationMeaning: null,
-            priorMeaningForFollowUp: null
-          };
 
     summary = {
       ...summary,
-      conversationMeaningHistoryState: conversationMeaningHistory,
-      ...conversationMeaningHistory
+
+      rebirthPipelineRan: true,
+      rebirthPipelineSource: "ari-rebirth-pipeline",
+      rebirthPipelineVersion: this.version,
+      pipelineArchitecture: "five-layer",
+
+      pipelineLayers: {
+        perception: summary.perceptionPipelineRan === true,
+        executiveRouting: summary.executiveRoutingPipelineRan === true,
+        deliberation: summary.deliberationPipelineRan === true,
+        expression: summary.expressionPipelineRan === true,
+        delivery: summary.deliveryPipelineRan === true
+      }
     };
 
-    // 1.60 Memory Candidate Detection
-    merge(await runEngine(
-      window.AriMemoryCandidateEngine,
-      ["detect", "create", "evaluate"],
-      { memoryCandidateRan: false }
-    ));
+    summary.pipelineLifecycleComplete =
+      Object.values(summary.pipelineLayers).every(Boolean);
 
-    if (
-      Array.isArray(summary.memoryCandidates) &&
-      summary.memoryCandidates.length &&
-      window.AriMemoryStore?.saveCandidates
-    ) {
-      const memorySaveResult =
-        await window.AriMemoryStore.saveCandidates(summary.memoryCandidates);
-
-      summary = {
-        ...summary,
-        memorySaveRan: true,
-        memorySaveResult
-      };
-    } else {
-      summary = {
-        ...summary,
-        memorySaveRan: false
-      };
-    }
-
-    // 1.70 Save Thread
-    mark("before saveFinalThreadState");
-    await this.saveFinalThreadState(summary);
-    mark("after saveFinalThreadState");
-this.saveAriConversationHistory(summary);
-    // 1.80 Optional Review Console, debug only
-    if (debugTiming && window.AriSituationReviewConsole) {
-      const situationReview = await runEngine(
-        window.AriSituationReviewConsole,
-        ["review"],
-        {
-          situationReviewConsoleRan: false,
-          source: "not-loaded"
-        }
-      );
-
-      summary = {
-        ...summary,
-        situationReview,
-        situationReviewConsoleRan:
-          situationReview.situationReviewConsoleRan ||
-          Boolean(window.AriSituationReviewConsole),
-        situationReviewConsoleVersion:
-          situationReview.situationReviewConsoleVersion || null
-      };
-    }
-
-    summary.rebirthPipelineRan = true;
-    summary.rebirthPipelineSource = "ari-rebirth-pipeline";
-    summary.rebirthPipelineVersion = this.version;
-
-    this.debugLog(summary, reasoningResult);
-
+    this.debugLog(summary);
     finishTiming();
 
     summary.pipelineTiming = timing;
     summary.pipelineTimingStart = timingStart;
 
     return summary;
+  },
+
+  async runPipelineLayer({
+    name = "unknown",
+    pipeline = null,
+    summary = {},
+    runtime = {}
+  } = {}) {
+    if (!pipeline || typeof pipeline.run !== "function") {
+      const error = {
+        layer: name,
+        error: "pipeline_not_loaded",
+        message: `The ${name} pipeline was not loaded.`
+      };
+
+      console.error("Ari pipeline layer missing:", error);
+
+      return {
+        ...summary,
+        [`${name}PipelineRan`]: false,
+        [`${name}PipelineSource`]: "not-loaded",
+        [`${name}PipelineError`]: error.message,
+        pipelineLifecycleErrors: [
+          ...(summary.pipelineLifecycleErrors || []),
+          error
+        ]
+      };
+    }
+
+    try {
+      const result = await pipeline.run(summary, runtime);
+
+      if (!result || typeof result !== "object") {
+        const error = {
+          layer: name,
+          error: "invalid_pipeline_result",
+          message: `The ${name} pipeline returned an invalid result.`
+        };
+
+        return {
+          ...summary,
+          [`${name}PipelineRan`]: false,
+          [`${name}PipelineSource`]: "invalid-result",
+          [`${name}PipelineError`]: error.message,
+          pipelineLifecycleErrors: [
+            ...(summary.pipelineLifecycleErrors || []),
+            error
+          ]
+        };
+      }
+
+      return {
+        ...result,
+        pipelineLifecycleErrors:
+          result.pipelineLifecycleErrors ||
+          summary.pipelineLifecycleErrors ||
+          []
+      };
+    } catch (error) {
+      console.error(`Ari ${name} pipeline error:`, error);
+
+      return {
+        ...summary,
+        [`${name}PipelineRan`]: false,
+        [`${name}PipelineSource`]: "pipeline-error",
+        [`${name}PipelineError`]: error?.message || String(error),
+        pipelineLifecycleErrors: [
+          ...(summary.pipelineLifecycleErrors || []),
+          {
+            layer: name,
+            error: "pipeline_execution_failed",
+            message: error?.message || String(error)
+          }
+        ]
+      };
+    }
   },
 
   normalizeInput(systemSummary = {}) {
@@ -1376,7 +276,7 @@ this.saveAriConversationHistory(summary);
       userMessage,
       message: userMessage,
       input: userMessage,
-      normalizedMessage: String(userMessage || "").toLowerCase().trim()
+      normalizedMessage: String(userMessage).toLowerCase().trim()
     };
   },
 
@@ -1393,10 +293,8 @@ this.saveAriConversationHistory(summary);
 
     return {
       ...summary,
-
       githubFileContext,
       developerInvestigation,
-
       githubEvidenceAvailable: Boolean(githubFileContext?.content),
 
       githubEvidence: githubFileContext?.content
@@ -1411,9 +309,14 @@ this.saveAriConversationHistory(summary);
   },
 
   preserveMealEstimate(summary = {}) {
-    const wantsMealLog = /\b(log|add|save|track)\b/i.test(
-      String(summary.userMessage || summary.message || summary.input || "")
+    const text = String(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
     );
+
+    const wantsMealLog = /\b(log|add|save|track)\b/i.test(text);
 
     const newMealEstimate =
       summary.mealEstimate ||
@@ -1426,13 +329,14 @@ this.saveAriConversationHistory(summary);
       summary.response?.mealEstimate ||
       null;
 
-    const priorMealEstimate =
-      wantsMealLog
-        ? summary.lastMealEstimate ||
+    const priorMealEstimate = wantsMealLog
+      ? (
+          summary.lastMealEstimate ||
           summary.appContext?.lastMealEstimate ||
           summary.threadState?.lastMealEstimate ||
           null
-        : null;
+        )
+      : null;
 
     const mealEstimate = newMealEstimate || priorMealEstimate;
 
@@ -1442,6 +346,7 @@ this.saveAriConversationHistory(summary);
       ...summary,
       mealEstimate,
       lastMealEstimate: mealEstimate,
+
       appContext: {
         ...(summary.appContext || {}),
         lastMealEstimate: mealEstimate,
@@ -1449,7 +354,8 @@ this.saveAriConversationHistory(summary);
       }
     };
   },
-    buildFallbackComposerPacket(summary = {}) {
+
+  buildFallbackComposerPacket(summary = {}) {
     return {
       ready: true,
       source: "ari-rebirth-pipeline-fallback",
@@ -1468,51 +374,52 @@ this.saveAriConversationHistory(summary);
         summary.primaryLane ||
         "general_understanding",
 
+      contextLane:
+        summary.contextLane ||
+        summary.lane ||
+        "direct_current_turn",
+
       responseShape:
         summary.responseShape ||
         summary.mouthResponsePattern ||
         "clear_explanation",
+
+      responseGoal: summary.responseGoal || null,
+      responseOrder: summary.responseOrder || [],
 
       responseRules:
         summary.responseRules ||
         summary.responseConstraints ||
         [],
 
-      requiredBehaviors: [],
-      forbiddenBehaviors: [],
-responseAvoid:
-  summary.responseAvoid || [],
+      responseConstraints: summary.responseConstraints || [],
+      requiredBehaviors: summary.responseRequired || [],
+      forbiddenBehaviors: summary.responseAvoid || [],
+      responseAvoid: summary.responseAvoid || [],
+      responseRequired: summary.responseRequired || [],
 
-responseRequired:
-  summary.responseRequired || [],
+      expressionPlan: summary.expressionPlan || null,
+      blueprintHint: summary.blueprintHint || null,
 
-expressionPlan:
-  summary.expressionPlan || null,
-
-blueprintHint:
-  summary.blueprintHint || null,
       mouthDirective:
         summary.situationContract?.mouthDirective ||
+        summary.mouthDirective ||
         summary.mouthDirector ||
         null,
 
-meaningInterpretation:
-  summary.meaningInterpretation || null,
+      meaningInterpretation: summary.meaningInterpretation || null,
+      humanState: summary.humanState || null,
 
-humanState:
-  summary.humanState || null,
+      responsePlan:
+        summary.ariResponsePlan ||
+        summary.understandingResponsePlan ||
+        summary.responsePlan ||
+        null,
 
-responsePlan:
-  summary.ariResponsePlan ||
-  summary.understandingResponsePlan ||
-  summary.responsePlan ||
-  null,
-
-      communicationPlan:
-        summary.communicationPlan || null,
-
-      humanLanguageProfile:
-        summary.humanLanguageProfile || {},
+      responseStrategy: summary.responseStrategy || null,
+      communicationPlan: summary.communicationPlan || null,
+      composerDirective: summary.composerDirective || null,
+      humanLanguageProfile: summary.humanLanguageProfile || {},
 
       thesis: {
         value: summary.primarySituationThesis || null,
@@ -1524,34 +431,54 @@ responsePlan:
 
       safety: {
         gate: summary.safetyContextGate || null,
+        deepReview: summary.deepSafetyResult || null,
+        disposition: summary.safetyDisposition || null,
         risk: summary.situationContract?.risk || null,
         clarity: summary.situationContract?.clarity || null
       },
 
-      developerPacket:
-        summary.composerDeveloperPacket || null,
+      developerPacket: summary.composerDeveloperPacket || null,
 
-character:
-  summary.composerCharacter ||
-  summary.characterExpression?.composerCharacter ||
-  summary.characterExpression?.composerCharacterPacket ||
-  null,
+      character:
+        summary.composerCharacter ||
+        summary.characterHandoff ||
+        summary.characterExpression?.composerCharacter ||
+        summary.characterExpression?.composerCharacterPacket ||
+        null,
+
+      languageGuidance:
+        summary.languageGuidanceHandoff ||
+        null,
 
       hasDeveloperPacket:
         summary.composerDeveloperPacket?.enabled === true,
 
+      perceptionPacket: summary.perceptionPacket || null,
+      executivePacket: summary.executivePacket || null,
+      deliberationPacket: summary.deliberationPacket || null,
+
       evidence: {
         github: summary.githubEvidence || null,
         developerPacket: summary.composerDeveloperPacket || null,
-        developerHandoff: summary.developerHandoff || null,
+
+        developerHandoff:
+          summary.developerHandoff ||
+          summary.unlockedDeveloperHandoff ||
+          null,
+
         developerResponse: summary.developerResponse || null,
         developerReply: summary.developerReply || null,
-       memory: {
-  retrieval: summary.memoryRetrieval || null,
-  context: summary.memoryContext || null,
-  facts: summary.memoryFacts || summary.usableMemories || []
-},
-         aiWriter: {
+
+        memory: {
+          retrieval: summary.memoryRetrieval || null,
+          context: summary.memoryContext || null,
+          facts:
+            summary.memoryFacts ||
+            summary.usableMemories ||
+            []
+        },
+
+        aiWriter: {
           ran: summary.aiWriterRan === true,
           usedAI: summary.aiWriterUsedAI === true,
           draft: summary.aiWriterDraft || null,
@@ -1559,6 +486,7 @@ character:
           version: summary.aiWriterVersion || null,
           fallbackReason: summary.aiWriterFallbackReason || null
         },
+
         reasoning: summary.reasoning || null,
         lexicalGrounding: summary.lexicalGrounding || null,
         continuityFacts: summary.continuityUsableFacts || []
@@ -1599,30 +527,55 @@ character:
         ...summary,
         threadStateLoaded: true,
         threadState,
-        recentMessages: threadState.lastMessages || [],
+
+        recentMessages:
+          threadState.lastMessages ||
+          [],
+
         workingContext:
           threadState.continuitySummary ||
           threadState.currentTopic ||
           null,
-        activeTopic: threadState.currentTopic || null,
+
+        activeTopic:
+          threadState.currentTopic ||
+          null,
+
         conversationMeaningHistory:
-          threadState.conversationMeaningHistory || [],
+          threadState.conversationMeaningHistory ||
+          [],
+
         latestConversationMeaning:
-          threadState.latestConversationMeaning || null,
+          threadState.latestConversationMeaning ||
+          null,
+
         activeSemanticTimeline:
-          threadState.activeSemanticTimeline || [],
+          threadState.activeSemanticTimeline ||
+          [],
+
         activeSemanticFrame:
-          threadState.activeSemanticFrame || null,
+          threadState.activeSemanticFrame ||
+          null,
+
         conversationMeaningFocus:
-          threadState.conversationMeaningFocus || null,
+          threadState.conversationMeaningFocus ||
+          null,
+
         conversationMeaningOpenLoops:
-          threadState.conversationMeaningOpenLoops || [],
+          threadState.conversationMeaningOpenLoops ||
+          [],
+
         lastMealEstimate:
-          threadState.lastMealEstimate || null,
+          threadState.lastMealEstimate ||
+          null,
+
         mealEstimate:
-          summary.mealEstimate || null,
+          summary.mealEstimate ||
+          null,
+
         priorMeaningForFollowUp:
-          threadState.latestConversationMeaning || null
+          threadState.latestConversationMeaning ||
+          null
       };
     } catch (error) {
       return {
@@ -1650,6 +603,8 @@ character:
     );
 
     const isDeveloperRequest =
+      summary.routingContract?.run?.developer === true ||
+      summary.routingContract?.mode === "developer" ||
       summary.conversationFunction?.developerArtifactRequest === true ||
       summary.artifactModificationRequest === true ||
       summary.artifactCreationRequest === true ||
@@ -1659,30 +614,16 @@ character:
       summary.primaryFunction === "build_or_debug_request" ||
       summary.situationContractPrimary === "builder" ||
       summary.situationContractPrimary === "developer_artifact" ||
-      /\b(code|file|github|repo|commit|patch|function|html|css|javascript|api|engine|bug|fix|update|edit|build|implement|developer|composer|pipeline|latency|slow|bottleneck|performance|diagnose)\b/i.test(text);
+      /\b(code|file|github|repo|commit|patch|function|html|css|javascript|api|engine|bug|fix|update|edit|build|implement|developer|composer|pipeline|latency|slow|bottleneck|performance|diagnose)\b/i.test(
+        text
+      );
 
     if (!isDeveloperRequest) return summary;
 
-    const runEngine = async (engine, methods = [], fallback = null) => {
-      if (!engine) return fallback;
-
-      for (const method of methods) {
-        if (typeof engine[method] === "function") {
-          try {
-            const result = await engine[method](summary);
-            return result || fallback;
-          } catch (error) {
-            console.error("Developer engine error:", method, error);
-            return fallback;
-          }
-        }
+    const mark = label => {
+      if (!summary.debugTiming || !Array.isArray(summary.pipelineTiming)) {
+        return;
       }
-
-      return fallback;
-    };
-
-    const devMark = label => {
-      if (!summary.debugTiming || !Array.isArray(summary.pipelineTiming)) return;
 
       const start =
         typeof summary.pipelineTimingStart === "number"
@@ -1695,39 +636,114 @@ character:
       });
     };
 
-    const mergeAs = (key, result) => {
-      if (!result) return;
+    const run = async (key, engine, methods = []) => {
+      mark(`before ${key}`);
 
-      summary = {
-        ...summary,
-        [key]: result,
-        [`rebirth${key.charAt(0).toUpperCase()}${key.slice(1)}`]: result,
-        ...result,
-        pipelineTiming: summary.pipelineTiming,
-        pipelineTimingStart: summary.pipelineTimingStart
-      };
-    };
+      let result = null;
 
-    const timedRun = async (key, engine, methods = []) => {
-      devMark(`before ${key}`);
-      const result = await runEngine(engine, methods);
-      devMark(`after ${key}`);
-      mergeAs(key, result);
+      if (engine) {
+        for (const method of methods) {
+          if (typeof engine[method] !== "function") continue;
+
+          try {
+            result = await engine[method](summary);
+          } catch (error) {
+            console.error("Developer engine error:", method, error);
+
+            result = {
+              error: error?.message || String(error)
+            };
+          }
+
+          break;
+        }
+      }
+
+      mark(`after ${key}`);
+
+      if (result) {
+        const rebirthKey =
+          `rebirth${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+
+        summary = {
+          ...summary,
+          [key]: result,
+          [rebirthKey]: result,
+          ...result,
+          pipelineTiming: summary.pipelineTiming,
+          pipelineTimingStart: summary.pipelineTimingStart
+        };
+      }
+
       return result;
     };
 
-    await timedRun("developerUnderstanding", window.AriRebirthDeveloperUnderstandingEngine, ["understand"]);
-    await timedRun("projectKnowledgeGraph", window.AriRebirthProjectKnowledgeGraphEngine, ["build"]);
-    await timedRun("capabilityRegistry", window.AriRebirthCapabilityRegistryEngine, ["inspect"]);
-    await timedRun("architecture", window.AriRebirthArchitectureEngine, ["design"]);
-    await timedRun("uiLayoutPlanner", window.AriRebirthUILayoutPlannerEngine, ["plan"]);
-    await timedRun("bugDiagnosis", window.AriRebirthBugDiagnosisEngine, ["diagnose"]);
-    await timedRun("executionPlanner", window.AriRebirthExecutionPlannerEngine, ["plan"]);
-    await timedRun("codeEvidence", window.AriRebirthCodeEvidenceEngine, ["build"]);
-    await timedRun("codeUnderstanding", window.AriRebirthCodeUnderstandingEngine, ["understand"]);
-    await timedRun("patchDecision", window.AriRebirthPatchDecisionEngine, ["decide"]);
-    await timedRun("patchValidation", window.AriRebirthPatchValidationEngine, ["validate"]);
-    await timedRun("developerHandoff", window.AriRebirthDeveloperHandoffEngine, ["handoff", "create", "build"]);
+    const developerChain = [
+      [
+        "developerUnderstanding",
+        window.AriRebirthDeveloperUnderstandingEngine,
+        ["understand"]
+      ],
+      [
+        "projectKnowledgeGraph",
+        window.AriRebirthProjectKnowledgeGraphEngine,
+        ["build"]
+      ],
+      [
+        "capabilityRegistry",
+        window.AriRebirthCapabilityRegistryEngine,
+        ["inspect"]
+      ],
+      [
+        "architecture",
+        window.AriRebirthArchitectureEngine,
+        ["design"]
+      ],
+      [
+        "uiLayoutPlanner",
+        window.AriRebirthUILayoutPlannerEngine,
+        ["plan"]
+      ],
+      [
+        "bugDiagnosis",
+        window.AriRebirthBugDiagnosisEngine,
+        ["diagnose"]
+      ],
+      [
+        "executionPlanner",
+        window.AriRebirthExecutionPlannerEngine,
+        ["plan"]
+      ],
+      [
+        "codeEvidence",
+        window.AriRebirthCodeEvidenceEngine,
+        ["build"]
+      ],
+      [
+        "codeUnderstanding",
+        window.AriRebirthCodeUnderstandingEngine,
+        ["understand"]
+      ],
+      [
+        "patchDecision",
+        window.AriRebirthPatchDecisionEngine,
+        ["decide"]
+      ],
+      [
+        "patchValidation",
+        window.AriRebirthPatchValidationEngine,
+        ["validate"]
+      ],
+      [
+        "developerHandoff",
+        window.AriRebirthDeveloperHandoffEngine,
+        ["handoff", "create", "build"]
+      ]
+    ];
+
+    for (const [key, engine, methods] of developerChain) {
+      await run(key, engine, methods);
+    }
 
     if (summary.developerHandoff) {
       summary.developerIntent =
@@ -1755,9 +771,10 @@ character:
           summary.developerHandoff.responseLocked === true
         );
 
-      summary.responseLocked = summary.developerResponseLocked;
+      summary.responseLocked =
+        summary.developerResponseLocked;
 
-      if (summary.developerResponseLocked === true) {
+      if (summary.developerResponseLocked) {
         summary.finalResponse =
           summary.developerHandoff.reply ||
           summary.developerHandoff.finalResponse ||
@@ -1774,56 +791,105 @@ character:
   },
 
   applyContractBridge(summary = {}) {
-    const contract = summary.situationContract || {};
-    const map = summary.situationMap || {};
-    const triage = summary.triage || summary.ariTriage || {};
+    const contract =
+      summary.situationContract ||
+      {};
 
-    const primary =
-      contract.primary ||
-      triage.primaryLane ||
-      summary.primaryLaneSuggestion ||
-      summary.situationContractPrimary ||
-      summary.primaryLane ||
-      "general_understanding";
+    const map =
+      summary.situationMap ||
+      {};
+
+    const triage =
+      summary.triage ||
+      summary.ariTriage ||
+      {};
+
+    const routing =
+      summary.routingContract ||
+      {};
+
+    const routingAuthoritative =
+      routing.authority?.authoritative === true;
+
+    const safetyOverride =
+      summary.safetyDisposition?.shouldStopNormalResponse === true;
+
+    const primary = safetyOverride
+      ? (
+          summary.safetyRequiredPlanner ||
+          contract.primary ||
+          triage.primaryLane ||
+          "immediate_safety_response"
+        )
+      : routingAuthoritative && routing.primaryLane
+        ? routing.primaryLane
+        : (
+            contract.primary ||
+            triage.primaryLane ||
+            summary.primaryLaneSuggestion ||
+            summary.situationContractPrimary ||
+            summary.primaryLane ||
+            "general_understanding"
+          );
+
+    const routedResponseShape =
+      routingAuthoritative && !safetyOverride
+        ? routing.responseShape
+        : null;
 
     return {
       ...summary,
       contractBridgeRan: true,
       contractBridgeSource: "ari-rebirth-pipeline",
       situationContract: contract,
+
+      contextLane:
+        routing.contextLane ||
+        summary.contextLane ||
+        summary.lane ||
+        "direct_current_turn",
+
       primaryLane: primary,
-      triagePrimaryLane: triage.primaryLane || primary,
+      triagePrimaryLane: triage.primaryLane || null,
       situationContractPrimary: primary,
+
       responseShape:
+        routedResponseShape ||
         contract.responseShape ||
         triage.responseShape ||
         summary.responseShape ||
         "clear_explanation",
+
       responseRules:
         contract.responseRules ||
         triage.responseConstraints ||
         summary.responseRules ||
         [],
+
       responseConstraints:
         contract.responseRules ||
         triage.responseConstraints ||
         summary.responseConstraints ||
         [],
+
       primarySituationThesis:
         contract.situationThesis?.thesis ||
         map.primarySituationThesis ||
         summary.primarySituationThesis ||
         null,
+
       situationNarrative:
         contract.situationThesis?.narrative ||
         map.situationNarrative ||
         summary.situationNarrative ||
         null,
+
       thesisRecommendedUse:
         contract.situationThesis?.recommendedUse ||
         map.thesisRecommendedUse ||
         summary.thesisRecommendedUse ||
         "do_not_use_as_authority",
+
       situationContractSupport: contract.support || [],
       situationContractBrief: contract.brief || [],
       situationContractContext: contract.context || [],
@@ -1834,20 +900,28 @@ character:
 
   async saveFinalThreadState(summary = {}) {
     if (!window.AriThreadStore?.save) {
-      summary.threadSaveRan = false;
-      return summary;
+      return {
+        ...summary,
+        threadSaveRan: false,
+        threadSaveSource: "not-loaded",
+        threadSaveReason: "thread_store_not_available"
+      };
     }
 
-    const previousThread = summary.threadState || {};
+    const previousThread =
+      summary.threadState ||
+      {};
+
     const userMessage =
       summary.userMessage ||
       summary.message ||
       summary.input ||
       "";
 
-    const previousMessages = Array.isArray(previousThread.lastMessages)
-      ? previousThread.lastMessages
-      : [];
+    const previousMessages =
+      Array.isArray(previousThread.lastMessages)
+        ? previousThread.lastMessages
+        : [];
 
     const lastMessages = [
       ...previousMessages,
@@ -1869,101 +943,150 @@ character:
       ...previousThread,
       currentTopic: realTopic,
       lastMessages,
+
       continuitySummary: summary.finalResponse
-        ? `User said: ${userMessage}. Ari answered: ${String(summary.finalResponse).slice(0, 300)}`
+        ? `User said: ${userMessage}. Ari answered: ${String(
+            summary.finalResponse
+          ).slice(0, 300)}`
         : previousThread.continuitySummary || null,
+
       activeSubject:
         summary.resolvedPrimarySubject ||
         summary.activeSubject ||
         previousThread.activeSubject ||
         null,
+
       activeIssue:
         summary.activeIssue ||
         summary.situationMap?.situations?.[0] ||
         previousThread.activeIssue ||
         null,
+
       activeGoal:
         summary.activeGoal ||
         previousThread.activeGoal ||
         null,
+
       conversationMeaningHistory:
         summary.conversationMeaningHistory ||
         previousThread.conversationMeaningHistory ||
         [],
+
       latestConversationMeaning:
         summary.latestConversationMeaning ||
         previousThread.latestConversationMeaning ||
         null,
+
       activeSemanticTimeline:
         summary.activeSemanticTimeline ||
         previousThread.activeSemanticTimeline ||
         [],
+
       activeSemanticFrame:
         summary.activeSemanticFrame ||
         previousThread.activeSemanticFrame ||
         null,
+
       conversationMeaningFocus:
         summary.conversationMeaningFocus ||
         previousThread.conversationMeaningFocus ||
         null,
+
       conversationMeaningOpenLoops:
         summary.conversationMeaningOpenLoops ||
         previousThread.conversationMeaningOpenLoops ||
         [],
+
       activeConstraints:
         summary.activeConstraints ||
         previousThread.activeConstraints ||
         [],
+
       unresolvedItems:
         summary.continuityPacket?.unresolvedReferences ||
         previousThread.unresolvedItems ||
         [],
-      previousAnswerSummary:
-        summary.finalResponse
-          ? String(summary.finalResponse).slice(0, 500)
-          : previousThread.previousAnswerSummary || null,
+
+      previousAnswerSummary: summary.finalResponse
+        ? String(summary.finalResponse).slice(0, 500)
+        : previousThread.previousAnswerSummary || null,
+
       lastMealEstimate:
         summary.mealEstimate ||
         summary.lastMealEstimate ||
         previousThread.lastMealEstimate ||
         null,
+
       lastFinalResponse:
         summary.finalResponse ||
         previousThread.lastFinalResponse ||
         null,
-      lastUpdatedAt: new Date().toISOString()
+
+      lastUpdatedAt:
+        new Date().toISOString()
     };
 
-    await window.AriThreadStore.save(threadState);
+    try {
+      await window.AriThreadStore.save(threadState);
 
-    summary.threadSaveRan = true;
-    summary.threadState = threadState;
+      return {
+        ...summary,
+        threadSaveRan: true,
+        threadSaveSource: "ari-thread-store",
+        threadState
+      };
+    } catch (error) {
+      console.error("Ari thread-state save failed:", error);
 
-    return summary;
+      return {
+        ...summary,
+        threadSaveRan: false,
+        threadSaveSource: "save-error",
+        threadSaveError: error?.message || String(error)
+      };
+    }
   },
 
-addCandidateDraft(existing = [], candidate = {}) {
-  const text = String(candidate.text || "").trim();
-  if (!text) return Array.isArray(existing) ? existing : [];
+  addCandidateDraft(existing = [], candidate = {}) {
+    const text =
+      String(candidate.text || "")
+        .trim();
 
-  return [
-    ...(Array.isArray(existing) ? existing : []),
-    {
-      ...candidate,
-      text,
-      createdAt: Date.now()
-    }
-  ];
-},
+    const current =
+      Array.isArray(existing)
+        ? existing
+        : [];
+
+    if (!text) return current;
+
+    const duplicate =
+      current.some(item =>
+        String(item?.text || "").trim() === text &&
+        item?.source === candidate.source
+      );
+
+    if (duplicate) return current;
+
+    return [
+      ...current,
+      {
+        ...candidate,
+        text,
+        createdAt: candidate.createdAt || Date.now()
+      }
+    ];
+  },
 
   isUsableBlueprintDraft(draft = "", summary = {}) {
-    const text = String(draft || "").trim();
+    const text =
+      String(draft)
+        .trim();
 
     if (text.length < 20) return false;
 
     const lower = text.toLowerCase();
 
-    const metaBad = [
+    const internalPhrases = [
       "answer the direct question",
       "explain only enough",
       "don’t turn every answer",
@@ -1973,101 +1096,201 @@ addCandidateDraft(existing = [], candidate = {}) {
       "the simplest way to think about it is"
     ];
 
-    if (metaBad.some(phrase => lower.includes(phrase))) {
+    if (internalPhrases.some(phrase => lower.includes(phrase))) {
       return false;
     }
 
-    return true;
+    const question =
+      String(
+        summary.resolvedUserQuestion ||
+        summary.userMessage ||
+        ""
+      ).trim();
+
+    return !question || text !== question;
   },
 
-saveAriConversationHistory(summary = {}) {
-  try {
-    const userMessage =
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
+  saveAriConversationHistory(summary = {}) {
+    try {
+      const userMessage =
+        summary.userMessage ||
+        summary.message ||
+        summary.input ||
+        "";
 
-    const ariReply =
-      summary.finalResponse ||
-      summary.selectedDraft ||
-      summary.aiWriterDraft ||
-      summary.blueprintWriterDraft ||
-      "";
+      const ariReply =
+        summary.finalResponse ||
+        summary.selectedDraft ||
+        summary.aiWriterDraft ||
+        summary.blueprintWriterDraft ||
+        "";
 
-    if (!userMessage || !ariReply) return;
+      if (!userMessage || !ariReply) {
+        return {
+          saved: false,
+          source: "local-storage",
+          reason: "missing_user_message_or_reply"
+        };
+      }
 
-    const history = JSON.parse(
-      localStorage.getItem("ariConversationHistory") || "[]"
+      const history =
+        JSON.parse(
+          localStorage.getItem("ariConversationHistory") ||
+          "[]"
+        );
+
+      const createdAt =
+        new Date().toISOString();
+
+      history.push({
+        id: Date.now(),
+        title: String(userMessage).slice(0, 80),
+        preview: String(ariReply).slice(0, 180),
+
+        messages: [
+          {
+            role: "user",
+            content: userMessage,
+            created_at: createdAt
+          },
+          {
+            role: "ari",
+            content: ariReply,
+            emotion: summary.emotion || null,
+            created_at: createdAt
+          }
+        ],
+
+        created_at: createdAt
+      });
+
+      const retainedHistory =
+        history.slice(-100);
+
+      localStorage.setItem(
+        "ariConversationHistory",
+        JSON.stringify(retainedHistory)
+      );
+
+      return {
+        saved: true,
+        source: "local-storage",
+        historyCount: retainedHistory.length
+      };
+    } catch (error) {
+      console.warn("Ari conversation history save failed:", error);
+
+      return {
+        saved: false,
+        source: "local-storage",
+        error: error?.message || String(error)
+      };
+    }
+  },
+
+  debugLog(summary = {}) {
+    console.log(
+      "===== ARI REBIRTH PIPELINE =====",
+      this.version
     );
 
-    history.push({
-      id: Date.now(),
-      title: String(userMessage).slice(0, 80),
-      preview: String(ariReply).slice(0, 180),
-      messages: [
-        {
-          role: "user",
-          content: userMessage,
-          created_at: new Date().toISOString()
-        },
-        {
-          role: "ari",
-          content: ariReply,
-          emotion: summary.emotion || null,
-          created_at: new Date().toISOString()
-        }
-      ],
-      created_at: new Date().toISOString()
+    console.log("===== PIPELINE ARCHITECTURE =====", {
+      architecture: summary.pipelineArchitecture,
+      complete: summary.pipelineLifecycleComplete,
+      layers: summary.pipelineLayers,
+      lifecycleErrors: summary.pipelineLifecycleErrors || []
     });
 
-    localStorage.setItem(
-      "ariConversationHistory",
-      JSON.stringify(history.slice(-100))
-    );
-  } catch (error) {
-    console.warn("Ari conversation history save failed:", error);
-  }
-},
+    console.log("===== PERCEPTION PACKET =====", summary.perceptionPacket);
+    console.log("===== EXECUTIVE PACKET =====", summary.executivePacket);
+    console.log("===== ROUTING CONTRACT =====", summary.routingContract);
+    console.log("===== DELIBERATION PACKET =====", summary.deliberationPacket);
+    console.log("===== EXPRESSION PACKET =====", summary.expressionPacket);
+    console.log("===== DELIVERY PACKET =====", summary.deliveryPacket);
 
-  debugLog(summary = {}, reasoningResult = {}) {
-    console.log("===== ARI REBIRTH PIPELINE =====", this.version);
-    console.log("===== SAFETY CONTEXT GATE =====", summary.safetyContextGate);
-    console.log("===== OBSERVER EVIDENCE =====", summary.observerEvidence);
-    console.log("===== CONVERSATION FUNCTION =====", summary.conversationFunction);
-    console.log("===== CLASSIFIER =====", summary.universalConversationClassification);
-    console.log("===== ROUTING EVIDENCE =====", summary.routingEvidence);
-    console.log("===== SEMANTIC FRAME BUILDER =====", summary.semanticFrameOutput);
-    console.log("===== LANE SPLIT =====", summary.laneSplit);
-    console.log("===== SITUATION MAP =====", summary.situationMap);
-    console.log("===== TRIAGE =====", summary.triage);
-    console.log("===== MULTI-LANE PLANNER =====", summary.multiLanePlan);
-    console.log("===== CONTRACT =====", summary.situationContract);
-    console.log("===== COGNITIVE EXECUTIVE =====", summary.cognitiveExecutive);
-    console.log("===== MEMORY RETRIEVAL =====", summary.memoryRetrieval);
-console.log("===== MEMORY CONTEXT =====", summary.memoryContextResult || summary.memoryContext);
-    console.log("===== REASONING =====", reasoningResult);
-    console.log("===== HUMAN LANGUAGE =====", summary.humanLanguageProfile); 
-    console.log("===== EXPRESSION PLAN =====", summary.expressionPlan);
-console.log("===== LANGUAGE UNDERSTANDING =====", summary.languageUnderstanding);
-console.log("===== SEMANTIC UNDERSTANDING =====", summary.semanticUnderstanding);
-console.log("===== EVENT UNDERSTANDING =====", summary.eventUnderstanding);
-console.log("===== MEANING INTERPRETER =====", summary.meaningInterpretation);
-console.log("===== HUMAN STATE =====", summary.humanState);
-console.log("===== RESPONSE PLANNER =====", summary.ariResponsePlan);
-console.log("===== BLUEPRINT HINT =====", summary.blueprintHint);
-console.log("===== MOUTH DIRECTOR =====", summary.mouthDirector);
-    console.log("===== COMPOSER PACKET =====", summary.composerPacket);
-    console.log("===== BLUEPRINT WRITER =====", summary.blueprintWriter);
-    console.log("===== AI WRITER =====", summary.aiWriter);
+    console.log("===== PIPELINE LAYER ERRORS =====", {
+      lifecycle: summary.pipelineLifecycleErrors || [],
+      deliberation: summary.deliberationStageErrors || [],
+      expression: summary.expressionStageErrors || [],
+      delivery: summary.deliveryStageErrors || []
+    });
+
+    console.log("===== SAFETY =====", {
+      earlyGate: summary.safetyContextGate,
+      eligibility: summary.safetyEligibility,
+      deepSafety: summary.deepSafetyResult,
+      disposition: summary.safetyDisposition
+    });
+
+    console.log("===== ROUTING =====", {
+      laneSplit: summary.laneSplit,
+      contextLane: summary.contextLane,
+      primaryLane: summary.primaryLane,
+      applicability: summary.routingApplicability
+    });
+
+    console.log("===== CONTINUITY =====", {
+      packet: summary.continuityPacket,
+      resolvedQuestion: summary.resolvedUserQuestion
+    });
+
+    console.log("===== SITUATION =====", {
+      map: summary.situationMap,
+      triage: summary.triage,
+      multiLanePlan: summary.multiLanePlan,
+      contract: summary.situationContract
+    });
+
+    console.log("===== REASONING =====", {
+      cognitiveExecutive: summary.cognitiveExecutive,
+      reasoning: summary.reasoning,
+
+      developer:
+        summary.developerHandoff ||
+        summary.unlockedDeveloperHandoff ||
+        summary.developerUnderstanding
+    });
+
+    console.log("===== MEMORY =====", {
+      retrieval: summary.memoryRetrieval,
+      context: summary.memoryContextResult || summary.memoryContext,
+      facts: summary.memoryFacts
+    });
+
+    console.log("===== UNDERSTANDING =====", {
+      language: summary.languageUnderstanding,
+      semantic: summary.semanticUnderstanding,
+      event: summary.eventUnderstanding,
+      meaning: summary.meaningInterpretation,
+      humanState: summary.humanState
+    });
+
+    console.log("===== EXPRESSION =====", {
+      character: summary.characterHandoff,
+      languageGuidance: summary.languageGuidanceHandoff,
+      responseStrategy: summary.responseStrategy,
+      composerPacket: summary.composerPacket,
+      blueprintWriter: summary.blueprintWriter,
+      aiWriter: summary.aiWriter,
+      selectedDraft: summary.selectedDraft
+    });
+
+    console.log("===== DELIVERY =====", {
+      actions: summary.actionHandoff,
+      persistence: summary.learningPersistenceHandoff,
+      diagnostics: summary.deliveryDiagnostics
+    });
+
     console.log("===== FINAL RESPONSE =====", summary.finalResponse);
-    console.log("===== DEVELOPER LAYER =====", summary.developerHandoff || summary.developerUnderstanding);
+
     console.log("===== GITHUB EVIDENCE =====", {
       available: summary.githubEvidenceAvailable,
       filePath: summary.githubEvidence?.filePath,
       contentLength: summary.githubEvidence?.contentLength,
+
       preview:
-        summary.githubEvidence?.contentPreview?.slice(0, 300) || null
+        summary.githubEvidence?.contentPreview?.slice(0, 300) ||
+        null
     });
   }
 };
