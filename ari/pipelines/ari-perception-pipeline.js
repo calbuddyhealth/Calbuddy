@@ -1,12 +1,12 @@
 // ari/pipelines/ari-perception-pipeline.js
 // Ari Perception Pipeline
 // Purpose: Collect, preserve, merge, and structure evidence about the current user message.
-// V1.2.0 — Specialist Observer Integration / Canonical Ledger Merge / Perception Diagnostics
+// V1.3.0 — Locked Perception Architecture / Reconciliation Ready
 
 window.Ari = window.Ari || {};
 
 window.AriPerceptionPipeline = {
-  version: "1.2.0",
+  version: "1.3.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -348,72 +348,99 @@ window.AriPerceptionPipeline = {
 
     mark("after perceptionLedgerMerge");
 
-    /* =====================================================
-       6. CONVERSATION FUNCTION
-    ===================================================== */
-
-    mark("before conversationFunction");
-
-    const conversationFunctionResult = await runEngine(
-      window.AriConversationFunctionEngine,
-      ["analyze"],
-      {
-        conversationFunctionRan: false,
-        conversationFunctionSource: "not-loaded",
-        primaryFunction: "unknown",
-        supportFunctions: [],
-        blockedFunctions: [],
-        candidates: [],
-        responseBias: null,
-        confidence: null
-      },
-      state
-    );
-
-    state = {
-      ...state,
-
-      conversationFunction:
-        conversationFunctionResult,
-
-      ...conversationFunctionResult
-    };
-
-    mark("after conversationFunction");
-
-    /* =====================================================
-       7. UNIVERSAL CONVERSATION CLASSIFIER
+        /* =====================================================
+       6. UNIVERSAL CONVERSATION CLASSIFIER
+       Broad interaction family, intent family, and domains.
+       Uses only upstream evidence.
     ===================================================== */
 
     mark("before universalConversationClassifier");
 
     const conversationClassification = await runEngine(
-      window.AriUniversalConversationClassifier,
+      window.AriUniversalConversationClassifier ||
+      window.Ari?.universalConversationClassifier,
       ["classify"],
       {
         universalConversationClassifierRan: false,
         universalConversationClassifierSource: "not-loaded",
+
         conversationType: "unknown",
         conversationIntent: "unknown",
+
+        interactionFamily: "general",
+        intentFamily: "general_response",
+
+        primaryDomain: "general_understanding",
+        domains: ["general_understanding"],
+        contextualSignals: [],
+
+        explicitRequestPresent: false,
+        explicitRequestType: null,
+        explicitRequestedOperation: null,
+        explicitRequestedOutput: null,
+        explicitRequestOverridesContext: false,
+
         conversationResponseHint: null,
-        conversationCandidates: []
+        conversationCandidates: [],
+
+        confidence: 0,
+        confidenceLabel: "very_low"
       },
       state
     );
 
     state = {
       ...state,
-
       ...conversationClassification,
 
       universalConversationClassification:
-        conversationClassification
+        conversationClassification,
+
+      conversationClassification:
+        conversationClassification,
+
+      interactionFamily:
+        conversationClassification.interactionFamily ||
+        "general",
+
+      intentFamily:
+        conversationClassification.intentFamily ||
+        "general_response",
+
+      conversationDomains:
+        conversationClassification.domains ||
+        [],
+
+      conversationPrimaryDomain:
+        conversationClassification.primaryDomain ||
+        "general_understanding",
+
+      conversationContextualSignals:
+        conversationClassification.contextualSignals ||
+        [],
+
+      explicitRequestPresent:
+        conversationClassification.explicitRequestPresent === true,
+
+      explicitRequestType:
+        conversationClassification.explicitRequestType ||
+        null,
+
+      explicitRequestedOperation:
+        conversationClassification.explicitRequestedOperation ||
+        null,
+
+      explicitRequestedOutput:
+        conversationClassification.explicitRequestedOutput ||
+        null
     };
 
     mark("after universalConversationClassifier");
 
     /* =====================================================
-       8. OBSERVER ROUTING EVIDENCE
+       7. OBSERVER ROUTING EVIDENCE
+       Converts observer evidence into pressures only.
+       It cannot choose the route.
     ===================================================== */
 
     mark("before observerRoutingEvidence");
@@ -427,12 +454,15 @@ window.AriPerceptionPipeline = {
         : {
             engine: "ari-observer-routing-evidence",
             source: "not-loaded",
+
             routingPressures: {},
             semanticClues: {},
             routingGuards: {},
+
             preservedObserverEvidence:
               state.observations ||
               [],
+
             preservedObservationCount:
               state.observationCount ||
               0
@@ -448,7 +478,7 @@ window.AriPerceptionPipeline = {
 
       routingEvidenceRan:
         routingEvidence.engine ===
-        "ari-observer-routing-evidence" ||
+          "ari-observer-routing-evidence" ||
         routingEvidence.routingEvidenceRan === true,
 
       routingEvidenceSource:
@@ -481,7 +511,9 @@ window.AriPerceptionPipeline = {
     mark("after observerRoutingEvidence");
 
     /* =====================================================
-       9. SEMANTIC FRAME BUILDER
+       8. SEMANTIC FRAME BUILDER
+       Builds structured meaning using the classifier as broad
+       evidence, not as final authority.
     ===================================================== */
 
     mark("before semanticFrameBuilder");
@@ -494,6 +526,7 @@ window.AriPerceptionPipeline = {
         semanticFrameBuilderRan: false,
         semanticFrameBuilderVersion: null,
         semanticFrameSource: "not-loaded",
+
         advisoryOnly: true,
 
         primaryFrame: null,
@@ -553,7 +586,158 @@ window.AriPerceptionPipeline = {
     mark("after semanticFrameBuilder");
 
     /* =====================================================
-       10. PERCEPTION DIAGNOSTICS
+       9. CONVERSATION FUNCTION
+       Determines what Ari must do after full meaning exists.
+    ===================================================== */
+
+    mark("before conversationFunction");
+
+    const conversationFunctionResult = await runEngine(
+      window.AriConversationFunctionEngine ||
+      window.Ari?.conversationFunctionEngine,
+      ["analyze"],
+      {
+        conversationFunctionRan: false,
+        conversationFunctionSource: "not-loaded",
+
+        primaryFunction: "unknown",
+        supportFunctions: [],
+        blockedFunctions: [],
+        candidates: [],
+
+        responseBias: null,
+        confidence: null
+      },
+      state
+    );
+
+    state = {
+      ...state,
+
+      conversationFunction:
+        conversationFunctionResult,
+
+      conversationFunctionResult,
+
+      ...conversationFunctionResult
+    };
+
+    mark("after conversationFunction");
+
+    /* =====================================================
+       10. PERCEPTION RECONCILIATION
+       Compares the classifier, semantic frame, question
+       understanding, and conversation function.
+
+       It may expose disagreement, but cannot route or answer.
+    ===================================================== */
+
+    mark("before perceptionReconciliation");
+
+    const perceptionReconciliation = await runEngine(
+      window.AriPerceptionReconciliationEngine ||
+      window.Ari?.perceptionReconciliationEngine,
+      ["reconcile", "analyze"],
+      {
+        perceptionReconciliationRan: false,
+        perceptionReconciliationSource: "not-loaded",
+
+        agreementLevel: "unknown",
+        agreementScore: 0,
+
+        classificationAligned: null,
+        semanticFrameAligned: null,
+        conversationFunctionAligned: null,
+
+        disagreements: [],
+        warnings: [],
+        unresolvedQuestions: [],
+
+        reconciledInteractionFamily:
+          state.interactionFamily ||
+          null,
+
+        reconciledIntentFamily:
+          state.intentFamily ||
+          null,
+
+        reconciledPrimaryDomain:
+          state.conversationPrimaryDomain ||
+          null,
+
+        reconciledDomains:
+          state.conversationDomains ||
+          [],
+
+        reconciledPrimaryFunction:
+          state.conversationFunction?.primaryFunction ||
+          null,
+
+        routingHandoffReady: false
+      },
+      state
+    );
+
+    state = {
+      ...state,
+
+      perceptionReconciliation,
+
+      perceptionReconciliationResult:
+        perceptionReconciliation,
+
+      perceptionReconciliationRan:
+        perceptionReconciliation
+          .perceptionReconciliationRan === true,
+
+      perceptionAgreementLevel:
+        perceptionReconciliation.agreementLevel ||
+        "unknown",
+
+      perceptionAgreementScore:
+        perceptionReconciliation.agreementScore ??
+        0,
+
+      perceptionDisagreements:
+        perceptionReconciliation.disagreements ||
+        [],
+
+      perceptionReconciliationWarnings:
+        perceptionReconciliation.warnings ||
+        [],
+
+      reconciledInteractionFamily:
+        perceptionReconciliation.reconciledInteractionFamily ||
+        state.interactionFamily ||
+        null,
+
+      reconciledIntentFamily:
+        perceptionReconciliation.reconciledIntentFamily ||
+        state.intentFamily ||
+        null,
+
+      reconciledPrimaryDomain:
+        perceptionReconciliation.reconciledPrimaryDomain ||
+        state.conversationPrimaryDomain ||
+        null,
+
+      reconciledDomains:
+        perceptionReconciliation.reconciledDomains ||
+        state.conversationDomains ||
+        [],
+
+      reconciledPrimaryFunction:
+        perceptionReconciliation.reconciledPrimaryFunction ||
+        state.conversationFunction?.primaryFunction ||
+        null,
+
+      perceptionRoutingHandoffReady:
+        perceptionReconciliation.routingHandoffReady === true
+    };
+
+    mark("after perceptionReconciliation");
+    /* =====================================================
+       11. PERCEPTION DIAGNOSTICS
     ===================================================== */
 
     mark("before perceptionDiagnostics");
@@ -579,7 +763,7 @@ window.AriPerceptionPipeline = {
     mark("after perceptionDiagnostics");
 
     /* =====================================================
-       11. FINAL PERCEPTION PACKET
+       12. FINAL PERCEPTION PACKET
     ===================================================== */
 
     state.perceptionPacket =
@@ -1155,6 +1339,16 @@ window.AriPerceptionPipeline = {
       summary.semanticFrameOutput
         ?.semanticFrameBuilderRan === true;
 
+const reconciliationLoaded =
+  summary.perceptionReconciliation
+    ?.perceptionReconciliationRan === true;
+
+if (!reconciliationLoaded) {
+  warnings.push(
+    "perception_reconciliation_not_available"
+  );
+}
+
     if (!message) {
       errors.push(
         "missing_user_message"
@@ -1246,47 +1440,51 @@ window.AriPerceptionPipeline = {
         errors.length === 0,
 
       complete:
-        errors.length === 0 &&
-        observerLoaded &&
-        questionUnderstandingLoaded &&
-        lifeSignalsLoaded &&
-        conversationFunctionLoaded &&
-        classifierLoaded &&
-        semanticFrameLoaded,
+  errors.length === 0 &&
+  observerLoaded &&
+  questionUnderstandingLoaded &&
+  lifeSignalsLoaded &&
+  classifierLoaded &&
+  semanticFrameLoaded &&
+  conversationFunctionLoaded &&
+  reconciliationLoaded,
 
       errors,
       warnings,
 
       stages: {
-        safety:
-          summary.safetyContextGate
-            ?.safetyContextGateRan === true,
+  safety:
+    summary.safetyContextGate
+      ?.safetyContextGateRan === true,
 
-        observer:
-          observerLoaded,
+  observer:
+    observerLoaded,
 
-        questionUnderstanding:
-          questionUnderstandingLoaded,
+  questionUnderstanding:
+    questionUnderstandingLoaded,
 
-        lifeSignalExtractor:
-          lifeSignalsLoaded,
+  lifeSignalExtractor:
+    lifeSignalsLoaded,
 
-        ledgerMerge:
-          summary
-            .perceptionObservationMergeRan === true,
+  ledgerMerge:
+    summary
+      .perceptionObservationMergeRan === true,
 
-        conversationFunction:
-          conversationFunctionLoaded,
+  universalClassifier:
+    classifierLoaded,
 
-        universalClassifier:
-          classifierLoaded,
+  routingEvidence:
+    summary.routingEvidenceRan === true,
 
-        routingEvidence:
-          summary.routingEvidenceRan === true,
+  semanticFrame:
+    semanticFrameLoaded,
 
-        semanticFrame:
-          semanticFrameLoaded
-      },
+  conversationFunction:
+    conversationFunctionLoaded,
+
+  reconciliation:
+    reconciliationLoaded
+},
 
       evidence: {
         total:
@@ -1359,6 +1557,10 @@ window.AriPerceptionPipeline = {
     const semanticFrame =
       summary.semanticFrameOutput ||
       {};
+
+const reconciliation =
+  summary.perceptionReconciliation ||
+  {};
 
     const safetyScreen =
       summary.safetyContextGate ||
@@ -1656,35 +1858,73 @@ window.AriPerceptionPipeline = {
           conversationFunction
       },
 
-      classification: {
+            classification: {
         available:
           classification
             .universalConversationClassifierRan === true,
 
         type:
-          classification
-            .conversationType ||
+          classification.conversationType ||
           "unknown",
 
         intent:
-          classification
-            .conversationIntent ||
+          classification.conversationIntent ||
           "unknown",
 
+        interactionFamily:
+          classification.interactionFamily ||
+          "general",
+
+        intentFamily:
+          classification.intentFamily ||
+          "general_response",
+
+        primaryDomain:
+          classification.primaryDomain ||
+          "general_understanding",
+
+        domains:
+          classification.domains ||
+          [],
+
+        contextualSignals:
+          classification.contextualSignals ||
+          [],
+
+        explicitRequestPresent:
+          classification.explicitRequestPresent === true,
+
+        explicitRequestType:
+          classification.explicitRequestType ||
+          null,
+
+        explicitRequestedOperation:
+          classification.explicitRequestedOperation ||
+          null,
+
+        explicitRequestedOutput:
+          classification.explicitRequestedOutput ||
+          null,
+
+        explicitRequestOverridesContext:
+          classification.explicitRequestOverridesContext === true,
+
         responseHint:
-          classification
-            .conversationResponseHint ||
+          classification.conversationResponseHint ||
+          classification.responseHint ||
           null,
 
         candidates:
-          classification
-            .conversationCandidates ||
+          classification.conversationCandidates ||
+          classification.candidates ||
           [],
 
         confidence:
           classification.confidence ??
-          classification
-            .conversationConfidence ??
+          null,
+
+        confidenceLabel:
+          classification.confidenceLabel ||
           null,
 
         raw:
@@ -1796,7 +2036,123 @@ window.AriPerceptionPipeline = {
           semanticFrame
       },
 
+      reconciliation: {
+        available:
+          reconciliation
+            .perceptionReconciliationRan === true,
+
+        source:
+          reconciliation
+            .perceptionReconciliationSource ||
+          reconciliation.source ||
+          "unknown",
+
+        agreementLevel:
+          reconciliation.agreementLevel ||
+          "unknown",
+
+        agreementScore:
+          reconciliation.agreementScore ??
+          0,
+
+        classificationAligned:
+          reconciliation.classificationAligned ??
+          null,
+
+        semanticFrameAligned:
+          reconciliation.semanticFrameAligned ??
+          null,
+
+        conversationFunctionAligned:
+          reconciliation.conversationFunctionAligned ??
+          null,
+
+        disagreements:
+          reconciliation.disagreements ||
+          [],
+
+        warnings:
+          reconciliation.warnings ||
+          [],
+
+        unresolvedQuestions:
+          reconciliation.unresolvedQuestions ||
+          [],
+
+        reconciledInteractionFamily:
+          reconciliation.reconciledInteractionFamily ||
+          classification.interactionFamily ||
+          null,
+
+        reconciledIntentFamily:
+          reconciliation.reconciledIntentFamily ||
+          classification.intentFamily ||
+          null,
+
+        reconciledPrimaryDomain:
+          reconciliation.reconciledPrimaryDomain ||
+          classification.primaryDomain ||
+          null,
+
+        reconciledDomains:
+          reconciliation.reconciledDomains ||
+          classification.domains ||
+          [],
+
+        reconciledPrimaryFunction:
+          reconciliation.reconciledPrimaryFunction ||
+          conversationFunction.primaryFunction ||
+          null,
+
+        routingHandoffReady:
+          reconciliation.routingHandoffReady === true,
+
+        raw:
+          reconciliation
+      },
+
       routingHandoff: {
+        
+                reconciliationReady:
+          reconciliation.routingHandoffReady === true,
+
+        reconciledInteractionFamily:
+          reconciliation.reconciledInteractionFamily ||
+          classification.interactionFamily ||
+          null,
+
+        reconciledIntentFamily:
+          reconciliation.reconciledIntentFamily ||
+          classification.intentFamily ||
+          null,
+
+        reconciledPrimaryDomain:
+          reconciliation.reconciledPrimaryDomain ||
+          classification.primaryDomain ||
+          null,
+
+        reconciledDomains:
+          reconciliation.reconciledDomains ||
+          classification.domains ||
+          [],
+
+        reconciledPrimaryFunction:
+          reconciliation.reconciledPrimaryFunction ||
+          conversationFunction.primaryFunction ||
+          "unknown",
+
+        perceptionAgreementLevel:
+          reconciliation.agreementLevel ||
+          "unknown",
+
+        perceptionAgreementScore:
+          reconciliation.agreementScore ??
+          0,
+
+        perceptionDisagreements:
+          reconciliation.disagreements ||
+          [],
+        
         conversationFunction:
           conversationFunction
             .primaryFunction ||
