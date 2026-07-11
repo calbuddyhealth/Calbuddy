@@ -2111,6 +2111,55 @@ const reconciliation =
           reconciliation
       },
 
+      perceptionSummary: {
+        userPrimaryNeed:
+          reconciliation.reconciledPrimaryFunction ||
+          conversationFunction.primaryFunction ||
+          classification.conversationIntent ||
+          "unknown",
+
+        primaryQuestionPurpose:
+          questionUnderstanding.primaryPurpose ||
+          "understanding",
+
+        primaryLifeSignal:
+          lifeSignals.primarySignalName ||
+          lifeSignals.primarySignal?.name ||
+          lifeSignals.primarySignal ||
+          null,
+
+        primarySemanticMeaning:
+          semanticFrame.semanticSummary?.primaryMeaning ||
+          primaryFrame?.frameType ||
+          primaryFrame?.type ||
+          null,
+
+        conversationFunction:
+          reconciliation.reconciledPrimaryFunction ||
+          conversationFunction.primaryFunction ||
+          "unknown",
+
+        interactionFamily:
+          reconciliation.reconciledInteractionFamily ||
+          classification.interactionFamily ||
+          "general",
+
+        primaryDomain:
+          reconciliation.reconciledPrimaryDomain ||
+          classification.primaryDomain ||
+          "general_understanding",
+
+        confidence:
+          reconciliation.agreementScore ??
+          classification.confidence ??
+          semanticFrame.semanticSummary?.confidence ??
+          0,
+
+        agreement:
+          reconciliation.agreementLevel ||
+          "unknown"
+      },
+
       routingHandoff: {
         
                 reconciliationReady:
