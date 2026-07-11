@@ -197,16 +197,40 @@
     },
 
     expression: {
-      ran: summary.expressionPipelineRan === true,
-      composerPacketReady: summary.composerPacket?.ready === true,
-      candidateCount: Array.isArray(summary.candidateDrafts)
-        ? summary.candidateDrafts.length
-        : 0,
-      selectedDraftSource: summary.selectedDraftSource || null,
-      blueprintWriterRan: summary.blueprintWriterRan === true,
-      aiWriterRan: summary.aiWriterRan === true,
-      languageComposerRan: summary.languageComposerRan === true
-    },
+  ran: summary.expressionPipelineRan === true,
+
+  composerPacketReady:
+    summary.composerPacket?.ready === true,
+
+  candidateCount:
+    Array.isArray(summary.candidateDrafts)
+      ? summary.candidateDrafts.length
+      : 0,
+
+  selectedDraftSource:
+    summary.selectedDraftSource || null,
+
+  blueprintWriterRan:
+    summary.blueprintWriterRan === true,
+
+  aiWriterRan:
+    summary.aiWriterRan === true,
+
+  languageComposerRan:
+    summary.languageComposerRan === true,
+
+  blueprintDraft:
+    summary.blueprintWriterDraft || null,
+
+  precheckWinner:
+    summary.arbiterPrecheck?.selectedCandidate || null,
+
+  needsAIWriter:
+    summary.arbiterPrecheck?.needsAIWriter === true,
+
+  aiRepairReason:
+    summary.arbiterPrecheck?.aiRepairReason || null
+},
 
     delivery: {
       ran: summary.deliveryPipelineRan === true,
