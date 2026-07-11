@@ -224,52 +224,104 @@ version: "1.7.5",
   loadingPromise: null,
 
   async ensureLoaded() {
-    if (
-      this.loaded &&
-      window.AriRebirthPipeline &&
-      typeof window.AriRebirthPipeline.run === "function"
-    ) {
-      return true;
-    }
+  if (
+    this.loaded &&
+    window.AriRebirthPipeline &&
+    typeof window.AriRebirthPipeline.run === "function"
+  ) {
+    return true;
+  }
 
-    if (this.loadingPromise) {
-      return this.loadingPromise;
-    }
-
-    this.loadingPromise = (async () => {
-      for (const src of this.requiredScripts) {
-        await this.loadScriptOnce(src);
-      }
-
-      this.loaded = true;
-      return true;
-    })();
-
+  if (this.loadingPromise) {
     return this.loadingPromise;
-  },
+  }
 
-  loadScriptOnce(src) {
-    return new Promise((resolve, reject) => {
-      const alreadyLoaded = [...document.scripts].some(script => {
-        const existing = script.getAttribute("src") || "";
-        return existing === src || script.src.endsWith(src);
-      });
+  this.loadingPromise = (async () => {
+    sessionStorage.setItem("ariLoadingCompleted", "false");
+    sessionStorage.removeItem("ariLastLoadError");
 
-      if (alreadyLoaded) {
-        resolve();
-        return;
+    for (let index = 0; index < this.requiredScripts.length; index++) {
+      const src = this.requiredScripts[index];
+
+      sessionStorage.setItem("ariLastLoadingScript", src);
+      sessionStorage.setItem("ariLastLoadingIndex", String(index));
+
+      console.log(
+        `[ARI LOADER ${index + 1}/${this.requiredScripts.length}]`,
+        src
+      );
+
+      await this.loadScriptOnce(src);
+
+      sessionStorage.setItem("ariLastLoadedScript", src);
+      sessionStorage.setItem("ariLastLoadedIndex", String(index));
+
+      // Give mobile Safari a brief chance to process loaded scripts
+      // and release temporary work between large groups.
+      if ((index + 1) % 10 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
+    }
 
-      const script = document.createElement("script");
-      script.src = src;
-      script.async = false;
+    this.loaded = true;
 
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error(`Failed to load Ari script: ${src}`));
+    sessionStorage.setItem("ariLoadingCompleted", "true");
+    sessionStorage.removeItem("ariLastLoadingScript");
+    sessionStorage.removeItem("ariLastLoadingIndex");
 
-      document.head.appendChild(script);
+    return true;
+  })().catch(error => {
+    this.loaded = false;
+    this.loadingPromise = null;
+
+    sessionStorage.setItem(
+      "ariLastLoadError",
+      error?.message || String(error)
+    );
+
+    throw error;
+  });
+
+  return this.loadingPromise;
+},
+  loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const existingScript = [...document.scripts].find(script => {
+      const existing = script.getAttribute("src") || "";
+      return existing === src || script.src.endsWith(src);
     });
-  },
+
+    if (existingScript) {
+      console.log("[ARI LOADER ALREADY PRESENT]", src);
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+
+    script.src = src;
+    script.async = false;
+    script.defer = false;
+    script.dataset.ariDynamicScript = "true";
+
+    script.onload = () => {
+      console.log("[ARI LOADER SUCCESS]", src);
+      resolve();
+    };
+
+    script.onerror = () => {
+      const error = new Error(`Failed to load Ari script: ${src}`);
+
+      sessionStorage.setItem("ariLastLoadError", error.message);
+      console.error("[ARI LOADER FAILURE]", src);
+
+      script.remove();
+      reject(error);
+    };
+
+    document.head.appendChild(script);
+  });
+},
 
   async ask(message, options = {}) {
     const cleanMessage = String(message || "").trim();
