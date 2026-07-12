@@ -1,12 +1,12 @@
 // ari/pipelines/ari-perception-pipeline.js
 // Ari Perception Pipeline
 // Purpose: Collect, preserve, merge, and structure evidence about the current user message.
-// V1.3.0 — Locked Perception Architecture / Reconciliation Ready
+// V1.4.0 — V4 Reconciliation Contract / Canonical Intent Packet
 
 window.Ari = window.Ari || {};
 
 window.AriPerceptionPipeline = {
-  version: "1.3.0",
+  version: "1.4.0",
 
   async run(summary = {}, runtime = {}) {
     const {
