@@ -439,19 +439,26 @@ explicitRequestOverridesContext,
       ]);
 
     const explicitExplanationLanguage =
-      this.hasAny(text, [
-        "what is",
-        "what are",
-        "why is",
-        "why does",
-        "how does",
-        "explain",
-        "teach me",
-        "define",
-        "what does this mean",
-        "what is the difference",
-        "difference between"
-      ]);
+  this.hasAny(text, [
+    "why is",
+    "why does",
+    "why do",
+    "why did",
+    "how does",
+    "how do",
+    "how did",
+    "how come",
+    "explain",
+    "explain why",
+    "explain how",
+    "teach me",
+    "define",
+    "what does this mean",
+    "what is the meaning",
+    "what is the difference",
+    "difference between",
+    "break this down"
+  ]);
 
     const explicitFactualLanguage =
       hasQuestion &&
