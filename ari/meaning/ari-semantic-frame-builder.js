@@ -1,11 +1,11 @@
 // ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert canonical perception evidence into structured conceptual meaning.
-// V3.1.0 — Semantic Contract Corrections / Confidence Ordering / Compact Formatting
+// V3.2.0 — Action Authorization / Topic-Action Separation / Prohibited Execution Guards
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameBuilder = {
-  version: "3.1.0",
+  version: "3.2.0",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -727,18 +727,23 @@ const framePriority = this.buildFramePriority({
     "general";
 
   const secondaryOperations =
-    this.uniqueNormalizedValues([
-      ...requestedOperations.slice(1),
+  this.uniqueNormalizedValues([
+    ...requestedOperations.slice(1),
 
-      classifierOperation &&
-      classifierOperation !== operation
-        ? classifierOperation
-        : null
-    ])
-      .filter(candidate =>
-        candidate !== operation
-      );
-
+    classifierOperation &&
+    classifierOperation !== operation
+      ? classifierOperation
+      : null
+  ])
+    .filter(candidate =>
+      candidate !== operation
+    )
+    .filter(candidate =>
+      !this.operationMatchesAny(
+        candidate,
+        actionPolicy.prohibitedOperations
+      )
+    );
   const secondaryOutputs =
     this.uniqueNormalizedValues([
       ...requestedOutputs.slice(1),
@@ -4090,16 +4095,25 @@ includesOperationTerm(
     requestModel.primaryPurpose ===
       questionPurpose;
 
-  const classifierAligned =
-    !classifierOperation ||
-    frameOperation ===
-      classifierOperation ||
-    frameOperation.includes(
-      classifierOperation
-    ) ||
-    classifierOperation.includes(
-      frameOperation
-    );
+  const authorizedOperationOverride =
+  requestModel.actionPolicy
+    ?.proposedOperationBlocked ===
+    true &&
+  requestModel.sourceTrace
+    ?.resolutionChangedOperation ===
+    true;
+
+const classifierAligned =
+  authorizedOperationOverride ||
+  !classifierOperation ||
+  frameOperation ===
+    classifierOperation ||
+  frameOperation.includes(
+    classifierOperation
+  ) ||
+  classifierOperation.includes(
+    frameOperation
+  );
 
   const familyAligned =
     !classifierFamily ||
@@ -4117,6 +4131,8 @@ includesOperationTerm(
     values.filter(Boolean).length;
 
   return {
+    authorizedOperationOverride,
+    
     questionUnderstandingAligned:
       questionAligned,
 
