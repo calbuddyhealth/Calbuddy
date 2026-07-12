@@ -1,13 +1,13 @@
 // ari/pipelines/ari-deliberation-pipeline.js
 // Ari Deliberation Pipeline
-// Purpose: Coordinate context, safety, situation, reasoning, memory,
-// understanding, and response planning stages.
-// V1.0.0 — Seven-Stage Deliberation Orchestrator
+// Purpose: Coordinate continuity, safety, situation, memory,
+// understanding, reasoning, and response planning stages.
+// V1.1.0 — Accumulated State Protection + Corrected Deliberation Order
 
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -30,6 +30,8 @@ window.AriDeliberationPipeline = {
 
     // =================================================
     // 1. Continuity Stage
+    // Resolve current-turn dependence, prior-thread
+    // context, references, and continuity requirements.
     // =================================================
 
     mark("before continuityStage");
@@ -46,6 +48,8 @@ window.AriDeliberationPipeline = {
 
     // =================================================
     // 2. Safety Stage
+    // Establish response-governance requirements before
+    // deeper interpretation or reasoning occurs.
     // =================================================
 
     mark("before safetyStage");
@@ -62,6 +66,8 @@ window.AriDeliberationPipeline = {
 
     // =================================================
     // 3. Situation Stage
+    // Model the active situation, triage lane, and
+    // multi-lane response requirements.
     // =================================================
 
     mark("before situationStage");
@@ -77,23 +83,9 @@ window.AriDeliberationPipeline = {
     mark("after situationStage");
 
     // =================================================
-    // 4. Reasoning Stage
-    // =================================================
-
-    mark("before reasoningStage");
-
-    state =
-      await this.runStage(
-        window.AriReasoningStage,
-        state,
-        runtime,
-        "reasoning"
-      );
-
-    mark("after reasoningStage");
-
-    // =================================================
-    // 5. Memory Stage
+    // 4. Memory Stage
+    // Retrieve durable context only when routing requires
+    // it, then build a controlled memory handoff.
     // =================================================
 
     mark("before memoryStage");
@@ -109,7 +101,9 @@ window.AriDeliberationPipeline = {
     mark("after memoryStage");
 
     // =================================================
-    // 6. Understanding Stage
+    // 5. Understanding Stage
+    // Build the final deliberative understanding using
+    // current-turn, continuity, situation, and memory.
     // =================================================
 
     mark("before understandingStage");
@@ -125,7 +119,27 @@ window.AriDeliberationPipeline = {
     mark("after understandingStage");
 
     // =================================================
+    // 6. Reasoning Stage
+    // Reason only after the relevant continuity, safety,
+    // situation, memory, and understanding outputs exist.
+    // =================================================
+
+    mark("before reasoningStage");
+
+    state =
+      await this.runStage(
+        window.AriReasoningStage,
+        state,
+        runtime,
+        "reasoning"
+      );
+
+    mark("after reasoningStage");
+
+    // =================================================
     // 7. Response Planning Stage
+    // Convert the completed deliberative state into a
+    // controlled response strategy for expression.
     // =================================================
 
     mark("before responsePlanningStage");
@@ -246,7 +260,17 @@ window.AriDeliberationPipeline = {
         };
       }
 
-      return result;
+      // The orchestrator owns accumulated deliberation state.
+      // A stage may return either:
+      // - the complete state, or
+      // - only the fields it produced.
+      //
+      // Merging here prevents a partial stage result from
+      // deleting outputs produced by earlier stages.
+      return {
+        ...summary,
+        ...result
+      };
     } catch (error) {
       console.error(
         `Ari deliberation stage error: ${stageName}`,
@@ -336,16 +360,16 @@ window.AriDeliberationPipeline = {
           summary.situationStagePacket ||
           null,
 
-        reasoning:
-          summary.reasoningStagePacket ||
-          null,
-
         memory:
           summary.memoryStagePacket ||
           null,
 
         understanding:
           summary.understandingStagePacket ||
+          null,
+
+        reasoning:
+          summary.reasoningStagePacket ||
           null,
 
         responsePlanning:
@@ -487,46 +511,6 @@ window.AriDeliberationPipeline = {
       },
 
       // -----------------------------------------------
-      // Reasoning
-      // -----------------------------------------------
-
-      reasoning: {
-        cognitiveExecutive:
-          summary.cognitiveExecutive ||
-          null,
-
-        general:
-          summary.reasoning ||
-          {},
-
-        requirements:
-          summary.reasoningRequirements ||
-          null,
-
-        developer: {
-          applicable:
-            summary
-              .shouldRunDeveloperLayer === true,
-
-          ran:
-            summary.developerLayerRan === true,
-
-          responseLocked:
-            summary
-              .developerResponseLocked === true,
-
-          handoff:
-            summary.developerHandoff ||
-            summary.unlockedDeveloperHandoff ||
-            null,
-
-          composerPacket:
-            summary.composerDeveloperPacket ||
-            null
-        }
-      },
-
-      // -----------------------------------------------
       // Memory
       // -----------------------------------------------
 
@@ -581,6 +565,46 @@ window.AriDeliberationPipeline = {
         handoff:
           summary.understandingHandoff ||
           null
+      },
+
+      // -----------------------------------------------
+      // Reasoning
+      // -----------------------------------------------
+
+      reasoning: {
+        cognitiveExecutive:
+          summary.cognitiveExecutive ||
+          null,
+
+        general:
+          summary.reasoning ||
+          {},
+
+        requirements:
+          summary.reasoningRequirements ||
+          null,
+
+        developer: {
+          applicable:
+            summary
+              .shouldRunDeveloperLayer === true,
+
+          ran:
+            summary.developerLayerRan === true,
+
+          responseLocked:
+            summary
+              .developerResponseLocked === true,
+
+          handoff:
+            summary.developerHandoff ||
+            summary.unlockedDeveloperHandoff ||
+            null,
+
+          composerPacket:
+            summary.composerDeveloperPacket ||
+            null
+        }
       },
 
       // -----------------------------------------------
