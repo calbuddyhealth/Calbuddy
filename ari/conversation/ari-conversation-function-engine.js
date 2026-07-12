@@ -1,912 +1,2706 @@
 // ari/conversation/ari-conversation-function-engine.js
 // Ari Conversation Function Engine
-// Purpose: Detect conversational signals before lane/triage.
-// V2.3.1 — Meaning-Safe Signal Collector / Emotional Support Protected / Keyword Trap Reduced / Advisory Only
+// Purpose:
+//   Determine what functional purpose the current conversation serves
+//   after upstream perception and semantic meaning have been constructed.
+//
+// Responsibilities:
+//   - Read structured upstream meaning.
+//   - Identify the primary conversational function.
+//   - Preserve meaningful secondary functions.
+//   - Describe the functional response contract.
+//   - Report confidence, evidence, and unresolved uncertainty.
+//
+// Non-responsibilities:
+//   - Does not reinterpret raw user language.
+//   - Does not determine final safety severity.
+//   - Does not choose a lane, route, planner, model, or capability.
+//   - Does not compose or answer the user.
+//   - Does not block downstream systems.
+//   - Does not replace Semantic Frame Builder or Reconciliation.
+//
+// V3.0.0 — Structured Meaning Consumer / Single Responsibility / Reconciliation Ready
 
 window.Ari = window.Ari || {};
 
 window.AriConversationFunctionEngine = {
-  version: "2.3.1",
+  version: "3.0.0",
 
-  patterns: {
-    developerNouns:
-      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|interface|html|css|javascript|js|file|code|function|engine|pipeline|github|vercel|supabase|index\.html|style\.css|class|element|div|container|modal|menu|tab|navbar|dashboard|meter|search bar|input|form|repo|repository|codebase|api)\b/,
-
-    developerAction:
-      /\b(read|open|show|search|find|inspect|debug|fix|update|change|replace|remove|commit|deploy|edit|patch|implement|wire|connect|load|disable|enable)\b/,
-
-    modificationVerb:
-      /\b(remove|delete|hide|get rid of|take off|change|update|replace|rename|move|reorder|resize|turn|switch|add|insert|put|place|adjust|fix|clean up|refactor|implement|wire|connect|load|disable|enable|edit|patch)\b/,
-
-    creationVerb:
-      /\b(create|build|make|generate|design|add new|set up|scaffold)\b/,
-
-    investigationVerb:
-      /\b(debug|inspect|check|find|figure out|why is|why isn't|why does|not working|broken|issue|bug|error|failing|bottleneck|trickle down|root cause)\b/,
-
-    layoutLanguage:
-      /\b(homepage|home page|layout|button|tile|card|section|component|page|screen|ui|bottom tabs|top bar|search bar|meter|dashboard|profile button|hamburger|greeting box|action grid)\b/,
-
-    codeLanguage:
-      /\b(code|file|html|css|javascript|js|function|engine|pipeline|github|vercel|supabase|index\.html|style\.css|class|script|component|api|repo|repository)\b/,
-
-    languageRequest:
-      /\b(translate|translation|bible verse|verse|quote|scripture|meaning|interpret|interpret this|what does this mean|what does this say|what is this saying)\b/,
-
-    ariPreferenceQuestion:
-      /\b(what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what kind of .* do you like|what would you choose|what would you prefer|what matters to you|what do you value|your values|your beliefs|your taste|your style|your personality|who are you|what are you|tell me about yourself)\b/,
-
-    metaDeveloperQuestion:
-      /\b(should ari|should it|does it|will it|would it|can it|trigger|detect|classify|identify|semantic|keyword|keyterm|routing|conversation function|artifact modification|file context|developer request|treat this|treat it|outdated|brittle|regex|pattern|signal)\b/,
-
-    humanLifeContext:
-      /\b(career|family|freedom|regret|ambition|ego|wise|choice|responsible|stable career|betting on myself|life|future|identity|values)\b/,
-
-    directAnswer:
-      /\b(explain|tell me|what does this mean|what does that mean|why|how come|could it be|is it because|what caused|what cause|root cause)\b/,
-
-    actionRequest:
-      /\b(how do i|what should i do|what can i do|steps|walk me through|show me how|fix|debug|update|replace|send code|implement|patch|upgrade)\b/,
-
-    decision:
-      /\b(should i|should we|which one|which option|which is better|what is better|better option|better choice|choose|decide|worth it|pros and cons|compare|best move|recommend)\b/,
-
-    relationship:
-      /\b(wife|husband|spouse|partner|girlfriend|boyfriend|family|kid|kids|child|children|father|mother|mom|dad)\b/,
-
-    emotion:
-      /\b(sad|mad|angry|hurt|upset|bothered|worried|scared|anxious|stressed|overwhelmed|agitated|frustrated|lonely|depressed|down|burned out|exhausted|tired|heavy|rough)\b/,
-
-    directEmotion:
-      /\b(i'?m|i am|i feel|i felt|feeling|felt)\s+(really|very|pretty|so|kinda|kind of|super|extremely|a little|sort of|honestly|just)?\s*(sad|mad|angry|hurt|upset|worried|scared|anxious|stressed|overwhelmed|lonely|depressed|frustrated|down|burned out|exhausted|tired|heavy)\b|\b(that bothered me|it bothered me|i was bothered|i got upset|i am upset|i'm upset)\b/,
-
-    emotionalSupportRequest:
-      /\b(long day|bad day|rough day|hard day|heavy day|need to talk|talk to someone|someone to talk|feel better|need someone|i feel .*sad|i feel .*down|i feel .*lonely|i feel .*overwhelmed|i feel .*stressed|i feel .*exhausted|i just need to vent|can i vent|listen to me|be here with me)\b/,
-
-    boundary:
-      /\b(not trying to fix|don'?t fix|just listen|just venting|that'?s all|i only want|i don'?t want advice|no advice|just be here|just talk to me)\b/,
-
-    medical:
-      /\b(pain|fever|bleeding|pregnant|chest|breathing|faint|vomit|diarrhea|swallow|cough|stroke|seizure)\b/,
-
-    memoryOrIdentity:
-      /\b(remember|forget|save this|from now on|who are you|what are you|ari)\b/,
-
-    creative:
-      /\b(generate|create|draw|design|image|picture|logo|name ideas|write a story)\b/,
-
-    correction:
-      /\b(i mean|i meant|i ment|no,?\s*i mean|not that|rather|instead)\b/,
-
-    shortFollowUp:
-      /\b(this|that|it|they|them|same|one|what about|then what|next|continue|why)\b/,
-
-    urgentSafety:
-      /\b(suicide|kill myself|hurt myself|chest pain|shortness of breath|bleeding|stroke|fainting|seizure|emergency)\b/
-  },
+  /* =====================================================
+     PUBLIC ENTRY POINT
+  ===================================================== */
 
   analyze(input = {}) {
-    const summary = input.summary || input || {};
-    const raw = summary.userMessage || summary.message || summary.input || "";
-    const text = this.clean(raw);
-    const words = text.split(/\s+/).filter(Boolean);
+    const summary =
+      input.summary ||
+      input ||
+      {};
 
-    const observations =
-      summary.observations ||
-      summary.observationLedger ||
-      summary.observerEvidence?.observations ||
-      [];
+    const sources =
+      this.readSources(summary);
 
-    const signals = this.collectSignals({ text, words, observations, summary });
-    const functions = this.collectFunctions({ text, words, observations, signals });
-    const ranked = this.rankFunctions(functions, signals);
+    const candidates =
+      this.buildCandidates(sources);
 
-    const primary = ranked[0] || {
-      name: "general_conversation",
-      score: 50,
-      reasons: ["No stronger conversation function detected."]
-    };
+    const rankedFunctions =
+      this.rankCandidates(
+        candidates,
+        sources
+      );
 
-    const supportFunctions = ranked
-      .slice(1, 6)
-      .filter(f => f.score >= 35)
-      .map(f => f.name);
+    const primary =
+      rankedFunctions[0] ||
+      this.defaultFunction();
+
+    const secondaryFunctions =
+      rankedFunctions
+        .slice(1)
+        .filter(candidate =>
+          candidate.score >= 42
+        )
+        .slice(0, 6);
+
+    const functionAgreement =
+      this.buildFunctionAgreement({
+        primary,
+        sources
+      });
+
+    const confidence =
+      this.calculateConfidence({
+        primary,
+        secondaryFunctions,
+        functionAgreement,
+        sources
+      });
+
+    const responseContract =
+      this.buildResponseContract({
+        primary,
+        secondaryFunctions,
+        sources
+      });
+
+    const handoff =
+      this.buildHandoff({
+        primary,
+        secondaryFunctions,
+        rankedFunctions,
+        responseContract,
+        functionAgreement,
+        confidence,
+        sources
+      });
 
     return {
       conversationFunctionRan: true,
-      conversationFunctionVersion: this.version,
-      source: "ari-conversation-function-engine",
 
-      rawUserMessage: raw,
-      normalizedText: text,
+      conversationFunctionVersion:
+        this.version,
 
-      primaryFunction: primary.name,
-      supportFunctions,
-      blockedFunctions: this.getBlockedFunctions(primary.name, ranked, signals),
-      candidates: ranked,
+      conversationFunctionSource:
+        "ari-conversation-function-engine",
 
-      dominantUserMove: primary.name,
-      responseBias: this.getResponseBias(primary.name, signals),
+      advisoryOnly: true,
+      routingAuthority: false,
+      planningAuthority: false,
+      composerAuthority: false,
+      finalAnswerAuthority: false,
+      safetyAuthority: false,
 
-      confidence: Math.min(primary.score, 82),
-      rawConfidence: primary.score,
+      primaryFunction:
+        primary.name,
 
-      signalProfile: signals,
+      primaryFunctionFamily:
+        primary.family,
 
-      directAnswerNeeded: signals.directAnswerNeeded,
-      decisionNeeded: signals.decisionNeeded,
-      relationshipContext: signals.relationshipContext,
-      emotionalWeight: signals.emotionalWeight,
-      emotionalSupportRequest: signals.emotionalSupportRequest,
-      currentTurnIsConcrete: signals.currentTurnIsConcrete,
-      shouldBlockFixing: signals.boundaryPresent && !signals.actionRequest,
+      primaryFunctionReason:
+        primary.reason,
 
-      developerArtifactRequest: signals.developerArtifactRequest,
-      artifactModificationRequest: signals.artifactModificationRequest,
-      artifactCreationRequest: signals.artifactCreationRequest,
-      artifactInvestigationRequest: signals.artifactInvestigationRequest,
-      githubEvidenceAvailable: signals.githubEvidenceAvailable,
-      expectsCodeOrArtifact: signals.expectsCodeOrArtifact,
+      secondaryFunctions:
+        secondaryFunctions.map(
+          candidate => ({
+            name:
+              candidate.name,
 
-      languageOrInterpretationRequest: signals.languageOrInterpretationRequest,
-      languageTeacherRequest: signals.languageTeacherRequest,
-      quotedOrImportedText: signals.quotedOrImportedText,
-      metaDeveloperQuestion: signals.metaDeveloperQuestion,
+            family:
+              candidate.family,
 
-      authority: "weak_signal_collector_only",
-      requiresSemanticConfirmation: true,
-      cannotSet: [
-        "primaryLane",
-        "triagePrimaryLane",
-        "situationContractPrimary",
-        "finalResponse",
-        "riskLevel",
-        "override",
-        "shouldUseKnowledge",
-        "bypassKnowledge"
+            score:
+              candidate.score,
+
+            reason:
+              candidate.reason,
+
+            evidenceRefs:
+              candidate.evidenceRefs ||
+              []
+          })
+        ),
+
+      rankedFunctions,
+
+      functionAgreement,
+
+      confidence:
+        confidence.normalized,
+
+      confidenceScore:
+        confidence.score,
+
+      confidenceLabel:
+        confidence.label,
+
+      confidenceBreakdown:
+        confidence.breakdown,
+
+      responseContract,
+
+      handoff,
+
+      sourceAvailability: {
+        semanticFrameAvailable:
+          sources.semanticFrameAvailable,
+
+        canonicalMeaningAvailable:
+          sources.canonicalMeaningAvailable,
+
+        requestModelAvailable:
+          sources.requestModelAvailable,
+
+        classifierAvailable:
+          sources.classifierAvailable,
+
+        questionUnderstandingAvailable:
+          sources.questionUnderstandingAvailable,
+
+        continuityAvailable:
+          sources.continuityAvailable,
+
+        ambiguityAvailable:
+          sources.ambiguityAvailable,
+
+        safetyContextAvailable:
+          sources.safetyContextAvailable
+      },
+
+      authority: {
+        canIdentifyConversationFunction:
+          true,
+
+        canRankConversationFunctions:
+          true,
+
+        canDescribeFunctionalRequirements:
+          true,
+
+        canPreserveSecondaryFunctions:
+          true,
+
+        canReportFunctionalAmbiguity:
+          true,
+
+        canChooseLane:
+          false,
+
+        canChooseRoute:
+          false,
+
+        canChoosePlanner:
+          false,
+
+        canChooseCapabilities:
+          false,
+
+        canDetermineSafetySeverity:
+          false,
+
+        canOverrideSafety:
+          false,
+
+        canBlockFunctions:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "conversation_purpose_handoff_only"
+      }
+    };
+  },
+
+  /* =====================================================
+     SOURCE READING
+  ===================================================== */
+
+  readSources(summary = {}) {
+    const semanticResult =
+      summary.semanticFrameResult ||
+      summary.semanticFrameBuilderResult ||
+      summary.semanticFrame ||
+      {};
+
+    const canonicalMeaning =
+      semanticResult.canonicalMeaning ||
+      summary.canonicalMeaning ||
+      {};
+
+    const primaryFrame =
+      semanticResult.primaryFrame ||
+      semanticResult.currentTurnFrame ||
+      summary.primaryFrame ||
+      canonicalMeaning.primaryFrame ||
+      {};
+
+    const secondaryFrames =
+      semanticResult.secondaryFrames ||
+      summary.secondaryFrames ||
+      [];
+
+    const requestModel =
+      semanticResult.requestModel ||
+      summary.requestModel ||
+      {};
+
+    const responseRequirements =
+      semanticResult.responseRequirements ||
+      semanticResult.responseCharacteristics ||
+      summary.responseRequirements ||
+      {};
+
+    const continuity =
+      semanticResult.continuity ||
+      canonicalMeaning.continuity ||
+      summary.continuity ||
+      {};
+
+    const ambiguity =
+      semanticResult.ambiguity ||
+      canonicalMeaning.ambiguity ||
+      summary.ambiguity ||
+      {};
+
+    const framePriority =
+      semanticResult.framePriority ||
+      summary.framePriority ||
+      {};
+
+    const frameAgreement =
+      semanticResult.frameAgreement ||
+      summary.frameAgreement ||
+      {};
+
+    const classification =
+      summary
+        .universalConversationClassification ||
+      summary.conversationClassification ||
+      {};
+
+    const questionUnderstanding =
+      summary.questionUnderstanding ||
+      summary.questionUnderstandingResult ||
+      {};
+
+    const safetyContext =
+      summary.safetyContextGate ||
+      summary.safetyContext ||
+      {};
+
+    const emotionalOverlay =
+      semanticResult.emotionalOverlay ||
+      summary.emotionalOverlay ||
+      {};
+
+    const contextModifiers =
+      canonicalMeaning.contextModifiers ||
+      semanticResult.contextModifiers ||
+      summary.contextModifiers ||
+      [];
+
+    const constraints =
+      canonicalMeaning.constraints ||
+      semanticResult.constraints ||
+      summary.constraints ||
+      [];
+
+    const stakes =
+      canonicalMeaning.stakes ||
+      semanticResult.stakes ||
+      summary.stakes ||
+      [];
+
+    return {
+      semanticResult,
+      canonicalMeaning,
+      primaryFrame,
+
+      secondaryFrames:
+        Array.isArray(secondaryFrames)
+          ? secondaryFrames
+          : [],
+
+      requestModel,
+      responseRequirements,
+      continuity,
+      ambiguity,
+      framePriority,
+      frameAgreement,
+      classification,
+      questionUnderstanding,
+      safetyContext,
+      emotionalOverlay,
+
+      contextModifiers:
+        Array.isArray(contextModifiers)
+          ? contextModifiers
+          : [],
+
+      constraints:
+        Array.isArray(constraints)
+          ? constraints
+          : [],
+
+      stakes:
+        Array.isArray(stakes)
+          ? stakes
+          : [],
+
+      semanticFrameAvailable:
+        Boolean(
+          semanticResult
+            .semanticFrameBuilderRan ||
+          primaryFrame.frameType
+        ),
+
+      canonicalMeaningAvailable:
+        canonicalMeaning.enabled === true ||
+        Boolean(
+          canonicalMeaning
+            .requestedOperation
+        ),
+
+      requestModelAvailable:
+        Boolean(
+          requestModel.operation ||
+          requestModel.requestType
+        ),
+
+      classifierAvailable:
+        classification
+          .universalConversationClassifierRan ===
+        true,
+
+      questionUnderstandingAvailable:
+        questionUnderstanding
+          .questionUnderstandingRan ===
+        true,
+
+      continuityAvailable:
+        Boolean(
+          continuity &&
+          Object.keys(continuity).length
+        ),
+
+      ambiguityAvailable:
+        Boolean(
+          ambiguity &&
+          Object.keys(ambiguity).length
+        ),
+
+      safetyContextAvailable:
+        Boolean(
+          safetyContext &&
+          Object.keys(safetyContext).length
+        )
+    };
+  },
+
+  /* =====================================================
+     CANDIDATE BUILDING
+  ===================================================== */
+
+  buildCandidates(sources = {}) {
+    const candidates = [];
+
+    const primaryFrame =
+      sources.primaryFrame ||
+      {};
+
+    const canonicalMeaning =
+      sources.canonicalMeaning ||
+      {};
+
+    const requestModel =
+      sources.requestModel ||
+      {};
+
+    const operation =
+      this.normalize(
+        canonicalMeaning
+          .requestedOperation ||
+        primaryFrame.operation ||
+        requestModel.operation ||
+        ""
+      );
+
+    const requestedOutput =
+      this.normalize(
+        canonicalMeaning
+          .requestedOutput ||
+        primaryFrame.requestedOutput ||
+        requestModel.requestedOutput ||
+        ""
+      );
+
+    const interactionFamily =
+      this.normalize(
+        canonicalMeaning
+          .interactionFamily ||
+        primaryFrame.interactionFamily ||
+        requestModel.interactionFamily ||
+        ""
+      );
+
+    const intentFamily =
+      this.normalize(
+        canonicalMeaning
+          .intentFamily ||
+        primaryFrame.intentFamily ||
+        requestModel.intentFamily ||
+        ""
+      );
+
+    const frameType =
+      this.normalize(
+        primaryFrame.frameType ||
+        ""
+      );
+
+    const targetDomain =
+      this.normalize(
+        canonicalMeaning
+          .targetDomain ||
+        primaryFrame.domain ||
+        ""
+      );
+
+    const evidenceRefs =
+      this.collectEvidenceRefs(
+        primaryFrame,
+        canonicalMeaning,
+        requestModel
+      );
+
+    this.addOperationCandidates({
+      candidates,
+      operation,
+      requestedOutput,
+      interactionFamily,
+      intentFamily,
+      frameType,
+      targetDomain,
+      evidenceRefs
+    });
+
+    this.addContinuityCandidates({
+      candidates,
+      sources,
+      evidenceRefs
+    });
+
+    this.addSupportCandidates({
+      candidates,
+      sources,
+      operation,
+      interactionFamily,
+      evidenceRefs
+    });
+
+    this.addSafetyContextCandidate({
+      candidates,
+      sources,
+      evidenceRefs
+    });
+
+    this.addSecondaryFrameCandidates({
+      candidates,
+      sources
+    });
+
+    if (!candidates.length) {
+      candidates.push(
+        this.defaultFunction()
+      );
+    }
+
+    return this.mergeCandidates(
+      candidates
+    );
+  },
+
+  addOperationCandidates({
+    candidates = [],
+    operation = "",
+    requestedOutput = "",
+    interactionFamily = "",
+    intentFamily = "",
+    frameType = "",
+    targetDomain = "",
+    evidenceRefs = []
+  } = {}) {
+    const context = {
+      operation,
+      requestedOutput,
+      interactionFamily,
+      intentFamily,
+      frameType,
+      targetDomain
+    };
+
+    const add = (
+      name,
+      family,
+      score,
+      reason
+    ) => {
+      candidates.push({
+        name,
+        family,
+        score,
+        reason,
+        origin:
+          "semantic_operation",
+
+        evidenceRefs:
+          [...evidenceRefs],
+
+        supportingContext:
+          context
+      });
+    };
+
+    if (
+      this.includesAny(operation, [
+        "provide information",
+        "retrieve information"
+      ]) ||
+      intentFamily === "fact retrieval"
+    ) {
+      add(
+        "information_retrieval",
+        "information",
+        88,
+        "The user is seeking factual or directly retrievable information."
+      );
+    }
+
+    if (
+      this.includesAny(operation, [
+        "explain",
+        "teach"
+      ]) ||
+      this.includesAny(
+        requestedOutput,
+        ["explanation"]
+      )
+    ) {
+      add(
+        operation.includes("teach")
+          ? "teaching"
+          : "explanation",
+
+        "information",
+        operation.includes("teach")
+          ? 90
+          : 88,
+
+        operation.includes("teach")
+          ? "The conversation serves a teaching or guided-learning purpose."
+          : "The user wants a concept, cause, process, or meaning explained."
+      );
+    }
+
+    if (
+      operation.includes("interpret")
+    ) {
+      add(
+        "interpretation",
+        "language_and_meaning",
+        91,
+        "The user is asking Ari to interpret meaning rather than merely retrieve a fact."
+      );
+    }
+
+    if (
+      operation.includes("translate")
+    ) {
+      add(
+        "translation",
+        "language_and_meaning",
+        96,
+        "The user is asking for language transformation between languages."
+      );
+    }
+
+    if (
+      operation.includes("calculate") ||
+      operation.includes("convert")
+    ) {
+      add(
+        "calculation",
+        "calculation",
+        96,
+        "The conversation serves a calculation or conversion function."
+      );
+    }
+
+    if (
+      operation.includes("plan")
+    ) {
+      add(
+        "planning",
+        "planning",
+        92,
+        "The user wants a structured course of action, roadmap, or sequence."
+      );
+    }
+
+    if (
+      operation.includes("prioritize")
+    ) {
+      add(
+        "prioritization",
+        "decision",
+        95,
+        "The user wants competing tasks or concerns placed in priority order."
+      );
+    }
+
+    if (
+      operation.includes("compare")
+    ) {
+      add(
+        "comparison",
+        "decision",
+        92,
+        "The user wants alternatives compared against relevant criteria."
+      );
+    }
+
+    if (
+      this.includesAny(operation, [
+        "decide",
+        "choose",
+        "recommend"
+      ]) ||
+      interactionFamily === "decision" ||
+      intentFamily === "recommendation"
+    ) {
+      add(
+        "decision_support",
+        "decision",
+        93,
+        "The user wants help evaluating choices and reaching a decision."
+      );
+    }
+
+    if (
+      operation.includes("produce") ||
+      operation.includes("revise text") ||
+      interactionFamily === "writing"
+    ) {
+      add(
+        operation.includes("revise")
+          ? "artifact_modification"
+          : "artifact_creation",
+
+        "artifact",
+        93,
+
+        operation.includes("revise")
+          ? "The user wants an existing written artifact revised."
+          : "The user wants a written artifact produced."
+      );
+    }
+
+    if (
+      operation.includes("implement") ||
+      operation.includes("modify")
+    ) {
+      add(
+        "artifact_modification",
+        "artifact",
+        97,
+        "The user wants Ari to implement or modify an existing artifact."
+      );
+    }
+
+    if (
+      operation.includes("create artifact") ||
+      interactionFamily === "creation" ||
+      intentFamily ===
+        "artifact creation"
+    ) {
+      add(
+        "artifact_creation",
+        "artifact",
+        96,
+        "The user wants Ari to create a new artifact."
+      );
+    }
+
+    if (
+      this.includesAny(operation, [
+        "verify",
+        "review"
+      ]) ||
+      interactionFamily === "verification"
+    ) {
+      add(
+        "verification",
+        "investigation",
+        94,
+        "The user wants an existing claim, artifact, or result checked."
+      );
+    }
+
+    if (
+      this.includesAny(operation, [
+        "diagnose",
+        "inspect",
+        "debug",
+        "investigate"
+      ])
+    ) {
+      add(
+        "artifact_investigation",
+        "investigation",
+        95,
+        "The user wants a problem inspected, diagnosed, or debugged."
+      );
+    }
+
+    if (
+      operation.includes("research")
+    ) {
+      add(
+        "research",
+        "research",
+        94,
+        "The user wants information gathered and synthesized from multiple sources."
+      );
+    }
+
+    if (
+      operation.includes("navigate") ||
+      operation.includes("locate")
+    ) {
+      add(
+        "navigation",
+        "navigation",
+        92,
+        "The user wants Ari to locate a resource, destination, file, or next interface action."
+      );
+    }
+
+    if (
+      operation.includes("save") ||
+      operation.includes("forget memory") ||
+      intentFamily === "memory action"
+    ) {
+      add(
+        "memory_management",
+        "memory",
+        96,
+        "The user wants information remembered, updated, retrieved, or forgotten."
+      );
+    }
+
+    if (
+      operation.includes(
+        "retrieve prior context"
+      )
+    ) {
+      add(
+        "context_recall",
+        "memory",
+        93,
+        "The user wants Ari to recover relevant prior conversational context."
+      );
+    }
+
+    if (
+      operation.includes("identity") ||
+      interactionFamily === "identity"
+    ) {
+      add(
+        "identity_exploration",
+        "identity",
+        91,
+        "The conversation concerns identity, personal meaning, values, or self-understanding."
+      );
+    }
+
+    if (
+      operation.includes("opinion") ||
+      interactionFamily === "opinion"
+    ) {
+      add(
+        "collaborative_reasoning",
+        "reasoning",
+        88,
+        "The user wants Ari's considered judgment or perspective."
+      );
+    }
+
+    if (
+      operation.includes("brainstorm")
+    ) {
+      add(
+        "brainstorming",
+        "creative_reasoning",
+        93,
+        "The user wants possibilities generated without requiring an immediate final choice."
+      );
+    }
+
+    if (
+      operation.includes("generate") ||
+      interactionFamily === "creation"
+    ) {
+      add(
+        "creative_generation",
+        "creative_reasoning",
+        86,
+        "The user wants an original output generated."
+      );
+    }
+
+    if (
+      operation.includes(
+        "emotional support"
+      ) ||
+      interactionFamily ===
+        "emotional support"
+    ) {
+      add(
+        "emotional_support",
+        "human_support",
+        96,
+        "The user is seeking emotional presence, comfort, validation, or supportive conversation."
+      );
+    }
+
+    if (
+      frameType === "general conversation" ||
+      (
+        operation === "respond" &&
+        !interactionFamily
+      )
+    ) {
+      add(
+        "general_conversation",
+        "conversation",
+        52,
+        "No more specialized conversational purpose was established."
+      );
+    }
+  },
+
+  addContinuityCandidates({
+    candidates = [],
+    sources = {},
+    evidenceRefs = []
+  } = {}) {
+    const continuity =
+      sources.continuity ||
+      {};
+
+    if (
+      continuity.isContinuation !== true
+    ) {
+      return;
+    }
+
+    const priorArtifact =
+      continuity
+        .referencesPriorArtifact === true;
+
+    candidates.push({
+      name:
+        priorArtifact
+          ? "project_continuation"
+          : "conversation_continuation",
+
+      family:
+        priorArtifact
+          ? "project"
+          : "continuity",
+
+      score:
+        priorArtifact
+          ? 91
+          : 82,
+
+      reason:
+        priorArtifact
+          ? "The current turn continues work on an existing project or artifact."
+          : "The current turn depends on and continues prior conversational context.",
+
+      origin:
+        "continuity",
+
+      evidenceRefs: [
+        ...evidenceRefs,
+        ...(continuity.evidence || [])
+      ],
+
+      supportingContext: {
+        anchor:
+          continuity.anchor ||
+          null,
+
+        priorContextAvailable:
+          continuity.threadAvailable ===
+          true
+      }
+    });
+  },
+
+  addSupportCandidates({
+    candidates = [],
+    sources = {},
+    operation = "",
+    interactionFamily = "",
+    evidenceRefs = []
+  } = {}) {
+    const emotionalOverlay =
+      sources.emotionalOverlay ||
+      {};
+
+    if (
+      emotionalOverlay
+        .explicitSupportRequested ===
+      true
+    ) {
+      candidates.push({
+        name:
+          "emotional_support",
+
+        family:
+          "human_support",
+
+        score:
+          97,
+
+        reason:
+          "Upstream meaning indicates that emotional support was explicitly requested.",
+
+        origin:
+          "emotional_overlay",
+
+        evidenceRefs: [
+          ...evidenceRefs,
+          ...(emotionalOverlay.evidence ||
+            [])
+        ]
+      });
+
+      return;
+    }
+
+    if (
+      emotionalOverlay.present === true &&
+      !operation.includes(
+        "emotional support"
+      ) &&
+      interactionFamily !==
+        "emotional support"
+    ) {
+      candidates.push({
+        name:
+          "emotional_attunement",
+
+        family:
+          "supporting_context",
+
+        score:
+          54,
+
+        reason:
+          "Emotion is relevant to how Ari should engage, but it is not the primary purpose of the conversation.",
+
+        origin:
+          "emotional_overlay",
+
+        evidenceRefs: [
+          ...evidenceRefs,
+          ...(emotionalOverlay.evidence ||
+            [])
+        ]
+      });
+    }
+  },
+
+  addSafetyContextCandidate({
+    candidates = [],
+    sources = {},
+    evidenceRefs = []
+  } = {}) {
+    const safety =
+      sources.safetyContext ||
+      {};
+
+    const urgentSupportRequired =
+      safety.immediateSupportRequired ===
+        true ||
+      safety.immediateHumanSupportRequired ===
+        true ||
+      safety.requiresImmediateResponse ===
+        true;
+
+    if (!urgentSupportRequired) {
+      return;
+    }
+
+    candidates.push({
+      name:
+        "immediate_human_support",
+
+      family:
+        "human_support",
+
+      score:
+        100,
+
+      reason:
+        "The upstream safety system indicates that immediate human support is functionally required.",
+
+      origin:
+        "upstream_safety_context",
+
+      evidenceRefs: [
+        ...evidenceRefs,
+        ...(safety.evidenceRefs || [])
+      ],
+
+      authorityNote:
+        "This engine inherits the safety requirement and does not independently determine risk severity."
+    });
+  },
+
+  addSecondaryFrameCandidates({
+    candidates = [],
+    sources = {}
+  } = {}) {
+    sources.secondaryFrames
+      .slice(0, 8)
+      .forEach(frame => {
+        const mapped =
+          this.mapFrameToFunction(
+            frame
+          );
+
+        if (!mapped) {
+          return;
+        }
+
+        candidates.push({
+          ...mapped,
+
+          score:
+            Math.min(
+              78,
+              mapped.score
+            ),
+
+          origin:
+            "secondary_semantic_frame",
+
+          evidenceRefs:
+            frame.evidenceRefs ||
+            []
+        });
+      });
+  },
+
+  mapFrameToFunction(frame = {}) {
+    const operation =
+      this.normalize(
+        frame.operation
+      );
+
+    const family =
+      this.normalize(
+        frame.interactionFamily
+      );
+
+    const frameType =
+      this.normalize(
+        frame.frameType
+      );
+
+    const mappings = [
+      {
+        match:
+          operation.includes(
+            "prioritize"
+          ),
+
+        name:
+          "prioritization",
+
+        family:
+          "decision",
+
+        score:
+          78,
+
+        reason:
+          "A secondary semantic frame represents a prioritization need."
+      },
+
+      {
+        match:
+          operation.includes("decide") ||
+          family === "decision",
+
+        name:
+          "decision_support",
+
+        family:
+          "decision",
+
+        score:
+          76,
+
+        reason:
+          "A secondary semantic frame represents a decision-support need."
+      },
+
+      {
+        match:
+          operation.includes("plan"),
+
+        name:
+          "planning",
+
+        family:
+          "planning",
+
+        score:
+          76,
+
+        reason:
+          "A secondary semantic frame represents a planning need."
+      },
+
+      {
+        match:
+          operation.includes("explain"),
+
+        name:
+          "explanation",
+
+        family:
+          "information",
+
+        score:
+          72,
+
+        reason:
+          "A secondary semantic frame represents an explanation need."
+      },
+
+      {
+        match:
+          operation.includes("modify") ||
+          operation.includes("implement"),
+
+        name:
+          "artifact_modification",
+
+        family:
+          "artifact",
+
+        score:
+          78,
+
+        reason:
+          "A secondary semantic frame represents an artifact modification need."
+      },
+
+      {
+        match:
+          operation.includes("create"),
+
+        name:
+          "artifact_creation",
+
+        family:
+          "artifact",
+
+        score:
+          76,
+
+        reason:
+          "A secondary semantic frame represents an artifact creation need."
+      },
+
+      {
+        match:
+          operation.includes("verify") ||
+          operation.includes("review"),
+
+        name:
+          "verification",
+
+        family:
+          "investigation",
+
+        score:
+          76,
+
+        reason:
+          "A secondary semantic frame represents a verification need."
+      },
+
+      {
+        match:
+          frameType === "continuation",
+
+        name:
+          "conversation_continuation",
+
+        family:
+          "continuity",
+
+        score:
+          70,
+
+        reason:
+          "A secondary frame preserves relevant continuity."
+      }
+    ];
+
+    return (
+      mappings.find(item =>
+        item.match
+      ) ||
+      null
+    );
+  },
+
+  /* =====================================================
+     CANDIDATE MERGING + RANKING
+  ===================================================== */
+
+  mergeCandidates(
+    candidates = []
+  ) {
+    const merged =
+      new Map();
+
+    candidates.forEach(candidate => {
+      if (!candidate?.name) {
+        return;
+      }
+
+      const key =
+        candidate.name;
+
+      if (!merged.has(key)) {
+        merged.set(key, {
+          ...candidate,
+
+          evidenceRefs: [
+            ...new Set(
+              candidate.evidenceRefs ||
+              []
+            )
+          ],
+
+          reasons:
+            candidate.reason
+              ? [candidate.reason]
+              : []
+        });
+
+        return;
+      }
+
+      const existing =
+        merged.get(key);
+
+      existing.score =
+        Math.min(
+          100,
+          Math.max(
+            existing.score,
+            candidate.score
+          ) +
+          Math.round(
+            Math.min(
+              existing.score,
+              candidate.score
+            ) * 0.08
+          )
+        );
+
+      existing.evidenceRefs = [
+        ...new Set([
+          ...(existing.evidenceRefs ||
+            []),
+          ...(candidate.evidenceRefs ||
+            [])
+        ])
+      ];
+
+      if (
+        candidate.reason &&
+        !existing.reasons.includes(
+          candidate.reason
+        )
+      ) {
+        existing.reasons.push(
+          candidate.reason
+        );
+      }
+
+      existing.reason =
+        existing.reasons[0] ||
+        existing.reason;
+    });
+
+    return [
+      ...merged.values()
+    ];
+  },
+
+  rankCandidates(
+    candidates = [],
+    sources = {}
+  ) {
+    return candidates
+      .map(candidate => {
+        let score =
+          Number(
+            candidate.score ||
+            0
+          );
+
+        const primaryFrame =
+          sources.primaryFrame ||
+          {};
+
+        const primaryOperation =
+          this.normalize(
+            primaryFrame.operation
+          );
+
+        if (
+          candidate.origin ===
+          "semantic_operation"
+        ) {
+          score += 5;
+        }
+
+        if (
+          candidate.name ===
+            "immediate_human_support" &&
+          candidate.origin ===
+            "upstream_safety_context"
+        ) {
+          score = 100;
+        }
+
+        if (
+          candidate.name ===
+            "emotional_support" &&
+          sources.emotionalOverlay
+            ?.explicitSupportRequested ===
+            true
+        ) {
+          score += 8;
+        }
+
+        if (
+          candidate.name ===
+            "emotional_attunement" &&
+          sources.emotionalOverlay
+            ?.explicitSupportRequested !==
+            true
+        ) {
+          score = Math.min(
+            score,
+            58
+          );
+        }
+
+        if (
+          candidate.name ===
+            "project_continuation" &&
+          sources.continuity
+            ?.referencesPriorArtifact ===
+            true
+        ) {
+          score += 7;
+        }
+
+        if (
+          candidate.name ===
+            "conversation_continuation" &&
+          primaryOperation &&
+          primaryOperation !==
+            "continue prior context"
+        ) {
+          score -= 15;
+        }
+
+        if (
+          candidate.name ===
+            "general_conversation" &&
+          candidates.length > 1
+        ) {
+          score -= 20;
+        }
+
+        return {
+          ...candidate,
+
+          score:
+            Math.max(
+              0,
+              Math.min(
+                100,
+                Math.round(score)
+              )
+            )
+        };
+      })
+      .filter(candidate =>
+        candidate.score > 0
+      )
+      .sort((a, b) => {
+        if (
+          b.score !== a.score
+        ) {
+          return (
+            b.score - a.score
+          );
+        }
+
+        return (
+          this.functionPriority(
+            a.name
+          ) -
+          this.functionPriority(
+            b.name
+          )
+        );
+      });
+  },
+
+  functionPriority(name = "") {
+    const order = [
+      "immediate_human_support",
+      "emotional_support",
+      "artifact_modification",
+      "artifact_creation",
+      "artifact_investigation",
+      "verification",
+      "prioritization",
+      "decision_support",
+      "comparison",
+      "planning",
+      "translation",
+      "calculation",
+      "research",
+      "teaching",
+      "explanation",
+      "interpretation",
+      "information_retrieval",
+      "memory_management",
+      "context_recall",
+      "identity_exploration",
+      "collaborative_reasoning",
+      "brainstorming",
+      "creative_generation",
+      "project_continuation",
+      "conversation_continuation",
+      "emotional_attunement",
+      "general_conversation"
+    ];
+
+    const index =
+      order.indexOf(name);
+
+    return index >= 0
+      ? index
+      : order.length;
+  },
+
+  /* =====================================================
+     FUNCTION AGREEMENT
+  ===================================================== */
+
+  buildFunctionAgreement({
+    primary = {},
+    sources = {}
+  } = {}) {
+    const canonicalMeaning =
+      sources.canonicalMeaning ||
+      {};
+
+    const primaryFrame =
+      sources.primaryFrame ||
+      {};
+
+    const requestModel =
+      sources.requestModel ||
+      {};
+
+    const mappedFromCanonical =
+      this.functionFromOperation(
+        canonicalMeaning
+          .requestedOperation
+      );
+
+    const mappedFromFrame =
+      this.functionFromOperation(
+        primaryFrame.operation
+      );
+
+    const mappedFromRequest =
+      this.functionFromOperation(
+        requestModel.operation
+      );
+
+    const checks = [
+      {
+        source:
+          "canonical_meaning",
+
+        available:
+          Boolean(
+            canonicalMeaning
+              .requestedOperation
+          ),
+
+        aligned:
+          !mappedFromCanonical ||
+          mappedFromCanonical ===
+            primary.name
+      },
+
+      {
+        source:
+          "primary_frame",
+
+        available:
+          Boolean(
+            primaryFrame.operation
+          ),
+
+        aligned:
+          !mappedFromFrame ||
+          mappedFromFrame ===
+            primary.name
+      },
+
+      {
+        source:
+          "request_model",
+
+        available:
+          Boolean(
+            requestModel.operation
+          ),
+
+        aligned:
+          !mappedFromRequest ||
+          mappedFromRequest ===
+            primary.name
+      }
+    ];
+
+    const availableChecks =
+      checks.filter(check =>
+        check.available
+      );
+
+    const alignedCount =
+      availableChecks.filter(check =>
+        check.aligned
+      ).length;
+
+    const score =
+      availableChecks.length
+        ? alignedCount /
+          availableChecks.length
+        : 0.5;
+
+    return {
+      checks,
+
+      alignedCount,
+
+      totalChecks:
+        availableChecks.length,
+
+      score:
+        this.normalizeConfidence(
+          score
+        ),
+
+      level:
+        score >= 0.9
+          ? "high"
+          : score >= 0.65
+            ? "medium"
+            : score >= 0.4
+              ? "low"
+              : "none",
+
+      disagreements:
+        availableChecks
+          .filter(check =>
+            !check.aligned
+          )
+          .map(check =>
+            `${check.source}_function_mismatch`
+          ),
+
+      authority:
+        "conversation_function_internal_agreement_only"
+    };
+  },
+
+  functionFromOperation(
+    operation = ""
+  ) {
+    const normalized =
+      this.normalize(operation);
+
+    if (!normalized) {
+      return null;
+    }
+
+    if (
+      normalized.includes(
+        "emotional support"
+      )
+    ) {
+      return "emotional_support";
+    }
+
+    if (
+      normalized.includes("prioritize")
+    ) {
+      return "prioritization";
+    }
+
+    if (
+      normalized.includes("compare")
+    ) {
+      return "comparison";
+    }
+
+    if (
+      this.includesAny(normalized, [
+        "decide",
+        "choose",
+        "recommend"
+      ])
+    ) {
+      return "decision_support";
+    }
+
+    if (
+      normalized.includes("plan")
+    ) {
+      return "planning";
+    }
+
+    if (
+      normalized.includes("translate")
+    ) {
+      return "translation";
+    }
+
+    if (
+      normalized.includes("calculate") ||
+      normalized.includes("convert")
+    ) {
+      return "calculation";
+    }
+
+    if (
+      normalized.includes("teach")
+    ) {
+      return "teaching";
+    }
+
+    if (
+      normalized.includes("explain")
+    ) {
+      return "explanation";
+    }
+
+    if (
+      normalized.includes("interpret")
+    ) {
+      return "interpretation";
+    }
+
+    if (
+      normalized.includes("information")
+    ) {
+      return "information_retrieval";
+    }
+
+    if (
+      normalized.includes("implement") ||
+      normalized.includes("modify")
+    ) {
+      return "artifact_modification";
+    }
+
+    if (
+      normalized.includes("create")
+    ) {
+      return "artifact_creation";
+    }
+
+    if (
+      this.includesAny(normalized, [
+        "diagnose",
+        "inspect",
+        "debug"
+      ])
+    ) {
+      return "artifact_investigation";
+    }
+
+    if (
+      normalized.includes("verify") ||
+      normalized.includes("review")
+    ) {
+      return "verification";
+    }
+
+    if (
+      normalized.includes("research")
+    ) {
+      return "research";
+    }
+
+    if (
+      normalized.includes("memory") ||
+      normalized.includes("forget")
+    ) {
+      return "memory_management";
+    }
+
+    if (
+      normalized.includes("identity")
+    ) {
+      return "identity_exploration";
+    }
+
+    if (
+      normalized.includes("opinion")
+    ) {
+      return "collaborative_reasoning";
+    }
+
+    if (
+      normalized.includes("respond")
+    ) {
+      return "general_conversation";
+    }
+
+    return null;
+  },
+
+  /* =====================================================
+     CONFIDENCE
+  ===================================================== */
+
+  calculateConfidence({
+    primary = {},
+    secondaryFunctions = [],
+    functionAgreement = {},
+    sources = {}
+  } = {}) {
+    const primaryStrength =
+      this.normalizeConfidence(
+        Number(
+          primary.score || 0
+        ) / 100
+      );
+
+    const semanticConfidence =
+      this.normalizeConfidence(
+        sources.canonicalMeaning
+          ?.confidence ??
+        sources.primaryFrame
+          ?.semanticConfidence ??
+        0
+      );
+
+    const agreementScore =
+      this.normalizeConfidence(
+        functionAgreement.score
+      );
+
+    const sourceCompleteness =
+      this.calculateSourceCompleteness(
+        sources
+      );
+
+    const ambiguityPenalty =
+      sources.ambiguity
+        ?.present === true
+        ? 0.1
+        : 0;
+
+    const competitionPenalty =
+      secondaryFunctions[0] &&
+      Math.abs(
+        Number(primary.score || 0) -
+        Number(
+          secondaryFunctions[0]
+            .score ||
+          0
+        )
+      ) <= 6
+        ? 0.08
+        : 0;
+
+    const normalized =
+      this.normalizeConfidence(
+        primaryStrength * 0.38 +
+        semanticConfidence * 0.24 +
+        agreementScore * 0.2 +
+        sourceCompleteness * 0.18 -
+        ambiguityPenalty -
+        competitionPenalty
+      );
+
+    return {
+      normalized,
+
+      score:
+        Math.round(
+          normalized * 100
+        ),
+
+      label:
+        this.confidenceLabel(
+          normalized
+        ),
+
+      breakdown: {
+        primaryStrength,
+        semanticConfidence,
+        agreementScore,
+        sourceCompleteness,
+        ambiguityPenalty,
+        competitionPenalty
+      }
+    };
+  },
+
+  calculateSourceCompleteness(
+    sources = {}
+  ) {
+    const checks = [
+      sources.semanticFrameAvailable,
+      sources.canonicalMeaningAvailable,
+      sources.requestModelAvailable,
+      sources.classifierAvailable,
+      sources.questionUnderstandingAvailable
+    ];
+
+    const available =
+      checks.filter(Boolean).length;
+
+    return this.normalizeConfidence(
+      available /
+      checks.length
+    );
+  },
+
+  /* =====================================================
+     RESPONSE CONTRACT
+  ===================================================== */
+
+  buildResponseContract({
+    primary = {},
+    secondaryFunctions = [],
+    sources = {}
+  } = {}) {
+    const name =
+      primary.name ||
+      "general_conversation";
+
+    const contracts = {
+      information_retrieval: {
+        objective:
+          "Provide the requested information.",
+
+        must: [
+          "answer_primary_request",
+          "preserve_factual_precision"
+        ],
+
+        should: [
+          "be_direct",
+          "separate_fact_from_inference"
+        ]
+      },
+
+      explanation: {
+        objective:
+          "Make the subject understandable.",
+
+        must: [
+          "answer_primary_request",
+          "explain_relevant_cause_or_process"
+        ],
+
+        should: [
+          "use_clear_structure",
+          "match_user_depth"
+        ]
+      },
+
+      teaching: {
+        objective:
+          "Help the user build understanding they can reuse.",
+
+        must: [
+          "explain_core_concept",
+          "preserve_accuracy"
+        ],
+
+        should: [
+          "sequence_learning",
+          "use_examples_when_helpful"
+        ]
+      },
+
+      interpretation: {
+        objective:
+          "Explain the likely meaning or significance of the material.",
+
+        must: [
+          "identify_meaning",
+          "distinguish_text_from_inference"
+        ],
+
+        should: [
+          "preserve_context",
+          "acknowledge_ambiguity"
+        ]
+      },
+
+      planning: {
+        objective:
+          "Produce an actionable sequence toward the user's goal.",
+
+        must: [
+          "identify_goal",
+          "provide_ordered_next_steps"
+        ],
+
+        should: [
+          "respect_constraints",
+          "identify_dependencies"
+        ]
+      },
+
+      decision_support: {
+        objective:
+          "Help the user reach a defensible decision.",
+
+        must: [
+          "identify_tradeoffs",
+          "evaluate_relevant_options"
+        ],
+
+        should: [
+          "recommend_when_supported",
+          "explain_reasoning"
+        ]
+      },
+
+      prioritization: {
+        objective:
+          "Determine what should receive attention first.",
+
+        must: [
+          "rank_competing_priorities",
+          "explain_priority_order"
+        ],
+
+        should: [
+          "consider_dependencies",
+          "identify_next_action"
+        ]
+      },
+
+      comparison: {
+        objective:
+          "Compare alternatives using relevant criteria.",
+
+        must: [
+          "preserve_each_option",
+          "compare_against_shared_criteria"
+        ],
+
+        should: [
+          "identify_best_fit",
+          "state_tradeoffs"
+        ]
+      },
+
+      artifact_creation: {
+        objective:
+          "Create the requested artifact.",
+
+        must: [
+          "produce_requested_artifact",
+          "respect_user_constraints"
+        ],
+
+        should: [
+          "make_output_usable",
+          "avoid_unrequested_scope"
+        ]
+      },
+
+      artifact_modification: {
+        objective:
+          "Modify the intended existing artifact.",
+
+        must: [
+          "preserve_unrelated_behavior",
+          "apply_requested_change"
+        ],
+
+        should: [
+          "use_available_artifact_context",
+          "avoid_patch_stacking"
+        ]
+      },
+
+      artifact_investigation: {
+        objective:
+          "Determine why an artifact or system is not behaving as intended.",
+
+        must: [
+          "inspect_available_evidence",
+          "identify_probable_cause"
+        ],
+
+        should: [
+          "separate_observation_from_diagnosis",
+          "propose_targeted_correction"
+        ]
+      },
+
+      verification: {
+        objective:
+          "Determine whether the claim, artifact, or result is correct.",
+
+        must: [
+          "evaluate_available_evidence",
+          "state_verified_and_unverified_parts"
+        ],
+
+        should: [
+          "identify_remaining_uncertainty",
+          "avoid_overclaiming"
+        ]
+      },
+
+      project_continuation: {
+        objective:
+          "Continue the active project without losing established context.",
+
+        must: [
+          "preserve_active_project_state",
+          "continue_current_work"
+        ],
+
+        should: [
+          "respect_prior_architecture",
+          "avoid_restarting_work"
+        ]
+      },
+
+      conversation_continuation: {
+        objective:
+          "Continue the active conversational thread coherently.",
+
+        must: [
+          "use_relevant_prior_context",
+          "answer_current_turn"
+        ],
+
+        should: [
+          "avoid_repeating_resolved_context",
+          "preserve_current_subject"
+        ]
+      },
+
+      memory_management: {
+        objective:
+          "Perform the requested memory action.",
+
+        must: [
+          "identify_memory_action",
+          "preserve_user_intent"
+        ],
+
+        should: [
+          "distinguish_save_update_and_forget",
+          "avoid_unrequested_memory"
+        ]
+      },
+
+      emotional_support: {
+        objective:
+          "Provide emotionally responsive human support.",
+
+        must: [
+          "acknowledge_user_experience",
+          "respect_stated_boundaries"
+        ],
+
+        should: [
+          "lead_with_presence",
+          "avoid_unrequested_problem_solving"
+        ]
+      },
+
+      emotional_attunement: {
+        objective:
+          "Respond with appropriate emotional awareness while completing the real task.",
+
+        must: [
+          "preserve_primary_request"
+        ],
+
+        should: [
+          "briefly_acknowledge_emotion",
+          "avoid_emotion_overriding_task"
+        ]
+      },
+
+      immediate_human_support: {
+        objective:
+          "Support the immediate human need identified by the upstream safety system.",
+
+        must: [
+          "honor_upstream_safety_requirements",
+          "prioritize_immediate_support"
+        ],
+
+        should: [
+          "remain_clear_and_grounded",
+          "avoid_unrelated_tasks"
+        ]
+      },
+
+      identity_exploration: {
+        objective:
+          "Help explore identity, values, meaning, or self-understanding.",
+
+        must: [
+          "respect_user_self_definition",
+          "avoid_unearned_labels"
+        ],
+
+        should: [
+          "support_reflection",
+          "preserve_complexity"
+        ]
+      },
+
+      collaborative_reasoning: {
+        objective:
+          "Think through the issue collaboratively with the user.",
+
+        must: [
+          "engage_the_actual_question",
+          "distinguish_reasoning_from_fact"
+        ],
+
+        should: [
+          "surface_tradeoffs",
+          "offer_considered_judgment"
+        ]
+      },
+
+      brainstorming: {
+        objective:
+          "Generate useful possibilities.",
+
+        must: [
+          "produce_multiple_relevant_options"
+        ],
+
+        should: [
+          "avoid_premature_commitment",
+          "organize_ideas"
+        ]
+      },
+
+      creative_generation: {
+        objective:
+          "Generate the requested creative output.",
+
+        must: [
+          "produce_requested_output",
+          "follow_user_constraints"
+        ],
+
+        should: [
+          "maintain_coherence",
+          "match_requested_style"
+        ]
+      },
+
+      translation: {
+        objective:
+          "Translate the supplied material accurately.",
+
+        must: [
+          "preserve_meaning",
+          "produce_target_language_output"
+        ],
+
+        should: [
+          "preserve_tone",
+          "note_untranslatable_ambiguity"
+        ]
+      },
+
+      calculation: {
+        objective:
+          "Produce the correct calculation or conversion.",
+
+        must: [
+          "calculate_accurately",
+          "return_result"
+        ],
+
+        should: [
+          "show_method_when_helpful",
+          "preserve_units"
+        ]
+      },
+
+      research: {
+        objective:
+          "Gather and synthesize reliable information.",
+
+        must: [
+          "use_relevant_sources",
+          "synthesize_findings"
+        ],
+
+        should: [
+          "represent_uncertainty",
+          "distinguish_source_claims"
+        ]
+      },
+
+      navigation: {
+        objective:
+          "Help locate or reach the requested resource or destination.",
+
+        must: [
+          "identify_target",
+          "provide_navigation_result"
+        ],
+
+        should: [
+          "minimize_unnecessary_steps"
+        ]
+      },
+
+      general_conversation: {
+        objective:
+          "Respond naturally to the current conversational move.",
+
+        must: [
+          "engage_current_turn"
+        ],
+
+        should: [
+          "preserve_continuity",
+          "match_user_tone"
+        ]
+      }
+    };
+
+    const base =
+      contracts[name] ||
+      contracts.general_conversation;
+
+    return {
+      function:
+        name,
+
+      family:
+        primary.family ||
+        "conversation",
+
+      objective:
+        base.objective,
+
+      must:
+        [...base.must],
+
+      should:
+        [...base.should],
+
+      preserveSecondaryFunctions:
+        secondaryFunctions.length > 0,
+
+      secondaryRequirements:
+        secondaryFunctions.map(
+          candidate =>
+            candidate.name
+        ),
+
+      clarificationMayBeRequired:
+        sources.ambiguity
+          ?.requiresClarification ===
+        true,
+
+      priorContextRequired:
+        sources.continuity
+          ?.requiresPriorContext ===
+        true,
+
+      advisoryOnly:
+        true,
+
+      authority:
+        "functional_response_requirements_only"
+    };
+  },
+
+  /* =====================================================
+     HANDOFF
+  ===================================================== */
+
+  buildHandoff({
+    primary = {},
+    secondaryFunctions = [],
+    rankedFunctions = [],
+    responseContract = {},
+    functionAgreement = {},
+    confidence = {},
+    sources = {}
+  } = {}) {
+    return {
+      readyForReconciliation:
+        Boolean(
+          primary.name &&
+          primary.family
+        ),
+
+      primaryFunction: {
+        name:
+          primary.name,
+
+        family:
+          primary.family,
+
+        reason:
+          primary.reason,
+
+        score:
+          primary.score,
+
+        origin:
+          primary.origin,
+
+        evidenceRefs:
+          primary.evidenceRefs ||
+          []
+      },
+
+      secondaryFunctions:
+        secondaryFunctions.map(
+          candidate => ({
+            name:
+              candidate.name,
+
+            family:
+              candidate.family,
+
+            score:
+              candidate.score,
+
+            reason:
+              candidate.reason,
+
+            evidenceRefs:
+              candidate.evidenceRefs ||
+              []
+          })
+        ),
+
+      rankedFunctions,
+
+      responseContract,
+
+      functionAgreement,
+
+      confidence,
+
+      ambiguity: {
+        present:
+          sources.ambiguity
+            ?.present === true,
+
+        requiresClarification:
+          sources.ambiguity
+            ?.requiresClarification ===
+          true,
+
+        unresolvedSlots:
+          sources.ambiguity
+            ?.unresolvedSlots ||
+          []
+      },
+
+      continuity: {
+        isContinuation:
+          sources.continuity
+            ?.isContinuation === true,
+
+        requiresPriorContext:
+          sources.continuity
+            ?.requiresPriorContext ===
+          true,
+
+        referencesPriorArtifact:
+          sources.continuity
+            ?.referencesPriorArtifact ===
+          true,
+
+        anchor:
+          sources.continuity
+            ?.anchor ||
+          null
+      },
+
+      contextModifiers:
+        sources.contextModifiers,
+
+      constraints:
+        sources.constraints,
+
+      stakes:
+        sources.stakes,
+
+      authority: {
+        canChooseLane:
+          false,
+
+        canChooseRoute:
+          false,
+
+        canChoosePlanner:
+          false,
+
+        canChooseCapabilities:
+          false,
+
+        canDetermineSafetySeverity:
+          false,
+
+        canOverrideSafety:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "conversation_function_to_reconciliation_handoff"
+      }
+    };
+  },
+
+  /* =====================================================
+     DEFAULT
+  ===================================================== */
+
+  defaultFunction() {
+    return {
+      name:
+        "general_conversation",
+
+      family:
+        "conversation",
+
+      score:
+        45,
+
+      reason:
+        "No specialized conversational purpose was established from upstream meaning.",
+
+      origin:
+        "default",
+
+      evidenceRefs: [],
+
+      reasons: [
+        "No specialized conversational purpose was established from upstream meaning."
       ]
     };
   },
 
-  collectSignals({ text = "", words = [], observations = [], summary = {} } = {}) {
-    const githubFileContext =
-      summary.githubFileContext ||
-      summary.appContext?.githubFileContext ||
-      null;
+  /* =====================================================
+     HELPERS
+  ===================================================== */
 
-    const githubEvidenceAvailable =
-      !!(
-        githubFileContext &&
-        githubFileContext.filePath &&
-        String(githubFileContext.content || "").trim()
-      ) ||
-      summary.githubEvidenceAvailable === true;
+  collectEvidenceRefs(
+    ...sources
+  ) {
+    const refs = [];
 
-    const hasQuestion =
-      text.includes("?") ||
-      this.hasType(observations, "question_phrase") ||
-      this.hasType(observations, "question_mark_count") ||
-      /^(what|why|how|when|where|who|is|are|do|does|can|should|would|could)\b/.test(text) ||
-      /\b(i don'?t know why|not sure why|why would|why did|why is|why was|could it be|does that mean|is it because|what caused|what cause)\b/.test(text);
-
-    const developerNouns = this.patterns.developerNouns.test(text);
-    const developerAction = this.patterns.developerAction.test(text);
-    const modificationVerb = this.patterns.modificationVerb.test(text);
-    const creationVerb = this.patterns.creationVerb.test(text);
-    const investigationVerb = this.patterns.investigationVerb.test(text);
-    const layoutLanguage = this.patterns.layoutLanguage.test(text);
-    const codeLanguage = this.patterns.codeLanguage.test(text);
-
-    const ariPreferenceQuestion =
-      this.patterns.ariPreferenceQuestion.test(text) &&
-      /\b(you|your|ari|yourself)\b/.test(text);
-
-    const languageOrInterpretationRequest =
-      !ariPreferenceQuestion &&
-      this.patterns.languageRequest.test(text);
-
-    const languageTeacherRequest = languageOrInterpretationRequest;
-    const translationOrQuoteRequest = languageOrInterpretationRequest;
-
-    const quotedOrImportedText =
-      languageTeacherRequest ||
-      /["“”‘’].{8,}["“”‘’]/.test(text);
-
-    const metaDeveloperQuestion =
-      hasQuestion &&
-      this.patterns.metaDeveloperQuestion.test(text) &&
-      (
-        developerNouns ||
-        codeLanguage ||
-        layoutLanguage ||
-        /\b(ari|artifact|developer|file context|semantic|routing|classifier|classification|regex|keyword|keyterm|signal|pattern)\b/.test(text)
-      );
-
-    const humanLifeContext = this.patterns.humanLifeContext.test(text);
-
-    const explicitDeveloperTarget =
-      developerNouns ||
-      layoutLanguage ||
-      codeLanguage ||
-      /\b(repo|repository|github|file path|source file|app file|this file|the file|codebase)\b/.test(text);
-
-    const confirmedDeveloperRequest =
-      !translationOrQuoteRequest &&
-      !metaDeveloperQuestion &&
-      !humanLifeContext &&
-      developerAction &&
-      (
-        explicitDeveloperTarget ||
-        githubEvidenceAvailable
-      );
-
-    const artifactModificationRequest =
-      confirmedDeveloperRequest &&
-      modificationVerb;
-
-    const artifactCreationRequest =
-      confirmedDeveloperRequest &&
-      creationVerb;
-
-    const artifactInvestigationRequest =
-      confirmedDeveloperRequest &&
-      investigationVerb;
-
-    const developerArtifactRequest =
-      artifactModificationRequest ||
-      artifactCreationRequest ||
-      artifactInvestigationRequest;
-
-    const emotionPresent =
-      this.patterns.emotion.test(text) ||
-      this.hasType(observations, "emotion_word");
-
-    const directEmotionDisclosure =
-      this.patterns.directEmotion.test(text);
-
-    const emotionalSupportRequest =
-      this.patterns.emotionalSupportRequest.test(text);
-
-    const boundaryPresent = this.patterns.boundary.test(text);
-
-    const actionRequest =
-      developerArtifactRequest ||
-      (
-        !metaDeveloperQuestion &&
-        !emotionalSupportRequest &&
-        this.patterns.actionRequest.test(text)
-      );
-
-    const decisionNeeded =
-      !emotionalSupportRequest &&
-      (
-        this.patterns.decision.test(text) ||
-        this.hasType(observations, "option_language") ||
-        this.hasTypeValue(observations, "slot_signal", "option_language")
-      );
-
-    const directAnswerNeeded =
-      hasQuestion ||
-      ariPreferenceQuestion ||
-      languageTeacherRequest ||
-      developerArtifactRequest ||
-      metaDeveloperQuestion ||
-      this.hasTypeValue(observations, "answer_expectation", "direct_answer") ||
-      this.patterns.directAnswer.test(text);
-
-    const relationshipContext =
-      this.patterns.relationship.test(text) ||
-      this.hasType(observations, "relationship_reference");
-
-    const buildContext =
-      developerArtifactRequest ||
-      (
-        !metaDeveloperQuestion &&
-        /\b(code|file|bug|error|debug|fix this|not working|function|engine|pipeline|github|vercel|supabase|javascript|html|css)\b/.test(text)
-      );
-
-    const medicalContext =
-      !quotedOrImportedText &&
-      this.patterns.medical.test(text);
-
-    const memoryOrIdentity = this.patterns.memoryOrIdentity.test(text);
-
-    const creative =
-      !developerArtifactRequest &&
-      !languageOrInterpretationRequest &&
-      this.patterns.creative.test(text);
-
-    const correction = this.patterns.correction.test(text);
-
-    const shortFollowUp =
-      words.length <= 12 &&
-      this.patterns.shortFollowUp.test(text);
-
-    const currentTurnIsConcrete =
-      emotionalSupportRequest ||
-      developerArtifactRequest ||
-      (
-        words.length >= 14 &&
-        (
-          relationshipContext ||
-          buildContext ||
-          medicalContext ||
-          /\b(today|yesterday|tomorrow|courthouse|married|work|job|school|car|cat|dog|money|rent|baby|wife|husband|father|mother)\b/.test(text)
-        )
-      );
-
-    const expectsCodeOrArtifact = developerArtifactRequest;
-
-    let emotionalWeight = "none";
-
-    if (emotionPresent || directEmotionDisclosure) {
-      emotionalWeight = "medium";
-    }
-
-    if (
-      emotionalSupportRequest ||
-      (
-        directEmotionDisclosure &&
-        !decisionNeeded &&
-        !actionRequest
-      )
-    ) {
-      emotionalWeight = "high";
-    }
-
-    return {
-      hasQuestion,
-      directAnswerNeeded,
-      actionRequest,
-      decisionNeeded,
-      relationshipContext,
-      emotionPresent,
-      directEmotionDisclosure,
-      emotionalSupportRequest,
-      emotionalWeight,
-      boundaryPresent,
-      buildContext,
-      medicalContext,
-      memoryOrIdentity,
-      creative,
-      correction,
-      shortFollowUp,
-      currentTurnIsConcrete,
-      ariPreferenceQuestion,
-
-      githubEvidenceAvailable,
-      developerNouns,
-      developerAction,
-      modificationVerb,
-      creationVerb,
-      investigationVerb,
-      layoutLanguage,
-      codeLanguage,
-
-      languageOrInterpretationRequest,
-      languageTeacherRequest,
-      quotedOrImportedText,
-      translationOrQuoteRequest,
-
-      metaDeveloperQuestion,
-
-      artifactModificationRequest,
-      artifactCreationRequest,
-      artifactInvestigationRequest,
-      developerArtifactRequest,
-      expectsCodeOrArtifact
-    };
-  },
-
-  collectFunctions({ text = "", words = [], observations = [], signals = {} } = {}) {
-    const functions = [];
-
-    const add = (name, score, reason) => {
-      if (!name || score <= 0) return;
-
-      const existing = functions.find(f => f.name === name);
-
-      if (existing) {
-        existing.score = Math.min(100, existing.score + Math.round(score * 0.35));
-        if (reason && !existing.reasons.includes(reason)) existing.reasons.push(reason);
+    sources.forEach(source => {
+      if (!source) {
         return;
       }
 
-      functions.push({
-        name,
-        score: Math.min(100, score),
-        reasons: reason ? [reason] : []
-      });
-    };
-
-    if (signals.boundaryPresent) {
-      add("boundary_or_preference_statement", 95, "User stated a response preference or boundary.");
-    }
-
-    if (signals.correction) {
-      add("correction_or_clarification", 88, "User appears to be correcting or clarifying prior meaning.");
-    }
-
-    if (signals.emotionalSupportRequest) {
-      add(
-        "emotional_disclosure",
-        98,
-        "User is seeking emotional support, comfort, companionship, or someone to talk to."
-      );
-    }
-
-    if (signals.ariPreferenceQuestion) {
-  add(
-    "ari_identity_preference_question",
-    96,
-    "User is asking Ari about Ari's preferences, identity, values, taste, or personality."
-  );
-}
-
-    if (signals.languageTeacherRequest) {
-      add(
-        "language_or_interpretation_request",
-        92,
-        "User is asking to translate, interpret, or discuss language/quoted text."
-      );
-    }
-
-    if (signals.metaDeveloperQuestion) {
-      add(
-        "explanation_or_information_question",
-        94,
-        "User is asking about developer routing/classification behavior, not asking for a code artifact operation."
-      );
-    }
-
-    if (signals.developerArtifactRequest) {
-      add(
-        "developer_artifact_request",
-        96,
-        "User is asking Ari to operate on an existing or intended code/UI artifact."
-      );
-    }
-
-    if (signals.artifactModificationRequest) {
-      add(
-        "artifact_modification_request",
-        94,
-        "User is asking to modify an existing artifact, layout, file, or UI element."
-      );
-    }
-
-    if (signals.artifactCreationRequest) {
-      add(
-        "artifact_creation_request",
-        88,
-        "User is asking to create or add a code/UI artifact."
-      );
-    }
-
-    if (signals.artifactInvestigationRequest) {
-      add(
-        "artifact_investigation_request",
-        88,
-        "User is asking to inspect, debug, or investigate a code/UI artifact."
-      );
-    }
-
-    if (signals.buildContext || signals.actionRequest) {
-      add(
-        "build_or_debug_request",
-        signals.buildContext ? 86 : 75,
-        "User is asking for code, build, debug, or practical action help."
-      );
-    }
-
-    if (signals.medicalContext) {
-      add("medical_or_body_concern", 82, "Health or body concern detected.");
-    }
-
-    if (signals.directAnswerNeeded) {
-      add(
-        "explanation_or_information_question",
-        signals.developerArtifactRequest ? 62 : 88,
-        "User needs a direct answer or explanation."
-      );
-    }
-
-    if (signals.decisionNeeded) {
-      add("decision_support", 84, "User is weighing options, causes, or choices.");
-    }
-
-    if (signals.relationshipContext) {
-      add("relationship_or_family_context", 76, "Close relationship or family context detected.");
-    }
-
-    if (signals.directEmotionDisclosure) {
-      add(
-        "emotional_disclosure",
-        signals.emotionalWeight === "high" ? 96 : 72,
-        "User disclosed an emotional reaction."
-      );
-    } else if (signals.emotionPresent) {
-      add("emotional_signal_present", 54, "Emotion language is present as context.");
-    }
-
-    if (signals.shortFollowUp && !signals.currentTurnIsConcrete) {
-      add("continuation_or_follow_up", 78, "Short turn appears dependent on prior context.");
-    }
-
-    if (signals.memoryOrIdentity) {
-      add("memory_or_identity_request", 82, "User referenced memory, preference, or Ari identity.");
-    }
-
-    if (signals.creative) {
-      add("creative_generation", 76, "User requested creative generation.");
-    }
-
-    if (
-      !signals.quotedOrImportedText &&
-      this.patterns.urgentSafety.test(text)
-    ) {
-      add("safety_or_risk_disclosure", 100, "Safety or urgent risk language detected.");
-    }
-
-    if (!functions.length) {
-      add("general_conversation", 50, "No stronger conversation function detected.");
-    }
-
-    return functions;
-  },
-
-  rankFunctions(functions = [], signals = {}) {
-    return functions
-      .map(fn => {
-        let score = fn.score;
-
-        if (signals.emotionalSupportRequest) {
-          if (fn.name === "emotional_disclosure") score += 30;
-          if (fn.name === "decision_support") score -= 70;
-          if (fn.name === "explanation_or_information_question") score -= 18;
-          if (fn.name === "build_or_debug_request") score -= 45;
-        }
-
-        if (signals.ariPreferenceQuestion) {
-  if (fn.name === "ari_identity_preference_question") score += 30;
-  if (fn.name === "memory_or_identity_request") score -= 40;
-  if (fn.name === "explanation_or_information_question") score -= 20;
-  if (fn.name === "language_or_interpretation_request") score -= 50;
-}
-
-        if (
-          signals.developerArtifactRequest &&
-          [
-            "developer_artifact_request",
-            "artifact_modification_request",
-            "artifact_creation_request",
-            "artifact_investigation_request"
-          ].includes(fn.name)
-        ) {
-          score += 20;
-        }
-
-        if (signals.metaDeveloperQuestion && fn.name === "explanation_or_information_question") {
-          score += 16;
-        }
-
-        if (
-          signals.metaDeveloperQuestion &&
-          [
-            "developer_artifact_request",
-            "artifact_modification_request",
-            "artifact_creation_request",
-            "artifact_investigation_request",
-            "build_or_debug_request"
-          ].includes(fn.name)
-        ) {
-          score -= 60;
-        }
-
-        if (signals.languageTeacherRequest && fn.name === "language_or_interpretation_request") {
-          score += 18;
-        }
-
-        if (signals.languageTeacherRequest && fn.name === "explanation_or_information_question") {
-          score -= 12;
-        }
-
-        if (signals.quotedOrImportedText && fn.name === "medical_or_body_concern") {
-          score -= 50;
-        }
-
-        if (
-          signals.githubEvidenceAvailable &&
-          signals.developerArtifactRequest &&
-          [
-            "developer_artifact_request",
-            "artifact_modification_request",
-            "artifact_investigation_request"
-          ].includes(fn.name)
-        ) {
-          score += 10;
-        }
-
-        if (signals.developerArtifactRequest && fn.name === "general_conversation") {
-          score -= 60;
-        }
-
-        if (signals.developerArtifactRequest && fn.name === "explanation_or_information_question") {
-          score -= 18;
-        }
-
-        if (signals.developerArtifactRequest && fn.name === "continuation_or_follow_up") {
-          score -= 45;
-        }
-
-        if (signals.currentTurnIsConcrete && fn.name === "continuation_or_follow_up") {
-          score -= 45;
-        }
-
-        if (signals.directAnswerNeeded && fn.name === "explanation_or_information_question") {
-          score += 18;
-        }
-
-        if (
-          signals.directAnswerNeeded &&
-          fn.name === "emotional_disclosure" &&
-          signals.emotionalWeight !== "high"
-        ) {
-          score -= 22;
-        }
-
-        if (!signals.decisionNeeded && fn.name === "decision_support") {
-          score -= 35;
-        }
-
-        if (
-          fn.name === "relationship_or_family_context" &&
-          (
-            signals.directAnswerNeeded ||
-            signals.decisionNeeded ||
-            signals.directEmotionDisclosure ||
-            signals.emotionalSupportRequest
-          )
-        ) {
-          score -= 10;
-        }
-
-        if (
-          fn.name === "emotional_disclosure" &&
-          signals.directEmotionDisclosure &&
-          !signals.decisionNeeded &&
-          !signals.actionRequest
-        ) {
-          score += 18;
-        }
-
-        if (fn.name === "build_or_debug_request" && signals.actionRequest) {
-          score += 15;
-        }
-
-        if (fn.name === "safety_or_risk_disclosure") {
-          score += 40;
-        }
-
-        return {
-          ...fn,
-          score: Math.max(0, Math.min(100, score))
-        };
-      })
-      .filter(fn => fn.score > 0)
-      .sort((a, b) => b.score - a.score);
-  },
-
-  getBlockedFunctions(primary, functions = [], signals = {}) {
-    if (
-      primary === "emotional_disclosure" &&
-      signals.emotionalWeight === "high"
-    ) {
-      return [
-        "decision_support",
-        "unnecessary_clarification",
-        "curriculum_first_response",
-        "knowledge_first_response",
-        "build_or_debug_request"
-      ];
-    }
-
-    if (primary === "language_or_interpretation_request") {
-      return [
-        "developer_artifact_request",
-        "artifact_modification_request",
-        "generic_platform_advice"
-      ];
-    }
-
-    if (signals.metaDeveloperQuestion) {
-      return [
-        "developer_artifact_request",
-        "artifact_modification_request",
-        "artifact_creation_request",
-        "artifact_investigation_request",
-        "unnecessary_code_patch"
-      ];
-    }
-
-    if (
-      primary === "developer_artifact_request" ||
-      primary === "artifact_modification_request" ||
-      primary === "artifact_creation_request" ||
-      primary === "artifact_investigation_request"
-    ) {
-      return [
-        "generic_platform_advice",
-        "unnecessary_clarification",
-        "deep_emotional_processing"
-      ];
-    }
-
-    if (primary === "build_or_debug_request") {
-      return ["deep_emotional_processing"];
-    }
-
-    if (primary === "safety_or_risk_disclosure") {
-      return ["builder", "creative_generation", "normal_chat"];
-    }
-
-    return [];
-  },
-
-  getResponseBias(primary, signals = {}) {
-    const base = {
-      language_or_interpretation_request: {
-        preferredLaneBias: "teacher",
-        responseShape: "translate_or_explain_then_invite_discussion",
-        instruction:
-          "Translate, explain, or discuss the quoted text directly. Do not route religious, quote, scripture, or language requests into developer/artifact mode just because file context exists."
-      },
-
-      developer_artifact_request: {
-        preferredLaneBias: "developer_artifact",
-        responseShape: signals.githubEvidenceAvailable ? "code_patch" : "artifact_action_plan",
-        instruction:
-          "Use available file/artifact context. Modify or produce code directly. Do not give generic platform advice when file context exists."
-      },
-
-      artifact_modification_request: {
-        preferredLaneBias: "developer_artifact",
-        responseShape: signals.githubEvidenceAvailable ? "modified_artifact" : "targeted_patch_request",
-        instruction:
-          "Treat the user command as a request to change an existing artifact. Preserve unrelated code and return the modified section."
-      },
-
-      artifact_creation_request: {
-        preferredLaneBias: "developer_artifact",
-        responseShape: "new_artifact_or_patch",
-        instruction: "Create the requested artifact or code addition directly."
-      },
-
-      artifact_investigation_request: {
-        preferredLaneBias: "developer_artifact",
-        responseShape: "diagnosis_then_patch",
-        instruction:
-          "Inspect the artifact context, identify the issue, and propose the smallest safe fix."
-      },
-
-      emotional_disclosure: {
-        preferredLaneBias: "emotion",
-        responseShape: "warm_presence_then_invite_talking",
-        instruction:
-          "Lead with emotional presence. Do not start with curriculum, advice, optimization, or knowledge retrieval. Acknowledge the feeling, stay with the user, and invite them to share what happened."
-      },
-
-      emotional_signal_present: {
-        preferredLaneBias: "emotion_context",
-        responseShape: "brief_attunement_then_answer",
-        instruction:
-          "Briefly acknowledge emotion, but do not let it override the user's actual question."
-      },
-
-      explanation_or_information_question: {
-        preferredLaneBias: signals.metaDeveloperQuestion ? "teacher" : "teacher",
-        responseShape: "answer_directly",
-        instruction:
-          signals.metaDeveloperQuestion
-            ? "Answer the routing/classification question directly. Do not treat the question itself as a code patch request."
-            : "Answer the question directly. If emotion or relationship context is present, include brief warmth without losing the answer."
-      },
-
-      decision_support: {
-        preferredLaneBias: "executive_decision",
-        responseShape: "decision_framework",
-        instruction:
-          "Name the tradeoff, separate options, and recommend a next step. Do not treat 'feel better' as a decision request."
-      },
-
-      relationship_or_family_context: {
-        preferredLaneBias: "relationship_context",
-        responseShape: "relationship_truth_then_next_step",
-        instruction:
-          "Treat relationship as important context, but do not assume it is the whole task."
-      },
-
-      boundary_or_preference_statement: {
-        preferredLaneBias: "respect_boundary",
-        responseShape: "respect_user_preference",
-        instruction: "Respect the user's stated preference before offering solutions."
-      },
-
-      correction_or_clarification: {
-        preferredLaneBias: "clarification",
-        responseShape: "update_understanding",
-        instruction: "Use corrected meaning and avoid defending the prior interpretation."
-      },
-
-      build_or_debug_request: {
-        preferredLaneBias: "builder",
-        responseShape: "build_steps",
-        instruction: "Help build or debug directly."
-      },
-
-      medical_or_body_concern: {
-        preferredLaneBias: "medical_context",
-        responseShape: "medical_context_then_next_step",
-        instruction:
-          "Handle body/health context carefully and escalate only when risk evidence supports it."
-      },
-
-      continuation_or_follow_up: {
-        preferredLaneBias: "continuity",
-        responseShape: "reuse_context_if_safe",
-        instruction:
-          "Use prior context only if the current turn is not a complete new situation."
-      },
-
-      ari_identity_preference_question: {
-        preferredLaneBias: "identity",
-        responseShape: "answer_ari_preference",
-        instruction: "Answer Ari self-preference or identity questions directly. Do not treat them as memory saves."
-      },
-
-      memory_or_identity_request: {
-        preferredLaneBias: "memory_or_identity",
-        responseShape: "answer_or_acknowledge",
-        instruction: "Handle memory or identity request directly."
-      },
-
-      creative_generation: {
-        preferredLaneBias: "creative",
-        responseShape: "generate_requested_output",
-        instruction: "Create the requested output."
-      },
-
-      safety_or_risk_disclosure: {
-        preferredLaneBias: "safety",
-        responseShape: "safety_first",
-        instruction: "Safety comes first."
+      if (
+        Array.isArray(
+          source.evidenceRefs
+        )
+      ) {
+        refs.push(
+          ...source.evidenceRefs
+        );
       }
-    };
 
-    return base[primary] || {
-      preferredLaneBias: "general",
-      responseShape: "normal",
-      instruction: "Respond normally."
-    };
+      if (
+        Array.isArray(
+          source.evidence
+        )
+      ) {
+        refs.push(
+          ...source.evidence
+        );
+      }
+    });
+
+    return [
+      ...new Set(
+        refs.filter(Boolean)
+      )
+    ];
   },
 
-  hasType(observations = [], type) {
-    return observations.some(o => o.type === type);
+  includesAny(
+    value = "",
+    terms = []
+  ) {
+    const normalized =
+      this.normalize(value);
+
+    return terms.some(term =>
+      normalized.includes(
+        this.normalize(term)
+      )
+    );
   },
 
-  hasTypeValue(observations = [], type, value) {
-    return observations.some(o => o.type === type && o.value === value);
+  normalizeConfidence(
+    value = 0
+  ) {
+    const number =
+      Number(value);
+
+    if (
+      !Number.isFinite(number)
+    ) {
+      return 0;
+    }
+
+    if (number > 1) {
+      return Math.max(
+        0,
+        Math.min(
+          1,
+          number / 100
+        )
+      );
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        number
+      )
+    );
   },
 
-  clean(value = "") {
-    return String(value || "")
+  confidenceLabel(
+    value = 0
+  ) {
+    const confidence =
+      this.normalizeConfidence(
+        value
+      );
+
+    if (
+      confidence >= 0.88
+    ) {
+      return "high";
+    }
+
+    if (
+      confidence >= 0.68
+    ) {
+      return "medium";
+    }
+
+    if (
+      confidence >= 0.45
+    ) {
+      return "low";
+    }
+
+    return "very_low";
+  },
+
+  normalize(value = "") {
+    return String(
+      value || ""
+    )
       .toLowerCase()
       .replace(/[’‘]/g, "'")
-      .replace(/[“”]/g, '"')
+      .replace(/[“”]/g, "\"")
+      .replace(/[_-]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }
 };
+
+window.Ari.conversationFunctionEngine =
+  window.AriConversationFunctionEngine;
 
 console.log(
   "ARI CONVERSATION FUNCTION ENGINE LOADED:",
