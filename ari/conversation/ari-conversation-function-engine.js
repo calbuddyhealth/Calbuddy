@@ -236,100 +236,115 @@ window.AriConversationFunctionEngine = {
 
   readSources(summary = {}) {
     const semanticResult =
-      summary.semanticFrameResult ||
-      summary.semanticFrameBuilderResult ||
-      summary.semanticFrame ||
-      {};
+  this.firstNonEmptyObject(
+    summary.semanticFrameResult,
+    summary.semanticFrameBuilderResult,
+    summary.semanticFrame
+  );
 
-    const canonicalMeaning =
-      semanticResult.canonicalMeaning ||
-      summary.canonicalMeaning ||
-      {};
+const canonicalMeaning =
+  this.firstNonEmptyObject(
+    semanticResult.canonicalMeaning,
+    summary.canonicalMeaning
+  );
 
-    const primaryFrame =
-      semanticResult.primaryFrame ||
-      semanticResult.currentTurnFrame ||
-      summary.primaryFrame ||
-      canonicalMeaning.primaryFrame ||
-      {};
+const primaryFrame =
+  this.firstNonEmptyObject(
+    semanticResult.primaryFrame,
+    semanticResult.currentTurnFrame,
+    summary.primaryFrame,
+    canonicalMeaning.primaryFrame
+  );
 
-    const secondaryFrames =
-      semanticResult.secondaryFrames ||
-      summary.secondaryFrames ||
-      [];
+const secondaryFrames =
+  this.firstNonEmptyArray(
+    semanticResult.secondaryFrames,
+    summary.secondaryFrames
+  );
 
-    const requestModel =
-      semanticResult.requestModel ||
-      summary.requestModel ||
-      {};
+const requestModel =
+  this.firstNonEmptyObject(
+    semanticResult.requestModel,
+    summary.requestModel
+  );
 
-    const responseRequirements =
-      semanticResult.responseRequirements ||
-      semanticResult.responseCharacteristics ||
-      summary.responseRequirements ||
-      {};
+const responseRequirements =
+  this.firstNonEmptyObject(
+    semanticResult.responseRequirements,
+    semanticResult.responseCharacteristics,
+    summary.responseRequirements
+  );
 
-    const continuity =
-      semanticResult.continuity ||
-      canonicalMeaning.continuity ||
-      summary.continuity ||
-      {};
+const continuity =
+  this.firstNonEmptyObject(
+    semanticResult.continuity,
+    canonicalMeaning.continuity,
+    summary.continuity
+  );
 
-    const ambiguity =
-      semanticResult.ambiguity ||
-      canonicalMeaning.ambiguity ||
-      summary.ambiguity ||
-      {};
+const ambiguity =
+  this.firstNonEmptyObject(
+    semanticResult.ambiguity,
+    canonicalMeaning.ambiguity,
+    summary.ambiguity
+  );
 
-    const framePriority =
-      semanticResult.framePriority ||
-      summary.framePriority ||
-      {};
+const framePriority =
+  this.firstNonEmptyObject(
+    semanticResult.framePriority,
+    summary.framePriority
+  );
 
-    const frameAgreement =
-      semanticResult.frameAgreement ||
-      summary.frameAgreement ||
-      {};
+const frameAgreement =
+  this.firstNonEmptyObject(
+    semanticResult.frameAgreement,
+    summary.frameAgreement
+  );
 
     const classification =
-      summary
-        .universalConversationClassification ||
-      summary.conversationClassification ||
-      {};
+  this.firstNonEmptyObject(
+    summary.universalConversationClassification,
+    summary.conversationClassification
+  );
 
-    const questionUnderstanding =
-      summary.questionUnderstanding ||
-      summary.questionUnderstandingResult ||
-      {};
+const questionUnderstanding =
+  this.firstNonEmptyObject(
+    summary.questionUnderstanding,
+    summary.questionUnderstandingResult
+  );
 
-    const safetyContext =
-      summary.safetyContextGate ||
-      summary.safetyContext ||
-      {};
+const safetyContext =
+  this.firstNonEmptyObject(
+    summary.safetyContextGate,
+    summary.safetyContext
+  );
 
-    const emotionalOverlay =
-      semanticResult.emotionalOverlay ||
-      summary.emotionalOverlay ||
-      {};
+const emotionalOverlay =
+  this.firstNonEmptyObject(
+    semanticResult.emotionalOverlay,
+    summary.emotionalOverlay
+  );
 
     const contextModifiers =
-      canonicalMeaning.contextModifiers ||
-      semanticResult.contextModifiers ||
-      summary.contextModifiers ||
-      [];
+  this.firstNonEmptyArray(
+    canonicalMeaning.contextModifiers,
+    semanticResult.contextModifiers,
+    summary.contextModifiers
+  );
 
-    const constraints =
-      canonicalMeaning.constraints ||
-      semanticResult.constraints ||
-      summary.constraints ||
-      [];
+const constraints =
+  this.firstNonEmptyArray(
+    canonicalMeaning.constraints,
+    semanticResult.constraints,
+    summary.constraints
+  );
 
-    const stakes =
-      canonicalMeaning.stakes ||
-      semanticResult.stakes ||
-      summary.stakes ||
-      [];
-
+const stakes =
+  this.firstNonEmptyArray(
+    canonicalMeaning.stakes,
+    semanticResult.stakes,
+    summary.stakes
+  );
     return {
       semanticResult,
       canonicalMeaning,
@@ -706,23 +721,23 @@ window.AriConversationFunctionEngine = {
     }
 
     if (
-      operation.includes("produce") ||
-      operation.includes("revise text") ||
-      interactionFamily === "writing"
-    ) {
-      add(
-        operation.includes("revise")
-          ? "artifact_modification"
-          : "artifact_creation",
+  operation.includes("produce") ||
+  operation.includes("revise text") ||
+  interactionFamily === "writing"
+) {
+  add(
+    operation.includes("revise")
+      ? "writing_revision"
+      : "writing_creation",
 
-        "artifact",
-        93,
+    "writing",
+    93,
 
-        operation.includes("revise")
-          ? "The user wants an existing written artifact revised."
-          : "The user wants a written artifact produced."
-      );
-    }
+    operation.includes("revise")
+      ? "The user wants existing written material revised."
+      : "The user wants written material produced."
+  );
+}
 
     if (
       operation.includes("implement") ||
@@ -866,16 +881,16 @@ window.AriConversationFunctionEngine = {
     }
 
     if (
-      operation.includes("generate") ||
-      interactionFamily === "creation"
-    ) {
-      add(
-        "creative_generation",
-        "creative_reasoning",
-        86,
-        "The user wants an original output generated."
-      );
-    }
+  operation.includes("generate") ||
+  intentFamily === "creative generation"
+) {
+  add(
+    "creative_generation",
+    "creative_reasoning",
+    86,
+    "The user wants an original output generated."
+  );
+}
 
     if (
       operation.includes(
@@ -1504,34 +1519,39 @@ window.AriConversationFunctionEngine = {
 
   functionPriority(name = "") {
     const order = [
-      "immediate_human_support",
-      "emotional_support",
-      "artifact_modification",
-      "artifact_creation",
-      "artifact_investigation",
-      "verification",
-      "prioritization",
-      "decision_support",
-      "comparison",
-      "planning",
-      "translation",
-      "calculation",
-      "research",
-      "teaching",
-      "explanation",
-      "interpretation",
-      "information_retrieval",
-      "memory_management",
-      "context_recall",
-      "identity_exploration",
-      "collaborative_reasoning",
-      "brainstorming",
-      "creative_generation",
-      "project_continuation",
-      "conversation_continuation",
-      "emotional_attunement",
-      "general_conversation"
-    ];
+  "immediate_human_support",
+  "emotional_support",
+
+  "artifact_modification",
+  "artifact_creation",
+  "artifact_investigation",
+
+  "writing_revision",
+  "writing_creation",
+
+  "verification",
+  "prioritization",
+  "decision_support",
+  "comparison",
+  "planning",
+  "translation",
+  "calculation",
+  "research",
+  "teaching",
+  "explanation",
+  "interpretation",
+  "information_retrieval",
+  "memory_management",
+  "context_recall",
+  "identity_exploration",
+  "collaborative_reasoning",
+  "brainstorming",
+  "creative_generation",
+  "project_continuation",
+  "conversation_continuation",
+  "emotional_attunement",
+  "general_conversation"
+];
 
     const index =
       order.indexOf(name);
@@ -1546,283 +1566,378 @@ window.AriConversationFunctionEngine = {
   ===================================================== */
 
   buildFunctionAgreement({
-    primary = {},
-    sources = {}
-  } = {}) {
-    const canonicalMeaning =
-      sources.canonicalMeaning ||
-      {};
+  primary = {},
+  sources = {}
+} = {}) {
+  const canonicalMeaning =
+    sources.canonicalMeaning ||
+    {};
 
-    const primaryFrame =
-      sources.primaryFrame ||
-      {};
+  const primaryFrame =
+    sources.primaryFrame ||
+    {};
 
-    const requestModel =
-      sources.requestModel ||
-      {};
+  const requestModel =
+    sources.requestModel ||
+    {};
 
-    const mappedFromCanonical =
-      this.functionFromOperation(
-        canonicalMeaning
-          .requestedOperation
-      );
+  const mappedFromCanonical =
+    this.functionFromOperation(
+      canonicalMeaning
+        .requestedOperation
+    );
 
-    const mappedFromFrame =
-      this.functionFromOperation(
-        primaryFrame.operation
-      );
+  const mappedFromFrame =
+    this.functionFromOperation(
+      primaryFrame.operation
+    );
 
-    const mappedFromRequest =
-      this.functionFromOperation(
-        requestModel.operation
-      );
+  const mappedFromRequest =
+    this.functionFromOperation(
+      requestModel.operation
+    );
 
-    const checks = [
-      {
-        source:
-          "canonical_meaning",
+  const checks = [
+    {
+      source:
+        "canonical_meaning",
 
-        available:
-          Boolean(
-            canonicalMeaning
-              .requestedOperation
-          ),
-
-        aligned:
-          !mappedFromCanonical ||
-          mappedFromCanonical ===
-            primary.name
-      },
-
-      {
-        source:
-          "primary_frame",
-
-        available:
-          Boolean(
-            primaryFrame.operation
-          ),
-
-        aligned:
-          !mappedFromFrame ||
-          mappedFromFrame ===
-            primary.name
-      },
-
-      {
-        source:
-          "request_model",
-
-        available:
-          Boolean(
-            requestModel.operation
-          ),
-
-        aligned:
-          !mappedFromRequest ||
-          mappedFromRequest ===
-            primary.name
-      }
-    ];
-
-    const availableChecks =
-      checks.filter(check =>
-        check.available
-      );
-
-    const alignedCount =
-      availableChecks.filter(check =>
-        check.aligned
-      ).length;
-
-    const score =
-      availableChecks.length
-        ? alignedCount /
-          availableChecks.length
-        : 0.5;
-
-    return {
-      checks,
-
-      alignedCount,
-
-      totalChecks:
-        availableChecks.length,
-
-      score:
-        this.normalizeConfidence(
-          score
+      available:
+        Boolean(
+          canonicalMeaning
+            .requestedOperation
         ),
 
-      level:
-        score >= 0.9
-          ? "high"
-          : score >= 0.65
-            ? "medium"
-            : score >= 0.4
-              ? "low"
-              : "none",
+      mappedFunction:
+        mappedFromCanonical,
 
-      disagreements:
-        availableChecks
-          .filter(check =>
-            !check.aligned
-          )
-          .map(check =>
-            `${check.source}_function_mismatch`
-          ),
+      aligned:
+        Boolean(
+          mappedFromCanonical
+        ) &&
+        mappedFromCanonical ===
+          primary.name
+    },
 
-      authority:
-        "conversation_function_internal_agreement_only"
-    };
-  },
+    {
+      source:
+        "primary_frame",
 
-  functionFromOperation(
-    operation = ""
-  ) {
-    const normalized =
-      this.normalize(operation);
+      available:
+        Boolean(
+          primaryFrame.operation
+        ),
 
-    if (!normalized) {
-      return null;
+      mappedFunction:
+        mappedFromFrame,
+
+      aligned:
+        Boolean(
+          mappedFromFrame
+        ) &&
+        mappedFromFrame ===
+          primary.name
+    },
+
+    {
+      source:
+        "request_model",
+
+      available:
+        Boolean(
+          requestModel.operation
+        ),
+
+      mappedFunction:
+        mappedFromRequest,
+
+      aligned:
+        Boolean(
+          mappedFromRequest
+        ) &&
+        mappedFromRequest ===
+          primary.name
     }
+  ];
 
-    if (
-      normalized.includes(
-        "emotional support"
+  const availableChecks =
+    checks.filter(check =>
+      check.available
+    );
+
+  const mappedChecks =
+    availableChecks.filter(check =>
+      Boolean(
+        check.mappedFunction
       )
-    ) {
-      return "emotional_support";
-    }
+    );
 
-    if (
-      normalized.includes("prioritize")
-    ) {
-      return "prioritization";
-    }
+  const alignedCount =
+    mappedChecks.filter(check =>
+      check.aligned
+    ).length;
 
-    if (
-      normalized.includes("compare")
-    ) {
-      return "comparison";
-    }
+  const score =
+    mappedChecks.length
+      ? alignedCount /
+        mappedChecks.length
+      : 0.5;
 
-    if (
-      this.includesAny(normalized, [
-        "decide",
-        "choose",
-        "recommend"
-      ])
-    ) {
-      return "decision_support";
-    }
+  return {
+    checks,
 
-    if (
-      normalized.includes("plan")
-    ) {
-      return "planning";
-    }
+    alignedCount,
 
-    if (
-      normalized.includes("translate")
-    ) {
-      return "translation";
-    }
+    totalChecks:
+      availableChecks.length,
 
-    if (
-      normalized.includes("calculate") ||
-      normalized.includes("convert")
-    ) {
-      return "calculation";
-    }
+    mappedChecks:
+      mappedChecks.length,
 
-    if (
-      normalized.includes("teach")
-    ) {
-      return "teaching";
-    }
+    score:
+      this.normalizeConfidence(
+        score
+      ),
 
-    if (
-      normalized.includes("explain")
-    ) {
-      return "explanation";
-    }
+    level:
+      score >= 0.9
+        ? "high"
+        : score >= 0.65
+          ? "medium"
+          : score >= 0.4
+            ? "low"
+            : "none",
 
-    if (
-      normalized.includes("interpret")
-    ) {
-      return "interpretation";
-    }
+    disagreements:
+      availableChecks
+        .filter(check =>
+          Boolean(
+            check.mappedFunction
+          ) &&
+          !check.aligned
+        )
+        .map(check =>
+          `${check.source}_function_mismatch`
+        ),
 
-    if (
-      normalized.includes("information")
-    ) {
-      return "information_retrieval";
-    }
+    unmappedSources:
+      availableChecks
+        .filter(check =>
+          !check.mappedFunction
+        )
+        .map(check =>
+          check.source
+        ),
 
-    if (
-      normalized.includes("implement") ||
-      normalized.includes("modify")
-    ) {
-      return "artifact_modification";
-    }
+    authority:
+      "conversation_function_internal_agreement_only"
+  };
+},
+  functionFromOperation(
+  operation = ""
+) {
+  const normalized =
+    this.normalize(operation);
 
-    if (
-      normalized.includes("create")
-    ) {
-      return "artifact_creation";
-    }
-
-    if (
-      this.includesAny(normalized, [
-        "diagnose",
-        "inspect",
-        "debug"
-      ])
-    ) {
-      return "artifact_investigation";
-    }
-
-    if (
-      normalized.includes("verify") ||
-      normalized.includes("review")
-    ) {
-      return "verification";
-    }
-
-    if (
-      normalized.includes("research")
-    ) {
-      return "research";
-    }
-
-    if (
-      normalized.includes("memory") ||
-      normalized.includes("forget")
-    ) {
-      return "memory_management";
-    }
-
-    if (
-      normalized.includes("identity")
-    ) {
-      return "identity_exploration";
-    }
-
-    if (
-      normalized.includes("opinion")
-    ) {
-      return "collaborative_reasoning";
-    }
-
-    if (
-      normalized.includes("respond")
-    ) {
-      return "general_conversation";
-    }
-
+  if (!normalized) {
     return null;
-  },
+  }
+
+  if (
+    normalized.includes(
+      "emotional support"
+    )
+  ) {
+    return "emotional_support";
+  }
+
+  if (
+    normalized.includes("prioritize")
+  ) {
+    return "prioritization";
+  }
+
+  if (
+    normalized.includes("compare")
+  ) {
+    return "comparison";
+  }
+
+  if (
+    this.includesAny(normalized, [
+      "decide",
+      "choose",
+      "recommend"
+    ])
+  ) {
+    return "decision_support";
+  }
+
+  if (
+    normalized.includes("plan")
+  ) {
+    return "planning";
+  }
+
+  if (
+    normalized.includes("translate")
+  ) {
+    return "translation";
+  }
+
+  if (
+    normalized.includes("calculate") ||
+    normalized.includes("convert")
+  ) {
+    return "calculation";
+  }
+
+  if (
+    normalized.includes("teach")
+  ) {
+    return "teaching";
+  }
+
+  if (
+    normalized.includes("explain")
+  ) {
+    return "explanation";
+  }
+
+  if (
+    normalized.includes("interpret")
+  ) {
+    return "interpretation";
+  }
+
+  if (
+    normalized.includes("information")
+  ) {
+    return "information_retrieval";
+  }
+
+  if (
+    normalized.includes(
+      "retrieve prior context"
+    )
+  ) {
+    return "context_recall";
+  }
+
+  if (
+  normalized === "revise text" ||
+  normalized === "revise written text" ||
+  normalized === "writing revision"
+) {
+  return "writing_revision";
+}
+
+if (
+  normalized === "produce text" ||
+  normalized === "write text" ||
+  normalized === "writing creation"
+) {
+  return "writing_creation";
+}
+
+if (
+  normalized === "produce or revise text"
+) {
+  return "writing_creation";
+}
+
+if (
+  normalized.includes("implement") ||
+  normalized.includes("modify")
+) {
+  return "artifact_modification";
+}
+
+if (
+  normalized.includes("create artifact")
+) {
+  return "artifact_creation";
+}
+
+  if (
+    this.includesAny(normalized, [
+      "diagnose",
+      "inspect",
+      "debug",
+      "investigate"
+    ])
+  ) {
+    return "artifact_investigation";
+  }
+
+  if (
+    normalized.includes("verify") ||
+    normalized.includes("review")
+  ) {
+    return "verification";
+  }
+
+  if (
+    normalized.includes("research")
+  ) {
+    return "research";
+  }
+
+  if (
+    normalized.includes("navigate") ||
+    normalized.includes("locate")
+  ) {
+    return "navigation";
+  }
+
+  if (
+    normalized.includes("save") ||
+    normalized.includes("memory") ||
+    normalized.includes("forget")
+  ) {
+    return "memory_management";
+  }
+
+  if (
+    normalized.includes("identity")
+  ) {
+    return "identity_exploration";
+  }
+
+  if (
+    normalized.includes("opinion")
+  ) {
+    return "collaborative_reasoning";
+  }
+
+  if (
+    normalized.includes("brainstorm")
+  ) {
+    return "brainstorming";
+  }
+
+  if (
+    normalized.includes("generate")
+  ) {
+    return "creative_generation";
+  }
+
+  if (
+    normalized.includes(
+      "continue prior context"
+    )
+  ) {
+    return "conversation_continuation";
+  }
+
+  if (
+    normalized.includes("respond")
+  ) {
+    return "general_conversation";
+  }
+
+  return null;
+},
 
   /* =====================================================
      CONFIDENCE
@@ -1913,25 +2028,68 @@ window.AriConversationFunctionEngine = {
     };
   },
 
-  calculateSourceCompleteness(
-    sources = {}
-  ) {
-    const checks = [
-      sources.semanticFrameAvailable,
-      sources.canonicalMeaningAvailable,
-      sources.requestModelAvailable,
-      sources.classifierAvailable,
-      sources.questionUnderstandingAvailable
-    ];
+  
+    calculateSourceCompleteness(
+  sources = {}
+) {
+  const weightedChecks = [
+    {
+      available:
+        sources.semanticFrameAvailable,
 
-    const available =
-      checks.filter(Boolean).length;
+      weight:
+        0.35
+    },
 
-    return this.normalizeConfidence(
-      available /
-      checks.length
+    {
+      available:
+        sources.canonicalMeaningAvailable,
+
+      weight:
+        0.35
+    },
+
+    {
+      available:
+        sources.requestModelAvailable,
+
+      weight:
+        0.15
+    },
+
+    {
+      available:
+        sources.continuityAvailable,
+
+      weight:
+        0.075
+    },
+
+    {
+      available:
+        sources.ambiguityAvailable,
+
+      weight:
+        0.075
+    }
+  ];
+
+  const score =
+    weightedChecks.reduce(
+      (total, check) =>
+        total +
+        (
+          check.available
+            ? check.weight
+            : 0
+        ),
+      0
     );
-  },
+
+  return this.normalizeConfidence(
+    score
+  );
+},
 
   /* =====================================================
      RESPONSE CONTRACT
@@ -2006,6 +2164,36 @@ window.AriConversationFunctionEngine = {
           "acknowledge_ambiguity"
         ]
       },
+
+writing_creation: {
+  objective:
+    "Produce the requested written material.",
+
+  must: [
+    "produce_requested_text",
+    "preserve_user_intent"
+  ],
+
+  should: [
+    "match_requested_tone",
+    "make_output_immediately_usable"
+  ]
+},
+
+writing_revision: {
+  objective:
+    "Revise the supplied written material.",
+
+  must: [
+    "preserve_intended_meaning",
+    "apply_requested_revision"
+  ],
+
+  should: [
+    "retain_unrelated_content",
+    "match_requested_tone"
+  ]
+},
 
       planning: {
         objective:
@@ -2156,6 +2344,21 @@ window.AriConversationFunctionEngine = {
           "preserve_current_subject"
         ]
       },
+
+context_recall: {
+  objective:
+    "Recover and use the relevant prior conversational context.",
+
+  must: [
+    "identify_relevant_prior_context",
+    "answer_using_recalled_context"
+  ],
+
+  should: [
+    "avoid_inventing_missing_context",
+    "distinguish_recalled_context_from_inference"
+  ]
+},
 
       memory_management: {
         objective:
@@ -2573,6 +2776,31 @@ window.AriConversationFunctionEngine = {
   /* =====================================================
      HELPERS
   ===================================================== */
+firstNonEmptyObject(
+  ...values
+) {
+  return (
+    values.find(value =>
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value).length > 0
+    ) ||
+    {}
+  );
+},
+
+firstNonEmptyArray(
+  ...values
+) {
+  return (
+    values.find(value =>
+      Array.isArray(value) &&
+      value.length > 0
+    ) ||
+    []
+  );
+},
 
   collectEvidenceRefs(
     ...sources
