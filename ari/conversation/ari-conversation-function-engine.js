@@ -720,20 +720,29 @@ const stakes =
       );
     }
 
-    if (
-  operation.includes("produce") ||
-  operation.includes("revise text") ||
-  interactionFamily === "writing"
-) {
+    const isExplicitWritingRevision =
+  operation === "revise text" ||
+  operation === "revise written text" ||
+  operation === "writing revision";
+
+const isWritingRequest =
+  isExplicitWritingRevision ||
+  operation === "produce text" ||
+  operation === "write text" ||
+  operation === "produce or revise text" ||
+  operation === "writing creation" ||
+  interactionFamily === "writing";
+
+if (isWritingRequest) {
   add(
-    operation.includes("revise")
+    isExplicitWritingRevision
       ? "writing_revision"
       : "writing_creation",
 
     "writing",
     93,
 
-    operation.includes("revise")
+    isExplicitWritingRevision
       ? "The user wants existing written material revised."
       : "The user wants written material produced."
   );
@@ -1227,6 +1236,45 @@ const stakes =
         reason:
           "A secondary semantic frame represents an explanation need."
       },
+
+{
+  match:
+    operation === "revise text" ||
+    operation === "revise written text" ||
+    operation === "writing revision",
+
+  name:
+    "writing_revision",
+
+  family:
+    "writing",
+
+  score:
+    76,
+
+  reason:
+    "A secondary semantic frame represents a writing revision need."
+},
+
+{
+  match:
+    operation === "produce text" ||
+    operation === "write text" ||
+    operation === "produce or revise text" ||
+    family === "writing",
+
+  name:
+    "writing_creation",
+
+  family:
+    "writing",
+
+  score:
+    76,
+
+  reason:
+    "A secondary semantic frame represents a writing creation need."
+},
 
       {
         match:
