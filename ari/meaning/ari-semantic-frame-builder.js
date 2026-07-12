@@ -154,8 +154,14 @@ const confidence = this.calculateMeaningConfidence({
   frameAgreement
 });
 
-primaryFrame.confidence = confidence.score;
-primaryFrame.confidenceLabel = confidence.label;
+primaryFrame.semanticConfidence =
+  confidence.normalized;
+
+primaryFrame.semanticConfidenceScore =
+  confidence.score;
+
+primaryFrame.semanticConfidenceLabel =
+  confidence.label;
 
 const framePriority = this.buildFramePriority({
   primaryFrame,
@@ -614,19 +620,41 @@ const framePriority = this.buildFramePriority({
       );
 
     const operation =
-      requestedOperations[0] ||
-      classifierOperation ||
-      this.operationFromPurpose(
-        primaryPurpose,
-        classifierRequestType
+  classification.explicitRequestPresent === true
+    ? (
+        classifierOperation ||
+        requestedOperations[0] ||
+        this.operationFromPurpose(
+          primaryPurpose,
+          classifierRequestType
+        )
+      )
+    : (
+        requestedOperations[0] ||
+        classifierOperation ||
+        this.operationFromPurpose(
+          primaryPurpose,
+          classifierRequestType
+        )
       );
 
-    const requestedOutput =
-      requestedOutputs[0] ||
-      classifierOutput ||
-      this.outputFromPurpose(
-        primaryPurpose,
-        classifierRequestType
+const requestedOutput =
+  classification.explicitRequestPresent === true
+    ? (
+        classifierOutput ||
+        requestedOutputs[0] ||
+        this.outputFromPurpose(
+          primaryPurpose,
+          classifierRequestType
+        )
+      )
+    : (
+        requestedOutputs[0] ||
+        classifierOutput ||
+        this.outputFromPurpose(
+          primaryPurpose,
+          classifierRequestType
+        )
       );
 
     const operationEvidence =
@@ -755,11 +783,18 @@ const requestEvidencePresent =
 
       sourceAgreement: {
         questionUnderstanding:
-          Boolean(
-            requestedOperations.length ||
-            requestedOutputs.length ||
-            primaryPurpose
-          ),
+  Boolean(
+    requestedOperations.length ||
+    requestedOutputs.length ||
+    (
+      primaryPurpose &&
+      ![
+        "understanding",
+        "general",
+        "unknown"
+      ].includes(primaryPurpose)
+    )
+  ),
 
         classifier:
           Boolean(
@@ -2777,73 +2812,83 @@ if (/\b(i|me|myself)\b/.test(text)) {
   },
 
   buildArtifactAction({
-    primaryFrame = {},
-    requestModel = {},
-    semanticSlots = {},
-    sources = {}
-  } = {}) {
-    const operation =
-      this.normalize(
-        primaryFrame.operation ||
-        requestModel.operation
-      );
+  primaryFrame = {},
+  requestModel = {},
+  semanticSlots = {},
+  sources = {}
+} = {}) {
+  const operation = this.normalize(
+    primaryFrame.operation ||
+    requestModel.operation
+  );
 
-    const isArtifactRequest =
-      primaryFrame.interactionFamily ===
-        "developer_task" ||
-      primaryFrame.interactionFamily ===
-        "creation" ||
-      [
-        "implement_or_modify",
-        "modify_existing_artifact",
-        "create_artifact",
-        "create_or_add",
-        "verify_or_review",
-        "diagnose_or_inspect"
-      ].some(value =>
-        operation.includes(value)
-      );
+  const isArtifactRequest =
+    primaryFrame.interactionFamily === "developer_task" ||
+    primaryFrame.interactionFamily === "creation" ||
+    [
+      "implement or modify",
+      "modify existing artifact",
+      "create artifact",
+      "create or add",
+      "verify or review",
+      "diagnose or inspect"
+    ].some(value => operation.includes(value));
 
-    return {
-      isArtifactRequest,
+  const isModification =
+    operation.includes("modify") ||
+    operation.includes("update") ||
+    operation.includes("replace") ||
+    operation.includes("repair");
 
-      isModification:
-        operation.includes("modify") ||
-        operation.includes("update") ||
-        operation.includes("replace") ||
-        operation.includes("repair"),
+  const isCreation =
+    operation.includes("create") ||
+    operation.includes("generate") ||
+    operation.includes("design");
 
-      isCreation:
-        operation.includes("create") ||
-        operation.includes("generate") ||
-        operation.includes("design"),
+  const isInvestigation =
+    operation.includes("verify") ||
+    operation.includes("review") ||
+    operation.includes("inspect") ||
+    operation.includes("diagnose") ||
+    operation.includes("debug");
 
-      isInvestigation:
-        operation.includes("verify") ||
-        operation.includes("review") ||
-        operation.includes("inspect") ||
-        operation.includes("diagnose") ||
-        operation.includes("debug"),
+  const filePath =
+    semanticSlots.object?.filePath ||
+    sources.githubFileContext?.filePath ||
+    null;
 
-      isMetaQuestion:
-        primaryFrame.frameType ===
-        "meta_system_question",
+  const fileContextAvailable = Boolean(
+    sources.githubFileContext &&
+    String(sources.githubFileContext.content || "").trim()
+  );
 
-      requiresFileContent:
-        isArtifactRequest &&
-        Boolean(
-          semanticSlots.object?.filePath ||
-          sources.githubFileContext
-        ),
+  const requiresExistingArtifact =
+    isArtifactRequest &&
+    (isModification || isInvestigation);
 
-      filePath:
-        semanticSlots.object?.filePath ||
-        sources.githubFileContext
-          ?.filePath ||
-        null
-    };
-  },
+  return {
+    isArtifactRequest,
+    isModification,
+    isCreation,
+    isInvestigation,
 
+    isMetaQuestion:
+      primaryFrame.frameType === "meta_system_question",
+
+    requiresExistingArtifact,
+
+    requiresFileContent:
+      requiresExistingArtifact,
+
+    fileContextAvailable,
+
+    missingRequiredFileContext:
+      requiresExistingArtifact &&
+      !fileContextAvailable,
+
+    filePath
+  };
+},
   /* =====================================================
      RESPONSE REQUIREMENTS
   ===================================================== */
@@ -3080,226 +3125,221 @@ if (/\b(i|me|myself)\b/.test(text)) {
   ===================================================== */
 
   buildFramePriority({
-    primaryFrame = {},
-    secondaryFrames = [],
-    requestModel = {},
-    semanticSlots = {}
-  } = {}) {
-    const ordered = [
-      {
-        frameId:
-          primaryFrame.frameId,
+  primaryFrame = {},
+  secondaryFrames = [],
+  requestModel = {},
+  semanticSlots = {}
+} = {}) {
+  const ordered = [
+    {
+      frameId: primaryFrame.frameId,
+      frameType: primaryFrame.frameType,
+      operation: primaryFrame.operation,
+      target: primaryFrame.target,
+      requestedOutput: primaryFrame.requestedOutput,
+      domain: primaryFrame.domain,
+      role: "primary",
 
-        frameType:
-          primaryFrame.frameType,
+      candidateConfidence:
+        primaryFrame.confidence,
 
-        operation:
-          primaryFrame.operation,
+      semanticConfidence:
+        primaryFrame.semanticConfidence,
 
-        target:
-          primaryFrame.target,
+      semanticConfidenceScore:
+        primaryFrame.semanticConfidenceScore,
 
-        requestedOutput:
-          primaryFrame.requestedOutput,
+      semanticConfidenceLabel:
+        primaryFrame.semanticConfidenceLabel,
 
-        domain:
-          primaryFrame.domain,
+      evidenceRefs:
+        primaryFrame.evidenceRefs || []
+    },
 
-        role:
-          "primary",
+    ...secondaryFrames.map(frame => ({
+      frameId: frame.frameId,
+      frameType: frame.frameType,
+      operation: frame.operation,
+      target: frame.target,
+      requestedOutput: frame.requestedOutput,
+      domain: frame.domain,
+      role: "secondary",
 
-        confidence:
-          primaryFrame.confidence,
+      candidateConfidence:
+        frame.confidence,
 
-        evidenceRefs:
-          primaryFrame.evidenceRefs ||
-          []
-      },
+      rankingScore:
+        frame.rankingScore,
 
-      ...secondaryFrames.map(frame => ({
-        frameId:
-          frame.frameId,
+      evidenceRefs:
+        frame.evidenceRefs || []
+    }))
+  ];
 
-        frameType:
-          frame.frameType,
+  return {
+    primary:
+      primaryFrame.frameId || null,
 
-        operation:
-          frame.operation,
+    primaryFrameType:
+      primaryFrame.frameType || null,
 
-        target:
-          frame.target,
+    secondary:
+      ordered.slice(1),
 
-        requestedOutput:
-          frame.requestedOutput,
+    ordered,
 
-        domain:
-          frame.domain,
+    hasMultipleFrames:
+      ordered.length > 1,
 
-        role:
-          "secondary",
+    hasMultipleQuestions:
+      requestModel.multiPurpose === true,
 
-        confidence:
-          frame.confidence,
+    hasMultipleOperations:
+      requestModel.multiPurpose === true,
 
-        evidenceRefs:
-          frame.evidenceRefs ||
-          []
-      }))
-    ];
+    shouldPreserveSecondaryFrames:
+      ordered.length > 1,
 
-    return {
-      primary:
-        primaryFrame.frameId ||
-        null,
+    slotCompleteness:
+      semanticSlots.slotCompleteness,
 
-      primaryFrameType:
-        primaryFrame.frameType ||
-        null,
-
-      secondary:
-        ordered.slice(1),
-
-      ordered,
-
-      hasMultipleFrames:
-        ordered.length > 1,
-
-      hasMultipleQuestions:
-        requestModel.multiPurpose === true,
-
-      hasMultipleOperations:
-        requestModel.multiPurpose === true,
-
-      shouldPreserveSecondaryFrames:
-        ordered.length > 1,
-
-      slotCompleteness:
-        semanticSlots.slotCompleteness,
-
-      authority:
-        "semantic_priority_description_only"
-    };
-  },
+    authority:
+      "semantic_priority_description_only"
+  };
+},
 
   /* =====================================================
      AGREEMENT + CONFIDENCE
   ===================================================== */
 
   buildFrameAgreement({
-    sources = {},
-    requestModel = {},
-    primaryFrame = {},
-    canonicalMeaning = {}
-  } = {}) {
-    const questionPurpose =
-      this.normalize(
-        sources.questionUnderstanding
-          ?.primaryPurpose
-      );
+  sources = {},
+  requestModel = {},
+  primaryFrame = {},
+  canonicalMeaning = {}
+} = {}) {
+  const questionPurpose =
+    this.normalize(
+      sources.questionUnderstanding
+        ?.primaryPurpose
+    );
 
-    const classifierFamily =
-      this.normalize(
-        sources.classification
-          ?.interactionFamily
-      );
+  const classifierFamily =
+    this.normalize(
+      sources.classification
+        ?.interactionFamily
+    );
 
-    const classifierOperation =
-      this.normalize(
-        sources.classification
-          ?.explicitRequestedOperation
-      );
+  const classifierOperation =
+    this.normalize(
+      sources.classification
+        ?.explicitRequestedOperation
+    );
 
-    const frameOperation =
-      this.normalize(
-        primaryFrame.operation
-      );
+  const frameOperation =
+    this.normalize(
+      primaryFrame.operation
+    );
 
-    const questionAligned =
-      !questionPurpose ||
-      frameOperation.includes(
-        this.normalize(
-          this.operationFromPurpose(
-            questionPurpose
-          )
+  const expectedQuestionOperation =
+    this.normalize(
+      this.operationFromPurpose(
+        questionPurpose
+      ) || ""
+    );
+
+  const questionAligned =
+    !questionPurpose ||
+    (
+      expectedQuestionOperation &&
+      (
+        frameOperation ===
+          expectedQuestionOperation ||
+        frameOperation.includes(
+          expectedQuestionOperation
+        ) ||
+        expectedQuestionOperation.includes(
+          frameOperation
         )
-      ) ||
-      requestModel.primaryPurpose ===
-        questionPurpose;
+      )
+    ) ||
+    requestModel.primaryPurpose ===
+      questionPurpose;
 
-    const classifierAligned =
-      !classifierOperation ||
-      frameOperation ===
-        classifierOperation ||
-      frameOperation.includes(
-        classifierOperation
-      ) ||
-      classifierOperation.includes(
-        frameOperation
-      );
+  const classifierAligned =
+    !classifierOperation ||
+    frameOperation ===
+      classifierOperation ||
+    frameOperation.includes(
+      classifierOperation
+    ) ||
+    classifierOperation.includes(
+      frameOperation
+    );
 
-    const familyAligned =
-      !classifierFamily ||
-      this.normalize(
-        primaryFrame.interactionFamily
-      ) === classifierFamily;
+  const familyAligned =
+    !classifierFamily ||
+    this.normalize(
+      primaryFrame.interactionFamily
+    ) === classifierFamily;
 
-    const values = [
+  const values = [
+    questionAligned,
+    classifierAligned,
+    familyAligned
+  ];
+
+  const alignedCount =
+    values.filter(Boolean).length;
+
+  return {
+    questionUnderstandingAligned:
       questionAligned,
+
+    classifierOperationAligned:
       classifierAligned,
-      familyAligned
-    ];
 
-    const alignedCount =
-      values.filter(Boolean).length;
+    classifierFamilyAligned:
+      familyAligned,
 
-    return {
-      questionUnderstandingAligned:
-        questionAligned,
+    alignedCount,
 
-      classifierOperationAligned:
-        classifierAligned,
+    totalChecks:
+      values.length,
 
-      classifierFamilyAligned:
-        familyAligned,
+    score:
+      values.length
+        ? alignedCount /
+          values.length
+        : 0,
 
-      alignedCount,
+    level:
+      alignedCount === values.length
+        ? "high"
+        : alignedCount >= 2
+          ? "medium"
+          : alignedCount === 1
+            ? "low"
+            : "none",
 
-      totalChecks:
-        values.length,
+    disagreements: [
+      !questionAligned
+        ? "question_purpose_mismatch"
+        : null,
 
-      score:
-        values.length
-          ? alignedCount /
-            values.length
-          : 0,
+      !classifierAligned
+        ? "classifier_operation_mismatch"
+        : null,
 
-      level:
-        alignedCount === values.length
-          ? "high"
-          : alignedCount >= 2
-            ? "medium"
-            : alignedCount === 1
-              ? "low"
-              : "none",
+      !familyAligned
+        ? "classifier_family_mismatch"
+        : null
+    ].filter(Boolean),
 
-      disagreements: [
-        !questionAligned
-          ? "question_purpose_mismatch"
-          : null,
-
-        !classifierAligned
-          ? "classifier_operation_mismatch"
-          : null,
-
-        !familyAligned
-          ? "classifier_family_mismatch"
-          : null
-      ].filter(Boolean),
-
-      authority:
-        "semantic_internal_agreement_only"
-    };
-  },
+    authority:
+      "semantic_internal_agreement_only"
+  };
+},
 
   calculateMeaningConfidence({
     sources = {},
@@ -5533,33 +5573,38 @@ if (/\b(i|me|myself)\b/.test(text)) {
   },
 
   slotPresent(value) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return false;
-    }
+  if (value === null || value === undefined) {
+    return false;
+  }
 
-    if (
-      Array.isArray(value)
-    ) {
-      return value.length > 0;
-    }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
 
-    if (
-      typeof value === "object"
-    ) {
-      return Boolean(
-        value.value ||
-        value.name ||
-        value.type !== "unknown"
-      );
-    }
+  if (typeof value === "object") {
+    const hasValue =
+      value.value !== null &&
+      value.value !== undefined &&
+      String(value.value).trim() !== "";
 
-    return Boolean(
-      String(value).trim()
-    );
-  },
+    const hasName =
+      value.name !== null &&
+      value.name !== undefined &&
+      String(value.name).trim() !== "";
+
+    const hasKnownType =
+      typeof value.type === "string" &&
+      value.type !== "" &&
+      ![
+        "unknown",
+        "unspecified"
+      ].includes(value.type);
+
+    return hasValue || hasName || hasKnownType;
+  }
+
+  return String(value).trim() !== "";
+},
 
   mergeSemanticItems(
     first = [],
