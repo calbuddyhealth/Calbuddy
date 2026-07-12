@@ -545,12 +545,18 @@ window.AriPerceptionPipeline = {
     );
 
     state = {
-      ...state,
+  ...state,
 
-      semanticFrameOutput,
+  semanticFrameOutput,
 
-      semanticFrame:
-        semanticFrameOutput,
+  semanticFrameResult:
+    semanticFrameOutput,
+
+  semanticFrameBuilderResult:
+    semanticFrameOutput,
+
+  semanticFrame:
+    semanticFrameOutput,
 
       activeSemanticFrame:
         semanticFrameOutput.primaryFrame ||
@@ -626,57 +632,289 @@ window.AriPerceptionPipeline = {
 
     /* =====================================================
        10. PERCEPTION RECONCILIATION
-       Compares the classifier, semantic frame, question
-       understanding, and conversation function.
+       Reconciles structured semantic meaning, conversation
+       purpose, safety, continuity, ambiguity, and response
+       requirements into one downstream intent packet.
 
-       It may expose disagreement, but cannot route or answer.
+       It cannot reinterpret raw text, route, plan, or answer.
     ===================================================== */
 
     mark("before perceptionReconciliation");
 
-    const perceptionReconciliation = await runEngine(
-      window.AriPerceptionReconciliationEngine ||
-      window.Ari?.perceptionReconciliationEngine,
-      ["reconcile", "analyze"],
-      {
-        perceptionReconciliationRan: false,
-        perceptionReconciliationSource: "not-loaded",
+    const perceptionReconciliation =
+      await runEngine(
+        window.AriPerceptionReconciliationEngine ||
+        window.Ari?.perceptionReconciliationEngine,
+        ["reconcile", "analyze"],
+        {
+          perceptionReconciliationRan:
+            false,
 
-        agreementLevel: "unknown",
-        agreementScore: 0,
+          perceptionReconciliationVersion:
+            null,
 
-        classificationAligned: null,
-        semanticFrameAligned: null,
-        conversationFunctionAligned: null,
+          perceptionReconciliationSource:
+            "not-loaded",
 
-        disagreements: [],
-        warnings: [],
-        unresolvedQuestions: [],
+          reconciled:
+            false,
 
-        reconciledInteractionFamily:
-          state.interactionFamily ||
-          null,
+          validation: {
+            requiredSourcesPresent:
+              false,
 
-        reconciledIntentFamily:
-          state.intentFamily ||
-          null,
+            missingRequiredSources: [
+              "semantic_structure",
+              "semantic_meaning",
+              "conversation_function"
+            ],
 
-        reconciledPrimaryDomain:
-          state.conversationPrimaryDomain ||
-          null,
+            structurallyUsable:
+              false
+          },
 
-        reconciledDomains:
-          state.conversationDomains ||
-          [],
+          semanticIntent: {
+            available:
+              false,
 
-        reconciledPrimaryFunction:
-          state.conversationFunction?.primaryFunction ||
-          null,
+            requestedOperation:
+              null,
 
-        routingHandoffReady: false
-      },
-      state
-    );
+            requestedOutput:
+              null,
+
+            userGoal:
+              null
+          },
+
+          conversationPurpose: {
+            available:
+              false,
+
+            name:
+              null,
+
+            family:
+              null
+          },
+
+          supportingPurposes:
+            [],
+
+          safety: {
+            sourceAvailable:
+              false,
+
+            present:
+              false,
+
+            immediateResponseRequired:
+              false,
+
+            requirements:
+              [],
+
+            restrictions:
+              []
+          },
+
+          continuity: {
+            sourceAvailable:
+              false,
+
+            isContinuation:
+              false,
+
+            requiresPriorContext:
+              false,
+
+            priorContextAvailable:
+              false
+          },
+
+          ambiguity: {
+            sourceAvailable:
+              false,
+
+            present:
+              false,
+
+            requiresClarification:
+              false
+          },
+
+          context: {
+            modifiers:
+              [],
+
+            constraints:
+              [],
+
+            stakes:
+              [],
+
+            emotional: {
+              sourceAvailable:
+                false,
+
+              present:
+                false,
+
+              explicitSupportRequested:
+                false
+            }
+          },
+
+          agreement: {
+            conflictPresent:
+              false,
+
+            unresolvedConflictPresent:
+              false,
+
+            conflicts:
+              []
+          },
+
+          governance: {
+            responseOrder:
+              "normal",
+
+            safetyGoverning:
+              false,
+
+            clarificationRequired:
+              false,
+
+            missingPriorContext:
+              false
+          },
+
+          responseRequirements: {
+            objective:
+              null,
+
+            semanticTask:
+              null,
+
+            conversationalPurpose:
+              null,
+
+            supportingPurposes:
+              [],
+
+            must:
+              [],
+
+            should:
+              [],
+
+            mustNot:
+              [],
+
+            requirementConflicts: {
+              present:
+                false,
+
+              count:
+                0,
+
+              items:
+                [],
+
+              unresolved:
+                []
+            },
+
+            responseOrder:
+              "normal"
+          },
+
+          confidence:
+            0,
+
+          confidenceScore:
+            0,
+
+          confidenceLabel:
+            "very_low",
+
+          readiness: {
+            status:
+              "not_ready",
+
+            packetUsable:
+              false,
+
+            readyForRouting:
+              false,
+
+            readyForPlanning:
+              false,
+
+            readyForResponsePreparation:
+              false,
+
+            immediateSafetyResponseRequired:
+              false,
+
+            clarificationRequired:
+              false,
+
+            unresolvedConflict:
+              false,
+
+            unresolvedRequirementConflict:
+              false
+          },
+
+          conversationIntentPacket:
+            null,
+
+          unifiedIntentPacket:
+            null,
+
+          handoff: {
+            ready:
+              false,
+
+            packetUsable:
+              false,
+
+            readyForRouting:
+              false,
+
+            readyForPlanning:
+              false,
+
+            readyForResponsePreparation:
+              false
+          }
+        },
+        state
+      );
+
+    const conversationIntentPacket =
+      perceptionReconciliation
+        .conversationIntentPacket ||
+      perceptionReconciliation
+        .unifiedIntentPacket ||
+      null;
+
+    const reconciliationReadiness =
+      perceptionReconciliation
+        .readiness ||
+      {};
+
+    const reconciliationAgreement =
+      perceptionReconciliation
+        .agreement ||
+      {};
+
+    const reconciliationGovernance =
+      perceptionReconciliation
+        .governance ||
+      {};
 
     state = {
       ...state,
@@ -686,53 +924,136 @@ window.AriPerceptionPipeline = {
       perceptionReconciliationResult:
         perceptionReconciliation,
 
+      conversationIntentPacket,
+
+      unifiedIntentPacket:
+        conversationIntentPacket,
+
+      reconciledIntentPacket:
+        conversationIntentPacket,
+
       perceptionReconciliationRan:
         perceptionReconciliation
-          .perceptionReconciliationRan === true,
+          .perceptionReconciliationRan ===
+        true,
 
-      perceptionAgreementLevel:
-        perceptionReconciliation.agreementLevel ||
-        "unknown",
+      perceptionReconciliationVersion:
+        perceptionReconciliation
+          .perceptionReconciliationVersion ||
+        null,
 
-      perceptionAgreementScore:
-        perceptionReconciliation.agreementScore ??
-        0,
+      perceptionReconciliationSource:
+        perceptionReconciliation
+          .perceptionReconciliationSource ||
+        "not-loaded",
 
-      perceptionDisagreements:
-        perceptionReconciliation.disagreements ||
+      perceptionReconciled:
+        perceptionReconciliation
+          .reconciled === true,
+
+      reconciledSemanticIntent:
+        perceptionReconciliation
+          .semanticIntent ||
+        null,
+
+      reconciledConversationPurpose:
+        perceptionReconciliation
+          .conversationPurpose ||
+        null,
+
+      reconciledSupportingPurposes:
+        perceptionReconciliation
+          .supportingPurposes ||
         [],
 
-      perceptionReconciliationWarnings:
-        perceptionReconciliation.warnings ||
-        [],
-
-      reconciledInteractionFamily:
-        perceptionReconciliation.reconciledInteractionFamily ||
-        state.interactionFamily ||
+      reconciledSafety:
+        perceptionReconciliation
+          .safety ||
         null,
 
-      reconciledIntentFamily:
-        perceptionReconciliation.reconciledIntentFamily ||
-        state.intentFamily ||
+      reconciledContinuity:
+        perceptionReconciliation
+          .continuity ||
         null,
 
-      reconciledPrimaryDomain:
-        perceptionReconciliation.reconciledPrimaryDomain ||
-        state.conversationPrimaryDomain ||
+      reconciledAmbiguity:
+        perceptionReconciliation
+          .ambiguity ||
         null,
 
-      reconciledDomains:
-        perceptionReconciliation.reconciledDomains ||
-        state.conversationDomains ||
-        [],
-
-      reconciledPrimaryFunction:
-        perceptionReconciliation.reconciledPrimaryFunction ||
-        state.conversationFunction?.primaryFunction ||
+      reconciledContext:
+        perceptionReconciliation
+          .context ||
         null,
+
+      reconciledAgreement:
+        reconciliationAgreement,
+
+      reconciledGovernance:
+        reconciliationGovernance,
+
+      reconciledResponseRequirements:
+        perceptionReconciliation
+          .responseRequirements ||
+        null,
+
+      reconciliationReadiness,
+
+      reconciliationStatus:
+        reconciliationReadiness.status ||
+        "not_ready",
 
       perceptionRoutingHandoffReady:
-        perceptionReconciliation.routingHandoffReady === true
+        reconciliationReadiness
+          .readyForRouting === true,
+
+      perceptionPlanningHandoffReady:
+        reconciliationReadiness
+          .readyForPlanning === true,
+
+      perceptionResponsePreparationReady:
+        reconciliationReadiness
+          .readyForResponsePreparation ===
+        true,
+
+      perceptionClarificationRequired:
+        reconciliationReadiness
+          .clarificationRequired ===
+        true,
+
+      perceptionImmediateSafetyRequired:
+        reconciliationReadiness
+          .immediateSafetyResponseRequired ===
+        true,
+
+      perceptionAgreementConflictPresent:
+        reconciliationAgreement
+          .conflictPresent === true,
+
+      perceptionUnresolvedConflictPresent:
+        reconciliationAgreement
+          .unresolvedConflictPresent ===
+        true,
+
+      perceptionResponseOrder:
+        reconciliationGovernance
+          .responseOrder ||
+        "normal",
+
+      perceptionReconciliationConfidence:
+        perceptionReconciliation
+          .confidence ??
+        0,
+
+      perceptionReconciliationConfidenceScore:
+        perceptionReconciliation
+          .confidenceScore ??
+        0,
+
+      perceptionReconciliationConfidenceLabel:
+        perceptionReconciliation
+          .confidenceLabel ||
+        "very_low"
     };
 
     mark("after perceptionReconciliation");
@@ -2036,90 +2357,177 @@ const reconciliation =
           semanticFrame
       },
 
-      reconciliation: {
+            reconciliation: {
         available:
           reconciliation
-            .perceptionReconciliationRan === true,
+            .perceptionReconciliationRan ===
+          true,
 
         source:
           reconciliation
             .perceptionReconciliationSource ||
-          reconciliation.source ||
           "unknown",
 
-        agreementLevel:
-          reconciliation.agreementLevel ||
-          "unknown",
+        version:
+          reconciliation
+            .perceptionReconciliationVersion ||
+          null,
 
-        agreementScore:
-          reconciliation.agreementScore ??
+        reconciled:
+          reconciliation.reconciled ===
+          true,
+
+        semanticIntent:
+          reconciliation.semanticIntent ||
+          null,
+
+        conversationPurpose:
+          reconciliation
+            .conversationPurpose ||
+          null,
+
+        supportingPurposes:
+          reconciliation
+            .supportingPurposes ||
+          [],
+
+        safety:
+          reconciliation.safety ||
+          null,
+
+        continuity:
+          reconciliation.continuity ||
+          null,
+
+        ambiguity:
+          reconciliation.ambiguity ||
+          null,
+
+        context:
+          reconciliation.context ||
+          null,
+
+        agreement:
+          reconciliation.agreement ||
+          null,
+
+        governance:
+          reconciliation.governance ||
+          null,
+
+        responseRequirements:
+          reconciliation
+            .responseRequirements ||
+          null,
+
+        validation:
+          reconciliation.validation ||
+          null,
+
+        confidence:
+          reconciliation.confidence ??
           0,
 
-        classificationAligned:
-          reconciliation.classificationAligned ??
+        confidenceScore:
+          reconciliation.confidenceScore ??
+          0,
+
+        confidenceLabel:
+          reconciliation.confidenceLabel ||
+          "very_low",
+
+        readiness:
+          reconciliation.readiness ||
           null,
 
-        semanticFrameAligned:
-          reconciliation.semanticFrameAligned ??
+        packet:
+          reconciliation
+            .conversationIntentPacket ||
+          reconciliation
+            .unifiedIntentPacket ||
           null,
 
-        conversationFunctionAligned:
-          reconciliation.conversationFunctionAligned ??
+        handoff:
+          reconciliation.handoff ||
           null,
 
-        disagreements:
-          reconciliation.disagreements ||
-          [],
+        packetUsable:
+          reconciliation
+            .readiness
+            ?.packetUsable === true,
 
-        warnings:
-          reconciliation.warnings ||
-          [],
+        readyForRouting:
+          reconciliation
+            .readiness
+            ?.readyForRouting === true,
 
-        unresolvedQuestions:
-          reconciliation.unresolvedQuestions ||
-          [],
+        readyForPlanning:
+          reconciliation
+            .readiness
+            ?.readyForPlanning === true,
 
-        reconciledInteractionFamily:
-          reconciliation.reconciledInteractionFamily ||
-          classification.interactionFamily ||
-          null,
+        readyForResponsePreparation:
+          reconciliation
+            .readiness
+            ?.readyForResponsePreparation ===
+          true,
 
-        reconciledIntentFamily:
-          reconciliation.reconciledIntentFamily ||
-          classification.intentFamily ||
-          null,
+        clarificationRequired:
+          reconciliation
+            .readiness
+            ?.clarificationRequired ===
+          true,
 
-        reconciledPrimaryDomain:
-          reconciliation.reconciledPrimaryDomain ||
-          classification.primaryDomain ||
-          null,
+        immediateSafetyResponseRequired:
+          reconciliation
+            .readiness
+            ?.immediateSafetyResponseRequired ===
+          true,
 
-        reconciledDomains:
-          reconciliation.reconciledDomains ||
-          classification.domains ||
-          [],
-
-        reconciledPrimaryFunction:
-          reconciliation.reconciledPrimaryFunction ||
-          conversationFunction.primaryFunction ||
-          null,
-
-        routingHandoffReady:
-          reconciliation.routingHandoffReady === true,
+        responseOrder:
+          reconciliation
+            .governance
+            ?.responseOrder ||
+          "normal",
 
         raw:
           reconciliation
       },
 
-      perceptionSummary: {
+            perceptionSummary: {
         userPrimaryNeed:
-          reconciliation.reconciledPrimaryFunction ||
-          conversationFunction.primaryFunction ||
-          classification.conversationIntent ||
+          reconciliation
+            .conversationPurpose
+            ?.name ||
+          conversationFunction
+            .primaryFunction ||
+          classification
+            .conversationIntent ||
           "unknown",
 
+        semanticOperation:
+          reconciliation
+            .semanticIntent
+            ?.requestedOperation ||
+          primaryFrame?.operation ||
+          null,
+
+        requestedOutput:
+          reconciliation
+            .semanticIntent
+            ?.requestedOutput ||
+          primaryFrame?.requestedOutput ||
+          null,
+
+        userGoal:
+          reconciliation
+            .semanticIntent
+            ?.userGoal ||
+          null,
+
         primaryQuestionPurpose:
-          questionUnderstanding.primaryPurpose ||
+          questionUnderstanding
+            .primaryPurpose ||
           "understanding",
 
         primaryLifeSignal:
@@ -2128,89 +2536,178 @@ const reconciliation =
           lifeSignals.primarySignal ||
           null,
 
-        primarySemanticMeaning:
-          semanticFrame.semanticSummary?.primaryMeaning ||
-          primaryFrame?.frameType ||
-          primaryFrame?.type ||
-          null,
-
         conversationFunction:
-          reconciliation.reconciledPrimaryFunction ||
-          conversationFunction.primaryFunction ||
-          "unknown",
-
-        interactionFamily:
-          reconciliation.reconciledInteractionFamily ||
-          classification.interactionFamily ||
-          "general",
-
-        primaryDomain:
-          reconciliation.reconciledPrimaryDomain ||
-          classification.primaryDomain ||
-          "general_understanding",
-
-        confidence:
-          reconciliation.agreementScore ??
-          classification.confidence ??
-          semanticFrame.semanticSummary?.confidence ??
-          0,
-
-        agreement:
-          reconciliation.agreementLevel ||
-          "unknown"
-      },
-
-      routingHandoff: {
-        
-                reconciliationReady:
-          reconciliation.routingHandoffReady === true,
-
-        reconciledInteractionFamily:
-          reconciliation.reconciledInteractionFamily ||
-          classification.interactionFamily ||
-          null,
-
-        reconciledIntentFamily:
-          reconciliation.reconciledIntentFamily ||
-          classification.intentFamily ||
-          null,
-
-        reconciledPrimaryDomain:
-          reconciliation.reconciledPrimaryDomain ||
-          classification.primaryDomain ||
-          null,
-
-        reconciledDomains:
-          reconciliation.reconciledDomains ||
-          classification.domains ||
-          [],
-
-        reconciledPrimaryFunction:
-          reconciliation.reconciledPrimaryFunction ||
-          conversationFunction.primaryFunction ||
-          "unknown",
-
-        perceptionAgreementLevel:
-          reconciliation.agreementLevel ||
-          "unknown",
-
-        perceptionAgreementScore:
-          reconciliation.agreementScore ??
-          0,
-
-        perceptionDisagreements:
-          reconciliation.disagreements ||
-          [],
-        
-        conversationFunction:
+          reconciliation
+            .conversationPurpose
+            ?.name ||
           conversationFunction
             .primaryFunction ||
           "unknown",
 
-        functionCandidates:
-          conversationFunction
-            .candidates ||
+        interactionFamily:
+          reconciliation
+            .semanticIntent
+            ?.interactionFamily ||
+          classification
+            .interactionFamily ||
+          "general",
+
+        intentFamily:
+          reconciliation
+            .semanticIntent
+            ?.intentFamily ||
+          classification
+            .intentFamily ||
+          "general_response",
+
+        primaryDomain:
+          reconciliation
+            .semanticIntent
+            ?.domain ||
+          classification
+            .primaryDomain ||
+          "general_understanding",
+
+        responseOrder:
+          reconciliation
+            .governance
+            ?.responseOrder ||
+          "normal",
+
+        confidence:
+          reconciliation
+            .confidence ??
+          classification.confidence ??
+          semanticFrame
+            .semanticSummary
+            ?.confidence ??
+          0,
+
+        confidenceLabel:
+          reconciliation
+            .confidenceLabel ||
+          null,
+
+        readinessStatus:
+          reconciliation
+            .readiness
+            ?.status ||
+          "not_ready",
+
+        packetUsable:
+          reconciliation
+            .readiness
+            ?.packetUsable === true
+      },
+
+            routingHandoff: {
+        reconciliationReady:
+          reconciliation
+            .readiness
+            ?.readyForRouting === true,
+
+        packetUsable:
+          reconciliation
+            .readiness
+            ?.packetUsable === true,
+
+        readyForRouting:
+          reconciliation
+            .readiness
+            ?.readyForRouting === true,
+
+        readyForPlanning:
+          reconciliation
+            .readiness
+            ?.readyForPlanning === true,
+
+        readyForResponsePreparation:
+          reconciliation
+            .readiness
+            ?.readyForResponsePreparation ===
+          true,
+
+        clarificationRequired:
+          reconciliation
+            .readiness
+            ?.clarificationRequired ===
+          true,
+
+        immediateSafetyResponseRequired:
+          reconciliation
+            .readiness
+            ?.immediateSafetyResponseRequired ===
+          true,
+
+        conversationIntentPacket:
+          reconciliation
+            .conversationIntentPacket ||
+          reconciliation
+            .unifiedIntentPacket ||
+          null,
+
+        semanticIntent:
+          reconciliation
+            .semanticIntent ||
+          null,
+
+        conversationPurpose:
+          reconciliation
+            .conversationPurpose ||
+          null,
+
+        supportingPurposes:
+          reconciliation
+            .supportingPurposes ||
           [],
+
+        governance:
+          reconciliation
+            .governance ||
+          null,
+
+        responseRequirements:
+          reconciliation
+            .responseRequirements ||
+          null,
+
+        safety:
+          reconciliation.safety ||
+          null,
+
+        continuity:
+          reconciliation.continuity ||
+          null,
+
+        ambiguity:
+          reconciliation.ambiguity ||
+          null,
+
+        context:
+          reconciliation.context ||
+          null,
+
+        agreement:
+          reconciliation.agreement ||
+          null,
+
+        confidence:
+          reconciliation.confidence ??
+          0,
+
+        confidenceScore:
+          reconciliation
+            .confidenceScore ??
+          0,
+
+        readiness:
+          reconciliation.readiness ||
+          null,
+
+        conversationFunction:
+          conversationFunction
+            .primaryFunction ||
+          "unknown",
 
         classificationType:
           classification
@@ -2222,20 +2719,10 @@ const reconciliation =
             .conversationIntent ||
           "unknown",
 
-        classificationCandidates:
-          classification
-            .conversationCandidates ||
-          [],
-
         questionPurpose:
           questionUnderstanding
             .primaryPurpose ||
           "understanding",
-
-        purposeCandidates:
-          questionUnderstanding
-            .purposeCandidates ||
-          [],
 
         requestedOperations:
           questionUnderstanding
@@ -2246,45 +2733,6 @@ const reconciliation =
           questionUnderstanding
             .requestedOutputs ||
           [],
-
-        lifeSignal:
-          lifeSignals
-            .primarySignal ||
-          null,
-
-        lifePressures:
-          lifeSignals
-            .pressures ||
-          [],
-
-        semanticFrameType:
-          primaryFrame?.frameType ||
-          primaryFrame?.type ||
-          null,
-
-        semanticIntent:
-          primaryFrame?.intent ||
-          semanticFrame
-            .normalizedFrame?.intent ||
-          null,
-
-        semanticAction:
-          primaryFrame?.action ||
-          semanticFrame
-            .normalizedFrame?.action ||
-          null,
-
-        semanticRequestedOutput:
-          primaryFrame?.requestedOutput ||
-          semanticFrame
-            .normalizedFrame
-            ?.requestedOutput ||
-          null,
-
-        semanticSummary:
-          semanticFrame
-            .semanticSummary ||
-          null,
 
         routingPressures:
           routingEvidence
@@ -2303,13 +2751,15 @@ const reconciliation =
 
           shouldStopNormalResponse:
             safetyScreen
-              ?.shouldStopNormalResponse === true,
+              ?.shouldStopNormalResponse ===
+            true,
 
           clarificationNeeded:
             safetyScreen
               ?.followUpNeeded === true ||
             safetyScreen
-              ?.shouldAskRiskClarification === true
+              ?.shouldAskRiskClarification ===
+            true
         }
       },
 
