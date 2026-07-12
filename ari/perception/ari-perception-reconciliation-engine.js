@@ -115,16 +115,17 @@ window.AriPerceptionReconciliationEngine = {
       });
 
     const readiness =
-      this.determineReadiness({
-        validation,
-        semanticIntent,
-        conversationPurpose,
-        safety,
-        continuity,
-        ambiguity,
-        agreement,
-        confidence
-      });
+  this.determineReadiness({
+    validation,
+    semanticIntent,
+    conversationPurpose,
+    safety,
+    continuity,
+    ambiguity,
+    agreement,
+    responseRequirements,
+    confidence
+  });
 
     const conversationIntentPacket =
       this.buildConversationIntentPacket({
@@ -611,37 +612,47 @@ window.AriPerceptionReconciliationEngine = {
       );
 
     const safetySourceAvailable =
-      Boolean(
-        Object.keys(
-          sources.safetyContext ||
-          {}
-        ).length > 0
-      );
+  sources.safetyContext
+    ?.safetyContextRan === true ||
+  sources.safetyContext
+    ?.safetyContextGateRan === true ||
+  sources.safetyContext
+    ?.safetyRan === true ||
+  Object.keys(
+    sources.safetyContext ||
+    {}
+  ).length > 0;
 
-    const continuitySourceAvailable =
-      Boolean(
-        Object.keys(
-          sources.semanticContinuity ||
-          {}
-        ).length > 0
-      );
+const continuitySourceAvailable =
+  sources.semanticContinuity
+    ?.continuityRan === true ||
+  sources.semanticContinuity
+    ?.continuityAvailable === true ||
+  Object.keys(
+    sources.semanticContinuity ||
+    {}
+  ).length > 0;
 
-    const ambiguitySourceAvailable =
-      Boolean(
-        Object.keys(
-          sources.semanticAmbiguity ||
-          {}
-        ).length > 0
-      );
+const ambiguitySourceAvailable =
+  sources.semanticAmbiguity
+    ?.ambiguityRan === true ||
+  sources.semanticAmbiguity
+    ?.ambiguityChecked === true ||
+  Object.keys(
+    sources.semanticAmbiguity ||
+    {}
+  ).length > 0;
 
-    const contextAvailable =
-      sources.contextModifiers.length > 0 ||
-      sources.constraints.length > 0 ||
-      sources.stakes.length > 0 ||
-      Object.keys(
-        sources.emotionalOverlay ||
-        {}
-      ).length > 0;
+const contextAvailable =
+  sources.emotionalOverlay
+    ?.emotionalOverlayRan === true ||
+  sources.contextModifiers.length > 0 ||
+  sources.constraints.length > 0 ||
+  sources.stakes.length > 0 ||
+  Object.keys(
+    sources.emotionalOverlay ||
+    {}
+  ).length > 0;
 
     const expectedSources = [
       {
@@ -1449,23 +1460,23 @@ window.AriPerceptionReconciliationEngine = {
     const conflicts = [];
 
     if (structuralConflict) {
-      conflicts.push({
-        type:
-          "missing_conversation_purpose",
+  conflicts.push({
+    type:
+      "missing_conversation_purpose",
 
-        severity:
-          "medium",
+    severity:
+      "low",
 
-        resolvableHere:
-          false,
+    resolvableHere:
+      true,
 
-        description:
-          "Semantic meaning is available, but no Conversation Function result was provided.",
+    description:
+      "Semantic meaning is available, but no Conversation Function result was provided.",
 
-        resolution:
-          "Preserve semantic meaning and report the missing upstream function result."
-      });
-    }
+    resolution:
+      "Proceed using the preserved semantic meaning while reporting that conversational-purpose guidance is unavailable."
+  });
+}
 
     if (reportedMismatch) {
       conflicts.push({
@@ -1768,33 +1779,53 @@ window.AriPerceptionReconciliationEngine = {
         }
       });
 
-    return {
-      objective:
-        functionContract.objective ||
-        semanticRequirements.objective ||
-        null,
+    const normalizedMust =
+  this.uniqueStrings(must);
 
-      semanticTask:
-        semanticIntent.requestedOperation ||
-        null,
+const normalizedShould =
+  this.uniqueStrings(should);
 
-      conversationalPurpose:
-        conversationPurpose.name ||
-        null,
+const normalizedMustNot =
+  this.uniqueStrings(mustNot);
 
-      supportingPurposes:
-        supportingPurposes.map(
-          purpose => purpose.name
-        ),
+const requirementConflicts =
+  this.detectRequirementConflicts({
+    must:
+      normalizedMust,
 
-      must:
-        this.uniqueStrings(must),
+    mustNot:
+      normalizedMustNot
+  });
 
-      should:
-        this.uniqueStrings(should),
+return {
+  objective:
+    functionContract.objective ||
+    semanticRequirements.objective ||
+    null,
 
-      mustNot:
-        this.uniqueStrings(mustNot),
+  semanticTask:
+    semanticIntent.requestedOperation ||
+    null,
+
+  conversationalPurpose:
+    conversationPurpose.name ||
+    null,
+
+  supportingPurposes:
+    supportingPurposes.map(
+      purpose => purpose.name
+    ),
+
+  must:
+    normalizedMust,
+
+  should:
+    normalizedShould,
+
+  mustNot:
+    normalizedMustNot,
+
+  requirementConflicts,
 
       responseOrder:
         governance.responseOrder,
@@ -1875,9 +1906,9 @@ window.AriPerceptionReconciliationEngine = {
         : 0;
 
     const conflictPenalty =
-      agreement.conflictPresent
-        ? 0.1
-        : 0;
+  agreement.unresolvedConflictPresent
+    ? 0.1
+    : 0;
 
     const missingSourcePenalty =
       validation.requiredSourcesPresent
@@ -1941,162 +1972,183 @@ window.AriPerceptionReconciliationEngine = {
   ===================================================== */
 
   determineReadiness({
-    validation = {},
-    semanticIntent = {},
-    conversationPurpose = {},
-    safety = {},
-    continuity = {},
-    ambiguity = {},
-    agreement = {},
-    confidence = {}
-  } = {}) {
-    const missingSemanticIntent =
-      !semanticIntent.available;
+  validation = {},
+  semanticIntent = {},
+  conversationPurpose = {},
+  safety = {},
+  continuity = {},
+  ambiguity = {},
+  agreement = {},
+  responseRequirements = {},
+  confidence = {}
+} = {}) {
+  const missingSemanticIntent =
+    !semanticIntent.available;
 
-    const missingConversationPurpose =
-      !conversationPurpose.available;
+  const missingConversationPurpose =
+    !conversationPurpose.available;
 
-    const missingPriorContext =
-      continuity.requiresPriorContext &&
-      !continuity.priorContextAvailable;
+  const missingPriorContext =
+    continuity.requiresPriorContext &&
+    !continuity.priorContextAvailable;
 
-    const clarificationRequired =
-      ambiguity.requiresClarification;
+  const clarificationRequired =
+    ambiguity.requiresClarification;
 
-    const unresolvedConflict =
-      agreement.unresolvedConflictPresent;
+  const unresolvedConflict =
+    agreement.unresolvedConflictPresent;
 
-    const safetyReady =
-      safety.immediateResponseRequired;
+  const unresolvedRequirementConflict =
+    (
+      responseRequirements
+        .requirementConflicts
+        ?.unresolved ||
+      []
+    ).length > 0;
 
-    const packetUsable =
-      validation.structurallyUsable &&
-      (
-        semanticIntent.available ||
-        conversationPurpose.available
-      );
+  const safetyReady =
+    safety.immediateResponseRequired;
 
-    const readyForRouting =
-      packetUsable &&
-      !missingSemanticIntent &&
-      !clarificationRequired &&
-      !missingPriorContext &&
-      !unresolvedConflict;
+  const packetUsable =
+    validation.structurallyUsable &&
+    (
+      semanticIntent.available ||
+      conversationPurpose.available
+    );
 
-    const readyForPlanning =
-      readyForRouting;
+  const readyForRouting =
+    packetUsable &&
+    !missingSemanticIntent &&
+    !clarificationRequired &&
+    !missingPriorContext &&
+    !unresolvedConflict &&
+    !unresolvedRequirementConflict;
 
-    const readyForResponsePreparation =
-      safetyReady ||
-      readyForRouting ||
-      clarificationRequired ||
-      missingPriorContext;
+  const readyForPlanning =
+    readyForRouting;
 
-    let status =
-      "ready";
+  const readyForResponsePreparation =
+    safetyReady ||
+    readyForRouting ||
+    clarificationRequired ||
+    missingPriorContext ||
+    unresolvedRequirementConflict;
 
-    let reason =
-      "The reconciled packet contains sufficient structured upstream meaning for downstream processing.";
+  let status =
+    "ready";
 
-    if (safetyReady) {
-      status =
-        "ready_with_safety_requirements";
+  let reason =
+    "The reconciled packet contains sufficient structured upstream meaning for downstream processing.";
 
-      reason =
-        "The packet is ready for response preparation, with inherited safety requirements governing response order.";
-    } else if (!packetUsable) {
-      status =
-        "not_ready";
+  if (safetyReady) {
+    status =
+      "ready_with_safety_requirements";
 
-      reason =
-        "The available upstream information is not sufficient to create a usable reconciled packet.";
-    } else if (clarificationRequired) {
-      status =
-        "clarification_required";
+    reason =
+      "The packet is ready for response preparation, with inherited safety requirements governing response order.";
+  } else if (!packetUsable) {
+    status =
+      "not_ready";
 
-      reason =
-        "Upstream ambiguity requires clarification before normal routing or planning.";
-    } else if (missingPriorContext) {
-      status =
-        "prior_context_required";
+    reason =
+      "The available upstream information is not sufficient to create a usable reconciled packet.";
+  } else if (clarificationRequired) {
+    status =
+      "clarification_required";
 
-      reason =
-        "The request depends on prior context that is not currently available.";
-    } else if (missingSemanticIntent) {
-      status =
-        "missing_semantic_intent";
+    reason =
+      "Upstream ambiguity requires clarification before normal routing or planning.";
+  } else if (missingPriorContext) {
+    status =
+      "prior_context_required";
 
-      reason =
-        "No usable semantic intent was supplied by the upstream semantic systems.";
-    } else if (missingConversationPurpose) {
-      status =
-        "ready_with_missing_function";
+    reason =
+      "The request depends on prior context that is not currently available.";
+  } else if (
+    unresolvedRequirementConflict
+  ) {
+    status =
+      "requirement_conflict_review_required";
 
-      reason =
-        "Semantic intent is usable, but the Conversation Function result is missing.";
-    } else if (unresolvedConflict) {
-      status =
-        "conflict_review_required";
+    reason =
+      "The merged response contract contains contradictory must and must-not requirements that require resolution before normal routing.";
+  } else if (missingSemanticIntent) {
+    status =
+      "missing_semantic_intent";
 
-      reason =
-        "An unresolved upstream contract conflict should be reviewed before normal routing.";
-    } else if (
-      !validation.requiredSourcesPresent
-    ) {
-      status =
-        "ready_with_missing_sources";
+    reason =
+      "No usable semantic intent was supplied by the upstream semantic systems.";
+  } else if (unresolvedConflict) {
+    status =
+      "conflict_review_required";
 
-      reason =
-        "The packet is usable, but one or more expected upstream sources were unavailable.";
-    } else if (
-      confidence.normalized < 0.45
-    ) {
-      status =
-        "low_confidence";
+    reason =
+      "An unresolved upstream contract conflict should be reviewed before normal routing.";
+  } else if (missingConversationPurpose) {
+    status =
+      "ready_with_missing_function";
 
-      reason =
-        "The packet is usable, but reconciliation confidence is low.";
-    }
+    reason =
+      "Semantic intent is usable, but the Conversation Function result is missing.";
+  } else if (
+    !validation.requiredSourcesPresent
+  ) {
+    status =
+      "ready_with_missing_sources";
 
-    return {
-      status,
+    reason =
+      "The packet is usable, but one or more expected upstream sources were unavailable.";
+  } else if (
+    confidence.normalized < 0.45
+  ) {
+    status =
+      "low_confidence";
 
-      packetUsable,
+    reason =
+      "The packet is usable, but reconciliation confidence is low.";
+  }
 
-      readyForRouting,
+  return {
+    status,
 
-      readyForPlanning,
+    packetUsable,
 
-      readyForResponsePreparation,
+    readyForRouting,
 
-      immediateSafetyResponseRequired:
-        safetyReady,
+    readyForPlanning,
 
-      clarificationRequired,
+    readyForResponsePreparation,
 
-      priorContextRequired:
-        continuity.requiresPriorContext,
+    immediateSafetyResponseRequired:
+      safetyReady,
 
-      priorContextAvailable:
-        continuity.priorContextAvailable,
+    clarificationRequired,
 
-      missingPriorContext,
+    priorContextRequired:
+      continuity.requiresPriorContext,
 
-      missingSemanticIntent,
+    priorContextAvailable:
+      continuity.priorContextAvailable,
 
-      missingConversationPurpose,
+    missingPriorContext,
 
-      missingRequiredSources:
-        validation.missingRequiredSources,
+    missingSemanticIntent,
 
-      unresolvedConflict,
+    missingConversationPurpose,
 
-      reason,
+    missingRequiredSources:
+      validation.missingRequiredSources,
 
-      authority:
-        "downstream_readiness_report_only"
-    };
-  },
+    unresolvedConflict,
+
+    unresolvedRequirementConflict,
+
+    reason,
+
+    authority:
+      "downstream_readiness_report_only"
+  };
+},
 
   /* =====================================================
      CONVERSATION INTENT PACKET
@@ -2382,6 +2434,126 @@ window.AriPerceptionReconciliationEngine = {
   /* =====================================================
      HELPERS
   ===================================================== */
+detectRequirementConflicts({
+  must = [],
+  mustNot = []
+} = {}) {
+  const normalizedMust =
+    new Map();
+
+  const normalizedMustNot =
+    new Map();
+
+  must.forEach(requirement => {
+    const key =
+      this.requirementKey(
+        requirement
+      );
+
+    if (key) {
+      normalizedMust.set(
+        key,
+        requirement
+      );
+    }
+  });
+
+  mustNot.forEach(requirement => {
+    const key =
+      this.requirementKey(
+        requirement
+      );
+
+    if (key) {
+      normalizedMustNot.set(
+        key,
+        requirement
+      );
+    }
+  });
+
+  const conflicts = [];
+
+  normalizedMust.forEach(
+    (
+      mustRequirement,
+      key
+    ) => {
+      if (
+        !normalizedMustNot.has(
+          key
+        )
+      ) {
+        return;
+      }
+
+      conflicts.push({
+        type:
+          "must_must_not_conflict",
+
+        key,
+
+        must:
+          mustRequirement,
+
+        mustNot:
+          normalizedMustNot.get(
+            key
+          ),
+
+        severity:
+          "high",
+
+        resolved:
+          false,
+
+        resolutionRule:
+          "Safety restrictions and explicit prohibitions take precedence. Downstream systems must not execute the conflicting requirement until resolved."
+      });
+    }
+  );
+
+  return {
+    present:
+      conflicts.length > 0,
+
+    count:
+      conflicts.length,
+
+    items:
+      conflicts,
+
+    unresolved:
+      conflicts.filter(
+        conflict =>
+          conflict.resolved !== true
+      ),
+
+    authority:
+      "response_requirement_conflict_report_only"
+  };
+},
+
+requirementKey(
+  value = ""
+) {
+  return String(
+    value || ""
+  )
+    .toLowerCase()
+    .replace(/^do_not_/, "")
+    .replace(/^do_not:/, "")
+    .replace(/^must_not_/, "")
+    .replace(/^must_not:/, "")
+    .replace(/^avoid_/, "")
+    .replace(/^avoid:/, "")
+    .replace(/^prohibit_/, "")
+    .replace(/^prohibit:/, "")
+    .replace(/^prevent_/, "")
+    .replace(/^prevent:/, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+},
 
   unwrapSummary(input = {}) {
     if (
