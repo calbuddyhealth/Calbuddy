@@ -1,132 +1,145 @@
 // ari/pipelines/ari-executive-routing-pipeline.js
 // Ari Executive Routing Pipeline
-// Purpose: Decide which processing path Ari should use.
-// V1.2.0 — Structured Perception Handoff / Context-Response Lane Separation
+// Purpose: Select context usage and downstream execution eligibility
+// from the canonical reconciled perception contract.
+// V2.0.0 — Canonical Intent Routing / Legacy Classification Isolation
 
 window.Ari = window.Ari || {};
 
 window.AriExecutiveRoutingPipeline = {
-  version: "1.2.0",
+  version: "2.0.0",
 
   async run(summary = {}, runtime = {}) {
     const {
-      mark = () => {},
-      runEngine = async (_engine, _methods, fallback = {}) => fallback
+      mark = () => {}
     } = runtime;
 
     let state = {
       ...summary,
-      activePipelineLayer: "executive_routing"
+
+      activePipelineLayer:
+        "executive_routing",
+
+      executiveRoutingErrors:
+        []
     };
 
-    /*
-      Current responsibility:
-
-      1. Consume the Perception Packet
-      2. Run the existing Lane Splitter
-      3. Decide whether continuity sources are applicable
-      4. Build a temporary compatibility routing contract
-      5. Build the Executive Packet
-
-      Future responsibility:
-
-      1. New Conversation Routing Pipeline
-      2. Official mode selection
-      3. Official intent selection
-      4. Domain selection
-      5. Capability selection
-      6. Planner selection
-      7. Fast-path selection
-      8. Applicability validation
-
-      This layer does not:
-      - retrieve continuity,
-      - retrieve memory,
-      - perform triage,
-      - perform reasoning,
-      - generate a response.
-    */
-
-    // =================================================
-    // 1. Validate Perception Input
-    // =================================================
+    /* =====================================================
+       1. READ CANONICAL PERCEPTION INPUT
+    ===================================================== */
 
     const perceptionPacket =
       state.perceptionPacket ||
-      this.buildFallbackPerceptionPacket(state);
+      this.buildFallbackPerceptionPacket(
+        state
+      );
+
+    const reconciliation =
+      this.readReconciliation(
+        state,
+        perceptionPacket
+      );
+
+    const intentPacket =
+      this.readIntentPacket(
+        state,
+        perceptionPacket,
+        reconciliation
+      );
 
     state = {
       ...state,
-      perceptionPacket
+
+      perceptionPacket,
+
+      executiveReconciliation:
+        reconciliation,
+
+      executiveIntentPacket:
+        intentPacket,
+
+      executiveCanonicalIntentAvailable:
+        Boolean(intentPacket),
+
+      executiveReconciliationAvailable:
+        reconciliation.available === true
     };
 
-    // =================================================
-    // 2. Existing Lane Splitter
-    // =================================================
+    /* =====================================================
+       2. CONTEXT LANE SELECTION
+       Lane Splitter chooses only context applicability:
+       current turn, thread, memory, relationship, correction.
+    ===================================================== */
 
     mark("before laneSplitter");
 
     const laneSplit =
-  window.Ari?.laneSplitterEngine?.split
-    ? await window.Ari.laneSplitterEngine.split({
-        summary: state,
+      window.Ari?.laneSplitterEngine?.split
+        ? await window.Ari
+            .laneSplitterEngine
+            .split({
+              summary: state,
 
-        perceptionPacket,
+              perceptionPacket,
 
-        routingEvidence:
-          state.routingEvidence ||
-          perceptionPacket.routingEvidence?.raw ||
-          null,
+              conversationIntentPacket:
+                intentPacket,
 
-        routingPressures:
-          state.routingPressures ||
-          perceptionPacket.routingEvidence?.pressures ||
-          {},
+              reconciliation:
+                reconciliation.raw,
 
-        semanticFrame:
-          state.semanticFrameOutput ||
-          perceptionPacket.semantic?.raw ||
-          null,
+              routingEvidence:
+                state.routingEvidence ||
+                perceptionPacket
+                  .routingEvidence
+                  ?.raw ||
+                null,
 
-        primarySemanticFrame:
-          state.primarySemanticFrame ||
-          perceptionPacket.semantic?.primaryFrame ||
-          null,
+              routingPressures:
+                state.routingPressures ||
+                perceptionPacket
+                  .routingEvidence
+                  ?.pressures ||
+                {},
 
-        semanticSummary:
-          state.semanticSummary ||
-          perceptionPacket.semantic?.summary ||
-          null,
+              semanticFrame:
+                state.semanticFrameOutput ||
+                perceptionPacket
+                  .semantic
+                  ?.raw ||
+                null,
 
-        semanticContinuity:
-          state.semanticContinuity ||
-          perceptionPacket.semantic?.continuity ||
-          {},
+              primarySemanticFrame:
+                state.primarySemanticFrame ||
+                perceptionPacket
+                  .semantic
+                  ?.primaryFrame ||
+                null,
 
-        semanticAmbiguity:
-          state.semanticAmbiguity ||
-          perceptionPacket.semantic?.ambiguity ||
-          {}
-      })
-        : {
-            engine: "ari-lane-splitter-engine",
-            source: "not-loaded",
+              semanticSummary:
+                state.semanticSummary ||
+                perceptionPacket
+                  .semantic
+                  ?.summary ||
+                null,
 
-            lane: "direct_current_turn",
+              semanticContinuity:
+                reconciliation.continuity ||
+                state.semanticContinuity ||
+                perceptionPacket
+                  .semantic
+                  ?.continuity ||
+                {},
 
-            routing: {
-              useCurrentTurn: true,
-              useThread: false,
-              useMemory: false,
-              useRelationship: false,
-              goStraightToSituationMap: true
-            },
-
-            confidence: null,
-            scores: {},
-            explanation:
-              "Lane Splitter was not loaded. Direct-current-turn fallback used."
-          };
+              semanticAmbiguity:
+                reconciliation.ambiguity ||
+                state.semanticAmbiguity ||
+                perceptionPacket
+                  .semantic
+                  ?.ambiguity ||
+                {}
+            })
+        : this.fallbackLaneSplit();
 
     state = {
       ...state,
@@ -134,6 +147,10 @@ window.AriExecutiveRoutingPipeline = {
       laneSplit,
 
       lane:
+        laneSplit.lane ||
+        "direct_current_turn",
+
+      contextLane:
         laneSplit.lane ||
         "direct_current_turn",
 
@@ -158,20 +175,14 @@ window.AriExecutiveRoutingPipeline = {
         {},
 
       laneSplitterSemanticAware:
-        Boolean(
-          state.semanticFrameOutput?.semanticFrameBuilderRan ||
-          state.semanticSummary ||
-          state.semanticFrameOutput?.primaryFrame ||
-          state.semanticFrameOutput?.normalizedFrame
-        ),
+        laneSplit.semanticAware === true,
 
       laneSplitterSemanticFirst:
-        laneSplit.semanticFirst ??
-        false,
+        laneSplit.semanticFirst === true,
 
       laneSplitterLexicalFallbackUsed:
-        laneSplit.lexicalFallbackUsed ??
-        false,
+        laneSplit
+          .lexicalFallbackUsed === true,
 
       laneSplitterSemanticFrameType:
         laneSplit.semanticFrameType ||
@@ -188,18 +199,63 @@ window.AriExecutiveRoutingPipeline = {
 
     mark("after laneSplitter");
 
-    // =================================================
-    // 3. Applicability Decisions
-    // =================================================
+    /* =====================================================
+       3. CANONICAL MODE
+       Mode is derived from the selected context lane.
+       Classifier conversationType cannot override it.
+    ===================================================== */
+
+    const mode =
+      this.resolveModeFromLane(
+        laneSplit
+      );
+
+    state = {
+      ...state,
+
+      routingMode:
+        mode,
+
+      conversationMode:
+        mode.mode,
+
+      isFollowUp:
+        mode.isFollowUp,
+
+      isCorrection:
+        mode.isCorrection,
+
+      mustReusePriorContext:
+        mode.mustReusePriorContext,
+
+      mayUsePriorContext:
+        mode.mayUsePriorContext
+    };
+
+    /* =====================================================
+       4. EXECUTION APPLICABILITY
+       Uses reconciliation and semantic action authorization.
+       No developer keyword guessing.
+    ===================================================== */
 
     const applicability =
-      this.resolveApplicability(state);
+      this.resolveApplicability({
+        summary: state,
+        perceptionPacket,
+        reconciliation,
+        intentPacket,
+        laneSplit,
+        mode
+      });
 
     state = {
       ...state,
 
       routingApplicability:
         applicability,
+
+      shouldUseCurrentTurn:
+        applicability.currentTurn,
 
       shouldUseContinuity:
         applicability.continuity,
@@ -213,9 +269,6 @@ window.AriExecutiveRoutingPipeline = {
       shouldUseRelationship:
         applicability.relationship,
 
-      shouldUseCurrentTurn:
-        applicability.currentTurn,
-
       shouldRunSituationMap:
         applicability.situationMap,
 
@@ -226,130 +279,511 @@ window.AriExecutiveRoutingPipeline = {
         applicability.developer,
 
       shouldRunHeavyReasoning:
-        applicability.heavyReasoning
+        applicability.heavyReasoning,
+
+      shouldUseFastPath:
+        applicability.fastPath
     };
 
-    // =================================================
-    // 4. Compatibility Routing Contract
-    // =================================================
+    /* =====================================================
+       5. CANONICAL ROUTING CONTRACT
+       Reconciliation supplies intent.
+       Lane Splitter supplies context mode.
+       Executive Routing supplies execution eligibility.
+    ===================================================== */
 
     const routingContract =
-      state.routingContract?.authority?.authoritative === true
-        ? state.routingContract
-        : this.buildCompatibilityRoutingContract(
-            state,
-            applicability
-          );
+      this.buildRoutingContract({
+        summary: state,
+        perceptionPacket,
+        reconciliation,
+        intentPacket,
+        laneSplit,
+        mode,
+        applicability
+      });
 
     state = {
-  ...state,
+      ...state,
 
-  routingContract,
+      routingContract,
 
-  conversationMode:
-    routingContract.mode ||
-    "unknown",
+      primaryIntent:
+        routingContract.primaryIntent ||
+        "respond",
 
-  primaryIntent:
-    routingContract.primaryIntent ||
-    "unknown",
+      secondaryIntents:
+        routingContract.secondaryIntents ||
+        [],
 
-  secondaryIntents:
-    routingContract.secondaryIntents ||
-    [],
+      conversationDomain:
+        routingContract.domain ||
+        "general_understanding",
 
-  conversationDomain:
-    routingContract.domain ||
-    "general",
+      contextLane:
+        routingContract.contextLane ||
+        "direct_current_turn",
 
-  contextLane:
-    routingContract.contextLane ||
-    state.lane ||
-    "direct_current_turn",
+      primaryLane:
+        routingContract.primaryLane ||
+        null,
 
-  primaryLane:
-    routingContract.primaryLane ||
-    state.primaryLaneSuggestion ||
-    null,
+      requiredCapabilities:
+        routingContract.capabilities ||
+        [],
 
-  requiredCapabilities:
-    routingContract.capabilities ||
-    [],
+      selectedPlanner:
+        routingContract.planner ||
+        null,
 
-  selectedPlanner:
-    routingContract.planner ||
-    null,
+      routingConfidence:
+        routingContract.confidence ||
+        {},
 
-  routingConfidence:
-    routingContract.confidence ||
-    {},
+      routingAuthority:
+        routingContract.authority ||
+        {}
+    };
 
-  routingAuthority:
-    routingContract.authority ||
-    {}
-};
+    /* =====================================================
+       6. EXECUTIVE DIAGNOSTICS
+    ===================================================== */
 
-    // =================================================
-    // 5. Executive Packet
-    // =================================================
+    const diagnostics =
+      this.buildDiagnostics({
+        perceptionPacket,
+        reconciliation,
+        intentPacket,
+        laneSplit,
+        mode,
+        applicability,
+        routingContract
+      });
+
+    state = {
+      ...state,
+
+      executiveRoutingDiagnostics:
+        diagnostics,
+
+      executiveRoutingHealthy:
+        diagnostics.healthy,
+
+      executiveRoutingWarnings:
+        diagnostics.warnings,
+
+      executiveRoutingErrors:
+        diagnostics.errors
+    };
+
+    /* =====================================================
+       7. EXECUTIVE PACKET
+    ===================================================== */
 
     state.executivePacket =
-      this.buildExecutivePacket(state);
+      this.buildExecutivePacket(
+        state
+      );
 
-    state.executiveRoutingPipelineRan = true;
+    state.executiveRoutingPipelineRan =
+      true;
+
     state.executiveRoutingPipelineSource =
       "ari-executive-routing-pipeline";
+
     state.executiveRoutingPipelineVersion =
       this.version;
+
+    state.executiveRoutingPipelineComplete =
+      diagnostics.complete;
 
     return state;
   },
 
-  // ===================================================
-  // Applicability
-  // ===================================================
+  /* =====================================================
+     RECONCILIATION READERS
+  ===================================================== */
 
-  resolveApplicability(summary = {}) {
-    const laneRouting =
-      summary.laneSplit?.routing ||
-      summary.routingDecision ||
+  readReconciliation(
+    summary = {},
+    perceptionPacket = {}
+  ) {
+    const raw =
+      summary.perceptionReconciliation ||
+      summary
+        .perceptionReconciliationResult ||
+      perceptionPacket
+        .reconciliation
+        ?.raw ||
       {};
 
-    const userText = String(
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      ""
-    );
+    const readiness =
+      raw.readiness ||
+      perceptionPacket
+        .reconciliation
+        ?.readiness ||
+      {};
 
-    const possibleDeveloperRequest =
-      summary.conversationFunction?.developerArtifactRequest === true ||
-      summary.artifactModificationRequest === true ||
-      summary.artifactCreationRequest === true ||
-      summary.artifactInvestigationRequest === true ||
-      summary.developerArtifactRequest === true ||
-      summary.primaryFunction ===
-        "developer_artifact_request" ||
-      summary.primaryFunction ===
-        "build_or_debug_request" ||
-      /\b(code|file|github|repo|commit|patch|function|html|css|javascript|api|engine|bug|fix|update|edit|build|implement|developer|composer|pipeline|latency|slow|bottleneck|performance|diagnose)\b/i.test(
-        userText
-      );
+    return {
+      available:
+        raw.perceptionReconciliationRan ===
+          true ||
+        perceptionPacket
+          .reconciliation
+          ?.available === true,
+
+      raw,
+
+      semanticIntent:
+        raw.semanticIntent ||
+        perceptionPacket
+          .reconciliation
+          ?.semanticIntent ||
+        null,
+
+      conversationPurpose:
+        raw.conversationPurpose ||
+        perceptionPacket
+          .reconciliation
+          ?.conversationPurpose ||
+        null,
+
+      supportingPurposes:
+        raw.supportingPurposes ||
+        perceptionPacket
+          .reconciliation
+          ?.supportingPurposes ||
+        [],
+
+      safety:
+        raw.safety ||
+        perceptionPacket
+          .reconciliation
+          ?.safety ||
+        null,
+
+      continuity:
+        raw.continuity ||
+        perceptionPacket
+          .reconciliation
+          ?.continuity ||
+        null,
+
+      ambiguity:
+        raw.ambiguity ||
+        perceptionPacket
+          .reconciliation
+          ?.ambiguity ||
+        null,
+
+      context:
+        raw.context ||
+        perceptionPacket
+          .reconciliation
+          ?.context ||
+        null,
+
+      agreement:
+        raw.agreement ||
+        perceptionPacket
+          .reconciliation
+          ?.agreement ||
+        null,
+
+      governance:
+        raw.governance ||
+        perceptionPacket
+          .reconciliation
+          ?.governance ||
+        null,
+
+      responseRequirements:
+        raw.responseRequirements ||
+        perceptionPacket
+          .reconciliation
+          ?.responseRequirements ||
+        null,
+
+      readiness,
+
+      packetUsable:
+        readiness.packetUsable === true,
+
+      readyForRouting:
+        readiness.readyForRouting === true,
+
+      readyForPlanning:
+        readiness.readyForPlanning === true,
+
+      readyForResponsePreparation:
+        readiness
+          .readyForResponsePreparation ===
+        true,
+
+      clarificationRequired:
+        readiness
+          .clarificationRequired === true,
+
+      immediateSafetyResponseRequired:
+        readiness
+          .immediateSafetyResponseRequired ===
+        true
+    };
+  },
+
+  readIntentPacket(
+    summary = {},
+    perceptionPacket = {},
+    reconciliation = {}
+  ) {
+    return (
+      summary.conversationIntentPacket ||
+      summary.unifiedIntentPacket ||
+      summary.reconciledIntentPacket ||
+      reconciliation.raw
+        ?.conversationIntentPacket ||
+      reconciliation.raw
+        ?.unifiedIntentPacket ||
+      perceptionPacket
+        .conversationIntentPacket ||
+      perceptionPacket
+        .unifiedIntentPacket ||
+      perceptionPacket
+        .reconciliation
+        ?.packet ||
+      null
+    );
+  },
+
+  /* =====================================================
+     MODE RESOLUTION
+  ===================================================== */
+
+  resolveModeFromLane(
+    laneSplit = {}
+  ) {
+    const lane =
+      laneSplit.lane ||
+      "direct_current_turn";
+
+    const routing =
+      laneSplit.routing ||
+      {};
+
+    const isFollowUp =
+      lane ===
+      "continuity_follow_up";
+
+    const isCorrection =
+      lane ===
+      "correction_or_revision";
+
+    const isRecall =
+      lane ===
+      "recall_or_memory_request";
+
+    const isRelationshipContinuation =
+      lane ===
+      "relationship_continuity";
+
+    let mode =
+      "current_turn";
+
+    if (isFollowUp) {
+      mode =
+        "follow_up";
+    } else if (isCorrection) {
+      mode =
+        "correction";
+    } else if (isRecall) {
+      mode =
+        "recall";
+    } else if (
+      isRelationshipContinuation
+    ) {
+      mode =
+        "relationship_continuity";
+    }
+
+    const useThread =
+      routing.useThread === true;
+
+    return {
+      mode,
+
+      lane,
+
+      isFollowUp,
+      isCorrection,
+      isRecall,
+
+      isNewTopic:
+        false,
+
+      mustReusePriorContext:
+        useThread,
+
+      mayUsePriorContext:
+        useThread,
+
+      reason:
+        laneSplit.explanation ||
+        (
+          useThread
+            ? "The selected context lane requires prior thread context."
+            : "The selected context lane uses the current turn directly."
+        ),
+
+      source:
+        "lane_splitter",
+
+      authority:
+        "canonical_context_mode"
+    };
+  },
+
+  /* =====================================================
+     APPLICABILITY
+  ===================================================== */
+
+  resolveApplicability({
+    summary = {},
+    perceptionPacket = {},
+    reconciliation = {},
+    intentPacket = null,
+    laneSplit = {},
+    mode = {}
+  } = {}) {
+    const laneRouting =
+      laneSplit.routing ||
+      {};
+
+    const semanticMeaning =
+      summary.semanticFrameOutput
+        ?.canonicalMeaning ||
+      perceptionPacket
+        .semantic
+        ?.raw
+        ?.canonicalMeaning ||
+      {};
+
+    const artifactAction =
+      semanticMeaning.artifactAction ||
+      {};
+
+    const actionPolicy =
+      semanticMeaning.actionPolicy ||
+      {};
+
+    const responseRequirements =
+      reconciliation
+        .responseRequirements ||
+      semanticMeaning
+        .responseRequirements ||
+      summary
+        .semanticResponseCharacteristics ||
+      {};
+
+    const safety =
+      reconciliation.safety ||
+      {};
+
+    const immediateSafety =
+      reconciliation
+        .immediateSafetyResponseRequired ===
+        true ||
+      safety
+        .immediateResponseRequired ===
+        true ||
+      summary
+        .safetyContextGate
+        ?.shouldStopNormalResponse ===
+        true;
+
+    const clarificationRequired =
+      reconciliation
+        .clarificationRequired === true;
+
+    const executionAllowed =
+      actionPolicy.executionAllowed !==
+        false &&
+      semanticMeaning.executionAllowed !==
+        false;
+
+    const analysisOnly =
+      actionPolicy.analysisOnly === true ||
+      semanticMeaning.analysisOnly === true;
+
+    const developer =
+      artifactAction.executionRequested ===
+        true &&
+      artifactAction.isArtifactRequest ===
+        true &&
+      executionAllowed &&
+      !analysisOnly;
+
+    const investigation =
+      artifactAction.isInvestigation ===
+        true;
 
     const continuity =
       laneRouting.useThread === true ||
       laneRouting.useMemory === true ||
-      laneRouting.useRelationship === true;
+      laneRouting.useRelationship ===
+        true;
 
-    const likelySimpleTurn =
-      continuity === false &&
-      possibleDeveloperRequest === false &&
-      summary.safetyContextGate?.shouldStopNormalResponse !== true &&
-      String(userText).trim().length <= 120;
+    const directCurrentTurn =
+      laneSplit.lane ===
+        "direct_current_turn" &&
+      continuity === false;
+
+    const semanticOperation =
+      reconciliation.semanticIntent
+        ?.requestedOperation ||
+      intentPacket
+        ?.semanticIntent
+        ?.requestedOperation ||
+      semanticMeaning.requestedOperation ||
+      "respond";
+
+    const complexOperation =
+      this.isComplexOperation(
+        semanticOperation
+      );
+
+    const multipleRequirements =
+      Array.isArray(
+        responseRequirements.must
+      ) &&
+      responseRequirements.must.length >
+        2;
+
+    const heavyReasoning =
+      !immediateSafety &&
+      (
+        complexOperation ||
+        multipleRequirements ||
+        investigation ||
+        reconciliation
+          .agreement
+          ?.unresolvedConflictPresent ===
+          true ||
+        responseRequirements
+          .requirementConflicts
+          ?.present === true
+      );
+
+    const fastPath =
+      directCurrentTurn &&
+      !immediateSafety &&
+      !clarificationRequired &&
+      !developer &&
+      !heavyReasoning;
 
     return {
       currentTurn:
-        laneRouting.useCurrentTurn !== false,
+        laneRouting.useCurrentTurn !==
+        false,
 
       continuity,
 
@@ -360,123 +794,287 @@ window.AriExecutiveRoutingPipeline = {
         laneRouting.useMemory === true,
 
       relationship:
-        laneRouting.useRelationship === true,
-
-      deepSafety:
-        false,
-
-      situationMap:
-        laneRouting.goStraightToSituationMap !== false,
-
-      triage:
+        laneRouting.useRelationship ===
         true,
 
-      developer:
-        possibleDeveloperRequest,
+      deepSafety:
+        immediateSafety,
 
-      heavyReasoning:
-        !likelySimpleTurn,
+      situationMap:
+        !fastPath ||
+        immediateSafety ||
+        clarificationRequired,
 
-      fastPathEligible:
-        likelySimpleTurn,
+      triage:
+        !fastPath ||
+        immediateSafety ||
+        clarificationRequired,
+
+      developer,
+
+      artifactInvestigation:
+        investigation,
+
+      executionAllowed,
+
+      analysisOnly,
+
+      clarificationRequired,
+
+      immediateSafety,
+
+      heavyReasoning,
+
+      fastPath,
+
+      semanticOperation,
 
       source:
-        "legacy_lane_splitter_compatibility",
+        "canonical_reconciliation_and_lane_contract",
 
       authoritative:
-        false
+        true
     };
   },
 
-  // ===================================================
-  // Temporary routing contract
-  // ===================================================
-
-  buildCompatibilityRoutingContract(
-    summary = {},
-    applicability = {}
+  isComplexOperation(
+    operation = ""
   ) {
-    const perceptionPacket =
-  summary.perceptionPacket ||
-  {};
+    const normalized =
+      String(operation || "")
+        .toLowerCase()
+        .replace(/[_-]/g, " ")
+        .trim();
 
-const conversationFunction =
-  summary.conversationFunction ||
-  perceptionPacket.conversationFunction?.raw ||
-  {};
+    return [
+      "decide",
+      "recommend",
+      "evaluate",
+      "compare",
+      "plan",
+      "diagnose",
+      "analyze",
+      "reason",
+      "prioritize",
+      "implement",
+      "modify",
+      "create",
+      "investigate"
+    ].some(term =>
+      normalized.includes(term)
+    );
+  },
 
-const classification =
-  summary.universalConversationClassification ||
-  perceptionPacket.classification?.raw ||
-  {};
+  /* =====================================================
+     ROUTING CONTRACT
+  ===================================================== */
 
-const semanticFrame =
-  summary.semanticFrameOutput ||
-  perceptionPacket.semantic?.raw ||
-  {};
+  buildRoutingContract({
+    summary = {},
+    perceptionPacket = {},
+    reconciliation = {},
+    intentPacket = null,
+    laneSplit = {},
+    mode = {},
+    applicability = {}
+  } = {}) {
+    const semanticMeaning =
+      summary.semanticFrameOutput
+        ?.canonicalMeaning ||
+      perceptionPacket
+        .semantic
+        ?.raw
+        ?.canonicalMeaning ||
+      {};
+
+    const semanticIntent =
+      reconciliation.semanticIntent ||
+      intentPacket?.semanticIntent ||
+      {};
+
+    const conversationPurpose =
+      reconciliation
+        .conversationPurpose ||
+      intentPacket
+        ?.conversationPurpose ||
+      {};
+
+    const supportingPurposes =
+      reconciliation
+        .supportingPurposes ||
+      intentPacket
+        ?.supportingPurposes ||
+      [];
+
+    const responseRequirements =
+      reconciliation
+        .responseRequirements ||
+      intentPacket
+        ?.responseRequirements ||
+      semanticMeaning
+        .responseRequirements ||
+      {};
+
+    const requestedOperation =
+      semanticIntent.requestedOperation ||
+      intentPacket?.requestedOperation ||
+      semanticMeaning.requestedOperation ||
+      "respond";
+
+    const requestedOutput =
+      semanticIntent.requestedOutput ||
+      intentPacket?.requestedOutput ||
+      semanticMeaning.requestedOutput ||
+      "response";
+
+    const userGoal =
+      semanticIntent.userGoal ||
+      intentPacket?.userGoal ||
+      semanticMeaning.userGoal ||
+      requestedOperation;
+
+    const primaryIntent =
+      requestedOperation;
+
+    const secondaryIntents =
+      supportingPurposes
+        .map(item =>
+          typeof item === "string"
+            ? item
+            : (
+                item?.name ||
+                item?.purpose ||
+                item?.operation ||
+                null
+              )
+        )
+        .filter(Boolean);
+
+    const domain =
+      semanticIntent.domain ||
+      intentPacket?.domain ||
+      semanticMeaning.targetDomain ||
+      semanticMeaning.domain?.primary ||
+      "general_understanding";
+
+    const capabilities =
+      this.resolveCapabilities({
+        requestedOperation,
+        requestedOutput,
+        applicability,
+        responseRequirements
+      });
+
+    const planner =
+      this.resolvePlanner({
+        requestedOperation,
+        applicability,
+        reconciliation
+      });
 
     return {
-      ready: true,
+      ready:
+        reconciliation.readyForRouting ||
+        Boolean(requestedOperation),
+
       source:
-        "ari-executive-routing-pipeline-compatibility",
-      version: this.version,
+        "ari-executive-routing-pipeline",
+
+      version:
+        this.version,
+
+      conversationIntentPacket:
+        intentPacket,
+
+      mode:
+        mode.mode,
+
+      modeContract:
+        mode,
 
       speechAct: {
         primary:
-          conversationFunction.primaryFunction ||
-          "unknown",
+          conversationPurpose.name ||
+          semanticMeaning.speechAct ||
+          "respond",
+
+        family:
+          conversationPurpose.family ||
+          semanticMeaning
+            .interactionFamily ||
+          "general",
 
         secondary:
-          conversationFunction.supportFunctions ||
-          [],
-
-        confidence:
-          conversationFunction.confidence ||
-          null,
+          secondaryIntents,
 
         authoritative:
-          false
+          reconciliation.available ===
+          true
       },
 
-      mode:
-        classification.conversationType ||
-        "unknown",
+      primaryIntent,
 
-      primaryIntent:
-        classification.conversationIntent ||
-        "unknown",
+      requestedOperation,
 
-      secondaryIntents: [],
+      requestedOutput,
 
-      domain:
-  semanticFrame.domain ||
-  semanticFrame.primaryFrame?.domain ||
-  semanticFrame.normalizedFrame?.domain ||
-  perceptionPacket.routingHandoff?.domain ||
-  "general",
+      userGoal,
+
+      secondaryIntents,
+
+      domain,
+
+      domains:
+        semanticMeaning.domain
+          ?.secondary
+          ? [
+              domain,
+              ...semanticMeaning
+                .domain
+                .secondary
+            ]
+          : [domain],
 
       contextLane:
-  summary.laneSplit?.lane ||
-  "direct_current_turn",
+        laneSplit.lane ||
+        "direct_current_turn",
 
-primaryLane:
-  summary.primaryLaneSuggestion ||
-  null,
+      primaryLane:
+        null,
 
-      capabilities: [],
+      capabilities,
 
-      planner: null,
+      planner,
 
       responseShape:
-        summary.semanticResponseCharacteristics?.responseShape ||
+        null,
+
+      responseRequirements,
+
+      governance:
+        reconciliation.governance ||
+        null,
+
+      safety:
+        reconciliation.safety ||
+        null,
+
+      continuity:
+        reconciliation.continuity ||
+        null,
+
+      ambiguity:
+        reconciliation.ambiguity ||
         null,
 
       run: {
         currentTurn:
-          applicability.currentTurn !== false,
+          applicability.currentTurn !==
+          false,
 
         continuity:
-          applicability.continuity === true,
+          applicability.continuity ===
+          true,
 
         thread:
           applicability.thread === true,
@@ -485,100 +1083,455 @@ primaryLane:
           applicability.memory === true,
 
         relationship:
-          applicability.relationship === true,
+          applicability.relationship ===
+          true,
 
         deepSafety:
-          applicability.deepSafety === true,
+          applicability.deepSafety ===
+          true,
 
         situationMap:
-          applicability.situationMap !== false,
+          applicability.situationMap !==
+          false,
 
         triage:
-          applicability.triage !== false,
+          applicability.triage !==
+          false,
 
         developer:
-          applicability.developer === true,
+          applicability.developer ===
+          true,
 
         heavyReasoning:
-          applicability.heavyReasoning !== false,
+          applicability.heavyReasoning ===
+          true,
 
         fastPath:
-          applicability.fastPathEligible === true
+          applicability.fastPath === true
       },
 
       confidence: {
-        speechAct:
-          conversationFunction.confidence ||
-          null,
+        reconciliation:
+          reconciliation.raw
+            ?.confidence ??
+          0,
 
-        mode:
-          classification.confidence ||
-          classification.conversationConfidence ||
-          null,
+        reconciliationScore:
+          reconciliation.raw
+            ?.confidenceScore ??
+          0,
 
-        intent:
-          classification.intentConfidence ||
-          null,
+        reconciliationLabel:
+          reconciliation.raw
+            ?.confidenceLabel ||
+          "very_low",
 
         lane:
-          summary.laneSplitterConfidence ||
+          laneSplit.confidence ||
           null
       },
 
       evidence: {
         perceptionPacketAvailable:
-          Boolean(summary.perceptionPacket),
+          Boolean(perceptionPacket),
 
-        conversationFunction:
-          conversationFunction.primaryFunction ||
-          null,
+        reconciliationAvailable:
+          reconciliation.available,
 
-        universalClassification: {
+        reconciliationPacketUsable:
+          reconciliation.packetUsable,
+
+        canonicalIntentPacketAvailable:
+          Boolean(intentPacket),
+
+        semanticMeaningAvailable:
+          Boolean(
+            semanticMeaning
+              .requestedOperation
+          ),
+
+        laneSplit:
+          laneSplit,
+
+        legacyClassification: {
           type:
-            classification.conversationType ||
+            summary
+              .universalConversationClassification
+              ?.conversationType ||
             null,
 
           intent:
-            classification.conversationIntent ||
-            null
-        },
+            summary
+              .universalConversationClassification
+              ?.conversationIntent ||
+            null,
 
-        semanticFrame:
-          semanticFrame.primaryFrame ||
-          null,
-
-        laneSplit:
-          summary.laneSplit ||
-          null
+          advisoryOnly:
+            true
+        }
       },
 
       authority: {
-        authoritative: false,
-        compatibilityMode: true,
+        authoritative:
+          true,
 
-        ownsFinalMode: false,
-        ownsFinalIntent: false,
-        ownsFinalPlanner: false,
+        compatibilityMode:
+          false,
+
+        ownsContextMode:
+          true,
+
+        ownsExecutionApplicability:
+          true,
+
+        consumesCanonicalIntent:
+          true,
+
+        ownsSemanticIntent:
+          false,
+
+        ownsFinalTriageLane:
+          false,
+
+        ownsFinalResponse:
+          false,
 
         reason:
-          "The new authoritative Conversation Routing Pipeline has not been installed yet."
+          "Context mode comes from the Lane Splitter; intent comes from Perception Reconciliation."
       }
     };
   },
 
-  // ===================================================
-  // Executive Packet
-  // ===================================================
+  resolveCapabilities({
+    requestedOperation = "",
+    requestedOutput = "",
+    applicability = {},
+    responseRequirements = {}
+  } = {}) {
+    const capabilities = [
+      "current_turn_response"
+    ];
 
-  buildExecutivePacket(summary = {}) {
+    const normalizedOperation =
+      String(requestedOperation)
+        .toLowerCase();
+
+    if (applicability.thread) {
+      capabilities.push(
+        "thread_context"
+      );
+    }
+
+    if (applicability.memory) {
+      capabilities.push(
+        "memory_retrieval"
+      );
+    }
+
+    if (applicability.relationship) {
+      capabilities.push(
+        "relationship_context"
+      );
+    }
+
+    if (applicability.developer) {
+      capabilities.push(
+        "developer_execution"
+      );
+    }
+
+    if (
+      applicability
+        .artifactInvestigation
+    ) {
+      capabilities.push(
+        "artifact_investigation"
+      );
+    }
+
+    if (
+      normalizedOperation.includes(
+        "explain"
+      )
+    ) {
+      capabilities.push(
+        "explanation"
+      );
+    }
+
+    if (
+      normalizedOperation.includes(
+        "recommend"
+      ) ||
+      normalizedOperation.includes(
+        "decide"
+      ) ||
+      normalizedOperation.includes(
+        "evaluate"
+      )
+    ) {
+      capabilities.push(
+        "decision_support"
+      );
+    }
+
+    if (
+      responseRequirements
+        .clarificationRequired === true
+    ) {
+      capabilities.push(
+        "clarification"
+      );
+    }
+
+    if (
+      String(requestedOutput)
+        .toLowerCase()
+        .includes("code") &&
+      applicability.developer
+    ) {
+      capabilities.push(
+        "code_generation"
+      );
+    }
+
+    return [
+      ...new Set(capabilities)
+    ];
+  },
+
+  resolvePlanner({
+    requestedOperation = "",
+    applicability = {},
+    reconciliation = {}
+  } = {}) {
+    if (
+      reconciliation
+        .immediateSafetyResponseRequired
+    ) {
+      return "safety_response_planner";
+    }
+
+    if (
+      reconciliation
+        .clarificationRequired
+    ) {
+      return "clarification_planner";
+    }
+
+    if (applicability.developer) {
+      return "developer_execution_planner";
+    }
+
+    const normalized =
+      String(requestedOperation)
+        .toLowerCase();
+
+    if (
+      normalized.includes("decide") ||
+      normalized.includes("recommend") ||
+      normalized.includes("evaluate") ||
+      normalized.includes("compare")
+    ) {
+      return "decision_planner";
+    }
+
+    if (
+      normalized.includes("plan")
+    ) {
+      return "planning_planner";
+    }
+
+    if (
+      normalized.includes("explain") ||
+      normalized.includes("information")
+    ) {
+      return "explanation_planner";
+    }
+
+    return applicability.fastPath
+      ? "direct_response_planner"
+      : "general_response_planner";
+  },
+
+  /* =====================================================
+     DIAGNOSTICS
+  ===================================================== */
+
+  buildDiagnostics({
+    perceptionPacket = {},
+    reconciliation = {},
+    intentPacket = null,
+    laneSplit = {},
+    mode = {},
+    applicability = {},
+    routingContract = {}
+  } = {}) {
+    const errors = [];
+    const warnings = [];
+
+    if (!perceptionPacket) {
+      errors.push(
+        "perception_packet_missing"
+      );
+    }
+
+    if (!reconciliation.available) {
+      warnings.push(
+        "reconciliation_not_available"
+      );
+    }
+
+    if (!intentPacket) {
+      warnings.push(
+        "canonical_intent_packet_missing"
+      );
+    }
+
+    if (
+      !laneSplit ||
+      !laneSplit.lane
+    ) {
+      errors.push(
+        "context_lane_missing"
+      );
+    }
+
+    if (
+      mode.mustReusePriorContext ===
+        true &&
+      laneSplit.routing?.useThread !==
+        true
+    ) {
+      errors.push(
+        "mode_lane_context_conflict"
+      );
+    }
+
+    if (
+      mode.mode === "follow_up" &&
+      laneSplit.lane !==
+        "continuity_follow_up"
+    ) {
+      errors.push(
+        "follow_up_mode_without_continuity_lane"
+      );
+    }
+
+    if (
+      applicability.developer === true &&
+      applicability.executionAllowed ===
+        false
+    ) {
+      errors.push(
+        "developer_execution_without_authorization"
+      );
+    }
+
+    if (
+      applicability.fastPath === true &&
+      applicability.triage === true
+    ) {
+      warnings.push(
+        "fast_path_still_runs_triage"
+      );
+    }
+
+    if (
+      !routingContract.primaryIntent
+    ) {
+      errors.push(
+        "primary_intent_missing"
+      );
+    }
+
     return {
-      ready: true,
+      executiveRoutingDiagnosticsRan:
+        true,
+
+      executiveRoutingDiagnosticsVersion:
+        this.version,
+
+      healthy:
+        errors.length === 0,
+
+      complete:
+        errors.length === 0 &&
+        Boolean(
+          routingContract.primaryIntent
+        ) &&
+        Boolean(laneSplit.lane),
+
+      errors,
+      warnings,
+
+      checks: {
+        perceptionPacket:
+          Boolean(perceptionPacket),
+
+        reconciliation:
+          reconciliation.available,
+
+        intentPacket:
+          Boolean(intentPacket),
+
+        contextLane:
+          Boolean(laneSplit.lane),
+
+        modeLaneAligned:
+          !errors.includes(
+            "mode_lane_context_conflict"
+          ) &&
+          !errors.includes(
+            "follow_up_mode_without_continuity_lane"
+          ),
+
+        executionAuthorizationAligned:
+          !errors.includes(
+            "developer_execution_without_authorization"
+          )
+      },
+
+      authority: {
+        canValidateRouting: true,
+        canChooseFinalTriageLane: false,
+        canAnswerUser: false,
+
+        role:
+          "executive_routing_quality_assurance"
+      }
+    };
+  },
+
+  /* =====================================================
+     EXECUTIVE PACKET
+  ===================================================== */
+
+  buildExecutivePacket(
+    summary = {}
+  ) {
+    return {
+      ready:
+        summary
+          .executiveRoutingDiagnostics
+          ?.complete === true,
+
       source:
         "ari-executive-routing-pipeline",
-      version: this.version,
+
+      version:
+        this.version,
 
       perceptionPacket:
         summary.perceptionPacket ||
+        null,
+
+      conversationIntentPacket:
+        summary.executiveIntentPacket ||
+        null,
+
+      reconciliation:
+        summary.executiveReconciliation ||
         null,
 
       routingContract:
@@ -589,22 +1542,27 @@ primaryLane:
         summary.laneSplit ||
         null,
 
+      mode:
+        summary.routingMode ||
+        null,
+
       applicability:
         summary.routingApplicability ||
         {},
 
       selectedRoute: {
         speechAct:
-          summary.routingContract?.speechAct ||
+          summary.routingContract
+            ?.speechAct ||
           null,
 
         mode:
           summary.conversationMode ||
-          "unknown",
+          "current_turn",
 
         primaryIntent:
           summary.primaryIntent ||
-          "unknown",
+          "respond",
 
         secondaryIntents:
           summary.secondaryIntents ||
@@ -612,17 +1570,14 @@ primaryLane:
 
         domain:
           summary.conversationDomain ||
-          "general",
+          "general_understanding",
 
         contextLane:
-  summary.routingContract?.contextLane ||
-  summary.lane ||
-  "direct_current_turn",
+          summary.contextLane ||
+          "direct_current_turn",
 
-primaryLane:
-  summary.routingContract?.primaryLane ||
-  summary.primaryLane ||
-  null,
+        primaryLane:
+          null,
 
         capabilities:
           summary.requiredCapabilities ||
@@ -634,8 +1589,13 @@ primaryLane:
       },
 
       runInstructions: {
+        currentTurn:
+          summary.shouldUseCurrentTurn !==
+          false,
+
         continuity:
-          summary.shouldUseContinuity === true,
+          summary.shouldUseContinuity ===
+          true,
 
         thread:
           summary.shouldUseThread === true,
@@ -644,172 +1604,248 @@ primaryLane:
           summary.shouldUseMemory === true,
 
         relationship:
-          summary.shouldUseRelationship === true,
+          summary.shouldUseRelationship ===
+          true,
 
         deepSafety:
-          summary.routingApplicability?.deepSafety === true,
+          summary.routingApplicability
+            ?.deepSafety === true,
 
         situationMap:
-          summary.shouldRunSituationMap !== false,
+          summary.shouldRunSituationMap !==
+          false,
 
         triage:
-          summary.shouldRunTriage !== false,
+          summary.shouldRunTriage !==
+          false,
 
         developer:
-          summary.shouldRunDeveloperLayer === true,
+          summary
+            .shouldRunDeveloperLayer ===
+          true,
 
         heavyReasoning:
-          summary.shouldRunHeavyReasoning !== false,
+          summary
+            .shouldRunHeavyReasoning ===
+          true,
 
         fastPath:
-          summary.routingApplicability?.fastPathEligible === true
+          summary.shouldUseFastPath ===
+          true
       },
+
+      diagnostics:
+        summary
+          .executiveRoutingDiagnostics ||
+        null,
 
       authority: {
         canCollectEvidence: false,
         canBuildSemanticMeaning: false,
 
-        canChooseRoute: true,
+        canChooseContextMode: true,
         canChooseApplicability: true,
+        canSelectCapabilities: true,
+        canSelectPlanner: true,
 
+        canChooseFinalTriageLane: false,
         canPerformReasoning: false,
         canWriteFinalLanguage: false,
 
         role:
-          "routing_and_execution_eligibility"
+          "canonical_routing_and_execution_eligibility"
       }
     };
   },
 
-  // ===================================================
-  // Compatibility fallback
-  // ===================================================
+  /* =====================================================
+     FALLBACKS
+  ===================================================== */
 
-  buildFallbackPerceptionPacket(summary = {}) {
-  const message =
-    summary.userMessage ||
-    summary.message ||
-    summary.input ||
-    "";
+  fallbackLaneSplit() {
+    return {
+      engine:
+        "ari-lane-splitter-engine",
 
-  return {
-    ready: false,
-    source:
-      "ari-executive-routing-pipeline-fallback",
-    version: this.version,
+      source:
+        "not-loaded",
 
-    message: {
-      raw: message,
+      lane:
+        "direct_current_turn",
 
-      normalized:
-        summary.normalizedMessage ||
-        String(message).toLowerCase().trim()
-    },
+      routing: {
+        useCurrentTurn: true,
+        useThread: false,
+        useMemory: false,
+        useRelationship: false,
+        goStraightToSituationMap:
+          true
+      },
 
-    safetyScreen: {
-      raw:
-        summary.safetyContextGate ||
-        null
-    },
+      confidence:
+        "very_low",
 
-    observer: {
-      raw:
-        summary.observerEvidence ||
+      scores: {},
+
+      explanation:
+        "Lane Splitter was unavailable. Direct-current-turn fallback used.",
+
+      semanticAware:
+        false,
+
+      semanticFirst:
+        false,
+
+      lexicalFallbackUsed:
+        false
+    };
+  },
+
+  buildFallbackPerceptionPacket(
+    summary = {}
+  ) {
+    const message =
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      "";
+
+    return {
+      ready:
+        false,
+
+      source:
+        "ari-executive-routing-pipeline-fallback",
+
+      version:
+        this.version,
+
+      message: {
+        raw:
+          message,
+
+        normalized:
+          summary.normalizedMessage ||
+          String(message)
+            .toLowerCase()
+            .trim()
+      },
+
+      conversationIntentPacket:
+        summary
+          .conversationIntentPacket ||
         null,
 
-      observations:
-        summary.observations ||
-        []
-    },
-
-    conversationFunction: {
-      raw:
-        summary.conversationFunction ||
+      unifiedIntentPacket:
+        summary
+          .unifiedIntentPacket ||
         null,
 
-      primary:
-        summary.conversationFunction?.primaryFunction ||
-        "unknown"
-    },
+      safetyScreen: {
+        raw:
+          summary.safetyContextGate ||
+          null
+      },
 
-    classification: {
-      raw:
-        summary.universalConversationClassification ||
-        null,
+      observer: {
+        raw:
+          summary.observerEvidence ||
+          null,
 
-      type:
-        summary.conversationType ||
-        "unknown",
+        observations:
+          summary.observations ||
+          []
+      },
 
-      intent:
-        summary.conversationIntent ||
-        "unknown"
-    },
+      conversationFunction: {
+        raw:
+          summary
+            .conversationFunction ||
+          null,
 
-    routingEvidence: {
-      raw:
-        summary.routingEvidence ||
-        null,
+        primary:
+          summary
+            .conversationFunction
+            ?.primaryFunction ||
+          "unknown"
+      },
 
-      pressures:
-        summary.routingPressures ||
-        {}
-    },
+      classification: {
+        raw:
+          summary
+            .universalConversationClassification ||
+          null,
 
-    semantic: {
-      raw:
-        summary.semanticFrameOutput ||
-        null,
+        type:
+          summary.conversationType ||
+          "unknown",
 
-      primaryFrame:
-        summary.primarySemanticFrame ||
-        null,
+        intent:
+          summary.conversationIntent ||
+          "unknown"
+      },
 
-      summary:
-        summary.semanticSummary ||
-        null,
+      routingEvidence: {
+        raw:
+          summary.routingEvidence ||
+          null,
 
-      continuity:
-        summary.semanticContinuity ||
-        {},
+        pressures:
+          summary.routingPressures ||
+          {}
+      },
 
-      ambiguity:
-        summary.semanticAmbiguity ||
-        {}
-    },
+      semantic: {
+        raw:
+          summary.semanticFrameOutput ||
+          null,
 
-    routingHandoff: {
-      conversationFunction:
-        summary.conversationFunction?.primaryFunction ||
-        "unknown",
+        primaryFrame:
+          summary.primarySemanticFrame ||
+          null,
 
-      classificationType:
-        summary.conversationType ||
-        "unknown",
+        summary:
+          summary.semanticSummary ||
+          null,
 
-      classificationIntent:
-        summary.conversationIntent ||
-        "unknown",
+        continuity:
+          summary.semanticContinuity ||
+          {},
 
-      semanticSummary:
-        summary.semanticSummary ||
-        null,
+        ambiguity:
+          summary.semanticAmbiguity ||
+          {}
+      },
 
-      routingPressures:
-        summary.routingPressures ||
-        {}
-    },
+      reconciliation: {
+        raw:
+          summary
+            .perceptionReconciliation ||
+          null,
 
-    authority: {
-      canChooseFinalRoute: false,
-      canChoosePlanner: false,
-      canAnswerUser: false,
+        available:
+          summary
+            .perceptionReconciliation
+            ?.perceptionReconciliationRan ===
+          true,
 
-      role:
-        "compatibility_perception_fallback"
-    }
-  };
-}
+        packet:
+          summary
+            .conversationIntentPacket ||
+          summary.unifiedIntentPacket ||
+          null
+      },
+
+      authority: {
+        canChooseFinalRoute: false,
+        canChoosePlanner: false,
+        canAnswerUser: false,
+
+        role:
+          "compatibility_perception_fallback"
+      }
+    };
+  }
 };
 
 console.log(
