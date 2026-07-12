@@ -1,295 +1,1198 @@
 // ari/routing/ari-lane-splitter-engine.js
 // Ari Lane Splitter Engine
-// V2.1.1 — Continuity Intent Lock / Action Follow-Up Fix
+//
+// Purpose:
+//   Select the context-access lane required for the current turn.
+//
+// Responsibilities:
+//   - Read the canonical Conversation Intent Packet.
+//   - Decide whether the current turn can stand alone.
+//   - Decide whether thread, memory, correction, or relationship
+//     context must be loaded.
+//   - Report missing required context.
+//   - Preserve routing evidence for diagnostics.
+//   - Provide one normalized executive-routing handoff.
+//
+// Non-responsibilities:
+//   - Does not reinterpret raw user language.
+//   - Does not classify semantic intent.
+//   - Does not classify medical, emotional, developer, or knowledge domains.
+//   - Does not determine response priority.
+//   - Does not perform triage.
+//   - Does not select a planner.
+//   - Does not determine safety severity.
+//   - Does not compose or answer the user.
+//
+// V3.0.0 — Canonical Intent Packet Routing / Context Source Arbitration
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "2.1.1",
+  version: "3.0.0",
+
+  /* =====================================================
+     PUBLIC ENTRY POINT
+  ===================================================== */
 
   split(input = {}) {
-    const summary = input.summary || input || {};
-    const evidence = input.routingEvidence || summary.routingEvidence || {};
-    const pressures = evidence.routingPressures || evidence;
-    const semantic = this.readSemantic(summary, input);
-    const context = this.readContext(summary, semantic);
+    const summary =
+      this.unwrapSummary(input);
 
-    const scores = this.scoreLanes(pressures, context);
-    const ranked = this.rankScores(scores);
-    const lane = this.chooseLane(ranked, context);
+    const packetSource =
+      this.readConversationIntentPacket(
+        summary,
+        input
+      );
+
+    const packet =
+      packetSource.packet;
+
+    const availableContext =
+      this.readAvailableContext(summary);
+
+    const routingContext =
+      packetSource.available
+        ? this.buildCanonicalRoutingContext({
+            packet,
+            availableContext
+          })
+        : this.buildLegacyRoutingContext({
+            summary,
+            input,
+            availableContext
+          });
+
+    const scores =
+      this.scoreLanes(
+        routingContext
+      );
+
+    const ranked =
+      this.rankScores(scores);
+
+    const lane =
+      this.chooseLane({
+        ranked,
+        context:
+          routingContext
+      });
+
+    const routing =
+      this.buildRoutingInstructions({
+        lane,
+        context:
+          routingContext
+      });
+
+    const confidence =
+      this.calculateConfidence({
+        lane,
+        ranked,
+        context:
+          routingContext,
+        packetSource
+      });
+
+    const explanation =
+      this.explain({
+        lane,
+        context:
+          routingContext
+      });
+
+    const handoff =
+      this.buildHandoff({
+        lane,
+        routing,
+        routingContext,
+        confidence,
+        explanation,
+        packetSource
+      });
 
     return {
-      engine: "ari-lane-splitter-engine",
-      version: this.version,
-      source: "ari-lane-splitter-engine",
+      laneSplitterRan:
+        true,
+
+      laneSplitterVersion:
+        this.version,
+
+      laneSplitterSource:
+        "ari-lane-splitter-engine",
+
+      engine:
+        "ari-lane-splitter-engine",
+
+      version:
+        this.version,
+
+      source:
+        "ari-lane-splitter-engine",
+
       lane,
 
-      routing: {
-        useCurrentTurn: true,
-        useThread: this.shouldUseThread(lane),
-        useMemory: this.shouldUseMemory(lane),
-        useRelationship: this.shouldUseRelationship(lane),
-        goStraightToSituationMap: lane === "direct_current_turn"
-      },
+      contextLane:
+        lane,
+
+      routing,
 
       scores,
+
       ranked,
-      confidence: this.confidence(ranked, context),
-      explanation: this.explain(lane, context),
 
-      semanticAware: semantic.available,
-      semanticFirst: true,
-      lexicalFallbackUsed: context.lexicalFallbackUsed,
+      confidence:
+        confidence.label,
 
-      semanticFrameUsed: Boolean(semantic.primaryFrame?.frameType),
-      semanticFrameType: semantic.primaryFrame?.frameType || null,
-      semanticIntent: semantic.primaryFrame?.intent || semantic.semanticSummary?.intent || null,
-      semanticContinuity: semantic.continuity,
-      semanticResponseCharacteristics: semantic.response,
-      semanticAmbiguity: semantic.ambiguity,
+      confidenceScore:
+        confidence.score,
 
-      contextUsed: context,
-      evidenceUsed: pressures,
+      confidenceNormalized:
+        confidence.normalized,
+
+      confidenceBreakdown:
+        confidence.breakdown,
+
+      explanation,
+
+      conversationIntentPacketAvailable:
+        packetSource.available,
+
+      canonicalPacketUsed:
+        packetSource.available,
+
+      canonicalPacketSource:
+        packetSource.source,
+
+      canonicalPacketVersion:
+        packetSource.version,
+
+      legacyFallbackUsed:
+        packetSource.available !== true,
+
+      lexicalFallbackUsed:
+        false,
+
+      rawTextInterpretationUsed:
+        false,
+
+      routingContext,
+
+      evidenceUsed: {
+        conversationIntentPacket:
+          packetSource.available
+            ? packet
+            : null,
+
+        continuity:
+          routingContext.continuity,
+
+        ambiguity:
+          routingContext.ambiguity,
+
+        governance:
+          routingContext.governance,
+
+        readiness:
+          routingContext.readiness,
+
+        semanticIntent:
+          routingContext.semanticIntent,
+
+        conversationPurpose:
+          routingContext
+            .conversationPurpose,
+
+        availableContext
+      },
+
+      handoff,
 
       authority: {
-        canObserve: false,
-        canAnswerUser: false,
-        canOverrideSafety: false,
-        canChooseLane: true,
-        role: "route_selection_only"
+        canReadCanonicalIntentPacket:
+          true,
+
+        canChooseContextLane:
+          true,
+
+        canChooseContextSources:
+          true,
+
+        canReportMissingContext:
+          true,
+
+        canInterpretRawLanguage:
+          false,
+
+        canReclassifySemanticIntent:
+          false,
+
+        canReclassifyConversationFunction:
+          false,
+
+        canChooseMedicalLane:
+          false,
+
+        canChooseEmotionalLane:
+          false,
+
+        canChooseDeveloperLane:
+          false,
+
+        canChooseKnowledgeLane:
+          false,
+
+        canPerformTriage:
+          false,
+
+        canChoosePlanner:
+          false,
+
+        canDetermineSafetySeverity:
+          false,
+
+        canComposeResponse:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "context_source_route_selection_only"
       }
     };
   },
 
-  readSemantic(summary = {}, input = {}) {
-    const semanticFrameOutput =
-      input.semanticFrame ||
-      summary.semanticFrameOutput ||
-      summary.semanticFrame ||
-      {};
+  /* =====================================================
+     CANONICAL PACKET READING
+  ===================================================== */
 
-    const primaryFrame =
-      input.primarySemanticFrame ||
-      summary.primarySemanticFrame ||
-      semanticFrameOutput.primaryFrame ||
-      summary.activeSemanticFrame ||
-      {};
+  readConversationIntentPacket(
+    summary = {},
+    input = {}
+  ) {
+    const candidates = [
+      input.conversationIntentPacket,
 
-    const semanticSummary =
-      input.semanticSummary ||
-      summary.semanticSummary ||
-      semanticFrameOutput.semanticSummary ||
-      {};
+      input.unifiedIntentPacket,
+
+      input.reconciledIntentPacket,
+
+      input.perceptionPacket
+        ?.conversationIntentPacket,
+
+      input.perceptionPacket
+        ?.unifiedIntentPacket,
+
+      summary.conversationIntentPacket,
+
+      summary.unifiedIntentPacket,
+
+      summary.reconciledIntentPacket,
+
+      summary.perceptionPacket
+        ?.conversationIntentPacket,
+
+      summary.perceptionPacket
+        ?.unifiedIntentPacket,
+
+      summary.perceptionReconciliation
+        ?.conversationIntentPacket,
+
+      summary.perceptionReconciliation
+        ?.unifiedIntentPacket,
+
+      summary.perceptionReconciliationResult
+        ?.conversationIntentPacket,
+
+      summary.perceptionReconciliationResult
+        ?.unifiedIntentPacket
+    ];
+
+    const packet =
+      candidates.find(candidate =>
+        candidate &&
+        typeof candidate === "object" &&
+        !Array.isArray(candidate) &&
+        (
+          candidate.packetType ===
+            "conversation_intent_packet" ||
+          candidate.semanticIntent ||
+          candidate.conversationPurpose ||
+          candidate.readiness
+        )
+      ) ||
+      null;
+
+    if (!packet) {
+      return {
+        available:
+          false,
+
+        packet:
+          null,
+
+        source:
+          "legacy_structured_fallback",
+
+        version:
+          null
+      };
+    }
 
     return {
-      semanticFrameOutput,
-      primaryFrame,
-      semanticSummary,
-      continuity:
-        summary.semanticContinuity ||
-        semanticFrameOutput.continuity ||
-        semanticSummary.continuity ||
-        {},
-      response:
-        summary.semanticResponseCharacteristics ||
-        semanticFrameOutput.responseCharacteristics ||
-        semanticSummary.responseCharacteristics ||
-        {},
-      ambiguity:
-        summary.semanticAmbiguity ||
-        semanticFrameOutput.ambiguity ||
-        semanticSummary.ambiguity ||
-        {},
-      available: Boolean(
-        semanticFrameOutput.semanticFrameBuilderRan ||
-        primaryFrame.frameType ||
-        semanticSummary.primaryMeaning
-      )
+      available:
+        true,
+
+      packet,
+
+      source:
+        packet.source ||
+        "conversation_intent_packet",
+
+      version:
+        packet.version ||
+        null
     };
   },
 
-  readContext(summary = {}, semantic = {}) {
-    const text = String(summary.userMessage || summary.message || summary.input || "")
-      .toLowerCase()
-      .trim();
+  /* =====================================================
+     AVAILABLE CONTEXT
+  ===================================================== */
 
-    const threadState = summary.threadState || {};
-    const recentMessages = summary.recentMessages || threadState.lastMessages || [];
+  readAvailableContext(
+    summary = {}
+  ) {
+    const threadState =
+      summary.threadState ||
+      {};
 
-    const hasThread = Boolean(
-      summary.threadStateLoaded &&
-      (
+    const recentMessages =
+      this.firstNonEmptyArray(
+        summary.recentMessages,
+        threadState.lastMessages
+      );
+
+    const threadAvailable =
+      Boolean(
+        summary.threadStateLoaded ===
+          true ||
         recentMessages.length > 0 ||
         threadState.currentTopic ||
         threadState.activeSubject ||
         threadState.continuitySummary ||
+        threadState.previousAnswerSummary ||
         summary.workingContext
-      )
-    );
+      );
 
-    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const memoryAvailable =
+      Boolean(
+        summary.memoryRetrievalRan ===
+          true ||
+        summary.memoryContext ||
+        summary.retrievedMemories
+          ?.length ||
+        summary.memoryResults
+          ?.length
+      );
 
-    const explicitReferenceLanguage = this.hasReferenceLanguage(text);
-    const actionFollowUp = this.isActionFollowUp(text);
-    const recommendationFollowUp = this.isRecommendationFollowUp(text);
-    const critiqueFollowUp = this.isCritiqueFollowUp(text);
-
-    const semanticContinuation =
-      semantic.continuity?.isContinuation === true;
-
-    const expectsFollowUpContext =
-      semantic.response?.expectsFollowUpContext === true ||
-      semanticContinuation;
-
-    const referencesPriorContext =
-      semantic.continuity?.referencesPriorContext === true;
-
-    const expectsDirectAnswer =
-      semantic.response?.expectsDirectAnswer === true;
-
-    const ambiguityPresent =
-      semantic.ambiguity?.present === true;
-
-    const semanticAvailable = semantic.available === true;
-    const lexicalFallback = semanticAvailable
-      ? this.emptyLexicalFallback()
-      : this.lexicalFallback(text);
-
-const standaloneDirectQuestion =
-  expectsDirectAnswer &&
-  !explicitReferenceLanguage &&
-  !actionFollowUp &&
-  !recommendationFollowUp &&
-  !critiqueFollowUp &&
-  wordCount >= 4;
-
-    const mustUseThread =
-  hasThread &&
-  !standaloneDirectQuestion &&
-  (
-    explicitReferenceLanguage ||
-    actionFollowUp ||
-    recommendationFollowUp ||
-    critiqueFollowUp ||
-    semanticContinuation ||
-    expectsFollowUpContext ||
-    referencesPriorContext
-  );
+    const relationshipContextAvailable =
+      Boolean(
+        summary.relationshipContext ||
+        summary.relationshipState ||
+        summary.relationshipMemory ||
+        summary.relationshipContinuity
+      );
 
     return {
-      text,
-      wordCount,
-      hasThread,
+      threadAvailable,
 
-      semanticAvailable,
-      lexicalFallbackUsed: !semanticAvailable,
-      lexicalFallback,
+      memoryAvailable,
 
-      explicitReferenceLanguage,
-      actionFollowUp,
-      recommendationFollowUp,
-      critiqueFollowUp,
-standaloneDirectQuestion,
-      semanticContinuation,
-      expectsFollowUpContext,
-      referencesPriorContext,
-      expectsDirectAnswer,
-      ambiguityPresent,
+      relationshipContextAvailable,
 
-      mustUseThread
+      recentMessageCount:
+        recentMessages.length,
+
+      activeSubjectAvailable:
+        Boolean(
+          threadState.activeSubject ||
+          summary.resolvedPrimarySubject
+        ),
+
+      currentTopicAvailable:
+        Boolean(
+          threadState.currentTopic ||
+          summary.activeTopic
+        ),
+
+      previousAnswerAvailable:
+        Boolean(
+          threadState.previousAnswerSummary ||
+          threadState.lastFinalResponse ||
+          summary.previousAnswerSummary
+        ),
+
+      threadStateLoaded:
+        summary.threadStateLoaded ===
+        true,
+
+      authority:
+        "context_availability_report_only"
     };
   },
 
-  scoreLanes(p = {}, context = {}) {
-    let direct =
-      (p.standaloneCompleteness || 0) * 30 +
-      (p.directAnswerPressure || 0) * 25 +
-      (1 - (p.contextDependency || 0)) * 15;
+  /* =====================================================
+     CANONICAL ROUTING CONTEXT
+  ===================================================== */
 
-    let continuity =
-      (p.contextDependency || 0) * 25 +
-      (p.followUpPressure || 0) * 25 +
-      (p.activeThreadMatch || 0) * 20 +
-      (p.ambiguityWithoutContext || 0) * 15;
+  buildCanonicalRoutingContext({
+    packet = {},
+    availableContext = {}
+  } = {}) {
+    const semanticIntent =
+      packet.semanticIntent ||
+      {};
 
-    if (context.expectsDirectAnswer && !context.mustUseThread) direct += 35;
+    const conversationPurpose =
+      packet.conversationPurpose ||
+      {};
 
-    if (context.hasThread && context.explicitReferenceLanguage) continuity += 45;
-    if (context.hasThread && context.actionFollowUp) continuity += 45;
-    if (context.hasThread && context.recommendationFollowUp) continuity += 45;
-    if (context.hasThread && context.critiqueFollowUp) continuity += 45;
-    if (context.semanticContinuation) continuity += 40;
-    if (context.expectsFollowUpContext) continuity += 35;
-    if (context.referencesPriorContext) continuity += 30;
-    if (context.ambiguityPresent) continuity += 25;
+    const supportingPurposes =
+      Array.isArray(
+        packet.supportingPurposes
+      )
+        ? packet.supportingPurposes
+        : [];
 
-    if (context.mustUseThread) {
-      direct -= 35;
-      continuity += 35;
+    const continuity =
+      packet.continuity ||
+      {};
+
+    const ambiguity =
+      packet.ambiguity ||
+      {};
+
+    const governance =
+      packet.governance ||
+      {};
+
+    const readiness =
+      packet.readiness ||
+      {};
+
+    const responseRequirements =
+      packet.responseRequirements ||
+      {};
+
+    const operation =
+      this.normalizeIdentifier(
+        semanticIntent
+          .requestedOperation
+      );
+
+    const purpose =
+      this.normalizeIdentifier(
+        conversationPurpose.name
+      );
+
+    const supportingNames =
+      supportingPurposes
+        .map(item =>
+          this.normalizeIdentifier(
+            item?.name
+          )
+        )
+        .filter(Boolean);
+
+    const requiresPriorContext =
+      continuity.requiresPriorContext ===
+        true ||
+      responseRequirements
+        .priorContextRequired ===
+        true;
+
+    const packetPriorContextAvailable =
+      continuity.priorContextAvailable ===
+        true;
+
+    const priorContextAvailable =
+      packetPriorContextAvailable ||
+      availableContext.threadAvailable ===
+        true;
+
+    const missingPriorContext =
+      requiresPriorContext &&
+      !priorContextAvailable;
+
+    const isContinuation =
+      continuity.isContinuation ===
+        true;
+
+    const referencesPriorArtifact =
+      continuity.referencesPriorArtifact ===
+        true;
+
+    const referencesPriorQuestion =
+      continuity.referencesPriorQuestion ===
+        true;
+
+    const clarificationRequired =
+      ambiguity.requiresClarification ===
+        true ||
+      readiness.clarificationRequired ===
+        true;
+
+    const missingAnchor =
+      ambiguity.missingAnchor ===
+        true;
+
+    const recallRequested =
+      this.matchesAnyIdentifier(
+        [
+          operation,
+          purpose,
+          ...supportingNames
+        ],
+        [
+          "retrieve_prior_context",
+          "recall",
+          "memory_recall",
+          "recall_request",
+          "retrieve_memory",
+          "remember_previous"
+        ]
+      );
+
+    const correctionRequested =
+      this.matchesAnyIdentifier(
+        [
+          operation,
+          purpose,
+          ...supportingNames
+        ],
+        [
+          "correct",
+          "correction",
+          "revise",
+          "revision",
+          "repair_previous_answer",
+          "correct_previous_answer",
+          "modify_previous_response"
+        ]
+      );
+
+    const relationshipContinuityRequested =
+      this.matchesAnyIdentifier(
+        [
+          operation,
+          purpose,
+          ...supportingNames
+        ],
+        [
+          "relationship_continuity",
+          "relational_follow_up",
+          "relationship_follow_up",
+          "continue_relationship_context"
+        ]
+      );
+
+    const currentTurnMeaningAvailable =
+      semanticIntent.available ===
+        true ||
+      Boolean(
+        semanticIntent
+          .requestedOperation ||
+        semanticIntent.userGoal ||
+        conversationPurpose.name
+      );
+
+    const packetUsable =
+      readiness.packetUsable !==
+        false &&
+      currentTurnMeaningAvailable;
+
+    const directCurrentTurnEligible =
+      packetUsable &&
+      !requiresPriorContext &&
+      !isContinuation &&
+      !recallRequested &&
+      !correctionRequested &&
+      !relationshipContinuityRequested;
+
+    return {
+      source:
+        "conversation_intent_packet",
+
+      canonical:
+        true,
+
+      packetUsable,
+
+      semanticIntent,
+
+      conversationPurpose,
+
+      supportingPurposes,
+
+      continuity,
+
+      ambiguity,
+
+      governance,
+
+      readiness,
+
+      responseRequirements,
+
+      availableContext,
+
+      operation:
+        operation ||
+        null,
+
+      purpose:
+        purpose ||
+        null,
+
+      supportingPurposeNames:
+        supportingNames,
+
+      currentTurnMeaningAvailable,
+
+      requiresPriorContext,
+
+      priorContextAvailable,
+
+      missingPriorContext,
+
+      isContinuation,
+
+      referencesPriorArtifact,
+
+      referencesPriorQuestion,
+
+      clarificationRequired,
+
+      missingAnchor,
+
+      recallRequested,
+
+      correctionRequested,
+
+      relationshipContinuityRequested,
+
+      directCurrentTurnEligible,
+
+      responseOrder:
+        governance.responseOrder ||
+        "normal",
+
+      routingBlocked:
+        readiness.packetUsable ===
+          false,
+
+      rawTextUsed:
+        false,
+
+      lexicalInferenceUsed:
+        false,
+
+      authority:
+        "canonical_packet_context_routing"
+    };
+  },
+
+  /* =====================================================
+     LEGACY STRUCTURED FALLBACK
+  ===================================================== */
+
+  buildLegacyRoutingContext({
+    summary = {},
+    input = {},
+    availableContext = {}
+  } = {}) {
+    const semanticFrame =
+      this.firstNonEmptyObject(
+        input.semanticFrame,
+        summary.semanticFrameOutput,
+        summary.semanticFrameResult,
+        summary.semanticFrameBuilderResult,
+        summary.semanticFrame
+      );
+
+    const canonicalMeaning =
+      this.firstNonEmptyObject(
+        semanticFrame.canonicalMeaning,
+        summary.canonicalMeaning
+      );
+
+    const continuity =
+      this.firstNonEmptyObject(
+        semanticFrame.continuity,
+        canonicalMeaning.continuity,
+        summary.semanticContinuity
+      );
+
+    const ambiguity =
+      this.firstNonEmptyObject(
+        semanticFrame.ambiguity,
+        canonicalMeaning.ambiguity,
+        summary.semanticAmbiguity
+      );
+
+    const responseRequirements =
+      this.firstNonEmptyObject(
+        semanticFrame.responseRequirements,
+        semanticFrame.responseCharacteristics,
+        canonicalMeaning
+          .responseRequirements,
+        summary
+          .semanticResponseCharacteristics
+      );
+
+    const conversationFunction =
+      this.firstNonEmptyObject(
+        summary.conversationFunctionResult,
+        summary.conversationFunction
+      );
+
+    const operation =
+      this.normalizeIdentifier(
+        canonicalMeaning
+          .requestedOperation ||
+        semanticFrame.primaryFrame
+          ?.operation ||
+        semanticFrame.normalizedFrame
+          ?.operation
+      );
+
+    const purpose =
+      this.normalizeIdentifier(
+        conversationFunction
+          .primaryFunction
+      );
+
+    const requiresPriorContext =
+      continuity.requiresPriorContext ===
+        true ||
+      responseRequirements
+        .priorContextRequired ===
+        true;
+
+    const priorContextAvailable =
+      continuity.priorContextAvailable ===
+        true ||
+      continuity.threadAvailable ===
+        true ||
+      availableContext.threadAvailable ===
+        true;
+
+    const missingPriorContext =
+      requiresPriorContext &&
+      !priorContextAvailable;
+
+    const isContinuation =
+      continuity.isContinuation ===
+        true;
+
+    const recallRequested =
+      this.matchesAnyIdentifier(
+        [operation, purpose],
+        [
+          "retrieve_prior_context",
+          "recall",
+          "memory_recall",
+          "recall_request"
+        ]
+      );
+
+    const correctionRequested =
+      this.matchesAnyIdentifier(
+        [operation, purpose],
+        [
+          "correct",
+          "correction",
+          "revise",
+          "revision"
+        ]
+      );
+
+    const relationshipContinuityRequested =
+      this.matchesAnyIdentifier(
+        [operation, purpose],
+        [
+          "relationship_continuity",
+          "relationship_follow_up"
+        ]
+      );
+
+    const currentTurnMeaningAvailable =
+      Boolean(
+        operation ||
+        purpose ||
+        semanticFrame.primaryFrame
+          ?.frameType ||
+        semanticFrame.semanticSummary
+          ?.primaryMeaning
+      );
+
+    return {
+      source:
+        "legacy_structured_fallback",
+
+      canonical:
+        false,
+
+      packetUsable:
+        currentTurnMeaningAvailable,
+
+      semanticIntent: {
+        available:
+          Boolean(operation),
+
+        requestedOperation:
+          operation ||
+          null
+      },
+
+      conversationPurpose: {
+        available:
+          Boolean(purpose),
+
+        name:
+          purpose ||
+          null
+      },
+
+      supportingPurposes:
+        [],
+
+      continuity,
+
+      ambiguity,
+
+      governance: {
+        responseOrder:
+          "normal"
+      },
+
+      readiness: {
+        packetUsable:
+          currentTurnMeaningAvailable
+      },
+
+      responseRequirements,
+
+      availableContext,
+
+      operation:
+        operation ||
+        null,
+
+      purpose:
+        purpose ||
+        null,
+
+      supportingPurposeNames:
+        [],
+
+      currentTurnMeaningAvailable,
+
+      requiresPriorContext,
+
+      priorContextAvailable,
+
+      missingPriorContext,
+
+      isContinuation,
+
+      referencesPriorArtifact:
+        continuity.referencesPriorArtifact ===
+        true,
+
+      referencesPriorQuestion:
+        continuity.referencesPriorQuestion ===
+        true,
+
+      clarificationRequired:
+        ambiguity.requiresClarification ===
+        true,
+
+      missingAnchor:
+        ambiguity.missingAnchor ===
+        true,
+
+      recallRequested,
+
+      correctionRequested,
+
+      relationshipContinuityRequested,
+
+      directCurrentTurnEligible:
+        currentTurnMeaningAvailable &&
+        !requiresPriorContext &&
+        !isContinuation &&
+        !recallRequested &&
+        !correctionRequested &&
+        !relationshipContinuityRequested,
+
+      responseOrder:
+        "normal",
+
+      routingBlocked:
+        !currentTurnMeaningAvailable,
+
+      rawTextUsed:
+        false,
+
+      lexicalInferenceUsed:
+        false,
+
+      legacyFallbackReason:
+        "No canonical Conversation Intent Packet was available. Structured semantic outputs were used without reading raw user language.",
+
+      authority:
+        "temporary_structured_legacy_fallback"
+    };
+  },
+
+  /* =====================================================
+     CONTEXT-LANE SCORING
+  ===================================================== */
+
+  scoreLanes(
+    context = {}
+  ) {
+    let direct = 20;
+    let continuity = 0;
+    let recall = 0;
+    let correction = 0;
+    let relationship = 0;
+    let missingContext = 0;
+
+    if (
+      context.currentTurnMeaningAvailable
+    ) {
+      direct += 35;
+    }
+
+    if (
+      context.directCurrentTurnEligible
+    ) {
+      direct += 35;
+    }
+
+    if (
+      context.requiresPriorContext
+    ) {
+      continuity += 45;
+      direct -= 30;
+    }
+
+    if (
+      context.isContinuation
+    ) {
+      continuity += 40;
+      direct -= 25;
+    }
+
+    if (
+      context.referencesPriorArtifact
+    ) {
+      continuity += 20;
+    }
+
+    if (
+      context.referencesPriorQuestion
+    ) {
+      continuity += 20;
+    }
+
+    if (
+      context.priorContextAvailable &&
+      context.requiresPriorContext
+    ) {
+      continuity += 15;
+    }
+
+    if (
+      context.missingPriorContext
+    ) {
+      missingContext += 100;
+      continuity -= 20;
+      direct -= 40;
+    }
+
+    if (
+      context.missingAnchor &&
+      context.requiresPriorContext
+    ) {
+      missingContext += 20;
+    }
+
+    if (
+      context.recallRequested
+    ) {
+      recall += 100;
+      direct -= 30;
+    }
+
+    if (
+      context.correctionRequested
+    ) {
+      correction += 100;
+      direct -= 30;
+    }
+
+    if (
+      context
+        .relationshipContinuityRequested
+    ) {
+      relationship += 100;
+      direct -= 30;
+    }
+
+    if (
+      context.routingBlocked
+    ) {
+      direct -= 30;
     }
 
     return {
-      direct_current_turn: this.cap(direct),
-      continuity_follow_up: this.cap(continuity),
-      recall_or_memory_request: this.cap((p.recallPressure || 0) * 90),
-      correction_or_revision: this.cap((p.revisionPressure || 0) * 90),
-      relationship_continuity: this.cap((p.relationshipContinuity || 0) * 90)
+      direct_current_turn:
+        this.cap(direct),
+
+      continuity_follow_up:
+        this.cap(continuity),
+
+      recall_or_memory_request:
+        this.cap(recall),
+
+      correction_or_revision:
+        this.cap(correction),
+
+      relationship_continuity:
+        this.cap(relationship),
+
+      missing_context:
+        this.cap(missingContext)
     };
   },
 
-  chooseLane(ranked = [], context = {}) {
-  if (context.standaloneDirectQuestion) return "direct_current_turn";
+  /* =====================================================
+     FINAL LANE SELECTION
+  ===================================================== */
 
-  if (context.mustUseThread) return "continuity_follow_up";
+  chooseLane({
+    ranked = [],
+    context = {}
+  } = {}) {
+    if (
+      context.missingPriorContext
+    ) {
+      return "missing_context";
+    }
 
-  if (!context.semanticAvailable && context.lexicalFallback.needsThread) {
-    return "continuity_follow_up";
-  }
+    if (
+      context.correctionRequested
+    ) {
+      return "correction_or_revision";
+    }
 
-  return ranked[0]?.lane || "direct_current_turn";
-},
+    if (
+      context.recallRequested
+    ) {
+      return "recall_or_memory_request";
+    }
 
-  hasReferenceLanguage(text = "") {
-    return /\b(it|this|that|they|them|their|those|these|same|one|ones|him|her|he|she|his|hers|there|that guy|that person)\b/.test(text);
+    if (
+      context
+        .relationshipContinuityRequested
+    ) {
+      return "relationship_continuity";
+    }
+
+    if (
+      context.requiresPriorContext ||
+      context.isContinuation
+    ) {
+      return "continuity_follow_up";
+    }
+
+    if (
+      context.currentTurnMeaningAvailable
+    ) {
+      return "direct_current_turn";
+    }
+
+    return (
+      ranked[0]?.lane ||
+      "direct_current_turn"
+    );
   },
 
-  isActionFollowUp(text = "") {
-    return /\b(what should i do|what would you recommend|recommend me do|recommend i do|what can i do|what do i do|next step|what now|now what)\b/.test(text);
-  },
+  /* =====================================================
+     ROUTING INSTRUCTIONS
+  ===================================================== */
 
-  isRecommendationFollowUp(text = "") {
-    return /\b(recommend|suggest|advice|what would you do)\b/.test(text);
-  },
+  buildRoutingInstructions({
+    lane = "direct_current_turn",
+    context = {}
+  } = {}) {
+    const useThread =
+      this.shouldUseThread(lane);
 
-  isCritiqueFollowUp(text = "") {
-    return /\b(criticize|critique|criticism|what would you say about him|what do you think about him)\b/.test(text);
-  },
+    const useMemory =
+      this.shouldUseMemory(lane);
 
-  lexicalFallback(text = "") {
-    const wordCount = text.split(/\s+/).filter(Boolean).length;
-    const hasReferenceLanguage = this.hasReferenceLanguage(text);
-    const actionFollowUp = this.isActionFollowUp(text);
+    const useRelationship =
+      this.shouldUseRelationship(
+        lane
+      );
 
     return {
-      used: true,
-      needsThread: (hasReferenceLanguage || actionFollowUp) && wordCount <= 14,
-      hasReferenceLanguage,
-      looksLikeQuestion: text.includes("?"),
-      hasEnoughContent: wordCount >= 6
+      useCurrentTurn:
+        true,
+
+      useThread,
+
+      useMemory,
+
+      useRelationship,
+
+      contextRecoveryRequired:
+        lane === "missing_context",
+
+      correctionContextRequired:
+        lane ===
+        "correction_or_revision",
+
+      goStraightToSituationMap:
+        lane ===
+        "direct_current_turn",
+
+      mayProceedToSituationMap:
+        lane !== "missing_context",
+
+      mayProceedToNormalPlanning:
+        lane !== "missing_context" &&
+        context.routingBlocked !== true,
+
+      shouldAskForMissingContext:
+        lane === "missing_context",
+
+      shouldNotReuseUnrelatedThread:
+        lane ===
+        "direct_current_turn",
+
+      canonicalIntentMustBePreserved:
+        true
     };
   },
 
-  emptyLexicalFallback() {
-    return {
-      used: false,
-      needsThread: false,
-      hasReferenceLanguage: false,
-      looksLikeQuestion: false,
-      hasEnoughContent: false
-    };
-  },
-
-  shouldUseThread(lane) {
+  shouldUseThread(
+    lane = ""
+  ) {
     return [
       "continuity_follow_up",
       "correction_or_revision",
@@ -297,53 +1200,475 @@ standaloneDirectQuestion,
     ].includes(lane);
   },
 
-  shouldUseMemory(lane) {
+  shouldUseMemory(
+    lane = ""
+  ) {
     return [
       "recall_or_memory_request",
       "relationship_continuity"
     ].includes(lane);
   },
 
-  shouldUseRelationship(lane) {
-    return lane === "relationship_continuity";
+  shouldUseRelationship(
+    lane = ""
+  ) {
+    return (
+      lane ===
+      "relationship_continuity"
+    );
   },
 
-  confidence(ranked = [], context = {}) {
-    if (context.mustUseThread) return "high";
+  /* =====================================================
+     CONFIDENCE
+  ===================================================== */
 
-    const top = ranked[0]?.score || 0;
-    const second = ranked[1]?.score || 0;
-    const gap = top - second;
+  calculateConfidence({
+    lane = "",
+    ranked = [],
+    context = {},
+    packetSource = {}
+  } = {}) {
+    const top =
+      ranked.find(item =>
+        item.lane === lane
+      )?.score ||
+      ranked[0]?.score ||
+      0;
 
-    if (gap >= 25) return "high";
-    if (gap >= 10) return "medium";
-    return "low";
+    const second =
+      ranked
+        .filter(item =>
+          item.lane !== lane
+        )[0]?.score ||
+      0;
+
+    const gap =
+      Math.max(
+        0,
+        top - second
+      );
+
+    const canonicalPacketBonus =
+      packetSource.available
+        ? 0.15
+        : 0;
+
+    const explicitRouteBonus =
+      (
+        context.missingPriorContext ||
+        context.correctionRequested ||
+        context.recallRequested ||
+        context
+          .relationshipContinuityRequested ||
+        context.requiresPriorContext ||
+        context.directCurrentTurnEligible
+      )
+        ? 0.2
+        : 0;
+
+    const missingMeaningPenalty =
+      context
+        .currentTurnMeaningAvailable
+        ? 0
+        : 0.25;
+
+    const legacyPenalty =
+      packetSource.available
+        ? 0
+        : 0.15;
+
+    const gapScore =
+      this.normalizeConfidence(
+        gap / 100
+      );
+
+    const normalized =
+      this.normalizeConfidence(
+        0.45 +
+        gapScore * 0.25 +
+        canonicalPacketBonus +
+        explicitRouteBonus -
+        missingMeaningPenalty -
+        legacyPenalty
+      );
+
+    return {
+      normalized,
+
+      score:
+        Math.round(
+          normalized * 100
+        ),
+
+      label:
+        this.confidenceLabel(
+          normalized
+        ),
+
+      breakdown: {
+        selectedLaneScore:
+          top,
+
+        secondLaneScore:
+          second,
+
+        scoreGap:
+          gap,
+
+        gapScore,
+
+        canonicalPacketBonus,
+
+        explicitRouteBonus,
+
+        missingMeaningPenalty,
+
+        legacyPenalty
+      }
+    };
   },
 
-  explain(lane, context = {}) {
-    if (lane === "continuity_follow_up" && context.actionFollowUp) {
-      return "Action/recommendation follow-up requires the prior situation.";
+  confidenceLabel(
+    value = 0
+  ) {
+    const normalized =
+      this.normalizeConfidence(
+        value
+      );
+
+    if (normalized >= 0.88) {
+      return "high";
     }
 
-    if (lane === "continuity_follow_up" && context.explicitReferenceLanguage) {
-      return "Reference language requires prior thread context.";
+    if (normalized >= 0.68) {
+      return "medium";
     }
 
-    if (lane === "continuity_follow_up") {
-      return "Current turn depends on active thread context.";
+    if (normalized >= 0.45) {
+      return "low";
     }
 
-    return "Current turn is complete enough to answer directly.";
+    return "very_low";
   },
 
-  rankScores(scores = {}) {
+  /* =====================================================
+     EXPLANATION
+  ===================================================== */
+
+  explain({
+    lane = "",
+    context = {}
+  } = {}) {
+    if (
+      lane === "missing_context"
+    ) {
+      return "The canonical intent packet requires prior context, but that context is not available.";
+    }
+
+    if (
+      lane ===
+      "correction_or_revision"
+    ) {
+      return "The canonical intent packet identifies a correction or revision of prior material.";
+    }
+
+    if (
+      lane ===
+      "recall_or_memory_request"
+    ) {
+      return "The canonical intent packet identifies an explicit recall or memory-context request.";
+    }
+
+    if (
+      lane ===
+      "relationship_continuity"
+    ) {
+      return "The canonical intent packet identifies a relationship-continuity request requiring relationship context.";
+    }
+
+    if (
+      lane ===
+      "continuity_follow_up"
+    ) {
+      return "The canonical intent packet states that the current request requires prior thread context.";
+    }
+
+    if (
+      lane ===
+      "direct_current_turn"
+    ) {
+      return "The canonical intent packet contains sufficient current-turn meaning and does not require prior context.";
+    }
+
+    return "No stronger context dependency was established, so the current turn may proceed directly.";
+  },
+
+  /* =====================================================
+     EXECUTIVE ROUTING HANDOFF
+  ===================================================== */
+
+  buildHandoff({
+    lane = "",
+    routing = {},
+    routingContext = {},
+    confidence = {},
+    explanation = "",
+    packetSource = {}
+  } = {}) {
+    return {
+      ready:
+        lane !==
+        "missing_context" &&
+        routingContext.routingBlocked !==
+          true,
+
+      lane,
+
+      contextLane:
+        lane,
+
+      routing,
+
+      explanation,
+
+      canonicalPacketUsed:
+        packetSource.available,
+
+      legacyFallbackUsed:
+        !packetSource.available,
+
+      semanticIntent:
+        routingContext.semanticIntent,
+
+      conversationPurpose:
+        routingContext
+          .conversationPurpose,
+
+      continuity:
+        routingContext.continuity,
+
+      ambiguity:
+        routingContext.ambiguity,
+
+      governance:
+        routingContext.governance,
+
+      readiness:
+        routingContext.readiness,
+
+      contextRequirements: {
+        currentTurn:
+          true,
+
+        thread:
+          routing.useThread ===
+          true,
+
+        memory:
+          routing.useMemory ===
+          true,
+
+        relationship:
+          routing.useRelationship ===
+          true,
+
+        missingContext:
+          routing
+            .contextRecoveryRequired ===
+          true
+      },
+
+      confidence,
+
+      authority: {
+        canChooseContextLane:
+          true,
+
+        canChooseTriagePriority:
+          false,
+
+        canChooseResponseDomain:
+          false,
+
+        canChoosePlanner:
+          false,
+
+        canDetermineSafetySeverity:
+          false,
+
+        canComposeResponse:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "lane_splitter_to_executive_routing_handoff"
+      }
+    };
+  },
+
+  /* =====================================================
+     HELPERS
+  ===================================================== */
+
+  unwrapSummary(
+    input = {}
+  ) {
+    if (
+      input &&
+      typeof input === "object" &&
+      !Array.isArray(input) &&
+      input.summary &&
+      typeof input.summary ===
+        "object" &&
+      !Array.isArray(input.summary)
+    ) {
+      return input.summary;
+    }
+
+    return (
+      input &&
+      typeof input === "object" &&
+      !Array.isArray(input)
+    )
+      ? input
+      : {};
+  },
+
+  firstNonEmptyObject(
+    ...values
+  ) {
+    return (
+      values.find(value =>
+        value &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        Object.keys(value).length > 0
+      ) ||
+      {}
+    );
+  },
+
+  firstNonEmptyArray(
+    ...values
+  ) {
+    return (
+      values.find(value =>
+        Array.isArray(value) &&
+        value.length > 0
+      ) ||
+      []
+    );
+  },
+
+  matchesAnyIdentifier(
+    values = [],
+    candidates = []
+  ) {
+    const normalizedValues =
+      values
+        .map(value =>
+          this.normalizeIdentifier(
+            value
+          )
+        )
+        .filter(Boolean);
+
+    const normalizedCandidates =
+      candidates
+        .map(value =>
+          this.normalizeIdentifier(
+            value
+          )
+        )
+        .filter(Boolean);
+
+    return normalizedValues.some(
+      value =>
+        normalizedCandidates.some(
+          candidate =>
+            value === candidate ||
+            value.includes(candidate) ||
+            candidate.includes(value)
+        )
+    );
+  },
+
+  normalizeIdentifier(
+    value = ""
+  ) {
+    return String(
+      value || ""
+    )
+      .toLowerCase()
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, "\"")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  },
+
+  normalizeConfidence(
+    value = 0
+  ) {
+    const number =
+      Number(value);
+
+    if (
+      !Number.isFinite(number)
+    ) {
+      return 0;
+    }
+
+    if (number > 1) {
+      return Math.max(
+        0,
+        Math.min(
+          1,
+          number / 100
+        )
+      );
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        number
+      )
+    );
+  },
+
+  rankScores(
+    scores = {}
+  ) {
     return Object.entries(scores)
-      .map(([lane, score]) => ({ lane, score }))
-      .sort((a, b) => b.score - a.score);
+      .map(
+        ([lane, score]) => ({
+          lane,
+          score
+        })
+      )
+      .sort(
+        (a, b) =>
+          b.score -
+          a.score
+      );
   },
 
-  cap(value) {
-    return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+  cap(
+    value = 0
+  ) {
+    return Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(
+          Number(value) ||
+          0
+        )
+      )
+    );
   }
 };
 
