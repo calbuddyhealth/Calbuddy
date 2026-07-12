@@ -603,30 +603,203 @@ window.AriPerceptionPipeline = {
       window.Ari?.conversationFunctionEngine,
       ["analyze"],
       {
-        conversationFunctionRan: false,
-        conversationFunctionSource: "not-loaded",
+  conversationFunctionRan:
+    false,
 
-        primaryFunction: "unknown",
-        supportFunctions: [],
-        blockedFunctions: [],
-        candidates: [],
+  conversationFunctionVersion:
+    null,
 
-        responseBias: null,
-        confidence: null
-      },
+  conversationFunctionSource:
+    "not-loaded",
+
+  advisoryOnly:
+    true,
+
+  primaryFunction:
+    "unknown",
+
+  primaryFunctionFamily:
+    "conversation",
+
+  primaryFunctionReason:
+    null,
+
+  secondaryFunctions:
+    [],
+
+  rankedFunctions:
+    [],
+
+  functionAgreement: {
+    checks:
+      [],
+
+    alignedCount:
+      0,
+
+    totalChecks:
+      0,
+
+    mappedChecks:
+      0,
+
+    score:
+      0,
+
+    level:
+      "none",
+
+    disagreements:
+      [],
+
+    unmappedSources:
+      []
+  },
+
+  confidence:
+    0,
+
+  confidenceScore:
+    0,
+
+  confidenceLabel:
+    "very_low",
+
+  confidenceBreakdown:
+    {},
+
+  responseContract: {
+    function:
+      "unknown",
+
+    family:
+      "conversation",
+
+    objective:
+      null,
+
+    must:
+      [],
+
+    should:
+      [],
+
+    preserveSecondaryFunctions:
+      false,
+
+    secondaryRequirements:
+      [],
+
+    clarificationMayBeRequired:
+      false,
+
+    priorContextRequired:
+      false,
+
+    advisoryOnly:
+      true
+  },
+
+  handoff: {
+    readyForReconciliation:
+      false,
+
+    primaryFunction: {
+      name:
+        "unknown",
+
+      family:
+        "conversation",
+
+      reason:
+        null,
+
+      score:
+        0,
+
+      origin:
+        "not-loaded",
+
+      evidenceRefs:
+        []
+    },
+
+    secondaryFunctions:
+      [],
+
+    rankedFunctions:
+      [],
+
+    responseContract:
+      {},
+
+    functionAgreement:
+      {},
+
+    confidence:
+      {}
+  }
+},
       state
     );
 
     state = {
-      ...state,
+  ...state,
 
-      conversationFunction:
-        conversationFunctionResult,
+  conversationFunction:
+    conversationFunctionResult,
 
-      conversationFunctionResult,
+  conversationFunctionResult,
 
-      ...conversationFunctionResult
-    };
+  conversationFunctionHandoff:
+    conversationFunctionResult.handoff ||
+    {},
+
+  primaryConversationFunction:
+    conversationFunctionResult
+      .primaryFunction ||
+    "unknown",
+
+  primaryConversationFunctionFamily:
+    conversationFunctionResult
+      .primaryFunctionFamily ||
+    "conversation",
+
+  secondaryConversationFunctions:
+    conversationFunctionResult
+      .secondaryFunctions ||
+    [],
+
+  rankedConversationFunctions:
+    conversationFunctionResult
+      .rankedFunctions ||
+    [],
+
+  conversationFunctionAgreement:
+    conversationFunctionResult
+      .functionAgreement ||
+    {},
+
+  conversationFunctionResponseContract:
+    conversationFunctionResult
+      .responseContract ||
+    {},
+
+  conversationFunctionConfidence:
+    conversationFunctionResult
+      .confidence ??
+    0,
+
+  conversationFunctionConfidenceScore:
+    conversationFunctionResult
+      .confidenceScore ??
+    0,
+
+  conversationFunctionConfidenceLabel:
+    conversationFunctionResult
+      .confidenceLabel ||
+    "very_low"
+};
 
     mark("after conversationFunction");
 
@@ -1911,7 +2084,13 @@ const reconciliation =
         .trim();
 
     return {
-      ready:
+            ready:
+        reconciliation
+          .readiness
+          ?.readyForResponsePreparation ===
+        true,
+
+      messageAvailable:
         Boolean(
           String(message).trim()
         ),
@@ -1938,6 +2117,20 @@ const reconciliation =
             .filter(Boolean)
             .length
       },
+
+      conversationIntentPacket:
+        reconciliation
+          .conversationIntentPacket ||
+        reconciliation
+          .unifiedIntentPacket ||
+        null,
+
+      unifiedIntentPacket:
+        reconciliation
+          .conversationIntentPacket ||
+        reconciliation
+          .unifiedIntentPacket ||
+        null,
 
       safetyScreen: {
         available:
@@ -2140,39 +2333,84 @@ const reconciliation =
           lifeSignals
       },
 
-      conversationFunction: {
+            conversationFunction: {
         available:
           conversationFunction
-            .conversationFunctionRan === true,
+            .conversationFunctionRan ===
+          true,
+
+        source:
+          conversationFunction
+            .conversationFunctionSource ||
+          "unknown",
+
+        version:
+          conversationFunction
+            .conversationFunctionVersion ||
+          null,
+
+        advisoryOnly:
+          conversationFunction
+            .advisoryOnly !== false,
 
         primary:
           conversationFunction
             .primaryFunction ||
           "unknown",
 
-        support:
+        primaryFamily:
           conversationFunction
-            .supportFunctions ||
+            .primaryFunctionFamily ||
+          "conversation",
+
+        primaryReason:
+          conversationFunction
+            .primaryFunctionReason ||
+          null,
+
+        secondary:
+          conversationFunction
+            .secondaryFunctions ||
           [],
 
-        blocked:
+        ranked:
           conversationFunction
-            .blockedFunctions ||
+            .rankedFunctions ||
           [],
 
-        candidates:
+        agreement:
           conversationFunction
-            .candidates ||
-          [],
+            .functionAgreement ||
+          null,
 
-        responseBias:
+        responseContract:
           conversationFunction
-            .responseBias ||
+            .responseContract ||
           null,
 
         confidence:
           conversationFunction
             .confidence ??
+          0,
+
+        confidenceScore:
+          conversationFunction
+            .confidenceScore ??
+          0,
+
+        confidenceLabel:
+          conversationFunction
+            .confidenceLabel ||
+          "very_low",
+
+        confidenceBreakdown:
+          conversationFunction
+            .confidenceBreakdown ||
+          null,
+
+        handoff:
+          conversationFunction
+            .handoff ||
           null,
 
         raw:
@@ -2809,6 +3047,40 @@ const reconciliation =
               .semanticSummary
           ),
 
+        hasReconciliation:
+          reconciliation
+            .perceptionReconciliationRan ===
+          true,
+
+        hasConversationIntentPacket:
+          Boolean(
+            reconciliation
+              .conversationIntentPacket ||
+            reconciliation
+              .unifiedIntentPacket
+          ),
+
+        reconciliationPacketUsable:
+          reconciliation
+            .readiness
+            ?.packetUsable === true,
+
+        readyForRouting:
+          reconciliation
+            .readiness
+            ?.readyForRouting === true,
+
+        readyForPlanning:
+          reconciliation
+            .readiness
+            ?.readyForPlanning === true,
+
+        readyForResponsePreparation:
+          reconciliation
+            .readiness
+            ?.readyForResponsePreparation ===
+          true,
+
         ambiguityPresent:
           semanticFrame
             .ambiguity
@@ -2851,6 +3123,21 @@ const reconciliation =
           classification
             .conversationType === "unknown"
             ? "classification"
+            : null,
+
+          reconciliation
+            .perceptionReconciliationRan !==
+            true
+            ? "perception_reconciliation"
+            : null,
+
+          !(
+            reconciliation
+              .conversationIntentPacket ||
+            reconciliation
+              .unifiedIntentPacket
+          )
+            ? "conversation_intent_packet"
             : null,
 
           !primaryFrame
