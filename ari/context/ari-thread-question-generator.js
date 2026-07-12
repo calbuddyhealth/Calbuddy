@@ -1,464 +1,1299 @@
 // ari/context/ari-thread-question-generator.js
-// Purpose: Resolve only true incomplete follow-up references.
-// V2.0.0 — Strict Reference Resolver / No Semantic Interpretation
+// Ari Thread Question Generator
+// Purpose: Preserve the exact current turn and expose canonical reference-resolution results.
+// V3.0.0 — Resolved Turn Handoff / No Text Rewriting / No Anchor Guessing / No Semantic Authority
 
 window.Ari = window.Ari || {};
 
 window.Ari.threadQuestionGenerator = {
-  version: "2.0.0",
+  version: "3.0.0",
+  schemaVersion: "1.0.0",
+
+  /* =====================================================
+     PUBLIC ENTRY POINT
+  ===================================================== */
 
   generate(input = {}) {
-    const summary = input.summary || input || {};
-
-    const raw =
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
-
-    const text = this.clean(raw);
-
-    const packet = summary.continuityPacket || {};
-    const thread =
-      packet.activeThread?.workingContext ||
-      packet.activeThread ||
-      summary.threadState ||
+    const summary =
+      input.summary ||
+      input ||
       {};
 
-    const current = this.analyzeCurrentTurn(text);
+    const currentTurn =
+      this.readCurrentTurn(summary);
 
-    if (!current.needsReferenceResolution) {
-      return this.noResolution(raw, current.reason);
-    }
+    const referenceResolution =
+      this.readReferenceResolution(summary);
 
-    const anchor = this.findBestAnchor({
-      summary,
-      packet,
-      thread,
-      currentText: text
-    });
+    const resolvedSemanticStructure =
+      this.readResolvedSemanticStructure({
+        summary,
+        referenceResolution
+      });
 
-    if (!anchor?.text) {
-      return this.noResolution(raw, "Current turn looked referential, but no safe prior anchor was found.");
-    }
+    const referenceStatus =
+      this.analyzeReferenceStatus({
+        referenceResolution,
+        resolvedSemanticStructure
+      });
 
-    const resolvedText = this.resolveReference({
-      text,
-      anchor: anchor.text,
-      current
-    });
+    const semanticHandoff =
+      this.buildSemanticHandoff({
+        currentTurn,
+        referenceResolution,
+        resolvedSemanticStructure,
+        referenceStatus
+      });
+
+    const resolvedTurn =
+      this.buildResolvedTurn({
+        currentTurn,
+        referenceResolution,
+        resolvedSemanticStructure,
+        referenceStatus,
+        semanticHandoff
+      });
+
+    const result =
+      this.buildResult({
+        currentTurn,
+        referenceResolution,
+        resolvedSemanticStructure,
+        referenceStatus,
+        semanticHandoff,
+        resolvedTurn
+      });
+
+    window.Ari.resolvedCurrentTurn =
+      resolvedTurn;
+
+    window.Ari.threadQuestionResolution =
+      result;
+
+    return result;
+  },
+
+  /* =====================================================
+     CURRENT TURN
+  ===================================================== */
+
+  readCurrentTurn(summary = {}) {
+    const rawText =
+      this.cleanOriginal(
+        summary.userMessage ||
+        summary.message ||
+        summary.input ||
+        summary.normalizedMessage ||
+        ""
+      );
 
     return {
-      threadQuestionGeneratorRan: true,
-      threadQuestionGeneratorVersion: this.version,
-      threadQuestionGeneratorSource: "ari-thread-question-generator",
-      source: "ari-thread-question-generator",
+      turnId:
+        summary.turnId ||
+        summary.semanticStructure
+          ?.turnId ||
+        summary.currentSemanticStructure
+          ?.turnId ||
+        summary.referenceResolution
+          ?.turnId ||
+        this.createStableId(
+          "turn",
+          rawText
+        ),
 
-      rawUserMessage: raw,
-      resolvedUserQuestion: resolvedText,
+      rawText,
 
-      currentTurnWasResolved: true,
-      usedThreadContext: true,
-      resolvedSubject: anchor.text,
-      inheritedTopicSource: anchor.source,
-      inheritedTopicScore: anchor.score,
+      normalizedText:
+        this.normalize(rawText),
 
-      operation: "reference_resolution",
-      resolutionType: "reference_resolution_only",
-      confidence: anchor.confidence,
-      reason: "Resolved only because the current turn contained an incomplete reference.",
+      wordCount:
+        this.normalize(rawText)
+          .split(/\s+/)
+          .filter(Boolean)
+          .length,
 
-      threadQuestionResolutionType: "reference_resolution_only",
-      threadQuestionConfidence: anchor.confidence,
-      threadQuestionReason: "Resolved only because the current turn contained an incomplete reference.",
+      isQuestion:
+        this.isQuestion(rawText),
 
-      resolvedCurrentTurn: {
-        rawText: raw,
-        resolvedText,
-        usedThreadContext: true,
-        inheritedTopic: anchor.text,
-        inheritedTopicSource: anchor.source,
-        operation: "reference_resolution",
-        confidence: anchor.confidence
+      isEmpty:
+        rawText.length === 0,
+
+      preservedExactly:
+        true
+    };
+  },
+
+  isQuestion(text = "") {
+    const normalized =
+      this.normalize(text);
+
+    return (
+      String(text).includes("?") ||
+      /^(what|why|how|when|where|who|which|is|are|am|do|does|did|can|could|should|would|will|was|were|has|have|had)\b/.test(
+        normalized
+      )
+    );
+  },
+
+  /* =====================================================
+     REFERENCE RESOLUTION READING
+  ===================================================== */
+
+  readReferenceResolution(summary = {}) {
+    const candidates = [
+      summary.referenceResolution,
+
+      summary.entityReferenceState
+        ?.referenceResolution,
+
+      summary.entityReferenceState,
+
+      summary.subjectGraphState
+        ?.referenceResolution,
+
+      summary.subjectGraphState,
+
+      summary.entityReferenceResolution,
+
+      summary.referenceResolutionResult,
+
+      window.Ari.referenceResolution,
+
+      window.Ari.entityReferenceState
+    ];
+
+    const found =
+      candidates.find(candidate =>
+        candidate &&
+        typeof candidate === "object" &&
+        (
+          candidate.schema ===
+            "ari_reference_resolution" ||
+          Array.isArray(
+            candidate.decisions
+          ) ||
+          Array.isArray(
+            candidate.resolvedReferences
+          ) ||
+          candidate.resolvedSemanticStructure
+        )
+      );
+
+    if (!found) {
+      return this.emptyReferenceResolution();
+    }
+
+    return {
+      ...found,
+
+      decisions:
+        this.asArray(
+          found.decisions
+        ),
+
+      resolvedReferences:
+        this.asArray(
+          found.resolvedReferences
+        ),
+
+      unresolvedReferences:
+        this.asArray(
+          found.unresolvedReferences
+        ),
+
+      quality:
+        found.quality ||
+        {}
+    };
+  },
+
+  emptyReferenceResolution() {
+    return {
+      schema:
+        "ari_reference_resolution",
+
+      version:
+        null,
+
+      engineVersion:
+        null,
+
+      source:
+        "not_available",
+
+      ran:
+        false,
+
+      turnId:
+        null,
+
+      decisions: [],
+      resolvedReferences: [],
+      unresolvedReferences: [],
+
+      resolvedSemanticStructure:
+        null,
+
+      confidence:
+        0,
+
+      quality: {
+        referenceCount:
+          0,
+
+        resolvedCount:
+          0,
+
+        ambiguousCount:
+          0,
+
+        unresolvedCount:
+          0,
+
+        resolutionRate:
+          1,
+
+        warnings: []
       },
 
       authority: {
-        canChooseLane: false,
-        canAnswerUser: false,
-        canOverrideSafety: false,
-        canSetContract: false,
-        canInterpretIntent: false,
-        role: "strict_reference_resolution_only"
+        canResolveReferences:
+          false,
+
+        role:
+          "reference_resolution_unavailable"
       }
     };
   },
 
-  analyzeCurrentTurn(text = "") {
-    const clean = this.clean(text);
-    const words = clean.split(/\s+/).filter(Boolean);
-    const wordCount = words.length;
+  readResolvedSemanticStructure({
+    summary = {},
+    referenceResolution = {}
+  } = {}) {
+    const candidates = [
+      referenceResolution
+        .resolvedSemanticStructure,
 
-    if (!clean) {
-      return {
-        needsReferenceResolution: false,
-        reason: "Empty text."
-      };
-    }
+      summary
+        .resolvedSemanticStructure,
 
-    const startsLikeFragment =
-      /^(why|how|what about|and|also|then|more|next|continue|same one|other one|that one|this one)\b/.test(clean);
+      summary
+        .currentSemanticStructure,
 
-    const hasReference =
-      this.hasReferenceWord(clean);
+      summary
+        .semanticStructure,
 
-    const shortReference =
-      wordCount <= 10 && hasReference;
+      window.Ari
+        .resolvedSemanticStructure
+    ];
 
-    const bareFragment =
-      wordCount <= 7 && startsLikeFragment;
+    const found =
+      candidates.find(candidate =>
+        candidate &&
+        typeof candidate === "object" &&
+        (
+          candidate.schema ===
+            "ari_resolved_semantic_structure" ||
+          candidate.schema ===
+            "ari_semantic_structure" ||
+          Array.isArray(
+            candidate.references
+          )
+        )
+      );
 
-    const correctionFragment =
-      /\b(i mean|i meant|i ment|rather|instead|not that|no,? i mean)\b/.test(clean);
-
-    const completeNewSituation =
-      wordCount >= 12 && this.hasConcreteNewSituation(clean);
-
-    const completeEnough =
-      wordCount >= 10 &&
-      !bareFragment &&
-      !correctionFragment &&
-      !shortReference;
-
-    if (completeNewSituation) {
-      return {
-        needsReferenceResolution: false,
-        reason: "Current turn contains a concrete new situation; preserve it exactly."
-      };
-    }
-
-    if (completeEnough) {
-      return {
-        needsReferenceResolution: false,
-        reason: "Current turn is complete enough; do not rewrite with prior context."
-      };
-    }
-
-    if (bareFragment || shortReference || correctionFragment) {
-      return {
-        needsReferenceResolution: true,
-        reason: "Current turn is incomplete or referential.",
-        bareFragment,
-        shortReference,
-        correctionFragment,
-        hasReference,
-        wordCount
-      };
+    if (!found) {
+      return null;
     }
 
     return {
-      needsReferenceResolution: false,
-      reason: "No safe reference resolution needed."
+      ...found,
+
+      entities:
+        this.asArray(
+          found.entities
+        ),
+
+      events:
+        this.asArray(
+          found.events
+        ),
+
+      claims:
+        this.asArray(
+          found.claims
+        ),
+
+      attributes:
+        this.asArray(
+          found.attributes
+        ),
+
+      quantities:
+        this.asArray(
+          found.quantities
+        ),
+
+      relations:
+        this.asArray(
+          found.relations
+        ),
+
+      references:
+        this.asArray(
+          found.references
+        ),
+
+      options:
+        this.asArray(
+          found.options
+        ),
+
+      criteria:
+        this.asArray(
+          found.criteria
+        ),
+
+      constraints:
+        this.asArray(
+          found.constraints
+        ),
+
+      stakes:
+        this.asArray(
+          found.stakes
+        ),
+
+      inheritedNodes:
+        this.asArray(
+          found.inheritedNodes
+        ),
+
+      unresolved:
+        this.asArray(
+          found.unresolved
+        )
     };
   },
 
-  resolveReference({ text = "", anchor = "", current = {} } = {}) {
-    const cleanText = this.clean(text);
-    const cleanAnchor = this.cleanTopic(anchor);
+  /* =====================================================
+     REFERENCE STATUS
+  ===================================================== */
 
-    if (!cleanText || !cleanAnchor) return text;
+  analyzeReferenceStatus({
+    referenceResolution = {},
+    resolvedSemanticStructure = null
+  } = {}) {
+    const decisions =
+      this.asArray(
+        referenceResolution.decisions
+      );
 
-    if (current.correctionFragment) {
-      return `${this.cleanCorrection(cleanText)} — regarding ${cleanAnchor}?`;
-    }
+    const resolved =
+      decisions.filter(decision =>
+        decision.status ===
+        "resolved"
+      );
 
-    if (/^why\b/.test(cleanText)) {
-      return `${this.ensureQuestionMark(cleanText)} In the context of ${cleanAnchor}.`;
-    }
+    const ambiguous =
+      decisions.filter(decision =>
+        decision.status ===
+        "ambiguous"
+      );
 
-    if (/^how\b/.test(cleanText)) {
-      return `${this.ensureQuestionMark(cleanText)} In the context of ${cleanAnchor}.`;
-    }
+    const unresolved =
+      decisions.filter(decision =>
+        decision.status ===
+        "unresolved"
+      );
 
-    if (/^what about\b/.test(cleanText)) {
-      return `${this.ensureQuestionMark(cleanText)} In the context of ${cleanAnchor}.`;
-    }
+    const referenceCount =
+      decisions.length ||
+      this.asArray(
+        resolvedSemanticStructure
+          ?.references
+      ).length;
 
-    if (/^(and|also|then|more|next|continue)\b/.test(cleanText)) {
-      return `${cleanText} — continuing from ${cleanAnchor}.`;
-    }
+    const hasReferences =
+      referenceCount > 0;
 
-    if (this.hasReferenceWord(cleanText)) {
-      return this.replaceReferenceWords(cleanText, cleanAnchor);
-    }
+    const allResolved =
+      hasReferences &&
+      resolved.length ===
+        referenceCount;
 
-    return `${cleanText} — regarding ${cleanAnchor}?`;
-  },
+    const partiallyResolved =
+      resolved.length > 0 &&
+      resolved.length <
+        referenceCount;
 
-  findBestAnchor({ summary = {}, packet = {}, thread = {}, currentText = "" } = {}) {
-    const candidates = [];
+    const requiresClarification =
+      ambiguous.length > 0 ||
+      unresolved.length > 0;
 
-    const add = (value, source, score = 0.5) => {
-      const extracted = this.extractText(value);
-      const text = this.cleanTopic(extracted);
+    const status =
+      !hasReferences
+        ? "no_references"
+        : allResolved
+          ? "resolved"
+          : partiallyResolved
+            ? "partially_resolved"
+            : ambiguous.length > 0
+              ? "ambiguous"
+              : "unresolved";
 
-      if (!text) return;
-      if (this.isBadAnchor(text, currentText)) return;
+    return {
+      status,
 
-      candidates.push({
-        text,
-        source,
-        score,
-        confidence: this.scoreToConfidence(score)
-      });
+      referenceCount,
+
+      resolvedCount:
+        resolved.length,
+
+      ambiguousCount:
+        ambiguous.length,
+
+      unresolvedCount:
+        unresolved.length,
+
+      hasReferences,
+
+      allResolved,
+
+      partiallyResolved,
+
+      requiresClarification,
+
+      resolvedReferenceIds:
+        resolved
+          .map(decision =>
+            decision.referenceId
+          )
+          .filter(Boolean),
+
+      ambiguousReferenceIds:
+        ambiguous
+          .map(decision =>
+            decision.referenceId
+          )
+          .filter(Boolean),
+
+      unresolvedReferenceIds:
+        unresolved
+          .map(decision =>
+            decision.referenceId
+          )
+          .filter(Boolean),
+
+      confidence:
+        this.calculateResolutionConfidence({
+          referenceResolution,
+          decisions,
+          resolved,
+          ambiguous,
+          unresolved,
+          referenceCount
+        })
     };
-
-    add(summary.priorMeaningForFollowUp?.resolvedUserQuestion, "prior_meaning_resolved_question", 1.0);
-    add(summary.priorMeaningForFollowUp?.userText, "prior_meaning_user_text", 0.98);
-    add(summary.priorMeaningForFollowUp?.activeSubject, "prior_meaning_active_subject", 0.92);
-    add(summary.priorMeaningForFollowUp?.activeIssue, "prior_meaning_active_issue", 0.9);
-
-    add(summary.latestConversationMeaning?.resolvedUserQuestion, "latest_meaning_resolved_question", 0.96);
-    add(summary.latestConversationMeaning?.userText, "latest_meaning_user_text", 0.94);
-    add(summary.latestConversationMeaning?.activeSubject, "latest_meaning_active_subject", 0.9);
-    add(summary.latestConversationMeaning?.activeIssue, "latest_meaning_active_issue", 0.88);
-
-    add(thread.semanticState?.activeQuestion, "thread_semantic_active_question", 0.9);
-    add(thread.activeQuestion, "thread_active_question", 0.88);
-    add(thread.semanticState?.followUpAnchor, "thread_semantic_follow_up_anchor", 0.84);
-    add(thread.followUpAnchor, "thread_follow_up_anchor", 0.82);
-    add(thread.semanticState?.activeClaim, "thread_semantic_active_claim", 0.76);
-    add(thread.activeClaim, "thread_active_claim", 0.74);
-
-    const recentMessages = this.collectRecentMessages({ summary, packet, thread });
-
-    recentMessages
-      .filter(msg => this.clean(msg) !== this.clean(currentText))
-      .slice(-6)
-      .forEach((msg, index) => {
-        add(msg, `recent_message_${index}`, 0.82 + index * 0.02);
-      });
-
-    add(summary.threadState?.previousAnswerSummary, "thread_state_previous_answer", 0.64);
-    add(summary.previousAnswerSummary, "summary_previous_answer", 0.62);
-    add(thread.previousAnswerSummary, "thread_previous_answer", 0.6);
-
-    candidates.sort((a, b) => b.score - a.score);
-
-    return candidates[0] || null;
   },
 
-  collectRecentMessages({ summary = {}, packet = {}, thread = {} } = {}) {
-    const possible = [
-      summary.threadState?.lastMessages,
-      summary.recentMessages,
-      summary.lastMessages,
-      thread.lastMessages,
-      thread.recentMessages,
-      thread.semanticState?.semanticFrame?.inheritedContext?.recentMessages,
-      thread.semanticFrame?.inheritedContext?.recentMessages,
-      packet.activeThread?.semanticFrame?.inheritedContext?.recentMessages,
-      packet.activeThread?.workingContext?.semanticFrame?.inheritedContext?.recentMessages,
-      packet.activeThread?.workingContext?.semanticState?.semanticFrame?.inheritedContext?.recentMessages
-    ];
+  calculateResolutionConfidence({
+    referenceResolution = {},
+    resolved = [],
+    ambiguous = [],
+    unresolved = [],
+    referenceCount = 0
+  } = {}) {
+    if (!referenceCount) {
+      return 1;
+    }
 
-    const messages = [];
+    const declaredConfidence =
+      this.normalizeConfidence(
+        referenceResolution.confidence
+      );
 
-    possible.forEach(list => {
-      if (!Array.isArray(list)) return;
+    const resolutionScore =
+      (
+        resolved.length *
+          1 +
+        ambiguous.length *
+          0.35
+      ) /
+      referenceCount;
 
-      list.forEach(item => {
-        const text = this.extractText(item);
-        if (text) messages.push(text);
-      });
-    });
+    const unresolvedPenalty =
+      unresolved.length /
+      referenceCount *
+      0.25;
 
-    return [...new Set(messages.map(m => String(m).trim()).filter(Boolean))];
-  },
+    const combined =
+      declaredConfidence > 0
+        ? (
+            declaredConfidence *
+              0.55 +
+            resolutionScore *
+              0.45 -
+            unresolvedPenalty
+          )
+        : (
+            resolutionScore -
+            unresolvedPenalty
+          );
 
-  hasReferenceWord(text = "") {
-    return /\b(it|this|that|they|them|those|these|same|one|ones|there|here|that plan|that idea|that option|her|him|she|he)\b/.test(
-      this.clean(text)
+    return this.normalizeConfidence(
+      combined
     );
   },
 
-  hasConcreteNewSituation(text = "") {
-    const clean = this.clean(text);
+  /* =====================================================
+     SEMANTIC HANDOFF
+  ===================================================== */
+
+  buildSemanticHandoff({
+    currentTurn = {},
+    referenceResolution = {},
+    resolvedSemanticStructure = null,
+    referenceStatus = {}
+  } = {}) {
+    return {
+      schema:
+        "ari_resolved_turn_semantic_handoff",
+
+      version:
+        this.schemaVersion,
+
+      source:
+        "ari-thread-question-generator",
+
+      turnId:
+        currentTurn.turnId,
+
+      rawText:
+        currentTurn.rawText,
+
+      normalizedText:
+        currentTurn.normalizedText,
+
+      semanticStructure:
+        resolvedSemanticStructure,
+
+      referenceResolution: {
+        ran:
+          referenceResolution.ran ===
+          true,
+
+        source:
+          referenceResolution.source ||
+          null,
+
+        version:
+          referenceResolution.version ||
+          referenceResolution.engineVersion ||
+          null,
+
+        status:
+          referenceStatus.status,
+
+        referenceCount:
+          referenceStatus.referenceCount,
+
+        resolvedCount:
+          referenceStatus.resolvedCount,
+
+        ambiguousCount:
+          referenceStatus.ambiguousCount,
+
+        unresolvedCount:
+          referenceStatus.unresolvedCount,
+
+        requiresClarification:
+          referenceStatus.requiresClarification,
+
+        confidence:
+          referenceStatus.confidence,
+
+        decisions:
+          this.asArray(
+            referenceResolution.decisions
+          )
+      },
+
+      inheritedNodes:
+        this.asArray(
+          resolvedSemanticStructure
+            ?.inheritedNodes
+        ),
+
+      unresolvedSemanticItems:
+        this.asArray(
+          resolvedSemanticStructure
+            ?.unresolved
+        ),
+
+      readyForRequestInterpretation:
+        Boolean(
+          resolvedSemanticStructure
+        ) &&
+        !referenceStatus
+          .requiresClarification,
+
+      conditionallyReady:
+        Boolean(
+          resolvedSemanticStructure
+        ) &&
+        referenceStatus
+          .requiresClarification,
+
+      authority: {
+        canPreserveCurrentTurn:
+          true,
+
+        canExposeResolvedReferences:
+          true,
+
+        canExposeUnresolvedReferences:
+          true,
+
+        canRewriteUserText:
+          false,
+
+        canChooseIntent:
+          false,
+
+        canChooseRequestedOperation:
+          false,
+
+        canChooseCanonicalMeaning:
+          false,
+
+        canChooseSemanticFrame:
+          false,
+
+        canChooseRoute:
+          false,
+
+        canChoosePlanner:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "resolved_turn_semantic_handoff_only"
+      }
+    };
+  },
+
+  /* =====================================================
+     RESOLVED TURN
+  ===================================================== */
+
+  buildResolvedTurn({
+    currentTurn = {},
+    referenceResolution = {},
+    resolvedSemanticStructure = null,
+    referenceStatus = {},
+    semanticHandoff = {}
+  } = {}) {
+    return {
+      schema:
+        "ari_resolved_current_turn",
+
+      version:
+        this.schemaVersion,
+
+      source:
+        "ari-thread-question-generator",
+
+      turnId:
+        currentTurn.turnId,
+
+      rawText:
+        currentTurn.rawText,
+
+      preservedText:
+        currentTurn.rawText,
+
+      resolvedText:
+        currentTurn.rawText,
+
+      normalizedText:
+        currentTurn.normalizedText,
+
+      textWasRewritten:
+        false,
+
+      currentTurnWasResolved:
+        referenceStatus
+          .resolvedCount > 0,
+
+      semanticReferencesResolved:
+        referenceStatus
+          .resolvedCount > 0,
+
+      usedThreadContext:
+        this.usedPriorContext(
+          referenceResolution
+        ),
+
+      referenceStatus:
+        referenceStatus.status,
+
+      referenceCount:
+        referenceStatus.referenceCount,
+
+      resolvedReferenceCount:
+        referenceStatus.resolvedCount,
+
+      ambiguousReferenceCount:
+        referenceStatus.ambiguousCount,
+
+      unresolvedReferenceCount:
+        referenceStatus.unresolvedCount,
+
+      requiresClarification:
+        referenceStatus
+          .requiresClarification,
+
+      confidence:
+        referenceStatus.confidence,
+
+      resolvedSemanticStructure,
+
+      semanticHandoff,
+
+      resolutionDecisions:
+        this.asArray(
+          referenceResolution.decisions
+        ),
+
+      reason:
+        this.buildResolutionReason({
+          referenceStatus,
+          resolvedSemanticStructure
+        }),
+
+      authority: {
+        canPreserveOriginalText:
+          true,
+
+        canAttachResolvedMeaning:
+          true,
+
+        canRewriteOriginalText:
+          false,
+
+        canInterpretIntent:
+          false,
+
+        canChooseOperation:
+          false,
+
+        canChooseFrame:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "resolved_current_turn_handoff_only"
+      }
+    };
+  },
+
+  usedPriorContext(
+    referenceResolution = {}
+  ) {
+    return this.asArray(
+      referenceResolution.decisions
+    ).some(decision =>
+      this.asArray(
+        decision.candidates
+      ).some(candidate =>
+        candidate.semanticRef ===
+          decision.resolvedTo &&
+        Number(
+          candidate.turnDistance ||
+          0
+        ) > 0
+      )
+    );
+  },
+
+  buildResolutionReason({
+    referenceStatus = {},
+    resolvedSemanticStructure = null
+  } = {}) {
+    if (
+      !resolvedSemanticStructure
+    ) {
+      return "No canonical semantic structure was available. The original user turn was preserved exactly.";
+    }
+
+    switch (
+      referenceStatus.status
+    ) {
+      case "no_references":
+        return "The current turn contained no canonical references requiring resolution. The original wording was preserved exactly.";
+
+      case "resolved":
+        return "All canonical references were resolved structurally. The original wording was preserved exactly.";
+
+      case "partially_resolved":
+        return "Some canonical references were resolved, while others remain unresolved or ambiguous. The original wording was preserved exactly.";
+
+      case "ambiguous":
+        return "One or more canonical references had competing candidates and were left ambiguous. The original wording was preserved exactly.";
+
+      case "unresolved":
+        return "One or more canonical references could not be safely resolved. The original wording was preserved exactly.";
+
+      default:
+        return "The current turn was preserved exactly and semantic reference status was attached separately.";
+    }
+  },
+
+  /* =====================================================
+     RESULT
+  ===================================================== */
+
+  buildResult({
+    currentTurn = {},
+    referenceResolution = {},
+    resolvedSemanticStructure = null,
+    referenceStatus = {},
+    semanticHandoff = {},
+    resolvedTurn = {}
+  } = {}) {
+    return {
+      threadQuestionGeneratorRan:
+        true,
+
+      threadQuestionGeneratorVersion:
+        this.version,
+
+      threadQuestionGeneratorSource:
+        "ari-thread-question-generator",
+
+      source:
+        "ari-thread-question-generator",
+
+      rawUserMessage:
+        currentTurn.rawText,
+
+      /*
+       * Compatibility field only.
+       *
+       * It deliberately remains identical to the user's
+       * original message. Semantic resolution is carried
+       * in resolvedCurrentTurn and semanticHandoff.
+       */
+      resolvedUserQuestion:
+        currentTurn.rawText,
+
+      preservedUserQuestion:
+        currentTurn.rawText,
+
+      textWasRewritten:
+        false,
+
+      currentTurnWasResolved:
+        resolvedTurn
+          .currentTurnWasResolved,
+
+      usedThreadContext:
+        resolvedTurn
+          .usedThreadContext,
+
+      resolvedSubject:
+        this.readCompatibilityResolvedSubject({
+          referenceResolution,
+          resolvedSemanticStructure
+        }),
+
+      inheritedTopicSource:
+        resolvedTurn
+          .usedThreadContext
+          ? "canonical_reference_resolution"
+          : null,
+
+      inheritedTopicScore:
+        resolvedTurn
+          .usedThreadContext
+          ? referenceStatus.confidence
+          : null,
+
+      operation:
+        referenceStatus.hasReferences
+          ? "semantic_reference_handoff"
+          : "preserve_current_turn",
+
+      resolutionType:
+        referenceStatus.hasReferences
+          ? "structured_reference_resolution"
+          : "none",
+
+      confidence:
+        referenceStatus.confidence,
+
+      reason:
+        resolvedTurn.reason,
+
+      threadQuestionResolutionType:
+        referenceStatus.hasReferences
+          ? "structured_reference_resolution"
+          : "none",
+
+      threadQuestionConfidence:
+        referenceStatus.confidence,
+
+      threadQuestionReason:
+        resolvedTurn.reason,
+
+      referenceStatus:
+        referenceStatus.status,
+
+      referenceResolution,
+
+      resolvedSemanticStructure,
+
+      semanticHandoff,
+
+      resolvedCurrentTurn:
+        resolvedTurn,
+
+      readyForRequestInterpretation:
+        semanticHandoff
+          .readyForRequestInterpretation,
+
+      requiresReferenceClarification:
+        referenceStatus
+          .requiresClarification,
+
+      warnings:
+        this.buildWarnings({
+          referenceResolution,
+          referenceStatus,
+          resolvedSemanticStructure
+        }),
+
+      authority: {
+        canPreserveUserText:
+          true,
+
+        canExposeReferenceResolution:
+          true,
+
+        canRewriteUserQuestion:
+          false,
+
+        canSelectAnchor:
+          false,
+
+        canGuessInheritedTopic:
+          false,
+
+        canChooseLane:
+          false,
+
+        canAnswerUser:
+          false,
+
+        canOverrideSafety:
+          false,
+
+        canSetContract:
+          false,
+
+        canInterpretIntent:
+          false,
+
+        canChooseRequestedOperation:
+          false,
+
+        canChooseSemanticFrame:
+          false,
+
+        role:
+          "resolved_turn_compatibility_handoff_only"
+      }
+    };
+  },
+
+  readCompatibilityResolvedSubject({
+    referenceResolution = {},
+    resolvedSemanticStructure = null
+  } = {}) {
+    const resolvedDecision =
+      this.asArray(
+        referenceResolution.decisions
+      ).find(decision =>
+        decision.status ===
+        "resolved"
+      );
+
+    if (
+      resolvedDecision
+        ?.resolvedTo
+    ) {
+      return resolvedDecision
+        .resolvedTo;
+    }
+
+    const firstInheritedNode =
+      this.asArray(
+        resolvedSemanticStructure
+          ?.inheritedNodes
+      )[0];
 
     return (
-      /\b(i got|i am|i was|i feel|i felt|my wife|my husband|my partner|my cat|my dog|my dad|my father|my mom|my mother)\b/.test(clean) ||
-      /\b(today|yesterday|tomorrow|courthouse|married|pregnant|work|job|school|car|money|rent|pain|fever|diarrhea|cough|code|github|file|bug|error)\b/.test(clean)
+      firstInheritedNode
+        ?.semanticRef ||
+      null
     );
   },
 
-  replaceReferenceWords(text = "", anchor = "") {
-    const topic = this.cleanTopic(anchor);
-
-    const replaced = this.clean(text).replace(
-      /\b(it|this|that|they|them|those|these|same|one|ones)\b/g,
-      topic
-    );
-
-    return this.ensureQuestionMark(replaced);
-  },
-
-  cleanCorrection(text = "") {
-    return this.clean(text)
-      .replace(/\bi ment\b/g, "i meant")
-      .replace(/^no,?\s*/g, "")
-      .replace(/^i mean,?\s*/g, "")
-      .replace(/^i meant,?\s*/g, "")
-      .replace(/^meant,?\s*/g, "")
-      .replace(/^rather,?\s*/g, "")
-      .replace(/^instead,?\s*/g, "")
-      .trim();
-  },
-
-  isBadAnchor(anchor = "", currentText = "") {
-    const cleanAnchor = this.clean(anchor);
-    const cleanCurrent = this.clean(currentText);
-
-    if (!cleanAnchor) return true;
-    if (cleanAnchor === cleanCurrent) return true;
-    if (cleanAnchor.includes("[object object]")) return true;
-
-    const badExact = [
-      "the user",
-      "user",
-      "self",
-      "me",
-      "i",
-      "my",
-      "general",
-      "general understanding",
-      "general_understanding",
-      "information_seeking",
-      "follow up context available",
-      "follow_up_context_available",
-      "active situation",
-      "current situation",
-      "unknown",
-      "none",
-      "null",
-      "continue_prior_context",
-      "request_action_or_output",
-      "collaborative_software_build",
-      "continuation",
-      "conversation_flow"
+  buildWarnings({
+    referenceResolution = {},
+    referenceStatus = {},
+    resolvedSemanticStructure = null
+  } = {}) {
+    const warnings = [
+      ...this.asArray(
+        referenceResolution
+          .quality
+          ?.warnings
+      )
     ];
 
-    if (badExact.includes(cleanAnchor)) return true;
+    if (
+      !resolvedSemanticStructure
+    ) {
+      warnings.push({
+        type:
+          "resolved_semantic_structure_missing",
 
-    if (/^active subject:\s*(the user|user|self)\b/.test(cleanAnchor)) return true;
+        message:
+          "No resolved semantic structure was available for the current turn."
+      });
+    }
 
-    return false;
+    if (
+      referenceStatus
+        .ambiguousCount > 0
+    ) {
+      warnings.push({
+        type:
+          "reference_ambiguity",
+
+        count:
+          referenceStatus
+            .ambiguousCount,
+
+        referenceIds:
+          referenceStatus
+            .ambiguousReferenceIds,
+
+        message:
+          "One or more references have multiple defensible candidates."
+      });
+    }
+
+    if (
+      referenceStatus
+        .unresolvedCount > 0
+    ) {
+      warnings.push({
+        type:
+          "unresolved_reference",
+
+        count:
+          referenceStatus
+            .unresolvedCount,
+
+        referenceIds:
+          referenceStatus
+            .unresolvedReferenceIds,
+
+        message:
+          "One or more references could not be safely resolved."
+      });
+    }
+
+    return this.dedupeWarnings(
+      warnings
+    );
   },
 
-  extractText(value) {
-    if (!value) return "";
+  /* =====================================================
+     HELPERS
+  ===================================================== */
 
-    if (typeof value === "string") return value;
+  dedupeWarnings(
+    warnings = []
+  ) {
+    const seen =
+      new Set();
 
-    if (typeof value === "object") {
-      return (
-        value.resolvedUserQuestion ||
-        value.userText ||
-        value.followUpAnchor ||
-        value.activeClaim ||
-        value.activeQuestion ||
-        value.text ||
-        value.claim ||
-        value.value ||
-        value.label ||
-        value.evidence ||
-        value.surface ||
-        value.summary ||
-        value.subject ||
-        value.issue ||
-        value.topic ||
-        value.goal ||
-        ""
+    return this.asArray(
+      warnings
+    ).filter(warning => {
+      if (!warning) {
+        return false;
+      }
+
+      const key =
+        [
+          warning.type ||
+            "warning",
+
+          warning.message ||
+            "",
+
+          warning.count ??
+            ""
+        ].join("|");
+
+      if (
+        seen.has(key)
+      ) {
+        return false;
+      }
+
+      seen.add(key);
+
+      return true;
+    });
+  },
+
+  asArray(value = []) {
+    if (
+      Array.isArray(value)
+    ) {
+      return value;
+    }
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return [];
+    }
+
+    return [value];
+  },
+
+  normalizeConfidence(
+    value = 0
+  ) {
+    const number =
+      Number(value);
+
+    if (
+      !Number.isFinite(number)
+    ) {
+      return 0;
+    }
+
+    if (
+      number > 1
+    ) {
+      return Math.max(
+        0,
+        Math.min(
+          1,
+          number / 100
+        )
       );
     }
 
-    return String(value || "");
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        number
+      )
+    );
   },
 
-  cleanTopic(value = "") {
-    return String(value || "")
-      .replace(/^the user's current situation:\s*/i, "")
-      .replace(/^current topic:\s*/i, "")
-      .replace(/^current situation:\s*/i, "")
-      .replace(/^user said:\s*/i, "")
-      .replace(/^ari answered:\s*/i, "")
-      .replace(/\s+/g, " ")
-      .trim();
+  createStableId(
+    prefix = "id",
+    value = ""
+  ) {
+    return [
+      prefix,
+      this.hashString(
+        String(value || "")
+      )
+    ].join("_");
   },
 
-  ensureQuestionMark(value = "") {
-    const text = String(value || "").trim();
-    if (!text) return "";
-    return /[?]$/.test(text) ? text : `${text}?`;
+  hashString(value = "") {
+    let hash =
+      2166136261;
+
+    const text =
+      String(value || "");
+
+    for (
+      let index = 0;
+      index < text.length;
+      index += 1
+    ) {
+      hash ^=
+        text.charCodeAt(
+          index
+        );
+
+      hash +=
+        (
+          hash << 1
+        ) +
+        (
+          hash << 4
+        ) +
+        (
+          hash << 7
+        ) +
+        (
+          hash << 8
+        ) +
+        (
+          hash << 24
+        );
+    }
+
+    return (
+      hash >>> 0
+    ).toString(36);
   },
 
-  scoreToConfidence(score = 0.5) {
-    if (score >= 0.95) return 0.92;
-    if (score >= 0.85) return 0.88;
-    if (score >= 0.7) return 0.82;
-    if (score >= 0.6) return 0.74;
-    return 0.66;
-  },
-
-  noResolution(raw, reason = "Current turn preserved exactly.") {
-    return {
-      threadQuestionGeneratorRan: true,
-      threadQuestionGeneratorVersion: this.version,
-      threadQuestionGeneratorSource: "ari-thread-question-generator",
-      source: "ari-thread-question-generator",
-
-      rawUserMessage: raw,
-      resolvedUserQuestion: raw,
-
-      currentTurnWasResolved: false,
-      usedThreadContext: false,
-      resolvedSubject: null,
-      operation: "none",
-
-      resolutionType: "none",
-      confidence: 1,
-      reason,
-
-      threadQuestionResolutionType: "none",
-      threadQuestionConfidence: 1,
-      threadQuestionReason: reason,
-
-      resolvedCurrentTurn: {
-        rawText: raw,
-        resolvedText: raw,
-        usedThreadContext: false,
-        operation: "none",
-        confidence: 1
-      },
-
-      authority: {
-        canChooseLane: false,
-        canAnswerUser: false,
-        canOverrideSafety: false,
-        canSetContract: false,
-        canInterpretIntent: false,
-        role: "strict_reference_resolution_only"
-      }
-    };
-  },
-
-  clean(value = "") {
-    return String(value || "")
-      .toLowerCase()
+  cleanOriginal(value = "") {
+    return String(
+      value ??
+      ""
+    )
       .replace(/[’‘]/g, "'")
       .replace(/[“”]/g, '"')
       .replace(/\s+/g, " ")
       .trim();
+  },
+
+  normalize(value = "") {
+    return this.cleanOriginal(
+      value
+    )
+      .toLowerCase()
+      .replace(/[_-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 };
+
+window.AriThreadQuestionGenerator =
+  window.Ari.threadQuestionGenerator;
 
 console.log(
   "ARI THREAD QUESTION GENERATOR LOADED:",
