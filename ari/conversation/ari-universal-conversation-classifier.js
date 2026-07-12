@@ -65,10 +65,11 @@ window.AriUniversalConversationClassifier = {
       this.resolveContextualSignals(signals);
 
     const explicitRequestOverridesContext =
-      signals.explicitRequestPresent &&
-      signals.contextSignalsPresent &&
-      top.interactionFamily !== "emotional_support";
-
+  signals.explicitRequestPresent &&
+  signals.contextSignalsPresent &&
+  signals.safetyStopRequested !== true &&
+  top.interactionFamily !== "emotional_support";
+    
     const confidence =
       this.normalizeConfidence(
         Math.min(
@@ -110,19 +111,25 @@ window.AriUniversalConversationClassifier = {
 
       contextualSignals,
 
-      explicitRequestPresent:
-        signals.explicitRequestPresent,
+explicitRequestPresent:
+  signals.explicitRequestPresent,
 
-      explicitRequestType:
-        signals.explicitRequestType,
+requestEvidencePresent:
+  signals.requestEvidencePresent,
 
-      explicitRequestedOperation:
-        signals.explicitRequestedOperation,
+requestEvidenceFromQuestionEngine:
+  signals.requestEvidenceFromQuestionEngine,
 
-      explicitRequestedOutput:
-        signals.explicitRequestedOutput,
+explicitRequestType:
+  signals.explicitRequestType,
 
-      explicitRequestOverridesContext,
+explicitRequestedOperation:
+  signals.explicitRequestedOperation,
+
+explicitRequestedOutput:
+  signals.explicitRequestedOutput,
+
+explicitRequestOverridesContext,
 
       emotionalContextPresent:
         signals.emotionalContextPresent,
@@ -465,21 +472,24 @@ window.AriUniversalConversationClassifier = {
       );
 
     const explicitWritingLanguage =
-      this.hasAny(text, [
-        "write me",
-        "write this",
-        "rewrite",
-        "draft",
-        "make this sound",
-        "help me respond",
-        "how do i respond",
-        "email",
-        "text message",
-        "caption",
-        "essay",
-        "paragraph",
-        "invitation"
-      ]);
+  this.hasAny(text, [
+    "write me",
+    "write this",
+    "rewrite",
+    "draft",
+    "make this sound",
+    "help me respond",
+    "how do i respond",
+    "write an email",
+    "draft an email",
+    "write a text message",
+    "draft a text message",
+    "write a caption",
+    "write an essay",
+    "write a paragraph",
+    "make an invitation",
+    "create an invitation"
+  ]);
 
     const explicitTranslationLanguage =
       this.hasAny(text, [
@@ -572,43 +582,47 @@ window.AriUniversalConversationClassifier = {
         "illustrate"
       ]);
 
-    const explicitRequestFromQuestionEngine =
-      Boolean(
-        primaryPurpose &&
-        ![
-          "understanding",
-          "unknown",
-          "general"
-        ].includes(primaryPurpose)
-      ) ||
-      requestedOperations.length > 0 ||
-      requestedOutputs.length > 0;
+    const requestEvidenceFromQuestionEngine =
+  Boolean(
+    primaryPurpose &&
+    ![
+      "understanding",
+      "unknown",
+      "general"
+    ].includes(primaryPurpose)
+  ) ||
+  requestedOperations.length > 0 ||
+  requestedOutputs.length > 0;
 
-    const explicitRequestType =
-      this.resolveExplicitRequestType({
-        primaryPurpose,
-        requestedOperations,
-        requestedOutputs,
-        explicitDecisionLanguage,
-        explicitPlanningLanguage,
-        explicitImplementationLanguage,
-        explicitExplanationLanguage,
-        explicitFactualLanguage,
-        explicitWritingLanguage,
-        explicitTranslationLanguage,
-        explicitCalculationLanguage,
-        explicitMemoryLanguage,
-        explicitRecallLanguage,
-        explicitIdentityLanguage,
-        explicitOpinionLanguage,
-        explicitVerificationLanguage,
-        explicitCreationLanguage,
-        explicitEmotionalSupportLanguage
-      });
+const explicitRequestType =
+  this.resolveExplicitRequestType({
+    primaryPurpose,
+    requestedOperations,
+    requestedOutputs,
 
-    const explicitRequestPresent =
-      explicitRequestFromQuestionEngine ||
-      explicitRequestType !== null;
+    explicitDecisionLanguage,
+    explicitPlanningLanguage,
+    explicitImplementationLanguage,
+    explicitExplanationLanguage,
+    explicitFactualLanguage,
+    explicitWritingLanguage,
+    explicitTranslationLanguage,
+    explicitCalculationLanguage,
+    explicitMemoryLanguage,
+    explicitRecallLanguage,
+    explicitIdentityLanguage,
+    explicitOpinionLanguage,
+    explicitVerificationLanguage,
+    explicitCreationLanguage,
+    explicitEmotionalSupportLanguage
+  });
+
+const explicitRequestPresent =
+  explicitRequestType !== null;
+
+const requestEvidencePresent =
+  explicitRequestPresent ||
+  requestEvidenceFromQuestionEngine;
 
     const explicitRequestedOperation =
       requestedOperations[0] ||
@@ -670,8 +684,10 @@ window.AriUniversalConversationClassifier = {
       );
 
     const safetySignalPresent =
-      safety.riskLevel &&
-      safety.riskLevel !== "none";
+  Boolean(
+    safety.riskLevel &&
+    safety.riskLevel !== "none"
+  );
 
     const safetyStopRequested =
       safety.shouldStopNormalResponse === true;
@@ -718,9 +734,12 @@ window.AriUniversalConversationClassifier = {
       },
 
       explicitRequestPresent,
-      explicitRequestType,
-      explicitRequestedOperation,
-      explicitRequestedOutput,
+requestEvidencePresent,
+requestEvidenceFromQuestionEngine,
+
+explicitRequestType,
+explicitRequestedOperation,
+explicitRequestedOutput,
 
       explicitDecisionLanguage,
       explicitPlanningLanguage,
@@ -920,11 +939,10 @@ window.AriUniversalConversationClassifier = {
     }
 
     if (
-      signals.explicitEmotionalSupportLanguage ||
-      primaryPurpose === "emotional"
-    ) {
-      return "emotional_support";
-    }
+  signals.explicitEmotionalSupportLanguage
+) {
+  return "emotional_support";
+}
 
     if (
       signals.explicitExplanationLanguage ||
