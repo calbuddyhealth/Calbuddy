@@ -572,245 +572,724 @@ const framePriority = this.buildFramePriority({
   ===================================================== */
 
   buildRequestModel({
-    normalized = {},
-    sources = {},
-    evidenceIndex = {}
-  } = {}) {
-    const question =
-      sources.questionUnderstanding ||
-      {};
+  normalized = {},
+  sources = {},
+  evidenceIndex = {}
+} = {}) {
+  const question =
+    sources.questionUnderstanding ||
+    {};
 
-    const classification =
-      sources.classification ||
-      {};
+  const classification =
+    sources.classification ||
+    {};
 
-    const requestedOperations =
-      this.normalizeList(
-        question.requestedOperations
+  const requestedOperations =
+    this.normalizeList(
+      question.requestedOperations
+    );
+
+  const requestedOutputs =
+    this.normalizeList(
+      question.requestedOutputs
+    );
+
+  const primaryPurpose =
+    this.normalize(
+      question.primaryPurpose ||
+      question.questionPurpose ||
+      ""
+    );
+
+  const classifierOperation =
+    this.normalize(
+      classification
+        .explicitRequestedOperation
+    );
+
+  const classifierOutput =
+    this.normalize(
+      classification
+        .explicitRequestedOutput
+    );
+
+  const classifierRequestType =
+    this.normalize(
+      classification
+        .explicitRequestType
+    );
+
+  const operationEvidence =
+    evidenceIndex.operationEvidence ||
+    [];
+
+  const outputEvidence =
+    evidenceIndex.outputEvidence ||
+    [];
+
+  const explicitRequestPresent =
+    classification
+      .explicitRequestPresent === true;
+
+  /*
+   * The classifier is evidence, not authority.
+   *
+   * Question Understanding is checked first because it is
+   * designed to identify what the user is asking Ari to do.
+   * The classifier remains a fallback and agreement source.
+   */
+  const proposedOperation =
+    requestedOperations[0] ||
+    classifierOperation ||
+    this.operationFromPurpose(
+      primaryPurpose,
+      classifierRequestType
+    ) ||
+    "respond";
+
+  const proposedOutput =
+    requestedOutputs[0] ||
+    classifierOutput ||
+    this.outputFromPurpose(
+      primaryPurpose,
+      classifierRequestType
+    ) ||
+    "response";
+
+  /*
+   * Explicit action policy separates:
+   *
+   * 1. What the user is discussing.
+   * 2. What the user authorizes Ari to perform.
+   *
+   * Example:
+   * "Tell me whether we should change the architecture,
+   * but do not rewrite code yet."
+   *
+   * Topic:
+   *   architecture modification
+   *
+   * Authorized operation:
+   *   evaluate and recommend
+   *
+   * Prohibited operation:
+   *   implementation
+   */
+  const actionPolicy =
+    this.buildActionPolicy({
+      text:
+        normalized.text ||
+        "",
+
+      proposedOperation,
+      proposedOutput,
+
+      requestedOperations,
+      requestedOutputs,
+
+      classifierOperation,
+      classifierOutput,
+
+      primaryPurpose,
+      classifierRequestType
+    });
+
+  const operation =
+    actionPolicy.resolvedOperation ||
+    proposedOperation ||
+    "respond";
+
+  const requestedOutput =
+    actionPolicy.resolvedOutput ||
+    proposedOutput ||
+    "response";
+
+  const interactionFamily =
+    actionPolicy.resolvedInteractionFamily ||
+    classification.interactionFamily ||
+    this.interactionFamilyFromOperation(
+      operation
+    );
+
+  const intentFamily =
+    actionPolicy.resolvedIntentFamily ||
+    classification.intentFamily ||
+    this.intentFamilyFromOperation(
+      operation
+    );
+
+  const requestType =
+    actionPolicy.resolvedRequestType ||
+    this.requestTypeFromOperation(
+      operation
+    ) ||
+    classifierRequestType ||
+    "general";
+
+  const secondaryOperations =
+    this.uniqueNormalizedValues([
+      ...requestedOperations.slice(1),
+
+      classifierOperation &&
+      classifierOperation !== operation
+        ? classifierOperation
+        : null
+    ])
+      .filter(candidate =>
+        candidate !== operation
       );
 
-    const requestedOutputs =
-      this.normalizeList(
-        question.requestedOutputs
+  const secondaryOutputs =
+    this.uniqueNormalizedValues([
+      ...requestedOutputs.slice(1),
+
+      classifierOutput &&
+      classifierOutput !== requestedOutput
+        ? classifierOutput
+        : null
+    ])
+      .filter(candidate =>
+        candidate !== requestedOutput
       );
 
-    const primaryPurpose =
-      this.normalize(
-        question.primaryPurpose ||
-        question.questionPurpose ||
-        ""
-      );
+  const requestEvidencePresent =
+    classification.requestEvidencePresent ===
+      true ||
+    explicitRequestPresent ||
+    Boolean(operation) ||
+    Boolean(requestedOutput) ||
+    operationEvidence.length > 0 ||
+    outputEvidence.length > 0;
 
-    const classifierOperation =
-      this.normalize(
-        classification
-          .explicitRequestedOperation
-      );
+  const speechAct =
+    this.resolveSpeechAct(
+      normalized,
+      operation
+    );
 
-    const classifierOutput =
-      this.normalize(
-        classification
-          .explicitRequestedOutput
-      );
+  return {
+    explicitRequestPresent,
+    requestEvidencePresent,
 
-    const classifierRequestType =
-      this.normalize(
-        classification
-          .explicitRequestType
-      );
+    primaryPurpose:
+      primaryPurpose ||
+      "understanding",
 
-    const operation =
-  classification.explicitRequestPresent === true
-    ? (
-        classifierOperation ||
-        requestedOperations[0] ||
-        this.operationFromPurpose(
-          primaryPurpose,
-          classifierRequestType
-        )
+    purposeConfidence:
+      this.normalizeConfidence(
+        question.primaryPurposeConfidence ??
+        question.confidence ??
+        0
+      ),
+
+    purposeCandidates:
+      question.purposeCandidates ||
+      [],
+
+    supportPurposes:
+      question.supportPurposes ||
+      [],
+
+    multiPurpose:
+      question.multiPurpose === true ||
+      secondaryOperations.length > 0 ||
+      secondaryOutputs.length > 0,
+
+    competingPurposes:
+      question.competingPurposes ||
+      [],
+
+    requestType,
+
+    operation,
+
+    secondaryOperations,
+
+    requestedOutput,
+
+    secondaryOutputs,
+
+    interactionFamily,
+
+    intentFamily,
+
+    classificationType:
+      classification.conversationType ||
+      null,
+
+    classificationIntent:
+      classification.conversationIntent ||
+      null,
+
+    speechAct,
+
+    explicitRequestOverridesContext:
+      classification
+        .explicitRequestOverridesContext ===
+      true,
+
+    actionPolicy,
+
+    executionAllowed:
+      actionPolicy.executionAllowed,
+
+    analysisOnly:
+      actionPolicy.analysisOnly,
+
+    prohibitedOperations:
+      actionPolicy.prohibitedOperations,
+
+    deferredOperations:
+      actionPolicy.deferredOperations,
+
+    proposedOperation,
+
+    proposedOutput,
+
+    evidenceRefs: [
+      ...operationEvidence.map(item =>
+        item.id
+      ),
+
+      ...outputEvidence.map(item =>
+        item.id
       )
-    : (
-        requestedOperations[0] ||
-        classifierOperation ||
-        this.operationFromPurpose(
-          primaryPurpose,
-          classifierRequestType
-        )
-      );
+    ],
 
-const requestedOutput =
-  classification.explicitRequestPresent === true
-    ? (
-        classifierOutput ||
-        requestedOutputs[0] ||
-        this.outputFromPurpose(
-          primaryPurpose,
-          classifierRequestType
-        )
-      )
-    : (
-        requestedOutputs[0] ||
-        classifierOutput ||
-        this.outputFromPurpose(
-          primaryPurpose,
-          classifierRequestType
-        )
-      );
-
-    const operationEvidence =
-      evidenceIndex.operationEvidence ||
-      [];
-
-    const outputEvidence =
-      evidenceIndex.outputEvidence ||
-      [];
-
-    const explicitRequestPresent =
-  classification.explicitRequestPresent === true;
-
-const requestEvidencePresent =
-  classification.requestEvidencePresent === true ||
-  explicitRequestPresent ||
-  Boolean(operation) ||
-  Boolean(requestedOutput) ||
-  operationEvidence.length > 0 ||
-  outputEvidence.length > 0;
-    
-    const secondaryOperations =
-      requestedOperations
-        .slice(1)
-        .filter(value =>
-          value !== operation
-        );
-
-    const secondaryOutputs =
-      requestedOutputs
-        .slice(1)
-        .filter(value =>
-          value !== requestedOutput
-        );
-
-    const speechAct =
-      this.resolveSpeechAct(
-        normalized,
-        operation
-      );
-
-    return {
-      explicitRequestPresent,
-      requestEvidencePresent,
-
-      primaryPurpose:
-        primaryPurpose ||
-        "understanding",
-
-      purposeConfidence:
-        this.normalizeConfidence(
-          question.primaryPurposeConfidence ??
-          question.confidence ??
-          0
-        ),
-
-      purposeCandidates:
-        question.purposeCandidates ||
-        [],
-
-      supportPurposes:
-        question.supportPurposes ||
-        [],
-
-      multiPurpose:
-        question.multiPurpose === true ||
-        secondaryOperations.length > 0 ||
-        secondaryOutputs.length > 0,
-
-      competingPurposes:
-        question.competingPurposes ||
-        [],
-
-      requestType:
-        classifierRequestType ||
-        this.requestTypeFromOperation(
-          operation
-        ),
-
-      operation:
-        operation ||
-        "respond",
-
-      secondaryOperations,
-
-      requestedOutput:
-        requestedOutput ||
-        "response",
-
-      secondaryOutputs,
-
-      interactionFamily:
-        classification.interactionFamily ||
-        this.interactionFamilyFromOperation(
-          operation
-        ),
-
-      intentFamily:
-        classification.intentFamily ||
-        this.intentFamilyFromOperation(
-          operation
-        ),
-
-      classificationType:
-        classification.conversationType ||
-        null,
-
-      classificationIntent:
-        classification.conversationIntent ||
-        null,
-
-      speechAct,
-
-      explicitRequestOverridesContext:
-        classification
-          .explicitRequestOverridesContext === true,
-
-      evidenceRefs: [
-        ...operationEvidence.map(item =>
-          item.id
-        ),
-        ...outputEvidence.map(item =>
-          item.id
-        )
-      ],
-
-      sourceAgreement: {
-        questionUnderstanding:
-  Boolean(
-    requestedOperations.length ||
-    requestedOutputs.length ||
-    (
-      primaryPurpose &&
-      ![
-        "understanding",
-        "general",
-        "unknown"
-      ].includes(primaryPurpose)
-    )
-  ),
-
-        classifier:
-          Boolean(
-            classifierOperation ||
-            classifierOutput ||
-            classifierRequestType
-          ),
-
-        ledger:
-          Boolean(
-            operationEvidence.length ||
-            outputEvidence.length
+    sourceAgreement: {
+      questionUnderstanding:
+        Boolean(
+          requestedOperations.length ||
+          requestedOutputs.length ||
+          (
+            primaryPurpose &&
+            ![
+              "understanding",
+              "general",
+              "unknown"
+            ].includes(primaryPurpose)
           )
-      }
-    };
-  },
+        ),
+
+      classifier:
+        Boolean(
+          classifierOperation ||
+          classifierOutput ||
+          classifierRequestType
+        ),
+
+      ledger:
+        Boolean(
+          operationEvidence.length ||
+          outputEvidence.length
+        )
+    },
+
+    sourceTrace: {
+      questionOperation:
+        requestedOperations[0] ||
+        null,
+
+      classifierOperation:
+        classifierOperation ||
+        null,
+
+      proposedOperation,
+
+      resolvedOperation:
+        operation,
+
+      resolutionChangedOperation:
+        proposedOperation !==
+        operation,
+
+      questionOutput:
+        requestedOutputs[0] ||
+        null,
+
+      classifierOutput:
+        classifierOutput ||
+        null,
+
+      proposedOutput,
+
+      resolvedOutput:
+        requestedOutput,
+
+      resolutionChangedOutput:
+        proposedOutput !==
+        requestedOutput
+    }
+  };
+},
+
+buildActionPolicy({
+  text = "",
+  proposedOperation = "",
+  proposedOutput = "",
+  requestedOperations = [],
+  requestedOutputs = [],
+  classifierOperation = "",
+  classifierOutput = "",
+  primaryPurpose = "",
+  classifierRequestType = ""
+} = {}) {
+  const normalizedText =
+    this.normalize(text);
+
+  /*
+   * These patterns only detect explicit user restrictions.
+   * They do not infer hidden preferences.
+   */
+  const codeExecutionProhibited =
+    this.hasExplicitArtifactProhibition(
+      normalizedText
+    );
+
+  const deferredLanguagePresent =
+    /\b(?:yet|for now|right now|at this point|not until|later)\b/.test(
+      normalizedText
+    );
+
+  const analysisRequestPresent =
+    this.hasExplicitAnalysisRequest(
+      normalizedText
+    );
+
+  const recommendationRequested =
+    /\b(?:recommend|recommendation|what do you honestly recommend|what would you recommend|tell me what you recommend|which option should|what should we|what should i)\b/.test(
+      normalizedText
+    );
+
+  const explanationRequested =
+    /\b(?:explain|explanation|risks?|tradeoffs?|trade offs?|advantages?|disadvantages?|pros and cons|why)\b/.test(
+      normalizedText
+    );
+
+  const comparisonRequested =
+    /\b(?:whether|compare|versus|vs\.?|each choice|each option|three choices|options?)\b/.test(
+      normalizedText
+    );
+
+  const inspectionRequested =
+    /\b(?:inspect|review|look at|look through|which file|what file|next file)\b/.test(
+      normalizedText
+    );
+
+  const prohibitedOperations =
+    codeExecutionProhibited
+      ? [
+          "implement_or_modify",
+          "modify_existing_artifact",
+          "create_artifact",
+          "write_code",
+          "rewrite_code",
+          "apply_patch",
+          "edit_file",
+          "replace_code"
+        ]
+      : [];
+
+  const deferredOperations =
+    codeExecutionProhibited &&
+    deferredLanguagePresent
+      ? [...prohibitedOperations]
+      : [];
+
+  let resolvedOperation =
+    proposedOperation ||
+    "respond";
+
+  let resolvedOutput =
+    proposedOutput ||
+    "response";
+
+  let resolvedInteractionFamily =
+    null;
+
+  let resolvedIntentFamily =
+    null;
+
+  let resolvedRequestType =
+    null;
+
+  /*
+   * When execution is explicitly prohibited but analysis,
+   * recommendation, comparison, or inspection is requested,
+   * use the authorized analytical operation.
+   */
+  if (
+    codeExecutionProhibited &&
+    analysisRequestPresent
+  ) {
+    if (
+      recommendationRequested ||
+      comparisonRequested
+    ) {
+      resolvedOperation =
+        "evaluate_and_recommend";
+
+      resolvedOutput =
+        explanationRequested
+          ? "architectural_recommendation_with_risks"
+          : "architectural_recommendation";
+
+      resolvedInteractionFamily =
+        "decision";
+
+      resolvedIntentFamily =
+        "recommendation";
+
+      resolvedRequestType =
+        "decision";
+    } else if (
+      inspectionRequested
+    ) {
+      resolvedOperation =
+        "inspect_and_explain";
+
+      resolvedOutput =
+        "architectural_analysis";
+
+      resolvedInteractionFamily =
+        "verification";
+
+      resolvedIntentFamily =
+        "analysis";
+
+      resolvedRequestType =
+        "verification";
+    } else {
+      resolvedOperation =
+        "explain_without_execution";
+
+      resolvedOutput =
+        "explanation";
+
+      resolvedInteractionFamily =
+        "information";
+
+      resolvedIntentFamily =
+        "explanation";
+
+      resolvedRequestType =
+        "explanation";
+    }
+  }
+
+  const proposedOperationBlocked =
+    this.operationMatchesAny(
+      proposedOperation,
+      prohibitedOperations
+    );
+
+  return {
+    executionAllowed:
+      !codeExecutionProhibited,
+
+    analysisOnly:
+      codeExecutionProhibited,
+
+    explicitExecutionProhibition:
+      codeExecutionProhibited,
+
+    deferredExecution:
+      codeExecutionProhibited &&
+      deferredLanguagePresent,
+
+    analysisRequestPresent,
+    recommendationRequested,
+    explanationRequested,
+    comparisonRequested,
+    inspectionRequested,
+
+    proposedOperation:
+      proposedOperation ||
+      null,
+
+    proposedOutput:
+      proposedOutput ||
+      null,
+
+    proposedOperationBlocked,
+
+    resolvedOperation,
+
+    resolvedOutput,
+
+    resolvedInteractionFamily,
+
+    resolvedIntentFamily,
+
+    resolvedRequestType,
+
+    prohibitedOperations,
+
+    deferredOperations,
+
+    sourceOperations:
+      this.uniqueNormalizedValues([
+        ...requestedOperations,
+        classifierOperation,
+        this.operationFromPurpose(
+          primaryPurpose,
+          classifierRequestType
+        )
+      ]),
+
+    sourceOutputs:
+      this.uniqueNormalizedValues([
+        ...requestedOutputs,
+        classifierOutput,
+        this.outputFromPurpose(
+          primaryPurpose,
+          classifierRequestType
+        )
+      ]),
+
+    reason:
+      codeExecutionProhibited
+        ? (
+            analysisRequestPresent
+              ? "The user explicitly prohibited artifact execution while requesting analysis or recommendation."
+              : "The user explicitly prohibited artifact execution."
+          )
+        : "No explicit artifact-execution prohibition was detected.",
+
+    authority:
+      "explicit_user_action_authorization"
+  };
+},
+
+hasExplicitArtifactProhibition(
+  text = ""
+) {
+  const normalized =
+    this.normalize(text);
+
+  const negativeLead =
+    String.raw`(?:do not|don't|dont|did not|didn't|didnt|no need to|without|not asking (?:you )?to|i do not want (?:you )?to|i don't want (?:you )?to|i dont want (?:you )?to)`;
+
+  const executionVerb =
+    String.raw`(?:write|rewrite|modify|change|edit|patch|implement|code|generate|create|replace|remove|delete|add|wire|update|send)`;
+
+  const artifactObject =
+    String.raw`(?:any\s+)?(?:code|files?|artifacts?|implementation|patch(?:es)?|functions?|engines?|scripts?|architecture)`;
+
+  const directPattern =
+    new RegExp(
+      String.raw`\b${negativeLead}\s+${executionVerb}(?:\s+${artifactObject})?\b`,
+      "i"
+    );
+
+  const wantPattern =
+    new RegExp(
+      String.raw`\b(?:i\s+)?(?:do not|don't|dont)\s+want\s+(?:you\s+to\s+)?${executionVerb}(?:\s+${artifactObject})?\b`,
+      "i"
+    );
+
+  const noCodePattern =
+    /\b(?:no code|without code|analysis only|discussion only|do not make changes|don't make changes|dont make changes|do not change anything|don't change anything|dont change anything)\b/i;
+
+  return (
+    directPattern.test(normalized) ||
+    wantPattern.test(normalized) ||
+    noCodePattern.test(normalized)
+  );
+},
+
+hasExplicitAnalysisRequest(
+  text = ""
+) {
+  const normalized =
+    this.normalize(text);
+
+  return (
+    /\b(?:tell me whether|explain|evaluate|assess|analyze|compare|recommend|recommendation|what do you recommend|what would you recommend|architectural risks?|tradeoffs?|trade offs?|which option|what should|which file|next file|inspect|review)\b/.test(
+      normalized
+    )
+  );
+},
+
+operationMatchesAny(
+  operation = "",
+  prohibitedOperations = []
+) {
+  const normalizedOperation =
+    this.normalize(operation);
+
+  if (!normalizedOperation) {
+    return false;
+  }
+
+  return prohibitedOperations.some(
+    prohibitedOperation => {
+      const normalizedProhibition =
+        this.normalize(
+          prohibitedOperation
+        );
+
+      return (
+        normalizedOperation ===
+          normalizedProhibition ||
+        normalizedOperation.includes(
+          normalizedProhibition
+        ) ||
+        normalizedProhibition.includes(
+          normalizedOperation
+        ) ||
+        (
+          normalizedOperation.includes(
+            "implement"
+          ) &&
+          normalizedProhibition.includes(
+            "implement"
+          )
+        ) ||
+        (
+          normalizedOperation.includes(
+            "modify"
+          ) &&
+          normalizedProhibition.includes(
+            "modify"
+          )
+        ) ||
+        (
+          normalizedOperation.includes(
+            "write"
+          ) &&
+          normalizedProhibition.includes(
+            "write"
+          )
+        )
+      );
+    }
+  );
+},
+
+uniqueNormalizedValues(
+  values = []
+) {
+  const result = [];
+  const seen = new Set();
+
+  values.forEach(value => {
+    const normalized =
+      this.normalize(value);
+
+    if (
+      !normalized ||
+      seen.has(normalized)
+    ) {
+      return;
+    }
+
+    seen.add(normalized);
+    result.push(normalized);
+  });
+
+  return result;
+},
 
   /* =====================================================
      SEMANTIC SLOT BUILDING
@@ -2751,6 +3230,38 @@ if (/\b(i|me|myself)\b/.test(text)) {
 
       artifactAction,
 
+actionPolicy:
+  requestModel.actionPolicy ||
+  {
+    executionAllowed:
+      true,
+
+    analysisOnly:
+      false,
+
+    prohibitedOperations:
+      [],
+
+    deferredOperations:
+      []
+  },
+
+executionAllowed:
+  requestModel.executionAllowed !==
+  false,
+
+analysisOnly:
+  requestModel.analysisOnly ===
+  true,
+
+prohibitedOperations:
+  requestModel.prohibitedOperations ||
+  [],
+
+deferredOperations:
+  requestModel.deferredOperations ||
+  [],
+
       multiDomain: {
         present:
           contextModel.domains
@@ -2817,212 +3328,525 @@ if (/\b(i|me|myself)\b/.test(text)) {
   semanticSlots = {},
   sources = {}
 } = {}) {
-  const operation = this.normalize(
-    primaryFrame.operation ||
-    requestModel.operation
-  );
+  const operation =
+    this.normalize(
+      primaryFrame.operation ||
+      requestModel.operation
+    );
 
-  const isArtifactRequest =
-    primaryFrame.interactionFamily === "developer_task" ||
-    primaryFrame.interactionFamily === "creation" ||
+  const actionPolicy =
+    requestModel.actionPolicy ||
+    {};
+
+  const executionAllowed =
+    actionPolicy.executionAllowed !==
+    false;
+
+  const analysisOnly =
+    actionPolicy.analysisOnly ===
+    true;
+
+  /*
+   * Developer/project subject matter does not automatically
+   * mean the user requested code execution.
+   */
+  const artifactTopicPresent =
+    primaryFrame.interactionFamily ===
+      "developer_task" ||
+    primaryFrame.interactionFamily ===
+      "creation" ||
     [
-      "implement or modify",
-      "modify existing artifact",
-      "create artifact",
-      "create or add",
-      "verify or review",
-      "diagnose or inspect"
-    ].some(value => operation.includes(value));
+      "project",
+      "technology",
+      "architecture"
+    ].includes(
+      this.normalizeDomain(
+        primaryFrame.domain
+      )
+    ) ||
+    Boolean(
+      semanticSlots.object
+        ?.filePath
+    ) ||
+    Boolean(
+      sources.githubFileContext
+        ?.filePath
+    );
 
-  const isModification =
-    operation.includes("modify") ||
-    operation.includes("update") ||
-    operation.includes("replace") ||
-    operation.includes("repair");
+  const modificationOperation =
+    this.includesOperationTerm(
+      operation,
+      [
+        "implement",
+        "modify",
+        "update",
+        "replace",
+        "repair",
+        "patch",
+        "edit",
+        "wire",
+        "change"
+      ]
+    );
 
-  const isCreation =
-    operation.includes("create") ||
-    operation.includes("generate") ||
-    operation.includes("design");
+  const creationOperation =
+    this.includesOperationTerm(
+      operation,
+      [
+        "create",
+        "generate",
+        "design",
+        "build"
+      ]
+    );
 
-  const isInvestigation =
-    operation.includes("verify") ||
-    operation.includes("review") ||
-    operation.includes("inspect") ||
-    operation.includes("diagnose") ||
-    operation.includes("debug");
+  const investigationOperation =
+    this.includesOperationTerm(
+      operation,
+      [
+        "verify",
+        "review",
+        "inspect",
+        "diagnose",
+        "debug",
+        "analyze",
+        "evaluate"
+      ]
+    );
+
+  const executionOperation =
+    modificationOperation ||
+    creationOperation;
+
+  const executionRequested =
+    executionOperation &&
+    executionAllowed &&
+    !analysisOnly;
 
   const filePath =
-    semanticSlots.object?.filePath ||
-    sources.githubFileContext?.filePath ||
+    semanticSlots.object
+      ?.filePath ||
+    sources.githubFileContext
+      ?.filePath ||
     null;
 
-  const fileContextAvailable = Boolean(
-    sources.githubFileContext &&
-    String(sources.githubFileContext.content || "").trim()
-  );
+  const fileContextAvailable =
+    Boolean(
+      sources.githubFileContext &&
+      String(
+        sources.githubFileContext
+          .content ||
+        ""
+      ).trim()
+    );
 
   const requiresExistingArtifact =
-    isArtifactRequest &&
-    (isModification || isInvestigation);
+    executionRequested &&
+    modificationOperation;
+
+  const requiresFileContent =
+    requiresExistingArtifact ||
+    (
+      investigationOperation &&
+      Boolean(filePath)
+    );
 
   return {
-    isArtifactRequest,
-    isModification,
-    isCreation,
-    isInvestigation,
+    artifactTopicPresent,
+
+    isArtifactRequest:
+      executionRequested,
+
+    executionRequested,
+
+    executionAllowed,
+
+    analysisOnly,
+
+    isModification:
+      executionRequested &&
+      modificationOperation,
+
+    isCreation:
+      executionRequested &&
+      creationOperation,
+
+    isInvestigation:
+      investigationOperation,
 
     isMetaQuestion:
-      primaryFrame.frameType === "meta_system_question",
+      primaryFrame.frameType ===
+        "meta_system_question" ||
+      (
+        artifactTopicPresent &&
+        !executionRequested
+      ),
 
     requiresExistingArtifact,
 
-    requiresFileContent:
-      requiresExistingArtifact,
+    requiresFileContent,
 
     fileContextAvailable,
 
     missingRequiredFileContext:
-      requiresExistingArtifact &&
+      requiresFileContent &&
       !fileContextAvailable,
 
-    filePath
+    filePath,
+
+    prohibitedOperations:
+      actionPolicy.prohibitedOperations ||
+      [],
+
+    deferredOperations:
+      actionPolicy.deferredOperations ||
+      [],
+
+    authority:
+      "artifact_action_authorization_description"
   };
+},
+
+includesOperationTerm(
+  operation = "",
+  terms = []
+) {
+  const normalizedOperation =
+    this.normalize(operation);
+
+  return terms.some(term =>
+    normalizedOperation.includes(
+      this.normalize(term)
+    )
+  );
 },
   /* =====================================================
      RESPONSE REQUIREMENTS
   ===================================================== */
 
   buildResponseRequirements({
-    normalized = {},
-    requestModel = {},
-    semanticSlots = {},
-    primaryFrame = {},
-    secondaryFrames = [],
-    continuity = {},
-    ambiguity = {}
-  } = {}) {
-    const operation =
-      this.normalize(
-        primaryFrame.operation ||
-        requestModel.operation
-      );
+  normalized = {},
+  requestModel = {},
+  semanticSlots = {},
+  primaryFrame = {},
+  secondaryFrames = [],
+  continuity = {},
+  ambiguity = {}
+} = {}) {
+  const operation =
+    this.normalize(
+      primaryFrame.operation ||
+      requestModel.operation
+    );
 
-    const directAnswerRequested =
-      requestModel.speechAct ===
-        "question" ||
-      [
-        "provide information",
-        "explain",
-        "calculate",
-        "translate",
-        "verify",
-        "provide opinion",
-        "decide"
-      ].some(value =>
-        operation.includes(value)
-      );
+  const actionPolicy =
+    requestModel.actionPolicy ||
+    {};
 
-    const explanationRequested =
-      operation.includes("explain") ||
-      requestModel.requestType ===
-        "explanation";
+  const executionAllowed =
+    actionPolicy.executionAllowed !==
+    false;
 
-    const artifactOutputRequested =
+  const analysisOnly =
+    actionPolicy.analysisOnly ===
+    true;
+
+  const directAnswerRequested =
+    requestModel.speechAct ===
+      "question" ||
+    [
+      "provide information",
+      "explain",
+      "calculate",
+      "translate",
+      "verify",
+      "provide opinion",
+      "decide",
+      "evaluate",
+      "recommend",
+      "inspect"
+    ].some(value =>
+      operation.includes(value)
+    );
+
+  const explanationRequested =
+    operation.includes("explain") ||
+    operation.includes("evaluate") ||
+    operation.includes("analyze") ||
+    requestModel.requestType ===
+      "explanation";
+
+  const executionOperation =
+    [
+      "implement",
+      "modify",
+      "create",
+      "generate",
+      "write code",
+      "rewrite",
+      "patch",
+      "edit",
+      "replace",
+      "wire"
+    ].some(value =>
+      operation.includes(value)
+    );
+
+  /*
+   * Project/developer subject matter alone does not mean
+   * the user requested code or an artifact.
+   */
+  const artifactOutputRequested =
+    executionAllowed &&
+    !analysisOnly &&
+    (
+      executionOperation ||
       [
         "implementation",
         "creation",
         "writing"
       ].includes(
         requestModel.requestType
-      ) ||
-      primaryFrame.interactionFamily ===
-        "developer_task";
+      )
+    );
 
-    const multipleOperationsPresent =
-      requestModel.multiPurpose === true ||
-      secondaryFrames.length > 0;
+  const multipleOperationsPresent =
+    requestModel.multiPurpose ===
+      true ||
+    secondaryFrames.length > 0;
 
-    return {
-      expectsDirectAnswer:
-        directAnswerRequested,
+  const must = [];
+  const should = [];
+  const mustNot = [];
 
-      expectsExplanation:
-        explanationRequested,
+  must.push(
+    "preserve_explicit_user_action_authorization"
+  );
 
-      expectsCollaboration:
-        primaryFrame.interactionFamily ===
-          "developer_task" ||
-        primaryFrame.interactionFamily ===
-          "planning" ||
-        primaryFrame.interactionFamily ===
-          "decision",
+  if (directAnswerRequested) {
+    must.push(
+      "answer_the_requested_question"
+    );
+  }
 
-      expectsCodeOrArtifact:
-        artifactOutputRequested,
+  if (explanationRequested) {
+    must.push(
+      "provide_requested_explanation"
+    );
+  }
 
-      expectsReflection:
-        primaryFrame.interactionFamily ===
-          "emotional_support" ||
-        primaryFrame.interactionFamily ===
-          "identity",
+  if (
+    actionPolicy.recommendationRequested
+  ) {
+    must.push(
+      "provide_clear_recommendation"
+    );
+  }
 
-      expectsFollowUpContext:
-        continuity.requiresPriorContext,
+  if (
+    actionPolicy.comparisonRequested
+  ) {
+    must.push(
+      "compare_the_presented_options"
+    );
+  }
 
-      likelyWantsMinimalAnswer:
-        normalized.isShortTurn &&
-        !multipleOperationsPresent,
+  if (
+    actionPolicy.analysisRequestPresent
+  ) {
+    must.push(
+      "perform_analysis_without_converting_discussion_into_execution"
+    );
+  }
 
+  if (
+    continuity.requiresPriorContext
+  ) {
+    should.push(
+      "use_available_prior_context"
+    );
+  }
+
+  if (
+    secondaryFrames.length > 0
+  ) {
+    should.push(
+      "preserve_secondary_requests"
+    );
+  }
+
+  if (
+    ambiguity.requiresClarification ===
+    true
+  ) {
+    must.push(
+      "clarify_before_irreversible_action"
+    );
+  }
+
+  if (!executionAllowed) {
+    mustNot.push(
+      "execute_artifact_changes"
+    );
+
+    mustNot.push(
+      "write_or_rewrite_code"
+    );
+
+    mustNot.push(
+      "apply_patch"
+    );
+
+    mustNot.push(
+      "treat_discussed_change_as_authorized_change"
+    );
+  }
+
+  (
+    actionPolicy.prohibitedOperations ||
+    []
+  ).forEach(operationName => {
+    mustNot.push(
+      `perform_operation:${this.normalize(
+        operationName
+      ).replace(/\s+/g, "_")}`
+    );
+  });
+
+  return {
+    expectsDirectAnswer:
       directAnswerRequested,
+
+    expectsExplanation:
       explanationRequested,
+
+    expectsCollaboration:
+      [
+        "developer_task",
+        "planning",
+        "decision",
+        "verification",
+        "information"
+      ].includes(
+        primaryFrame.interactionFamily
+      ),
+
+    expectsCodeOrArtifact:
       artifactOutputRequested,
 
+    expectsReflection:
+      primaryFrame.interactionFamily ===
+        "emotional_support" ||
+      primaryFrame.interactionFamily ===
+        "identity",
+
+    expectsFollowUpContext:
+      continuity.requiresPriorContext,
+
+    likelyWantsMinimalAnswer:
+      normalized.isShortTurn &&
+      !multipleOperationsPresent,
+
+    directAnswerRequested,
+    explanationRequested,
+    artifactOutputRequested,
+
+    executionAllowed,
+    analysisOnly,
+
+    prohibitedOperations:
+      actionPolicy.prohibitedOperations ||
+      [],
+
+    deferredOperations:
+      actionPolicy.deferredOperations ||
+      [],
+
+    multipleOperationsPresent,
+
+    preserveSecondaryRequests:
       multipleOperationsPresent,
 
-      preserveSecondaryRequests:
-        multipleOperationsPresent,
+    priorContextRequired:
+      continuity.requiresPriorContext,
 
-      priorContextRequired:
-        continuity.requiresPriorContext,
+    clarificationRequired:
+      ambiguity.requiresClarification ===
+      true,
 
-      clarificationRequired:
-        ambiguity.requiresClarification === true,
+    requestCount:
+      1 +
+      requestModel
+        .secondaryOperations
+        .length,
 
-      requestCount:
-        1 +
-        requestModel
-          .secondaryOperations
-          .length,
+    objective:
+      actionPolicy
+        .recommendationRequested
+        ? "evaluate_the_options_and_provide_an_honest_recommendation"
+        : explanationRequested
+          ? "explain_the_requested_subject_without_unauthorized_execution"
+          : "fulfill_the_authorized_user_request",
 
-      semanticFactsOnly: true,
+    must:
+      this.uniqueNormalizedValues(
+        must
+      ),
 
-      confidence:
-        this.normalizeConfidence(
-          0.55 +
-          (
-            directAnswerRequested
-              ? 0.1
-              : 0
-          ) +
-          (
-            artifactOutputRequested
-              ? 0.1
-              : 0
-          ) +
-          (
-            multipleOperationsPresent
-              ? 0.08
-              : 0
-          ) +
-          (
-            continuity.requiresPriorContext
-              ? 0.05
-              : 0
-          )
+    should:
+      this.uniqueNormalizedValues(
+        should
+      ),
+
+    mustNot:
+      this.uniqueNormalizedValues(
+        mustNot
+      ),
+
+    semanticFactsOnly:
+      true,
+
+    confidence:
+      this.normalizeConfidence(
+        0.55 +
+        (
+          directAnswerRequested
+            ? 0.1
+            : 0
+        ) +
+        (
+          explanationRequested
+            ? 0.08
+            : 0
+        ) +
+        (
+          actionPolicy
+            .recommendationRequested
+            ? 0.08
+            : 0
+        ) +
+        (
+          multipleOperationsPresent
+            ? 0.05
+            : 0
+        ) +
+        (
+          continuity.requiresPriorContext
+            ? 0.04
+            : 0
+        ) +
+        (
+          actionPolicy
+            .explicitExecutionProhibition
+            ? 0.08
+            : 0
         )
-    };
-  },
+      ),
+
+    authority:
+      "semantic_response_requirements_only"
+  };
+},
 
   /* =====================================================
      EMOTIONAL OVERLAY
@@ -3495,7 +4319,29 @@ if (/\b(i|me|myself)\b/.test(text)) {
 
       responseRequirements,
 
-      frameAgreement,
+actionPolicy:
+  canonicalMeaning.actionPolicy ||
+  null,
+
+executionAllowed:
+  canonicalMeaning.executionAllowed !==
+  false,
+
+analysisOnly:
+  canonicalMeaning.analysisOnly ===
+  true,
+
+prohibitedOperations:
+  canonicalMeaning
+    .prohibitedOperations ||
+  [],
+
+deferredOperations:
+  canonicalMeaning
+    .deferredOperations ||
+  [],
+
+frameAgreement,
 
       confidence,
 
