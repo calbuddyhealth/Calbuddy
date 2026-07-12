@@ -1566,48 +1566,49 @@ if (isWritingRequest) {
   },
 
   functionPriority(name = "") {
-    const order = [
-  "immediate_human_support",
-  "emotional_support",
+  const order = [
+    "immediate_human_support",
+    "emotional_support",
 
-  "artifact_modification",
-  "artifact_creation",
-  "artifact_investigation",
+    "artifact_modification",
+    "artifact_creation",
+    "artifact_investigation",
 
-  "writing_revision",
-  "writing_creation",
+    "writing_revision",
+    "writing_creation",
 
-  "verification",
-  "prioritization",
-  "decision_support",
-  "comparison",
-  "planning",
-  "translation",
-  "calculation",
-  "research",
-  "teaching",
-  "explanation",
-  "interpretation",
-  "information_retrieval",
-  "memory_management",
-  "context_recall",
-  "identity_exploration",
-  "collaborative_reasoning",
-  "brainstorming",
-  "creative_generation",
-  "project_continuation",
-  "conversation_continuation",
-  "emotional_attunement",
-  "general_conversation"
-];
+    "verification",
+    "prioritization",
+    "decision_support",
+    "comparison",
+    "planning",
+    "translation",
+    "calculation",
+    "research",
+    "navigation",
+    "teaching",
+    "explanation",
+    "interpretation",
+    "information_retrieval",
+    "memory_management",
+    "context_recall",
+    "identity_exploration",
+    "collaborative_reasoning",
+    "brainstorming",
+    "creative_generation",
+    "project_continuation",
+    "conversation_continuation",
+    "emotional_attunement",
+    "general_conversation"
+  ];
 
-    const index =
-      order.indexOf(name);
+  const index =
+    order.indexOf(name);
 
-    return index >= 0
-      ? index
-      : order.length;
-  },
+  return index >= 0
+    ? index
+    : order.length;
+},
 
   /* =====================================================
      FUNCTION AGREEMENT
