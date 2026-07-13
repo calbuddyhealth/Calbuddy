@@ -1923,152 +1923,300 @@ focusedCharacter:
     };
   },
 
-  resolveRejectedAIFallback({
-  packet = {},
-  request = {},
-  writerContract = {},
-  blueprintCandidate = {},
-  validation = {}
-} = {}) {
-  const characterContext =
-    this.readCharacterContext(
-      packet
-    );
+    resolveRejectedAIFallback({
+    packet = {},
+    request = {},
+    writerContract = {},
+    blueprintCandidate = {},
+    validation = {}
+  } = {}) {
+    const characterContext =
+      this.readCharacterContext(
+        packet
+      );
 
-  const characterRealizationRequired =
-    characterContext
-      .answerAvailable ===
-      true &&
-    characterContext
-      .needsAIWriter ===
-      true;
-
-  if (
-    blueprintCandidate
-      .available &&
-    !characterRealizationRequired
-  ) {
-    const blueprintValidation =
-      this.validateCandidateText({
-        text:
-          blueprintCandidate.text,
-
+    const degradedCharacterFallback =
+      this.resolveCharacterDegradedFallback({
         packet,
-
         request,
-
         writerContract,
-
-        source:
-          "blueprint_writer"
+        blueprintCandidate,
+        characterContext,
+        failureReason:
+          "character_ai_realization_rejected"
       });
+
+    if (degradedCharacterFallback) {
+      return degradedCharacterFallback;
+    }
 
     if (
-      blueprintValidation.valid
+      blueprintCandidate.available
     ) {
-      return {
-        text:
-          blueprintCandidate.text,
+      const blueprintValidation =
+        this.validateCandidateText({
+          text:
+            blueprintCandidate.text,
+
+          packet,
+
+          request,
+
+          writerContract,
+
+          source:
+            "blueprint_writer"
+        });
+
+      if (blueprintValidation.valid) {
+        return {
+          text:
+            blueprintCandidate.text,
+
+          reason:
+            "ai_draft_rejected_blueprint_candidate_restored",
+
+          usable:
+            true,
+
+          complete:
+            blueprintCandidate.complete ===
+            true,
+
+          requiresRepair:
+            blueprintCandidate
+              .requiresAIRepair ===
+              true ||
+            blueprintCandidate
+              .complete !==
+              true,
+
+          validation:
+            blueprintValidation
+        };
+      }
+    }
+
+    const safetyFallback =
+      this.resolveSafetyFallback({
+        packet,
+        writerContract
+      });
+
+    if (safetyFallback) {
+      return safetyFallback;
+    }
+
+    return {
+      text:
+        "",
+
+      reason:
+        validation.reason ||
+        "ai_draft_rejected",
+
+      usable:
+        false,
+
+      complete:
+        false,
+
+      requiresRepair:
+        true,
+
+      validation
+    };
+  },
+
+  resolveUnavailableAIFallback({
+    packet = {},
+    request = {},
+    writerContract = {},
+    blueprintCandidate = {},
+    error = null
+  } = {}) {
+    const characterContext =
+      this.readCharacterContext(
+        packet
+      );
+
+    const degradedCharacterFallback =
+      this.resolveCharacterDegradedFallback({
+        packet,
+        request,
+        writerContract,
+        blueprintCandidate,
+        characterContext,
+        failureReason:
+          "character_ai_realization_unavailable"
+      });
+
+    if (degradedCharacterFallback) {
+      return degradedCharacterFallback;
+    }
+
+    if (
+      blueprintCandidate.available
+    ) {
+      const blueprintValidation =
+        this.validateCandidateText({
+          text:
+            blueprintCandidate.text,
+
+          packet,
+
+          request,
+
+          writerContract,
+
+          source:
+            "blueprint_writer"
+        });
+
+      if (blueprintValidation.valid) {
+        return {
+          text:
+            blueprintCandidate.text,
+
+          reason:
+            "ai_unavailable_blueprint_candidate_used",
+
+          usable:
+            true,
+
+          complete:
+            blueprintCandidate.complete ===
+            true,
+
+          requiresRepair:
+            blueprintCandidate
+              .requiresAIRepair ===
+              true ||
+            blueprintCandidate
+              .complete !==
+              true,
+
+          validation: {
+            ...blueprintValidation,
+
+            warnings: [
+              ...this.toArray(
+                blueprintValidation.warnings
+              ),
+
+              ...(
+                error?.message
+                  ? [error.message]
+                  : []
+              )
+            ]
+          }
+        };
+      }
+    }
+
+    const safetyFallback =
+      this.resolveSafetyFallback({
+        packet,
+        writerContract
+      });
+
+    if (safetyFallback) {
+      return safetyFallback;
+    }
+
+    return {
+      text:
+        "",
+
+      reason:
+        "ai_unavailable_no_usable_candidate",
+
+      usable:
+        false,
+
+      complete:
+        false,
+
+      requiresRepair:
+        true,
+
+      validation: {
+        valid:
+          false,
 
         reason:
-          "ai_draft_rejected_blueprint_candidate_restored",
+          "ai_unavailable_no_usable_candidate",
 
-        usable:
-          blueprintCandidate.usable,
+        warnings:
+          error?.message
+            ? [error.message]
+            : [],
 
-        complete:
-          blueprintCandidate.complete,
+        errors: [
+          "no_usable_candidate"
+        ]
+      }
+    };
+  },
 
-        requiresRepair:
-          blueprintCandidate
-            .requiresAIRepair ||
-          !blueprintCandidate
-            .complete,
+  resolveCharacterDegradedFallback({
+    packet = {},
+    request = {},
+    writerContract = {},
+    blueprintCandidate = {},
+    characterContext = {},
+    failureReason =
+      "character_ai_realization_unavailable"
+  } = {}) {
+    const characterRealizationRequired =
+      characterContext
+        .answerAvailable ===
+        true &&
+      characterContext
+        .needsAIWriter ===
+        true;
 
-        validation:
-          blueprintValidation
-      };
+    if (!characterRealizationRequired) {
+      return null;
     }
-  }
 
-  const safetyFallback =
-    this.resolveSafetyFallback({
-      packet,
-      writerContract
-    });
-
-  if (safetyFallback) {
-    return safetyFallback;
-  }
-
-  return {
-    text:
-      "",
-
-    reason:
-      characterRealizationRequired
-        ? "character_ai_realization_rejected"
-        : validation.reason ||
-          "ai_draft_rejected",
-
-    usable:
-      false,
-
-    complete:
-      false,
-
-    requiresRepair:
-      true,
-
-    validation: {
-      ...validation,
-
-      warnings: [
-        ...this.toArray(
-          validation.warnings
-        ),
-
-        ...(
-          characterRealizationRequired
-            ? [
-                "focused_character_realization_could_not_be_completed"
-              ]
-            : []
+    const candidates = [
+      characterContext.draft,
+      blueprintCandidate.text,
+      characterContext.answer,
+      characterContext.reasoning
+    ]
+      .map(value =>
+        this.cleanForUser(
+          value
         )
-      ]
+      )
+      .filter(Boolean);
+
+    const fallbackText =
+      candidates[0] ||
+      "";
+
+    if (!fallbackText) {
+      return null;
     }
-  };
-},
 
-resolveUnavailableAIFallback({
-  packet = {},
-  request = {},
-  writerContract = {},
-  blueprintCandidate = {},
-  error = null
-} = {}) {
-  const characterContext =
-    this.readCharacterContext(
-      packet
-    );
+    const text =
+      this.enforceLanguageBudget({
+        text:
+          fallbackText,
 
-  const characterRealizationRequired =
-    characterContext
-      .answerAvailable ===
-      true &&
-    characterContext
-      .needsAIWriter ===
-      true;
+        writerContract
+      });
 
-  if (
-    blueprintCandidate
-      .available &&
-    !characterRealizationRequired
-  ) {
+    if (!text) {
+      return null;
+    }
+
     const validation =
       this.validateCandidateText({
-        text:
-          blueprintCandidate.text,
+        text,
 
         packet,
 
@@ -2077,97 +2225,47 @@ resolveUnavailableAIFallback({
         writerContract,
 
         source:
-          "blueprint_writer"
+          "character_degraded_fallback"
       });
 
-    if (validation.valid) {
-      return {
-        text:
-          blueprintCandidate.text,
-
-        reason:
-          "ai_unavailable_blueprint_candidate_used",
-
-        usable:
-          blueprintCandidate.usable,
-
-        complete:
-          blueprintCandidate.complete,
-
-        requiresRepair:
-          blueprintCandidate
-            .requiresAIRepair ||
-          !blueprintCandidate
-            .complete,
-
-        validation
-      };
+    if (!validation.valid) {
+      return null;
     }
-  }
 
-  const safetyFallback =
-    this.resolveSafetyFallback({
-      packet,
-      writerContract
-    });
-
-  if (safetyFallback) {
-    return safetyFallback;
-  }
-
-  return {
-    text:
-      "",
-
-    reason:
-      characterRealizationRequired
-        ? "character_ai_realization_unavailable"
-        : "ai_unavailable_no_usable_candidate",
-
-    usable:
-      false,
-
-    complete:
-      false,
-
-    requiresRepair:
-      true,
-
-    validation: {
-      valid:
-        false,
+    return {
+      text,
 
       reason:
-        characterRealizationRequired
-          ? "character_ai_realization_unavailable"
-          : "ai_unavailable_no_usable_candidate",
+        failureReason,
 
-      warnings: [
-        ...(
-          error?.message
-            ? [
-                error.message
-              ]
-            : []
-        ),
+      usable:
+        true,
 
-        ...(
-          characterRealizationRequired
-            ? [
-                "focused_character_realization_required"
-              ]
-            : []
-        )
-      ],
+      complete:
+        false,
 
-      errors: [
-        characterRealizationRequired
-          ? "character_ai_realization_unavailable"
-          : "no_usable_candidate"
-      ]
-    }
-  };
-},
+      requiresRepair:
+        true,
+
+      validation: {
+        ...validation,
+
+        complete:
+          false,
+
+        reason:
+          failureReason,
+
+        warnings: [
+          ...this.toArray(
+            validation.warnings
+          ),
+
+          "focused_character_realization_used_degraded_deterministic_fallback"
+        ]
+      }
+    };
+  },
 
   resolveSafetyFallback({
     packet = {},
