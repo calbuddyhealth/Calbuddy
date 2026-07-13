@@ -75,13 +75,25 @@ version: "1.8.0",
 "ari/language/ari-composer-bridge.js",
    "ari/language/ari-blueprint-writer.js",
   "ari/language/ari-response-candidate-arbiter.js",
-    // NEW composer pathway
+    // =====================================================
+// CHARACTER AUTHORITY CHAIN
+// =====================================================
+
+"ari/character/ari-constitution.js",
 "ari/character/ari-character-core.js",
+"ari/character/ari-character-instincts.js",
+"ari/character/ari-character-taste-profile.js",
 "ari/character/ari-character-preferences.js",
+"ari/character/ari-character-preference-resolver.js",
 "ari/character/ari-worldview.js",
+"ari/character/ari-relationship-style.js",
+
+// Character orchestration loads after local authorities.
 "ari/character/ari-character-context-engine.js",
 "ari/character/ari-character-reasoning-engine.js",
 "ari/character/ari-character-expression-engine.js",
+
+// AI realization loads after Character has produced its handoff.
 "ari/language/ari-ai-writer.js",
 "ari/language/ari-response-validator.js",
      "ari/language/ari-response-compressor.js",
