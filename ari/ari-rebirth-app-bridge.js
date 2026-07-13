@@ -2,14 +2,14 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.7.5 — Pipeline-Owned Memory Save / Bridge Deduped
+// V1.8.0 — Reply Normalization / Loader Diagnostics
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.7.5",
+version: "1.8.0",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -560,14 +560,24 @@ return response;
 
   extractReply(summary = {}) {
   const candidates = [
-  summary.finalResponse,
-  summary.selectedDraft,
-  summary.compressedResponse,
-  summary.languageBody,
+    summary.finalResponse,
+    summary.selectedDraft,
+    summary.compressedResponse,
+    summary.languageBody,
     summary.languageBodyOutput,
-    summary.developerResponseLocked ? summary.developerHandoff?.reply : null,
-    summary.developerResponseLocked ? summary.developerHandoff?.finalResponse : null,
-    summary.developerResponseLocked ? summary.developerIntent?.reply : null,
+
+    summary.developerResponseLocked
+      ? summary.developerHandoff?.reply
+      : null,
+
+    summary.developerResponseLocked
+      ? summary.developerHandoff?.finalResponse
+      : null,
+
+    summary.developerResponseLocked
+      ? summary.developerIntent?.reply
+      : null,
+
     summary.languageComposerOutput,
     summary.response,
     summary.answer,
@@ -578,13 +588,64 @@ return response;
   ];
 
   for (const candidate of candidates) {
-    const text = String(candidate || "").trim();
-    if (!text) continue;
-    if (this.isDiagnosticPreview(text)) continue;
+    const text =
+      this.extractResponseText(candidate);
+
+    if (!text) {
+      continue;
+    }
+
+    if (this.isDiagnosticPreview(text)) {
+      continue;
+    }
+
     return this.cleanReply(text);
   }
 
   return "I heard you, but I need a cleaner response path.";
+},
+
+extractResponseText(candidate = null) {
+  if (
+    candidate === null ||
+    candidate === undefined
+  ) {
+    return "";
+  }
+
+  if (typeof candidate === "string") {
+    return candidate.trim();
+  }
+
+  if (
+    typeof candidate === "number" ||
+    typeof candidate === "boolean"
+  ) {
+    return String(candidate).trim();
+  }
+
+  if (typeof candidate === "object") {
+    const nestedCandidate =
+      candidate.text ??
+      candidate.reply ??
+      candidate.finalResponse ??
+      candidate.response ??
+      candidate.content ??
+      candidate.message ??
+      candidate.answer ??
+      candidate.draft ??
+      "";
+
+    if (nestedCandidate === candidate) {
+      return "";
+    }
+
+    return this.extractResponseText(
+      nestedCandidate
+    );
+  }
+
+  return "";
 },
 
     extractFileEvidenceReply(summary = {}) {
