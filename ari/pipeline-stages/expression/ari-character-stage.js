@@ -1,12 +1,12 @@
 // ari/pipeline-stages/expression/ari-character-stage.js
 // Ari Character Expression Stage
 // Purpose: Resolve whether Ari's character voice is relevant and prepare character guidance.
-// V1.0.0 — Character Context / Reasoning / Expression Orchestration
+// V1.1.0 — Post-Context Eligibility / Local Character Authority Integration
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterStage = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -21,25 +21,40 @@ window.AriCharacterStage = {
 
     let state = {
       ...summary,
-      activeExpressionStage: "character"
+
+      activeExpressionStage:
+        "character"
     };
 
-    const characterEligibility =
+    // =================================================
+    // Initial Eligibility
+    //
+    // This eligibility decision determines whether the
+    // Character Context Engine may run.
+    //
+    // It is intentionally provisional because the
+    // current-turn Character Context does not exist yet.
+    // =================================================
+
+    const initialCharacterEligibility =
       this.resolveCharacterEligibility(state);
 
     state = {
       ...state,
 
-      characterEligibility,
+      initialCharacterEligibility,
+
+      characterEligibility:
+        initialCharacterEligibility,
 
       shouldRunCharacterContext:
-        characterEligibility.runContext,
+        initialCharacterEligibility.runContext,
 
       shouldRunCharacterReasoning:
-        characterEligibility.runReasoning,
+        initialCharacterEligibility.runReasoning,
 
       shouldRunCharacterExpression:
-        characterEligibility.runExpression
+        initialCharacterEligibility.runExpression
     };
 
     // =================================================
@@ -49,13 +64,18 @@ window.AriCharacterStage = {
     mark("before characterContext");
 
     const characterContextResult =
-      characterEligibility.runContext
+      initialCharacterEligibility.runContext
         ? await runEngine(
             window.AriCharacterContextEngine,
-            ["create", "build"],
+
+            [
+              "create",
+              "build"
+            ],
 
             {
-              characterContextEngineRan: false,
+              characterContextEngineRan:
+                false,
 
               characterContextEngineSource:
                 "not-loaded",
@@ -69,10 +89,14 @@ window.AriCharacterStage = {
               characterMode:
                 "silent",
 
+              characterFocus:
+                null,
+
               characterReason:
                 "Character context engine not loaded.",
 
-              characterHints: {}
+              characterHints:
+                {}
             },
 
             {
@@ -98,10 +122,14 @@ window.AriCharacterStage = {
             characterMode:
               "silent",
 
+            characterFocus:
+              null,
+
             characterReason:
               "Character context not required.",
 
-            characterHints: {}
+            characterHints:
+              {}
           };
 
     state = {
@@ -126,44 +154,100 @@ window.AriCharacterStage = {
     mark("after characterContext");
 
     // =================================================
-    // 2. Supabase Character Knowledge Compatibility
+    // Post-Context Eligibility
+    //
+    // Character Context is now available for the current
+    // turn. Recalculate whether Character Reasoning and
+    // Character Expression must run.
+    //
+    // This prevents the stage from locking in a "skip"
+    // decision before the context engine identifies a
+    // preference, identity, worldview, or perspective
+    // question.
     // =================================================
 
-    mark("before supabaseCharacterKnowledge");
-
-    const supabaseCharacterKnowledgeResult = {
-      supabaseCharacterKnowledgeRan:
-        false,
-
-      characterKnowledgeAvailable:
-        false,
-
-      inferenceNeeded:
-        false,
-
-      nodes: [],
-
-      source:
-        "disabled",
-
-      reason:
-        "Supabase character knowledge is disabled. Supabase is reserved for memory retrieval and storage only."
-    };
+    const resolvedCharacterEligibility =
+      this.resolvePostContextEligibility(
+        state,
+        initialCharacterEligibility
+      );
 
     state = {
       ...state,
 
-      supabaseCharacterKnowledge:
-        supabaseCharacterKnowledgeResult,
+      characterEligibility:
+        resolvedCharacterEligibility,
 
-      characterKnowledge:
-        supabaseCharacterKnowledgeResult,
+      resolvedCharacterEligibility,
 
-      characterKnowledgeAvailable:
-        false
+      shouldRunCharacterContext:
+        resolvedCharacterEligibility.runContext,
+
+      shouldRunCharacterReasoning:
+        resolvedCharacterEligibility.runReasoning,
+
+      shouldRunCharacterExpression:
+        resolvedCharacterEligibility.runExpression
     };
 
-    mark("after supabaseCharacterKnowledge");
+    // =================================================
+    // 2. Local Character Authorities
+    //
+    // Ari's character information is local.
+    //
+    // Supabase is not used for character preferences,
+    // character identity, worldview, or character
+    // knowledge retrieval.
+    // =================================================
+
+    mark("before localCharacterAuthorities");
+
+    const localCharacterAuthorityResult =
+      this.inspectLocalCharacterAuthorities();
+
+    state = {
+      ...state,
+
+      localCharacterAuthorities:
+        localCharacterAuthorityResult,
+
+      characterKnowledge:
+        localCharacterAuthorityResult,
+
+      characterKnowledgeAvailable:
+        localCharacterAuthorityResult
+          .characterKnowledgeAvailable === true,
+
+      characterCoreAvailable:
+        localCharacterAuthorityResult
+          .characterCoreAvailable === true,
+
+      characterPreferencesAvailable:
+        localCharacterAuthorityResult
+          .characterPreferencesAvailable === true,
+
+      ariWorldviewAvailable:
+        localCharacterAuthorityResult
+          .ariWorldviewAvailable === true,
+
+      // Compatibility marker only.
+      // This must never be used as Ari's character source.
+      supabaseCharacterKnowledge: {
+        supabaseCharacterKnowledgeRan:
+          false,
+
+        characterKnowledgeAvailable:
+          false,
+
+        source:
+          "not-applicable",
+
+        reason:
+          "Supabase is reserved for user memory retrieval and storage. Ari character identity, preferences, and worldview are local."
+      }
+    };
+
+    mark("after localCharacterAuthorities");
 
     // =================================================
     // 3. Character Reasoning
@@ -172,10 +256,15 @@ window.AriCharacterStage = {
     mark("before characterReasoning");
 
     const characterReasoningResult =
-      characterEligibility.runReasoning
+      state.characterEligibility
+        ?.runReasoning === true
         ? await runEngine(
             window.AriCharacterReasoningEngine,
-            ["reason", "create"],
+
+            [
+              "reason",
+              "create"
+            ],
 
             {
               characterReasoningRan:
@@ -202,6 +291,10 @@ window.AriCharacterStage = {
 
               characterContext:
                 state.characterContext ||
+                null,
+
+              localCharacterAuthorities:
+                state.localCharacterAuthorities ||
                 null
             }
           )
@@ -219,7 +312,10 @@ window.AriCharacterStage = {
               null,
 
             reason:
-              "Character reasoning not required."
+              state.characterEligibility
+                ?.safetyOverride === true
+                ? "Character reasoning was suppressed by safety governance."
+                : "Character reasoning was not required by the resolved character context."
           };
 
     state = {
@@ -250,10 +346,15 @@ window.AriCharacterStage = {
     mark("before characterExpression");
 
     const characterExpressionResult =
-      characterEligibility.runExpression
+      state.characterEligibility
+        ?.runExpression === true
         ? await runEngine(
             window.AriCharacterExpressionEngine,
-            ["create", "build"],
+
+            [
+              "create",
+              "build"
+            ],
 
             {
               characterExpressionRan:
@@ -287,6 +388,10 @@ window.AriCharacterStage = {
 
               characterReasoning:
                 state.characterReasoning ||
+                null,
+
+              localCharacterAuthorities:
+                state.localCharacterAuthorities ||
                 null
             }
           )
@@ -307,7 +412,7 @@ window.AriCharacterStage = {
               null,
 
             reason:
-              "Character expression not required."
+              "Character expression was not required by the resolved character context."
           };
 
     state = {
@@ -344,17 +449,30 @@ window.AriCharacterStage = {
     // =================================================
 
     state.composerCharacter = {
-      ...(state.composerCharacter || {}),
+      ...(
+        state.composerCharacter ||
+        {}
+      ),
 
       enabled:
-        state.composerCharacter?.enabled === true ||
+        state.composerCharacter
+          ?.enabled === true ||
         state.characterReasoning
           ?.characterAnswerAvailable === true,
+
+      relevant:
+        state.composerCharacter
+          ?.relevant === true ||
+        state.characterExpression
+          ?.characterRelevant === true ||
+        state.characterContext
+          ?.characterUseAllowed === true,
 
       draft:
         state.characterReasoning
           ?.userFacingDraft ||
-        state.composerCharacter?.draft ||
+        state.composerCharacter
+          ?.draft ||
         "",
 
       reasoning:
@@ -363,7 +481,32 @@ window.AriCharacterStage = {
           ? state.characterReasoning
           : state.composerCharacter
               ?.reasoning ||
-            null
+            null,
+
+      mode:
+        state.characterContext
+          ?.characterMode ||
+        state.composerCharacter
+          ?.mode ||
+        "silent",
+
+      focus:
+        state.characterContext
+          ?.characterFocus ||
+        state.characterReasoning
+          ?.focus ||
+        state.composerCharacter
+          ?.focus ||
+        null,
+
+      source:
+        state.characterReasoning
+          ?.source ||
+        state.characterContext
+          ?.preferredCharacterSource ||
+        state.composerCharacter
+          ?.source ||
+        null
     };
 
     const characterHandoff =
@@ -373,6 +516,18 @@ window.AriCharacterStage = {
       ...state,
 
       characterHandoff,
+
+      characterDraftCandidate:
+        characterHandoff.answerAvailable === true &&
+        Boolean(
+          String(
+            characterHandoff.draft ||
+            ""
+          ).trim()
+        )
+          ? characterHandoff.draft
+          : state.characterDraftCandidate ||
+            null,
 
       responseRequired:
         this.mergeUnique(
@@ -400,7 +555,8 @@ window.AriCharacterStage = {
     state.characterStagePacket =
       this.buildCharacterStagePacket(state);
 
-    state.characterStageRan = true;
+    state.characterStageRan =
+      true;
 
     state.characterStageSource =
       "ari-character-stage";
@@ -412,7 +568,7 @@ window.AriCharacterStage = {
   },
 
   // ===================================================
-  // Eligibility
+  // Initial Eligibility
   // ===================================================
 
   resolveCharacterEligibility(summary = {}) {
@@ -430,12 +586,56 @@ window.AriCharacterStage = {
       summary.routingContract ||
       {};
 
-    const mode =
-      route.mode ||
-      summary.conversationMode ||
-      "unknown";
+    const routeMode =
+      typeof route.mode === "string"
+        ? route.mode
+        : route.mode?.mode ||
+          summary.conversationMode ||
+          "unknown";
 
-    const explicitCharacterRequest =
+    const semantic =
+      summary.semanticSummary ||
+      summary.perceptionPacket
+        ?.semanticSummary ||
+      {};
+
+    const canonical =
+      semantic.canonicalMeaning ||
+      summary.canonicalMeaning ||
+      {};
+
+    const conversationType =
+      summary.conversationType ||
+      summary.universalConversationType ||
+      summary.conversationClassification
+        ?.conversationType ||
+      summary.perceptionPacket
+        ?.conversationType ||
+      "";
+
+    const primaryFunction =
+      summary.primaryFunction ||
+      summary.conversationFunction
+        ?.primaryFunction ||
+      summary.conversationFunctionPacket
+        ?.primaryFunction ||
+      summary.perceptionPacket
+        ?.primaryFunction ||
+      "";
+
+    const interactionFamily =
+      canonical.interactionFamily ||
+      semantic.interactionFamily ||
+      summary.interactionFamily ||
+      "";
+
+    const intentFamily =
+      canonical.intentFamily ||
+      semantic.intentFamily ||
+      summary.intentFamily ||
+      "";
+
+    const upstreamCharacterRelevant =
       [
         "identity",
         "relationship",
@@ -443,16 +643,47 @@ window.AriCharacterStage = {
         "emotional_support",
         "social",
         "character"
-      ].includes(mode) ||
+      ].includes(routeMode) ||
+      [
+        "identity",
+        "relationship",
+        "social",
+        "character"
+      ].includes(interactionFamily) ||
+      [
+        "identity",
+        "relationship",
+        "social",
+        "character"
+      ].includes(intentFamily) ||
+      [
+        "identity_exploration",
+        "relationship_connection",
+        "social_connection"
+      ].includes(primaryFunction) ||
+      [
+        "identity_question",
+        "ari_self_or_perspective_question",
+        "relationship_question"
+      ].includes(conversationType);
+
+    const existingContextRelevant =
       summary.characterContext
         ?.characterUseAllowed === true;
 
+    const explicitCharacterRequest =
+      upstreamCharacterRelevant ||
+      existingContextRelevant;
+
     const hasCharacterDraft =
       Boolean(
-        summary.characterReasoning
-          ?.userFacingDraft ||
-        summary.composerCharacter
-          ?.draft
+        String(
+          summary.characterReasoning
+            ?.userFacingDraft ||
+          summary.composerCharacter
+            ?.draft ||
+          ""
+        ).trim()
       );
 
     const runContext =
@@ -477,6 +708,9 @@ window.AriCharacterStage = {
       );
 
     return {
+      phase:
+        "initial",
+
       runContext,
       runReasoning,
       runExpression,
@@ -485,24 +719,307 @@ window.AriCharacterStage = {
       safetyOverride,
       characterAllowed,
       explicitCharacterRequest,
+      upstreamCharacterRelevant,
+      existingContextRelevant,
       hasCharacterDraft,
 
+      signals: {
+        routeMode,
+        interactionFamily,
+        intentFamily,
+        primaryFunction,
+        conversationType
+      },
+
       source:
-        "ari-character-stage-eligibility",
+        "ari-character-stage-initial-eligibility",
 
       reason:
         developerLocked
           ? "developer_response_locked"
           : !characterAllowed
             ? "character_not_allowed"
-            : explicitCharacterRequest
-              ? "character_relevant"
-              : "background_character_guidance"
+            : safetyOverride
+              ? "safety_override_present"
+              : explicitCharacterRequest
+                ? "upstream_character_relevance"
+                : hasCharacterDraft
+                  ? "existing_character_draft"
+                  : "character_context_allowed_to_evaluate"
     };
   },
 
   // ===================================================
-  // Stage input
+  // Post-Context Eligibility
+  // ===================================================
+
+  resolvePostContextEligibility(
+    summary = {},
+    initialEligibility = {}
+  ) {
+    const context =
+      summary.characterContext ||
+      {};
+
+    const developerLocked =
+      initialEligibility
+        .developerLocked === true;
+
+    const safetyOverride =
+      initialEligibility
+        .safetyOverride === true;
+
+    const initialCharacterAllowed =
+      initialEligibility
+        .characterAllowed !== false;
+
+    const contextCharacterAllowed =
+      context.characterUseAllowed === true;
+
+    const characterMode =
+      context.characterMode ||
+      "silent";
+
+    const characterFocus =
+      context.characterFocus ||
+      null;
+
+    const foregroundReasoningModes =
+      [
+        "stable_preference_answer",
+        "stable_or_inferred_preference_answer",
+        "ari_self_disclosure",
+        "worldview_answer",
+        "ari_perspective"
+      ];
+
+    const contextRequestsReasoning =
+      contextCharacterAllowed &&
+      foregroundReasoningModes.includes(
+        characterMode
+      );
+
+    const hasCharacterFocus =
+      Boolean(
+        String(
+          characterFocus ||
+          ""
+        ).trim()
+      );
+
+    const hasCharacterDraft =
+      Boolean(
+        String(
+          summary.characterReasoning
+            ?.userFacingDraft ||
+          summary.composerCharacter
+            ?.draft ||
+          ""
+        ).trim()
+      );
+
+    const runContext =
+      initialEligibility.runContext === true;
+
+    const runReasoning =
+      runContext &&
+      !developerLocked &&
+      !safetyOverride &&
+      initialCharacterAllowed &&
+      (
+        contextRequestsReasoning ||
+        (
+          contextCharacterAllowed &&
+          hasCharacterFocus
+        ) ||
+        initialEligibility
+          .runReasoning === true ||
+        hasCharacterDraft
+      );
+
+    const runExpression =
+      runContext &&
+      !developerLocked &&
+      initialCharacterAllowed &&
+      (
+        runReasoning ||
+        contextCharacterAllowed ||
+        context.characterVisibility !==
+          "hidden"
+      );
+
+    return {
+      ...initialEligibility,
+
+      phase:
+        "post-context",
+
+      runContext,
+      runReasoning,
+      runExpression,
+
+      developerLocked,
+      safetyOverride,
+
+      characterAllowed:
+        initialCharacterAllowed,
+
+      contextCharacterAllowed,
+      contextRequestsReasoning,
+      hasCharacterFocus,
+      hasCharacterDraft,
+
+      resolvedCharacterMode:
+        characterMode,
+
+      resolvedCharacterFocus:
+        characterFocus,
+
+      contextVisibility:
+        context.characterVisibility ||
+        "background",
+
+      contextReason:
+        context.characterReason ||
+        null,
+
+      source:
+        "ari-character-stage-post-context-eligibility",
+
+      reason:
+        developerLocked
+          ? "developer_response_locked"
+          : !initialCharacterAllowed
+            ? "character_not_allowed"
+            : safetyOverride
+              ? "safety_stopped_character_reasoning"
+              : contextRequestsReasoning
+                ? "character_context_requested_reasoning"
+                : contextCharacterAllowed &&
+                  hasCharacterFocus
+                  ? "character_context_provided_focus"
+                  : initialEligibility
+                      .runReasoning === true
+                    ? "upstream_character_relevance"
+                    : hasCharacterDraft
+                      ? "existing_character_draft"
+                      : contextCharacterAllowed
+                        ? "character_presence_only"
+                        : "background_character_guidance"
+    };
+  },
+
+  // ===================================================
+  // Local Character Authority Inspection
+  // ===================================================
+
+  inspectLocalCharacterAuthorities() {
+    const core =
+      window.AriCharacterCore
+        ?.getCore?.() ||
+      null;
+
+    const preferences =
+      window.AriCharacterPreferences
+        ?.getPreferences?.() ||
+      null;
+
+    const worldview =
+      window.AriWorldview
+        ?.getWorldview?.() ||
+      null;
+
+    const characterCoreAvailable =
+      Boolean(core);
+
+    const characterPreferencesAvailable =
+      Boolean(preferences);
+
+    const ariWorldviewAvailable =
+      Boolean(worldview);
+
+    return {
+      localCharacterAuthoritiesRan:
+        true,
+
+      source:
+        "local-character-authorities",
+
+      characterKnowledgeAvailable:
+        characterCoreAvailable ||
+        characterPreferencesAvailable ||
+        ariWorldviewAvailable,
+
+      characterCoreAvailable,
+
+      characterPreferencesAvailable,
+
+      ariWorldviewAvailable,
+
+      authorities: {
+        characterCore:
+          characterCoreAvailable
+            ? {
+                available:
+                  true,
+
+                source:
+                  "ari-character-core"
+              }
+            : {
+                available:
+                  false,
+
+                source:
+                  "not-loaded"
+              },
+
+        characterPreferences:
+          characterPreferencesAvailable
+            ? {
+                available:
+                  true,
+
+                source:
+                  "ari-character-preferences"
+              }
+            : {
+                available:
+                  false,
+
+                source:
+                  "not-loaded"
+              },
+
+        worldview:
+          ariWorldviewAvailable
+            ? {
+                available:
+                  true,
+
+                source:
+                  "ari-worldview"
+              }
+            : {
+                available:
+                  false,
+
+                source:
+                  "not-loaded"
+              }
+      },
+
+      reason:
+        characterCoreAvailable ||
+        characterPreferencesAvailable ||
+        ariWorldviewAvailable
+          ? "One or more local Ari character authorities are available."
+          : "No local Ari character authorities are currently loaded."
+    };
+  },
+
+  // ===================================================
+  // Stage Input
   // ===================================================
 
   buildCharacterStageInput(summary = {}) {
@@ -548,25 +1065,46 @@ window.AriCharacterStage = {
 
       characterState: {
         useAllowed:
-          summary.characterUseAllowed !== false,
+          summary.characterUseAllowed !==
+          false,
 
         visibility:
           summary.characterVisibility ||
+          summary.characterContext
+            ?.characterVisibility ||
           "background",
 
         mode:
           summary.characterMode ||
+          summary.characterContext
+            ?.characterMode ||
           "silent",
+
+        focus:
+          summary.characterFocus ||
+          summary.characterContext
+            ?.characterFocus ||
+          null,
 
         hints:
           summary.characterHints ||
+          summary.characterContext
+            ?.characterHints ||
           {}
-      }
+      },
+
+      localCharacterAuthorities:
+        summary.localCharacterAuthorities ||
+        null,
+
+      eligibility:
+        summary.characterEligibility ||
+        null
     };
   },
 
   // ===================================================
-  // Character handoff
+  // Character Handoff
   // ===================================================
 
   buildCharacterHandoff(summary = {}) {
@@ -586,35 +1124,78 @@ window.AriCharacterStage = {
       summary.composerCharacter ||
       {};
 
+    const draft =
+      composerCharacter.draft ||
+      reasoning.userFacingDraft ||
+      "";
+
     return {
       enabled:
-        composerCharacter.enabled === true,
+        composerCharacter.enabled === true ||
+        reasoning.characterAnswerAvailable ===
+          true,
 
       relevant:
         expression.characterRelevant === true ||
-        context.characterUseAllowed === true,
+        context.characterUseAllowed === true ||
+        reasoning.characterAnswerAvailable ===
+          true,
 
       visibility:
         context.characterVisibility ||
+        composerCharacter.visibility ||
         "background",
 
       mode:
         context.characterMode ||
+        composerCharacter.mode ||
         "silent",
+
+      focus:
+        context.characterFocus ||
+        reasoning.focus ||
+        composerCharacter.focus ||
+        null,
+
+      preferredCharacterSource:
+        context.preferredCharacterSource ||
+        reasoning.source ||
+        composerCharacter.source ||
+        null,
 
       hints:
         context.characterHints ||
+        composerCharacter.hints ||
         {},
 
-      draft:
-        composerCharacter.draft ||
-        reasoning.userFacingDraft ||
-        "",
+      draft,
+
+      answer:
+        reasoning.answer ||
+        null,
 
       answerAvailable:
-        reasoning.characterAnswerAvailable === true,
+        reasoning.characterAnswerAvailable ===
+        true,
+
+      needsAIWriter:
+        reasoning.needsAIWriter === true,
+
+      aiWriterMode:
+        reasoning.aiWriterMode ||
+        null,
+
+      aiInstruction:
+        reasoning.aiInstruction ||
+        "",
 
       composerCharacter,
+
+      reasoning:
+        reasoning.characterAnswerAvailable ===
+        true
+          ? reasoning
+          : null,
 
       requiredBehaviors:
         this.mergeUnique(
@@ -644,23 +1225,32 @@ window.AriCharacterStage = {
         null,
 
       source:
-        expression.characterExpressionRan === true
+        expression.characterExpressionRan ===
+          true
           ? "character_expression"
-          : reasoning.characterReasoningRan === true
+          : reasoning.characterReasoningRan ===
+              true
             ? "character_reasoning"
-            : context.characterContextEngineRan === true
+            : context.characterContextEngineRan ===
+                true
               ? "character_context"
               : "none"
     };
   },
 
   // ===================================================
-  // Stage packet
+  // Character Stage Packet
   // ===================================================
 
   buildCharacterStagePacket(summary = {}) {
     return {
-      ready: true,
+      ready:
+        summary.characterContextEngineRan ===
+          true ||
+        summary.characterReasoningRan ===
+          true ||
+        summary.characterExpressionRan ===
+          true,
 
       source:
         "ari-character-stage",
@@ -668,8 +1258,16 @@ window.AriCharacterStage = {
       version:
         this.version,
 
+      initialEligibility:
+        summary.initialCharacterEligibility ||
+        null,
+
       eligibility:
         summary.characterEligibility ||
+        null,
+
+      localCharacterAuthorities:
+        summary.localCharacterAuthorities ||
         null,
 
       context: {
@@ -689,11 +1287,22 @@ window.AriCharacterStage = {
 
       reasoning: {
         ran:
-          summary.characterReasoningRan === true,
+          summary.characterReasoningRan ===
+          true,
 
         source:
           summary.characterReasoningSource ||
           null,
+
+        answerAvailable:
+          summary.characterReasoning
+            ?.characterAnswerAvailable ===
+          true,
+
+        draft:
+          summary.characterReasoning
+            ?.userFacingDraft ||
+          "",
 
         value:
           summary.characterReasoning ||
@@ -702,11 +1311,16 @@ window.AriCharacterStage = {
 
       expression: {
         ran:
-          summary.characterExpressionRan === true,
+          summary.characterExpressionRan ===
+          true,
 
         source:
           summary.characterExpressionSource ||
           null,
+
+        relevant:
+          summary.characterExpression
+            ?.characterRelevant === true,
 
         value:
           summary.characterExpression ||
@@ -736,10 +1350,23 @@ window.AriCharacterStage = {
             ?.mode ||
           "silent",
 
+        focus:
+          summary.characterHandoff
+            ?.focus ||
+          null,
+
         draft:
           summary.characterHandoff
             ?.draft ||
           "",
+
+        answerAvailable:
+          summary.characterHandoff
+            ?.answerAvailable === true,
+
+        needsAIWriter:
+          summary.characterHandoff
+            ?.needsAIWriter === true,
 
         requiredBehaviors:
           summary.characterHandoff
@@ -757,6 +1384,38 @@ window.AriCharacterStage = {
           []
       },
 
+      quality: {
+        contextResolved:
+          summary.characterContextEngineRan ===
+          true,
+
+        reasoningRequired:
+          summary.characterEligibility
+            ?.runReasoning === true,
+
+        reasoningRan:
+          summary.characterReasoningRan ===
+          true,
+
+        answerAvailable:
+          summary.characterHandoff
+            ?.answerAvailable === true,
+
+        draftAvailable:
+          Boolean(
+            String(
+              summary.characterHandoff
+                ?.draft ||
+              ""
+            ).trim()
+          ),
+
+        localCharacterKnowledgeAvailable:
+          summary.localCharacterAuthorities
+            ?.characterKnowledgeAvailable ===
+          true
+      },
+
       authority: {
         canDetermineCharacterRelevance:
           true,
@@ -766,6 +1425,18 @@ window.AriCharacterStage = {
 
         canProvideCharacterDraft:
           true,
+
+        canReadLocalCharacterCore:
+          true,
+
+        canReadLocalCharacterPreferences:
+          true,
+
+        canReadLocalWorldview:
+          true,
+
+        canRetrieveCharacterFromSupabase:
+          false,
 
         canChooseFinalRoute:
           false,
