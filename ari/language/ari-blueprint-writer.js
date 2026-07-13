@@ -874,7 +874,25 @@ incompletePlanPolicy:
         "offer_one_next_step",
 
       usable_context:
-        "provide_usable_context"
+        "provide_usable_context",
+        
+              validate_emotional_weight:
+        "validate_emotion",
+
+      reflect_initial_defensiveness:
+        "reflect_initial_defensiveness",
+
+      distinguish_first_reaction_from_final_position:
+        "distinguish_first_reaction_from_final_position",
+
+      validate_processing_time:
+        "validate_processing_time",
+
+      translate_pattern_for_partner:
+        "translate_pattern_for_partner",
+
+      acknowledge_memory_request:
+        "memory_acknowledgment"
     };
 
     return aliases[id] ||
@@ -1050,7 +1068,10 @@ for (
     }
 
     return {
-      sentences,
+  canonicalResponsePlanUsed:
+    true,
+
+  sentences,
 
       renderedMoves,
 
@@ -1206,6 +1227,46 @@ for (
       request = {}
     } = {}) {
       return this.renderReflection({
+        packet,
+        request
+      });
+    },
+
+    reflect_initial_defensiveness({
+      packet = {},
+      request = {}
+    } = {}) {
+      return this.renderInitialDefensiveness({
+        packet,
+        request
+      });
+    },
+
+    distinguish_first_reaction_from_final_position({
+      packet = {},
+      request = {}
+    } = {}) {
+      return this.renderFirstReactionDistinction({
+        packet,
+        request
+      });
+    },
+
+    validate_processing_time({
+      packet = {},
+      request = {}
+    } = {}) {
+      return this.renderProcessingTimeValidation({
+        packet,
+        request
+      });
+    },
+
+    translate_pattern_for_partner({
+      packet = {},
+      request = {}
+    } = {}) {
+      return this.renderPartnerTranslation({
         packet,
         request
       });
@@ -2010,6 +2071,224 @@ for (
 
       confidence:
         0.75
+    };
+  },
+
+  renderInitialDefensiveness({
+    packet = {},
+    request = {}
+  } = {}) {
+    const humanState =
+      this.readHumanState(packet);
+
+    const meaning =
+      this.readMeaning(packet);
+
+    const grounded =
+      this.cleanForUser(
+        humanState.initialReaction ||
+        humanState.reflection ||
+        meaning.initialReaction ||
+        meaning.reflection ||
+        ""
+      );
+
+    if (grounded) {
+      return {
+        text:
+          grounded,
+
+        source:
+          "understanding_reflection",
+
+        confidence:
+          0.82
+      };
+    }
+
+    if (
+      /\b(?:defensive|defend myself|protect myself)\b/.test(
+        request.normalizedText
+      )
+    ) {
+      return {
+        text:
+          "Your first reaction seems to be defensive because you feel the need to protect yourself in the moment.",
+
+        source:
+          "current_turn_reflection",
+
+        confidence:
+          0.78
+      };
+    }
+
+    return {
+      text:
+        "",
+
+      reason:
+        "initial_defensiveness_not_grounded"
+    };
+  },
+
+  renderFirstReactionDistinction({
+    packet = {},
+    request = {}
+  } = {}) {
+    const meaning =
+      this.readMeaning(packet);
+
+    const grounded =
+      this.cleanForUser(
+        meaning.firstReactionDistinction ||
+        meaning.processingDistinction ||
+        ""
+      );
+
+    if (grounded) {
+      return {
+        text:
+          grounded,
+
+        source:
+          "meaning_interpretation",
+
+        confidence:
+          0.82
+      };
+    }
+
+    if (
+      /\b(?:defensive|defend myself|protect myself)\b/.test(
+        request.normalizedText
+      )
+    ) {
+      return {
+        text:
+          "That first defensive reaction is not necessarily your final position once you have had time to process what happened.",
+
+        source:
+          "current_turn_pattern",
+
+        confidence:
+          0.82
+      };
+    }
+
+    return {
+      text:
+        "",
+
+      reason:
+        "first_reaction_distinction_not_grounded"
+    };
+  },
+
+  renderProcessingTimeValidation({
+    packet = {},
+    request = {}
+  } = {}) {
+    const meaning =
+      this.readMeaning(packet);
+
+    const grounded =
+      this.cleanForUser(
+        meaning.processingTimeValidation ||
+        meaning.processingNeed ||
+        ""
+      );
+
+    if (grounded) {
+      return {
+        text:
+          grounded,
+
+        source:
+          "meaning_interpretation",
+
+        confidence:
+          0.8
+      };
+    }
+
+    if (
+      /\b(?:time|later|after|process|processing)\b/.test(
+        request.normalizedText
+      )
+    ) {
+      return {
+        text:
+          "Needing time to process is legitimate, as long as you communicate that and return to the conversation afterward.",
+
+        source:
+          "current_turn_processing_pattern",
+
+        confidence:
+          0.8
+      };
+    }
+
+    return {
+      text:
+        "",
+
+      reason:
+        "processing_time_not_grounded"
+    };
+  },
+
+  renderPartnerTranslation({
+    packet = {},
+    request = {}
+  } = {}) {
+    const meaning =
+      this.readMeaning(packet);
+
+    const grounded =
+      this.cleanForUser(
+        meaning.partnerTranslation ||
+        meaning.communicationScript ||
+        meaning.repairScript ||
+        ""
+      );
+
+    if (grounded) {
+      return {
+        text:
+          grounded,
+
+        source:
+          "meaning_interpretation",
+
+        confidence:
+          0.84
+      };
+    }
+
+    if (
+      /\b(?:defensive|defend myself|protect myself)\b/.test(
+        request.normalizedText
+      )
+    ) {
+      return {
+        text:
+          "You could explain it by saying, “I may get defensive at first, but that is not my final position—I need some time to process, and I will come back to the conversation.”",
+
+        source:
+          "bounded_partner_translation",
+
+        confidence:
+          0.84
+      };
+    }
+
+    return {
+      text:
+        "",
+
+      reason:
+        "partner_translation_not_grounded"
     };
   },
 
