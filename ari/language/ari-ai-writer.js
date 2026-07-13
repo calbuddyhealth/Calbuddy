@@ -1874,12 +1874,32 @@ focusedCharacter:
      FALLBACKS
   ===================================================== */
 
-  resolveNonAIFallback({
+    resolveNonAIFallback({
     packet = {},
     request = {},
     writerContract = {},
     blueprintCandidate = {}
   } = {}) {
+    const characterContext =
+      this.readCharacterContext(
+        packet
+      );
+
+    const degradedCharacterFallback =
+      this.resolveCharacterDegradedFallback({
+        packet,
+        request,
+        writerContract,
+        blueprintCandidate,
+        characterContext,
+        failureReason:
+          "character_ai_realization_not_allowed"
+      });
+
+    if (degradedCharacterFallback) {
+      return degradedCharacterFallback;
+    }
+
     if (blueprintCandidate.available) {
       const validation = this.validateCandidateText({
         text: blueprintCandidate.text,
