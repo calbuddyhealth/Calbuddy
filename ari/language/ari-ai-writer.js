@@ -4,7 +4,7 @@
 // Purpose:
 // Produce an AI-assisted response candidate from the canonical Composer Packet.
 //
-// V2.1.0 — Focused Character Realization / Canonical Plan Enforcement
+// V2.1.1 — Bounded AI Request / Safe Evidence Serialization
 //
 // Architectural flow:
 //
@@ -44,7 +44,7 @@
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "2.1.0",
+  version: "2.1.1",
   schemaVersion: "1.0.0",
 
   /* =====================================================
@@ -1197,40 +1197,78 @@ readCharacterContext(packet = {}) {
   ===================================================== */
 
   async requestAIDraft({
-    packet = {},
-    request = {},
-    instruction = ""
-  } = {}) {
-    if (
-      !window.AriOpenAIKnowledgeClient ||
-      typeof window.AriOpenAIKnowledgeClient.ask !== "function"
-    ) {
-      throw new Error("ari_openai_knowledge_client_unavailable");
-    }
+  packet = {},
+  request = {},
+  instruction = ""
+} = {}) {
+  if (
+    !window.AriOpenAIKnowledgeClient ||
+    typeof window.AriOpenAIKnowledgeClient.ask !== "function"
+  ) {
+    throw new Error(
+      "ari_openai_knowledge_client_unavailable"
+    );
+  }
 
-    const result = await window.AriOpenAIKnowledgeClient.ask({
+  const result =
+    await window.AriOpenAIKnowledgeClient.ask({
       summary: {
-        ...packet,
-        userMessage: request.currentText,
-        message: request.currentText,
-        input: request.currentText,
-        question: request.currentText,
-        originalUserMessage: request.originalText,
-        resolvedUserQuestion: request.currentText,
-        aiInstruction: instruction,
-        composerPacket: packet
+        userMessage:
+          request.currentText,
+
+        message:
+          request.currentText,
+
+        input:
+          request.currentText,
+
+        question:
+          request.currentText,
+
+        originalUserMessage:
+          request.originalText,
+
+        resolvedUserQuestion:
+          request.currentText,
+
+        aiInstruction:
+          instruction,
+
+        responseGoal:
+          packet.responseGoal ||
+          packet.responseControl
+            ?.responseGoal ||
+          null,
+
+        responseShape:
+          packet.responseShape ||
+          packet.responseControl
+            ?.responseShape ||
+          null,
+
+        responsePosture:
+          packet.responsePosture ||
+          packet.responseControl
+            ?.responsePosture ||
+          null,
+
+        source:
+          "ari-ai-writer",
+
+        aiWriterVersion:
+          this.version
       }
     });
 
-    return this.cleanOriginal(
-      result?.finalResponse ||
-      result?.knowledgeAnswer ||
-      result?.response ||
-      result?.answer ||
-      result?.text ||
-      ""
-    );
-  },
+  return this.cleanOriginal(
+    result?.finalResponse ||
+    result?.knowledgeAnswer ||
+    result?.response ||
+    result?.answer ||
+    result?.text ||
+    ""
+  );
+},
 
   /* =====================================================
      AI INSTRUCTION
@@ -1385,7 +1423,9 @@ CHARACTER AUTHORITY RULES:
 - Preserve any uncertainty required by the Character Handoff.
 
 EVIDENCE:
-${JSON.stringify(evidencePacket, null, 2)}
+${this.safeJSONStringify(
+  evidencePacket
+)}
 
 DEVELOPER RELEVANT:
 ${developerRelevant ? "yes" : "no"}
@@ -1456,7 +1496,7 @@ FINAL WRITING RULES:
         null,
 
 focusedCharacter:
-  this.readCharacterContext(
+  this.buildFocusedCharacterEvidence(
     packet
   ),
 
@@ -1501,6 +1541,132 @@ focusedCharacter:
           : null
     };
   },
+
+buildFocusedCharacterEvidence(
+  packet = {}
+) {
+  const context =
+    this.readCharacterContext(
+      packet
+    );
+
+  return {
+    available:
+      context.available === true,
+
+    enabled:
+      context.enabled === true,
+
+    relevant:
+      context.relevant === true,
+
+    answerAvailable:
+      context.answerAvailable === true,
+
+    needsAIWriter:
+      context.needsAIWriter === true,
+
+    mode:
+      context.mode ||
+      "silent",
+
+    type:
+      context.type ||
+      null,
+
+    subtype:
+      context.subtype ||
+      null,
+
+    focus:
+      context.focus ||
+      null,
+
+    preferenceSubject:
+      context.preferenceSubject ||
+      null,
+
+    answer:
+      context.answer ||
+      "",
+
+    reasoning:
+      context.reasoning ||
+      "",
+
+    draft:
+      context.draft ||
+      "",
+
+    status:
+      context.status ||
+      null,
+
+    confidence:
+      context.confidence ||
+      null,
+
+    source:
+      context.source ||
+      null,
+
+    aiWriterMode:
+      context.aiWriterMode ||
+      null,
+
+    aiInstruction:
+      context.aiInstruction ||
+      ""
+  };
+},
+
+safeJSONStringify(
+  value = null
+) {
+  const seen =
+    new WeakSet();
+
+  try {
+    return JSON.stringify(
+      value,
+      (key, nestedValue) => {
+        if (
+          nestedValue &&
+          typeof nestedValue ===
+            "object"
+        ) {
+          if (
+            seen.has(
+              nestedValue
+            )
+          ) {
+            return "[Circular]";
+          }
+
+          seen.add(
+            nestedValue
+          );
+        }
+
+        return nestedValue;
+      },
+      2
+    );
+  } catch (error) {
+    console.warn(
+      "Ari AI Writer evidence serialization failed:",
+      error
+    );
+
+    return JSON.stringify({
+      available:
+        false,
+
+      reason:
+        "evidence_serialization_failed"
+    });
+  }
+},
 
   formatInstructionList(values = [], fallback = "") {
     const items = this.toArray(values)
@@ -3082,11 +3248,11 @@ characterType:
             ? this.normalize(value)
             : this.normalize(
                 value.id ||
-                value.name ||
-                value.type ||
-                value.value ||
-                value.claim ||
-                JSON.stringify(value)
+value.name ||
+value.type ||
+value.value ||
+value.claim ||
+this.safeJSONStringify(value)
               );
 
         if (!key || seen.has(key)) return;
