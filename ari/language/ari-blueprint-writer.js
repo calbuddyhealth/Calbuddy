@@ -5019,24 +5019,53 @@ for (
     };
   },
 
-  buildCharacterStatus(
+    buildCharacterStatus(
     reasoning = {}
   ) {
-    const overall =
-      reasoning?.status ||
-      (
-        reasoning
-          ?.characterAnswerAvailable ===
-        true
-          ? "stable"
-          : "background"
+    const type =
+      reasoning?.type ||
+      null;
+
+    const hasResolvedAnswer =
+      reasoning
+        ?.characterAnswerAvailable ===
+        true ||
+      Boolean(
+        reasoning?.answer ||
+        reasoning?.userFacingDraft
       );
+
+    const inferredStatus =
+      type ===
+        "character_values_inference"
+        ? "inferred"
+        : type ===
+            "character_preference"
+          ? "stable"
+          : type ===
+              "character_identity"
+            ? "canonical"
+            : [
+                "character_worldview",
+                "character_perspective"
+              ].includes(type)
+              ? "stable"
+              : hasResolvedAnswer
+                ? "stable"
+                : "background";
+
+    const overall =
+      typeof reasoning?.status ===
+        "string"
+        ? reasoning.status
+        : reasoning?.status?.overall ||
+          inferredStatus;
 
     return {
       overall,
 
       preferenceStatus:
-        reasoning?.type ===
+        type ===
         "character_preference"
           ? overall
           : null,
@@ -5045,14 +5074,12 @@ for (
         [
           "character_worldview",
           "character_perspective"
-        ].includes(
-          reasoning?.type
-        )
+        ].includes(type)
           ? overall
           : null,
 
       identityStatus:
-        reasoning?.type ===
+        type ===
         "character_identity"
           ? overall
           : null,
