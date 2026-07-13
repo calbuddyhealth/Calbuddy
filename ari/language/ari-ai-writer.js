@@ -4,7 +4,7 @@
 // Purpose:
 // Produce an AI-assisted response candidate from the canonical Composer Packet.
 //
-// V2.0.0 — Canonical Response Plan Enforcement / AI Repair / Candidate Diagnostics
+// V2.1.0 — Focused Character Realization / Canonical Plan Enforcement
 //
 // Architectural flow:
 //
@@ -44,7 +44,7 @@
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "2.0.0",
+  version: "2.1.0",
   schemaVersion: "1.0.0",
 
   /* =====================================================
@@ -69,9 +69,20 @@ window.AriAIWriter = {
     const safePacket = this.buildSafePacket(packet);
     const request = this.readRequest(safePacket);
     const writerContract = this.readWriterContract(safePacket);
-    const blueprintCandidate = this.readBlueprintCandidate(safePacket);
-    const lockedDeveloperDraft = this.readLockedDeveloperDraft(safePacket);
+    const blueprintCandidate =
+  this.readBlueprintCandidate(
+    safePacket
+  );
 
+const lockedDeveloperDraft =
+  this.readLockedDeveloperDraft(
+    safePacket
+  );
+
+const characterContext =
+  this.readCharacterContext(
+    safePacket
+  );
     if (!request.currentText && !lockedDeveloperDraft) {
       return this.returnDraft({
         draft: "",
@@ -136,12 +147,19 @@ window.AriAIWriter = {
       });
     }
 
-    const blueprintDecision = this.evaluateBlueprintCandidate({
-      packet: safePacket,
-      request,
-      writerContract,
-      blueprintCandidate
-    });
+    const blueprintDecision =
+  this.evaluateBlueprintCandidate({
+    packet:
+      safePacket,
+
+    request,
+
+    writerContract,
+
+    blueprintCandidate,
+
+    characterContext
+  });
 
     if (blueprintDecision.useWithoutAI) {
       return this.returnDraft({
@@ -665,6 +683,284 @@ window.AriAIWriter = {
     return aliases[id] || id;
   },
 
+/* =====================================================
+   FOCUSED CHARACTER CONTEXT
+===================================================== */
+
+readCharacterContext(packet = {}) {
+  const context =
+    packet.characterContext ||
+    {};
+
+  const character =
+    packet.composerCharacter ||
+    packet.character ||
+    context.composerCharacter ||
+    context.character ||
+    packet.evidence
+      ?.composerCharacter ||
+    packet.evidence
+      ?.character ||
+    null;
+
+  const handoff =
+    packet.characterHandoff ||
+    context.handoff ||
+    packet.evidence
+      ?.characterHandoff ||
+    null;
+
+  const reasoning =
+    packet.characterReasoning ||
+    context.reasoning ||
+    handoff?.reasoning ||
+    character?.reasoning ||
+    packet.evidence
+      ?.characterReasoning ||
+    null;
+
+  const realization =
+    packet.characterRealization ||
+    context.realization ||
+    character?.realization ||
+    handoff?.realization ||
+    packet.evidence
+      ?.characterRealization ||
+    reasoning?.realizationPolicy ||
+    {};
+
+  const draft =
+    this.cleanForUser(
+      packet
+        .characterDeterministicDraft ||
+      packet.characterDraft ||
+      context.draft ||
+      handoff?.draft ||
+      character
+        ?.deterministicDraft ||
+      character?.draft ||
+      reasoning
+        ?.deterministicDraft ||
+      reasoning
+        ?.userFacingDraft ||
+      ""
+    );
+
+  const answer =
+    this.cleanForUser(
+      packet.characterAnswer ||
+      context.answer ||
+      handoff?.answer ||
+      character?.answer ||
+      reasoning?.answer ||
+      ""
+    );
+
+  const reason =
+    this.cleanForUser(
+      packet.characterReason ||
+      context.reason ||
+      handoff?.reason ||
+      (
+        typeof handoff
+          ?.reasoning ===
+          "string"
+          ? handoff.reasoning
+          : ""
+      ) ||
+      character?.reason ||
+      (
+        typeof character
+          ?.reasoning ===
+          "string"
+          ? character.reasoning
+          : ""
+      ) ||
+      reasoning?.reasoning ||
+      ""
+    );
+
+  const answerAvailable =
+    packet
+      .characterAnswerAvailable ===
+      true ||
+    context.answerAvailable ===
+      true ||
+    handoff?.answerAvailable ===
+      true ||
+    character?.answerAvailable ===
+      true ||
+    reasoning
+      ?.characterAnswerAvailable ===
+      true ||
+    Boolean(
+      draft &&
+      (
+        answer ||
+        reason
+      )
+    );
+
+  const needsAIWriter =
+    packet
+      .characterNeedsAIWriter ===
+      true ||
+    context.needsAIWriter ===
+      true ||
+    handoff?.needsAIWriter ===
+      true ||
+    realization.needsAIWriter ===
+      true ||
+    reasoning?.needsAIWriter ===
+      true;
+
+  const aiWriterMode =
+    packet.characterAIWriterMode ||
+    context.aiWriterMode ||
+    handoff?.aiWriterMode ||
+    realization.aiWriterMode ||
+    reasoning?.aiWriterMode ||
+    null;
+
+  const aiInstruction =
+    this.cleanOriginal(
+      packet.characterAIInstruction ||
+      context.aiInstruction ||
+      handoff?.aiInstruction ||
+      realization.aiInstruction ||
+      reasoning?.aiInstruction ||
+      ""
+    );
+
+  const status =
+    packet.characterStatus ||
+    context.status ||
+    handoff?.status ||
+    character?.status ||
+    reasoning?.status ||
+    null;
+
+  return {
+    available:
+      packet.characterAvailable ===
+        true ||
+      context.available ===
+        true ||
+      Boolean(
+        character ||
+        handoff ||
+        reasoning
+      ),
+
+    enabled:
+      packet.characterEnabled ===
+        true ||
+      context.enabled ===
+        true ||
+      character?.enabled ===
+        true ||
+      handoff?.enabled ===
+        true,
+
+    relevant:
+      packet.characterRelevant ===
+        true ||
+      context.relevant ===
+        true ||
+      context.useAllowed ===
+        true ||
+      character?.relevant ===
+        true ||
+      handoff?.relevant ===
+        true ||
+      answerAvailable,
+
+    answerAvailable,
+
+    needsAIWriter,
+
+    draftAvailable:
+      Boolean(draft),
+
+    mode:
+      packet.characterMode ||
+      context.mode ||
+      handoff?.mode ||
+      character?.mode ||
+      "silent",
+
+    type:
+      packet.characterType ||
+      context.type ||
+      reasoning?.type ||
+      character?.type ||
+      handoff?.type ||
+      null,
+
+    subtype:
+      packet.characterSubtype ||
+      context.subtype ||
+      reasoning?.subtype ||
+      character?.subtype ||
+      handoff?.subtype ||
+      null,
+
+    focus:
+      packet.characterFocus ||
+      context.focus ||
+      reasoning?.focus ||
+      character?.focus ||
+      handoff?.focus ||
+      null,
+
+    preferenceSubject:
+      packet
+        .characterPreferenceSubject ||
+      context.preferenceSubject ||
+      reasoning
+        ?.preferenceSubject ||
+      null,
+
+    answer,
+
+    reasoning:
+      reason,
+
+    draft,
+
+    status,
+
+    confidence:
+      reasoning?.confidence ||
+      null,
+
+    source:
+      reasoning?.source ||
+      handoff
+        ?.preferredCharacterSource ||
+      character?.preferredSource ||
+      context
+        .preferredCharacterSource ||
+      null,
+
+    aiWriterMode,
+
+    aiInstruction,
+
+    realization,
+
+    character,
+
+    handoff,
+
+    reasoningPacket:
+      reasoning,
+
+    authority:
+      "resolved_focused_character_handoff_only"
+  };
+},
+
   /* =====================================================
      BLUEPRINT CANDIDATE
   ===================================================== */
@@ -747,54 +1043,132 @@ window.AriAIWriter = {
   },
 
   evaluateBlueprintCandidate({
-    packet = {},
-    request = {},
-    writerContract = {},
-    blueprintCandidate = {}
-  } = {}) {
-    if (!blueprintCandidate.available) {
-      return {
-        useWithoutAI: false,
-        repairRequired: true,
-        reason: "blueprint_candidate_missing",
-        validation: {
-          valid: false,
-          reason: "blueprint_candidate_missing",
-          warnings: [],
-          errors: ["blueprint_candidate_missing"]
-        }
-      };
-    }
+  packet = {},
+  request = {},
+  writerContract = {},
+  blueprintCandidate = {},
+  characterContext = {}
+} = {}) {
+  const characterRealizationRequired =
+    characterContext
+      .answerAvailable ===
+      true &&
+    characterContext
+      .needsAIWriter ===
+      true;
 
-    const validation = this.validateCandidateText({
-      text: blueprintCandidate.text,
+  if (
+    !blueprintCandidate
+      .available
+  ) {
+    return {
+      useWithoutAI:
+        false,
+
+      repairRequired:
+        true,
+
+      characterRealizationRequired,
+
+      reason:
+        characterRealizationRequired
+          ? "focused_character_realization_required"
+          : "blueprint_candidate_missing",
+
+      requiredUnsupportedMoveIds:
+        [],
+
+      validation: {
+        valid:
+          false,
+
+        reason:
+          "blueprint_candidate_missing",
+
+        warnings:
+          characterRealizationRequired
+            ? [
+                "focused_character_realization_required"
+              ]
+            : [],
+
+        errors: [
+          "blueprint_candidate_missing"
+        ]
+      }
+    };
+  }
+
+  const validation =
+    this.validateCandidateText({
+      text:
+        blueprintCandidate.text,
+
       packet,
+
       request,
+
       writerContract,
-      source: "blueprint_writer"
+
+      source:
+        "blueprint_writer"
     });
 
-    const requiredUnsupported = blueprintCandidate.unsupportedMoves.filter(
-      move => move?.required !== false
-    );
+  const requiredUnsupported =
+    blueprintCandidate
+      .unsupportedMoves
+      .filter(
+        move =>
+          move?.required !==
+          false
+      );
 
-    const repairRequired =
-      blueprintCandidate.requiresAIRepair ||
-      !blueprintCandidate.usable ||
-      !blueprintCandidate.complete ||
-      requiredUnsupported.length > 0 ||
-      !validation.valid;
+  const repairRequired =
+    characterRealizationRequired ||
+    blueprintCandidate
+      .requiresAIRepair ||
+    !blueprintCandidate.usable ||
+    !blueprintCandidate.complete ||
+    requiredUnsupported.length >
+      0 ||
+    !validation.valid;
 
-    return {
-      useWithoutAI: !repairRequired,
-      repairRequired,
-      reason: repairRequired
-        ? "blueprint_candidate_requires_ai_repair"
-        : "blueprint_candidate_complete",
-      requiredUnsupportedMoveIds: requiredUnsupported.map(move => move?.id).filter(Boolean),
-      validation
-    };
-  },
+  let reason =
+    "blueprint_candidate_complete";
+
+  if (
+    characterRealizationRequired
+  ) {
+    reason =
+      "focused_character_realization_required";
+  } else if (
+    repairRequired
+  ) {
+    reason =
+      "blueprint_candidate_requires_ai_repair";
+  }
+
+  return {
+    useWithoutAI:
+      !repairRequired,
+
+    repairRequired,
+
+    characterRealizationRequired,
+
+    reason,
+
+    requiredUnsupportedMoveIds:
+      requiredUnsupported
+        .map(
+          move =>
+            move?.id
+        )
+        .filter(Boolean),
+
+    validation
+  };
+},
 
   /* =====================================================
      AI PERMISSION
@@ -870,6 +1244,11 @@ window.AriAIWriter = {
     blueprintDecision = {}
   } = {}) {
     const developerRelevant = this.isDeveloperRelevant(packet);
+
+const characterContext =
+  this.readCharacterContext(
+    packet
+  );
 
     const moveInstructions = writerContract.responseMoves.map((move, index) => {
       const parts = [
@@ -964,6 +1343,47 @@ BLUEPRINT STATUS:
         .join(", ") || "none"
     }
 
+FOCUSED CHARACTER HANDOFF:
+- available: ${characterContext.available ? "yes" : "no"}
+- enabled: ${characterContext.enabled ? "yes" : "no"}
+- relevant: ${characterContext.relevant ? "yes" : "no"}
+- answer available: ${characterContext.answerAvailable ? "yes" : "no"}
+- AI realization required: ${characterContext.needsAIWriter ? "yes" : "no"}
+- mode: ${characterContext.mode || "silent"}
+- type: ${characterContext.type || "none"}
+- subtype: ${characterContext.subtype || "none"}
+- focus: ${characterContext.focus || "none"}
+- preference subject: ${characterContext.preferenceSubject || "none"}
+- status: ${
+  typeof characterContext.status === "string"
+    ? characterContext.status
+    : characterContext.status?.overall || "none"
+}
+- confidence: ${characterContext.confidence || "not specified"}
+- resolved answer: ${characterContext.answer || "none"}
+- resolved reasoning: ${characterContext.reasoning || "none"}
+- deterministic draft: ${characterContext.draft || "none"}
+- AI writer mode: ${characterContext.aiWriterMode || "none"}
+- source: ${characterContext.source || "none"}
+
+CHARACTER REALIZATION INSTRUCTION:
+${
+  characterContext.aiInstruction ||
+  "No focused Character realization instruction was supplied."
+}
+
+CHARACTER AUTHORITY RULES:
+- Character Reasoning has already selected the relevant identity, preference, worldview, perspective, or values-based inference.
+- Do not independently decide what Ari prefers.
+- Do not search broad Character information for an alternative answer.
+- Do not contradict the resolved Character answer.
+- Do not convert an inferred or open answer into a fixed canonical preference.
+- Do not say Ari lacks preferences merely because Ari is an AI.
+- Do not mention Character packets, files, engines, constitutions, databases, or internal systems.
+- When AI realization is required, follow the focused Character realization instruction.
+- Express the answer naturally in Ari’s first-person voice.
+- Preserve any uncertainty required by the Character Handoff.
+
 EVIDENCE:
 ${JSON.stringify(evidencePacket, null, 2)}
 
@@ -982,7 +1402,9 @@ FINAL WRITING RULES:
 - Do not exceed the question limit.
 - Do not add a generic closing question.
 - Use continuity only when relevant and authorized.
-- Use character information only for voice, identity, or preference questions.
+- Use only the focused Character Handoff for Ari identity, preference, worldview, values, taste, personality, or perspective answers.
+- When focused Character AI realization is required, follow its instruction exactly in meaning while expressing it naturally.
+- Broad Character identity and preference evidence may support voice, but it may not override the focused Character Handoff.
 - Use memory only when relevant and authorized.
 - Use safety instructions as authoritative.
 - Do not use GitHub, repository, file, or code evidence when developer relevance is no.
@@ -1032,6 +1454,11 @@ FINAL WRITING RULES:
         packet.evidence?.reasoning ||
         packet.reasoning ||
         null,
+
+focusedCharacter:
+  this.readCharacterContext(
+    packet
+  ),
 
       characterIdentity:
         packet.characterIdentity ||
@@ -1497,103 +1924,250 @@ FINAL WRITING RULES:
   },
 
   resolveRejectedAIFallback({
-    packet = {},
-    request = {},
-    writerContract = {},
-    blueprintCandidate = {},
-    validation = {}
-  } = {}) {
-    if (blueprintCandidate.available) {
-      const blueprintValidation = this.validateCandidateText({
-        text: blueprintCandidate.text,
+  packet = {},
+  request = {},
+  writerContract = {},
+  blueprintCandidate = {},
+  validation = {}
+} = {}) {
+  const characterContext =
+    this.readCharacterContext(
+      packet
+    );
+
+  const characterRealizationRequired =
+    characterContext
+      .answerAvailable ===
+      true &&
+    characterContext
+      .needsAIWriter ===
+      true;
+
+  if (
+    blueprintCandidate
+      .available &&
+    !characterRealizationRequired
+  ) {
+    const blueprintValidation =
+      this.validateCandidateText({
+        text:
+          blueprintCandidate.text,
+
         packet,
+
         request,
+
         writerContract,
-        source: "blueprint_writer"
+
+        source:
+          "blueprint_writer"
       });
 
-      if (blueprintValidation.valid) {
-        return {
-          text: blueprintCandidate.text,
-          reason: "ai_draft_rejected_blueprint_candidate_restored",
-          usable: blueprintCandidate.usable,
-          complete: blueprintCandidate.complete,
-          requiresRepair:
-            blueprintCandidate.requiresAIRepair ||
-            !blueprintCandidate.complete,
-          validation: blueprintValidation
-        };
-      }
-    }
+    if (
+      blueprintValidation.valid
+    ) {
+      return {
+        text:
+          blueprintCandidate.text,
 
-    const safetyFallback = this.resolveSafetyFallback({
+        reason:
+          "ai_draft_rejected_blueprint_candidate_restored",
+
+        usable:
+          blueprintCandidate.usable,
+
+        complete:
+          blueprintCandidate.complete,
+
+        requiresRepair:
+          blueprintCandidate
+            .requiresAIRepair ||
+          !blueprintCandidate
+            .complete,
+
+        validation:
+          blueprintValidation
+      };
+    }
+  }
+
+  const safetyFallback =
+    this.resolveSafetyFallback({
       packet,
       writerContract
     });
 
-    if (safetyFallback) return safetyFallback;
+  if (safetyFallback) {
+    return safetyFallback;
+  }
 
-    return {
-      text: "",
-      reason: validation.reason || "ai_draft_rejected",
-      usable: false,
-      complete: false,
-      requiresRepair: true,
-      validation
-    };
-  },
+  return {
+    text:
+      "",
 
-  resolveUnavailableAIFallback({
-    packet = {},
-    request = {},
-    writerContract = {},
-    blueprintCandidate = {},
-    error = null
-  } = {}) {
-    if (blueprintCandidate.available) {
-      const validation = this.validateCandidateText({
-        text: blueprintCandidate.text,
+    reason:
+      characterRealizationRequired
+        ? "character_ai_realization_rejected"
+        : validation.reason ||
+          "ai_draft_rejected",
+
+    usable:
+      false,
+
+    complete:
+      false,
+
+    requiresRepair:
+      true,
+
+    validation: {
+      ...validation,
+
+      warnings: [
+        ...this.toArray(
+          validation.warnings
+        ),
+
+        ...(
+          characterRealizationRequired
+            ? [
+                "focused_character_realization_could_not_be_completed"
+              ]
+            : []
+        )
+      ]
+    }
+  };
+},
+
+resolveUnavailableAIFallback({
+  packet = {},
+  request = {},
+  writerContract = {},
+  blueprintCandidate = {},
+  error = null
+} = {}) {
+  const characterContext =
+    this.readCharacterContext(
+      packet
+    );
+
+  const characterRealizationRequired =
+    characterContext
+      .answerAvailable ===
+      true &&
+    characterContext
+      .needsAIWriter ===
+      true;
+
+  if (
+    blueprintCandidate
+      .available &&
+    !characterRealizationRequired
+  ) {
+    const validation =
+      this.validateCandidateText({
+        text:
+          blueprintCandidate.text,
+
         packet,
+
         request,
+
         writerContract,
-        source: "blueprint_writer"
+
+        source:
+          "blueprint_writer"
       });
 
-      if (validation.valid) {
-        return {
-          text: blueprintCandidate.text,
-          reason: "ai_unavailable_blueprint_candidate_used",
-          usable: blueprintCandidate.usable,
-          complete: blueprintCandidate.complete,
-          requiresRepair:
-            blueprintCandidate.requiresAIRepair ||
-            !blueprintCandidate.complete,
-          validation
-        };
-      }
-    }
+    if (validation.valid) {
+      return {
+        text:
+          blueprintCandidate.text,
 
-    const safetyFallback = this.resolveSafetyFallback({
+        reason:
+          "ai_unavailable_blueprint_candidate_used",
+
+        usable:
+          blueprintCandidate.usable,
+
+        complete:
+          blueprintCandidate.complete,
+
+        requiresRepair:
+          blueprintCandidate
+            .requiresAIRepair ||
+          !blueprintCandidate
+            .complete,
+
+        validation
+      };
+    }
+  }
+
+  const safetyFallback =
+    this.resolveSafetyFallback({
       packet,
       writerContract
     });
 
-    if (safetyFallback) return safetyFallback;
+  if (safetyFallback) {
+    return safetyFallback;
+  }
 
-    return {
-      text: "",
-      reason: "ai_unavailable_no_usable_candidate",
-      usable: false,
-      complete: false,
-      requiresRepair: true,
-      validation: {
-        valid: false,
-        reason: "ai_unavailable_no_usable_candidate",
-        warnings: error?.message ? [error.message] : [],
-        errors: ["no_usable_candidate"]
-      }
-    };
-  },
+  return {
+    text:
+      "",
+
+    reason:
+      characterRealizationRequired
+        ? "character_ai_realization_unavailable"
+        : "ai_unavailable_no_usable_candidate",
+
+    usable:
+      false,
+
+    complete:
+      false,
+
+    requiresRepair:
+      true,
+
+    validation: {
+      valid:
+        false,
+
+      reason:
+        characterRealizationRequired
+          ? "character_ai_realization_unavailable"
+          : "ai_unavailable_no_usable_candidate",
+
+      warnings: [
+        ...(
+          error?.message
+            ? [
+                error.message
+              ]
+            : []
+        ),
+
+        ...(
+          characterRealizationRequired
+            ? [
+                "focused_character_realization_required"
+              ]
+            : []
+        )
+      ],
+
+      errors: [
+        characterRealizationRequired
+          ? "character_ai_realization_unavailable"
+          : "no_usable_candidate"
+      ]
+    }
+  };
+},
 
   resolveSafetyFallback({
     packet = {},
@@ -1994,6 +2568,18 @@ FINAL WRITING RULES:
 
     const responseMoves = this.toArray(writerContract.responseMoves);
 
+const characterContext =
+  this.readCharacterContext(
+    packet
+  );
+
+const characterUsed =
+  characterContext.relevant ===
+    true &&
+  characterContext
+    .answerAvailable ===
+    true;
+
     const result = {
       aiWriterRan: true,
       aiWriterUsedAI: usedAI === true,
@@ -2006,6 +2592,31 @@ FINAL WRITING RULES:
       aiWriterUsable: usable === true,
       aiWriterComplete: complete === true,
       aiWriterRequiresRepair: requiresRepair === true,
+
+aiWriterUsedCharacter:
+  characterUsed,
+
+characterRealizationRequired:
+  characterContext
+    .needsAIWriter ===
+  true,
+
+characterAIWriterMode:
+  characterContext
+    .aiWriterMode ||
+  null,
+
+characterFocus:
+  characterContext.focus ||
+  null,
+
+characterType:
+  characterContext.type ||
+  null,
+
+characterStatus:
+  characterContext.status ||
+  null,
 
       draft: text,
       aiWriterDraft: text,
@@ -2064,6 +2675,55 @@ FINAL WRITING RULES:
           canonicalMemoryAuthorizationUsed:
             canonicalMemoryAuthorizationUsed === true,
 
+characterAvailable:
+  characterContext.available ===
+  true,
+
+characterEnabled:
+  characterContext.enabled ===
+  true,
+
+characterRelevant:
+  characterContext.relevant ===
+  true,
+
+characterAnswerAvailable:
+  characterContext
+    .answerAvailable ===
+  true,
+
+characterUsed,
+
+characterRealizationRequired:
+  characterContext
+    .needsAIWriter ===
+  true,
+
+characterAIWriterMode:
+  characterContext
+    .aiWriterMode ||
+  null,
+
+characterFocus:
+  characterContext.focus ||
+  null,
+
+characterType:
+  characterContext.type ||
+  null,
+
+characterSubtype:
+  characterContext.subtype ||
+  null,
+
+characterStatus:
+  characterContext.status ||
+  null,
+
+characterSource:
+  characterContext.source ||
+  null,
+
           responseMoveCount:
             responseMoves.length,
 
@@ -2101,6 +2761,30 @@ FINAL WRITING RULES:
         usable: usable === true,
         complete: complete === true,
         requiresRepair: requiresRepair === true,
+        characterUsed,
+
+characterAnswerAvailable:
+  characterContext
+    .answerAvailable ===
+  true,
+
+characterRealizationRequired:
+  characterContext
+    .needsAIWriter ===
+  true,
+
+characterAIWriterMode:
+  characterContext
+    .aiWriterMode ||
+  null,
+
+characterFocus:
+  characterContext.focus ||
+  null,
+
+characterType:
+  characterContext.type ||
+  null,
         turnId: request.turnId || null,
         characterCount: text.length,
         wordCount: this.countWords(text),
