@@ -5,7 +5,7 @@
 // Render a fast deterministic response candidate from the canonical
 // Response Plan contained in the Composer Packet.
 //
-// V2.1.0 — Focused Character Evidence / Canonical Plan Enforcement
+// V2.1.1 — Focused Character Evidence / Compatibility Grounding / Stable Status
 //
 // Architectural flow:
 //
@@ -44,7 +44,7 @@
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "2.1.0",
+  version: "2.1.1",
   schemaVersion: "1.0.0",
 
   /* =====================================================
