@@ -1,31 +1,23 @@
 // ari/observer-system/ari-question-understanding.js
 // Ari Question Understanding
-// Purpose: Observe what kind of response operation the user appears to request.
-// Does not choose the final intent, lane, semantic frame, or answer.
-// V2.0.0 — Multi-Signal Question Purpose Observer / Ledger Compatible
+// Purpose: Observe candidate response operations, outputs, request forms,
+// restrictions, and contextual modifiers without choosing canonical intent.
+// V3.0.0 — Explicit Request Evidence / Topic-Action Separation / Reference-Aware Advisory Candidates
 
 window.Ari = window.Ari || {};
 
 window.Ari.questionUnderstanding = {
-  version: "2.0.0",
+  version: "3.0.0",
 
   /* =====================================================
      MAIN ANALYSIS
   ===================================================== */
 
   analyze(input = {}) {
-    const summary =
-      typeof input === "string"
-        ? { userMessage: input }
-        : input.summary || input || {};
-
-    const rawText =
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
-
+    const summary = typeof input === "string" ? { userMessage: input } : input.summary || input || {};
+    const rawText = summary.userMessage || summary.message || summary.input || "";
     const text = this.normalize(rawText);
+    const observations = this.readObservations(summary);
     const signals = [];
 
     const add = ({
@@ -39,59 +31,81 @@ window.Ari.questionUnderstanding = {
       requestedOutput = null,
       inferenceLevel = "observed",
       evidenceClass = "direct_text",
+      role = "purpose_candidate",
+      explicit = false,
+      authorized = null,
       metadata = {}
     } = {}) => {
-      if (!value || !evidence) return;
+      if (!value || evidence === undefined || evidence === null || evidence === "") return null;
 
       const normalizedValue = this.normalizeToken(value);
+      const evidenceItems = Array.isArray(evidence) ? evidence.filter(Boolean) : [evidence].filter(Boolean);
 
       const existing = signals.find(signal =>
         signal.type === type &&
-        signal.value === normalizedValue
+        signal.value === normalizedValue &&
+        signal.role === role &&
+        signal.operation === operation &&
+        signal.requestedOutput === requestedOutput
       );
 
       if (existing) {
-        existing.confidence = Math.max(existing.confidence, confidence);
-        existing.evidence = [
-          ...new Set([
-            ...(existing.evidence || []),
-            evidence
-          ])
-        ];
-        existing.matchCount = Number(existing.matchCount || 1) + 1;
-        return;
+        existing.confidence = Math.max(existing.confidence, this.normalizeConfidence(confidence));
+        existing.evidence = [...new Set([...(existing.evidence || []), ...evidenceItems])];
+        existing.matchCount = Number(existing.matchCount || 1) + evidenceItems.length;
+        existing.explicit = existing.explicit === true || explicit === true;
+        existing.authorized = existing.authorized === false || authorized === false ? false : existing.authorized === true || authorized === true ? true : null;
+        existing.metadata = { ...(existing.metadata || {}), ...metadata };
+        return existing;
       }
 
-      signals.push({
+      const signal = {
         type,
         value: normalizedValue,
         category,
         domain,
         operation,
         requestedOutput,
-        confidence,
+        confidence: this.normalizeConfidence(confidence),
         inferenceLevel,
         evidenceClass,
-        evidence: [evidence],
-        matchCount: 1,
+        role,
+        explicit: explicit === true,
+        authorized,
+        evidence: evidenceItems,
+        matchCount: Math.max(1, evidenceItems.length),
         source: "ari-question-understanding",
         sourceVersion: this.version,
         metadata
-      });
+      };
+
+      signals.push(signal);
+      return signal;
     };
 
-    this.runPatternGroups(text, add);
-    this.detectCompositeIntent(text, signals, add);
-    this.detectQuestionForm(text, add);
-    this.detectDirectness(text, add);
+    const actionPolicy = this.detectActionPolicy(text, add);
+    const referenceContext = this.readReferenceContext({ text, observations, summary, add });
 
-    const rankedSignals = this.rankSignals(signals);
-    const primarySignal = rankedSignals[0] || this.defaultSignal();
-    const secondarySignals = rankedSignals.slice(1);
+    this.detectExplicitRequests(text, actionPolicy, add);
+    this.detectQuestionForm(text, referenceContext, add);
+    this.detectResponsePreferences(text, add);
+    this.detectContextualTopics(text, observations, add);
+    this.detectEmotionalContext(text, add);
+    this.detectCompositeRelationships(signals, add);
 
-    const observations = rankedSignals.map(signal =>
-      this.toLedgerObservation(signal, rawText)
-    );
+    const rankedSignals = this.rankSignals(signals, actionPolicy);
+    const purposeCandidates = rankedSignals.filter(signal => signal.role === "purpose_candidate");
+    const contextualSignals = rankedSignals.filter(signal => signal.role === "context_modifier");
+    const relationshipSignals = rankedSignals.filter(signal => signal.role === "purpose_relationship");
+    const formSignals = rankedSignals.filter(signal => signal.role === "request_form");
+    const preferenceSignals = rankedSignals.filter(signal => signal.role === "response_preference");
+    const restrictionSignals = rankedSignals.filter(signal => signal.role === "restriction");
+
+    const primarySignal = purposeCandidates[0] || this.defaultSignal();
+    const secondarySignals = purposeCandidates.slice(1);
+    const requestedOperations = this.collectRequestedOperations(purposeCandidates, actionPolicy);
+    const requestedOutputs = this.collectRequestedOutputs(purposeCandidates, actionPolicy);
+    const observationsOut = rankedSignals.map(signal => this.toLedgerObservation(signal, rawText));
 
     return {
       questionUnderstandingRan: true,
@@ -104,45 +118,59 @@ window.Ari.questionUnderstanding = {
       primaryPurpose: primarySignal.value,
       primaryPurposeConfidence: primarySignal.confidence,
       primaryPurposeScore: primarySignal.score,
+      primaryPurposeAdvisoryOnly: true,
 
       supportPurposes: secondarySignals.map(signal => signal.value),
-      purposeCandidates: rankedSignals,
+      purposeCandidates,
+      allPurposeCandidates: purposeCandidates,
 
-      requestedOperations: [
-        ...new Set(
-          rankedSignals
-            .map(signal => signal.operation)
-            .filter(Boolean)
-        )
-      ],
+      contextualSignals,
+      relationshipSignals,
+      requestFormSignals: formSignals,
+      responsePreferenceSignals: preferenceSignals,
+      restrictionSignals,
 
-      requestedOutputs: [
-        ...new Set(
-          rankedSignals
-            .map(signal => signal.requestedOutput)
-            .filter(Boolean)
-        )
-      ],
+      requestedOperations,
+      requestedOutputs,
 
-      observations,
-      observationCount: observations.length,
+      explicitRequestPresent: purposeCandidates.some(signal => signal.explicit === true),
+      explicitAuthorizedOperationPresent: purposeCandidates.some(signal => signal.explicit === true && signal.authorized !== false && Boolean(signal.operation)),
 
-      multiPurpose: rankedSignals.length > 1,
-      competingPurposes: this.findCompetingPurposes(rankedSignals),
+      actionPolicy,
+      referenceContext,
 
-      responseHints: this.buildResponseHints(rankedSignals),
+      observations: observationsOut,
+      observationCount: observationsOut.length,
+
+      multiPurpose: purposeCandidates.length > 1,
+      competingPurposes: this.findCompetingPurposes(purposeCandidates),
+
+      responseHints: this.buildResponseHints({
+        purposeCandidates,
+        contextualSignals,
+        preferenceSignals,
+        actionPolicy,
+        referenceContext
+      }),
 
       authority: {
         canObserveQuestionPurpose: true,
+        canObserveCandidateOperations: true,
+        canObserveRequestedOutputs: true,
+        canObserveRestrictions: true,
+        canSeparateTopicFromAction: true,
         canRankPurposeCandidates: true,
 
+        canAuthorizeUnstatedAction: false,
         canChooseFinalIntent: false,
+        canChooseCanonicalMeaning: false,
         canChooseLane: false,
         canBuildSemanticFrame: false,
+        canResolveReferences: false,
         canDetermineSafetySeverity: false,
         canAnswerUser: false,
 
-        role: "question_purpose_evidence_only"
+        role: "question_operation_and_output_evidence_only"
       }
     };
   },
@@ -160,501 +188,773 @@ window.Ari.questionUnderstanding = {
   },
 
   /* =====================================================
-     DECLARATIVE PURPOSE PATTERNS
+     UPSTREAM OBSERVATION READING
   ===================================================== */
 
-  purposeGroups: {
-    meaning: {
-      confidence: 0.9,
-      operation: "interpret_meaning",
-      requestedOutput: "meaning",
-      phrases: [
-        "season of my life",
-        "what is this really about",
-        "what does this mean",
-        "what is the lesson",
-        "what am i supposed to learn",
-        "what is life trying to teach me",
-        "what does this reveal",
-        "what is underneath all of this",
-        "what is the deeper meaning",
-        "why is this happening now",
-        "what is this season teaching me",
-        "what does this chapter mean",
-        "what is this chapter about",
-        "what is this season about",
-        "what is this trying to teach me"
-      ]
-    },
+  readObservations(summary = {}) {
+    const candidates = [
+      summary.canonicalObservationLedger,
+      summary.observationLedger,
+      summary.observations,
+      summary.observerEvidence?.observations,
+      summary.observer?.observations
+    ];
 
-    insight: {
-      confidence: 0.9,
-      operation: "surface_pattern_or_blind_spot",
-      requestedOutput: "insight",
-      phrases: [
-        "what pattern",
-        "what pattern do you see",
-        "what am i avoiding",
-        "what am i not seeing",
-        "what am i likely not seeing",
-        "central struggle",
-        "hidden conflict",
-        "blind spot",
-        "tell me something about me",
-        "why might i be doing that",
-        "what is really going on",
-        "what am i sacrificing",
-        "what am i likely sacrificing",
-        "what tradeoff",
-        "what trade-off",
-        "what am i giving up",
-        "what is this costing me",
-        "what cost am i ignoring",
-        "without realizing it",
-        "what am i protecting",
-        "what does this say about me",
-        "why do i keep",
-        "running from",
-        "uncomfortable truth",
-        "most uncomfortable truth",
-        "truth am i avoiding",
-        "what am i refusing to see",
-        "what am i not ready to admit",
-        "what am i scared to admit",
-        "what am i pretending not to know"
-      ]
-    },
+    const found = candidates.find(candidate => Array.isArray(candidate));
+    return found || [];
+  },
 
-    decision: {
-      confidence: 0.88,
-      operation: "decide",
-      requestedOutput: "recommendation",
-      phrases: [
-        "what should i do",
-        "which should i choose",
-        "help me decide",
-        "what should i focus",
-        "what deserves my attention",
-        "which identity should become primary",
-        "what should i delay",
-        "prioritize",
-        "which option",
-        "which one is better"
-      ]
-    },
+  observationsByType(observations = [], type = "") {
+    const normalizedType = this.normalizeToken(type);
+    return observations.filter(observation => this.normalizeToken(observation?.type) === normalizedType);
+  },
 
-    planning: {
-      confidence: 0.86,
-      operation: "plan",
-      requestedOutput: "action_plan",
-      phrases: [
-        "make a plan",
-        "create a plan",
-        "roadmap",
-        "next step",
-        "next steps",
-        "how do i",
-        "how should i",
-        "how can i",
-        "schedule",
-        "walk me through",
-        "step by step"
-      ]
-    },
-
-    emotional: {
-      confidence: 0.82,
-      operation: "support_or_understand_emotion",
-      requestedOutput: "emotional_support",
-      phrases: [
-        "i feel",
-        "i'm feeling",
-        "why am i feeling",
-        "guilty",
-        "scared",
-        "terrified",
-        "sad",
-        "lonely",
-        "overwhelmed",
-        "anxious",
-        "burned out",
-        "burnt out",
-        "exhausted",
-        "frustrated",
-        "worried"
-      ]
-    },
-
-    teaching: {
-      confidence: 0.84,
-      operation: "explain",
-      requestedOutput: "explanation",
-      phrases: [
-        "explain",
-        "teach me",
-        "what does",
-        "how does",
-        "why does",
-        "break it down",
-        "help me understand",
-        "what is the difference"
-      ]
-    },
-
-    factual: {
-      confidence: 0.86,
-      operation: "retrieve_fact",
-      requestedOutput: "direct_answer",
-      patterns: [
-        /\bwhat is\b/,
-        /\bwhat are\b/,
-        /\bwho is\b/,
-        /\bwho was\b/,
-        /\bwhen did\b/,
-        /\bwhen is\b/,
-        /\bwhere is\b/,
-        /\bwhere was\b/,
-        /\bhow many\b/,
-        /\bhow much\b/
-      ]
-    },
-
-    building: {
-      confidence: 0.86,
-      operation: "build_or_modify",
-      requestedOutput: "artifact_or_code",
-      phrases: [
-        "build",
-        "code",
-        "debug",
-        "github",
-        "javascript",
-        "html",
-        "css",
-        "api",
-        "pipeline",
-        "engine",
-        "function",
-        "file",
-        "script",
-        "bug",
-        "update the code"
-      ]
-    },
-
-    verification: {
-      confidence: 0.88,
-      operation: "verify",
-      requestedOutput: "verification",
-      phrases: [
-        "verify",
-        "are you sure",
-        "is that correct",
-        "check this",
-        "double check",
-        "confirm this",
-        "does this look right"
-      ]
-    },
-
-    recall: {
-      confidence: 0.88,
-      operation: "recall",
-      requestedOutput: "remembered_context",
-      phrases: [
-        "do you remember",
-        "what did i say",
-        "what did we decide",
-        "last time",
-        "previously",
-        "what do you know about me",
-        "remember when"
-      ]
-    },
-
-    creation: {
-      confidence: 0.86,
-      operation: "create",
-      requestedOutput: "generated_content",
-      phrases: [
-        "write me",
-        "make me",
-        "create me",
-        "draft",
-        "compose",
-        "generate",
-        "design",
-        "come up with"
-      ]
-    },
-
-    comparison: {
-      confidence: 0.84,
-      operation: "compare",
-      requestedOutput: "comparison",
-      phrases: [
-        "compare",
-        "difference between",
-        "versus",
-        "which is better",
-        "pros and cons",
-        "advantages and disadvantages"
-      ]
-    },
-
-    clarification: {
-      confidence: 0.86,
-      operation: "clarify",
-      requestedOutput: "clarification",
-      phrases: [
-        "what do you mean",
-        "where exactly",
-        "can you clarify",
-        "explain that",
-        "what are you saying",
-        "i don't understand",
-        "i dont understand"
-      ]
-    },
-
-    instruction: {
-      confidence: 0.84,
-      operation: "instruct",
-      requestedOutput: "instructions",
-      patterns: [
-        /\bhow to\b/,
-        /\bshow me how\b/,
-        /\bwalk me through\b/,
-        /\bwhat steps\b/
-      ]
-    },
-
-    opinion: {
-      confidence: 0.8,
-      operation: "give_opinion",
-      requestedOutput: "opinion",
-      phrases: [
-        "what do you think",
-        "your opinion",
-        "what would you do",
-        "how do you feel about"
-      ]
-    }
+  hasObservation(observations = [], predicate = () => false) {
+    return observations.some(observation => {
+      try {
+        return predicate(observation);
+      } catch (_error) {
+        return false;
+      }
+    });
   },
 
   /* =====================================================
-     PATTERN EXECUTION
+     ACTION AUTHORIZATION / RESTRICTIONS
   ===================================================== */
 
-  runPatternGroups(text, add) {
-    Object.entries(this.purposeGroups).forEach(([purpose, config]) => {
+  detectActionPolicy(text = "", add = () => {}) {
+    const executionProhibition = this.detectExecutionProhibition(text);
+    const analysisOnly = executionProhibition.present || /\b(analysis only|discussion only|just discuss|just explain|only explain|only evaluate)\b/.test(text);
+    const deferredExecution = executionProhibition.present && /\b(yet|for now|right now|later|not until|after we|before we)\b/.test(text);
+
+    const prohibitedOperations = executionProhibition.present
+      ? [
+          "build_or_modify",
+          "implement",
+          "modify",
+          "create_code",
+          "write_code",
+          "rewrite_code",
+          "patch_code",
+          "replace_file",
+          "edit_file",
+          "apply_changes"
+        ]
+      : [];
+
+    if (executionProhibition.present) {
+      add({
+        type: "action_restriction",
+        value: "artifact_execution_prohibited",
+        evidence: executionProhibition.evidence,
+        confidence: executionProhibition.confidence,
+        category: "constraint",
+        domain: "builder",
+        role: "restriction",
+        explicit: true,
+        authorized: false,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        metadata: {
+          prohibitedOperations,
+          deferredExecution
+        }
+      });
+    }
+
+    if (analysisOnly) {
+      add({
+        type: "action_restriction",
+        value: "analysis_only",
+        evidence: executionProhibition.evidence || "analysis only",
+        confidence: executionProhibition.present ? 0.96 : 0.88,
+        category: "constraint",
+        domain: "conversation",
+        role: "restriction",
+        explicit: true,
+        authorized: false,
+        metadata: {
+          executionAllowed: false
+        }
+      });
+    }
+
+    return {
+      executionAllowed: !executionProhibition.present,
+      analysisOnly,
+      deferredExecution,
+      explicitExecutionProhibition: executionProhibition.present,
+      prohibitionEvidence: executionProhibition.evidence,
+      prohibitedOperations,
+      authority: "explicit_user_action_authorization_evidence_only"
+    };
+  },
+
+  detectExecutionProhibition(text = "") {
+    const patterns = [
+      /\b(?:do not|don't|dont)\s+(?:write|rewrite|modify|change|edit|patch|implement|code|generate|create|replace|remove|delete|add|wire|update|send)\b/,
+      /\b(?:do not|don't|dont)\s+(?:make|apply)\s+(?:any\s+)?changes?\b/,
+      /\b(?:no code|without code|analysis only|discussion only)\b/,
+      /\b(?:not asking you to|i am not asking you to|i'm not asking you to|im not asking you to)\s+(?:write|rewrite|modify|change|edit|patch|implement|code|generate|create|replace|remove|delete|add|wire|update|send)\b/,
+      /\b(?:i do not want|i don't want|i dont want)\s+(?:you\s+to\s+)?(?:write|rewrite|modify|change|edit|patch|implement|code|generate|create|replace|remove|delete|add|wire|update|send)\b/
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match?.[0]) {
+        return {
+          present: true,
+          evidence: match[0],
+          confidence: 0.97
+        };
+      }
+    }
+
+    return {
+      present: false,
+      evidence: null,
+      confidence: 0
+    };
+  },
+
+  /* =====================================================
+     EXPLICIT REQUEST DETECTION
+  ===================================================== */
+
+  detectExplicitRequests(text = "", actionPolicy = {}, add = () => {}) {
+    this.runRequestTable(text, actionPolicy, add, this.requestPatterns);
+  },
+
+  requestPatterns: [
+    {
+      purpose: "implementation",
+      operation: "build_or_modify",
+      requestedOutput: "artifact_or_code",
+      confidence: 0.93,
+      domain: "builder",
+      patterns: [
+        /\b(?:send|give me|write|rewrite|generate|create|build|implement|patch|replace|update|modify|edit|fix)\s+(?:the\s+|this\s+|that\s+|my\s+)?(?:entire\s+|full\s+|whole\s+)?(?:code|file|script|function|engine|component|implementation)\b/,
+        /\b(?:send me|give me)\s+(?:the\s+)?(?:entire|full|updated|replacement)\s+(?:file|code|script)\b/,
+        /\b(?:make|apply)\s+(?:the\s+|these\s+)?changes?\b/,
+        /\b(?:wire|connect)\s+(?:this|it|the engine|the file|the component)\b/
+      ],
+      executionOperation: true
+    },
+
+    {
+      purpose: "verification",
+      operation: "verify_or_review",
+      requestedOutput: "verification_result",
+      confidence: 0.91,
+      domain: "conversation",
+      patterns: [
+        /\b(?:verify|double check|confirm|review|inspect|look over|look through|check)\s+(?:this|that|it|the code|the file|the engine|the pipeline)\b/,
+        /\b(?:is this|is that|does this|does that)\s+(?:correct|right|valid|working|supposed to)\b/,
+        /\b(?:are you sure|does this look right)\b/
+      ]
+    },
+
+    {
+      purpose: "decision",
+      operation: "decide_or_recommend",
+      requestedOutput: "recommendation",
+      confidence: 0.91,
+      domain: "decision",
+      patterns: [
+        /\b(?:what should i do|what should we do|help me decide|which should i choose|which one should i choose)\b/,
+        /\b(?:what do you recommend|what would you recommend|recommend which|recommend one)\b/,
+        /\b(?:what should i focus on|what should we focus on|what should come first|which comes first|what deserves my attention)\b/,
+        /\b(?:which option|which one is better|what is the best option|what is the best move)\b/
+      ]
+    },
+
+    {
+      purpose: "comparison",
+      operation: "compare",
+      requestedOutput: "comparison",
+      confidence: 0.89,
+      domain: "decision",
+      patterns: [
+        /\b(?:compare|difference between|differences between|versus|vs\.?|pros and cons|advantages and disadvantages)\b/,
+        /\b(?:which is better|how are they different|what makes them different)\b/
+      ]
+    },
+
+    {
+      purpose: "planning",
+      operation: "plan",
+      requestedOutput: "action_plan",
+      confidence: 0.89,
+      domain: "planning",
+      patterns: [
+        /\b(?:make|create|build|give me)\s+(?:a\s+)?(?:plan|roadmap|schedule|routine)\b/,
+        /\b(?:what are the next steps|what should the next steps be|walk me through the steps)\b/,
+        /\b(?:how should i approach|how should we approach|how can i organize|how can we organize)\b/
+      ]
+    },
+
+    {
+      purpose: "instruction",
+      operation: "instruct",
+      requestedOutput: "instructions",
+      confidence: 0.88,
+      domain: "conversation",
+      patterns: [
+        /\b(?:how do i|how can i|how should i|show me how to|walk me through how to|what steps do i take)\b/,
+        /\bhow to\b/
+      ]
+    },
+
+    {
+      purpose: "teaching",
+      operation: "explain",
+      requestedOutput: "explanation",
+      confidence: 0.89,
+      domain: "knowledge",
+      patterns: [
+        /\b(?:explain|teach me|help me understand|break this down|break it down)\b/,
+        /\b(?:why does|why do|why did|how does|how do|how did|how come)\b/,
+        /\b(?:what does this mean|what does that mean|what is the difference)\b/
+      ]
+    },
+
+    {
+      purpose: "factual",
+      operation: "retrieve_fact",
+      requestedOutput: "direct_answer",
+      confidence: 0.9,
+      domain: "knowledge",
+      patterns: [
+        /\b(?:what is|what are|who is|who was|when did|when is|where is|where was|how many|how much)\b/
+      ]
+    },
+
+    {
+      purpose: "clarification",
+      operation: "clarify",
+      requestedOutput: "clarification",
+      confidence: 0.9,
+      domain: "conversation",
+      patterns: [
+        /\b(?:what do you mean|what are you saying|can you clarify|where exactly|i don't understand|i dont understand)\b/,
+        /\b(?:explain what you mean|clarify what you mean)\b/
+      ]
+    },
+
+    {
+      purpose: "recall",
+      operation: "recall",
+      requestedOutput: "remembered_context",
+      confidence: 0.92,
+      domain: "memory",
+      patterns: [
+        /\b(?:do you remember|what did i say|what did we say|what did we decide|what do you remember|what do you know about me)\b/,
+        /\b(?:last time we|previously we|remember when)\b/
+      ]
+    },
+
+    {
+      purpose: "creation",
+      operation: "create",
+      requestedOutput: "generated_content",
+      confidence: 0.9,
+      domain: "creation",
+      patterns: [
+        /\b(?:write me|draft me|make me|create me|design me|generate me)\b/,
+        /\b(?:write|draft|compose|create|design|generate)\s+(?:an?|the|this|that|my)\s+(?:email|message|reply|caption|invitation|essay|paragraph|story|image|graphic|document|presentation)\b/
+      ],
+      executionOperation: true
+    },
+
+    {
+      purpose: "opinion",
+      operation: "give_opinion",
+      requestedOutput: "opinion",
+      confidence: 0.87,
+      domain: "conversation",
+      patterns: [
+        /\b(?:what do you think|what is your opinion|your opinion|do you agree|how do you feel about)\b/
+      ]
+    },
+
+    {
+      purpose: "meaning",
+      operation: "interpret_meaning",
+      requestedOutput: "meaning",
+      confidence: 0.9,
+      domain: "meaning",
+      patterns: [
+        /\b(?:what is this really about|what does this mean for me|what is the lesson|what am i supposed to learn)\b/,
+        /\b(?:what is life trying to teach me|what is this season teaching me|what does this chapter mean)\b/,
+        /\b(?:what is the deeper meaning|what is underneath all of this)\b/
+      ]
+    },
+
+    {
+      purpose: "insight",
+      operation: "surface_pattern_or_blind_spot",
+      requestedOutput: "insight",
+      confidence: 0.9,
+      domain: "meaning",
+      patterns: [
+        /\b(?:what pattern do you see|what am i avoiding|what am i not seeing|what is my blind spot)\b/,
+        /\b(?:what is really going on|what am i sacrificing|what tradeoff am i making|what is this costing me)\b/,
+        /\b(?:what am i refusing to see|what am i not ready to admit|what am i pretending not to know)\b/
+      ]
+    },
+
+    {
+      purpose: "emotional_support",
+      operation: "provide_emotional_support",
+      requestedOutput: "supportive_response",
+      confidence: 0.93,
+      domain: "emotion",
+      patterns: [
+        /\b(?:i need someone to listen|i just need someone to listen|listen to me|can i vent|let me vent|i need to vent)\b/,
+        /\b(?:be here with me|stay with me|i need support|i need comfort|help me feel better)\b/,
+        /\b(?:i need someone to talk to|can we talk|i just want to talk)\b/
+      ]
+    }
+  ],
+
+  runRequestTable(text = "", actionPolicy = {}, add = () => {}, patterns = []) {
+    patterns.forEach(config => {
       const matches = [];
 
-      (config.phrases || []).forEach(phrase => {
-        if (text.includes(phrase)) matches.push(phrase);
-      });
-
-      (config.patterns || []).forEach(regex => {
-        const match = text.match(regex);
+      (config.patterns || []).forEach(pattern => {
+        const match = text.match(pattern);
         if (match?.[0]) matches.push(match[0]);
       });
 
-      matches.forEach(evidence => {
-        add({
-          value: purpose,
-          evidence,
-          confidence: config.confidence,
-          operation: config.operation,
-          requestedOutput: config.requestedOutput,
-          metadata: {
-            detectionMethod: "purpose_pattern",
-            matchedPurpose: purpose
-          }
-        });
+      if (!matches.length) return;
+
+      const blockedByPolicy = config.executionOperation === true && actionPolicy.executionAllowed === false;
+
+      add({
+        type: "question_purpose",
+        value: config.purpose,
+        evidence: matches,
+        confidence: blockedByPolicy ? Math.min(config.confidence, 0.72) : config.confidence,
+        category: "request",
+        domain: config.domain || "conversation",
+        operation: config.operation,
+        requestedOutput: config.requestedOutput,
+        role: "purpose_candidate",
+        explicit: true,
+        authorized: !blockedByPolicy,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        metadata: {
+          detectionMethod: "explicit_request_pattern",
+          executionOperation: config.executionOperation === true,
+          blockedByActionPolicy: blockedByPolicy
+        }
       });
     });
+  },
 
-    const insightScore = this.scoreInsightIntent(text);
+  /* =====================================================
+     REFERENCE / FOLLOW-UP CONTEXT
+  ===================================================== */
 
-    if (insightScore >= 4) {
+  readReferenceContext({ text = "", observations = [], summary = {}, add = () => {} } = {}) {
+    const referenceObservations = observations.filter(observation =>
+      ["reference_signal", "reference_expression", "missing_anchor_signal"].includes(this.normalizeToken(observation?.type)) ||
+      this.normalizeToken(observation?.category) === "continuity"
+    );
+
+    const unresolvedReferenceObservations = referenceObservations.filter(observation =>
+      this.normalizeToken(observation?.type) === "missing_anchor_signal" ||
+      observation?.metadata?.resolutionStatus === "unresolved" ||
+      observation?.metadata?.requiresPriorContext === true
+    );
+
+    const resolvedReferenceObservations = referenceObservations.filter(observation =>
+      observation?.metadata?.resolutionStatus === "resolved" ||
+      observation?.metadata?.resolved === true
+    );
+
+    const explicitPriorContextLanguage = /\b(?:earlier|previously|last time|before|again|based on that|given that|the one you mentioned|what you said)\b/.test(text);
+    const bareFollowUp = /^(?:why|how|how so|what about|what if|then what|really|and then)\??$/.test(text);
+    const threadAvailable = Boolean(
+      summary.threadStateLoaded ||
+      summary.threadState ||
+      summary.threadUnderstanding ||
+      (Array.isArray(summary.recentMessages) && summary.recentMessages.length)
+    );
+
+    const requiresPriorContext = unresolvedReferenceObservations.length > 0 || explicitPriorContextLanguage || bareFollowUp;
+    const referencePresent = referenceObservations.length > 0 || explicitPriorContextLanguage || bareFollowUp;
+
+    if (explicitPriorContextLanguage) {
       add({
-        value: "insight",
-        evidence: `insight_score:${insightScore}`,
-        confidence: Math.min(0.94, 0.6 + insightScore * 0.04),
-        operation: "surface_pattern_or_blind_spot",
-        requestedOutput: "insight",
-        inferenceLevel: "inferred",
-        evidenceClass: "system_inference",
+        type: "continuity_request_evidence",
+        value: "explicit_prior_context_reference",
+        evidence: text.match(/\b(?:earlier|previously|last time|before|again|based on that|given that|the one you mentioned|what you said)\b/)?.[0] || "prior context reference",
+        confidence: 0.88,
+        category: "continuity",
+        domain: "continuity",
+        operation: "resolve_from_prior_context",
+        requestedOutput: "follow_up_answer",
+        role: "request_form",
+        explicit: true,
+        authorized: true,
         metadata: {
-          detectionMethod: "composite_insight_score",
-          insightScore
+          requiresPriorContext: true
+        }
+      });
+    }
+
+    if (bareFollowUp) {
+      add({
+        type: "continuity_request_evidence",
+        value: "bare_follow_up",
+        evidence: text,
+        confidence: 0.9,
+        category: "continuity",
+        domain: "continuity",
+        operation: "resolve_from_prior_context",
+        requestedOutput: "follow_up_answer",
+        role: "request_form",
+        explicit: true,
+        authorized: true,
+        metadata: {
+          requiresPriorContext: true
+        }
+      });
+    }
+
+    return {
+      referencePresent,
+      referenceCount: referenceObservations.length,
+      unresolvedReferenceCount: unresolvedReferenceObservations.length,
+      resolvedReferenceCount: resolvedReferenceObservations.length,
+      explicitPriorContextLanguage,
+      bareFollowUp,
+      requiresPriorContext,
+      threadAvailable,
+      shouldUsePriorContext: requiresPriorContext && threadAvailable,
+      shouldClarifyReference: unresolvedReferenceObservations.length > 0 && !threadAvailable,
+      authority: "reference_context_evidence_only"
+    };
+  },
+
+  /* =====================================================
+     QUESTION FORM
+  ===================================================== */
+
+  detectQuestionForm(text = "", referenceContext = {}, add = () => {}) {
+    if (!text) return;
+
+    if (text.includes("?")) {
+      add({
+        type: "question_form",
+        value: "explicit_question",
+        evidence: "?",
+        confidence: 0.96,
+        category: "communication",
+        domain: "conversation",
+        role: "request_form",
+        explicit: true
+      });
+    }
+
+    const opening = text.match(/^(why|how|what|who|where|when|which|can|could|should|would|do|does|did|is|are|am|will|was|were|has|have|had)\b/);
+
+    if (opening) {
+      add({
+        type: "question_form",
+        value: "interrogative_opening",
+        evidence: opening[0],
+        confidence: 0.9,
+        category: "communication",
+        domain: "conversation",
+        role: "request_form",
+        explicit: true
+      });
+    }
+
+    if (referenceContext.bareFollowUp) {
+      add({
+        type: "question_form",
+        value: "context_dependent_follow_up",
+        evidence: text,
+        confidence: 0.91,
+        category: "continuity",
+        domain: "continuity",
+        operation: "resolve_from_prior_context",
+        requestedOutput: "follow_up_answer",
+        role: "request_form",
+        explicit: true,
+        authorized: true,
+        metadata: {
+          referenceDependent: true
         }
       });
     }
   },
 
   /* =====================================================
-     COMPOSITE PURPOSE DETECTION
+     RESPONSE PREFERENCES
   ===================================================== */
 
-  detectCompositeIntent(text, signals, add) {
-    const has = purpose =>
-      signals.some(signal => signal.value === purpose);
+  detectResponsePreferences(text = "", add = () => {}) {
+    const preferences = [
+      {
+        value: "concise",
+        requestedOutput: "concise",
+        confidence: 0.9,
+        pattern: /\b(?:just answer|straight answer|quick answer|briefly|keep it short|short answer|be concise)\b/
+      },
+      {
+        value: "detailed",
+        requestedOutput: "detailed",
+        confidence: 0.9,
+        pattern: /\b(?:explain fully|detailed answer|go deep|break it down|step by step|full explanation)\b/
+      },
+      {
+        value: "blunt",
+        requestedOutput: "blunt",
+        confidence: 0.9,
+        pattern: /\b(?:be honest|be blunt|don't sugarcoat|do not sugarcoat|tell me the truth|real answer)\b/
+      }
+    ];
 
-    if (has("emotional") && has("decision")) {
+    preferences.forEach(preference => {
+      const match = text.match(preference.pattern);
+      if (!match) return;
+
       add({
-        type: "question_purpose_relationship",
-        value: "emotion_influences_decision",
-        evidence: "emotional + decision signals",
-        confidence: 0.78,
-        category: "relationship",
-        operation: "support_decision_under_emotion",
-        requestedOutput: "grounded_recommendation",
-        inferenceLevel: "inferred",
-        evidenceClass: "system_inference"
+        type: "response_preference",
+        value: preference.value,
+        evidence: match[0],
+        confidence: preference.confidence,
+        category: "request",
+        domain: "conversation",
+        requestedOutput: preference.requestedOutput,
+        role: "response_preference",
+        explicit: true,
+        authorized: true
       });
-    }
+    });
+  },
 
-    if (has("building") && has("planning")) {
-      add({
-        type: "question_purpose_relationship",
-        value: "build_requires_plan",
-        evidence: "building + planning signals",
-        confidence: 0.82,
-        category: "relationship",
+  /* =====================================================
+     CONTEXTUAL TOPIC DETECTION
+  ===================================================== */
+
+  detectContextualTopics(text = "", observations = [], add = () => {}) {
+    const topics = [
+      {
+        value: "builder_topic",
         domain: "builder",
-        operation: "plan_implementation",
-        requestedOutput: "implementation_plan",
-        inferenceLevel: "inferred",
-        evidenceClass: "system_inference"
-      });
-    }
+        pattern: /\b(?:code|javascript|html|css|api|github|repo|repository|pipeline|engine|function|file|script|bug|observer|classifier|semantic frame|frame builder|architecture)\b/
+      },
+      {
+        value: "medical_topic",
+        domain: "medical",
+        pattern: /\b(?:pain|symptom|pregnant|pregnancy|doctor|hospital|medication|diagnosis|surgery|bleeding|fever|stroke|seizure|breathing)\b/
+      },
+      {
+        value: "relationship_topic",
+        domain: "relationship",
+        pattern: /\b(?:wife|husband|spouse|partner|girlfriend|boyfriend|relationship|marriage|friend|coworker)\b/
+      },
+      {
+        value: "financial_topic",
+        domain: "finance",
+        pattern: /\b(?:money|debt|loan|credit|rent|salary|budget|afford|payment|bills)\b/
+      },
+      {
+        value: "career_topic",
+        domain: "career",
+        pattern: /\b(?:job|career|school|college|degree|resume|interview|promotion|military|navy|marine)\b/
+      }
+    ];
 
-    if (has("building") && has("verification")) {
-      add({
-        type: "question_purpose_relationship",
-        value: "artifact_requires_validation",
-        evidence: "building + verification signals",
-        confidence: 0.84,
-        category: "relationship",
-        domain: "builder",
-        operation: "validate_artifact",
-        requestedOutput: "validation_result",
-        inferenceLevel: "inferred",
-        evidenceClass: "system_inference"
-      });
-    }
+    topics.forEach(topic => {
+      const match = text.match(topic.pattern);
+      if (!match) return;
 
-    if (has("factual") && has("teaching")) {
       add({
-        type: "question_purpose_relationship",
-        value: "fact_with_explanation",
-        evidence: "factual + teaching signals",
-        confidence: 0.8,
-        category: "relationship",
-        operation: "retrieve_and_explain",
-        requestedOutput: "direct_answer_with_explanation",
-        inferenceLevel: "inferred",
-        evidenceClass: "system_inference"
+        type: "question_context",
+        value: topic.value,
+        evidence: match[0],
+        confidence: 0.74,
+        category: "domain",
+        domain: topic.domain,
+        role: "context_modifier",
+        explicit: true,
+        authorized: null,
+        metadata: {
+          topicOnly: true,
+          doesNotAuthorizeAction: true
+        }
       });
-    }
+    });
 
-    if (has("decision") && has("comparison")) {
+    const observedDomains = [...new Set(
+      observations
+        .map(observation => this.normalizeToken(observation?.domain))
+        .filter(domain => domain && !["general", "conversation"].includes(domain))
+    )];
+
+    observedDomains.forEach(domain => {
       add({
-        type: "question_purpose_relationship",
-        value: "comparison_supports_decision",
-        evidence: "decision + comparison signals",
-        confidence: 0.82,
-        category: "relationship",
-        operation: "compare_and_recommend",
-        requestedOutput: "decision_support",
+        type: "question_context",
+        value: `${domain}_observed_context`,
+        evidence: `observer_domain:${domain}`,
+        confidence: 0.68,
+        category: "domain",
+        domain,
+        role: "context_modifier",
+        explicit: false,
+        authorized: null,
         inferenceLevel: "inferred",
-        evidenceClass: "system_inference"
+        evidenceClass: "system_observation",
+        metadata: {
+          topicOnly: true,
+          derivedFromObserver: true,
+          doesNotAuthorizeAction: true
+        }
+      });
+    });
+  },
+
+  /* =====================================================
+     EMOTIONAL CONTEXT
+  ===================================================== */
+
+  detectEmotionalContext(text = "", add = () => {}) {
+    const directDisclosure = text.match(
+      /\b(?:i am|i'm|im|i feel|i'm feeling|im feeling|i felt|i was feeling)\s+(?:really|very|so|pretty|extremely|kind of|kinda|a little|just)?\s*(sad|upset|hurt|angry|mad|worried|scared|afraid|anxious|stressed|overwhelmed|lonely|depressed|burned out|burnt out|exhausted|tired|frustrated|confused)\b/
+    );
+
+    const emotionWord = text.match(
+      /\b(?:sad|upset|hurt|angry|mad|worried|scared|afraid|anxious|stressed|overwhelmed|lonely|depressed|burned out|burnt out|exhausted|tired|frustrated|confused|guilty|ashamed)\b/
+    );
+
+    if (directDisclosure || emotionWord) {
+      add({
+        type: "emotional_context_signal",
+        value: directDisclosure ? "direct_emotional_disclosure" : "emotion_language_present",
+        evidence: directDisclosure?.[0] || emotionWord?.[0],
+        confidence: directDisclosure ? 0.86 : 0.72,
+        category: "emotion",
+        domain: "emotion",
+        role: "context_modifier",
+        explicit: true,
+        authorized: null,
+        metadata: {
+          emotionalSupportRequested: false,
+          shouldNotReplacePrimaryRequest: true
+        }
       });
     }
   },
 
   /* =====================================================
-     QUESTION FORM AND DIRECTNESS
+     COMPOSITE RELATIONSHIPS
   ===================================================== */
 
-  detectQuestionForm(text, add) {
-    if (!text) return;
-
-    if (text.endsWith("?")) {
-      add({
-        type: "question_form",
-        value: "explicit_question",
-        evidence: "?",
-        confidence: 0.95,
-        category: "communication"
-      });
-    }
-
-    if (/^(why|how|what|who|where|when|which|can|could|should|would|do|does|did|is|are)\b/.test(text)) {
-      add({
-        type: "question_form",
-        value: "interrogative_opening",
-        evidence: text.split(/\s+/)[0],
-        confidence: 0.88,
-        category: "communication"
-      });
-    }
-
-    if (/^(why|how|what about|what if|then what|really)\??$/.test(text)) {
-      add({
-        type: "question_form",
-        value: "context_dependent_follow_up",
-        evidence: text,
-        confidence: 0.88,
-        category: "continuity",
-        domain: "continuity",
-        operation: "resolve_from_prior_context",
-        requestedOutput: "follow_up_answer"
-      });
-    }
-  },
-
-  detectDirectness(text, add) {
-    const concise = text.match(
-      /\b(just answer|straight answer|quick answer|briefly|keep it short|short answer)\b/
+  detectCompositeRelationships(signals = [], add = () => {}) {
+    const purposeValues = new Set(
+      signals
+        .filter(signal => signal.role === "purpose_candidate")
+        .map(signal => signal.value)
     );
 
-    if (concise) {
+    const contextValues = new Set(
+      signals
+        .filter(signal => signal.role === "context_modifier")
+        .map(signal => signal.value)
+    );
+
+    const addRelationship = ({
+      value,
+      evidence,
+      confidence,
+      operation,
+      requestedOutput,
+      domain = "conversation"
+    }) => {
       add({
-        type: "response_preference",
-        value: "concise",
-        evidence: concise[0],
-        confidence: 0.88,
-        requestedOutput: "concise"
+        type: "question_purpose_relationship",
+        value,
+        evidence,
+        confidence,
+        category: "relationship",
+        domain,
+        operation,
+        requestedOutput,
+        role: "purpose_relationship",
+        explicit: false,
+        authorized: null,
+        inferenceLevel: "inferred",
+        evidenceClass: "system_inference",
+        metadata: {
+          cannotBecomePrimaryPurpose: true,
+          cannotAuthorizeAction: true
+        }
+      });
+    };
+
+    if (purposeValues.has("decision") && purposeValues.has("comparison")) {
+      addRelationship({
+        value: "comparison_supports_decision",
+        evidence: "decision + comparison candidates",
+        confidence: 0.82,
+        operation: "compare_and_recommend",
+        requestedOutput: "decision_support",
+        domain: "decision"
       });
     }
 
-    const detailed = text.match(
-      /\b(explain fully|detailed answer|go deep|break it down|step by step)\b/
-    );
-
-    if (detailed) {
-      add({
-        type: "response_preference",
-        value: "detailed",
-        evidence: detailed[0],
-        confidence: 0.88,
-        requestedOutput: "detailed"
+    if (purposeValues.has("factual") && purposeValues.has("teaching")) {
+      addRelationship({
+        value: "fact_with_explanation",
+        evidence: "factual + teaching candidates",
+        confidence: 0.8,
+        operation: "retrieve_and_explain",
+        requestedOutput: "direct_answer_with_explanation",
+        domain: "knowledge"
       });
     }
 
-    const blunt = text.match(
-      /\b(be honest|be blunt|don't sugarcoat|do not sugarcoat|tell me the truth)\b/
-    );
+    if (purposeValues.has("verification") && contextValues.has("builder_topic")) {
+      addRelationship({
+        value: "artifact_topic_requires_validation",
+        evidence: "verification request + builder topic",
+        confidence: 0.84,
+        operation: "validate_artifact",
+        requestedOutput: "validation_result",
+        domain: "builder"
+      });
+    }
 
-    if (blunt) {
-      add({
-        type: "response_preference",
-        value: "blunt",
-        evidence: blunt[0],
-        confidence: 0.88,
-        requestedOutput: "blunt"
+    if (purposeValues.has("planning") && contextValues.has("builder_topic")) {
+      addRelationship({
+        value: "builder_topic_requires_plan",
+        evidence: "planning request + builder topic",
+        confidence: 0.8,
+        operation: "plan_builder_work",
+        requestedOutput: "implementation_plan",
+        domain: "builder"
+      });
+    }
+
+    if (
+      purposeValues.has("decision") &&
+      signals.some(signal => signal.type === "emotional_context_signal")
+    ) {
+      addRelationship({
+        value: "emotion_context_modifies_decision",
+        evidence: "decision request + emotional context",
+        confidence: 0.76,
+        operation: "support_decision_with_emotional_context",
+        requestedOutput: "grounded_recommendation",
+        domain: "emotion"
       });
     }
   },
@@ -663,50 +963,134 @@ window.Ari.questionUnderstanding = {
      RANKING
   ===================================================== */
 
-  priority: {
-    verification: 98,
-    recall: 96,
-    decision: 94,
-    building: 92,
-    creation: 91,
-    planning: 90,
-    clarification: 89,
-    comparison: 88,
-    factual: 87,
-    instruction: 86,
-    teaching: 85,
-    meaning: 84,
-    insight: 83,
-    emotional: 82,
-    opinion: 78,
-    understanding: 50
+  rolePriority: {
+    purpose_candidate: 100,
+    restriction: 95,
+    request_form: 70,
+    response_preference: 65,
+    purpose_relationship: 45,
+    context_modifier: 30
   },
 
-  rankSignals(signals = []) {
+  purposeSpecificity: {
+    implementation: 0.98,
+    verification: 0.95,
+    recall: 0.95,
+    decision: 0.93,
+    comparison: 0.9,
+    planning: 0.9,
+    instruction: 0.89,
+    creation: 0.9,
+    clarification: 0.9,
+    factual: 0.87,
+    teaching: 0.86,
+    meaning: 0.88,
+    insight: 0.88,
+    emotional_support: 0.92,
+    opinion: 0.82,
+    understanding: 0.5
+  },
+
+  rankSignals(signals = [], actionPolicy = {}) {
     return signals
       .map(signal => {
-        const priority = this.priority[signal.value] || 70;
-        const corroboration = Math.min(8, Math.max(0, signal.matchCount - 1) * 2);
-        const score = Math.round(
-          priority * 0.55 +
-          signal.confidence * 100 * 0.4 +
-          corroboration
+        const roleBase = this.rolePriority[signal.role] || 40;
+        const specificity = this.purposeSpecificity[signal.value] ?? 0.65;
+        const explicitBonus = signal.explicit === true ? 12 : 0;
+        const evidenceBonus = Math.min(8, Math.max(0, Number(signal.matchCount || 1) - 1) * 2);
+        const inferredPenalty = signal.inferenceLevel === "inferred" ? 7 : 0;
+        const contextPenalty = signal.role === "context_modifier" ? 18 : 0;
+        const relationshipPenalty = signal.role === "purpose_relationship" ? 20 : 0;
+        const unauthorizedPenalty = signal.authorized === false ? 25 : 0;
+
+        let score = Math.round(
+          roleBase * 0.35 +
+          signal.confidence * 100 * 0.35 +
+          specificity * 100 * 0.18 +
+          explicitBonus +
+          evidenceBonus -
+          inferredPenalty -
+          contextPenalty -
+          relationshipPenalty -
+          unauthorizedPenalty
         );
+
+        if (
+          actionPolicy.executionAllowed === false &&
+          ["implementation", "creation"].includes(signal.value) &&
+          signal.role === "purpose_candidate"
+        ) {
+          score -= 18;
+        }
+
+        score = Math.max(0, Math.min(100, score));
 
         return {
           ...signal,
-          priority,
-          score
+          score,
+          scoreBreakdown: {
+            roleBase,
+            confidence: signal.confidence,
+            specificity,
+            explicitBonus,
+            evidenceBonus,
+            inferredPenalty,
+            contextPenalty,
+            relationshipPenalty,
+            unauthorizedPenalty
+          }
         };
       })
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
+        if (a.role !== b.role) return (this.rolePriority[b.role] || 0) - (this.rolePriority[a.role] || 0);
         return b.confidence - a.confidence;
       });
   },
 
+  collectRequestedOperations(purposeCandidates = [], actionPolicy = {}) {
+    return [
+      ...new Set(
+        purposeCandidates
+          .filter(signal => signal.operation)
+          .filter(signal => signal.authorized !== false)
+          .filter(signal => !this.operationBlocked(signal.operation, actionPolicy.prohibitedOperations))
+          .map(signal => signal.operation)
+      )
+    ];
+  },
+
+  collectRequestedOutputs(purposeCandidates = [], actionPolicy = {}) {
+    return [
+      ...new Set(
+        purposeCandidates
+          .filter(signal => signal.requestedOutput)
+          .filter(signal => signal.authorized !== false)
+          .map(signal => signal.requestedOutput)
+      )
+    ];
+  },
+
+  operationBlocked(operation = "", prohibitedOperations = []) {
+    const normalizedOperation = this.normalizeToken(operation);
+
+    return (prohibitedOperations || []).some(prohibited => {
+      const normalizedProhibited = this.normalizeToken(prohibited);
+
+      return (
+        normalizedOperation === normalizedProhibited ||
+        normalizedOperation.includes(normalizedProhibited) ||
+        normalizedProhibited.includes(normalizedOperation) ||
+        (
+          /build|modify|implement|write|create|patch|edit|replace/.test(normalizedOperation) &&
+          /build|modify|implement|write|create|patch|edit|replace/.test(normalizedProhibited)
+        )
+      );
+    });
+  },
+
   findCompetingPurposes(signals = []) {
-    const top = signals.slice(0, 4);
+    const top = signals.slice(0, 5);
 
     return top
       .flatMap((signal, index) =>
@@ -714,14 +1098,27 @@ window.Ari.questionUnderstanding = {
           first: signal.value,
           second: other.value,
           scoreDifference: Math.abs(signal.score - other.score),
-          closeCompetition: Math.abs(signal.score - other.score) <= 6
+          closeCompetition: Math.abs(signal.score - other.score) <= 7,
+          bothExplicit: signal.explicit === true && other.explicit === true
         }))
       )
       .filter(pair => pair.closeCompetition);
   },
 
-  buildResponseHints(signals = []) {
-    const values = new Set(signals.map(signal => signal.value));
+  /* =====================================================
+     RESPONSE HINTS
+  ===================================================== */
+
+  buildResponseHints({
+    purposeCandidates = [],
+    contextualSignals = [],
+    preferenceSignals = [],
+    actionPolicy = {},
+    referenceContext = {}
+  } = {}) {
+    const values = new Set(purposeCandidates.map(signal => signal.value));
+    const preferences = new Set(preferenceSignals.map(signal => signal.value));
+    const contexts = new Set(contextualSignals.map(signal => signal.value));
 
     return {
       answerDirectly:
@@ -735,24 +1132,60 @@ window.Ari.questionUnderstanding = {
         values.has("insight"),
 
       providePlan:
-        values.has("planning"),
+        values.has("planning") ||
+        values.has("instruction"),
 
       provideRecommendation:
         values.has("decision"),
 
+      compareOptions:
+        values.has("comparison"),
+
       provideArtifact:
-        values.has("building") ||
-        values.has("creation"),
+        actionPolicy.executionAllowed === true &&
+        (
+          values.has("implementation") ||
+          values.has("creation")
+        ),
+
+      doNotProvideArtifact:
+        actionPolicy.executionAllowed === false,
+
+      analysisOnly:
+        actionPolicy.analysisOnly === true,
 
       useEmotionalAttunement:
-        values.has("emotional"),
+        contextualSignals.some(signal => signal.type === "emotional_context_signal") ||
+        values.has("emotional_support"),
+
+      emotionalSupportPrimary:
+        values.has("emotional_support"),
 
       usePriorContext:
-        values.has("recall") ||
-        values.has("context_dependent_follow_up"),
+        referenceContext.shouldUsePriorContext === true ||
+        values.has("recall"),
 
-      compareOptions:
-        values.has("comparison")
+      clarifyReference:
+        referenceContext.shouldClarifyReference === true,
+
+      concise:
+        preferences.has("concise"),
+
+      detailed:
+        preferences.has("detailed"),
+
+      blunt:
+        preferences.has("blunt"),
+
+      builderTopicPresent:
+        contexts.has("builder_topic"),
+
+      builderTopicDoesNotAuthorizeCode:
+        contexts.has("builder_topic") &&
+        !values.has("implementation") &&
+        !values.has("creation"),
+
+      advisoryOnly: true
     };
   },
 
@@ -761,10 +1194,7 @@ window.Ari.questionUnderstanding = {
   ===================================================== */
 
   toLedgerObservation(signal = {}, rawText = "") {
-    const evidenceText = signal.evidence?.[0] || "";
-    const start = evidenceText
-      ? rawText.toLowerCase().indexOf(String(evidenceText).toLowerCase())
-      : -1;
+    const evidenceRecords = (signal.evidence || []).map(item => this.createEvidenceRecord(rawText, item));
 
     return {
       type: signal.type,
@@ -784,58 +1214,39 @@ window.Ari.questionUnderstanding = {
       evidenceClass: signal.evidenceClass,
       inferenceLevel: signal.inferenceLevel,
 
-      evidence: (signal.evidence || []).map(item => ({
-        text: item,
-        sourceField: "userMessage",
-        start: start >= 0 ? start : null,
-        end: start >= 0 ? start + String(item).length : null
-      })),
+      evidence: evidenceRecords,
 
       source: "ari-question-understanding",
       sourceVersion: this.version,
       sourceStage: "perception",
 
       metadata: {
-        score: signal.score || null,
-        priority: signal.priority || null,
+        role: signal.role,
+        explicit: signal.explicit === true,
+        authorized: signal.authorized,
+        score: signal.score ?? null,
         matchCount: signal.matchCount || 1,
+        advisoryOnly: true,
         ...(signal.metadata || {})
       }
     };
   },
 
-  /* =====================================================
-     INSIGHT SCORING
-  ===================================================== */
+  createEvidenceRecord(rawText = "", evidence = "") {
+    const evidenceText = String(evidence || "").trim();
+    const raw = String(rawText || "");
+    const start = evidenceText ? raw.toLowerCase().indexOf(evidenceText.toLowerCase()) : -1;
 
-  scoreInsightIntent(text = "") {
-    const weights = {
-      truth: 2,
-      uncomfortable: 2,
-      avoid: 3,
-      avoiding: 3,
-      "blind spot": 3,
-      pattern: 2,
-      hidden: 2,
-      sacrifice: 2,
-      sacrificing: 2,
-      tradeoff: 2,
-      "trade-off": 2,
-      "not seeing": 2,
-      "refusing to see": 3,
-      "not ready to admit": 3,
-      "pretending not to know": 3,
-      "costing me": 2,
-      "really going on": 2
+    return {
+      text: evidenceText,
+      sourceField: "userMessage",
+      start: start >= 0 ? start : null,
+      end: start >= 0 ? start + evidenceText.length : null
     };
-
-    return Object.entries(weights).reduce((score, [phrase, weight]) => {
-      return text.includes(phrase) ? score + weight : score;
-    }, 0);
   },
 
   /* =====================================================
-     HELPERS
+     DEFAULT
   ===================================================== */
 
   defaultSignal() {
@@ -844,20 +1255,35 @@ window.Ari.questionUnderstanding = {
       value: "understanding",
       category: "request",
       domain: "conversation",
-      operation: "understand_or_respond",
-      requestedOutput: "appropriate_response",
-      confidence: 0.5,
+      operation: null,
+      requestedOutput: null,
+      confidence: 0.35,
       evidenceClass: "hypothesis",
       inferenceLevel: "hypothesized",
+      role: "purpose_candidate",
+      explicit: false,
+      authorized: null,
       evidence: [],
       matchCount: 0,
-      priority: 50,
-      score: 48
+      score: 35,
+      metadata: {
+        fallback: true,
+        noExplicitOperationObserved: true
+      }
     };
   },
 
-  containsAny(text = "", phrases = []) {
-    return phrases.some(phrase => text.includes(phrase));
+  /* =====================================================
+     HELPERS
+  ===================================================== */
+
+  normalizeConfidence(value = 0.5) {
+    const number = Number(value);
+
+    if (!Number.isFinite(number)) return 0.5;
+    if (number > 1) return Math.max(0, Math.min(1, number / 100));
+
+    return Math.max(0, Math.min(1, number));
   },
 
   normalizeToken(value = "") {
@@ -875,7 +1301,7 @@ window.Ari.questionUnderstanding = {
       .replace(/[’‘]/g, "'")
       .replace(/[“”]/g, '"')
       .replace(/[_-]/g, " ")
-      .replace(/[^\w\s'?.,!:%-]/g, " ")
+      .replace(/[^\w\s'?.,!:%/.-]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }
