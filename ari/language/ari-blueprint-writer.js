@@ -5,7 +5,7 @@
 // Render a fast deterministic response candidate from the canonical
 // Response Plan contained in the Composer Packet.
 //
-// V2.0.0 — Canonical Response Move Renderer / No Independent Planning
+// V2.0.1 — Canonical Plan Enforcement / Authorized Memory / Accurate Diagnostics
 //
 // Architectural flow:
 //
@@ -44,7 +44,7 @@
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "2.0.0",
+  version: "2.0.1",
   schemaVersion: "1.0.0",
 
   /* =====================================================
@@ -132,6 +132,9 @@ window.AriBlueprintWriter = {
           complete:
             true,
 
+canonicalResponsePlanUsed:
+  false,
+
           supportedMoveCount:
             0,
 
@@ -193,11 +196,17 @@ window.AriBlueprintWriter = {
         },
 
         renderResult: {
-          complete:
-            true,
+  complete:
+    true,
 
-          supportedMoveCount:
-            1,
+  canonicalResponsePlanUsed:
+    false,
+
+  canonicalMemoryAuthorizationUsed:
+    true,
+
+  supportedMoveCount:
+    1,
 
           unsupportedMoveCount:
             0,
@@ -221,59 +230,6 @@ window.AriBlueprintWriter = {
 
           warnings: []
         }
-      });
-    }
-
-    const trustedKnowledgeDraft =
-      this.renderTrustedKnowledge({
-        packet,
-        request,
-        writerContract
-      });
-
-    if (
-      trustedKnowledgeDraft
-        ?.draft
-    ) {
-      return this.returnDraft({
-        draft:
-          trustedKnowledgeDraft
-            .draft,
-
-        reason:
-          trustedKnowledgeDraft
-            .reason,
-
-        usedBlueprint:
-          true,
-
-        usable:
-          true,
-
-        requiresAIRepair:
-          false,
-
-        packet,
-
-        blueprint: {
-          id:
-            trustedKnowledgeDraft
-              .blueprintId ||
-            "knowledge_response",
-
-          source:
-            "ari-blueprint-writer",
-
-          strategy:
-            "trusted_knowledge_rendering",
-
-          aiAllowed:
-            true
-        },
-
-        renderResult:
-          trustedKnowledgeDraft
-            .renderResult
       });
     }
 
@@ -427,12 +383,13 @@ window.AriBlueprintWriter = {
       {};
 
     const rawMoves =
-      packet.responseMoves ||
-      responseControl.responseMoves ||
-      responsePlan.responseMoves ||
-      instructions.responseMoves ||
-      instructions.moves ||
-      [];
+  this.firstNonEmptyArray(
+    packet.responseMoves,
+    responseControl.responseMoves,
+    responsePlan.responseMoves,
+    instructions.responseMoves,
+    instructions.moves
+  );
 
     const responseMoves =
       this.normalizeMoves(
@@ -642,22 +599,26 @@ window.AriBlueprintWriter = {
         false,
 
       unsupportedMovePolicy:
-        instructions
-          .unsupportedMovePolicy ||
-        packet.candidatePolicy
-          ?.unsupportedMoveRequiresRepair ===
-          true
-          ? "request_ai_repair"
-          : "skip",
+  instructions
+    .unsupportedMovePolicy ||
+  (
+    packet.candidatePolicy
+      ?.unsupportedMoveRequiresRepair ===
+      true
+      ? "request_ai_repair"
+      : "skip"
+  ),
 
-      incompletePlanPolicy:
-        instructions
-          .incompletePlanPolicy ||
-        packet.candidatePolicy
-          ?.incompleteBlueprintRequiresRepair ===
-          true
-          ? "request_ai_repair"
-          : "allow_partial",
+incompletePlanPolicy:
+  instructions
+    .incompletePlanPolicy ||
+  (
+    packet.candidatePolicy
+      ?.incompleteBlueprintRequiresRepair ===
+      true
+      ? "request_ai_repair"
+      : "allow_partial"
+  ),
 
       emptyDraftPolicy:
         instructions
@@ -939,43 +900,46 @@ window.AriBlueprintWriter = {
       writerContract.responseMoves;
 
     if (!moves.length) {
-      warnings.push({
-        type:
-          "response_moves_missing",
+  warnings.push({
+    type:
+      "response_moves_missing",
 
-        message:
-          "The canonical Response Plan contained no response moves."
-      });
+    message:
+      "The canonical Response Plan contained no response moves."
+  });
 
-      return {
-        sentences,
+  return {
+  canonicalResponsePlanUsed:
+    true,
 
-        renderedMoves,
+  sentences,
 
-        unsupportedMoves,
+  renderedMoves,
 
-        skippedMoves,
+  unsupportedMoves,
 
-        warnings,
+  skippedMoves,
 
-        requestedMoveCount:
-          0,
+  warnings,
 
-        supportedMoveCount:
-          0,
+  requestedMoveCount:
+    moves.length,
 
-        unsupportedMoveCount:
-          0,
+  supportedMoveCount:
+    renderedMoves.length,
 
-        skippedMoveCount:
-          0
-      };
-    }
+  unsupportedMoveCount:
+    unsupportedMoves.length,
 
-    for (
-      const move
-      of moves
-    ) {
+  skippedMoveCount:
+    skippedMoves.length
+};
+}
+
+for (
+  const move
+  of moves
+) {
       if (
         move.userFacing ===
           false ||
@@ -3240,69 +3204,104 @@ window.AriBlueprintWriter = {
   ===================================================== */
 
   renderMemoryAcknowledgment({
-    packet = {},
-    request = {}
-  } = {}) {
-    const primary =
-      this.normalizeIdentifier(
-        packet.primary ||
-        packet.responseGoal ||
-        ""
-      );
+  packet = {},
+  request = {}
+} = {}) {
+  const responsePlan =
+    packet.canonicalResponsePlan ||
+    packet.responsePlan ||
+    {};
 
-    const blueprint =
-      this.normalizeIdentifier(
-        packet.blueprintHint ||
-        ""
-      );
+  const responseControl =
+    packet.responseControl ||
+    {};
 
-    const memoryCandidate =
-      this.readMemoryCandidate(
-        packet
-      );
+  const primary =
+    this.normalizeIdentifier(
+      packet.primary ||
+      responseControl.primaryLane ||
+      responsePlan.primaryLane ||
+      ""
+    );
 
-    const explicitMemoryRequest =
-      /\b(?:remember that|remember this|save this|store this|note that|add this to memory|keep this in mind)\b/i.test(
+  const responseGoal =
+    this.normalizeIdentifier(
+      packet.responseGoal ||
+      responseControl.responseGoal ||
+      responsePlan.responseGoal ||
+      ""
+    );
+
+  const blueprintHint =
+    this.normalizeIdentifier(
+      packet.blueprintHint ||
+      responseControl.blueprintHint ||
+      responsePlan.blueprintHint ||
+      ""
+    );
+
+  const responseMoves =
+  this.normalizeMoves(
+    this.firstNonEmptyArray(
+      packet.responseMoves,
+      responseControl.responseMoves,
+      responsePlan.responseMoves,
+      responsePlan.writerInstructions
+        ?.responseMoves,
+      responsePlan.writerInstructions
+        ?.moves
+    )
+  );
+
+  const memoryMoveAuthorized =
+    responseMoves.some(
+      move =>
+        move.id ===
+        "memory_acknowledgment"
+    );
+
+  const memoryPlanAuthorized =
+    memoryMoveAuthorized ||
+    primary.includes(
+      "memory"
+    ) ||
+    responseGoal ===
+      "confirm_memory_saved" ||
+    responseGoal ===
+      "memory_acknowledgment" ||
+    blueprintHint.includes(
+      "memory"
+    ) ||
+    responsePlan.currentNeed ===
+      "memory_acknowledgment" ||
+    packet.memoryPolicy
+      ?.acknowledgmentRequired ===
+      true;
+
+  if (!memoryPlanAuthorized) {
+    return null;
+  }
+
+  const memoryCandidate =
+    this.readMemoryCandidate(
+      packet
+    );
+
+  const displayClaim =
+    this.cleanForUser(
+      memoryCandidate
+        ?.displayClaim ||
+      packet.memoryPolicy
+        ?.displayClaim ||
+      this.toUserFacingClaim(
         request.currentText
-      );
+      )
+    );
 
-    const preferenceStatement =
-      /\b(?:my favorite|one of my favorite|i prefer|i like|i love|i hate|i dislike)\b/i.test(
-        request.currentText
-      );
-
-    const memoryPlan =
-      primary.includes(
-        "memory"
-      ) ||
-      blueprint.includes(
-        "memory"
-      ) ||
-      packet.responsePlan
-        ?.currentNeed ===
-        "memory_acknowledgment";
-
-    if (
-      !explicitMemoryRequest &&
-      !preferenceStatement &&
-      !memoryPlan
-    ) {
-      return null;
-    }
-
-    const displayClaim =
-      this.cleanForUser(
-        memoryCandidate
-          ?.displayClaim ||
-        this.toUserFacingClaim(
-          request.currentText
-        )
-      );
-
-    return displayClaim
-      ? `Got it — I’ll remember that ${displayClaim}.`
-      : "Got it — I’ll remember that.";
-  },
+  return displayClaim
+    ? `Got it — I’ll remember that ${displayClaim}.`
+    : "Got it — I’ll remember that.";
+},
 
   readMemoryCandidate(
     packet = {}
@@ -4061,7 +4060,9 @@ window.AriBlueprintWriter = {
         false,
 
       canonicalResponsePlanUsed:
-        true,
+  renderResult
+    .canonicalResponsePlanUsed ===
+  true,
 
       independentPlanningUsed:
         false,
@@ -4413,14 +4414,21 @@ window.AriBlueprintWriter = {
             : 20,
 
         evidence: {
-          canonicalResponsePlanUsed:
-            true,
+  canonicalResponsePlanUsed:
+    renderResult
+      ?.canonicalResponsePlanUsed ===
+    true,
 
-          responseMovesRendered:
-            renderResult
-              ?.renderedMoves
-              ?.length ||
-            0,
+  canonicalMemoryAuthorizationUsed:
+    renderResult
+      ?.canonicalMemoryAuthorizationUsed ===
+    true,
+
+  responseMovesRendered:
+    renderResult
+      ?.renderedMoves
+      ?.length ||
+    0,
 
           responseMovesUnsupported:
             renderResult
@@ -4716,9 +4724,20 @@ window.AriBlueprintWriter = {
     return "";
   },
 
+
   /* =====================================================
      GENERAL UTILITIES
   ===================================================== */
+firstNonEmptyArray(...values) {
+  return (
+    values.find(
+      value =>
+        Array.isArray(value) &&
+        value.length > 0
+    ) ||
+    []
+  );
+},
 
   firstFiniteNumber(
     values = []
