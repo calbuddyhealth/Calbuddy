@@ -1,13 +1,14 @@
 // ari/observer-system/ari-life-signal-extractor.js
 // Ari Life Signal Extractor
-// Purpose: Observe life-context, transition, identity, capacity, and mission clues
-// without declaring a definitive life chapter.
-// V2.0.0 — Multi-Signal Life Context Evidence / Ledger Compatible
+// Purpose: Observe explicit life-context, transition, identity, capacity,
+// disruption, commitment, and meaning evidence without declaring a life chapter,
+// choosing canonical meaning, or replacing the user's requested operation.
+// V3.0.0 — Context/Transition Separation / Explicit Evidence Dominance / Advisory Hypotheses
 
 window.Ari = window.Ari || {};
 
 window.Ari.lifeSignalExtractor = {
-  version: "2.0.0",
+  version: "3.0.0",
 
   /* =====================================================
      MAIN ENTRY
@@ -15,6 +16,7 @@ window.Ari.lifeSignalExtractor = {
 
   extract(message = "", context = {}) {
     const input = this.normalizeInput(message, context);
+    const rawText = input.rawText;
     const text = input.text;
     const signals = [];
 
@@ -27,61 +29,63 @@ window.Ari.lifeSignalExtractor = {
       evidence = [],
       inferenceLevel = "observed",
       evidenceClass = "direct_text",
+      role = "context_clue",
+      explicit = true,
       subject = "user",
       target = null,
       relation = null,
       temporalStatus = "current",
+      lifespan = "turn",
       metadata = {}
     } = {}) => {
       if (!name) return null;
 
-      const evidenceList = Array.isArray(evidence)
-        ? evidence.filter(Boolean)
-        : [evidence].filter(Boolean);
+      const evidenceList = this.asArray(evidence).filter(Boolean);
+      if (!evidenceList.length && explicit === true) return null;
+
+      const normalizedName = this.normalizeToken(name);
 
       const existing = signals.find(item =>
-        item.name === name &&
+        item.name === normalizedName &&
         item.type === type &&
+        item.role === role &&
         item.subject === subject &&
         item.target === target
       );
 
       if (existing) {
-        existing.confidence = Math.max(existing.confidence, confidence);
-        existing.evidence = [
-          ...new Set([
-            ...(existing.evidence || []),
-            ...evidenceList
-          ])
-        ];
-        existing.matchCount = Number(existing.matchCount || 1) + 1;
-        existing.metadata = {
-          ...(existing.metadata || {}),
-          ...metadata
-        };
+        existing.confidence = Math.max(existing.confidence, this.normalizeConfidence(confidence));
+        existing.evidence = [...new Set([...(existing.evidence || []), ...evidenceList])];
+        existing.matchCount = Number(existing.matchCount || 1) + Math.max(1, evidenceList.length);
+        existing.explicit = existing.explicit === true || explicit === true;
+        existing.metadata = { ...(existing.metadata || {}), ...metadata };
         return existing;
       }
 
       const signal = {
-        name,
-        signal: name,
-        value: name,
+        name: normalizedName,
+        signal: normalizedName,
+        value: normalizedName,
 
         type,
         category,
         domain,
 
-        confidence,
+        confidence: this.normalizeConfidence(confidence),
         evidence: evidenceList,
         inferenceLevel,
         evidenceClass,
+
+        role,
+        explicit: explicit === true,
 
         subject,
         target,
         relation,
 
         temporalStatus,
-        matchCount: 1,
+        lifespan,
+        matchCount: Math.max(1, evidenceList.length),
 
         source: "ari-life-signal-extractor",
         sourceVersion: this.version,
@@ -95,35 +99,50 @@ window.Ari.lifeSignalExtractor = {
     };
 
     this.detectLifeDomains(text, add);
-    this.detectTransitions(text, add);
-    this.detectIdentityMovement(text, add);
-    this.detectMissionAndMeaning(text, add);
+    this.detectExplicitTransitions(text, add);
+    this.detectIdentityEvidence(text, add);
+    this.detectMeaningAndMissionEvidence(text, add);
     this.detectCapacityAndPressure(text, add);
     this.detectLossAndDisruption(text, add);
-    this.detectStabilityAndCommitment(text, add);
+    this.detectCommitmentAndStability(text, add);
 
-    this.buildCompositeHypotheses(signals, add);
+    this.buildAdvisoryRelationships(signals, add);
 
     const rankedSignals = this.rankSignals(signals);
-    const directSignals = rankedSignals.filter(signal =>
-      signal.inferenceLevel === "observed"
-    );
+    const directSignals = rankedSignals.filter(signal => signal.inferenceLevel === "observed");
+    const inferredSignals = rankedSignals.filter(signal => signal.inferenceLevel !== "observed");
 
-    const inferredSignals = rankedSignals.filter(signal =>
-      signal.inferenceLevel !== "observed"
-    );
+    const contextualSignals = rankedSignals.filter(signal => signal.role === "context_clue");
+    const transitionIndicators = rankedSignals.filter(signal => signal.role === "transition_indicator");
+    const pressureSignals = rankedSignals.filter(signal => signal.role === "pressure_clue");
+    const disruptionSignals = rankedSignals.filter(signal => signal.role === "disruption_clue");
+    const identitySignals = rankedSignals.filter(signal => signal.role === "identity_clue");
+    const meaningSignals = rankedSignals.filter(signal => signal.role === "meaning_clue");
+    const commitmentSignals = rankedSignals.filter(signal => signal.role === "commitment_clue");
+    const advisoryRelationships = rankedSignals.filter(signal => signal.role === "advisory_relationship");
+
+    const strongestDirectSignal =
+      directSignals.find(signal => signal.role !== "context_clue") ||
+      directSignals[0] ||
+      null;
 
     const primarySignal =
-      rankedSignals.find(signal => signal.type === "life_transition_hypothesis") ||
+      strongestDirectSignal ||
       rankedSignals[0] ||
       null;
+
+    const explicitTransitionEvidence = transitionIndicators.length > 0;
+    const corroboratedTransitionRelationships = advisoryRelationships.filter(signal =>
+      signal.type === "life_transition_hypothesis" &&
+      signal.metadata?.corroborated === true
+    );
 
     return {
       lifeSignalExtractorRan: true,
       lifeSignalExtractorVersion: this.version,
       lifeSignalExtractorSource: "ari-life-signal-extractor",
 
-      rawText: input.rawText,
+      rawText,
       normalizedText: text,
 
       signals: rankedSignals,
@@ -132,38 +151,71 @@ window.Ari.lifeSignalExtractor = {
       directSignals,
       inferredSignals,
 
+      contextualSignals,
+      transitionIndicators,
+      pressureSignals,
+      disruptionSignals,
+      identitySignals,
+      meaningSignals,
+      commitmentSignals,
+      advisoryRelationships,
+
       primarySignal,
       primarySignalName: primarySignal?.name || null,
       primarySignalConfidence: primarySignal?.confidence || 0,
+      primarySignalAdvisoryOnly: true,
 
-      hasLifeContextSignal: directSignals.length > 0,
-      hasTransitionEvidence: rankedSignals.some(item =>
-        item.type === "transition_indicator"
-      ),
-      hasMajorLifeSignal: rankedSignals.some(item =>
-        item.type === "life_transition_hypothesis" &&
-        item.confidence >= 0.72
-      ),
+      hasLifeContextSignal: contextualSignals.length > 0,
+      hasTransitionEvidence: explicitTransitionEvidence,
+
+      hasCorroboratedTransitionRelationship:
+        corroboratedTransitionRelationships.length > 0,
+
+      hasMajorLifeSignal:
+        explicitTransitionEvidence &&
+        corroboratedTransitionRelationships.some(signal =>
+          signal.confidence >= 0.78
+        ),
 
       domains: [...new Set(rankedSignals.map(item => item.domain).filter(Boolean))],
-      pressures: rankedSignals.filter(item => item.type === "life_pressure"),
-      transitions: rankedSignals.filter(item =>
-        item.type === "transition_indicator" ||
-        item.type === "life_transition_hypothesis"
-      ),
+
+      pressures: pressureSignals,
+
+      transitions: [
+        ...transitionIndicators,
+        ...corroboratedTransitionRelationships
+      ],
 
       observations: rankedSignals.map(signal =>
-        this.toLedgerObservation(signal, input.rawText)
+        this.toLedgerObservation(signal, rawText)
       ),
+
+      lifeContextSummary: this.buildLifeContextSummary({
+        contextualSignals,
+        transitionIndicators,
+        pressureSignals,
+        disruptionSignals,
+        identitySignals,
+        meaningSignals,
+        commitmentSignals,
+        advisoryRelationships
+      }),
 
       authority: {
         canObserveLifeContext: true,
-        canDetectTransitionIndicators: true,
-        canCreateLifeSignalHypotheses: true,
+        canObserveExplicitTransitionLanguage: true,
+        canObserveIdentityLanguage: true,
+        canObservePressureLanguage: true,
+        canObserveDisruptionLanguage: true,
+        canCreateAdvisoryRelationships: true,
 
         canDeclareLifeChapter: false,
+        canDeclareMajorLifeTransition: false,
         canChoosePrimaryMeaning: false,
+        canReplaceExplicitRequest: false,
+        canChooseConversationFunction: false,
         canChooseLane: false,
+        canChooseRoute: false,
         canDetermineSafetySeverity: false,
         canAnswerUser: false,
 
@@ -175,9 +227,7 @@ window.Ari.lifeSignalExtractor = {
   },
 
   analyze(input = {}) {
-    if (typeof input === "string") {
-      return this.extract(input);
-    }
+    if (typeof input === "string") return this.extract(input);
 
     const summary = input.summary || input || {};
 
@@ -195,20 +245,21 @@ window.Ari.lifeSignalExtractor = {
   },
 
   /* =====================================================
-     LIFE DOMAIN CLUES
+     LIFE-DOMAIN CONTEXT
+     Domain words are context only. They do not establish
+     transitions, conflict, mission, pressure, or meaning.
   ===================================================== */
 
-  detectLifeDomains(text, add) {
-    this.runTable(text, add, this.tables.lifeDomains);
+  detectLifeDomains(text = "", add = () => {}) {
+    this.runContextTable(text, add, this.tables.lifeDomains);
   },
 
   tables: {
     lifeDomains: [
       {
         name: "family_context",
-        type: "life_context_signal",
         domain: "family",
-        confidence: 0.74,
+        confidence: 0.72,
         terms: [
           "family", "wife", "husband", "spouse", "partner",
           "daughter", "son", "child", "kid", "baby",
@@ -218,9 +269,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "parenthood_context",
-        type: "life_context_signal",
         domain: "parenthood",
-        confidence: 0.78,
+        confidence: 0.76,
         terms: [
           "pregnant", "pregnancy", "expecting a baby",
           "having a baby", "becoming a father", "becoming a dad",
@@ -231,9 +281,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "military_context",
-        type: "life_context_signal",
         domain: "military",
-        confidence: 0.76,
+        confidence: 0.74,
         terms: [
           "military", "navy", "marine", "marines",
           "army", "air force", "service member",
@@ -243,9 +292,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "career_context",
-        type: "life_context_signal",
         domain: "career",
-        confidence: 0.72,
+        confidence: 0.7,
         terms: [
           "career", "job", "employment", "work",
           "promotion", "interview", "resume",
@@ -255,9 +303,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "education_context",
-        type: "life_context_signal",
         domain: "education",
-        confidence: 0.72,
+        confidence: 0.7,
         terms: [
           "school", "college", "university", "degree",
           "graduate school", "program", "pmhnp",
@@ -267,9 +314,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "creative_project_context",
-        type: "life_context_signal",
         domain: "creative_project",
-        confidence: 0.72,
+        confidence: 0.7,
         terms: [
           "building ari", "build ari", "calbuddy", "cal buddy",
           "my app", "my project", "project", "product",
@@ -279,9 +325,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "financial_context",
-        type: "life_context_signal",
         domain: "financial",
-        confidence: 0.72,
+        confidence: 0.7,
         terms: [
           "money", "debt", "budget", "income",
           "salary", "bills", "rent", "mortgage",
@@ -291,9 +336,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "health_context",
-        type: "life_context_signal",
         domain: "health",
-        confidence: 0.72,
+        confidence: 0.7,
         terms: [
           "health", "illness", "diagnosis", "hospital",
           "surgery", "recovery", "injury", "medical condition"
@@ -302,9 +346,8 @@ window.Ari.lifeSignalExtractor = {
 
       {
         name: "relationship_context",
-        type: "life_context_signal",
         domain: "relationship",
-        confidence: 0.72,
+        confidence: 0.7,
         terms: [
           "relationship", "marriage", "married", "wedding",
           "divorce", "breakup", "partner", "spouse",
@@ -314,46 +357,87 @@ window.Ari.lifeSignalExtractor = {
     ]
   },
 
+  runContextTable(text = "", add = () => {}, table = []) {
+    table.forEach(group => {
+      const matches = [];
+
+      (group.terms || []).forEach(term => {
+        const match = this.findTerm(text, term);
+        if (match) matches.push(match);
+      });
+
+      if (!matches.length) return;
+
+      add({
+        name: group.name,
+        type: "life_context_signal",
+        category: "life_context",
+        domain: group.domain || "life",
+        confidence: group.confidence || 0.68,
+        evidence: matches,
+        role: "context_clue",
+        explicit: true,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        temporalStatus: "unspecified",
+        lifespan: "turn",
+        metadata: {
+          contextOnly: true,
+          doesNotEstablishTransition: true,
+          doesNotEstablishConflict: true,
+          doesNotEstablishPrimaryMeaning: true,
+          doesNotReplaceUserRequest: true
+        }
+      });
+    });
+  },
+
   /* =====================================================
-     TRANSITION INDICATORS
+     EXPLICIT TRANSITION INDICATORS
   ===================================================== */
 
-  detectTransitions(text, add) {
+  detectExplicitTransitions(text = "", add = () => {}) {
     const patterns = [
       {
         name: "entering_new_role",
-        regex: /\b(becoming|starting as|about to become|stepping into|taking on the role of)\b/,
-        confidence: 0.82
-      },
-
-      {
-        name: "leaving_current_role",
-        regex: /\b(leaving|separating from|resigning from|retiring from|getting out of|walking away from)\b/,
+        domain: "life",
+        regex: /\b(?:becoming|starting as|about to become|stepping into|taking on the role of)\b/,
         confidence: 0.84
       },
 
       {
-        name: "active_change",
-        regex: /\b(changing|transitioning|moving from|shifting from|switching to|starting over)\b/,
-        confidence: 0.8
-      },
-
-      {
-        name: "future_transition",
-        regex: /\b(soon|next month|next year|about to|preparing to|getting ready to)\b/,
-        confidence: 0.7
-      },
-
-      {
-        name: "new_chapter_language",
-        regex: /\b(new chapter|different chapter|next chapter|chapter of my life|new season|season of my life)\b/,
+        name: "leaving_current_role",
+        domain: "life",
+        regex: /\b(?:leaving|separating from|resigning from|retiring from|getting out of|walking away from)\b/,
         confidence: 0.86
       },
 
       {
-        name: "ending_or_closure",
-        regex: /\b(ending|coming to an end|closing this chapter|finished with|done with)\b/,
+        name: "active_role_change",
+        domain: "life",
+        regex: /\b(?:transitioning from|moving from .+ to|shifting from .+ to|switching from .+ to|changing careers|starting over)\b/,
+        confidence: 0.84
+      },
+
+      {
+        name: "preparing_for_change",
+        domain: "life",
+        regex: /\b(?:preparing to|getting ready to|planning to leave|planning to start|about to leave|about to start)\b/,
         confidence: 0.8
+      },
+
+      {
+        name: "explicit_new_chapter_language",
+        domain: "life",
+        regex: /\b(?:new chapter|different chapter|next chapter|chapter of my life|new season|season of my life)\b/,
+        confidence: 0.88
+      },
+
+      {
+        name: "explicit_closure_language",
+        domain: "life",
+        regex: /\b(?:closing this chapter|this chapter is ending|coming to an end|finished with this phase|done with this phase)\b/,
+        confidence: 0.84
       }
     ];
 
@@ -365,44 +449,59 @@ window.Ari.lifeSignalExtractor = {
         name: pattern.name,
         type: "transition_indicator",
         category: "transition",
-        domain: "life",
+        domain: pattern.domain,
         confidence: pattern.confidence,
         evidence: match[0],
+        role: "transition_indicator",
+        explicit: true,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        temporalStatus: this.inferTransitionTemporalStatus(text),
+        lifespan: "turn",
         metadata: {
-          transitionIndicator: true
+          explicitTransitionLanguage: true,
+          transitionIndicator: true,
+          doesNotDeclareLifeChapter: true
         }
       });
     });
   },
 
+  inferTransitionTemporalStatus(text = "") {
+    if (/\b(?:already|currently|right now|now|in the middle of)\b/.test(text)) return "current";
+    if (/\b(?:soon|next month|next year|about to|preparing to|getting ready to)\b/.test(text)) return "future";
+    if (/\b(?:used to|previously|last year|years ago|before)\b/.test(text)) return "past";
+    return "unspecified";
+  },
+
   /* =====================================================
-     IDENTITY MOVEMENT
+     IDENTITY EVIDENCE
   ===================================================== */
 
-  detectIdentityMovement(text, add) {
+  detectIdentityEvidence(text = "", add = () => {}) {
     const patterns = [
       {
         name: "identity_questioning",
-        regex: /\b(who am i|who i am|what kind of person am i|what does this say about me)\b/,
-        confidence: 0.84
-      },
-
-      {
-        name: "identity_change",
-        regex: /\b(i am becoming|i'm becoming|im becoming|changing who i am|different person|new version of me)\b/,
-        confidence: 0.84
-      },
-
-      {
-        name: "role_conflict",
-        regex: /\b(torn between|which part of me|which identity|who should i be|trying to be both)\b/,
-        confidence: 0.82
-      },
-
-      {
-        name: "identity_loss",
-        regex: /\b(don't know who i am|dont know who i am|lost myself|not myself anymore)\b/,
+        regex: /\b(?:who am i|what kind of person am i|what does this say about me)\b/,
         confidence: 0.86
+      },
+
+      {
+        name: "identity_change_language",
+        regex: /\b(?:i am becoming|i'm becoming|im becoming|changing who i am|a different person|new version of me)\b/,
+        confidence: 0.86
+      },
+
+      {
+        name: "identity_role_conflict",
+        regex: /\b(?:which part of me|which identity|who should i be|trying to be both versions of myself)\b/,
+        confidence: 0.84
+      },
+
+      {
+        name: "identity_disconnection",
+        regex: /\b(?:don't know who i am|dont know who i am|lost myself|not myself anymore)\b/,
+        confidence: 0.88
       }
     ];
 
@@ -416,39 +515,48 @@ window.Ari.lifeSignalExtractor = {
         category: "identity",
         domain: "identity",
         confidence: pattern.confidence,
-        evidence: match[0]
+        evidence: match[0],
+        role: "identity_clue",
+        explicit: true,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        metadata: {
+          identityEvidenceOnly: true,
+          doesNotDeclareIdentityTransition: true,
+          doesNotChooseMeaning: true
+        }
       });
     });
   },
 
   /* =====================================================
-     MISSION, PURPOSE, AND MEANING
+     MEANING / MISSION EVIDENCE
   ===================================================== */
 
-  detectMissionAndMeaning(text, add) {
+  detectMeaningAndMissionEvidence(text = "", add = () => {}) {
     const patterns = [
       {
-        name: "purpose_language",
-        regex: /\b(purpose|calling|what i was meant to do|what i am meant to do|built for this)\b/,
+        name: "explicit_purpose_language",
+        regex: /\b(?:my purpose|my calling|what i was meant to do|what i am meant to do|i was built for this)\b/,
+        confidence: 0.84
+      },
+
+      {
+        name: "meaningful_work_language",
+        regex: /\b(?:meaningful work|something meaningful|work that matters|make a difference)\b/,
         confidence: 0.82
       },
 
       {
-        name: "meaningful_work",
-        regex: /\b(meaningful work|something meaningful|work that matters|make a difference)\b/,
+        name: "explicit_mission_commitment",
+        regex: /\b(?:my mission|this is my mission|committed to building|need to bring this to life)\b/,
         confidence: 0.82
       },
 
       {
-        name: "mission_commitment",
-        regex: /\b(my mission|this mission|committed to building|have to finish this|need to bring this to life)\b/,
-        confidence: 0.8
-      },
-
-      {
-        name: "legacy_orientation",
-        regex: /\b(legacy|leave behind|what i want to be remembered for|build something that lasts)\b/,
-        confidence: 0.8
+        name: "legacy_language",
+        regex: /\b(?:my legacy|what i want to leave behind|what i want to be remembered for|build something that lasts)\b/,
+        confidence: 0.82
       }
     ];
 
@@ -462,51 +570,60 @@ window.Ari.lifeSignalExtractor = {
         category: "meaning",
         domain: "purpose",
         confidence: pattern.confidence,
-        evidence: match[0]
+        evidence: match[0],
+        role: "meaning_clue",
+        explicit: true,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        metadata: {
+          meaningEvidenceOnly: true,
+          doesNotDeclareMission: true,
+          doesNotReplaceExplicitRequest: true
+        }
       });
     });
   },
 
   /* =====================================================
-     CAPACITY AND PRESSURE
+     CAPACITY / PRESSURE EVIDENCE
   ===================================================== */
 
-  detectCapacityAndPressure(text, add) {
+  detectCapacityAndPressure(text = "", add = () => {}) {
     const patterns = [
       {
         name: "capacity_pressure",
-        regex: /\b(tired|exhausted|burned out|burnt out|overwhelmed|no energy|running on empty)\b/,
+        regex: /\b(?:tired|exhausted|burned out|burnt out|overwhelmed|no energy|running on empty)\b/,
         confidence: 0.84
       },
 
       {
         name: "sleep_or_rest_deficit",
-        regex: /\b(no sleep|not sleeping|need rest|need a break|take a break|slow down|can't rest|cant rest)\b/,
-        confidence: 0.82
+        regex: /\b(?:no sleep|not sleeping|need rest|need a break|can't rest|cant rest)\b/,
+        confidence: 0.84
       },
 
       {
         name: "time_pressure",
-        regex: /\b(running out of time|not enough time|every free moment|no time|deadline|too late)\b/,
-        confidence: 0.82
+        regex: /\b(?:running out of time|not enough time|every free moment|no time|deadline|too late)\b/,
+        confidence: 0.84
       },
 
       {
         name: "achievement_pressure",
-        regex: /\b(falling behind|fall behind|lose momentum|losing momentum|lose progress|need to keep going)\b/,
+        regex: /\b(?:falling behind|lose momentum|losing momentum|lose progress|need to keep going)\b/,
         confidence: 0.82
       },
 
       {
         name: "responsibility_load",
-        regex: /\b(too much on my plate|too many responsibilities|everyone depends on me|have to handle everything)\b/,
-        confidence: 0.84
+        regex: /\b(?:too much on my plate|too many responsibilities|everyone depends on me|have to handle everything)\b/,
+        confidence: 0.86
       },
 
       {
-        name: "competing_priorities",
-        regex: /\b(torn between|trying to balance|juggling|too many priorities|can't do everything|cant do everything)\b/,
-        confidence: 0.84
+        name: "explicit_competing_priorities",
+        regex: /\b(?:torn between|trying to balance|juggling|too many priorities|can't do everything|cant do everything)\b/,
+        confidence: 0.86
       }
     ];
 
@@ -520,50 +637,59 @@ window.Ari.lifeSignalExtractor = {
         category: "pressure",
         domain: "capacity",
         confidence: pattern.confidence,
-        evidence: match[0]
+        evidence: match[0],
+        role: "pressure_clue",
+        explicit: true,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        metadata: {
+          pressureEvidenceOnly: true,
+          doesNotEstablishCause: true,
+          doesNotEstablishConflictWithoutCorroboration: true
+        }
       });
     });
   },
 
   /* =====================================================
-     LOSS, DISRUPTION, AND INSTABILITY
+     LOSS / DISRUPTION EVIDENCE
   ===================================================== */
 
-  detectLossAndDisruption(text, add) {
+  detectLossAndDisruption(text = "", add = () => {}) {
     const patterns = [
       {
         name: "relationship_loss",
-        regex: /\b(breakup|divorce|separated from my partner|relationship ended|lost my relationship)\b/,
         domain: "relationship",
-        confidence: 0.84
+        regex: /\b(?:breakup|divorce|separated from my partner|relationship ended|lost my relationship)\b/,
+        confidence: 0.86
       },
 
       {
         name: "career_disruption",
-        regex: /\b(lost my job|fired|laid off|career ended|leaving my career)\b/,
         domain: "career",
-        confidence: 0.84
+        regex: /\b(?:lost my job|got fired|was fired|laid off|career ended|leaving my career)\b/,
+        confidence: 0.86
       },
 
       {
         name: "bereavement_or_death",
-        regex: /\b(died|passed away|lost my mother|lost my father|lost my wife|lost my husband|grieving)\b/,
         domain: "loss",
-        confidence: 0.88
+        regex: /\b(?:died|passed away|lost my mother|lost my father|lost my wife|lost my husband|i am grieving|i'm grieving|im grieving)\b/,
+        confidence: 0.9
       },
 
       {
         name: "health_disruption",
-        regex: /\b(new diagnosis|serious illness|major surgery|health changed|can't do what i used to)\b/,
         domain: "health",
-        confidence: 0.84
+        regex: /\b(?:new diagnosis|serious illness|major surgery|my health changed|can't do what i used to|cant do what i used to)\b/,
+        confidence: 0.86
       },
 
       {
         name: "financial_instability",
-        regex: /\b(can't pay|cant pay|losing my home|behind on bills|financial crisis|going broke)\b/,
         domain: "financial",
-        confidence: 0.86
+        regex: /\b(?:can't pay|cant pay|losing my home|behind on bills|financial crisis|going broke)\b/,
+        confidence: 0.88
       }
     ];
 
@@ -577,33 +703,42 @@ window.Ari.lifeSignalExtractor = {
         category: "disruption",
         domain: pattern.domain,
         confidence: pattern.confidence,
-        evidence: match[0]
+        evidence: match[0],
+        role: "disruption_clue",
+        explicit: true,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        metadata: {
+          disruptionEvidenceOnly: true,
+          doesNotDetermineResponsePriority: true,
+          doesNotDeclareLifeChapter: true
+        }
       });
     });
   },
 
   /* =====================================================
-     STABILITY AND COMMITMENT
+     COMMITMENT / STABILITY EVIDENCE
   ===================================================== */
 
-  detectStabilityAndCommitment(text, add) {
+  detectCommitmentAndStability(text = "", add = () => {}) {
     const patterns = [
       {
         name: "long_term_commitment",
-        regex: /\b(long term|for the rest of my life|committed to|not giving up|sticking with)\b/,
+        regex: /\b(?:long term|for the rest of my life|committed to|not giving up|sticking with)\b/,
+        confidence: 0.76
+      },
+
+      {
+        name: "stable_role_language",
+        regex: /\b(?:for years|been doing this for|my normal routine|nothing has changed)\b/,
         confidence: 0.74
       },
 
       {
-        name: "stable_role",
-        regex: /\b(for years|been doing this for|my normal routine|nothing has changed)\b/,
-        confidence: 0.72
-      },
-
-      {
-        name: "chosen_direction",
-        regex: /\b(i decided|i've decided|ive decided|i chose|i'm going to|im going to)\b/,
-        confidence: 0.78
+        name: "explicit_chosen_direction",
+        regex: /\b(?:i decided|i've decided|ive decided|i chose|i have chosen|my decision is)\b/,
+        confidence: 0.84
       }
     ];
 
@@ -617,134 +752,180 @@ window.Ari.lifeSignalExtractor = {
         category: "commitment",
         domain: "life",
         confidence: pattern.confidence,
-        evidence: match[0]
+        evidence: match[0],
+        role: "commitment_clue",
+        explicit: true,
+        inferenceLevel: "observed",
+        evidenceClass: "direct_text",
+        metadata: {
+          commitmentEvidenceOnly: true,
+          doesNotAuthorizeAction: true
+        }
       });
     });
   },
 
   /* =====================================================
-     COMPOSITE HYPOTHESES
+     ADVISORY RELATIONSHIPS
+     These may describe relationships between explicit
+     signals but cannot become canonical meaning.
   ===================================================== */
 
-  buildCompositeHypotheses(signals, add) {
-    const has = name => signals.some(signal => signal.name === name);
-    const domain = value => signals.some(signal => signal.domain === value);
+  buildAdvisoryRelationships(signals = [], add = () => {}) {
+    const has = name => signals.some(signal => signal.name === this.normalizeToken(name));
+    const hasDomain = domain => signals.some(signal => signal.domain === domain);
+    const direct = name => signals.find(signal =>
+      signal.name === this.normalizeToken(name) &&
+      signal.inferenceLevel === "observed"
+    );
+
     const evidenceFor = (...names) =>
       signals
-        .filter(signal => names.includes(signal.name))
+        .filter(signal => names.map(name => this.normalizeToken(name)).includes(signal.name))
         .flatMap(signal => signal.evidence || []);
 
-    const transitionEvidence =
-      has("entering_new_role") ||
-      has("leaving_current_role") ||
-      has("active_change") ||
-      has("new_chapter_language") ||
-      has("future_transition");
-
-    if (domain("parenthood") && transitionEvidence) {
+    const addRelationship = ({
+      name,
+      type = "life_context_relationship",
+      category = "relationship",
+      domain = "life",
+      confidence = 0.7,
+      evidence = [],
+      corroborated = false,
+      metadata = {}
+    }) => {
       add({
-        name: "parenthood_transition",
-        type: "life_transition_hypothesis",
-        category: "transition",
-        domain: "parenthood",
-        confidence: 0.82,
-        evidence: [
-          ...evidenceFor(
-            "parenthood_context",
-            "entering_new_role",
-            "future_transition",
-            "new_chapter_language"
-          )
-        ],
+        name,
+        type,
+        category,
+        domain,
+        confidence,
+        evidence,
+        role: "advisory_relationship",
+        explicit: false,
         inferenceLevel: "inferred",
-        evidenceClass: "corroborated_inference",
+        evidenceClass: corroborated ? "corroborated_inference" : "system_inference",
+        temporalStatus: "unspecified",
+        lifespan: "turn",
         metadata: {
-          requiresCorroboration: true,
-          declaredAsHypothesis: true
+          advisoryOnly: true,
+          corroborated,
+          cannotBecomePrimaryMeaning: true,
+          cannotDeclareLifeChapter: true,
+          cannotReplaceExplicitRequest: true,
+          cannotChooseLane: true,
+          cannotChooseRoute: true,
+          ...metadata
         }
       });
-    }
+    };
 
-    if (domain("military") && has("leaving_current_role")) {
-      add({
-        name: "military_exit_transition",
+    const hasExplicitTransition =
+      signals.some(signal =>
+        signal.role === "transition_indicator" &&
+        signal.inferenceLevel === "observed"
+      );
+
+    if (hasDomain("parenthood") && hasExplicitTransition) {
+      addRelationship({
+        name: "possible_parenthood_transition",
         type: "life_transition_hypothesis",
-        category: "transition",
-        domain: "military",
-        confidence: 0.84,
-        evidence: evidenceFor("military_context", "leaving_current_role"),
-        inferenceLevel: "inferred",
-        evidenceClass: "corroborated_inference"
+        category: "transition_relationship",
+        domain: "parenthood",
+        confidence: 0.76,
+        evidence: [
+          ...evidenceFor("parenthood_context"),
+          ...signals
+            .filter(signal => signal.role === "transition_indicator")
+            .flatMap(signal => signal.evidence || [])
+        ],
+        corroborated: true
       });
     }
 
     if (
-      (domain("career") || domain("education")) &&
-      transitionEvidence
+      hasDomain("military") &&
+      direct("leaving_current_role")
     ) {
-      add({
-        name: "career_or_education_transition",
+      addRelationship({
+        name: "possible_military_exit_transition",
         type: "life_transition_hypothesis",
-        category: "transition",
-        domain: domain("education") ? "education" : "career",
-        confidence: 0.76,
+        category: "transition_relationship",
+        domain: "military",
+        confidence: 0.8,
+        evidence: evidenceFor("military_context", "leaving_current_role"),
+        corroborated: true
+      });
+    }
+
+    if (
+      (
+        hasDomain("career") ||
+        hasDomain("education")
+      ) &&
+      hasExplicitTransition
+    ) {
+      addRelationship({
+        name: "possible_career_or_education_transition",
+        type: "life_transition_hypothesis",
+        category: "transition_relationship",
+        domain: hasDomain("education") ? "education" : "career",
+        confidence: 0.72,
         evidence: signals
           .filter(signal =>
-            ["career", "education", "life"].includes(signal.domain)
+            ["career", "education"].includes(signal.domain) ||
+            signal.role === "transition_indicator"
           )
           .flatMap(signal => signal.evidence || []),
-        inferenceLevel: "inferred",
-        evidenceClass: "corroborated_inference"
+        corroborated: true
       });
     }
 
     if (
-      domain("creative_project") &&
+      hasDomain("creative_project") &&
       (
-        has("mission_commitment") ||
-        has("meaningful_work") ||
-        has("purpose_language")
+        has("explicit_mission_commitment") ||
+        has("meaningful_work_language") ||
+        has("explicit_purpose_language")
       )
     ) {
-      add({
-        name: "creative_mission",
-        type: "life_transition_hypothesis",
-        category: "mission",
+      addRelationship({
+        name: "project_meaning_relationship",
+        type: "life_context_relationship",
+        category: "meaning_relationship",
         domain: "creative_project",
-        confidence: 0.78,
+        confidence: 0.7,
         evidence: signals
           .filter(signal =>
             signal.domain === "creative_project" ||
-            signal.domain === "purpose"
+            signal.role === "meaning_clue"
           )
           .flatMap(signal => signal.evidence || []),
-        inferenceLevel: "inferred",
-        evidenceClass: "corroborated_inference"
+        corroborated: true
       });
     }
 
     if (
       (
-        has("identity_change") ||
+        has("identity_change_language") ||
         has("identity_questioning") ||
-        has("identity_loss")
+        has("identity_disconnection")
       ) &&
-      transitionEvidence
+      hasExplicitTransition
     ) {
-      add({
-        name: "identity_transition",
+      addRelationship({
+        name: "possible_identity_transition",
         type: "life_transition_hypothesis",
-        category: "transition",
+        category: "transition_relationship",
         domain: "identity",
-        confidence: 0.8,
+        confidence: 0.74,
         evidence: signals
           .filter(signal =>
-            signal.domain === "identity" ||
-            signal.type === "transition_indicator"
+            signal.role === "identity_clue" ||
+            signal.role === "transition_indicator"
           )
           .flatMap(signal => signal.evidence || []),
-        inferenceLevel: "inferred",
-        evidenceClass: "corroborated_inference"
+        corroborated: true
       });
     }
 
@@ -756,128 +937,247 @@ window.Ari.lifeSignalExtractor = {
         has("responsibility_load")
       )
     ) {
-      add({
-        name: "capacity_achievement_conflict",
+      addRelationship({
+        name: "possible_capacity_achievement_tension",
         type: "life_tension_hypothesis",
-        category: "tension",
+        category: "tension_relationship",
         domain: "capacity",
-        confidence: 0.82,
+        confidence: 0.76,
         evidence: evidenceFor(
           "capacity_pressure",
           "achievement_pressure",
           "time_pressure",
           "responsibility_load"
         ),
-        inferenceLevel: "inferred",
-        evidenceClass: "corroborated_inference"
+        corroborated: true
       });
     }
 
     if (
-      has("competing_priorities") &&
-      (
-        domain("family") ||
-        domain("career") ||
-        domain("creative_project")
+      has("explicit_competing_priorities") &&
+      signals.some(signal =>
+        ["family", "career", "creative_project", "education", "relationship"].includes(signal.domain)
       )
     ) {
-      add({
-        name: "role_priority_conflict",
+      addRelationship({
+        name: "possible_role_priority_tension",
         type: "life_tension_hypothesis",
-        category: "tension",
+        category: "tension_relationship",
         domain: "life",
-        confidence: 0.78,
+        confidence: 0.72,
         evidence: signals
           .filter(signal =>
-            signal.name === "competing_priorities" ||
-            ["family", "career", "creative_project"].includes(signal.domain)
+            signal.name === "explicit_competing_priorities" ||
+            ["family", "career", "creative_project", "education", "relationship"].includes(signal.domain)
           )
           .flatMap(signal => signal.evidence || []),
-        inferenceLevel: "inferred",
-        evidenceClass: "corroborated_inference"
+        corroborated: true
       });
     }
   },
 
   /* =====================================================
-     TABLE RUNNER
+     RANKING
+     Direct evidence outranks all hypotheses.
   ===================================================== */
 
-  runTable(text, add, table = []) {
-    table.forEach(group => {
-      const matches = [];
-
-      (group.terms || []).forEach(term => {
-        const match = this.findTerm(text, term);
-        if (match) matches.push(match);
-      });
-
-      (group.patterns || []).forEach(regex => {
-        const match = text.match(regex);
-        if (match?.[0]) matches.push(match[0]);
-      });
-
-      matches.forEach(evidence => {
-        add({
-          name: group.name,
-          type: group.type,
-          category: group.category || "life_context",
-          domain: group.domain || "life",
-          confidence: group.confidence || 0.7,
-          evidence
-        });
-      });
-    });
+  rolePriority: {
+    disruption_clue: 96,
+    transition_indicator: 92,
+    pressure_clue: 88,
+    identity_clue: 84,
+    commitment_clue: 80,
+    meaning_clue: 78,
+    context_clue: 64,
+    advisory_relationship: 44
   },
 
-  /* =====================================================
-     RANKING
-  ===================================================== */
-
   typePriority: {
-    life_transition_hypothesis: 98,
-    life_tension_hypothesis: 94,
-    life_disruption_signal: 92,
-    transition_indicator: 88,
-    identity_signal: 84,
-    life_pressure: 82,
-    meaning_signal: 78,
-    stability_or_commitment_signal: 74,
-    life_context_signal: 68,
-    life_signal: 60
+    life_disruption_signal: 94,
+    transition_indicator: 90,
+    life_pressure: 86,
+    identity_signal: 82,
+    stability_or_commitment_signal: 78,
+    meaning_signal: 76,
+    life_context_signal: 62,
+    life_transition_hypothesis: 46,
+    life_tension_hypothesis: 44,
+    life_context_relationship: 42,
+    life_signal: 40
   },
 
   rankSignals(signals = []) {
     return signals
       .map(signal => {
-        const priority = this.typePriority[signal.type] || 60;
+        const rolePriority = this.rolePriority[signal.role] || 40;
+        const typePriority = this.typePriority[signal.type] || 40;
         const corroboration = Math.min(
-          10,
+          8,
           Math.max(0, Number(signal.matchCount || 1) - 1) * 2
         );
 
         const evidenceCount = Math.min(
-          8,
+          6,
           Math.max(0, Number(signal.evidence?.length || 0) - 1)
         );
 
-        const score = Math.round(
-          priority * 0.5 +
-          signal.confidence * 100 * 0.4 +
-          corroboration +
-          evidenceCount
+        const directBonus =
+          signal.inferenceLevel === "observed"
+            ? 14
+            : 0;
+
+        const inferencePenalty =
+          signal.inferenceLevel !== "observed"
+            ? 18
+            : 0;
+
+        const contextOnlyPenalty =
+          signal.role === "context_clue"
+            ? 5
+            : 0;
+
+        const advisoryPenalty =
+          signal.role === "advisory_relationship"
+            ? 20
+            : 0;
+
+        const score = Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round(
+              rolePriority * 0.3 +
+              typePriority * 0.22 +
+              signal.confidence * 100 * 0.32 +
+              corroboration +
+              evidenceCount +
+              directBonus -
+              inferencePenalty -
+              contextOnlyPenalty -
+              advisoryPenalty
+            )
+          )
         );
 
         return {
           ...signal,
-          priority,
-          score
+
+          priority:
+            Math.round(
+              rolePriority * 0.55 +
+              typePriority * 0.45
+            ),
+
+          score,
+
+          metadata: {
+            ...(signal.metadata || {}),
+
+            scoreBreakdown: {
+              rolePriority,
+              typePriority,
+              confidence:
+                signal.confidence,
+
+              corroboration,
+              evidenceCount,
+              directBonus,
+              inferencePenalty,
+              contextOnlyPenalty,
+              advisoryPenalty
+            }
+          }
         };
       })
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
+
+        if (a.inferenceLevel !== b.inferenceLevel) {
+          return a.inferenceLevel === "observed" ? -1 : 1;
+        }
+
         return b.confidence - a.confidence;
       });
+  },
+
+  /* =====================================================
+     SUMMARY
+  ===================================================== */
+
+  buildLifeContextSummary({
+    contextualSignals = [],
+    transitionIndicators = [],
+    pressureSignals = [],
+    disruptionSignals = [],
+    identitySignals = [],
+    meaningSignals = [],
+    commitmentSignals = [],
+    advisoryRelationships = []
+  } = {}) {
+    return {
+      contextPresent:
+        contextualSignals.length > 0,
+
+      explicitTransitionPresent:
+        transitionIndicators.length > 0,
+
+      pressurePresent:
+        pressureSignals.length > 0,
+
+      disruptionPresent:
+        disruptionSignals.length > 0,
+
+      identityLanguagePresent:
+        identitySignals.length > 0,
+
+      meaningLanguagePresent:
+        meaningSignals.length > 0,
+
+      commitmentLanguagePresent:
+        commitmentSignals.length > 0,
+
+      advisoryRelationshipCount:
+        advisoryRelationships.length,
+
+      domains:
+        [
+          ...new Set(
+            [
+              ...contextualSignals,
+              ...transitionIndicators,
+              ...pressureSignals,
+              ...disruptionSignals,
+              ...identitySignals,
+              ...meaningSignals,
+              ...commitmentSignals
+            ]
+              .map(signal =>
+                signal.domain
+              )
+              .filter(Boolean)
+          )
+        ],
+
+      governance: {
+        contextCannotReplaceRequest:
+          true,
+
+        hypothesesCannotBecomeCanonicalMeaning:
+          true,
+
+        explicitTransitionRequiredForTransitionEvidence:
+          true,
+
+        domainMentionDoesNotEstablishTransition:
+          true,
+
+        pressureDoesNotEstablishCause:
+          true,
+
+        advisoryOnly:
+          true
+      }
+    };
   },
 
   /* =====================================================
@@ -893,57 +1193,155 @@ window.Ari.lifeSignalExtractor = {
       category: signal.category,
       domain: signal.domain,
 
-      subject: signal.subject || "user",
-      target: signal.target || null,
-      relation: signal.relation || null,
+      subject:
+        signal.subject ||
+        "user",
 
-      confidence: signal.confidence,
-      inferenceLevel: signal.inferenceLevel,
-      evidenceClass: signal.evidenceClass,
+      target:
+        signal.target ||
+        null,
 
-      temporalStatus: signal.temporalStatus || "current",
+      relation:
+        signal.relation ||
+        null,
+
+      confidence:
+        signal.confidence,
+
+      inferenceLevel:
+        signal.inferenceLevel,
+
+      evidenceClass:
+        signal.evidenceClass,
+
+      temporalStatus:
+        signal.temporalStatus ||
+        "unspecified",
+
       lifespan:
-        signal.type === "life_context_signal"
-          ? "conversation"
-          : "turn",
+        signal.lifespan ||
+        "turn",
 
-      evidence: (signal.evidence || []).map(item =>
-        this.createEvidenceRecord(rawText, item)
-      ),
+      evidence:
+        (signal.evidence || []).map(item =>
+          this.createEvidenceRecord(
+            rawText,
+            item
+          )
+        ),
 
-      source: "ari-life-signal-extractor",
-      sourceVersion: this.version,
-      sourceStage: "perception",
+      source:
+        "ari-life-signal-extractor",
+
+      sourceVersion:
+        this.version,
+
+      sourceStage:
+        "perception",
 
       metadata: {
-        score: signal.score || null,
-        priority: signal.priority || null,
-        matchCount: signal.matchCount || 1,
+        role:
+          signal.role,
+
+        explicit:
+          signal.explicit === true,
+
+        score:
+          signal.score ??
+          null,
+
+        priority:
+          signal.priority ??
+          null,
+
+        matchCount:
+          signal.matchCount ||
+          1,
+
+        advisoryOnly:
+          signal.role ===
+          "advisory_relationship",
+
+        cannotChooseMeaning:
+          true,
+
+        cannotReplaceExplicitRequest:
+          true,
+
         ...(signal.metadata || {})
       }
     };
   },
 
-  createEvidenceRecord(rawText = "", evidence = "") {
-    const text = String(evidence || "");
-    const raw = String(rawText || "");
-    const start = raw.toLowerCase().indexOf(text.toLowerCase());
+  createEvidenceRecord(
+    rawText = "",
+    evidence = ""
+  ) {
+    if (
+      evidence &&
+      typeof evidence === "object"
+    ) {
+      return evidence;
+    }
+
+    const evidenceText =
+      String(
+        evidence ||
+        ""
+      ).trim();
+
+    const raw =
+      String(
+        rawText ||
+        ""
+      );
+
+    const start =
+      evidenceText
+        ? raw
+            .toLowerCase()
+            .indexOf(
+              evidenceText
+                .toLowerCase()
+            )
+        : -1;
 
     return {
-      text,
-      sourceField: "userMessage",
-      start: start >= 0 ? start : null,
-      end: start >= 0 ? start + text.length : null
+      text:
+        evidenceText,
+
+      sourceField:
+        "userMessage",
+
+      start:
+        start >= 0
+          ? start
+          : null,
+
+      end:
+        start >= 0
+          ? start +
+            evidenceText.length
+          : null
     };
   },
 
   /* =====================================================
-     INPUT AND TEXT HELPERS
+     INPUT HELPERS
   ===================================================== */
 
-  normalizeInput(message = "", context = {}) {
-    if (message && typeof message === "object") {
-      const summary = message.summary || message;
+  normalizeInput(
+    message = "",
+    context = {}
+  ) {
+    if (
+      message &&
+      typeof message ===
+        "object"
+    ) {
+      const summary =
+        message.summary ||
+        message;
 
       const rawText =
         summary.userMessage ||
@@ -953,44 +1351,205 @@ window.Ari.lifeSignalExtractor = {
 
       return {
         rawText,
-        text: this.normalize(rawText),
-        context: summary
+        text:
+          this.normalize(
+            rawText
+          ),
+
+        context:
+          summary
       };
     }
 
     return {
-      rawText: String(message || ""),
-      text: this.normalize(message),
-      context: context || {}
+      rawText:
+        String(
+          message ||
+          ""
+        ),
+
+      text:
+        this.normalize(
+          message
+        ),
+
+      context:
+        context ||
+        {}
     };
   },
 
-  findTerm(text = "", term = "") {
-    const escaped = this.escapeRegex(term);
+  /* =====================================================
+     GENERAL HELPERS
+  ===================================================== */
 
-    const match = String(text || "").match(
-      new RegExp(`(^|\\b)(${escaped})(?=\\b|$)`, "i")
+  findTerm(
+    text = "",
+    term = ""
+  ) {
+    const normalizedText =
+      String(
+        text ||
+        ""
+      );
+
+    const escaped =
+      this.escapeRegex(
+        term
+      );
+
+    const pattern =
+      term.includes(" ")
+        ? new RegExp(
+            `(?:^|\\b)(${escaped})(?=\\b|$)`,
+            "i"
+          )
+        : new RegExp(
+            `\\b(${escaped})\\b`,
+            "i"
+          );
+
+    const match =
+      normalizedText.match(
+        pattern
+      );
+
+    return (
+      match?.[1] ||
+      match?.[0] ||
+      null
     );
-
-    return match?.[2] || null;
   },
 
-  includesAny(text = "", terms = []) {
-    return terms.some(term => Boolean(this.findTerm(text, term)));
+  includesAny(
+    text = "",
+    terms = []
+  ) {
+    return terms.some(
+      term =>
+        Boolean(
+          this.findTerm(
+            text,
+            term
+          )
+        )
+    );
   },
 
-  escapeRegex(value = "") {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  asArray(value = []) {
+    if (
+      Array.isArray(value)
+    ) {
+      return value;
+    }
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return [];
+    }
+
+    return [value];
   },
 
-  normalize(value = "") {
-    return String(value || "")
+  normalizeConfidence(
+    value = 0.5
+  ) {
+    const number =
+      Number(value);
+
+    if (
+      !Number.isFinite(
+        number
+      )
+    ) {
+      return 0.5;
+    }
+
+    if (
+      number > 1
+    ) {
+      return Math.max(
+        0,
+        Math.min(
+          1,
+          number / 100
+        )
+      );
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        number
+      )
+    );
+  },
+
+  normalizeToken(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
       .toLowerCase()
-      .replace(/[’‘]/g, "'")
-      .replace(/[“”]/g, '"')
-      .replace(/[_-]/g, " ")
-      .replace(/[^\w\s'?.,!:%-]/g, " ")
-      .replace(/\s+/g, " ")
+      .trim()
+      .replace(
+        /[\s-]+/g,
+        "_"
+      )
+      .replace(
+        /[^\w]/g,
+        ""
+      )
+      .replace(
+        /_+/g,
+        "_"
+      );
+  },
+
+  escapeRegex(
+    value = ""
+  ) {
+    return String(value)
+      .replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+  },
+
+  normalize(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .toLowerCase()
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        '"'
+      )
+      .replace(
+        /[_-]/g,
+        " "
+      )
+      .replace(
+        /[^\w\s'?.,!:%/.-]/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
       .trim();
   }
 };
