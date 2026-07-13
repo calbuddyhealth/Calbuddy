@@ -5,7 +5,7 @@
 // Render a fast deterministic response candidate from the canonical
 // Response Plan contained in the Composer Packet.
 //
-// V2.0.1 — Canonical Plan Enforcement / Authorized Memory / Accurate Diagnostics
+// V2.1.0 — Focused Character Evidence / Canonical Plan Enforcement
 //
 // Architectural flow:
 //
@@ -44,7 +44,7 @@
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "2.0.1",
+  version: "2.1.0",
   schemaVersion: "1.0.0",
 
   /* =====================================================
@@ -986,10 +986,52 @@ for (
           writerContract
         });
 
-      if (
+            if (
         !rendering ||
         !rendering.text
       ) {
+        /*
+         * A response move may already be satisfied by a
+         * previously rendered Character draft.
+         *
+         * Example:
+         * - answer_directly renders:
+         *   "Deep navy blue. It feels calm and dependable."
+         * - brief_explanation has nothing additional to add.
+         *
+         * That is not an unsupported move and should not
+         * force AI repair.
+         */
+        if (
+          rendering
+            ?.optionalMoveSatisfied ===
+          true
+        ) {
+          skippedMoves.push({
+            id:
+              move.id,
+
+            required:
+              move.required,
+
+            renderPolicy:
+              move.renderPolicy,
+
+            reason:
+              rendering.reason ||
+              "move_already_satisfied_by_existing_draft",
+
+            satisfiedByExistingDraft:
+              true,
+
+            evidenceUsed:
+              rendering.evidenceUsed ||
+              []
+          });
+
+          continue;
+        }
+
         unsupportedMoves.push({
           id:
             move.id,
@@ -1002,7 +1044,27 @@ for (
 
           reason:
             rendering?.reason ||
-            "unsupported_response_move"
+            "unsupported_response_move",
+
+          requiresAIRepair:
+            rendering
+              ?.requiresAIRepair ===
+            true,
+
+          aiWriterMode:
+            rendering
+              ?.aiWriterMode ||
+            null,
+
+          aiInstruction:
+            rendering
+              ?.aiInstruction ||
+            "",
+
+          characterEvidence:
+            rendering
+              ?.characterEvidence ||
+            null
         });
 
         continue;
@@ -1012,7 +1074,7 @@ for (
         rendering.text
       );
 
-      renderedMoves.push({
+            renderedMoves.push({
         id:
           move.id,
 
@@ -1037,7 +1099,17 @@ for (
 
         evidenceUsed:
           rendering.evidenceUsed ||
-          []
+          [],
+
+        characterEvidence:
+          rendering.characterEvidence ||
+          null,
+
+        characterUsed:
+          rendering.source ===
+            "grounded_character_answer" ||
+          rendering.source ===
+            "grounded_character_reasoning"
       });
     }
 
@@ -1727,10 +1799,116 @@ for (
      DIRECT INFORMATION
   ===================================================== */
 
-  renderDirectAnswer({
+    renderDirectAnswer({
     packet = {},
     request = {}
   } = {}) {
+    // Character Reasoning has already resolved the relevant
+    // local Character authority. Blueprint Writer may render
+    // that focused answer, but it may not search preferences
+    // or independently determine Ari's position.
+    const character =
+      this.readCharacter(packet);
+
+    if (
+      character.answerAvailable === true &&
+      character.grounded === true &&
+      character.draftAvailable === true
+    ) {
+      if (
+        character.needsAIWriter === true
+      ) {
+        return {
+          text:
+            "",
+
+          reason:
+            "character_answer_requires_ai_realization",
+
+          requiresAIRepair:
+            true,
+
+          aiWriterMode:
+            character.aiWriterMode ||
+            "character_natural_realization",
+
+          aiInstruction:
+            character.aiInstruction ||
+            "",
+
+          characterEvidence: {
+            type:
+              character.type,
+
+            subtype:
+              character.subtype,
+
+            focus:
+              character.focus,
+
+            status:
+              character.status,
+
+            grounding:
+              character.grounding
+          }
+        };
+      }
+
+      return {
+        text:
+          character.draft,
+
+        source:
+          "grounded_character_answer",
+
+        confidence:
+          character.status
+            ?.canonical === true
+            ? 0.97
+            : character.status
+                ?.stable === true
+              ? 0.94
+              : character.status
+                  ?.inferred === true
+                ? 0.82
+                : character.status
+                    ?.open === true
+                  ? 0.78
+                  : 0.8,
+
+        evidenceUsed: [
+          "character_handoff",
+          "character_grounding",
+          character.type ||
+            "character_answer"
+        ],
+
+        characterEvidence: {
+          type:
+            character.type,
+
+          subtype:
+            character.subtype,
+
+          focus:
+            character.focus,
+
+          status:
+            character.status,
+
+          grounding:
+            character.grounding,
+
+          realization:
+            character.realization,
+
+          authority:
+            character.authority
+        }
+      };
+    }
+
     const trusted =
       this.extractTrustedDirectAnswer(
         packet
@@ -1791,9 +1969,131 @@ for (
     };
   },
 
-  renderBriefExplanation({
+    renderBriefExplanation({
     packet = {}
   } = {}) {
+    const character =
+      this.readCharacter(packet);
+
+    if (
+      character.answerAvailable === true &&
+      character.grounded === true
+    ) {
+      const characterReason =
+        this.cleanForUser(
+          character.groundedMeaning
+            ?.reason ||
+          character.groundedMeaning
+            ?.reasoning ||
+          character.reasoning ||
+          ""
+        );
+
+            const draftSentences =
+        this.splitSentences(
+          character.draft
+        );
+
+      const completeCharacterDraft =
+        character.draftAvailable ===
+          true &&
+        draftSentences.length >
+          1;
+
+      if (
+        completeCharacterDraft
+      ) {
+        return {
+          text:
+            "",
+
+          reason:
+            "character_draft_already_contains_explanation",
+
+          optionalMoveSatisfied:
+            true,
+
+          evidenceUsed: [
+            "character_draft",
+            "character_reasoning"
+          ],
+
+          characterEvidence: {
+            type:
+              character.type,
+
+            focus:
+              character.focus,
+
+            status:
+              character.status,
+
+            grounding:
+              character.grounding
+          }
+        };
+      }
+
+      if (characterReason) {
+        return {
+          text:
+            this.firstSentence(
+              characterReason
+            ),
+
+          source:
+            "grounded_character_reasoning",
+
+          confidence:
+            character.status
+              ?.canonical === true
+              ? 0.94
+              : character.status
+                  ?.stable === true
+                ? 0.9
+                : 0.8,
+
+          evidenceUsed: [
+            "character_reasoning",
+            "character_grounding"
+          ],
+
+          characterEvidence: {
+            type:
+              character.type,
+
+            focus:
+              character.focus,
+
+            status:
+              character.status,
+
+            grounding:
+              character.grounding
+          }
+        };
+      }
+
+      if (
+        character.draftAvailable === true
+      ) {
+        return {
+          text:
+            "",
+
+          reason:
+            "character_draft_already_contains_explanation",
+
+          optionalMoveSatisfied:
+            true,
+
+          evidenceUsed: [
+            "character_draft"
+          ]
+        };
+      }
+    }
+
     const knowledge =
       this.readKnowledge(packet);
 
@@ -4355,6 +4655,430 @@ for (
      PACKET READING
   ===================================================== */
 
+    readCharacter(packet = {}) {
+    const characterContext =
+      packet.characterContext ||
+      {};
+
+    /*
+     * Composer Bridge currently places the focused
+     * Composer Character packet at packet.character.
+     */
+    const character =
+      packet.composerCharacter ||
+      packet.character ||
+      characterContext.character ||
+      null;
+
+    const handoff =
+      packet.characterHandoff ||
+      characterContext.handoff ||
+      null;
+
+    /*
+     * Current supported locations:
+     *
+     * - composerCharacter.reasoning
+     * - characterHandoff.reasoning
+     * - characterContext.reasoning
+     */
+    const reasoning =
+      character?.reasoning ||
+      handoff?.reasoning ||
+      characterContext.reasoning ||
+      null;
+
+    const draft =
+      this.cleanForUser(
+        packet.characterDeterministicDraft ||
+        packet.characterDraft ||
+        character?.deterministicDraft ||
+        character?.draft ||
+        handoff?.deterministicDraft ||
+        handoff?.draft ||
+        reasoning?.deterministicDraft ||
+        reasoning?.userFacingDraft ||
+        ""
+      );
+
+    const answer =
+      character?.answer ||
+      handoff?.answer ||
+      reasoning?.answer ||
+      "";
+
+    const reason =
+      character?.reason ||
+      (
+        typeof character?.reasoning ===
+          "string"
+          ? character.reasoning
+          : character?.reasoning?.reasoning
+      ) ||
+      handoff?.reason ||
+      (
+        typeof handoff?.reasoning ===
+          "string"
+          ? handoff.reasoning
+          : handoff?.reasoning?.reasoning
+      ) ||
+      reasoning?.reasoning ||
+      "";
+
+    const answerAvailable =
+      packet.characterAnswerAvailable ===
+        true ||
+      characterContext.answerAvailable ===
+        true ||
+      character?.answerAvailable ===
+        true ||
+      handoff?.answerAvailable ===
+        true ||
+      reasoning?.characterAnswerAvailable ===
+        true ||
+      (
+        Boolean(draft) &&
+        Boolean(
+          answer ||
+          reason ||
+          reasoning
+        )
+      );
+
+    const status =
+      packet.characterStatus ||
+      character?.status ||
+      handoff?.status ||
+      characterContext.status ||
+      this.buildCharacterStatus(
+        reasoning ||
+        {
+          characterAnswerAvailable:
+            answerAvailable,
+
+          type:
+            character?.type ||
+            handoff?.type ||
+            null
+        }
+      );
+
+    const explicitGrounding =
+      packet.characterGrounding ||
+      character?.grounding ||
+      handoff?.grounding ||
+      characterContext.grounding ||
+      null;
+
+    /*
+     * Compatibility grounding:
+     *
+     * The current Character Reasoning Engine does not yet
+     * emit a formal grounding packet. A deterministic draft
+     * produced from a completed local Character answer is
+     * still valid focused Character evidence.
+     *
+     * Blueprint Writer is not choosing the preference here.
+     * It is only rendering the answer already resolved by
+     * Character Reasoning.
+     */
+    const grounded =
+      explicitGrounding?.grounded ===
+        true ||
+      (
+        answerAvailable &&
+        Boolean(draft) &&
+        (
+          reasoning
+            ?.characterAnswerAvailable ===
+            true ||
+          handoff?.answerAvailable ===
+            true ||
+          character?.enabled ===
+            true
+        )
+      );
+
+    const grounding =
+      explicitGrounding ||
+      (
+        grounded
+          ? {
+              grounded:
+                true,
+
+              method:
+                "resolved_local_character_answer",
+
+              source:
+                reasoning?.source ||
+                handoff
+                  ?.preferredCharacterSource ||
+                character
+                  ?.preferredSource ||
+                "focused_character_handoff",
+
+              compatibilityDerived:
+                true,
+
+              blueprintAuthority:
+                "render_resolved_answer_only"
+            }
+          : {
+              grounded:
+                false,
+
+              method:
+                "character_grounding_unavailable",
+
+              source:
+                null,
+
+              compatibilityDerived:
+                true
+            }
+      );
+
+    const realization =
+      packet.characterRealization ||
+      character?.realization ||
+      handoff?.realization ||
+      characterContext.realization ||
+      reasoning?.realizationPolicy ||
+      {
+        needsAIWriter:
+          handoff?.needsAIWriter ===
+            true ||
+          reasoning?.needsAIWriter ===
+            true,
+
+        aiWriterMode:
+          handoff?.aiWriterMode ||
+          reasoning?.aiWriterMode ||
+          null,
+
+        aiInstruction:
+          handoff?.aiInstruction ||
+          reasoning?.aiInstruction ||
+          ""
+      };
+
+    return {
+      available:
+        packet.characterAvailable ===
+          true ||
+        characterContext.available ===
+          true ||
+        Boolean(
+          character ||
+          handoff ||
+          reasoning
+        ),
+
+      enabled:
+        packet.characterEnabled ===
+          true ||
+        character?.enabled ===
+          true ||
+        handoff?.enabled ===
+          true,
+
+      relevant:
+        packet.characterRelevant ===
+          true ||
+        character?.relevant ===
+          true ||
+        handoff?.relevant ===
+          true ||
+        characterContext.useAllowed ===
+          true,
+
+      answerAvailable,
+
+      draftAvailable:
+        Boolean(draft),
+
+      grounded,
+
+      mode:
+        packet.characterMode ||
+        character?.mode ||
+        handoff?.mode ||
+        "silent",
+
+      type:
+        packet.characterType ||
+        character?.type ||
+        character?.reasoning?.type ||
+        handoff?.type ||
+        reasoning?.type ||
+        null,
+
+      subtype:
+        packet.characterSubtype ||
+        character?.subtype ||
+        handoff?.subtype ||
+        reasoning?.subtype ||
+        null,
+
+      focus:
+        character?.focus ||
+        character?.reasoning?.focus ||
+        handoff?.focus ||
+        reasoning?.focus ||
+        null,
+
+      subject:
+        character?.subject ||
+        handoff?.subject ||
+        reasoning?.subject ||
+        null,
+
+      status,
+
+      grounding,
+
+      realization,
+
+      draft,
+
+      answer,
+
+      reasoning:
+        reason,
+
+      groundedMeaning:
+        character?.groundedMeaning ||
+        handoff?.groundedMeaning ||
+        reasoning?.groundedMeaning ||
+        (
+          answerAvailable
+            ? {
+                answer,
+                reason,
+                source:
+                  reasoning?.source ||
+                  character
+                    ?.preferredSource ||
+                  handoff
+                    ?.preferredCharacterSource ||
+                  null
+              }
+            : null
+        ),
+
+      needsAIWriter:
+        packet.characterNeedsAIWriter ===
+          true ||
+        realization.needsAIWriter ===
+          true ||
+        handoff?.needsAIWriter ===
+          true ||
+        reasoning?.needsAIWriter ===
+          true,
+
+      aiWriterMode:
+        packet.characterAIWriterMode ||
+        realization.aiWriterMode ||
+        handoff?.aiWriterMode ||
+        reasoning?.aiWriterMode ||
+        null,
+
+      aiInstruction:
+        packet.characterAIInstruction ||
+        realization.aiInstruction ||
+        handoff?.aiInstruction ||
+        reasoning?.aiInstruction ||
+        "",
+
+      implementationDisclosure:
+        packet.characterImplementationDisclosure ||
+        character
+          ?.implementationDisclosure ||
+        handoff
+          ?.implementationDisclosure ||
+        null,
+
+      authorityChain:
+        this.toArray(
+          packet.characterAuthorityChain ||
+          character?.authorityChain ||
+          handoff?.authorityChain ||
+          reasoning?.authorityChain
+        ),
+
+      authorityPacket:
+        packet.characterAuthorityPacket ||
+        character?.authorityPacket ||
+        handoff?.authorityPacket ||
+        reasoning?.authorityPacket ||
+        null,
+
+      authority:
+        "focused_character_handoff_only"
+    };
+  },
+
+  buildCharacterStatus(
+    reasoning = {}
+  ) {
+    const overall =
+      reasoning?.status ||
+      (
+        reasoning
+          ?.characterAnswerAvailable ===
+        true
+          ? "stable"
+          : "background"
+      );
+
+    return {
+      overall,
+
+      preferenceStatus:
+        reasoning?.type ===
+        "character_preference"
+          ? overall
+          : null,
+
+      worldviewStatus:
+        [
+          "character_worldview",
+          "character_perspective"
+        ].includes(
+          reasoning?.type
+        )
+          ? overall
+          : null,
+
+      identityStatus:
+        reasoning?.type ===
+        "character_identity"
+          ? overall
+          : null,
+
+      canonical:
+        overall ===
+        "canonical",
+
+      stable:
+        overall ===
+        "stable",
+
+      inferred:
+        overall ===
+        "inferred",
+
+      open:
+        overall ===
+        "open",
+
+      background:
+        overall ===
+        "background"
+    };
+  },
+
   readLockedDeveloperDraft(
     packet = {}
   ) {
@@ -4586,6 +5310,23 @@ for (
         draft
       );
 
+    const characterMoves =
+      this.toArray(
+        renderResult
+          ?.renderedMoves
+      ).filter(move =>
+        move?.source ===
+          "grounded_character_answer" ||
+        move?.source ===
+          "grounded_character_reasoning" ||
+        move?.characterUsed ===
+          true
+      );
+
+    const characterUsed =
+      characterMoves.length >
+      0;
+
     const result = {
       blueprintWriterRan:
         true,
@@ -4613,6 +5354,31 @@ for (
       blueprintWriterRequiresAIRepair:
         requiresAIRepair ===
         true,
+
+      blueprintWriterUsedCharacter:
+        characterUsed,
+
+      characterEvidenceUsed:
+        characterMoves.map(
+          move => ({
+            id:
+              move.id,
+
+            source:
+              move.source,
+
+            confidence:
+              move.confidence,
+
+            evidenceUsed:
+              move.evidenceUsed ||
+              [],
+
+            characterEvidence:
+              move.characterEvidence ||
+              null
+          })
+        ),
 
       blueprintWriterComplete:
         renderResult
@@ -4715,10 +5481,33 @@ for (
               ?.length ||
             0,
 
-          complete:
+                    complete:
             renderResult
               ?.complete ===
             true,
+
+          characterUsed,
+
+          characterMoveCount:
+            characterMoves.length,
+
+          characterStatus:
+            characterMoves[0]
+              ?.characterEvidence
+              ?.status ||
+            null,
+
+          characterGrounding:
+            characterMoves[0]
+              ?.characterEvidence
+              ?.grounding ||
+            null,
+
+          characterFocus:
+            characterMoves[0]
+              ?.characterEvidence
+              ?.focus ||
+            null,
 
           containsInternalPlannerLanguage:
             renderResult
