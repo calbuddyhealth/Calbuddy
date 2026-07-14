@@ -36,7 +36,35 @@ window.AriFinalCompositionStage = {
     // =================================================
     // 1. Final Language Composer
     // =================================================
+console.log(
+  "=== FINAL COMPOSER HANDOFF ===",
+  {
+    arbitrationAvailable:
+      Boolean(
+        state
+          .responseCandidateArbitration
+      ),
 
+    selectionReady:
+      state
+        .responseCandidateArbitration
+        ?.selectionReady,
+
+    selectedSource:
+      state
+        .responseCandidateArbitration
+        ?.selectedSource,
+
+    selectedDraft:
+      state
+        .responseCandidateArbitration
+        ?.selectedDraft,
+
+    composerPacketReady:
+      state.composerPacket
+        ?.ready
+  }
+);
     mark("before AriLanguageComposer");
 
     let composerResult = {};
@@ -46,11 +74,29 @@ window.AriFinalCompositionStage = {
         window.AriLanguageComposerV9 ||
         window.AriLanguageComposer;
 
-      composerResult =
+            composerResult =
         composerEngine?.compose
           ? await composerEngine.compose({
               composerPacket:
                 this.buildFinalComposerPacket(state),
+
+              responseCandidateArbitration:
+                state
+                  .responseCandidateArbitration ||
+                state
+                  .responseCandidateArbiterResult ||
+                state
+                  .arbitrationHandoff ||
+                null,
+
+              arbitration:
+                state
+                  .responseCandidateArbitration ||
+                state
+                  .responseCandidateArbiterResult ||
+                state
+                  .arbitrationHandoff ||
+                null,
 
               summary:
                 state
@@ -273,7 +319,27 @@ window.AriFinalCompositionStage = {
         summary.languageGuidanceHandoff ||
         null,
 
+            responseCandidateArbitration:
+        summary
+          .responseCandidateArbitration ||
+        summary
+          .responseCandidateArbiterResult ||
+        summary.arbitrationHandoff ||
+        null,
+
+      responseCandidateArbiter:
+        summary
+          .responseCandidateArbitration ||
+        summary
+          .responseCandidateArbiterResult ||
+        summary.arbitrationHandoff ||
+        null,
+
       arbitration:
+        summary
+          .responseCandidateArbitration ||
+        summary
+          .responseCandidateArbiterResult ||
         summary.arbitrationHandoff ||
         null,
 
