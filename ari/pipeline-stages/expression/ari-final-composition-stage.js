@@ -33,39 +33,72 @@ window.AriFinalCompositionStage = {
         compositionEligibility.runComposer
     };
 
-    // =================================================
-    // 1. Final Language Composer
-    // =================================================
+// =================================================
+// 1. Final Language Composer
+// =================================================
+
 console.log(
   "=== FINAL COMPOSER HANDOFF ===",
   {
     arbitrationAvailable:
       Boolean(
-        state
-          .responseCandidateArbitration
+        state.responseCandidateArbitration ||
+        state.responseCandidateArbiterResult ||
+        state.arbitrationHandoff
+      ),
+
+    directArbitrationAvailable:
+      Boolean(
+        state.responseCandidateArbitration
+      ),
+
+    arbiterResultAvailable:
+      Boolean(
+        state.responseCandidateArbiterResult
+      ),
+
+    arbitrationHandoffAvailable:
+      Boolean(
+        state.arbitrationHandoff
       ),
 
     selectionReady:
-      state
-        .responseCandidateArbitration
+      state.responseCandidateArbitration
+        ?.selectionReady ||
+      state.responseCandidateArbiterResult
+        ?.selectionReady ||
+      state.arbitrationHandoff
         ?.selectionReady,
 
     selectedSource:
-      state
-        .responseCandidateArbitration
+      state.responseCandidateArbitration
+        ?.selectedSource ||
+      state.responseCandidateArbiterResult
+        ?.selectedSource ||
+      state.arbitrationHandoff
         ?.selectedSource,
 
     selectedDraft:
-      state
-        .responseCandidateArbitration
+      state.responseCandidateArbitration
+        ?.selectedDraft ||
+      state.responseCandidateArbiterResult
+        ?.selectedDraft ||
+      state.arbitrationHandoff
         ?.selectedDraft,
+
+    stateSelectedDraft:
+      state.selectedDraft,
+
+    stateSelectedDraftSource:
+      state.selectedDraftSource,
 
     composerPacketReady:
       state.composerPacket
         ?.ready
   }
 );
-    mark("before AriLanguageComposer");
+
+mark("before AriLanguageComposer");
 
     let composerResult = {};
 
