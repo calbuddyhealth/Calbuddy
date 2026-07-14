@@ -50,7 +50,7 @@
 window.Ari = window.Ari || {};
 
 window.AriResponsePlanningStage = {
-  version: "2.0.0",
+  version: "2.1.0",
   schemaVersion: "1.0.0",
 
   /* =====================================================
