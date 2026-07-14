@@ -185,7 +185,7 @@ window.AriResponsePlanningStage = {
         state
       });
 
-    const planValidation =
+        const planValidation =
       this.validateResponsePlan({
         responsePlan:
           canonicalResponsePlan,
@@ -194,22 +194,55 @@ window.AriResponsePlanningStage = {
         planningEligibility
       });
 
+    /*
+     * Structural validity is not enough.
+     *
+     * The plan must also preserve the authoritative semantic
+     * request, conversation function, clarification policy,
+     * response requirements, and explicit advice authorization.
+     */
+    const planAlignment =
+      this.validatePlanAlignment({
+        responsePlan:
+          canonicalResponsePlan,
+
+        state,
+        planningEligibility
+      });
+
+    const planAccepted =
+      planValidation.valid ===
+        true &&
+      planAlignment.valid ===
+        true;
+
+    const rejectionReason =
+      planValidation.valid !==
+        true
+        ? planValidation.reason
+        : planAlignment.reason;
+
     const finalResponsePlan =
-      planValidation.valid
+      planAccepted
         ? this.normalizeResponsePlan({
             responsePlan:
               canonicalResponsePlan,
 
             state,
-            plannerEnvelope
+            plannerEnvelope,
+
+            planAlignment
           })
         : this.buildFallbackResponsePlan({
             state,
 
             reason:
-              planValidation.reason,
+              rejectionReason ||
+              "response_plan_rejected",
 
-            plannerEnvelope
+            plannerEnvelope,
+
+            planAlignment
           });
 
     state = {
@@ -226,7 +259,17 @@ window.AriResponsePlanningStage = {
 
       responsePlanValidation:
         planValidation,
+      
+      responsePlanAlignment:
+        planAlignment,
 
+      responsePlanAccepted:
+        planAccepted,
+
+      responsePlanRejectionReason:
+        planAccepted
+          ? null
+          : rejectionReason,
       /*
        * Canonical response plan.
        */
@@ -1281,6 +1324,866 @@ window.AriResponsePlanningStage = {
     };
   },
 
+  /* =====================================================
+     CANONICAL PLAN ALIGNMENT
+  ===================================================== */
+
+  validatePlanAlignment({
+    responsePlan = null,
+    state = {},
+    planningEligibility = {}
+  } = {}) {
+    const obligations =
+      this.buildCanonicalResponseObligations(
+        state
+      );
+
+    if (
+      !responsePlan ||
+      typeof responsePlan !==
+        "object" ||
+      Array.isArray(responsePlan)
+    ) {
+      return {
+        valid:
+          false,
+
+        reason:
+          "response_plan_missing_for_alignment",
+
+        errors: [
+          "The planner did not provide a response plan that could be checked against the canonical request."
+        ],
+
+        warnings: [],
+
+        obligations,
+
+        checks: {},
+
+        authority:
+          "canonical_response_plan_alignment_validation"
+      };
+    }
+
+    const moveIdentifiers =
+      this.readPlanMoveIdentifiers(
+        responsePlan
+      );
+
+    const requiredIdentifiers =
+      this.readPlanRequiredIdentifiers(
+        responsePlan
+      );
+
+    const goalIdentifier =
+      this.normalizeIdentifier(
+        responsePlan.responseGoal ||
+        responsePlan.goal ||
+        ""
+      );
+
+    const shapeIdentifier =
+      this.normalizeIdentifier(
+        responsePlan.responseShape ||
+        responsePlan.shape ||
+        ""
+      );
+
+    const blueprintIdentifier =
+      this.normalizeIdentifier(
+        responsePlan.blueprintHint ||
+        ""
+      );
+
+    const planIdentifiers =
+      this.dedupeValues([
+        goalIdentifier,
+        shapeIdentifier,
+        blueprintIdentifier,
+        ...moveIdentifiers,
+        ...requiredIdentifiers
+      ])
+        .map(value =>
+          this.normalizeIdentifier(
+            this.valueOf(value)
+          )
+        )
+        .filter(Boolean);
+
+    const planShouldAskQuestion =
+      responsePlan.shouldAskQuestion ===
+        true ||
+      responsePlan
+        .writerInstructions
+        ?.finalQuestionAllowed ===
+        true;
+
+    const planQuestionPurpose =
+      this.normalizeIdentifier(
+        responsePlan.questionPurpose ||
+        responsePlan
+          .writerInstructions
+          ?.questionPurpose ||
+        ""
+      );
+
+    const adviceRequestedByPlan =
+      responsePlan.adviceRequested ===
+        true;
+
+    const advicePolicy =
+      this.normalizeIdentifier(
+        responsePlan.advicePolicy ||
+        ""
+      );
+
+    const coachingPermissionRequired =
+      responsePlan
+        .coachingPermissionRequired ===
+      true;
+
+    const directAnswerPresent =
+      this.identifiersContainAny(
+        planIdentifiers,
+        [
+          "answer",
+          "direct_answer",
+          "answer_current_turn",
+          "answer_the_requested_question",
+          "provide_information",
+          "respond_to_request"
+        ]
+      );
+
+    const recommendationPresent =
+      this.identifiersContainAny(
+        planIdentifiers,
+        [
+          "recommend",
+          "recommendation",
+          "provide_clear_recommendation",
+          "evaluate_and_recommend",
+          "choose",
+          "selection"
+        ]
+      );
+
+    const comparisonPresent =
+      this.identifiersContainAny(
+        planIdentifiers,
+        [
+          "compare",
+          "comparison",
+          "compare_options",
+          "compare_the_presented_options",
+          "contrast",
+          "tradeoff",
+          "tradeoffs"
+        ]
+      );
+
+    const explanationPresent =
+      this.identifiersContainAny(
+        planIdentifiers,
+        [
+          "explain",
+          "explanation",
+          "reason",
+          "reasoning",
+          "rationale",
+          "explain_recommendation_reasoning",
+          "provide_requested_explanation"
+        ]
+      );
+
+    const emotionalExplorationPresent =
+      this.identifiersContainAny(
+        planIdentifiers,
+        [
+          "understand_feelings_first",
+          "understand_what_this_feels_like",
+          "emotional_exploration",
+          "explore_emotion",
+          "validate_emotion_first",
+          "ask_if_user_wants_advice",
+          "ask_advice_or_understanding",
+          "establish_emotional_preference"
+        ]
+      );
+
+    const permissionSeekingPresent =
+      coachingPermissionRequired ||
+      this.identifiersContainAny(
+        planIdentifiers,
+        [
+          "ask_permission",
+          "ask_if_user_wants_advice",
+          "ask_advice_or_understanding",
+          "request_permission_to_advise",
+          "permission_before_advice"
+        ]
+      );
+
+    const clarificationAuthorized =
+      obligations.clarificationRequired ||
+      obligations.missingContext ||
+      obligations.safetyClarificationRequired;
+
+    const unauthorizedQuestion =
+      planShouldAskQuestion &&
+      !clarificationAuthorized &&
+      obligations.directAnswerRequired;
+
+    const unauthorizedPermissionSeeking =
+      permissionSeekingPresent &&
+      obligations.adviceExplicitlyRequested;
+
+    const unauthorizedEmotionalReplacement =
+      emotionalExplorationPresent &&
+      !obligations
+        .emotionalSupportExplicitlyRequested &&
+      obligations.primaryTaskRequired;
+
+    const missingDirectAnswer =
+      obligations.directAnswerRequired &&
+      !directAnswerPresent &&
+      !recommendationPresent;
+
+    const missingRecommendation =
+      obligations.recommendationRequired &&
+      !recommendationPresent;
+
+    const missingComparison =
+      obligations.comparisonRequired &&
+      !comparisonPresent;
+
+    const missingExplanation =
+      obligations.explanationRequired &&
+      !explanationPresent;
+
+    const adviceAuthorizationLost =
+      obligations.adviceExplicitlyRequested &&
+      (
+        adviceRequestedByPlan !==
+          true ||
+        [
+          "permission_required",
+          "ask_first",
+          "not_authorized",
+          "withhold_advice"
+        ].includes(
+          advicePolicy
+        )
+      );
+
+    const questionPurposeConflict =
+      unauthorizedQuestion &&
+      Boolean(
+        planQuestionPurpose
+      );
+
+    const errors = [];
+    const warnings = [];
+
+    if (missingDirectAnswer) {
+      errors.push(
+        "required_direct_answer_missing"
+      );
+    }
+
+    if (missingRecommendation) {
+      errors.push(
+        "required_recommendation_missing"
+      );
+    }
+
+    if (missingComparison) {
+      errors.push(
+        "required_comparison_missing"
+      );
+    }
+
+    if (missingExplanation) {
+      errors.push(
+        "required_explanation_missing"
+      );
+    }
+
+    if (unauthorizedQuestion) {
+      errors.push(
+        "unauthorized_clarifying_question"
+      );
+    }
+
+    if (
+      unauthorizedPermissionSeeking
+    ) {
+      errors.push(
+        "unauthorized_advice_permission_request"
+      );
+    }
+
+    if (
+      unauthorizedEmotionalReplacement
+    ) {
+      errors.push(
+        "primary_task_replaced_by_emotional_exploration"
+      );
+    }
+
+    if (adviceAuthorizationLost) {
+      errors.push(
+        "explicit_advice_authorization_not_preserved"
+      );
+    }
+
+    if (questionPurposeConflict) {
+      warnings.push(
+        `unauthorized_question_purpose:${planQuestionPurpose}`
+      );
+    }
+
+    if (
+      obligations.recommendationRequired &&
+      responsePlan.adviceRequested !==
+        true
+    ) {
+      warnings.push(
+        "planner_failed_to_mark_advice_as_requested"
+      );
+    }
+
+    if (
+      obligations.clarificationRequired &&
+      !planShouldAskQuestion
+    ) {
+      errors.push(
+        "required_clarification_missing"
+      );
+    }
+
+    if (
+      planningEligibility
+        .safetyOverride ===
+        true &&
+      !this.planPreservesSafety(
+        responsePlan
+      )
+    ) {
+      errors.push(
+        "canonical_safety_requirement_missing"
+      );
+    }
+
+    const valid =
+      errors.length ===
+      0;
+
+    return {
+      valid,
+
+      reason:
+        valid
+          ? "response_plan_aligned_with_canonical_request"
+          : errors[0] ||
+            "response_plan_semantically_misaligned",
+
+      errors,
+
+      warnings,
+
+      obligations,
+
+      checks: {
+        directAnswerPresent,
+
+        recommendationPresent,
+
+        comparisonPresent,
+
+        explanationPresent,
+
+        planShouldAskQuestion,
+
+        clarificationAuthorized,
+
+        unauthorizedQuestion,
+
+        unauthorizedPermissionSeeking,
+
+        unauthorizedEmotionalReplacement,
+
+        adviceRequestedByPlan,
+
+        adviceAuthorizationLost,
+
+        emotionalExplorationPresent,
+
+        permissionSeekingPresent,
+
+        safetyPreserved:
+          planningEligibility
+            .safetyOverride !==
+            true ||
+          this.planPreservesSafety(
+            responsePlan
+          )
+      },
+
+      planEvidence: {
+        responseGoal:
+          responsePlan.responseGoal ||
+          responsePlan.goal ||
+          null,
+
+        responseShape:
+          responsePlan.responseShape ||
+          responsePlan.shape ||
+          null,
+
+        responseMoves:
+          moveIdentifiers,
+
+        requiredIdentifiers,
+
+        adviceRequested:
+          responsePlan.adviceRequested ===
+          true,
+
+        advicePolicy:
+          responsePlan.advicePolicy ||
+          null,
+
+        shouldAskQuestion:
+          responsePlan.shouldAskQuestion ===
+          true,
+
+        questionPurpose:
+          responsePlan.questionPurpose ||
+          null,
+
+        coachingPermissionRequired:
+          responsePlan
+            .coachingPermissionRequired ===
+          true
+      },
+
+      authority:
+        "canonical_response_plan_alignment_validation"
+    };
+  },
+
+  buildCanonicalResponseObligations(
+    state = {}
+  ) {
+    const reconciliation =
+      state.perceptionReconciliation ||
+      state
+        .perceptionReconciliationResult ||
+      state.perceptionPacket
+        ?.reconciliation
+        ?.raw ||
+      {};
+
+    const intentPacket =
+      state.conversationIntentPacket ||
+      state.unifiedIntentPacket ||
+      state.reconciledIntentPacket ||
+      reconciliation
+        .conversationIntentPacket ||
+      reconciliation
+        .unifiedIntentPacket ||
+      state.perceptionPacket
+        ?.conversationIntentPacket ||
+      null;
+
+    const semanticMeaning =
+      state.semanticFrameOutput
+        ?.canonicalMeaning ||
+      state.semanticFrameResult
+        ?.canonicalMeaning ||
+      state.perceptionPacket
+        ?.semantic
+        ?.raw
+        ?.canonicalMeaning ||
+      {};
+
+    const semanticResponseRequirements =
+      state.semanticFrameOutput
+        ?.responseRequirements ||
+      state.semanticFrameOutput
+        ?.responseCharacteristics ||
+      state
+        .semanticResponseCharacteristics ||
+      semanticMeaning
+        .responseRequirements ||
+      {};
+
+    const reconciledRequirements =
+      reconciliation
+        .responseRequirements ||
+      intentPacket
+        ?.responseRequirements ||
+      {};
+
+    const conversationFunctionContract =
+      state.conversationFunction
+        ?.responseContract ||
+      state
+        .conversationFunctionResult
+        ?.responseContract ||
+      intentPacket
+        ?.conversationPurpose
+        ?.responseContract ||
+      {};
+
+    const semanticIntent =
+      reconciliation.semanticIntent ||
+      intentPacket?.semanticIntent ||
+      {};
+
+    const ambiguity =
+      reconciliation.ambiguity ||
+      intentPacket?.ambiguity ||
+      state.semanticAmbiguity ||
+      semanticMeaning.ambiguity ||
+      {};
+
+    const emotionalOverlay =
+      state.semanticFrameOutput
+        ?.emotionalOverlay ||
+      state
+        .semanticEmotionalOverlay ||
+      semanticMeaning
+        .emotionalOverlay ||
+      intentPacket
+        ?.context
+        ?.emotional ||
+      {};
+
+    const operation =
+      this.normalizeIdentifier(
+        semanticIntent
+          .requestedOperation ||
+        intentPacket
+          ?.semanticIntent
+          ?.requestedOperation ||
+        semanticMeaning
+          .requestedOperation ||
+        state.routingContract
+          ?.requestedOperation ||
+        state.routingContract
+          ?.primaryIntent ||
+        state.primaryIntent ||
+        ""
+      );
+
+    const requestedOutput =
+      this.normalizeIdentifier(
+        semanticIntent
+          .requestedOutput ||
+        semanticMeaning
+          .requestedOutput ||
+        state.routingContract
+          ?.requestedOutput ||
+        ""
+      );
+
+    const mergedMust =
+      this.mergeUnique(
+        semanticResponseRequirements.must,
+        reconciledRequirements.must,
+        conversationFunctionContract.must,
+        state.responseRequired
+      )
+        .map(value =>
+          this.normalizeIdentifier(
+            this.valueOf(value)
+          )
+        )
+        .filter(Boolean);
+
+    const directAnswerRequired =
+      semanticResponseRequirements
+        .directAnswerRequested ===
+        true ||
+      semanticResponseRequirements
+        .expectsDirectAnswer ===
+        true ||
+      this.identifiersContainAny(
+        mergedMust,
+        [
+          "answer_the_requested_question",
+          "answer_current_request",
+          "answer_current_turn",
+          "provide_direct_answer"
+        ]
+      ) ||
+      [
+        "provide_information",
+        "interpret_meaning",
+        "explain_or_teach",
+        "compare_options",
+        "decide_or_prioritize",
+        "evaluate_and_recommend",
+        "verify_or_review",
+        "inspect_and_explain",
+        "calculate_or_convert",
+        "translate",
+        "provide_opinion"
+      ].includes(operation);
+
+    const recommendationRequired =
+      [
+        "evaluate_and_recommend",
+        "decide_or_prioritize"
+      ].includes(operation) ||
+      requestedOutput.includes(
+        "recommendation"
+      ) ||
+      semanticMeaning.actionPolicy
+        ?.recommendationRequested ===
+        true ||
+      this.identifiersContainAny(
+        mergedMust,
+        [
+          "provide_clear_recommendation",
+          "provide_recommendation",
+          "recommend_one"
+        ]
+      );
+
+    const comparisonRequired =
+      operation ===
+        "compare_options" ||
+      semanticMeaning
+        .actionPolicy
+        ?.comparisonRequested ===
+        true ||
+      this.identifiersContainAny(
+        mergedMust,
+        [
+          "compare_the_presented_options",
+          "compare_options",
+          "provide_comparison"
+        ]
+      );
+
+    const explanationRequired =
+      semanticResponseRequirements
+        .explanationRequested ===
+        true ||
+      semanticResponseRequirements
+        .expectsExplanation ===
+        true ||
+      semanticMeaning
+        .actionPolicy
+        ?.explanationRequested ===
+        true ||
+      [
+        "interpret_meaning",
+        "explain_or_teach",
+        "inspect_and_explain",
+        "explain_without_execution"
+      ].includes(operation) ||
+      this.identifiersContainAny(
+        mergedMust,
+        [
+          "provide_requested_explanation",
+          "explain_reasoning",
+          "provide_reasoning"
+        ]
+      );
+
+    const adviceExplicitlyRequested =
+      semanticMeaning.actionPolicy
+        ?.recommendationRequested ===
+        true ||
+      recommendationRequired;
+
+    const clarificationRequired =
+      ambiguity.requiresClarification ===
+        true ||
+      reconciliation.readiness
+        ?.clarificationRequired ===
+        true ||
+      reconciledRequirements
+        .clarificationRequired ===
+        true;
+
+    const missingContext =
+      state.contextLane ===
+        "missing_context" ||
+      state.laneSplit?.lane ===
+        "missing_context" ||
+      reconciliation.readiness
+        ?.missingPriorContext ===
+        true;
+
+    const safetyClarificationRequired =
+      state
+        .safetyRequiresClarification ===
+        true ||
+      state.safetyDisposition
+        ?.requiresClarification ===
+        true;
+
+    const emotionalSupportExplicitlyRequested =
+      emotionalOverlay
+        .explicitSupportRequested ===
+        true ||
+      intentPacket
+        ?.context
+        ?.emotional
+        ?.explicitSupportRequested ===
+        true ||
+      operation ===
+        "provide_emotional_support";
+
+    return {
+      operation:
+        operation ||
+        null,
+
+      requestedOutput:
+        requestedOutput ||
+        null,
+
+      primaryTaskRequired:
+        Boolean(
+          operation &&
+          operation !==
+            "respond"
+        ),
+
+      directAnswerRequired,
+
+      recommendationRequired,
+
+      comparisonRequired,
+
+      explanationRequired,
+
+      adviceExplicitlyRequested,
+
+      clarificationRequired,
+
+      missingContext,
+
+      safetyClarificationRequired,
+
+      emotionalSupportExplicitlyRequested,
+
+      requiredIdentifiers:
+        mergedMust,
+
+      source: {
+        semanticMeaningAvailable:
+          Boolean(
+            semanticMeaning
+              .requestedOperation
+          ),
+
+        reconciliationAvailable:
+          reconciliation
+            .perceptionReconciliationRan ===
+          true,
+
+        intentPacketAvailable:
+          Boolean(
+            intentPacket
+          ),
+
+        conversationFunctionContractAvailable:
+          Boolean(
+            conversationFunctionContract
+          )
+      },
+
+      authority:
+        "canonical_upstream_response_obligations"
+    };
+  },
+
+  readPlanMoveIdentifiers(
+    responsePlan = {}
+  ) {
+    return this.readResponseMoves(
+      responsePlan
+    )
+      .map(move =>
+        this.normalizeIdentifier(
+          this.readMoveId(
+            move
+          )
+        )
+      )
+      .filter(Boolean);
+  },
+
+  readPlanRequiredIdentifiers(
+    responsePlan = {}
+  ) {
+    return this.mergeUnique(
+      responsePlan
+        .requiredBehaviors,
+      responsePlan.required,
+      responsePlan
+        .writerInstructions
+        ?.required,
+      responsePlan.rules
+    )
+      .map(value =>
+        this.normalizeIdentifier(
+          this.valueOf(value)
+        )
+      )
+      .filter(Boolean);
+  },
+
+  identifiersContainAny(
+    identifiers = [],
+    candidates = []
+  ) {
+    const normalizedIdentifiers =
+      this.toArray(
+        identifiers
+      )
+        .map(value =>
+          this.normalizeIdentifier(
+            this.valueOf(value)
+          )
+        )
+        .filter(Boolean);
+
+    const normalizedCandidates =
+      this.toArray(
+        candidates
+      )
+        .map(value =>
+          this.normalizeIdentifier(
+            this.valueOf(value)
+          )
+        )
+        .filter(Boolean);
+
+    return normalizedIdentifiers.some(
+      identifier =>
+        normalizedCandidates.some(
+          candidate =>
+            identifier ===
+              candidate ||
+            identifier.includes(
+              candidate
+            ) ||
+            candidate.includes(
+              identifier
+            )
+        )
+    );
+  },
+
   planPreservesSafety(
     responsePlan = {}
   ) {
@@ -1338,15 +2241,41 @@ window.AriResponsePlanningStage = {
      CANONICAL PLAN NORMALIZATION
   ===================================================== */
 
-  normalizeResponsePlan({
+    normalizeResponsePlan({
     responsePlan = {},
     state = {},
-    plannerEnvelope = {}
+    plannerEnvelope = {},
+    planAlignment = {}
   } = {}) {
     const originalText =
       this.getOriginalText(
         state
       );
+
+    const obligations =
+      planAlignment.obligations ||
+      this.buildCanonicalResponseObligations(
+        state
+      );
+
+    const clarificationAuthorized =
+      obligations.clarificationRequired ||
+      obligations.missingContext ||
+      obligations
+        .safetyClarificationRequired;
+
+    const normalizedShouldAskQuestion =
+      clarificationAuthorized &&
+      responsePlan
+        .shouldAskQuestion ===
+      true;
+
+    const normalizedAdviceRequested =
+      obligations
+        .adviceExplicitlyRequested ||
+      responsePlan
+        .adviceRequested ===
+      true;
 
     const responseMoves =
       this.normalizeResponseMoves(
@@ -1460,27 +2389,43 @@ window.AriResponsePlanningStage = {
         responsePlan.currentNeed ||
         null,
 
-      adviceRequested:
-        responsePlan.adviceRequested ===
-        true,
+            adviceRequested:
+        normalizedAdviceRequested,
 
       advicePolicy:
-        responsePlan.advicePolicy ||
-        "allowed_if_useful",
+        obligations
+          .adviceExplicitlyRequested
+          ? "explicitly_requested"
+          : responsePlan.advicePolicy ||
+            "allowed_if_useful",
 
       coachingPermissionRequired:
-        responsePlan
-          .coachingPermissionRequired ===
-        true,
+        obligations
+          .adviceExplicitlyRequested
+          ? false
+          : responsePlan
+              .coachingPermissionRequired ===
+            true,
 
       shouldAskQuestion:
-        responsePlan
-          .shouldAskQuestion ===
-        true,
+        normalizedShouldAskQuestion,
 
-      questionPurpose:
-        responsePlan.questionPurpose ||
-        null,
+            questionPurpose:
+        normalizedShouldAskQuestion
+          ? (
+              responsePlan
+                .questionPurpose ||
+              (
+                obligations
+                  .safetyClarificationRequired
+                  ? "clarify_safety_risk"
+                  : obligations
+                      .missingContext
+                    ? "recover_missing_context"
+                    : "resolve_required_ambiguity"
+              )
+            )
+          : null,
 
       responseMoves,
 
@@ -1543,6 +2488,29 @@ window.AriResponsePlanningStage = {
               writerInstructions
             )
         },
+
+      canonicalAlignment: {
+        valid:
+          planAlignment.valid ===
+          true,
+
+        reason:
+          planAlignment.reason ||
+          null,
+
+        obligations,
+
+        errors:
+          planAlignment.errors ||
+          [],
+
+        warnings:
+          planAlignment.warnings ||
+          [],
+
+        authority:
+          "canonical_response_plan_alignment_record"
+      },
 
       authority: {
         canDefineResponseGoal:
@@ -1871,11 +2839,12 @@ window.AriResponsePlanningStage = {
      FALLBACK PLAN
   ===================================================== */
 
-  buildFallbackResponsePlan({
+    buildFallbackResponsePlan({
     state = {},
     reason =
       "response_planner_unavailable",
-    plannerEnvelope = {}
+    plannerEnvelope = {},
+    planAlignment = {}
   } = {}) {
     const safetyOverride =
       state.safetyDisposition
@@ -1885,16 +2854,30 @@ window.AriResponsePlanningStage = {
         .safetyShouldStopNormalResponse ===
         true;
 
+    const obligations =
+      planAlignment.obligations ||
+      this.buildCanonicalResponseObligations(
+        state
+      );
+
     const safetyClarification =
-      state
-        .safetyRequiresClarification ===
+      obligations
+        .safetyClarificationRequired ===
       true;
 
     const missingContext =
-      state.contextLane ===
-        "missing_context" ||
-      state.laneSplit?.lane ===
-        "missing_context";
+      obligations.missingContext ===
+      true;
+
+    const semanticClarification =
+      obligations
+        .clarificationRequired ===
+      true;
+
+    const clarificationRequired =
+      safetyClarification ||
+      missingContext ||
+      semanticClarification;
 
     const primaryLane =
       state.primaryLane ||
@@ -1904,68 +2887,291 @@ window.AriResponsePlanningStage = {
         ?.primaryLane ||
       "general_understanding";
 
-    const responseMoves =
+    const responseMoves = [];
+
+    const addMove = ({
+      id,
+      required = true,
+      purpose = null,
+      contentHint = null
+    } = {}) => {
+      if (!id) {
+        return;
+      }
+
+      if (
+        responseMoves.some(
+          move =>
+            move.id === id
+        )
+      ) {
+        return;
+      }
+
+      responseMoves.push({
+        id,
+
+        order:
+          responseMoves.length +
+          1,
+
+        required,
+
+        purpose,
+
+        contentHint,
+
+        source:
+          "ari-response-planning-stage-fallback"
+      });
+    };
+
+    if (safetyOverride) {
+      addMove({
+        id:
+          "prioritize_immediate_safety",
+
+        purpose:
+          "address_inherited_safety_requirements"
+      });
+
+      addMove({
+        id:
+          "give_direct_safety_step",
+
+        purpose:
+          "provide_immediate_action"
+      });
+    } else if (
+      clarificationRequired
+    ) {
+      addMove({
+        id:
+          "ask_required_clarifying_question",
+
+        purpose:
+          safetyClarification
+            ? "clarify_safety_risk"
+            : missingContext
+              ? "recover_missing_context"
+              : "resolve_required_ambiguity"
+      });
+    } else {
+      if (
+        obligations
+          .comparisonRequired
+      ) {
+        addMove({
+          id:
+            "compare_the_presented_options",
+
+          purpose:
+            "fulfill_comparison_request",
+
+          contentHint:
+            "Compare the named options using criteria relevant to the user's stated context."
+        });
+      }
+
+      if (
+        obligations
+          .recommendationRequired
+      ) {
+        addMove({
+          id:
+            "provide_clear_recommendation",
+
+          purpose:
+            "fulfill_recommendation_request",
+
+          contentHint:
+            "State which option is recommended without asking permission to provide advice."
+        });
+      }
+
+      if (
+        obligations
+          .explanationRequired
+      ) {
+        addMove({
+          id:
+            "explain_recommendation_reasoning",
+
+          purpose:
+            "fulfill_explanation_request",
+
+          contentHint:
+            "Explain the decisive reasons, tradeoffs, and relevant limitations."
+        });
+      }
+
+      if (
+        obligations
+          .directAnswerRequired &&
+        responseMoves.length ===
+          0
+      ) {
+        addMove({
+          id:
+            "answer_current_turn",
+
+          purpose:
+            "answer_authoritative_current_request"
+        });
+      }
+
+      if (
+        responseMoves.length ===
+        0
+      ) {
+        addMove({
+          id:
+            "answer_current_turn",
+
+          purpose:
+            "answer_current_request"
+        });
+
+        addMove({
+          id:
+            "give_brief_useful_context",
+
+          required:
+            false,
+
+          purpose:
+            "support_direct_answer"
+        });
+      }
+    }
+
+    const responseGoal =
       safetyOverride
-        ? [
-            {
-              id:
-                "prioritize_immediate_safety",
+        ? "address_immediate_safety"
+        : clarificationRequired
+          ? safetyClarification
+            ? "clarify_safety_risk"
+            : missingContext
+              ? "recover_required_context"
+              : "resolve_required_ambiguity"
+          : obligations
+              .recommendationRequired &&
+            obligations
+              .comparisonRequired
+            ? "compare_options_and_provide_clear_recommendation"
+            : obligations
+                .recommendationRequired
+              ? "provide_clear_recommendation"
+              : obligations
+                  .comparisonRequired
+                ? "compare_presented_options"
+                : obligations
+                    .explanationRequired
+                  ? "provide_requested_explanation"
+                  : primaryLane;
 
-              order:
-                1,
+    const responseShape =
+      safetyOverride
+        ? "brief_direct_safety_response"
+        : clarificationRequired
+          ? "single_clarifying_question"
+          : obligations
+                .comparisonRequired &&
+              obligations
+                .recommendationRequired &&
+              obligations
+                .explanationRequired
+            ? "comparison_with_recommendation_and_reasoning"
+            : obligations
+                  .recommendationRequired &&
+                obligations
+                  .explanationRequired
+              ? "recommendation_with_reasoning"
+              : obligations
+                  .comparisonRequired
+                ? "structured_comparison"
+                : state.responseShape ||
+                  state.routingContract
+                    ?.responseShape ||
+                  "clear_explanation";
 
-              required:
-                true
-            },
+    const shouldAskQuestion =
+      clarificationRequired;
 
-            {
-              id:
-                "give_direct_safety_step",
+    const questionPurpose =
+      shouldAskQuestion
+        ? safetyClarification
+          ? "clarify_safety_risk"
+          : missingContext
+            ? "recover_missing_context"
+            : "resolve_required_ambiguity"
+        : null;
 
-              order:
-                2,
+    const requiredBehaviors =
+      this.mergeUnique(
+        state.responseRequired,
 
-              required:
-                true
-            }
-          ]
-        : safetyClarification ||
-          missingContext
+        safetyOverride
           ? [
-              {
-                id:
-                  "ask_required_clarifying_question",
-
-                order:
-                  1,
-
-                required:
-                  true
-              }
+              "prioritize_immediate_safety",
+              "be_direct"
             ]
-          : [
-              {
-                id:
-                  "answer_current_turn",
+          : clarificationRequired
+            ? [
+                "ask_one_clear_question"
+              ]
+            : [
+                obligations
+                  .directAnswerRequired
+                  ? "answer_the_requested_question"
+                  : null,
 
-                order:
-                  1,
+                obligations
+                  .comparisonRequired
+                  ? "compare_the_presented_options"
+                  : null,
 
-                required:
-                  true
-              },
+                obligations
+                  .recommendationRequired
+                  ? "provide_clear_recommendation"
+                  : null,
 
-              {
-                id:
-                  "give_brief_useful_context",
+                obligations
+                  .explanationRequired
+                  ? "provide_requested_explanation"
+                  : null,
 
-                order:
-                  2,
+                obligations
+                  .adviceExplicitlyRequested
+                  ? "treat_advice_as_explicitly_authorized"
+                  : null
+              ].filter(Boolean)
+      );
 
-                required:
-                  false
-              }
-            ];
+    const forbiddenBehaviors =
+      this.mergeUnique(
+        state.responseAvoid,
+
+        safetyOverride
+          ? [
+              "delay",
+              "casual_tone",
+              "abstract_analysis"
+            ]
+          : clarificationRequired
+            ? [
+                "invent_missing_context",
+                "rewrite_user_meaning"
+              ]
+            : [
+                "invent_missing_context",
+                "rewrite_user_meaning",
+                "ask_permission_for_explicitly_requested_advice",
+                "replace_primary_task_with_emotional_exploration",
+                "ask_unnecessary_clarifying_question",
+                "omit_required_response_moves"
+              ]
+      );
 
     return {
       schema:
@@ -1992,6 +3198,11 @@ window.AriResponsePlanningStage = {
       fallbackReason:
         reason,
 
+      rejectedPlannerPlan:
+        plannerEnvelope
+          ?.responsePlan ||
+        null,
+
       userQuestion:
         this.getOriginalText(
           state
@@ -2005,60 +3216,42 @@ window.AriResponsePlanningStage = {
       originalTextPreserved:
         true,
 
-      responseGoal:
-        safetyOverride
-          ? "address_immediate_safety"
-          : safetyClarification
-            ? "clarify_safety_risk"
-            : missingContext
-              ? "recover_required_context"
-              : primaryLane,
+      responseGoal,
 
-      responseShape:
-        safetyOverride
-          ? "brief_direct_safety_response"
-          : safetyClarification ||
-              missingContext
-            ? "single_clarifying_question"
-            : state.responseShape ||
-              state.routingContract
-                ?.responseShape ||
-              "clear_explanation",
+      responseShape,
 
       responsePosture:
         safetyOverride
           ? "calm_direct"
-          : "direct_helpful",
+          : clarificationRequired
+            ? "clear_precise"
+            : "direct_helpful",
 
       currentNeed:
         safetyOverride
           ? "immediate_safety"
-          : safetyClarification ||
-              missingContext
+          : clarificationRequired
             ? "required_clarification"
-            : "answer_current_request",
+            : "fulfill_authoritative_current_request",
 
       adviceRequested:
-        false,
+        obligations
+          .adviceExplicitlyRequested,
 
       advicePolicy:
-        safetyOverride
-          ? "safety_first"
-          : "allowed_if_useful",
+        obligations
+          .adviceExplicitlyRequested
+          ? "explicitly_requested"
+          : safetyOverride
+            ? "safety_first"
+            : "allowed_if_useful",
 
       coachingPermissionRequired:
         false,
 
-      shouldAskQuestion:
-        safetyClarification ||
-        missingContext,
+      shouldAskQuestion,
 
-      questionPurpose:
-        safetyClarification
-          ? "clarify_safety_risk"
-          : missingContext
-            ? "recover_missing_context"
-            : null,
+      questionPurpose,
 
       responseMoves,
 
@@ -2068,38 +3261,9 @@ window.AriResponsePlanningStage = {
             move.id
         ),
 
-      requiredBehaviors:
-        this.mergeUnique(
-          state.responseRequired,
-          safetyOverride
-            ? [
-                "prioritize_immediate_safety",
-                "be_direct"
-              ]
-            : safetyClarification ||
-                missingContext
-              ? [
-                  "ask_one_clear_question"
-                ]
-              : [
-                  "answer_current_request"
-                ]
-        ),
+      requiredBehaviors,
 
-      forbiddenBehaviors:
-        this.mergeUnique(
-          state.responseAvoid,
-          safetyOverride
-            ? [
-                "delay",
-                "casual_tone",
-                "abstract_analysis"
-              ]
-            : [
-                "invent_missing_context",
-                "rewrite_user_meaning"
-              ]
-        ),
+      forbiddenBehaviors,
 
       constraints:
         this.mergeUnique(
@@ -2116,85 +3280,131 @@ window.AriResponsePlanningStage = {
       blueprintHint:
         safetyOverride
           ? "safety_urgent_support"
-          : safetyClarification ||
-              missingContext
+          : clarificationRequired
             ? "required_clarification"
-            : "general_direct_response",
+            : obligations
+                  .comparisonRequired &&
+                obligations
+                  .recommendationRequired
+              ? "comparison_recommendation_reasoning"
+              : obligations
+                  .recommendationRequired
+                ? "direct_recommendation"
+                : "general_direct_response",
 
       writerInstructions: {
         posture:
           safetyOverride
             ? "calm_direct"
-            : "direct_helpful",
+            : clarificationRequired
+              ? "clear_precise"
+              : "direct_helpful",
 
         shape:
-          safetyOverride
-            ? "brief_direct_safety_response"
-            : safetyClarification ||
-                missingContext
-              ? "single_clarifying_question"
-              : "clear_explanation",
+          responseShape,
 
         moves:
           responseMoves,
 
         required:
-          safetyOverride
-            ? [
-                "prioritize_immediate_safety",
-                "be_direct"
-              ]
-            : [
-                "answer_current_request"
-              ],
+          requiredBehaviors,
 
         avoid:
-          safetyOverride
-            ? [
-                "delay",
-                "casual_tone"
-              ]
-            : [
-                "invent_missing_context",
-                "generic_template_language"
-              ],
+          forbiddenBehaviors,
+
+        constraints:
+          this.mergeUnique(
+            state.responseConstraints
+          ),
 
         maxSentences:
           safetyOverride
             ? 4
-            : safetyClarification ||
-                missingContext
+            : clarificationRequired
               ? 1
-              : 4,
+              : null,
+
+        maxWords:
+          null,
 
         finalQuestionAllowed:
-          safetyClarification ||
-          missingContext,
+          shouldAskQuestion,
 
-        questionPurpose:
-          safetyClarification
-            ? "clarify_safety_risk"
-            : missingContext
-              ? "recover_missing_context"
-              : null,
+        questionPurpose,
 
         doNotWrite: [
           "internal pipeline commentary",
           "unsupported certainty",
-          "semantic reinterpretation"
-        ]
+          "semantic reinterpretation",
+          "permission seeking for explicitly requested advice",
+          "emotional exploration that replaces the requested task",
+          "unnecessary clarification"
+        ],
+
+        authority:
+          "writer_instruction_only"
       },
 
       communicationPlan:
         null,
 
-      composerDirective:
-        null,
+      composerDirective: {
+        preserveCanonicalMoves:
+          true,
+
+        preserveMoveOrder:
+          true,
+
+        rejectPermissionSeeking:
+          obligations
+            .adviceExplicitlyRequested,
+
+        rejectUnauthorizedClarification:
+          !clarificationRequired,
+
+        rejectPrimaryTaskReplacement:
+          true,
+
+        authority:
+          "fallback_composer_directive"
+      },
+
+      canonicalAlignment: {
+        valid:
+          true,
+
+        generatedFromCanonicalObligations:
+          true,
+
+        originalPlanRejected:
+          planAlignment.valid ===
+          false,
+
+        originalPlanErrors:
+          planAlignment.errors ||
+          [],
+
+        originalPlanWarnings:
+          planAlignment.warnings ||
+          [],
+
+        obligations,
+
+        authority:
+          "canonical_response_plan_alignment_record"
+      },
 
       confidence:
         safetyOverride
           ? 0.85
-          : 0.55,
+          : obligations
+                .directAnswerRequired ||
+              obligations
+                .recommendationRequired ||
+              obligations
+                .comparisonRequired
+            ? 0.82
+            : 0.62,
 
       plannerEnvelope,
 
@@ -2206,6 +3416,12 @@ window.AriResponsePlanningStage = {
           true,
 
         canPreserveOriginalTurn:
+          true,
+
+        canPreserveCanonicalObligations:
+          true,
+
+        canRejectMisalignedPlannerPlan:
           true,
 
         canChooseOfficialRoute:
@@ -2221,11 +3437,10 @@ window.AriResponsePlanningStage = {
           false,
 
         role:
-          "safe_response_plan_fallback"
+          "canonical_alignment_safe_response_plan_fallback"
       }
     };
   },
-
   buildPlannerFailureResult({
     reason =
       "response_planner_unavailable",
@@ -2343,6 +3558,27 @@ window.AriResponsePlanningStage = {
     const routing =
       state.routingContract ||
       {};
+
+    const obligations =
+      responsePlan
+        .canonicalAlignment
+        ?.obligations ||
+      this.buildCanonicalResponseObligations(
+        state
+      );
+
+    const clarificationAuthorized =
+      obligations
+        .clarificationRequired ||
+      obligations.missingContext ||
+      obligations
+        .safetyClarificationRequired;
+
+    const shouldAskQuestion =
+      clarificationAuthorized &&
+      responsePlan
+        .shouldAskQuestion ===
+      true;
 
     const responseMoves =
       this.normalizeResponseMoves(
@@ -2533,15 +3769,14 @@ window.AriResponsePlanningStage = {
           .coachingPermissionRequired ===
         true,
 
-      shouldAskQuestion:
-        responsePlan
-          .shouldAskQuestion ===
-        true,
+            shouldAskQuestion,
 
       questionPurpose:
-        responsePlan
-          .questionPurpose ||
-        null,
+        shouldAskQuestion
+          ? responsePlan
+              .questionPurpose ||
+            null
+          : null,
 
       requiredBehaviors,
 
@@ -2757,10 +3992,13 @@ window.AriResponsePlanningStage = {
           .advicePolicy ||
         null,
 
-      coachingPermissionRequired:
-        responseStrategy
-          .coachingPermissionRequired ===
-        true,
+            coachingPermissionRequired:
+        obligations
+          .adviceExplicitlyRequested
+          ? false
+          : responsePlan
+              .coachingPermissionRequired ===
+            true,
 
       shouldAskQuestion:
         responseStrategy
@@ -2814,6 +4052,31 @@ window.AriResponsePlanningStage = {
         ran:
           state.responsePlannerRan ===
           true,
+
+      alignment: {
+        accepted:
+          state.responsePlanAccepted ===
+          true,
+
+        rejectionReason:
+          state
+            .responsePlanRejectionReason ||
+          null,
+
+        validation:
+          state.responsePlanAlignment ||
+          null,
+
+        fallbackUsed:
+          responsePlan.fallback ===
+          true,
+
+        canonicalObligations:
+          responsePlan
+            .canonicalAlignment
+            ?.obligations ||
+          null
+      },
 
         usable:
           state.responsePlannerUsable ===
@@ -2937,6 +4200,33 @@ window.AriResponsePlanningStage = {
         ran:
           summary.responsePlannerRan ===
           true,
+
+      alignment: {
+        accepted:
+          summary
+            .responsePlanAccepted ===
+          true,
+
+        rejectionReason:
+          summary
+            .responsePlanRejectionReason ||
+          null,
+
+        validation:
+          summary
+            .responsePlanAlignment ||
+          null,
+
+        canonicalObligations:
+          responsePlan
+            ?.canonicalAlignment
+            ?.obligations ||
+          null,
+
+        fallbackUsed:
+          responsePlan?.fallback ===
+          true
+      },
 
         usable:
           summary
