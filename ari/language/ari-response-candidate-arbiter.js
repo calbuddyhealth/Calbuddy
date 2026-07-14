@@ -866,53 +866,47 @@ window.AriResponseCandidateArbiter = {
   },
 
   dedupeCandidates(
-    candidates = []
-  ) {
-    const seen =
-      new Map();
+  candidates = []
+) {
+  const seen =
+    new Map();
 
-    this.toArray(
-      candidates
-    ).forEach(
-      candidate => {
-        
-        const key = [
-  candidate.source || "unknown",
-  this.normalizeForComparison(
-    candidate.text
-  )
-].join("|");
+  this.toArray(
+    candidates
+  ).forEach(
+    candidate => {
+      const key = [
+        candidate.source ||
+          "unknown",
 
-        if (!key) {
-          return;
-        }
+        this.normalizeForComparison(
+          candidate.text
+        )
+      ].join("|");
 
-        if (!seen.has(key)) {
-          seen.set(
-            key,
-            candidate
-          );
-
-          return;
-        }
-
-        const existing =
-          seen.get(key);
-
+      if (!seen.has(key)) {
         seen.set(
           key,
-          this.preferDuplicateCandidate(
-            existing,
-            candidate
-          )
+          candidate
         );
-      }
-    );
 
-    return [
-      ...seen.values()
-    ];
-  },
+        return;
+      }
+
+      seen.set(
+        key,
+        this.preferDuplicateCandidate(
+          seen.get(key),
+          candidate
+        )
+      );
+    }
+  );
+
+  return [
+    ...seen.values()
+  ];
+},
 
   preferDuplicateCandidate(
   first = {},
@@ -4497,10 +4491,28 @@ if (rejectedAI) {
   candidate = {},
   context = {}
 ) {
+  const compatibilityCandidate = {
+    ...candidate,
+
+    usable:
+      candidate.usable === undefined
+        ? true
+        : candidate.usable,
+
+    complete:
+      candidate.complete === undefined
+        ? true
+        : candidate.complete,
+
+    requiresAIRepair:
+      candidate.requiresAIRepair === true ||
+      candidate.requiresRepair === true
+  };
+
   return this.evaluateCandidate({
     candidate:
       this.normalizeCandidate(
-        candidate
+        compatibilityCandidate
       ),
 
     context: {
