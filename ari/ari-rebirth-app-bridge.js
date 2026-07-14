@@ -2,14 +2,15 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.8.0 — Reply Normalization / Loader Diagnostics
+// V1.8.1 — Canonical Reconciliation Loader / Readiness Validation
+
 
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.8.0",
+version: "1.8.1",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
@@ -63,6 +64,7 @@ version: "1.8.0",
     "ari/context/ari-entity-reference-resolver.js",
 
     "ari/meaning/ari-semantic-frame-builder.js",
+    "ari/perception/ari-perception-reconciliation-engine.js",
     "ari/meaning/ari-situation-map-engine.js",
 
     "ari/governance/ari-triage-engine.js",
