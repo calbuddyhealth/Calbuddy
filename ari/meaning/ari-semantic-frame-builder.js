@@ -1,4 +1,4 @@
-// ari/meaning/ari-semantic-frame-builder-v4.js
+// ari/meaning/ari-semantic-frame-builder.js
 // Ari Semantic Frame Builder
 // Purpose: Convert canonical perception evidence into structured conceptual meaning.
 // V4.0.0 — Centralized Operation Registry / Referential Continuity / Compatibility-Preserving Refactor
