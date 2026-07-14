@@ -2465,6 +2465,9 @@ window.AriResponsePlanningStage = {
         responsePlan.createdAt ||
         new Date().toISOString(),
 
+ready:
+  true,
+
       usable:
         responsePlan.usable !==
         false,
@@ -3096,7 +3099,8 @@ window.AriResponsePlanningStage = {
 
       createdAt:
         new Date().toISOString(),
-
+ready:
+  true,
       usable:
         true,
 
@@ -4705,9 +4709,11 @@ window.AriResponsePlanningStage = {
         this.schemaVersion,
 
       ready:
-        Boolean(responsePlan) &&
-        responsePlan.usable !==
-          false,
+  Boolean(responsePlan) &&
+  responsePlan.ready ===
+    true &&
+  responsePlan.usable ===
+    true,
 
       source:
         "ari-response-planning-stage",
