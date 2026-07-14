@@ -2,12 +2,12 @@
 // Ari Draft Arbitration Stage
 // Purpose: Decide whether AI writing is needed, generate AI draft candidates,
 // and select the strongest available draft.
-// V1.0.0 — Arbiter Precheck / AI Writer / Candidate Selection Orchestration
+// V1.1.0 — Candidate Status Preservation / Safe Fallback Selection
 
 window.Ari = window.Ari || {}; 
 
 window.AriDraftArbitrationStage = {
-  version: "1.0.0",
+  version: "1.1.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -297,71 +297,156 @@ window.AriDraftArbitrationStage = {
     }
 
     state = {
-      ...state,
+  ...state,
 
-      ...(aiWriterResult || {}),
+  ...(aiWriterResult || {}),
 
-      aiWriter:
-        aiWriterResult ||
-        null,
+  aiWriter:
+    aiWriterResult ||
+    null,
 
-      aiWriterDraft:
-        aiWriterResult?.draft ||
-        aiWriterResult?.aiWriterDraft ||
-        state.aiWriterDraft ||
-        null,
+  aiWriterDraft:
+    aiWriterResult?.draft ||
+    aiWriterResult
+      ?.aiWriterDraft ||
+    state.aiWriterDraft ||
+    null,
 
-      aiWriterRan:
-        aiWriterResult
-          ?.aiWriterRan === true,
+  aiWriterRan:
+    aiWriterResult
+      ?.aiWriterRan ===
+    true,
 
-      aiWriterUsedAI:
-        aiWriterResult
-          ?.aiWriterUsedAI === true,
+  aiWriterUsedAI:
+    aiWriterResult
+      ?.aiWriterUsedAI ===
+    true,
 
-      aiWriterSource:
-        aiWriterResult
-          ?.aiWriterSource ||
-        aiWriterResult?.source ||
-        "unknown"
-    };
+  aiWriterUsable:
+    aiWriterResult
+      ?.aiWriterUsable ===
+    true,
 
+  aiWriterComplete:
+    aiWriterResult
+      ?.aiWriterComplete ===
+    true,
+
+  aiWriterRequiresRepair:
+    aiWriterResult
+      ?.aiWriterRequiresRepair ===
+    true,
+
+  aiWriterValidation:
+    aiWriterResult
+      ?.validation ||
+    null,
+
+  aiWriterReason:
+    aiWriterResult
+      ?.aiWriterReason ||
+    null,
+
+  aiWriterSource:
+    aiWriterResult
+      ?.aiWriterSource ||
+    aiWriterResult?.source ||
+    "unknown"
+};
     if (
-      state.aiWriterDraft &&
-      !shouldBypassAIWriterForCharacter
-    ) {
-      state.candidateDrafts =
-        addCandidateDraft(
-          state.candidateDrafts,
-          {
-            source:
-              "ai_writer",
+  state.aiWriterDraft &&
+  !shouldBypassAIWriterForCharacter
+) {
+  const aiCandidate =
+    aiWriterResult?.candidate &&
+    typeof aiWriterResult.candidate ===
+      "object"
+      ? aiWriterResult.candidate
+      : {};
 
-            text:
-              state.aiWriterDraft,
+  const writerMarkedUsable =
+    aiWriterResult
+      ?.aiWriterUsable ===
+    true;
 
-            priority:
-              80,
+  const writerMarkedComplete =
+    aiWriterResult
+      ?.aiWriterComplete ===
+    true;
 
-            usable:
-              Boolean(
-                String(
-                  state.aiWriterDraft
-                ).trim()
-              ),
+  const writerRequiresRepair =
+    aiWriterResult
+      ?.aiWriterRequiresRepair ===
+    true;
 
-            evidence: {
-              usedAI:
-                state.aiWriterUsedAI === true,
+  state.candidateDrafts =
+    addCandidateDraft(
+      state.candidateDrafts,
+      {
+        ...aiCandidate,
 
-              repairReason:
-                state.aiRepairReason ||
-                null
-            }
-          }
-        );
-    }
+        source:
+          "ai_writer",
 
+        text:
+          state.aiWriterDraft,
+
+        priority:
+          Number.isFinite(
+            Number(
+              aiCandidate.priority
+            )
+          )
+            ? Number(
+                aiCandidate.priority
+              )
+            : writerMarkedUsable
+              ? 80
+              : 20,
+
+        usable:
+          writerMarkedUsable,
+
+        complete:
+          writerMarkedComplete,
+
+        requiresRepair:
+          writerRequiresRepair,
+
+        validation:
+          aiWriterResult
+            ?.validation ||
+          aiCandidate.validation ||
+          null,
+
+        evidence: {
+          ...(
+            aiCandidate.evidence ||
+            {}
+          ),
+
+          usedAI:
+            state.aiWriterUsedAI ===
+            true,
+
+          writerMarkedUsable,
+
+          writerMarkedComplete,
+
+          writerRequiresRepair,
+
+          writerReason:
+            aiWriterResult
+              ?.aiWriterReason ||
+            null,
+
+          repairReason:
+            state.aiRepairReason ||
+            null
+        }
+      }
+    );
+}
     mark("after aiWriter");
 
     // =================================================
@@ -386,31 +471,49 @@ window.AriDraftArbitrationStage = {
           })
         : null;
 
-    state = {
-      ...state,
+    const fallbackSelectedDraft =
+  this.selectFallbackDraft(
+    state
+  );
 
-      ...(arbiterResult || {}),
+const selectedDraft =
+  arbiterResult
+    ?.selectedDraft ||
+  fallbackSelectedDraft ||
+  null;
 
-      responseCandidateArbiter:
-        arbiterResult ||
-        null,
+const selectedDraftSource =
+  arbiterResult
+    ?.selectedSource ||
+  this.resolveSelectedDraftSource(
+    selectedDraft,
+    state
+  ) ||
+  (
+    arbiterResult
+      ?.selectedDraft
+      ? "unknown_candidate"
+      : null
+  );
 
-      selectedDraft:
-        arbiterResult?.selectedDraft ||
-        this.selectFallbackDraft(state),
+state = {
+  ...state,
 
-      selectedDraftSource:
-        arbiterResult?.selectedSource ||
-        arbiterResult?.source ||
-        this.resolveSelectedDraftSource(
-          arbiterResult?.selectedDraft ||
-          this.selectFallbackDraft(state),
-          state
-        ),
+  ...(arbiterResult || {}),
 
-      responseCandidateArbiterRan:
-        Boolean(arbiterResult)
-    };
+  responseCandidateArbiter:
+    arbiterResult ||
+    null,
+
+  selectedDraft,
+
+  selectedDraftSource,
+
+  responseCandidateArbiterRan:
+    Boolean(
+      arbiterResult
+    )
+};
 
     mark("after responseCandidateArbiter");
 
@@ -503,39 +606,115 @@ window.AriDraftArbitrationStage = {
   // ===================================================
   // Fallback draft selection
   // ===================================================
+  
+  selectFallbackDraft(
+  summary = {}
+) {
+  const candidates =
+    Array.isArray(
+      summary.candidateDrafts
+    )
+      ? summary.candidateDrafts
+      : [];
 
-  selectFallbackDraft(summary = {}) {
-    const candidates =
-      Array.isArray(summary.candidateDrafts)
-        ? summary.candidateDrafts
-        : [];
-
-    const usableCandidates =
-      candidates
-        .filter(candidate =>
-          candidate?.usable !== false &&
+  const usableCandidates =
+    candidates
+      .filter(
+        candidate =>
+          candidate?.usable ===
+            true &&
           Boolean(
             String(
               candidate?.text ||
               ""
             ).trim()
           )
-        )
-        .sort(
-          (a, b) =>
-            Number(b?.priority || 0) -
-            Number(a?.priority || 0)
-        );
+      )
+      .sort(
+        (a, b) => {
+          const completeDifference =
+            Number(
+              b?.complete === true
+            ) -
+            Number(
+              a?.complete === true
+            );
 
+          if (
+            completeDifference !==
+            0
+          ) {
+            return completeDifference;
+          }
+
+          return (
+            Number(
+              b?.priority ||
+              0
+            ) -
+            Number(
+              a?.priority ||
+              0
+            )
+          );
+        }
+      );
+
+  if (
+    usableCandidates.length
+  ) {
     return (
-      usableCandidates[0]?.text ||
-      summary.aiWriterDraft ||
-      summary.characterDraftCandidate ||
-      summary.blueprintWriterDraft ||
+      usableCandidates[0]
+        .text ||
       null
     );
-  },
+  }
 
+  const characterDraft =
+    String(
+      summary
+        .characterDraftCandidate ||
+      ""
+    ).trim();
+
+  if (
+    summary
+      .characterAnswerAvailable ===
+      true &&
+    characterDraft
+  ) {
+    return characterDraft;
+  }
+
+  const blueprintDraft =
+    String(
+      summary
+        .blueprintWriterDraft ||
+      ""
+    ).trim();
+
+  const blueprintUsable =
+    summary
+      .blueprintWriterUsable ===
+      true ||
+    summary.blueprintWriter
+      ?.blueprintWriterUsable ===
+      true ||
+    summary.blueprintWriter
+      ?.candidate
+      ?.usable ===
+      true;
+
+  if (
+    blueprintUsable &&
+    blueprintDraft
+  ) {
+    return blueprintDraft;
+  }
+
+  return null;
+},
+  
   resolveSelectedDraftSource(
     draft = "",
     summary = {}
@@ -620,27 +799,51 @@ window.AriDraftArbitrationStage = {
         null,
 
       aiWriter: {
-        needed:
-          summary.needsAIWriter === true,
+  needed:
+    summary.needsAIWriter ===
+    true,
 
-        ran:
-          summary.aiWriterRan === true,
+  ran:
+    summary.aiWriterRan ===
+    true,
 
-        usedAI:
-          summary.aiWriterUsedAI === true,
+  usedAI:
+    summary.aiWriterUsedAI ===
+    true,
 
-        source:
-          summary.aiWriterSource ||
-          null,
+  usable:
+    summary.aiWriterUsable ===
+    true,
 
-        draft:
-          summary.aiWriterDraft ||
-          null,
+  complete:
+    summary.aiWriterComplete ===
+    true,
 
-        repairReason:
-          summary.aiRepairReason ||
-          null
-      },
+  requiresRepair:
+    summary
+      .aiWriterRequiresRepair ===
+    true,
+
+  source:
+    summary.aiWriterSource ||
+    null,
+
+  reason:
+    summary.aiWriterReason ||
+    null,
+
+  draft:
+    summary.aiWriterDraft ||
+    null,
+
+  validation:
+    summary.aiWriterValidation ||
+    null,
+
+  repairReason:
+    summary.aiRepairReason ||
+    null
+},
 
       characterBypass:
         summary
@@ -710,27 +913,51 @@ window.AriDraftArbitrationStage = {
       },
 
       aiWriter: {
-        shouldRun:
-          summary.shouldRunAIWriter === true,
+  shouldRun:
+    summary.shouldRunAIWriter ===
+    true,
 
-        ran:
-          summary.aiWriterRan === true,
+  ran:
+    summary.aiWriterRan ===
+    true,
 
-        usedAI:
-          summary.aiWriterUsedAI === true,
+  usedAI:
+    summary.aiWriterUsedAI ===
+    true,
 
-        source:
-          summary.aiWriterSource ||
-          null,
+  usable:
+    summary.aiWriterUsable ===
+    true,
 
-        draft:
-          summary.aiWriterDraft ||
-          null,
+  complete:
+    summary.aiWriterComplete ===
+    true,
 
-        raw:
-          summary.aiWriter ||
-          null
-      },
+  requiresRepair:
+    summary
+      .aiWriterRequiresRepair ===
+    true,
+
+  source:
+    summary.aiWriterSource ||
+    null,
+
+  reason:
+    summary.aiWriterReason ||
+    null,
+
+  draft:
+    summary.aiWriterDraft ||
+    null,
+
+  validation:
+    summary.aiWriterValidation ||
+    null,
+
+  raw:
+    summary.aiWriter ||
+    null
+},
 
       arbiter: {
         ran:
