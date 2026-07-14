@@ -1473,63 +1473,188 @@ window.AriResponseCandidateArbiter = {
   ===================================================== */
 
   readCharacterCandidate({
-    summary = {},
-    packet = {}
-  } = {}) {
-    const characterReasoning =
-      summary.characterReasoning ||
-      {};
+  summary = {},
+  packet = {}
+} = {}) {
+  console.log(
+    "=== CHARACTER HANDOFF TEST ===",
+    {
+      bridgePacketReady:
+        packet?.ready,
 
-    const text =
-      this.cleanOriginal(
-        summary
-          .characterDraftCandidate ||
-        characterReasoning
-          .userFacingDraft ||
-        summary.composerCharacter
-          ?.draft ||
-        packet.character?.draft ||
-        ""
-      );
+      packetCharacterDraft:
+        packet?.characterDraft,
 
-    const available =
-  summary.characterAnswerAvailable === true ||
-  characterReasoning.characterAnswerAvailable === true ||
-  summary.composerCharacter?.answerAvailable === true ||
-  packet.character?.answerAvailable === true;
+      packetCharacterDeterministicDraft:
+        packet?.characterDeterministicDraft,
 
-    const requiresAIRepair =
-      summary
-        .characterNeedsAIWriter ===
-        true ||
+      packetCharacterAnswerAvailable:
+        packet?.characterAnswerAvailable,
+
+      packetCharacterContextDraft:
+        packet?.characterContext?.draft,
+
+      packetCharacterContextDeterministicDraft:
+        packet?.characterContext
+          ?.deterministicDraft,
+
+      packetCharacterContextAnswerAvailable:
+        packet?.characterContext
+          ?.answerAvailable,
+
+      packetCharacterObjectDraft:
+        packet?.character?.draft,
+
+      packetCharacterObjectAnswerAvailable:
+        packet?.character?.answerAvailable,
+
+      packetComposerCharacterDraft:
+        packet?.composerCharacter?.draft,
+
+      packetComposerCharacterAnswerAvailable:
+        packet?.composerCharacter
+          ?.answerAvailable,
+
+      summaryComposerCharacterDraft:
+        summary?.composerCharacter?.draft,
+
+      summaryComposerCharacterAnswerAvailable:
+        summary?.composerCharacter
+          ?.answerAvailable,
+
+      summaryCharacterReasoningDraft:
+        summary?.characterReasoning
+          ?.userFacingDraft,
+
+      summaryCharacterReasoningDeterministicDraft:
+        summary?.characterReasoning
+          ?.deterministicDraft,
+
+      summaryCharacterReasoningAvailable:
+        summary?.characterReasoning
+          ?.characterAnswerAvailable,
+
+      summaryCharacterNeedsAIWriter:
+        summary?.characterNeedsAIWriter,
+
+      packetCharacterNeedsAIWriter:
+        packet?.characterNeedsAIWriter
+    }
+  );
+
+  const characterReasoning =
+    summary.characterReasoning ||
+    packet.characterContext
+      ?.reasoning ||
+    {};
+
+  /*
+   * Diagnostic resolution path:
+   * Read every supported focused-character handoff location.
+   */
+  const text =
+    this.cleanOriginal(
+      summary.characterDraftCandidate ||
+      summary.composerCharacter
+        ?.draft ||
       characterReasoning
-        .needsAIWriter ===
-        true;
+        .userFacingDraft ||
+      characterReasoning
+        .deterministicDraft ||
+      packet.characterDraft ||
+      packet
+        .characterDeterministicDraft ||
+      packet.characterContext
+        ?.draft ||
+      packet.characterContext
+        ?.deterministicDraft ||
+      packet.composerCharacter
+        ?.draft ||
+      packet.composerCharacter
+        ?.deterministicDraft ||
+      packet.character?.draft ||
+      packet.character
+        ?.deterministicDraft ||
+      ""
+    );
 
-    return {
-      text,
+  const available =
+    summary.characterAnswerAvailable ===
+      true ||
+    summary.composerCharacter
+      ?.answerAvailable ===
+      true ||
+    characterReasoning
+      .characterAnswerAvailable ===
+      true ||
+    packet.characterAnswerAvailable ===
+      true ||
+    packet.characterContext
+      ?.answerAvailable ===
+      true ||
+    packet.composerCharacter
+      ?.answerAvailable ===
+      true ||
+    packet.character
+      ?.answerAvailable ===
+      true;
 
-      available,
+  const requiresAIRepair =
+    summary.characterNeedsAIWriter ===
+      true ||
+    characterReasoning
+      .needsAIWriter ===
+      true ||
+    packet.characterNeedsAIWriter ===
+      true ||
+    packet.characterContext
+      ?.needsAIWriter ===
+      true ||
+    packet.characterRealization
+      ?.needsAIWriter ===
+      true ||
+    packet.composerCharacter
+      ?.realization
+      ?.needsAIWriter ===
+      true ||
+    packet.character
+      ?.realization
+      ?.needsAIWriter ===
+      true;
 
-      relevant:
-        this.isCharacterQuestion(
-          this.readCurrentText({
-            summary,
-            packet
-          })
-        ),
+  const relevant =
+    this.isCharacterQuestion(
+      this.readCurrentText({
+        summary,
+        packet
+      })
+    );
 
-      complete:
-  available &&
-  Boolean(text) &&
-  characterReasoning.complete !== false &&
-  !requiresAIRepair,
-      requiresAIRepair,
+  const complete =
+    available &&
+    Boolean(text) &&
+    characterReasoning.complete !==
+      false &&
+    !requiresAIRepair;
 
-      raw:
-        characterReasoning
-    };
-  },
+  const result = {
+    text,
+    available,
+    relevant,
+    complete,
+    requiresAIRepair,
+
+    raw:
+      characterReasoning
+  };
+
+  console.log(
+    "=== ARBITER CHARACTER RESULT ===",
+    result
+  );
+
+  return result;
+},
 
   /* =====================================================
      CONTEXT
