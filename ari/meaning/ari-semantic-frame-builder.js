@@ -63,6 +63,19 @@ window.AriSemanticFrameBuilder = {
       executionKind: null
     },
 
+compare_options: {
+  requestType: "decision",
+  frameType: "comparison_request",
+  interactionFamily: "decision",
+  intentFamily: "comparison",
+  domain: "decision",
+  requestedOutput: "comparison",
+  requiredSlots: ["object"],
+  responseMode: "recommendation",
+  conversationStyle: "comparison_request",
+  executionKind: null
+},
+
     decide_or_prioritize: {
       requestType: "decision",
       frameType: "decision_request",
@@ -77,17 +90,17 @@ window.AriSemanticFrameBuilder = {
     },
 
     evaluate_and_recommend: {
-      requestType: "decision",
-      frameType: "decision_request",
-      interactionFamily: "decision",
-      intentFamily: "recommendation",
-      domain: "decision",
-      requestedOutput: "architectural_recommendation",
-      requiredSlots: ["object"],
-      responseMode: "recommendation",
-      conversationStyle: "recommendation_request",
-      executionKind: null
-    },
+  requestType: "decision",
+  frameType: "decision_request",
+  interactionFamily: "decision",
+  intentFamily: "recommendation",
+  domain: "decision",
+  requestedOutput: "recommendation",
+  requiredSlots: ["object"],
+  responseMode: "recommendation",
+  conversationStyle: "recommendation_request",
+  executionKind: null
+},
 
     create_plan: {
       requestType: "planning",
@@ -288,10 +301,20 @@ window.AriSemanticFrameBuilder = {
     explain_or_teach: "explain_or_teach",
     teaching: "explain_or_teach",
     decision: "decide_or_prioritize",
-    decide: "decide_or_prioritize",
-    decide_or_prioritize: "decide_or_prioritize",
-    recommend: "decide_or_prioritize",
-    evaluate_and_recommend: "evaluate_and_recommend",
+decide: "decide_or_prioritize",
+choose: "decide_or_prioritize",
+prioritize: "decide_or_prioritize",
+decide_or_prioritize: "decide_or_prioritize",
+
+compare: "compare_options",
+comparison: "compare_options",
+compare_options: "compare_options",
+
+recommend: "evaluate_and_recommend",
+recommendation: "evaluate_and_recommend",
+decide_or_recommend: "evaluate_and_recommend",
+recommend_or_decide: "evaluate_and_recommend",
+evaluate_and_recommend: "evaluate_and_recommend",
     planning: "create_plan",
     plan: "create_plan",
     create_plan: "create_plan",
@@ -678,6 +701,27 @@ window.AriSemanticFrameBuilder = {
 
     proposedOperation = this.normalizeOperation(proposedOperation);
 
+const compositeDecisionRequest =
+  this.detectCompositeDecisionRequest({
+    text:
+      normalized.text ||
+      "",
+
+    requestedOperations,
+
+    classifierOperation,
+
+    proposedOperation
+  });
+
+if (
+  compositeDecisionRequest.present
+) {
+  proposedOperation =
+    compositeDecisionRequest
+      .primaryOperation;
+}
+
     let proposedOutput =
       explicitMeaningRequest.present
         ? "interpretation"
@@ -719,16 +763,39 @@ window.AriSemanticFrameBuilder = {
       operationDefinition.requestedOutput ||
       "response";
 
-    const secondaryOperations = this.uniqueNormalizedValues([
-      ...requestedOperations.slice(1),
-      classifierOperation && classifierOperation !== operation
-        ? classifierOperation
-        : null
-    ])
-      .map(value => this.normalizeOperation(value))
-      .filter(value => value && value !== operation)
-      .filter(value => !this.operationMatchesAny(value, actionPolicy.prohibitedOperations));
+    const compositeSupportingOperations =
+  compositeDecisionRequest.present
+    ? compositeDecisionRequest
+        .requiredSupportingOperations
+    : [];
 
+const secondaryOperations =
+  this.uniqueNormalizedValues([
+    ...compositeSupportingOperations,
+
+    ...requestedOperations.slice(1),
+
+    classifierOperation &&
+    classifierOperation !== operation
+      ? classifierOperation
+      : null
+  ])
+    .map(value =>
+      this.normalizeOperation(
+        value
+      )
+    )
+    .filter(value =>
+      value &&
+      value !== operation
+    )
+    .filter(value =>
+      !this.operationMatchesAny(
+        value,
+        actionPolicy
+          .prohibitedOperations
+      )
+    );
     const secondaryOutputs = this.uniqueNormalizedValues([
       ...requestedOutputs.slice(1),
       classifierOutput && classifierOutput !== requestedOutput
@@ -789,6 +856,7 @@ window.AriSemanticFrameBuilder = {
       proposedOperation,
       proposedOutput,
       explicitMeaningRequest,
+      compositeDecisionRequest,
       evidenceRefs: [
         ...(evidenceIndex.operationEvidence || []).map(item => item.id),
         ...(evidenceIndex.outputEvidence || []).map(item => item.id)
@@ -1117,7 +1185,12 @@ window.AriSemanticFrameBuilder = {
     reference = {}
   } = {}) {
     if (reference.present) {
-      const resolved = this.readResolvedReference(sources.referenceResolution, reference);
+     const resolved =
+  this.resolveReferenceBinding({
+    sources,
+    directReference:
+      reference
+  });
       return {
         type: resolved.resolved ? "resolved_referential_content" : "referential_content",
         name: resolved.value || reference.surface,
@@ -1126,6 +1199,9 @@ window.AriSemanticFrameBuilder = {
         resolutionStatus: resolved.resolved ? "resolved" : "pending",
         resolvedValue: resolved.value,
         sourceTurnId: resolved.sourceTurnId,
+        resolutionSource:
+  resolved.resolutionSource ||
+  null,
         entity: null,
         attribute: null,
         filePath: null,
@@ -1533,10 +1609,11 @@ window.AriSemanticFrameBuilder = {
     const thread = sources.thread || {};
     const referenceEvidence = evidenceIndex.referenceEvidence || [];
     const directReference = this.detectPriorContextReference(normalized.text || "");
-    const resolvedReference = this.readResolvedReference(
-      sources.referenceResolution,
-      directReference
-    );
+const resolvedReference =
+  this.resolveReferenceBinding({
+    sources,
+    directReference
+  });
 
     const contextDependency = Number(pressures.contextDependency || 0);
     const followUpPressure = Number(pressures.followUpPressure || 0);
@@ -1601,6 +1678,8 @@ window.AriSemanticFrameBuilder = {
       referenceResolved: resolvedReference.resolved,
       resolvedReferenceValue: resolvedReference.value,
       resolvedReferenceSourceTurnId: resolvedReference.sourceTurnId,
+      referenceResolutionSource:
+  resolvedReference.resolutionSource || null,
       referencesPriorArtifact: referenceEvidence.some(item =>
         item.domain === "project" ||
         /file|code|artifact/.test(item.value)
@@ -1682,6 +1761,409 @@ window.AriSemanticFrameBuilder = {
       confidence: match ? 0.97 : 0
     };
   },
+
+detectCompositeDecisionRequest({
+  text = "",
+  requestedOperations = [],
+  classifierOperation = "",
+  proposedOperation = ""
+} = {}) {
+  const normalizedText =
+    this.normalizeHumanText(text);
+
+  const sourceOperations =
+    this.asArray([
+      ...this.asArray(
+        requestedOperations
+      ),
+
+      classifierOperation,
+
+      proposedOperation
+    ])
+      .map(operation =>
+        this.normalizeOperation(
+          operation
+        )
+      )
+      .filter(Boolean);
+
+  const comparisonPresent =
+    sourceOperations.includes(
+      "compare_options"
+    ) ||
+    /\b(?:compare|comparison|versus|vs\.?)\b/.test(
+      normalizedText
+    );
+
+  const recommendationPresent =
+    sourceOperations.includes(
+      "evaluate_and_recommend"
+    ) ||
+    sourceOperations.includes(
+      "decide_or_prioritize"
+    ) ||
+    /\b(?:recommend|recommendation|which one should|which should|what should i choose|what should we choose)\b/.test(
+      normalizedText
+    );
+
+  const explanationPresent =
+    sourceOperations.includes(
+      "explain_or_teach"
+    ) ||
+    /\b(?:explain|reasoning|why|reasons?|rationale|tradeoffs?|trade offs?)\b/.test(
+      normalizedText
+    );
+
+  const present =
+    comparisonPresent &&
+    recommendationPresent;
+
+  return {
+    present,
+
+    comparisonPresent,
+
+    recommendationPresent,
+
+    explanationPresent,
+
+    primaryOperation:
+      present
+        ? "evaluate_and_recommend"
+        : null,
+
+    requiredSupportingOperations:
+      [
+        comparisonPresent
+          ? "compare_options"
+          : null,
+
+        explanationPresent
+          ? "explain_or_teach"
+          : null
+      ].filter(Boolean),
+
+    confidence:
+      present
+        ? 0.97
+        : 0,
+
+    authority:
+      "explicit_composite_request_detection"
+  };
+},
+
+resolveReferenceBinding({
+  sources = {},
+  directReference = {}
+} = {}) {
+  if (
+    !directReference.present
+  ) {
+    return {
+      resolved:
+        false,
+
+      value:
+        null,
+
+      sourceTurnId:
+        null,
+
+      confidence:
+        0,
+
+      evidenceRefs:
+        [],
+
+      resolutionSource:
+        "none"
+    };
+  }
+
+  const authoritative =
+    this.readResolvedReference(
+      sources.referenceResolution,
+      directReference
+    );
+
+  if (
+    authoritative.resolved
+  ) {
+    return {
+      ...authoritative,
+
+      resolutionSource:
+        "upstream_reference_resolution"
+    };
+  }
+
+  const threadFallback =
+    this.resolveReferenceFromThread({
+      thread:
+        sources.thread ||
+        {},
+
+      directReference
+    });
+
+  if (
+    threadFallback.resolved
+  ) {
+    return threadFallback;
+  }
+
+  return {
+    resolved:
+      false,
+
+    value:
+      null,
+
+    sourceTurnId:
+      null,
+
+    confidence:
+      directReference.confidence ||
+      0,
+
+    evidenceRefs:
+      [],
+
+    resolutionSource:
+      "unresolved"
+  };
+},
+
+resolveReferenceFromThread({
+  thread = {},
+  directReference = {}
+} = {}) {
+  const recentMessages =
+    this.asArray(
+      thread.recentMessages
+    );
+
+  const newestFirst =
+    [...recentMessages]
+      .reverse();
+
+  if (
+    directReference.type ===
+      "quote_reference"
+  ) {
+    for (
+      const message
+      of newestFirst
+    ) {
+      const text =
+        this.readMessageText(
+          message
+        );
+
+      if (!text) {
+        continue;
+      }
+
+      const quotes =
+        this.extractAllQuotedText(
+          text
+        );
+
+      if (quotes.length) {
+        return {
+          resolved:
+            true,
+
+          value:
+            quotes[
+              quotes.length - 1
+            ],
+
+          sourceTurnId:
+            message.turnId ||
+            message.id ||
+            null,
+
+          confidence:
+            0.82,
+
+          evidenceRefs:
+            this.asArray(
+              message.evidenceRefs
+            ),
+
+          resolutionSource:
+            "thread_quote_fallback"
+        };
+      }
+    }
+  }
+
+  if (
+    [
+  "statement_reference",
+  "assistant_prior_meaning",
+  "prior_item_reference",
+  "generic_reference"
+].includes(
+  directReference.type
+)
+  ) {
+    const priorAssistantMessage =
+      newestFirst.find(message => {
+        const role =
+          this.normalizeKey(
+            message.role ||
+            message.author ||
+            message.sender ||
+            ""
+          );
+
+        return [
+          "assistant",
+          "ari"
+        ].includes(role) &&
+        Boolean(
+          this.readMessageText(
+            message
+          )
+        );
+      });
+
+    if (
+      priorAssistantMessage
+    ) {
+      return {
+        resolved:
+          true,
+
+        value:
+          this.readMessageText(
+            priorAssistantMessage
+          ),
+
+        sourceTurnId:
+          priorAssistantMessage
+            .turnId ||
+          priorAssistantMessage
+            .id ||
+          null,
+
+        confidence:
+          0.72,
+
+        evidenceRefs:
+          this.asArray(
+            priorAssistantMessage
+              .evidenceRefs
+          ),
+
+        resolutionSource:
+          "thread_message_fallback"
+      };
+    }
+
+    if (
+      thread.previousAnswerSummary
+    ) {
+      return {
+        resolved:
+          true,
+
+        value:
+          thread.previousAnswerSummary,
+
+        sourceTurnId:
+          null,
+
+        confidence:
+          0.64,
+
+        evidenceRefs:
+          [],
+
+        resolutionSource:
+          "previous_answer_summary_fallback"
+      };
+    }
+  }
+
+  if (
+    directReference.type ===
+      "question_reference"
+  ) {
+    const priorUserMessage =
+      newestFirst.find(message => {
+        const role =
+          this.normalizeKey(
+            message.role ||
+            message.author ||
+            message.sender ||
+            ""
+          );
+
+        return role === "user" &&
+          Boolean(
+            this.readMessageText(
+              message
+            )
+          );
+      });
+
+    if (
+      priorUserMessage
+    ) {
+      return {
+        resolved:
+          true,
+
+        value:
+          this.readMessageText(
+            priorUserMessage
+          ),
+
+        sourceTurnId:
+          priorUserMessage.turnId ||
+          priorUserMessage.id ||
+          null,
+
+        confidence:
+          0.76,
+
+        evidenceRefs:
+          this.asArray(
+            priorUserMessage
+              .evidenceRefs
+          ),
+
+        resolutionSource:
+          "thread_question_fallback"
+      };
+    }
+  }
+
+  return {
+    resolved:
+      false,
+
+    value:
+      null,
+
+    sourceTurnId:
+      null,
+
+    confidence:
+      0,
+
+    evidenceRefs:
+      [],
+
+    resolutionSource:
+      "thread_reference_not_found"
+  };
+},
 
   readResolvedReference(referenceResolution = null, directReference = {}) {
     if (!referenceResolution || !directReference?.present) {
@@ -1893,20 +2375,26 @@ window.AriSemanticFrameBuilder = {
   } = {}) {
     const unresolvedSlots = semanticSlots.missingSlots || [];
     const conflictingExplicitRequests = Boolean(
-      requestModel.multiPurpose === true &&
-      requestModel.secondaryOperations.length > 1
-    );
+  requestModel.compositeDecisionRequest?.present !== true &&
+  requestModel.multiPurpose === true &&
+  requestModel.secondaryOperations.length > 1
+);
     const missingRequiredAnchor = Boolean(
       continuity.requiresPriorContext === true &&
       continuity.anchorResolved !== true
     );
-    const closeCompetition = Boolean(
-      secondaryFrames[0] &&
-      Math.abs(
-        Number(primaryFrame.confidence || 0) -
-        Number(secondaryFrames[0].confidence || 0)
-      ) <= 6
-    );
+    const complementaryComposite =
+  requestModel.compositeDecisionRequest?.present === true;
+
+const closeCompetition = Boolean(
+  !complementaryComposite &&
+  secondaryFrames[0] &&
+  primaryFrame.frameType !== secondaryFrames[0].frameType &&
+  Math.abs(
+    Number(primaryFrame.confidence || 0) -
+    Number(secondaryFrames[0].confidence || 0)
+  ) <= 6
+);
 
     const present = Boolean(
       unresolvedSlots.length ||
@@ -2134,6 +2622,11 @@ window.AriSemanticFrameBuilder = {
         referenceSurface: continuity.referenceSurface,
         referenceResolved: continuity.referenceResolved,
         resolvedReferenceValue: continuity.resolvedReferenceValue,
+        resolvedReferenceSourceTurnId:
+  continuity.resolvedReferenceSourceTurnId || null,
+
+referenceResolutionSource:
+  continuity.referenceResolutionSource || null,
         anchor: continuity.anchor,
         anchorResolved: continuity.anchorResolved,
         missingAnchor: continuity.missingAnchor,
@@ -2387,14 +2880,6 @@ window.AriSemanticFrameBuilder = {
     };
   },
 
-  resolveEmotionalIntensity(evidence = []) {
-    const maximum = evidence.length
-      ? Math.max(...evidence.map(item => Number(item.confidence || 0)))
-      : 0;
-    if (maximum >= 0.85) return "high";
-    if (maximum >= 0.6) return "medium";
-    return "low";
-  },
 
   /* =====================================================
      HANDOFF / SUMMARY / PAYLOAD
@@ -2787,42 +3272,122 @@ window.AriSemanticFrameBuilder = {
     return tokens.slice(0, 12).join(" ");
   },
 
-  extractOptions({ text = "", evidenceIndex = {}, requestModel = {} } = {}) {
-    const options = [];
-    const optionEvidence = (evidenceIndex.items || []).filter(item =>
-      item.raw?.slotCandidate === "options" ||
-      item.type === "option_signal"
-    );
+  extractOptions({
+  text = "",
+  evidenceIndex = {},
+  requestModel = {}
+} = {}) {
+  const options = [];
 
-    optionEvidence.forEach(item => {
-      const value = item.raw?.option || item.raw?.value || item.value;
-      if (value) {
-        options.push({
-          value,
-          origin: "explicit",
-          confidence: item.confidence,
-          evidenceRefs: [item.id]
-        });
-      }
+  const optionEvidence =
+    (evidenceIndex.items || [])
+      .filter(item =>
+        item.raw?.slotCandidate ===
+          "options" ||
+        item.type ===
+          "option_signal"
+      );
+
+  optionEvidence.forEach(item => {
+    const value =
+      item.raw?.option ||
+      item.raw?.value ||
+      item.value;
+
+    if (!value) {
+      return;
+    }
+
+    options.push({
+      value,
+      origin:
+        "explicit",
+
+      confidence:
+        item.confidence,
+
+      evidenceRefs: [
+        item.id
+      ]
     });
+  });
 
-    const versusMatch = text.match(/(.+?)\s+(?:versus|vs\.?|or)\s+(.+?)(?:\?|$)/i);
-    if (versusMatch && this.isDecisionOperation(requestModel.operation)) {
-      [versusMatch[1], versusMatch[2]].forEach(value => {
-        const clean = this.clean(value);
-        if (clean) {
-          options.push({
-            value: clean,
-            origin: "explicit",
-            confidence: 0.82,
-            evidenceRefs: []
-          });
+  if (
+    this.isDecisionOperation(
+      requestModel.operation
+    )
+  ) {
+    const compareAndMatch =
+      text.match(
+        /\bcompare\s+(.+?)\s+and\s+(.+?)(?=,\s*(?:recommend|choose|decide|tell|explain|evaluate)|[?.]|$)/i
+      );
+
+    if (compareAndMatch) {
+      [
+        compareAndMatch[1],
+        compareAndMatch[2]
+      ].forEach(value => {
+        const clean =
+          this.clean(value);
+
+        if (!clean) {
+          return;
         }
+
+        options.push({
+          value:
+            clean,
+
+          origin:
+            "explicit",
+
+          confidence:
+            0.94,
+
+          evidenceRefs:
+            []
+        });
       });
     }
 
-    return this.dedupeSemanticValues(options);
-  },
+    const versusMatch =
+      text.match(
+        /(.+?)\s+(?:versus|vs\.?|or)\s+(.+?)(?=,\s*(?:recommend|choose|decide|tell|explain|evaluate)|[?.]|$)/i
+      );
+
+    if (versusMatch) {
+      [
+        versusMatch[1],
+        versusMatch[2]
+      ].forEach(value => {
+        const clean =
+          this.clean(value);
+
+        if (!clean) {
+          return;
+        }
+
+        options.push({
+          value:
+            clean,
+
+          origin:
+            "explicit",
+
+          confidence:
+            0.82,
+
+          evidenceRefs:
+            []
+        });
+      });
+    }
+  }
+
+  return this.dedupeSemanticValues(
+    options
+  );
+},
 
   extractCriteria({ text = "", evidenceIndex = {} } = {}) {
     const criteria = [];
@@ -2983,30 +3548,90 @@ window.AriSemanticFrameBuilder = {
     return ranked.length ? ranked : ["general_understanding"];
   },
 
-  operationFromPurpose(purpose = "", requestType = "") {
-    const key = this.normalizeKey(purpose || requestType);
-    const map = {
-      decision: "decide_or_prioritize",
-      planning: "create_plan",
-      writing: "produce_or_revise_text",
-      translation: "translate",
-      calculation: "calculate_or_convert",
-      verification: "verify_or_review",
-      memory: "save_or_forget_memory",
-      recall: "retrieve_prior_context",
-      identity: "answer_identity_question",
-      opinion: "provide_opinion",
-      creation: "create_artifact",
-      emotional: "provide_emotional_support",
-      teaching: "explain_or_teach",
-      meaning: "interpret_meaning",
-      factual: "provide_information",
-      understanding: "provide_information",
-      implementation: "implement_or_modify"
-    };
+operationFromPurpose(
+  purpose = "",
+  requestType = ""
+) {
+  const purposeKey =
+    this.normalizeKey(purpose);
 
-    return map[key] || null;
-  },
+  const requestTypeKey =
+    this.normalizeKey(requestType);
+
+  const map = {
+    decision:
+      "decide_or_prioritize",
+
+    recommendation:
+      "evaluate_and_recommend",
+
+    comparison:
+      "compare_options",
+
+    planning:
+      "create_plan",
+
+    writing:
+      "produce_or_revise_text",
+
+    translation:
+      "translate",
+
+    calculation:
+      "calculate_or_convert",
+
+    verification:
+      "verify_or_review",
+
+    memory:
+      "save_or_forget_memory",
+
+    recall:
+      "retrieve_prior_context",
+
+    identity:
+      "answer_identity_question",
+
+    opinion:
+      "provide_opinion",
+
+    creation:
+      "create_artifact",
+
+    emotional:
+      "provide_emotional_support",
+
+    emotional_support:
+      "provide_emotional_support",
+
+    teaching:
+      "explain_or_teach",
+
+    explanation:
+      "explain_or_teach",
+
+    meaning:
+      "interpret_meaning",
+
+    factual:
+      "provide_information",
+
+    information:
+      "provide_information",
+
+    understanding:
+      "provide_information",
+
+    implementation:
+      "implement_or_modify"
+  };
+
+  return (
+    map[purposeKey] ||
+    map[requestTypeKey] ||
+    null
+  );
+},
 
   operationDefinition(operation = "respond") {
     const normalized = this.normalizeOperation(operation);
@@ -3033,23 +3658,62 @@ window.AriSemanticFrameBuilder = {
     return ["decision"].includes(this.operationDefinition(operation).requestType);
   },
 
-  operationsCompatible(first = "", second = "") {
-    const a = this.normalizeOperation(first);
-    const b = this.normalizeOperation(second);
-    if (!a || !b) return false;
-    if (a === b) return true;
+operationsCompatible(
+  first = "",
+  second = ""
+) {
+  const a =
+    this.normalizeOperation(
+      first
+    );
 
-    const groups = [
-      ["provide_information", "interpret_meaning", "explain_or_teach", "explain_without_execution"],
-      ["decide_or_prioritize", "evaluate_and_recommend"],
-      ["verify_or_review", "inspect_and_explain"],
-      ["create_artifact", "produce_or_revise_text"],
-      ["implement_or_modify"]
-    ];
+  const b =
+    this.normalizeOperation(
+      second
+    );
 
-    return groups.some(group => group.includes(a) && group.includes(b));
-  },
+  if (!a || !b) {
+    return false;
+  }
 
+  if (a === b) {
+    return true;
+  }
+
+  const groups = [
+    [
+      "provide_information",
+      "interpret_meaning",
+      "explain_or_teach",
+      "explain_without_execution"
+    ],
+
+    [
+      "compare_options",
+      "decide_or_prioritize",
+      "evaluate_and_recommend"
+    ],
+
+    [
+      "verify_or_review",
+      "inspect_and_explain"
+    ],
+
+    [
+      "create_artifact",
+      "produce_or_revise_text"
+    ],
+
+    [
+      "implement_or_modify"
+    ]
+  ];
+
+  return groups.some(group =>
+    group.includes(a) &&
+    group.includes(b)
+  );
+},
   operationMatchesAny(operation = "", prohibitedOperations = []) {
     const normalized = this.normalizeOperation(operation);
     return this.asArray(prohibitedOperations)
@@ -3274,6 +3938,72 @@ window.AriSemanticFrameBuilder = {
     const match = String(text).match(/["“](.+?)["”]/);
     return match?.[1] ? this.clean(match[1]) : null;
   },
+
+extractAllQuotedText(
+  text = ""
+) {
+  const normalized =
+    String(
+      text ||
+      ""
+    );
+
+  const results = [];
+
+  const pattern =
+    /["“]([^"”]+)["”]/g;
+
+  let match;
+
+  while (
+    (
+      match =
+        pattern.exec(
+          normalized
+        )
+    ) !== null
+  ) {
+    const value =
+      this.clean(
+        match[1]
+      );
+
+    if (value) {
+      results.push(
+        value
+      );
+    }
+  }
+
+  return results;
+},
+
+readMessageText(
+  message = null
+) {
+  if (!message) {
+    return "";
+  }
+
+  if (
+    typeof message ===
+      "string"
+  ) {
+    return this.clean(
+      message
+    );
+  }
+
+  return this.clean(
+    message.text ||
+    message.content ||
+    message.message ||
+    message.body ||
+    message.response ||
+    message.answer ||
+    ""
+  );
+},
 
   extractTimePhrase(text = "") {
     const match = String(text).match(
