@@ -4,7 +4,7 @@
 // Purpose:
 // Produce an AI-assisted response candidate from the canonical Composer Packet.
 //
-// V2.1.1 — Bounded AI Request / Safe Evidence Serialization
+// V2.2.0 — Candidate Preservation / Interaction-Question Validation
 //
 // Architectural flow:
 //
@@ -44,7 +44,7 @@
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "2.1.1",
+  version: "2.2.0",
   schemaVersion: "1.0.0",
 
   /* =====================================================
@@ -241,27 +241,101 @@ const characterContext =
         });
       }
 
-      const fallback = this.resolveRejectedAIFallback({
-        packet: safePacket,
-        request,
-        writerContract,
-        blueprintCandidate,
-        validation
-      });
+      const rejectedDraft =
+  this.cleanOriginal(
+    aiText
+  );
 
-      return this.returnDraft({
-        draft: fallback.text,
-        reason: fallback.reason,
-        usedAI: false,
-        usable: fallback.usable,
-        complete: fallback.complete,
-        requiresRepair: fallback.requiresRepair,
-        packet: safePacket,
-        request,
-        writerContract,
-        blueprintCandidate,
-        validation
-      });
+if (rejectedDraft) {
+  return this.returnDraft({
+    draft:
+      rejectedDraft,
+
+    reason:
+      "ai_candidate_failed_writer_validation",
+
+    usedAI:
+      true,
+
+    usable:
+      false,
+
+    complete:
+      false,
+
+    requiresRepair:
+      true,
+
+    packet:
+      safePacket,
+
+    request,
+
+    writerContract,
+
+    blueprintCandidate,
+
+    validation: {
+      ...validation,
+
+      valid:
+        false,
+
+      candidatePreserved:
+        true,
+
+      finalSelectionAuthority:
+        "ari-response-candidate-arbiter"
+    }
+  });
+}
+
+const fallback =
+  this.resolveRejectedAIFallback({
+    packet:
+      safePacket,
+
+    request,
+
+    writerContract,
+
+    blueprintCandidate,
+
+    validation
+  });
+
+return this.returnDraft({
+  draft:
+    fallback.text,
+
+  reason:
+    fallback.reason,
+
+  usedAI:
+    false,
+
+  usable:
+    fallback.usable,
+
+  complete:
+    fallback.complete,
+
+  requiresRepair:
+    fallback.requiresRepair,
+
+  packet:
+    safePacket,
+
+  request,
+
+  writerContract,
+
+  blueprintCandidate,
+
+  validation:
+    fallback.validation ||
+    validation
+});
     } catch (error) {
       console.warn("AriAIWriter failed:", error);
 
@@ -1725,36 +1799,67 @@ safeJSONStringify(
     const errors = [...baseValidation.errors];
 
     const draft = baseValidation.text;
-    const questions = this.countQuestions(draft);
+    const interactionQuestions =
+  this.countUserDirectedQuestions(
+    draft
+  );
+
+const totalQuestionMarks =
+  this.countQuestions(
+    draft
+  );
 
     if (
-      writerContract.shouldAskQuestion === true &&
-      questions === 0
-    ) {
-      errors.push("required_question_missing");
-    }
+  writerContract
+    .shouldAskQuestion ===
+    true &&
+  interactionQuestions ===
+    0
+) {
+  errors.push(
+    "required_question_missing"
+  );
+}
 
-    if (
-      writerContract.finalQuestionAllowed !== true &&
-      questions > 0
-    ) {
-      errors.push("question_not_allowed");
-    }
+if (
+  writerContract
+    .finalQuestionAllowed !==
+    true &&
+  interactionQuestions >
+    0
+) {
+  errors.push(
+    "question_not_allowed"
+  );
+}
 
-    if (
-      questions >
-      Number(writerContract.maximumQuestions || 0)
-    ) {
-      errors.push("question_limit_exceeded");
-    }
+if (
+  interactionQuestions >
+  Number(
+    writerContract
+      .maximumQuestions ||
+    0
+  )
+) {
+  errors.push(
+    "question_limit_exceeded"
+  );
+}
 
-    if (
-      writerContract.coachingPermissionRequired === true &&
-      this.containsAdviceLanguage(draft) &&
-      questions === 0
-    ) {
-      errors.push("coaching_given_without_permission_question");
-    }
+if (
+  writerContract
+    .coachingPermissionRequired ===
+    true &&
+  this.containsAdviceLanguage(
+    draft
+  ) &&
+  interactionQuestions ===
+    0
+) {
+  errors.push(
+    "coaching_given_without_permission_question"
+  );
+}
 
     const sentenceCount = this.splitSentences(draft).length;
     const wordCount = this.countWords(draft);
@@ -1810,7 +1915,18 @@ safeJSONStringify(
       errors,
       sentenceCount: this.splitSentences(finalText).length,
       wordCount: this.countWords(finalText),
-      questionCount: this.countQuestions(finalText),
+      questionCount:
+  this.countUserDirectedQuestions(
+    finalText
+  ),
+
+totalQuestionMarkCount:
+  this.countQuestions(
+    finalText
+  ),
+
+originalTotalQuestionMarkCount:
+  totalQuestionMarks,
       requiredMoveCoverage
     };
   },
@@ -1865,11 +1981,17 @@ safeJSONStringify(
     }
 
     if (
-      writerContract.finalQuestionAllowed !== true &&
-      this.countQuestions(draft) > 0
-    ) {
-      errors.push("unauthorized_question_detected");
-    }
+  writerContract
+    .finalQuestionAllowed !==
+    true &&
+  this.countUserDirectedQuestions(
+    draft
+  ) > 0
+) {
+  errors.push(
+    "unauthorized_question_detected"
+  );
+}
 
     return {
       valid: errors.length === 0 && Boolean(draft),
@@ -2777,24 +2899,57 @@ safeJSONStringify(
   } = {}) {
     let sentences = this.splitSentences(text);
 
-    if (writerContract.finalQuestionAllowed !== true) {
-      sentences = sentences.filter(sentence => !sentence.includes("?"));
-    } else {
-      const maximumQuestions = Math.max(
-        0,
-        Number(writerContract.maximumQuestions || 0)
-      );
+    if (
+  writerContract
+    .finalQuestionAllowed !==
+  true
+) {
+  sentences =
+    sentences.filter(
+      sentence =>
+        !this.isUserDirectedQuestion(
+          sentence
+        )
+    );
+} else {
+  const maximumQuestions =
+    Math.max(
+      0,
+      Number(
+        writerContract
+          .maximumQuestions ||
+        0
+      )
+    );
 
-      let questionsUsed = 0;
+  let interactionQuestionsUsed =
+    0;
 
-      sentences = sentences.filter(sentence => {
-        if (!sentence.includes("?")) return true;
-        if (questionsUsed >= maximumQuestions) return false;
+  sentences =
+    sentences.filter(
+      sentence => {
+        if (
+          !this.isUserDirectedQuestion(
+            sentence
+          )
+        ) {
+          return true;
+        }
 
-        questionsUsed += 1;
+        if (
+          interactionQuestionsUsed >=
+          maximumQuestions
+        ) {
+          return false;
+        }
+
+        interactionQuestionsUsed +=
+          1;
+
         return true;
-      });
-    }
+      }
+    );
+}
 
     if (writerContract.maxSentences) {
       sentences = sentences.slice(0, writerContract.maxSentences);
@@ -3179,7 +3334,90 @@ characterType:
   countQuestions(value = "") {
     return (String(value || "").match(/\?/g) || []).length;
   },
+isQuotedOrNarrativeQuestion(
+  sentence = ""
+) {
+  const value =
+    this.cleanOriginal(
+      sentence
+    );
 
+  if (
+    !value ||
+    !value.includes("?")
+  ) {
+    return false;
+  }
+
+  const hasQuotedQuestion =
+    /["“'][^"”']*\?[^"”']*["”']/u.test(
+      value
+    );
+
+  const hasSpeechAttribution =
+    /\?\s*["”']?\s*(?:he|she|they|i|we|the\s+\w+|[A-Z][a-z]+)\s+(?:asked|said|whispered|shouted|replied|wondered|called|murmured)\b/u.test(
+      value
+    );
+
+  return (
+    hasQuotedQuestion ||
+    hasSpeechAttribution
+  );
+},
+
+isUserDirectedQuestion(
+  sentence = ""
+) {
+  const value =
+    this.cleanOriginal(
+      sentence
+    );
+
+  if (
+    !value ||
+    !value.includes("?")
+  ) {
+    return false;
+  }
+
+  if (
+    this.isQuotedOrNarrativeQuestion(
+      value
+    )
+  ) {
+    return false;
+  }
+
+  const normalized =
+    this.normalize(
+      value
+    );
+
+  return (
+    /^(?:so\s+)?(?:do|did|are|were|have|has|can|could|would|will|should|what|why|how|where|when|who|which)\b/.test(
+      normalized
+    ) ||
+    /\b(?:do you|did you|are you|were you|have you|can you|could you|would you|will you|what do you|what did you|how do you|how are you|why do you|where do you|when do you|would you like|do you want)\b/.test(
+      normalized
+    )
+  );
+},
+
+countUserDirectedQuestions(
+  value = ""
+) {
+  return this
+    .splitSentences(
+      value
+    )
+    .filter(
+      sentence =>
+        this.isUserDirectedQuestion(
+          sentence
+        )
+    )
+    .length;
+},
   /* =====================================================
      GENERAL UTILITIES
   ===================================================== */
