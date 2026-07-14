@@ -150,35 +150,41 @@ window.AriDraftArbitrationStage = {
     };
 
     if (
-      shouldBypassAIWriterForCharacter &&
-      characterDraft
-    ) {
-      state.candidateDrafts =
-        addCandidateDraft(
-          state.candidateDrafts,
-          {
-            source:
-              "character_reasoning",
+  shouldBypassAIWriterForCharacter &&
+  characterDraft
+) {
+  state.candidateDrafts =
+    addCandidateDraft(
+      state.candidateDrafts,
+      {
+        source:
+          "character_reasoning",
 
-            text:
-              characterDraft,
+        text:
+          characterDraft,
 
-            priority:
-              75,
+        priority:
+          75,
 
-            usable:
-              true,
+        usable:
+          true,
 
-            evidence: {
-              bypassedAIWriter:
-                true,
+        complete:
+          true,
 
-              reason:
-                "character_reasoning_complete_answer"
-            }
-          }
-        );
-    }
+        requiresRepair:
+          false,
+
+        evidence: {
+          bypassedAIWriter:
+            true,
+
+          reason:
+            "character_reasoning_complete_answer"
+        }
+      }
+    );
+}
 
     // =================================================
     // 3. AI Writer
