@@ -440,9 +440,18 @@ console.log(
       return existingFinal;
     }
 
-    const selected =
+        const selected =
       String(
         summary.selectedDraft ||
+        summary
+          .responseCandidateArbitration
+          ?.selectedDraft ||
+        summary
+          .responseCandidateArbiterResult
+          ?.selectedDraft ||
+        summary
+          .arbitrationHandoff
+          ?.selectedDraft ||
         ""
       ).trim();
 
