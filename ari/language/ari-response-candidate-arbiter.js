@@ -322,6 +322,79 @@ window.AriResponseCandidateArbiter = {
             first.score
         );
 
+console.log(
+  "=== ARBITER PRECHECK EVALUATION ===",
+  {
+    currentText:
+      context.currentText,
+
+    responsePlanAvailable:
+      context.responsePlanAvailable,
+
+    finalCandidateMustSatisfyPlan:
+      context.finalCandidateMustSatisfyPlan,
+
+    collectedCandidateCount:
+      evaluatedCandidates.length,
+
+    evaluatedCandidates:
+      evaluatedCandidates.map(
+        candidate => ({
+          source:
+            candidate.source,
+
+          text:
+            candidate.text,
+
+          usable:
+            candidate.usable,
+
+          complete:
+            candidate.complete,
+
+          requiresAIRepair:
+            candidate.requiresAIRepair,
+
+          score:
+            candidate.score,
+
+          rejectionReasons:
+            candidate.rejectionReasons,
+
+          strengths:
+            candidate
+              .scoreBreakdown
+              ?.strengths,
+
+          penalties:
+            candidate
+              .scoreBreakdown
+              ?.penalties,
+
+          quality:
+            candidate.quality,
+
+          evidence:
+            candidate.evidence
+        })
+      ),
+
+    usableCandidates:
+      usableCandidates.map(
+        candidate => ({
+          source:
+            candidate.source,
+
+          usable:
+            candidate.usable,
+
+          score:
+            candidate.score
+        })
+      )
+  }
+);
+
     const bestCandidate =
       this.selectPrecheckCandidate({
         candidates:
