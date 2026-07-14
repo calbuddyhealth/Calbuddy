@@ -5,7 +5,7 @@
 // Coordinate canonical response planning after continuity, safety, situation,
 // memory, understanding, and reasoning have completed.
 //
-// V2.0.0 — Canonical Response Plan Orchestration / Structured Writer Handoff
+// V2.1.0 — Canonical Plan Alignment / Unauthorized Clarification Prevention
 //
 // Architecture:
 //
