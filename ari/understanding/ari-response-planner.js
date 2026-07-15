@@ -5,7 +5,7 @@
 // Convert authoritative routing, continuity, safety, situation, reasoning,
 // memory, meaning, and human-state outputs into one canonical response plan.
 //
-// V2.0.0 — Canonical Response Plan Contract / Structured Moves / Turn Provenance
+// V2.1.0 — Post-Continuity Resolution Overlay / Resolved Turn Handoff
 //
 // Architecture:
 //
@@ -48,7 +48,7 @@
 window.Ari = window.Ari || {};
 
 window.AriResponsePlanner = {
-  version: "2.0.0",
+  version: "2.1.0",
   schemaVersion: "2.0.0",
 
   /* =====================================================
@@ -1091,10 +1091,19 @@ window.AriResponsePlanner = {
         turn.turnId,
 
       sourceQuestion:
-        turn.originalText,
+  turn.resolvedText ||
+  turn.originalText,
 
-      userQuestion:
-        turn.originalText,
+userQuestion:
+  turn.resolvedText ||
+  turn.originalText,
+
+originalUserQuestion:
+  turn.originalText,
+
+resolvedUserQuestion:
+  turn.resolvedText ||
+  turn.originalText,
 
       inputs,
 
@@ -1344,102 +1353,168 @@ window.AriResponsePlanner = {
   ===================================================== */
 
   buildTurnRecord({
-    summary = {},
-    plannerInput = {}
-  } = {}) {
-    const originalText =
-      this.clean(
-        plannerInput.request
-          ?.original ||
-        summary.continuityCurrentTurn
-          ?.originalText ||
-        summary.continuityStagePacket
-          ?.currentTurn
-          ?.originalText ||
-        summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        ""
-      );
-
-    const normalizedText =
-      this.normalize(
-        summary.continuityCurrentTurn
-          ?.normalizedText ||
-        summary.continuityStagePacket
-          ?.currentTurn
-          ?.normalizedText ||
-        summary.normalizedMessage ||
-        originalText
-      );
-
-    const canonicalTurnId =
-      summary.currentTurnId ||
-      summary.turnId ||
+  summary = {},
+  plannerInput = {}
+} = {}) {
+  const originalText =
+    this.clean(
+      plannerInput.request
+        ?.original ||
+      summary.originalUserMessage ||
       summary.continuityCurrentTurn
-        ?.turnId ||
+        ?.originalText ||
       summary.continuityStagePacket
         ?.currentTurn
-        ?.turnId ||
-      summary.perceptionPacket
+        ?.originalText ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    );
+
+  const resolvedText =
+    this.clean(
+      plannerInput.request
+        ?.resolved ||
+      summary.resolvedUserQuestion ||
+      summary.resolvedCurrentTurn
+        ?.resolvedText ||
+      summary.continuityResults
+        ?.resolvedUserQuestion ||
+      summary.continuityResults
+        ?.resolvedCurrentTurn
+        ?.resolvedText ||
+      summary.continuityPacket
+        ?.resolvedUserQuestion ||
+      summary.continuityStagePacket
         ?.currentTurn
-        ?.turnId ||
-      summary.perceptionPacket
-        ?.semantic
-        ?.turnId ||
-      summary.semanticStructure
-        ?.turnId ||
-      this.createStableId(
-        "turn",
-        originalText
-      );
+        ?.resolvedText ||
+      originalText
+    );
 
-    return {
-      schema:
-        "ari_response_plan_turn",
+  const normalizedText =
+    this.normalize(
+      resolvedText ||
+      summary.continuityCurrentTurn
+        ?.normalizedText ||
+      summary.continuityStagePacket
+        ?.currentTurn
+        ?.normalizedText ||
+      summary.normalizedMessage ||
+      originalText
+    );
 
-      schemaVersion:
-        "1.0.0",
+  const canonicalTurnId =
+    summary.currentTurnId ||
+    summary.turnId ||
+    summary.continuityCurrentTurn
+      ?.turnId ||
+    summary.continuityStagePacket
+      ?.currentTurn
+      ?.turnId ||
+    summary.perceptionPacket
+      ?.currentTurn
+      ?.turnId ||
+    summary.perceptionPacket
+      ?.semantic
+      ?.turnId ||
+    summary.semanticStructure
+      ?.turnId ||
+    this.createStableId(
+      "turn",
+      originalText
+    );
 
-      turnId:
-        canonicalTurnId,
+  const continuityResolved =
+    summary.currentTurnWasResolved ===
+      true ||
+    summary.ellipticalFollowUpResolved ===
+      true ||
+    summary.continuityResults
+      ?.currentTurnWasResolved ===
+      true ||
+    summary.continuityResults
+      ?.ellipticalFollowUp
+      ?.resolved ===
+      true ||
+    summary.continuityStagePacket
+      ?.ellipticalFollowUp
+      ?.resolved ===
+      true;
 
+  const resolvedTextDiffers =
+    Boolean(
+      resolvedText
+    ) &&
+    this.normalize(
+      resolvedText
+    ) !==
+    this.normalize(
+      originalText
+    );
+
+  return {
+    schema:
+      "ari_response_plan_turn",
+
+    schemaVersion:
+      "1.1.0",
+
+    turnId:
+      canonicalTurnId,
+
+    originalText,
+
+    resolvedText:
+      resolvedText ||
       originalText,
 
-      normalizedText,
+    semanticInputText:
+      resolvedText ||
+      originalText,
 
-      originalTextPreserved:
+    normalizedText,
+
+    originalTextPreserved:
+      true,
+
+    textWasRewritten:
+      false,
+
+    resolvedTextIsSeparateInterpretation:
+      resolvedTextDiffers,
+
+    createdForCurrentTurn:
+      Boolean(
+        originalText
+      ),
+
+    currentTurnWasSemanticallyResolved:
+      continuityResolved ||
+      resolvedTextDiffers,
+
+    ellipticalFollowUpResolved:
+      summary.ellipticalFollowUpResolved ===
+        true ||
+      summary.continuityResults
+        ?.ellipticalFollowUp
+        ?.resolved ===
         true,
 
-      textWasRewritten:
-        false,
+    referenceResolutionAttached:
+      Boolean(
+        summary
+          .continuityReferenceBinding ||
+        summary.referenceResolution ||
+        summary.continuityStagePacket
+          ?.referenceResolution
+          ?.binding
+      ),
 
-      createdForCurrentTurn:
-        Boolean(
-          originalText
-        ),
-
-      currentTurnWasSemanticallyResolved:
-        summary.currentTurnWasResolved ===
-          true ||
-        summary.resolvedCurrentTurn
-          ?.semanticReferencesResolved ===
-          true,
-
-      referenceResolutionAttached:
-        Boolean(
-          summary
-            .continuityReferenceBinding ||
-          summary.referenceResolution ||
-          summary.continuityStagePacket
-            ?.referenceResolution
-            ?.binding
-        ),
-
-      authority:
-        "current_turn_provenance_only"
-    };
-  },
+    authority:
+      "current_turn_provenance_and_resolved_handoff_only"
+  };
+},
 
   /* =====================================================
      ROUTING
@@ -1681,6 +1756,64 @@ window.AriResponsePlanner = {
         ?.eligible ===
         true;
 
+const ellipticalResolution =
+  summary
+    .ellipticalFollowUpResolution ||
+  summary.continuityResults
+    ?.outputs
+    ?.elliptical
+    ?.ellipticalFollowUpResolution ||
+  summary.continuityResults
+    ?.ellipticalFollowUp ||
+  stage.ellipticalFollowUp ||
+  {};
+
+const resolvedCurrentTurn =
+  summary.resolvedCurrentTurn ||
+  summary.continuityResults
+    ?.resolvedCurrentTurn ||
+  ellipticalResolution
+    .resolvedCurrentTurn ||
+  {};
+
+const resolvedUserQuestion =
+  this.clean(
+    summary.resolvedUserQuestion ||
+    summary.continuityResults
+      ?.resolvedUserQuestion ||
+    resolvedCurrentTurn
+      ?.resolvedText ||
+    ellipticalResolution
+      ?.resolvedText ||
+    ""
+  );
+
+const ellipticalDetected =
+  summary.ellipticalFollowUpDetected ===
+    true ||
+  summary.continuityResults
+    ?.ellipticalFollowUp
+    ?.detected ===
+    true ||
+  ellipticalResolution.detected ===
+    true;
+
+const ellipticalResolved =
+  summary.ellipticalFollowUpResolved ===
+    true ||
+  summary.currentTurnWasResolved ===
+    true ||
+  summary.continuityResults
+    ?.ellipticalFollowUp
+    ?.resolved ===
+    true ||
+  summary.continuityResults
+    ?.currentTurnWasResolved ===
+    true ||
+  resolvedCurrentTurn
+    ?.currentTurnWasResolved ===
+    true;
+
     return {
       required:
         routing.mustUsePriorContext,
@@ -1751,6 +1884,65 @@ window.AriResponsePlanner = {
           ?.previousAnswerSummary ||
         summary.previousAnswerSummary ||
         null,
+
+ellipticalFollowUp: {
+  detected:
+    ellipticalDetected,
+
+  resolved:
+    ellipticalResolved,
+
+  requiresClarification:
+    ellipticalResolution
+      ?.requiresClarification ===
+      true,
+
+  family:
+    summary.followUpFamily ||
+    summary.continuityResults
+      ?.ellipticalFollowUp
+      ?.family ||
+    ellipticalResolution
+      ?.followUpFamily ||
+    null,
+
+  operation:
+    summary.followUpOperation ||
+    summary.continuityResults
+      ?.ellipticalFollowUp
+      ?.operation ||
+    ellipticalResolution
+      ?.followUpOperation ||
+    null,
+
+  confidence:
+    this.normalizeConfidence(
+      summary.continuityResults
+        ?.ellipticalFollowUp
+        ?.confidence ??
+      ellipticalResolution
+        ?.confidence ??
+      0
+    )
+},
+
+resolvedCurrentTurn,
+
+resolvedUserQuestion,
+
+currentTurnWasResolved:
+  ellipticalResolved,
+
+missingContextRecovered:
+  ellipticalResolved &&
+  Boolean(
+    resolvedUserQuestion
+  ),
+
+effectiveUnresolvedReferenceCount:
+  ellipticalResolved
+    ? 0
+    : unresolvedReferences.length,
 
       usableFacts,
 
@@ -2196,14 +2388,20 @@ window.AriResponsePlanner = {
         routing.contextLane,
 
       clarificationRequired:
-        safety.requiresClarification ||
-        meaning.requiresClarification ===
-          true ||
-        summary.perceptionPacket
-          ?.semantic
-          ?.ambiguity
-          ?.requiresClarification ===
-          true,
+  this.resolveEffectiveClarificationRequirement({
+    summary,
+    safety,
+    meaning,
+    continuity
+  }),
+
+clarificationResolution:
+  this.buildClarificationResolution({
+    summary,
+    safety,
+    meaning,
+    continuity
+  }),
 
       confidence:
         this.normalizeConfidence(
@@ -2216,6 +2414,153 @@ window.AriResponsePlanner = {
         "response_planning_interpretation_only"
     };
   },
+
+resolveEffectiveClarificationRequirement({
+  summary = {},
+  safety = {},
+  meaning = {},
+  continuity = {}
+} = {}) {
+  if (
+    safety.requiresClarification ===
+    true
+  ) {
+    return true;
+  }
+
+  const upstreamClarificationRequired =
+    meaning.requiresClarification ===
+      true ||
+    summary.perceptionPacket
+      ?.semantic
+      ?.ambiguity
+      ?.requiresClarification ===
+      true ||
+    summary.semanticSummary
+      ?.ambiguity
+      ?.requiresClarification ===
+      true;
+
+  const continuityResolved =
+    continuity
+      .currentTurnWasResolved ===
+      true ||
+    continuity
+      .missingContextRecovered ===
+      true ||
+    continuity
+      .ellipticalFollowUp
+      ?.resolved ===
+      true;
+
+  const resolvedQuestionAvailable =
+    Boolean(
+      this.clean(
+        continuity
+          .resolvedUserQuestion ||
+        continuity
+          .resolvedCurrentTurn
+          ?.resolvedText ||
+        summary.resolvedUserQuestion ||
+        ""
+      )
+    );
+
+  const ellipticalStillRequiresClarification =
+    continuity
+      .ellipticalFollowUp
+      ?.requiresClarification ===
+      true;
+
+  if (
+    continuityResolved &&
+    resolvedQuestionAvailable &&
+    !ellipticalStillRequiresClarification
+  ) {
+    return false;
+  }
+
+  if (
+    continuity
+      .unresolvedReferences
+      .length >
+      0 &&
+    !continuityResolved
+  ) {
+    return true;
+  }
+
+  return upstreamClarificationRequired;
+},
+
+buildClarificationResolution({
+  summary = {},
+  safety = {},
+  meaning = {},
+  continuity = {}
+} = {}) {
+  const upstreamRequired =
+    meaning.requiresClarification ===
+      true ||
+    summary.perceptionPacket
+      ?.semantic
+      ?.ambiguity
+      ?.requiresClarification ===
+      true ||
+    summary.semanticSummary
+      ?.ambiguity
+      ?.requiresClarification ===
+      true;
+
+  const resolvedByContinuity =
+    continuity
+      .currentTurnWasResolved ===
+      true ||
+    continuity
+      .missingContextRecovered ===
+      true ||
+    continuity
+      .ellipticalFollowUp
+      ?.resolved ===
+      true;
+
+  const effectiveRequired =
+    this.resolveEffectiveClarificationRequirement({
+      summary,
+      safety,
+      meaning,
+      continuity
+    });
+
+  return {
+    upstreamRequired,
+
+    effectiveRequired,
+
+    resolvedByContinuity,
+
+    safetyStillRequiresClarification:
+      safety.requiresClarification ===
+      true,
+
+    resolvedQuestion:
+      continuity
+        .resolvedUserQuestion ||
+      continuity
+        .resolvedCurrentTurn
+        ?.resolvedText ||
+      summary.resolvedUserQuestion ||
+      null,
+
+    stalePerceptionAmbiguitySuppressed:
+      upstreamRequired &&
+      resolvedByContinuity &&
+      !effectiveRequired,
+
+    authority:
+      "post_continuity_clarification_overlay_only"
+  };
+},
 
   resolveCurrentNeed({
     rawCurrentNeed = null,
@@ -2355,21 +2700,39 @@ window.AriResponsePlanner = {
       return "practical_next_step";
     }
 
-    if (
-      [
-        "teacher",
-        "knowledge",
-        "general_understanding"
-      ].includes(
-        this.normalizeIdentifier(
-          routing.primaryLane
-        )
-      ) &&
-      routing.contextLane ===
-        "direct_current_turn"
-    ) {
-      return "clear_information";
-    }
+    const resolvedContinuityQuestion =
+  continuity
+    .currentTurnWasResolved ===
+    true ||
+  continuity
+    .missingContextRecovered ===
+    true ||
+  continuity
+    .ellipticalFollowUp
+    ?.resolved ===
+    true;
+
+if (
+  [
+    "teacher",
+    "knowledge",
+    "general_understanding"
+  ].includes(
+    this.normalizeIdentifier(
+      routing.primaryLane
+    )
+  ) &&
+  (
+    routing.contextLane ===
+      "direct_current_turn" ||
+    (
+      routing.mustUsePriorContext &&
+      resolvedContinuityQuestion
+    )
+  )
+) {
+  return "clear_information";
+}
 
     if (
       [
@@ -2998,12 +3361,12 @@ window.AriResponsePlanner = {
     }
 
     if (
-      continuity.unresolvedReferences
-        .length >
-        0 &&
-      interpretation
-        .clarificationRequired
-    ) {
+  continuity
+    .effectiveUnresolvedReferenceCount >
+    0 &&
+  interpretation
+    .clarificationRequired
+) {
       shouldAskQuestion =
         true;
 
@@ -4323,7 +4686,23 @@ window.AriResponsePlanner = {
         turn.turnId,
 
       sourceQuestion:
-        turn.originalText,
+  turn.resolvedText ||
+  turn.originalText,
+
+originalQuestion:
+  turn.originalText,
+
+resolvedQuestion:
+  turn.resolvedText ||
+  turn.originalText,
+
+useResolvedQuestionForAnswering:
+  turn.currentTurnWasSemanticallyResolved ===
+    true,
+
+resolvedQuestionIsInterpretiveHandoff:
+  turn.resolvedTextIsSeparateInterpretation ===
+    true,
 
       blueprintId:
         blueprint.id,
