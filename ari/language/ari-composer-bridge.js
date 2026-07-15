@@ -250,11 +250,13 @@ window.AriComposerBridge = {
         ?.turn ||
       {};
 
-    const continuityPacket =
+        const continuityPacket =
       summary.continuityPacket ||
       summary.continuityStagePacket
         ?.continuityPacket
         ?.raw ||
+      summary.continuityStagePacket
+        ?.continuityPacket ||
       {};
 
     const continuityTurn =
@@ -313,11 +315,11 @@ window.AriComposerBridge = {
       resolvedText ||
       originalText;
 
-    const normalizedText =
+        const normalizedText =
       this.normalize(
+        effectiveText ||
         planTurn.normalizedText ||
         continuityTurn.normalizedText ||
-        effectiveText ||
         summary.normalizedMessage ||
         originalText
       );
@@ -2244,11 +2246,13 @@ window.AriComposerBridge = {
       summary.continuityStagePacket ||
       null;
 
-    const packet =
+        const packet =
       summary.continuityPacket ||
       stagePacket
         ?.continuityPacket
         ?.raw ||
+      stagePacket
+        ?.continuityPacket ||
       null;
 
     const context =
@@ -2408,9 +2412,19 @@ window.AriComposerBridge = {
       ellipticalFollowUpResolved ||
       resolvedTextDiffers;
 
-    const unresolvedReferences =
+            const continuityResolutionComplete =
       currentTurnWasResolved &&
-      resolvedUserQuestion
+      Boolean(
+        resolvedUserQuestion
+      ) &&
+      (
+        ellipticalFollowUpResolved ||
+        rawUnresolvedReferences.length ===
+          0
+      );
+
+    const unresolvedReferences =
+      continuityResolutionComplete
         ? []
         : rawUnresolvedReferences;
 
@@ -3053,11 +3067,14 @@ window.AriComposerBridge = {
       responsePlan.usable ===
         true;
 
-    const ready =
+        const ready =
       Boolean(
         lockedDeveloperReply ||
         (
-          request.originalText &&
+          (
+            request.resolvedText ||
+            request.originalText
+          ) &&
           canonicalPlanReady
         )
       );
