@@ -3319,7 +3319,31 @@ characterStatus:
       responseGoal: writerContract.responseGoal || packet.responseGoal || null,
       responseShape: writerContract.responseShape || packet.responseShape || null,
       responsePosture: writerContract.responsePosture || packet.responsePosture || null,
+      questionPolicyReconciliation: {
+        rawShouldAskQuestion:
+          writerContract.rawShouldAskQuestion === true,
 
+        rawQuestionPurpose:
+          writerContract.rawQuestionPurpose || null,
+
+        clarificationQuestionPolicy:
+          writerContract.clarificationQuestionPolicy === true,
+
+        continuityResolutionComplete:
+          writerContract.continuityResolutionComplete === true,
+
+        staleClarificationQuestionSuppressed:
+          writerContract.staleClarificationQuestionSuppressed === true,
+
+        shouldAskQuestion:
+          writerContract.shouldAskQuestion === true,
+
+        finalQuestionAllowed:
+          writerContract.finalQuestionAllowed === true,
+
+        maximumQuestions:
+          writerContract.maximumQuestions ?? 0
+      },
       canonicalResponsePlanUsed:
         Boolean(
           packet.canonicalResponsePlan ||
