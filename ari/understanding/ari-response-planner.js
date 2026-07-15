@@ -1373,24 +1373,37 @@ resolvedUserQuestion:
     );
 
   const resolvedText =
-    this.clean(
-      plannerInput.request
-        ?.resolved ||
-      summary.resolvedUserQuestion ||
-      summary.resolvedCurrentTurn
-        ?.resolvedText ||
-      summary.continuityResults
-        ?.resolvedUserQuestion ||
-      summary.continuityResults
-        ?.resolvedCurrentTurn
-        ?.resolvedText ||
-      summary.continuityPacket
-        ?.resolvedUserQuestion ||
-      summary.continuityStagePacket
-        ?.currentTurn
-        ?.resolvedText ||
-      originalText
-    );
+  this.clean(
+    plannerInput.request
+      ?.resolved ||
+    summary.continuityResults
+      ?.resolvedUserQuestion ||
+    summary.continuityResults
+      ?.resolvedCurrentTurn
+      ?.resolvedText ||
+    summary.continuityResults
+      ?.outputs
+      ?.elliptical
+      ?.resolvedUserQuestion ||
+    summary.continuityResults
+      ?.outputs
+      ?.elliptical
+      ?.resolvedCurrentTurnText ||
+    summary.continuityResults
+      ?.outputs
+      ?.elliptical
+      ?.ellipticalFollowUpResolution
+      ?.resolvedText ||
+    summary.resolvedCurrentTurn
+      ?.resolvedText ||
+    summary.continuityPacket
+      ?.resolvedUserQuestion ||
+    summary.continuityStagePacket
+      ?.currentTurn
+      ?.resolvedText ||
+    summary.resolvedUserQuestion ||
+    originalText
+  );
 
   const normalizedText =
     this.normalize(
@@ -1778,9 +1791,31 @@ const resolvedCurrentTurn =
 
 const resolvedUserQuestion =
   this.clean(
-    summary.resolvedUserQuestion ||
     summary.continuityResults
       ?.resolvedUserQuestion ||
+    summary.continuityResults
+      ?.resolvedCurrentTurn
+      ?.resolvedText ||
+    summary.continuityResults
+      ?.outputs
+      ?.elliptical
+      ?.resolvedUserQuestion ||
+    summary.continuityResults
+      ?.outputs
+      ?.elliptical
+      ?.resolvedCurrentTurnText ||
+    summary.continuityResults
+      ?.outputs
+      ?.elliptical
+      ?.ellipticalFollowUpResolution
+      ?.resolvedText ||
+    resolvedCurrentTurn
+      ?.resolvedText ||
+    ellipticalResolution
+      ?.resolvedText ||
+    summary.resolvedUserQuestion ||
+    ""
+  );
     resolvedCurrentTurn
       ?.resolvedText ||
     ellipticalResolution
@@ -5484,24 +5519,23 @@ resolvedQuestionIsInterpretiveHandoff:
     }
 
     if (
-      continuity.unresolvedReferences
-        .length >
-        0 &&
-      interactionPolicy
-        .shouldAskQuestion !==
-        true &&
-      interpretation
-        .clarificationRequired ===
-        true
-    ) {
+  continuity
+    .effectiveUnresolvedReferenceCount >
+    0 &&
+  interactionPolicy
+    .shouldAskQuestion !==
+    true &&
+  interpretation
+    .clarificationRequired ===
+    true
+) {
       warnings.push({
         type:
           "unresolved_reference_without_question_policy",
 
         count:
-          continuity
-            .unresolvedReferences
-            .length
+  continuity
+    .effectiveUnresolvedReferenceCount
       });
     }
 
@@ -5769,20 +5803,18 @@ resolvedQuestionIsInterpretiveHandoff:
     }
 
     if (
+  continuity
+    .effectiveUnresolvedReferenceCount >
+    0
+) {
+  confidence -=
+    Math.min(
+      0.2,
       continuity
-        .unresolvedReferences
-        .length >
-        0
-    ) {
-      confidence -=
-        Math.min(
-          0.2,
-          continuity
-            .unresolvedReferences
-            .length *
-            0.05
-        );
-    }
+        .effectiveUnresolvedReferenceCount *
+        0.05
+    );
+}
 
     if (
       quality
