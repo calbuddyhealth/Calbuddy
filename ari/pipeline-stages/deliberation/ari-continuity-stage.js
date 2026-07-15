@@ -2,10 +2,10 @@
 // Ari Continuity Stage
 //
 // Purpose:
-// Coordinate structured continuity retrieval and reference binding during
-// deliberation without rewriting or reinterpreting the user's current turn.
+// Coordinate structured continuity retrieval, elliptical follow-up
+// reconstruction, reference binding, and context assembly during deliberation.
 //
-// V2.0.0 — Structured Continuity / No Question Rewriting / Context Assembly
+// V2.1.0 — Elliptical Follow-Up Preservation / Resolved-Turn Handoff
 //
 // Architecture:
 //
@@ -15,6 +15,7 @@
 //      ↓
 // Continuity Entry Point
 //      ├── Thread Understanding
+//      ├── Elliptical Follow-Up Resolution
 //      ├── Entity / Reference Resolution
 //      ├── Memory Retrieval
 //      ├── Relationship Context
@@ -26,28 +27,35 @@
 //
 // Critical rules:
 //
-// 1. The original user text remains authoritative.
-// 2. Continuity may resolve references, but may not reinterpret the
-//    current requested operation.
-// 3. The stage does not rewrite the current question.
-// 4. The stage does not run the Thread Question Generator as an
-//    authoritative semantic step.
-// 5. The Continuity Packet is built by the Continuity Entry Point and
-//    must not be built again here.
-// 6. Context is assembled from structured outputs.
-// 7. This stage cannot choose semantic meaning, conversation function,
+// 1. The original user text remains permanently preserved.
+// 2. Elliptical follow-up resolution may reconstruct omitted context.
+// 3. The resolved turn is stored separately from the original turn.
+// 4. Elliptical resolution may not change the requested operation.
+// 5. Reference resolution may bind entities, claims, events, options,
+//    quantities, or prior propositions.
+// 6. The Continuity Packet is built only by the Continuity Entry Point.
+// 7. The Context Assembler receives both original and resolved turns.
+// 8. This stage cannot choose semantic meaning, conversation function,
 //    safety severity, route, planner, or final response language.
+// 9. The legacy Thread Question Generator remains non-authoritative.
 
 window.Ari = window.Ari || {};
 
 window.AriContinuityStage = {
-  version: "2.0.0",
+  version:
+    "2.1.0",
+
+  schemaVersion:
+    "1.1.0",
 
   /* =====================================================
      PUBLIC ENTRY POINT
   ===================================================== */
 
-  async run(summary = {}, runtime = {}) {
+  async run(
+    summary = {},
+    runtime = {}
+  ) {
     const {
       mark = () => {}
     } = runtime;
@@ -119,11 +127,11 @@ window.AriContinuityStage = {
     // =================================================
 
     /*
-     * The Continuity Entry Point already builds the packet.
+     * The Continuity Entry Point already builds the official
+     * Continuity Packet.
      *
-     * This stage must consume that packet rather than building
-     * it again. Rebuilding it here would duplicate logic and
-     * risk producing two conflicting continuity contracts.
+     * This stage consumes that packet and must not build a
+     * second competing packet.
      */
 
     const continuityPacket =
@@ -138,7 +146,7 @@ window.AriContinuityStage = {
       });
 
     // =================================================
-    // 3. Read structured continuity outputs
+    // 3. Read all structured continuity outputs
     // =================================================
 
     const structuredOutputs =
@@ -151,7 +159,8 @@ window.AriContinuityStage = {
       ...state,
 
       threadContext:
-        structuredOutputs.threadContext,
+        structuredOutputs
+          .threadContext,
 
       threadUnderstanding:
         structuredOutputs
@@ -160,6 +169,92 @@ window.AriContinuityStage = {
       threadWorkingContext:
         structuredOutputs
           .threadWorkingContext,
+
+      ellipticalFollowUpResolverResult:
+        structuredOutputs
+          .ellipticalOutput,
+
+      ellipticalFollowUpResolution:
+        structuredOutputs
+          .ellipticalResolution,
+
+      ellipticalFollowUpStatus:
+        structuredOutputs
+          .ellipticalStatus,
+
+      ellipticalFollowUpDetected:
+        structuredOutputs
+          .ellipticalStatus
+          .detected ===
+        true,
+
+      ellipticalFollowUpResolved:
+        structuredOutputs
+          .ellipticalStatus
+          .resolved ===
+        true,
+
+      ellipticalRequiresClarification:
+        structuredOutputs
+          .ellipticalStatus
+          .requiresClarification ===
+        true,
+
+      followUpFamily:
+        structuredOutputs
+          .ellipticalStatus
+          .family ||
+        state.followUpFamily ||
+        null,
+
+      followUpOperation:
+        structuredOutputs
+          .ellipticalStatus
+          .operation ||
+        state.followUpOperation ||
+        null,
+
+      inheritedSubject:
+        structuredOutputs
+          .ellipticalStatus
+          .inheritedSubject ||
+        null,
+
+      inheritedTarget:
+        structuredOutputs
+          .ellipticalStatus
+          .inheritedTarget ||
+        null,
+
+      inheritedObject:
+        structuredOutputs
+          .ellipticalStatus
+          .inheritedObject ||
+        null,
+
+      inheritedProposition:
+        structuredOutputs
+          .ellipticalStatus
+          .inheritedProposition ||
+        null,
+
+      inheritedEvent:
+        structuredOutputs
+          .ellipticalStatus
+          .inheritedEvent ||
+        null,
+
+      inheritedOption:
+        structuredOutputs
+          .ellipticalStatus
+          .inheritedOption ||
+        null,
+
+      inheritedQuantity:
+        structuredOutputs
+          .ellipticalStatus
+          .inheritedQuantity ||
+        null,
 
       referenceResolution:
         structuredOutputs
@@ -187,45 +282,26 @@ window.AriContinuityStage = {
     };
 
     // =================================================
-    // 4. Context Assembler
-    // =================================================
-
-    mark(
-      "before contextAssembler"
-    );
-
-    const contextAssemblerResult =
-      await this.runContextAssembler({
-        state,
-        structuredOutputs,
-        continuityResults,
-        continuityPacket
-      });
-
-    mark(
-      "after contextAssembler"
-    );
-
-    state =
-      this.attachContextAssemblerResult({
-        state,
-        contextAssemblerResult
-      });
-
-    // =================================================
-    // 5. Preserve the original current turn
+    // 4. Resolve authoritative current-turn records
     // =================================================
 
     /*
-     * The original text is never replaced with an expanded
-     * "In the context of..." sentence.
+     * The original message and the resolved interpretation are
+     * deliberately stored as separate fields.
      *
-     * The structured references remain separate from text.
+     * Example:
+     *
+     * originalUserMessage:
+     *   "Why"
+     *
+     * resolvedUserQuestion:
+     *   "Why would you choose blue iris as your favorite flower?"
      */
 
     const currentTurn =
       this.buildCurrentTurnRecord({
         state,
+        continuityResults,
         continuityPacket,
         structuredOutputs
       });
@@ -239,24 +315,70 @@ window.AriContinuityStage = {
       originalUserMessage:
         currentTurn.originalText,
 
-      /*
-       * Compatibility:
-       *
-       * Some downstream files still read resolvedUserQuestion.
-       * Keep it equal to the original text until those consumers
-       * are migrated to structured semantic binding.
-       */
       resolvedUserQuestion:
-        currentTurn.originalText,
+        currentTurn.resolvedText,
+
+      resolvedCurrentTurnText:
+        currentTurn.resolvedText,
+
+      resolvedCurrentTurn:
+        currentTurn.resolvedCurrentTurn,
 
       currentTurnWasResolved:
-        false,
+        currentTurn
+          .currentTurnWasResolved ===
+        true,
 
       currentTurnTextRewritten:
         false,
 
+      originalCurrentTurnPreserved:
+        true
+    };
+
+    // =================================================
+    // 5. Context Assembler
+    // =================================================
+
+    mark(
+      "before contextAssembler"
+    );
+
+    const contextAssemblerResult =
+      await this.runContextAssembler({
+        state,
+        structuredOutputs,
+        continuityResults,
+        continuityPacket,
+        currentTurn
+      });
+
+    mark(
+      "after contextAssembler"
+    );
+
+    state =
+      this.attachContextAssemblerResult({
+        state,
+        contextAssemblerResult
+      });
+
+    // =================================================
+    // 6. Continuity binding contract
+    // =================================================
+
+    state = {
+      ...state,
+
       continuityReferenceBinding:
         this.buildReferenceBinding({
+          state,
+          currentTurn,
+          structuredOutputs
+        }),
+
+      continuityEllipticalBinding:
+        this.buildEllipticalBinding({
           state,
           currentTurn,
           structuredOutputs
@@ -264,23 +386,16 @@ window.AriContinuityStage = {
     };
 
     // =================================================
-    // 6. Preserve semantic history as evidence only
+    // 7. Preserve semantic history as evidence only
     // =================================================
-
-    /*
-     * Meaning history is available to thread and reference
-     * systems as evidence.
-     *
-     * This stage does not automatically declare the latest
-     * meaning to be the active meaning of the new turn.
-     */
 
     state = {
       ...state,
 
       conversationMeaningHistory:
         this.arrayFrom(
-          state.conversationMeaningHistory ||
+          state
+            .conversationMeaningHistory ||
           state.threadState
             ?.conversationMeaningHistory
         ),
@@ -299,97 +414,26 @@ window.AriContinuityStage = {
     };
 
     // =================================================
-    // 7. Optional legacy diagnostic
+    // 8. Legacy Thread Question diagnostic
     // =================================================
 
     /*
-     * The Thread Question Generator is deliberately removed
-     * from the authoritative pathway.
+     * The legacy Thread Question Generator remains disabled.
      *
-     * We preserve an empty diagnostic contract so downstream
-     * diagnostics do not crash while migration is underway.
+     * The diagnostic now reports the result produced by the
+     * canonical Elliptical Follow-Up Resolver instead of falsely
+     * reporting that all current-turn reconstruction is disabled.
      */
 
-    state.threadQuestion = {
-      threadQuestionGeneratorRan:
-        false,
-
-      threadQuestionGeneratorVersion:
-        window.Ari
-          ?.threadQuestionGenerator
-          ?.version ||
-        null,
-
-      source:
-        "ari-continuity-stage",
-
-      rawUserMessage:
-        currentTurn.originalText,
-
-      resolvedUserQuestion:
-        currentTurn.originalText,
-
-      currentTurnWasResolved:
-        false,
-
-      usedThreadContext:
-        false,
-
-      operation:
-        "disabled_for_structured_continuity",
-
-      resolutionType:
-        "structured_reference_binding_only",
-
-      confidence:
-        1,
-
-      reason:
-        "Question rewriting is disabled. References are carried as structured bindings.",
-
-      resolvedCurrentTurn: {
-        rawText:
-          currentTurn.originalText,
-
-        resolvedText:
-          currentTurn.originalText,
-
-        usedThreadContext:
-          false,
-
-        operation:
-          "none",
-
-        confidence:
-          1
-      },
-
-      authority: {
-        canChooseLane:
-          false,
-
-        canAnswerUser:
-          false,
-
-        canOverrideSafety:
-          false,
-
-        canSetContract:
-          false,
-
-        canInterpretIntent:
-          false,
-
-        canRewriteCurrentQuestion:
-          false,
-
-        role:
-          "legacy_diagnostic_only"
-      }
-    };
+    state.threadQuestion =
+      this.buildLegacyThreadQuestionDiagnostic({
+        state,
+        currentTurn,
+        structuredOutputs
+      });
 
     // =================================================
-    // 8. Continuity Stage Packet
+    // 9. Continuity Stage Packet
     // =================================================
 
     state.continuityStagePacket =
@@ -422,11 +466,52 @@ window.AriContinuityStage = {
     const useThread =
       runInstructions.thread ===
         true ||
+      runInstructions.useThread ===
+        true ||
       laneRouting.useThread ===
         true;
 
+    const explicitEllipticalDisabled =
+      runInstructions
+        .ellipticalFollowUpResolution ===
+        false ||
+      runInstructions
+        .useEllipticalFollowUpResolution ===
+        false ||
+      laneRouting
+        .ellipticalFollowUpResolution ===
+        false ||
+      laneRouting
+        .useEllipticalFollowUpResolution ===
+        false ||
+      laneRouting.elliptical ===
+        false;
+
+    const useEllipticalFollowUpResolution =
+      explicitEllipticalDisabled
+        ? false
+        : (
+            runInstructions
+              .ellipticalFollowUpResolution ===
+              true ||
+            runInstructions
+              .useEllipticalFollowUpResolution ===
+              true ||
+            laneRouting
+              .ellipticalFollowUpResolution ===
+              true ||
+            laneRouting
+              .useEllipticalFollowUpResolution ===
+              true ||
+            laneRouting.elliptical ===
+              true ||
+            useThread
+          );
+
     const useMemory =
       runInstructions.memory ===
+        true ||
+      runInstructions.useMemory ===
         true ||
       laneRouting.useMemory ===
         true;
@@ -434,17 +519,42 @@ window.AriContinuityStage = {
     const useRelationship =
       runInstructions.relationship ===
         true ||
-      laneRouting.useRelationship ===
-        true;
-
-    const useReferenceResolution =
       runInstructions
-        .referenceResolution ===
+        .useRelationship ===
         true ||
       laneRouting
+        .useRelationship ===
+        true;
+
+    const explicitReferenceDisabled =
+      runInstructions
+        .referenceResolution ===
+        false ||
+      runInstructions
         .useReferenceResolution ===
-        true ||
-      useThread;
+        false ||
+      laneRouting
+        .referenceResolution ===
+        false ||
+      laneRouting
+        .useReferenceResolution ===
+        false;
+
+    const useReferenceResolution =
+      explicitReferenceDisabled
+        ? false
+        : (
+            runInstructions
+              .referenceResolution ===
+              true ||
+            runInstructions
+              .useReferenceResolution ===
+              true ||
+            laneRouting
+              .useReferenceResolution ===
+              true ||
+            useThread
+          );
 
     const eligible =
       runInstructions.continuity ===
@@ -452,6 +562,7 @@ window.AriContinuityStage = {
       state.shouldUseContinuity ===
         true ||
       useThread ||
+      useEllipticalFollowUpResolution ||
       useReferenceResolution ||
       useMemory ||
       useRelationship;
@@ -460,6 +571,8 @@ window.AriContinuityStage = {
       eligible,
 
       useThread,
+
+      useEllipticalFollowUpResolution,
 
       useReferenceResolution,
 
@@ -505,7 +618,6 @@ window.AriContinuityStage = {
     ) {
       return this.emptyContinuityResults({
         state,
-
         continuityEligibility,
 
         reason:
@@ -547,7 +659,6 @@ window.AriContinuityStage = {
       ) {
         return this.emptyContinuityResults({
           state,
-
           continuityEligibility,
 
           reason:
@@ -567,7 +678,6 @@ window.AriContinuityStage = {
 
       return this.emptyContinuityResults({
         state,
-
         continuityEligibility,
 
         reason:
@@ -610,6 +720,14 @@ window.AriContinuityStage = {
         useThread:
           continuityEligibility
             .useThread,
+
+        useEllipticalFollowUpResolution:
+          continuityEligibility
+            .useEllipticalFollowUpResolution,
+
+        ellipticalFollowUpResolution:
+          continuityEligibility
+            .useEllipticalFollowUpResolution,
 
         useReferenceResolution:
           continuityEligibility
@@ -676,6 +794,21 @@ window.AriContinuityStage = {
 
       continuityEntryPointConfidence:
         continuityResults.confidence ??
+        null,
+
+      continuityEntryPointResolvedQuestion:
+        continuityResults
+          .resolvedUserQuestion ||
+        null,
+
+      continuityEntryPointCurrentTurnWasResolved:
+        continuityResults
+          .currentTurnWasResolved ===
+        true,
+
+      continuityEntryPointEllipticalStatus:
+        continuityResults
+          .ellipticalFollowUp ||
         null
     };
   },
@@ -696,7 +829,7 @@ window.AriContinuityStage = {
         "ari_continuity_results",
 
       schemaVersion:
-        "1.0.0",
+        this.schemaVersion,
 
       engine:
         "ari-continuity-entry-point",
@@ -733,16 +866,39 @@ window.AriContinuityStage = {
 
         needsPriorContext:
           continuityEligibility
-            .eligible === true,
+            .eligible ===
+          true,
 
         preservedExactly:
           true
       },
 
+      originalUserMessage:
+        originalText,
+
+      resolvedUserQuestion:
+        originalText,
+
+      resolvedCurrentTurn:
+        null,
+
+      currentTurnWasResolved:
+        false,
+
+      ellipticalFollowUp:
+        this.emptyEllipticalStatus({
+          reason
+        }),
+
       routing: {
         useThread:
           continuityEligibility
             .useThread ===
+          true,
+
+        useEllipticalFollowUpResolution:
+          continuityEligibility
+            .useEllipticalFollowUpResolution ===
           true,
 
         useReferenceResolution:
@@ -772,6 +928,9 @@ window.AriContinuityStage = {
         thread:
           false,
 
+        elliptical:
+          false,
+
         reference:
           false,
 
@@ -790,6 +949,9 @@ window.AriContinuityStage = {
 
       outputs: {
         thread:
+          null,
+
+        elliptical:
           null,
 
         reference:
@@ -920,6 +1082,32 @@ window.AriContinuityStage = {
         continuityResults.currentTurn ||
         {},
 
+      originalUserMessage:
+        continuityResults
+          .originalUserMessage ||
+        continuityResults
+          .currentTurn
+          ?.originalText ||
+        null,
+
+      resolvedUserQuestion:
+        continuityResults
+          .resolvedUserQuestion ||
+        continuityResults
+          .currentTurn
+          ?.resolvedText ||
+        null,
+
+      currentTurnWasResolved:
+        continuityResults
+          .currentTurnWasResolved ===
+        true,
+
+      ellipticalFollowUp:
+        continuityResults
+          .ellipticalFollowUp ||
+        null,
+
       activeThread: {},
 
       referencedContext: {},
@@ -1014,6 +1202,28 @@ window.AriContinuityStage = {
         continuityPacket.currentTurn ||
         {},
 
+      continuityPacketOriginalUserMessage:
+        continuityPacket
+          .originalUserMessage ||
+        null,
+
+      continuityPacketResolvedUserQuestion:
+        continuityPacket
+          .resolvedUserQuestion ||
+        null,
+
+      continuityPacketCurrentTurnWasResolved:
+        continuityPacket
+          .currentTurnWasResolved ===
+        true,
+
+      continuityPacketEllipticalFollowUp:
+        continuityPacket
+          .ellipticalFollowUp ||
+        continuityPacket
+          .ellipticalFollowUpResolution ||
+        null,
+
       continuityActiveThread:
         continuityPacket.activeThread ||
         {},
@@ -1096,6 +1306,31 @@ window.AriContinuityStage = {
         ?.workingContext ||
       null;
 
+    const ellipticalOutput =
+      outputs.elliptical ||
+      continuityResults
+        .ellipticalFollowUpResolverResult ||
+      continuityPacket
+        .ellipticalFollowUpResolverResult ||
+      null;
+
+    const ellipticalResolution =
+      ellipticalOutput
+        ?.ellipticalFollowUpResolution ||
+      continuityResults
+        .ellipticalFollowUpResolution ||
+      continuityPacket
+        .ellipticalFollowUpResolution ||
+      null;
+
+    const ellipticalStatus =
+      this.readEllipticalStatus({
+        continuityResults,
+        continuityPacket,
+        ellipticalOutput,
+        ellipticalResolution
+      });
+
     const referenceResolution =
       outputs.reference ||
       outputs.entity ||
@@ -1154,6 +1389,12 @@ window.AriContinuityStage = {
 
       threadWorkingContext,
 
+      ellipticalOutput,
+
+      ellipticalResolution,
+
+      ellipticalStatus,
+
       referenceResolution,
 
       entityReferenceState,
@@ -1168,6 +1409,588 @@ window.AriContinuityStage = {
     };
   },
 
+  readEllipticalStatus({
+    continuityResults = {},
+    continuityPacket = {},
+    ellipticalOutput = null,
+    ellipticalResolution = null
+  } = {}) {
+    const existing =
+      continuityResults
+        .ellipticalFollowUp ||
+      continuityPacket
+        .ellipticalFollowUp ||
+      null;
+
+    const resolvedCurrentTurn =
+      ellipticalOutput
+        ?.resolvedCurrentTurn ||
+      ellipticalResolution
+        ?.resolvedCurrentTurn ||
+      continuityResults
+        .resolvedCurrentTurn ||
+      null;
+
+    const detected =
+      existing?.detected ===
+        true ||
+      ellipticalOutput
+        ?.ellipticalFollowUpDetected ===
+        true ||
+      ellipticalResolution
+        ?.detected ===
+        true;
+
+    const currentTurnWasResolved =
+      existing
+        ?.currentTurnWasResolved ===
+        true ||
+      continuityResults
+        .currentTurnWasResolved ===
+        true ||
+      ellipticalOutput
+        ?.currentTurnWasResolved ===
+        true ||
+      ellipticalResolution
+        ?.currentTurnWasResolved ===
+        true ||
+      resolvedCurrentTurn
+        ?.currentTurnWasResolved ===
+        true;
+
+    const resolvedText =
+      this.clean(
+        existing?.resolvedText ||
+        continuityResults
+          .resolvedUserQuestion ||
+        ellipticalOutput
+          ?.resolvedUserQuestion ||
+        ellipticalOutput
+          ?.resolvedCurrentTurnText ||
+        ellipticalResolution
+          ?.resolvedText ||
+        resolvedCurrentTurn
+          ?.resolvedText ||
+        resolvedCurrentTurn
+          ?.text ||
+        ""
+      );
+
+    const originalText =
+      this.clean(
+        existing?.originalText ||
+        continuityResults
+          .originalUserMessage ||
+        ellipticalOutput
+          ?.originalUserMessage ||
+        ellipticalResolution
+          ?.originalText ||
+        resolvedCurrentTurn
+          ?.originalText ||
+        continuityResults
+          .currentTurn
+          ?.originalText ||
+        ""
+      );
+
+    const resolved =
+      existing?.resolved ===
+        true ||
+      (
+        currentTurnWasResolved &&
+        Boolean(resolvedText) &&
+        this.normalize(
+          resolvedText
+        ) !==
+        this.normalize(
+          originalText
+        )
+      );
+
+    const requiresClarification =
+      existing
+        ?.requiresClarification ===
+        true ||
+      ellipticalOutput
+        ?.requiresClarification ===
+        true ||
+      ellipticalResolution
+        ?.requiresClarification ===
+        true ||
+      resolvedCurrentTurn
+        ?.requiresClarification ===
+        true;
+
+    return {
+      ran:
+        existing?.ran ===
+          true ||
+        ellipticalOutput
+          ?.ellipticalFollowUpResolverRan ===
+          true ||
+        Boolean(
+          ellipticalOutput &&
+          !ellipticalOutput.error
+        ),
+
+      detected,
+
+      resolved,
+
+      currentTurnWasResolved,
+
+      requiresClarification,
+
+      family:
+        existing?.family ||
+        ellipticalOutput
+          ?.followUpFamily ||
+        ellipticalResolution
+          ?.followUpFamily ||
+        resolvedCurrentTurn
+          ?.followUpFamily ||
+        null,
+
+      operation:
+        existing?.operation ||
+        ellipticalOutput
+          ?.followUpOperation ||
+        ellipticalResolution
+          ?.followUpOperation ||
+        resolvedCurrentTurn
+          ?.followUpOperation ||
+        null,
+
+      originalText,
+
+      resolvedText:
+        resolvedText ||
+        originalText,
+
+      resolvedCurrentTurn,
+
+      inheritedSubject:
+        existing
+          ?.inheritedSubject ||
+        ellipticalOutput
+          ?.inheritedSubject ||
+        ellipticalResolution
+          ?.inheritedSubject ||
+        resolvedCurrentTurn
+          ?.inheritedSubject ||
+        null,
+
+      inheritedTarget:
+        existing
+          ?.inheritedTarget ||
+        ellipticalOutput
+          ?.inheritedTarget ||
+        ellipticalResolution
+          ?.inheritedTarget ||
+        resolvedCurrentTurn
+          ?.inheritedTarget ||
+        null,
+
+      inheritedObject:
+        existing
+          ?.inheritedObject ||
+        ellipticalOutput
+          ?.inheritedObject ||
+        ellipticalResolution
+          ?.inheritedObject ||
+        resolvedCurrentTurn
+          ?.inheritedObject ||
+        null,
+
+      inheritedProposition:
+        existing
+          ?.inheritedProposition ||
+        ellipticalOutput
+          ?.inheritedProposition ||
+        ellipticalResolution
+          ?.inheritedProposition ||
+        resolvedCurrentTurn
+          ?.inheritedProposition ||
+        null,
+
+      inheritedEvent:
+        existing
+          ?.inheritedEvent ||
+        ellipticalOutput
+          ?.inheritedEvent ||
+        ellipticalResolution
+          ?.inheritedEvent ||
+        resolvedCurrentTurn
+          ?.inheritedEvent ||
+        null,
+
+      inheritedOption:
+        existing
+          ?.inheritedOption ||
+        ellipticalOutput
+          ?.inheritedOption ||
+        ellipticalResolution
+          ?.inheritedOption ||
+        resolvedCurrentTurn
+          ?.inheritedOption ||
+        null,
+
+      inheritedQuantity:
+        existing
+          ?.inheritedQuantity ||
+        ellipticalOutput
+          ?.inheritedQuantity ||
+        ellipticalResolution
+          ?.inheritedQuantity ||
+        resolvedCurrentTurn
+          ?.inheritedQuantity ||
+        null,
+
+      anchor:
+        existing?.anchor ||
+        ellipticalOutput
+          ?.ellipticalFollowUpAnchor ||
+        ellipticalResolution
+          ?.anchor ||
+        null,
+
+      quality:
+        existing?.quality ||
+        ellipticalOutput
+          ?.ellipticalFollowUpQuality ||
+        ellipticalResolution
+          ?.quality ||
+        null,
+
+      confidence:
+        this.normalizeConfidence(
+          existing?.confidence ??
+          ellipticalOutput
+            ?.confidence ??
+          ellipticalResolution
+            ?.confidence ??
+          0
+        ),
+
+      warnings:
+        this.arrayFrom(
+          existing?.warnings ||
+          ellipticalOutput
+            ?.warnings ||
+          ellipticalResolution
+            ?.warnings
+        ),
+
+      authority:
+        "elliptical_follow_up_status_summary_only"
+    };
+  },
+
+  emptyEllipticalStatus({
+    reason = "not_run"
+  } = {}) {
+    return {
+      ran:
+        false,
+
+      detected:
+        false,
+
+      resolved:
+        false,
+
+      currentTurnWasResolved:
+        false,
+
+      requiresClarification:
+        false,
+
+      family:
+        null,
+
+      operation:
+        null,
+
+      originalText:
+        null,
+
+      resolvedText:
+        null,
+
+      resolvedCurrentTurn:
+        null,
+
+      inheritedSubject:
+        null,
+
+      inheritedTarget:
+        null,
+
+      inheritedObject:
+        null,
+
+      inheritedProposition:
+        null,
+
+      inheritedEvent:
+        null,
+
+      inheritedOption:
+        null,
+
+      inheritedQuantity:
+        null,
+
+      anchor:
+        null,
+
+      quality:
+        null,
+
+      confidence:
+        0,
+
+      warnings:
+        [],
+
+      reason,
+
+      authority:
+        "elliptical_follow_up_status_summary_only"
+    };
+  },
+
+  /* =====================================================
+     CURRENT TURN RECORD
+  ===================================================== */
+
+  buildCurrentTurnRecord({
+    state = {},
+    continuityResults = {},
+    continuityPacket = {},
+    structuredOutputs = {}
+  } = {}) {
+    const ellipticalStatus =
+      structuredOutputs
+        .ellipticalStatus ||
+      this.emptyEllipticalStatus();
+
+    const originalText =
+      this.clean(
+        continuityResults
+          .originalUserMessage ||
+        ellipticalStatus
+          .originalText ||
+        continuityResults
+          .currentTurn
+          ?.originalText ||
+        continuityPacket
+          .originalUserMessage ||
+        this.getOriginalText(
+          state
+        )
+      );
+
+    const candidateResolvedText =
+      this.clean(
+        continuityResults
+          .resolvedUserQuestion ||
+        ellipticalStatus
+          .resolvedText ||
+        continuityPacket
+          .resolvedUserQuestion ||
+        continuityResults
+          .resolvedCurrentTurn
+          ?.resolvedText ||
+        structuredOutputs
+          .ellipticalResolution
+          ?.resolvedText ||
+        originalText
+      );
+
+    const currentTurnWasResolved =
+      continuityResults
+        .currentTurnWasResolved ===
+        true ||
+      ellipticalStatus
+        .currentTurnWasResolved ===
+        true ||
+      (
+        Boolean(
+          candidateResolvedText
+        ) &&
+        this.normalize(
+          candidateResolvedText
+        ) !==
+        this.normalize(
+          originalText
+        )
+      );
+
+    const resolvedText =
+      currentTurnWasResolved
+        ? candidateResolvedText
+        : originalText;
+
+    const packetCurrentTurn =
+      continuityPacket.currentTurn ||
+      {};
+
+    const perceptionCurrentTurn =
+      state.perceptionPacket
+        ?.currentTurn ||
+      state.perceptionPacket
+        ?.request ||
+      state.currentTurnMeaning ||
+      null;
+
+    const resolvedCurrentTurn =
+      structuredOutputs
+        .ellipticalStatus
+        ?.resolvedCurrentTurn ||
+      continuityResults
+        .resolvedCurrentTurn ||
+      structuredOutputs
+        .ellipticalOutput
+        ?.resolvedCurrentTurn ||
+      structuredOutputs
+        .ellipticalResolution
+        ?.resolvedCurrentTurn ||
+      {
+        originalText,
+
+        text:
+          resolvedText,
+
+        resolvedText,
+
+        currentTurnWasResolved,
+
+        resolved:
+          currentTurnWasResolved,
+
+        requiresClarification:
+          ellipticalStatus
+            .requiresClarification ===
+          true
+      };
+
+    return {
+      schema:
+        "ari_current_turn_continuity",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      originalText,
+
+      text:
+        originalText,
+
+      resolvedText,
+
+      normalizedText:
+        this.readNormalizedText(
+          state
+        ),
+
+      resolvedNormalizedText:
+        this.normalize(
+          resolvedText
+        ),
+
+      textPreserved:
+        true,
+
+      originalTextPreserved:
+        true,
+
+      textWasRewritten:
+        false,
+
+      currentTurnWasResolved,
+
+      resolvedCurrentTurn,
+
+      ellipticalFollowUpDetected:
+        ellipticalStatus.detected ===
+        true,
+
+      ellipticalFollowUpResolved:
+        ellipticalStatus.resolved ===
+        true,
+
+      ellipticalRequiresClarification:
+        ellipticalStatus
+          .requiresClarification ===
+        true,
+
+      followUpFamily:
+        ellipticalStatus.family,
+
+      followUpOperation:
+        ellipticalStatus.operation,
+
+      inheritedSubject:
+        ellipticalStatus
+          .inheritedSubject,
+
+      inheritedTarget:
+        ellipticalStatus
+          .inheritedTarget,
+
+      inheritedObject:
+        ellipticalStatus
+          .inheritedObject,
+
+      inheritedProposition:
+        ellipticalStatus
+          .inheritedProposition,
+
+      inheritedEvent:
+        ellipticalStatus
+          .inheritedEvent,
+
+      inheritedOption:
+        ellipticalStatus
+          .inheritedOption,
+
+      inheritedQuantity:
+        ellipticalStatus
+          .inheritedQuantity,
+
+      needsPriorContext:
+        packetCurrentTurn
+          .needsPriorContext ===
+          true ||
+        state
+          .continuityEligibility
+          ?.eligible ===
+          true,
+
+      perceptionCurrentTurn,
+
+      referenceCount:
+        structuredOutputs
+          .resolvedReferences
+          .length,
+
+      unresolvedReferenceCount:
+        structuredOutputs
+          .unresolvedReferences
+          .length,
+
+      lane:
+        packetCurrentTurn.lane ||
+        state.laneSplit?.lane ||
+        state.contextLane ||
+        null,
+
+      authority:
+        "original_and_resolved_current_turn_record"
+    };
+  },
+
   /* =====================================================
      CONTEXT ASSEMBLER
   ===================================================== */
@@ -1176,7 +1999,8 @@ window.AriContinuityStage = {
     state = {},
     structuredOutputs = {},
     continuityResults = {},
-    continuityPacket = {}
+    continuityPacket = {},
+    currentTurn = {}
   } = {}) {
     const assembler =
       window.Ari
@@ -1195,65 +2019,162 @@ window.AriContinuityStage = {
       });
     }
 
+    const ellipticalStatus =
+      structuredOutputs
+        .ellipticalStatus ||
+      this.emptyEllipticalStatus();
+
+    const assemblerSummary = {
+      ...state,
+
+      continuityResults,
+
+      continuityPacket,
+
+      originalUserMessage:
+        currentTurn.originalText,
+
+      resolvedUserQuestion:
+        currentTurn.resolvedText,
+
+      resolvedCurrentTurnText:
+        currentTurn.resolvedText,
+
+      resolvedCurrentTurn:
+        currentTurn.resolvedCurrentTurn,
+
+      currentTurnWasResolved:
+        currentTurn
+          .currentTurnWasResolved ===
+        true,
+
+      ellipticalFollowUpResolverResult:
+        structuredOutputs
+          .ellipticalOutput,
+
+      ellipticalFollowUpResolution:
+        structuredOutputs
+          .ellipticalResolution,
+
+      ellipticalFollowUpStatus:
+        ellipticalStatus,
+
+      ellipticalFollowUpDetected:
+        ellipticalStatus.detected ===
+        true,
+
+      ellipticalFollowUpResolved:
+        ellipticalStatus.resolved ===
+        true,
+
+      ellipticalRequiresClarification:
+        ellipticalStatus
+          .requiresClarification ===
+        true,
+
+      followUpFamily:
+        ellipticalStatus.family,
+
+      followUpOperation:
+        ellipticalStatus.operation,
+
+      inheritedSubject:
+        ellipticalStatus
+          .inheritedSubject,
+
+      inheritedTarget:
+        ellipticalStatus
+          .inheritedTarget,
+
+      inheritedObject:
+        ellipticalStatus
+          .inheritedObject,
+
+      inheritedProposition:
+        ellipticalStatus
+          .inheritedProposition,
+
+      inheritedEvent:
+        ellipticalStatus
+          .inheritedEvent,
+
+      inheritedOption:
+        ellipticalStatus
+          .inheritedOption,
+
+      inheritedQuantity:
+        ellipticalStatus
+          .inheritedQuantity,
+
+      threadContext:
+        structuredOutputs
+          .threadContext,
+
+      threadUnderstanding:
+        structuredOutputs
+          .threadUnderstanding,
+
+      threadWorkingContext:
+        structuredOutputs
+          .threadWorkingContext,
+
+      referenceResolution:
+        structuredOutputs
+          .referenceResolution,
+
+      entityReference:
+        structuredOutputs
+          .referenceResolution,
+
+      entityReferenceState:
+        structuredOutputs
+          .entityReferenceState,
+
+      resolvedReferences:
+        structuredOutputs
+          .resolvedReferences,
+
+      unresolvedReferences:
+        structuredOutputs
+          .unresolvedReferences,
+
+      memoryContext:
+        structuredOutputs
+          .memoryContext ||
+        state.memoryContext ||
+        {},
+
+      relationshipProfile:
+        structuredOutputs
+          .relationshipContext ||
+        state.relationshipProfile ||
+        {}
+    };
+
     try {
       const result =
         await assembler.assemble({
-          summary: {
-            ...state,
-
-            continuityResults,
-
-            continuityPacket,
-
-            threadContext:
-              structuredOutputs
-                .threadContext,
-
-            threadUnderstanding:
-              structuredOutputs
-                .threadUnderstanding,
-
-            threadWorkingContext:
-              structuredOutputs
-                .threadWorkingContext,
-
-            referenceResolution:
-              structuredOutputs
-                .referenceResolution,
-
-            entityReference:
-              structuredOutputs
-                .referenceResolution,
-
-            entityReferenceState:
-              structuredOutputs
-                .entityReferenceState,
-
-            resolvedReferences:
-              structuredOutputs
-                .resolvedReferences,
-
-            unresolvedReferences:
-              structuredOutputs
-                .unresolvedReferences,
-
-            memoryContext:
-              structuredOutputs
-                .memoryContext ||
-              state.memoryContext ||
-              {},
-
-            relationshipProfile:
-              structuredOutputs
-                .relationshipContext ||
-              state
-                .relationshipProfile ||
-              {}
-          },
+          summary:
+            assemblerSummary,
 
           continuityResults,
 
           continuityPacket,
+
+          currentTurn,
+
+          originalUserMessage:
+            currentTurn.originalText,
+
+          resolvedUserQuestion:
+            currentTurn.resolvedText,
+
+          resolvedCurrentTurn:
+            currentTurn.resolvedCurrentTurn,
+
+          ellipticalFollowUpResolution:
+            structuredOutputs
+              .ellipticalResolution,
 
           threadContext:
             structuredOutputs
@@ -1544,88 +2465,139 @@ window.AriContinuityStage = {
   },
 
   /* =====================================================
-     CURRENT TURN PRESERVATION
+     ELLIPTICAL BINDING
   ===================================================== */
 
-  buildCurrentTurnRecord({
+  buildEllipticalBinding({
     state = {},
-    continuityPacket = {},
+    currentTurn = {},
     structuredOutputs = {}
   } = {}) {
-    const originalText =
-      this.getOriginalText(
-        state
-      );
-
-    const packetCurrentTurn =
-      continuityPacket.currentTurn ||
-      {};
-
-    const perceptionCurrentTurn =
-      state.perceptionPacket
-        ?.currentTurn ||
-      state.perceptionPacket
-        ?.request ||
-      state.currentTurnMeaning ||
-      null;
+    const status =
+      structuredOutputs
+        .ellipticalStatus ||
+      this.emptyEllipticalStatus();
 
     return {
       schema:
-        "ari_current_turn_continuity",
+        "ari_elliptical_follow_up_binding",
 
       schemaVersion:
         "1.0.0",
 
-      originalText,
-
-      text:
-        originalText,
-
-      normalizedText:
-        this.readNormalizedText(
-          state
-        ),
-
-      textPreserved:
+      ran:
+        status.ran ===
         true,
 
-      textWasRewritten:
-        false,
+      detected:
+        status.detected ===
+        true,
 
-      currentTurnWasResolved:
-        false,
+      resolved:
+        status.resolved ===
+        true,
 
-      needsPriorContext:
-        packetCurrentTurn
-          .needsPriorContext ===
+      ready:
+        status.detected !==
           true ||
-        state
-          .continuityEligibility
-          ?.eligible ===
+        status.resolved ===
+          true ||
+        status
+          .requiresClarification ===
           true,
 
-      perceptionCurrentTurn,
+      originalText:
+        currentTurn.originalText,
 
-      referenceCount:
+      resolvedText:
+        currentTurn.resolvedText,
+
+      originalTextPreserved:
+        true,
+
+      currentTurnWasResolved:
+        currentTurn
+          .currentTurnWasResolved ===
+        true,
+
+      requiresClarification:
+        status
+          .requiresClarification ===
+        true,
+
+      family:
+        status.family,
+
+      operation:
+        status.operation,
+
+      inheritedContext: {
+        subject:
+          status.inheritedSubject,
+
+        target:
+          status.inheritedTarget,
+
+        object:
+          status.inheritedObject,
+
+        proposition:
+          status
+            .inheritedProposition,
+
+        event:
+          status.inheritedEvent,
+
+        option:
+          status.inheritedOption,
+
+        quantity:
+          status
+            .inheritedQuantity
+      },
+
+      anchor:
+        status.anchor,
+
+      confidence:
+        status.confidence,
+
+      warnings:
+        status.warnings,
+
+      operationPreserved:
+        true,
+
+      requestedOutputPreserved:
+        true,
+
+      originalMessageOverwritten:
+        false,
+
+      rules: [
+        "The original user message remains authoritative and unchanged.",
+        "The resolved turn is an additional interpretation for downstream reasoning.",
+        "Elliptical resolution may restore omitted context from the recent thread.",
+        "Elliptical resolution may not change the requested operation.",
+        "Elliptical resolution may not choose the final semantic frame.",
+        "Ambiguous elliptical turns must remain unresolved or request clarification."
+      ],
+
+      raw:
         structuredOutputs
-          .resolvedReferences
-          .length,
-
-      unresolvedReferenceCount:
+          .ellipticalResolution ||
         structuredOutputs
-          .unresolvedReferences
-          .length,
-
-      lane:
-        packetCurrentTurn.lane ||
-        state.laneSplit?.lane ||
-        state.contextLane ||
+          .ellipticalOutput ||
         null,
 
       authority:
-        "original_current_turn_record"
+        "elliptical_follow_up_binding_only"
     };
   },
+
+  /* =====================================================
+     REFERENCE BINDING
+  ===================================================== */
 
   buildReferenceBinding({
     state = {},
@@ -1647,7 +2619,7 @@ window.AriContinuityStage = {
         "ari_reference_binding",
 
       schemaVersion:
-        "1.0.0",
+        "1.1.0",
 
       ready:
         structuredOutputs
@@ -1662,7 +2634,15 @@ window.AriContinuityStage = {
       originalText:
         currentTurn.originalText,
 
+      resolvedText:
+        currentTurn.resolvedText,
+
       originalTextPreserved:
+        true,
+
+      currentTurnWasResolved:
+        currentTurn
+          .currentTurnWasResolved ===
         true,
 
       operationSignals,
@@ -1683,6 +2663,24 @@ window.AriContinuityStage = {
             .threadContext
         ),
 
+      ellipticalFollowUpAvailable:
+        structuredOutputs
+          .ellipticalStatus
+          .ran ===
+        true,
+
+      ellipticalFollowUpDetected:
+        structuredOutputs
+          .ellipticalStatus
+          .detected ===
+        true,
+
+      ellipticalFollowUpResolved:
+        structuredOutputs
+          .ellipticalStatus
+          .resolved ===
+        true,
+
       operationPreserved:
         true,
 
@@ -1692,11 +2690,12 @@ window.AriContinuityStage = {
       operationWasReinterpreted:
         false,
 
-      textWasRewritten:
+      originalTextWasRewritten:
         false,
 
       bindingRules: [
-        "Reference resolution may bind entities, objects, events, claims, quantities, or prior propositions.",
+        "Reference resolution may bind entities, objects, events, claims, quantities, options, or prior propositions.",
+        "Reference resolution may consume a separately resolved elliptical turn.",
         "Reference resolution may not change the requested operation.",
         "Reference resolution may not change the requested output.",
         "Reference resolution may not replace the original user text.",
@@ -1739,7 +2738,9 @@ window.AriContinuityStage = {
     candidates.forEach(
       candidate => {
         if (
-          Array.isArray(candidate)
+          Array.isArray(
+            candidate
+          )
         ) {
           values.push(
             ...candidate
@@ -1799,7 +2800,9 @@ window.AriContinuityStage = {
     candidates.forEach(
       candidate => {
         if (
-          Array.isArray(candidate)
+          Array.isArray(
+            candidate
+          )
         ) {
           values.push(
             ...candidate
@@ -1851,7 +2854,8 @@ window.AriContinuityStage = {
   ) {
     const history =
       this.arrayFrom(
-        state.conversationMeaningHistory ||
+        state
+          .conversationMeaningHistory ||
         state.threadState
           ?.conversationMeaningHistory
       );
@@ -1881,11 +2885,180 @@ window.AriContinuityStage = {
           ?.useThread ===
         true,
 
+      mayBeUsedByEllipticalResolution:
+        state.continuityEligibility
+          ?.useEllipticalFollowUpResolution ===
+        true,
+
       automaticallyInherited:
         false,
 
       authority:
         "historical_evidence_only"
+    };
+  },
+
+  /* =====================================================
+     LEGACY THREAD QUESTION DIAGNOSTIC
+  ===================================================== */
+
+  buildLegacyThreadQuestionDiagnostic({
+    state = {},
+    currentTurn = {},
+    structuredOutputs = {}
+  } = {}) {
+    const status =
+      structuredOutputs
+        .ellipticalStatus ||
+      this.emptyEllipticalStatus();
+
+    return {
+      threadQuestionGeneratorRan:
+        false,
+
+      threadQuestionGeneratorVersion:
+        window.Ari
+          ?.threadQuestionGenerator
+          ?.version ||
+        null,
+
+      source:
+        "ari-continuity-stage",
+
+      rawUserMessage:
+        currentTurn.originalText,
+
+      resolvedUserQuestion:
+        currentTurn.resolvedText,
+
+      currentTurnWasResolved:
+        currentTurn
+          .currentTurnWasResolved ===
+        true,
+
+      usedThreadContext:
+        status.detected ===
+          true ||
+        state.continuityEligibility
+          ?.useThread ===
+          true,
+
+      operation:
+        status.operation ||
+        "none",
+
+      resolutionType:
+        status.detected ===
+          true
+          ? "canonical_elliptical_follow_up_resolution"
+          : "structured_reference_binding_only",
+
+      confidence:
+        status.detected ===
+          true
+          ? status.confidence
+          : 1,
+
+      reason:
+        status.detected ===
+          true
+          ? (
+              status.resolved ===
+                true
+                ? "The legacy question generator was bypassed. The canonical Elliptical Follow-Up Resolver reconstructed the omitted context."
+                : "The legacy question generator was bypassed. The canonical Elliptical Follow-Up Resolver detected the follow-up but did not force an unsafe reconstruction."
+            )
+          : "The legacy question generator is disabled. No elliptical reconstruction was required.",
+
+      resolvedCurrentTurn: {
+        rawText:
+          currentTurn.originalText,
+
+        originalText:
+          currentTurn.originalText,
+
+        text:
+          currentTurn.resolvedText,
+
+        resolvedText:
+          currentTurn.resolvedText,
+
+        usedThreadContext:
+          status.detected ===
+          true,
+
+        operation:
+          status.operation ||
+          "none",
+
+        family:
+          status.family ||
+          null,
+
+        currentTurnWasResolved:
+          currentTurn
+            .currentTurnWasResolved ===
+          true,
+
+        requiresClarification:
+          status
+            .requiresClarification ===
+          true,
+
+        confidence:
+          status.detected ===
+            true
+            ? status.confidence
+            : 1
+      },
+
+      authoritativeResolver: {
+        name:
+          "ari-elliptical-follow-up-resolver",
+
+        ran:
+          status.ran ===
+          true,
+
+        detected:
+          status.detected ===
+          true,
+
+        resolved:
+          status.resolved ===
+          true,
+
+        result:
+          structuredOutputs
+            .ellipticalResolution ||
+          null
+      },
+
+      authority: {
+        canChooseLane:
+          false,
+
+        canAnswerUser:
+          false,
+
+        canOverrideSafety:
+          false,
+
+        canSetContract:
+          false,
+
+        canInterpretIntent:
+          false,
+
+        canRewriteCurrentQuestion:
+          false,
+
+        canReportCanonicalEllipticalResolution:
+          true,
+
+        role:
+          "legacy_diagnostic_only"
+      }
     };
   },
 
@@ -1897,8 +3070,31 @@ window.AriContinuityStage = {
     summary = {}
   ) {
     const originalText =
-      this.getOriginalText(
-        summary
+      this.clean(
+        summary.originalUserMessage ||
+        this.getOriginalText(
+          summary
+        )
+      );
+
+    const resolvedText =
+      this.clean(
+        summary.resolvedUserQuestion ||
+        summary.resolvedCurrentTurnText ||
+        originalText
+      );
+
+    const currentTurnWasResolved =
+      summary.currentTurnWasResolved ===
+        true ||
+      (
+        Boolean(resolvedText) &&
+        this.normalize(
+          resolvedText
+        ) !==
+        this.normalize(
+          originalText
+        )
       );
 
     const resolvedReferences =
@@ -1939,12 +3135,17 @@ window.AriContinuityStage = {
         ?.eligible ===
       true;
 
+    const ellipticalStatus =
+      summary
+        .ellipticalFollowUpStatus ||
+      this.emptyEllipticalStatus();
+
     return {
       schema:
         "ari_continuity_stage_packet",
 
       schemaVersion:
-        "1.0.0",
+        this.schemaVersion,
 
       ready:
         continuityRequired
@@ -1967,6 +3168,9 @@ window.AriContinuityStage = {
             false,
 
           useThread:
+            false,
+
+          useEllipticalFollowUpResolution:
             false,
 
           useReferenceResolution:
@@ -2033,6 +3237,11 @@ window.AriContinuityStage = {
       currentTurn: {
         originalText,
 
+        text:
+          originalText,
+
+        resolvedText,
+
         normalizedText:
           summary
             .continuityCurrentTurn
@@ -2041,14 +3250,18 @@ window.AriContinuityStage = {
             summary
           ),
 
-        textPreserved:
+        resolvedNormalizedText:
+          this.normalize(
+            resolvedText
+          ),
+
+        originalTextPreserved:
           true,
 
         textWasRewritten:
           false,
 
-        currentTurnWasResolved:
-          false,
+        currentTurnWasResolved,
 
         needsPriorContext:
           summary
@@ -2069,6 +3282,94 @@ window.AriContinuityStage = {
             ?.perceptionCurrentTurn ||
           summary.perceptionPacket
             ?.currentTurnMeaning ||
+          null
+      },
+
+      ellipticalFollowUp: {
+        ran:
+          ellipticalStatus.ran ===
+          true,
+
+        detected:
+          ellipticalStatus.detected ===
+          true,
+
+        resolved:
+          ellipticalStatus.resolved ===
+          true,
+
+        currentTurnWasResolved,
+
+        requiresClarification:
+          ellipticalStatus
+            .requiresClarification ===
+          true,
+
+        family:
+          ellipticalStatus.family,
+
+        operation:
+          ellipticalStatus.operation,
+
+        originalText,
+
+        resolvedText,
+
+        inheritedContext: {
+          subject:
+            ellipticalStatus
+              .inheritedSubject,
+
+          target:
+            ellipticalStatus
+              .inheritedTarget,
+
+          object:
+            ellipticalStatus
+              .inheritedObject,
+
+          proposition:
+            ellipticalStatus
+              .inheritedProposition,
+
+          event:
+            ellipticalStatus
+              .inheritedEvent,
+
+          option:
+            ellipticalStatus
+              .inheritedOption,
+
+          quantity:
+            ellipticalStatus
+              .inheritedQuantity
+        },
+
+        anchor:
+          ellipticalStatus.anchor,
+
+        quality:
+          ellipticalStatus.quality,
+
+        confidence:
+          ellipticalStatus.confidence,
+
+        warnings:
+          ellipticalStatus.warnings,
+
+        binding:
+          summary
+            .continuityEllipticalBinding ||
+          null,
+
+        output:
+          summary
+            .ellipticalFollowUpResolverResult ||
+          null,
+
+        resolution:
+          summary
+            .ellipticalFollowUpResolution ||
           null
       },
 
@@ -2104,13 +3405,11 @@ window.AriContinuityStage = {
             true,
 
         output:
-          summary
-            .referenceResolution ||
+          summary.referenceResolution ||
           null,
 
         entityState:
-          summary
-            .entityReferenceState ||
+          summary.entityReferenceState ||
           null,
 
         binding:
@@ -2128,8 +3427,11 @@ window.AriContinuityStage = {
         unresolvedReferenceCount:
           unresolvedReferences.length,
 
-        textWasRewritten:
+        originalTextWasRewritten:
           false,
+
+        resolvedTurnAvailable:
+          currentTurnWasResolved,
 
         operationWasReinterpreted:
           false
@@ -2177,6 +3479,27 @@ window.AriContinuityStage = {
 
         type:
           summary.continuityType ||
+          null,
+
+        originalUserMessage:
+          summary
+            .continuityPacketOriginalUserMessage ||
+          originalText,
+
+        resolvedUserQuestion:
+          summary
+            .continuityPacketResolvedUserQuestion ||
+          resolvedText,
+
+        currentTurnWasResolved:
+          summary
+            .continuityPacketCurrentTurnWasResolved ===
+            true ||
+          currentTurnWasResolved,
+
+        ellipticalFollowUp:
+          summary
+            .continuityPacketEllipticalFollowUp ||
           null,
 
         activeThread:
@@ -2252,6 +3575,15 @@ window.AriContinuityStage = {
           summary
             .contextAssemblerVersion ||
           null,
+
+        receivedOriginalText:
+          originalText,
+
+        receivedResolvedText:
+          resolvedText,
+
+        receivedResolvedTurn:
+          currentTurnWasResolved,
 
         assembledContext:
           summary.assembledContext ||
@@ -2354,17 +3686,19 @@ window.AriContinuityStage = {
 
       legacyCompatibility: {
         resolvedUserQuestion:
-          originalText,
+          resolvedText,
 
-        currentTurnWasResolved:
-          false,
+        currentTurnWasResolved,
 
         threadQuestion:
           summary.threadQuestion ||
           null,
 
         threadQuestionAuthoritative:
-          false
+          false,
+
+        canonicalResolver:
+          "ari-elliptical-follow-up-resolver"
       },
 
       handoff: {
@@ -2373,13 +3707,25 @@ window.AriContinuityStage = {
 
         situationContextReady:
           Boolean(
-            summary
-              .continuityContext ||
-            summary
-              .assembledContext ||
-            summary
-              .continuityPacket
+            summary.continuityContext ||
+            summary.assembledContext ||
+            summary.continuityPacket
           ),
+
+        ellipticalFollowUpReady:
+          ellipticalStatus.detected !==
+            true ||
+          ellipticalStatus.resolved ===
+            true ||
+          ellipticalStatus
+            .requiresClarification ===
+            true,
+
+        resolvedCurrentTurnAvailable:
+          currentTurnWasResolved,
+
+        resolvedUserQuestion:
+          resolvedText,
 
         structuredReferenceBindingReady:
           Boolean(
@@ -2392,6 +3738,12 @@ window.AriContinuityStage = {
 
         currentTurnOperationPreserved:
           true,
+
+        preferredResolvedTurnPath:
+          "continuityStagePacket.currentTurn.resolvedText",
+
+        preferredEllipticalPath:
+          "continuityStagePacket.ellipticalFollowUp",
 
         preferredContextPath:
           "continuityStagePacket.contextAssembler.continuityContext",
@@ -2419,6 +3771,26 @@ window.AriContinuityStage = {
             summary.threadContext
           ),
 
+        ellipticalResolverRan:
+          ellipticalStatus.ran ===
+          true,
+
+        ellipticalFollowUpDetected:
+          ellipticalStatus.detected ===
+          true,
+
+        ellipticalFollowUpResolved:
+          ellipticalStatus.resolved ===
+          true,
+
+        ellipticalRequiresClarification:
+          ellipticalStatus
+            .requiresClarification ===
+          true,
+
+        resolvedCurrentTurnAvailable:
+          currentTurnWasResolved,
+
         hasResolvedReferences:
           resolvedReferences.length >
           0,
@@ -2434,7 +3806,10 @@ window.AriContinuityStage = {
         duplicatePacketBuildPrevented:
           true,
 
-        questionRewritePrevented:
+        uncontrolledQuestionRewritePrevented:
+          true,
+
+        canonicalEllipticalResolutionPreserved:
           true
       },
 
@@ -2443,6 +3818,9 @@ window.AriContinuityStage = {
           true,
 
         canCoordinateThreadContext:
+          true,
+
+        canCoordinateEllipticalResolution:
           true,
 
         canCoordinateReferenceResolution:
@@ -2454,10 +3832,16 @@ window.AriContinuityStage = {
         canPreserveOriginalTurn:
           true,
 
+        canPreserveResolvedTurn:
+          true,
+
+        canResolveEllipticalFollowUps:
+          false,
+
         canResolveReferences:
           false,
 
-        canRewriteCurrentQuestion:
+        canArbitrarilyRewriteCurrentQuestion:
           false,
 
         canInterpretRequestedOperation:
@@ -2488,7 +3872,7 @@ window.AriContinuityStage = {
           false,
 
         role:
-          "structured_continuity_orchestration_and_context_handoff"
+          "structured_continuity_orchestration_and_resolved_turn_handoff"
       }
     };
   },
@@ -2500,13 +3884,13 @@ window.AriContinuityStage = {
   getOriginalText(
     summary = {}
   ) {
-    return String(
+    return this.clean(
+      summary.originalUserMessage ||
       summary.userMessage ||
       summary.message ||
       summary.input ||
-      summary.originalUserMessage ||
       ""
-    ).trim();
+    );
   },
 
   dedupeValues(
@@ -2515,8 +3899,10 @@ window.AriContinuityStage = {
     const seen =
       new Set();
 
-    return this.arrayFrom(values)
-      .filter(value => {
+    return this.arrayFrom(
+      values
+    ).filter(
+      value => {
         const key =
           this.normalize(
             this.valueOf(
@@ -2526,21 +3912,30 @@ window.AriContinuityStage = {
 
         if (
           !key ||
-          seen.has(key)
+          seen.has(
+            key
+          )
         ) {
           return false;
         }
 
-        seen.add(key);
+        seen.add(
+          key
+        );
 
         return true;
-      });
+      }
+    );
   },
 
-  valueOf(value) {
+  valueOf(
+    value
+  ) {
     if (
-      value === null ||
-      value === undefined
+      value ===
+        null ||
+      value ===
+        undefined
     ) {
       return "";
     }
@@ -2556,7 +3951,9 @@ window.AriContinuityStage = {
       typeof value ===
       "number"
     ) {
-      return String(value);
+      return String(
+        value
+      );
     }
 
     if (
@@ -2577,37 +3974,156 @@ window.AriContinuityStage = {
       );
     }
 
-    return String(value);
+    return String(
+      value
+    );
   },
 
-  arrayFrom(value) {
+  normalizeConfidence(
+    value = 0
+  ) {
     if (
-      Array.isArray(value)
+      typeof value ===
+      "string"
+    ) {
+      const normalized =
+        value
+          .toLowerCase()
+          .trim();
+
+      const labels = {
+        none:
+          0,
+
+        very_low:
+          0.2,
+
+        low:
+          0.4,
+
+        medium:
+          0.65,
+
+        high:
+          0.85,
+
+        very_high:
+          0.95
+      };
+
+      if (
+        labels[
+          normalized
+        ] !==
+        undefined
+      ) {
+        return labels[
+          normalized
+        ];
+      }
+    }
+
+    const number =
+      Number(
+        value
+      );
+
+    if (
+      !Number.isFinite(
+        number
+      )
+    ) {
+      return 0;
+    }
+
+    if (
+      number >
+      1
+    ) {
+      return Math.max(
+        0,
+        Math.min(
+          1,
+          number /
+          100
+        )
+      );
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        number
+      )
+    );
+  },
+
+  arrayFrom(
+    value
+  ) {
+    if (
+      Array.isArray(
+        value
+      )
     ) {
       return value;
     }
 
     if (
-      value === null ||
-      value === undefined ||
-      value === ""
+      value ===
+        null ||
+      value ===
+        undefined ||
+      value ===
+        ""
     ) {
       return [];
     }
 
-    return [value];
+    return [
+      value
+    ];
   },
 
-  normalize(value = "") {
+  clean(
+    value = ""
+  ) {
     return String(
-      value ||
+      value ??
       ""
     )
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  },
+
+  normalize(
+    value = ""
+  ) {
+    return this
+      .clean(
+        value
+      )
       .toLowerCase()
-      .replace(/[’‘]/g, "'")
-      .replace(/[“”]/g, "\"")
-      .replace(/[_-]/g, " ")
-      .replace(/\s+/g, " ")
+      .replace(
+        /[_-]/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
       .trim();
   }
 };
