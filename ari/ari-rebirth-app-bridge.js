@@ -475,6 +475,28 @@ return response;
 
   checkReadiness() {
   const required = {
+    AriThreadUnderstandingEngine:
+      window.Ari?.threadUnderstandingEngine ||
+      window.AriThreadUnderstandingEngine,
+
+    AriEllipticalFollowUpResolver:
+      window.Ari?.ellipticalFollowUpResolver ||
+      window.AriEllipticalFollowUpResolver,
+
+    AriEntityReferenceResolver:
+      window.Ari?.entityReferenceResolver ||
+      window.AriEntityReferenceResolver,
+
+    AriContinuityPacket:
+      window.Ari?.continuityPacket ||
+      window.AriContinuityPacket,
+
+    AriContinuityEntryPoint:
+      window.Ari?.continuityEntryPoint,
+
+    AriContinuityStage:
+      window.AriContinuityStage,
+
     AriPerceptionPipeline:
       window.AriPerceptionPipeline,
 
@@ -494,26 +516,94 @@ return response;
       window.AriRebirthPipeline
   };
 
-  const missing = Object.entries(required)
-    .filter(([, pipeline]) => {
-      return !pipeline || typeof pipeline.run !== "function";
-    })
-    .map(([name]) => name);
+  const validators = {
+    AriThreadUnderstandingEngine:
+      component =>
+        typeof component?.understand === "function" ||
+        typeof component?.analyze === "function" ||
+        typeof component?.build === "function",
+
+    AriEllipticalFollowUpResolver:
+      component =>
+        typeof component?.resolve === "function",
+
+    AriEntityReferenceResolver:
+      component =>
+        typeof component?.resolve === "function",
+
+    AriContinuityPacket:
+      component =>
+        typeof component?.build === "function",
+
+    AriContinuityEntryPoint:
+      component =>
+        typeof component?.enter === "function",
+
+    AriContinuityStage:
+      component =>
+        typeof component?.run === "function",
+
+    AriPerceptionPipeline:
+      component =>
+        typeof component?.run === "function",
+
+    AriExecutiveRoutingPipeline:
+      component =>
+        typeof component?.run === "function",
+
+    AriDeliberationPipeline:
+      component =>
+        typeof component?.run === "function",
+
+    AriExpressionPipeline:
+      component =>
+        typeof component?.run === "function",
+
+    AriDeliveryPipeline:
+      component =>
+        typeof component?.run === "function",
+
+    AriRebirthPipeline:
+      component =>
+        typeof component?.run === "function"
+  };
+
+  const missing =
+    Object.entries(required)
+      .filter(([name, component]) => {
+        const validate =
+          validators[name];
+
+        return (
+          !component ||
+          typeof validate !== "function" ||
+          validate(component) !== true
+        );
+      })
+      .map(([name]) => name);
 
   if (missing.length) {
     return {
-      ready: false,
+      ready:
+        false,
 
       message:
-        `Ari Rebirth is missing required pipeline layers: ${missing.join(", ")}.`,
+        `Ari Rebirth is missing required components: ${missing.join(", ")}.`,
 
       error:
-        `missing_pipeline_layers:${missing.join(",")}`
+        `missing_components:${missing.join(",")}`
     };
   }
 
   return {
-    ready: true
+    ready:
+      true,
+
+    checkedComponents:
+      Object.keys(required),
+
+    source:
+      "ari-rebirth-app-bridge-readiness"
   };
 },
 
