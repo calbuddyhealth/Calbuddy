@@ -5,7 +5,7 @@
 // Package the completed canonical Response Plan and supporting deliberation
 // and expression evidence into one Composer Packet.
 //
-// V2.2.0 — Focused Character Handoff / Canonical Plan Preservation
+// V2.3.0 — Canonical Resolved Turn Preservation / Post-Continuity Handoff
 //
 // Architectural flow:
 //
@@ -53,8 +53,8 @@
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "2.2.0",
-  schemaVersion: "1.2.0",
+  version: "2.3.0",
+  schemaVersion: "1.3.0",
   source: "ari-composer-bridge",
   authorityLevel: "canonical_response_plan_packaging_authority",
 
@@ -227,7 +227,7 @@ window.AriComposerBridge = {
      REQUEST
   ===================================================== */
 
-  buildRequest(summary = {}) {
+    buildRequest(summary = {}) {
     const planTurn =
       summary.responsePlanningHandoff
         ?.responsePlan
@@ -250,7 +250,15 @@ window.AriComposerBridge = {
         ?.turn ||
       {};
 
+    const continuityPacket =
+      summary.continuityPacket ||
+      summary.continuityStagePacket
+        ?.continuityPacket
+        ?.raw ||
+      {};
+
     const continuityTurn =
+      continuityPacket.currentTurn ||
       summary.continuityStagePacket
         ?.currentTurn ||
       summary.continuityCurrentTurn ||
@@ -267,10 +275,49 @@ window.AriComposerBridge = {
         ""
       );
 
+    const resolvedText =
+      this.cleanOriginal(
+        planTurn.resolvedText ||
+        planTurn.semanticInputText ||
+        continuityTurn.resolvedText ||
+        continuityPacket
+          .resolvedUserQuestion ||
+        continuityPacket
+          .resolvedCurrentTurn
+          ?.resolvedText ||
+        summary.continuityResults
+          ?.resolvedUserQuestion ||
+        summary.continuityResults
+          ?.resolvedCurrentTurn
+          ?.resolvedText ||
+        summary.continuityResults
+          ?.outputs
+          ?.elliptical
+          ?.resolvedUserQuestion ||
+        summary.continuityResults
+          ?.outputs
+          ?.elliptical
+          ?.resolvedCurrentTurnText ||
+        summary.continuityResults
+          ?.outputs
+          ?.elliptical
+          ?.ellipticalFollowUpResolution
+          ?.resolvedText ||
+        summary.resolvedUserQuestion ||
+        summary.resolvedCurrentTurn
+          ?.resolvedText ||
+        originalText
+      );
+
+    const effectiveText =
+      resolvedText ||
+      originalText;
+
     const normalizedText =
       this.normalize(
         planTurn.normalizedText ||
         continuityTurn.normalizedText ||
+        effectiveText ||
         summary.normalizedMessage ||
         originalText
       );
@@ -281,6 +328,60 @@ window.AriComposerBridge = {
       summary.currentTurnId ||
       summary.turnId ||
       null;
+
+    const resolvedTextDiffers =
+      Boolean(
+        resolvedText
+      ) &&
+      this.normalize(
+        resolvedText
+      ) !==
+      this.normalize(
+        originalText
+      );
+
+    const ellipticalFollowUpResolved =
+      planTurn
+        .ellipticalFollowUpResolved ===
+        true ||
+      continuityTurn
+        .ellipticalFollowUpResolved ===
+        true ||
+      continuityPacket
+        .ellipticalFollowUpResolved ===
+        true ||
+      summary.ellipticalFollowUpResolved ===
+        true ||
+      summary.continuityResults
+        ?.ellipticalFollowUp
+        ?.resolved ===
+        true ||
+      summary.continuityResults
+        ?.outputs
+        ?.elliptical
+        ?.resolved ===
+        true ||
+      summary.continuityResults
+        ?.outputs
+        ?.elliptical
+        ?.ellipticalFollowUpResolution
+        ?.resolved ===
+        true;
+
+    const currentTurnWasResolved =
+      planTurn
+        .currentTurnWasSemanticallyResolved ===
+        true ||
+      continuityTurn
+        .currentTurnWasResolved ===
+        true ||
+      continuityPacket
+        .currentTurnWasResolved ===
+        true ||
+      summary.currentTurnWasResolved ===
+        true ||
+      ellipticalFollowUpResolved ||
+      resolvedTextDiffers;
 
     return {
       schema:
@@ -294,12 +395,17 @@ window.AriComposerBridge = {
       originalText,
 
       currentText:
-        originalText,
+        effectiveText,
+
+      effectiveText,
 
       normalizedText,
 
       resolvedText:
-        originalText,
+        effectiveText,
+
+      semanticInputText:
+        effectiveText,
 
       textWasRewritten:
         false,
@@ -307,15 +413,23 @@ window.AriComposerBridge = {
       originalTextPreserved:
         true,
 
+      resolvedTextIsSeparateInterpretation:
+        resolvedTextDiffers,
+
       currentTurnWasStructurallyResolved:
-        planTurn
-          .currentTurnWasSemanticallyResolved ===
-          true ||
-        continuityTurn
-          .currentTurnWasResolved ===
-          true ||
-        summary.currentTurnWasResolved ===
-          true,
+        currentTurnWasResolved,
+
+      currentTurnWasSemanticallyResolved:
+        currentTurnWasResolved,
+
+      ellipticalFollowUpResolved,
+
+      resolutionSource:
+        ellipticalFollowUpResolved
+          ? "elliptical_follow_up"
+          : currentTurnWasResolved
+            ? "resolved_current_turn"
+            : "none",
 
       requiresPriorContext:
         summary.routingContract
@@ -340,10 +454,9 @@ window.AriComposerBridge = {
         "direct_current_turn",
 
       authority:
-        "original_current_turn_only"
+        "original_and_canonical_resolved_current_turn_handoff"
     };
   },
-
   /* =====================================================
      CANONICAL RESPONSE PLAN
   ===================================================== */
@@ -500,11 +613,44 @@ window.AriComposerBridge = {
         canonical.turnId ||
         null,
 
-      sourceQuestion:
+            originalQuestion:
         canonical.turn
           ?.originalText ||
+        canonical
+          .originalUserQuestion ||
+        null,
+
+      resolvedQuestion:
+        canonical.turn
+          ?.resolvedText ||
+        canonical
+          .resolvedUserQuestion ||
         canonical.sourceQuestion ||
         canonical.userQuestion ||
+        canonical.turn
+          ?.originalText ||
+        null,
+
+      sourceQuestion:
+        canonical.turn
+          ?.resolvedText ||
+        canonical
+          .resolvedUserQuestion ||
+        canonical.sourceQuestion ||
+        canonical.userQuestion ||
+        canonical.turn
+          ?.originalText ||
+        null,
+
+      userQuestion:
+        canonical.turn
+          ?.resolvedText ||
+        canonical
+          .resolvedUserQuestion ||
+        canonical.userQuestion ||
+        canonical.sourceQuestion ||
+        canonical.turn
+          ?.originalText ||
         null,
 
       strategy,
@@ -1396,8 +1542,9 @@ window.AriComposerBridge = {
     responsePlan = {},
     responseStrategy = {}
   } = {}) {
-    const text =
+        const text =
       this.normalize(
+        request.resolvedText ||
         request.originalText ||
         ""
       );
@@ -1440,8 +1587,9 @@ window.AriComposerBridge = {
         ""
       );
 
-    const explicitFile =
+        const explicitFile =
       /\b[\w./-]+\.(?:js|mjs|cjs|html|css|json|md|ts|tsx|jsx|sql|py|yml|yaml)\b/i.test(
+        request.resolvedText ||
         request.originalText ||
         ""
       );
@@ -2089,7 +2237,7 @@ window.AriComposerBridge = {
      CONTINUITY
   ===================================================== */
 
-  resolveContinuityContext(
+    resolveContinuityContext(
     summary = {}
   ) {
     const stagePacket =
@@ -2140,7 +2288,7 @@ window.AriComposerBridge = {
           .continuityResolvedReferences
       );
 
-    const unresolvedReferences =
+    const rawUnresolvedReferences =
       this.toArray(
         packet
           ?.referenceResolution
@@ -2152,6 +2300,122 @@ window.AriComposerBridge = {
         summary
           .continuityUnresolvedReferences
       );
+
+    const resolvedUserQuestion =
+      this.cleanOriginal(
+        packet?.resolvedUserQuestion ||
+        packet
+          ?.resolvedCurrentTurn
+          ?.resolvedText ||
+        packet
+          ?.currentTurn
+          ?.resolvedText ||
+        stagePacket
+          ?.currentTurn
+          ?.resolvedText ||
+        summary.continuityResults
+          ?.resolvedUserQuestion ||
+        summary.continuityResults
+          ?.resolvedCurrentTurn
+          ?.resolvedText ||
+        summary.continuityResults
+          ?.outputs
+          ?.elliptical
+          ?.resolvedUserQuestion ||
+        summary.continuityResults
+          ?.outputs
+          ?.elliptical
+          ?.resolvedCurrentTurnText ||
+        summary.continuityResults
+          ?.outputs
+          ?.elliptical
+          ?.ellipticalFollowUpResolution
+          ?.resolvedText ||
+        summary.resolvedUserQuestion ||
+        ""
+      );
+
+    const originalText =
+      this.cleanOriginal(
+        packet
+          ?.currentTurn
+          ?.originalText ||
+        stagePacket
+          ?.currentTurn
+          ?.originalText ||
+        summary.originalUserMessage ||
+        summary.userMessage ||
+        summary.message ||
+        summary.input ||
+        ""
+      );
+
+    const ellipticalFollowUpResolved =
+      packet
+        ?.ellipticalFollowUpResolved ===
+        true ||
+      packet
+        ?.currentTurn
+        ?.ellipticalFollowUpResolved ===
+        true ||
+      stagePacket
+        ?.currentTurn
+        ?.ellipticalFollowUpResolved ===
+        true ||
+      summary.ellipticalFollowUpResolved ===
+        true ||
+      summary.continuityResults
+        ?.ellipticalFollowUp
+        ?.resolved ===
+        true ||
+      summary.continuityResults
+        ?.outputs
+        ?.elliptical
+        ?.resolved ===
+        true ||
+      summary.continuityResults
+        ?.outputs
+        ?.elliptical
+        ?.ellipticalFollowUpResolution
+        ?.resolved ===
+        true;
+
+    const resolvedTextDiffers =
+      Boolean(
+        resolvedUserQuestion
+      ) &&
+      this.normalize(
+        resolvedUserQuestion
+      ) !==
+      this.normalize(
+        originalText
+      );
+
+    const currentTurnWasResolved =
+      packet
+        ?.currentTurnWasResolved ===
+        true ||
+      packet
+        ?.currentTurn
+        ?.currentTurnWasResolved ===
+        true ||
+      stagePacket
+        ?.currentTurn
+        ?.currentTurnWasResolved ===
+        true ||
+      summary.currentTurnWasResolved ===
+        true ||
+      ellipticalFollowUpResolved ||
+      resolvedTextDiffers;
+
+    const unresolvedReferences =
+      currentTurnWasResolved &&
+      resolvedUserQuestion
+        ? []
+        : rawUnresolvedReferences;
+
+    const effectiveUnresolvedReferenceCount =
+      unresolvedReferences.length;
 
     return {
       available:
@@ -2190,11 +2454,52 @@ window.AriComposerBridge = {
       binding,
       facts,
       resolvedReferences,
+
+      rawUnresolvedReferences,
+
+      rawUnresolvedReferenceCount:
+        rawUnresolvedReferences.length,
+
       unresolvedReferences,
 
+      effectiveUnresolvedReferenceCount,
+
       referenceClarificationRequired:
-        unresolvedReferences.length >
+        effectiveUnresolvedReferenceCount >
         0,
+
+      originalText,
+
+      resolvedUserQuestion:
+        resolvedUserQuestion ||
+        originalText,
+
+      effectiveUserQuestion:
+        resolvedUserQuestion ||
+        originalText,
+
+      currentTurnWasResolved,
+
+      ellipticalFollowUpResolved,
+
+      missingContextRecovered:
+        currentTurnWasResolved &&
+        Boolean(
+          resolvedUserQuestion
+        ),
+
+      staleUnresolvedReferencesSuppressed:
+        rawUnresolvedReferences.length >
+          0 &&
+        effectiveUnresolvedReferenceCount ===
+          0,
+
+      resolutionSource:
+        ellipticalFollowUpResolved
+          ? "elliptical_follow_up"
+          : currentTurnWasResolved
+            ? "resolved_current_turn"
+            : "none",
 
       currentTurnTextPreserved:
         stagePacket
@@ -2203,7 +2508,7 @@ window.AriComposerBridge = {
         true,
 
       authority:
-        "structured_continuity_context_only"
+        "structured_continuity_and_resolved_turn_context_only"
     };
   },
 
@@ -2789,25 +3094,56 @@ window.AriComposerBridge = {
 
       request,
 
-      /*
+            /*
        * Current-turn compatibility aliases.
+       *
+       * The original text remains preserved for provenance.
+       * The resolved text is the canonical expression input when
+       * continuity successfully resolved the current turn.
        */
       turnId:
         request.turnId,
 
       userQuestion:
+        request.resolvedText ||
         request.originalText,
 
       originalUserQuestion:
         request.originalText,
 
       resolvedUserQuestion:
+        request.resolvedText ||
         request.originalText,
 
       currentTurnText:
+        request.resolvedText ||
         request.originalText,
 
+      effectiveUserQuestion:
+        request.resolvedText ||
+        request.originalText,
+
+      semanticInputText:
+        request.semanticInputText ||
+        request.resolvedText ||
+        request.originalText,
+
+      currentTurnWasResolved:
+        request
+          .currentTurnWasStructurallyResolved ===
+        true,
+
+      ellipticalFollowUpResolved:
+        request
+          .ellipticalFollowUpResolved ===
+        true,
+
+      resolutionSource:
+        request.resolutionSource ||
+        "none",
+
       currentTurnTextPreserved:
+        request.originalTextPreserved ===
         true,
 
       primary:
@@ -3527,10 +3863,15 @@ window.AriComposerBridge = {
       });
     }
 
-    if (
-      continuityContext
-        .unresolvedReferences
-        .length >
+        if (
+      (
+        continuityContext
+          .effectiveUnresolvedReferenceCount ??
+        continuityContext
+          .unresolvedReferences
+          ?.length ??
+        0
+      ) >
         0 &&
       responsePlan
         .shouldAskQuestion !==
@@ -3542,8 +3883,11 @@ window.AriComposerBridge = {
 
         count:
           continuityContext
+            .effectiveUnresolvedReferenceCount ??
+          continuityContext
             .unresolvedReferences
-            .length
+            ?.length ??
+          0
       });
     }
 
