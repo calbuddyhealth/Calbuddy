@@ -1848,9 +1848,32 @@ const ellipticalResolved =
   summary.continuityResults
     ?.currentTurnWasResolved ===
     true ||
+  summary.continuityResults
+    ?.outputs
+    ?.elliptical
+    ?.resolved ===
+    true ||
+  summary.continuityResults
+    ?.outputs
+    ?.elliptical
+    ?.ellipticalFollowUpResolution
+    ?.resolved ===
+    true ||
   resolvedCurrentTurn
     ?.currentTurnWasResolved ===
-    true;
+    true ||
+  Boolean(
+    resolvedUserQuestion &&
+    this.normalize(
+      resolvedUserQuestion
+    ) !==
+    this.normalize(
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    )
+  );
 
     return {
       required:
@@ -2617,14 +2640,41 @@ buildClarificationResolution({
         rawCurrentNeed
       );
 
-    if (
-      normalizedRaw &&
-      this.currentNeedRegistry[
-        normalizedRaw
-      ]
-    ) {
-      return normalizedRaw;
-    }
+    const resolvedContinuityQuestion =
+  continuity
+    .currentTurnWasResolved ===
+    true ||
+  continuity
+    .missingContextRecovered ===
+    true ||
+  continuity
+    .ellipticalFollowUp
+    ?.resolved ===
+    true ||
+  Boolean(
+    continuity
+      .resolvedUserQuestion ||
+    continuity
+      .resolvedCurrentTurn
+      ?.resolvedText
+  );
+
+const rawNeedWasClarification =
+  normalizedRaw ===
+    "reflect_then_clarify";
+
+if (
+  normalizedRaw &&
+  this.currentNeedRegistry[
+    normalizedRaw
+  ] &&
+  !(
+    rawNeedWasClarification &&
+    resolvedContinuityQuestion
+  )
+) {
+  return normalizedRaw;
+}
 
     if (
       safety.shouldStopNormalResponse ||
@@ -2742,17 +2792,6 @@ buildClarificationResolution({
       return "practical_next_step";
     }
 
-    const resolvedContinuityQuestion =
-  continuity
-    .currentTurnWasResolved ===
-    true ||
-  continuity
-    .missingContextRecovered ===
-    true ||
-  continuity
-    .ellipticalFollowUp
-    ?.resolved ===
-    true;
 
 if (
   [
