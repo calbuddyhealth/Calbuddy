@@ -1782,11 +1782,20 @@ const ellipticalResolution =
   {};
 
 const resolvedCurrentTurn =
-  summary.resolvedCurrentTurn ||
   summary.continuityResults
     ?.resolvedCurrentTurn ||
+  summary.continuityResults
+    ?.outputs
+    ?.elliptical
+    ?.resolvedCurrentTurn ||
+  summary.continuityResults
+    ?.outputs
+    ?.elliptical
+    ?.ellipticalFollowUpResolution
+    ?.resolvedCurrentTurn ||
+  summary.resolvedCurrentTurn ||
   ellipticalResolution
-    .resolvedCurrentTurn ||
+    ?.resolvedCurrentTurn ||
   {};
 
 const resolvedUserQuestion =
@@ -1814,12 +1823,6 @@ const resolvedUserQuestion =
     ellipticalResolution
       ?.resolvedText ||
     summary.resolvedUserQuestion ||
-    ""
-  );
-    resolvedCurrentTurn
-      ?.resolvedText ||
-    ellipticalResolution
-      ?.resolvedText ||
     ""
   );
 
@@ -2516,14 +2519,18 @@ resolveEffectiveClarificationRequirement({
   }
 
   if (
+  (
+    continuity
+      .effectiveUnresolvedReferenceCount ??
     continuity
       .unresolvedReferences
-      .length >
-      0 &&
-    !continuityResolved
-  ) {
-    return true;
-  }
+      ?.length ??
+    0
+  ) >
+  0
+) {
+  return true;
+}
 
   return upstreamClarificationRequired;
 },
@@ -5709,9 +5716,32 @@ resolvedQuestionIsInterpretiveHandoff:
       unsupportedMoves,
 
       unresolvedReferenceCount:
-        continuity
-          .unresolvedReferences
-          .length,
+  continuity
+    .effectiveUnresolvedReferenceCount ??
+  continuity
+    .unresolvedReferences
+    ?.length ??
+  0,
+
+rawUnresolvedReferenceCount:
+  continuity
+    .unresolvedReferences
+    ?.length ??
+  0,
+
+continuityResolutionApplied:
+  continuity
+    .currentTurnWasResolved ===
+    true,
+
+resolvedQuestionAvailable:
+  Boolean(
+    continuity
+      .resolvedUserQuestion ||
+    continuity
+      .resolvedCurrentTurn
+      ?.resolvedText
+  ),
 
       validationErrorCount:
         validation.errors
