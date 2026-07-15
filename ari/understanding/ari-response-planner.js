@@ -49,7 +49,7 @@ window.Ari = window.Ari || {};
 
 window.AriResponsePlanner = {
   version: "2.1.0",
-  schemaVersion: "2.0.0",
+  schemaVersion: "2.1.0",
 
   /* =====================================================
      CANONICAL REGISTRIES
