@@ -5,7 +5,7 @@
 // Render a fast deterministic response candidate from the canonical
 // Response Plan contained in the Composer Packet.
 //
-// V2.1.1 — Focused Character Evidence / Compatibility Grounding / Stable Status
+// V2.1.2 — Resolved Turn Consumption / Optional Context / Continuity Fallback
 //
 // Architectural flow:
 //
@@ -44,7 +44,7 @@
 window.Ari = window.Ari || {};
 
 window.AriBlueprintWriter = {
-  version: "2.1.1",
+  version: "2.1.2",
   schemaVersion: "1.0.0",
 
   /* =====================================================
@@ -301,64 +301,107 @@ canonicalResponsePlanUsed:
      REQUEST READING
   ===================================================== */
 
-  readRequest(packet = {}) {
-    const packetRequest =
-      packet.request ||
-      {};
+readRequest(packet = {}) {
+  const packetRequest =
+    packet.request ||
+    {};
 
-    const currentText =
-      this.cleanOriginal(
-        packetRequest.currentText ||
-        packetRequest.originalText ||
-        packet.currentTurnText ||
-        packet.originalUserQuestion ||
-        packet.userQuestion ||
-        ""
-      );
+  const responsePlan =
+    packet.canonicalResponsePlan ||
+    packet.responsePlan ||
+    {};
 
-    return {
-      turnId:
-        packetRequest.turnId ||
-        null,
+  const writerInstructions =
+    packet.writerInstructions ||
+    packet.responseControl
+      ?.writerInstructions ||
+    responsePlan.writerInstructions ||
+    {};
 
-      currentText,
+  const originalText =
+    this.cleanOriginal(
+      packetRequest.originalText ||
+      responsePlan.originalUserQuestion ||
+      packet.originalUserQuestion ||
+      packetRequest.currentText ||
+      packet.currentTurnText ||
+      packet.userQuestion ||
+      ""
+    );
 
-      originalText:
-        this.cleanOriginal(
-          packetRequest.originalText ||
-          currentText
-        ),
+  const resolvedText =
+    this.cleanOriginal(
+      packetRequest.resolvedText ||
+      packetRequest.resolvedQuestion ||
+      packet.resolvedUserQuestion ||
+      responsePlan.resolvedUserQuestion ||
+      writerInstructions.resolvedQuestion ||
+      writerInstructions.sourceQuestion ||
+      originalText
+    );
 
-      normalizedText:
-        this.normalize(
-          packetRequest.normalizedText ||
-          currentText
-        ),
+  const currentText =
+    resolvedText ||
+    originalText;
 
-      contextLane:
-        packetRequest.contextLane ||
-        packet.contextLane ||
-        "direct_current_turn",
+  return {
+    turnId:
+      packetRequest.turnId ||
+      responsePlan.turnId ||
+      null,
 
-      requiresPriorContext:
-        packetRequest
-          .requiresPriorContext ===
-          true,
+    currentText,
 
-      textWasRewritten:
-        packetRequest
-          .textWasRewritten ===
-          true,
+    originalText,
 
-      originalTextPreserved:
-        packetRequest
-          .originalTextPreserved !==
-          false,
+    resolvedText:
+      resolvedText ||
+      originalText,
 
-      authority:
-        "composer_packet_current_turn"
-    };
-  },
+    normalizedText:
+      this.normalize(
+        resolvedText ||
+        packetRequest.normalizedText ||
+        originalText
+      ),
+
+    contextLane:
+      packetRequest.contextLane ||
+      packet.contextLane ||
+      responsePlan.routing
+        ?.contextLane ||
+      "direct_current_turn",
+
+    requiresPriorContext:
+      packetRequest
+        .requiresPriorContext ===
+        true ||
+      responsePlan.routing
+        ?.mustUsePriorContext ===
+        true,
+
+    currentTurnWasResolved:
+      packetRequest
+        .currentTurnWasResolved ===
+        true ||
+      responsePlan.turn
+        ?.currentTurnWasSemanticallyResolved ===
+        true,
+
+    textWasRewritten:
+      packetRequest
+        .textWasRewritten ===
+        true,
+
+    originalTextPreserved:
+      packetRequest
+        .originalTextPreserved !==
+        false,
+
+    authority:
+      "composer_packet_resolved_current_turn"
+  };
+},
 
   /* =====================================================
      WRITER CONTRACT
@@ -387,8 +430,10 @@ canonicalResponsePlanUsed:
     packet.responseMoves,
     responseControl.responseMoves,
     responsePlan.responseMoves,
+    responsePlan.moves,
     instructions.responseMoves,
-    instructions.moves
+    instructions.moves,
+    instructions.sequence
   );
 
     const responseMoves =
@@ -1909,6 +1954,39 @@ for (
       };
     }
 
+const continuity =
+  this.readContinuity(
+    packet
+  );
+
+const continuityAnswer =
+  this.cleanForUser(
+    continuity.resolvedAnswer ||
+    continuity.answer ||
+    continuity.previousAnswer ||
+    ""
+  );
+
+if (
+  continuity.shouldUse === true &&
+  continuityAnswer
+) {
+  return {
+    text:
+      continuityAnswer,
+
+    source:
+      "grounded_continuity_answer",
+
+    confidence:
+      0.86,
+
+    evidenceUsed: [
+      "continuity_previous_answer"
+    ]
+  };
+}
+
     const trusted =
       this.extractTrustedDirectAnswer(
         packet
@@ -2188,14 +2266,19 @@ for (
         .find(Boolean);
 
     if (!context) {
-      return {
-        text:
-          "",
+  return {
+    text:
+      "",
 
-        reason:
-          "no_usable_context_available"
-      };
-    }
+    reason:
+      "usable_context_not_needed_for_complete_answer",
+
+    optionalMoveSatisfied:
+      true,
+
+    evidenceUsed: []
+  };
+}
 
     return {
       text:
@@ -4654,6 +4737,21 @@ for (
   /* =====================================================
      PACKET READING
   ===================================================== */
+
+readContinuity(packet = {}) {
+  const responsePlan =
+    packet.canonicalResponsePlan ||
+    packet.responsePlan ||
+    {};
+
+  return (
+    packet.continuity ||
+    packet.evidence
+      ?.continuity ||
+    responsePlan.continuity ||
+    {}
+  );
+},
 
     readCharacter(packet = {}) {
     const characterContext =
