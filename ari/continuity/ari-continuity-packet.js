@@ -97,12 +97,12 @@ window.Ari.continuityPacket = {
       });
 
     const threadContext =
-      this.buildThreadContext({
-        summary,
-        threadSource,
-        currentTurn,
-        continuityDecision
-      });
+  this.buildThreadContext({
+    summary,
+    threadSource,
+    currentTurn,
+    continuityDecision
+  });
 
     const referenceResolution =
       this.buildReferenceResolution({
@@ -205,13 +205,28 @@ window.Ari.continuityPacket = {
         null,
 
       continuityType:
-        continuityDecision.type,
+  continuityDecision.type,
 
-      currentTurn,
+currentTurn,
 
-      continuityDecision,
+resolvedCurrentTurn:
+  currentTurn,
 
-      threadContext,
+resolvedUserQuestion:
+  currentTurn.resolvedText ||
+  currentTurn.originalText,
+
+currentTurnWasResolved:
+  currentTurn.currentTurnWasResolved ===
+  true,
+
+ellipticalFollowUpResolved:
+  currentTurn.currentTurnWasResolved ===
+  true,
+
+continuityDecision,
+
+threadContext,
 
       activeThread:
         threadContext,
@@ -380,22 +395,77 @@ window.Ari.continuityPacket = {
         ""
       );
 
-    const externallyResolvedText =
-      this.clean(
-        summary.resolvedUserQuestion ||
-        summary.resolvedCurrentTurn
-          ?.resolvedText ||
-        originalText
-      );
+    const ellipticalOutput =
+  continuityResults.outputs
+    ?.elliptical ||
+  {};
+  
+const ellipticalResolution =
+  ellipticalOutput
+    .ellipticalFollowUpResolution ||
+  continuityResults
+    .ellipticalFollowUpResolution ||
+  continuityResults
+    .ellipticalFollowUp ||
+  {};
+
+const resolvedCurrentTurn =
+  continuityResults
+    .resolvedCurrentTurn ||
+  ellipticalOutput
+    .resolvedCurrentTurn ||
+  ellipticalResolution
+    .resolvedCurrentTurn ||
+  summary.resolvedCurrentTurn ||
+  {};
+
+const externallyResolvedText =
+  this.clean(
+    continuityResults
+      .resolvedUserQuestion ||
+    resolvedCurrentTurn
+      ?.resolvedText ||
+    ellipticalOutput
+      .resolvedUserQuestion ||
+    ellipticalOutput
+      .resolvedCurrentTurnText ||
+    ellipticalResolution
+      .resolvedText ||
+    summary.resolvedUserQuestion ||
+    summary.resolvedCurrentTurn
+      ?.resolvedText ||
+    originalText
+  );
 
     const currentTurnWasResolved =
-      summary.currentTurnWasResolved ===
-        true ||
-      (
-        externallyResolvedText &&
-        externallyResolvedText !==
-          originalText
-      );
+  summary.currentTurnWasResolved ===
+    true ||
+  summary.ellipticalFollowUpResolved ===
+    true ||
+  continuityResults
+    .currentTurnWasResolved ===
+    true ||
+  continuityResults
+    .ellipticalFollowUp
+    ?.resolved ===
+    true ||
+  ellipticalOutput
+    .resolved ===
+    true ||
+  ellipticalResolution
+    .resolved ===
+    true ||
+  (
+    Boolean(
+      externallyResolvedText
+    ) &&
+    this.normalize(
+      externallyResolvedText
+    ) !==
+    this.normalize(
+      originalText
+    )
+  );
 
     const lane =
       continuityResults
@@ -967,16 +1037,23 @@ window.Ari.continuityPacket = {
           true,
 
       currentTurn: {
-        originalText:
-          currentTurn.originalText,
+  originalText:
+    currentTurn.originalText,
 
-        resolvedText:
-          currentTurn.resolvedText,
+  resolvedText:
+    currentTurn.resolvedText,
 
-        needsPriorContext:
-          currentTurn
-            .needsPriorContext
-      },
+  currentTurnWasResolved:
+    currentTurn.currentTurnWasResolved ===
+    true,
+
+  needsPriorContext:
+    currentTurn.needsPriorContext,
+
+  authority:
+    currentTurn.authority ||
+    "current_turn_record_only"
+},
 
       shouldReusePriorContext:
         continuityDecision
