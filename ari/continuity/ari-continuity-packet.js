@@ -6,7 +6,7 @@
 // reference resolution, memory context, relationship context, and the
 // continuity-routing decision.
 //
-// V2.0.0 — Structured Continuity Contract / No Semantic Interpretation
+// V2.1.0 — Resolved Follow-Up Preservation / Canonical Turn Handoff
 //
 // Architectural responsibilities:
 // - Preserve the original current turn.
@@ -29,7 +29,7 @@
 window.Ari = window.Ari || {};
 
 window.Ari.continuityPacket = {
-  version: "2.0.0",
+  version: "2.1.0",
   schemaVersion: "1.0.0",
 
   /* =====================================================
