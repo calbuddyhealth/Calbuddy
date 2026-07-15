@@ -44,24 +44,41 @@ version: "1.8.1",
     "ari/observer-system/ari-observer-routing-evidence.js",
     "ari/routing/ari-lane-splitter-engine.js",
 
-    "ari/continuity/ari-continuity-entry-point.js",
-    "ari/continuity/ari-continuity-packet.js",
-    "ari/conversation/ari-conversation-meaning-history.js",
-    "ari/context/ari-thread-question-generator.js",
+    // =====================================================
+// CONTINUITY FOUNDATION
+// =====================================================
 
-    "ari/storage/ari-thread-store.js",
-    "ari/storage/ari-memory-store.js",
-    "ari/continuity/ari-conversation-continuity-engine.js",
+"ari/storage/ari-thread-store.js",
+"ari/storage/ari-memory-store.js",
 
-    "ari/memory/ari-memory-ranking-engine.js",
-    "ari/memory/ari-memory-retrieval-engine.js",
-    "ari/memory/ari-memory-context-builder.js",
-    "ari/memory/ari-memory-candidate-engine.js",
+"ari/conversation/ari-conversation-meaning-history.js",
+"ari/continuity/ari-conversation-continuity-engine.js",
 
-    "ari/relationship/ari-relationship-engine.js",
-    "ari/context/ari-context-assembler.js",
-    "ari/context/ari-thread-understanding-engine.js",
-    "ari/context/ari-entity-reference-resolver.js",
+// =====================================================
+// CONTINUITY CAPABILITY ENGINES
+// =====================================================
+
+"ari/context/ari-thread-understanding-engine.js",
+"ari/continuity/ari-elliptical-follow-up-resolver.js",
+"ari/context/ari-entity-reference-resolver.js",
+
+"ari/memory/ari-memory-ranking-engine.js",
+"ari/memory/ari-memory-retrieval-engine.js",
+"ari/memory/ari-memory-context-builder.js",
+"ari/memory/ari-memory-candidate-engine.js",
+
+"ari/relationship/ari-relationship-engine.js",
+"ari/context/ari-context-assembler.js",
+
+// =====================================================
+// CONTINUITY ORCHESTRATION
+// =====================================================
+
+"ari/continuity/ari-continuity-packet.js",
+"ari/continuity/ari-continuity-entry-point.js",
+
+// Legacy diagnostic only.
+"ari/context/ari-thread-question-generator.js",
 
     "ari/meaning/ari-semantic-frame-builder.js",
     "ari/perception/ari-perception-reconciliation-engine.js",
