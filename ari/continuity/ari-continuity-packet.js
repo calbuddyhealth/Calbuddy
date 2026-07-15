@@ -221,7 +221,7 @@ currentTurnWasResolved:
   true,
 
 ellipticalFollowUpResolved:
-  currentTurn.currentTurnWasResolved ===
+  currentTurn.ellipticalFollowUpResolved ===
   true,
 
 continuityDecision,
@@ -437,13 +437,8 @@ const externallyResolvedText =
     originalText
   );
 
-    const currentTurnWasResolved =
-  summary.currentTurnWasResolved ===
-    true ||
+    const ellipticalFollowUpResolved =
   summary.ellipticalFollowUpResolved ===
-    true ||
-  continuityResults
-    .currentTurnWasResolved ===
     true ||
   continuityResults
     .ellipticalFollowUp
@@ -454,7 +449,15 @@ const externallyResolvedText =
     true ||
   ellipticalResolution
     .resolved ===
+    true;
+
+const currentTurnWasResolved =
+  summary.currentTurnWasResolved ===
     true ||
+  continuityResults
+    .currentTurnWasResolved ===
+    true ||
+  ellipticalFollowUpResolved ||
   (
     Boolean(
       externallyResolvedText
@@ -476,16 +479,17 @@ const externallyResolvedText =
       null;
 
     return {
-      originalText,
+  originalText,
 
-      resolvedText:
-        externallyResolvedText ||
-        originalText,
+  resolvedText:
+    externallyResolvedText ||
+    originalText,
 
-      currentTurnWasResolved,
+  currentTurnWasResolved,
 
-      lane,
+  ellipticalFollowUpResolved,
 
+  lane,
       needsPriorContext:
         continuityResults
           .currentTurn
