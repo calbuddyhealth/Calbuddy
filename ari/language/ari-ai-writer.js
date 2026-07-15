@@ -4,7 +4,7 @@
 // Purpose:
 // Produce an AI-assisted response candidate from the canonical Composer Packet.
 //
-// V2.2.0 — Candidate Preservation / Interaction-Question Validation
+// V2.3.0 — Post-Continuity Question Policy Reconciliation
 //
 // Architectural flow:
 //
@@ -44,8 +44,8 @@
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "2.2.0",
-  schemaVersion: "1.0.0",
+  version: "2.3.0",
+  schemaVersion: "1.1.0",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -371,28 +371,101 @@ return this.returnDraft({
   readRequest(packet = {}) {
     const packetRequest = packet.request || {};
 
-    const currentText = this.cleanOriginal(
-      packetRequest.currentText ||
-      packetRequest.originalText ||
-      packet.currentTurnText ||
-      packet.originalUserQuestion ||
-      packet.userQuestion ||
-      ""
-    );
+        const currentText =
+      this.cleanOriginal(
+        packetRequest.resolvedText ||
+        packetRequest.semanticInputText ||
+        packetRequest.effectiveText ||
+        packet.resolvedUserQuestion ||
+        packet.effectiveUserQuestion ||
+        packet.semanticInputText ||
+        packetRequest.currentText ||
+        packet.currentTurnText ||
+        packet.userQuestion ||
+        packetRequest.originalText ||
+        packet.originalUserQuestion ||
+        ""
+      );
+
+    const originalText =
+      this.cleanOriginal(
+        packetRequest.originalText ||
+        packet.originalUserQuestion ||
+        currentText
+      );
 
     return {
-      turnId: packetRequest.turnId || packet.turnId || null,
-      currentText,
-      originalText: this.cleanOriginal(packetRequest.originalText || currentText),
-      normalizedText: this.normalize(packetRequest.normalizedText || currentText),
-      contextLane: packetRequest.contextLane || packet.contextLane || "direct_current_turn",
-      requiresPriorContext: packetRequest.requiresPriorContext === true,
-      originalTextPreserved: packetRequest.originalTextPreserved !== false,
-      textWasRewritten: packetRequest.textWasRewritten === true,
-      authority: "composer_packet_current_turn"
-    };
-  },
+      turnId:
+        packetRequest.turnId ||
+        packet.turnId ||
+        null,
 
+      currentText,
+
+      effectiveText:
+        currentText,
+
+      resolvedText:
+        currentText,
+
+      semanticInputText:
+        currentText,
+
+      originalText,
+
+      normalizedText:
+        this.normalize(
+          currentText
+        ),
+
+      contextLane:
+        packetRequest.contextLane ||
+        packet.contextLane ||
+        "direct_current_turn",
+
+      requiresPriorContext:
+        packetRequest
+          .requiresPriorContext ===
+        true,
+
+      currentTurnWasResolved:
+        packetRequest
+          .currentTurnWasStructurallyResolved ===
+          true ||
+        packetRequest
+          .currentTurnWasSemanticallyResolved ===
+          true ||
+        packet.currentTurnWasResolved ===
+          true,
+
+      ellipticalFollowUpResolved:
+        packetRequest
+          .ellipticalFollowUpResolved ===
+          true ||
+        packet
+          .ellipticalFollowUpResolved ===
+          true,
+
+      resolutionSource:
+        packetRequest
+          .resolutionSource ||
+        packet.resolutionSource ||
+        "none",
+
+      originalTextPreserved:
+        packetRequest
+          .originalTextPreserved !==
+        false,
+
+      textWasRewritten:
+        packetRequest
+          .textWasRewritten ===
+        true,
+
+      authority:
+        "composer_packet_canonical_resolved_current_turn"
+    };
+},
   /* =====================================================
      SAFE PACKET
   ===================================================== */
@@ -501,18 +574,12 @@ return this.returnDraft({
       instructions.rules
     );
 
-    const questionPolicy =
+        const questionPolicy =
       responseControl.questionPolicy ||
       responsePlan.interactionPolicy ||
       {};
 
-    const shouldAskQuestion =
-      packet.shouldAskQuestion === true ||
-      questionPolicy.shouldAskQuestion === true ||
-      responsePlan.shouldAskQuestion === true ||
-      instructions.questionRequired === true;
-
-    const questionPurpose =
+    const rawQuestionPurpose =
       packet.questionPurpose ||
       questionPolicy.purpose ||
       questionPolicy.questionPurpose ||
@@ -520,12 +587,173 @@ return this.returnDraft({
       instructions.questionPurpose ||
       null;
 
-    const maximumQuestions = this.firstFiniteNumber([
-      questionPolicy.maximumQuestions,
-      questionPolicy.maxQuestions,
-      instructions.maxQuestions,
-      shouldAskQuestion ? 1 : 0
-    ]);
+    const normalizedQuestionPurpose =
+      this.normalizeIdentifier(
+        rawQuestionPurpose ||
+        ""
+      );
+
+    const planner =
+      this.normalizeIdentifier(
+        packet.responseStrategy
+          ?.planner ||
+        responsePlan.strategy
+          ?.planner ||
+        packet.routingContract
+          ?.planner ||
+        ""
+      );
+
+    const responseGoal =
+      this.normalizeIdentifier(
+        packet.responseGoal ||
+        responseControl.responseGoal ||
+        responsePlan.responseGoal ||
+        responsePlan.strategy
+          ?.responseGoal ||
+        ""
+      );
+
+    const blueprintHint =
+      this.normalizeIdentifier(
+        packet.blueprintHint ||
+        responseControl.blueprintHint ||
+        responsePlan.blueprintHint ||
+        responsePlan.blueprint
+          ?.id ||
+        instructions.blueprintId ||
+        ""
+      );
+
+    const continuity =
+      packet.continuity ||
+      packet.evidence
+        ?.continuity ||
+      {};
+
+    const effectiveUnresolvedReferenceCount =
+      Number(
+        continuity
+          .effectiveUnresolvedReferenceCount ??
+        continuity
+          .unresolvedReferences
+          ?.length ??
+        0
+      );
+
+    const resolvedUserQuestion =
+      this.cleanOriginal(
+        packet.resolvedUserQuestion ||
+        packet.request
+          ?.resolvedText ||
+        continuity
+          .resolvedUserQuestion ||
+        continuity
+          .effectiveUserQuestion ||
+        ""
+      );
+
+    const currentTurnWasResolved =
+      packet.currentTurnWasResolved ===
+        true ||
+      packet
+        .ellipticalFollowUpResolved ===
+        true ||
+      packet.request
+        ?.currentTurnWasStructurallyResolved ===
+        true ||
+      packet.request
+        ?.currentTurnWasSemanticallyResolved ===
+        true ||
+      continuity
+        .currentTurnWasResolved ===
+        true ||
+      continuity
+        .ellipticalFollowUpResolved ===
+        true;
+
+    const continuityResolutionComplete =
+      currentTurnWasResolved &&
+      Boolean(
+        resolvedUserQuestion
+      ) &&
+      effectiveUnresolvedReferenceCount ===
+        0;
+
+    const clarificationQuestionPolicy =
+      planner ===
+        "clarification_planner" ||
+      normalizedQuestionPurpose.includes(
+        "clarif"
+      ) ||
+      normalizedQuestionPurpose.includes(
+        "missing_context"
+      ) ||
+      normalizedQuestionPurpose.includes(
+        "missing_reference"
+      ) ||
+      normalizedQuestionPurpose.includes(
+        "resolve_reference"
+      ) ||
+      responseGoal.includes(
+        "clarif"
+      ) ||
+      blueprintHint.includes(
+        "clarif"
+      );
+
+    const rawShouldAskQuestion =
+      packet.shouldAskQuestion ===
+        true ||
+      questionPolicy
+        .shouldAskQuestion ===
+        true ||
+      responsePlan
+        .shouldAskQuestion ===
+        true ||
+      instructions
+        .questionRequired ===
+        true;
+
+    /*
+     * A clarification question planned before continuity resolution
+     * becomes stale once continuity has produced a complete resolved
+     * current-turn question with no remaining unresolved references.
+     *
+     * This does not suppress ordinary conversational, reflective,
+     * permission, or safety questions.
+     */
+    const staleClarificationQuestionSuppressed =
+      rawShouldAskQuestion &&
+      clarificationQuestionPolicy &&
+      continuityResolutionComplete;
+
+    const shouldAskQuestion =
+      rawShouldAskQuestion &&
+      !staleClarificationQuestionSuppressed;
+
+    const questionPurpose =
+      staleClarificationQuestionSuppressed
+        ? null
+        : rawQuestionPurpose;
+
+    const maximumQuestions =
+      staleClarificationQuestionSuppressed
+        ? 0
+        : this.firstFiniteNumber([
+            questionPolicy
+              .maximumQuestions,
+
+            questionPolicy
+              .maxQuestions,
+
+            instructions
+              .maxQuestions,
+
+            shouldAskQuestion
+              ? 1
+              : 0
+          ]);
 
     return {
       schema: "ari_ai_writer_contract",
@@ -575,15 +803,43 @@ return this.returnDraft({
         responsePlan.coachingPermissionRequired === true ||
         responsePlan.interactionPolicy?.coachingPermissionRequired === true,
 
-      shouldAskQuestion,
+            shouldAskQuestion,
+
       questionPurpose,
 
-      finalQuestionAllowed:
-        instructions.finalQuestionAllowed === true ||
-        questionPolicy.finalQuestionAllowed === true ||
-        shouldAskQuestion,
+      rawShouldAskQuestion,
 
-      maximumQuestions: Math.max(0, Number(maximumQuestions || 0)),
+      rawQuestionPurpose,
+
+      clarificationQuestionPolicy,
+
+      continuityResolutionComplete,
+
+      staleClarificationQuestionSuppressed,
+
+      finalQuestionAllowed:
+        staleClarificationQuestionSuppressed
+          ? false
+          : (
+              instructions
+                .finalQuestionAllowed ===
+                true ||
+              questionPolicy
+                .finalQuestionAllowed ===
+                true ||
+              shouldAskQuestion
+            ),
+
+      maximumQuestions:
+        staleClarificationQuestionSuppressed
+          ? 0
+          : Math.max(
+              0,
+              Number(
+                maximumQuestions ||
+                0
+              )
+            ),
       requiredBehaviors,
       forbiddenBehaviors,
       constraints,
@@ -3181,9 +3437,19 @@ characterSource:
           candidateComplete:
             complete === true,
 
-          questionCount:
-            validation?.questionCount ??
-            this.countQuestions(text),
+                    questionCount:
+            validation
+              ?.questionCount ??
+            this.countUserDirectedQuestions(
+              text
+            ),
+
+          totalQuestionMarkCount:
+            validation
+              ?.totalQuestionMarkCount ??
+            this.countQuestions(
+              text
+            ),
 
           containsInternalPlannerLanguage:
             this.containsInternalPlannerLanguage(text),
