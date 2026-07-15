@@ -2,7 +2,7 @@
 // Connects Ari Rebirth to the real CalBuddy app.
 // Keeps Ari Lab separate.
 // Rebirth-only: no old Ari fallback.
-// V1.8.1 — Canonical Reconciliation Loader / Readiness Validation
+// V1.8.2 — Elliptical Follow-Up Resolver Loader / Continuity Dependency Order
 
 
 
@@ -10,7 +10,7 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-version: "1.8.1",
+version: "1.8.2",
 
   requiredScripts: [
     "ari/system/ari-loader.js",
