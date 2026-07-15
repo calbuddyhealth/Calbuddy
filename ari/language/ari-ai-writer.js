@@ -465,7 +465,7 @@ return this.returnDraft({
       authority:
         "composer_packet_canonical_resolved_current_turn"
     };
-},
+}, 
   /* =====================================================
      SAFE PACKET
   ===================================================== */
