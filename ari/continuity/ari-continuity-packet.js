@@ -1051,6 +1051,10 @@ const currentTurnWasResolved =
     currentTurn.currentTurnWasResolved ===
     true,
 
+  ellipticalFollowUpResolved:
+    currentTurn.ellipticalFollowUpResolved ===
+    true,
+
   needsPriorContext:
     currentTurn.needsPriorContext,
 
