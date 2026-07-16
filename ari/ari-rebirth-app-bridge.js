@@ -1678,108 +1678,187 @@ window.AriRebirthAppBridge = {
   ===================================================== */
 
   checkReadiness() {
-    const required = {
-      AriPerceptionPipeline:
-        window.AriPerceptionPipeline,
+  const required = {
+    AriConversationOperatingState:
+      window.AriConversationOperatingState ||
+      window.Ari?.conversationOperatingState,
 
-      AriExecutiveRoutingPipeline:
-        window
-          .AriExecutiveRoutingPipeline,
+    AriPerceptionPipeline:
+      window.AriPerceptionPipeline,
 
-      AriDeliberationPipeline:
-        window.AriDeliberationPipeline,
+    AriExecutiveRoutingPipeline:
+      window.AriExecutiveRoutingPipeline,
 
-      AriExpressionPipeline:
-        window.AriExpressionPipeline,
+    AriDeliberationPipeline:
+      window.AriDeliberationPipeline,
 
-      AriDeliveryPipeline:
-        window.AriDeliveryPipeline,
+    AriExpressionPipeline:
+      window.AriExpressionPipeline,
 
-      AriRebirthPipeline:
-        window.AriRebirthPipeline
-    };
+    AriDeliveryPipeline:
+      window.AriDeliveryPipeline,
 
-    const missing =
-      Object.entries(
-        required
-      )
-        .filter(
-          ([
-            _name,
-            component
-          ]) =>
+    AriRebirthPipeline:
+      window.AriRebirthPipeline
+  };
+
+  const validators = {
+    AriConversationOperatingState:
+      component =>
+        typeof component?.beginTurn ===
+          "function" &&
+        typeof component?.completeTurn ===
+          "function",
+
+    AriPerceptionPipeline:
+      component =>
+        typeof component?.run ===
+        "function",
+
+    AriExecutiveRoutingPipeline:
+      component =>
+        typeof component?.run ===
+        "function",
+
+    AriDeliberationPipeline:
+      component =>
+        typeof component?.run ===
+        "function",
+
+    AriExpressionPipeline:
+      component =>
+        typeof component?.run ===
+        "function",
+
+    AriDeliveryPipeline:
+      component =>
+        typeof component?.run ===
+        "function",
+
+    AriRebirthPipeline:
+      component =>
+        typeof component?.run ===
+        "function"
+  };
+
+  const missing =
+    Object.entries(
+      required
+    )
+      .filter(
+        ([
+          name,
+          component
+        ]) => {
+          const validator =
+            validators[name];
+
+          return (
             !component ||
-            typeof component.run !==
-              "function"
-        )
-        .map(
-          ([
-            name
-          ]) =>
-            name
-        );
-
-    if (
-      missing.length
-    ) {
-      return {
-        ready:
-          false,
-
-        source:
-          "ari-rebirth-app-bridge-readiness",
-
-        reason:
-          "required_runtime_boundaries_missing",
-
-        missing,
-
-        error:
-          `missing_components:${missing.join(",")}`,
-
-        message:
-          `Ari Rebirth is missing required runtime boundaries: ${missing.join(", ")}.`,
-
-        authority:
-          "top_level_runtime_boundary_validation"
-      };
-    }
-
-    const layerValidation =
-      this.validateLayerContracts(
-        required
+            typeof validator !==
+              "function" ||
+            validator(
+              component
+            ) !== true
+          );
+        }
+      )
+      .map(
+        ([
+          name
+        ]) =>
+          name
       );
 
+  if (
+    missing.length
+  ) {
     return {
       ready:
-        layerValidation.valid ===
-        true,
+        false,
 
       source:
         "ari-rebirth-app-bridge-readiness",
 
-      checkedComponents:
-        Object.keys(
-          required
-        ),
-
-      layerValidation,
-
       reason:
-        layerValidation.valid
-          ? "top_level_runtime_ready"
-          : "one_or_more_runtime_layers_invalid",
+        "required_runtime_boundaries_missing",
+
+      missing,
 
       error:
-        layerValidation.valid
-          ? null
-          : "runtime_layer_validation_failed",
+        `missing_components:${missing.join(",")}`,
+
+      message:
+        `Ari Rebirth is missing required runtime boundaries: ${missing.join(", ")}.`,
 
       authority:
         "top_level_runtime_boundary_validation"
     };
-  },
+  }
 
+  const layerValidation =
+    this.validateLayerContracts({
+      AriPerceptionPipeline:
+        required
+          .AriPerceptionPipeline,
+
+      AriExecutiveRoutingPipeline:
+        required
+          .AriExecutiveRoutingPipeline,
+
+      AriDeliberationPipeline:
+        required
+          .AriDeliberationPipeline,
+
+      AriExpressionPipeline:
+        required
+          .AriExpressionPipeline,
+
+      AriDeliveryPipeline:
+        required
+          .AriDeliveryPipeline,
+
+      AriRebirthPipeline:
+        required
+          .AriRebirthPipeline
+    });
+
+  return {
+    ready:
+      layerValidation.valid ===
+      true,
+
+    source:
+      "ari-rebirth-app-bridge-readiness",
+
+    checkedComponents:
+      Object.keys(
+        required
+      ),
+
+    conversationOperatingStateReady:
+  validators
+    .AriConversationOperatingState(
+      required
+        .AriConversationOperatingState
+    ) === true,
+
+    layerValidation,
+
+    reason:
+      layerValidation.valid
+        ? "top_level_runtime_ready"
+        : "one_or_more_runtime_layers_invalid",
+
+    error:
+      layerValidation.valid
+        ? null
+        : "runtime_layer_validation_failed",
+
+    authority:
+      "top_level_runtime_boundary_validation"
+  };
+},
   validateLayerContracts(
     required = {}
   ) {
