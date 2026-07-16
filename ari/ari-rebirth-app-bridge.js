@@ -208,8 +208,7 @@ window.AriRebirthAppBridge = {
     "ari/language/ari-blueprint-writer.js",
     "ari/language/ari-ai-writer.js",
     "ari/language/ari-response-candidate-arbiter.js",
-    "ari/language/ari-response-validator.js",
-    "ari/language/ari-response-compressor.js",
+    
 
     /*
      * Legacy language composers remain loaded temporarily
