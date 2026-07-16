@@ -2,69 +2,68 @@
 // ARI Rebirth — Conversation Operating System Controller
 //
 // Purpose:
-// Provide the single public integration entry point for the ARI Rebirth
-// Conversation Operating System.
+// Provide the canonical application-facing controller for the Conversation
+// Operating System.
 //
-// V1.0.0 — Canonical COS Integration Controller
+// V2.0.0 — Persistent COS Runtime Controller
 //
-// Canonical flow:
+// Canonical execution flow:
 //
-// Rebirth Runtime / App Bridge
+// Controller Input
 //      ↓
-// COS Controller
+// Conversation Identity Resolution
 //      ↓
-// Installation Verification
+// Persisted State Load
 //      ↓
-// Runtime Input Preparation
+// State Migration
+//      ↓
+// State Normalization
 //      ↓
 // COS Runtime Execution
 //      ↓
-// Result Verification
+// Resulting State Persistence
 //      ↓
-// Authoritative Conversation Placement Packet
+// Canonical Controller Result
 //
 // Authority:
 //
-// The COS Controller is authoritative only for:
+// This component is authoritative only for:
 //
-// - exposing the public COS execution API,
-// - locating installed COS components,
-// - verifying minimum COS installation readiness,
-// - preparing runtime input without interpreting language,
+// - resolving the conversation ID supplied to COS,
+// - loading persisted COS state,
+// - migrating loaded COS state,
+// - selecting persisted or supplied state according to explicit policy,
 // - invoking the canonical COS runtime,
-// - preserving the runtime result,
-// - exposing the authoritative placement packet,
-// - exposing structured installation and health diagnostics.
+// - saving successful resulting COS state,
+// - exposing controller-level diagnostics,
+// - returning one stable application-facing result.
 //
 // Non-authority:
 //
-// This controller must not:
+// This component must not:
 //
-// - interpret semantic meaning,
-// - classify intent,
-// - classify conversation function,
-// - infer emotion,
-// - infer safety severity,
-// - resolve natural-language references,
+// - reinterpret raw user language,
+// - independently infer semantic meaning,
+// - independently classify intent,
+// - independently classify conversation function,
+// - independently infer emotion,
+// - independently infer safety severity,
+// - independently resolve references,
 // - independently determine conversation placement,
-// - override runtime conclusions,
-// - repair invalid placement by guessing,
-// - alter the current-turn text,
-// - plan or generate a response.
+// - independently mutate thread relationships,
+// - independently generate responses.
 //
 // Architectural rule:
 //
-// The controller coordinates the Conversation Operating System as a whole.
+// The controller owns lifecycle orchestration around the COS runtime.
 //
-// All placement authority remains inside the canonical COS runtime chain:
+// The runtime owns execution ordering inside COS.
 //
-// - history index,
-// - turn register,
-// - reference resolver,
-// - placement engine,
-// - thread-state manager,
-// - placement validator,
-// - packet builder.
+// Persistence owns storage.
+//
+// Migration owns schema upgrades.
+//
+// Conversation authorities retain ownership of conversational decisions.
 //
 // Browser namespace:
 //
@@ -82,11 +81,13 @@
 
   const root =
     globalScope ||
-    (typeof globalThis !== "undefined"
-      ? globalThis
-      : typeof window !== "undefined"
-        ? window
-        : {});
+    (
+      typeof globalThis !== "undefined"
+        ? globalThis
+        : typeof window !== "undefined"
+          ? window
+          : {}
+    );
 
   root.Ari = root.Ari || {};
   root.Ari.Rebirth = root.Ari.Rebirth || {};
@@ -100,7 +101,7 @@
      CONSTANTS
   ===================================================== */
 
-  const VERSION = "1.0.0";
+  const VERSION = "2.0.0";
   const SCHEMA_VERSION = "1.0.0";
 
   const AUTHORITY =
@@ -109,93 +110,29 @@
   const COMPONENT_NAME =
     "cos-controller";
 
-  const REQUIRED_COMPONENTS = Object.freeze([
-    "contract",
-    "state",
-    "runtime",
-    "historyIndex",
-    "turnRegister",
-    "referenceResolver",
-    "placementEngine",
-    "threadStateManager",
-    "placementValidator",
-    "packetBuilder"
+  const CONTROLLER_RESULT_TYPE =
+    "conversation_operating_system_controller_result";
+
+  const STATE_SOURCE_POLICIES = Object.freeze([
+    "prefer_supplied",
+    "prefer_persisted",
+    "persisted_only",
+    "supplied_only"
   ]);
 
-  const COMPONENT_ALIASES = Object.freeze({
-    contract: [
-      "contract",
-      "cosContract",
-      "CosContract",
-      "COSContract"
-    ],
+  const DEFAULT_STATE_SOURCE_POLICY =
+    "prefer_supplied";
 
-    state: [
-      "state",
-      "cosState",
-      "CosState",
-      "COSState"
-    ],
-
-    runtime: [
-      "runtime",
-      "cosRuntime",
-      "CosRuntime",
-      "COSRuntime"
-    ],
-
-    historyIndex: [
-      "historyIndex",
-      "historyIndexer",
-      "cosHistoryIndex",
-      "CosHistoryIndex",
-      "COSHistoryIndex"
-    ],
-
-    turnRegister: [
-      "turnRegister",
-      "currentTurnRegister",
-      "cosTurnRegister",
-      "CosTurnRegister",
-      "COSTurnRegister"
-    ],
-
-    referenceResolver: [
-      "referenceResolver",
-      "cosReferenceResolver",
-      "CosReferenceResolver",
-      "COSReferenceResolver"
-    ],
-
-    placementEngine: [
-      "placementEngine",
-      "conversationPlacementEngine",
-      "cosPlacementEngine",
-      "CosPlacementEngine",
-      "COSPlacementEngine"
-    ],
-
-    threadStateManager: [
-      "threadStateManager",
-      "cosThreadStateManager",
-      "CosThreadStateManager",
-      "COSThreadStateManager"
-    ],
-
-    placementValidator: [
-      "placementValidator",
-      "cosPlacementValidator",
-      "CosPlacementValidator",
-      "COSPlacementValidator"
-    ],
-
-    packetBuilder: [
-      "packetBuilder",
-      "cosPacketBuilder",
-      "CosPacketBuilder",
-      "COSPacketBuilder"
-    ]
-  });
+  const CONTROLLER_STAGES = Object.freeze([
+    "component_resolution",
+    "conversation_id_resolution",
+    "state_load",
+    "state_migration",
+    "state_selection",
+    "state_normalization",
+    "runtime_execution",
+    "state_save"
+  ]);
 
   /* =====================================================
      ERROR TYPE
@@ -206,6 +143,7 @@
       code,
       message,
       {
+        stage = null,
         details = null,
         cause = null,
         recoverable = false
@@ -224,8 +162,14 @@
         code ||
         "COS_CONTROLLER_ERROR";
 
-      this.details = details;
-      this.cause = cause;
+      this.stage =
+        stage || null;
+
+      this.details =
+        details;
+
+      this.cause =
+        cause;
 
       this.recoverable =
         recoverable === true;
@@ -338,13 +282,17 @@
     for (
       const key of Reflect.ownKeys(value)
     ) {
-      const child = value[key];
+      const child =
+        value[key];
 
       if (
         child !== null &&
         typeof child === "object"
       ) {
-        deepFreeze(child, seen);
+        deepFreeze(
+          child,
+          seen
+        );
       }
     }
 
@@ -357,7 +305,125 @@
     );
   }
 
-  function createId(prefix = "cos") {
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function monotonicNow() {
+    if (
+      typeof performance !==
+        "undefined" &&
+      performance &&
+      isFunction(
+        performance.now
+      )
+    ) {
+      return performance.now();
+    }
+
+    return Date.now();
+  }
+
+  function elapsedMilliseconds(
+    startedAt
+  ) {
+    return Math.max(
+      0,
+      monotonicNow() -
+      startedAt
+    );
+  }
+
+  function hasOwn(
+    object,
+    property
+  ) {
+    return Object.prototype
+      .hasOwnProperty
+      .call(
+        object,
+        property
+      );
+  }
+
+  function safeError(error) {
+    if (error instanceof Error) {
+      return {
+        name:
+          error.name || "Error",
+
+        code:
+          firstNonEmptyString(
+            error.code
+          ) ||
+          "COS_CONTROLLER_ERROR",
+
+        message:
+          error.message ||
+          "Unknown COS controller error",
+
+        stage:
+          firstNonEmptyString(
+            error.stage
+          ) || null,
+
+        recoverable:
+          error.recoverable === true,
+
+        details:
+          error.details === undefined
+            ? null
+            : safeClone(
+                error.details
+              ),
+
+        cause:
+          error.cause instanceof Error
+            ? {
+                name:
+                  error.cause.name,
+
+                code:
+                  firstNonEmptyString(
+                    error.cause.code
+                  ) || null,
+
+                message:
+                  error.cause.message
+              }
+            : safeClone(
+                error.cause
+              )
+      };
+    }
+
+    return {
+      name: "Error",
+
+      code:
+        "COS_CONTROLLER_ERROR",
+
+      message:
+        isNonEmptyString(error)
+          ? error
+          : "Unknown COS controller error",
+
+      stage: null,
+
+      recoverable: false,
+
+      details:
+        safeClone(error),
+
+      cause: null
+    };
+  }
+
+  /* =====================================================
+     ID GENERATION
+  ===================================================== */
+
+  function createConversationId() {
     const timestamp =
       Date.now().toString(36);
 
@@ -385,108 +451,34 @@
           .slice(2, 12);
     }
 
-    return `${prefix}_${timestamp}_${randomPart}`;
-  }
-
-  function nowIso() {
-    return new Date().toISOString();
-  }
-
-  function safeError(error) {
-    if (error instanceof Error) {
-      return {
-        name:
-          error.name || "Error",
-
-        code:
-          firstNonEmptyString(
-            error.code
-          ) || "COS_CONTROLLER_ERROR",
-
-        message:
-          error.message ||
-          "Unknown COS controller error",
-
-        recoverable:
-          error.recoverable === true,
-
-        details:
-          error.details === undefined
-            ? null
-            : safeClone(
-                error.details
-              ),
-
-        cause:
-          error.cause instanceof Error
-            ? {
-                name:
-                  error.cause.name,
-
-                message:
-                  error.cause.message
-              }
-            : safeClone(
-                error.cause
-              )
-      };
-    }
-
-    return {
-      name: "Error",
-      code: "COS_CONTROLLER_ERROR",
-      message:
-        isNonEmptyString(error)
-          ? error
-          : "Unknown COS controller error",
-      recoverable: false,
-      details: safeClone(error),
-      cause: null
-    };
+    return `cos_conversation_${timestamp}_${randomPart}`;
   }
 
   /* =====================================================
      COMPONENT DISCOVERY
   ===================================================== */
 
-  function getNamespaces() {
-    return [
+  function resolveFromNamespace(
+    aliases = []
+  ) {
+    const namespaces = [
       ConversationOS,
       ConversationOS.core,
-      ConversationOS.indexing,
-      ConversationOS.turns,
-      ConversationOS.references,
-      ConversationOS.placement,
-      ConversationOS.threads,
-      ConversationOS.validation,
-      ConversationOS.packets,
+      ConversationOS.persistence,
+      ConversationOS.migrations,
       ConversationOS.components,
       root.Ari.Rebirth,
       root.Ari,
       root
     ].filter(Boolean);
-  }
-
-  function resolveComponent(
-    componentName,
-    override = null
-  ) {
-    if (override) {
-      return override;
-    }
-
-    const aliases =
-      COMPONENT_ALIASES[
-        componentName
-      ] || [];
-
-    const namespaces =
-      getNamespaces();
 
     for (
-      const namespace of namespaces
+      const namespace of
+        namespaces
     ) {
-      for (const alias of aliases) {
+      for (
+        const alias of aliases
+      ) {
         if (namespace[alias]) {
           return namespace[alias];
         }
@@ -496,240 +488,144 @@
     return null;
   }
 
-  function resolveAllComponents(
+  function resolveComponents(
     overrides = {}
   ) {
-    const components = {};
-
-    for (
-      const componentName of
-        REQUIRED_COMPONENTS
-    ) {
-      components[componentName] =
-        resolveComponent(
-          componentName,
-          overrides[componentName]
-        );
-    }
-
-    return components;
-  }
-
-  function readComponentVersion(
-    component
-  ) {
-    if (!component) {
-      return null;
-    }
-
-    return firstNonEmptyString(
-      component.version,
-      component.VERSION,
-      component.componentVersion,
-      component.component_version
-    );
-  }
-
-  function readComponentAuthority(
-    component
-  ) {
-    if (!component) {
-      return null;
-    }
-
-    return firstNonEmptyString(
-      component.authority,
-      component.AUTHORITY
-    );
-  }
-
-  function readComponentName(
-    component,
-    fallback
-  ) {
-    if (!component) {
-      return fallback;
-    }
-
-    return (
-      firstNonEmptyString(
-        component.component,
-        component.componentName,
-        component.component_name,
-        component.name
-      ) || fallback
-    );
-  }
-
-  /* =====================================================
-     INSTALLATION INSPECTION
-  ===================================================== */
-
-  function inspectInstallation(
-    overrides = {}
-  ) {
-    const components =
-      resolveAllComponents(overrides);
-
-    const componentStatus = {};
-    const missing = [];
-    const authorityMismatches = [];
-    const warnings = [];
-
-    for (
-      const componentName of
-        REQUIRED_COMPONENTS
-    ) {
-      const component =
-        components[componentName];
-
-      const available =
-        Boolean(component);
-
-      if (!available) {
-        missing.push(
-          componentName
-        );
-      }
-
-      const componentAuthority =
-        readComponentAuthority(
-          component
-        );
-
-      if (
-        available &&
-        componentAuthority &&
-        componentAuthority !==
-          AUTHORITY
-      ) {
-        authorityMismatches.push({
-          component:
-            componentName,
-
-          expectedAuthority:
-            AUTHORITY,
-
-          actualAuthority:
-            componentAuthority
-        });
-      }
-
-      if (
-        available &&
-        !readComponentVersion(
-          component
-        )
-      ) {
-        warnings.push({
-          code:
-            "COS_COMPONENT_VERSION_UNDECLARED",
-
-          component:
-            componentName
-        });
-      }
-
-      componentStatus[
-        componentName
-      ] = {
-        available,
-
-        component:
-          readComponentName(
-            component,
-            componentName
-          ),
-
-        version:
-          readComponentVersion(
-            component
-          ),
-
-        authority:
-          componentAuthority
-      };
-    }
-
-    const runtime =
-      components.runtime;
-
-    const runtimeCallable =
-      Boolean(
-        runtime &&
-        (
-          isFunction(runtime) ||
-          isFunction(runtime.run)
-        )
-      );
-
-    if (
-      runtime &&
-      !runtimeCallable
-    ) {
-      warnings.push({
-        code:
-          "COS_RUNTIME_NOT_CALLABLE"
-      });
-    }
-
-    const ready =
-      missing.length === 0 &&
-      authorityMismatches.length ===
-        0 &&
-      runtimeCallable;
-
     return {
-      schemaVersion:
-        SCHEMA_VERSION,
+      runtime:
+        overrides.runtime ||
+        resolveFromNamespace([
+          "runtime",
+          "cosRuntime",
+          "AriCosRuntime"
+        ]),
 
-      authority:
-        AUTHORITY,
+      state:
+        overrides.state ||
+        resolveFromNamespace([
+          "state",
+          "cosState",
+          "AriCosState"
+        ]),
 
-      component:
-        COMPONENT_NAME,
+      stateStore:
+        overrides.stateStore ||
+        resolveFromNamespace([
+          "stateStore",
+          "cosStateStore",
+          "AriCosStateStore"
+        ]),
 
-      controllerVersion:
-        VERSION,
+      stateMigrator:
+        overrides.stateMigrator ||
+        resolveFromNamespace([
+          "stateMigrator",
+          "cosStateMigrator",
+          "AriCosStateMigrator"
+        ]),
 
-      ready,
-
-      requiredComponents:
-        [...REQUIRED_COMPONENTS],
-
-      components:
-        componentStatus,
-
-      missingComponents:
-        missing,
-
-      authorityMismatches,
-
-      warnings,
-
-      inspectedAt:
-        nowIso()
+      manifest:
+        overrides.manifest ||
+        resolveFromNamespace([
+          "manifest",
+          "cosManifest",
+          "AriCosManifest"
+        ])
     };
   }
 
-  function assertInstallation(
-    overrides = {}
+  function assertRequiredComponents(
+    components,
+    {
+      requirePersistence = true,
+      requireMigration = true
+    } = {}
   ) {
-    const inspection =
-      inspectInstallation(overrides);
+    const missing = [];
 
-    if (!inspection.ready) {
+    if (!components.runtime) {
+      missing.push("runtime");
+    }
+
+    if (!components.state) {
+      missing.push("state");
+    }
+
+    if (
+      requirePersistence &&
+      !components.stateStore
+    ) {
+      missing.push("stateStore");
+    }
+
+    if (
+      requireMigration &&
+      !components.stateMigrator
+    ) {
+      missing.push("stateMigrator");
+    }
+
+    if (missing.length > 0) {
       throw new CosControllerError(
-        "COS_INSTALLATION_NOT_READY",
-        "Conversation Operating System installation is not ready.",
+        "COS_CONTROLLER_COMPONENTS_MISSING",
+        "Required COS controller components are missing.",
         {
-          details:
-            inspection
+          stage:
+            "component_resolution",
+
+          details: {
+            missing
+          }
         }
       );
     }
 
-    return inspection;
+    return true;
+  }
+
+  function resolveCallable(
+    component,
+    methodNames,
+    componentName
+  ) {
+    if (isFunction(component)) {
+      return component.bind(
+        component
+      );
+    }
+
+    if (component) {
+      for (
+        const methodName of
+          methodNames
+      ) {
+        if (
+          isFunction(
+            component[
+              methodName
+            ]
+          )
+        ) {
+          return component[
+            methodName
+          ].bind(component);
+        }
+      }
+    }
+
+    throw new CosControllerError(
+      "COS_CONTROLLER_COMPONENT_NOT_CALLABLE",
+      `COS controller component is not callable: ${componentName}`,
+      {
+        stage:
+          "component_resolution",
+
+        details: {
+          componentName,
+          methodNames
+        }
+      }
+    );
   }
 
   /* =====================================================
@@ -739,449 +635,2056 @@
   function normalizeControllerInput(
     rawInput = {}
   ) {
-    const source = isObject(rawInput)
-      ? rawInput
-      : {
-          currentTurn: rawInput
-        };
+    const source =
+      isObject(rawInput)
+        ? rawInput
+        : {
+            currentTurn:
+              rawInput
+          };
 
-    const currentTurn =
-      firstDefined(
-        source.currentTurn,
-        source.current_turn,
-        source.turn,
-        source.message,
-        source.input,
-        null
-      );
+    const options =
+      isObject(source.options)
+        ? safeClone(
+            source.options
+          )
+        : {};
 
-    const history =
-      firstDefined(
-        source.history,
-        source.turns,
-        source.conversationHistory,
-        source.conversation_history,
-        []
-      );
-
-    const state =
+    const suppliedState =
       firstDefined(
         source.state,
         source.cosState,
         source.cos_state,
-        source.previousState,
-        source.previous_state,
         null
       );
 
     return {
-      schemaVersion:
-        firstNonEmptyString(
-          source.schemaVersion,
-          source.schema_version
-        ) || SCHEMA_VERSION,
-
-      requestId:
-        firstNonEmptyString(
-          source.requestId,
-          source.request_id
-        ) || createId("cos_request"),
-
       conversationId:
         firstNonEmptyString(
           source.conversationId,
           source.conversation_id,
-          state &&
-            state.conversationId,
-          state &&
-            state.conversation_id
+          suppliedState &&
+            suppliedState
+              .conversationId,
+          suppliedState &&
+            suppliedState
+              .conversation_id
         ) || null,
 
-      currentTurn,
+      state:
+        isObject(suppliedState)
+          ? safeClone(
+              suppliedState
+            )
+          : null,
+
+      currentTurn:
+        isObject(
+          firstDefined(
+            source.currentTurn,
+            source.current_turn,
+            source.turn,
+            source.message
+          )
+        )
+          ? safeClone(
+              firstDefined(
+                source.currentTurn,
+                source.current_turn,
+                source.turn,
+                source.message
+              )
+            )
+          : {
+              text:
+                firstDefined(
+                  source.currentTurn,
+                  source.current_turn,
+                  source.turn,
+                  source.message,
+                  ""
+                ) === null ||
+                firstDefined(
+                  source.currentTurn,
+                  source.current_turn,
+                  source.turn,
+                  source.message,
+                  ""
+                ) === undefined
+                  ? ""
+                  : String(
+                      firstDefined(
+                        source.currentTurn,
+                        source.current_turn,
+                        source.turn,
+                        source.message,
+                        ""
+                      )
+                    )
+            },
 
       history:
-        Array.isArray(history)
-          ? history
-          : [],
+        Array.isArray(source.history)
+          ? safeClone(
+              source.history
+            )
+          : Array.isArray(
+              source.conversationHistory
+            )
+            ? safeClone(
+                source.conversationHistory
+              )
+            : Array.isArray(
+                source.conversation_history
+              )
+              ? safeClone(
+                  source.conversation_history
+                )
+              : [],
 
-      state:
-        isObject(state)
-          ? state
-          : null,
+      semanticPacket:
+        isObject(
+          source.semanticPacket
+        )
+          ? safeClone(
+              source.semanticPacket
+            )
+          : isObject(
+              source.semantic_packet
+            )
+            ? safeClone(
+                source.semantic_packet
+              )
+            : null,
+
+      conversationFunction:
+        isObject(
+          source.conversationFunction
+        )
+          ? safeClone(
+              source.conversationFunction
+            )
+          : isObject(
+              source.conversation_function
+            )
+            ? safeClone(
+                source.conversation_function
+              )
+            : null,
+
+      upstreamCandidates:
+        Array.isArray(
+          source.upstreamCandidates
+        )
+          ? safeClone(
+              source.upstreamCandidates
+            )
+          : Array.isArray(
+              source.upstream_candidates
+            )
+            ? safeClone(
+                source.upstream_candidates
+              )
+            : [],
+
+      uiMetadata:
+        isObject(source.uiMetadata)
+          ? safeClone(
+              source.uiMetadata
+            )
+          : isObject(
+              source.ui_metadata
+            )
+            ? safeClone(
+                source.ui_metadata
+              )
+            : {},
+
+      pendingInteractionCommand:
+        firstDefined(
+          source
+            .pendingInteractionCommand,
+          source
+            .pending_interaction_command,
+          source.commands &&
+            source.commands
+              .pendingInteraction,
+          source.commands &&
+            source.commands
+              .pending_interaction,
+          null
+        ),
+
+      artifactCommand:
+        firstDefined(
+          source.artifactCommand,
+          source.artifact_command,
+          source.commands &&
+            source.commands.artifact,
+          null
+        ),
+
+      deliverySequenceCommand:
+        firstDefined(
+          source
+            .deliverySequenceCommand,
+          source
+            .delivery_sequence_command,
+          source.commands &&
+            source.commands
+              .deliverySequence,
+          source.commands &&
+            source.commands
+              .delivery_sequence,
+          null
+        ),
+
+      placementEvidence:
+        isObject(
+          source.placementEvidence
+        )
+          ? safeClone(
+              source.placementEvidence
+            )
+          : isObject(
+              source.placement_evidence
+            )
+            ? safeClone(
+                source.placement_evidence
+              )
+            : {},
 
       metadata:
         isObject(source.metadata)
-          ? safeClone(source.metadata)
+          ? safeClone(
+              source.metadata
+            )
           : {},
 
-      options:
-        isObject(source.options)
-          ? safeClone(source.options)
-          : {}
-    };
-  }
-
-  function buildRuntimeInput(
-    normalizedInput,
-    options = {}
-  ) {
-    return {
-      schemaVersion:
-        normalizedInput.schemaVersion,
-
-      requestId:
-        normalizedInput.requestId,
-
-      conversationId:
-        normalizedInput.conversationId,
-
-      currentTurn:
-        normalizedInput.currentTurn,
-
-      history:
-        normalizedInput.history,
-
-      state:
-        normalizedInput.state,
-
-      metadata:
-        normalizedInput.metadata,
-
-      options: {
-        ...normalizedInput.options,
-        ...safeClone(options.runtimeOptions || {})
-      }
+      options
     };
   }
 
   /* =====================================================
-     RUNTIME INVOCATION
+     DIAGNOSTICS
   ===================================================== */
 
-  function resolveRuntimeCallable(
-    runtime
-  ) {
-    if (isFunction(runtime)) {
-      return runtime.bind(runtime);
-    }
-
-    if (
-      runtime &&
-      isFunction(runtime.run)
-    ) {
-      return runtime.run.bind(runtime);
-    }
-
-    throw new CosControllerError(
-      "COS_RUNTIME_NOT_CALLABLE",
-      "Installed COS runtime does not expose a callable run method."
-    );
-  }
-
-  async function invokeRuntime({
-    runtime,
-    runtimeInput,
-    runtimeOptions
-  }) {
-    const run =
-      resolveRuntimeCallable(
-        runtime
-      );
-
-    return run(
-      runtimeInput,
-      runtimeOptions
-    );
-  }
-
-  /* =====================================================
-     RESULT VALIDATION
-  ===================================================== */
-
-  function validateRuntimeResult(result) {
-    const errors = [];
-    const warnings = [];
-
-    if (!isObject(result)) {
-      return {
-        valid: false,
-
-        errors: [
-          {
-            code:
-              "COS_CONTROLLER_RESULT_NOT_OBJECT"
-          }
-        ],
-
-        warnings
-      };
-    }
-
-    if (
-      typeof result.ok !== "boolean"
-    ) {
-      errors.push({
-        code:
-          "COS_CONTROLLER_RESULT_OK_INVALID"
-      });
-    }
-
-    if (
-      result.ok === true &&
-      !isObject(result.packet)
-    ) {
-      errors.push({
-        code:
-          "COS_CONTROLLER_SUCCESS_PACKET_MISSING"
-      });
-    }
-
-    if (
-      result.ok === true &&
-      !isObject(result.state)
-    ) {
-      errors.push({
-        code:
-          "COS_CONTROLLER_SUCCESS_STATE_MISSING"
-      });
-    }
-
-    if (
-      result.ok === false &&
-      !Array.isArray(result.errors)
-    ) {
-      errors.push({
-        code:
-          "COS_CONTROLLER_FAILURE_ERRORS_MISSING"
-      });
-    }
-
-    if (
-      result.ok === false &&
-      result.packet !== null
-    ) {
-      warnings.push({
-        code:
-          "COS_CONTROLLER_FAILURE_PACKET_PRESENT"
-      });
-    }
-
-    if (
-      result.packet &&
-      result.packet.authority !==
-        AUTHORITY
-    ) {
-      errors.push({
-        code:
-          "COS_CONTROLLER_PACKET_AUTHORITY_INVALID",
-
-        authority:
-          result.packet.authority
-      });
-    }
-
+  function createDiagnostics() {
     return {
-      valid:
-        errors.length === 0,
-
-      errors,
-      warnings
-    };
-  }
-
-  function validateAuthoritativePacket(
-    packet,
-    packetBuilder
-  ) {
-    if (!packetBuilder) {
-      return {
-        valid: false,
-
-        errors: [
-          {
-            code:
-              "COS_PACKET_BUILDER_UNAVAILABLE"
-          }
-        ],
-
-        warnings: []
-      };
-    }
-
-    const validate =
-      isFunction(
-        packetBuilder.validatePacket
-      )
-        ? packetBuilder
-            .validatePacket
-            .bind(packetBuilder)
-        : isFunction(
-            packetBuilder.validate
-          )
-          ? packetBuilder
-              .validate
-              .bind(packetBuilder)
-          : null;
-
-    if (!validate) {
-      return {
-        valid: false,
-
-        errors: [
-          {
-            code:
-              "COS_PACKET_VALIDATOR_UNAVAILABLE"
-          }
-        ],
-
-        warnings: []
-      };
-    }
-
-    const result =
-      validate(packet);
-
-    if (result === true) {
-      return {
-        valid: true,
-        errors: [],
-        warnings: []
-      };
-    }
-
-    if (result === false) {
-      return {
-        valid: false,
-
-        errors: [
-          {
-            code:
-              "COS_PACKET_VALIDATION_REJECTED"
-          }
-        ],
-
-        warnings: []
-      };
-    }
-
-    if (isObject(result)) {
-      return {
-        valid:
-          result.valid !== false,
-
-        errors:
-          Array.isArray(result.errors)
-            ? result.errors
-            : [],
-
-        warnings:
-          Array.isArray(
-            result.warnings
-          )
-            ? result.warnings
-            : []
-      };
-    }
-
-    return {
-      valid: Boolean(result),
+      stages: [],
+      warnings: [],
       errors: [],
-      warnings: []
-    };
-  }
 
-  /* =====================================================
-     CONTROLLER RESULT
-  ===================================================== */
-
-  function buildControllerSuccess({
-    input,
-    runtimeResult,
-    installation,
-    packetValidation,
-    options
-  }) {
-    const result = {
-      ok: true,
-
-      schemaVersion:
-        SCHEMA_VERSION,
-
-      authority:
-        AUTHORITY,
-
-      component:
-        COMPONENT_NAME,
-
-      version:
-        VERSION,
-
-      requestId:
-        input.requestId,
-
-      conversationId:
-        firstNonEmptyString(
-          runtimeResult.runtime &&
-            runtimeResult.runtime
-              .conversationId,
-
-          runtimeResult.state &&
-            runtimeResult.state
-              .conversationId,
-
-          input.conversationId
-        ) || null,
-
-      packet:
-        runtimeResult.packet,
-
-      state:
-        runtimeResult.state,
-
-      runtimeResult,
-
-      installation:
-        options.includeInstallation ===
-          true
-          ? installation
-          : null,
-
-      packetValidation:
-        options.includeValidation ===
-          true
-          ? packetValidation
-          : null,
-
-      completedAt:
+      startedAt:
         nowIso(),
 
-      errors: []
-    };
+      completedAt: null,
 
-    return options.freezeResult === true
-      ? freezeClone(result)
-      : result;
+      durationMs: 0
+    };
   }
 
-  function buildControllerFailure({
+  function recordStage(
+    diagnostics,
+    {
+      stage,
+      startedAt,
+      status = "completed",
+      output = null,
+      warnings = [],
+      metadata = {}
+    }
+  ) {
+    const entry = {
+      stage,
+
+      status,
+
+      durationMs:
+        elapsedMilliseconds(
+          startedAt
+        ),
+
+      warningCount:
+        Array.isArray(warnings)
+          ? warnings.length
+          : 0,
+
+      warnings:
+        Array.isArray(warnings)
+          ? safeClone(warnings)
+          : [],
+
+      outputSummary:
+        summarizeOutput(
+          stage,
+          output
+        ),
+
+      metadata:
+        isObject(metadata)
+          ? safeClone(metadata)
+          : {}
+    };
+
+    diagnostics.stages.push(
+      entry
+    );
+
+    if (
+      Array.isArray(warnings) &&
+      warnings.length > 0
+    ) {
+      diagnostics.warnings.push(
+        ...warnings.map(
+          (warning) => ({
+            stage,
+            ...safeClone(warning)
+          })
+        )
+      );
+    }
+  }
+
+  function summarizeOutput(
+    stage,
+    output
+  ) {
+    if (!isObject(output)) {
+      return output === null ||
+        output === undefined
+        ? null
+        : {
+            type:
+              typeof output
+          };
+    }
+
+    switch (stage) {
+      case "state_load":
+        return {
+          found:
+            output.found === true,
+
+          adapterType:
+            output.adapterType ||
+            null,
+
+          storageRevision:
+            output.storageRevision ||
+            null
+        };
+
+      case "state_migration":
+        return {
+          migrated:
+            output.migrated === true,
+
+          fromVersion:
+            output.fromVersion ||
+            null,
+
+          toVersion:
+            output.toVersion ||
+            null,
+
+          stepCount:
+            output.stepCount || 0
+        };
+
+      case "state_selection":
+        return {
+          source:
+            output.source ||
+            null,
+
+          hadSuppliedState:
+            output.hadSuppliedState ===
+            true,
+
+          hadPersistedState:
+            output.hadPersistedState ===
+            true
+        };
+
+      case "state_normalization":
+        return {
+          conversationId:
+            output.conversationId ||
+            null,
+
+          revision:
+            output.revision,
+
+          turnCount:
+            output.turns
+              ? Object.keys(
+                  output.turns
+                ).length
+              : 0,
+
+          threadCount:
+            output.threads
+              ? Object.keys(
+                  output.threads
+                ).length
+              : 0
+        };
+
+      case "runtime_execution":
+        return {
+          ok:
+            output.ok === true,
+
+          currentTurnId:
+            output.currentTurnId ||
+            null,
+
+          durationMs:
+            output.durationMs || 0,
+
+          errorCount:
+            Array.isArray(
+              output.errors
+            )
+              ? output.errors.length
+              : 0
+        };
+
+      case "state_save":
+        return {
+          ok:
+            output.ok === true,
+
+          adapterType:
+            output.adapterType ||
+            null,
+
+          storageRevision:
+            output.storageRevision ||
+            null,
+
+          bytes:
+            output.bytes || 0
+        };
+
+      default:
+        return {
+          ok:
+            output.ok !== false,
+
+          status:
+            output.status ||
+            null
+        };
+    }
+  }
+
+  function extractWarnings(
+    output
+  ) {
+    if (!isObject(output)) {
+      return [];
+    }
+
+    if (
+      Array.isArray(output.warnings)
+    ) {
+      return output.warnings;
+    }
+
+    if (
+      output.diagnostics &&
+      Array.isArray(
+        output.diagnostics.warnings
+      )
+    ) {
+      return output.diagnostics
+        .warnings;
+    }
+
+    if (
+      output.validation &&
+      Array.isArray(
+        output.validation.warnings
+      )
+    ) {
+      return output.validation
+        .warnings;
+    }
+
+    return [];
+  }
+
+  async function executeStage(
+    diagnostics,
+    stage,
+    operation
+  ) {
+    const startedAt =
+      monotonicNow();
+
+    try {
+      const output =
+        await operation();
+
+      recordStage(
+        diagnostics,
+        {
+          stage,
+          startedAt,
+          status:
+            "completed",
+          output,
+          warnings:
+            extractWarnings(output)
+        }
+      );
+
+      return output;
+    } catch (error) {
+      const wrapped =
+        error instanceof
+        CosControllerError
+          ? error
+          : new CosControllerError(
+              "COS_CONTROLLER_STAGE_FAILED",
+              `COS controller stage failed: ${stage}`,
+              {
+                stage,
+                cause: error,
+
+                details: {
+                  originalError:
+                    safeError(error)
+                }
+              }
+            );
+
+      diagnostics.errors.push(
+        safeError(wrapped)
+      );
+
+      recordStage(
+        diagnostics,
+        {
+          stage,
+          startedAt,
+          status:
+            "failed",
+          output: null,
+
+          metadata: {
+            error:
+              safeError(wrapped)
+          }
+        }
+      );
+
+      throw wrapped;
+    }
+  }
+
+  /* =====================================================
+     CONVERSATION ID
+  ===================================================== */
+
+  function resolveConversationId(
     input,
-    runtimeResult = null,
-    installation = null,
-    error,
-    options
+    options = {}
+  ) {
+    const supplied =
+      firstNonEmptyString(
+        input.conversationId,
+        options.conversationId,
+        options.conversation_id
+      );
+
+    if (supplied) {
+      return {
+        conversationId:
+          supplied,
+
+        generated: false,
+
+        source:
+          "supplied"
+      };
+    }
+
+    if (
+      options.generateConversationId ===
+      false
+    ) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_CONVERSATION_ID_REQUIRED",
+        "COS controller requires a conversation ID.",
+        {
+          stage:
+            "conversation_id_resolution"
+        }
+      );
+    }
+
+    return {
+      conversationId:
+        createConversationId(),
+
+      generated: true,
+
+      source:
+        "generated"
+    };
+  }
+
+  /* =====================================================
+     STATE SOURCE POLICY
+  ===================================================== */
+
+  function normalizeStateSourcePolicy(
+    value
+  ) {
+    return STATE_SOURCE_POLICIES.includes(
+      value
+    )
+      ? value
+      : DEFAULT_STATE_SOURCE_POLICY;
+  }
+
+  function selectState({
+    suppliedState,
+    persistedState,
+    policy
   }) {
+    const hadSuppliedState =
+      isObject(suppliedState);
+
+    const hadPersistedState =
+      isObject(persistedState);
+
+    switch (policy) {
+      case "persisted_only":
+        return {
+          state:
+            hadPersistedState
+              ? safeClone(
+                  persistedState
+                )
+              : null,
+
+          source:
+            hadPersistedState
+              ? "persisted"
+              : "none",
+
+          hadSuppliedState,
+          hadPersistedState
+        };
+
+      case "supplied_only":
+        return {
+          state:
+            hadSuppliedState
+              ? safeClone(
+                  suppliedState
+                )
+              : null,
+
+          source:
+            hadSuppliedState
+              ? "supplied"
+              : "none",
+
+          hadSuppliedState,
+          hadPersistedState
+        };
+
+      case "prefer_persisted":
+        if (hadPersistedState) {
+          return {
+            state:
+              safeClone(
+                persistedState
+              ),
+
+            source:
+              "persisted",
+
+            hadSuppliedState,
+            hadPersistedState
+          };
+        }
+
+        if (hadSuppliedState) {
+          return {
+            state:
+              safeClone(
+                suppliedState
+              ),
+
+            source:
+              "supplied",
+
+            hadSuppliedState,
+            hadPersistedState
+          };
+        }
+
+        return {
+          state: null,
+          source: "none",
+          hadSuppliedState,
+          hadPersistedState
+        };
+
+      case "prefer_supplied":
+      default:
+        if (hadSuppliedState) {
+          return {
+            state:
+              safeClone(
+                suppliedState
+              ),
+
+            source:
+              "supplied",
+
+            hadSuppliedState,
+            hadPersistedState
+          };
+        }
+
+        if (hadPersistedState) {
+          return {
+            state:
+              safeClone(
+                persistedState
+              ),
+
+            source:
+              "persisted",
+
+            hadSuppliedState,
+            hadPersistedState
+          };
+        }
+
+        return {
+          state: null,
+          source: "none",
+          hadSuppliedState,
+          hadPersistedState
+        };
+    }
+  }
+
+  /* =====================================================
+     STATE LOAD
+  ===================================================== */
+
+  async function loadPersistedState(
+    stateStore,
+    conversationId,
+    options = {}
+  ) {
+    if (
+      options.loadState === false ||
+      options.persistence === false
+    ) {
+      return {
+        ok: true,
+        found: false,
+
+        skipped: true,
+
+        conversationId,
+
+        state: null,
+
+        adapterType: null,
+
+        storageRevision: null,
+
+        warnings: []
+      };
+    }
+
+    const load =
+      resolveCallable(
+        stateStore,
+        [
+          "load",
+          "safeLoad"
+        ],
+        "cos-state-store"
+      );
+
+    const result =
+      await load(
+        conversationId,
+        {
+          ...(
+            isObject(
+              options.persistenceOptions
+            )
+              ? options
+                  .persistenceOptions
+              : {}
+          ),
+
+          adapter:
+            firstDefined(
+              options.storageAdapter,
+              options.adapter,
+              options
+                .persistenceOptions &&
+                options
+                  .persistenceOptions
+                  .adapter
+            ),
+
+          keyPrefix:
+            firstDefined(
+              options.storageKeyPrefix,
+              options.keyPrefix,
+              options
+                .persistenceOptions &&
+                options
+                  .persistenceOptions
+                  .keyPrefix
+            ),
+
+          migrate: false,
+
+          validate: false,
+
+          persistMigration: false,
+
+          includeRecord:
+            options.includePersistenceRecord ===
+            true,
+
+          freeze: false
+        }
+      );
+
+    if (
+      result &&
+      result.ok === false
+    ) {
+      if (
+        options.ignoreLoadFailure ===
+        true
+      ) {
+        return {
+          ok: false,
+          found: false,
+
+          skipped: false,
+
+          conversationId,
+
+          state: null,
+
+          adapterType:
+            result.adapterType ||
+            null,
+
+          storageRevision:
+            result.storageRevision ||
+            null,
+
+          warnings: [
+            {
+              code:
+                "COS_CONTROLLER_STATE_LOAD_IGNORED",
+
+              errors:
+                safeClone(
+                  result.errors || []
+                )
+            }
+          ],
+
+          errors:
+            safeClone(
+              result.errors || []
+            )
+        };
+      }
+
+      throw new CosControllerError(
+        "COS_CONTROLLER_STATE_LOAD_FAILED",
+        "Failed to load persisted COS state.",
+        {
+          stage:
+            "state_load",
+
+          details:
+            result
+        }
+      );
+    }
+
+    return {
+      ...safeClone(result),
+
+      ok: true,
+
+      found:
+        result &&
+        result.found === true,
+
+      skipped: false,
+
+      state:
+        result &&
+        result.found &&
+        isObject(result.state)
+          ? safeClone(
+              result.state
+            )
+          : null
+    };
+  }
+
+  /* =====================================================
+     STATE MIGRATION
+  ===================================================== */
+
+  async function migrateState(
+    stateMigrator,
+    state,
+    conversationId,
+    options = {}
+  ) {
+    if (!isObject(state)) {
+      return {
+        migrated: false,
+
+        skipped: true,
+
+        conversationId,
+
+        fromVersion: null,
+
+        toVersion:
+          SCHEMA_VERSION,
+
+        stepCount: 0,
+
+        steps: [],
+
+        warnings: [],
+
+        state: null
+      };
+    }
+
+    if (
+      options.migrateState === false
+    ) {
+      return {
+        migrated: false,
+
+        skipped: true,
+
+        conversationId,
+
+        fromVersion:
+          firstNonEmptyString(
+            state.schemaVersion,
+            state.schema_version
+          ) || null,
+
+        toVersion:
+          firstNonEmptyString(
+            state.schemaVersion,
+            state.schema_version
+          ) || null,
+
+        stepCount: 0,
+
+        steps: [],
+
+        warnings: [],
+
+        state:
+          safeClone(state)
+      };
+    }
+
+    const migrate =
+      resolveCallable(
+        stateMigrator,
+        [
+          "migrate",
+          "upgrade",
+          "normalize",
+          "run"
+        ],
+        "cos-state-migrator"
+      );
+
+    const result =
+      await migrate(
+        {
+          state:
+            safeClone(state),
+
+          conversationId,
+
+          fromVersion:
+            firstNonEmptyString(
+              state.schemaVersion,
+              state.schema_version
+            ),
+
+          toVersion:
+            firstNonEmptyString(
+              options.targetSchemaVersion
+            ) ||
+            stateMigrator
+              .currentSchemaVersion ||
+            stateMigrator
+              .schemaVersion ||
+            SCHEMA_VERSION
+        },
+        {
+          freeze: false,
+
+          freezeState: false,
+
+          validate:
+            options
+              .validateMigratedState !==
+            false,
+
+          validator:
+            options.stateValidator,
+
+          allowFutureVersion:
+            options.allowFutureVersion ===
+            true,
+
+          allowNonCurrentTarget:
+            options
+              .allowNonCurrentTarget ===
+            true
+        }
+      );
+
+    if (
+      !isObject(result) ||
+      !isObject(result.state)
+    ) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_MIGRATION_RESULT_INVALID",
+        "COS state migrator returned an invalid result.",
+        {
+          stage:
+            "state_migration",
+
+          details:
+            result
+        }
+      );
+    }
+
+    return safeClone(result);
+  }
+
+  /* =====================================================
+     STATE NORMALIZATION
+  ===================================================== */
+
+  async function normalizeState(
+    stateComponent,
+    state,
+    conversationId,
+    options = {}
+  ) {
+    const hasState =
+      isObject(state);
+
+    const operation =
+      hasState
+        ? resolveCallable(
+            stateComponent,
+            [
+              "normalize",
+              "normalizeState"
+            ],
+            "cos-state"
+          )
+        : resolveCallable(
+            stateComponent,
+            [
+              "create",
+              "initialize",
+              "createInitialState",
+              "createEmptyState"
+            ],
+            "cos-state"
+          );
+
+    const result =
+      hasState
+        ? await operation(
+            state,
+            {
+              conversationId,
+              freeze: false
+            }
+          )
+        : await operation(
+            {
+              conversationId
+            },
+            {
+              conversationId,
+              freeze: false
+            }
+          );
+
+    if (!isObject(result)) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_NORMALIZED_STATE_INVALID",
+        "COS state component returned an invalid normalized state.",
+        {
+          stage:
+            "state_normalization"
+        }
+      );
+    }
+
+    result.conversationId =
+      firstNonEmptyString(
+        result.conversationId,
+        conversationId
+      ) || conversationId;
+
+    return safeClone(result);
+  }
+
+  /* =====================================================
+     RUNTIME EXECUTION
+  ===================================================== */
+
+  async function executeRuntime(
+    runtime,
+    {
+      input,
+      state,
+      conversationId,
+      options
+    }
+  ) {
+    const execute =
+      resolveCallable(
+        runtime,
+        [
+          "run",
+          "execute",
+          "process",
+          "safeRun"
+        ],
+        "cos-runtime"
+      );
+
+    const runtimeOptions = {
+      ...(
+        isObject(
+          options.runtimeOptions
+        )
+          ? options.runtimeOptions
+          : {}
+      ),
+
+      components:
+        isObject(options.runtimeComponents)
+          ? options.runtimeComponents
+          : isObject(options.components)
+            ? options.components
+            : {},
+
+      strictInstallation:
+        firstDefined(
+          options.strictRuntimeInstallation,
+          options.strictInstallation
+        ) !== false,
+
+      throwOnFailure:
+        options.throwOnRuntimeFailure ===
+        true,
+
+      freeze: false,
+
+      includeStageOutputs:
+        options.includeRuntimeStageOutputs !==
+        false,
+
+      includeReferenceDiagnostics:
+        options
+          .includeReferenceDiagnostics !==
+        false
+    };
+
+    const result =
+      await execute(
+        {
+          conversationId,
+
+          state,
+
+          history:
+            input.history,
+
+          currentTurn:
+            input.currentTurn,
+
+          semanticPacket:
+            input.semanticPacket,
+
+          conversationFunction:
+            input.conversationFunction,
+
+          upstreamCandidates:
+            input.upstreamCandidates,
+
+          uiMetadata:
+            input.uiMetadata,
+
+          pendingInteractionCommand:
+            input
+              .pendingInteractionCommand,
+
+          artifactCommand:
+            input.artifactCommand,
+
+          deliverySequenceCommand:
+            input
+              .deliverySequenceCommand,
+
+          placementEvidence:
+            input.placementEvidence,
+
+          metadata:
+            input.metadata,
+
+          options:
+            runtimeOptions
+        },
+        runtimeOptions
+      );
+
+    if (!isObject(result)) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_RUNTIME_RESULT_INVALID",
+        "COS runtime returned an invalid result.",
+        {
+          stage:
+            "runtime_execution"
+        }
+      );
+    }
+
+    return safeClone(result);
+  }
+
+  /* =====================================================
+     STATE SAVE
+  ===================================================== */
+
+  async function saveResultingState(
+    stateStore,
+    conversationId,
+    state,
+    options = {}
+  ) {
+    if (
+      options.saveState === false ||
+      options.persistence === false
+    ) {
+      return {
+        ok: true,
+
+        skipped: true,
+
+        conversationId,
+
+        adapterType: null,
+
+        storageRevision: null,
+
+        bytes: 0,
+
+        warnings: []
+      };
+    }
+
+    if (!isObject(state)) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_STATE_SAVE_STATE_INVALID",
+        "Cannot persist an invalid COS state.",
+        {
+          stage:
+            "state_save"
+        }
+      );
+    }
+
+    const save =
+      resolveCallable(
+        stateStore,
+        [
+          "save",
+          "safeSave"
+        ],
+        "cos-state-store"
+      );
+
+    const result =
+      await save(
+        conversationId,
+        state,
+        {
+          ...(
+            isObject(
+              options.persistenceOptions
+            )
+              ? options
+                  .persistenceOptions
+              : {}
+          ),
+
+          adapter:
+            firstDefined(
+              options.storageAdapter,
+              options.adapter,
+              options
+                .persistenceOptions &&
+                options
+                  .persistenceOptions
+                  .adapter
+            ),
+
+          keyPrefix:
+            firstDefined(
+              options.storageKeyPrefix,
+              options.keyPrefix,
+              options
+                .persistenceOptions &&
+                options
+                  .persistenceOptions
+                  .keyPrefix
+            ),
+
+          metadata: {
+            controllerVersion:
+              VERSION,
+
+            runtimeVersion:
+              firstNonEmptyString(
+                options.runtimeVersion
+              ) || null,
+
+            savedBy:
+              COMPONENT_NAME,
+
+            ...(
+              isObject(
+                options.persistenceMetadata
+              )
+                ? safeClone(
+                    options
+                      .persistenceMetadata
+                  )
+                : {}
+            )
+          },
+
+          validateBeforeSave:
+            options
+              .validateBeforeSave !==
+            false,
+
+          replaceCorruptRecord:
+            options
+              .replaceCorruptRecord ===
+            true,
+
+          includeRecord:
+            options
+              .includePersistenceRecord ===
+            true,
+
+          freeze: false
+        }
+      );
+
+    if (
+      result &&
+      result.ok === false
+    ) {
+      if (
+        options.ignoreSaveFailure ===
+        true
+      ) {
+        return {
+          ...safeClone(result),
+
+          ok: false,
+
+          skipped: false,
+
+          warnings: [
+            {
+              code:
+                "COS_CONTROLLER_STATE_SAVE_IGNORED",
+
+              errors:
+                safeClone(
+                  result.errors || []
+                )
+            }
+          ]
+        };
+      }
+
+      throw new CosControllerError(
+        "COS_CONTROLLER_STATE_SAVE_FAILED",
+        "Failed to save resulting COS state.",
+        {
+          stage:
+            "state_save",
+
+          details:
+            result
+        }
+      );
+    }
+
+    return {
+      ...safeClone(result),
+
+      ok: true,
+
+      skipped: false
+    };
+  }
+
+  /* =====================================================
+     MAIN EXECUTION
+  ===================================================== */
+
+  async function run(
+    rawInput = {},
+    options = {}
+  ) {
+    const controllerStartedAt =
+      monotonicNow();
+
+    const diagnostics =
+      createDiagnostics();
+
+    const input =
+      normalizeControllerInput(
+        rawInput
+      );
+
+    const mergedOptions = {
+      ...input.options,
+
+      ...(
+        isObject(options)
+          ? options
+          : {}
+      )
+    };
+
+    const freeze =
+      mergedOptions.freeze !== false;
+
+    const throwOnFailure =
+      mergedOptions.throwOnFailure ===
+      true;
+
+    const persistenceEnabled =
+      mergedOptions.persistence !==
+      false;
+
+    const migrationEnabled =
+      mergedOptions.migrateState !==
+      false;
+
+    let components;
+    let identityResolution;
+    let loadResult;
+    let migrationResult;
+    let selectionResult;
+    let normalizedState;
+    let runtimeResult;
+    let saveResult;
+
+    try {
+      components =
+        await executeStage(
+          diagnostics,
+          "component_resolution",
+          async () => {
+            const resolved =
+              resolveComponents(
+                isObject(
+                  mergedOptions.components
+                )
+                  ? mergedOptions
+                      .components
+                  : {}
+              );
+
+            assertRequiredComponents(
+              resolved,
+              {
+                requirePersistence:
+                  persistenceEnabled,
+
+                requireMigration:
+                  migrationEnabled
+              }
+            );
+
+            return resolved;
+          }
+        );
+
+      identityResolution =
+        await executeStage(
+          diagnostics,
+          "conversation_id_resolution",
+          async () =>
+            resolveConversationId(
+              input,
+              mergedOptions
+            )
+        );
+
+      const conversationId =
+        identityResolution
+          .conversationId;
+
+      loadResult =
+        await executeStage(
+          diagnostics,
+          "state_load",
+          async () => {
+            if (!persistenceEnabled) {
+              return {
+                ok: true,
+                found: false,
+                skipped: true,
+                conversationId,
+                state: null,
+                warnings: []
+              };
+            }
+
+            return loadPersistedState(
+              components.stateStore,
+              conversationId,
+              mergedOptions
+            );
+          }
+        );
+
+      const persistedState =
+        loadResult &&
+        loadResult.found &&
+        isObject(loadResult.state)
+          ? safeClone(
+              loadResult.state
+            )
+          : null;
+
+      let migratedPersistedState =
+        persistedState;
+
+      migrationResult =
+        await executeStage(
+          diagnostics,
+          "state_migration",
+          async () => {
+            if (
+              !migrationEnabled ||
+              !persistedState
+            ) {
+              return {
+                migrated: false,
+
+                skipped: true,
+
+                conversationId,
+
+                fromVersion:
+                  persistedState
+                    ? firstNonEmptyString(
+                        persistedState
+                          .schemaVersion,
+                        persistedState
+                          .schema_version
+                      )
+                    : null,
+
+                toVersion:
+                  persistedState
+                    ? firstNonEmptyString(
+                        persistedState
+                          .schemaVersion,
+                        persistedState
+                          .schema_version
+                      )
+                    : SCHEMA_VERSION,
+
+                stepCount: 0,
+
+                steps: [],
+
+                warnings: [],
+
+                state:
+                  persistedState
+                    ? safeClone(
+                        persistedState
+                      )
+                    : null
+              };
+            }
+
+            return migrateState(
+              components.stateMigrator,
+              persistedState,
+              conversationId,
+              mergedOptions
+            );
+          }
+        );
+
+      if (
+        migrationResult &&
+        isObject(
+          migrationResult.state
+        )
+      ) {
+        migratedPersistedState =
+          safeClone(
+            migrationResult.state
+          );
+      }
+
+      selectionResult =
+        await executeStage(
+          diagnostics,
+          "state_selection",
+          async () =>
+            selectState({
+              suppliedState:
+                input.state,
+
+              persistedState:
+                migratedPersistedState,
+
+              policy:
+                normalizeStateSourcePolicy(
+                  firstNonEmptyString(
+                    mergedOptions
+                      .stateSourcePolicy,
+                    mergedOptions
+                      .state_source_policy
+                  ) ||
+                  DEFAULT_STATE_SOURCE_POLICY
+                )
+            })
+        );
+
+      normalizedState =
+        await executeStage(
+          diagnostics,
+          "state_normalization",
+          async () =>
+            normalizeState(
+              components.state,
+              selectionResult.state,
+              conversationId,
+              mergedOptions
+            )
+        );
+
+      runtimeResult =
+        await executeStage(
+          diagnostics,
+          "runtime_execution",
+          async () =>
+            executeRuntime(
+              components.runtime,
+              {
+                input,
+
+                state:
+                  normalizedState,
+
+                conversationId,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      const runtimeSucceeded =
+        runtimeResult.ok === true;
+
+      const shouldSave =
+        persistenceEnabled &&
+        (
+          runtimeSucceeded ||
+          mergedOptions
+            .saveFailedRuntimeState ===
+            true
+        );
+
+      saveResult =
+        await executeStage(
+          diagnostics,
+          "state_save",
+          async () => {
+            if (!shouldSave) {
+              return {
+                ok: true,
+
+                skipped: true,
+
+                conversationId,
+
+                adapterType:
+                  loadResult &&
+                  loadResult.adapterType
+                    ? loadResult
+                        .adapterType
+                    : null,
+
+                storageRevision:
+                  null,
+
+                bytes: 0,
+
+                warnings:
+                  runtimeSucceeded
+                    ? []
+                    : [
+                        {
+                          code:
+                            "COS_CONTROLLER_SAVE_SKIPPED_AFTER_RUNTIME_FAILURE"
+                        }
+                      ]
+              };
+            }
+
+            return saveResultingState(
+              components.stateStore,
+              conversationId,
+              runtimeResult.state,
+              {
+                ...mergedOptions,
+
+                runtimeVersion:
+                  firstNonEmptyString(
+                    components.runtime &&
+                      components.runtime
+                        .version
+                  )
+              }
+            );
+          }
+        );
+
+      diagnostics.completedAt =
+        nowIso();
+
+      diagnostics.durationMs =
+        elapsedMilliseconds(
+          controllerStartedAt
+        );
+
+      const controllerSucceeded =
+        runtimeResult.ok === true &&
+        (
+          saveResult.ok === true ||
+          saveResult.skipped === true ||
+          mergedOptions
+            .ignoreSaveFailure ===
+            true
+        );
+
+      const result = {
+        ok:
+          controllerSucceeded,
+
+        schemaVersion:
+          SCHEMA_VERSION,
+
+        authority:
+          AUTHORITY,
+
+        component:
+          COMPONENT_NAME,
+
+        version:
+          VERSION,
+
+        controllerResultType:
+          CONTROLLER_RESULT_TYPE,
+
+        conversationId,
+
+        conversationIdGenerated:
+          identityResolution
+            .generated === true,
+
+        conversationIdSource:
+          identityResolution.source,
+
+        stateSource:
+          selectionResult.source,
+
+        stateSourcePolicy:
+          normalizeStateSourcePolicy(
+            firstNonEmptyString(
+              mergedOptions
+                .stateSourcePolicy,
+              mergedOptions
+                .state_source_policy
+            ) ||
+            DEFAULT_STATE_SOURCE_POLICY
+          ),
+
+        loadedPersistedState:
+          loadResult &&
+          loadResult.found === true,
+
+        persistenceEnabled,
+
+        stateLoaded:
+          loadResult &&
+          loadResult.found === true,
+
+        stateMigrated:
+          migrationResult &&
+          migrationResult.migrated ===
+            true,
+
+        stateSaved:
+          saveResult &&
+          saveResult.ok === true &&
+          saveResult.skipped !== true,
+
+        packet:
+          runtimeResult.packet
+            ? safeClone(
+                runtimeResult.packet
+              )
+            : null,
+
+        state:
+          runtimeResult.state
+            ? safeClone(
+                runtimeResult.state
+              )
+            : safeClone(
+                normalizedState
+              ),
+
+        currentTurn:
+          runtimeResult.currentTurn
+            ? safeClone(
+                runtimeResult
+                  .currentTurn
+              )
+            : safeClone(
+                input.currentTurn
+              ),
+
+        currentTurnId:
+          runtimeResult.currentTurnId ||
+          null,
+
+        placement:
+          runtimeResult.placement
+            ? safeClone(
+                runtimeResult.placement
+              )
+            : null,
+
+        referenceResolution:
+          runtimeResult
+            .referenceResolution
+            ? safeClone(
+                runtimeResult
+                  .referenceResolution
+              )
+            : null,
+
+        runtime:
+          safeClone(
+            runtimeResult
+          ),
+
+        persistence: {
+          load:
+            safeClone(
+              loadResult
+            ),
+
+          migration:
+            safeClone(
+              migrationResult
+            ),
+
+          save:
+            safeClone(
+              saveResult
+            )
+        },
+
+        diagnostics:
+          safeClone(
+            diagnostics
+          ),
+
+        startedAt:
+          diagnostics.startedAt,
+
+        completedAt:
+          diagnostics.completedAt,
+
+        durationMs:
+          diagnostics.durationMs,
+
+        errors:
+          Array.isArray(
+            runtimeResult.errors
+          )
+            ? safeClone(
+                runtimeResult.errors
+              )
+            : []
+      };
+
+      return freeze
+        ? freezeClone(result)
+        : result;
+    } catch (error) {
+      return handleControllerFailure({
+        error,
+
+        input,
+
+        diagnostics,
+
+        controllerStartedAt,
+
+        throwOnFailure,
+
+        freeze,
+
+        partial: {
+          components,
+          identityResolution,
+          loadResult,
+          migrationResult,
+          selectionResult,
+          normalizedState,
+          runtimeResult,
+          saveResult
+        }
+      });
+    }
+  }
+
+  /* =====================================================
+     FAILURE RESULT
+  ===================================================== */
+
+  function handleControllerFailure({
+    error,
+    input,
+    diagnostics,
+    controllerStartedAt,
+    throwOnFailure,
+    freeze,
+    partial = {}
+  }) {
+    diagnostics.completedAt =
+      nowIso();
+
+    diagnostics.durationMs =
+      elapsedMilliseconds(
+        controllerStartedAt
+      );
+
     const normalizedError =
       safeError(error);
 
-    const runtimeErrors =
-      runtimeResult &&
-      Array.isArray(
-        runtimeResult.errors
+    if (
+      !diagnostics.errors.some(
+        (candidate) =>
+          candidate.code ===
+            normalizedError.code &&
+          candidate.message ===
+            normalizedError.message
+      )
+    ) {
+      diagnostics.errors.push(
+        normalizedError
+      );
+    }
+
+    if (throwOnFailure) {
+      throw error;
+    }
+
+    const conversationId =
+      firstNonEmptyString(
+        partial.identityResolution &&
+          partial.identityResolution
+            .conversationId,
+        input.conversationId,
+        partial.normalizedState &&
+          partial.normalizedState
+            .conversationId,
+        partial.runtimeResult &&
+          partial.runtimeResult
+            .conversationId
+      ) || null;
+
+    const state =
+      partial.runtimeResult &&
+      isObject(
+        partial.runtimeResult.state
       )
         ? safeClone(
-            runtimeResult.errors
+            partial.runtimeResult.state
           )
-        : [];
+        : isObject(
+            partial.normalizedState
+          )
+          ? safeClone(
+              partial.normalizedState
+            )
+          : isObject(input.state)
+            ? safeClone(
+                input.state
+              )
+            : null;
 
     const result = {
       ok: false,
@@ -1198,335 +2701,704 @@
       version:
         VERSION,
 
-      requestId:
-        input &&
-        input.requestId
-          ? input.requestId
+      controllerResultType:
+        CONTROLLER_RESULT_TYPE,
+
+      conversationId,
+
+      conversationIdGenerated:
+        partial.identityResolution
+          ? partial
+              .identityResolution
+              .generated === true
+          : false,
+
+      conversationIdSource:
+        partial.identityResolution
+          ? partial
+              .identityResolution
+              .source
           : null,
 
-      conversationId:
-        firstNonEmptyString(
-          runtimeResult &&
-            runtimeResult.runtime &&
-            runtimeResult.runtime
-              .conversationId,
+      stateSource:
+        partial.selectionResult
+          ? partial
+              .selectionResult
+              .source
+          : null,
 
-          runtimeResult &&
-            runtimeResult.state &&
-            runtimeResult.state
-              .conversationId,
+      stateSourcePolicy:
+        normalizeStateSourcePolicy(
+          firstNonEmptyString(
+            input.options &&
+              input.options
+                .stateSourcePolicy,
+            input.options &&
+              input.options
+                .state_source_policy
+          ) ||
+          DEFAULT_STATE_SOURCE_POLICY
+        ),
 
-          input &&
-            input.conversationId
-        ) || null,
+      loadedPersistedState:
+        partial.loadResult &&
+        partial.loadResult.found ===
+          true,
 
-      packet: null,
+      persistenceEnabled:
+        input.options
+          .persistence !== false,
 
-      state:
-        runtimeResult &&
-        runtimeResult.state
-          ? runtimeResult.state
-          : input &&
-              input.state
-            ? safeClone(input.state)
+      stateLoaded:
+        partial.loadResult &&
+        partial.loadResult.found ===
+          true,
+
+      stateMigrated:
+        partial.migrationResult &&
+        partial.migrationResult
+          .migrated === true,
+
+      stateSaved:
+        partial.saveResult &&
+        partial.saveResult.ok ===
+          true &&
+        partial.saveResult.skipped !==
+          true,
+
+      packet:
+        partial.runtimeResult &&
+        partial.runtimeResult.packet
+          ? safeClone(
+              partial.runtimeResult
+                .packet
+            )
+          : null,
+
+      state,
+
+      currentTurn:
+        partial.runtimeResult &&
+        partial.runtimeResult
+          .currentTurn
+          ? safeClone(
+              partial.runtimeResult
+                .currentTurn
+            )
+          : safeClone(
+              input.currentTurn
+            ),
+
+      currentTurnId:
+        partial.runtimeResult &&
+        partial.runtimeResult
+          .currentTurnId
+          ? partial.runtimeResult
+              .currentTurnId
+          : null,
+
+      placement:
+        partial.runtimeResult &&
+        partial.runtimeResult
+          .placement
+          ? safeClone(
+              partial.runtimeResult
+                .placement
+            )
+          : null,
+
+      referenceResolution:
+        partial.runtimeResult &&
+        partial.runtimeResult
+          .referenceResolution
+          ? safeClone(
+              partial.runtimeResult
+                .referenceResolution
+            )
+          : null,
+
+      runtime:
+        partial.runtimeResult
+          ? safeClone(
+              partial.runtimeResult
+            )
+          : null,
+
+      persistence: {
+        load:
+          partial.loadResult
+            ? safeClone(
+                partial.loadResult
+              )
             : null,
 
-      runtimeResult,
+        migration:
+          partial.migrationResult
+            ? safeClone(
+                partial
+                  .migrationResult
+              )
+            : null,
 
-      installation:
-        options.includeInstallation ===
-          true
-          ? installation
-          : null,
+        save:
+          partial.saveResult
+            ? safeClone(
+                partial.saveResult
+              )
+            : null
+      },
+
+      diagnostics:
+        safeClone(
+          diagnostics
+        ),
+
+      startedAt:
+        diagnostics.startedAt,
 
       completedAt:
-        nowIso(),
+        diagnostics.completedAt,
+
+      durationMs:
+        diagnostics.durationMs,
 
       errors: [
-        normalizedError,
-        ...runtimeErrors
+        normalizedError
       ]
     };
 
-    return options.freezeResult === true
+    return freeze
       ? freezeClone(result)
       : result;
   }
 
   /* =====================================================
-     PUBLIC EXECUTION
+     SAFE EXECUTION
   ===================================================== */
 
-  async function run(
-    rawInput = {},
-    controllerOptions = {}
+  async function safeRun(
+    input = {},
+    options = {}
   ) {
-    const input =
-      normalizeControllerInput(
-        rawInput
+    return run(
+      input,
+      {
+        ...options,
+        throwOnFailure: false
+      }
+    );
+  }
+
+  async function execute(
+    input = {},
+    options = {}
+  ) {
+    return run(
+      input,
+      options
+    );
+  }
+
+  async function process(
+    input = {},
+    options = {}
+  ) {
+    return run(
+      input,
+      options
+    );
+  }
+
+  /* =====================================================
+     DIRECT STATE OPERATIONS
+  ===================================================== */
+
+  async function loadState(
+    conversationId,
+    options = {}
+  ) {
+    const components =
+      resolveComponents(
+        isObject(options.components)
+          ? options.components
+          : {}
       );
 
-    const options = {
-      strictInstallation:
-        controllerOptions
-          .strictInstallation !== false,
-
-      includeInstallation:
-        controllerOptions
-          .includeInstallation === true,
-
-      includeValidation:
-        controllerOptions
-          .includeValidation === true,
-
-      freezeResult:
-        controllerOptions
-          .freezeResult === true,
-
-      throwOnFailure:
-        controllerOptions
-          .throwOnFailure === true,
-
-      runtimeOptions:
-        isObject(
-          controllerOptions.runtimeOptions
-        )
-          ? safeClone(
-              controllerOptions
-                .runtimeOptions
-            )
-          : {},
-
-      components:
-        isObject(
-          controllerOptions.components
-        )
-          ? controllerOptions.components
-          : {}
-    };
-
-    let installation = null;
-    let runtimeResult = null;
-
-    try {
-      installation =
-        inspectInstallation(
-          options.components
-        );
-
-      if (
-        options.strictInstallation &&
-        !installation.ready
-      ) {
-        throw new CosControllerError(
-          "COS_INSTALLATION_NOT_READY",
-          "Conversation Operating System installation is not ready.",
-          {
-            details:
-              installation
-          }
-        );
-      }
-
-      const components =
-        resolveAllComponents(
-          options.components
-        );
-
-      if (!components.runtime) {
-        throw new CosControllerError(
-          "COS_RUNTIME_MISSING",
-          "Conversation Operating System runtime is not installed."
-        );
-      }
-
-      const runtimeInput =
-        buildRuntimeInput(
-          input,
-          options
-        );
-
-      runtimeResult =
-        await invokeRuntime({
-          runtime:
-            components.runtime,
-
-          runtimeInput,
-
-          runtimeOptions: {
-            ...options.runtimeOptions,
-
-            components: {
-              contract:
-                components.contract,
-
-              state:
-                components.state,
-
-              historyIndex:
-                components.historyIndex,
-
-              turnRegister:
-                components.turnRegister,
-
-              referenceResolver:
-                components.referenceResolver,
-
-              placementEngine:
-                components.placementEngine,
-
-              threadStateManager:
-                components.threadStateManager,
-
-              placementValidator:
-                components.placementValidator,
-
-              packetBuilder:
-                components.packetBuilder
-            }
-          }
-        });
-
-      const runtimeValidation =
-        validateRuntimeResult(
-          runtimeResult
-        );
-
-      if (!runtimeValidation.valid) {
-        throw new CosControllerError(
-          "COS_RUNTIME_RESULT_INVALID",
-          "Conversation Operating System runtime returned an invalid result.",
-          {
-            details:
-              runtimeValidation
-          }
-        );
-      }
-
-      if (runtimeResult.ok !== true) {
-        throw new CosControllerError(
-          "COS_RUNTIME_EXECUTION_FAILED",
-          "Conversation Operating System runtime execution failed.",
-          {
-            details: {
-              errors:
-                runtimeResult.errors ||
-                [],
-
-              failedStage:
-                runtimeResult.runtime &&
-                runtimeResult.runtime
-                  .failedStage
-            }
-          }
-        );
-      }
-
-      const packetValidation =
-        validateAuthoritativePacket(
-          runtimeResult.packet,
-          components.packetBuilder
-        );
-
-      if (!packetValidation.valid) {
-        throw new CosControllerError(
-          "COS_AUTHORITATIVE_PACKET_INVALID",
-          "Conversation Operating System produced an invalid authoritative placement packet.",
-          {
-            details:
-              packetValidation
-          }
-        );
-      }
-
-      return buildControllerSuccess({
-        input,
-        runtimeResult,
-        installation,
-        packetValidation,
-        options
-      });
-    } catch (error) {
-      const failure =
-        buildControllerFailure({
-          input,
-          runtimeResult,
-          installation,
-          error,
-          options
-        });
-
-      if (options.throwOnFailure) {
-        if (error instanceof Error) {
-          error.cosControllerResult =
-            failure;
+    if (!components.stateStore) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_STATE_STORE_MISSING",
+        "COS state store is not installed.",
+        {
+          stage:
+            "state_load"
         }
-
-        throw error;
-      }
-
-      return failure;
+      );
     }
+
+    const result =
+      await loadPersistedState(
+        components.stateStore,
+        conversationId,
+        {
+          ...options,
+          loadState: true,
+          persistence: true
+        }
+      );
+
+    if (
+      !result.found ||
+      !isObject(result.state)
+    ) {
+      return null;
+    }
+
+    let state =
+      safeClone(result.state);
+
+    if (
+      options.migrateState !== false &&
+      components.stateMigrator
+    ) {
+      const migration =
+        await migrateState(
+          components.stateMigrator,
+          state,
+          conversationId,
+          options
+        );
+
+      state =
+        safeClone(
+          migration.state
+        );
+    }
+
+    if (
+      components.state &&
+      options.normalize !== false
+    ) {
+      state =
+        await normalizeState(
+          components.state,
+          state,
+          conversationId,
+          options
+        );
+    }
+
+    return options.freeze === false
+      ? state
+      : freezeClone(state);
+  }
+
+  async function saveState(
+    conversationId,
+    state,
+    options = {}
+  ) {
+    const components =
+      resolveComponents(
+        isObject(options.components)
+          ? options.components
+          : {}
+      );
+
+    if (!components.stateStore) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_STATE_STORE_MISSING",
+        "COS state store is not installed.",
+        {
+          stage:
+            "state_save"
+        }
+      );
+    }
+
+    let normalizedState =
+      safeClone(state);
+
+    if (
+      components.state &&
+      options.normalize !== false
+    ) {
+      normalizedState =
+        await normalizeState(
+          components.state,
+          normalizedState,
+          conversationId,
+          options
+        );
+    }
+
+    return saveResultingState(
+      components.stateStore,
+      conversationId,
+      normalizedState,
+      {
+        ...options,
+        saveState: true,
+        persistence: true
+      }
+    );
+  }
+
+  async function removeState(
+    conversationId,
+    options = {}
+  ) {
+    const components =
+      resolveComponents(
+        isObject(options.components)
+          ? options.components
+          : {}
+      );
+
+    if (!components.stateStore) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_STATE_STORE_MISSING",
+        "COS state store is not installed.",
+        {
+          stage:
+            "state_save"
+        }
+      );
+    }
+
+    const remove =
+      resolveCallable(
+        components.stateStore,
+        [
+          "remove",
+          "delete",
+          "clear"
+        ],
+        "cos-state-store"
+      );
+
+    return remove(
+      conversationId,
+      {
+        ...(
+          isObject(
+            options.persistenceOptions
+          )
+            ? options
+                .persistenceOptions
+            : {}
+        ),
+
+        adapter:
+          firstDefined(
+            options.storageAdapter,
+            options.adapter
+          ),
+
+        keyPrefix:
+          firstDefined(
+            options.storageKeyPrefix,
+            options.keyPrefix
+          ),
+
+        freeze:
+          options.freeze
+      }
+    );
+  }
+
+  async function createEmptyState(
+    {
+      conversationId = null,
+      freeze = true,
+      components: overrides = {}
+    } = {}
+  ) {
+    const components =
+      resolveComponents(
+        isObject(overrides)
+          ? overrides
+          : {}
+      );
+
+    if (!components.state) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_STATE_COMPONENT_MISSING",
+        "COS state component is not installed.",
+        {
+          stage:
+            "state_normalization"
+        }
+      );
+    }
+
+    const resolvedConversationId =
+      firstNonEmptyString(
+        conversationId
+      ) ||
+      createConversationId();
+
+    const state =
+      await normalizeState(
+        components.state,
+        null,
+        resolvedConversationId,
+        {
+          freeze: false
+        }
+      );
+
+    return freeze
+      ? freezeClone(state)
+      : state;
   }
 
   /* =====================================================
-     PACKET-ONLY API
+     RUN WITHOUT PERSISTENCE
   ===================================================== */
 
-  async function place(
-    rawInput = {},
-    controllerOptions = {}
+  async function runEphemeral(
+    input = {},
+    options = {}
   ) {
-    const result = await run(
-      rawInput,
-      controllerOptions
-    );
-
-    if (!result.ok) {
-      return {
-        ok: false,
-        packet: null,
-        state: result.state,
-        errors: result.errors
-      };
-    }
-
-    return {
-      ok: true,
-      packet: result.packet,
-      state: result.state,
-      errors: []
-    };
-  }
-
-  async function getPacket(
-    rawInput = {},
-    controllerOptions = {}
-  ) {
-    const result = await run(
-      rawInput,
+    return run(
+      input,
       {
-        ...controllerOptions,
-        throwOnFailure: true
+        ...options,
+
+        persistence: false,
+
+        loadState: false,
+
+        saveState: false
       }
     );
-
-    return result.packet;
   }
 
   /* =====================================================
-     HEALTH API
+     RUN WITH PERSISTENCE
+  ===================================================== */
+
+  async function runPersistent(
+    input = {},
+    options = {}
+  ) {
+    return run(
+      input,
+      {
+        ...options,
+
+        persistence: true,
+
+        loadState:
+          options.loadState !== false,
+
+        saveState:
+          options.saveState !== false
+      }
+    );
+  }
+
+  /* =====================================================
+     HEALTH
   ===================================================== */
 
   function health(
-    overrides = {}
+    overrides = {},
+    options = {}
   ) {
-    const installation =
-      inspectInstallation(overrides);
+    const components =
+      resolveComponents(
+        overrides
+      );
+
+    const persistenceRequired =
+      options.requirePersistence !==
+      false;
+
+    const migrationRequired =
+      options.requireMigration !==
+      false;
+
+    const installed = {
+      runtime: {
+        available:
+          Boolean(
+            components.runtime
+          ),
+
+        version:
+          components.runtime &&
+          firstNonEmptyString(
+            components.runtime.version,
+            components.runtime.VERSION
+          )
+      },
+
+      state: {
+        available:
+          Boolean(
+            components.state
+          ),
+
+        version:
+          components.state &&
+          firstNonEmptyString(
+            components.state.version,
+            components.state.VERSION
+          )
+      },
+
+      stateStore: {
+        available:
+          Boolean(
+            components.stateStore
+          ),
+
+        required:
+          persistenceRequired,
+
+        version:
+          components.stateStore &&
+          firstNonEmptyString(
+            components.stateStore
+              .version,
+            components.stateStore
+              .VERSION
+          )
+      },
+
+      stateMigrator: {
+        available:
+          Boolean(
+            components.stateMigrator
+          ),
+
+        required:
+          migrationRequired,
+
+        version:
+          components.stateMigrator &&
+          firstNonEmptyString(
+            components.stateMigrator
+              .version,
+            components.stateMigrator
+              .VERSION
+          )
+      },
+
+      manifest: {
+        available:
+          Boolean(
+            components.manifest
+          ),
+
+        required: false,
+
+        version:
+          components.manifest &&
+          firstNonEmptyString(
+            components.manifest
+              .version,
+            components.manifest
+              .VERSION
+          )
+      }
+    };
+
+    const missing = [];
+
+    if (!installed.runtime.available) {
+      missing.push("runtime");
+    }
+
+    if (!installed.state.available) {
+      missing.push("state");
+    }
+
+    if (
+      persistenceRequired &&
+      !installed.stateStore.available
+    ) {
+      missing.push("stateStore");
+    }
+
+    if (
+      migrationRequired &&
+      !installed
+        .stateMigrator.available
+    ) {
+      missing.push(
+        "stateMigrator"
+      );
+    }
+
+    let runtimeHealth = null;
+    let manifestInspection = null;
+    const warnings = [];
+
+    if (
+      components.runtime &&
+      isFunction(
+        components.runtime.health
+      )
+    ) {
+      try {
+        runtimeHealth =
+          components.runtime.health(
+            overrides
+          );
+      } catch (error) {
+        warnings.push({
+          code:
+            "COS_CONTROLLER_RUNTIME_HEALTH_FAILED",
+
+          error:
+            safeError(error)
+        });
+      }
+    }
+
+    if (
+      components.manifest &&
+      isFunction(
+        components.manifest
+          .inspectInstallation
+      )
+    ) {
+      try {
+        manifestInspection =
+          components.manifest
+            .inspectInstallation({
+              includeTesting:
+                options
+                  .includeTesting ===
+                true,
+
+              includeIntegration:
+                options
+                  .includeIntegration !==
+                false
+            });
+      } catch (error) {
+        warnings.push({
+          code:
+            "COS_CONTROLLER_MANIFEST_INSPECTION_FAILED",
+
+          error:
+            safeError(error)
+        });
+      }
+    }
+
+    const ready =
+      missing.length === 0 &&
+      (
+        !runtimeHealth ||
+        runtimeHealth.ok !== false
+      );
 
     return {
-      ok:
-        installation.ready,
+      ok: ready,
 
       schemaVersion:
         SCHEMA_VERSION,
@@ -1541,155 +3413,56 @@
         VERSION,
 
       status:
-        installation.ready
+        ready
           ? "ready"
           : "not_ready",
 
-      installation,
+      installed,
+
+      missing,
+
+      runtime:
+        runtimeHealth,
+
+      manifest:
+        manifestInspection,
+
+      warnings,
 
       checkedAt:
         nowIso()
     };
   }
 
-  /* =====================================================
-     RESET / STATE HELPERS
-  ===================================================== */
-
-  function createEmptyState({
-    conversationId = null
-  } = {}) {
-    const stateComponent =
-      resolveComponent(
-        "state"
+  function assertReady(
+    overrides = {},
+    options = {}
+  ) {
+    const report =
+      health(
+        overrides,
+        options
       );
 
-    if (stateComponent) {
-      const create =
-        isFunction(
-          stateComponent.create
-        )
-          ? stateComponent
-              .create
-              .bind(stateComponent)
-          : isFunction(
-              stateComponent.initialize
-            )
-            ? stateComponent
-                .initialize
-                .bind(stateComponent)
-            : isFunction(
-                stateComponent
-                  .createInitialState
-              )
-              ? stateComponent
-                  .createInitialState
-                  .bind(stateComponent)
-              : null;
+    if (!report.ok) {
+      throw new CosControllerError(
+        "COS_CONTROLLER_NOT_READY",
+        "Conversation Operating System controller is not ready.",
+        {
+          stage:
+            "component_resolution",
 
-      if (create) {
-        const result = create({
-          conversationId:
-            conversationId ||
-            createId("conversation")
-        });
-
-        if (
-          result &&
-          isFunction(result.then)
-        ) {
-          throw new CosControllerError(
-            "COS_ASYNC_STATE_FACTORY_UNSUPPORTED",
-            "Use createEmptyStateAsync when the installed COS state factory is asynchronous."
-          );
+          details:
+            report
         }
-
-        return result;
-      }
-    }
-
-    const timestamp = nowIso();
-
-    return {
-      schemaVersion:
-        SCHEMA_VERSION,
-
-      authority:
-        AUTHORITY,
-
-      conversationId:
-        conversationId ||
-        createId("conversation"),
-
-      revision: 0,
-
-      activeThreadId: null,
-      activeTurnId: null,
-
-      threads: {},
-      turns: {},
-
-      threadStack: [],
-      interruptionStack: [],
-
-      lastPlacement: null,
-      lastReferenceResolution: null,
-
-      createdAt:
-        timestamp,
-
-      updatedAt:
-        timestamp
-    };
-  }
-
-  async function createEmptyStateAsync({
-    conversationId = null
-  } = {}) {
-    const stateComponent =
-      resolveComponent(
-        "state"
       );
-
-    if (stateComponent) {
-      const create =
-        isFunction(
-          stateComponent.create
-        )
-          ? stateComponent
-              .create
-              .bind(stateComponent)
-          : isFunction(
-              stateComponent.initialize
-            )
-            ? stateComponent
-                .initialize
-                .bind(stateComponent)
-            : isFunction(
-                stateComponent
-                  .createInitialState
-              )
-              ? stateComponent
-                  .createInitialState
-                  .bind(stateComponent)
-              : null;
-
-      if (create) {
-        return await create({
-          conversationId:
-            conversationId ||
-            createId("conversation")
-        });
-      }
     }
 
-    return createEmptyState({
-      conversationId
-    });
+    return report;
   }
 
   /* =====================================================
-     PUBLIC CONTROLLER
+     PUBLIC COMPONENT
   ===================================================== */
 
   const cosController = {
@@ -1705,35 +3478,69 @@
     component:
       COMPONENT_NAME,
 
-    requiredComponents:
-      REQUIRED_COMPONENTS,
+    controllerResultType:
+      CONTROLLER_RESULT_TYPE,
+
+    stateSourcePolicies:
+      STATE_SOURCE_POLICIES,
+
+    defaultStateSourcePolicy:
+      DEFAULT_STATE_SOURCE_POLICY,
+
+    stages:
+      CONTROLLER_STAGES,
 
     CosControllerError,
 
     run,
 
-    execute:
-      run,
+    execute,
 
-    process:
-      run,
+    process,
 
-    place,
+    safeRun,
 
-    getPacket,
+    runEphemeral,
 
-    inspectInstallation,
+    runPersistent,
 
-    assertInstallation,
+    loadState,
+
+    saveState,
+
+    removeState,
+
+    createEmptyState,
+
+    createEmptyStateAsync:
+      createEmptyState,
 
     health,
+
+    assertReady,
 
     normalizeInput:
       normalizeControllerInput,
 
-    createEmptyState,
+    resolveComponents,
 
-    createEmptyStateAsync
+    assertRequiredComponents,
+
+    resolveConversationId,
+
+    normalizeStateSourcePolicy,
+
+    selectState,
+
+    loadPersistedState,
+
+    migrateState,
+
+    normalizeState,
+
+    executeRuntime,
+
+    saveResultingState
   };
 
   /* =====================================================
@@ -1745,9 +3552,6 @@
 
   ConversationOS.cosController =
     cosController;
-
-  ConversationOS.run =
-    run;
 
   root.AriCosController =
     cosController;
