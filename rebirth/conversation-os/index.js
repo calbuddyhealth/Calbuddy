@@ -5,51 +5,38 @@
 // Expose the complete Conversation Operating System through one stable,
 // public integration surface.
 //
-// V1.0.0 — Canonical COS Public Module Index
+// V2.0.0 — Expanded COS Public Integration Surface
 //
 // Canonical responsibility:
 //
-// - Verify that all COS components are installed.
-// - Expose the canonical controller and runtime.
-// - Expose supporting COS components for diagnostics and testing.
-// - Provide one stable `run()` entry point.
-// - Provide one stable `place()` entry point.
-// - Provide COS health and installation inspection.
-// - Preserve all authority boundaries established by the COS architecture.
+// - Discover every installed COS component.
+// - Verify required component installation.
+// - Expose core placement and continuity services.
+// - Expose reference candidate construction and adjudication.
+// - Expose pending-interaction, artifact, and delivery-sequence services.
+// - Expose persistence and migration infrastructure.
+// - Provide one stable COS run entry point.
+// - Provide one stable health and installation-inspection API.
+// - Preserve all authority boundaries established by COS.
 //
 // Non-responsibility:
 //
 // This file must not:
 //
 // - interpret user language,
-// - classify semantic meaning,
+// - infer semantic meaning,
 // - classify intent,
 // - classify conversation function,
-// - infer emotion,
+// - infer emotional state,
 // - infer safety severity,
-// - resolve references,
+// - resolve references independently,
 // - determine placement independently,
-// - mutate COS state independently,
-// - build placement packets independently,
-// - generate a response.
+// - mutate conversation state independently,
+// - generate responses.
 //
 // Architectural rule:
 //
 // This file is a public barrel and integration surface only.
-//
-// All actual conversation-placement authority remains inside:
-//
-// - cos-contract.js
-// - cos-state.js
-// - cos-runtime.js
-// - cos-history-index.js
-// - cos-turn-register.js
-// - cos-reference-resolver.js
-// - cos-placement-engine.js
-// - cos-thread-state-manager.js
-// - cos-placement-validator.js
-// - cos-packet-builder.js
-// - cos-controller.js
 //
 // Browser namespace:
 //
@@ -92,7 +79,7 @@
      CONSTANTS
   ===================================================== */
 
-  const VERSION = "1.0.0";
+  const VERSION = "2.0.0";
   const SCHEMA_VERSION = "1.0.0";
 
   const AUTHORITY =
@@ -101,18 +88,49 @@
   const COMPONENT_NAME =
     "conversation-os-index";
 
-  const REQUIRED_COMPONENTS = Object.freeze([
+  const CORE_COMPONENTS = Object.freeze([
     "contract",
     "state",
-    "runtime",
     "historyIndex",
     "turnRegister",
+    "referenceCandidateBuilder",
+    "referenceAdjudicator",
     "referenceResolver",
     "placementEngine",
     "threadStateManager",
     "placementValidator",
     "packetBuilder",
+    "runtime",
     "controller"
+  ]);
+
+  const CONTINUITY_COMPONENTS = Object.freeze([
+    "pendingInteractionManager",
+    "artifactRegister",
+    "deliverySequenceManager"
+  ]);
+
+  const INFRASTRUCTURE_COMPONENTS = Object.freeze([
+    "stateMigrator",
+    "stateStore",
+    "manifest"
+  ]);
+
+  const REQUIRED_COMPONENTS = Object.freeze([
+    ...CORE_COMPONENTS,
+    ...CONTINUITY_COMPONENTS,
+    ...INFRASTRUCTURE_COMPONENTS
+  ]);
+
+  const OPTIONAL_COMPONENTS = Object.freeze([
+    "smokeTest",
+    "regressionSuite",
+    "integrationStage"
+  ]);
+
+  const ALL_COMPONENTS = Object.freeze([
+    ...REQUIRED_COMPONENTS,
+    ...OPTIONAL_COMPONENTS
   ]);
 
   const COMPONENT_ALIASES = Object.freeze({
@@ -128,13 +146,6 @@
       "cosState",
       "CosState",
       "COSState"
-    ]),
-
-    runtime: Object.freeze([
-      "runtime",
-      "cosRuntime",
-      "CosRuntime",
-      "COSRuntime"
     ]),
 
     historyIndex: Object.freeze([
@@ -153,6 +164,45 @@
       "COSTurnRegister"
     ]),
 
+    pendingInteractionManager:
+      Object.freeze([
+        "pendingInteractionManager",
+        "cosPendingInteractionManager",
+        "CosPendingInteractionManager",
+        "COSPendingInteractionManager"
+      ]),
+
+    artifactRegister: Object.freeze([
+      "artifactRegister",
+      "cosArtifactRegister",
+      "CosArtifactRegister",
+      "COSArtifactRegister"
+    ]),
+
+    deliverySequenceManager:
+      Object.freeze([
+        "deliverySequenceManager",
+        "cosDeliverySequenceManager",
+        "CosDeliverySequenceManager",
+        "COSDeliverySequenceManager"
+      ]),
+
+    referenceCandidateBuilder:
+      Object.freeze([
+        "referenceCandidateBuilder",
+        "cosReferenceCandidateBuilder",
+        "CosReferenceCandidateBuilder",
+        "COSReferenceCandidateBuilder"
+      ]),
+
+    referenceAdjudicator:
+      Object.freeze([
+        "referenceAdjudicator",
+        "cosReferenceAdjudicator",
+        "CosReferenceAdjudicator",
+        "COSReferenceAdjudicator"
+      ]),
+
     referenceResolver: Object.freeze([
       "referenceResolver",
       "cosReferenceResolver",
@@ -168,19 +218,21 @@
       "COSPlacementEngine"
     ]),
 
-    threadStateManager: Object.freeze([
-      "threadStateManager",
-      "cosThreadStateManager",
-      "CosThreadStateManager",
-      "COSThreadStateManager"
-    ]),
+    threadStateManager:
+      Object.freeze([
+        "threadStateManager",
+        "cosThreadStateManager",
+        "CosThreadStateManager",
+        "COSThreadStateManager"
+      ]),
 
-    placementValidator: Object.freeze([
-      "placementValidator",
-      "cosPlacementValidator",
-      "CosPlacementValidator",
-      "COSPlacementValidator"
-    ]),
+    placementValidator:
+      Object.freeze([
+        "placementValidator",
+        "cosPlacementValidator",
+        "CosPlacementValidator",
+        "COSPlacementValidator"
+      ]),
 
     packetBuilder: Object.freeze([
       "packetBuilder",
@@ -189,11 +241,55 @@
       "COSPacketBuilder"
     ]),
 
+    stateMigrator: Object.freeze([
+      "stateMigrator",
+      "cosStateMigrator",
+      "CosStateMigrator",
+      "COSStateMigrator"
+    ]),
+
+    stateStore: Object.freeze([
+      "stateStore",
+      "cosStateStore",
+      "CosStateStore",
+      "COSStateStore"
+    ]),
+
+    manifest: Object.freeze([
+      "manifest",
+      "cosManifest",
+      "CosManifest",
+      "COSManifest"
+    ]),
+
+    runtime: Object.freeze([
+      "runtime",
+      "cosRuntime",
+      "CosRuntime",
+      "COSRuntime"
+    ]),
+
     controller: Object.freeze([
       "controller",
       "cosController",
       "CosController",
       "COSController"
+    ]),
+
+    smokeTest: Object.freeze([
+      "smokeTest",
+      "cosSmokeTest"
+    ]),
+
+    regressionSuite: Object.freeze([
+      "regressionSuite",
+      "cosRegressionSuite"
+    ]),
+
+    integrationStage: Object.freeze([
+      "conversationOSStage",
+      "cosStage",
+      "rebirthConversationOSStage"
     ])
   });
 
@@ -270,6 +366,16 @@
     );
   }
 
+  function firstDefined(...values) {
+    for (const value of values) {
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
   function firstNonEmptyString(...values) {
     for (const value of values) {
       if (isNonEmptyString(value)) {
@@ -328,13 +434,17 @@
     for (
       const key of Reflect.ownKeys(value)
     ) {
-      const child = value[key];
+      const child =
+        value[key];
 
       if (
         child !== null &&
         typeof child === "object"
       ) {
-        deepFreeze(child, seen);
+        deepFreeze(
+          child,
+          seen
+        );
       }
     }
 
@@ -413,21 +523,34 @@
   }
 
   /* =====================================================
-     COMPONENT DISCOVERY
+     NAMESPACE DISCOVERY
   ===================================================== */
 
   function getNamespaces() {
     return [
       ConversationOS,
+
       ConversationOS.core,
       ConversationOS.indexing,
       ConversationOS.turns,
+      ConversationOS.interactions,
+      ConversationOS.artifacts,
+      ConversationOS.sequences,
       ConversationOS.references,
       ConversationOS.placement,
       ConversationOS.threads,
       ConversationOS.validation,
       ConversationOS.packets,
+      ConversationOS.persistence,
+      ConversationOS.migrations,
       ConversationOS.components,
+
+      ConversationOS.testing,
+
+      root.Ari &&
+        root.Ari.Rebirth &&
+        root.Ari.Rebirth.Integration,
+
       root.Ari.Rebirth,
       root.Ari,
       root
@@ -451,7 +574,8 @@
       getNamespaces();
 
     for (
-      const namespace of namespaces
+      const namespace of
+        namespaces
     ) {
       for (const alias of aliases) {
         if (namespace[alias]) {
@@ -470,13 +594,16 @@
 
     for (
       const componentName of
-        REQUIRED_COMPONENTS
+        ALL_COMPONENTS
     ) {
-      components[componentName] =
-        resolveComponent(
-          componentName,
-          overrides[componentName]
-        );
+      components[
+        componentName
+      ] = resolveComponent(
+        componentName,
+        overrides[
+          componentName
+        ]
+      );
     }
 
     return components;
@@ -534,14 +661,21 @@
     componentName = "component"
   ) {
     if (isFunction(component)) {
-      return component.bind(component);
+      return component.bind(
+        component
+      );
     }
 
     if (component) {
-      for (const methodName of methodNames) {
+      for (
+        const methodName of
+          methodNames
+      ) {
         if (
           isFunction(
-            component[methodName]
+            component[
+              methodName
+            ]
           )
         ) {
           return component[
@@ -564,34 +698,237 @@
   }
 
   /* =====================================================
+     COMPONENT CALLABILITY
+  ===================================================== */
+
+  function getExpectedMethods(
+    componentName
+  ) {
+    const methodMap = {
+      contract: [
+        "validate",
+        "validateInput",
+        "assert"
+      ],
+
+      state: [
+        "create",
+        "initialize",
+        "createInitialState",
+        "validate",
+        "validateState"
+      ],
+
+      historyIndex: [
+        "build",
+        "index",
+        "createIndex",
+        "run"
+      ],
+
+      turnRegister: [
+        "register",
+        "run",
+        "create"
+      ],
+
+      pendingInteractionManager: [
+        "transition",
+        "apply",
+        "run"
+      ],
+
+      artifactRegister: [
+        "transition",
+        "apply",
+        "run"
+      ],
+
+      deliverySequenceManager: [
+        "transition",
+        "apply",
+        "run"
+      ],
+
+      referenceCandidateBuilder: [
+        "build",
+        "buildCandidates",
+        "run"
+      ],
+
+      referenceAdjudicator: [
+        "adjudicate",
+        "resolve",
+        "run"
+      ],
+
+      referenceResolver: [
+        "resolve",
+        "run"
+      ],
+
+      placementEngine: [
+        "place",
+        "determine",
+        "run"
+      ],
+
+      threadStateManager: [
+        "transition",
+        "apply",
+        "run"
+      ],
+
+      placementValidator: [
+        "validate",
+        "validatePlacement",
+        "run"
+      ],
+
+      packetBuilder: [
+        "build",
+        "create",
+        "run"
+      ],
+
+      stateMigrator: [
+        "migrate",
+        "upgrade",
+        "run"
+      ],
+
+      stateStore: [
+        "load",
+        "save"
+      ],
+
+      manifest: [
+        "inspectInstallation",
+        "createLoadPlan"
+      ],
+
+      runtime: [
+        "run",
+        "execute",
+        "process"
+      ],
+
+      controller: [
+        "run",
+        "execute",
+        "process"
+      ],
+
+      smokeTest: [
+        "run",
+        "test",
+        "assertAll"
+      ],
+
+      regressionSuite: [
+        "run",
+        "test",
+        "assertAll"
+      ],
+
+      integrationStage: [
+        "run",
+        "execute",
+        "process"
+      ]
+    };
+
+    return methodMap[
+      componentName
+    ] || [];
+  }
+
+  function isComponentCallable(
+    componentName,
+    component
+  ) {
+    if (!component) {
+      return false;
+    }
+
+    if (isFunction(component)) {
+      return true;
+    }
+
+    const expectedMethods =
+      getExpectedMethods(
+        componentName
+      );
+
+    return expectedMethods.some(
+      (methodName) =>
+        isFunction(
+          component[
+            methodName
+          ]
+        )
+    );
+  }
+
+  /* =====================================================
      INSTALLATION INSPECTION
   ===================================================== */
 
   function inspect(
-    overrides = {}
+    overrides = {},
+    options = {}
   ) {
     const components =
       resolveComponents(overrides);
 
     const installed = {};
-    const missingComponents = [];
+    const missingRequired = [];
+    const missingOptional = [];
     const authorityMismatches = [];
+    const nonCallableComponents = [];
     const warnings = [];
+
+    const requireInfrastructure =
+      options.requireInfrastructure !==
+      false;
+
+    const requiredSet =
+      new Set(
+        requireInfrastructure
+          ? REQUIRED_COMPONENTS
+          : [
+              ...CORE_COMPONENTS,
+              ...CONTINUITY_COMPONENTS
+            ]
+      );
 
     for (
       const componentName of
-        REQUIRED_COMPONENTS
+        ALL_COMPONENTS
     ) {
       const component =
-        components[componentName];
+        components[
+          componentName
+        ];
 
       const available =
         Boolean(component);
 
-      if (!available) {
-        missingComponents.push(
+      const required =
+        requiredSet.has(
           componentName
         );
+
+      if (!available) {
+        if (required) {
+          missingRequired.push(
+            componentName
+          );
+        } else {
+          missingOptional.push(
+            componentName
+          );
+        }
       }
 
       const authority =
@@ -602,7 +939,9 @@
       if (
         available &&
         authority &&
-        authority !== AUTHORITY
+        authority !== AUTHORITY &&
+        componentName !==
+          "integrationStage"
       ) {
         authorityMismatches.push({
           component:
@@ -614,6 +953,23 @@
           actual:
             authority
         });
+      }
+
+      const callable =
+        available
+          ? isComponentCallable(
+              componentName,
+              component
+            )
+          : false;
+
+      if (
+        available &&
+        !callable
+      ) {
+        nonCallableComponents.push(
+          componentName
+        );
       }
 
       const version =
@@ -634,8 +990,14 @@
         });
       }
 
-      installed[componentName] = {
+      installed[
+        componentName
+      ] = {
         available,
+
+        required,
+
+        callable,
 
         name:
           readComponentName(
@@ -645,60 +1007,26 @@
 
         version,
 
-        authority
+        authority,
+
+        expectedMethods:
+          getExpectedMethods(
+            componentName
+          )
       };
     }
 
-    const controller =
-      components.controller;
-
-    const runtime =
-      components.runtime;
-
-    const controllerCallable =
-      Boolean(
-        controller &&
-        (
-          isFunction(controller) ||
-          isFunction(controller.run) ||
-          isFunction(controller.execute)
-        )
-      );
-
-    const runtimeCallable =
-      Boolean(
-        runtime &&
-        (
-          isFunction(runtime) ||
-          isFunction(runtime.run)
-        )
-      );
-
-    if (
-      controller &&
-      !controllerCallable
-    ) {
-      warnings.push({
-        code:
-          "COS_CONTROLLER_NOT_CALLABLE"
-      });
-    }
-
-    if (
-      runtime &&
-      !runtimeCallable
-    ) {
-      warnings.push({
-        code:
-          "COS_RUNTIME_NOT_CALLABLE"
-      });
-    }
-
     const ready =
-      missingComponents.length === 0 &&
+      missingRequired.length === 0 &&
       authorityMismatches.length === 0 &&
-      controllerCallable &&
-      runtimeCallable;
+      nonCallableComponents
+        .filter(
+          (componentName) =>
+            requiredSet.has(
+              componentName
+            )
+        )
+        .length === 0;
 
     return {
       schemaVersion:
@@ -721,13 +1049,22 @@
           : "not_ready",
 
       requiredComponents:
-        [...REQUIRED_COMPONENTS],
+        Array.from(
+          requiredSet
+        ),
+
+      optionalComponents:
+        [...OPTIONAL_COMPONENTS],
 
       installed,
 
-      missingComponents,
+      missingRequired,
+
+      missingOptional,
 
       authorityMismatches,
+
+      nonCallableComponents,
 
       warnings,
 
@@ -737,10 +1074,14 @@
   }
 
   function assertReady(
-    overrides = {}
+    overrides = {},
+    options = {}
   ) {
     const inspection =
-      inspect(overrides);
+      inspect(
+        overrides,
+        options
+      );
 
     if (!inspection.ready) {
       throw new ConversationOSIndexError(
@@ -763,11 +1104,17 @@
   function getComponents(
     overrides = {},
     {
-      requireReady = false
+      requireReady = false,
+      requireInfrastructure = true
     } = {}
   ) {
     if (requireReady) {
-      assertReady(overrides);
+      assertReady(
+        overrides,
+        {
+          requireInfrastructure
+        }
+      );
     }
 
     return resolveComponents(
@@ -775,80 +1122,94 @@
     );
   }
 
-  function getController(
+  function requireInstalledComponent(
+    componentName,
     overrides = {}
   ) {
-    const controller =
+    const component =
       resolveComponent(
-        "controller",
-        overrides.controller
+        componentName,
+        overrides[
+          componentName
+        ]
       );
 
-    if (!controller) {
+    if (!component) {
       throw new ConversationOSIndexError(
-        "COS_CONTROLLER_MISSING",
-        "Conversation OS controller is not installed."
+        "COS_COMPONENT_MISSING",
+        `Conversation OS component is not installed: ${componentName}`,
+        {
+          details: {
+            componentName
+          }
+        }
       );
     }
 
-    return controller;
+    return component;
+  }
+
+  function getController(
+    overrides = {}
+  ) {
+    return requireInstalledComponent(
+      "controller",
+      overrides
+    );
   }
 
   function getRuntime(
     overrides = {}
   ) {
-    const runtime =
-      resolveComponent(
-        "runtime",
-        overrides.runtime
-      );
-
-    if (!runtime) {
-      throw new ConversationOSIndexError(
-        "COS_RUNTIME_MISSING",
-        "Conversation OS runtime is not installed."
-      );
-    }
-
-    return runtime;
+    return requireInstalledComponent(
+      "runtime",
+      overrides
+    );
   }
 
   function getContract(
     overrides = {}
   ) {
-    const contract =
-      resolveComponent(
-        "contract",
-        overrides.contract
-      );
-
-    if (!contract) {
-      throw new ConversationOSIndexError(
-        "COS_CONTRACT_MISSING",
-        "Conversation OS contract is not installed."
-      );
-    }
-
-    return contract;
+    return requireInstalledComponent(
+      "contract",
+      overrides
+    );
   }
 
   function getStateComponent(
     overrides = {}
   ) {
-    const state =
-      resolveComponent(
-        "state",
-        overrides.state
-      );
+    return requireInstalledComponent(
+      "state",
+      overrides
+    );
+  }
 
-    if (!state) {
-      throw new ConversationOSIndexError(
-        "COS_STATE_COMPONENT_MISSING",
-        "Conversation OS state component is not installed."
-      );
-    }
+  function getStateStore(
+    overrides = {}
+  ) {
+    return requireInstalledComponent(
+      "stateStore",
+      overrides
+    );
+  }
 
-    return state;
+  function getStateMigrator(
+    overrides = {}
+  ) {
+    return requireInstalledComponent(
+      "stateMigrator",
+      overrides
+    );
+  }
+
+  function getManifest(
+    overrides = {}
+  ) {
+    return requireInstalledComponent(
+      "manifest",
+      overrides
+    );
   }
 
   /* =====================================================
@@ -859,16 +1220,28 @@
     input = {},
     options = {}
   ) {
+    const overrides =
+      isObject(options.components)
+        ? options.components
+        : {};
+
     const components =
       resolveComponents(
-        options.components || {}
+        overrides
       );
 
     if (
-      options.strictInstallation !== false
+      options.strictInstallation !==
+      false
     ) {
       assertReady(
-        options.components || {}
+        overrides,
+        {
+          requireInfrastructure:
+            options
+              .requireInfrastructure !==
+            false
+        }
       );
     }
 
@@ -899,14 +1272,31 @@
             state:
               components.state,
 
-            runtime:
-              components.runtime,
-
             historyIndex:
               components.historyIndex,
 
             turnRegister:
               components.turnRegister,
+
+            pendingInteractionManager:
+              components
+                .pendingInteractionManager,
+
+            artifactRegister:
+              components
+                .artifactRegister,
+
+            deliverySequenceManager:
+              components
+                .deliverySequenceManager,
+
+            referenceCandidateBuilder:
+              components
+                .referenceCandidateBuilder,
+
+            referenceAdjudicator:
+              components
+                .referenceAdjudicator,
 
             referenceResolver:
               components.referenceResolver,
@@ -915,19 +1305,31 @@
               components.placementEngine,
 
             threadStateManager:
-              components.threadStateManager,
+              components
+                .threadStateManager,
 
             placementValidator:
-              components.placementValidator,
+              components
+                .placementValidator,
 
             packetBuilder:
-              components.packetBuilder
+              components.packetBuilder,
+
+            stateMigrator:
+              components.stateMigrator,
+
+            stateStore:
+              components.stateStore,
+
+            runtime:
+              components.runtime
           }
         }
       );
     } catch (error) {
       if (
-        options.throwOnFailure === true
+        options.throwOnFailure ===
+        true
       ) {
         throw error;
       }
@@ -952,7 +1354,9 @@
         state:
           isObject(input) &&
           isObject(input.state)
-            ? safeClone(input.state)
+            ? safeClone(
+                input.state
+              )
             : null,
 
         errors: [
@@ -983,7 +1387,7 @@
   }
 
   /* =====================================================
-     PACKET-FOCUSED EXECUTION
+     PACKET EXECUTION
   ===================================================== */
 
   async function place(
@@ -996,7 +1400,9 @@
       );
 
     if (
-      isFunction(controller.place)
+      isFunction(
+        controller.place
+      )
     ) {
       return controller.place(
         input,
@@ -1012,18 +1418,26 @@
 
     return {
       ok:
+        result &&
         result.ok === true,
 
       packet:
+        result &&
         result.ok === true
           ? result.packet
           : null,
 
       state:
-        result.state || null,
+        result &&
+        result.state
+          ? result.state
+          : null,
 
       errors:
-        Array.isArray(result.errors)
+        result &&
+        Array.isArray(
+          result.errors
+        )
           ? result.errors
           : []
     };
@@ -1033,22 +1447,6 @@
     input = {},
     options = {}
   ) {
-    const controller =
-      getController(
-        options.components || {}
-      );
-
-    if (
-      isFunction(
-        controller.getPacket
-      )
-    ) {
-      return controller.getPacket(
-        input,
-        options
-      );
-    }
-
     const result =
       await run(
         input,
@@ -1079,7 +1477,179 @@
   }
 
   /* =====================================================
-     STATE HELPERS
+     REFERENCE SERVICES
+  ===================================================== */
+
+  function buildReferenceCandidates(
+    input = {},
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "referenceCandidateBuilder",
+        options.components || {}
+      );
+
+    const build =
+      resolveCallable(
+        component,
+        [
+          "build",
+          "buildCandidates",
+          "create",
+          "run"
+        ],
+        "cos-reference-candidate-builder"
+      );
+
+    return build(
+      input,
+      options
+    );
+  }
+
+  function adjudicateReferences(
+    input = {},
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "referenceAdjudicator",
+        options.components || {}
+      );
+
+    const adjudicate =
+      resolveCallable(
+        component,
+        [
+          "adjudicate",
+          "resolve",
+          "decide",
+          "run"
+        ],
+        "cos-reference-adjudicator"
+      );
+
+    return adjudicate(
+      input,
+      options
+    );
+  }
+
+  function resolveReferences(
+    input = {},
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "referenceResolver",
+        options.components || {}
+      );
+
+    const resolve =
+      resolveCallable(
+        component,
+        [
+          "resolve",
+          "run",
+          "execute"
+        ],
+        "cos-reference-resolver"
+      );
+
+    return resolve(
+      input,
+      options
+    );
+  }
+
+  /* =====================================================
+     CONTINUITY SERVICES
+  ===================================================== */
+
+  function transitionPendingInteraction(
+    input = {},
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "pendingInteractionManager",
+        options.components || {}
+      );
+
+    const transition =
+      resolveCallable(
+        component,
+        [
+          "transition",
+          "apply",
+          "run"
+        ],
+        "cos-pending-interaction-manager"
+      );
+
+    return transition(
+      input,
+      options
+    );
+  }
+
+  function transitionArtifact(
+    input = {},
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "artifactRegister",
+        options.components || {}
+      );
+
+    const transition =
+      resolveCallable(
+        component,
+        [
+          "transition",
+          "apply",
+          "run"
+        ],
+        "cos-artifact-register"
+      );
+
+    return transition(
+      input,
+      options
+    );
+  }
+
+  function transitionDeliverySequence(
+    input = {},
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "deliverySequenceManager",
+        options.components || {}
+      );
+
+    const transition =
+      resolveCallable(
+        component,
+        [
+          "transition",
+          "apply",
+          "run"
+        ],
+        "cos-delivery-sequence-manager"
+      );
+
+    return transition(
+      input,
+      options
+    );
+  }
+
+  /* =====================================================
+     STATE CREATION
   ===================================================== */
 
   function createState(
@@ -1116,16 +1686,23 @@
         [
           "create",
           "initialize",
-          "createInitialState"
+          "createInitialState",
+          "createEmptyState"
         ],
         "cos-state"
       );
 
-    const result = create({
-      conversationId:
-        options.conversationId ||
-        null
-    });
+    const result =
+      create({
+        conversationId:
+          options.conversationId ||
+          null,
+
+        components:
+          resolveComponents(
+            options.components || {}
+          )
+      });
 
     if (
       result &&
@@ -1188,7 +1765,8 @@
         [
           "create",
           "initialize",
-          "createInitialState"
+          "createInitialState",
+          "createEmptyState"
         ],
         "cos-state"
       );
@@ -1196,12 +1774,148 @@
     return await create({
       conversationId:
         options.conversationId ||
-        null
+        null,
+
+      components:
+        resolveComponents(
+          options.components || {}
+        )
     });
   }
 
   /* =====================================================
-     VALIDATION HELPERS
+     PERSISTENCE
+  ===================================================== */
+
+  async function loadState(
+    conversationId,
+    options = {}
+  ) {
+    const store =
+      getStateStore(
+        options.components || {}
+      );
+
+    if (
+      isFunction(
+        store.loadState
+      )
+    ) {
+      return store.loadState(
+        conversationId,
+        options
+      );
+    }
+
+    const load =
+      resolveCallable(
+        store,
+        ["load"],
+        "cos-state-store"
+      );
+
+    const result =
+      await load(
+        conversationId,
+        options
+      );
+
+    return result &&
+      result.found
+      ? result.state
+      : null;
+  }
+
+  async function saveState(
+    conversationId,
+    state,
+    options = {}
+  ) {
+    const store =
+      getStateStore(
+        options.components || {}
+      );
+
+    const save =
+      resolveCallable(
+        store,
+        ["save"],
+        "cos-state-store"
+      );
+
+    return save(
+      conversationId,
+      state,
+      options
+    );
+  }
+
+  async function removeState(
+    conversationId,
+    options = {}
+  ) {
+    const store =
+      getStateStore(
+        options.components || {}
+      );
+
+    const remove =
+      resolveCallable(
+        store,
+        [
+          "remove",
+          "delete",
+          "clear"
+        ],
+        "cos-state-store"
+      );
+
+    return remove(
+      conversationId,
+      options
+    );
+  }
+
+  async function migrateState(
+    state,
+    options = {}
+  ) {
+    const migrator =
+      getStateMigrator(
+        options.components || {}
+      );
+
+    const migrate =
+      resolveCallable(
+        migrator,
+        [
+          "migrate",
+          "upgrade",
+          "normalize",
+          "run"
+        ],
+        "cos-state-migrator"
+      );
+
+    return migrate(
+      {
+        state,
+
+        conversationId:
+          options.conversationId,
+
+        fromVersion:
+          options.fromVersion,
+
+        toVersion:
+          options.toVersion
+      },
+      options
+    );
+  }
+
+  /* =====================================================
+     PACKET VALIDATION
   ===================================================== */
 
   function validatePacket(
@@ -1209,17 +1923,10 @@
     options = {}
   ) {
     const packetBuilder =
-      resolveComponent(
+      requireInstalledComponent(
         "packetBuilder",
-        options.packetBuilder
+        options.components || {}
       );
-
-    if (!packetBuilder) {
-      throw new ConversationOSIndexError(
-        "COS_PACKET_BUILDER_MISSING",
-        "Conversation OS packet builder is not installed."
-      );
-    }
 
     const validate =
       resolveCallable(
@@ -1239,21 +1946,15 @@
     options = {}
   ) {
     const packetBuilder =
-      resolveComponent(
+      requireInstalledComponent(
         "packetBuilder",
-        options.packetBuilder
+        options.components || {}
       );
-
-    if (!packetBuilder) {
-      throw new ConversationOSIndexError(
-        "COS_PACKET_BUILDER_MISSING",
-        "Conversation OS packet builder is not installed."
-      );
-    }
 
     if (
       isFunction(
-        packetBuilder.assertPacket
+        packetBuilder
+          .assertPacket
       )
     ) {
       return packetBuilder
@@ -1278,7 +1979,9 @@
         "Conversation OS placement packet failed validation.",
         {
           details:
-            safeClone(validation)
+            safeClone(
+              validation
+            )
         }
       );
     }
@@ -1287,14 +1990,70 @@
   }
 
   /* =====================================================
+     TESTING
+  ===================================================== */
+
+  async function runSmokeTest(
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "smokeTest",
+        options.components || {}
+      );
+
+    const runTest =
+      resolveCallable(
+        component,
+        [
+          "run",
+          "execute",
+          "test",
+          "assertAll"
+        ],
+        "cos-smoke-test"
+      );
+
+    return runTest(options);
+  }
+
+  async function runRegressionSuite(
+    options = {}
+  ) {
+    const component =
+      requireInstalledComponent(
+        "regressionSuite",
+        options.components || {}
+      );
+
+    const runTest =
+      resolveCallable(
+        component,
+        [
+          "run",
+          "execute",
+          "test",
+          "assertAll"
+        ],
+        "cos-regression-suite"
+      );
+
+    return runTest(options);
+  }
+
+  /* =====================================================
      HEALTH
   ===================================================== */
 
   function health(
-    overrides = {}
+    overrides = {},
+    options = {}
   ) {
     const inspection =
-      inspect(overrides);
+      inspect(
+        overrides,
+        options
+      );
 
     const controller =
       resolveComponent(
@@ -1302,69 +2061,30 @@
         overrides.controller
       );
 
+    let controllerHealth = null;
+    let controllerError = null;
+
     if (
       controller &&
-      isFunction(controller.health)
+      isFunction(
+        controller.health
+      )
     ) {
       try {
-        const controllerHealth =
+        controllerHealth =
           controller.health(
             overrides
           );
-
-        return {
-          ...controllerHealth,
-
-          schemaVersion:
-            SCHEMA_VERSION,
-
-          authority:
-            AUTHORITY,
-
-          component:
-            COMPONENT_NAME,
-
-          version:
-            VERSION,
-
-          installation:
-            inspection
-        };
       } catch (error) {
-        return {
-          ok: false,
-
-          schemaVersion:
-            SCHEMA_VERSION,
-
-          authority:
-            AUTHORITY,
-
-          component:
-            COMPONENT_NAME,
-
-          version:
-            VERSION,
-
-          status:
-            "error",
-
-          installation:
-            inspection,
-
-          checkedAt:
-            nowIso(),
-
-          errors: [
-            safeError(error)
-          ]
-        };
+        controllerError =
+          safeError(error);
       }
     }
 
     return {
       ok:
-        inspection.ready,
+        inspection.ready &&
+        !controllerError,
 
       schemaVersion:
         SCHEMA_VERSION,
@@ -1379,17 +2099,24 @@
         VERSION,
 
       status:
-        inspection.ready
+        inspection.ready &&
+        !controllerError
           ? "ready"
           : "not_ready",
 
       installation:
         inspection,
 
+      controller:
+        controllerHealth,
+
       checkedAt:
         nowIso(),
 
-      errors: []
+      errors:
+        controllerError
+          ? [controllerError]
+          : []
     };
   }
 
@@ -1410,8 +2137,23 @@
     component:
       COMPONENT_NAME,
 
+    coreComponents:
+      CORE_COMPONENTS,
+
+    continuityComponents:
+      CONTINUITY_COMPONENTS,
+
+    infrastructureComponents:
+      INFRASTRUCTURE_COMPONENTS,
+
     requiredComponents:
       REQUIRED_COMPONENTS,
+
+    optionalComponents:
+      OPTIONAL_COMPONENTS,
+
+    allComponents:
+      ALL_COMPONENTS,
 
     componentAliases:
       COMPONENT_ALIASES,
@@ -1428,13 +2170,37 @@
 
     getPacket,
 
+    buildReferenceCandidates,
+
+    adjudicateReferences,
+
+    resolveReferences,
+
+    transitionPendingInteraction,
+
+    transitionArtifact,
+
+    transitionDeliverySequence,
+
     createState,
 
     createStateAsync,
 
+    loadState,
+
+    saveState,
+
+    removeState,
+
+    migrateState,
+
     validatePacket,
 
     assertPacket,
+
+    runSmokeTest,
+
+    runRegressionSuite,
 
     inspect,
 
@@ -1456,127 +2222,39 @@
 
     getContract,
 
-    getStateComponent
+    getStateComponent,
+
+    getStateStore,
+
+    getStateMigrator,
+
+    getManifest
   };
 
   /* =====================================================
      STABLE COMPONENT GETTERS
   ===================================================== */
 
-  Object.defineProperties(
-    conversationOSIndex,
-    {
-      contract: {
+  for (
+    const componentName of
+      ALL_COMPONENTS
+  ) {
+    Object.defineProperty(
+      conversationOSIndex,
+      componentName,
+      {
         enumerable: true,
+
+        configurable: false,
 
         get() {
           return resolveComponent(
-            "contract"
-          );
-        }
-      },
-
-      state: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "state"
-          );
-        }
-      },
-
-      runtime: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "runtime"
-          );
-        }
-      },
-
-      historyIndex: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "historyIndex"
-          );
-        }
-      },
-
-      turnRegister: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "turnRegister"
-          );
-        }
-      },
-
-      referenceResolver: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "referenceResolver"
-          );
-        }
-      },
-
-      placementEngine: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "placementEngine"
-          );
-        }
-      },
-
-      threadStateManager: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "threadStateManager"
-          );
-        }
-      },
-
-      placementValidator: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "placementValidator"
-          );
-        }
-      },
-
-      packetBuilder: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "packetBuilder"
-          );
-        }
-      },
-
-      controller: {
-        enumerable: true,
-
-        get() {
-          return resolveComponent(
-            "controller"
+            componentName
           );
         }
       }
-    }
-  );
+    );
+  }
 
   /* =====================================================
      NAMESPACE EXPORTS
@@ -1602,6 +2280,42 @@
 
   ConversationOS.getPacket =
     getPacket;
+
+  ConversationOS
+    .buildReferenceCandidates =
+    buildReferenceCandidates;
+
+  ConversationOS
+    .adjudicateReferences =
+    adjudicateReferences;
+
+  ConversationOS
+    .resolveReferences =
+    resolveReferences;
+
+  ConversationOS
+    .transitionPendingInteraction =
+    transitionPendingInteraction;
+
+  ConversationOS
+    .transitionArtifact =
+    transitionArtifact;
+
+  ConversationOS
+    .transitionDeliverySequence =
+    transitionDeliverySequence;
+
+  ConversationOS.loadState =
+    loadState;
+
+  ConversationOS.saveState =
+    saveState;
+
+  ConversationOS.removeState =
+    removeState;
+
+  ConversationOS.migrateState =
+    migrateState;
 
   ConversationOS.health =
     health;
