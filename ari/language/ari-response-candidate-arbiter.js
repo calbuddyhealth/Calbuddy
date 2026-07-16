@@ -2,55 +2,53 @@
 // Ari Response Candidate Arbiter
 //
 // Purpose:
-// Evaluate response candidates against the canonical Response Plan,
-// determine whether AI repair is required, and select one candidate
-// for final composition.
+// Evaluate explicitly registered response candidates against the canonical
+// response contract, determine whether AI realization or repair is required,
+// and authorize one candidate for final composition.
 //
-// V2.2.0 — Candidate Status Preservation / Interaction-Aware Arbitration
+// V3.0.0 — Canonical Candidate Authority / Single Collection Path / No Draft Synthesis
 //
 // Architectural flow:
 //
-// Canonical Response Plan
+// Draft Generation Stage
 //      ↓
-// Blueprint Writer candidate
+// Arbiter Precheck
 //      ↓
-// Arbiter precheck
+// Optional AI Writer
 //      ↓
-// Optional AI Writer candidate
+// Final Arbitration
 //      ↓
-// Final arbitration
-//      ↓
-// Language Composer
+// Language Composer V9
 //
 // Responsibilities:
-// - Read the canonical Response Plan as the candidate acceptance contract.
-// - Collect available candidates without duplicating equivalent drafts.
-// - Preserve candidate usability, completeness, validation, and repair status.
-// - Preserve Blueprint Writer diagnostics without inventing success flags.
-// - Preserve AI Writer diagnostics without resurrecting rejected drafts.
-// - Reject incomplete, stale, internal, unsafe, or unauthorized candidates.
-// - Distinguish user-directed questions from quoted or narrative questions.
-// - Request AI repair when required response moves were not rendered.
-// - Prefer a complete deterministic candidate when AI adds no necessary repair.
-// - Prefer an AI candidate when it successfully repairs an incomplete candidate.
-// - Preserve locked developer responses.
-// - Return one selected candidate with structured diagnostics.
+// - Read the canonical Composer Packet and Response Plan.
+// - Collect explicitly registered candidates exactly once.
+// - Read the canonical AI Writer candidate when AI Writer ran.
+// - Normalize candidate contracts without inventing successful status.
+// - Reject empty, incomplete, unsafe, stale, internal, or unauthorized drafts.
+// - Determine whether AI realization or repair is required.
+// - Select one authorized final candidate.
+// - Return structured arbitration diagnostics.
 //
 // Non-responsibilities:
-// - Does not reinterpret the user’s meaning.
+// - Does not synthesize Character candidates from scattered state.
+// - Does not synthesize Blueprint candidates from scattered state.
+// - Does not synthesize developer candidates from scattered state.
+// - Does not independently create candidate text.
+// - Does not rewrite candidate text.
+// - Does not reinterpret the current turn.
 // - Does not choose or modify the Response Plan.
 // - Does not create response moves.
-// - Does not rewrite candidate drafts.
-// - Does not generate user-facing language.
-// - Does not override safety.
 // - Does not compose the final response.
+// - Does not override safety.
 // - Does not persist state.
 
 window.Ari = window.Ari || {};
 
 window.AriResponseCandidateArbiter = {
-  version: "2.2.0",
-  schemaVersion: "1.2.0",
+  version: "3.0.0",
+  source: "ari-response-candidate-arbiter",
+  schemaVersion: "3.0.0",
 
   /* =====================================================
      PUBLIC FINAL ARBITRATION
@@ -82,50 +80,41 @@ window.AriResponseCandidateArbiter = {
       });
 
     const evaluatedCandidates =
-      collectedCandidates.map(
-        candidate =>
+      collectedCandidates
+        .map(candidate =>
           this.evaluateCandidate({
             candidate,
-            context,
-            packet,
-            summary
+            context
           })
-      );
+        )
+        .sort(
+          (
+            first,
+            second
+          ) =>
+            second.score -
+            first.score
+        );
 
     const usableCandidates =
-      evaluatedCandidates
-        .filter(
-          candidate =>
-            candidate.usable === true
-        )
-        .sort(
-          (first, second) =>
-            second.score -
-            first.score
-        );
+      evaluatedCandidates.filter(
+        candidate =>
+          candidate.usable ===
+          true
+      );
 
     const rejectedCandidates =
-      evaluatedCandidates
-        .filter(
-          candidate =>
-            candidate.usable !== true
-        )
-        .sort(
-          (first, second) =>
-            second.score -
-            first.score
-        );
+      evaluatedCandidates.filter(
+        candidate =>
+          candidate.usable !==
+          true
+      );
 
     const selectedCandidate =
-      this.selectCandidate({
-        candidates:
-          usableCandidates,
-
+      this.selectFinalCandidate({
+        usableCandidates,
         evaluatedCandidates,
-
-        context,
-        packet,
-        summary
+        context
       });
 
     const selectedDraft =
@@ -136,8 +125,14 @@ window.AriResponseCandidateArbiter = {
       selectedCandidate?.source ||
       null;
 
+    const selectionReady =
+      Boolean(
+        selectedCandidate &&
+        selectedDraft
+      );
+
     const selectionReason =
-      selectedCandidate
+      selectionReady
         ? this.buildSelectionReason(
             selectedCandidate
           )
@@ -157,16 +152,20 @@ window.AriResponseCandidateArbiter = {
         this.version,
 
       responseCandidateArbiterSource:
-        "ari-response-candidate-arbiter",
+        this.source,
 
       source:
-        "ari-response-candidate-arbiter",
+        this.source,
 
       context,
+
+      selectionReady,
 
       selectedCandidate,
 
       selectedDraft,
+
+      selectedSource,
 
       selectedDraftSource:
         selectedSource,
@@ -174,10 +173,11 @@ window.AriResponseCandidateArbiter = {
       selectedDraftReason:
         selectionReason,
 
-      selectedSource,
-
       reason:
         selectionReason,
+
+      finalResponseCandidate:
+        selectedDraft,
 
       candidateScores:
         usableCandidates,
@@ -195,12 +195,6 @@ window.AriResponseCandidateArbiter = {
       rejectedCandidateCount:
         rejectedCandidates.length,
 
-      finalResponseCandidate:
-        selectedDraft,
-
-      selectionReady:
-        Boolean(selectedDraft),
-
       canonicalResponsePlanUsed:
         selectedCandidate
           ?.quality
@@ -215,7 +209,6 @@ window.AriResponseCandidateArbiter = {
 
       selectedCandidateComplete:
         selectedCandidate
-          ?.quality
           ?.complete ===
         true,
 
@@ -225,49 +218,12 @@ window.AriResponseCandidateArbiter = {
           ?.aiRepairCandidate ===
         true,
 
-      authority: {
-        canCollectCandidates:
-          true,
-
-        canEvaluateCandidates:
-          true,
-
-        canRejectUnsafeOrInvalidCandidates:
-          true,
-
-        canSelectPreferredDraft:
-          true,
-
-        canRequestAIRepair:
-          true,
-
-        canRewriteCandidate:
-          false,
-
-        canGenerateCandidate:
-          false,
-
-        canChooseResponsePlan:
-          false,
-
-        canInterpretMeaning:
-          false,
-
-        canComposeFinalResponse:
-          false,
-
-        canOverrideSafety:
-          false,
-
-        canPersistState:
-          false,
-
-        role:
-          "canonical_response_candidate_quality_arbitration"
-      }
+      authority:
+        this.getFinalAuthorityBoundaries()
     };
 
-    window.Ari.responseCandidateArbitration =
+    window.Ari
+      .responseCandidateArbitration =
       result;
 
     return result;
@@ -294,125 +250,55 @@ window.AriResponseCandidateArbiter = {
         packet
       });
 
-    const evaluatedCandidates =
+    const collectedCandidates =
       this.collectCandidates({
         summary,
         packet,
         suppliedCandidates:
-          input.candidates
-      }).map(
-        candidate =>
+          input.candidates,
+
+        includeAIWriterCandidate:
+          false
+      });
+
+    const evaluatedCandidates =
+      collectedCandidates
+        .map(candidate =>
           this.evaluateCandidate({
             candidate,
-            context,
-            packet,
-            summary
+            context
           })
-      );
-
-    const usableCandidates =
-      evaluatedCandidates
-        .filter(
-          candidate =>
-            candidate.usable === true
         )
         .sort(
-          (first, second) =>
+          (
+            first,
+            second
+          ) =>
             second.score -
             first.score
         );
 
-console.log(
-  "=== ARBITER PRECHECK EVALUATION ===",
-  {
-    currentText:
-      context.currentText,
-
-    responsePlanAvailable:
-      context.responsePlanAvailable,
-
-    finalCandidateMustSatisfyPlan:
-      context.finalCandidateMustSatisfyPlan,
-
-    collectedCandidateCount:
-      evaluatedCandidates.length,
-
-    evaluatedCandidates:
-      evaluatedCandidates.map(
-        candidate => ({
-          source:
-            candidate.source,
-
-          text:
-            candidate.text,
-
-          usable:
-            candidate.usable,
-
-          complete:
-            candidate.complete,
-
-          requiresAIRepair:
-            candidate.requiresAIRepair,
-
-          score:
-            candidate.score,
-
-          rejectionReasons:
-            candidate.rejectionReasons,
-
-          strengths:
-            candidate
-              .scoreBreakdown
-              ?.strengths,
-
-          penalties:
-            candidate
-              .scoreBreakdown
-              ?.penalties,
-
-          quality:
-            candidate.quality,
-
-          evidence:
-            candidate.evidence
-        })
-      ),
-
-    usableCandidates:
-      usableCandidates.map(
-        candidate => ({
-          source:
-            candidate.source,
-
-          usable:
-            candidate.usable,
-
-          score:
-            candidate.score
-        })
-      )
-  }
-);
+    const usableCandidates =
+      evaluatedCandidates.filter(
+        candidate =>
+          candidate.usable ===
+          true
+      );
 
     const bestCandidate =
       this.selectPrecheckCandidate({
-        candidates:
-          usableCandidates,
-
+        usableCandidates,
         context
       });
 
     const repairDecision =
-      this.determineAIRepair({
+      this.determineAIRequirement({
         bestCandidate,
         evaluatedCandidates,
-        context,
-        packet,
-        summary
+        context
       });
 
-    return {
+    const result = {
       schema:
         "ari_response_candidate_precheck",
 
@@ -426,13 +312,13 @@ console.log(
         this.version,
 
       responseCandidateArbiterSource:
-        "ari-response-candidate-arbiter",
+        this.source,
 
       arbiterPrecheckRan:
         true,
 
       source:
-        "ari-response-candidate-arbiter",
+        this.source,
 
       context,
 
@@ -443,11 +329,11 @@ console.log(
         bestCandidate?.text ||
         null,
 
-      selectedDraftSource:
+      selectedSource:
         bestCandidate?.source ||
         null,
 
-      selectedSource:
+      selectedDraftSource:
         bestCandidate?.source ||
         null,
 
@@ -463,9 +349,14 @@ console.log(
 
       evaluatedCandidates,
 
+      candidateCount:
+        evaluatedCandidates.length,
+
+      usableCandidateCount:
+        usableCandidates.length,
+
       needsAIWriter:
-        repairDecision
-          .needsAIWriter,
+        repairDecision.required,
 
       aiRepairReason:
         repairDecision.reason,
@@ -477,32 +368,62 @@ console.log(
         bestCandidate?.text ||
         null,
 
-      authority: {
-        canEvaluatePreAIWriterCandidates:
-          true,
-
-        canRequestAIWriter:
-          true,
-
-        canSelectFinalDraft:
-          false,
-
-        canRewriteCandidate:
-          false,
-
-        canGenerateCandidate:
-          false,
-
-        canChooseResponsePlan:
-          false,
-
-        canComposeFinalResponse:
-          false,
-
-        role:
-          "pre_ai_writer_candidate_quality_gate"
-      }
+      authority:
+        this.getPrecheckAuthorityBoundaries()
     };
+
+    if (
+      summary.debugTiming ===
+        true ||
+      summary.appContext
+        ?.debugTiming ===
+        true
+    ) {
+      console.log(
+        "=== ARBITER PRECHECK ===",
+        {
+          currentText:
+            context.currentText,
+
+          candidates:
+            evaluatedCandidates.map(
+              candidate => ({
+                source:
+                  candidate.source,
+
+                usable:
+                  candidate.usable,
+
+                complete:
+                  candidate.complete,
+
+                requiresAIRepair:
+                  candidate
+                    .requiresAIRepair,
+
+                score:
+                  candidate.score,
+
+                rejectionReasons:
+                  candidate
+                    .rejectionReasons
+              })
+            ),
+
+          selectedSource:
+            bestCandidate?.source ||
+            null,
+
+          needsAIWriter:
+            repairDecision.required,
+
+          reason:
+            repairDecision.reason
+        }
+      );
+    }
+
+    return result;
   },
 
   /* =====================================================
@@ -512,349 +433,266 @@ console.log(
   collectCandidates({
     summary = {},
     packet = {},
-    suppliedCandidates = []
+    suppliedCandidates = undefined,
+    includeAIWriterCandidate = true
   } = {}) {
     const candidates = [];
 
-    const addCandidate =
+    const explicitCandidates =
+      suppliedCandidates !==
+        undefined
+        ? this.toArray(
+            suppliedCandidates
+          )
+        : this.toArray(
+            summary.candidateDrafts ||
+            packet.candidateDrafts
+          );
+
+    explicitCandidates.forEach(
       candidate => {
         const normalized =
           this.normalizeCandidate(
             candidate
           );
 
-        if (!normalized.text) {
-          return;
+        if (normalized.text) {
+          candidates.push(
+            normalized
+          );
         }
+      }
+    );
 
+    /*
+     * AI Writer runs after Draft Generation, so its result
+     * is not expected to exist in candidateDrafts unless a
+     * future stage explicitly registers it.
+     *
+     * Read exactly one canonical AI Writer candidate here.
+     */
+    if (
+      includeAIWriterCandidate ===
+      true
+    ) {
+      const aiCandidate =
+        this.readCanonicalAIWriterCandidate({
+          summary,
+          packet
+        });
+
+      if (aiCandidate) {
         candidates.push(
-          normalized
+          aiCandidate
         );
-      };
-
-    this.toArray(
-      suppliedCandidates
-    ).forEach(
-      addCandidate
-    );
-
-    this.toArray(
-      summary.candidateDrafts
-    ).forEach(
-      addCandidate
-    );
-
-    const blueprintResult =
-      this.readBlueprintResult({
-        summary,
-        packet
-      });
-
-    if (blueprintResult.draft) {
-      addCandidate({
-        source:
-          "blueprint_writer",
-
-        text:
-          blueprintResult.draft,
-
-        priority:
-          blueprintResult
-            .candidate
-            ?.priority ??
-          70,
-
-        usable:
-          blueprintResult.usable,
-
-        complete:
-          blueprintResult.complete,
-
-        requiresAIRepair:
-          blueprintResult
-            .requiresAIRepair,
-
-        requiresRepair:
-          blueprintResult
-            .requiresAIRepair,
-
-        taskType:
-          "canonical_response_plan",
-
-        validation:
-          blueprintResult.validation,
-
-        evidence: {
-          ...(
-            blueprintResult
-              .candidate
-              ?.evidence ||
-            {}
-          ),
-
-          canonicalResponsePlanUsed:
-            blueprintResult
-              .canonicalResponsePlanUsed,
-
-          canonicalMemoryAuthorizationUsed:
-            blueprintResult
-              .canonicalMemoryAuthorizationUsed,
-
-          blueprintWriterUsable:
-            blueprintResult.usable,
-
-          blueprintWriterComplete:
-            blueprintResult.complete,
-
-          blueprintWriterRequiresAIRepair:
-            blueprintResult
-              .requiresAIRepair,
-
-          renderedResponseMoves:
-            blueprintResult
-              .renderedMoves,
-
-          unsupportedResponseMoves:
-            blueprintResult
-              .unsupportedMoves,
-
-          skippedResponseMoves:
-            blueprintResult
-              .skippedMoves,
-
-          renderQuality:
-            blueprintResult
-              .renderQuality,
-
-          renderWarnings:
-            blueprintResult
-              .renderWarnings,
-
-          blueprintId:
-            blueprintResult
-              .blueprintId,
-
-          blueprintReason:
-            blueprintResult.reason
-        },
-
-        raw:
-          blueprintResult.raw
-      });
-    }
-
-    const aiWriterResult =
-      this.readAIWriterResult({
-        summary,
-        packet
-      });
-
-    if (aiWriterResult.draft) {
-      addCandidate({
-        source:
-          "ai_writer",
-
-        text:
-          aiWriterResult.draft,
-
-        priority:
-          aiWriterResult.usable
-            ? 68
-            : 20,
-
-        usable:
-          aiWriterResult.usable,
-
-        complete:
-          aiWriterResult.complete,
-
-        requiresAIRepair:
-          aiWriterResult
-            .requiresAIRepair,
-
-        requiresRepair:
-          aiWriterResult
-            .requiresAIRepair,
-
-        taskType:
-          "canonical_response_plan_ai_render",
-
-        validation:
-          aiWriterResult.validation,
-
-        evidence: {
-          usedAI:
-            aiWriterResult.usedAI,
-
-          fallbackReason:
-            aiWriterResult
-              .fallbackReason,
-
-          writerReason:
-            aiWriterResult.reason,
-
-          writerSource:
-            aiWriterResult.source,
-
-          writerVersion:
-            aiWriterResult.version,
-
-          writerMarkedUsable:
-            aiWriterResult.usable,
-
-          writerMarkedComplete:
-            aiWriterResult.complete,
-
-          writerRequiresRepair:
-            aiWriterResult
-              .requiresAIRepair,
-
-          repairRequested:
-            aiWriterResult
-              .repairRequested,
-
-          repairReason:
-            aiWriterResult
-              .repairReason,
-
-          validated:
-            aiWriterResult.validated,
-
-          canonicalResponsePlanUsed:
-            aiWriterResult
-              .canonicalResponsePlanUsed,
-
-          responseMovesSatisfied:
-            aiWriterResult
-              .responseMovesSatisfied,
-
-          groundedInCurrentFile:
-            aiWriterResult
-              .groundedInCurrentFile,
-
-          candidatePreserved:
-            aiWriterResult
-              .candidatePreserved
-        },
-
-        raw:
-          aiWriterResult.raw
-      });
-    }
-
-    const developerResult =
-      this.readDeveloperCandidate({
-        summary,
-        packet
-      });
-
-    if (developerResult.text) {
-      addCandidate({
-        source:
-          "developer_handoff",
-
-        text:
-          developerResult.text,
-
-        priority:
-          developerResult.locked
-            ? 120
-            : 72,
-
-        usable:
-          developerResult.locked ||
-          developerResult.relevant,
-
-        complete:
-          developerResult.complete,
-
-        requiresAIRepair:
-          false,
-
-        requiresRepair:
-          false,
-
-        taskType:
-          "developer",
-
-        evidence: {
-          responseLocked:
-            developerResult.locked,
-
-          developerRelevant:
-            developerResult.relevant,
-
-          groundedInCurrentFile:
-            developerResult
-              .groundedInCurrentFile,
-
-          hasGithubFile:
-            developerResult
-              .hasGithubFile,
-
-          filePath:
-            developerResult.filePath
-        },
-
-        raw:
-          developerResult.raw
-      });
-    }
-
-    const characterResult =
-      this.readCharacterCandidate({
-        summary,
-        packet
-      });
-
-    if (characterResult.text) {
-      addCandidate({
-        source:
-          "character_reasoning",
-
-        text:
-          characterResult.text,
-
-        priority:
-          70,
-
-        usable:
-          characterResult.available,
-
-        complete:
-          characterResult.complete,
-
-        requiresAIRepair:
-          characterResult
-            .requiresAIRepair,
-
-        requiresRepair:
-          characterResult
-            .requiresAIRepair,
-
-        taskType:
-          "character",
-
-        evidence: {
-          characterAnswerAvailable:
-            characterResult.available,
-
-          characterRelevant:
-            characterResult.relevant,
-
-          characterNeedsAIWriter:
-            characterResult
-              .requiresAIRepair
-        },
-
-        raw:
-          characterResult.raw
-      });
+      }
     }
 
     return this.dedupeCandidates(
       candidates
     );
+  },
+
+  readCanonicalAIWriterCandidate({
+    summary = {},
+    packet = {}
+  } = {}) {
+    const writer =
+      summary.aiWriter ||
+      summary.aiWriterResult ||
+      packet.aiWriter ||
+      packet.evidence
+        ?.aiWriter ||
+      null;
+
+    if (
+      !writer ||
+      typeof writer !==
+        "object"
+    ) {
+      return null;
+    }
+
+    const candidate =
+      writer.candidate &&
+      typeof writer.candidate ===
+        "object"
+        ? writer.candidate
+        : null;
+
+    const draft =
+      this.cleanOriginal(
+        candidate?.text ||
+        writer.aiWriterDraft ||
+        writer.draft ||
+        summary.aiWriterDraft ||
+        ""
+      );
+
+    if (!draft) {
+      return null;
+    }
+
+    const validation =
+      candidate?.validation ||
+      writer.validation ||
+      summary
+        .aiWriterValidation ||
+      null;
+
+    const usable =
+      candidate?.usable ===
+        true ||
+      writer.aiWriterUsable ===
+        true;
+
+    const complete =
+      candidate?.complete ===
+        true ||
+      writer.aiWriterComplete ===
+        true;
+
+    const requiresAIRepair =
+      candidate
+        ?.requiresAIRepair ===
+        true ||
+      candidate
+        ?.requiresRepair ===
+        true ||
+      writer
+        .aiWriterRequiresRepair ===
+        true;
+
+    const repairRequested =
+      summary.needsAIWriter ===
+        true ||
+      summary.shouldRunAIWriter ===
+        true ||
+      summary.aiRepairReason !=
+        null ||
+      packet
+        .responseCandidateArbiter
+        ?.needsAIWriter ===
+        true;
+
+    return this.normalizeCandidate({
+      ...(candidate || {}),
+
+      source:
+        "ai_writer",
+
+      text:
+        draft,
+
+      priority:
+        this.numberOr(
+          candidate?.priority,
+          usable
+            ? 80
+            : 20
+        ),
+
+      usable,
+
+      complete,
+
+      requiresAIRepair,
+
+      validation,
+
+      taskType:
+        "canonical_response_plan_ai_render",
+
+      evidence: {
+        ...(
+          candidate?.evidence ||
+          {}
+        ),
+
+        usedAI:
+          writer.aiWriterUsedAI ===
+            true ||
+          candidate?.usedAI ===
+            true,
+
+        writerMarkedUsable:
+          usable,
+
+        writerMarkedComplete:
+          complete,
+
+        writerRequiresRepair:
+          requiresAIRepair,
+
+        validated:
+          validation?.valid ===
+          true,
+
+        repairRequested,
+
+        repairReason:
+          summary.aiRepairReason ||
+          writer.aiRepairReason ||
+          writer.aiWriterReason ||
+          null,
+
+        writerReason:
+          writer.aiWriterReason ||
+          writer.reason ||
+          null,
+
+        writerSource:
+          writer.aiWriterSource ||
+          writer.source ||
+          "ari-ai-writer",
+
+        writerVersion:
+          writer.aiWriterVersion ||
+          writer.version ||
+          null,
+
+        fallbackReason:
+          writer
+            .aiWriterFallbackReason ||
+          null,
+
+        canonicalResponsePlanUsed:
+          writer
+            .canonicalResponsePlanUsed ===
+            true ||
+          candidate?.evidence
+            ?.canonicalResponsePlanUsed ===
+            true,
+
+        responseMovesSatisfied:
+          writer
+            .responseMovesSatisfied ===
+            true ||
+          candidate?.evidence
+            ?.responseMovesSatisfied ===
+            true ||
+          validation
+            ?.requiredMoveCoverage
+            ?.complete ===
+            true,
+
+        groundedInCurrentFile:
+          writer
+            .groundedInCurrentFile ===
+            true ||
+          candidate?.evidence
+            ?.groundedInCurrentFile ===
+            true,
+
+        candidatePreserved:
+          validation
+            ?.candidatePreserved ===
+            true
+      },
+
+      raw:
+        writer
+    });
   },
 
   normalizeCandidate(
@@ -882,10 +720,11 @@ console.log(
         candidate.id ||
         this.createStableId(
           "candidate",
-          `${
+          [
             candidate.source ||
-            "unknown"
-          }|${text}`
+              "unknown",
+            text
+          ].join("|")
         ),
 
       source:
@@ -902,7 +741,7 @@ console.log(
 
       /*
        * Candidate status must be explicit.
-       * Missing status is not interpreted as success.
+       * Missing status is never interpreted as success.
        */
       usable:
         candidate.usable ===
@@ -916,6 +755,18 @@ console.log(
 
       requiresRepair:
         requiresAIRepair,
+
+      preferred:
+        candidate.preferred ===
+        true,
+
+      grounded:
+        candidate.grounded ===
+        true,
+
+      candidateType:
+        candidate.candidateType ||
+        null,
 
       taskType:
         candidate.taskType ||
@@ -939,23 +790,22 @@ console.log(
   },
 
   dedupeCandidates(
-  candidates = []
-) {
-  const seen =
-    new Map();
+    candidates = []
+  ) {
+    const seen =
+      new Map();
 
-  this.toArray(
-    candidates
-  ).forEach(
-    candidate => {
-      const key = [
-        candidate.source ||
-          "unknown",
-
+    this.toArray(
+      candidates
+    ).forEach(candidate => {
+      const key =
         this.normalizeForComparison(
           candidate.text
-        )
-      ].join("|");
+        );
+
+      if (!key) {
+        return;
+      }
 
       if (!seen.has(key)) {
         seen.set(
@@ -968,766 +818,122 @@ console.log(
 
       seen.set(
         key,
-        this.preferDuplicateCandidate(
+        this.mergeEquivalentCandidates(
           seen.get(key),
           candidate
         )
       );
+    });
+
+    return [
+      ...seen.values()
+    ];
+  },
+
+  mergeEquivalentCandidates(
+    first = {},
+    second = {}
+  ) {
+    const firstLocked =
+      first.evidence
+        ?.responseLocked ===
+      true;
+
+    const secondLocked =
+      second.evidence
+        ?.responseLocked ===
+      true;
+
+    if (
+      firstLocked &&
+      !secondLocked
+    ) {
+      return first;
     }
-  );
 
-  return [
-    ...seen.values()
-  ];
-},
-
-  preferDuplicateCandidate(
-  first = {},
-  second = {}
-) {
-  const firstLocked =
-    first.evidence?.responseLocked === true;
-
-  const secondLocked =
-    second.evidence?.responseLocked === true;
-
-  if (secondLocked && !firstLocked) {
-    return second;
-  }
-
-  if (firstLocked && !secondLocked) {
-    return first;
-  }
-
-  /*
-   * Equivalent text must preserve the strictest status.
-   * A duplicate path cannot convert an explicitly rejected
-   * candidate into an accepted candidate.
-   */
-  const mergedUsable =
-    first.usable === true &&
-    second.usable === true;
-
-  const mergedComplete =
-    first.complete === true &&
-    second.complete === true;
-
-  const mergedRequiresRepair =
-    first.requiresAIRepair === true ||
-    second.requiresAIRepair === true;
-
-  const preferred =
-    second.priority > first.priority
-      ? second
-      : first;
-
-  const secondary =
-    preferred === first
-      ? second
-      : first;
-
-  return {
-    ...secondary,
-    ...preferred,
-
-    usable:
-      mergedUsable,
-
-    complete:
-      mergedComplete,
-
-    requiresAIRepair:
-      mergedRequiresRepair,
-
-    requiresRepair:
-      mergedRequiresRepair,
-
-    validation:
-      preferred.validation ||
-      secondary.validation ||
-      null,
-
-    evidence: {
-      ...(secondary.evidence || {}),
-      ...(preferred.evidence || {}),
-
-      duplicateSources:
-        this.uniqueStrings([
-          first.source,
-          second.source,
-          ...this.toArray(
-            first.evidence?.duplicateSources
-          ),
-          ...this.toArray(
-            second.evidence?.duplicateSources
-          )
-        ])
+    if (
+      secondLocked &&
+      !firstLocked
+    ) {
+      return second;
     }
-  };
-},
 
-  /* =====================================================
-     BLUEPRINT RESULT READING
-  ===================================================== */
+    const preferred =
+      second.priority >
+      first.priority
+        ? second
+        : first;
 
-  readBlueprintResult({
-    summary = {},
-    packet = {}
-  } = {}) {
-    const raw =
-      summary.blueprintWriter ||
-      summary.blueprintWriterResult ||
-      packet.blueprintWriter ||
-      {};
+    const secondary =
+      preferred === first
+        ? second
+        : first;
 
-    const candidate =
-      raw.candidate &&
-      typeof raw.candidate ===
-        "object"
-        ? raw.candidate
-        : {};
-
-    const candidateEvidence =
-      candidate.evidence ||
-      {};
-
-    const draft =
-      this.cleanOriginal(
-        summary.blueprintWriterDraft ||
-        raw.blueprintWriterDraft ||
-        raw.draft ||
-        candidate.text ||
-        packet.blueprintWriterDraft ||
-        ""
-      );
-
-    const usable =
-      Boolean(draft) &&
-      (
-        summary
-          .blueprintWriterUsable ===
-          true ||
-        raw
-          .blueprintWriterUsable ===
-          true ||
-        candidate.usable ===
-          true
-      );
-
-    const complete =
-      usable &&
-      (
-        summary
-          .blueprintWriterComplete ===
-          true ||
-        raw
-          .blueprintWriterComplete ===
-          true ||
-        candidate.complete ===
-          true ||
-        candidateEvidence.complete ===
-          true ||
-        raw.renderQuality
-          ?.complete ===
-          true
-      );
-
-    const requiresAIRepair =
-      summary
-        .blueprintWriterRequiresAIRepair ===
+    const mergedRequiresRepair =
+      first.requiresAIRepair ===
         true ||
-      raw
-        .blueprintWriterRequiresAIRepair ===
-        true ||
-      candidate
-        .requiresAIRepair ===
-        true ||
-      candidate
-        .requiresRepair ===
+      second.requiresAIRepair ===
         true;
 
-    const canonicalResponsePlanUsed =
-      candidateEvidence
-        .canonicalResponsePlanUsed ===
-        true ||
-      raw.blueprint
-        ?.canonicalResponsePlanUsed ===
-        true ||
-      raw
-        .canonicalResponsePlanUsed ===
-        true;
-
-    const canonicalMemoryAuthorizationUsed =
-      candidateEvidence
-        .canonicalMemoryAuthorizationUsed ===
-        true ||
-      raw
-        .canonicalMemoryAuthorizationUsed ===
-        true;
-
+    /*
+     * Equivalent text keeps the strictest status.
+     * A duplicate path may not turn a rejected draft into
+     * an accepted draft.
+     */
     return {
-      draft,
+      ...secondary,
+      ...preferred,
 
       usable:
-        usable &&
-        !requiresAIRepair,
+        first.usable ===
+          true &&
+        second.usable ===
+          true,
 
       complete:
-        complete &&
-        !requiresAIRepair,
+        first.complete ===
+          true &&
+        second.complete ===
+          true,
 
-      requiresAIRepair,
+      requiresAIRepair:
+        mergedRequiresRepair,
 
-      canonicalResponsePlanUsed,
-
-      canonicalMemoryAuthorizationUsed,
-
-      renderedMoves:
-        this.toArray(
-          summary.renderedResponseMoves ||
-          raw.renderedResponseMoves
-        ),
-
-      unsupportedMoves:
-        this.toArray(
-          summary.unsupportedResponseMoves ||
-          raw.unsupportedResponseMoves
-        ),
-
-      skippedMoves:
-        this.toArray(
-          summary.skippedResponseMoves ||
-          raw.skippedResponseMoves
-        ),
-
-      renderQuality:
-        summary.renderQuality ||
-        raw.renderQuality ||
-        null,
-
-      renderWarnings:
-        this.toArray(
-          summary.renderWarnings ||
-          raw.renderWarnings
-        ),
-
-      blueprintId:
-        summary.blueprintId ||
-        raw.blueprintId ||
-        raw.blueprint?.id ||
-        null,
-
-      reason:
-        summary.blueprintWriterReason ||
-        raw.blueprintWriterReason ||
-        raw.reason ||
-        null,
+      requiresRepair:
+        mergedRequiresRepair,
 
       validation:
-        summary.blueprintWriterValidation ||
-        raw.validation ||
-        candidate.validation ||
+        preferred.validation ||
+        secondary.validation ||
         null,
 
-      candidate,
-
-      raw
-    };
-  },
-
-  /* =====================================================
-     AI WRITER RESULT READING
-  ===================================================== */
-
-  readAIWriterResult({
-    summary = {},
-    packet = {}
-  } = {}) {
-    const raw =
-      summary.aiWriter ||
-      summary.aiWriterResult ||
-      packet.evidence?.aiWriter ||
-      {};
-
-    const rawCandidate =
-      raw.candidate &&
-      typeof raw.candidate ===
-        "object"
-        ? raw.candidate
-        : {};
-
-    const draft =
-      this.cleanOriginal(
-        summary.aiWriterDraft ||
-        raw.aiWriterDraft ||
-        raw.draft ||
-        rawCandidate.text ||
-        packet.aiWriterDraft ||
-        packet.evidence
-          ?.aiWriter
-          ?.draft ||
-        ""
-      );
-
-    const repairReason =
-      summary.aiRepairReason ||
-      packet.aiRepairReason ||
-      packet
-        .responseCandidateArbiter
-        ?.aiRepairReason ||
-      packet
-        .responseCandidateArbiter
-        ?.reason ||
-      raw.aiRepairReason ||
-      raw.aiWriterReason ||
-      null;
-
-    const repairRequested =
-      Boolean(
-        repairReason ||
-        packet
-          .responseCandidateArbiter
-          ?.needsAIWriter ===
-          true ||
-        summary
-          .responseCandidateArbiter
-          ?.needsAIWriter ===
-          true ||
-        summary.needsAIWriter ===
-          true
-      );
-
-    const explicitUsable =
-      this.firstDefined(
-        summary.aiWriterUsable,
-        raw.aiWriterUsable,
-        rawCandidate.usable
-      );
-
-    const explicitComplete =
-      this.firstDefined(
-        summary.aiWriterComplete,
-        raw.aiWriterComplete,
-        rawCandidate.complete
-      );
-
-    const explicitRequiresRepair =
-      this.firstDefined(
-        summary
-          .aiWriterRequiresRepair,
-
-        raw.aiWriterRequiresRepair,
-
-        rawCandidate
-          .requiresRepair,
-
-        rawCandidate
-          .requiresAIRepair
-      );
-
-    const validation =
-      summary.aiWriterValidation ||
-      raw.validation ||
-      rawCandidate.validation ||
-      null;
-
-    const usable =
-  Boolean(draft) &&
-  explicitUsable === true &&
-  validation?.valid === true;
-
-    const requiresAIRepair =
-      explicitRequiresRepair ===
-      true;
-
-    const complete =
-      usable &&
-      explicitComplete ===
-        true &&
-      !requiresAIRepair;
-
-    return {
-      draft,
-
-      usable,
-
-      complete,
-
-      requiresAIRepair,
-
-      usedAI:
-        summary.aiWriterUsedAI ===
-          true ||
-        raw.aiWriterUsedAI ===
-          true ||
-        rawCandidate.usedAI ===
-          true ||
-        packet.evidence
-          ?.aiWriter
-          ?.usedAI ===
-          true,
-
-      source:
-        summary.aiWriterSource ||
-        raw.aiWriterSource ||
-        raw.source ||
-        "ari-ai-writer",
-
-      version:
-        summary.aiWriterVersion ||
-        raw.aiWriterVersion ||
-        raw.version ||
-        null,
-
-      reason:
-        summary.aiWriterReason ||
-        raw.aiWriterReason ||
-        rawCandidate.reason ||
-        null,
-
-      fallbackReason:
-        summary
-          .aiWriterFallbackReason ||
-        raw
-          .aiWriterFallbackReason ||
-        raw.fallbackReason ||
-        null,
-
-      repairRequested,
-
-      repairReason,
-
-      validated:
-        validation?.valid ===
-        true,
-
-      validation,
-
-      candidatePreserved:
-        validation
-          ?.candidatePreserved ===
-          true,
-
-      canonicalResponsePlanUsed:
-        raw
-          .canonicalResponsePlanUsed ===
-          true ||
-        rawCandidate
-          .evidence
-          ?.canonicalResponsePlanUsed ===
-          true,
-
-      responseMovesSatisfied:
-        raw
-          .responseMovesSatisfied ===
-          true ||
-        rawCandidate
-          .evidence
-          ?.responseMovesSatisfied ===
-          true ||
-        validation
-          ?.requiredMoveCoverage
-          ?.complete ===
-          true,
-
-      groundedInCurrentFile:
-        raw
-          .groundedInCurrentFile ===
-          true ||
-        rawCandidate
-          .evidence
-          ?.groundedInCurrentFile ===
-          true,
-
-      raw
-    };
-  },
-
-  /* =====================================================
-     DEVELOPER CANDIDATE
-  ===================================================== */
-
-  readDeveloperCandidate({
-    summary = {},
-    packet = {}
-  } = {}) {
-    const handoff =
-      summary.developerHandoff ||
-      packet.evidence
-        ?.developerHandoff ||
-      {};
-
-    const locked =
-      summary
-        .developerResponseLocked ===
-        true ||
-      summary.responseLocked ===
-        true ||
-      packet
-        .developerPacketLocked ===
-        true ||
-      packet.developer?.locked ===
-        true;
-
-    const relevant =
-      packet.developerRelevant ===
-        true ||
-      packet.developer?.relevant ===
-        true ||
-      summary
-        .shouldRunDeveloperLayer ===
-        true;
-
-    const text =
-      this.cleanOriginal(
-        handoff.reply ||
-        handoff.finalResponse ||
-        summary.developerReply ||
-        summary.developerResponse ||
-        packet
-          .lockedDeveloperReply ||
-        packet.developer
-          ?.lockedReply ||
-        packet.developerPacket
-          ?.reply ||
-        packet.developerPacket
-          ?.finalResponse ||
-        ""
-      );
-
-    return {
-      text,
-
-      locked,
-
-      relevant,
-
-      complete:
-        Boolean(text) &&
-        (
-          locked ||
-          handoff.complete ===
-            true ||
-          handoff.ready ===
-            true
+      evidence: {
+        ...(
+          secondary.evidence ||
+          {}
         ),
 
-      groundedInCurrentFile:
-        summary
-          .githubEvidenceAvailable ===
-          true ||
-        Boolean(
-          packet.evidence
-            ?.github
-            ?.content
+        ...(
+          preferred.evidence ||
+          {}
         ),
 
-      hasGithubFile:
-        Boolean(
-          summary.githubEvidence ||
-          packet.evidence?.github
-        ),
-
-      filePath:
-        summary.githubEvidence
-          ?.filePath ||
-        packet.evidence
-          ?.github
-          ?.filePath ||
-        null,
-
-      raw:
-        handoff
+        equivalentCandidateSources:
+          this.uniqueStrings([
+            first.source,
+            second.source,
+            ...this.toArray(
+              first.evidence
+                ?.equivalentCandidateSources
+            ),
+            ...this.toArray(
+              second.evidence
+                ?.equivalentCandidateSources
+            )
+          ])
+      }
     };
   },
-
-  /* =====================================================
-     CHARACTER CANDIDATE
-  ===================================================== */
-
-  readCharacterCandidate({
-  summary = {},
-  packet = {}
-} = {}) {
-  console.log(
-    "=== CHARACTER HANDOFF TEST ===",
-    {
-      bridgePacketReady:
-        packet?.ready,
-
-      packetCharacterDraft:
-        packet?.characterDraft,
-
-      packetCharacterDeterministicDraft:
-        packet?.characterDeterministicDraft,
-
-      packetCharacterAnswerAvailable:
-        packet?.characterAnswerAvailable,
-
-      packetCharacterContextDraft:
-        packet?.characterContext?.draft,
-
-      packetCharacterContextDeterministicDraft:
-        packet?.characterContext
-          ?.deterministicDraft,
-
-      packetCharacterContextAnswerAvailable:
-        packet?.characterContext
-          ?.answerAvailable,
-
-      packetCharacterObjectDraft:
-        packet?.character?.draft,
-
-      packetCharacterObjectAnswerAvailable:
-        packet?.character?.answerAvailable,
-
-      packetComposerCharacterDraft:
-        packet?.composerCharacter?.draft,
-
-      packetComposerCharacterAnswerAvailable:
-        packet?.composerCharacter
-          ?.answerAvailable,
-
-      summaryComposerCharacterDraft:
-        summary?.composerCharacter?.draft,
-
-      summaryComposerCharacterAnswerAvailable:
-        summary?.composerCharacter
-          ?.answerAvailable,
-
-      summaryCharacterReasoningDraft:
-        summary?.characterReasoning
-          ?.userFacingDraft,
-
-      summaryCharacterReasoningDeterministicDraft:
-        summary?.characterReasoning
-          ?.deterministicDraft,
-
-      summaryCharacterReasoningAvailable:
-        summary?.characterReasoning
-          ?.characterAnswerAvailable,
-
-      summaryCharacterNeedsAIWriter:
-        summary?.characterNeedsAIWriter,
-
-      packetCharacterNeedsAIWriter:
-        packet?.characterNeedsAIWriter
-    }
-  );
-
-  const characterReasoning =
-    summary.characterReasoning ||
-    packet.characterContext
-      ?.reasoning ||
-    {};
-
-  /*
-   * Diagnostic resolution path:
-   * Read every supported focused-character handoff location.
-   */
-  const text =
-    this.cleanOriginal(
-      summary.characterDraftCandidate ||
-      summary.composerCharacter
-        ?.draft ||
-      characterReasoning
-        .userFacingDraft ||
-      characterReasoning
-        .deterministicDraft ||
-      packet.characterDraft ||
-      packet
-        .characterDeterministicDraft ||
-      packet.characterContext
-        ?.draft ||
-      packet.characterContext
-        ?.deterministicDraft ||
-      packet.composerCharacter
-        ?.draft ||
-      packet.composerCharacter
-        ?.deterministicDraft ||
-      packet.character?.draft ||
-      packet.character
-        ?.deterministicDraft ||
-      ""
-    );
-
-  const available =
-    summary.characterAnswerAvailable ===
-      true ||
-    summary.composerCharacter
-      ?.answerAvailable ===
-      true ||
-    characterReasoning
-      .characterAnswerAvailable ===
-      true ||
-    packet.characterAnswerAvailable ===
-      true ||
-    packet.characterContext
-      ?.answerAvailable ===
-      true ||
-    packet.composerCharacter
-      ?.answerAvailable ===
-      true ||
-    packet.character
-      ?.answerAvailable ===
-      true;
-
-  const requiresAIRepair =
-    summary.characterNeedsAIWriter ===
-      true ||
-    characterReasoning
-      .needsAIWriter ===
-      true ||
-    packet.characterNeedsAIWriter ===
-      true ||
-    packet.characterContext
-      ?.needsAIWriter ===
-      true ||
-    packet.characterRealization
-      ?.needsAIWriter ===
-      true ||
-    packet.composerCharacter
-      ?.realization
-      ?.needsAIWriter ===
-      true ||
-    packet.character
-      ?.realization
-      ?.needsAIWriter ===
-      true;
-
-  const relevant =
-    this.isCharacterQuestion(
-      this.readCurrentText({
-        summary,
-        packet
-      })
-    );
-
-  const complete =
-    available &&
-    Boolean(text) &&
-    characterReasoning.complete !==
-      false &&
-    !requiresAIRepair;
-
-  const result = {
-    text,
-    available,
-    relevant,
-    complete,
-    requiresAIRepair,
-
-    raw:
-      characterReasoning
-  };
-
-  console.log(
-    "=== ARBITER CHARACTER RESULT ===",
-    result
-  );
-
-  return result;
-},
 
   /* =====================================================
      CONTEXT
@@ -1742,11 +948,6 @@ console.log(
         summary,
         packet
       });
-
-    const normalizedText =
-      this.normalize(
-        currentText
-      );
 
     const responsePlan =
       packet
@@ -1773,13 +974,44 @@ console.log(
         .interactionPolicy ||
       {};
 
+    const candidatePolicy =
+      packet.candidatePolicy ||
+      {};
+
+    const responseMoves =
+      this.normalizeMoveIds(
+        packet.responseMoves ||
+        responseControl
+          .responseMoves ||
+        responsePlan
+          .responseMoves ||
+        responsePlan.moves ||
+        writerInstructions
+          .responseMoves
+      );
+
+    const requiredMoveIds =
+      responseMoves
+        .filter(
+          move =>
+            move.required !==
+              false &&
+            move.userFacing !==
+              false
+        )
+        .map(
+          move =>
+            move.id
+        );
+
     const primary =
       this.normalizeIdentifier(
         summary
           .situationContractPrimary ||
         summary.primaryLane ||
         packet.primary ||
-        responsePlan.primaryLane ||
+        responsePlan
+          .primaryLane ||
         responsePlan.strategy
           ?.primaryLane ||
         ""
@@ -1820,30 +1052,6 @@ console.log(
         ""
       );
 
-    const responseMoves =
-      this.normalizeMoveIds(
-        packet.responseMoves ||
-        responseControl
-          .responseMoves ||
-        responsePlan
-          .responseMoves ||
-        responsePlan.moves ||
-        writerInstructions
-          .responseMoves
-      );
-
-    const requiredMoveIds =
-      responseMoves
-        .filter(
-          move =>
-            move.required !==
-            false
-        )
-        .map(
-          move =>
-            move.id
-        );
-
     const developerLocked =
       summary
         .developerResponseLocked ===
@@ -1852,14 +1060,17 @@ console.log(
         true ||
       packet
         .developerPacketLocked ===
+        true ||
+      packet.developer
+        ?.locked ===
         true;
 
     const developerRelevant =
       packet.developerRelevant ===
         true ||
-      this.isDeveloperQuestion(
-        currentText
-      ) ||
+      packet.developer
+        ?.relevant ===
+        true ||
       [
         "builder",
         "developer",
@@ -1920,22 +1131,6 @@ console.log(
           : 0
       );
 
-    const safetyStop =
-      packet.safety
-        ?.shouldStopNormalResponse ===
-        true ||
-      summary
-        .safetyDisposition
-        ?.shouldStopNormalResponse ===
-        true ||
-      summary
-        .safetyShouldStopNormalResponse ===
-        true;
-
-    const candidatePolicy =
-      packet.candidatePolicy ||
-      {};
-
     const responsePlanAvailable =
       packet
         .responsePlanAvailable ===
@@ -1948,10 +1143,29 @@ console.log(
         responsePlan
       ).length > 0;
 
+    const safetyStop =
+      packet.safety
+        ?.shouldStopNormalResponse ===
+        true ||
+      packet.safety
+        ?.disposition
+        ?.shouldStopNormalResponse ===
+        true ||
+      summary
+        .safetyDisposition
+        ?.shouldStopNormalResponse ===
+        true ||
+      summary
+        .safetyShouldStopNormalResponse ===
+        true;
+
     return {
       currentText,
 
-      normalizedText,
+      normalizedText:
+        this.normalize(
+          currentText
+        ),
 
       primary,
 
@@ -1982,12 +1196,12 @@ console.log(
 
       directContentRequest:
         this.isDirectContentRequest(
-          normalizedText
+          currentText
         ),
 
       directInformationRequest:
         this.isDirectInformationRequest(
-          normalizedText
+          currentText
         ),
 
       questionAllowed,
@@ -2010,11 +1224,6 @@ console.log(
       aiRepairAllowed:
         candidatePolicy
           .aiRepairAllowed !==
-        false,
-
-      blueprintMustFollowResponseMoves:
-        candidatePolicy
-          .blueprintMustFollowResponseMoves !==
         false,
 
       finalCandidateMustSatisfyPlan:
@@ -2057,11 +1266,15 @@ console.log(
   } = {}) {
     return this.cleanOriginal(
       packet.request
-        ?.currentText ||
+        ?.resolvedText ||
       packet.request
-        ?.originalText ||
+        ?.currentText ||
       packet.currentTurnText ||
+      packet
+        .resolvedUserQuestion ||
       packet.userQuestion ||
+      summary
+        .resolvedUserQuestion ||
       summary.originalUserMessage ||
       summary.userMessage ||
       summary.message ||
@@ -2085,18 +1298,22 @@ console.log(
             typeof move ===
             "string"
           ) {
-            return {
-              id:
-                this.normalizeIdentifier(
-                  move
-                ),
+            const id =
+              this.normalizeIdentifier(
+                move
+              );
 
-              order:
-                index,
-
-              required:
-                true
-            };
+            return id
+              ? {
+                  id,
+                  order:
+                    index,
+                  required:
+                    true,
+                  userFacing:
+                    true
+                }
+              : null;
           }
 
           if (
@@ -2136,6 +1353,10 @@ console.log(
 
             required:
               move.required !==
+              false,
+
+            userFacing:
+              move.userFacing !==
               false
           };
         }
@@ -2157,9 +1378,7 @@ console.log(
 
   evaluateCandidate({
     candidate = {},
-    context = {},
-    packet = {},
-    summary = {}
+    context = {}
   } = {}) {
     const text =
       this.cleanOriginal(
@@ -2175,7 +1394,9 @@ console.log(
     let usable =
       candidate.usable ===
         true &&
-      Boolean(text);
+      Boolean(
+        text
+      );
 
     const strengths = [];
     const penalties = [];
@@ -2192,29 +1413,29 @@ console.log(
 
     if (
       text &&
+      text.length < 3
+    ) {
+      usable = false;
+      score -= 100;
+
+      rejectionReasons.push(
+        "candidate_has_no_meaningful_content"
+      );
+    } else if (
       text.length < 12
     ) {
-      score -= 25;
+      score -= 12;
 
       penalties.push(
-        "candidate_too_short"
+        "candidate_very_short"
       );
-
-      if (
-        text.length < 3
-      ) {
-        usable = false;
-
-        rejectionReasons.push(
-          "candidate_has_no_meaningful_content"
-        );
-      }
     }
 
     if (
       candidate.usable !==
       true
     ) {
+      usable = false;
       score -= 40;
 
       penalties.push(
@@ -2227,73 +1448,16 @@ console.log(
     }
 
     if (
-      this.containsInternalPlannerLanguage(
-        text
-      )
-    ) {
-      score -= 120;
-      usable = false;
-
-      penalties.push(
-        "internal_planner_language"
-      );
-
-      rejectionReasons.push(
-        "internal_planner_language_exposed"
-      );
-    }
-
-    if (
-      this.containsStaleDeveloperLanguage({
-        text,
-        context
-      })
-    ) {
-      score -= 120;
-      usable = false;
-
-      penalties.push(
-        "stale_developer_content"
-      );
-
-      rejectionReasons.push(
-        "stale_developer_content_for_normal_conversation"
-      );
-    }
-
-    if (
-      this.containsWriterFailureMessage(
-        text
-      )
-    ) {
-      score -= 100;
-      usable = false;
-
-      penalties.push(
-        "writer_failure_message"
-      );
-
-      rejectionReasons.push(
-        "internal_writer_failure_exposed"
-      );
-    }
-
-    if (
       candidate
         .requiresAIRepair ===
         true
     ) {
-      score -= 45;
+      usable = false;
+      score -= 50;
 
       penalties.push(
         "candidate_requires_ai_repair"
       );
-
-      /*
-       * A candidate that still requires repair cannot
-       * become the final answer, regardless of source.
-       */
-      usable = false;
 
       rejectionReasons.push(
         "candidate_still_requires_repair"
@@ -2304,7 +1468,7 @@ console.log(
       candidate.complete !==
       true
     ) {
-      score -= 15;
+      score -= 20;
 
       penalties.push(
         "candidate_incomplete"
@@ -2321,18 +1485,69 @@ console.log(
         );
       }
     } else {
-      score += 5;
+      score += 8;
 
       strengths.push(
         "candidate_complete"
       );
     }
 
+    if (
+      this.containsInternalPlannerLanguage(
+        text
+      )
+    ) {
+      usable = false;
+      score -= 120;
+
+      penalties.push(
+        "internal_planner_language"
+      );
+
+      rejectionReasons.push(
+        "internal_planner_language_exposed"
+      );
+    }
+
+    if (
+      this.containsWriterFailureMessage(
+        text
+      )
+    ) {
+      usable = false;
+      score -= 120;
+
+      penalties.push(
+        "writer_failure_message"
+      );
+
+      rejectionReasons.push(
+        "writer_failure_message_exposed"
+      );
+    }
+
+    if (
+      this.containsStaleDeveloperLanguage({
+        text,
+        context
+      })
+    ) {
+      usable = false;
+      score -= 120;
+
+      penalties.push(
+        "stale_developer_content"
+      );
+
+      rejectionReasons.push(
+        "stale_developer_content_for_normal_conversation"
+      );
+    }
+
     const sourceEvaluation =
       this.evaluateBySource({
         candidate,
-        context,
-        packet
+        context
       });
 
     score +=
@@ -2463,11 +1678,6 @@ console.log(
         text
       );
 
-    const totalQuestionMarkCount =
-      this.countQuestions(
-        text
-      );
-
     return {
       ...candidate,
 
@@ -2539,12 +1749,12 @@ console.log(
             context
           }),
 
-        questionCount:
-          interactionQuestionCount,
-
         interactionQuestionCount,
 
-        totalQuestionMarkCount,
+        totalQuestionMarkCount:
+          this.countQuestions(
+            text
+          ),
 
         directAnswerLike:
           this.looksLikeDirectAnswer(
@@ -2556,37 +1766,38 @@ console.log(
 
   evaluateBySource({
     candidate = {},
-    context = {},
-    packet = {}
+    context = {}
   } = {}) {
     switch (
       candidate.source
     ) {
       case "blueprint_writer":
-        return this.evaluateBlueprintCandidate({
-          candidate,
-          context,
-          packet
-        });
+        return this
+          .evaluateBlueprintCandidate({
+            candidate,
+            context
+          });
 
       case "ai_writer":
-        return this.evaluateAIWriterCandidate({
-          candidate,
-          context,
-          packet
-        });
+        return this
+          .evaluateAIWriterCandidate({
+            candidate,
+            context
+          });
 
       case "developer_handoff":
-        return this.evaluateDeveloperCandidate({
-          candidate,
-          context
-        });
+        return this
+          .evaluateDeveloperCandidate({
+            candidate,
+            context
+          });
 
       case "character_reasoning":
-        return this.evaluateCharacterCandidate({
-          candidate,
-          context
-        });
+        return this
+          .evaluateCharacterCandidate({
+            candidate,
+            context
+          });
 
       default:
         return this.emptyEvaluation();
@@ -2613,15 +1824,478 @@ console.log(
   },
 
   /* =====================================================
-     CANONICAL PLAN COMPLIANCE
+     SOURCE EVALUATION
+  ===================================================== */
+
+  evaluateBlueprintCandidate({
+    candidate = {},
+    context = {}
+  } = {}) {
+    let usable =
+      true;
+
+    let scoreAdjustment =
+      0;
+
+    const strengths = [];
+    const penalties = [];
+    const rejectionReasons = [];
+
+    const evidence =
+      candidate.evidence ||
+      {};
+
+    if (
+      evidence
+        .blueprintWriterUsable ===
+        true &&
+      candidate.usable ===
+        true
+    ) {
+      scoreAdjustment += 12;
+
+      strengths.push(
+        "blueprint_writer_marked_usable"
+      );
+    } else {
+      usable = false;
+      scoreAdjustment -= 45;
+
+      penalties.push(
+        "blueprint_writer_marked_unusable"
+      );
+
+      rejectionReasons.push(
+        "blueprint_writer_marked_unusable"
+      );
+    }
+
+    if (
+      evidence
+        .blueprintWriterComplete ===
+        true &&
+      candidate.complete ===
+        true
+    ) {
+      scoreAdjustment += 12;
+
+      strengths.push(
+        "blueprint_render_complete"
+      );
+    } else {
+      scoreAdjustment -= 25;
+
+      penalties.push(
+        "blueprint_render_incomplete"
+      );
+    }
+
+    if (
+      evidence
+        .blueprintWriterRequiresAIRepair ===
+        true ||
+      candidate
+        .requiresAIRepair ===
+        true
+    ) {
+      usable = false;
+      scoreAdjustment -= 60;
+
+      penalties.push(
+        "blueprint_requires_ai_repair"
+      );
+
+      rejectionReasons.push(
+        "blueprint_requires_ai_repair"
+      );
+    }
+
+    const unsupportedRequired =
+      this.requiredUnsupportedMoves(
+        candidate
+      );
+
+    if (
+      unsupportedRequired.length
+    ) {
+      usable = false;
+
+      scoreAdjustment -=
+        Math.min(
+          60,
+          unsupportedRequired.length *
+            20
+        );
+
+      penalties.push(
+        "required_response_moves_unsupported"
+      );
+
+      rejectionReasons.push(
+        "required_response_moves_need_ai_repair"
+      );
+    }
+
+    const renderedMoves =
+      this.toArray(
+        evidence
+          .renderedResponseMoves
+      );
+
+    if (
+      renderedMoves.length
+    ) {
+      scoreAdjustment +=
+        Math.min(
+          16,
+          renderedMoves.length *
+            4
+        );
+
+      strengths.push(
+        "canonical_response_moves_rendered"
+      );
+    } else if (
+      evidence
+        .canonicalMemoryAuthorizationUsed !==
+        true &&
+      context.responsePlanAvailable
+    ) {
+      usable = false;
+      scoreAdjustment -= 25;
+
+      penalties.push(
+        "no_canonical_response_moves_rendered"
+      );
+
+      rejectionReasons.push(
+        "no_canonical_response_moves_rendered"
+      );
+    }
+
+    return {
+      usable,
+      scoreAdjustment,
+      strengths,
+      penalties,
+      rejectionReasons
+    };
+  },
+
+  evaluateAIWriterCandidate({
+    candidate = {},
+    context = {}
+  } = {}) {
+    let usable =
+      true;
+
+    let scoreAdjustment =
+      0;
+
+    const strengths = [];
+    const penalties = [];
+    const rejectionReasons = [];
+
+    const evidence =
+      candidate.evidence ||
+      {};
+
+    if (
+      evidence
+        .writerMarkedUsable ===
+        true &&
+      candidate.usable ===
+        true
+    ) {
+      scoreAdjustment += 12;
+
+      strengths.push(
+        "ai_writer_marked_candidate_usable"
+      );
+    } else {
+      usable = false;
+      scoreAdjustment -= 55;
+
+      penalties.push(
+        "ai_writer_marked_candidate_unusable"
+      );
+
+      rejectionReasons.push(
+        "ai_writer_marked_candidate_unusable"
+      );
+    }
+
+    if (
+      evidence
+        .writerMarkedComplete ===
+        true &&
+      candidate.complete ===
+        true
+    ) {
+      scoreAdjustment += 10;
+
+      strengths.push(
+        "ai_writer_marked_candidate_complete"
+      );
+    } else {
+      scoreAdjustment -= 20;
+
+      penalties.push(
+        "ai_writer_marked_candidate_incomplete"
+      );
+    }
+
+    if (
+      evidence
+        .writerRequiresRepair ===
+        true ||
+      candidate
+        .requiresAIRepair ===
+        true
+    ) {
+      usable = false;
+      scoreAdjustment -= 60;
+
+      penalties.push(
+        "ai_writer_candidate_still_requires_repair"
+      );
+
+      rejectionReasons.push(
+        "ai_writer_candidate_still_requires_repair"
+      );
+    }
+
+    if (
+      evidence.validated ===
+        true &&
+      candidate.validation
+        ?.valid ===
+        true
+    ) {
+      scoreAdjustment += 10;
+
+      strengths.push(
+        "ai_writer_validation_passed"
+      );
+    } else {
+      scoreAdjustment -= 25;
+
+      penalties.push(
+        "ai_writer_validation_not_confirmed"
+      );
+
+      if (
+        candidate.validation
+          ?.valid ===
+        false
+      ) {
+        usable = false;
+
+        rejectionReasons.push(
+          "ai_writer_validation_failed"
+        );
+      }
+    }
+
+    if (
+      evidence
+        .repairRequested ===
+        true
+    ) {
+      scoreAdjustment += 12;
+
+      strengths.push(
+        "ai_writer_answered_repair_request"
+      );
+    }
+
+    if (
+      context.developerRelevant &&
+      this.looksLikeCodeAnswer(
+        candidate.text
+      ) &&
+      evidence
+        .groundedInCurrentFile !==
+        true
+    ) {
+      scoreAdjustment -= 35;
+
+      penalties.push(
+        "ai_code_answer_not_confirmed_grounded"
+      );
+    }
+
+    return {
+      usable,
+      scoreAdjustment,
+      strengths,
+      penalties,
+      rejectionReasons
+    };
+  },
+
+  evaluateDeveloperCandidate({
+    candidate = {},
+    context = {}
+  } = {}) {
+    let usable =
+      true;
+
+    let scoreAdjustment =
+      0;
+
+    const strengths = [];
+    const penalties = [];
+    const rejectionReasons = [];
+
+    const locked =
+      candidate.evidence
+        ?.responseLocked ===
+      true;
+
+    const relevant =
+      candidate.evidence
+        ?.developerRelevant ===
+        true ||
+      context.developerRelevant;
+
+    if (locked) {
+      scoreAdjustment += 100;
+
+      strengths.push(
+        "developer_response_locked"
+      );
+
+      return {
+        usable,
+        scoreAdjustment,
+        strengths,
+        penalties,
+        rejectionReasons
+      };
+    }
+
+    if (!relevant) {
+      usable = false;
+      scoreAdjustment -= 120;
+
+      penalties.push(
+        "developer_candidate_not_relevant"
+      );
+
+      rejectionReasons.push(
+        "developer_candidate_not_relevant"
+      );
+    }
+
+    if (
+      relevant &&
+      candidate.evidence
+        ?.groundedInCurrentFile ===
+        true
+    ) {
+      scoreAdjustment += 25;
+
+      strengths.push(
+        "developer_candidate_grounded_in_current_file"
+      );
+    }
+
+    return {
+      usable,
+      scoreAdjustment,
+      strengths,
+      penalties,
+      rejectionReasons
+    };
+  },
+
+  evaluateCharacterCandidate({
+    candidate = {},
+    context = {}
+  } = {}) {
+    let usable =
+      true;
+
+    let scoreAdjustment =
+      0;
+
+    const strengths = [];
+    const penalties = [];
+    const rejectionReasons = [];
+
+    if (
+      context.characterQuestion
+    ) {
+      scoreAdjustment += 30;
+
+      strengths.push(
+        "character_candidate_matches_character_question"
+      );
+    } else {
+      scoreAdjustment -= 12;
+
+      penalties.push(
+        "character_candidate_not_primary_match"
+      );
+    }
+
+    if (
+      candidate.grounded ===
+        true ||
+      candidate.evidence
+        ?.characterGrounded ===
+        true
+    ) {
+      scoreAdjustment += 12;
+
+      strengths.push(
+        "character_candidate_grounded"
+      );
+    }
+
+    if (
+      candidate.evidence
+        ?.characterNeedsAIWriter ===
+        true ||
+      candidate
+        .requiresAIRepair ===
+        true
+    ) {
+      usable = false;
+      scoreAdjustment -= 50;
+
+      penalties.push(
+        "character_candidate_requires_ai_realization"
+      );
+
+      rejectionReasons.push(
+        "character_candidate_requires_ai_realization"
+      );
+    }
+
+    return {
+      usable,
+      scoreAdjustment,
+      strengths,
+      penalties,
+      rejectionReasons
+    };
+  },
+
+  /* =====================================================
+     PLAN COMPLIANCE
   ===================================================== */
 
   evaluatePlanCompliance({
     candidate = {},
     context = {}
   } = {}) {
-    let scoreAdjustment = 0;
-    let usable = true;
+    let usable =
+      true;
+
+    let scoreAdjustment =
+      0;
 
     const strengths = [];
     const penalties = [];
@@ -2654,6 +2328,20 @@ console.log(
       candidate.source ===
       "blueprint_writer"
     ) {
+      canonicalResponsePlanSatisfied =
+        candidate.evidence
+          ?.blueprintWriterUsable ===
+          true &&
+        candidate.evidence
+          ?.blueprintWriterComplete ===
+          true &&
+        candidate.evidence
+          ?.blueprintWriterRequiresAIRepair !==
+          true &&
+        this.requiredUnsupportedMoves(
+          candidate
+        ).length === 0;
+
       if (
         canonicalResponsePlanUsed
       ) {
@@ -2662,40 +2350,20 @@ console.log(
         strengths.push(
           "canonical_response_plan_used"
         );
-      } else if (
-        candidate.evidence
-          ?.canonicalMemoryAuthorizationUsed ===
-        true
-      ) {
-        scoreAdjustment += 12;
-
-        strengths.push(
-          "canonical_memory_authorization_used"
-        );
-      } else {
-        scoreAdjustment -= 25;
-
-        penalties.push(
-          "canonical_response_plan_not_confirmed"
-        );
       }
 
-      canonicalResponsePlanSatisfied =
-        candidate.evidence
-          ?.blueprintWriterComplete ===
-          true &&
-        candidate.evidence
-          ?.blueprintWriterUsable ===
-          true &&
-        candidate.evidence
-          ?.blueprintWriterRequiresAIRepair !==
-          true &&
-        this.requiredUnsupportedMoves(
-          candidate
-        ).length === 0;
-    }
+      if (
+        context
+          .finalCandidateMustSatisfyPlan &&
+        !canonicalResponsePlanSatisfied
+      ) {
+        usable = false;
 
-    if (
+        rejectionReasons.push(
+          "canonical_response_plan_not_satisfied"
+        );
+      }
+    } else if (
       candidate.source ===
       "ai_writer"
     ) {
@@ -2707,15 +2375,14 @@ console.log(
           ?.canonicalResponsePlanUsed ===
           true;
 
-      const repairRequested =
-        candidate.evidence
-          ?.repairRequested ===
-        true;
-
-      const validated =
-        candidate.evidence
-          ?.validated ===
-        true;
+      canonicalResponsePlanSatisfied =
+        explicitSatisfaction &&
+        candidate.complete ===
+          true &&
+        candidate.usable ===
+          true &&
+        candidate.requiresAIRepair !==
+          true;
 
       if (
         explicitSatisfaction
@@ -2728,55 +2395,21 @@ console.log(
       }
 
       if (
-        repairRequested
-      ) {
-        scoreAdjustment += 10;
-
-        strengths.push(
-          "ai_candidate_generated_for_repair"
-        );
-      }
-
-      if (
-        validated
-      ) {
-        scoreAdjustment += 8;
-
-        strengths.push(
-          "ai_candidate_validated"
-        );
-      }
-
-      canonicalResponsePlanSatisfied =
-        explicitSatisfaction &&
-        candidate.complete ===
-          true &&
-        candidate.usable ===
-          true &&
-        candidate.requiresAIRepair !==
-          true;
-
-      if (
         context
           .finalCandidateMustSatisfyPlan &&
-        repairRequested &&
         !canonicalResponsePlanSatisfied
       ) {
-        scoreAdjustment -= 20;
-
-        penalties.push(
-          "ai_repair_plan_satisfaction_not_confirmed"
-        );
-
         usable = false;
 
+        penalties.push(
+          "ai_candidate_plan_satisfaction_not_confirmed"
+        );
+
         rejectionReasons.push(
-          "ai_repair_plan_satisfaction_not_confirmed"
+          "ai_candidate_plan_satisfaction_not_confirmed"
         );
       }
-    }
-
-    if (
+    } else if (
       candidate.source ===
         "developer_handoff" &&
       candidate.evidence
@@ -2785,20 +2418,19 @@ console.log(
     ) {
       canonicalResponsePlanSatisfied =
         true;
-    }
-
-    if (
-      context
-        .finalCandidateMustSatisfyPlan &&
-      candidate.source ===
-        "blueprint_writer" &&
-      !canonicalResponsePlanSatisfied
-    ) {
-      usable = false;
-
-      rejectionReasons.push(
-        "canonical_response_plan_not_satisfied"
-      );
+    } else {
+      /*
+       * Character and other deterministic candidates may
+       * satisfy a simple plan when they are explicitly
+       * registered as complete and usable.
+       */
+      canonicalResponsePlanSatisfied =
+        candidate.complete ===
+          true &&
+        candidate.usable ===
+          true &&
+        candidate.requiresAIRepair !==
+          true;
     }
 
     if (
@@ -2836,637 +2468,6 @@ console.log(
   },
 
   /* =====================================================
-     BLUEPRINT EVALUATION
-  ===================================================== */
-
-  evaluateBlueprintCandidate({
-    candidate = {},
-    context = {}
-  } = {}) {
-    let scoreAdjustment = 0;
-    let usable = true;
-
-    const strengths = [];
-    const penalties = [];
-    const rejectionReasons = [];
-
-    const evidence =
-      candidate.evidence ||
-      {};
-
-    const blueprintUsable =
-      evidence
-        .blueprintWriterUsable ===
-        true &&
-      candidate.usable ===
-        true;
-
-    const blueprintComplete =
-      evidence
-        .blueprintWriterComplete ===
-        true &&
-      candidate.complete ===
-        true;
-
-    const requiresRepair =
-      evidence
-        .blueprintWriterRequiresAIRepair ===
-        true ||
-      candidate
-        .requiresAIRepair ===
-        true;
-
-    const renderedMoves =
-      this.toArray(
-        evidence
-          .renderedResponseMoves
-      );
-
-    const unsupportedRequiredMoves =
-      this.requiredUnsupportedMoves(
-        candidate
-      );
-
-    const renderQuality =
-      evidence.renderQuality ||
-      {};
-
-    if (
-      blueprintUsable
-    ) {
-      scoreAdjustment += 12;
-
-      strengths.push(
-        "blueprint_writer_marked_usable"
-      );
-    } else {
-      scoreAdjustment -= 45;
-      usable = false;
-
-      penalties.push(
-        "blueprint_writer_marked_unusable"
-      );
-
-      rejectionReasons.push(
-        "blueprint_writer_marked_unusable"
-      );
-    }
-
-    if (
-      blueprintComplete
-    ) {
-      scoreAdjustment += 12;
-
-      strengths.push(
-        "blueprint_render_complete"
-      );
-    } else {
-      scoreAdjustment -= 25;
-
-      penalties.push(
-        "blueprint_render_incomplete"
-      );
-    }
-
-    if (
-      requiresRepair
-    ) {
-      scoreAdjustment -= 60;
-      usable = false;
-
-      penalties.push(
-        "blueprint_requires_ai_repair"
-      );
-
-      rejectionReasons.push(
-        "blueprint_requires_ai_repair"
-      );
-    }
-
-    if (
-      renderedMoves.length >
-      0
-    ) {
-      scoreAdjustment +=
-        Math.min(
-          16,
-          renderedMoves.length *
-            4
-        );
-
-      strengths.push(
-        "canonical_response_moves_rendered"
-      );
-    } else if (
-      evidence
-        .canonicalMemoryAuthorizationUsed !==
-      true
-    ) {
-      scoreAdjustment -= 25;
-      usable = false;
-
-      penalties.push(
-        "no_canonical_response_moves_rendered"
-      );
-
-      rejectionReasons.push(
-        "no_canonical_response_moves_rendered"
-      );
-    }
-
-    if (
-      unsupportedRequiredMoves
-        .length > 0
-    ) {
-      scoreAdjustment -=
-        Math.min(
-          60,
-          unsupportedRequiredMoves
-            .length *
-            20
-        );
-
-      penalties.push(
-        "required_response_moves_unsupported"
-      );
-
-      if (
-        context.aiRepairAllowed
-      ) {
-        usable = false;
-
-        rejectionReasons.push(
-          "required_response_moves_need_ai_repair"
-        );
-      }
-    }
-
-    if (
-      renderQuality
-        .containsInternalInstruction ===
-        true ||
-      renderQuality
-        .containsInternalPlannerLanguage ===
-        true
-    ) {
-      scoreAdjustment -= 100;
-      usable = false;
-
-      penalties.push(
-        "render_quality_detected_internal_instruction"
-      );
-
-      rejectionReasons.push(
-        "rendered_internal_instruction"
-      );
-    }
-
-    if (
-      renderQuality
-        .missingRequiredQuestion ===
-        true
-    ) {
-      scoreAdjustment -= 30;
-
-      penalties.push(
-        "required_question_missing"
-      );
-
-      if (
-        context.questionRequired
-      ) {
-        usable = false;
-
-        rejectionReasons.push(
-          "required_question_missing"
-        );
-      }
-    }
-
-    if (
-      renderQuality.usable ===
-      false
-    ) {
-      scoreAdjustment -= 35;
-      usable = false;
-
-      penalties.push(
-        "render_quality_marked_unusable"
-      );
-
-      rejectionReasons.push(
-        "render_quality_marked_unusable"
-      );
-    }
-
-    return {
-      usable,
-      scoreAdjustment,
-      strengths,
-      penalties,
-      rejectionReasons
-    };
-  },
-
-  /* =====================================================
-     AI WRITER EVALUATION
-  ===================================================== */
-
-  evaluateAIWriterCandidate({
-    candidate = {},
-    context = {}
-  } = {}) {
-    let scoreAdjustment = 0;
-    let usable = true;
-
-    const strengths = [];
-    const penalties = [];
-    const rejectionReasons = [];
-
-    const usedAI =
-      candidate.evidence
-        ?.usedAI ===
-      true;
-
-    const repairRequested =
-      candidate.evidence
-        ?.repairRequested ===
-      true;
-
-    const writerMarkedUsable =
-      candidate.evidence
-        ?.writerMarkedUsable ===
-      true;
-
-    const writerMarkedComplete =
-      candidate.evidence
-        ?.writerMarkedComplete ===
-      true;
-
-    const writerRequiresRepair =
-      candidate.evidence
-        ?.writerRequiresRepair ===
-      true;
-
-    const validated =
-      candidate.evidence
-        ?.validated ===
-      true;
-
-    if (
-      usedAI
-    ) {
-      scoreAdjustment += 6;
-
-      strengths.push(
-        "ai_writer_completed_generation"
-      );
-    } else {
-      scoreAdjustment -= 4;
-
-      penalties.push(
-        "ai_writer_used_local_fallback"
-      );
-    }
-
-    if (
-      repairRequested
-    ) {
-      scoreAdjustment += 18;
-
-      strengths.push(
-        "ai_writer_answered_repair_request"
-      );
-    }
-
-    if (
-      writerMarkedUsable
-    ) {
-      scoreAdjustment += 10;
-
-      strengths.push(
-        "ai_writer_marked_candidate_usable"
-      );
-    } else {
-      scoreAdjustment -= 50;
-      usable = false;
-
-      penalties.push(
-        "ai_writer_marked_candidate_unusable"
-      );
-
-      rejectionReasons.push(
-        "ai_writer_marked_candidate_unusable"
-      );
-    }
-
-    if (
-      writerMarkedComplete
-    ) {
-      scoreAdjustment += 8;
-
-      strengths.push(
-        "ai_writer_marked_candidate_complete"
-      );
-    } else {
-      scoreAdjustment -= 15;
-
-      penalties.push(
-        "ai_writer_marked_candidate_incomplete"
-      );
-    }
-
-    if (
-      writerRequiresRepair
-    ) {
-      scoreAdjustment -= 50;
-      usable = false;
-
-      penalties.push(
-        "ai_writer_candidate_still_requires_repair"
-      );
-
-      rejectionReasons.push(
-        "ai_writer_candidate_still_requires_repair"
-      );
-    }
-
-    if (
-      validated
-    ) {
-      scoreAdjustment += 8;
-
-      strengths.push(
-        "ai_writer_validation_passed"
-      );
-    } else {
-      scoreAdjustment -= 20;
-
-      penalties.push(
-        "ai_writer_validation_not_confirmed"
-      );
-
-      if (
-        candidate.validation
-          ?.valid ===
-        false
-      ) {
-        usable = false;
-
-        rejectionReasons.push(
-          "ai_writer_validation_failed"
-        );
-      }
-    }
-
-    if (
-      candidate.evidence
-        ?.fallbackReason ===
-      "ai_unavailable"
-    ) {
-      scoreAdjustment -= 30;
-
-      penalties.push(
-        "ai_writer_unavailable_fallback"
-      );
-    }
-
-    if (
-      candidate.evidence
-        ?.fallbackReason ===
-      "local_response_plan_draft"
-    ) {
-      scoreAdjustment -= 3;
-
-      penalties.push(
-        "ai_writer_returned_local_plan_fallback"
-      );
-    }
-
-    if (
-      this.containsWriterFailureMessage(
-        candidate.text
-      )
-    ) {
-      scoreAdjustment -= 100;
-      usable = false;
-
-      rejectionReasons.push(
-        "ai_writer_failure_message_exposed"
-      );
-    }
-
-    if (
-      context.developerRelevant &&
-      this.looksLikeCodeAnswer(
-        candidate.text
-      ) &&
-      candidate.evidence
-        ?.groundedInCurrentFile !==
-        true
-    ) {
-      scoreAdjustment -= 35;
-
-      penalties.push(
-        "ai_code_answer_not_confirmed_grounded"
-      );
-    }
-
-    return {
-      usable,
-      scoreAdjustment,
-      strengths,
-      penalties,
-      rejectionReasons
-    };
-  },
-
-  /* =====================================================
-     DEVELOPER EVALUATION
-  ===================================================== */
-
-  evaluateDeveloperCandidate({
-    candidate = {},
-    context = {}
-  } = {}) {
-    let scoreAdjustment = 0;
-    let usable = true;
-
-    const strengths = [];
-    const penalties = [];
-    const rejectionReasons = [];
-
-    const locked =
-      candidate.evidence
-        ?.responseLocked ===
-      true;
-
-    const relevant =
-      candidate.evidence
-        ?.developerRelevant ===
-        true ||
-      context.developerRelevant;
-
-    const grounded =
-      candidate.evidence
-        ?.groundedInCurrentFile ===
-      true;
-
-    if (
-      locked
-    ) {
-      scoreAdjustment += 100;
-
-      strengths.push(
-        "developer_response_locked"
-      );
-
-      return {
-        usable:
-          true,
-
-        scoreAdjustment,
-
-        strengths,
-
-        penalties,
-
-        rejectionReasons
-      };
-    }
-
-    if (
-      !relevant
-    ) {
-      scoreAdjustment -= 120;
-      usable = false;
-
-      penalties.push(
-        "developer_candidate_not_relevant"
-      );
-
-      rejectionReasons.push(
-        "developer_candidate_not_relevant"
-      );
-
-      return {
-        usable,
-        scoreAdjustment,
-        strengths,
-        penalties,
-        rejectionReasons
-      };
-    }
-
-    if (
-      grounded
-    ) {
-      scoreAdjustment += 35;
-
-      strengths.push(
-        "developer_candidate_grounded_in_current_file"
-      );
-    } else {
-      scoreAdjustment -= 40;
-
-      penalties.push(
-        "developer_candidate_not_grounded_in_current_file"
-      );
-    }
-
-    return {
-      usable,
-      scoreAdjustment,
-      strengths,
-      penalties,
-      rejectionReasons
-    };
-  },
-
-  /* =====================================================
-     CHARACTER EVALUATION
-  ===================================================== */
-
-  evaluateCharacterCandidate({
-    candidate = {},
-    context = {}
-  } = {}) {
-    let scoreAdjustment = 0;
-    let usable = true;
-
-    const strengths = [];
-    const penalties = [];
-    const rejectionReasons = [];
-
-    if (
-      context.characterQuestion
-    ) {
-      scoreAdjustment += 35;
-
-      strengths.push(
-        "character_candidate_matches_character_question"
-      );
-    } else {
-      scoreAdjustment -= 20;
-
-      penalties.push(
-        "character_candidate_not_primary_match"
-      );
-    }
-
-    if (
-      candidate.evidence
-        ?.characterAnswerAvailable ===
-      true
-    ) {
-      scoreAdjustment += 12;
-
-      strengths.push(
-        "character_answer_available"
-      );
-    }
-
-    if (
-      candidate.evidence
-        ?.characterNeedsAIWriter ===
-      true
-    ) {
-      scoreAdjustment -= 45;
-      usable = false;
-
-      penalties.push(
-        "character_candidate_requires_ai_realization"
-      );
-
-      rejectionReasons.push(
-        "character_candidate_requires_ai_realization"
-      );
-    }
-
-    if (
-      !context.characterQuestion &&
-      candidate.taskType ===
-        "character" &&
-      candidate.text.length <
-        20
-    ) {
-      usable = false;
-
-      rejectionReasons.push(
-        "character_candidate_too_thin_for_non_character_request"
-      );
-    }
-
-    return {
-      usable,
-      scoreAdjustment,
-      strengths,
-      penalties,
-      rejectionReasons
-    };
-  },
-
-  /* =====================================================
      QUESTION POLICY
   ===================================================== */
 
@@ -3479,8 +2480,11 @@ console.log(
         text
       );
 
-    let scoreAdjustment = 0;
-    let usable = true;
+    let usable =
+      true;
+
+    let scoreAdjustment =
+      0;
 
     const strengths = [];
     const penalties = [];
@@ -3542,7 +2546,7 @@ console.log(
         12;
 
       penalties.push(
-        "too_many_questions"
+        "question_limit_exceeded"
       );
 
       if (
@@ -3599,7 +2603,8 @@ console.log(
     text = "",
     context = {}
   } = {}) {
-    let scoreAdjustment = 0;
+    let scoreAdjustment =
+      0;
 
     const strengths = [];
     const penalties = [];
@@ -3656,20 +2661,19 @@ console.log(
   },
 
   /* =====================================================
-     AI REPAIR DECISION
+     AI REQUIREMENT
   ===================================================== */
 
-  determineAIRepair({
+  determineAIRequirement({
     bestCandidate = null,
     evaluatedCandidates = [],
-    context = {},
-    packet = {}
+    context = {}
   } = {}) {
     if (
       context.developerLocked
     ) {
       return {
-        needsAIWriter:
+        required:
           false,
 
         reason:
@@ -3685,33 +2689,11 @@ console.log(
     }
 
     if (
-      context.safetyStop &&
-      packet.candidatePolicy
-        ?.aiWriterAllowed ===
-        false
-    ) {
-      return {
-        needsAIWriter:
-          false,
-
-        reason:
-          null,
-
-        source:
-          "safety_contract_disallows_ai_writer",
-
-        bestCandidateSource:
-          bestCandidate?.source ||
-          null
-      };
-    }
-
-    if (
       context.aiWriterAllowed !==
       true
     ) {
       return {
-        needsAIWriter:
+        required:
           false,
 
         reason:
@@ -3726,15 +2708,13 @@ console.log(
       };
     }
 
-    if (
-      !bestCandidate
-    ) {
+    if (!bestCandidate) {
       return {
-        needsAIWriter:
+        required:
           true,
 
         reason:
-          this.resolveNoCandidateRepairReason(
+          this.resolveNoCandidateReason(
             evaluatedCandidates
           ),
 
@@ -3747,41 +2727,36 @@ console.log(
     }
 
     if (
+      bestCandidate
+        .requiresAIRepair ===
+        true
+    ) {
+      return {
+        required:
+          true,
+
+        reason:
+          "candidate_requires_ai_repair",
+
+        source:
+          "candidate_requires_ai_repair",
+
+        bestCandidateSource:
+          bestCandidate.source
+      };
+    }
+
+    if (
       bestCandidate.source ===
       "blueprint_writer"
     ) {
-      if (
-        bestCandidate
-          .requiresAIRepair ===
-          true ||
-        bestCandidate.evidence
-          ?.blueprintWriterRequiresAIRepair ===
-          true
-      ) {
-        return {
-          needsAIWriter:
-            true,
-
-          reason:
-            this.resolveBlueprintRepairReason(
-              bestCandidate
-            ),
-
-          source:
-            "blueprint_requested_ai_repair",
-
-          bestCandidateSource:
-            bestCandidate.source
-        };
-      }
-
       if (
         bestCandidate.evidence
           ?.blueprintWriterUsable !==
         true
       ) {
         return {
-          needsAIWriter:
+          required:
             true,
 
           reason:
@@ -3801,7 +2776,7 @@ console.log(
         true
       ) {
         return {
-          needsAIWriter:
+          required:
             true,
 
           reason:
@@ -3821,7 +2796,7 @@ console.log(
         true
       ) {
         return {
-          needsAIWriter:
+          required:
             true,
 
           reason:
@@ -3841,7 +2816,7 @@ console.log(
           .preferredDeterministicMinimumScore
       ) {
         return {
-          needsAIWriter:
+          required:
             true,
 
           reason:
@@ -3854,86 +2829,27 @@ console.log(
             bestCandidate.source
         };
       }
-
-      return {
-        needsAIWriter:
-          false,
-
-        reason:
-          null,
-
-        source:
-          "usable_complete_blueprint_candidate",
-
-        bestCandidateSource:
-          bestCandidate.source
-      };
-    }
-
-    if (
-      bestCandidate.source ===
-        "character_reasoning" &&
-      context.characterQuestion
-    ) {
-      return {
-        needsAIWriter:
-          false,
-
-        reason:
-          null,
-
-        source:
-          "complete_character_candidate",
-
-        bestCandidateSource:
-          bestCandidate.source
-      };
-    }
-
-    if (
-      bestCandidate.source ===
-        "developer_handoff" &&
-      bestCandidate.evidence
-        ?.responseLocked ===
-        true
-    ) {
-      return {
-        needsAIWriter:
-          false,
-
-        reason:
-          null,
-
-        source:
-          "locked_developer_candidate",
-
-        bestCandidateSource:
-          bestCandidate.source
-      };
     }
 
     return {
-      needsAIWriter:
+      required:
         false,
 
       reason:
         null,
 
       source:
-        bestCandidate.source ===
-          "ai_writer"
-          ? "ai_writer_candidate_already_available"
-          : "usable_non_blueprint_candidate",
+        "usable_candidate_available",
 
       bestCandidateSource:
         bestCandidate.source
     };
   },
 
-  resolveNoCandidateRepairReason(
+  resolveNoCandidateReason(
     evaluatedCandidates = []
   ) {
-    const blueprint =
+    const rejectedBlueprint =
       this.toArray(
         evaluatedCandidates
       ).find(
@@ -3942,108 +2858,32 @@ console.log(
           "blueprint_writer"
       );
 
-    if (
-      blueprint
-    ) {
-      return this.resolveBlueprintRepairReason(
-        blueprint
+    if (rejectedBlueprint) {
+      return (
+        rejectedBlueprint
+          .rejectionReasons
+          ?.[0] ||
+        "blueprint_candidate_rejected"
       );
     }
 
-    const rejectedAI =
+    const rejectedCharacter =
       this.toArray(
         evaluatedCandidates
       ).find(
         candidate =>
           candidate.source ===
-            "ai_writer" &&
-          candidate.usable !==
+            "character_reasoning" &&
+          candidate
+            .requiresAIRepair ===
             true
       );
 
-if (rejectedAI) {
-  return (
-    rejectedAI.rejectionReasons?.[0] ||
-    rejectedAI.validation?.reason ||
-    rejectedAI.evidence?.writerReason ||
-    "ai_candidate_rejected"
-  );
-}
+    if (rejectedCharacter) {
+      return "character_candidate_requires_ai_realization";
+    }
 
     return "no_usable_response_candidate";
-  },
-
-  resolveBlueprintRepairReason(
-    candidate = {}
-  ) {
-    const quality =
-      candidate.evidence
-        ?.renderQuality ||
-      {};
-
-    const unsupported =
-      this.toArray(
-        candidate.evidence
-          ?.unsupportedResponseMoves
-      );
-
-    if (
-      candidate.evidence
-        ?.blueprintWriterRequiresAIRepair ===
-      true
-    ) {
-      if (
-        quality.reason
-      ) {
-        return quality.reason;
-      }
-
-      if (
-        unsupported.some(
-          move =>
-            move?.required !==
-            false
-        )
-      ) {
-        return "required_response_moves_unsupported";
-      }
-
-      return "blueprint_requested_ai_repair";
-    }
-
-    if (
-      candidate.evidence
-        ?.blueprintWriterUsable !==
-      true
-    ) {
-      return "blueprint_writer_marked_unusable";
-    }
-
-    if (
-      candidate.evidence
-        ?.blueprintWriterComplete !==
-      true
-    ) {
-      return "blueprint_render_incomplete";
-    }
-
-    if (
-      quality
-        .containsInternalInstruction ===
-      true
-    ) {
-      return "blueprint_rendered_internal_instruction";
-    }
-
-    if (
-      quality
-        .missingRequiredQuestion ===
-      true
-    ) {
-      return "blueprint_required_question_missing";
-    }
-
-    return "blueprint_quality_too_low";
   },
 
   /* =====================================================
@@ -4051,17 +2891,15 @@ if (rejectedAI) {
   ===================================================== */
 
   selectPrecheckCandidate({
-    candidates = [],
+    usableCandidates = [],
     context = {}
   } = {}) {
     const available =
       this.toArray(
-        candidates
+        usableCandidates
       );
 
-    if (
-      !available.length
-    ) {
+    if (!available.length) {
       return null;
     }
 
@@ -4078,64 +2916,71 @@ if (rejectedAI) {
               true
         );
 
-      if (
-        locked
-      ) {
+      if (locked) {
         return locked;
       }
+    }
+
+    const preferredCharacter =
+      available.find(
+        candidate =>
+          candidate.source ===
+            "character_reasoning" &&
+          candidate.preferred ===
+            true
+      );
+
+    if (
+      context.characterQuestion &&
+      preferredCharacter
+    ) {
+      return preferredCharacter;
     }
 
     const blueprint =
       available.find(
         candidate =>
           candidate.source ===
-          "blueprint_writer"
+            "blueprint_writer" &&
+          candidate.complete ===
+            true &&
+          candidate
+            .requiresAIRepair !==
+            true &&
+          candidate.quality
+            ?.canonicalResponsePlanSatisfied ===
+            true
       );
 
-    if (
-      blueprint &&
-      blueprint.quality
-        ?.canonicalResponsePlanSatisfied ===
-        true &&
-      blueprint.complete ===
-        true &&
-      blueprint
-        .requiresAIRepair !==
-        true
-    ) {
+    if (blueprint) {
       return blueprint;
     }
 
-    return (
-      available[0] ||
-      null
-    );
+    return available[0];
   },
 
   /* =====================================================
      FINAL SELECTION
   ===================================================== */
 
-  selectCandidate({
-    candidates = [],
+  selectFinalCandidate({
+    usableCandidates = [],
     evaluatedCandidates = [],
     context = {}
   } = {}) {
     const available =
       this.toArray(
-        candidates
+        usableCandidates
       );
 
-    if (
-      !available.length
-    ) {
+    if (!available.length) {
       return null;
     }
 
     if (
       context.developerLocked
     ) {
-      const lockedDeveloper =
+      const locked =
         available.find(
           candidate =>
             candidate.source ===
@@ -4145,19 +2990,10 @@ if (rejectedAI) {
               true
         );
 
-      if (
-        lockedDeveloper
-      ) {
-        return lockedDeveloper;
+      if (locked) {
+        return locked;
       }
     }
-
-    const blueprint =
-      available.find(
-        candidate =>
-          candidate.source ===
-          "blueprint_writer"
-      );
 
     const aiCandidate =
       available.find(
@@ -4166,59 +3002,24 @@ if (rejectedAI) {
           "ai_writer"
       );
 
-    /*
-     * A complete deterministic candidate wins unless AI
-     * was required to repair it and produced a stronger,
-     * valid, complete, plan-satisfying candidate.
-     */
-    if (
-      blueprint &&
-      blueprint.complete ===
-        true &&
-      blueprint
-        .requiresAIRepair !==
-        true &&
-      blueprint.quality
-        ?.canonicalResponsePlanSatisfied ===
-        true
-    ) {
-      const aiWasRequiredRepair =
-        aiCandidate?.evidence
-          ?.repairRequested ===
-        true;
+    const blueprintCandidate =
+      available.find(
+        candidate =>
+          candidate.source ===
+          "blueprint_writer"
+      );
 
-      const aiSatisfiedPlan =
-        aiCandidate?.quality
-          ?.canonicalResponsePlanSatisfied ===
-        true;
-
-      const aiPassedWriterStatus =
-        aiCandidate?.usable ===
-          true &&
-        aiCandidate?.complete ===
-          true &&
-        aiCandidate
-          ?.requiresAIRepair !==
-          true;
-
-      if (
-        aiCandidate &&
-        aiWasRequiredRepair &&
-        aiSatisfiedPlan &&
-        aiPassedWriterStatus &&
-        aiCandidate.score >
-          blueprint.score +
-            8
-      ) {
-        return aiCandidate;
-      }
-
-      return blueprint;
-    }
+    const characterCandidate =
+      available.find(
+        candidate =>
+          candidate.source ===
+          "character_reasoning"
+      );
 
     /*
-     * A valid AI repair may win only when a Blueprint
-     * candidate existed and was rejected or incomplete.
+     * A valid AI repair wins when repair was explicitly
+     * requested and the repaired candidate satisfies the
+     * canonical response contract.
      */
     if (
       aiCandidate &&
@@ -4227,7 +3028,74 @@ if (rejectedAI) {
         true &&
       aiCandidate.complete ===
         true &&
-      aiCandidate.usable ===
+      aiCandidate
+        .requiresAIRepair !==
+        true &&
+      aiCandidate.quality
+        ?.canonicalResponsePlanSatisfied ===
+        true
+    ) {
+      const failedUpstreamCandidate =
+        this.toArray(
+          evaluatedCandidates
+        ).some(
+          candidate =>
+            [
+              "blueprint_writer",
+              "character_reasoning"
+            ].includes(
+              candidate.source
+            ) &&
+            candidate.usable !==
+              true
+        );
+
+      if (failedUpstreamCandidate) {
+        return aiCandidate;
+      }
+    }
+
+    /*
+     * A complete deterministic Blueprint wins when no AI
+     * repair was required.
+     */
+    if (
+      blueprintCandidate &&
+      blueprintCandidate.complete ===
+        true &&
+      blueprintCandidate
+        .requiresAIRepair !==
+        true &&
+      blueprintCandidate.quality
+        ?.canonicalResponsePlanSatisfied ===
+        true
+    ) {
+      return blueprintCandidate;
+    }
+
+    /*
+     * Focused Character answers may win Character questions
+     * when explicitly registered as complete and usable.
+     */
+    if (
+      context.characterQuestion &&
+      characterCandidate &&
+      characterCandidate.complete ===
+        true &&
+      characterCandidate
+        .requiresAIRepair !==
+        true
+    ) {
+      return characterCandidate;
+    }
+
+    /*
+     * A valid AI candidate may answer when no complete
+     * deterministic candidate is available.
+     */
+    if (
+      aiCandidate &&
+      aiCandidate.complete ===
         true &&
       aiCandidate
         .requiresAIRepair !==
@@ -4236,51 +3104,10 @@ if (rejectedAI) {
         ?.canonicalResponsePlanSatisfied ===
         true
     ) {
-      const rejectedBlueprint =
-        this.toArray(
-          evaluatedCandidates
-        ).find(
-          candidate =>
-            candidate.source ===
-              "blueprint_writer" &&
-            candidate.usable !==
-              true
-        );
-
-      if (
-        rejectedBlueprint
-      ) {
-        return aiCandidate;
-      }
+      return aiCandidate;
     }
 
-    if (
-      context.characterQuestion
-    ) {
-      const characterCandidate =
-        available.find(
-          candidate =>
-            candidate.source ===
-              "character_reasoning" &&
-            candidate.score >=
-              context
-                .minimumUsableScore
-        );
-
-      if (
-        characterCandidate &&
-        characterCandidate.score >=
-          available[0].score -
-            10
-      ) {
-        return characterCandidate;
-      }
-    }
-
-    return (
-      available[0] ||
-      null
-    );
+    return available[0];
   },
 
   buildSelectionReason(
@@ -4306,7 +3133,7 @@ if (rejectedAI) {
   },
 
   /* =====================================================
-     PATTERN CHECKS
+     CONTENT CHECKS
   ===================================================== */
 
   containsInternalPlannerLanguage(
@@ -4320,7 +3147,6 @@ if (rejectedAI) {
     const phrases = [
       "answer the direct question",
       "answer the actual question first",
-      "explain only enough",
       "follow the response plan",
       "the user is asking",
       "the writer should",
@@ -4328,15 +3154,14 @@ if (rejectedAI) {
       "blueprint writer",
       "ai writer",
       "candidate arbiter",
+      "response candidate arbiter",
       "response move",
       "response strategy",
       "response shape",
+      "composer packet",
+      "canonical response plan",
       "internal planner",
-      "do not turn every answer",
-      "dont turn every answer",
-      "use response rules",
-      "according to the composer packet",
-      "according to the response plan"
+      "pipeline diagnostics"
     ];
 
     return phrases.some(
@@ -4358,13 +3183,13 @@ if (rejectedAI) {
     const phrases = [
       "the ai draft was unavailable",
       "ai draft unavailable",
-      "try once more and ill answer",
-      "try once more and i ll answer",
       "the writer was unavailable",
       "no usable response candidate",
       "composer packet missing",
       "ai writer not loaded",
       "blueprint writer not loaded",
+      "try once more and ill answer",
+      "try once more and i ll answer",
       "i wont use stale developer evidence",
       "i won t use stale developer evidence",
       "i know what youre asking but i dont have a reliable answer ready",
@@ -4437,26 +3262,14 @@ if (rejectedAI) {
         text
       );
 
-    if (
-      !normalized
-    ) {
+    if (!normalized) {
       return false;
     }
 
-    if (
-      this.opensWithClarifyingQuestion(
+    return !this
+      .opensWithClarifyingQuestion(
         text
-      )
-    ) {
-      return false;
-    }
-
-    /*
-     * A direct content request such as "Tell me a story"
-     * is answered directly when usable content begins,
-     * even if it does not use an explicit yes/no opener.
-     */
-    return true;
+      );
   },
 
   opensWithClarifyingQuestion(
@@ -4491,52 +3304,6 @@ if (rejectedAI) {
       );
   },
 
-  isDeveloperQuestion(
-    text = ""
-  ) {
-    const value =
-      String(
-        text ||
-        ""
-      );
-
-    const explicitFile =
-      /\b[\w/-]+\.(?:js|mjs|cjs|html|css|json|md|ts|tsx|jsx|sql|py|yml|yaml)\b/i
-        .test(
-          value
-        );
-
-    const repoContext =
-      /\b(?:github|repo|repository|branch|commit|deploy|vercel|supabase|codebase|pipeline|engine|composer|schema)\b/i
-        .test(
-          value
-        );
-
-    const developerAction =
-      /\b(?:read|open|show|search|find|update|change|replace|remove|fix|patch|debug|edit|inspect|diagnose|build|implement|rewrite|wire|refactor|validate|test)\b/i
-        .test(
-          value
-        );
-
-    const developerConcept =
-      /\b(?:code|file|function|engine|pipeline|composer|handoff|api|bug|error|script|schema|javascript|html|css)\b/i
-        .test(
-          value
-        );
-
-    return Boolean(
-      explicitFile ||
-      (
-        repoContext &&
-        developerAction
-      ) ||
-      (
-        developerConcept &&
-        developerAction
-      )
-    );
-  },
-
   isCharacterQuestion(
     text = ""
   ) {
@@ -4554,28 +3321,35 @@ if (rejectedAI) {
   ) {
     return /\b(?:give me|tell me|send me|write me|make me|show me|create|generate|build|rewrite|replace|fix this|update this)\b/i
       .test(
-        text
+        String(
+          text ||
+          ""
+        )
       );
   },
 
   isDirectInformationRequest(
     text = ""
   ) {
+    const value =
+      String(
+        text ||
+        ""
+      ).trim();
+
     return (
       /\?$/.test(
-        String(
-          text
-        ).trim()
+        value
       ) ||
       /^(?:what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will|has|have)\b/i
         .test(
-          text
+          value
         )
     );
   },
 
   /* =====================================================
-     INTERACTION-QUESTION DETECTION
+     QUESTION DETECTION
   ===================================================== */
 
   isQuotedOrNarrativeQuestion(
@@ -4593,21 +3367,21 @@ if (rejectedAI) {
       return false;
     }
 
-    const hasQuotedQuestion =
+    const quotedQuestion =
       /["“'][^"”']*\?[^"”']*["”']/u
         .test(
           value
         );
 
-    const hasSpeechAttribution =
+    const attributedQuestion =
       /\?\s*["”']?\s*(?:he|she|they|i|we|the\s+\w+|[A-Z][a-z]+)\s+(?:asked|said|whispered|shouted|replied|wondered|called|murmured)\b/u
         .test(
           value
         );
 
     return (
-      hasQuotedQuestion ||
-      hasSpeechAttribution
+      quotedQuestion ||
+      attributedQuestion
     );
   },
 
@@ -4668,11 +3442,11 @@ if (rejectedAI) {
   },
 
   countQuestions(
-    text = ""
+    value = ""
   ) {
     return (
       String(
-        text ||
+        value ||
         ""
       ).match(
         /\?/g
@@ -4682,205 +3456,100 @@ if (rejectedAI) {
   },
 
   /* =====================================================
-     COMPATIBILITY METHODS
+     AUTHORITY
   ===================================================== */
 
-  scoreCandidate(
-  candidate = {},
-  context = {}
-) {
-  const compatibilityCandidate = {
-    ...candidate,
-
-    usable:
-      candidate.usable === undefined
-        ? true
-        : candidate.usable,
-
-    complete:
-      candidate.complete === undefined
-        ? true
-        : candidate.complete,
-
-    requiresAIRepair:
-      candidate.requiresAIRepair === true ||
-      candidate.requiresRepair === true
-  };
-
-  return this.evaluateCandidate({
-    candidate:
-      this.normalizeCandidate(
-        compatibilityCandidate
-      ),
-
-    context: {
-      minimumUsableScore:
-        45,
-
-      preferredDeterministicMinimumScore:
-        70,
-
-      maximumQuestions:
-        1,
-
-      questionAllowed:
+  getFinalAuthorityBoundaries() {
+    return {
+      canCollectRegisteredCandidates:
         true,
 
-      questionRequired:
-        false,
-
-      directContentRequest:
-        false,
-
-      directInformationRequest:
-        false,
-
-      developerRelevant:
-        false,
-
-      developerLocked:
-        false,
-
-      characterQuestion:
-        false,
-
-      aiRepairAllowed:
+      canReadCanonicalAIWriterCandidate:
         true,
 
-      aiWriterAllowed:
+      canEvaluateCandidates:
         true,
 
-      responsePlanAvailable:
+      canRejectInvalidCandidates:
+        true,
+
+      canSelectPreferredDraft:
+        true,
+
+      canAuthorizeFinalCandidate:
+        true,
+
+      canRequestAIRepair:
+        true,
+
+      canSynthesizeCharacterCandidate:
         false,
 
-      finalCandidateMustSatisfyPlan:
+      canSynthesizeBlueprintCandidate:
         false,
 
-      ...context
-    },
+      canSynthesizeDeveloperCandidate:
+        false,
 
-    packet:
-      {},
+      canGenerateCandidateText:
+        false,
 
-    summary:
-      {}
-  });
-},
+      canRewriteCandidate:
+        false,
 
-  needsAIRepair(
-    candidate = {},
-    context = {},
-    packet = {}
-  ) {
-    const evaluated =
-      this.scoreCandidate(
-        candidate,
-        context
-      );
+      canChooseResponsePlan:
+        false,
 
-    return this.determineAIRepair({
-      bestCandidate:
-        evaluated.usable
-          ? evaluated
-          : null,
+      canInterpretMeaning:
+        false,
 
-      evaluatedCandidates: [
-        evaluated
-      ],
+      canComposeFinalResponse:
+        false,
 
-      context: {
-        aiWriterAllowed:
-          true,
+      canOverrideSafety:
+        false,
 
-        aiRepairAllowed:
-          true,
+      canPersistState:
+        false,
 
-        preferredDeterministicMinimumScore:
-          70,
-
-        developerLocked:
-          false,
-
-        safetyStop:
-          false,
-
-        characterQuestion:
-          false,
-
-        ...context
-      },
-
-      packet
-    }).needsAIWriter;
+      role:
+        "canonical_response_candidate_quality_arbitration"
+    };
   },
 
-  getAIRepairReason(
-    candidate = {},
-    context = {},
-    packet = {}
-  ) {
-    const evaluated =
-      this.scoreCandidate(
-        candidate,
-        context
-      );
+  getPrecheckAuthorityBoundaries() {
+    return {
+      canEvaluatePreAIWriterCandidates:
+        true,
 
-    return this.determineAIRepair({
-      bestCandidate:
-        evaluated.usable
-          ? evaluated
-          : null,
+      canRequestAIWriter:
+        true,
 
-      evaluatedCandidates: [
-        evaluated
-      ],
+      canSelectFinalDraft:
+        false,
 
-      context: {
-        aiWriterAllowed:
-          true,
+      canGenerateCandidate:
+        false,
 
-        aiRepairAllowed:
-          true,
+      canRewriteCandidate:
+        false,
 
-        preferredDeterministicMinimumScore:
-          70,
+      canChooseResponsePlan:
+        false,
 
-        developerLocked:
-          false,
+      canComposeFinalResponse:
+        false,
 
-        safetyStop:
-          false,
+      canPersistState:
+        false,
 
-        characterQuestion:
-          false,
-
-        ...context
-      },
-
-      packet
-    }).reason;
-  },
-
-  isBadBlueprintMeta(
-    text = ""
-  ) {
-    return this.containsInternalPlannerLanguage(
-      text
-    );
-  },
-
-  getContext(
-    summary = {},
-    packet = {}
-  ) {
-    return this.buildContext({
-      summary,
-      packet
-    });
+      role:
+        "pre_ai_writer_candidate_quality_gate"
+    };
   },
 
   /* =====================================================
-     GENERAL UTILITIES
+     UTILITIES
   ===================================================== */
 
   createStableId(
@@ -4941,9 +3610,7 @@ if (rejectedAI) {
         text
       );
 
-    if (
-      !value
-    ) {
+    if (!value) {
       return [];
     }
 
@@ -4982,11 +3649,14 @@ if (rejectedAI) {
     ...values
   ) {
     for (
-      const value of values
+      const value
+      of values
     ) {
       if (
-        value !== undefined &&
-        value !== null
+        value !==
+          undefined &&
+        value !==
+          null
       ) {
         return value;
       }
@@ -5021,16 +3691,22 @@ if (rejectedAI) {
     ) {
       return value.filter(
         item =>
-          item !== null &&
-          item !== undefined &&
-          item !== ""
+          item !==
+            null &&
+          item !==
+            undefined &&
+          item !==
+            ""
       );
     }
 
     if (
-      value === undefined ||
-      value === null ||
-      value === ""
+      value ===
+        undefined ||
+      value ===
+        null ||
+      value ===
+        ""
     ) {
       return [];
     }
@@ -5135,5 +3811,6 @@ window.Ari.responseCandidateArbiter =
 
 console.log(
   "ARI RESPONSE CANDIDATE ARBITER LOADED:",
-  window.AriResponseCandidateArbiter?.version
+  window.AriResponseCandidateArbiter
+    ?.version
 );
