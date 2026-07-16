@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.0.0 — Canonical Runtime Entry / Delivery-Only Output Adapter
+// V2.0.1 — Canonical Runtime Entry / Delivery-Only Output Adapter
 //
 // Architectural flow:
 //
@@ -60,7 +60,7 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.0.0",
+  version: "2.0.1",
   schemaVersion: "2.0.0",
   source: "ari-rebirth-app-bridge",
   authorityLevel: "application_runtime_entry_and_delivery_adapter",
