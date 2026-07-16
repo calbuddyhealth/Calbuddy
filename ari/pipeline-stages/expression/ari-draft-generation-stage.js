@@ -1,75 +1,75 @@
 // ari/pipeline-stages/expression/ari-draft-generation-stage.js
 // Ari Draft Generation Stage
-// Purpose: Build the Composer Packet and register grounded initial draft candidates.
-// V2.0.0 — Focused Character Candidate / Blueprint Coordination / AI Preparation
 //
-// Architectural position:
+// Purpose:
+// Build the canonical Composer Packet and register authorized initial
+// response candidates.
+//
+// V3.0.0 — Canonical Packet Preservation / Initial Candidate Registration
+//
+// Architectural flow:
 //
 // Character Stage
 //      ↓
 // Composer Bridge
 //      ↓
 // Draft Generation Stage
-//      ├─ Register grounded Character candidate
-//      ├─ Run Blueprint Writer when appropriate
-//      └─ Prepare AI Writer requirements
+//      ├─ Preserve canonical Composer Packet
+//      ├─ Register authorized Character candidate
+//      └─ Run and register Blueprint Writer candidate
 //            ↓
 // Draft Arbitration Stage
+//      ├─ Evaluate initial candidates
+//      ├─ Decide whether AI Writer is required
+//      └─ Select the final draft candidate
 //
 // Responsibilities:
-// - Build and preserve the Composer Packet.
-// - Register grounded deterministic Character drafts as candidates.
-// - Preserve canonical, inferred, open, identity, and worldview status.
-// - Run Blueprint Writer when a deterministic blueprint is still useful.
-// - Carry character AI-realization instructions into arbitration.
-// - Register Blueprint Writer drafts as separate candidates.
-// - Produce a normalized Draft Generation Stage packet.
+// - Invoke Composer Bridge when expression generation is eligible.
+// - Preserve the canonical Composer Packet returned by Composer Bridge.
+// - Read the focused Character candidate supplied by the Composer Packet.
+// - Register a Character candidate only when explicitly authorized.
+// - Run Blueprint Writer when permitted by the Composer Packet.
+// - Register the Blueprint Writer result with explicit status.
+// - Return normalized draft-generation diagnostics.
 //
 // Non-responsibilities:
-// - Does not resolve Character preferences.
-// - Does not create Character meaning.
-// - Does not change canonical Character values.
+// - Does not resolve Character identity, preferences, values, or worldview.
+// - Does not merge competing Character handoffs.
+// - Does not infer Character grounding.
+// - Does not decide whether a Character answer is simple or complex.
+// - Does not decide whether AI Writer is needed.
+// - Does not prepare an AI Writer instruction.
+// - Does not run AI Writer.
+// - Does not compare candidate quality.
+// - Does not select the preferred candidate.
 // - Does not create a fallback Response Plan.
-// - Does not run the AI Writer.
-// - Does not select the final candidate.
+// - Does not convert an invalid Composer Packet into a ready packet.
 // - Does not write the final response.
 // - Does not override safety.
+// - Does not retrieve or persist memory.
 // - Does not access Supabase.
-// - Does not persist state.
+// - Does not persist runtime state.
 
 window.Ari = window.Ari || {};
 
 window.AriDraftGenerationStage = {
-  version: "2.0.0",
+  version: "3.0.0",
+  schemaVersion: "3.0.0",
   source: "ari-draft-generation-stage",
-  authorityLevel: "initial_draft_candidate_registration_authority",
-  schemaVersion: "2.0",
 
-  // ===================================================
-  // Main entry
-  // ===================================================
+  /* =====================================================
+     PUBLIC ENTRY POINT
+  ===================================================== */
 
   async run(summary = {}, runtime = {}) {
     const {
       mark = () => {},
-
-      buildFallbackComposerPacket =
-        state =>
-          this.buildFallbackComposerPacket(
-            state
-          ),
 
       addCandidateDraft =
         (existing = [], candidate = {}) =>
           this.addCandidateDraft(
             existing,
             candidate
-          ),
-
-      isUsableBlueprintDraft =
-        draft =>
-          this.isUsableDraft(
-            draft
           )
     } = runtime;
 
@@ -80,7 +80,7 @@ window.AriDraftGenerationStage = {
         "draft_generation"
     };
 
-    const generationEligibility =
+    const eligibility =
       this.resolveGenerationEligibility(
         state
       );
@@ -88,19 +88,14 @@ window.AriDraftGenerationStage = {
     state = {
       ...state,
 
-      generationEligibility,
+      draftGenerationEligibility:
+        eligibility,
 
       shouldBuildComposerPacket:
-        generationEligibility
-          .buildComposerPacket,
+        eligibility.buildComposerPacket,
 
       shouldRunBlueprintWriter:
-        generationEligibility
-          .runBlueprintWriter,
-
-      shouldPrepareAIWriter:
-        generationEligibility
-          .prepareAIWriter
+        false
     };
 
     // =================================================
@@ -109,112 +104,63 @@ window.AriDraftGenerationStage = {
 
     mark("before composerBridge");
 
-    const composerPacketResult =
-      generationEligibility
-        .buildComposerPacket ===
-        true &&
-      typeof window.AriComposerBridge
-        ?.build ===
-        "function"
-        ? await window.AriComposerBridge
-            .build(state)
-        : {
-            composerPacketReady:
-              false,
+    const bridgeResult =
+      await this.runComposerBridge({
+        state,
+        eligibility
+      });
 
-            composerBridgeRan:
-              false,
-
-            composerBridgeSource:
-              generationEligibility
-                .buildComposerPacket
-                ? "not-loaded"
-                : "skipped-by-expression-eligibility",
-
-            reason:
-              generationEligibility
-                .buildComposerPacket
-                ? "composer_bridge_not_loaded"
-                : "composer_packet_not_required"
-          };
-
-    const bridgePacket =
-      composerPacketResult
-        ?.composerPacket ||
-      state.composerPacket ||
-      null;
-
-    /*
-     * Do not destroy a structured Composer Packet merely
-     * because its `ready` flag is false.
-     *
-     * A not-ready packet may still contain diagnostics,
-     * Character evidence, or a missing-plan explanation.
-     */
     const composerPacket =
-      bridgePacket &&
-      typeof bridgePacket ===
-        "object"
-        ? bridgePacket
-        : buildFallbackComposerPacket(
-            state
-          );
+      this.resolveComposerPacket({
+        state,
+        bridgeResult
+      });
 
     state = {
       ...state,
 
-      ...composerPacketResult,
+      ...bridgeResult,
 
-      composerPacket:
-        this.enrichComposerPacket({
-          ...state,
-          composerPacket
-        }),
+      composerPacket,
 
       composerBridgeRan:
-        composerPacketResult
+        bridgeResult
           ?.composerBridgeRan ===
-          true ||
-        Boolean(bridgePacket),
+          true,
 
       composerBridgeSource:
-        composerPacketResult
+        bridgeResult
           ?.composerBridgeSource ||
-        composerPacketResult
-          ?.source ||
+        bridgeResult?.source ||
         (
-          bridgePacket
-            ? "ari-composer-bridge"
-            : "fallback"
-        )
+          eligibility
+            .buildComposerPacket
+            ? "unknown"
+            : "skipped-by-expression-eligibility"
+        ),
+
+      composerPacketReady:
+        composerPacket?.ready ===
+        true,
+
+      composerPacketUsable:
+        composerPacket?.usable ===
+          true ||
+        composerPacket?.ready ===
+          true
     };
-
-    state.composerPacketReady =
-      state.composerPacket
-        ?.ready ===
-      true;
-
-    state.composerPacketUsable =
-      state.composerPacket
-        ?.usable ===
-        true ||
-      state.composerPacketReady ===
-        true;
 
     mark("after composerBridge");
 
     // =================================================
-    // 2. Resolve focused Character candidate
-    //
-    // This occurs before Blueprint Writer so the stage
-    // knows whether a grounded local answer already exists.
+    // 2. Focused Character Candidate
     // =================================================
 
     mark("before characterCandidate");
 
     const characterCandidate =
-      this.resolveCharacterCandidate(
-        state
+      this.readAuthorizedCharacterCandidate(
+        state.composerPacket
       );
 
     state = {
@@ -225,11 +171,6 @@ window.AriDraftGenerationStage = {
       characterAnswerAvailable:
         characterCandidate
           .answerAvailable ===
-        true,
-
-      characterGuidanceAvailable:
-        characterCandidate
-          .guidanceAvailable ===
         true,
 
       characterDraftCandidate:
@@ -268,8 +209,9 @@ window.AriDraftGenerationStage = {
       state.candidateDrafts =
         addCandidateDraft(
           state.candidateDrafts,
-          this.buildCharacterDraftCandidate(
-            characterCandidate
+          this.buildCharacterCandidate(
+            characterCandidate,
+            state
           )
         );
     }
@@ -277,28 +219,24 @@ window.AriDraftGenerationStage = {
     mark("after characterCandidate");
 
     // =================================================
-    // 3. Recalculate Blueprint eligibility
-    //
-    // A simple grounded local Character answer does not
-    // require Blueprint Writer merely to repeat the same
-    // answer. More complex plans may still use Blueprint.
+    // 3. Blueprint Writer Eligibility
     // =================================================
 
-    const resolvedBlueprintEligibility =
+    const blueprintEligibility =
       this.resolveBlueprintEligibility({
-        summary: state,
-        generationEligibility,
-        characterCandidate
+        state,
+        eligibility
       });
 
     state = {
       ...state,
 
-      resolvedBlueprintEligibility,
+      blueprintEligibility,
 
       shouldRunBlueprintWriter:
-        resolvedBlueprintEligibility
-          .runBlueprintWriter
+        blueprintEligibility
+          .runBlueprintWriter ===
+        true
     };
 
     // =================================================
@@ -308,43 +246,16 @@ window.AriDraftGenerationStage = {
     mark("before blueprintWriter");
 
     const blueprintWriterResult =
-      resolvedBlueprintEligibility
-        .runBlueprintWriter ===
-        true &&
-      typeof window.AriBlueprintWriter
-        ?.write ===
-        "function"
-        ? await window.AriBlueprintWriter
-            .write({
-              composerPacket:
-                state.composerPacket,
+      await this.runBlueprintWriter({
+        state,
+        eligibility:
+          blueprintEligibility
+      });
 
-              summary:
-                state
-            })
-        : {
-            blueprintWriterRan:
-              false,
-
-            draft:
-              null,
-
-            blueprintWriterDraft:
-              null,
-
-            source:
-              resolvedBlueprintEligibility
-                .runBlueprintWriter
-                ? "not-loaded"
-                : "skipped-by-expression-eligibility",
-
-            reason:
-              resolvedBlueprintEligibility
-                .runBlueprintWriter
-                ? "blueprint_writer_not_loaded"
-                : resolvedBlueprintEligibility
-                    .reason
-          };
+    const normalizedBlueprint =
+      this.normalizeBlueprintResult(
+        blueprintWriterResult
+      );
 
     state = {
       ...state,
@@ -355,160 +266,79 @@ window.AriDraftGenerationStage = {
         blueprintWriterResult,
 
       blueprintWriterDraft:
-        blueprintWriterResult
-          ?.draft ||
-        blueprintWriterResult
-          ?.blueprintWriterDraft ||
-        null,
+        normalizedBlueprint.draft,
 
       blueprintWriterRan:
-        blueprintWriterResult
-          ?.blueprintWriterRan ===
-        true,
+        normalizedBlueprint.ran,
 
       blueprintWriterSource:
-        blueprintWriterResult
-          ?.source ||
-        blueprintWriterResult
-          ?.blueprintWriterSource ||
-        "unknown",
+        normalizedBlueprint.source,
 
       blueprintWriterReason:
-        blueprintWriterResult
-          ?.reason ||
-        null
+        normalizedBlueprint.reason,
+
+      blueprintWriterUsable:
+        normalizedBlueprint.usable,
+
+      blueprintWriterComplete:
+        normalizedBlueprint.complete,
+
+      blueprintWriterRequiresAIRepair:
+        normalizedBlueprint
+          .requiresAIRepair,
+
+      blueprintWriterValidation:
+        normalizedBlueprint.validation,
+
+      blueprintWriterDraftUsable:
+        normalizedBlueprint.usable
     };
 
-    const blueprintUsable =
-      resolvedBlueprintEligibility
-        .runBlueprintWriter ===
-        true &&
-      isUsableBlueprintDraft(
-        state.blueprintWriterDraft,
-        state
-      );
-
-    state.blueprintWriterDraftUsable =
-      blueprintUsable;
-
-    if (blueprintUsable) {
+    if (
+      normalizedBlueprint
+        .candidateAvailable ===
+      true
+    ) {
       state.candidateDrafts =
         addCandidateDraft(
           state.candidateDrafts,
-          this.buildBlueprintCandidate(
-            state
-          )
+          this.buildBlueprintCandidate({
+            state,
+            normalizedBlueprint
+          })
         );
     }
 
     mark("after blueprintWriter");
 
     // =================================================
-    // 5. AI Writer preparation
-    //
-    // The AI Writer itself belongs to Draft Arbitration.
-    // This stage only prepares the request and policy.
+    // 5. Draft Generation Handoff
     // =================================================
 
-    mark("before aiWriterPreparation");
-
-    const aiWriterPreparation =
-      this.buildAIWriterPreparation({
-        summary: state,
-        characterCandidate,
-        blueprintUsable
-      });
+    const draftGenerationHandoff =
+      this.buildDraftGenerationHandoff(
+        state
+      );
 
     state = {
       ...state,
 
-      aiWriterPreparation,
+      draftGenerationHandoff,
 
-      prepareAIWriter:
-        aiWriterPreparation.allowed,
+      composerPacket:
+        this.attachDraftGenerationHandoff({
+          packet:
+            state.composerPacket,
 
-      shouldRunAIWriter:
-        aiWriterPreparation.required,
+          state,
 
-      needsAIWriter:
-        aiWriterPreparation.required,
-
-      aiWriterMode:
-        aiWriterPreparation.mode,
-
-      aiWriterInstruction:
-        aiWriterPreparation.instruction,
-
-      aiRepairReason:
-        aiWriterPreparation.reason
+          handoff:
+            draftGenerationHandoff
+        })
     };
-
-    state.composerPacket = {
-      ...state.composerPacket,
-
-      candidateDrafts:
-        this.toArray(
-          state.candidateDrafts
-        ),
-
-      draftGeneration: {
-        characterCandidate,
-        blueprint: {
-          eligible:
-            resolvedBlueprintEligibility
-              .runBlueprintWriter ===
-            true,
-
-          ran:
-            state.blueprintWriterRan ===
-            true,
-
-          usable:
-            blueprintUsable,
-
-          draft:
-            state.blueprintWriterDraft ||
-            null,
-
-          reason:
-            state.blueprintWriterReason ||
-            resolvedBlueprintEligibility
-              .reason ||
-            null
-        },
-
-        aiWriterPreparation
-      },
-
-      characterCandidate,
-
-      characterDraftCandidate:
-        characterCandidate
-          .candidateAvailable ===
-          true
-          ? characterCandidate.text
-          : null,
-
-      characterNeedsAIWriter:
-        characterCandidate
-          .needsAIWriter ===
-        true,
-
-      characterAIWriterMode:
-        characterCandidate
-          .aiWriterMode ||
-        null,
-
-      characterAIInstruction:
-        characterCandidate
-          .aiInstruction ||
-        ""
-    };
-
-    mark("after aiWriterPreparation");
 
     // =================================================
-    // 6. Draft Generation Stage Packet
+    // 6. Stage Packet
     // =================================================
 
     state.draftGenerationStagePacket =
@@ -528,49 +358,48 @@ window.AriDraftGenerationStage = {
     return state;
   },
 
-  // ===================================================
-  // Generation eligibility
-  // ===================================================
+  /* =====================================================
+     GENERATION ELIGIBILITY
+  ===================================================== */
 
   resolveGenerationEligibility(
     summary = {}
   ) {
     const developerLocked =
-      summary.developerResponseLocked ===
+      summary
+        .developerResponseLocked ===
       true;
 
     const responseLocked =
       summary.responseLocked ===
       true;
 
-    const hasFinalResponse =
-      Boolean(
-        String(
-          summary.finalResponse ||
-          ""
-        ).trim()
+    const existingFinalResponse =
+      this.cleanText(
+        summary.finalResponse
       );
 
-    const buildComposerPacket =
-      !developerLocked;
+    const hasFinalResponse =
+      Boolean(
+        existingFinalResponse
+      );
 
-    const runBlueprintWriter =
-      !developerLocked &&
-      !responseLocked &&
-      !hasFinalResponse;
-
-    const prepareAIWriter =
-      !developerLocked &&
-      !responseLocked &&
-      !hasFinalResponse;
+    const generationBlocked =
+      developerLocked ||
+      responseLocked ||
+      hasFinalResponse;
 
     return {
-      buildComposerPacket,
-      runBlueprintWriter,
-      prepareAIWriter,
+      buildComposerPacket:
+        !developerLocked,
+
+      allowInitialCandidates:
+        !generationBlocked,
 
       developerLocked,
+
       responseLocked,
+
       hasFinalResponse,
 
       source:
@@ -580,605 +409,542 @@ window.AriDraftGenerationStage = {
         developerLocked
           ? "developer_response_locked"
           : responseLocked
-            ? "response_already_locked"
+            ? "response_locked"
             : hasFinalResponse
               ? "final_response_already_available"
-              : "draft_generation_required"
+              : "initial_draft_generation_allowed"
     };
   },
 
-  // ===================================================
-  // Blueprint eligibility
-  // ===================================================
+  /* =====================================================
+     COMPOSER BRIDGE
+  ===================================================== */
 
-  resolveBlueprintEligibility({
-    summary = {},
-    generationEligibility = {},
-    characterCandidate = {}
+  async runComposerBridge({
+    state = {},
+    eligibility = {}
   } = {}) {
     if (
-      generationEligibility
-        .runBlueprintWriter !==
+      eligibility
+        .buildComposerPacket !==
       true
     ) {
       return {
-        runBlueprintWriter:
+        composerBridgeRan:
           false,
 
-        source:
-          "ari-draft-generation-blueprint-eligibility",
+        composerBridgeSource:
+          "skipped-by-expression-eligibility",
+
+        composerPacket:
+          state.composerPacket ||
+          null,
 
         reason:
-          generationEligibility.reason ||
-          "blueprint_generation_not_allowed"
+          eligibility.reason ||
+          "composer_bridge_not_required"
       };
     }
 
-    const packet =
-      summary.composerPacket ||
-      {};
+    const bridge =
+      window.AriComposerBridge;
 
-    const responseMoves =
-      this.toArray(
-        packet.responseMoves ||
-        packet.responseControl
-          ?.responseMoves
-      );
-
-    const requiredMoves =
-      responseMoves.filter(
-        move =>
-          move?.required !==
-          false &&
-          move?.userFacing !==
-          false
-      );
-
-    const characterLocalPreferred =
-      characterCandidate
-        .candidateAvailable ===
-        true &&
-      characterCandidate
-        .candidatePreferred ===
-        true &&
-      characterCandidate
-        .needsAIWriter !==
-        true;
-
-    const simpleDirectCharacterAnswer =
-      characterLocalPreferred &&
-      this.isSimpleCharacterResponse({
-        packet,
-        characterCandidate,
-        requiredMoves
-      });
-
-    if (simpleDirectCharacterAnswer) {
+    if (
+      !bridge ||
+      typeof bridge.build !==
+        "function"
+    ) {
       return {
-        runBlueprintWriter:
+        composerBridgeRan:
           false,
 
-        source:
-          "ari-draft-generation-blueprint-eligibility",
+        composerBridgeSource:
+          "not-loaded",
+
+        composerPacket:
+          state.composerPacket ||
+          null,
 
         reason:
-          "grounded_character_candidate_satisfies_simple_response"
+          "composer_bridge_not_loaded"
       };
     }
 
-    return {
-      runBlueprintWriter:
-        true,
+    try {
+      const result =
+        await bridge.build(
+          state
+        );
 
-      source:
-        "ari-draft-generation-blueprint-eligibility",
+      return {
+        ...(result || {}),
 
-      reason:
-        characterCandidate
-          .candidateAvailable ===
-          true
-          ? "blueprint_may_integrate_character_with_response_plan"
-          : "blueprint_required_for_response_plan"
-    };
+        composerBridgeRan:
+          result
+            ?.composerBridgeRan !==
+          false,
+
+        composerBridgeSource:
+          result
+            ?.composerBridgeSource ||
+          result?.source ||
+          "ari-composer-bridge"
+      };
+    } catch (error) {
+      console.warn(
+        "Ari Composer Bridge failed during Draft Generation:",
+        error
+      );
+
+      return {
+        composerBridgeRan:
+          false,
+
+        composerBridgeSource:
+          "ari-composer-bridge",
+
+        composerPacket:
+          state.composerPacket ||
+          null,
+
+        reason:
+          "composer_bridge_failed",
+
+        error:
+          error?.message ||
+          String(error)
+      };
+    }
   },
 
-  isSimpleCharacterResponse({
-    packet = {},
-    characterCandidate = {},
-    requiredMoves = []
+  resolveComposerPacket({
+    state = {},
+    bridgeResult = {}
   } = {}) {
-    const shape =
-      this.normalizeIdentifier(
-        packet.responseShape ||
-        packet.responseControl
-          ?.responseShape ||
-        ""
-      );
+    const bridgePacket =
+      bridgeResult?.composerPacket;
 
-    const goal =
-      this.normalizeIdentifier(
-        packet.responseGoal ||
-        packet.responseControl
-          ?.responseGoal ||
-        ""
-      );
+    if (
+      bridgePacket &&
+      typeof bridgePacket ===
+        "object"
+    ) {
+      return bridgePacket;
+    }
 
-    const simpleShapes = [
-      "",
-      "direct_answer",
-      "brief_answer",
-      "short_answer",
-      "single_paragraph",
-      "minimal_answer",
-      "normal_response"
-    ];
+    if (
+      state.composerPacket &&
+      typeof state.composerPacket ===
+        "object"
+    ) {
+      return state.composerPacket;
+    }
 
-    const simpleGoals = [
-      "",
-      "answer_question",
-      "provide_information",
-      "retrieve_fact",
-      "respond_directly",
-      "fulfill_the_authorized_user_request"
-    ];
-
-    const tooManyMoves =
-      requiredMoves.length > 2;
-
-    const complexMove =
-      requiredMoves.some(move =>
-        [
-          "explain",
-          "compare",
-          "steps",
-          "recommend",
-          "analyze",
-          "evaluate",
-          "clarify",
-          "ask_question",
-          "safety_instruction",
-          "medical_guidance",
-          "legal_guidance",
-          "financial_guidance",
-          "code",
-          "artifact"
-        ].some(term =>
-          this.normalizeIdentifier(
-            move?.id ||
-            move?.type ||
-            ""
-          ).includes(term)
-        )
-      );
-
-    const status =
-      characterCandidate.status ||
-      {};
-
-    const supportedCharacterStatus =
-      status.canonical === true ||
-      status.stable === true ||
-      status.inferred === true ||
-      status.open === true;
-
-    return (
-      characterCandidate.grounded ===
-        true &&
-      supportedCharacterStatus &&
-      simpleShapes.includes(shape) &&
-      simpleGoals.includes(goal) &&
-      !tooManyMoves &&
-      !complexMove
-    );
+    /*
+     * Draft Generation does not create a replacement or
+     * fallback Composer Packet. Missing canonical input
+     * remains explicitly missing.
+     */
+    return null;
   },
 
-  // ===================================================
-  // Character candidate resolution
-  // ===================================================
+  /* =====================================================
+     CHARACTER CANDIDATE
+  ===================================================== */
 
-  resolveCharacterCandidate(
-    summary = {}
+  readAuthorizedCharacterCandidate(
+    packet = {}
   ) {
-    const packet =
-      summary.composerPacket ||
-      {};
-
-    const packetCharacterContext =
-      packet.characterContext ||
-      {};
-
-    const character =
-      packet.composerCharacter ||
-      packet.character ||
-      summary.composerCharacter ||
-      summary.characterHandoff
-        ?.composerCharacter ||
-      null;
-
-    const handoff =
-      packet.characterHandoff ||
-      summary.characterHandoff ||
-      null;
-
-    const reasoning =
-      summary.characterReasoning ||
-      handoff?.reasoning ||
-      packetCharacterContext
-        ?.reasoning ||
-      null;
-
-    const policy =
-      packet.candidatePolicy
-        ?.character ||
-      {};
-
-    const realization =
-      packet.characterRealization ||
-      character?.realization ||
-      handoff?.realization ||
-      reasoning?.realizationPolicy ||
-      {};
-
-    const grounding =
-      packet.characterGrounding ||
-      character?.grounding ||
-      handoff?.grounding ||
-      packetCharacterContext
-        ?.grounding ||
-      null;
-
-    const status =
-      packet.characterStatus ||
-      character?.status ||
-      handoff?.status ||
-      this.buildCharacterStatus(
-        reasoning
+    if (
+      !packet ||
+      typeof packet !==
+        "object"
+    ) {
+      return this.emptyCharacterCandidate(
+        "composer_packet_missing"
       );
+    }
 
-    const draft =
-      String(
-        packet.characterDraft ||
-        character?.draft ||
-        handoff?.draft ||
-        reasoning?.userFacingDraft ||
-        ""
-      ).trim();
+    /*
+     * Character candidate resolution is intentionally narrow.
+     *
+     * Composer Bridge must supply one focused Character candidate
+     * contract. Draft Generation must not search through multiple
+     * upstream structures and reconstruct Character authority.
+     */
+    const source =
+      packet.characterCandidate ||
+      packet.draftGeneration
+        ?.characterCandidate ||
+      null;
+
+    if (
+      !source ||
+      typeof source !==
+        "object"
+    ) {
+      return this.emptyCharacterCandidate(
+        "focused_character_candidate_missing"
+      );
+    }
 
     const deterministicDraft =
-      String(
-        packet
-          .characterDeterministicDraft ||
-        character
-          ?.deterministicDraft ||
-        handoff
-          ?.deterministicDraft ||
-        reasoning
-          ?.deterministicDraft ||
-        draft
-      ).trim();
+      this.cleanText(
+        source.deterministicDraft ||
+        source.draft ||
+        source.text ||
+        ""
+      );
 
     const answerAvailable =
-      packet
-        .characterAnswerAvailable ===
-        true ||
-      character?.answerAvailable ===
-        true ||
-      handoff?.answerAvailable ===
-        true ||
-      reasoning
-        ?.characterAnswerAvailable ===
-        true;
-
-    const guidanceAvailable =
-      packet
-        .characterGuidanceAvailable ===
-        true ||
-      character
-        ?.guidanceAvailable ===
-        true ||
-      handoff
-        ?.guidanceAvailable ===
-        true ||
-      reasoning
-        ?.characterGuidanceAvailable ===
-        true;
+      source.answerAvailable ===
+      true;
 
     const grounded =
-      grounding?.grounded ===
-        true ||
-      (
-        answerAvailable &&
-        Boolean(
-          reasoning?.groundedMeaning ||
-          reasoning?.authorityPacket
-        )
-      );
+      source.grounded ===
+      true;
 
     const candidateAllowed =
-      policy.candidateAllowed ===
+      source.candidateAllowed ===
         true ||
-      (
-        answerAvailable &&
-        grounded &&
-        Boolean(
-          deterministicDraft
-        )
-      );
-
-    const needsAIWriter =
-      policy.aiRealizationRequired ===
-        true ||
-      realization.needsAIWriter ===
-        true ||
-      handoff?.needsAIWriter ===
-        true ||
-      reasoning?.needsAIWriter ===
+      source.candidateAvailable ===
         true;
 
-    const candidatePreferred =
-      policy.candidatePreferred ===
+    const needsAIWriter =
+      source.needsAIWriter ===
         true ||
-      (
-        candidateAllowed &&
-        needsAIWriter !== true
-      );
+      source.aiRealizationRequired ===
+        true;
 
-    const source =
-      character?.preferredSource ||
-      handoff
-        ?.preferredCharacterSource ||
-      reasoning?.source ||
-      null;
+    const explicitlyUsable =
+      source.usable ===
+        true;
+
+    const explicitlyComplete =
+      source.complete ===
+        true;
+
+    const candidateAvailable =
+      candidateAllowed &&
+      answerAvailable &&
+      grounded &&
+      Boolean(
+        deterministicDraft
+      ) &&
+      explicitlyUsable &&
+      explicitlyComplete &&
+      !needsAIWriter;
 
     return {
       available:
-        Boolean(
-          character ||
-          handoff ||
-          reasoning
-        ),
+        true,
 
       answerAvailable,
-      guidanceAvailable,
-
-      candidateAvailable:
-        candidateAllowed,
-
-      candidateAllowed,
-      candidatePreferred,
 
       grounded,
 
-      text:
-        deterministicDraft ||
-        draft,
+      candidateAllowed,
 
-      draft,
+      candidateAvailable,
+
+      candidatePreferred:
+        source.candidatePreferred ===
+          true ||
+        source.preferred ===
+          true,
+
+      usable:
+        explicitlyUsable,
+
+      complete:
+        explicitlyComplete,
+
+      text:
+        deterministicDraft,
+
+      draft:
+        this.cleanText(
+          source.draft ||
+          source.text ||
+          ""
+        ),
+
       deterministicDraft,
 
-      mode:
-        packet.characterMode ||
-        character?.mode ||
-        handoff?.mode ||
-        reasoning?.request?.mode ||
-        "silent",
-
-      type:
-        packet.characterType ||
-        character?.type ||
-        handoff?.type ||
-        reasoning?.type ||
-        null,
-
-      subtype:
-        packet.characterSubtype ||
-        character?.subtype ||
-        handoff?.subtype ||
-        reasoning?.subtype ||
-        null,
-
-      focus:
-        character?.focus ||
-        handoff?.focus ||
-        reasoning?.focus ||
-        null,
-
-      subject:
-        character?.subject ||
-        handoff?.subject ||
-        reasoning?.subject ||
-        null,
-
-      status,
-      grounding,
-      realization,
-
       answer:
-        character?.answer ||
-        handoff?.answer ||
-        reasoning?.answer ||
+        source.answer ||
         null,
 
       groundedMeaning:
-        character
-          ?.groundedMeaning ||
-        handoff
-          ?.groundedMeaning ||
-        reasoning
-          ?.groundedMeaning ||
+        source.groundedMeaning ||
+        null,
+
+      mode:
+        source.mode ||
+        "silent",
+
+      type:
+        source.type ||
+        null,
+
+      subtype:
+        source.subtype ||
+        null,
+
+      focus:
+        source.focus ||
+        null,
+
+      subject:
+        source.subject ||
+        null,
+
+      status:
+        source.status ||
+        null,
+
+      grounding:
+        source.grounding ||
+        null,
+
+      realization:
+        source.realization ||
         null,
 
       needsAIWriter,
 
       aiWriterMode:
-        policy.aiWriterMode ||
-        realization.aiWriterMode ||
-        handoff?.aiWriterMode ||
-        reasoning?.aiWriterMode ||
+        source.aiWriterMode ||
         null,
 
       aiInstruction:
-        policy.aiInstruction ||
-        realization.aiInstruction ||
-        handoff?.aiInstruction ||
-        reasoning?.aiInstruction ||
-        "",
+        this.cleanText(
+          source.aiInstruction ||
+          ""
+        ),
 
-      preserveMeaning:
-        realization
-          .preserveMeaning !==
-        false,
-
-      preserveStatus:
-        realization
-          .preserveStatus !==
-        false,
-
-      preserveValue:
-        policy.preserveValue ===
-          true ||
-        realization.preserveValue ===
-          true,
-
-      preservePosition:
-        policy.preservePosition ===
-          true ||
-        realization.preservePosition ===
-          true,
-
-      preserveOpenStatus:
-        policy.preserveOpenStatus ===
-          true ||
-        realization
-          .preserveOpenStatus ===
-          true,
-
-      tentativeLanguageRequired:
-        policy
-          .tentativeLanguageRequired ===
-          true ||
-        realization
-          .tentativeLanguageRequired ===
-          true,
-
-      implementationDisclosure:
-        packet
-          .characterImplementationDisclosure ||
-        character
-          ?.implementationDisclosure ||
-        handoff
-          ?.implementationDisclosure ||
-        null,
-
-      relationship:
-        packet
-          .characterRelationship ||
-        character?.relationship ||
-        handoff?.relationship ||
-        null,
+      source:
+        source.source ||
+        "focused_character_handoff",
 
       authorityChain:
         this.toArray(
-          packet
-            .characterAuthorityChain ||
-          character
-            ?.authorityChain ||
-          handoff
-            ?.authorityChain ||
-          reasoning
-            ?.authorityChain
+          source.authorityChain
         ),
 
       authorityPacket:
-        packet
-          .characterAuthorityPacket ||
-        character
-          ?.authorityPacket ||
-        handoff
-          ?.authorityPacket ||
-        reasoning
-          ?.authorityPacket ||
+        source.authorityPacket ||
         null,
 
-      source,
+      preservation:
+        source.preservation ||
+        {
+          meaning:
+            source.preserveMeaning !==
+            false,
+
+          status:
+            source.preserveStatus !==
+            false,
+
+          value:
+            source.preserveValue ===
+            true,
+
+          position:
+            source.preservePosition ===
+            true,
+
+          openStatus:
+            source.preserveOpenStatus ===
+            true,
+
+          tentativeLanguage:
+            source
+              .tentativeLanguageRequired ===
+            true
+        },
 
       responseControl:
-        character?.responseControl ||
-        {
-          requiredBehaviors:
-            handoff
-              ?.requiredBehaviors ||
-            [],
+        source.responseControl ||
+        null,
 
-          forbiddenBehaviors:
-            handoff
-              ?.forbiddenBehaviors ||
-            [],
+      raw:
+        source,
 
-          constraints:
-            handoff?.constraints ||
-            []
-        }
+      reason:
+        candidateAvailable
+          ? "authorized_character_candidate_available"
+          : needsAIWriter
+            ? "character_requires_ai_realization"
+            : !candidateAllowed
+              ? "character_candidate_not_authorized"
+              : !answerAvailable
+                ? "character_answer_not_available"
+                : !grounded
+                  ? "character_candidate_not_grounded"
+                  : !deterministicDraft
+                    ? "character_deterministic_draft_missing"
+                    : !explicitlyUsable
+                      ? "character_candidate_not_marked_usable"
+                      : !explicitlyComplete
+                        ? "character_candidate_not_marked_complete"
+                        : "character_candidate_unavailable"
     };
   },
 
-  buildCharacterDraftCandidate(
-    character = {}
+  emptyCharacterCandidate(
+    reason =
+      "character_candidate_unavailable"
   ) {
-    const status =
-      character.status ||
-      {};
+    return {
+      available:
+        false,
 
-    const canonical =
-      status.canonical === true ||
-      status.preferenceStatus ===
-        "canonical";
+      answerAvailable:
+        false,
 
-    const inferred =
-      status.inferred === true ||
-      status.preferenceStatus ===
-        "inferred";
+      grounded:
+        false,
 
-    const open =
-      status.open === true ||
-      status.preferenceStatus ===
-        "open";
+      candidateAllowed:
+        false,
 
-    const priority =
-      canonical
-        ? 95
-        : character.type ===
-            "character_identity"
-          ? 94
-          : character.type ===
-              "character_worldview"
-            ? 92
-            : inferred
-              ? 90
-              : open
-                ? 88
-                : 86;
+      candidateAvailable:
+        false,
 
+      candidatePreferred:
+        false,
+
+      usable:
+        false,
+
+      complete:
+        false,
+
+      text:
+        "",
+
+      draft:
+        "",
+
+      deterministicDraft:
+        "",
+
+      answer:
+        null,
+
+      groundedMeaning:
+        null,
+
+      mode:
+        "silent",
+
+      type:
+        null,
+
+      subtype:
+        null,
+
+      focus:
+        null,
+
+      subject:
+        null,
+
+      status:
+        null,
+
+      grounding:
+        null,
+
+      realization:
+        null,
+
+      needsAIWriter:
+        false,
+
+      aiWriterMode:
+        null,
+
+      aiInstruction:
+        "",
+
+      source:
+        null,
+
+      authorityChain:
+        [],
+
+      authorityPacket:
+        null,
+
+      preservation:
+        null,
+
+      responseControl:
+        null,
+
+      raw:
+        null,
+
+      reason
+    };
+  },
+
+  buildCharacterCandidate(
+    character = {},
+    state = {}
+  ) {
     return {
       id:
-        this.createCandidateId(
-          "character"
-        ),
+        this.createStableCandidateId({
+          source:
+            "character_reasoning",
+
+          turnId:
+            this.readTurnId(
+              state.composerPacket
+            ),
+
+          text:
+            character.text
+        }),
 
       source:
         "character_reasoning",
 
       sourceDetail:
         character.source ||
-        "local_character_authority",
+        "focused_character_handoff",
 
       text:
         character.text,
 
-      priority,
+      priority:
+        this.resolveCharacterPriority(
+          character
+        ),
 
       usable:
-        true,
+        character.usable ===
+          true &&
+        character
+          .candidateAvailable ===
+          true,
+
+      complete:
+        character.complete ===
+          true &&
+        character
+          .candidateAvailable ===
+          true,
+
+      requiresAIRepair:
+        false,
+
+      requiresRepair:
+        false,
 
       grounded:
         character.grounded ===
@@ -1189,79 +955,105 @@ window.AriDraftGenerationStage = {
           .candidatePreferred ===
         true,
 
+      taskType:
+        "focused_character_response",
+
       candidateType:
         "grounded_character_candidate",
 
-      characterType:
-        character.type,
+      validation:
+        character.raw
+          ?.validation ||
+        null,
 
-      characterSubtype:
-        character.subtype,
+      evidence: {
+        turnId:
+          this.readTurnId(
+            state.composerPacket
+          ),
 
-      characterMode:
-        character.mode,
+        sourceQuestion:
+          this.readOriginalQuestion(
+            state.composerPacket
+          ),
 
-      characterFocus:
-        character.focus,
-
-      characterSubject:
-        character.subject,
-
-      characterStatus:
-        character.status,
-
-      characterGrounding:
-        character.grounding,
-
-      characterRealization:
-        character.realization,
-
-      characterAuthorityChain:
-        character.authorityChain,
-
-      characterAuthorityPacket:
-        character.authorityPacket,
-
-      needsAIWriter:
-        character.needsAIWriter ===
-        true,
-
-      aiWriterMode:
-        character.aiWriterMode,
-
-      aiInstruction:
-        character.aiInstruction,
-
-      preservation: {
-        meaning:
+        characterAnswerAvailable:
           character
-            .preserveMeaning !==
-          false,
-
-        status:
-          character
-            .preserveStatus !==
-          false,
-
-        value:
-          character
-            .preserveValue ===
+            .answerAvailable ===
           true,
 
-        position:
+        characterCandidateAllowed:
           character
-            .preservePosition ===
+            .candidateAllowed ===
           true,
 
-        openStatus:
+        characterCandidatePreferred:
           character
-            .preserveOpenStatus ===
+            .candidatePreferred ===
           true,
 
-        tentativeLanguage:
+        grounded:
+          character.grounded ===
+          true,
+
+        deterministicDraftAvailable:
+          Boolean(
+            character
+              .deterministicDraft
+          ),
+
+        characterType:
+          character.type ||
+          null,
+
+        characterSubtype:
+          character.subtype ||
+          null,
+
+        characterMode:
+          character.mode ||
+          null,
+
+        characterFocus:
+          character.focus ||
+          null,
+
+        characterSubject:
+          character.subject ||
+          null,
+
+        characterStatus:
+          character.status ||
+          null,
+
+        characterGrounding:
+          character.grounding ||
+          null,
+
+        characterRealization:
+          character.realization ||
+          null,
+
+        characterAuthorityChain:
+          character.authorityChain ||
+          [],
+
+        characterAuthorityPacket:
+          character.authorityPacket ||
+          null,
+
+        preservation:
+          character.preservation ||
+          null,
+
+        answer:
+          character.answer ||
+          null,
+
+        groundedMeaning:
           character
-            .tentativeLanguageRequired ===
-          true
+            .groundedMeaning ||
+          null
       },
 
       restrictions: {
@@ -1287,673 +1079,865 @@ window.AriDraftGenerationStage = {
           false
       },
 
-      evidence: {
-        characterAnswerAvailable:
-          character
-            .answerAvailable ===
-          true,
-
-        deterministicDraftAvailable:
-          Boolean(
-            character
-              .deterministicDraft
-          ),
-
-        grounded:
-          character.grounded ===
-          true,
-
-        source:
-          character.source,
-
-        answer:
-          character.answer,
-
-        groundedMeaning:
-          character
-            .groundedMeaning,
-
-        implementationDisclosure:
-          character
-            .implementationDisclosure,
-
-        relationship:
-          character.relationship
-      }
+      raw:
+        character.raw ||
+        character
     };
   },
 
-  // ===================================================
-  // Blueprint candidate
-  // ===================================================
-
-  buildBlueprintCandidate(
-    summary = {}
+  resolveCharacterPriority(
+    character = {}
   ) {
-    const result =
-      summary.blueprintWriter ||
+    const explicitPriority =
+      Number(
+        character.raw
+          ?.priority
+      );
+
+    if (
+      Number.isFinite(
+        explicitPriority
+      )
+    ) {
+      return explicitPriority;
+    }
+
+    const status =
+      character.status ||
+      {};
+
+    const overallStatus =
+      typeof status ===
+        "string"
+        ? status
+        : status.overall ||
+          status.preferenceStatus ||
+          status.worldviewStatus ||
+          status.identityStatus ||
+          null;
+
+    if (
+      status.canonical ===
+        true ||
+      overallStatus ===
+        "canonical"
+    ) {
+      return 90;
+    }
+
+    if (
+      character.type ===
+      "character_identity"
+    ) {
+      return 88;
+    }
+
+    if (
+      character.type ===
+        "character_worldview" ||
+      character.type ===
+        "character_perspective"
+    ) {
+      return 86;
+    }
+
+    if (
+      status.stable ===
+        true ||
+      overallStatus ===
+        "stable"
+    ) {
+      return 84;
+    }
+
+    if (
+      status.inferred ===
+        true ||
+      overallStatus ===
+        "inferred"
+    ) {
+      return 80;
+    }
+
+    if (
+      status.open ===
+        true ||
+      overallStatus ===
+        "open"
+    ) {
+      return 76;
+    }
+
+    return 72;
+  },
+
+  /* =====================================================
+     BLUEPRINT ELIGIBILITY
+  ===================================================== */
+
+  resolveBlueprintEligibility({
+    state = {},
+    eligibility = {}
+  } = {}) {
+    if (
+      eligibility
+        .allowInitialCandidates !==
+      true
+    ) {
+      return {
+        runBlueprintWriter:
+          false,
+
+        source:
+          "ari-draft-generation-blueprint-eligibility",
+
+        reason:
+          eligibility.reason ||
+          "initial_candidate_generation_not_allowed"
+      };
+    }
+
+    const packet =
+      state.composerPacket;
+
+    if (
+      !packet ||
+      typeof packet !==
+        "object"
+    ) {
+      return {
+        runBlueprintWriter:
+          false,
+
+        source:
+          "ari-draft-generation-blueprint-eligibility",
+
+        reason:
+          "composer_packet_missing"
+      };
+    }
+
+    if (
+      packet.ready !==
+      true
+    ) {
+      return {
+        runBlueprintWriter:
+          false,
+
+        source:
+          "ari-draft-generation-blueprint-eligibility",
+
+        reason:
+          "composer_packet_not_ready"
+      };
+    }
+
+    if (
+      packet.responsePlanReady ===
+        false ||
+      packet.responsePlan?.ready ===
+        false ||
+      packet.canonicalResponsePlan
+        ?.ready ===
+        false
+    ) {
+      return {
+        runBlueprintWriter:
+          false,
+
+        source:
+          "ari-draft-generation-blueprint-eligibility",
+
+        reason:
+          "canonical_response_plan_not_ready"
+      };
+    }
+
+    const policy =
+      packet.candidatePolicy ||
+      {};
+
+    if (
+      policy.blueprintWriterAllowed ===
+        false ||
+      policy.blueprintAllowed ===
+        false
+    ) {
+      return {
+        runBlueprintWriter:
+          false,
+
+        source:
+          "ari-draft-generation-blueprint-eligibility",
+
+        reason:
+          "blueprint_writer_disallowed_by_candidate_policy"
+      };
+    }
+
+    if (
+      packet.blueprintWriterRequired ===
+      false ||
+      packet.responsePlan
+        ?.blueprint
+        ?.enabled ===
+        false ||
+      packet
+        .canonicalResponsePlan
+        ?.blueprint
+        ?.enabled ===
+        false
+    ) {
+      return {
+        runBlueprintWriter:
+          false,
+
+        source:
+          "ari-draft-generation-blueprint-eligibility",
+
+        reason:
+          "blueprint_writer_disabled_by_response_plan"
+      };
+    }
+
+    /*
+     * Draft Generation does not suppress Blueprint Writer
+     * because another candidate appears locally sufficient.
+     *
+     * Whether a Character candidate or Blueprint candidate
+     * is better belongs to Candidate Arbitration.
+     */
+    return {
+      runBlueprintWriter:
+        true,
+
+      source:
+        "ari-draft-generation-blueprint-eligibility",
+
+      reason:
+        "canonical_response_plan_allows_blueprint_generation"
+    };
+  },
+
+  /* =====================================================
+     BLUEPRINT WRITER
+  ===================================================== */
+
+  async runBlueprintWriter({
+    state = {},
+    eligibility = {}
+  } = {}) {
+    if (
+      eligibility
+        .runBlueprintWriter !==
+      true
+    ) {
+      return {
+        blueprintWriterRan:
+          false,
+
+        draft:
+          null,
+
+        blueprintWriterDraft:
+          null,
+
+        source:
+          "skipped-by-expression-eligibility",
+
+        reason:
+          eligibility.reason ||
+          "blueprint_writer_not_required"
+      };
+    }
+
+    const writer =
+      window.AriBlueprintWriter;
+
+    if (
+      !writer ||
+      typeof writer.write !==
+        "function"
+    ) {
+      return {
+        blueprintWriterRan:
+          false,
+
+        draft:
+          null,
+
+        blueprintWriterDraft:
+          null,
+
+        source:
+          "not-loaded",
+
+        reason:
+          "blueprint_writer_not_loaded"
+      };
+    }
+
+    try {
+      const result =
+        await writer.write({
+          composerPacket:
+            state.composerPacket,
+
+          summary:
+            state
+        });
+
+      return (
+        result &&
+        typeof result ===
+          "object"
+          ? result
+          : {
+              blueprintWriterRan:
+                false,
+
+              draft:
+                null,
+
+              source:
+                "ari-blueprint-writer",
+
+              reason:
+                "blueprint_writer_returned_invalid_result"
+            }
+      );
+    } catch (error) {
+      console.warn(
+        "Ari Blueprint Writer failed:",
+        error
+      );
+
+      return {
+        blueprintWriterRan:
+          false,
+
+        draft:
+          null,
+
+        blueprintWriterDraft:
+          null,
+
+        source:
+          "ari-blueprint-writer",
+
+        reason:
+          "blueprint_writer_failed",
+
+        error:
+          error?.message ||
+          String(error)
+      };
+    }
+  },
+
+  normalizeBlueprintResult(
+    result = {}
+  ) {
+    const rawCandidate =
+      result?.candidate &&
+      typeof result.candidate ===
+        "object"
+        ? result.candidate
+        : {};
+
+    const draft =
+      this.cleanText(
+        result?.draft ||
+        result?.blueprintWriterDraft ||
+        rawCandidate.text ||
+        ""
+      );
+
+    const requiresAIRepair =
+      result
+        ?.blueprintWriterRequiresAIRepair ===
+        true ||
+      result?.requiresAIRepair ===
+        true ||
+      rawCandidate
+        .requiresAIRepair ===
+        true ||
+      rawCandidate
+        .requiresRepair ===
+        true;
+
+    const explicitlyUsable =
+      result
+        ?.blueprintWriterUsable ===
+        true ||
+      result?.usable ===
+        true ||
+      rawCandidate.usable ===
+        true;
+
+    const explicitlyComplete =
+      result
+        ?.blueprintWriterComplete ===
+        true ||
+      result?.complete ===
+        true ||
+      rawCandidate.complete ===
+        true ||
+      result?.renderQuality
+        ?.complete ===
+        true;
+
+    const validation =
+      result?.validation ||
+      rawCandidate.validation ||
+      null;
+
+    const validationPassed =
+      validation
+        ? validation.valid ===
+          true
+        : true;
+
+    const usable =
+      Boolean(
+        draft
+      ) &&
+      explicitlyUsable &&
+      validationPassed &&
+      !requiresAIRepair;
+
+    const complete =
+      usable &&
+      explicitlyComplete;
+
+    return {
+      ran:
+        result
+          ?.blueprintWriterRan ===
+          true,
+
+      draft,
+
+      candidateAvailable:
+        Boolean(
+          draft
+        ),
+
+      usable,
+
+      complete,
+
+      requiresAIRepair,
+
+      source:
+        result
+          ?.blueprintWriterSource ||
+        result?.source ||
+        "ari-blueprint-writer",
+
+      reason:
+        result
+          ?.blueprintWriterReason ||
+        result?.reason ||
+        null,
+
+      validation,
+
+      candidate:
+        rawCandidate,
+
+      renderedMoves:
+        this.toArray(
+          result
+            ?.renderedResponseMoves ||
+          result?.renderedMoves
+        ),
+
+      unsupportedMoves:
+        this.toArray(
+          result
+            ?.unsupportedResponseMoves ||
+          result?.unsupportedMoves
+        ),
+
+      skippedMoves:
+        this.toArray(
+          result
+            ?.skippedResponseMoves ||
+          result?.skippedMoves
+        ),
+
+      renderQuality:
+        result?.renderQuality ||
+        null,
+
+      renderWarnings:
+        this.toArray(
+          result?.renderWarnings ||
+          result?.warnings
+        ),
+
+      blueprint:
+        result?.blueprint ||
+        null,
+
+      raw:
+        result
+    };
+  },
+
+  buildBlueprintCandidate({
+    state = {},
+    normalizedBlueprint = {}
+  } = {}) {
+    const candidate =
+      normalizedBlueprint
+        .candidate ||
       {};
 
     return {
+      ...candidate,
+
       id:
-        this.createCandidateId(
-          "blueprint"
-        ),
+        candidate.id ||
+        this.createStableCandidateId({
+          source:
+            "blueprint_writer",
+
+          turnId:
+            this.readTurnId(
+              state.composerPacket
+            ),
+
+          text:
+            normalizedBlueprint
+              .draft
+        }),
 
       source:
         "blueprint_writer",
 
       text:
-        summary
-          .blueprintWriterDraft,
+        normalizedBlueprint.draft,
 
       priority:
-        60,
+        Number.isFinite(
+          Number(
+            candidate.priority
+          )
+        )
+          ? Number(
+              candidate.priority
+            )
+          : 70,
 
       usable:
+        normalizedBlueprint
+          .usable ===
+        true,
+
+      complete:
+        normalizedBlueprint
+          .complete ===
+        true,
+
+      requiresAIRepair:
+        normalizedBlueprint
+          .requiresAIRepair ===
+        true,
+
+      requiresRepair:
+        normalizedBlueprint
+          .requiresAIRepair ===
         true,
 
       grounded:
-        Boolean(
-          summary.composerPacketReady
-        ),
+        state.composerPacketReady ===
+        true,
 
       preferred:
-        false,
+        candidate.preferred ===
+        true,
+
+      taskType:
+        "canonical_response_plan",
 
       candidateType:
         "deterministic_blueprint_candidate",
 
-      needsAIWriter:
-        false,
+      validation:
+        normalizedBlueprint
+          .validation,
 
       evidence: {
+        ...(candidate.evidence || {}),
+
+        turnId:
+          this.readTurnId(
+            state.composerPacket
+          ),
+
+        sourceQuestion:
+          this.readOriginalQuestion(
+            state.composerPacket
+          ),
+
         writerRan:
-          summary
-            .blueprintWriterRan ===
-          true,
+          normalizedBlueprint.ran,
 
         composerPacketReady:
-          summary
-            .composerPacketReady ===
+          state.composerPacketReady ===
           true,
 
         responsePlanReady:
-          summary.composerPacket
-            ?.responsePlanReady ===
-          true,
+          state.composerPacket
+            ?.responsePlanReady !==
+          false,
 
-        responseMoves:
-          summary.composerPacket
-            ?.responseMoves ||
-          [],
+        canonicalResponsePlanUsed:
+          candidate.evidence
+            ?.canonicalResponsePlanUsed ===
+            true ||
+          normalizedBlueprint.raw
+            ?.canonicalResponsePlanUsed ===
+            true ||
+          normalizedBlueprint
+            .blueprint
+            ?.canonicalResponsePlanUsed ===
+            true,
+
+        blueprintWriterUsable:
+          normalizedBlueprint.usable,
+
+        blueprintWriterComplete:
+          normalizedBlueprint.complete,
+
+        blueprintWriterRequiresAIRepair:
+          normalizedBlueprint
+            .requiresAIRepair,
+
+        renderedResponseMoves:
+          normalizedBlueprint
+            .renderedMoves,
+
+        unsupportedResponseMoves:
+          normalizedBlueprint
+            .unsupportedMoves,
+
+        skippedResponseMoves:
+          normalizedBlueprint
+            .skippedMoves,
+
+        renderQuality:
+          normalizedBlueprint
+            .renderQuality,
+
+        renderWarnings:
+          normalizedBlueprint
+            .renderWarnings,
 
         blueprint:
-          result.blueprint ||
-          summary.blueprint ||
-          null
-      }
+          normalizedBlueprint
+            .blueprint,
+
+        blueprintReason:
+          normalizedBlueprint
+            .reason
+      },
+
+      raw:
+        normalizedBlueprint.raw
     };
   },
 
-  // ===================================================
-  // AI Writer preparation
-  // ===================================================
+  /* =====================================================
+     DRAFT GENERATION HANDOFF
+  ===================================================== */
 
-  buildAIWriterPreparation({
-    summary = {},
-    characterCandidate = {},
-    blueprintUsable = false
-  } = {}) {
-    const eligibility =
-      summary.generationEligibility ||
-      {};
-
-    if (
-      eligibility.prepareAIWriter !==
-      true
-    ) {
-      return {
-        allowed:
-          false,
-
-        required:
-          false,
-
-        mode:
-          null,
-
-        instruction:
-          "",
-
-        reason:
-          eligibility.reason ||
-          "ai_writer_not_allowed",
-
-        source:
-          "ari-draft-generation-ai-writer-preparation"
-      };
-    }
-
+  buildDraftGenerationHandoff(
+    summary = {}
+  ) {
     const candidates =
       this.toArray(
         summary.candidateDrafts
       );
 
-    const usableCandidates =
-      candidates.filter(
-        candidate =>
-          candidate?.usable !==
-            false &&
-          this.isUsableDraft(
-            candidate?.text
-          )
+    const candidateSummary =
+      this.summarizeCandidates(
+        candidates
       );
 
-    const characterRequiresAI =
-      characterCandidate
-        .candidateAvailable ===
-        true &&
-      characterCandidate
-        .needsAIWriter ===
-        true;
-
-    if (characterRequiresAI) {
-      return {
-        allowed:
-          true,
-
-        required:
-          true,
-
-        mode:
-          characterCandidate
-            .aiWriterMode ||
-          "character_natural_realization",
-
-        instruction:
-          characterCandidate
-            .aiInstruction ||
-          "",
-
-        reason:
-          "character_authority_requested_ai_realization",
-
-        source:
-          "ari-draft-generation-ai-writer-preparation",
-
-        preserveCharacterMeaning:
-          true,
-
-        preserveCharacterStatus:
-          true,
-
-        preserveCharacterValue:
-          characterCandidate
-            .preserveValue ===
-          true,
-
-        preserveWorldviewPosition:
-          characterCandidate
-            .preservePosition ===
-          true,
-
-        preserveOpenStatus:
-          characterCandidate
-            .preserveOpenStatus ===
-          true,
-
-        tentativeLanguageRequired:
-          characterCandidate
-            .tentativeLanguageRequired ===
-          true,
-
-        characterGrounding:
-          characterCandidate
-            .grounding,
-
-        characterAuthorityPacket:
-          characterCandidate
-            .authorityPacket
-      };
-    }
-
-    if (
-      characterCandidate
-        .candidatePreferred ===
-        true &&
-      characterCandidate
-        .candidateAvailable ===
-        true
-    ) {
-      return {
-        allowed:
-          true,
-
-        required:
-          false,
-
-        mode:
-          null,
-
-        instruction:
-          "",
-
-        reason:
-          "grounded_local_character_candidate_preferred",
-
-        source:
-          "ari-draft-generation-ai-writer-preparation",
-
-        preferredCandidateSource:
-          "character_reasoning"
-      };
-    }
-
-    if (blueprintUsable) {
-      return {
-        allowed:
-          true,
-
-        required:
-          false,
-
-        mode:
-          null,
-
-        instruction:
-          "",
-
-        reason:
-          "usable_blueprint_candidate_available",
-
-        source:
-          "ari-draft-generation-ai-writer-preparation",
-
-        preferredCandidateSource:
-          "blueprint_writer"
-      };
-    }
-
-    if (usableCandidates.length) {
-      return {
-        allowed:
-          true,
-
-        required:
-          false,
-
-        mode:
-          null,
-
-        instruction:
-          "",
-
-        reason:
-          "usable_initial_candidate_available",
-
-        source:
-          "ari-draft-generation-ai-writer-preparation"
-      };
-    }
-
     return {
-      allowed:
-        true,
-
-      required:
-        true,
-
-      mode:
-        "response_plan_repair",
-
-      instruction:
-        "",
-
-      reason:
-        "no_usable_response_candidate",
+      ready:
+        summary.composerPacketReady ===
+          true ||
+        candidateSummary.total >
+          0,
 
       source:
-        "ari-draft-generation-ai-writer-preparation"
-    };
-  },
+        this.source,
 
-  // ===================================================
-  // Composer packet enrichment
-  // ===================================================
+      version:
+        this.version,
 
-  enrichComposerPacket(
-    summary = {}
-  ) {
-    const packet =
-      summary.composerPacket ||
-      {};
+      composerPacket: {
+        available:
+          Boolean(
+            summary.composerPacket
+          ),
 
-    const focusedCharacter =
-      packet.composerCharacter ||
-      packet.character ||
-      summary.composerCharacter ||
-      null;
+        ready:
+          summary.composerPacketReady ===
+          true,
 
-    const characterHandoff =
-      packet.characterHandoff ||
-      summary.characterHandoff ||
-      null;
+        usable:
+          summary.composerPacketUsable ===
+          true,
 
-    return {
-      ...packet,
-
-      /*
-       * Preserve Bridge readiness. Do not turn an invalid
-       * packet into a ready packet merely by enriching it.
-       */
-      ready:
-        packet.ready === true,
-
-      usable:
-        packet.usable === true ||
-        packet.ready === true,
-
-      perceptionPacket:
-        summary.perceptionPacket ||
-        packet.perceptionPacket ||
-        null,
-
-      executivePacket:
-        summary.executivePacket ||
-        packet.executivePacket ||
-        null,
-
-      deliberationPacket:
-        summary.deliberationPacket ||
-        packet.deliberationPacket ||
-        null,
-
-      responseStrategy:
-        packet.responseStrategy ||
-        summary.responseStrategy ||
-        null,
-
-      meaningInterpretation:
-        summary
-          .meaningInterpretation ||
-        packet
-          .meaningInterpretation ||
-        null,
-
-      humanState:
-        summary.humanState ||
-        packet.humanState ||
-        null,
-
-      /*
-       * Preserve the canonical plan chosen by Composer Bridge.
-       */
-      responsePlan:
-        packet.responsePlan ||
-        packet.canonicalResponsePlan ||
-        summary.ariResponsePlan ||
-        summary
-          .understandingResponsePlan ||
-        summary.responsePlan ||
-        null,
-
-      canonicalResponsePlan:
-        packet.canonicalResponsePlan ||
-        packet.responsePlan ||
-        null,
-
-      /*
-       * Preserve only the focused Character packet.
-       */
-      character:
-        focusedCharacter,
-
-      composerCharacter:
-        focusedCharacter,
-
-      characterHandoff,
-
-      characterContext:
-        packet.characterContext ||
-        null,
-
-      characterDraft:
-        packet.characterDraft ||
-        focusedCharacter?.draft ||
-        characterHandoff?.draft ||
-        "",
-
-      characterDeterministicDraft:
-        packet
-          .characterDeterministicDraft ||
-        focusedCharacter
-          ?.deterministicDraft ||
-        characterHandoff
-          ?.deterministicDraft ||
-        "",
-
-      characterStatus:
-        packet.characterStatus ||
-        focusedCharacter?.status ||
-        characterHandoff?.status ||
-        null,
-
-      characterGrounding:
-        packet.characterGrounding ||
-        focusedCharacter
-          ?.grounding ||
-        characterHandoff
-          ?.grounding ||
-        null,
-
-      characterRealization:
-        packet.characterRealization ||
-        focusedCharacter
-          ?.realization ||
-        characterHandoff
-          ?.realization ||
-        null,
-
-      languageGuidance:
-        summary
-          .languageGuidanceHandoff ||
-        packet.languageGuidance ||
-        null,
-
-      safety: {
-        ...(packet.safety || {}),
-
-        earlyGate:
-          summary
-            .safetyContextGate ||
-          packet.safety
-            ?.earlyGate ||
-          packet.safety?.gate ||
-          null,
-
-        deepReview:
-          summary.deepSafetyResult ||
-          packet.safety
-            ?.deepReview ||
-          null,
-
-        disposition:
-          summary
-            .safetyDisposition ||
-          packet.safety
-            ?.disposition ||
+        source:
+          summary.composerBridgeSource ||
           null
       },
 
-      memory: {
-        ...(packet.memory || {}),
-
-        retrieval:
-          summary.memoryRetrieval ||
-          packet.memory
-            ?.retrieval ||
-          null,
-
-        context:
-          summary.memoryContext ||
-          packet.memory?.context ||
-          null,
-
-        facts:
-          summary.memoryFacts ||
-          summary.usableMemories ||
-          packet.memory?.facts ||
-          []
-      },
-
-      developerPacket:
-        packet.developerPacket ||
-        summary
-          .composerDeveloperPacket ||
+      characterCandidate:
+        summary.characterCandidate ||
         null,
 
-      hasDeveloperPacket:
-        packet.hasDeveloperPacket ===
-          true ||
-        summary
-          .composerDeveloperPacket
-          ?.enabled ===
+      blueprintWriter: {
+        eligible:
+          summary.blueprintEligibility
+            ?.runBlueprintWriter ===
           true,
 
-      expressionPlan:
-        summary.expressionPlan ||
-        packet.expressionPlan ||
-        null,
+        ran:
+          summary.blueprintWriterRan ===
+          true,
 
-      blueprintHint:
-        packet.blueprintHint ||
-        summary.blueprintHint ||
-        null,
+        source:
+          summary.blueprintWriterSource ||
+          null,
 
-      communicationPlan:
-        packet.communicationPlan ||
-        summary.communicationPlan ||
-        null,
+        draft:
+          summary.blueprintWriterDraft ||
+          null,
 
-      composerDirective:
-        packet.composerDirective ||
-        summary.composerDirective ||
-        null,
+        usable:
+          summary.blueprintWriterUsable ===
+          true,
 
-      responseRules:
-        this.mergeUnique(
-          packet.responseRules,
-          summary.responseRules
-        ),
+        complete:
+          summary.blueprintWriterComplete ===
+          true,
 
-      responseConstraints:
-        this.mergeUnique(
-          packet
-            .responseConstraints,
+        requiresAIRepair:
           summary
-            .responseConstraints
-        ),
+            .blueprintWriterRequiresAIRepair ===
+          true,
 
-      responseRequired:
-        this.mergeUnique(
-          packet.responseRequired,
-          packet.requiredBehaviors,
-          summary.responseRequired
-        ),
+        reason:
+          summary.blueprintWriterReason ||
+          summary.blueprintEligibility
+            ?.reason ||
+          null,
 
-      responseAvoid:
-        this.mergeUnique(
-          packet.responseAvoid,
-          packet.forbiddenBehaviors,
-          summary.responseAvoid
-        ),
+        validation:
+          summary
+            .blueprintWriterValidation ||
+          null
+      },
 
-      candidateDrafts:
-        this.toArray(
-          summary.candidateDrafts ||
-          packet.candidateDrafts
-        )
+      candidates,
+
+      candidateSummary,
+
+      arbitrationInput: {
+        candidates,
+
+        composerPacketReady:
+          summary.composerPacketReady ===
+          true,
+
+        hasUsableCandidate:
+          candidateSummary.usable >
+          0,
+
+        hasCompleteCandidate:
+          candidateSummary.complete >
+          0,
+
+        hasCandidateRequiringRepair:
+          candidateSummary
+            .requiresRepair >
+          0
+      },
+
+      authority:
+        this.getAuthorityBoundaries()
     };
   },
 
-  buildFallbackComposerPacket(
-    summary = {}
-  ) {
-    const userQuestion =
-      summary.resolvedUserQuestion ||
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
+  attachDraftGenerationHandoff({
+    packet = {},
+    state = {},
+    handoff = {}
+  } = {}) {
+    if (
+      !packet ||
+      typeof packet !==
+        "object"
+    ) {
+      return packet;
+    }
 
+    /*
+     * Only attach generated candidate results.
+     *
+     * Do not rebuild meaning, response plans, safety,
+     * Character authority, memory, or developer context.
+     */
     return {
-      schema:
-        "ari_composer_packet_fallback",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      ready:
-        false,
-
-      usable:
-        false,
-
-      source:
-        "ari-draft-generation-stage-fallback",
-
-      userQuestion,
-
-      originalUserQuestion:
-        userQuestion,
-
-      currentTurnText:
-        userQuestion,
-
-      responsePlan:
-        null,
-
-      responsePlanReady:
-        false,
-
-      character:
-        summary.composerCharacter ||
-        null,
-
-      composerCharacter:
-        summary.composerCharacter ||
-        null,
-
-      characterHandoff:
-        summary.characterHandoff ||
-        null,
+      ...packet,
 
       candidateDrafts:
         this.toArray(
-          summary.candidateDrafts
+          state.candidateDrafts
         ),
 
-      validation: {
-        valid:
-          false,
+      draftGeneration:
+        handoff,
 
-        errors: [
-          {
-            type:
-              "composer_packet_unavailable"
-          }
-        ],
+      blueprintWriter:
+        state.blueprintWriter ||
+        null,
 
-        warnings:
-          []
-      }
+      blueprintWriterDraft:
+        state.blueprintWriterDraft ||
+        null,
+
+      blueprintWriterUsable:
+        state.blueprintWriterUsable ===
+        true,
+
+      blueprintWriterComplete:
+        state.blueprintWriterComplete ===
+        true,
+
+      blueprintWriterRequiresAIRepair:
+        state
+          .blueprintWriterRequiresAIRepair ===
+        true,
+
+      characterCandidate:
+        state.characterCandidate ||
+        packet.characterCandidate ||
+        null
     };
   },
 
-  // ===================================================
-  // Stage packet
-  // ===================================================
+  /* =====================================================
+     STAGE PACKET
+  ===================================================== */
 
   buildDraftGenerationStagePacket(
     summary = {}
@@ -1963,29 +1947,16 @@ window.AriDraftGenerationStage = {
         summary.candidateDrafts
       );
 
-    const usableCandidates =
-      candidates.filter(
-        candidate =>
-          candidate?.usable !==
-            false &&
-          this.isUsableDraft(
-            candidate?.text
-          )
+    const candidateSummary =
+      this.summarizeCandidates(
+        candidates
       );
-
-    const characterCandidate =
-      summary.characterCandidate ||
-      {};
-
-    const aiWriterPreparation =
-      summary.aiWriterPreparation ||
-      {};
 
     return {
       ready:
         summary.composerPacketReady ===
           true ||
-        usableCandidates.length >
+        candidateSummary.total >
           0,
 
       source:
@@ -1994,11 +1965,12 @@ window.AriDraftGenerationStage = {
       version:
         this.version,
 
-      authorityLevel:
-        this.authorityLevel,
+      schemaVersion:
+        this.schemaVersion,
 
       eligibility:
-        summary.generationEligibility ||
+        summary
+          .draftGenerationEligibility ||
         null,
 
       composerBridge: {
@@ -2018,222 +1990,91 @@ window.AriDraftGenerationStage = {
           summary.composerPacketUsable ===
           true,
 
-        packet:
-          summary.composerPacket ||
+        reason:
+          summary.reason ||
           null
       },
 
-      characterCandidate: {
-        available:
-          characterCandidate.available ===
-          true,
-
-        answerAvailable:
-          characterCandidate
-            .answerAvailable ===
-          true,
-
-        guidanceAvailable:
-          characterCandidate
-            .guidanceAvailable ===
-          true,
-
-        candidateAvailable:
-          characterCandidate
-            .candidateAvailable ===
-          true,
-
-        preferred:
-          characterCandidate
-            .candidatePreferred ===
-          true,
-
-        grounded:
-          characterCandidate.grounded ===
-          true,
-
-        type:
-          characterCandidate.type ||
-          null,
-
-        subtype:
-          characterCandidate.subtype ||
-          null,
-
-        mode:
-          characterCandidate.mode ||
-          "silent",
-
-        status:
-          characterCandidate.status ||
-          null,
-
-        focus:
-          characterCandidate.focus ||
-          null,
-
-        subject:
-          characterCandidate.subject ||
-          null,
-
-        draft:
-          characterCandidate.draft ||
-          null,
-
-        deterministicDraft:
-          characterCandidate
-            .deterministicDraft ||
-          null,
-
-        grounding:
-          characterCandidate
-            .grounding ||
-          null,
-
-        needsAIWriter:
-          characterCandidate
-            .needsAIWriter ===
-          true,
-
-        aiWriterMode:
-          characterCandidate
-            .aiWriterMode ||
-          null,
-
-        authorityChain:
-          characterCandidate
-            .authorityChain ||
-          []
-      },
+      characterCandidate:
+        this.buildCharacterStageSummary(
+          summary.characterCandidate
+        ),
 
       blueprintWriter: {
         eligible:
-          summary
-            .resolvedBlueprintEligibility
+          summary.blueprintEligibility
             ?.runBlueprintWriter ===
           true,
+
+        eligibilityReason:
+          summary.blueprintEligibility
+            ?.reason ||
+          null,
 
         ran:
           summary.blueprintWriterRan ===
           true,
 
         source:
-          summary
-            .blueprintWriterSource ||
+          summary.blueprintWriterSource ||
           null,
-
-        usable:
-          summary
-            .blueprintWriterDraftUsable ===
-          true,
 
         draft:
           summary.blueprintWriterDraft ||
           null,
 
+        usable:
+          summary.blueprintWriterUsable ===
+          true,
+
+        complete:
+          summary.blueprintWriterComplete ===
+          true,
+
+        requiresAIRepair:
+          summary
+            .blueprintWriterRequiresAIRepair ===
+          true,
+
         reason:
           summary.blueprintWriterReason ||
+          null,
+
+        validation:
           summary
-            .resolvedBlueprintEligibility
-            ?.reason ||
-          null,
-
-        raw:
-          summary.blueprintWriter ||
+            .blueprintWriterValidation ||
           null
-      },
-
-      aiWriterPreparation: {
-        allowed:
-          aiWriterPreparation.allowed ===
-          true,
-
-        required:
-          aiWriterPreparation.required ===
-          true,
-
-        mode:
-          aiWriterPreparation.mode ||
-          null,
-
-        instruction:
-          aiWriterPreparation
-            .instruction ||
-          "",
-
-        reason:
-          aiWriterPreparation.reason ||
-          null,
-
-        preserveCharacterMeaning:
-          aiWriterPreparation
-            .preserveCharacterMeaning ===
-          true,
-
-        preserveCharacterStatus:
-          aiWriterPreparation
-            .preserveCharacterStatus ===
-          true,
-
-        preserveCharacterValue:
-          aiWriterPreparation
-            .preserveCharacterValue ===
-          true,
-
-        preserveWorldviewPosition:
-          aiWriterPreparation
-            .preserveWorldviewPosition ===
-          true,
-
-        preserveOpenStatus:
-          aiWriterPreparation
-            .preserveOpenStatus ===
-          true,
-
-        tentativeLanguageRequired:
-          aiWriterPreparation
-            .tentativeLanguageRequired ===
-          true
       },
 
       candidates,
 
-      candidateSummary: {
-        total:
-          candidates.length,
+      candidateSummary,
 
-        usable:
-          usableCandidates.length,
+      arbitrationReadiness: {
+        ready:
+          summary.composerPacketReady ===
+            true ||
+          candidateSummary.total >
+            0,
 
-        character:
-          candidates.filter(
-            candidate =>
-              candidate.source ===
-              "character_reasoning"
-          ).length,
+        candidateCount:
+          candidateSummary.total,
 
-        blueprint:
-          candidates.filter(
-            candidate =>
-              candidate.source ===
-              "blueprint_writer"
-          ).length,
+        usableCandidateCount:
+          candidateSummary.usable,
 
-        hasGroundedCharacterCandidate:
-          candidates.some(
-            candidate =>
-              candidate.source ===
-                "character_reasoning" &&
-              candidate.grounded ===
-                true
-          ),
+        completeCandidateCount:
+          candidateSummary.complete,
 
-        hasPreferredCandidate:
-          candidates.some(
-            candidate =>
-              candidate.preferred ===
-              true
-          )
+        candidateRequiringRepairCount:
+          candidateSummary
+            .requiresRepair,
+
+        aiWriterDecisionDeferred:
+          true,
+
+        aiWriterDecisionAuthority:
+          "ari-response-candidate-arbiter-precheck"
       },
 
       responseControl: {
@@ -2248,181 +2089,141 @@ window.AriDraftGenerationStage = {
 
         finalResponseAvailable:
           Boolean(
-            String(
-              summary.finalResponse ||
-              ""
-            ).trim()
+            this.cleanText(
+              summary.finalResponse
+            )
           ),
 
         composerPacketReady:
           summary.composerPacketReady ===
-          true,
-
-        usableCandidateAvailable:
-          usableCandidates.length >
-          0,
-
-        aiWriterRequired:
-          aiWriterPreparation.required ===
           true
       },
 
-      quality: {
-        characterStatusPreserved:
-          characterCandidate.status
-            ? true
-            : characterCandidate
-                .candidateAvailable !==
-              true,
-
-        characterGroundingPreserved:
-          characterCandidate
-            .candidateAvailable !==
-            true ||
-          characterCandidate.grounded ===
-            true,
-
-        characterRealizationPreserved:
-          characterCandidate
-            .candidateAvailable !==
-            true ||
-          Boolean(
-            characterCandidate
-              .realization
-          ),
-
-        canonicalValueProtected:
-          characterCandidate.status
-            ?.canonical !==
-            true ||
-          characterCandidate
-            .preserveValue ===
-            true,
-
-        inferredStatusProtected:
-          characterCandidate.status
-            ?.inferred !==
-            true ||
-          characterCandidate
-            .tentativeLanguageRequired ===
-            true,
-
-        openStatusProtected:
-          characterCandidate.status
-            ?.open !==
-            true ||
-          characterCandidate
-            .preserveOpenStatus ===
-            true,
-
-        noCharacterCollectionExpansion:
-          true,
-
-        supabaseUsed:
-          false
-      },
+      handoff:
+        summary
+          .draftGenerationHandoff ||
+        null,
 
       authority:
         this.getAuthorityBoundaries()
     };
   },
 
-  // ===================================================
-  // Character status compatibility
-  // ===================================================
-
-  buildCharacterStatus(
-    reasoning = {}
+  buildCharacterStageSummary(
+    character = {}
   ) {
-    const overall =
-      reasoning.status ||
-      (
-        reasoning
-          .characterAnswerAvailable ===
-        true
-          ? "stable"
-          : "background"
-      );
+    const value =
+      character ||
+      {};
 
     return {
-      overall,
+      available:
+        value.available ===
+        true,
 
-      preferenceStatus:
-        reasoning.type ===
-        "character_preference"
-          ? overall
-          : null,
+      answerAvailable:
+        value.answerAvailable ===
+        true,
 
-      worldviewStatus:
-        [
-          "character_worldview",
-          "character_perspective"
-        ].includes(
-          reasoning.type
-        )
-          ? overall
-          : null,
+      candidateAllowed:
+        value.candidateAllowed ===
+        true,
 
-      identityStatus:
-        reasoning.type ===
-        "character_identity"
-          ? overall
-          : null,
+      candidateAvailable:
+        value.candidateAvailable ===
+        true,
 
-      canonical:
-        overall ===
-        "canonical",
+      preferred:
+        value.candidatePreferred ===
+        true,
 
-      inferred:
-        overall ===
-        "inferred",
+      grounded:
+        value.grounded ===
+        true,
 
-      open:
-        overall ===
-        "open",
+      usable:
+        value.usable ===
+        true,
 
-      stable:
-        overall ===
-        "stable",
+      complete:
+        value.complete ===
+        true,
 
-      background:
-        overall ===
-        "background"
+      needsAIWriter:
+        value.needsAIWriter ===
+        true,
+
+      type:
+        value.type ||
+        null,
+
+      subtype:
+        value.subtype ||
+        null,
+
+      mode:
+        value.mode ||
+        "silent",
+
+      status:
+        value.status ||
+        null,
+
+      focus:
+        value.focus ||
+        null,
+
+      subject:
+        value.subject ||
+        null,
+
+      draft:
+        value.draft ||
+        null,
+
+      deterministicDraft:
+        value.deterministicDraft ||
+        null,
+
+      aiWriterMode:
+        value.aiWriterMode ||
+        null,
+
+      aiInstruction:
+        value.aiInstruction ||
+        "",
+
+      source:
+        value.source ||
+        null,
+
+      reason:
+        value.reason ||
+        null
     };
   },
 
-  // ===================================================
-  // Candidate utilities
-  // ===================================================
+  /* =====================================================
+     CANDIDATE COLLECTION
+  ===================================================== */
 
   addCandidateDraft(
     existing = [],
     candidate = {}
   ) {
-    const text =
-      String(
-        candidate.text ||
-        ""
-      ).trim();
+    const candidates =
+      this.toArray(
+        existing
+      );
 
-    const list =
-      this.toArray(existing);
+    const text =
+      this.cleanText(
+        candidate.text
+      );
 
     if (!text) {
-      return list;
+      return candidates;
     }
-
-    const normalizedText =
-      this.normalize(text);
-
-    const duplicateIndex =
-      list.findIndex(existingCandidate =>
-        this.normalize(
-          existingCandidate?.text ||
-          ""
-        ) ===
-        normalizedText
-      );
 
     const normalizedCandidate = {
       ...candidate,
@@ -2430,159 +2231,293 @@ window.AriDraftGenerationStage = {
       text,
 
       usable:
-        candidate.usable !==
-        false,
+        candidate.usable ===
+        true,
+
+      complete:
+        candidate.complete ===
+        true,
+
+      requiresAIRepair:
+        candidate
+          .requiresAIRepair ===
+          true ||
+        candidate.requiresRepair ===
+          true,
+
+      requiresRepair:
+        candidate
+          .requiresAIRepair ===
+          true ||
+        candidate.requiresRepair ===
+          true,
 
       createdAt:
         candidate.createdAt ||
         Date.now()
     };
 
-    if (
-      duplicateIndex >=
-      0
-    ) {
-      const duplicate =
-        list[duplicateIndex];
-
-      const keepIncoming =
-        Number(
-          normalizedCandidate.priority ||
-          0
-        ) >
-        Number(
-          duplicate.priority ||
-          0
-        );
-
-      if (!keepIncoming) {
-        return list;
-      }
-
-      return list.map(
-        (
-          item,
-          index
-        ) =>
-          index ===
-          duplicateIndex
-            ? {
-                ...duplicate,
-                ...normalizedCandidate
-              }
-            : item
+    const duplicateIndex =
+      candidates.findIndex(
+        existingCandidate =>
+          existingCandidate
+            ?.source ===
+            normalizedCandidate.source &&
+          this.normalizeForComparison(
+            existingCandidate?.text
+          ) ===
+            this.normalizeForComparison(
+              normalizedCandidate.text
+            )
       );
-    }
-
-    return [
-      ...list,
-      normalizedCandidate
-    ];
-  },
-
-  createCandidateId(
-    prefix = "candidate"
-  ) {
-    return [
-      prefix,
-      Date.now()
-        .toString(36),
-      Math.random()
-        .toString(36)
-        .slice(2, 8)
-    ].join("_");
-  },
-
-  isUsableDraft(
-    draft = ""
-  ) {
-    const text =
-      String(
-        draft ||
-        ""
-      ).trim();
-
-    if (!text) {
-      return false;
-    }
-
-    const normalized =
-      this.normalize(text);
 
     if (
-      [
-        "null",
-        "undefined",
-        "none",
-        "n a",
-        "no response"
-      ].includes(normalized)
+      duplicateIndex ===
+      -1
     ) {
-      return false;
+      return [
+        ...candidates,
+        normalizedCandidate
+      ];
     }
 
-    return text.length >=
-      2;
+    const existingCandidate =
+      candidates[
+        duplicateIndex
+      ];
+
+    const merged =
+      this.mergeEquivalentCandidate({
+        existing:
+          existingCandidate,
+
+        incoming:
+          normalizedCandidate
+      });
+
+    return candidates.map(
+      (
+        item,
+        index
+      ) =>
+        index ===
+        duplicateIndex
+          ? merged
+          : item
+    );
   },
 
-  // ===================================================
-  // Authority boundaries
-  // ===================================================
+  mergeEquivalentCandidate({
+    existing = {},
+    incoming = {}
+  } = {}) {
+    /*
+     * Equivalent duplicate paths preserve the strictest
+     * status. A rejected candidate cannot become accepted
+     * simply because it was registered twice.
+     */
+    const usable =
+      existing.usable ===
+        true &&
+      incoming.usable ===
+        true;
+
+    const complete =
+      existing.complete ===
+        true &&
+      incoming.complete ===
+        true;
+
+    const requiresRepair =
+      existing.requiresAIRepair ===
+        true ||
+      existing.requiresRepair ===
+        true ||
+      incoming.requiresAIRepair ===
+        true ||
+      incoming.requiresRepair ===
+        true;
+
+    const preferred =
+      Number(
+        incoming.priority ||
+        0
+      ) >
+      Number(
+        existing.priority ||
+        0
+      )
+        ? incoming
+        : existing;
+
+    const secondary =
+      preferred ===
+        incoming
+        ? existing
+        : incoming;
+
+    return {
+      ...secondary,
+      ...preferred,
+
+      usable,
+
+      complete,
+
+      requiresAIRepair:
+        requiresRepair,
+
+      requiresRepair,
+
+      validation:
+        preferred.validation ||
+        secondary.validation ||
+        null,
+
+      evidence: {
+        ...(secondary.evidence || {}),
+        ...(preferred.evidence || {}),
+
+        duplicateRegistration:
+          true
+      },
+
+      createdAt:
+        existing.createdAt ||
+        incoming.createdAt ||
+        Date.now()
+    };
+  },
+
+  summarizeCandidates(
+    candidates = []
+  ) {
+    const list =
+      this.toArray(
+        candidates
+      );
+
+    return {
+      total:
+        list.length,
+
+      usable:
+        list.filter(
+          candidate =>
+            candidate?.usable ===
+              true &&
+            Boolean(
+              this.cleanText(
+                candidate?.text
+              )
+            )
+        ).length,
+
+      complete:
+        list.filter(
+          candidate =>
+            candidate?.usable ===
+              true &&
+            candidate?.complete ===
+              true &&
+            candidate
+              ?.requiresAIRepair !==
+              true &&
+            candidate
+              ?.requiresRepair !==
+              true
+        ).length,
+
+      requiresRepair:
+        list.filter(
+          candidate =>
+            candidate
+              ?.requiresAIRepair ===
+              true ||
+            candidate
+              ?.requiresRepair ===
+              true
+        ).length,
+
+      character:
+        list.filter(
+          candidate =>
+            candidate?.source ===
+            "character_reasoning"
+        ).length,
+
+      blueprint:
+        list.filter(
+          candidate =>
+            candidate?.source ===
+            "blueprint_writer"
+        ).length,
+
+      aiWriter:
+        list.filter(
+          candidate =>
+            candidate?.source ===
+            "ai_writer"
+        ).length,
+
+      preferred:
+        list.filter(
+          candidate =>
+            candidate?.preferred ===
+            true
+        ).length
+    };
+  },
+
+  /* =====================================================
+     AUTHORITY BOUNDARIES
+  ===================================================== */
 
   getAuthorityBoundaries() {
     return {
-      canBuildComposerPacket:
+      canInvokeComposerBridge:
         true,
 
       canPreserveComposerPacket:
         true,
 
-      canRegisterDraftCandidates:
+      canRegisterInitialCandidates:
         true,
 
-      canRegisterGroundedCharacterCandidate:
+      canRegisterAuthorizedCharacterCandidate:
+        true,
+
+      canInvokeBlueprintWriter:
         true,
 
       canRegisterBlueprintCandidate:
         true,
 
-      canPrepareAIWriterInput:
-        true,
-
-      canDetermineWhetherBlueprintIsNecessary:
-        true,
-
-      canPreserveCharacterStatus:
-        true,
-
-      canPreserveCharacterGrounding:
-        true,
-
-      canPreserveCharacterRealizationPolicy:
+      canAttachDraftGenerationHandoff:
         true,
 
       canResolveCharacterPreference:
         false,
 
-      canCreateCanonicalPreference:
+      canResolveCharacterIdentity:
         false,
 
-      canPromoteInferenceToCanonical:
+      canResolveCharacterWorldview:
         false,
 
-      canCreateWorldviewPosition:
+      canInferCharacterGrounding:
         false,
 
-      canModifyCharacterAuthority:
+      canMergeCharacterAuthoritySources:
         false,
 
-      canExposeEntirePreferenceCollection:
+      canDetermineCandidateQualityWinner:
         false,
 
-      canExposeEntireWorldviewCollection:
+      canDetermineWhetherAIWriterIsNeeded:
         false,
 
-      canCreateFallbackResponsePlan:
+      canPrepareAIWriterInstruction:
         false,
 
       canRunAIWriter:
@@ -2591,16 +2526,22 @@ window.AriDraftGenerationStage = {
       canSelectFinalDraft:
         false,
 
+      canCreateFallbackComposerPacket:
+        false,
+
+      canCreateFallbackResponsePlan:
+        false,
+
       canWriteFinalResponse:
         false,
 
       canOverrideSafety:
         false,
 
-      canRetrieveUserMemory:
+      canRetrieveMemory:
         false,
 
-      canStoreUserMemory:
+      canStoreMemory:
         false,
 
       canAccessSupabase:
@@ -2610,16 +2551,115 @@ window.AriDraftGenerationStage = {
         false,
 
       role:
-        "composer_packet_and_grounded_initial_candidate_generation"
+        "canonical_composer_packet_and_initial_candidate_registration"
     };
   },
 
-  // ===================================================
-  // Helpers
-  // ===================================================
+  /* =====================================================
+     GENERAL UTILITIES
+  ===================================================== */
+
+  readTurnId(
+    packet = {}
+  ) {
+    return (
+      packet?.request
+        ?.turnId ||
+      packet?.turnId ||
+      packet
+        ?.canonicalResponsePlan
+        ?.turnId ||
+      packet?.responsePlan
+        ?.turnId ||
+      null
+    );
+  },
+
+  readOriginalQuestion(
+    packet = {}
+  ) {
+    return this.cleanText(
+      packet?.request
+        ?.originalText ||
+      packet?.request
+        ?.currentText ||
+      packet
+        ?.originalUserQuestion ||
+      packet?.userQuestion ||
+      ""
+    );
+  },
+
+  createStableCandidateId({
+    source =
+      "candidate",
+
+    turnId =
+      null,
+
+    text =
+      ""
+  } = {}) {
+    const value = [
+      source,
+      turnId ||
+        "no_turn",
+      this.normalizeForComparison(
+        text
+      )
+    ].join(
+      "|"
+    );
+
+    return `${source}_${this.hashString(
+      value
+    )}`;
+  },
+
+  hashString(
+    value = ""
+  ) {
+    let hash =
+      2166136261;
+
+    const text =
+      String(
+        value ||
+        ""
+      );
+
+    for (
+      let index = 0;
+      index < text.length;
+      index += 1
+    ) {
+      hash ^=
+        text.charCodeAt(
+          index
+        );
+
+      hash +=
+        (hash << 1) +
+        (hash << 4) +
+        (hash << 7) +
+        (hash << 8) +
+        (hash << 24);
+    }
+
+    return (
+      hash >>>
+      0
+    ).toString(
+      36
+    );
+  },
 
   toArray(value) {
-    if (Array.isArray(value)) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
       return value.filter(
         item =>
           item !==
@@ -2642,73 +2682,18 @@ window.AriDraftGenerationStage = {
       return [];
     }
 
-    return [value];
+    return [
+      value
+    ];
   },
 
-  mergeUnique(...values) {
-    const output = [];
-    const seen =
-      new Set();
-
-    for (
-      const value
-      of values.flatMap(
-        item =>
-          this.toArray(item)
-      )
-    ) {
-      const key =
-        typeof value ===
-        "string"
-          ? this.normalize(value)
-          : this.normalize(
-              value?.id ||
-              value?.name ||
-              value?.type ||
-              value?.value ||
-              JSON.stringify(
-                value
-              )
-            );
-
-      if (
-        !key ||
-        seen.has(key)
-      ) {
-        continue;
-      }
-
-      seen.add(key);
-      output.push(value);
-    }
-
-    return output;
-  },
-
-  normalizeIdentifier(
+  cleanText(
     value = ""
   ) {
     return String(
-      value ||
+      value ??
       ""
     )
-      .toLowerCase()
-      .replace(
-        /[^a-z0-9]+/g,
-        "_"
-      )
-      .replace(
-        /^_+|_+$/g,
-        ""
-      );
-  },
-
-  normalize(value = "") {
-    return String(
-      value ||
-      ""
-    )
-      .toLowerCase()
       .replace(
         /[’‘]/g,
         "'"
@@ -2718,7 +2703,33 @@ window.AriDraftGenerationStage = {
         "\""
       )
       .replace(
+        /[ \t]+/g,
+        " "
+      )
+      .replace(
+        /\n[ \t]+/g,
+        "\n"
+      )
+      .replace(
+        /\n{3,}/g,
+        "\n\n"
+      )
+      .trim();
+  },
+
+  normalizeForComparison(
+    value = ""
+  ) {
+    return this.cleanText(
+      value
+    )
+      .toLowerCase()
+      .replace(
         /[_-]/g,
+        " "
+      )
+      .replace(
+        /[^\w\s']/g,
         " "
       )
       .replace(
@@ -2731,6 +2742,5 @@ window.AriDraftGenerationStage = {
 
 console.log(
   "ARI DRAFT GENERATION STAGE LOADED:",
-  window.AriDraftGenerationStage
-    ?.version
+  window.AriDraftGenerationStage?.version
 );
