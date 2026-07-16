@@ -1,3810 +1,3373 @@
 // rebirth/conversation-os/core/cos-state.js
-// ARI Rebirth Conversation Operating System
-// COS Runtime State
+// ARI Rebirth — Conversation Operating System State
 //
 // Purpose:
-// Hold the temporary runtime state used while COS determines authoritative
-// conversation placement.
+// Define, normalize, validate, clone, and expose the canonical persistent
+// state structure owned by the Conversation Operating System.
 //
-// V1.0.0 — Isolated Conversation Placement Runtime State
+// V2.0.0 — Expanded Canonical COS State
 //
-// Architectural flow:
+// Canonical state domains:
 //
-// COS Runtime Input
-//      ↓
-// COS Runtime State
-//      ↓
-// Turn / Thread Intake
-//      ↓
-// Placement / Binding / Source Selection
-//      ↓
-// COS Packet Builder
+// - conversation identity
+// - turn records
+// - thread records
+// - active thread and turn
+// - thread stack
+// - interruption stack
+// - last placement
+// - last reference resolution
+// - pending interaction state
+// - artifact state
+// - delivery sequence state
+// - revision and lifecycle metadata
 //
-// Responsibilities:
-// - Create one isolated COS state for the current runtime turn.
-// - Preserve the exact current-turn text.
-// - Preserve available conversation turns.
-// - Hold structural evidence produced by COS components.
-// - Hold placement candidates without choosing among them.
-// - Hold reference-binding candidates.
-// - Hold source-turn candidates.
-// - Hold the final authoritative placement decision once supplied.
-// - Track runtime stage completion.
-// - Track warnings, errors, and diagnostics.
-// - Prevent accidental semantic interpretation from entering COS state.
-// - Produce safe snapshots for downstream COS components.
+// Authority:
 //
-// Non-responsibilities:
-// - Does not load conversation history.
-// - Does not determine conversation placement.
-// - Does not classify a turn as new topic or follow-up.
-// - Does not bind references.
-// - Does not select source turns.
-// - Does not interpret language.
-// - Does not interpret slang, acronyms, typos, emojis, or grammar.
-// - Does not determine semantic meaning.
-// - Does not classify conversation function.
-// - Does not determine domain or emotion.
-// - Does not call AI.
-// - Does not create the final placement packet.
-// - Does not answer the user.
-// - Does not persist state.
+// This component is authoritative only for:
 //
-// Authority principle:
+// - defining canonical COS state shape,
+// - creating empty COS state,
+// - normalizing supplied COS state,
+// - validating COS state,
+// - preserving exact turn and thread records,
+// - preserving auxiliary continuity state,
+// - cloning and freezing COS state,
+// - exposing safe state queries.
 //
-// COS State stores decisions.
+// Non-authority:
 //
-// COS State does not make decisions.
+// This component must not:
+//
+// - interpret raw language,
+// - infer semantic meaning,
+// - classify intent,
+// - classify conversation function,
+// - infer emotion,
+// - infer safety severity,
+// - resolve references,
+// - determine placement,
+// - invent missing relationships,
+// - generate responses.
+//
+// Architectural rule:
+//
+// State preserves structural truth produced by authoritative COS components.
+//
+// State normalization may create required empty containers.
+// It may not guess missing conversational relationships.
+//
+// Browser namespace:
+//
+// window.Ari
+// window.Ari.Rebirth
+// window.Ari.Rebirth.ConversationOS
+// window.Ari.Rebirth.ConversationOS.state
+//
+// CommonJS:
+//
+// module.exports = cosState
 
-window.Ari = window.Ari || {};
+(function initializeCosState(globalScope) {
+  "use strict";
 
-window.AriCOSState = {
-  version: "1.0.0",
-  schemaVersion: "1.0.0",
-  source: "cos-state",
+  const root =
+    globalScope ||
+    (
+      typeof globalThis !== "undefined"
+        ? globalThis
+        : typeof window !== "undefined"
+          ? window
+          : {}
+    );
 
-  authorityLevel:
-    "conversation_placement_runtime_state_authority",
+  root.Ari = root.Ari || {};
+  root.Ari.Rebirth = root.Ari.Rebirth || {};
+  root.Ari.Rebirth.ConversationOS =
+    root.Ari.Rebirth.ConversationOS || {};
+
+  const ConversationOS =
+    root.Ari.Rebirth.ConversationOS;
 
   /* =====================================================
-     STATE CREATION
+     CONSTANTS
   ===================================================== */
 
-  create({
-    input = {},
-    runtime = {}
-  } = {}) {
-    const contract =
-      this.getContract();
+  const VERSION = "2.0.0";
+  const SCHEMA_VERSION = "1.0.0";
 
-    const normalizedInput =
-      contract.createRuntimeInput({
-        currentTurn:
-          input.currentTurn ||
-          null,
+  const AUTHORITY =
+    "conversation_operating_system";
 
-        availableTurns:
-          input.availableTurns ||
-          [],
+  const COMPONENT_NAME =
+    "cos-state";
 
-        currentThread:
-          input.currentThread ||
-          null,
+  const STATE_TYPE =
+    "conversation_operating_system_state";
 
-        previousThreads:
-          input.previousThreads ||
-          [],
+  const THREAD_STATUSES = Object.freeze([
+    "active",
+    "inactive",
+    "paused",
+    "interrupted",
+    "completed",
+    "cancelled",
+    "archived"
+  ]);
 
-        runtime: {
-          ...(
-            input.runtime &&
-            typeof input.runtime ===
-              "object"
-              ? input.runtime
-              : {}
-          ),
+  const TURN_ROLES = Object.freeze([
+    "system",
+    "developer",
+    "user",
+    "assistant",
+    "tool",
+    "function",
+    "unknown"
+  ]);
 
-          ...(
-            runtime &&
-            typeof runtime ===
-              "object"
-              ? runtime
-              : {}
-          )
-        }
-      });
+  const PLACEMENT_TYPES = Object.freeze([
+    "new_thread",
+    "continue_thread",
+    "answer_to_turn",
+    "clarification_of_turn",
+    "correction_of_turn",
+    "branch_from_turn",
+    "interruption",
+    "return_from_interruption",
+    "resume_thread",
+    "unresolved_placement"
+  ]);
 
-    const inputValidation =
-      contract.validateRuntimeInput(
-        normalizedInput
-      );
+  const REFERENCE_STATUSES = Object.freeze([
+    "not_required",
+    "resolved",
+    "partially_resolved",
+    "ambiguous",
+    "unresolved"
+  ]);
 
-    const now =
-      new Date()
-        .toISOString();
+  const REQUIRED_STATE_KEYS = Object.freeze([
+    "schemaVersion",
+    "authority",
+    "component",
+    "stateType",
+    "conversationId",
+    "revision",
+    "activeThreadId",
+    "activeTurnId",
+    "threads",
+    "turns",
+    "threadStack",
+    "interruptionStack",
+    "lastPlacement",
+    "lastReferenceResolution",
+    "pendingInteractionState",
+    "artifactState",
+    "deliverySequenceState",
+    "createdAt",
+    "updatedAt"
+  ]);
 
-    const state = {
-      schema:
-        "ari_cos_runtime_state",
+  /* =====================================================
+     ERROR TYPE
+  ===================================================== */
 
-      schemaVersion:
-        this.schemaVersion,
-
-      ready:
-        inputValidation.valid ===
-        true,
-
-      usable:
-        inputValidation.valid ===
-        true,
-
-      complete:
-        false,
-
-      failed:
-        false,
-
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      authorityLevel:
-        this.authorityLevel,
-
-      createdAt:
-        now,
-
-      updatedAt:
-        now,
-
-      runtimeId:
-        this.createRuntimeId(),
-
-      requestId:
-        normalizedInput
-          .runtime
-          ?.requestId ||
-        null,
-
-      sessionId:
-        normalizedInput
-          .runtime
-          ?.sessionId ||
-        null,
-
-      input:
-        normalizedInput,
-
-      currentTurn:
-        normalizedInput
-          .currentTurn,
-
-      availableTurns:
-        normalizedInput
-          .availableTurns,
-
-      currentThread:
-        normalizedInput
-          .currentThread,
-
-      previousThreads:
-        normalizedInput
-          .previousThreads,
-
-      configuration:
-        this.buildConfiguration(
-          normalizedInput.runtime
-        ),
-
-      stage:
-        this.createStageState(),
-
-      structuralEvidence:
-        this.createStructuralEvidenceState(),
-
-      placementCandidates:
-        [],
-
-      referenceBindingCandidates:
-        [],
-
-      sourceTurnCandidates:
-        [],
-
-      selectedPlacement:
-        null,
-
-      selectedReferenceBinding:
-        null,
-
-      selectedSourceTurns:
-        [],
-
-      decision:
-        contract
-          .createUnresolvedDecision(),
-
-      packet:
-        null,
-
-      validation: {
-        input:
-          inputValidation,
-
-        state:
-          null,
-
-        packet:
-          null
-      },
-
-      diagnostics:
-        {
-          marks: [],
-
-          errors:
-            this.toArray(
-              inputValidation.errors
-            ),
-
-          warnings:
-            this.toArray(
-              inputValidation.warnings
-            ),
-
-          counters:
-            this.createCounters(),
-
-          timing:
-            this.createTimingState()
-        },
-
-      authority:
-        this.getAuthorityBoundaries()
-    };
-
-    this.mark(
-      state,
-      "state_created",
+  class CosStateError extends Error {
+    constructor(
+      code,
+      message,
       {
-        ready:
-          state.ready,
-
-        availableTurnCount:
-          state.availableTurns
-            .length
-      }
-    );
-
-    state.validation.state =
-      this.validate(state);
-
-    if (
-      state.validation.state.valid !==
-      true
+        details = null,
+        cause = null,
+        recoverable = false
+      } = {}
     ) {
-      state.ready =
-        false;
-
-      state.usable =
-        false;
-
-      state.failed =
-        true;
-    }
-
-    window.Ari.cosRuntimeState =
-      state;
-
-    return state;
-  },
-
-  /* =====================================================
-     CONFIGURATION
-  ===================================================== */
-
-  buildConfiguration(
-    runtime = {}
-  ) {
-    const source =
-      runtime &&
-      typeof runtime ===
-        "object" &&
-      !Array.isArray(runtime)
-        ? runtime
-        : {};
-
-    const maximumSourceTurns =
-      this.toPositiveInteger(
-        source.maximumSourceTurns,
-        8
+      super(
+        message ||
+        code ||
+        "COS state error"
       );
 
-    const maximumPlacementCandidates =
-      this.toPositiveInteger(
-        source.maximumPlacementCandidates,
-        12
-      );
+      this.name =
+        "CosStateError";
 
-    const maximumBindingCandidates =
-      this.toPositiveInteger(
-        source.maximumBindingCandidates,
-        12
-      );
+      this.code =
+        code ||
+        "COS_STATE_ERROR";
 
-    return {
-      maximumSourceTurns,
+      this.details = details;
+      this.cause = cause;
 
-      maximumPlacementCandidates,
-
-      maximumBindingCandidates,
-
-      previousConversationSearchAllowed:
-        source
-          .previousConversationSearchAllowed ===
-        true,
-
-      diagnosticsEnabled:
-        source.diagnosticsEnabled ===
-        true,
-
-      preserveExactText:
-        true,
-
-      allowSemanticInterpretation:
-        false,
-
-      allowConversationFunctionClassification:
-        false,
-
-      allowDomainClassification:
-        false,
-
-      allowEmotionClassification:
-        false,
-
-      allowAI:
-        false,
-
-      authority:
-        "cos_runtime_configuration_only"
-    };
-  },
-
-  /* =====================================================
-     STAGE STATE
-  ===================================================== */
-
-  createStageState() {
-    return {
-      current:
-        "created",
-
-      previous:
-        null,
-
-      completed:
-        [],
-
-      failed:
-        [],
-
-      skipped:
-        [],
-
-      statuses: {
-        created:
-          "complete",
-
-        turnIntake:
-          "pending",
-
-        threadIntake:
-          "pending",
-
-        structuralMatching:
-          "pending",
-
-        placement:
-          "pending",
-
-        referenceBinding:
-          "pending",
-
-        sourceSelection:
-          "pending",
-
-        decision:
-          "pending",
-
-        packetBuild:
-          "pending",
-
-        validation:
-          "pending",
-
-        complete:
-          "pending"
-      },
-
-      authority:
-        "cos_runtime_progress_only"
-    };
-  },
-
-  setStage(
-    state = {},
-    stageName = "",
-    status = "running"
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const normalizedStage =
-      this.normalizeIdentifier(
-        stageName
-      );
-
-    if (
-      !normalizedStage
-    ) {
-      return false;
-    }
-
-    const allowedStatuses =
-      new Set([
-        "pending",
-        "running",
-        "complete",
-        "failed",
-        "skipped"
-      ]);
-
-    const normalizedStatus =
-      allowedStatuses.has(status)
-        ? status
-        : "running";
-
-    const previous =
-      state.stage?.current ||
-      null;
-
-    state.stage =
-      state.stage ||
-      this.createStageState();
-
-    state.stage.previous =
-      previous;
-
-    state.stage.current =
-      normalizedStage;
-
-    state.stage.statuses[
-      normalizedStage
-    ] =
-      normalizedStatus;
-
-    this.removeValue(
-      state.stage.completed,
-      normalizedStage
-    );
-
-    this.removeValue(
-      state.stage.failed,
-      normalizedStage
-    );
-
-    this.removeValue(
-      state.stage.skipped,
-      normalizedStage
-    );
-
-    if (
-      normalizedStatus ===
-      "complete"
-    ) {
-      this.pushUnique(
-        state.stage.completed,
-        normalizedStage
-      );
-    }
-
-    if (
-      normalizedStatus ===
-      "failed"
-    ) {
-      this.pushUnique(
-        state.stage.failed,
-        normalizedStage
-      );
-
-      state.failed =
-        true;
-    }
-
-    if (
-      normalizedStatus ===
-      "skipped"
-    ) {
-      this.pushUnique(
-        state.stage.skipped,
-        normalizedStage
-      );
-    }
-
-    this.touch(state);
-
-    this.mark(
-      state,
-      "stage_changed",
-      {
-        stage:
-          normalizedStage,
-
-        status:
-          normalizedStatus,
-
-        previous
-      }
-    );
-
-    return true;
-  },
-
-  completeStage(
-    state = {},
-    stageName = ""
-  ) {
-    return this.setStage(
-      state,
-      stageName,
-      "complete"
-    );
-  },
-
-  failStage(
-    state = {},
-    stageName = "",
-    error = null
-  ) {
-    const changed =
-      this.setStage(
-        state,
-        stageName,
-        "failed"
-      );
-
-    if (
-      error
-    ) {
-      this.addError(
-        state,
-        {
-          type:
-            "cos_stage_failed",
-
-          stage:
-            this.normalizeIdentifier(
-              stageName
-            ),
-
-          message:
-            error?.message ||
-            String(error)
-        }
-      );
-    }
-
-    return changed;
-  },
-
-  skipStage(
-    state = {},
-    stageName = "",
-    reason = null
-  ) {
-    const changed =
-      this.setStage(
-        state,
-        stageName,
-        "skipped"
-      );
-
-    if (
-      changed &&
-      reason
-    ) {
-      this.addWarning(
-        state,
-        {
-          type:
-            "cos_stage_skipped",
-
-          stage:
-            this.normalizeIdentifier(
-              stageName
-            ),
-
-          reason:
-            String(reason)
-        }
-      );
-    }
-
-    return changed;
-  },
-
-  /* =====================================================
-     STRUCTURAL EVIDENCE
-  ===================================================== */
-
-  createStructuralEvidenceState() {
-    return {
-      exactMatches:
-        [],
-
-      normalizedSurfaceMatches:
-        [],
-
-      quotedMatches:
-        [],
-
-      replyParentMatches:
-        [],
-
-      artifactMatches:
-        [],
-
-      threadMatches:
-        [],
-
-      explicitTurnReferences:
-        [],
-
-      explicitTimeReferences:
-        [],
-
-      structuralReferenceSurfaces:
-        [],
-
-      correctionSurfaces:
-        [],
-
-      revisionSurfaces:
-        [],
-
-      adjacencySignals:
-        [],
-
-      boundarySignals:
-        [],
-
-      customSignals:
-        [],
-
-      authority:
-        "structural_conversation_evidence_only"
-    };
-  },
-
-  addStructuralEvidence(
-    state = {},
-    evidence = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const normalized =
-      this.normalizeStructuralEvidence(
-        evidence
-      );
-
-    if (
-      !normalized
-    ) {
-      this.addWarning(
-        state,
-        {
-          type:
-            "invalid_structural_evidence_rejected"
-        }
-      );
-
-      return false;
-    }
-
-    const targetCollection =
-      this.resolveEvidenceCollection(
-        state,
-        normalized.type
-      );
-
-    if (
-      !targetCollection
-    ) {
-      this.addWarning(
-        state,
-        {
-          type:
-            "unsupported_structural_evidence_type",
-
-          evidenceType:
-            normalized.type
-        }
-      );
-
-      return false;
-    }
-
-    const duplicate =
-      targetCollection.some(
-        item =>
-          item.evidenceId ===
-          normalized.evidenceId
-      );
-
-    if (
-      duplicate
-    ) {
-      return false;
-    }
-
-    targetCollection.push(
-      normalized
-    );
-
-    state.diagnostics
-      .counters
-      .structuralEvidenceCount +=
-      1;
-
-    this.touch(state);
-
-    return true;
-  },
-
-  normalizeStructuralEvidence(
-    evidence = {}
-  ) {
-    if (
-      !evidence ||
-      typeof evidence !==
-        "object" ||
-      Array.isArray(evidence)
-    ) {
-      return null;
-    }
-
-    const contract =
-      this.getContract();
-
-    const type =
-      this.normalizeIdentifier(
-        evidence.type ||
-        evidence.signal ||
-        evidence.kind ||
-        ""
-      );
-
-    if (
-      !type ||
-      !contract
-        .allowedStructuralSignals
-        .includes(type)
-    ) {
-      return null;
-    }
-
-    const sourceTurnIds =
-      this.toArray(
-        evidence.sourceTurnIds ||
-        evidence.turnIds ||
-        evidence.turnId
-      )
-        .map(value =>
-          this.toStableId(value)
-        )
-        .filter(Boolean);
-
-    return {
-      schema:
-        "ari_cos_structural_evidence",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      evidenceId:
-        evidence.evidenceId ||
-        this.createEvidenceId(),
-
-      type,
-
-      currentTurnId:
-        this.toStableId(
-          evidence.currentTurnId
-        ),
-
-      sourceTurnIds,
-
-      surfaceText:
-        evidence.surfaceText ===
-          undefined
-          ? null
-          : this.preserveText(
-              evidence.surfaceText
-            ),
-
-      exactSurface:
-        evidence.exactSurface ===
-          true,
-
-      score:
-        this.normalizeScore(
-          evidence.score ??
-          evidence.confidence ??
-          0
-        ),
-
-      distance:
-        this.toFiniteNumber(
-          evidence.distance
-        ),
-
-      metadata:
-        this.normalizeMetadata(
-          evidence.metadata
-        ),
-
-      semanticMeaning:
-        null,
-
-      conversationFunction:
-        null,
-
-      authority:
-        "structural_conversation_evidence_only"
-    };
-  },
-
-  resolveEvidenceCollection(
-    state = {},
-    evidenceType = ""
-  ) {
-    const evidence =
-      state.structuralEvidence ||
-      null;
-
-    if (!evidence) {
-      return null;
-    }
-
-    const collectionMap = {
-      exact_quote_match:
-        "exactMatches",
-
-      normalized_surface_match:
-        "normalizedSurfaceMatches",
-
-      quoted_surface_match:
-        "quotedMatches",
-
-      reply_parent_id:
-        "replyParentMatches",
-
-      artifact_id_match:
-        "artifactMatches",
-
-      thread_id_match:
-        "threadMatches",
-
-      conversation_id_match:
-        "threadMatches",
-
-      message_id_match:
-        "explicitTurnReferences",
-
-      explicit_turn_number:
-        "explicitTurnReferences",
-
-      explicit_time_reference:
-        "explicitTimeReferences",
-
-      explicit_previous_conversation_reference:
-        "explicitTimeReferences",
-
-      surface_reference_marker:
-        "structuralReferenceSurfaces",
-
-      correction_marker:
-        "correctionSurfaces",
-
-      revision_marker:
-        "revisionSurfaces",
-
-      question_answer_adjacency:
-        "adjacencySignals",
-
-      turn_order:
-        "adjacencySignals",
-
-      turn_distance:
-        "adjacencySignals",
-
-      speaker_role:
-        "adjacencySignals",
-
-      candidate_source_turn_count:
-        "customSignals",
-
-      available_thread_boundary:
-        "boundarySignals"
-    };
-
-    const key =
-      collectionMap[
-        evidenceType
-      ] ||
-      "customSignals";
-
-    return Array.isArray(
-      evidence[key]
-    )
-      ? evidence[key]
-      : null;
-  },
-
-  /* =====================================================
-     PLACEMENT CANDIDATES
-  ===================================================== */
-
-  addPlacementCandidate(
-    state = {},
-    candidate = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const normalized =
-      this.normalizePlacementCandidate(
-        candidate
-      );
-
-    if (!normalized) {
-      this.addWarning(
-        state,
-        {
-          type:
-            "invalid_placement_candidate_rejected"
-        }
-      );
-
-      return false;
-    }
-
-    const maximum =
-      state.configuration
-        ?.maximumPlacementCandidates ||
-      12;
-
-    const existingIndex =
-      state
-        .placementCandidates
-        .findIndex(
-          item =>
-            item.candidateId ===
-              normalized.candidateId ||
-            (
-              item.class ===
-                normalized.class &&
-              this.sameIdSet(
-                item.sourceTurnIds,
-                normalized
-                  .sourceTurnIds
-              )
-            )
-        );
-
-    if (
-      existingIndex >= 0
-    ) {
-      const existing =
-        state
-          .placementCandidates[
-          existingIndex
-        ];
+      this.recoverable =
+        recoverable === true;
 
       if (
-        normalized.score >
-        existing.score
+        Error.captureStackTrace &&
+        typeof Error.captureStackTrace ===
+          "function"
       ) {
-        state
-          .placementCandidates[
-          existingIndex
-        ] =
-          normalized;
-      }
-
-      this.sortPlacementCandidates(
-        state
-      );
-
-      return true;
-    }
-
-    state
-      .placementCandidates
-      .push(normalized);
-
-    this.sortPlacementCandidates(
-      state
-    );
-
-    if (
-      state
-        .placementCandidates
-        .length >
-      maximum
-    ) {
-      state
-        .placementCandidates =
-        state
-          .placementCandidates
-          .slice(
-            0,
-            maximum
-          );
-    }
-
-    state.diagnostics
-      .counters
-      .placementCandidateCount =
-      state
-        .placementCandidates
-        .length;
-
-    this.touch(state);
-
-    return true;
-  },
-
-  normalizePlacementCandidate(
-    candidate = {}
-  ) {
-    if (
-      !candidate ||
-      typeof candidate !==
-        "object" ||
-      Array.isArray(candidate)
-    ) {
-      return null;
-    }
-
-    const contract =
-      this.getContract();
-
-    const placementClass =
-      candidate.class ||
-      candidate.placementClass ||
-      null;
-
-    const family =
-      candidate.family ||
-      candidate.placementFamily ||
-      this.familyForPlacementClass(
-        placementClass
-      );
-
-    if (
-      !contract
-        .isValidPlacementClass(
-          placementClass
-        ) ||
-      !contract
-        .isValidPlacementFamily(
-          family
-        )
-    ) {
-      return null;
-    }
-
-    const sourceTurnIds =
-      this.toArray(
-        candidate.sourceTurnIds ||
-        candidate.turnIds
-      )
-        .map(value =>
-          this.toStableId(value)
-        )
-        .filter(Boolean);
-
-    const score =
-      this.normalizeScore(
-        candidate.score ??
-        candidate.confidence ??
-        0
-      );
-
-    return {
-      schema:
-        "ari_cos_placement_candidate",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      candidateId:
-        candidate.candidateId ||
-        this.createCandidateId(
-          "placement"
-        ),
-
-      class:
-        placementClass,
-
-      family,
-
-      sourceTurnIds,
-
-      primarySourceTurnId:
-        this.toStableId(
-          candidate
-            .primarySourceTurnId
-        ) ||
-        sourceTurnIds[0] ||
-        null,
-
-      threadScope:
-        this.normalizeThreadScope(
-          candidate.threadScope
-        ),
-
-      isNewTopic:
-        placementClass ===
-        contract
-          .placementClasses
-          .NEW_TOPIC,
-
-      isFollowUp:
-        this.isFollowUpPlacementClass(
-          placementClass
-        ),
-
-      isCorrection:
-        placementClass ===
-        contract
-          .placementClasses
-          .CORRECTION,
-
-      isRevision:
-        placementClass ===
-        contract
-          .placementClasses
-          .REVISION,
-
-      requiresPriorTurns:
-        candidate
-          .requiresPriorTurns ===
-          true ||
-        (
-          placementClass !==
-          contract
-            .placementClasses
-            .NEW_TOPIC &&
-          placementClass !==
-          contract
-            .placementClasses
-            .UNKNOWN_PLACEMENT
-        ),
-
-      score,
-
-      confidence:
-        contract
-          .confidenceLabelFromScore(
-            score
-          ),
-
-      evidenceIds:
-        this.toArray(
-          candidate.evidenceIds ||
-          candidate.evidence
-        )
-          .map(value =>
-            typeof value ===
-              "object"
-              ? value.evidenceId ||
-                null
-              : value
-          )
-          .filter(Boolean),
-
-      basis:
-        this.toArray(
-          candidate.basis
-        ),
-
-      generatedBy:
-        candidate.generatedBy ||
-        null,
-
-      semanticInterpretation:
-        null,
-
-      authority:
-        "placement_candidate_only"
-    };
-  },
-
-  sortPlacementCandidates(
-    state = {}
-  ) {
-    state.placementCandidates =
-      this.toArray(
-        state.placementCandidates
-      )
-        .sort(
-          (
-            a,
-            b
-          ) =>
-            b.score -
-            a.score
+        Error.captureStackTrace(
+          this,
+          CosStateError
         );
-  },
-
-  /* =====================================================
-     REFERENCE BINDING CANDIDATES
-  ===================================================== */
-
-  addReferenceBindingCandidate(
-    state = {},
-    candidate = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const normalized =
-      this.normalizeReferenceBindingCandidate(
-        candidate
-      );
-
-    if (!normalized) {
-      this.addWarning(
-        state,
-        {
-          type:
-            "invalid_reference_binding_candidate_rejected"
-        }
-      );
-
-      return false;
-    }
-
-    const maximum =
-      state.configuration
-        ?.maximumBindingCandidates ||
-      12;
-
-    const duplicateIndex =
-      state
-        .referenceBindingCandidates
-        .findIndex(
-          item =>
-            item.candidateId ===
-              normalized.candidateId ||
-            (
-              item.surfaceClass ===
-                normalized.surfaceClass &&
-              this.sameIdSet(
-                item.boundTurnIds,
-                normalized.boundTurnIds
-              )
-            )
-        );
-
-    if (
-      duplicateIndex >= 0
-    ) {
-      const existing =
-        state
-          .referenceBindingCandidates[
-          duplicateIndex
-        ];
-
-      if (
-        normalized.score >
-        existing.score
-      ) {
-        state
-          .referenceBindingCandidates[
-          duplicateIndex
-        ] =
-          normalized;
       }
-    } else {
-      state
-        .referenceBindingCandidates
-        .push(normalized);
     }
-
-    state
-      .referenceBindingCandidates
-      .sort(
-        (
-          a,
-          b
-        ) =>
-          b.score -
-          a.score
-      );
-
-    if (
-      state
-        .referenceBindingCandidates
-        .length >
-      maximum
-    ) {
-      state
-        .referenceBindingCandidates =
-        state
-          .referenceBindingCandidates
-          .slice(
-            0,
-            maximum
-          );
-    }
-
-    state.diagnostics
-      .counters
-      .referenceBindingCandidateCount =
-      state
-        .referenceBindingCandidates
-        .length;
-
-    this.touch(state);
-
-    return true;
-  },
-
-  normalizeReferenceBindingCandidate(
-    candidate = {}
-  ) {
-    if (
-      !candidate ||
-      typeof candidate !==
-        "object" ||
-      Array.isArray(candidate)
-    ) {
-      return null;
-    }
-
-    const contract =
-      this.getContract();
-
-    const surfaceClass =
-      candidate.surfaceClass ||
-      contract
-        .referenceSurfaceClasses
-        .UNKNOWN_REFERENCE_SURFACE;
-
-    if (
-      !Object.values(
-        contract
-          .referenceSurfaceClasses
-      ).includes(
-        surfaceClass
-      )
-    ) {
-      return null;
-    }
-
-    const boundTurnIds =
-      this.toArray(
-        candidate.boundTurnIds ||
-        candidate.sourceTurnIds ||
-        candidate.turnIds
-      )
-        .map(value =>
-          this.toStableId(value)
-        )
-        .filter(Boolean);
-
-    const score =
-      this.normalizeScore(
-        candidate.score ??
-        candidate.confidence ??
-        0
-      );
-
-    return {
-      schema:
-        "ari_cos_reference_binding_candidate",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      candidateId:
-        candidate.candidateId ||
-        this.createCandidateId(
-          "binding"
-        ),
-
-      required:
-        candidate.required ===
-        true,
-
-      resolved:
-        candidate.resolved ===
-          true ||
-        boundTurnIds.length >
-          0,
-
-      surfaceClass,
-
-      surfaceText:
-        candidate.surfaceText ===
-          undefined
-          ? null
-          : this.preserveText(
-              candidate.surfaceText
-            ),
-
-      boundTurnIds,
-
-      primaryBoundTurnId:
-        this.toStableId(
-          candidate
-            .primaryBoundTurnId
-        ) ||
-        boundTurnIds[0] ||
-        null,
-
-      unresolvedReference:
-        candidate
-          .unresolvedReference ||
-        null,
-
-      score,
-
-      confidence:
-        contract
-          .confidenceLabelFromScore(
-            score
-          ),
-
-      evidenceIds:
-        this.toArray(
-          candidate.evidenceIds
-        ),
-
-      generatedBy:
-        candidate.generatedBy ||
-        null,
-
-      semanticInterpretation:
-        null,
-
-      authority:
-        "structural_reference_binding_candidate_only"
-    };
-  },
+  }
 
   /* =====================================================
-     SOURCE TURN CANDIDATES
+     BASIC UTILITIES
   ===================================================== */
 
-  addSourceTurnCandidate(
-    state = {},
-    candidate = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
+  function isObject(value) {
+    return (
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    );
+  }
 
-    const normalized =
-      this.normalizeSourceTurnCandidate(
-        state,
-        candidate
-      );
+  function isString(value) {
+    return typeof value === "string";
+  }
 
-    if (!normalized) {
-      this.addWarning(
-        state,
-        {
-          type:
-            "invalid_source_turn_candidate_rejected"
-        }
-      );
+  function isNonEmptyString(value) {
+    return (
+      isString(value) &&
+      value.trim().length > 0
+    );
+  }
 
-      return false;
-    }
-
-    const existingIndex =
-      state
-        .sourceTurnCandidates
-        .findIndex(
-          item =>
-            item.turnId ===
-            normalized.turnId
-        );
-
-    if (
-      existingIndex >= 0
-    ) {
-      const existing =
-        state
-          .sourceTurnCandidates[
-          existingIndex
-        ];
-
-      if (
-        normalized.score >
-        existing.score
-      ) {
-        state
-          .sourceTurnCandidates[
-          existingIndex
-        ] =
-          normalized;
+  function firstDefined(...values) {
+    for (const value of values) {
+      if (value !== undefined) {
+        return value;
       }
-    } else {
-      state
-        .sourceTurnCandidates
-        .push(normalized);
     }
 
-    state
-      .sourceTurnCandidates
-      .sort(
-        (
-          a,
-          b
-        ) =>
-          b.score -
-          a.score
-      );
+    return undefined;
+  }
 
-    state.diagnostics
-      .counters
-      .sourceTurnCandidateCount =
-      state
-        .sourceTurnCandidates
-        .length;
-
-    this.touch(state);
-
-    return true;
-  },
-
-  normalizeSourceTurnCandidate(
-    state = {},
-    candidate = {}
-  ) {
-    if (
-      !candidate ||
-      typeof candidate !==
-        "object" ||
-      Array.isArray(candidate)
-    ) {
-      return null;
-    }
-
-    const turnId =
-      this.toStableId(
-        candidate.turnId ||
-        candidate.id
-      );
-
-    const turn =
-      candidate.turn ||
-      this.findAvailableTurn(
-        state,
-        turnId
-      );
-
-    if (
-      !turn
-    ) {
-      return null;
-    }
-
-    const contract =
-      this.getContract();
-
-    const relationship =
-      contract
-        .isValidSourceTurnRelationship(
-          candidate.relationship
-        )
-        ? candidate.relationship
-        : contract
-            .sourceTurnRelationships
-            .CANDIDATE_SOURCE;
-
-    const sourceRole =
-      contract
-        .isValidSourceTurnRole(
-          candidate.sourceRole
-        )
-        ? candidate.sourceRole
-        : contract
-            .sourceTurnRoles
-            .CANDIDATE;
-
-    const score =
-      this.normalizeScore(
-        candidate.score ??
-        candidate.confidence ??
-        0
-      );
-
-    return {
-      schema:
-        "ari_cos_source_turn_candidate",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      candidateId:
-        candidate.candidateId ||
-        this.createCandidateId(
-          "source_turn"
-        ),
-
-      turnId:
-        turn.turnId,
-
-      threadId:
-        turn.threadId,
-
-      conversationId:
-        turn.conversationId,
-
-      role:
-        turn.role,
-
-      text:
-        turn.text,
-
-      exactText:
-        turn.exactText,
-
-      sequence:
-        turn.sequence,
-
-      createdAt:
-        turn.createdAt,
-
-      relationship,
-
-      sourceRole,
-
-      score,
-
-      confidence:
-        contract
-          .confidenceLabelFromScore(
-            score
-          ),
-
-      evidenceIds:
-        this.toArray(
-          candidate.evidenceIds
-        ),
-
-      generatedBy:
-        candidate.generatedBy ||
-        null,
-
-      textPreserved:
-        true,
-
-      semanticInterpretation:
-        null,
-
-      authority:
-        "source_turn_candidate_only"
-    };
-  },
-
-  /* =====================================================
-     AUTHORITATIVE SELECTION STORAGE
-  ===================================================== */
-
-  setPlacementDecision(
-    state = {},
-    {
-      placement = null,
-      referenceBinding = null,
-      sourceTurns = [],
-      decision = null
-    } = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const contract =
-      this.getContract();
-
-    const normalizedPlacement =
-      this.normalizeSelectedPlacement(
-        placement
-      );
-
-    if (
-      !normalizedPlacement
-    ) {
-      this.addError(
-        state,
-        {
-          type:
-            "selected_placement_invalid"
-        }
-      );
-
-      return false;
-    }
-
-    const normalizedBinding =
-      referenceBinding
-        ? this.normalizeSelectedReferenceBinding(
-            referenceBinding
-          )
-        : contract
-            .createEmptyReferenceBinding();
-
-    if (
-      !normalizedBinding
-    ) {
-      this.addError(
-        state,
-        {
-          type:
-            "selected_reference_binding_invalid"
-        }
-      );
-
-      return false;
-    }
-
-    const normalizedSourceTurns =
-      this.normalizeSelectedSourceTurns(
-        state,
-        sourceTurns
-      );
-
-    if (
-      normalizedPlacement
-        .requiresPriorTurns ===
-        true &&
-      !normalizedSourceTurns.length
-    ) {
-      this.addError(
-        state,
-        {
-          type:
-            "selected_placement_requires_source_turns"
-        }
-      );
-
-      return false;
-    }
-
-    const normalizedDecision =
-      this.normalizeSelectedDecision(
-        decision,
-        normalizedPlacement
-      );
-
-    if (
-      !normalizedDecision
-    ) {
-      this.addError(
-        state,
-        {
-          type:
-            "selected_decision_invalid"
-        }
-      );
-
-      return false;
-    }
-
-    state.selectedPlacement =
-      normalizedPlacement;
-
-    state.selectedReferenceBinding =
-      normalizedBinding;
-
-    state.selectedSourceTurns =
-      normalizedSourceTurns;
-
-    state.decision =
-      normalizedDecision;
-
-    state.diagnostics
-      .counters
-      .selectedSourceTurnCount =
-      normalizedSourceTurns
-        .length;
-
-    this.completeStage(
-      state,
-      "decision"
-    );
-
-    this.touch(state);
-
-    this.mark(
-      state,
-      "placement_decision_stored",
-      {
-        placementClass:
-          normalizedPlacement.class,
-
-        sourceTurnCount:
-          normalizedSourceTurns
-            .length,
-
-        confidenceScore:
-          normalizedDecision
-            .confidenceScore
+  function firstNonEmptyString(...values) {
+    for (const value of values) {
+      if (isNonEmptyString(value)) {
+        return value.trim();
       }
-    );
-
-    return true;
-  },
-
-  normalizeSelectedPlacement(
-    placement = null
-  ) {
-    const candidate =
-      this.normalizePlacementCandidate(
-        placement ||
-        {}
-      );
-
-    if (!candidate) {
-      return null;
     }
 
-    return {
-      class:
-        candidate.class,
+    return null;
+  }
 
-      family:
-        candidate.family,
-
-      isNewTopic:
-        candidate.isNewTopic,
-
-      isFollowUp:
-        candidate.isFollowUp,
-
-      isCorrection:
-        candidate.isCorrection,
-
-      isRevision:
-        candidate.isRevision,
-
-      isMemoryRequest:
-        candidate.class ===
-        this.getContract()
-          .placementClasses
-          .THREAD_MEMORY_REQUEST,
-
-      isPreviousConversationReference:
-        candidate.class ===
-        this.getContract()
-          .placementClasses
-          .PREVIOUS_CONVERSATION_REFERENCE,
-
-      isThemeContinuation:
-        candidate.class ===
-        this.getContract()
-          .placementClasses
-          .CONVERSATION_THEME_CONTINUATION,
-
-      requiresPriorTurns:
-        candidate.requiresPriorTurns,
-
-      requiresPreviousConversation:
-        candidate.threadScope ===
-          this.getContract()
-            .threadScopes
-            .PREVIOUS_THREAD ||
-        candidate.threadScope ===
-          this.getContract()
-            .threadScopes
-            .CROSS_THREAD,
-
-      primarySourceTurnId:
-        candidate
-          .primarySourceTurnId,
-
-      sourceTurnIds:
-        candidate.sourceTurnIds,
-
-      threadScope:
-        candidate.threadScope,
-
-      evidenceIds:
-        candidate.evidenceIds,
-
-      authority:
-        "conversation_placement_only"
-    };
-  },
-
-  normalizeSelectedReferenceBinding(
-    binding = {}
-  ) {
-    const normalized =
-      this.normalizeReferenceBindingCandidate(
-        binding
-      );
-
-    if (!normalized) {
-      return null;
+  function asArray(value) {
+    if (Array.isArray(value)) {
+      return value;
     }
 
-    return {
-      required:
-        normalized.required,
-
-      resolved:
-        normalized.resolved,
-
-      surfaceClass:
-        normalized.surfaceClass,
-
-      surfaceText:
-        normalized.surfaceText,
-
-      boundTurnIds:
-        normalized.boundTurnIds,
-
-      primaryBoundTurnId:
-        normalized
-          .primaryBoundTurnId,
-
-      unresolvedReference:
-        normalized
-          .unresolvedReference,
-
-      confidence:
-        normalized.confidence,
-
-      confidenceScore:
-        normalized.score,
-
-      evidenceIds:
-        normalized.evidenceIds,
-
-      authority:
-        "structural_reference_binding_only"
-    };
-  },
-
-  normalizeSelectedSourceTurns(
-    state = {},
-    sourceTurns = []
-  ) {
-    const contract =
-      this.getContract();
-
-    const maximum =
-      state.configuration
-        ?.maximumSourceTurns ||
-      8;
-
-    const seen =
-      new Set();
-
-    return this.toArray(
-      sourceTurns
-    )
-      .map(
-        (
-          item,
-          index
-        ) => {
-          const turnId =
-            this.toStableId(
-              item?.turnId ||
-              item?.id ||
-              item
-            );
-
-          const turn =
-            item?.turn ||
-            this.findAvailableTurn(
-              state,
-              turnId
-            );
-
-          if (
-            !turn ||
-            seen.has(
-              String(
-                turn.turnId
-              )
-            )
-          ) {
-            return null;
-          }
-
-          seen.add(
-            String(
-              turn.turnId
-            )
-          );
-
-          const relationship =
-            contract
-              .isValidSourceTurnRelationship(
-                item?.relationship
-              )
-              ? item.relationship
-              : contract
-                  .sourceTurnRelationships
-                  .CONTEXT_SUPPORT;
-
-          const role =
-            contract
-              .isValidSourceTurnRole(
-                item?.sourceRole
-              )
-              ? item.sourceRole
-              : index === 0
-                ? contract
-                    .sourceTurnRoles
-                    .PRIMARY
-                : contract
-                    .sourceTurnRoles
-                    .SUPPORTING;
-
-          return contract
-            .createSourceTurnRecord({
-              turn,
-              relationship,
-              role,
-              confidence:
-                item?.score ??
-                item?.confidence ??
-                0,
-
-              evidence:
-                item?.evidenceIds ||
-                item?.evidence ||
-                []
-            });
-        }
-      )
-      .filter(Boolean)
-      .slice(
-        0,
-        maximum
-      );
-  },
-
-  normalizeSelectedDecision(
-    decision = null,
-    placement = {}
-  ) {
-    const contract =
-      this.getContract();
-
-    const score =
-      this.normalizeScore(
-        decision
-          ?.confidenceScore ??
-        decision?.score ??
-        decision?.confidence ??
-        0
-      );
-
-    const status =
-      decision?.status ||
-      (
-        placement.class !==
-        contract
-          .placementClasses
-          .UNKNOWN_PLACEMENT
-          ? contract
-              .decisionStatuses
-              .RESOLVED
-          : contract
-              .decisionStatuses
-              .UNRESOLVED
-      );
-
-    if (
-      !Object.values(
-        contract
-          .decisionStatuses
-      ).includes(status)
-    ) {
-      return null;
-    }
-
-    return {
-      status,
-
-      confidence:
-        contract
-          .confidenceLabelFromScore(
-            score
-          ),
-
-      confidenceScore:
-        score,
-
-      basis:
-        this.toArray(
-          decision?.basis
-        ),
-
-      alternatives:
-        this.toArray(
-          decision?.alternatives
-        ),
-
-      authoritative:
-        status ===
-        contract
-          .decisionStatuses
-          .RESOLVED,
-
-      reason:
-        decision?.reason ||
-        (
-          status ===
-          contract
-            .decisionStatuses
-            .RESOLVED
-            ? "conversation_placement_resolved"
-            : "conversation_placement_unresolved"
-        ),
-
-      decidedBy:
-        decision?.decidedBy ||
-        null,
-
-      authority:
-        "cos_placement_decision_record"
-    };
-  },
-
-  /* =====================================================
-     PACKET STORAGE
-  ===================================================== */
-
-  setPacket(
-    state = {},
-    packet = null
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object" ||
-      !packet ||
-      typeof packet !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const contract =
-      this.getContract();
-
-    const validation =
-      contract
-        .validatePlacementPacket(
-          packet
-        );
-
-    state.validation.packet =
-      validation;
-
-    if (
-      validation.valid !==
-      true
-    ) {
-      this.addError(
-        state,
-        {
-          type:
-            "cos_packet_validation_failed",
-
-          errors:
-            validation.errors
-        }
-      );
-
-      return false;
-    }
-
-    state.packet =
-      packet;
-
-    state.ready =
-      packet.ready ===
-      true;
-
-    state.usable =
-      packet.usable ===
-      true;
-
-    state.complete =
-      packet.ready ===
-        true &&
-      packet.usable ===
-        true;
-
-    this.completeStage(
-      state,
-      "packetBuild"
-    );
-
-    if (
-      state.complete
-    ) {
-      this.completeStage(
-        state,
-        "complete"
-      );
-    }
-
-    this.touch(state);
-
-    return true;
-  },
-
-  /* =====================================================
-     ERRORS AND WARNINGS
-  ===================================================== */
-
-  addError(
-    state = {},
-    error = null
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const record =
-      this.normalizeDiagnosticRecord(
-        error,
-        "error"
-      );
-
-    if (!record) {
-      return false;
-    }
-
-    state.diagnostics =
-      state.diagnostics ||
-      {};
-
-    state.diagnostics.errors =
-      this.toArray(
-        state.diagnostics.errors
-      );
-
-    state.diagnostics
-      .errors
-      .push(record);
-
-    state.failed =
-      true;
-
-    state.usable =
-      false;
-
-    state.diagnostics
-      .counters
-      .errorCount =
-      state.diagnostics
-        .errors
-        .length;
-
-    this.touch(state);
-
-    return true;
-  },
-
-  addWarning(
-    state = {},
-    warning = null
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return false;
-    }
-
-    const record =
-      this.normalizeDiagnosticRecord(
-        warning,
-        "warning"
-      );
-
-    if (!record) {
-      return false;
-    }
-
-    state.diagnostics =
-      state.diagnostics ||
-      {};
-
-    state.diagnostics.warnings =
-      this.toArray(
-        state.diagnostics.warnings
-      );
-
-    state.diagnostics
-      .warnings
-      .push(record);
-
-    state.diagnostics
-      .counters
-      .warningCount =
-      state.diagnostics
-        .warnings
-        .length;
-
-    this.touch(state);
-
-    return true;
-  },
-
-  normalizeDiagnosticRecord(
-    value = null,
-    level = "warning"
-  ) {
     if (
       value === null ||
       value === undefined
-    ) {
-      return null;
-    }
-
-    if (
-      typeof value ===
-        "string"
-    ) {
-      return {
-        level,
-
-        type:
-          this.normalizeIdentifier(
-            value
-          ) ||
-          `${level}_record`,
-
-        message:
-          value,
-
-        createdAt:
-          new Date()
-            .toISOString()
-      };
-    }
-
-    if (
-      typeof value !==
-        "object" ||
-      Array.isArray(value)
-    ) {
-      return {
-        level,
-
-        type:
-          `${level}_record`,
-
-        message:
-          String(value),
-
-        createdAt:
-          new Date()
-            .toISOString()
-      };
-    }
-
-    return {
-      ...value,
-
-      level:
-        value.level ||
-        level,
-
-      type:
-        value.type ||
-        `${level}_record`,
-
-      createdAt:
-        value.createdAt ||
-        new Date()
-          .toISOString()
-    };
-  },
-
-  /* =====================================================
-     MARKS AND TIMING
-  ===================================================== */
-
-  mark(
-    state = {},
-    name = "",
-    metadata = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return null;
-    }
-
-    const normalizedName =
-      this.normalizeIdentifier(
-        name
-      );
-
-    if (!normalizedName) {
-      return null;
-    }
-
-    const now =
-      Date.now();
-
-    const startedAt =
-      state.diagnostics
-        ?.timing
-        ?.startedAtEpochMs ??
-      now;
-
-    const record = {
-      name:
-        normalizedName,
-
-      at:
-        new Date(now)
-          .toISOString(),
-
-      elapsedMs:
-        Math.max(
-          0,
-          now -
-          startedAt
-        ),
-
-      metadata:
-        this.normalizeMetadata(
-          metadata
-        )
-    };
-
-    state.diagnostics =
-      state.diagnostics ||
-      {};
-
-    state.diagnostics.marks =
-      this.toArray(
-        state.diagnostics.marks
-      );
-
-    state.diagnostics
-      .marks
-      .push(record);
-
-    return record;
-  },
-
-  createTimingState() {
-    const now =
-      Date.now();
-
-    return {
-      startedAt:
-        new Date(now)
-          .toISOString(),
-
-      startedAtEpochMs:
-        now,
-
-      completedAt:
-        null,
-
-      durationMs:
-        null
-    };
-  },
-
-  finalizeTiming(
-    state = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return null;
-    }
-
-    const now =
-      Date.now();
-
-    const startedAt =
-      state.diagnostics
-        ?.timing
-        ?.startedAtEpochMs ??
-      now;
-
-    state.diagnostics.timing =
-      {
-        ...(
-          state.diagnostics
-            ?.timing ||
-          {}
-        ),
-
-        completedAt:
-          new Date(now)
-            .toISOString(),
-
-        durationMs:
-          Math.max(
-            0,
-            now -
-            startedAt
-          )
-      };
-
-    return state
-      .diagnostics
-      .timing;
-  },
-
-  createCounters() {
-    return {
-      structuralEvidenceCount:
-        0,
-
-      placementCandidateCount:
-        0,
-
-      referenceBindingCandidateCount:
-        0,
-
-      sourceTurnCandidateCount:
-        0,
-
-      selectedSourceTurnCount:
-        0,
-
-      errorCount:
-        0,
-
-      warningCount:
-        0
-    };
-  },
-
-  /* =====================================================
-     SNAPSHOTS
-  ===================================================== */
-
-  snapshot(
-    state = {},
-    {
-      includeInput = true,
-      includeCandidates = true,
-      includeDiagnostics = true,
-      includePacket = true
-    } = {}
-  ) {
-    if (
-      !state ||
-      typeof state !==
-        "object"
-    ) {
-      return null;
-    }
-
-    return {
-      schema:
-        state.schema,
-
-      schemaVersion:
-        state.schemaVersion,
-
-      ready:
-        state.ready ===
-        true,
-
-      usable:
-        state.usable ===
-        true,
-
-      complete:
-        state.complete ===
-        true,
-
-      failed:
-        state.failed ===
-        true,
-
-      source:
-        state.source,
-
-      version:
-        state.version,
-
-      runtimeId:
-        state.runtimeId,
-
-      requestId:
-        state.requestId,
-
-      sessionId:
-        state.sessionId,
-
-      createdAt:
-        state.createdAt,
-
-      updatedAt:
-        state.updatedAt,
-
-      currentTurn:
-        this.cloneValue(
-          state.currentTurn
-        ),
-
-      availableTurns:
-        includeInput
-          ? this.cloneValue(
-              state.availableTurns
-            )
-          : [],
-
-      currentThread:
-        includeInput
-          ? this.cloneValue(
-              state.currentThread
-            )
-          : null,
-
-      previousThreads:
-        includeInput
-          ? this.cloneValue(
-              state.previousThreads
-            )
-          : [],
-
-      configuration:
-        this.cloneValue(
-          state.configuration
-        ),
-
-      stage:
-        this.cloneValue(
-          state.stage
-        ),
-
-      structuralEvidence:
-        includeCandidates
-          ? this.cloneValue(
-              state
-                .structuralEvidence
-            )
-          : null,
-
-      placementCandidates:
-        includeCandidates
-          ? this.cloneValue(
-              state
-                .placementCandidates
-            )
-          : [],
-
-      referenceBindingCandidates:
-        includeCandidates
-          ? this.cloneValue(
-              state
-                .referenceBindingCandidates
-            )
-          : [],
-
-      sourceTurnCandidates:
-        includeCandidates
-          ? this.cloneValue(
-              state
-                .sourceTurnCandidates
-            )
-          : [],
-
-      selectedPlacement:
-        this.cloneValue(
-          state
-            .selectedPlacement
-        ),
-
-      selectedReferenceBinding:
-        this.cloneValue(
-          state
-            .selectedReferenceBinding
-        ),
-
-      selectedSourceTurns:
-        this.cloneValue(
-          state
-            .selectedSourceTurns
-        ),
-
-      decision:
-        this.cloneValue(
-          state.decision
-        ),
-
-      packet:
-        includePacket
-          ? this.cloneValue(
-              state.packet
-            )
-          : null,
-
-      validation:
-        this.cloneValue(
-          state.validation
-        ),
-
-      diagnostics:
-        includeDiagnostics
-          ? this.cloneValue(
-              state.diagnostics
-            )
-          : null,
-
-      authority:
-        this.cloneValue(
-          state.authority
-        )
-    };
-  },
-
-  /* =====================================================
-     STATE VALIDATION
-  ===================================================== */
-
-  validate(
-    state = {}
-  ) {
-    const errors = [];
-    const warnings = [];
-
-    if (
-      !state ||
-      typeof state !==
-        "object" ||
-      Array.isArray(state)
-    ) {
-      errors.push(
-        "cos_state_invalid"
-      );
-
-      return {
-        valid:
-          false,
-
-        source:
-          "cos-state-validation",
-
-        version:
-          this.version,
-
-        errors,
-        warnings
-      };
-    }
-
-    if (
-      state.schema !==
-      "ari_cos_runtime_state"
-    ) {
-      errors.push(
-        "cos_state_schema_mismatch"
-      );
-    }
-
-    if (
-      !state.runtimeId
-    ) {
-      errors.push(
-        "cos_runtime_id_missing"
-      );
-    }
-
-    if (
-      !state.currentTurn
-    ) {
-      errors.push(
-        "cos_current_turn_missing"
-      );
-    }
-
-    if (
-      !Array.isArray(
-        state.availableTurns
-      )
-    ) {
-      errors.push(
-        "cos_available_turns_invalid"
-      );
-    }
-
-    if (
-      !state.configuration
-    ) {
-      errors.push(
-        "cos_configuration_missing"
-      );
-    }
-
-    if (
-      state.configuration
-        ?.allowSemanticInterpretation ===
-        true
-    ) {
-      errors.push(
-        "cos_semantic_interpretation_enabled"
-      );
-    }
-
-    if (
-      state.configuration
-        ?.allowConversationFunctionClassification ===
-        true
-    ) {
-      errors.push(
-        "cos_conversation_function_enabled"
-      );
-    }
-
-    if (
-      state.configuration
-        ?.allowAI ===
-        true
-    ) {
-      errors.push(
-        "cos_ai_enabled"
-      );
-    }
-
-    if (
-      !Array.isArray(
-        state.placementCandidates
-      )
-    ) {
-      errors.push(
-        "cos_placement_candidates_invalid"
-      );
-    }
-
-    if (
-      !Array.isArray(
-        state.referenceBindingCandidates
-      )
-    ) {
-      errors.push(
-        "cos_reference_binding_candidates_invalid"
-      );
-    }
-
-    if (
-      !Array.isArray(
-        state.sourceTurnCandidates
-      )
-    ) {
-      errors.push(
-        "cos_source_turn_candidates_invalid"
-      );
-    }
-
-    const contract =
-      this.getContract();
-
-    const forbiddenFields =
-      contract
-        .findForbiddenInterpretiveFields(
-          {
-            selectedPlacement:
-              state
-                .selectedPlacement,
-
-            selectedReferenceBinding:
-              state
-                .selectedReferenceBinding,
-
-            selectedSourceTurns:
-              state
-                .selectedSourceTurns,
-
-            decision:
-              state.decision
-          }
-        );
-
-    if (
-      forbiddenFields.length
-    ) {
-      errors.push({
-        type:
-          "cos_state_contains_forbidden_interpretive_fields",
-
-        fields:
-          forbiddenFields
-      });
-    }
-
-    if (
-      state.complete ===
-        true &&
-      !state.packet
-    ) {
-      errors.push(
-        "cos_complete_state_missing_packet"
-      );
-    }
-
-    if (
-      state.selectedPlacement
-        ?.requiresPriorTurns ===
-        true &&
-      !state.selectedSourceTurns
-        ?.length
-    ) {
-      errors.push(
-        "cos_selected_source_turns_missing"
-      );
-    }
-
-    return {
-      valid:
-        errors.length ===
-        0,
-
-      source:
-        "cos-state-validation",
-
-      version:
-        this.version,
-
-      schemaVersion:
-        this.schemaVersion,
-
-      errors,
-      warnings,
-
-      checks: {
-        exactTurnTextPreserved:
-          state.currentTurn
-            ?.textPreserved ===
-          true,
-
-        semanticInterpretationDisabled:
-          state.configuration
-            ?.allowSemanticInterpretation ===
-          false,
-
-        conversationFunctionDisabled:
-          state.configuration
-            ?.allowConversationFunctionClassification ===
-          false,
-
-        aiDisabled:
-          state.configuration
-            ?.allowAI ===
-          false,
-
-        stateDoesNotDeterminePlacement:
-          this
-            .getAuthorityBoundaries()
-            .canDeterminePlacement ===
-          false,
-
-        stateDoesNotBindReferences:
-          this
-            .getAuthorityBoundaries()
-            .canBindReferences ===
-          false,
-
-        stateDoesNotSelectSourceTurns:
-          this
-            .getAuthorityBoundaries()
-            .canSelectSourceTurns ===
-          false
-      }
-    };
-  },
-
-  /* =====================================================
-     AUTHORITY
-  ===================================================== */
-
-  getAuthorityBoundaries() {
-    return {
-      canCreateRuntimeState:
-        true,
-
-      canPreserveCurrentTurn:
-        true,
-
-      canPreserveAvailableTurns:
-        true,
-
-      canStoreStructuralEvidence:
-        true,
-
-      canStorePlacementCandidates:
-        true,
-
-      canStoreReferenceBindingCandidates:
-        true,
-
-      canStoreSourceTurnCandidates:
-        true,
-
-      canStoreAuthoritativePlacement:
-        true,
-
-      canStoreAuthoritativeReferenceBinding:
-        true,
-
-      canStoreAuthoritativeSourceTurns:
-        true,
-
-      canTrackRuntimeProgress:
-        true,
-
-      canTrackDiagnostics:
-        true,
-
-      canCreateSnapshots:
-        true,
-
-      canValidateState:
-        true,
-
-      canDeterminePlacement:
-        false,
-
-      canClassifyNewTopic:
-        false,
-
-      canClassifyFollowUp:
-        false,
-
-      canBindReferences:
-        false,
-
-      canSelectSourceTurns:
-        false,
-
-      canLoadConversationHistory:
-        false,
-
-      canInterpretLanguage:
-        false,
-
-      canInterpretTypos:
-        false,
-
-      canInterpretSlang:
-        false,
-
-      canInterpretAcronyms:
-        false,
-
-      canInterpretEmojis:
-        false,
-
-      canDetermineSemanticMeaning:
-        false,
-
-      canDetermineConversationFunction:
-        false,
-
-      canDetermineEmotion:
-        false,
-
-      canDetermineDomain:
-        false,
-
-      canDetermineSafetySeverity:
-        false,
-
-      canDetermineResponsePlan:
-        false,
-
-      canCallAI:
-        false,
-
-      canAnswerUser:
-        false,
-
-      canPersistState:
-        false,
-
-      role:
-        "isolated_conversation_placement_runtime_state"
-    };
-  },
-
-  /* =====================================================
-     LOOKUP HELPERS
-  ===================================================== */
-
-  findAvailableTurn(
-    state = {},
-    turnId = null
-  ) {
-    const stableId =
-      this.toStableId(
-        turnId
-      );
-
-    if (!stableId) {
-      return null;
-    }
-
-    return this.toArray(
-      state.availableTurns
-    )
-      .find(
-        turn =>
-          String(
-            turn?.turnId
-          ) ===
-          stableId
-      ) ||
-      null;
-  },
-
-  familyForPlacementClass(
-    placementClass = null
-  ) {
-    const contract =
-      this.getContract();
-
-    const map = {
-      [contract
-        .placementClasses
-        .NEW_TOPIC]:
-        contract
-          .placementFamilies
-          .NEW,
-
-      [contract
-        .placementClasses
-        .DIRECT_FOLLOW_UP]:
-        contract
-          .placementFamilies
-          .FOLLOW_UP,
-
-      [contract
-        .placementClasses
-        .EARLIER_TURN_FOLLOW_UP]:
-        contract
-          .placementFamilies
-          .FOLLOW_UP,
-
-      [contract
-        .placementClasses
-        .MULTI_TURN_CONTINUATION]:
-        contract
-          .placementFamilies
-          .FOLLOW_UP,
-
-      [contract
-        .placementClasses
-        .CORRECTION]:
-        contract
-          .placementFamilies
-          .CORRECTION,
-
-      [contract
-        .placementClasses
-        .REVISION]:
-        contract
-          .placementFamilies
-          .REVISION,
-
-      [contract
-        .placementClasses
-        .PRIOR_ANSWER_REFERENCE]:
-        contract
-          .placementFamilies
-          .REFERENCE,
-
-      [contract
-        .placementClasses
-        .PRIOR_QUESTION_REFERENCE]:
-        contract
-          .placementFamilies
-          .REFERENCE,
-
-      [contract
-        .placementClasses
-        .PRIOR_EVENT_REFERENCE]:
-        contract
-          .placementFamilies
-          .REFERENCE,
-
-      [contract
-        .placementClasses
-        .PRIOR_ARTIFACT_REFERENCE]:
-        contract
-          .placementFamilies
-          .REFERENCE,
-
-      [contract
-        .placementClasses
-        .THREAD_MEMORY_REQUEST]:
-        contract
-          .placementFamilies
-          .MEMORY,
-
-      [contract
-        .placementClasses
-        .PREVIOUS_CONVERSATION_REFERENCE]:
-        contract
-          .placementFamilies
-          .MEMORY,
-
-      [contract
-        .placementClasses
-        .CONVERSATION_THEME_CONTINUATION]:
-        contract
-          .placementFamilies
-          .THEME,
-
-      [contract
-        .placementClasses
-        .UNKNOWN_PLACEMENT]:
-        contract
-          .placementFamilies
-          .UNKNOWN
-    };
-
-    return map[
-      placementClass
-    ] ||
-      contract
-        .placementFamilies
-        .UNKNOWN;
-  },
-
-  isFollowUpPlacementClass(
-    placementClass = null
-  ) {
-    const contract =
-      this.getContract();
-
-    return [
-      contract
-        .placementClasses
-        .DIRECT_FOLLOW_UP,
-
-      contract
-        .placementClasses
-        .EARLIER_TURN_FOLLOW_UP,
-
-      contract
-        .placementClasses
-        .MULTI_TURN_CONTINUATION,
-
-      contract
-        .placementClasses
-        .PRIOR_ANSWER_REFERENCE,
-
-      contract
-        .placementClasses
-        .PRIOR_QUESTION_REFERENCE,
-
-      contract
-        .placementClasses
-        .PRIOR_EVENT_REFERENCE,
-
-      contract
-        .placementClasses
-        .PRIOR_ARTIFACT_REFERENCE,
-
-      contract
-        .placementClasses
-        .THREAD_MEMORY_REQUEST,
-
-      contract
-        .placementClasses
-        .PREVIOUS_CONVERSATION_REFERENCE,
-
-      contract
-        .placementClasses
-        .CONVERSATION_THEME_CONTINUATION
-    ].includes(
-      placementClass
-    );
-  },
-
-  normalizeThreadScope(
-    value = null
-  ) {
-    const contract =
-      this.getContract();
-
-    return Object.values(
-      contract.threadScopes
-    ).includes(value)
-      ? value
-      : contract
-          .threadScopes
-          .CURRENT_THREAD;
-  },
-
-  /* =====================================================
-     GENERAL HELPERS
-  ===================================================== */
-
-  getContract() {
-    const contract =
-      window.AriCOSContract ||
-      window.Ari
-        ?.cosContract ||
-      null;
-
-    if (
-      !contract
-    ) {
-      throw new Error(
-        "cos_contract_not_loaded"
-      );
-    }
-
-    return contract;
-  },
-
-  touch(
-    state = {}
-  ) {
-    if (
-      state &&
-      typeof state ===
-        "object"
-    ) {
-      state.updatedAt =
-        new Date()
-          .toISOString();
-    }
-
-    return state;
-  },
-
-  createRuntimeId() {
-    return (
-      "cos_runtime_" +
-      this.createRandomId()
-    );
-  },
-
-  createEvidenceId() {
-    return (
-      "cos_evidence_" +
-      this.createRandomId()
-    );
-  },
-
-  createCandidateId(
-    prefix = "candidate"
-  ) {
-    return (
-      `cos_${this.normalizeIdentifier(
-        prefix
-      )}_` +
-      this.createRandomId()
-    );
-  },
-
-  createRandomId() {
-    if (
-      globalThis.crypto &&
-      typeof globalThis
-        .crypto
-        .randomUUID ===
-        "function"
-    ) {
-      return globalThis
-        .crypto
-        .randomUUID();
-    }
-
-    return (
-      Date.now()
-        .toString(36) +
-      "_" +
-      Math.random()
-        .toString(36)
-        .slice(2, 12)
-    );
-  },
-
-  normalizeIdentifier(
-    value = ""
-  ) {
-    return String(
-      value ||
-      ""
-    )
-      .toLowerCase()
-      .replace(
-        /[’‘]/g,
-        "'"
-      )
-      .replace(
-        /[“”]/g,
-        "\""
-      )
-      .replace(
-        /[^a-z0-9]+/g,
-        "_"
-      )
-      .replace(
-        /^_+|_+$/g,
-        ""
-      );
-  },
-
-  normalizeScore(
-    value = 0
-  ) {
-    const number =
-      Number(value);
-
-    if (
-      !Number.isFinite(
-        number
-      )
-    ) {
-      return 0;
-    }
-
-    if (
-      number >
-      1
-    ) {
-      return Math.max(
-        0,
-        Math.min(
-          1,
-          number / 100
-        )
-      );
-    }
-
-    return Math.max(
-      0,
-      Math.min(
-        1,
-        number
-      )
-    );
-  },
-
-  toPositiveInteger(
-    value = null,
-    fallback = 1
-  ) {
-    const number =
-      Number(value);
-
-    if (
-      !Number.isFinite(
-        number
-      ) ||
-      number <=
-        0
-    ) {
-      return fallback;
-    }
-
-    return Math.max(
-      1,
-      Math.floor(
-        number
-      )
-    );
-  },
-
-  toFiniteNumber(
-    value = null
-  ) {
-    if (
-      value ===
-        null ||
-      value ===
-        undefined ||
-      value ===
-        ""
-    ) {
-      return null;
-    }
-
-    const number =
-      Number(value);
-
-    return Number.isFinite(
-      number
-    )
-      ? number
-      : null;
-  },
-
-  toStableId(
-    value = null
-  ) {
-    if (
-      value ===
-        null ||
-      value ===
-        undefined ||
-      value ===
-        ""
-    ) {
-      return null;
-    }
-
-    if (
-      typeof value ===
-        "object"
-    ) {
-      const nested =
-        value.turnId ??
-        value.messageId ??
-        value.id ??
-        null;
-
-      return nested ===
-        null
-        ? null
-        : String(nested);
-    }
-
-    return String(value);
-  },
-
-  preserveText(
-    value = ""
-  ) {
-    return String(
-      value ??
-      ""
-    );
-  },
-
-  normalizeMetadata(
-    value = null
-  ) {
-    if (
-      !value ||
-      typeof value !==
-        "object" ||
-      Array.isArray(value)
-    ) {
-      return {};
-    }
-
-    return {
-      ...value
-    };
-  },
-
-  cloneValue(
-    value = null
-  ) {
-    if (
-      value ===
-        undefined
-    ) {
-      return undefined;
-    }
-
-    if (
-      typeof structuredClone ===
-        "function"
-    ) {
-      try {
-        return structuredClone(
-          value
-        );
-      } catch (error) {
-        // Fall through to JSON clone.
-      }
-    }
-
-    try {
-      return JSON.parse(
-        JSON.stringify(
-          value
-        )
-      );
-    } catch (error) {
-      return null;
-    }
-  },
-
-  sameIdSet(
-    first = [],
-    second = []
-  ) {
-    const a =
-      this.toArray(first)
-        .map(value =>
-          this.toStableId(
-            value
-          )
-        )
-        .filter(Boolean)
-        .sort();
-
-    const b =
-      this.toArray(second)
-        .map(value =>
-          this.toStableId(
-            value
-          )
-        )
-        .filter(Boolean)
-        .sort();
-
-    return (
-      a.length ===
-        b.length &&
-      a.every(
-        (
-          value,
-          index
-        ) =>
-          value ===
-          b[index]
-      )
-    );
-  },
-
-  pushUnique(
-    values = [],
-    value = null
-  ) {
-    if (
-      !Array.isArray(values) ||
-      value ===
-        null ||
-      value ===
-        undefined
-    ) {
-      return values;
-    }
-
-    if (
-      !values.includes(value)
-    ) {
-      values.push(value);
-    }
-
-    return values;
-  },
-
-  removeValue(
-    values = [],
-    value = null
-  ) {
-    if (
-      !Array.isArray(values)
-    ) {
-      return values;
-    }
-
-    let index =
-      values.indexOf(
-        value
-      );
-
-    while (
-      index >=
-      0
-    ) {
-      values.splice(
-        index,
-        1
-      );
-
-      index =
-        values.indexOf(
-          value
-        );
-    }
-
-    return values;
-  },
-
-  toArray(
-    value
-  ) {
-    if (
-      Array.isArray(value)
-    ) {
-      return value.filter(
-        item =>
-          item !==
-            null &&
-          item !==
-            undefined
-      );
-    }
-
-    if (
-      value ===
-        undefined ||
-      value ===
-        null
     ) {
       return [];
     }
 
     return [value];
   }
-};
 
-window.Ari.cosState =
-  window.AriCOSState;
+  function normalizeInteger(
+    value,
+    fallback = 0
+  ) {
+    const numeric =
+      Number(value);
 
-console.log(
-  "ARI COS STATE LOADED:",
-  window.AriCOSState
-    ?.version
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+
+    return Math.trunc(numeric);
+  }
+
+  function normalizeTimestamp(
+    value,
+    fallback = null
+  ) {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (
+      typeof value === "number" &&
+      Number.isFinite(value)
+    ) {
+      const parsed =
+        new Date(value);
+
+      if (
+        !Number.isNaN(
+          parsed.getTime()
+        )
+      ) {
+        return parsed.toISOString();
+      }
+    }
+
+    if (isNonEmptyString(value)) {
+      const parsed =
+        new Date(value);
+
+      if (
+        !Number.isNaN(
+          parsed.getTime()
+        )
+      ) {
+        return parsed.toISOString();
+      }
+    }
+
+    return fallback;
+  }
+
+  function uniqueStrings(values = []) {
+    const output = [];
+    const seen = new Set();
+
+    for (
+      const value of asArray(values)
+    ) {
+      if (!isNonEmptyString(value)) {
+        continue;
+      }
+
+      const normalized =
+        value.trim();
+
+      if (seen.has(normalized)) {
+        continue;
+      }
+
+      seen.add(normalized);
+      output.push(normalized);
+    }
+
+    return output;
+  }
+
+  function safeClone(value) {
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return value;
+    }
+
+    if (
+      typeof structuredClone ===
+      "function"
+    ) {
+      try {
+        return structuredClone(value);
+      } catch (error) {
+        // Continue to JSON fallback.
+      }
+    }
+
+    try {
+      return JSON.parse(
+        JSON.stringify(value)
+      );
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function deepFreeze(
+    value,
+    seen = new WeakSet()
+  ) {
+    if (
+      value === null ||
+      typeof value !== "object"
+    ) {
+      return value;
+    }
+
+    if (seen.has(value)) {
+      return value;
+    }
+
+    seen.add(value);
+
+    for (
+      const key of Reflect.ownKeys(value)
+    ) {
+      const child =
+        value[key];
+
+      if (
+        child !== null &&
+        typeof child === "object"
+      ) {
+        deepFreeze(
+          child,
+          seen
+        );
+      }
+    }
+
+    return Object.freeze(value);
+  }
+
+  function freezeClone(value) {
+    return deepFreeze(
+      safeClone(value)
+    );
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function hasOwn(
+    object,
+    property
+  ) {
+    return Object.prototype
+      .hasOwnProperty
+      .call(
+        object,
+        property
+      );
+  }
+
+  function createDictionary() {
+    return Object.create(null);
+  }
+
+  /* =====================================================
+     AUXILIARY COMPONENT DISCOVERY
+  ===================================================== */
+
+  function resolvePendingInteractionManager() {
+    return (
+      ConversationOS
+        .pendingInteractionManager ||
+      ConversationOS
+        .cosPendingInteractionManager ||
+      null
+    );
+  }
+
+  function resolveArtifactRegister() {
+    return (
+      ConversationOS.artifactRegister ||
+      ConversationOS.cosArtifactRegister ||
+      null
+    );
+  }
+
+  function resolveDeliverySequenceManager() {
+    return (
+      ConversationOS
+        .deliverySequenceManager ||
+      ConversationOS
+        .cosDeliverySequenceManager ||
+      null
+    );
+  }
+
+  /* =====================================================
+     EMPTY AUXILIARY STATES
+  ===================================================== */
+
+  function createEmptyPendingInteractionState(
+    conversationId = null
+  ) {
+    const manager =
+      resolvePendingInteractionManager();
+
+    if (
+      manager &&
+      typeof manager.createEmptyState ===
+        "function"
+    ) {
+      return safeClone(
+        manager.createEmptyState({
+          conversationId
+        })
+      );
+    }
+
+    const timestamp =
+      nowIso();
+
+    return {
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      stateType:
+        "conversation_pending_interaction_state",
+
+      conversationId,
+
+      revision: 0,
+
+      activeInteractionId:
+        null,
+
+      interactions:
+        createDictionary(),
+
+      order: [],
+
+      lastCommand: null,
+
+      createdAt:
+        timestamp,
+
+      updatedAt:
+        timestamp
+    };
+  }
+
+  function createEmptyArtifactState(
+    conversationId = null
+  ) {
+    const register =
+      resolveArtifactRegister();
+
+    if (
+      register &&
+      typeof register.createEmptyState ===
+        "function"
+    ) {
+      return safeClone(
+        register.createEmptyState({
+          conversationId
+        })
+      );
+    }
+
+    const timestamp =
+      nowIso();
+
+    return {
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      stateType:
+        "conversation_artifact_state",
+
+      conversationId,
+
+      revision: 0,
+
+      activeArtifactId:
+        null,
+
+      artifacts:
+        createDictionary(),
+
+      order: [],
+
+      byFilePath:
+        createDictionary(),
+
+      bySourceTurnId:
+        createDictionary(),
+
+      lastCommand: null,
+
+      createdAt:
+        timestamp,
+
+      updatedAt:
+        timestamp
+    };
+  }
+
+  function createEmptyDeliverySequenceState(
+    conversationId = null
+  ) {
+    const manager =
+      resolveDeliverySequenceManager();
+
+    if (
+      manager &&
+      typeof manager.createEmptyState ===
+        "function"
+    ) {
+      return safeClone(
+        manager.createEmptyState({
+          conversationId
+        })
+      );
+    }
+
+    const timestamp =
+      nowIso();
+
+    return {
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      stateType:
+        "conversation_delivery_sequence_state",
+
+      conversationId,
+
+      revision: 0,
+
+      activeSequenceId:
+        null,
+
+      sequences:
+        createDictionary(),
+
+      order: [],
+
+      byArtifactId:
+        createDictionary(),
+
+      bySourceTurnId:
+        createDictionary(),
+
+      lastCommand: null,
+
+      createdAt:
+        timestamp,
+
+      updatedAt:
+        timestamp
+    };
+  }
+
+  /* =====================================================
+     TURN NORMALIZATION
+  ===================================================== */
+
+  function normalizeTurnRecord(
+    rawTurn,
+    fallbackTurnId = null
+  ) {
+    const source =
+      isObject(rawTurn)
+        ? safeClone(rawTurn)
+        : {};
+
+    const turnId =
+      firstNonEmptyString(
+        source.turnId,
+        source.turn_id,
+        source.id,
+        source.messageId,
+        source.message_id,
+        fallbackTurnId
+      );
+
+    const role =
+      firstNonEmptyString(
+        source.role,
+        source.speaker,
+        source.authorRole,
+        source.author_role
+      ) || "unknown";
+
+    const normalizedRole =
+      TURN_ROLES.includes(role)
+        ? role
+        : "unknown";
+
+    return {
+      ...source,
+
+      turnId:
+        turnId || null,
+
+      threadId:
+        firstNonEmptyString(
+          source.threadId,
+          source.thread_id,
+          source.conversationThreadId,
+          source.conversation_thread_id
+        ) || null,
+
+      parentTurnId:
+        firstNonEmptyString(
+          source.parentTurnId,
+          source.parent_turn_id
+        ) || null,
+
+      replyToTurnId:
+        firstNonEmptyString(
+          source.replyToTurnId,
+          source.reply_to_turn_id
+        ) || null,
+
+      sourceTurnIds:
+        uniqueStrings(
+          firstDefined(
+            source.sourceTurnIds,
+            source.source_turn_ids,
+            source.referenceTurnIds,
+            source.reference_turn_ids,
+            []
+          )
+        ),
+
+      role:
+        normalizedRole,
+
+      sequence:
+        normalizeInteger(
+          firstDefined(
+            source.sequence,
+            source.turnSequence,
+            source.turn_sequence,
+            source.turnIndex,
+            source.turn_index,
+            source.index
+          ),
+          0
+        ),
+
+      timestamp:
+        normalizeTimestamp(
+          firstDefined(
+            source.timestamp,
+            source.createdAt,
+            source.created_at,
+            source.time
+          ),
+          null
+        ),
+
+      placementType:
+        firstNonEmptyString(
+          source.placementType,
+          source.placement_type
+        ) || null,
+
+      registeredAt:
+        normalizeTimestamp(
+          firstDefined(
+            source.registeredAt,
+            source.registered_at
+          ),
+          null
+        )
+    };
+  }
+
+  function normalizeTurnMap(
+    rawTurns
+  ) {
+    const output =
+      createDictionary();
+
+    if (Array.isArray(rawTurns)) {
+      rawTurns.forEach(
+        (turn, index) => {
+          const normalized =
+            normalizeTurnRecord(
+              turn,
+              `turn_${index}`
+            );
+
+          if (normalized.turnId) {
+            output[
+              normalized.turnId
+            ] = normalized;
+          }
+        }
+      );
+
+      return output;
+    }
+
+    if (isObject(rawTurns)) {
+      for (
+        const [
+          turnId,
+          turn
+        ] of Object.entries(
+          rawTurns
+        )
+      ) {
+        const normalized =
+          normalizeTurnRecord(
+            turn,
+            turnId
+          );
+
+        if (normalized.turnId) {
+          output[
+            normalized.turnId
+          ] = normalized;
+        }
+      }
+    }
+
+    return output;
+  }
+
+  /* =====================================================
+     THREAD NORMALIZATION
+  ===================================================== */
+
+  function normalizeThreadStatus(
+    value
+  ) {
+    return THREAD_STATUSES.includes(
+      value
+    )
+      ? value
+      : "inactive";
+  }
+
+  function normalizeThreadRecord(
+    rawThread,
+    fallbackThreadId = null
+  ) {
+    const source =
+      isObject(rawThread)
+        ? safeClone(rawThread)
+        : {};
+
+    const threadId =
+      firstNonEmptyString(
+        source.threadId,
+        source.thread_id,
+        source.id,
+        fallbackThreadId
+      );
+
+    const turnIds =
+      uniqueStrings(
+        firstDefined(
+          source.turnIds,
+          source.turn_ids,
+          source.turns,
+          []
+        )
+      );
+
+    return {
+      ...source,
+
+      threadId:
+        threadId || null,
+
+      status:
+        normalizeThreadStatus(
+          firstNonEmptyString(
+            source.status
+          ) ||
+          "inactive"
+        ),
+
+      turnIds,
+
+      firstTurnId:
+        firstNonEmptyString(
+          source.firstTurnId,
+          source.first_turn_id,
+          turnIds[0]
+        ) || null,
+
+      lastTurnId:
+        firstNonEmptyString(
+          source.lastTurnId,
+          source.last_turn_id,
+          turnIds.length > 0
+            ? turnIds[
+                turnIds.length - 1
+              ]
+            : null
+        ) || null,
+
+      parentThreadId:
+        firstNonEmptyString(
+          source.parentThreadId,
+          source.parent_thread_id
+        ) || null,
+
+      originTurnId:
+        firstNonEmptyString(
+          source.originTurnId,
+          source.origin_turn_id
+        ) || null,
+
+      branchOriginTurnId:
+        firstNonEmptyString(
+          source.branchOriginTurnId,
+          source.branch_origin_turn_id
+        ) || null,
+
+      interruptedThreadId:
+        firstNonEmptyString(
+          source.interruptedThreadId,
+          source.interrupted_thread_id
+        ) || null,
+
+      interruptionOriginTurnId:
+        firstNonEmptyString(
+          source.interruptionOriginTurnId,
+          source.interruption_origin_turn_id
+        ) || null,
+
+      resumedFromThreadId:
+        firstNonEmptyString(
+          source.resumedFromThreadId,
+          source.resumed_from_thread_id
+        ) || null,
+
+      createdAt:
+        normalizeTimestamp(
+          firstDefined(
+            source.createdAt,
+            source.created_at
+          ),
+          null
+        ),
+
+      updatedAt:
+        normalizeTimestamp(
+          firstDefined(
+            source.updatedAt,
+            source.updated_at
+          ),
+          null
+        )
+    };
+  }
+
+  function normalizeThreadMap(
+    rawThreads
+  ) {
+    const output =
+      createDictionary();
+
+    if (Array.isArray(rawThreads)) {
+      rawThreads.forEach(
+        (thread, index) => {
+          const normalized =
+            normalizeThreadRecord(
+              thread,
+              `thread_${index}`
+            );
+
+          if (normalized.threadId) {
+            output[
+              normalized.threadId
+            ] = normalized;
+          }
+        }
+      );
+
+      return output;
+    }
+
+    if (isObject(rawThreads)) {
+      for (
+        const [
+          threadId,
+          thread
+        ] of Object.entries(
+          rawThreads
+        )
+      ) {
+        const normalized =
+          normalizeThreadRecord(
+            thread,
+            threadId
+          );
+
+        if (normalized.threadId) {
+          output[
+            normalized.threadId
+          ] = normalized;
+        }
+      }
+    }
+
+    return output;
+  }
+
+  /* =====================================================
+     INTERRUPTION NORMALIZATION
+  ===================================================== */
+
+  function normalizeInterruptionRecord(
+    rawEntry
+  ) {
+    const source =
+      isObject(rawEntry)
+        ? safeClone(rawEntry)
+        : {};
+
+    return {
+      ...source,
+
+      interruptionId:
+        firstNonEmptyString(
+          source.interruptionId,
+          source.interruption_id,
+          source.id
+        ) || null,
+
+      interruptedThreadId:
+        firstNonEmptyString(
+          source.interruptedThreadId,
+          source.interrupted_thread_id
+        ) || null,
+
+      interruptionThreadId:
+        firstNonEmptyString(
+          source.interruptionThreadId,
+          source.interruption_thread_id
+        ) || null,
+
+      interruptedTurnId:
+        firstNonEmptyString(
+          source.interruptedTurnId,
+          source.interrupted_turn_id
+        ) || null,
+
+      interruptionTurnId:
+        firstNonEmptyString(
+          source.interruptionTurnId,
+          source.interruption_turn_id
+        ) || null,
+
+      resumeTargetTurnId:
+        firstNonEmptyString(
+          source.resumeTargetTurnId,
+          source.resume_target_turn_id
+        ) || null,
+
+      createdAt:
+        normalizeTimestamp(
+          firstDefined(
+            source.createdAt,
+            source.created_at
+          ),
+          null
+        ),
+
+      returnedAt:
+        normalizeTimestamp(
+          firstDefined(
+            source.returnedAt,
+            source.returned_at
+          ),
+          null
+        )
+    };
+  }
+
+  function normalizeInterruptionStack(
+    rawStack
+  ) {
+    return asArray(rawStack)
+      .filter(isObject)
+      .map(
+        normalizeInterruptionRecord
+      );
+  }
+
+  /* =====================================================
+     PLACEMENT NORMALIZATION
+  ===================================================== */
+
+  function normalizePlacement(
+    rawPlacement
+  ) {
+    if (!isObject(rawPlacement)) {
+      return null;
+    }
+
+    const type =
+      firstNonEmptyString(
+        rawPlacement.type,
+        rawPlacement.placementType,
+        rawPlacement.placement_type
+      );
+
+    return {
+      ...safeClone(rawPlacement),
+
+      type:
+        PLACEMENT_TYPES.includes(type)
+          ? type
+          : type || null,
+
+      threadId:
+        firstNonEmptyString(
+          rawPlacement.threadId,
+          rawPlacement.thread_id
+        ) || null,
+
+      parentTurnId:
+        firstNonEmptyString(
+          rawPlacement.parentTurnId,
+          rawPlacement.parent_turn_id
+        ) || null,
+
+      sourceTurnIds:
+        uniqueStrings(
+          firstDefined(
+            rawPlacement.sourceTurnIds,
+            rawPlacement.source_turn_ids,
+            []
+          )
+        )
+    };
+  }
+
+  function normalizeReferenceResolution(
+    rawResolution
+  ) {
+    if (!isObject(rawResolution)) {
+      return null;
+    }
+
+    const status =
+      firstNonEmptyString(
+        rawResolution.status
+      );
+
+    return {
+      ...safeClone(rawResolution),
+
+      status:
+        REFERENCE_STATUSES.includes(
+          status
+        )
+          ? status
+          : status || null,
+
+      resolvedTurnIds:
+        uniqueStrings(
+          firstDefined(
+            rawResolution.resolvedTurnIds,
+            rawResolution.resolved_turn_ids,
+            []
+          )
+        ),
+
+      unresolvedReferences:
+        Array.isArray(
+          rawResolution
+            .unresolvedReferences
+        )
+          ? safeClone(
+              rawResolution
+                .unresolvedReferences
+            )
+          : Array.isArray(
+              rawResolution
+                .unresolved_references
+            )
+            ? safeClone(
+                rawResolution
+                  .unresolved_references
+              )
+            : []
+    };
+  }
+
+  /* =====================================================
+     AUXILIARY STATE NORMALIZATION
+  ===================================================== */
+
+  function normalizePendingInteractionState(
+    rawState,
+    conversationId
+  ) {
+    const manager =
+      resolvePendingInteractionManager();
+
+    if (
+      manager &&
+      typeof manager.normalizeState ===
+        "function"
+    ) {
+      return safeClone(
+        manager.normalizeState(
+          rawState,
+          conversationId
+        )
+      );
+    }
+
+    const empty =
+      createEmptyPendingInteractionState(
+        conversationId
+      );
+
+    const source =
+      isObject(rawState)
+        ? safeClone(rawState)
+        : {};
+
+    return {
+      ...empty,
+      ...source,
+
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      stateType:
+        "conversation_pending_interaction_state",
+
+      conversationId:
+        firstNonEmptyString(
+          source.conversationId,
+          source.conversation_id,
+          conversationId
+        ) || null,
+
+      revision:
+        Math.max(
+          0,
+          normalizeInteger(
+            source.revision,
+            0
+          )
+        ),
+
+      activeInteractionId:
+        firstNonEmptyString(
+          source.activeInteractionId,
+          source.active_interaction_id
+        ) || null,
+
+      interactions:
+        isObject(source.interactions)
+          ? source.interactions
+          : createDictionary(),
+
+      order:
+        uniqueStrings(
+          firstDefined(
+            source.order,
+            source.interactionOrder,
+            source.interaction_order,
+            Object.keys(
+              source.interactions || {}
+            )
+          )
+        ),
+
+      updatedAt:
+        normalizeTimestamp(
+          source.updatedAt,
+          nowIso()
+        )
+    };
+  }
+
+  function normalizeArtifactState(
+    rawState,
+    conversationId
+  ) {
+    const register =
+      resolveArtifactRegister();
+
+    if (
+      register &&
+      typeof register.normalizeState ===
+        "function"
+    ) {
+      return safeClone(
+        register.normalizeState(
+          rawState,
+          conversationId
+        )
+      );
+    }
+
+    const empty =
+      createEmptyArtifactState(
+        conversationId
+      );
+
+    const source =
+      isObject(rawState)
+        ? safeClone(rawState)
+        : {};
+
+    return {
+      ...empty,
+      ...source,
+
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      stateType:
+        "conversation_artifact_state",
+
+      conversationId:
+        firstNonEmptyString(
+          source.conversationId,
+          source.conversation_id,
+          conversationId
+        ) || null,
+
+      revision:
+        Math.max(
+          0,
+          normalizeInteger(
+            source.revision,
+            0
+          )
+        ),
+
+      activeArtifactId:
+        firstNonEmptyString(
+          source.activeArtifactId,
+          source.active_artifact_id
+        ) || null,
+
+      artifacts:
+        isObject(source.artifacts)
+          ? source.artifacts
+          : createDictionary(),
+
+      order:
+        uniqueStrings(
+          firstDefined(
+            source.order,
+            source.artifactOrder,
+            source.artifact_order,
+            Object.keys(
+              source.artifacts || {}
+            )
+          )
+        ),
+
+      byFilePath:
+        isObject(source.byFilePath)
+          ? source.byFilePath
+          : isObject(
+              source.by_file_path
+            )
+            ? source.by_file_path
+            : createDictionary(),
+
+      bySourceTurnId:
+        isObject(
+          source.bySourceTurnId
+        )
+          ? source.bySourceTurnId
+          : isObject(
+              source.by_source_turn_id
+            )
+            ? source.by_source_turn_id
+            : createDictionary(),
+
+      updatedAt:
+        normalizeTimestamp(
+          source.updatedAt,
+          nowIso()
+        )
+    };
+  }
+
+  function normalizeDeliverySequenceState(
+    rawState,
+    conversationId
+  ) {
+    const manager =
+      resolveDeliverySequenceManager();
+
+    if (
+      manager &&
+      typeof manager.normalizeState ===
+        "function"
+    ) {
+      return safeClone(
+        manager.normalizeState(
+          rawState,
+          conversationId
+        )
+      );
+    }
+
+    const empty =
+      createEmptyDeliverySequenceState(
+        conversationId
+      );
+
+    const source =
+      isObject(rawState)
+        ? safeClone(rawState)
+        : {};
+
+    return {
+      ...empty,
+      ...source,
+
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      stateType:
+        "conversation_delivery_sequence_state",
+
+      conversationId:
+        firstNonEmptyString(
+          source.conversationId,
+          source.conversation_id,
+          conversationId
+        ) || null,
+
+      revision:
+        Math.max(
+          0,
+          normalizeInteger(
+            source.revision,
+            0
+          )
+        ),
+
+      activeSequenceId:
+        firstNonEmptyString(
+          source.activeSequenceId,
+          source.active_sequence_id
+        ) || null,
+
+      sequences:
+        isObject(source.sequences)
+          ? source.sequences
+          : createDictionary(),
+
+      order:
+        uniqueStrings(
+          firstDefined(
+            source.order,
+            source.sequenceOrder,
+            source.sequence_order,
+            Object.keys(
+              source.sequences || {}
+            )
+          )
+        ),
+
+      byArtifactId:
+        isObject(source.byArtifactId)
+          ? source.byArtifactId
+          : isObject(
+              source.by_artifact_id
+            )
+            ? source.by_artifact_id
+            : createDictionary(),
+
+      bySourceTurnId:
+        isObject(
+          source.bySourceTurnId
+        )
+          ? source.bySourceTurnId
+          : isObject(
+              source.by_source_turn_id
+            )
+            ? source.by_source_turn_id
+            : createDictionary(),
+
+      updatedAt:
+        normalizeTimestamp(
+          source.updatedAt,
+          nowIso()
+        )
+    };
+  }
+
+  /* =====================================================
+     CREATE EMPTY STATE
+  ===================================================== */
+
+  function create(
+    input = {},
+    options = {}
+  ) {
+    const source =
+      isObject(input)
+        ? input
+        : {
+            conversationId:
+              input
+          };
+
+    const conversationId =
+      firstNonEmptyString(
+        source.conversationId,
+        source.conversation_id,
+        options.conversationId,
+        options.conversation_id
+      ) || null;
+
+    const timestamp =
+      nowIso();
+
+    const state = {
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      component:
+        COMPONENT_NAME,
+
+      version:
+        VERSION,
+
+      stateType:
+        STATE_TYPE,
+
+      conversationId,
+
+      revision: 0,
+
+      activeThreadId: null,
+      activeTurnId: null,
+
+      threads:
+        createDictionary(),
+
+      turns:
+        createDictionary(),
+
+      threadStack: [],
+
+      interruptionStack: [],
+
+      lastPlacement: null,
+
+      lastReferenceResolution:
+        null,
+
+      pendingInteractionState:
+        createEmptyPendingInteractionState(
+          conversationId
+        ),
+
+      artifactState:
+        createEmptyArtifactState(
+          conversationId
+        ),
+
+      deliverySequenceState:
+        createEmptyDeliverySequenceState(
+          conversationId
+        ),
+
+      createdAt:
+        timestamp,
+
+      updatedAt:
+        timestamp
+    };
+
+    return options.freeze === false
+      ? state
+      : freezeClone(state);
+  }
+
+  /* =====================================================
+     NORMALIZE STATE
+  ===================================================== */
+
+  function normalize(
+    rawState = {},
+    options = {}
+  ) {
+    const source =
+      isObject(rawState)
+        ? safeClone(rawState)
+        : {};
+
+    const conversationId =
+      firstNonEmptyString(
+        source.conversationId,
+        source.conversation_id,
+        options.conversationId,
+        options.conversation_id
+      ) || null;
+
+    const timestamp =
+      nowIso();
+
+    const normalized = {
+      ...source,
+
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      component:
+        COMPONENT_NAME,
+
+      version:
+        VERSION,
+
+      stateType:
+        STATE_TYPE,
+
+      conversationId,
+
+      revision:
+        Math.max(
+          0,
+          normalizeInteger(
+            source.revision,
+            0
+          )
+        ),
+
+      activeThreadId:
+        firstNonEmptyString(
+          source.activeThreadId,
+          source.active_thread_id
+        ) || null,
+
+      activeTurnId:
+        firstNonEmptyString(
+          source.activeTurnId,
+          source.active_turn_id
+        ) || null,
+
+      threads:
+        normalizeThreadMap(
+          firstDefined(
+            source.threads,
+            source.threadMap,
+            source.thread_map,
+            {}
+          )
+        ),
+
+      turns:
+        normalizeTurnMap(
+          firstDefined(
+            source.turns,
+            source.turnMap,
+            source.turn_map,
+            {}
+          )
+        ),
+
+      threadStack:
+        uniqueStrings(
+          firstDefined(
+            source.threadStack,
+            source.thread_stack,
+            []
+          )
+        ),
+
+      interruptionStack:
+        normalizeInterruptionStack(
+          firstDefined(
+            source.interruptionStack,
+            source.interruption_stack,
+            []
+          )
+        ),
+
+      lastPlacement:
+        normalizePlacement(
+          firstDefined(
+            source.lastPlacement,
+            source.last_placement
+          )
+        ),
+
+      lastReferenceResolution:
+        normalizeReferenceResolution(
+          firstDefined(
+            source.lastReferenceResolution,
+            source.last_reference_resolution
+          )
+        ),
+
+      pendingInteractionState:
+        normalizePendingInteractionState(
+          firstDefined(
+            source.pendingInteractionState,
+            source.pending_interaction_state,
+            source.pendingInteractions,
+            source.pending_interactions,
+            {}
+          ),
+          conversationId
+        ),
+
+      artifactState:
+        normalizeArtifactState(
+          firstDefined(
+            source.artifactState,
+            source.artifact_state,
+            source.artifactsState,
+            source.artifacts_state,
+            {}
+          ),
+          conversationId
+        ),
+
+      deliverySequenceState:
+        normalizeDeliverySequenceState(
+          firstDefined(
+            source.deliverySequenceState,
+            source.delivery_sequence_state,
+            source.sequenceState,
+            source.sequence_state,
+            {}
+          ),
+          conversationId
+        ),
+
+      createdAt:
+        normalizeTimestamp(
+          firstDefined(
+            source.createdAt,
+            source.created_at
+          ),
+          timestamp
+        ),
+
+      updatedAt:
+        normalizeTimestamp(
+          firstDefined(
+            source.updatedAt,
+            source.updated_at
+          ),
+          timestamp
+        )
+    };
+
+    if (
+      normalized.activeThreadId &&
+      !normalized.threadStack.includes(
+        normalized.activeThreadId
+      )
+    ) {
+      normalized.threadStack.push(
+        normalized.activeThreadId
+      );
+    }
+
+    return options.freeze === false
+      ? normalized
+      : freezeClone(normalized);
+  }
+
+  /* =====================================================
+     COPY / REVISION
+  ===================================================== */
+
+  function clone(
+    state,
+    options = {}
+  ) {
+    const normalized =
+      normalize(
+        state,
+        {
+          ...options,
+          freeze: false
+        }
+      );
+
+    return options.freeze === false
+      ? normalized
+      : freezeClone(normalized);
+  }
+
+  function incrementRevision(
+    state,
+    options = {}
+  ) {
+    const next =
+      normalize(
+        state,
+        {
+          freeze: false
+        }
+      );
+
+    next.revision += 1;
+    next.updatedAt = nowIso();
+
+    return options.freeze === false
+      ? next
+      : freezeClone(next);
+  }
+
+  function withPatch(
+    state,
+    patch = {},
+    options = {}
+  ) {
+    const source =
+      normalize(
+        state,
+        {
+          freeze: false
+        }
+      );
+
+    const next =
+      normalize(
+        {
+          ...source,
+
+          ...(
+            isObject(patch)
+              ? safeClone(patch)
+              : {}
+          ),
+
+          revision:
+            options.incrementRevision ===
+            false
+              ? source.revision
+              : source.revision + 1,
+
+          updatedAt:
+            nowIso()
+        },
+        {
+          freeze: false
+        }
+      );
+
+    return options.freeze === false
+      ? next
+      : freezeClone(next);
+  }
+
+  /* =====================================================
+     VALIDATION — TURN
+  ===================================================== */
+
+  function validateTurn(
+    turn,
+    state = null
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    if (!isObject(turn)) {
+      return {
+        valid: false,
+
+        errors: [
+          {
+            code:
+              "COS_STATE_TURN_NOT_OBJECT"
+          }
+        ],
+
+        warnings
+      };
+    }
+
+    if (
+      !isNonEmptyString(
+        turn.turnId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TURN_ID_MISSING"
+      });
+    }
+
+    if (
+      !TURN_ROLES.includes(
+        turn.role
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TURN_ROLE_INVALID",
+
+        turnId:
+          turn.turnId,
+
+        role:
+          turn.role
+      });
+    }
+
+    if (
+      !Number.isInteger(
+        turn.sequence
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TURN_SEQUENCE_INVALID",
+
+        turnId:
+          turn.turnId,
+
+        sequence:
+          turn.sequence
+      });
+    }
+
+    if (
+      !Array.isArray(
+        turn.sourceTurnIds
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TURN_SOURCE_IDS_INVALID",
+
+        turnId:
+          turn.turnId
+      });
+    }
+
+    if (
+      turn.parentTurnId ===
+      turn.turnId
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TURN_SELF_PARENT",
+
+        turnId:
+          turn.turnId
+      });
+    }
+
+    if (
+      turn.replyToTurnId ===
+      turn.turnId
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TURN_SELF_REPLY",
+
+        turnId:
+          turn.turnId
+      });
+    }
+
+    if (
+      Array.isArray(
+        turn.sourceTurnIds
+      ) &&
+      turn.sourceTurnIds.includes(
+        turn.turnId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TURN_SELF_SOURCE",
+
+        turnId:
+          turn.turnId
+      });
+    }
+
+    if (
+      state &&
+      turn.threadId &&
+      !hasOwn(
+        state.threads,
+        turn.threadId
+      )
+    ) {
+      warnings.push({
+        code:
+          "COS_STATE_TURN_THREAD_UNRESOLVED",
+
+        turnId:
+          turn.turnId,
+
+        threadId:
+          turn.threadId
+      });
+    }
+
+    if (
+      state &&
+      turn.parentTurnId &&
+      !hasOwn(
+        state.turns,
+        turn.parentTurnId
+      )
+    ) {
+      warnings.push({
+        code:
+          "COS_STATE_TURN_PARENT_UNRESOLVED",
+
+        turnId:
+          turn.turnId,
+
+        parentTurnId:
+          turn.parentTurnId
+      });
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+      warnings
+    };
+  }
+
+  /* =====================================================
+     VALIDATION — THREAD
+  ===================================================== */
+
+  function validateThread(
+    thread,
+    state = null
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    if (!isObject(thread)) {
+      return {
+        valid: false,
+
+        errors: [
+          {
+            code:
+              "COS_STATE_THREAD_NOT_OBJECT"
+          }
+        ],
+
+        warnings
+      };
+    }
+
+    if (
+      !isNonEmptyString(
+        thread.threadId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_THREAD_ID_MISSING"
+      });
+    }
+
+    if (
+      !THREAD_STATUSES.includes(
+        thread.status
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_THREAD_STATUS_INVALID",
+
+        threadId:
+          thread.threadId,
+
+        status:
+          thread.status
+      });
+    }
+
+    if (
+      !Array.isArray(
+        thread.turnIds
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_THREAD_TURN_IDS_INVALID",
+
+        threadId:
+          thread.threadId
+      });
+    }
+
+    if (
+      thread.parentThreadId ===
+      thread.threadId
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_THREAD_SELF_PARENT",
+
+        threadId:
+          thread.threadId
+      });
+    }
+
+    if (
+      thread.interruptedThreadId ===
+      thread.threadId
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_THREAD_SELF_INTERRUPTION",
+
+        threadId:
+          thread.threadId
+      });
+    }
+
+    if (
+      Array.isArray(thread.turnIds) &&
+      thread.turnIds.length > 0
+    ) {
+      if (
+        thread.firstTurnId !==
+        thread.turnIds[0]
+      ) {
+        warnings.push({
+          code:
+            "COS_STATE_THREAD_FIRST_TURN_MISMATCH",
+
+          threadId:
+            thread.threadId,
+
+          firstTurnId:
+            thread.firstTurnId,
+
+          expected:
+            thread.turnIds[0]
+        });
+      }
+
+      if (
+        thread.lastTurnId !==
+        thread.turnIds[
+          thread.turnIds.length - 1
+        ]
+      ) {
+        warnings.push({
+          code:
+            "COS_STATE_THREAD_LAST_TURN_MISMATCH",
+
+          threadId:
+            thread.threadId,
+
+          lastTurnId:
+            thread.lastTurnId,
+
+          expected:
+            thread.turnIds[
+              thread.turnIds.length - 1
+            ]
+        });
+      }
+    }
+
+    if (
+      state &&
+      Array.isArray(thread.turnIds)
+    ) {
+      for (
+        const turnId of
+          thread.turnIds
+      ) {
+        if (
+          !hasOwn(
+            state.turns,
+            turnId
+          )
+        ) {
+          warnings.push({
+            code:
+              "COS_STATE_THREAD_TURN_UNRESOLVED",
+
+            threadId:
+              thread.threadId,
+
+            turnId
+          });
+        }
+      }
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+      warnings
+    };
+  }
+
+  /* =====================================================
+     VALIDATION — INTERRUPTION
+  ===================================================== */
+
+  function validateInterruption(
+    entry,
+    index = -1
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    if (!isObject(entry)) {
+      return {
+        valid: false,
+
+        errors: [
+          {
+            code:
+              "COS_STATE_INTERRUPTION_NOT_OBJECT",
+
+            index
+          }
+        ],
+
+        warnings
+      };
+    }
+
+    if (
+      !isNonEmptyString(
+        entry.interruptedThreadId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_INTERRUPTED_THREAD_ID_MISSING",
+
+        index
+      });
+    }
+
+    if (
+      !isNonEmptyString(
+        entry.interruptionThreadId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_INTERRUPTION_THREAD_ID_MISSING",
+
+        index
+      });
+    }
+
+    if (
+      entry.interruptedThreadId &&
+      entry.interruptionThreadId &&
+      entry.interruptedThreadId ===
+        entry.interruptionThreadId
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_INTERRUPTION_THREAD_COLLISION",
+
+        index,
+
+        threadId:
+          entry.interruptedThreadId
+      });
+    }
+
+    if (
+      !entry.interruptedTurnId
+    ) {
+      warnings.push({
+        code:
+          "COS_STATE_INTERRUPTED_TURN_ID_MISSING",
+
+        index
+      });
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+      warnings
+    };
+  }
+
+  /* =====================================================
+     AUXILIARY VALIDATION
+  ===================================================== */
+
+  function validateAuxiliaryState(
+    component,
+    state,
+    fallbackValidator
+  ) {
+    if (
+      component &&
+      typeof component.validateState ===
+        "function"
+    ) {
+      return component.validateState(
+        state
+      );
+    }
+
+    if (
+      component &&
+      typeof component.validate ===
+        "function"
+    ) {
+      return component.validate(
+        state
+      );
+    }
+
+    return fallbackValidator(state);
+  }
+
+  function fallbackValidatePendingInteractionState(
+    state
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    if (!isObject(state)) {
+      errors.push({
+        code:
+          "COS_STATE_PENDING_INTERACTION_STATE_INVALID"
+      });
+
+      return {
+        valid: false,
+        errors,
+        warnings
+      };
+    }
+
+    if (
+      !isObject(
+        state.interactions
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_PENDING_INTERACTION_MAP_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        state.order
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_PENDING_INTERACTION_ORDER_INVALID"
+      });
+    }
+
+    if (
+      state.activeInteractionId &&
+      (
+        !isObject(state.interactions) ||
+        !hasOwn(
+          state.interactions,
+          state.activeInteractionId
+        )
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_ACTIVE_INTERACTION_MISSING",
+
+        activeInteractionId:
+          state.activeInteractionId
+      });
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+      warnings
+    };
+  }
+
+  function fallbackValidateArtifactState(
+    state
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    if (!isObject(state)) {
+      errors.push({
+        code:
+          "COS_STATE_ARTIFACT_STATE_INVALID"
+      });
+
+      return {
+        valid: false,
+        errors,
+        warnings
+      };
+    }
+
+    if (
+      !isObject(state.artifacts)
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_ARTIFACT_MAP_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        state.order
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_ARTIFACT_ORDER_INVALID"
+      });
+    }
+
+    if (
+      state.activeArtifactId &&
+      (
+        !isObject(state.artifacts) ||
+        !hasOwn(
+          state.artifacts,
+          state.activeArtifactId
+        )
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_ACTIVE_ARTIFACT_MISSING",
+
+        activeArtifactId:
+          state.activeArtifactId
+      });
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+      warnings
+    };
+  }
+
+  function fallbackValidateDeliverySequenceState(
+    state
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    if (!isObject(state)) {
+      errors.push({
+        code:
+          "COS_STATE_DELIVERY_SEQUENCE_STATE_INVALID"
+      });
+
+      return {
+        valid: false,
+        errors,
+        warnings
+      };
+    }
+
+    if (
+      !isObject(state.sequences)
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_DELIVERY_SEQUENCE_MAP_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        state.order
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_DELIVERY_SEQUENCE_ORDER_INVALID"
+      });
+    }
+
+    if (
+      state.activeSequenceId &&
+      (
+        !isObject(state.sequences) ||
+        !hasOwn(
+          state.sequences,
+          state.activeSequenceId
+        )
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_ACTIVE_DELIVERY_SEQUENCE_MISSING",
+
+        activeSequenceId:
+          state.activeSequenceId
+      });
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+      warnings
+    };
+  }
+
+  /* =====================================================
+     FULL STATE VALIDATION
+  ===================================================== */
+
+  function validateState(
+    rawState
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    if (!isObject(rawState)) {
+      return {
+        valid: false,
+
+        errors: [
+          {
+            code:
+              "COS_STATE_NOT_OBJECT"
+          }
+        ],
+
+        warnings
+      };
+    }
+
+    const state =
+      normalize(
+        rawState,
+        {
+          freeze: false
+        }
+      );
+
+    for (
+      const requiredKey of
+        REQUIRED_STATE_KEYS
+    ) {
+      if (
+        !hasOwn(
+          state,
+          requiredKey
+        )
+      ) {
+        errors.push({
+          code:
+            "COS_STATE_REQUIRED_KEY_MISSING",
+
+          key:
+            requiredKey
+        });
+      }
+    }
+
+    if (
+      state.schemaVersion !==
+      SCHEMA_VERSION
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_SCHEMA_VERSION_INVALID",
+
+        expected:
+          SCHEMA_VERSION,
+
+        actual:
+          state.schemaVersion
+      });
+    }
+
+    if (
+      state.authority !==
+      AUTHORITY
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_AUTHORITY_INVALID",
+
+        expected:
+          AUTHORITY,
+
+        actual:
+          state.authority
+      });
+    }
+
+    if (
+      state.stateType !==
+      STATE_TYPE
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_TYPE_INVALID",
+
+        expected:
+          STATE_TYPE,
+
+        actual:
+          state.stateType
+      });
+    }
+
+    if (
+      !Number.isInteger(
+        state.revision
+      ) ||
+      state.revision < 0
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_REVISION_INVALID",
+
+        revision:
+          state.revision
+      });
+    }
+
+    if (!isObject(state.threads)) {
+      errors.push({
+        code:
+          "COS_STATE_THREADS_INVALID"
+      });
+    }
+
+    if (!isObject(state.turns)) {
+      errors.push({
+        code:
+          "COS_STATE_TURNS_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        state.threadStack
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_THREAD_STACK_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        state.interruptionStack
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_INTERRUPTION_STACK_INVALID"
+      });
+    }
+
+    if (
+      state.activeThreadId &&
+      !hasOwn(
+        state.threads,
+        state.activeThreadId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_ACTIVE_THREAD_MISSING",
+
+        activeThreadId:
+          state.activeThreadId
+      });
+    }
+
+    if (
+      state.activeTurnId &&
+      !hasOwn(
+        state.turns,
+        state.activeTurnId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_STATE_ACTIVE_TURN_MISSING",
+
+        activeTurnId:
+          state.activeTurnId
+      });
+    }
+
+    if (
+      state.activeThreadId &&
+      !state.threadStack.includes(
+        state.activeThreadId
+      )
+    ) {
+      warnings.push({
+        code:
+          "COS_STATE_ACTIVE_THREAD_NOT_IN_STACK",
+
+        activeThreadId:
+          state.activeThreadId
+      });
+    }
+
+    if (
+      isObject(state.turns)
+    ) {
+      for (
+        const [
+          turnId,
+          turn
+        ] of Object.entries(
+          state.turns
+        )
+      ) {
+        const validation =
+          validateTurn(
+            turn,
+            state
+          );
+
+        for (
+          const error of
+            validation.errors
+        ) {
+          errors.push({
+            turnId,
+            ...error
+          });
+        }
+
+        for (
+          const warning of
+            validation.warnings
+        ) {
+          warnings.push({
+            turnId,
+            ...warning
+          });
+        }
+      }
+    }
+
+    if (
+      isObject(state.threads)
+    ) {
+      for (
+        const [
+          threadId,
+          thread
+        ] of Object.entries(
+          state.threads
+        )
+      ) {
+        const validation =
+          validateThread(
+            thread,
+            state
+          );
+
+        for (
+          const error of
+            validation.errors
+        ) {
+          errors.push({
+            threadId,
+            ...error
+          });
+        }
+
+        for (
+          const warning of
+            validation.warnings
+        ) {
+          warnings.push({
+            threadId,
+            ...warning
+          });
+        }
+      }
+    }
+
+    state.interruptionStack.forEach(
+      (entry, index) => {
+        const validation =
+          validateInterruption(
+            entry,
+            index
+          );
+
+        errors.push(
+          ...validation.errors
+        );
+
+        warnings.push(
+          ...validation.warnings
+        );
+      }
+    );
+
+    const pendingValidation =
+      validateAuxiliaryState(
+        resolvePendingInteractionManager(),
+        state.pendingInteractionState,
+        fallbackValidatePendingInteractionState
+      );
+
+    for (
+      const error of
+        pendingValidation.errors || []
+    ) {
+      errors.push({
+        domain:
+          "pendingInteractionState",
+
+        ...error
+      });
+    }
+
+    for (
+      const warning of
+        pendingValidation.warnings || []
+    ) {
+      warnings.push({
+        domain:
+          "pendingInteractionState",
+
+        ...warning
+      });
+    }
+
+    const artifactValidation =
+      validateAuxiliaryState(
+        resolveArtifactRegister(),
+        state.artifactState,
+        fallbackValidateArtifactState
+      );
+
+    for (
+      const error of
+        artifactValidation.errors || []
+    ) {
+      errors.push({
+        domain:
+          "artifactState",
+
+        ...error
+      });
+    }
+
+    for (
+      const warning of
+        artifactValidation.warnings || []
+    ) {
+      warnings.push({
+        domain:
+          "artifactState",
+
+        ...warning
+      });
+    }
+
+    const sequenceValidation =
+      validateAuxiliaryState(
+        resolveDeliverySequenceManager(),
+        state.deliverySequenceState,
+        fallbackValidateDeliverySequenceState
+      );
+
+    for (
+      const error of
+        sequenceValidation.errors || []
+    ) {
+      errors.push({
+        domain:
+          "deliverySequenceState",
+
+        ...error
+      });
+    }
+
+    for (
+      const warning of
+        sequenceValidation.warnings || []
+    ) {
+      warnings.push({
+        domain:
+          "deliverySequenceState",
+
+        ...warning
+      });
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+      warnings,
+
+      errorCount:
+        errors.length,
+
+      warningCount:
+        warnings.length
+    };
+  }
+
+  function assertValid(
+    state
+  ) {
+    const validation =
+      validateState(state);
+
+    if (!validation.valid) {
+      throw new CosStateError(
+        "COS_STATE_VALIDATION_FAILED",
+        "Conversation Operating System state failed validation.",
+        {
+          details:
+            validation
+        }
+      );
+    }
+
+    return validation;
+  }
+
+  /* =====================================================
+     QUERY API
+  ===================================================== */
+
+  function getTurn(
+    state,
+    turnId
+  ) {
+    if (
+      !isObject(state) ||
+      !isObject(state.turns) ||
+      !isNonEmptyString(turnId)
+    ) {
+      return null;
+    }
+
+    const turn =
+      state.turns[turnId];
+
+    return isObject(turn)
+      ? freezeClone(turn)
+      : null;
+  }
+
+  function hasTurn(
+    state,
+    turnId
+  ) {
+    return Boolean(
+      getTurn(
+        state,
+        turnId
+      )
+    );
+  }
+
+  function getThread(
+    state,
+    threadId
+  ) {
+    if (
+      !isObject(state) ||
+      !isObject(state.threads) ||
+      !isNonEmptyString(threadId)
+    ) {
+      return null;
+    }
+
+    const thread =
+      state.threads[threadId];
+
+    return isObject(thread)
+      ? freezeClone(thread)
+      : null;
+  }
+
+  function hasThread(
+    state,
+    threadId
+  ) {
+    return Boolean(
+      getThread(
+        state,
+        threadId
+      )
+    );
+  }
+
+  function getActiveTurn(state) {
+    if (
+      !isObject(state) ||
+      !state.activeTurnId
+    ) {
+      return null;
+    }
+
+    return getTurn(
+      state,
+      state.activeTurnId
+    );
+  }
+
+  function getActiveThread(state) {
+    if (
+      !isObject(state) ||
+      !state.activeThreadId
+    ) {
+      return null;
+    }
+
+    return getThread(
+      state,
+      state.activeThreadId
+    );
+  }
+
+  function getActivePendingInteraction(
+    state
+  ) {
+    const pendingState =
+      state &&
+      state.pendingInteractionState;
+
+    if (
+      !isObject(pendingState) ||
+      !pendingState.activeInteractionId ||
+      !isObject(
+        pendingState.interactions
+      )
+    ) {
+      return null;
+    }
+
+    const interaction =
+      pendingState.interactions[
+        pendingState
+          .activeInteractionId
+      ];
+
+    return isObject(interaction)
+      ? freezeClone(interaction)
+      : null;
+  }
+
+  function getActiveArtifact(state) {
+    const artifactState =
+      state &&
+      state.artifactState;
+
+    if (
+      !isObject(artifactState) ||
+      !artifactState.activeArtifactId ||
+      !isObject(
+        artifactState.artifacts
+      )
+    ) {
+      return null;
+    }
+
+    const artifact =
+      artifactState.artifacts[
+        artifactState
+          .activeArtifactId
+      ];
+
+    return isObject(artifact)
+      ? freezeClone(artifact)
+      : null;
+  }
+
+  function getActiveDeliverySequence(
+    state
+  ) {
+    const sequenceState =
+      state &&
+      state.deliverySequenceState;
+
+    if (
+      !isObject(sequenceState) ||
+      !sequenceState.activeSequenceId ||
+      !isObject(
+        sequenceState.sequences
+      )
+    ) {
+      return null;
+    }
+
+    const sequence =
+      sequenceState.sequences[
+        sequenceState
+          .activeSequenceId
+      ];
+
+    return isObject(sequence)
+      ? freezeClone(sequence)
+      : null;
+  }
+
+  function getTopInterruption(state) {
+    if (
+      !isObject(state) ||
+      !Array.isArray(
+        state.interruptionStack
+      ) ||
+      state.interruptionStack
+        .length === 0
+    ) {
+      return null;
+    }
+
+    return freezeClone(
+      state.interruptionStack[
+        state.interruptionStack
+          .length - 1
+      ]
+    );
+  }
+
+  /* =====================================================
+     AUXILIARY STATE REPLACEMENT
+  ===================================================== */
+
+  function withPendingInteractionState(
+    state,
+    pendingInteractionState,
+    options = {}
+  ) {
+    return withPatch(
+      state,
+      {
+        pendingInteractionState:
+          normalizePendingInteractionState(
+            pendingInteractionState,
+            state &&
+              state.conversationId
+          )
+      },
+      options
+    );
+  }
+
+  function withArtifactState(
+    state,
+    artifactState,
+    options = {}
+  ) {
+    return withPatch(
+      state,
+      {
+        artifactState:
+          normalizeArtifactState(
+            artifactState,
+            state &&
+              state.conversationId
+          )
+      },
+      options
+    );
+  }
+
+  function withDeliverySequenceState(
+    state,
+    deliverySequenceState,
+    options = {}
+  ) {
+    return withPatch(
+      state,
+      {
+        deliverySequenceState:
+          normalizeDeliverySequenceState(
+            deliverySequenceState,
+            state &&
+              state.conversationId
+          )
+      },
+      options
+    );
+  }
+
+  /* =====================================================
+     PUBLIC COMPONENT
+  ===================================================== */
+
+  const cosState = {
+    version:
+      VERSION,
+
+    schemaVersion:
+      SCHEMA_VERSION,
+
+    authority:
+      AUTHORITY,
+
+    component:
+      COMPONENT_NAME,
+
+    stateType:
+      STATE_TYPE,
+
+    threadStatuses:
+      THREAD_STATUSES,
+
+    turnRoles:
+      TURN_ROLES,
+
+    placementTypes:
+      PLACEMENT_TYPES,
+
+    referenceStatuses:
+      REFERENCE_STATUSES,
+
+    requiredStateKeys:
+      REQUIRED_STATE_KEYS,
+
+    CosStateError,
+
+    create,
+
+    initialize:
+      create,
+
+    createInitialState:
+      create,
+
+    createEmptyState:
+      create,
+
+    normalize,
+
+    normalizeState:
+      normalize,
+
+    clone,
+
+    cloneState:
+      clone,
+
+    incrementRevision,
+
+    withPatch,
+
+    withPendingInteractionState,
+
+    withArtifactState,
+
+    withDeliverySequenceState,
+
+    validate:
+      validateState,
+
+    validateState,
+
+    validateTurn,
+
+    validateThread,
+
+    validateInterruption,
+
+    assertValid,
+
+    assertState:
+      assertValid,
+
+    getTurn,
+
+    hasTurn,
+
+    getThread,
+
+    hasThread,
+
+    getActiveTurn,
+
+    getActiveThread,
+
+    getActivePendingInteraction,
+
+    getActiveArtifact,
+
+    getActiveDeliverySequence,
+
+    getTopInterruption,
+
+    createEmptyPendingInteractionState,
+
+    createEmptyArtifactState,
+
+    createEmptyDeliverySequenceState,
+
+    normalizePendingInteractionState,
+
+    normalizeArtifactState,
+
+    normalizeDeliverySequenceState
+  };
+
+  /* =====================================================
+     NAMESPACE EXPORTS
+  ===================================================== */
+
+  ConversationOS.state =
+    cosState;
+
+  ConversationOS.cosState =
+    cosState;
+
+  root.AriCosState =
+    cosState;
+
+  if (
+    typeof module !== "undefined" &&
+    module.exports
+  ) {
+    module.exports =
+      cosState;
+  }
+})(
+  typeof globalThis !== "undefined"
+    ? globalThis
+    : typeof window !== "undefined"
+      ? window
+      : this
 );
