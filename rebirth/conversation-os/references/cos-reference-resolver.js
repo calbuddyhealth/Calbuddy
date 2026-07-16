@@ -2,65 +2,69 @@
 // ARI Rebirth — Conversation Operating System Reference Resolver
 //
 // Purpose:
-// Resolve explicit structural turn references for the Conversation
-// Operating System without interpreting natural-language meaning.
+// Produce the canonical structural reference-resolution result for the
+// current turn by integrating explicit metadata, candidate construction,
+// candidate adjudication, and structural target validation.
 //
-// V1.0.0 — Canonical Structural Reference Resolution
+// V2.0.0 — Integrated Candidate and Adjudication Reference Resolution
 //
 // Canonical flow:
 //
 // Registered Current Turn
 //      ↓
-// Explicit Reference Collection
+// Conversation History Index
 //      ↓
-// Reference Normalization
+// Pending Interaction / Artifact / Sequence State
 //      ↓
-// History / State Verification
+// Reference Candidate Builder
 //      ↓
-// Parent / Reply Reconciliation
+// Reference Adjudicator
 //      ↓
-// Resolution Status
+// Structural Target Validation
 //      ↓
-// Structural Reference Resolution Result
+// Canonical Reference Resolution
 //
 // Authority:
 //
 // This component is authoritative only for:
 //
-// - reading explicit turn-reference metadata,
-// - verifying referenced turn IDs,
-// - preserving explicit parent-turn relationships,
-// - preserving explicit reply-to relationships,
-// - preserving explicit source-turn relationships,
-// - identifying unknown structural turn references,
-// - returning resolved and unresolved structural references.
+// - invoking the canonical reference candidate builder,
+// - invoking the canonical reference adjudicator,
+// - validating selected turn IDs against supplied structural history,
+// - exposing resolved turn IDs,
+// - exposing unresolved structural references,
+// - exposing ambiguity without inventing certainty,
+// - identifying the primary structural parent candidate,
+// - mapping adjudicated relationship types into canonical reference fields,
+// - producing the reference-resolution result consumed by placement.
 //
 // Non-authority:
 //
 // This component must not:
 //
-// - interpret natural-language references,
-// - decide what words such as "it," "that," "why," or "this" mean,
-// - classify semantic meaning,
-// - classify intent,
-// - classify conversation function,
-// - infer emotional state,
+// - reinterpret raw user language,
+// - independently classify intent,
+// - independently classify conversation function,
+// - independently infer semantic meaning,
+// - infer emotion,
 // - infer safety severity,
-// - infer a source turn from recency alone,
-// - guess a parent turn,
-// - determine final conversation placement,
-// - choose a thread based on language,
-// - plan or generate a response.
+// - invent reference candidates,
+// - invent missing turn IDs,
+// - choose conversation placement,
+// - mutate thread state,
+// - generate a response.
 //
 // Architectural rule:
 //
-// The Reference Resolver resolves only references supported by explicit
-// structural metadata and the canonical history/state indexes.
+// The resolver resolves only structural candidates supplied by the canonical
+// candidate builder.
 //
-// An absent reference is not automatically an unresolved reference.
+// The adjudicator determines whether candidate evidence is sufficient.
 //
-// A reference that cannot be verified remains unresolved.
-// It must never be silently replaced by a guessed turn.
+// The resolver verifies and packages that decision for downstream placement.
+//
+// Natural-language evidence must arrive as upstream structural candidates or
+// explicit metadata. This component does not maintain phrase lists.
 //
 // Browser namespace:
 //
@@ -68,17 +72,23 @@
 // window.Ari.Rebirth
 // window.Ari.Rebirth.ConversationOS
 // window.Ari.Rebirth.ConversationOS.referenceResolver
+//
+// CommonJS:
+//
+// module.exports = cosReferenceResolver
 
 (function initializeCosReferenceResolver(globalScope) {
   "use strict";
 
   const root =
     globalScope ||
-    (typeof globalThis !== "undefined"
-      ? globalThis
-      : typeof window !== "undefined"
-        ? window
-        : {});
+    (
+      typeof globalThis !== "undefined"
+        ? globalThis
+        : typeof window !== "undefined"
+          ? window
+          : {}
+    );
 
   root.Ari = root.Ari || {};
   root.Ari.Rebirth = root.Ari.Rebirth || {};
@@ -92,7 +102,7 @@
      CONSTANTS
   ===================================================== */
 
-  const VERSION = "1.0.0";
+  const VERSION = "2.0.0";
   const SCHEMA_VERSION = "1.0.0";
 
   const AUTHORITY =
@@ -101,25 +111,103 @@
   const COMPONENT_NAME =
     "cos-reference-resolver";
 
+  const RESOLUTION_TYPE =
+    "conversation_reference_resolution";
+
   const RESOLUTION_STATUSES = Object.freeze([
     "not_required",
     "resolved",
     "partially_resolved",
+    "ambiguous",
     "unresolved"
   ]);
 
-  const REFERENCE_TYPES = Object.freeze([
+  const RESOLUTION_MODES = Object.freeze([
+    "none",
+    "single_target",
+    "multi_target",
+    "partial",
+    "ambiguous",
+    "unresolved"
+  ]);
+
+  const RELATIONSHIP_TYPES = Object.freeze([
     "parent",
     "reply",
     "source",
     "reference",
-    "branch_origin",
-    "correction_target",
-    "clarification_target",
     "answer_target",
+    "clarification_target",
+    "correction_target",
+    "branch_origin",
     "interruption_origin",
     "resume_target",
+    "pending_interaction",
+    "pending_question",
+    "pending_choice",
+    "active_artifact",
+    "delivery_sequence",
+    "active_thread_turn",
+    "interrupted_thread_turn",
+    "upstream_structural_candidate",
     "unknown"
+  ]);
+
+  const PARENT_RELATIONSHIP_PRIORITY = Object.freeze([
+    "parent",
+    "reply",
+    "answer_target",
+    "clarification_target",
+    "correction_target",
+    "branch_origin",
+    "interruption_origin",
+    "resume_target",
+    "pending_question",
+    "pending_choice",
+    "pending_interaction",
+    "delivery_sequence",
+    "active_artifact",
+    "upstream_structural_candidate",
+    "reference",
+    "source",
+    "interrupted_thread_turn",
+    "active_thread_turn",
+    "unknown"
+  ]);
+
+  const EXPLICIT_REFERENCE_FIELDS = Object.freeze([
+    "parentTurnId",
+    "parent_turn_id",
+    "replyToTurnId",
+    "reply_to_turn_id",
+    "answerTargetTurnId",
+    "answer_target_turn_id",
+    "answersTurnId",
+    "answers_turn_id",
+    "clarificationTargetTurnId",
+    "clarification_target_turn_id",
+    "clarifiesTurnId",
+    "clarifies_turn_id",
+    "correctionTargetTurnId",
+    "correction_target_turn_id",
+    "correctsTurnId",
+    "corrects_turn_id",
+    "branchOriginTurnId",
+    "branch_origin_turn_id",
+    "branchFromTurnId",
+    "branch_from_turn_id",
+    "interruptionOriginTurnId",
+    "interruption_origin_turn_id",
+    "interruptedTurnId",
+    "interrupted_turn_id",
+    "resumeTargetTurnId",
+    "resume_target_turn_id",
+    "resumesTurnId",
+    "resumes_turn_id",
+    "sourceTurnIds",
+    "source_turn_ids",
+    "referenceTurnIds",
+    "reference_turn_ids"
   ]);
 
   /* =====================================================
@@ -180,6 +268,10 @@
     );
   }
 
+  function isFunction(value) {
+    return typeof value === "function";
+  }
+
   function isString(value) {
     return typeof value === "string";
   }
@@ -226,16 +318,33 @@
     return [value];
   }
 
+  function normalizeInteger(
+    value,
+    fallback = 0
+  ) {
+    const numeric =
+      Number(value);
+
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+
+    return Math.trunc(numeric);
+  }
+
   function uniqueStrings(values = []) {
     const output = [];
     const seen = new Set();
 
-    for (const value of asArray(values)) {
+    for (
+      const value of asArray(values)
+    ) {
       if (!isNonEmptyString(value)) {
         continue;
       }
 
-      const normalized = value.trim();
+      const normalized =
+        value.trim();
 
       if (seen.has(normalized)) {
         continue;
@@ -296,13 +405,17 @@
     for (
       const key of Reflect.ownKeys(value)
     ) {
-      const child = value[key];
+      const child =
+        value[key];
 
       if (
         child !== null &&
         typeof child === "object"
       ) {
-        deepFreeze(child, seen);
+        deepFreeze(
+          child,
+          seen
+        );
       }
     }
 
@@ -310,21 +423,173 @@
   }
 
   function freezeClone(value) {
-    return deepFreeze(safeClone(value));
+    return deepFreeze(
+      safeClone(value)
+    );
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
   }
 
   function hasOwn(
     object,
     property
   ) {
-    return Object.prototype.hasOwnProperty.call(
-      object,
-      property
+    return Object.prototype
+      .hasOwnProperty
+      .call(
+        object,
+        property
+      );
+  }
+
+  function safeError(error) {
+    if (error instanceof Error) {
+      return {
+        name:
+          error.name || "Error",
+
+        code:
+          firstNonEmptyString(
+            error.code
+          ) ||
+          "COS_REFERENCE_RESOLVER_ERROR",
+
+        message:
+          error.message ||
+          "Unknown reference resolver error",
+
+        recoverable:
+          error.recoverable === true,
+
+        details:
+          error.details === undefined
+            ? null
+            : safeClone(
+                error.details
+              )
+      };
+    }
+
+    return {
+      name: "Error",
+
+      code:
+        "COS_REFERENCE_RESOLVER_ERROR",
+
+      message:
+        isNonEmptyString(error)
+          ? error
+          : "Unknown reference resolver error",
+
+      recoverable: false,
+
+      details:
+        safeClone(error)
+    };
+  }
+
+  /* =====================================================
+     COMPONENT DISCOVERY
+  ===================================================== */
+
+  function resolveCandidateBuilder(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS
+        .referenceCandidateBuilder ||
+      ConversationOS
+        .cosReferenceCandidateBuilder ||
+      root.AriCosReferenceCandidateBuilder ||
+      null
     );
   }
 
-  function nowIso() {
-    return new Date().toISOString();
+  function resolveAdjudicator(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS
+        .referenceAdjudicator ||
+      ConversationOS
+        .cosReferenceAdjudicator ||
+      root.AriCosReferenceAdjudicator ||
+      null
+    );
+  }
+
+  function resolveBuildCallable(
+    builder
+  ) {
+    if (isFunction(builder)) {
+      return builder.bind(builder);
+    }
+
+    if (builder) {
+      for (
+        const method of [
+          "build",
+          "buildCandidates",
+          "create",
+          "run"
+        ]
+      ) {
+        if (
+          isFunction(
+            builder[method]
+          )
+        ) {
+          return builder[
+            method
+          ].bind(builder);
+        }
+      }
+    }
+
+    throw new CosReferenceResolverError(
+      "COS_REFERENCE_CANDIDATE_BUILDER_MISSING",
+      "Reference candidate builder is not installed or callable."
+    );
+  }
+
+  function resolveAdjudicateCallable(
+    adjudicator
+  ) {
+    if (isFunction(adjudicator)) {
+      return adjudicator.bind(
+        adjudicator
+      );
+    }
+
+    if (adjudicator) {
+      for (
+        const method of [
+          "adjudicate",
+          "resolve",
+          "decide",
+          "run"
+        ]
+      ) {
+        if (
+          isFunction(
+            adjudicator[method]
+          )
+        ) {
+          return adjudicator[
+            method
+          ].bind(adjudicator);
+        }
+      }
+    }
+
+    throw new CosReferenceResolverError(
+      "COS_REFERENCE_ADJUDICATOR_MISSING",
+      "Reference adjudicator is not installed or callable."
+    );
   }
 
   /* =====================================================
@@ -334,49 +599,177 @@
   function normalizeResolverInput(
     rawInput = {}
   ) {
-    const source = isObject(rawInput)
-      ? rawInput
-      : {
-          currentTurn: rawInput
-        };
-
-    const currentTurn = isObject(
-      firstDefined(
-        source.currentTurn,
-        source.current_turn,
-        source.turn,
-        null
-      )
-    )
-      ? safeClone(
-          firstDefined(
-            source.currentTurn,
-            source.current_turn,
-            source.turn
-          )
-        )
-      : {};
-
-    const history =
-      Array.isArray(source.history)
-        ? source.history
-        : [];
-
-    const historyIndex =
-      isObject(source.historyIndex)
-        ? source.historyIndex
-        : {};
+    const source =
+      isObject(rawInput)
+        ? rawInput
+        : {
+            currentTurn:
+              rawInput
+          };
 
     const state =
       isObject(source.state)
         ? source.state
         : {};
 
+    const pendingInteractionState =
+      firstDefined(
+        source.pendingInteractionState,
+        source.pending_interaction_state,
+        state.pendingInteractionState,
+        state.pending_interaction_state,
+        {}
+      );
+
+    const artifactState =
+      firstDefined(
+        source.artifactState,
+        source.artifact_state,
+        state.artifactState,
+        state.artifact_state,
+        {}
+      );
+
+    const deliverySequenceState =
+      firstDefined(
+        source.deliverySequenceState,
+        source.delivery_sequence_state,
+        state.deliverySequenceState,
+        state.delivery_sequence_state,
+        {}
+      );
+
     return {
-      currentTurn,
-      history,
-      historyIndex,
+      currentTurn:
+        isObject(source.currentTurn)
+          ? safeClone(
+              source.currentTurn
+            )
+          : isObject(source.current_turn)
+            ? safeClone(
+                source.current_turn
+              )
+            : isObject(source.turn)
+              ? safeClone(source.turn)
+              : {},
+
+      history:
+        Array.isArray(source.history)
+          ? source.history
+          : Array.isArray(
+              source.conversationHistory
+            )
+            ? source.conversationHistory
+            : Array.isArray(
+                source.conversation_history
+              )
+              ? source.conversation_history
+              : [],
+
+      historyIndex:
+        isObject(source.historyIndex)
+          ? source.historyIndex
+          : isObject(
+              source.history_index
+            )
+            ? source.history_index
+            : {},
+
       state,
+
+      pendingInteractionState:
+        isObject(
+          pendingInteractionState
+        )
+          ? pendingInteractionState
+          : {},
+
+      artifactState:
+        isObject(artifactState)
+          ? artifactState
+          : {},
+
+      deliverySequenceState:
+        isObject(
+          deliverySequenceState
+        )
+          ? deliverySequenceState
+          : {},
+
+      pendingInteraction:
+        isObject(
+          source.pendingInteraction
+        )
+          ? source.pendingInteraction
+          : readActivePendingInteraction(
+              pendingInteractionState
+            ),
+
+      activeArtifact:
+        isObject(source.activeArtifact)
+          ? source.activeArtifact
+          : readActiveArtifact(
+              artifactState
+            ),
+
+      deliverySequence:
+        isObject(
+          source.deliverySequence
+        )
+          ? source.deliverySequence
+          : readActiveDeliverySequence(
+              deliverySequenceState
+            ),
+
+      upstreamCandidates:
+        Array.isArray(
+          source.upstreamCandidates
+        )
+          ? source.upstreamCandidates
+          : Array.isArray(
+              source.upstream_candidates
+            )
+            ? source.upstream_candidates
+            : Array.isArray(
+                source.referenceCandidates
+              )
+              ? source.referenceCandidates
+              : Array.isArray(
+                  source.reference_candidates
+                )
+                ? source.reference_candidates
+                : [],
+
+      uiMetadata:
+        isObject(source.uiMetadata)
+          ? source.uiMetadata
+          : isObject(
+              source.ui_metadata
+            )
+            ? source.ui_metadata
+            : {},
+
+      candidateSet:
+        isObject(source.candidateSet)
+          ? source.candidateSet
+          : isObject(
+              source.candidate_set
+            )
+            ? source.candidate_set
+            : null,
+
+      adjudication:
+        isObject(source.adjudication)
+          ? source.adjudication
+          : isObject(
+              source.referenceAdjudication
+            )
+            ? source.referenceAdjudication
+            : isObject(
+                source.reference_adjudication
+              )
+              ? source.reference_adjudication
+              : null,
 
       conversationId:
         firstNonEmptyString(
@@ -386,366 +779,160 @@
           state.conversation_id
         ) || null,
 
-      metadata:
-        isObject(source.metadata)
-          ? safeClone(source.metadata)
-          : {},
-
       options:
         isObject(source.options)
-          ? safeClone(source.options)
+          ? safeClone(
+              source.options
+            )
           : {}
     };
   }
 
   /* =====================================================
-     STRUCTURAL FIELD READERS
+     ACTIVE AUXILIARY RECORDS
   ===================================================== */
 
-  function readCurrentTurnId(turn) {
-    return firstNonEmptyString(
-      turn.turnId,
-      turn.turn_id,
-      turn.id,
-      turn.messageId,
-      turn.message_id
-    );
-  }
-
-  function readParentTurnId(turn) {
-    return firstNonEmptyString(
-      turn.parentTurnId,
-      turn.parent_turn_id
-    );
-  }
-
-  function readReplyToTurnId(turn) {
-    return firstNonEmptyString(
-      turn.replyToTurnId,
-      turn.reply_to_turn_id
-    );
-  }
-
-  function readSourceTurnIds(turn) {
-    return uniqueStrings(
-      firstDefined(
-        turn.sourceTurnIds,
-        turn.source_turn_ids,
-        []
+  function readActivePendingInteraction(
+    pendingState
+  ) {
+    if (
+      !isObject(pendingState) ||
+      !isObject(
+        pendingState.interactions
       )
-    );
-  }
-
-  function readReferenceTurnIds(turn) {
-    return uniqueStrings(
-      firstDefined(
-        turn.referenceTurnIds,
-        turn.reference_turn_ids,
-        turn.references,
-        []
-      )
-    );
-  }
-
-  function readBranchOriginTurnId(turn) {
-    return firstNonEmptyString(
-      turn.branchOriginTurnId,
-      turn.branch_origin_turn_id,
-      turn.branchFromTurnId,
-      turn.branch_from_turn_id
-    );
-  }
-
-  function readCorrectionTargetTurnId(turn) {
-    return firstNonEmptyString(
-      turn.correctionTargetTurnId,
-      turn.correction_target_turn_id,
-      turn.correctsTurnId,
-      turn.corrects_turn_id
-    );
-  }
-
-  function readClarificationTargetTurnId(turn) {
-    return firstNonEmptyString(
-      turn.clarificationTargetTurnId,
-      turn.clarification_target_turn_id,
-      turn.clarifiesTurnId,
-      turn.clarifies_turn_id
-    );
-  }
-
-  function readAnswerTargetTurnId(turn) {
-    return firstNonEmptyString(
-      turn.answerTargetTurnId,
-      turn.answer_target_turn_id,
-      turn.answersTurnId,
-      turn.answers_turn_id
-    );
-  }
-
-  function readInterruptionOriginTurnId(turn) {
-    return firstNonEmptyString(
-      turn.interruptionOriginTurnId,
-      turn.interruption_origin_turn_id,
-      turn.interruptedTurnId,
-      turn.interrupted_turn_id
-    );
-  }
-
-  function readResumeTargetTurnId(turn) {
-    return firstNonEmptyString(
-      turn.resumeTargetTurnId,
-      turn.resume_target_turn_id,
-      turn.resumesTurnId,
-      turn.resumes_turn_id
-    );
-  }
-
-  /* =====================================================
-     REFERENCE COLLECTION
-  ===================================================== */
-
-  function createReferenceCandidate({
-    turnId,
-    type,
-    field,
-    priority = 100
-  }) {
-    if (!isNonEmptyString(turnId)) {
+    ) {
       return null;
     }
 
-    return {
-      turnId: turnId.trim(),
+    const activeId =
+      firstNonEmptyString(
+        pendingState.activeInteractionId,
+        pendingState.active_interaction_id
+      );
 
-      type:
-        REFERENCE_TYPES.includes(type)
-          ? type
-          : "unknown",
+    if (!activeId) {
+      return null;
+    }
 
-      field:
-        isNonEmptyString(field)
-          ? field
-          : null,
+    const interaction =
+      pendingState.interactions[
+        activeId
+      ];
 
-      priority:
-        Number.isFinite(
-          Number(priority)
-        )
-          ? Number(priority)
-          : 100
-    };
+    return isObject(interaction)
+      ? interaction
+      : null;
   }
 
-  function collectExplicitReferenceCandidates(
+  function readActiveArtifact(
+    artifactState
+  ) {
+    if (
+      !isObject(artifactState) ||
+      !isObject(
+        artifactState.artifacts
+      )
+    ) {
+      return null;
+    }
+
+    const activeId =
+      firstNonEmptyString(
+        artifactState.activeArtifactId,
+        artifactState.active_artifact_id
+      );
+
+    if (!activeId) {
+      return null;
+    }
+
+    const artifact =
+      artifactState.artifacts[
+        activeId
+      ];
+
+    return isObject(artifact)
+      ? artifact
+      : null;
+  }
+
+  function readActiveDeliverySequence(
+    sequenceState
+  ) {
+    if (
+      !isObject(sequenceState) ||
+      !isObject(
+        sequenceState.sequences
+      )
+    ) {
+      return null;
+    }
+
+    const activeId =
+      firstNonEmptyString(
+        sequenceState.activeSequenceId,
+        sequenceState.active_sequence_id
+      );
+
+    if (!activeId) {
+      return null;
+    }
+
+    const sequence =
+      sequenceState.sequences[
+        activeId
+      ];
+
+    return isObject(sequence)
+      ? sequence
+      : null;
+  }
+
+  /* =====================================================
+     CURRENT TURN ID
+  ===================================================== */
+
+  function readCurrentTurnId(
     currentTurn
   ) {
-    const candidates = [];
-
-    const add = (
-      turnId,
-      type,
-      field,
-      priority
-    ) => {
-      const candidate =
-        createReferenceCandidate({
-          turnId,
-          type,
-          field,
-          priority
-        });
-
-      if (candidate) {
-        candidates.push(candidate);
-      }
-    };
-
-    add(
-      readParentTurnId(currentTurn),
-      "parent",
-      "parentTurnId",
-      10
-    );
-
-    add(
-      readReplyToTurnId(currentTurn),
-      "reply",
-      "replyToTurnId",
-      20
-    );
-
-    add(
-      readBranchOriginTurnId(currentTurn),
-      "branch_origin",
-      "branchOriginTurnId",
-      30
-    );
-
-    add(
-      readCorrectionTargetTurnId(
-        currentTurn
-      ),
-      "correction_target",
-      "correctionTargetTurnId",
-      40
-    );
-
-    add(
-      readClarificationTargetTurnId(
-        currentTurn
-      ),
-      "clarification_target",
-      "clarificationTargetTurnId",
-      50
-    );
-
-    add(
-      readAnswerTargetTurnId(currentTurn),
-      "answer_target",
-      "answerTargetTurnId",
-      60
-    );
-
-    add(
-      readInterruptionOriginTurnId(
-        currentTurn
-      ),
-      "interruption_origin",
-      "interruptionOriginTurnId",
-      70
-    );
-
-    add(
-      readResumeTargetTurnId(currentTurn),
-      "resume_target",
-      "resumeTargetTurnId",
-      80
-    );
-
-    for (
-      const turnId of
-        readSourceTurnIds(currentTurn)
-    ) {
-      add(
-        turnId,
-        "source",
-        "sourceTurnIds",
-        90
-      );
-    }
-
-    for (
-      const turnId of
-        readReferenceTurnIds(currentTurn)
-    ) {
-      add(
-        turnId,
-        "reference",
-        "referenceTurnIds",
-        100
-      );
-    }
-
-    return candidates;
-  }
-
-  function deduplicateReferenceCandidates(
-    candidates
-  ) {
-    const byTurnId = new Map();
-
-    for (const candidate of candidates) {
-      if (!candidate) {
-        continue;
-      }
-
-      const existing =
-        byTurnId.get(candidate.turnId);
-
-      if (!existing) {
-        byTurnId.set(
-          candidate.turnId,
-          {
-            turnId:
-              candidate.turnId,
-
-            types: [
-              candidate.type
-            ],
-
-            fields: candidate.field
-              ? [candidate.field]
-              : [],
-
-            priority:
-              candidate.priority
-          }
-        );
-
-        continue;
-      }
-
-      if (
-        !existing.types.includes(
-          candidate.type
-        )
-      ) {
-        existing.types.push(
-          candidate.type
-        );
-      }
-
-      if (
-        candidate.field &&
-        !existing.fields.includes(
-          candidate.field
-        )
-      ) {
-        existing.fields.push(
-          candidate.field
-        );
-      }
-
-      existing.priority = Math.min(
-        existing.priority,
-        candidate.priority
-      );
-    }
-
-    return Array.from(
-      byTurnId.values()
-    ).sort(
-      (a, b) =>
-        a.priority - b.priority
+    return firstNonEmptyString(
+      currentTurn.turnId,
+      currentTurn.turn_id,
+      currentTurn.id,
+      currentTurn.messageId,
+      currentTurn.message_id
     );
   }
 
   /* =====================================================
-     STRUCTURAL LOOKUPS
+     TURN LOOKUPS
   ===================================================== */
 
-  function readTurnFromIndex(
+  function readIndexedTurn(
     historyIndex,
     turnId
   ) {
     if (
       !isObject(historyIndex) ||
-      !isObject(historyIndex.byTurnId) ||
+      !isObject(
+        historyIndex.byTurnId
+      ) ||
       !isNonEmptyString(turnId)
     ) {
       return null;
     }
 
     const turn =
-      historyIndex.byTurnId[turnId];
+      historyIndex.byTurnId[
+        turnId
+      ];
 
     return isObject(turn)
       ? turn
       : null;
   }
 
-  function readTurnFromState(
+  function readStateTurn(
     state,
     turnId
   ) {
@@ -765,7 +952,7 @@
       : null;
   }
 
-  function readTurnFromHistory(
+  function readHistoryTurn(
     history,
     turnId
   ) {
@@ -790,7 +977,9 @@
           turn.message_id
         );
 
-      if (candidateTurnId === turnId) {
+      if (
+        candidateTurnId === turnId
+      ) {
         return turn;
       }
     }
@@ -798,380 +987,1005 @@
     return null;
   }
 
-  function resolveStructuralTurn(
-    {
-      history,
-      historyIndex,
-      state
-    },
+  function locateTurn(
+    input,
     turnId
   ) {
-    const indexedTurn =
-      readTurnFromIndex(
-        historyIndex,
+    const indexed =
+      readIndexedTurn(
+        input.historyIndex,
         turnId
       );
 
-    if (indexedTurn) {
+    if (indexed) {
       return {
-        found: true,
-        source: "history_index",
-        turn: indexedTurn
+        exists: true,
+        source:
+          "history_index",
+        turn:
+          indexed
       };
     }
 
     const stateTurn =
-      readTurnFromState(
-        state,
+      readStateTurn(
+        input.state,
         turnId
       );
 
     if (stateTurn) {
       return {
-        found: true,
+        exists: true,
         source: "state",
-        turn: stateTurn
+        turn:
+          stateTurn
       };
     }
 
     const historyTurn =
-      readTurnFromHistory(
-        history,
+      readHistoryTurn(
+        input.history,
         turnId
       );
 
     if (historyTurn) {
       return {
-        found: true,
+        exists: true,
         source: "history",
-        turn: historyTurn
+        turn:
+          historyTurn
       };
     }
 
     return {
-      found: false,
+      exists: false,
       source: null,
       turn: null
     };
   }
 
-  /* =====================================================
-     REFERENCE VERIFICATION
-  ===================================================== */
-
-  function verifyCandidates(
-    candidates,
-    structuralSources,
-    currentTurnId
+  function readTurnThreadId(
+    turn
   ) {
-    const resolvedReferences = [];
-    const unresolvedReferences = [];
-    const warnings = [];
-
-    for (const candidate of candidates) {
-      if (
-        candidate.turnId ===
-        currentTurnId
-      ) {
-        unresolvedReferences.push({
-          turnId:
-            candidate.turnId,
-
-          types:
-            [...candidate.types],
-
-          fields:
-            [...candidate.fields],
-
-          reason:
-            "self_reference",
-
-          code:
-            "COS_REFERENCE_SELF_REFERENCE"
-        });
-
-        continue;
-      }
-
-      const lookup =
-        resolveStructuralTurn(
-          structuralSources,
-          candidate.turnId
-        );
-
-      if (!lookup.found) {
-        unresolvedReferences.push({
-          turnId:
-            candidate.turnId,
-
-          types:
-            [...candidate.types],
-
-          fields:
-            [...candidate.fields],
-
-          reason:
-            "unknown_turn_id",
-
-          code:
-            "COS_REFERENCE_UNKNOWN_TURN"
-        });
-
-        continue;
-      }
-
-      const resolved = {
-        turnId:
-          candidate.turnId,
-
-        types:
-          [...candidate.types],
-
-        fields:
-          [...candidate.fields],
-
-        priority:
-          candidate.priority,
-
-        source:
-          lookup.source,
-
-        turn: safeClone(
-          lookup.turn
-        )
-      };
-
-      resolvedReferences.push(
-        resolved
-      );
-
-      const indexedConversationId =
-        firstNonEmptyString(
-          lookup.turn.conversationId,
-          lookup.turn.conversation_id
-        );
-
-      const currentConversationId =
-        firstNonEmptyString(
-          structuralSources
-            .conversationId
-        );
-
-      if (
-        indexedConversationId &&
-        currentConversationId &&
-        indexedConversationId !==
-          currentConversationId
-      ) {
-        warnings.push({
-          code:
-            "COS_REFERENCE_CROSS_CONVERSATION",
-
-          turnId:
-            candidate.turnId,
-
-          referencedConversationId:
-            indexedConversationId,
-
-          currentConversationId
-        });
-      }
+    if (!isObject(turn)) {
+      return null;
     }
 
-    return {
-      resolvedReferences,
-      unresolvedReferences,
-      warnings
-    };
-  }
-
-  /* =====================================================
-     PRIMARY RELATIONSHIP SELECTION
-  ===================================================== */
-
-  function findResolvedReferenceByType(
-    resolvedReferences,
-    type
-  ) {
-    return (
-      resolvedReferences.find(
-        (reference) =>
-          reference.types.includes(type)
-      ) || null
+    return firstNonEmptyString(
+      turn.threadId,
+      turn.thread_id
     );
   }
 
-  function determinePrimaryReference(
-    resolvedReferences
+  /* =====================================================
+     REFERENCE REQUIREMENT
+  ===================================================== */
+
+  function currentTurnHasExplicitReference(
+    currentTurn
+  ) {
+    if (!isObject(currentTurn)) {
+      return false;
+    }
+
+    return EXPLICIT_REFERENCE_FIELDS.some(
+      (field) => {
+        if (
+          !hasOwn(
+            currentTurn,
+            field
+          )
+        ) {
+          return false;
+        }
+
+        const value =
+          currentTurn[field];
+
+        if (Array.isArray(value)) {
+          return (
+            uniqueStrings(value)
+              .length > 0
+          );
+        }
+
+        return isNonEmptyString(value);
+      }
+    );
+  }
+
+  function determineReferenceRequired(
+    input,
+    candidateSet,
+    adjudication
   ) {
     if (
-      resolvedReferences.length === 0
+      currentTurnHasExplicitReference(
+        input.currentTurn
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      candidateSet &&
+      candidateSet.explicitCandidateCount >
+        0
+    ) {
+      return true;
+    }
+
+    if (
+      adjudication &&
+      adjudication.required === true
+    ) {
+      return true;
+    }
+
+    if (
+      Array.isArray(
+        input.upstreamCandidates
+      ) &&
+      input.upstreamCandidates
+        .length > 0
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /* =====================================================
+     CANDIDATE CONSTRUCTION
+  ===================================================== */
+
+  function buildCandidateSet(
+    input,
+    options
+  ) {
+    if (input.candidateSet) {
+      return input.candidateSet;
+    }
+
+    const builder =
+      resolveCandidateBuilder(
+        options
+          .referenceCandidateBuilder
+      );
+
+    const build =
+      resolveBuildCallable(
+        builder
+      );
+
+    return build(
+      {
+        conversationId:
+          input.conversationId,
+
+        currentTurn:
+          input.currentTurn,
+
+        history:
+          input.history,
+
+        historyIndex:
+          input.historyIndex,
+
+        state:
+          input.state,
+
+        pendingInteraction:
+          input.pendingInteraction,
+
+        activeArtifact:
+          input.activeArtifact,
+
+        deliverySequence:
+          input.deliverySequence,
+
+        upstreamCandidates:
+          input.upstreamCandidates,
+
+        uiMetadata:
+          input.uiMetadata,
+
+        options: {
+          includeActiveThread:
+            firstDefined(
+              options.includeActiveThread,
+              input.options
+                .includeActiveThread
+            ) !== false,
+
+          includeHistoryLandmark:
+            firstDefined(
+              options
+                .includeHistoryLandmark,
+              input.options
+                .includeHistoryLandmark
+            ) === true,
+
+          freeze: false
+        }
+      },
+      {
+        freeze: false
+      }
+    );
+  }
+
+  /* =====================================================
+     ADJUDICATION
+  ===================================================== */
+
+  function adjudicateCandidateSet(
+    input,
+    candidateSet,
+    options
+  ) {
+    if (input.adjudication) {
+      return input.adjudication;
+    }
+
+    const adjudicator =
+      resolveAdjudicator(
+        options.referenceAdjudicator
+      );
+
+    const adjudicate =
+      resolveAdjudicateCallable(
+        adjudicator
+      );
+
+    return adjudicate(
+      {
+        conversationId:
+          input.conversationId,
+
+        currentTurn:
+          input.currentTurn,
+
+        candidateSet
+      },
+      {
+        freeze: false
+      }
+    );
+  }
+
+  /* =====================================================
+     RELATIONSHIP HELPERS
+  ===================================================== */
+
+  function readCandidateRelationships(
+    candidate
+  ) {
+    return uniqueStrings(
+      firstDefined(
+        candidate &&
+          candidate.relationshipTypes,
+        candidate &&
+          candidate.relationship_types,
+        candidate &&
+          candidate.relationshipType,
+        candidate &&
+          candidate.relationship_type,
+        []
+      )
+    ).map(
+      (relationship) =>
+        RELATIONSHIP_TYPES.includes(
+          relationship
+        )
+          ? relationship
+          : "unknown"
+    );
+  }
+
+  function readPrimaryRelationship(
+    candidate
+  ) {
+    const relationships =
+      readCandidateRelationships(
+        candidate
+      );
+
+    for (
+      const relationship of
+        PARENT_RELATIONSHIP_PRIORITY
+    ) {
+      if (
+        relationships.includes(
+          relationship
+        )
+      ) {
+        return relationship;
+      }
+    }
+
+    return "unknown";
+  }
+
+  function findSelectedCandidate(
+    adjudication,
+    turnId
+  ) {
+    if (
+      !adjudication ||
+      !Array.isArray(
+        adjudication.selectedCandidates
+      )
     ) {
       return null;
     }
 
-    const typePriority = [
-      "parent",
-      "reply",
-      "branch_origin",
-      "correction_target",
-      "clarification_target",
-      "answer_target",
-      "interruption_origin",
-      "resume_target",
-      "source",
-      "reference"
-    ];
+    return (
+      adjudication
+        .selectedCandidates
+        .find(
+          (candidate) =>
+            candidate &&
+            candidate.turnId ===
+              turnId
+        ) ||
+      null
+    );
+  }
 
-    for (const type of typePriority) {
-      const match =
-        findResolvedReferenceByType(
-          resolvedReferences,
-          type
+  /* =====================================================
+     SELECTED TARGET VERIFICATION
+  ===================================================== */
+
+  function verifySelectedTargets(
+    input,
+    adjudication
+  ) {
+    const requestedTurnIds =
+      uniqueStrings(
+        firstDefined(
+          adjudication.resolvedTurnIds,
+          adjudication.resolved_turn_ids,
+          []
+        )
+      );
+
+    const verifiedTargets = [];
+    const missingTargets = [];
+
+    for (
+      const turnId of
+        requestedTurnIds
+    ) {
+      const lookup =
+        locateTurn(
+          input,
+          turnId
         );
 
-      if (match) {
-        return match;
+      const selectedCandidate =
+        findSelectedCandidate(
+          adjudication,
+          turnId
+        );
+
+      if (!lookup.exists) {
+        missingTargets.push({
+          turnId,
+
+          reason:
+            "turn_not_found",
+
+          candidate:
+            selectedCandidate
+              ? safeClone(
+                  selectedCandidate
+                )
+              : null
+        });
+
+        continue;
+      }
+
+      verifiedTargets.push({
+        turnId,
+
+        threadId:
+          readTurnThreadId(
+            lookup.turn
+          ),
+
+        locatedBy:
+          lookup.source,
+
+        primaryRelationship:
+          readPrimaryRelationship(
+            selectedCandidate
+          ),
+
+        relationshipTypes:
+          readCandidateRelationships(
+            selectedCandidate
+          ),
+
+        candidate:
+          selectedCandidate
+            ? safeClone(
+                selectedCandidate
+              )
+            : null
+      });
+    }
+
+    return {
+      requestedTurnIds,
+
+      verifiedTargets,
+
+      verifiedTurnIds:
+        verifiedTargets.map(
+          (target) =>
+            target.turnId
+        ),
+
+      missingTargets
+    };
+  }
+
+  /* =====================================================
+     PRIMARY TARGET
+  ===================================================== */
+
+  function compareVerifiedTargets(
+    left,
+    right
+  ) {
+    const leftIndex =
+      PARENT_RELATIONSHIP_PRIORITY
+        .indexOf(
+          left.primaryRelationship
+        );
+
+    const rightIndex =
+      PARENT_RELATIONSHIP_PRIORITY
+        .indexOf(
+          right.primaryRelationship
+        );
+
+    const safeLeftIndex =
+      leftIndex < 0
+        ? Number.MAX_SAFE_INTEGER
+        : leftIndex;
+
+    const safeRightIndex =
+      rightIndex < 0
+        ? Number.MAX_SAFE_INTEGER
+        : rightIndex;
+
+    if (
+      safeLeftIndex !==
+      safeRightIndex
+    ) {
+      return (
+        safeLeftIndex -
+        safeRightIndex
+      );
+    }
+
+    const leftCandidate =
+      left.candidate || {};
+
+    const rightCandidate =
+      right.candidate || {};
+
+    const leftPrecedence =
+      normalizeInteger(
+        leftCandidate.precedence,
+        1000
+      );
+
+    const rightPrecedence =
+      normalizeInteger(
+        rightCandidate.precedence,
+        1000
+      );
+
+    if (
+      leftPrecedence !==
+      rightPrecedence
+    ) {
+      return (
+        leftPrecedence -
+        rightPrecedence
+      );
+    }
+
+    return left.turnId.localeCompare(
+      right.turnId
+    );
+  }
+
+  function selectPrimaryTarget(
+    verification,
+    adjudication
+  ) {
+    const primaryTurnId =
+      firstNonEmptyString(
+        adjudication.primaryTurnId,
+        adjudication.primary_turn_id,
+        adjudication.parentTurnId,
+        adjudication.parent_turn_id
+      );
+
+    if (primaryTurnId) {
+      const matched =
+        verification
+          .verifiedTargets
+          .find(
+            (target) =>
+              target.turnId ===
+                primaryTurnId
+          );
+
+      if (matched) {
+        return matched;
       }
     }
 
-    return resolvedReferences[0];
+    if (
+      verification
+        .verifiedTargets
+        .length === 0
+    ) {
+      return null;
+    }
+
+    return [
+      ...verification
+        .verifiedTargets
+    ].sort(
+      compareVerifiedTargets
+    )[0];
   }
 
-  function determineParentTurnId(
-    currentTurn,
-    resolvedReferences
+  /* =====================================================
+     CANONICAL RELATIONSHIP FIELDS
+  ===================================================== */
+
+  function determineRelationshipFields(
+    verifiedTargets
   ) {
-    const explicitParentTurnId =
-      readParentTurnId(currentTurn);
+    const fields = {
+      parentTurnId: null,
+      replyToTurnId: null,
+      answerTargetTurnId: null,
+      clarificationTargetTurnId:
+        null,
+      correctionTargetTurnId:
+        null,
+      branchOriginTurnId: null,
+      interruptionOriginTurnId:
+        null,
+      resumeTargetTurnId: null,
+      sourceTurnIds: [],
+      referenceTurnIds: []
+    };
 
-    if (
-      explicitParentTurnId &&
-      resolvedReferences.some(
-        (reference) =>
-          reference.turnId ===
-          explicitParentTurnId
-      )
+    for (
+      const target of
+        verifiedTargets
     ) {
-      return explicitParentTurnId;
+      const relationships =
+        target.relationshipTypes;
+
+      if (
+        relationships.includes(
+          "parent"
+        ) &&
+        !fields.parentTurnId
+      ) {
+        fields.parentTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "reply"
+        ) &&
+        !fields.replyToTurnId
+      ) {
+        fields.replyToTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "answer_target"
+        ) &&
+        !fields.answerTargetTurnId
+      ) {
+        fields.answerTargetTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "clarification_target"
+        ) &&
+        !fields
+          .clarificationTargetTurnId
+      ) {
+        fields
+          .clarificationTargetTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "correction_target"
+        ) &&
+        !fields
+          .correctionTargetTurnId
+      ) {
+        fields
+          .correctionTargetTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "branch_origin"
+        ) &&
+        !fields.branchOriginTurnId
+      ) {
+        fields.branchOriginTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "interruption_origin"
+        ) &&
+        !fields
+          .interruptionOriginTurnId
+      ) {
+        fields
+          .interruptionOriginTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "resume_target"
+        ) &&
+        !fields.resumeTargetTurnId
+      ) {
+        fields.resumeTargetTurnId =
+          target.turnId;
+      }
+
+      if (
+        relationships.includes(
+          "source"
+        )
+      ) {
+        fields.sourceTurnIds.push(
+          target.turnId
+        );
+      }
+
+      if (
+        relationships.includes(
+          "reference"
+        ) ||
+        relationships.includes(
+          "upstream_structural_candidate"
+        ) ||
+        relationships.includes(
+          "pending_interaction"
+        ) ||
+        relationships.includes(
+          "pending_question"
+        ) ||
+        relationships.includes(
+          "pending_choice"
+        ) ||
+        relationships.includes(
+          "active_artifact"
+        ) ||
+        relationships.includes(
+          "delivery_sequence"
+        ) ||
+        relationships.includes(
+          "active_thread_turn"
+        ) ||
+        relationships.includes(
+          "interrupted_thread_turn"
+        )
+      ) {
+        fields.referenceTurnIds.push(
+          target.turnId
+        );
+      }
     }
 
-    const replyReference =
-      findResolvedReferenceByType(
-        resolvedReferences,
-        "reply"
+    fields.sourceTurnIds =
+      uniqueStrings(
+        fields.sourceTurnIds
       );
 
-    if (replyReference) {
-      return replyReference.turnId;
-    }
-
-    const primaryReference =
-      determinePrimaryReference(
-        resolvedReferences
+    fields.referenceTurnIds =
+      uniqueStrings(
+        fields.referenceTurnIds
       );
 
-    return primaryReference
-      ? primaryReference.turnId
-      : null;
+    return fields;
   }
 
   /* =====================================================
      STATUS DETERMINATION
   ===================================================== */
 
-  function determineResolutionStatus({
-    candidateCount,
-    resolvedCount,
-    unresolvedCount
+  function determineFinalStatus({
+    required,
+    adjudication,
+    verification
   }) {
-    if (candidateCount === 0) {
+    const adjudicationStatus =
+      firstNonEmptyString(
+        adjudication.status
+      ) || "unresolved";
+
+    if (!required) {
       return "not_required";
     }
 
     if (
-      resolvedCount > 0 &&
-      unresolvedCount === 0
+      adjudicationStatus ===
+      "ambiguous"
     ) {
-      return "resolved";
+      return "ambiguous";
     }
 
     if (
-      resolvedCount > 0 &&
-      unresolvedCount > 0
+      adjudicationStatus ===
+      "unresolved"
+    ) {
+      return "unresolved";
+    }
+
+    if (
+      verification
+        .verifiedTurnIds
+        .length === 0
+    ) {
+      return "unresolved";
+    }
+
+    if (
+      verification
+        .missingTargets
+        .length > 0
     ) {
       return "partially_resolved";
     }
 
-    return "unresolved";
+    if (
+      adjudicationStatus ===
+      "partially_resolved"
+    ) {
+      return "partially_resolved";
+    }
+
+    return "resolved";
+  }
+
+  function determineResolutionMode({
+    finalStatus,
+    verification,
+    adjudication
+  }) {
+    if (
+      finalStatus ===
+      "not_required"
+    ) {
+      return "none";
+    }
+
+    if (
+      finalStatus ===
+      "ambiguous"
+    ) {
+      return "ambiguous";
+    }
+
+    if (
+      finalStatus ===
+      "unresolved"
+    ) {
+      return "unresolved";
+    }
+
+    if (
+      finalStatus ===
+      "partially_resolved"
+    ) {
+      return "partial";
+    }
+
+    if (
+      verification
+        .verifiedTurnIds
+        .length > 1
+    ) {
+      return "multi_target";
+    }
+
+    return (
+      RESOLUTION_MODES.includes(
+        adjudication.resolutionMode
+      )
+        ? adjudication.resolutionMode
+        : "single_target"
+    );
   }
 
   /* =====================================================
-     RELATIONSHIP RECONCILIATION
+     UNRESOLVED REFERENCES
   ===================================================== */
 
-  function reconcileExplicitRelationships({
-    currentTurn,
-    resolvedReferences,
-    unresolvedReferences
+  function buildUnresolvedReferences({
+    finalStatus,
+    verification,
+    adjudication,
+    candidateSet
   }) {
-    const warnings = [];
+    const unresolved = [];
 
-    const parentTurnId =
-      readParentTurnId(currentTurn);
-
-    const replyToTurnId =
-      readReplyToTurnId(currentTurn);
-
-    if (
-      parentTurnId &&
-      replyToTurnId &&
-      parentTurnId !== replyToTurnId
+    for (
+      const missing of
+        verification.missingTargets
     ) {
-      warnings.push({
-        code:
-          "COS_REFERENCE_PARENT_REPLY_DIVERGENCE",
+      unresolved.push({
+        type:
+          "missing_turn",
 
-        parentTurnId,
-        replyToTurnId,
+        turnId:
+          missing.turnId,
 
-        message:
-          "Explicit parent and reply targets refer to different turns."
+        reason:
+          missing.reason,
+
+        candidate:
+          missing.candidate
       });
     }
 
-    const resolvedTurnIds =
-      resolvedReferences.map(
-        (reference) =>
-          reference.turnId
-      );
+    if (
+      candidateSet &&
+      Array.isArray(
+        candidateSet.invalidCandidates
+      )
+    ) {
+      for (
+        const candidate of
+          candidateSet.invalidCandidates
+      ) {
+        unresolved.push({
+          type:
+            "invalid_candidate",
 
-    const unresolvedTurnIds =
-      unresolvedReferences.map(
-        (reference) =>
-          reference.turnId
-      );
+          turnId:
+            candidate.turnId || null,
 
-    return {
-      resolvedTurnIds:
-        uniqueStrings(
-          resolvedTurnIds
-        ),
+          reason:
+            Array.isArray(
+              candidate.invalidReasons
+            )
+              ? candidate
+                  .invalidReasons
+                  .join(",")
+              : "invalid_candidate",
 
-      unresolvedTurnIds:
-        uniqueStrings(
-          unresolvedTurnIds
-        ),
+          candidate:
+            safeClone(candidate)
+        });
+      }
+    }
 
-      warnings
-    };
+    if (
+      finalStatus === "ambiguous" &&
+      adjudication &&
+      Array.isArray(
+        adjudication
+          .ambiguousCandidates
+      )
+    ) {
+      for (
+        const candidate of
+          adjudication
+            .ambiguousCandidates
+      ) {
+        unresolved.push({
+          type:
+            "ambiguous_candidate",
+
+          turnId:
+            candidate.turnId || null,
+
+          reason:
+            adjudication
+              .decisionReason ||
+            "ambiguous_reference",
+
+          candidate:
+            safeClone(candidate)
+        });
+      }
+    }
+
+    if (
+      finalStatus === "unresolved" &&
+      unresolved.length === 0
+    ) {
+      unresolved.push({
+        type:
+          "unresolved_reference",
+
+        turnId: null,
+
+        reason:
+          adjudication &&
+          adjudication.decisionReason
+            ? adjudication
+                .decisionReason
+            : "no_resolvable_target",
+
+        candidate: null
+      });
+    }
+
+    return unresolved;
   }
 
   /* =====================================================
-     RESULT VALIDATION
+     THREAD DERIVATION
   ===================================================== */
 
-  function validateResult(result) {
+  function determineResolvedThreadIds(
+    verifiedTargets
+  ) {
+    return uniqueStrings(
+      verifiedTargets.map(
+        (target) =>
+          target.threadId
+      )
+    );
+  }
+
+  function determinePrimaryThreadId(
+    primaryTarget,
+    threadIds
+  ) {
+    if (
+      primaryTarget &&
+      primaryTarget.threadId
+    ) {
+      return primaryTarget.threadId;
+    }
+
+    return threadIds.length === 1
+      ? threadIds[0]
+      : null;
+  }
+
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
+
+  function validateResolution(
+    result
+  ) {
     const errors = [];
     const warnings = [];
 
@@ -1182,12 +1996,36 @@
         errors: [
           {
             code:
-              "COS_REFERENCE_RESULT_NOT_OBJECT"
+              "COS_REFERENCE_RESOLUTION_NOT_OBJECT"
           }
         ],
 
         warnings
       };
+    }
+
+    if (
+      result.resolutionType !==
+      RESOLUTION_TYPE
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_RESOLUTION_TYPE_INVALID",
+
+        resolutionType:
+          result.resolutionType
+      });
+    }
+
+    if (
+      !isNonEmptyString(
+        result.currentTurnId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_RESOLUTION_CURRENT_TURN_ID_MISSING"
+      });
     }
 
     if (
@@ -1197,10 +2035,24 @@
     ) {
       errors.push({
         code:
-          "COS_REFERENCE_STATUS_INVALID",
+          "COS_REFERENCE_RESOLUTION_STATUS_INVALID",
 
         status:
           result.status
+      });
+    }
+
+    if (
+      !RESOLUTION_MODES.includes(
+        result.resolutionMode
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_RESOLUTION_MODE_INVALID",
+
+        resolutionMode:
+          result.resolutionMode
       });
     }
 
@@ -1211,7 +2063,7 @@
     ) {
       errors.push({
         code:
-          "COS_REFERENCE_RESOLVED_IDS_INVALID"
+          "COS_REFERENCE_RESOLUTION_IDS_INVALID"
       });
     }
 
@@ -1222,43 +2074,88 @@
     ) {
       errors.push({
         code:
-          "COS_REFERENCE_UNRESOLVED_LIST_INVALID"
+          "COS_REFERENCE_UNRESOLVED_REFERENCES_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        result.resolvedThreadIds
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_RESOLVED_THREAD_IDS_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        result.relationshipTypes
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_RELATIONSHIP_TYPES_INVALID"
+      });
+    }
+
+    if (
+      !Array.isArray(
+        result.evidenceSources
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_EVIDENCE_SOURCES_INVALID"
+      });
+    }
+
+    if (
+      result.status === "resolved" &&
+      result.resolvedTurnIds.length === 0
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_RESOLVED_WITHOUT_TARGETS"
       });
     }
 
     if (
       result.status ===
         "not_required" &&
-      (
-        result.resolvedTurnIds.length > 0 ||
-        result.unresolvedReferences.length > 0
-      )
-    ) {
-      errors.push({
-        code:
-          "COS_REFERENCE_NOT_REQUIRED_WITH_REFERENCES"
-      });
-    }
-
-    if (
-      result.status ===
-        "resolved" &&
-      result.unresolvedReferences.length > 0
-    ) {
-      errors.push({
-        code:
-          "COS_REFERENCE_RESOLVED_WITH_UNRESOLVED_ITEMS"
-      });
-    }
-
-    if (
-      result.status ===
-        "unresolved" &&
       result.resolvedTurnIds.length > 0
     ) {
       errors.push({
         code:
-          "COS_REFERENCE_UNRESOLVED_WITH_RESOLVED_IDS"
+          "COS_REFERENCE_NOT_REQUIRED_WITH_TARGETS"
+      });
+    }
+
+    if (
+      result.status ===
+        "ambiguous" &&
+      result.unresolvedReferences
+        .length < 2
+    ) {
+      warnings.push({
+        code:
+          "COS_REFERENCE_AMBIGUITY_WITH_FEW_CANDIDATES"
+      });
+    }
+
+    if (
+      result.primaryTurnId &&
+      !result.resolvedTurnIds.includes(
+        result.primaryTurnId
+      )
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_PRIMARY_NOT_RESOLVED",
+
+        primaryTurnId:
+          result.primaryTurnId
       });
     }
 
@@ -1277,17 +2174,68 @@
       });
     }
 
+    if (
+      result.resolutionMode ===
+        "single_target" &&
+      result.resolvedTurnIds.length !==
+        1
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_SINGLE_TARGET_COUNT_INVALID"
+      });
+    }
+
+    if (
+      result.resolutionMode ===
+        "multi_target" &&
+      result.resolvedTurnIds.length < 2
+    ) {
+      errors.push({
+        code:
+          "COS_REFERENCE_MULTI_TARGET_COUNT_INVALID"
+      });
+    }
+
     return {
       valid:
         errors.length === 0,
 
       errors,
-      warnings
+      warnings,
+
+      errorCount:
+        errors.length,
+
+      warningCount:
+        warnings.length
     };
   }
 
+  function assertValid(
+    result
+  ) {
+    const validation =
+      validateResolution(
+        result
+      );
+
+    if (!validation.valid) {
+      throw new CosReferenceResolverError(
+        "COS_REFERENCE_RESOLUTION_VALIDATION_FAILED",
+        "Canonical reference resolution failed validation.",
+        {
+          details:
+            validation
+        }
+      );
+    }
+
+    return validation;
+  }
+
   /* =====================================================
-     PUBLIC RESOLVE
+     PUBLIC RESOLUTION
   ===================================================== */
 
   function resolve(
@@ -1305,12 +2253,16 @@
         input.options.freeze
       ) !== false;
 
-    const currentTurn =
-      input.currentTurn;
+    const includeDiagnostics =
+      firstDefined(
+        options.includeDiagnostics,
+        input.options
+          .includeDiagnostics
+      ) !== false;
 
     const currentTurnId =
       readCurrentTurnId(
-        currentTurn
+        input.currentTurn
       );
 
     if (!currentTurnId) {
@@ -1320,81 +2272,137 @@
       );
     }
 
-    const rawCandidates =
-      collectExplicitReferenceCandidates(
-        currentTurn
-      );
+    let candidateSet;
+    let adjudication;
 
-    const candidates =
-      deduplicateReferenceCandidates(
-        rawCandidates
+    try {
+      candidateSet =
+        buildCandidateSet(
+          input,
+          options
+        );
+
+      adjudication =
+        adjudicateCandidateSet(
+          input,
+          candidateSet,
+          options
+        );
+    } catch (error) {
+      throw new CosReferenceResolverError(
+        "COS_REFERENCE_PIPELINE_FAILED",
+        "Reference candidate construction or adjudication failed.",
+        {
+          cause: error,
+
+          details: {
+            currentTurnId,
+
+            error:
+              safeError(error)
+          }
+        }
+      );
+    }
+
+    const required =
+      determineReferenceRequired(
+        input,
+        candidateSet,
+        adjudication
       );
 
     const verification =
-      verifyCandidates(
-        candidates,
-        {
-          history:
-            input.history,
-
-          historyIndex:
-            input.historyIndex,
-
-          state:
-            input.state,
-
-          conversationId:
-            input.conversationId
-        },
-        currentTurnId
+      verifySelectedTargets(
+        input,
+        adjudication
       );
 
-    const reconciliation =
-      reconcileExplicitRelationships({
-        currentTurn,
+    const primaryTarget =
+      selectPrimaryTarget(
+        verification,
+        adjudication
+      );
 
-        resolvedReferences:
-          verification
-            .resolvedReferences,
-
-        unresolvedReferences:
-          verification
-            .unresolvedReferences
-      });
-
-    const status =
-      determineResolutionStatus({
-        candidateCount:
-          candidates.length,
-
-        resolvedCount:
-          verification
-            .resolvedReferences
-            .length,
-
-        unresolvedCount:
-          verification
-            .unresolvedReferences
-            .length
-      });
-
-    const primaryReference =
-      determinePrimaryReference(
+    const finalStatus =
+      determineFinalStatus({
+        required,
+        adjudication,
         verification
-          .resolvedReferences
+      });
+
+    const resolutionMode =
+      determineResolutionMode({
+        finalStatus,
+        verification,
+        adjudication
+      });
+
+    const relationshipFields =
+      determineRelationshipFields(
+        verification
+          .verifiedTargets
       );
+
+    const relationshipTypes =
+      uniqueStrings(
+        verification
+          .verifiedTargets
+          .flatMap(
+            (target) =>
+              target.relationshipTypes
+          )
+      );
+
+    const evidenceSources =
+      uniqueStrings(
+        firstDefined(
+          adjudication.evidenceSources,
+          adjudication.evidence_sources,
+          []
+        )
+      );
+
+    const resolvedThreadIds =
+      determineResolvedThreadIds(
+        verification
+          .verifiedTargets
+      );
+
+    const primaryThreadId =
+      determinePrimaryThreadId(
+        primaryTarget,
+        resolvedThreadIds
+      );
+
+    const unresolvedReferences =
+      buildUnresolvedReferences({
+        finalStatus,
+        verification,
+        adjudication,
+        candidateSet
+      });
+
+    const resolvedTurnIds =
+      finalStatus ===
+        "not_required"
+        ? []
+        : verification
+            .verifiedTurnIds;
+
+    const primaryTurnId =
+      finalStatus === "resolved" ||
+      finalStatus ===
+        "partially_resolved"
+        ? (
+            primaryTarget
+              ? primaryTarget.turnId
+              : null
+          )
+        : null;
 
     const parentTurnId =
-      determineParentTurnId(
-        currentTurn,
-        verification
-          .resolvedReferences
-      );
-
-    const warnings = [
-      ...verification.warnings,
-      ...reconciliation.warnings
-    ];
+      primaryTurnId;
 
     const result = {
       schemaVersion:
@@ -1409,123 +2417,235 @@
       version:
         VERSION,
 
+      resolutionType:
+        RESOLUTION_TYPE,
+
       conversationId:
         input.conversationId,
 
       currentTurnId,
 
-      required:
-        candidates.length > 0,
+      required,
 
-      status,
+      status:
+        finalStatus,
+
+      resolutionMode,
+
+      resolved:
+        finalStatus ===
+          "resolved",
+
+      partiallyResolved:
+        finalStatus ===
+          "partially_resolved",
+
+      ambiguous:
+        finalStatus ===
+          "ambiguous",
+
+      unresolved:
+        finalStatus ===
+          "unresolved" ||
+        finalStatus ===
+          "ambiguous",
+
+      primaryTurnId,
 
       parentTurnId,
 
-      primaryTurnId:
-        primaryReference
-          ? primaryReference.turnId
-          : null,
+      primaryThreadId,
 
-      resolvedTurnIds:
-        reconciliation
-          .resolvedTurnIds,
+      resolvedTurnIds,
 
-      unresolvedTurnIds:
-        reconciliation
-          .unresolvedTurnIds,
+      resolvedThreadIds,
 
-      resolvedReferences:
-        verification
-          .resolvedReferences
-          .map((reference) => ({
-            turnId:
-              reference.turnId,
+      relationshipTypes,
 
-            types:
-              [...reference.types],
+      evidenceSources,
 
-            fields:
-              [...reference.fields],
+      replyToTurnId:
+        relationshipFields
+          .replyToTurnId,
 
-            source:
-              reference.source
-          })),
+      answerTargetTurnId:
+        relationshipFields
+          .answerTargetTurnId,
 
-      unresolvedReferences:
-        verification
-          .unresolvedReferences
-          .map((reference) => ({
-            turnId:
-              reference.turnId,
+      clarificationTargetTurnId:
+        relationshipFields
+          .clarificationTargetTurnId,
 
-            types:
-              [...reference.types],
+      correctionTargetTurnId:
+        relationshipFields
+          .correctionTargetTurnId,
 
-            fields:
-              [...reference.fields],
+      branchOriginTurnId:
+        relationshipFields
+          .branchOriginTurnId,
 
-            reason:
-              reference.reason,
+      interruptionOriginTurnId:
+        relationshipFields
+          .interruptionOriginTurnId,
 
-            code:
-              reference.code
-          })),
+      resumeTargetTurnId:
+        relationshipFields
+          .resumeTargetTurnId,
+
+      sourceTurnIds:
+        uniqueStrings([
+          ...relationshipFields
+            .sourceTurnIds,
+
+          ...(
+            finalStatus ===
+              "resolved" ||
+            finalStatus ===
+              "partially_resolved"
+              ? resolvedTurnIds
+              : []
+          )
+        ]),
+
+      referenceTurnIds:
+        uniqueStrings([
+          ...relationshipFields
+            .referenceTurnIds,
+
+          ...resolvedTurnIds
+        ]),
+
+      unresolvedReferences,
+
+      decisionReason:
+        firstNonEmptyString(
+          adjudication.decisionReason,
+          adjudication.decision_reason
+        ) ||
+        (
+          finalStatus ===
+          "not_required"
+            ? "reference_not_required"
+            : null
+        ),
 
       candidateCount:
-        candidates.length,
+        normalizeInteger(
+          candidateSet.candidateCount,
+          Array.isArray(
+            candidateSet.candidates
+          )
+            ? candidateSet
+                .candidates.length
+            : 0
+        ),
 
-      resolvedCount:
-        verification
-          .resolvedReferences
-          .length,
+      selectedCandidateCount:
+        normalizeInteger(
+          adjudication
+            .selectedCandidateCount,
+          verification
+            .verifiedTargets.length
+        ),
 
-      unresolvedCount:
-        verification
-          .unresolvedReferences
-          .length,
+      invalidCandidateCount:
+        normalizeInteger(
+          candidateSet
+            .invalidCandidateCount,
+          Array.isArray(
+            candidateSet
+              .invalidCandidates
+          )
+            ? candidateSet
+                .invalidCandidates
+                .length
+            : 0
+        ),
 
-      resolutionSource:
-        candidates.length > 0
-          ? "explicit_structural_metadata"
-          : "no_structural_reference_required",
+      ambiguousCandidateCount:
+        normalizeInteger(
+          adjudication
+            .ambiguousCandidateCount,
+          Array.isArray(
+            adjudication
+              .ambiguousCandidates
+          )
+            ? adjudication
+                .ambiguousCandidates
+                .length
+            : 0
+        ),
+
+      candidateSet:
+        includeDiagnostics
+          ? safeClone(
+              candidateSet
+            )
+          : null,
+
+      adjudication:
+        includeDiagnostics
+          ? safeClone(
+              adjudication
+            )
+          : null,
+
+      verifiedTargets:
+        includeDiagnostics
+          ? safeClone(
+              verification
+                .verifiedTargets
+            )
+          : [],
+
+      diagnostics:
+        includeDiagnostics
+          ? {
+              valid: true,
+
+              required,
+
+              requestedTurnIds:
+                verification
+                  .requestedTurnIds,
+
+              verifiedTurnIds:
+                verification
+                  .verifiedTurnIds,
+
+              missingTargets:
+                safeClone(
+                  verification
+                    .missingTargets
+                ),
+
+              candidateBuilder:
+                firstNonEmptyString(
+                  candidateSet
+                    .component
+                ) || null,
+
+              adjudicator:
+                firstNonEmptyString(
+                  adjudication
+                    .component
+                ) || null
+            }
+          : null,
 
       resolvedAt:
-        nowIso(),
-
-      diagnostics: {
-        valid: true,
-
-        warningCount:
-          warnings.length,
-
-        warnings,
-
-        candidates:
-          candidates.map(
-            (candidate) => ({
-              turnId:
-                candidate.turnId,
-
-              types:
-                [...candidate.types],
-
-              fields:
-                [...candidate.fields],
-
-              priority:
-                candidate.priority
-            })
-          )
-      }
+        nowIso()
     };
 
     const validation =
-      validateResult(result);
+      validateResolution(
+        result
+      );
 
     if (!validation.valid) {
       throw new CosReferenceResolverError(
-        "COS_REFERENCE_RESULT_VALIDATION_FAILED",
-        "Structural reference resolution result failed validation.",
+        "COS_REFERENCE_RESOLUTION_INVALID",
+        "Constructed reference resolution failed validation.",
         {
           details:
             validation
@@ -1533,9 +2653,345 @@
       );
     }
 
+    if (
+      result.diagnostics
+    ) {
+      result.diagnostics
+        .warningCount =
+        validation.warnings.length;
+
+      result.diagnostics.warnings =
+        validation.warnings;
+    }
+
     return freeze
       ? freezeClone(result)
       : result;
+  }
+
+  /* =====================================================
+     COMPATIBILITY RESULT
+  ===================================================== */
+
+  function resolveLegacyShape(
+    rawInput = {},
+    options = {}
+  ) {
+    const result =
+      resolve(
+        rawInput,
+        {
+          ...options,
+          freeze: false
+        }
+      );
+
+    const legacyResult = {
+      schemaVersion:
+        result.schemaVersion,
+
+      authority:
+        result.authority,
+
+      component:
+        result.component,
+
+      version:
+        result.version,
+
+      currentTurnId:
+        result.currentTurnId,
+
+      status:
+        result.status,
+
+      required:
+        result.required,
+
+      resolvedTurnIds:
+        [...result.resolvedTurnIds],
+
+      unresolvedReferences:
+        safeClone(
+          result.unresolvedReferences
+        ),
+
+      parentTurnId:
+        result.parentTurnId,
+
+      primaryTurnId:
+        result.primaryTurnId,
+
+      threadId:
+        result.primaryThreadId,
+
+      sourceTurnIds:
+        [...result.sourceTurnIds],
+
+      referenceTurnIds:
+        [...result.referenceTurnIds],
+
+      replyToTurnId:
+        result.replyToTurnId,
+
+      answerTargetTurnId:
+        result.answerTargetTurnId,
+
+      clarificationTargetTurnId:
+        result
+          .clarificationTargetTurnId,
+
+      correctionTargetTurnId:
+        result
+          .correctionTargetTurnId,
+
+      branchOriginTurnId:
+        result.branchOriginTurnId,
+
+      interruptionOriginTurnId:
+        result
+          .interruptionOriginTurnId,
+
+      resumeTargetTurnId:
+        result.resumeTargetTurnId,
+
+      relationshipTypes:
+        [...result.relationshipTypes],
+
+      evidenceSources:
+        [...result.evidenceSources],
+
+      decisionReason:
+        result.decisionReason,
+
+      diagnostics:
+        safeClone(
+          result.diagnostics
+        )
+    };
+
+    return options.freeze === false
+      ? legacyResult
+      : freezeClone(
+          legacyResult
+        );
+  }
+
+  /* =====================================================
+     SAFE RESOLUTION
+  ===================================================== */
+
+  function safeResolve(
+    rawInput = {},
+    options = {}
+  ) {
+    try {
+      return resolve(
+        rawInput,
+        options
+      );
+    } catch (error) {
+      const input =
+        normalizeResolverInput(
+          rawInput
+        );
+
+      const currentTurnId =
+        readCurrentTurnId(
+          input.currentTurn
+        );
+
+      return freezeClone({
+        schemaVersion:
+          SCHEMA_VERSION,
+
+        authority:
+          AUTHORITY,
+
+        component:
+          COMPONENT_NAME,
+
+        version:
+          VERSION,
+
+        resolutionType:
+          RESOLUTION_TYPE,
+
+        conversationId:
+          input.conversationId,
+
+        currentTurnId:
+          currentTurnId || null,
+
+        required: true,
+
+        status:
+          "unresolved",
+
+        resolutionMode:
+          "unresolved",
+
+        resolved: false,
+
+        partiallyResolved: false,
+
+        ambiguous: false,
+
+        unresolved: true,
+
+        primaryTurnId: null,
+
+        parentTurnId: null,
+
+        primaryThreadId: null,
+
+        resolvedTurnIds: [],
+
+        resolvedThreadIds: [],
+
+        relationshipTypes: [],
+
+        evidenceSources: [],
+
+        replyToTurnId: null,
+
+        answerTargetTurnId: null,
+
+        clarificationTargetTurnId:
+          null,
+
+        correctionTargetTurnId:
+          null,
+
+        branchOriginTurnId: null,
+
+        interruptionOriginTurnId:
+          null,
+
+        resumeTargetTurnId: null,
+
+        sourceTurnIds: [],
+
+        referenceTurnIds: [],
+
+        unresolvedReferences: [
+          {
+            type:
+              "resolver_failure",
+
+            turnId: null,
+
+            reason:
+              firstNonEmptyString(
+                error.code
+              ) ||
+              "reference_resolution_failed",
+
+            candidate: null
+          }
+        ],
+
+        decisionReason:
+          "reference_resolution_failed",
+
+        candidateCount: 0,
+
+        selectedCandidateCount: 0,
+
+        invalidCandidateCount: 0,
+
+        ambiguousCandidateCount: 0,
+
+        candidateSet: null,
+
+        adjudication: null,
+
+        verifiedTargets: [],
+
+        diagnostics: {
+          valid: false,
+
+          required: true,
+
+          requestedTurnIds: [],
+
+          verifiedTurnIds: [],
+
+          missingTargets: [],
+
+          error:
+            safeError(error)
+        },
+
+        resolvedAt:
+          nowIso()
+      });
+    }
+  }
+
+  /* =====================================================
+     QUERY HELPERS
+  ===================================================== */
+
+  function hasResolvedReference(
+    result
+  ) {
+    return Boolean(
+      isObject(result) &&
+      (
+        result.status ===
+          "resolved" ||
+        result.status ===
+          "partially_resolved"
+      ) &&
+      Array.isArray(
+        result.resolvedTurnIds
+      ) &&
+      result.resolvedTurnIds
+        .length > 0
+    );
+  }
+
+  function getPrimaryTurnId(
+    result
+  ) {
+    return isObject(result)
+      ? firstNonEmptyString(
+          result.primaryTurnId,
+          result.primary_turn_id,
+          result.parentTurnId,
+          result.parent_turn_id
+        )
+      : null;
+  }
+
+  function getResolvedTurnIds(
+    result
+  ) {
+    return isObject(result)
+      ? uniqueStrings(
+          firstDefined(
+            result.resolvedTurnIds,
+            result.resolved_turn_ids,
+            []
+          )
+        )
+      : [];
+  }
+
+  function requiresClarification(
+    result
+  ) {
+    return Boolean(
+      isObject(result) &&
+      (
+        result.status ===
+          "ambiguous" ||
+        result.status ===
+          "unresolved"
+      ) &&
+      result.required === true
+    );
   }
 
   /* =====================================================
@@ -1555,31 +3011,65 @@
     component:
       COMPONENT_NAME,
 
+    resolutionType:
+      RESOLUTION_TYPE,
+
     resolutionStatuses:
       RESOLUTION_STATUSES,
 
-    referenceTypes:
-      REFERENCE_TYPES,
+    resolutionModes:
+      RESOLUTION_MODES,
+
+    relationshipTypes:
+      RELATIONSHIP_TYPES,
+
+    parentRelationshipPriority:
+      PARENT_RELATIONSHIP_PRIORITY,
 
     CosReferenceResolverError,
 
     resolve,
 
-    resolveReferences:
-      resolve,
-
     run:
       resolve,
 
+    execute:
+      resolve,
+
+    process:
+      resolve,
+
+    resolveLegacyShape,
+
+    safeResolve,
+
     validate:
-      validateResult,
+      validateResolution,
+
+    validateResolution,
+
+    assertValid,
 
     normalizeInput:
       normalizeResolverInput,
 
-    collectExplicitReferenceCandidates,
+    buildCandidateSet,
 
-    deduplicateReferenceCandidates
+    adjudicateCandidateSet,
+
+    verifySelectedTargets,
+
+    selectPrimaryTarget,
+
+    determineRelationshipFields,
+
+    hasResolvedReference,
+
+    getPrimaryTurnId,
+
+    getResolvedTurnIds,
+
+    requiresClarification
   };
 
   /* =====================================================
