@@ -1,66 +1,69 @@
 // ari/pipeline-stages/expression/ari-character-stage.js
 // Ari Character Stage
-// Purpose: Orchestrate Ari's local character authorities through Context,
-// Reasoning, and Expression, then produce one normalized downstream handoff.
-// V2.0.0 — Modular Character Subsystem Orchestration / Local-Only
 //
-// Architectural position:
-// Expression Pipeline
-//   ↓
-// Ari Character Stage
-//   ├─ Character Context Engine
-//   ├─ Local Character Authority Inspection
-//   ├─ Character Reasoning Engine
-//   └─ Character Expression Engine
-//        ↓
-// Character Handoff
-//        ↓
-// Language Guidance / Composer Bridge / Draft Generation
+// Purpose:
+// Orchestrate Ari's local Character subsystem and produce one focused,
+// authoritative Character Handoff for downstream expression stages.
 //
-// Local character authorities:
-// - Ari Constitution
-// - Ari Character Core
-// - Ari Character Instincts
-// - Ari Character Taste Profile
-// - Ari Character Preferences
-// - Ari Character Preference Resolver
-// - Ari Worldview
-// - Ari Relationship Style
+// V3.0.0 — Focused Character Handoff / No Downstream Reconstruction
+//
+// Architectural flow:
+//
+// Character Context Engine
+//      ↓
+// Requested Local Character Authorities
+//      ↓
+// Character Reasoning Engine
+//      ↓
+// Character Expression Engine
+//      ↓
+// Focused Character Handoff
+//      ↓
+// Composer Bridge
 //
 // Responsibilities:
-// - Run Character Context for every eligible expression turn.
-// - Recalculate eligibility after current-turn Character Context exists.
-// - Inspect all local character authorities without retrieving from Supabase.
-// - Run Character Reasoning only when focused reasoning is authorized.
-// - Run Character Expression when character or relationship guidance is useful.
-// - Preserve canonical, inferred, open, identity, and worldview status.
-// - Produce one normalized Composer-ready character handoff.
-// - Merge character response controls into the main response controls.
-// - Preserve deterministic character drafts for Draft Generation.
+// - Run Character Context for eligible turns.
+// - Use Character Context to determine focused Character work.
+// - Inspect only the local authorities requested by Character Context.
+// - Run Character Reasoning when focused reasoning is authorized.
+// - Run Character Expression when natural realization or guidance is needed.
+// - Preserve the authoritative output of Character Reasoning and Expression.
+// - Produce one normalized focused Character Handoff.
+// - Merge authorized Character response constraints into stage-level controls.
+// - Preserve deterministic Character wording when provided.
+// - Preserve AI-realization instructions when local wording is insufficient.
 //
 // Non-responsibilities:
 // - Does not classify the conversation.
 // - Does not reinterpret semantic meaning.
-// - Does not override the Conversation Function Engine.
-// - Does not override the Situation Contract.
+// - Does not change the Conversation Function.
+// - Does not change the Situation Contract.
 // - Does not determine safety severity.
+// - Does not independently resolve Character preferences.
+// - Does not independently create Character identity or worldview positions.
+// - Does not combine broad Character collections into a new answer.
+// - Does not create response plans.
+// - Does not choose whether Blueprint Writer runs.
+// - Does not choose whether AI Writer ultimately runs.
+// - Does not register response candidates.
+// - Does not select the final candidate.
+// - Does not write the final response.
 // - Does not retrieve or store user memory.
 // - Does not access Supabase.
-// - Does not select the final draft.
-// - Does not write the final response.
 // - Does not execute tools.
+// - Does not persist runtime state.
 
 window.Ari = window.Ari || {};
 
 window.AriCharacterStage = {
-  version: "2.0.0",
+  version: "3.0.0",
+  schemaVersion: "3.0.0",
   source: "ari-character-stage",
-  authorityLevel: "character_subsystem_orchestration_authority",
-  schemaVersion: "2.0",
+  authorityLevel: "focused_character_subsystem_orchestration_authority",
 
-  // ===================================================
-  // Main entry
-  // ===================================================
+  /* =====================================================
+     PUBLIC ENTRY POINT
+  ===================================================== */
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -82,25 +85,24 @@ window.AriCharacterStage = {
 
     // =================================================
     // 1. Initial eligibility
-    //
-    // This only determines whether Character Context may
-    // inspect the turn. It must not decide the final
-    // character mode before current-turn context exists.
     // =================================================
 
-    const initialCharacterEligibility =
-      this.resolveInitialEligibility(state);
+    const initialEligibility =
+      this.resolveInitialEligibility(
+        state
+      );
 
     state = {
       ...state,
 
-      initialCharacterEligibility,
+      initialCharacterEligibility:
+        initialEligibility,
 
       characterEligibility:
-        initialCharacterEligibility,
+        initialEligibility,
 
       shouldRunCharacterContext:
-        initialCharacterEligibility.runContext,
+        initialEligibility.runContext,
 
       shouldRunCharacterReasoning:
         false,
@@ -113,12 +115,16 @@ window.AriCharacterStage = {
     // 2. Character Context
     // =================================================
 
-    mark("before characterContext");
+    mark(
+      "before characterContext"
+    );
 
-    const characterContextResult =
-      initialCharacterEligibility.runContext
+    const contextResult =
+      initialEligibility.runContext ===
+        true
         ? await runEngine(
-            window.AriCharacterContextEngine,
+            window
+              .AriCharacterContextEngine,
 
             [
               "create",
@@ -139,126 +145,122 @@ window.AriCharacterStage = {
             }
           )
         : this.buildContextFallback(
-            "Character Context was skipped by initial eligibility.",
+            initialEligibility.reason,
             "skipped-by-expression-eligibility"
           );
 
+    const characterContext =
+      this.normalizeContextResult(
+        contextResult
+      );
+
     state = {
       ...state,
 
-      ...characterContextResult,
+      ...contextResult,
 
-      characterContext:
-        characterContextResult,
+      characterContext,
 
       characterContextEngineRan:
-        characterContextResult
-          .characterContextEngineRan ===
-        true,
+        characterContext.ran,
 
       characterContextEngineReady:
-        characterContextResult
-          .characterContextEngineReady ===
-        true,
+        characterContext.ready,
 
       characterContextEngineSource:
-        characterContextResult
-          .characterContextEngineSource ||
-        characterContextResult.source ||
-        "unknown"
+        characterContext.source
     };
 
-    mark("after characterContext");
+    mark(
+      "after characterContext"
+    );
 
     // =================================================
     // 3. Post-context eligibility
-    //
-    // Character Context now holds the current-turn mode,
-    // focus, budget, relationship packet, and authority
-    // request. This is the authoritative point for deciding
-    // whether Reasoning and Expression must run.
     // =================================================
 
-    const resolvedCharacterEligibility =
+    const resolvedEligibility =
       this.resolvePostContextEligibility({
-        summary: state,
-        initialEligibility:
-          initialCharacterEligibility
+        summary:
+          state,
+
+        initialEligibility
       });
 
     state = {
       ...state,
 
-      resolvedCharacterEligibility,
+      resolvedCharacterEligibility:
+        resolvedEligibility,
 
       characterEligibility:
-        resolvedCharacterEligibility,
+        resolvedEligibility,
 
       shouldRunCharacterContext:
-        resolvedCharacterEligibility
-          .runContext,
+        resolvedEligibility.runContext,
 
       shouldRunCharacterReasoning:
-        resolvedCharacterEligibility
-          .runReasoning,
+        resolvedEligibility.runReasoning,
 
       shouldRunCharacterExpression:
-        resolvedCharacterEligibility
-          .runExpression
+        resolvedEligibility.runExpression
     };
 
     // =================================================
-    // 4. Local character authorities
-    //
-    // This is inspection only. Each reasoning authority
-    // remains responsible for returning its own focused
-    // packet when requested.
+    // 4. Requested local authorities
     // =================================================
 
-    mark("before localCharacterAuthorities");
+    mark(
+      "before localCharacterAuthorities"
+    );
 
-    const localCharacterAuthorities =
-      this.inspectLocalCharacterAuthorities({
-        context:
-          state.characterContext ||
-          null
-      });
+    const localAuthorities =
+      this.inspectRequestedAuthorities(
+        characterContext
+          .authorityRequest
+      );
 
     state = {
       ...state,
 
-      localCharacterAuthorities,
+      localCharacterAuthorities:
+        localAuthorities,
 
       localCharacterAuthoritiesRan:
         true,
 
       characterKnowledge:
-        localCharacterAuthorities,
+        localAuthorities,
 
       characterKnowledgeAvailable:
-        localCharacterAuthorities
+        localAuthorities
           .characterKnowledgeAvailable ===
         true,
 
       characterAuthorityRequestSatisfied:
-        localCharacterAuthorities
+        localAuthorities
           .requestedAuthoritiesSatisfied ===
         true
     };
 
-    mark("after localCharacterAuthorities");
+    mark(
+      "after localCharacterAuthorities"
+    );
 
     // =================================================
     // 5. Character Reasoning
     // =================================================
 
-    mark("before characterReasoning");
+    mark(
+      "before characterReasoning"
+    );
 
-    const characterReasoningResult =
-      resolvedCharacterEligibility
-        .runReasoning === true
+    const reasoningResult =
+      resolvedEligibility.runReasoning ===
+        true
         ? await runEngine(
-            window.AriCharacterReasoningEngine,
+            window
+              .AriCharacterReasoningEngine,
 
             [
               "reason",
@@ -278,60 +280,91 @@ window.AriCharacterStage = {
                   state
                 ),
 
-              characterContext:
-                state.characterContext ||
-                null,
+              characterContext,
 
               localCharacterAuthorities:
-                state.localCharacterAuthorities ||
-                null
+                localAuthorities
             }
           )
         : this.buildReasoningFallback(
-            resolvedCharacterEligibility
-              .reasoningSkipReason ||
-            "Character Reasoning was not required.",
+            resolvedEligibility
+              .reasoningSkipReason,
+
             "skipped-by-expression-eligibility"
           );
+
+    const characterReasoning =
+      this.normalizeReasoningResult(
+        reasoningResult
+      );
 
     state = {
       ...state,
 
-      ...characterReasoningResult,
+      ...reasoningResult,
 
-      characterReasoning:
-        characterReasoningResult,
+      characterReasoning,
 
       characterReasoningRan:
-        characterReasoningResult
-          .characterReasoningRan ===
-        true,
+        characterReasoning.ran,
 
       characterReasoningReady:
-        characterReasoningResult
-          .characterReasoningReady ===
-        true,
+        characterReasoning.ready,
 
       characterReasoningSource:
-        characterReasoningResult
-          .characterReasoningSource ||
-        characterReasoningResult.source ||
-        "unknown"
+        characterReasoning.source
     };
 
-    mark("after characterReasoning");
+    mark(
+      "after characterReasoning"
+    );
 
     // =================================================
-    // 6. Character Expression
+    // 6. Expression eligibility reconciliation
+    //
+    // Reasoning may determine that deterministic wording is
+    // sufficient, or that natural AI realization is needed.
+    // Character Expression still owns local presentation
+    // guidance, but not final response generation.
     // =================================================
 
-    mark("before characterExpression");
+    const expressionEligibility =
+      this.resolveExpressionEligibility({
+        summary:
+          state,
 
-    const characterExpressionResult =
-      resolvedCharacterEligibility
-        .runExpression === true
+        resolvedEligibility,
+
+        characterContext,
+
+        characterReasoning
+      });
+
+    state = {
+      ...state,
+
+      characterExpressionEligibility:
+        expressionEligibility,
+
+      shouldRunCharacterExpression:
+        expressionEligibility.runExpression
+    };
+
+    // =================================================
+    // 7. Character Expression
+    // =================================================
+
+    mark(
+      "before characterExpression"
+    );
+
+    const expressionResult =
+      expressionEligibility
+        .runExpression ===
+        true
         ? await runEngine(
-            window.AriCharacterExpressionEngine,
+            window
+              .AriCharacterExpressionEngine,
 
             [
               "create",
@@ -350,81 +383,62 @@ window.AriCharacterStage = {
                   state
                 ),
 
-              characterContext:
-                state.characterContext ||
-                null,
+              characterContext,
 
-              characterReasoning:
-                state.characterReasoning ||
-                null,
+              characterReasoning,
 
               localCharacterAuthorities:
-                state.localCharacterAuthorities ||
-                null
+                localAuthorities
             }
           )
         : this.buildExpressionFallback(
-            resolvedCharacterEligibility
-              .expressionSkipReason ||
-            "Character Expression was not required.",
+            expressionEligibility.reason,
             "skipped-by-expression-eligibility"
           );
+
+    const characterExpression =
+      this.normalizeExpressionResult(
+        expressionResult
+      );
 
     state = {
       ...state,
 
-      ...characterExpressionResult,
+      ...expressionResult,
 
-      characterExpression:
-        characterExpressionResult,
+      characterExpression,
 
       characterExpressionRan:
-        characterExpressionResult
-          .characterExpressionRan ===
-        true,
+        characterExpression.ran,
 
       characterExpressionReady:
-        characterExpressionResult
-          .characterExpressionReady ===
-        true,
+        characterExpression.ready,
 
       characterExpressionSource:
-        characterExpressionResult
-          .characterExpressionSource ||
-        characterExpressionResult.source ||
-        "unknown",
-
-      composerCharacter:
-        characterExpressionResult
-          .composerCharacter ||
-        characterExpressionResult
-          .composerCharacterPacket ||
-        state.composerCharacter ||
-        null
+        characterExpression.source
     };
 
-    mark("after characterExpression");
+    mark(
+      "after characterExpression"
+    );
 
     // =================================================
-    // 7. Normalize the Composer character packet
+    // 8. Focused Character Handoff
     //
-    // Preserve the Expression Engine packet as authority.
-    // Fill only missing compatibility fields.
-    // =================================================
-
-    state.composerCharacter =
-      this.normalizeComposerCharacter(
-        state
-      );
-
-    // =================================================
-    // 8. Build downstream handoff
+    // This is the only downstream Character authority.
+    // Composer Bridge must not reconstruct a second answer
+    // from Context, Reasoning, or Expression separately.
     // =================================================
 
     const characterHandoff =
-      this.buildCharacterHandoff(
-        state
-      );
+      this.buildFocusedCharacterHandoff({
+        characterContext,
+        localAuthorities,
+        characterReasoning,
+        characterExpression,
+        resolvedEligibility,
+        expressionEligibility
+      });
 
     state = {
       ...state,
@@ -443,23 +457,15 @@ window.AriCharacterStage = {
 
       characterDraftCandidate:
         characterHandoff
-          .answerAvailable ===
-          true &&
-        Boolean(
-          String(
-            characterHandoff
-              .draft ||
-            ""
-          ).trim()
-        )
-          ? characterHandoff.draft
-          : state.characterDraftCandidate ||
-            null,
+          .candidateAvailable ===
+          true
+          ? characterHandoff
+              .deterministicDraft
+          : null,
 
       characterDeterministicDraft:
         characterHandoff
           .deterministicDraft ||
-        state.characterDeterministicDraft ||
         null,
 
       characterNeedsAIWriter:
@@ -481,6 +487,7 @@ window.AriCharacterStage = {
         this.mergeUnique(
           state.responseRequired,
           characterHandoff
+            .responseControl
             .requiredBehaviors
         ),
 
@@ -488,6 +495,7 @@ window.AriCharacterStage = {
         this.mergeUnique(
           state.responseAvoid,
           characterHandoff
+            .responseControl
             .forbiddenBehaviors
         ),
 
@@ -495,12 +503,13 @@ window.AriCharacterStage = {
         this.mergeUnique(
           state.responseConstraints,
           characterHandoff
+            .responseControl
             .constraints
         )
     };
 
     // =================================================
-    // 9. Character stage packet
+    // 9. Stage packet
     // =================================================
 
     state.characterStagePacket =
@@ -520,9 +529,9 @@ window.AriCharacterStage = {
     return state;
   },
 
-  // ===================================================
-  // Initial eligibility
-  // ===================================================
+  /* =====================================================
+     INITIAL ELIGIBILITY
+  ===================================================== */
 
   resolveInitialEligibility(
     summary = {}
@@ -532,23 +541,20 @@ window.AriCharacterStage = {
       true;
 
     const responseLocked =
-      summary.responseLocked === true;
+      summary.responseLocked ===
+      true;
 
     const characterGloballyAllowed =
       summary.characterUseAllowed !==
       false;
 
     const contextEngineAvailable =
-      Boolean(
-        window.AriCharacterContextEngine &&
-        (
-          typeof window
-            .AriCharacterContextEngine
-            .create === "function" ||
-          typeof window
-            .AriCharacterContextEngine
-            .build === "function"
-        )
+      this.hasCallableMethod(
+        window.AriCharacterContextEngine,
+        [
+          "create",
+          "build"
+        ]
       );
 
     const runContext =
@@ -569,8 +575,11 @@ window.AriCharacterStage = {
         false,
 
       developerLocked,
+
       responseLocked,
+
       characterGloballyAllowed,
+
       contextEngineAvailable,
 
       source:
@@ -583,13 +592,10 @@ window.AriCharacterStage = {
             ? "response_locked"
             : !characterGloballyAllowed
               ? "character_globally_disabled"
-              : !contextEngineAvailable
-                ? "character_context_engine_not_loaded"
-                : "character_context_authorized_to_inspect_turn"
+              : "character_context_inspection_allowed"
     };
   },
 
-  // Compatibility alias.
   resolveCharacterEligibility(
     summary = {}
   ) {
@@ -598,9 +604,9 @@ window.AriCharacterStage = {
     );
   },
 
-  // ===================================================
-  // Post-context eligibility
-  // ===================================================
+  /* =====================================================
+     POST-CONTEXT ELIGIBILITY
+  ===================================================== */
 
   resolvePostContextEligibility({
     summary = {},
@@ -608,92 +614,33 @@ window.AriCharacterStage = {
   } = {}) {
     const context =
       summary.characterContext ||
-      {};
-
-    const budget =
-      context.characterBudget ||
-      {};
-
-    const mode =
-      context.characterMode ||
-      "silent";
-
-    const developerLocked =
-      initialEligibility
-        .developerLocked ===
-      true;
-
-    const responseLocked =
-      initialEligibility
-        .responseLocked ===
-      true;
-
-    const characterGloballyAllowed =
-      initialEligibility
-        .characterGloballyAllowed !==
-      false;
+      this.normalizeContextResult();
 
     const safetyStopped =
       summary.safetyDisposition
         ?.shouldStopNormalResponse ===
-      true;
+        true ||
+      summary
+        .safetyShouldStopNormalResponse ===
+        true;
 
     const hardSuppressed =
-      budget.hardSuppressed ===
+      context.budget
+        .hardSuppressed ===
       true;
 
-    const contextRan =
-      summary
-        .characterContextEngineRan ===
-      true;
+    const reasoningMode =
+      this.isReasoningMode(
+        context.mode
+      );
 
-    const contextReady =
-      summary
-        .characterContextEngineReady ===
-        true ||
-      contextRan;
-
-    const contextAllowsCharacter =
-      context.characterUseAllowed ===
-      true;
-
-    const relationshipAvailable =
+    const hasFocusedRequest =
       Boolean(
-        context.relationshipPacket
-      );
-
-    const focusedReasoningMode =
-      this.isFocusedReasoningMode(
-        mode
-      );
-
-    const guidanceOnlyMode =
-      this.isGuidanceOnlyMode(
-        mode
-      );
-
-    const hasFocus =
-      Boolean(
-        String(
-          context.characterFocus ||
-          ""
-        ).trim()
-      );
-
-    const hasExistingReasoning =
-      Boolean(
-        summary.characterReasoning
-      );
-
-    const hasExistingDraft =
-      Boolean(
-        String(
-          summary.characterReasoning
-            ?.userFacingDraft ||
-          summary.composerCharacter
-            ?.draft ||
-          ""
-        ).trim()
+        context.focus ||
+        context.subject ||
+        context
+          .requestedAuthorities
+          .length
       );
 
     const runContext =
@@ -702,40 +649,27 @@ window.AriCharacterStage = {
 
     const runReasoning =
       runContext &&
-      contextReady &&
-      characterGloballyAllowed &&
-      !developerLocked &&
-      !responseLocked &&
+      context.ready &&
+      context.useAllowed &&
       !safetyStopped &&
       !hardSuppressed &&
       (
-        (
-          contextAllowsCharacter &&
-          focusedReasoningMode
-        ) ||
-        (
-          contextAllowsCharacter &&
-          hasFocus &&
-          !guidanceOnlyMode
-        ) ||
-        hasExistingReasoning ||
-        hasExistingDraft
+        reasoningMode ||
+        hasFocusedRequest
       );
 
-    const expressionMayCarryRelationship =
-      relationshipAvailable &&
-      !developerLocked &&
-      !responseLocked;
+    const relationshipGuidanceAvailable =
+      Boolean(
+        context.relationship
+      );
 
     const runExpression =
       runContext &&
-      contextReady &&
-      !developerLocked &&
-      !responseLocked &&
+      context.ready &&
       (
         runReasoning ||
-        contextAllowsCharacter ||
-        expressionMayCarryRelationship
+        context.guidanceRequested ||
+        relationshipGuidanceAvailable
       );
 
     return {
@@ -745,88 +679,69 @@ window.AriCharacterStage = {
         "post-context",
 
       runContext,
+
       runReasoning,
+
       runExpression,
 
-      developerLocked,
-      responseLocked,
-      characterGloballyAllowed,
       safetyStopped,
+
       hardSuppressed,
 
-      contextRan,
-      contextReady,
-      contextAllowsCharacter,
-      relationshipAvailable,
-      focusedReasoningMode,
-      guidanceOnlyMode,
-      hasFocus,
-      hasExistingReasoning,
-      hasExistingDraft,
+      contextReady:
+        context.ready,
+
+      contextUseAllowed:
+        context.useAllowed,
+
+      reasoningMode,
+
+      hasFocusedRequest,
+
+      relationshipGuidanceAvailable,
 
       resolvedCharacterMode:
-        mode,
+        context.mode,
 
       resolvedCharacterFocus:
-        context.characterFocus ||
-        null,
-
-      contextVisibility:
-        context.characterVisibility ||
-        "background",
-
-      contextReason:
-        context.characterReason ||
-        null,
+        context.focus,
 
       reasoningSkipReason:
-        developerLocked
-          ? "Developer response lock prevents Character Reasoning."
-          : responseLocked
-            ? "Response lock prevents Character Reasoning."
-            : safetyStopped
-              ? "Safety governance prevents normal Character Reasoning."
-              : hardSuppressed
-                ? "Character Context hard-suppressed Character Reasoning."
-                : !contextReady
-                  ? "Character Context did not produce a ready result."
-                  : guidanceOnlyMode
-                    ? "The current character mode requires guidance only."
-                    : !contextAllowsCharacter
-                      ? "Character Context did not authorize foreground character reasoning."
-                      : "No focused character reasoning path was required.",
+        safetyStopped
+          ? "Safety stopped ordinary Character reasoning."
+          : hardSuppressed
+            ? "Character Context hard-suppressed Character reasoning."
+            : !context.ready
+              ? "Character Context was not ready."
+              : !context.useAllowed
+                ? "Character Context did not authorize Character reasoning."
+                : !reasoningMode &&
+                    !hasFocusedRequest
+                  ? "No focused Character reasoning was requested."
+                  : "Character reasoning was not required.",
 
       expressionSkipReason:
-        developerLocked
-          ? "Developer response lock prevents Character Expression."
-          : responseLocked
-            ? "Response lock prevents Character Expression."
-            : !contextReady
-              ? "Character Context did not produce a ready result."
-              : "No character or relationship expression packet was required.",
+        !context.ready
+          ? "Character Context was not ready."
+          : !runReasoning &&
+              !context.guidanceRequested &&
+              !relationshipGuidanceAvailable
+            ? "No Character expression or relationship guidance was required."
+            : "Character Expression was not required.",
 
       source:
         "ari-character-stage-post-context-eligibility",
 
       reason:
-        developerLocked
-          ? "developer_response_locked"
-          : responseLocked
-            ? "response_locked"
-            : safetyStopped
-              ? "safety_stopped_character_reasoning"
-              : hardSuppressed &&
-                relationshipAvailable
-                ? "character_suppressed_relationship_guidance_available"
-                : runReasoning
-                  ? "focused_character_reasoning_required"
-                  : runExpression
-                    ? "character_or_relationship_expression_required"
-                    : "character_subsystem_background_only"
+        runReasoning
+          ? "focused_character_reasoning_authorized"
+          : runExpression
+            ? "character_guidance_expression_authorized"
+            : "character_background_only"
     };
   },
 
-  isFocusedReasoningMode(
+  isReasoningMode(
     mode = ""
   ) {
     return [
@@ -836,37 +751,414 @@ window.AriCharacterStage = {
       "ari_self_disclosure",
       "ari_implementation_disclosure",
       "worldview_answer",
-      "ari_perspective"
-    ].includes(mode);
+      "ari_perspective",
+      "character_identity_answer",
+      "character_value_answer"
+    ].includes(
+      this.normalizeIdentifier(
+        mode
+      )
+    );
   },
 
-  isGuidanceOnlyMode(
-    mode = ""
-  ) {
-    return [
-      "background_presence",
-      "warm_grounded_presence",
-      "contract_suppressed",
-      "safety_contract",
-      "developer_response_locked",
-      "response_locked",
-      "silent"
-    ].includes(mode);
-  },
+  /* =====================================================
+     EXPRESSION ELIGIBILITY
+  ===================================================== */
 
-  // ===================================================
-  // Local character authority inspection
-  // ===================================================
-
-  inspectLocalCharacterAuthorities({
-    context = null
+  resolveExpressionEligibility({
+    resolvedEligibility = {},
+    characterContext = {},
+    characterReasoning = {}
   } = {}) {
-    const authorityRequest =
-      context?.authorityRequest ||
-      {};
+    if (
+      resolvedEligibility.runExpression !==
+      true
+    ) {
+      return {
+        runExpression:
+          false,
 
-    const definitions = {
+        source:
+          "ari-character-stage-expression-eligibility",
+
+        reason:
+          resolvedEligibility
+            .expressionSkipReason ||
+          "character_expression_not_authorized"
+      };
+    }
+
+    const answerAvailable =
+      characterReasoning
+        .answerAvailable ===
+      true;
+
+    const guidanceAvailable =
+      characterReasoning
+        .guidanceAvailable ===
+        true ||
+      characterContext
+        .guidanceRequested ===
+        true ||
+      Boolean(
+        characterContext.relationship
+      );
+
+    const deterministicDraftAvailable =
+      Boolean(
+        characterReasoning
+          .deterministicDraft
+      );
+
+    const needsAIWriter =
+      characterReasoning
+        .needsAIWriter ===
+      true;
+
+    const runExpression =
+      answerAvailable ||
+      guidanceAvailable ||
+      deterministicDraftAvailable ||
+      needsAIWriter;
+
+    return {
+      runExpression,
+
+      answerAvailable,
+
+      guidanceAvailable,
+
+      deterministicDraftAvailable,
+
+      needsAIWriter,
+
+      source:
+        "ari-character-stage-expression-eligibility",
+
+      reason:
+        runExpression
+          ? "focused_character_expression_required"
+          : "no_character_material_to_express"
+    };
+  },
+
+  /* =====================================================
+     CONTEXT NORMALIZATION
+  ===================================================== */
+
+  normalizeContextResult(
+    result = {}
+  ) {
+    const source =
+      result &&
+      typeof result ===
+        "object"
+        ? result
+        : {};
+
+    const authorityRequest =
+      source.authorityRequest &&
+      typeof source
+        .authorityRequest ===
+        "object"
+        ? source.authorityRequest
+        : {};
+
+    const requestedAuthorities =
+      this.resolveRequestedAuthorities(
+        authorityRequest
+      );
+
+    return {
+      schema:
+        "ari_character_context",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ran:
+        source
+          .characterContextEngineRan ===
+          true,
+
+      ready:
+        source
+          .characterContextEngineReady ===
+          true ||
+        source.ready ===
+          true,
+
+      source:
+        source
+          .characterContextEngineSource ||
+        source.source ||
+        "unknown",
+
+      useAllowed:
+        source.characterUseAllowed ===
+        true,
+
+      relevant:
+        source.characterRelevant ===
+          true ||
+        source.characterUseAllowed ===
+          true,
+
+      guidanceRequested:
+        source.characterGuidanceRequested ===
+          true ||
+        source.guidanceRequested ===
+          true,
+
+      mode:
+        source.characterMode ||
+        source.mode ||
+        "silent",
+
+      visibility:
+        source.characterVisibility ||
+        source.visibility ||
+        "background",
+
+      focus:
+        source.characterFocus ||
+        source.focus ||
+        null,
+
+      subject:
+        source.characterSubject ||
+        source.subject ||
+        null,
+
+      preferredSource:
+        source
+          .preferredCharacterSource ||
+        source.preferredSource ||
+        null,
+
+      reason:
+        source.characterReason ||
+        source.reason ||
+        null,
+
+      hints:
+        source.characterHints ||
+        source.hints ||
+        {},
+
+      budget:
+        this.normalizeBudget(
+          source.characterBudget ||
+          source.budget
+        ),
+
+      authorityRequest,
+
+      requestedAuthorities,
+
+      relationship:
+        source.relationshipPacket ||
+        source.relationship ||
+        null,
+
+      implementationDisclosure:
+        source
+          .implementationDisclosure ||
+        null,
+
+      responseControl:
+        this.normalizeResponseControl(
+          source.responseControl
+        ),
+
+      raw:
+        source,
+
+      authority:
+        "character_context_classification_only"
+    };
+  },
+
+  normalizeBudget(
+    budget = {}
+  ) {
+    return {
+      hardSuppressed:
+        budget?.hardSuppressed ===
+        true,
+
+      allowPresenceOnly:
+        budget?.allowPresenceOnly ===
+        true,
+
+      maxCharacterSentences:
+        this.numberOr(
+          budget
+            ?.maxCharacterSentences,
+          0
+        ),
+
+      maxRelationshipSentences:
+        this.numberOr(
+          budget
+            ?.maxRelationshipSentences,
+          0
+        ),
+
+      reason:
+        budget?.reason ||
+        null
+    };
+  },
+
+  /* =====================================================
+     LOCAL AUTHORITY INSPECTION
+  ===================================================== */
+
+  inspectRequestedAuthorities(
+    authorityRequest = {}
+  ) {
+    const definitions =
+      this.getAuthorityDefinitions();
+
+    const requested =
+      this.resolveRequestedAuthorities(
+        authorityRequest
+      );
+
+    const inspectKeys =
+      requested.length
+        ? requested
+        : [];
+
+    const authorities = {};
+
+    Object.entries(
+      definitions
+    ).forEach(
+      ([
+        key,
+        definition
+      ]) => {
+        const wasRequested =
+          inspectKeys.includes(
+            key
+          );
+
+        authorities[key] =
+          wasRequested
+            ? this.inspectAuthority(
+                definition
+              )
+            : {
+                key,
+
+                requested:
+                  false,
+
+                inspected:
+                  false,
+
+                available:
+                  false,
+
+                loaded:
+                  Boolean(
+                    definition.object
+                  ),
+
+                source:
+                  definition.source,
+
+                version:
+                  definition.object
+                    ?.version ||
+                  null,
+
+                availableMethods:
+                  [],
+
+                reason:
+                  "authority_not_requested"
+              };
+      }
+    );
+
+    const missingRequested =
+      requested.filter(
+        key =>
+          authorities[key]
+            ?.available !==
+          true
+      );
+
+    const availableRequested =
+      requested.filter(
+        key =>
+          authorities[key]
+            ?.available ===
+          true
+      );
+
+    return {
+      schema:
+        "ari_local_character_authorities",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      localCharacterAuthoritiesRan:
+        true,
+
+      source:
+        "ari-character-stage-local-authority-inspection",
+
+      localOnly:
+        true,
+
+      supabaseUsed:
+        false,
+
+      requestedAuthorities:
+        requested,
+
+      inspectedAuthorities:
+        inspectKeys,
+
+      availableRequestedAuthorities:
+        availableRequested,
+
+      missingRequestedAuthorities:
+        missingRequested,
+
+      requestedAuthoritiesSatisfied:
+        missingRequested.length ===
+        0,
+
+      characterKnowledgeAvailable:
+        availableRequested.length >
+        0,
+
+      authorities,
+
+      reason:
+        !requested.length
+          ? "no_local_character_authority_requested"
+          : missingRequested.length
+            ? "one_or_more_requested_authorities_unavailable"
+            : "all_requested_character_authorities_available",
+
+      authority:
+        "local_authority_availability_inspection_only"
+    };
+  },
+
+  getAuthorityDefinitions() {
+    return {
       constitution: {
+        key:
+          "constitution",
+
         object:
           window.AriConstitution,
 
@@ -880,6 +1172,9 @@ window.AriCharacterStage = {
       },
 
       characterCore: {
+        key:
+          "characterCore",
+
         object:
           window.AriCharacterCore,
 
@@ -893,6 +1188,9 @@ window.AriCharacterStage = {
       },
 
       characterInstincts: {
+        key:
+          "characterInstincts",
+
         object:
           window.AriCharacterInstincts,
 
@@ -907,8 +1205,12 @@ window.AriCharacterStage = {
       },
 
       tasteProfile: {
+        key:
+          "tasteProfile",
+
         object:
-          window.AriCharacterTasteProfile,
+          window
+            .AriCharacterTasteProfile,
 
         methods: [
           "getTasteProfile",
@@ -921,8 +1223,12 @@ window.AriCharacterStage = {
       },
 
       characterPreferences: {
+        key:
+          "characterPreferences",
+
         object:
-          window.AriCharacterPreferences,
+          window
+            .AriCharacterPreferences,
 
         methods: [
           "getPreferences",
@@ -935,8 +1241,12 @@ window.AriCharacterStage = {
       },
 
       preferenceResolver: {
+        key:
+          "preferenceResolver",
+
         object:
-          window.AriCharacterPreferenceResolver,
+          window
+            .AriCharacterPreferenceResolver,
 
         methods: [
           "resolve",
@@ -949,6 +1259,9 @@ window.AriCharacterStage = {
       },
 
       worldview: {
+        key:
+          "worldview",
+
         object:
           window.AriWorldview,
 
@@ -963,6 +1276,9 @@ window.AriCharacterStage = {
       },
 
       relationshipStyle: {
+        key:
+          "relationshipStyle",
+
         object:
           window.AriRelationshipStyle,
 
@@ -976,189 +1292,70 @@ window.AriCharacterStage = {
           "ari-relationship-style"
       }
     };
-
-    const authorities = {};
-
-    for (
-      const [
-        key,
-        definition
-      ]
-      of Object.entries(
-        definitions
-      )
-    ) {
-      authorities[key] =
-        this.inspectAuthority(
-          definition
-        );
-    }
-
-    const requested =
-      this.resolveRequestedAuthorities(
-        authorityRequest
-      );
-
-    const missingRequested =
-      requested.filter(
-        key =>
-          authorities[key]
-            ?.available !==
-          true
-      );
-
-    const availableCount =
-      Object.values(
-        authorities
-      ).filter(
-        authority =>
-          authority.available ===
-          true
-      ).length;
-
-    return {
-      localCharacterAuthoritiesRan:
-        true,
-
-      source:
-        "local-character-authorities",
-
-      localOnly:
-        true,
-
-      supabaseUsed:
-        false,
-
-      characterKnowledgeAvailable:
-        availableCount > 0,
-
-      allAuthoritiesAvailable:
-        availableCount ===
-        Object.keys(
-          authorities
-        ).length,
-
-      availableCount,
-
-      totalCount:
-        Object.keys(
-          authorities
-        ).length,
-
-      requestedAuthorities:
-        requested,
-
-      missingRequestedAuthorities:
-        missingRequested,
-
-      requestedAuthoritiesSatisfied:
-        missingRequested.length ===
-        0,
-
-      characterCoreAvailable:
-        authorities.characterCore
-          ?.available ===
-        true,
-
-      characterPreferencesAvailable:
-        authorities
-          .characterPreferences
-          ?.available ===
-        true,
-
-      ariWorldviewAvailable:
-        authorities.worldview
-          ?.available ===
-        true,
-
-      characterInstinctsAvailable:
-        authorities
-          .characterInstincts
-          ?.available ===
-        true,
-
-      tasteProfileAvailable:
-        authorities.tasteProfile
-          ?.available ===
-        true,
-
-      preferenceResolverAvailable:
-        authorities
-          .preferenceResolver
-          ?.available ===
-        true,
-
-      relationshipStyleAvailable:
-        authorities
-          .relationshipStyle
-          ?.available ===
-        true,
-
-      authorities,
-
-      reason:
-        missingRequested.length
-          ? `Missing requested local character authorities: ${missingRequested.join(", ")}.`
-          : requested.length
-            ? "All requested local character authorities are available."
-            : availableCount
-              ? "Local character authorities are available."
-              : "No local character authorities are loaded."
-    };
   },
 
-  inspectAuthority({
-    object = null,
-    methods = [],
-    source = "unknown"
-  } = {}) {
+  inspectAuthority(
+    definition = {}
+  ) {
     const loaded =
-      Boolean(object);
+      Boolean(
+        definition.object
+      );
 
     const availableMethods =
-      this.toArray(methods)
-        .filter(
-          method =>
-            typeof object?.[method] ===
-            "function"
-        );
-
-    const available =
-      loaded &&
-      availableMethods.length > 0;
+      this.toArray(
+        definition.methods
+      ).filter(
+        method =>
+          typeof definition
+            .object?.[method] ===
+          "function"
+      );
 
     return {
-      available,
+      key:
+        definition.key,
+
+      requested:
+        true,
+
+      inspected:
+        true,
+
+      available:
+        loaded &&
+        availableMethods.length >
+          0,
+
       loaded,
+
       source:
-        available
-          ? source
-          : "not-loaded",
+        definition.source,
 
       version:
-        object?.version ||
+        definition.object
+          ?.version ||
         null,
 
       authorityLevel:
-        object?.authorityLevel ||
+        definition.object
+          ?.authorityLevel ||
         null,
 
       availableMethods,
 
       reason:
-        available
-          ? "Local authority is loaded and callable."
-          : loaded
-            ? "The authority object is loaded but exposes no recognized method."
-            : "The local authority is not loaded."
+        !loaded
+          ? "authority_not_loaded"
+          : !availableMethods.length
+            ? "authority_has_no_supported_method"
+            : "authority_available"
     };
   },
 
   resolveRequestedAuthorities(
     authorityRequest = {}
   ) {
-    const requested = [];
-
     const mappings = {
       constitution:
         "constitution",
@@ -1166,13 +1363,25 @@ window.AriCharacterStage = {
       core:
         "characterCore",
 
+      characterCore:
+        "characterCore",
+
       instincts:
         "characterInstincts",
+
+      characterInstincts:
+        "characterInstincts",
+
+      taste:
+        "tasteProfile",
 
       tasteProfile:
         "tasteProfile",
 
       preferences:
+        "characterPreferences",
+
+      characterPreferences:
         "characterPreferences",
 
       preferenceResolver:
@@ -1185,403 +1394,897 @@ window.AriCharacterStage = {
         "relationshipStyle"
     };
 
-    for (
-      const [
+    const requested = [];
+
+    Object.entries(
+      mappings
+    ).forEach(
+      ([
         requestKey,
         authorityKey
-      ]
-      of Object.entries(
-        mappings
-      )
-    ) {
-      if (
-        authorityRequest
-          ?.[requestKey]
-          ?.requested ===
-        true
-      ) {
-        requested.push(
-          authorityKey
-        );
-      }
-    }
+      ]) => {
+        const value =
+          authorityRequest
+            ?.[requestKey];
 
-    return this.mergeUnique(
+        if (
+          value === true ||
+          value?.requested ===
+            true
+        ) {
+          requested.push(
+            authorityKey
+          );
+        }
+      }
+    );
+
+    this.toArray(
+      authorityRequest.requestedAuthorities
+    ).forEach(
+      value => {
+        const normalized =
+          mappings[value] ||
+          mappings[
+            this.normalizeIdentifier(
+              value
+            )
+          ] ||
+          value;
+
+        if (normalized) {
+          requested.push(
+            normalized
+          );
+        }
+      }
+    );
+
+    return this.uniqueStrings(
       requested
     );
   },
 
-  // ===================================================
-  // Composer character normalization
-  // ===================================================
+  /* =====================================================
+     REASONING NORMALIZATION
+  ===================================================== */
 
-  normalizeComposerCharacter(
-    summary = {}
+  normalizeReasoningResult(
+    result = {}
   ) {
-    const context =
-      summary.characterContext ||
-      {};
-
-    const reasoning =
-      summary.characterReasoning ||
-      {};
-
-    const expression =
-      summary.characterExpression ||
-      {};
-
-    const existing =
-      summary.composerCharacter ||
-      expression.composerCharacter ||
-      expression
-        .composerCharacterPacket ||
-      {};
-
-    const draft =
-      String(
-        existing.draft ||
-        reasoning.userFacingDraft ||
-        reasoning.deterministicDraft ||
-        ""
-      ).trim();
-
-    const deterministicDraft =
-      String(
-        existing.deterministicDraft ||
-        reasoning.deterministicDraft ||
-        reasoning.userFacingDraft ||
-        ""
-      ).trim();
+    const source =
+      result &&
+      typeof result ===
+        "object"
+        ? result
+        : {};
 
     const answerAvailable =
-      existing.answerAvailable ===
+      source
+        .characterAnswerAvailable ===
         true ||
-      reasoning.characterAnswerAvailable ===
+      source.answerAvailable ===
         true;
 
     const guidanceAvailable =
-      existing.guidanceAvailable ===
+      source
+        .characterGuidanceAvailable ===
         true ||
-      reasoning.characterGuidanceAvailable ===
-        true ||
-      Boolean(
-        context.relationshipPacket
+      source.guidanceAvailable ===
+        true;
+
+    const deterministicDraft =
+      this.cleanText(
+        source.deterministicDraft ||
+        source.userFacingDraft ||
+        source.draft ||
+        ""
       );
 
-    const enabled =
-      existing.enabled === true ||
-      context.characterUseAllowed ===
-        true ||
-      guidanceAvailable ||
-      answerAvailable;
+    const realization =
+      this.normalizeRealization(
+        source.realizationPolicy ||
+        source.realization ||
+        {
+          needsAIWriter:
+            source.needsAIWriter,
+
+          aiWriterMode:
+            source.aiWriterMode,
+
+          aiInstruction:
+            source.aiInstruction
+        }
+      );
+
+    const status =
+      this.normalizeStatus({
+        value:
+          source.status,
+
+        type:
+          source.type
+      });
+
+    const grounding =
+      this.normalizeGrounding({
+        grounding:
+          source.grounding,
+
+        source,
+
+        status
+      });
 
     return {
-      ...existing,
+      schema:
+        "ari_character_reasoning_result",
 
-      enabled,
+      schemaVersion:
+        this.schemaVersion,
 
-      characterRelevant:
-        existing.characterRelevant ===
-          true ||
-        expression.characterRelevant ===
-          true ||
-        context.characterUseAllowed ===
+      ran:
+        source
+          .characterReasoningRan ===
           true,
 
-      relevant:
-        existing.relevant === true ||
-        existing.characterRelevant ===
+      ready:
+        source
+          .characterReasoningReady ===
           true ||
-        expression.characterRelevant ===
-          true ||
-        context.characterUseAllowed ===
+        source.ready ===
           true,
-
-      answerAvailable,
-      guidanceAvailable,
 
       source:
-        existing.source ||
-        this.source,
+        source
+          .characterReasoningSource ||
+        source.source ||
+        "unknown",
 
-      version:
-        existing.version ||
-        summary.characterExpressionVersion ||
-        window.AriCharacterExpressionEngine
-          ?.version ||
+      answerAvailable,
+
+      guidanceAvailable,
+
+      type:
+        source.type ||
+        (
+          answerAvailable
+            ? "character_answer"
+            : "no_character_answer"
+        ),
+
+      subtype:
+        source.subtype ||
         null,
 
-      mode:
-        existing.mode ||
-        context.characterMode ||
-        reasoning.request?.mode ||
-        "silent",
-
-      visibility:
-        existing.visibility ||
-        context.characterVisibility ||
-        "background",
-
-      expressionLevel:
-        existing.expressionLevel ||
-        expression.expressionLevel ||
-        "background",
-
       focus:
-        existing.focus ||
-        reasoning.focus ||
-        context.characterFocus ||
+        source.focus ||
         null,
 
       subject:
-        existing.subject ||
-        reasoning.subject ||
-        context.characterSubject ||
+        source.subject ||
         null,
 
-      preferredSource:
-        existing.preferredSource ||
-        reasoning.source ||
-        context.preferredCharacterSource ||
+      preferenceSubject:
+        source.preferenceSubject ||
         null,
 
-      type:
-        existing.type ||
-        reasoning.type ||
-        null,
-
-      subtype:
-        existing.subtype ||
-        reasoning.subtype ||
-        null,
-
-      status:
-        existing.status ||
-        this.buildCompatibilityStatus(
-          reasoning
-        ),
-
-      draft,
-      deterministicDraft,
+      status,
 
       answer:
-        existing.answer ||
-        reasoning.answer ||
-        "",
-
-      values:
-        existing.values ||
-        reasoning.values ||
+        source.answer ||
         null,
 
       groundedMeaning:
-        existing.groundedMeaning ||
-        reasoning.groundedMeaning ||
+        source.groundedMeaning ||
         null,
 
-      reasoning:
-        existing.reasoning ||
+      deterministicDraft,
+
+      userFacingDraft:
+        deterministicDraft,
+
+      complete:
+        source.complete !==
+          false &&
         (
-          answerAvailable
-            ? reasoning
-            : null
+          !answerAvailable ||
+          Boolean(
+            deterministicDraft ||
+            realization.needsAIWriter
+          )
         ),
 
-      grounding:
-        existing.grounding ||
-        this.buildCompatibilityGrounding(
-          reasoning
-        ),
+      usable:
+        source.usable !==
+          false,
 
-      evidence:
-        existing.evidence ||
-        {
-          context:
-            context
-              .characterContextEngineSource ||
-            "ari-character-context-engine",
+      needsAIWriter:
+        realization.needsAIWriter,
 
-          reasoning:
-            reasoning
-              .characterReasoningSource ||
-            null,
+      aiWriterMode:
+        realization.aiWriterMode,
 
-          selectedAuthority:
-            reasoning.source ||
-            context.preferredCharacterSource ||
-            null,
+      aiInstruction:
+        realization.aiInstruction,
 
-          authorityChain:
-            this.toArray(
-              reasoning.authorityChain
-            )
-        },
+      realization,
 
-      realization:
-        this.normalizeRealization({
-          existing:
-            existing.realization ||
-            {},
+      grounding,
 
-          reasoning
-        }),
+      values:
+        source.values ||
+        null,
 
       relationship:
-        existing.relationship ||
-        context.relationshipPacket ||
+        source.relationship ||
         null,
 
       implementationDisclosure:
-        existing
-          .implementationDisclosure ||
-        context
+        source
           .implementationDisclosure ||
         null,
 
-      responseControl:
-        this.mergeResponseControls(
-          context.responseControl,
-          reasoning.responseControl,
-          existing.responseControl
+      confidence:
+        source.confidence ||
+        null,
+
+      confidenceScore:
+        source.confidenceScore ??
+        null,
+
+      authorityChain:
+        this.toArray(
+          source.authorityChain
         ),
 
-      limits:
-        existing.limits ||
-        {
-          maxCharacterSentences:
-            context.characterHints
-              ?.maxCharacterSentences ??
-            context.characterBudget
-              ?.maxCharacterSentences ??
-            0,
+      authorityPacket:
+        source.authorityPacket ||
+        null,
 
-          maxRelationshipSentences:
-            context.characterHints
-              ?.maxRelationshipSentences ??
-            context.characterBudget
-              ?.maxRelationshipSentences ??
-            0,
+      responseControl:
+        this.normalizeResponseControl(
+          source.responseControl
+        ),
 
-          preserveUserTask:
-            true,
+      reason:
+        source.reason ||
+        null,
 
-          advisoryOnly:
-            true
-        },
+      raw:
+        source,
 
-      suppressors:
-        existing.suppressors ||
-        {
-          hardSuppressed:
-            context.characterBudget
-              ?.hardSuppressed ===
-            true,
-
-          reason:
-            context.characterBudget
-              ?.reason ||
-            context.characterReason ||
-            null
-        }
+      authority:
+        "focused_character_reasoning_output"
     };
   },
 
-  normalizeRealization({
-    existing = {},
-    reasoning = {}
-  } = {}) {
-    const needsAIWriter =
-      existing.needsAIWriter ===
-        true ||
-      reasoning.needsAIWriter ===
-        true;
+  /* =====================================================
+     EXPRESSION NORMALIZATION
+  ===================================================== */
+
+  normalizeExpressionResult(
+    result = {}
+  ) {
+    const source =
+      result &&
+      typeof result ===
+        "object"
+        ? result
+        : {};
+
+    const packet =
+      source.focusedCharacter ||
+      source.composerCharacter ||
+      source.composerCharacterPacket ||
+      source.characterHandoff ||
+      null;
 
     return {
-      ...existing,
+      schema:
+        "ari_character_expression_result",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ran:
+        source
+          .characterExpressionRan ===
+          true,
+
+      ready:
+        source
+          .characterExpressionReady ===
+          true ||
+        source.ready ===
+          true,
+
+      source:
+        source
+          .characterExpressionSource ||
+        source.source ||
+        "unknown",
+
+      relevant:
+        source.characterRelevant ===
+          true ||
+        packet?.relevant ===
+          true,
+
+      expressionLevel:
+        source.expressionLevel ||
+        packet?.expressionLevel ||
+        "background",
+
+      focusedCharacter:
+        packet,
+
+      responseControl:
+        this.normalizeResponseControl(
+          source.responseControl ||
+          packet?.responseControl
+        ),
+
+      reason:
+        source.reason ||
+        null,
+
+      raw:
+        source,
+
+      authority:
+        "focused_character_expression_output"
+    };
+  },
+
+  /* =====================================================
+     FOCUSED CHARACTER HANDOFF
+  ===================================================== */
+
+  buildFocusedCharacterHandoff({
+    characterContext = {},
+    localAuthorities = {},
+    characterReasoning = {},
+    characterExpression = {},
+    resolvedEligibility = {},
+    expressionEligibility = {}
+  } = {}) {
+    const expressionPacket =
+      characterExpression
+        .focusedCharacter &&
+      typeof characterExpression
+        .focusedCharacter ===
+        "object"
+        ? characterExpression
+            .focusedCharacter
+        : {};
+
+    /*
+     * Expression may vary wording and presentation.
+     * Reasoning remains authoritative for meaning, status,
+     * answer, grounding, and realization policy.
+     */
+    const answerAvailable =
+      characterReasoning
+        .answerAvailable ===
+        true;
+
+    const guidanceAvailable =
+      characterReasoning
+        .guidanceAvailable ===
+        true ||
+      characterContext
+        .guidanceRequested ===
+        true ||
+      Boolean(
+        characterContext.relationship
+      );
+
+    const realization =
+      this.normalizeRealization({
+        ...(
+          characterReasoning
+            .realization ||
+          {}
+        ),
+
+        ...(
+          expressionPacket
+            .realization ||
+          {}
+        ),
+
+        /*
+         * Expression may not turn off a required AI
+         * realization declared by Reasoning.
+         */
+        needsAIWriter:
+          characterReasoning
+            .needsAIWriter ===
+            true ||
+          expressionPacket
+            .realization
+            ?.needsAIWriter ===
+            true
+      });
+
+    const deterministicDraft =
+      this.cleanText(
+        expressionPacket
+          .deterministicDraft ||
+        expressionPacket.draft ||
+        characterReasoning
+          .deterministicDraft ||
+        ""
+      );
+
+    const draft =
+      this.cleanText(
+        expressionPacket.draft ||
+        deterministicDraft
+      );
+
+    const status =
+      characterReasoning.status ||
+      this.normalizeStatus();
+
+    const grounding =
+      characterReasoning.grounding ||
+      this.normalizeGrounding();
+
+    const grounded =
+      grounding.grounded ===
+      true;
+
+    const candidateAvailable =
+      answerAvailable &&
+      grounded &&
+      Boolean(
+        deterministicDraft
+      ) &&
+      realization.needsAIWriter !==
+        true;
+
+    const candidatePreferred =
+      candidateAvailable &&
+      expressionPacket
+        .candidatePreferred !==
+        false;
+
+    const complete =
+      answerAvailable
+        ? (
+            candidateAvailable ||
+            realization.needsAIWriter ===
+              true
+          )
+        : guidanceAvailable;
+
+    const usable =
+      characterReasoning.usable !==
+        false &&
+      expressionPacket.usable !==
+        false;
+
+    const responseControl =
+      this.mergeResponseControls(
+        characterContext
+          .responseControl,
+
+        characterReasoning
+          .responseControl,
+
+        characterExpression
+          .responseControl,
+
+        expressionPacket
+          .responseControl
+      );
+
+    return {
+      schema:
+        "ari_character_handoff",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ready:
+        Boolean(
+          answerAvailable ||
+          guidanceAvailable
+        ),
+
+      available:
+        Boolean(
+          characterContext.ran ||
+          characterReasoning.ran ||
+          characterExpression.ran
+        ),
+
+      enabled:
+        characterContext
+          .useAllowed ===
+          true ||
+        answerAvailable ||
+        guidanceAvailable,
+
+      relevant:
+        characterContext.relevant ===
+          true ||
+        characterExpression.relevant ===
+          true ||
+        answerAvailable ||
+        guidanceAvailable,
+
+      answerAvailable,
+
+      guidanceAvailable,
+
+      candidateAllowed:
+        candidateAvailable,
+
+      candidateAvailable,
+
+      candidatePreferred,
+
+      usable,
+
+      complete,
+
+      needsAIWriter:
+        realization.needsAIWriter ===
+        true,
+
+      aiRealizationRequired:
+        realization.needsAIWriter ===
+          true &&
+        realization.mode ===
+          "ai_realization_required",
 
       mode:
-        existing.mode ||
-        reasoning.realizationPolicy
-          ?.mode ||
+        expressionPacket.mode ||
+        characterContext.mode ||
+        "silent",
+
+      visibility:
+        expressionPacket.visibility ||
+        characterContext.visibility ||
+        "background",
+
+      expressionLevel:
+        expressionPacket
+          .expressionLevel ||
+        characterExpression
+          .expressionLevel ||
+        "background",
+
+      focus:
+        characterReasoning.focus ||
+        characterContext.focus ||
+        null,
+
+      subject:
+        characterReasoning.subject ||
+        characterContext.subject ||
+        null,
+
+      preferenceSubject:
+        characterReasoning
+          .preferenceSubject ||
+        null,
+
+      type:
+        characterReasoning.type ||
+        expressionPacket.type ||
+        null,
+
+      subtype:
+        characterReasoning.subtype ||
+        expressionPacket.subtype ||
+        null,
+
+      status,
+
+      answer:
+        characterReasoning.answer ||
+        null,
+
+      groundedMeaning:
+        characterReasoning
+          .groundedMeaning ||
+        null,
+
+      draft,
+
+      deterministicDraft,
+
+      grounding,
+
+      realization,
+
+      needsNaturalRealization:
+        realization.needsAIWriter ===
+        true,
+
+      aiWriterMode:
+        realization.aiWriterMode,
+
+      aiInstruction:
+        realization.aiInstruction,
+
+      values:
+        characterReasoning.values ||
+        null,
+
+      relationship:
+        expressionPacket.relationship ||
+        characterReasoning.relationship ||
+        characterContext.relationship ||
+        null,
+
+      implementationDisclosure:
+        expressionPacket
+          .implementationDisclosure ||
+        characterReasoning
+          .implementationDisclosure ||
+        characterContext
+          .implementationDisclosure ||
+        null,
+
+      responseControl,
+
+      requiredBehaviors:
+        responseControl
+          .requiredBehaviors,
+
+      forbiddenBehaviors:
+        responseControl
+          .forbiddenBehaviors,
+
+      constraints:
+        responseControl.constraints,
+
+      rules:
+        responseControl.rules,
+
+      confidence:
+        characterReasoning
+          .confidence ||
+        null,
+
+      confidenceScore:
+        characterReasoning
+          .confidenceScore ??
+        null,
+
+      authorityChain:
+        characterReasoning
+          .authorityChain ||
+        [],
+
+      authorityPacket:
+        characterReasoning
+          .authorityPacket ||
+        null,
+
+      localAuthorities: {
+        requestedAuthorities:
+          localAuthorities
+            .requestedAuthorities ||
+          [],
+
+        availableRequestedAuthorities:
+          localAuthorities
+            .availableRequestedAuthorities ||
+          [],
+
+        missingRequestedAuthorities:
+          localAuthorities
+            .missingRequestedAuthorities ||
+          [],
+
+        requestedAuthoritiesSatisfied:
+          localAuthorities
+            .requestedAuthoritiesSatisfied ===
+          true
+      },
+
+      preservation: {
+        preserveMeaning:
+          realization
+            .preserveMeaning !==
+          false,
+
+        preserveStatus:
+          realization
+            .preserveStatus !==
+          false,
+
+        preserveValue:
+          realization
+            .preserveValue ===
+          true,
+
+        preservePosition:
+          realization
+            .preservePosition ===
+          true,
+
+        preserveOpenStatus:
+          realization
+            .preserveOpenStatus ===
+          true,
+
+        tentativeLanguageRequired:
+          realization
+            .tentativeLanguageRequired ===
+          true,
+
+        mayVaryWording:
+          realization
+            .mayVaryWording !==
+          false
+      },
+
+      restrictions: {
+        mayAddFacts:
+          false,
+
+        mayAddMeaning:
+          false,
+
+        mayInventPreference:
+          false,
+
+        mayInventIdentity:
+          false,
+
+        mayInventWorldview:
+          false,
+
+        mayInventExperience:
+          false,
+
+        mayPromoteToCanonical:
+          false,
+
+        mayModifyCharacterAuthority:
+          false
+      },
+
+      eligibility: {
+        reasoning:
+          resolvedEligibility,
+
+        expression:
+          expressionEligibility
+      },
+
+      context:
+        characterContext,
+
+      reasoning:
+        characterReasoning,
+
+      expression:
+        characterExpression,
+
+      source:
+        characterExpression.ran ===
+          true
+          ? "ari-character-expression-engine"
+          : characterReasoning.ran ===
+              true
+            ? "ari-character-reasoning-engine"
+            : characterContext.ran ===
+                true
+              ? "ari-character-context-engine"
+              : "ari-character-stage",
+
+      reason:
+        realization.needsAIWriter ===
+          true
+          ? "focused_character_answer_requires_ai_realization"
+          : candidateAvailable
+            ? "focused_grounded_character_candidate_available"
+            : guidanceAvailable
+              ? "focused_character_guidance_available"
+              : answerAvailable &&
+                  !grounded
+                ? "character_answer_not_grounded"
+                : answerAvailable &&
+                    !deterministicDraft
+                  ? "character_answer_without_deterministic_draft"
+                  : "no_focused_character_answer",
+
+      authority:
+        this.getHandoffAuthority()
+    };
+  },
+
+  /* =====================================================
+     REALIZATION / STATUS / GROUNDING
+  ===================================================== */
+
+  normalizeRealization(
+    realization = {}
+  ) {
+    const source =
+      realization &&
+      typeof realization ===
+        "object"
+        ? realization
+        : {};
+
+    const needsAIWriter =
+      source.needsAIWriter ===
+      true;
+
+    return {
+      ...source,
+
+      mode:
+        source.mode ||
         (
           needsAIWriter
             ? "optional_ai_realization"
-            : reasoning
-                .characterAnswerAvailable ===
-                true
-              ? "local_candidate_preferred"
-              : "guidance_only"
+            : "local_candidate_preferred"
         ),
 
       needsAIWriter,
 
       aiWriterMode:
-        existing.aiWriterMode ||
-        reasoning.aiWriterMode ||
+        source.aiWriterMode ||
         null,
 
       aiInstruction:
-        existing.aiInstruction ||
-        reasoning.aiInstruction ||
-        "",
-
-      deterministicDraftAvailable:
-        existing
-          .deterministicDraftAvailable ===
-          true ||
-        Boolean(
-          String(
-            reasoning.deterministicDraft ||
-            reasoning.userFacingDraft ||
-            ""
-          ).trim()
+        this.cleanText(
+          source.aiInstruction ||
+          ""
         ),
 
       preserveMeaning:
-        existing.preserveMeaning !==
+        source.preserveMeaning !==
         false,
 
       preserveStatus:
-        existing.preserveStatus !==
+        source.preserveStatus !==
         false,
 
       preserveValue:
-        existing.preserveValue ===
-          true ||
-        reasoning.realizationPolicy
-          ?.preserveValue ===
-          true,
+        source.preserveValue ===
+        true,
 
       preservePosition:
-        existing.preservePosition ===
-          true ||
-        reasoning.realizationPolicy
-          ?.preservePosition ===
-          true,
+        source.preservePosition ===
+        true,
 
       preserveOpenStatus:
-        existing.preserveOpenStatus ===
-          true ||
-        reasoning.realizationPolicy
-          ?.preserveOpenStatus ===
-          true,
+        source.preserveOpenStatus ===
+        true,
 
       tentativeLanguageRequired:
-        existing
+        source
           .tentativeLanguageRequired ===
-          true ||
-        reasoning.realizationPolicy
-          ?.tentativeLanguageRequired ===
-          true,
+        true,
 
       mayVaryWording:
-        existing.mayVaryWording !==
+        source.mayVaryWording !==
         false,
 
       mayAddFacts:
         false,
 
       mayAddMeaning:
+        false,
+
+      mayInventPreference:
+        false,
+
+      mayInventIdentity:
+        false,
+
+      mayInventWorldview:
         false,
 
       mayInventExperience:
@@ -1595,26 +2298,104 @@ window.AriCharacterStage = {
     };
   },
 
-  buildCompatibilityStatus(
-    reasoning = {}
-  ) {
-    const status =
-      reasoning.status ||
-      (
-        reasoning.characterAnswerAvailable ===
-        true
-          ? "stable"
-          : "background"
-      );
+  normalizeStatus({
+    value = null,
+    type = null
+  } = {}) {
+    if (
+      value &&
+      typeof value ===
+        "object"
+    ) {
+      const overall =
+        value.overall ||
+        value.preferenceStatus ||
+        value.worldviewStatus ||
+        value.identityStatus ||
+        "background";
+
+      return {
+        ...value,
+
+        overall,
+
+        preferenceStatus:
+          value.preferenceStatus ||
+          (
+            type ===
+            "character_preference"
+              ? overall
+              : null
+          ),
+
+        worldviewStatus:
+          value.worldviewStatus ||
+          (
+            [
+              "character_worldview",
+              "character_perspective"
+            ].includes(
+              type
+            )
+              ? overall
+              : null
+          ),
+
+        identityStatus:
+          value.identityStatus ||
+          (
+            type ===
+            "character_identity"
+              ? overall
+              : null
+          ),
+
+        canonical:
+          value.canonical ===
+            true ||
+          overall ===
+            "canonical",
+
+        inferred:
+          value.inferred ===
+            true ||
+          overall ===
+            "inferred",
+
+        open:
+          value.open ===
+            true ||
+          overall ===
+            "open",
+
+        stable:
+          value.stable ===
+            true ||
+          overall ===
+            "stable",
+
+        background:
+          value.background ===
+            true ||
+          overall ===
+            "background"
+      };
+    }
+
+    const overall =
+      typeof value ===
+        "string" &&
+      value
+        ? value
+        : "background";
 
     return {
-      overall:
-        status,
+      overall,
 
       preferenceStatus:
-        reasoning.type ===
+        type ===
         "character_preference"
-          ? status
+          ? overall
           : null,
 
       worldviewStatus:
@@ -1622,367 +2403,178 @@ window.AriCharacterStage = {
           "character_worldview",
           "character_perspective"
         ].includes(
-          reasoning.type
+          type
         )
-          ? status
+          ? overall
           : null,
 
       identityStatus:
-        reasoning.type ===
+        type ===
         "character_identity"
-          ? status
+          ? overall
           : null,
 
       canonical:
-        status ===
+        overall ===
         "canonical",
 
       inferred:
-        status ===
+        overall ===
         "inferred",
 
       open:
-        status ===
+        overall ===
         "open",
 
       stable:
-        status ===
+        overall ===
         "stable",
 
       background:
-        status ===
+        overall ===
         "background"
     };
   },
 
-  buildCompatibilityGrounding(
-    reasoning = {}
-  ) {
-    const status =
-      reasoning.status ||
-      null;
+  normalizeGrounding({
+    grounding = null,
+    source = {},
+    status = {}
+  } = {}) {
+    const raw =
+      grounding &&
+      typeof grounding ===
+        "object"
+        ? grounding
+        : {};
 
+    /*
+     * Character Stage does not invent grounding.
+     * Grounding must be explicitly supplied by the
+     * Character Reasoning authority.
+     */
     return {
-      grounded:
-        Boolean(
-          reasoning.groundedMeaning ||
-          reasoning.authorityPacket ||
-          reasoning.source
-        ),
+      ...raw,
 
-      status,
+      grounded:
+        raw.grounded ===
+        true,
+
+      status:
+        raw.status ||
+        status.overall ||
+        null,
 
       source:
-        reasoning.source ||
+        raw.source ||
+        source.source ||
         null,
 
       authorityChain:
         this.toArray(
-          reasoning.authorityChain
+          raw.authorityChain ||
+          source.authorityChain
         ),
 
       canonicalValue:
-        status === "canonical"
-          ? reasoning.answer ||
-            null
-          : null,
+        raw.canonicalValue ||
+        null,
 
       inferredValue:
-        status === "inferred"
-          ? reasoning.answer ||
-            null
-          : null,
+        raw.inferredValue ||
+        null,
 
       openStatus:
-        status === "open",
+        raw.openStatus ===
+          true ||
+        status.open ===
+          true,
 
       worldviewPosition:
-        [
-          "character_worldview",
-          "character_perspective"
-        ].includes(
-          reasoning.type
-        )
-          ? reasoning.answer ||
-            null
-          : null,
+        raw.worldviewPosition ||
+        null,
 
       identityStatement:
-        reasoning.type ===
-        "character_identity"
-          ? reasoning.answer ||
-            null
-          : null
+        raw.identityStatement ||
+        null
     };
   },
 
-  // ===================================================
-  // Character handoff
-  // ===================================================
+  /* =====================================================
+     RESPONSE CONTROLS
+  ===================================================== */
 
-  buildCharacterHandoff(
-    summary = {}
+  normalizeResponseControl(
+    control = {}
   ) {
-    const context =
-      summary.characterContext ||
-      {};
-
-    const reasoning =
-      summary.characterReasoning ||
-      {};
-
-    const expression =
-      summary.characterExpression ||
-      {};
-
-    const composerCharacter =
-      summary.composerCharacter ||
-      {};
-
-    const responseControl =
-      this.mergeResponseControls(
-        context.responseControl,
-        reasoning.responseControl,
-        expression.responseControl,
-        composerCharacter.responseControl
-      );
-
-    const realization =
-      composerCharacter.realization ||
-      {};
-
-    const draft =
-      String(
-        composerCharacter.draft ||
-        reasoning.userFacingDraft ||
-        ""
-      ).trim();
-
-    const deterministicDraft =
-      String(
-        composerCharacter
-          .deterministicDraft ||
-        reasoning.deterministicDraft ||
-        draft
-      ).trim();
-
-    const answerAvailable =
-      composerCharacter
-        .answerAvailable ===
-        true ||
-      reasoning
-        .characterAnswerAvailable ===
-        true;
-
-    const guidanceAvailable =
-      composerCharacter
-        .guidanceAvailable ===
-        true ||
-      reasoning
-        .characterGuidanceAvailable ===
-        true ||
-      Boolean(
-        composerCharacter.relationship ||
-        context.relationshipPacket
-      );
-
     return {
-      enabled:
-        composerCharacter.enabled ===
-          true ||
-        answerAvailable ||
-        guidanceAvailable,
-
-      relevant:
-        composerCharacter
-          .characterRelevant ===
-          true ||
-        composerCharacter.relevant ===
-          true ||
-        expression.characterRelevant ===
-          true ||
-        context.characterUseAllowed ===
-          true,
-
-      answerAvailable,
-      guidanceAvailable,
-
-      visibility:
-        composerCharacter.visibility ||
-        context.characterVisibility ||
-        "background",
-
-      expressionLevel:
-        composerCharacter
-          .expressionLevel ||
-        expression.expressionLevel ||
-        "background",
-
-      mode:
-        composerCharacter.mode ||
-        context.characterMode ||
-        "silent",
-
-      focus:
-        composerCharacter.focus ||
-        reasoning.focus ||
-        context.characterFocus ||
-        null,
-
-      subject:
-        composerCharacter.subject ||
-        reasoning.subject ||
-        context.characterSubject ||
-        null,
-
-      type:
-        composerCharacter.type ||
-        reasoning.type ||
-        null,
-
-      subtype:
-        composerCharacter.subtype ||
-        reasoning.subtype ||
-        null,
-
-      status:
-        composerCharacter.status ||
-        this.buildCompatibilityStatus(
-          reasoning
-        ),
-
-      preferredCharacterSource:
-        composerCharacter
-          .preferredSource ||
-        reasoning.source ||
-        context.preferredCharacterSource ||
-        null,
-
-      draft,
-      deterministicDraft,
-
-      answer:
-        composerCharacter.answer ||
-        reasoning.answer ||
-        null,
-
-      values:
-        composerCharacter.values ||
-        reasoning.values ||
-        null,
-
-      groundedMeaning:
-        composerCharacter
-          .groundedMeaning ||
-        reasoning.groundedMeaning ||
-        null,
-
-      grounding:
-        composerCharacter.grounding ||
-        null,
-
-      evidence:
-        composerCharacter.evidence ||
-        null,
-
-      relationship:
-        composerCharacter.relationship ||
-        context.relationshipPacket ||
-        null,
-
-      implementationDisclosure:
-        composerCharacter
-          .implementationDisclosure ||
-        context
-          .implementationDisclosure ||
-        null,
-
-      realization,
-
-      needsAIWriter:
-        realization.needsAIWriter ===
-          true ||
-        reasoning.needsAIWriter ===
-          true,
-
-      aiWriterMode:
-        realization.aiWriterMode ||
-        reasoning.aiWriterMode ||
-        null,
-
-      aiInstruction:
-        realization.aiInstruction ||
-        reasoning.aiInstruction ||
-        "",
-
-      composerCharacter,
-
-      reasoning:
-        reasoning
-          .characterReasoningRan ===
-          true
-          ? reasoning
-          : null,
-
       requiredBehaviors:
-        responseControl
-          .requiredBehaviors,
+        this.toArray(
+          control
+            ?.requiredBehaviors
+        ),
 
       forbiddenBehaviors:
-        responseControl
-          .forbiddenBehaviors,
-
-      constraints:
-        responseControl.constraints,
-
-      confidence:
-        reasoning.confidence ||
-        null,
-
-      confidenceScore:
-        reasoning.confidenceScore ??
-        null,
-
-      authorityChain:
         this.toArray(
-          composerCharacter
-            .authorityChain ||
-          reasoning.authorityChain
+          control
+            ?.forbiddenBehaviors
         ),
 
-      authorityPacket:
-        composerCharacter
-          .authorityPacket ||
-        reasoning.authorityPacket ||
-        null,
+      constraints:
+        this.toArray(
+          control?.constraints
+        ),
 
-      localAuthorities:
-        summary.localCharacterAuthorities ||
-        null,
-
-      source:
-        expression
-          .characterExpressionRan ===
-          true
-          ? "character_expression"
-          : reasoning
-              .characterReasoningRan ===
-              true
-            ? "character_reasoning"
-            : context
-                .characterContextEngineRan ===
-                true
-              ? "character_context"
-              : "none",
-
-      boundaries:
-        this.getAuthorityBoundaries()
+      rules:
+        this.toArray(
+          control?.rules
+        )
     };
   },
 
-  // ===================================================
-  // Stage packet
-  // ===================================================
+  mergeResponseControls(
+    ...controls
+  ) {
+    return {
+      requiredBehaviors:
+        this.mergeUnique(
+          ...controls.map(
+            control =>
+              control
+                ?.requiredBehaviors
+          )
+        ),
+
+      forbiddenBehaviors:
+        this.mergeUnique(
+          ...controls.map(
+            control =>
+              control
+                ?.forbiddenBehaviors
+          )
+        ),
+
+      constraints:
+        this.mergeUnique(
+          ...controls.map(
+            control =>
+              control?.constraints
+          )
+        ),
+
+      rules:
+        this.mergeUnique(
+          ...controls.map(
+            control =>
+              control?.rules
+          )
+        )
+    };
+  },
+
+  /* =====================================================
+     STAGE PACKET
+  ===================================================== */
 
   buildCharacterStagePacket(
     summary = {}
@@ -1992,25 +2584,22 @@ window.AriCharacterStage = {
       {};
 
     const authorities =
-      summary.localCharacterAuthorities ||
+      summary
+        .localCharacterAuthorities ||
       {};
 
-    const requestedMissing =
-      this.toArray(
-        authorities
-          .missingRequestedAuthorities
-      );
-
     return {
+      schema:
+        "ari_character_stage_packet",
+
+      schemaVersion:
+        this.schemaVersion,
+
       ready:
+        handoff.ready ===
+          true ||
         summary
           .characterContextEngineRan ===
-          true ||
-        summary
-          .characterReasoningRan ===
-          true ||
-        summary
-          .characterExpressionRan ===
           true,
 
       source:
@@ -2031,8 +2620,10 @@ window.AriCharacterStage = {
         summary.characterEligibility ||
         null,
 
-      localCharacterAuthorities:
-        authorities,
+      expressionEligibility:
+        summary
+          .characterExpressionEligibility ||
+        null,
 
       context: {
         ran:
@@ -2052,22 +2643,52 @@ window.AriCharacterStage = {
 
         mode:
           summary.characterContext
-            ?.characterMode ||
+            ?.mode ||
           "silent",
 
         focus:
           summary.characterContext
-            ?.characterFocus ||
+            ?.focus ||
+          null,
+
+        subject:
+          summary.characterContext
+            ?.subject ||
           null,
 
         authorityRequest:
           summary.characterContext
             ?.authorityRequest ||
-          null,
+          {},
 
         value:
           summary.characterContext ||
           null
+      },
+
+      localAuthorities: {
+        requested:
+          authorities
+            .requestedAuthorities ||
+          [],
+
+        available:
+          authorities
+            .availableRequestedAuthorities ||
+          [],
+
+        missing:
+          authorities
+            .missingRequestedAuthorities ||
+          [],
+
+        satisfied:
+          authorities
+            .requestedAuthoritiesSatisfied ===
+          true,
+
+        value:
+          authorities
       },
 
       reasoning: {
@@ -2086,6 +2707,16 @@ window.AriCharacterStage = {
             .characterReasoningSource ||
           null,
 
+        answerAvailable:
+          summary.characterReasoning
+            ?.answerAvailable ===
+          true,
+
+        guidanceAvailable:
+          summary.characterReasoning
+            ?.guidanceAvailable ===
+          true,
+
         type:
           summary.characterReasoning
             ?.type ||
@@ -2100,21 +2731,6 @@ window.AriCharacterStage = {
           summary.characterReasoning
             ?.status ||
           null,
-
-        answerAvailable:
-          summary.characterReasoning
-            ?.characterAnswerAvailable ===
-          true,
-
-        guidanceAvailable:
-          summary.characterReasoning
-            ?.characterGuidanceAvailable ===
-          true,
-
-        draft:
-          summary.characterReasoning
-            ?.userFacingDraft ||
-          "",
 
         deterministicDraft:
           summary.characterReasoning
@@ -2149,7 +2765,7 @@ window.AriCharacterStage = {
 
         relevant:
           summary.characterExpression
-            ?.characterRelevant ===
+            ?.relevant ===
           true,
 
         expressionLevel:
@@ -2157,24 +2773,28 @@ window.AriCharacterStage = {
             ?.expressionLevel ||
           "background",
 
-        composerCharacterReady:
-          Boolean(
-            summary.composerCharacter
-          ),
-
         value:
           summary.characterExpression ||
           null
       },
 
+      /*
+       * Only this handoff is authoritative downstream.
+       */
       handoff,
 
-      responseControl: {
+      result: {
+        available:
+          handoff.available ===
+          true,
+
         enabled:
-          handoff.enabled === true,
+          handoff.enabled ===
+          true,
 
         relevant:
-          handoff.relevant === true,
+          handoff.relevant ===
+          true,
 
         answerAvailable:
           handoff.answerAvailable ===
@@ -2184,25 +2804,26 @@ window.AriCharacterStage = {
           handoff.guidanceAvailable ===
           true,
 
-        visibility:
-          handoff.visibility ||
-          "background",
+        candidateAvailable:
+          handoff.candidateAvailable ===
+          true,
 
-        expressionLevel:
-          handoff.expressionLevel ||
-          "background",
+        candidatePreferred:
+          handoff.candidatePreferred ===
+          true,
 
-        mode:
-          handoff.mode ||
-          "silent",
+        grounded:
+          handoff.grounding
+            ?.grounded ===
+          true,
 
-        focus:
-          handoff.focus ||
-          null,
+        complete:
+          handoff.complete ===
+          true,
 
-        subject:
-          handoff.subject ||
-          null,
+        usable:
+          handoff.usable ===
+          true,
 
         type:
           handoff.type ||
@@ -2221,7 +2842,8 @@ window.AriCharacterStage = {
           "",
 
         deterministicDraft:
-          handoff.deterministicDraft ||
+          handoff
+            .deterministicDraft ||
           "",
 
         needsAIWriter:
@@ -2230,193 +2852,71 @@ window.AriCharacterStage = {
 
         aiWriterMode:
           handoff.aiWriterMode ||
-          null,
-
-        requiredBehaviors:
-          handoff.requiredBehaviors ||
-          [],
-
-        forbiddenBehaviors:
-          handoff.forbiddenBehaviors ||
-          [],
-
-        constraints:
-          handoff.constraints ||
-          []
+          null
       },
 
       quality: {
-        contextResolved:
-          summary
-            .characterContextEngineRan ===
-          true,
-
-        contextReady:
-          summary
-            .characterContextEngineReady ===
-          true,
-
-        reasoningRequired:
-          summary.characterEligibility
-            ?.runReasoning ===
-          true,
-
-        reasoningRan:
-          summary
-            .characterReasoningRan ===
-          true,
-
-        reasoningReady:
-          summary
-            .characterReasoningReady ===
-          true,
-
-        expressionRequired:
-          summary.characterEligibility
-            ?.runExpression ===
-          true,
-
-        expressionRan:
-          summary
-            .characterExpressionRan ===
-          true,
-
-        expressionReady:
-          summary
-            .characterExpressionReady ===
-          true,
-
-        answerAvailable:
-          handoff.answerAvailable ===
-          true,
-
-        guidanceAvailable:
-          handoff.guidanceAvailable ===
-          true,
-
-        draftAvailable:
-          Boolean(
-            String(
-              handoff.draft ||
-              ""
-            ).trim()
-          ),
-
-        deterministicDraftAvailable:
-          Boolean(
-            String(
-              handoff
-                .deterministicDraft ||
-              ""
-            ).trim()
-          ),
-
-        characterKnowledgeAvailable:
-          authorities
-            .characterKnowledgeAvailable ===
-          true,
+        focusedHandoffProduced:
+          handoff.schema ===
+          "ari_character_handoff",
 
         requestedAuthoritiesSatisfied:
           authorities
             .requestedAuthoritiesSatisfied ===
           true,
 
-        missingRequestedAuthorities:
-          requestedMissing,
-
-        grounded:
+        answerGrounded:
+          handoff.answerAvailable !==
+            true ||
           handoff.grounding
             ?.grounded ===
-          true,
+            true,
 
-        statusPreserved:
+        deterministicDraftAvailable:
+          Boolean(
+            handoff
+              .deterministicDraft
+          ),
+
+        unresolvedAnswerDoesNotBecomeCandidate:
+          handoff.answerAvailable !==
+            true ||
+          handoff.grounding
+            ?.grounded ===
+            true ||
+          handoff.candidateAvailable !==
+            true,
+
+        aiRealizationPreserved:
+          handoff.needsAIWriter !==
+            true ||
+          Boolean(
+            handoff.aiWriterMode ||
+            handoff.aiInstruction
+          ),
+
+        characterStatusPreserved:
+          handoff.answerAvailable !==
+            true ||
           Boolean(
             handoff.status
-          )
+          ),
+
+        noDownstreamComposerCharacterAuthority:
+          true,
+
+        noSupabaseUse:
+          true
       },
 
-      authority: {
-        canRunCharacterContext:
-          true,
-
-        canInspectLocalAuthorities:
-          true,
-
-        canRunCharacterReasoning:
-          true,
-
-        canRunCharacterExpression:
-          true,
-
-        canNormalizeCharacterHandoff:
-          true,
-
-        canRegisterCharacterDraft:
-          true,
-
-        canMergeCharacterResponseControls:
-          true,
-
-        canReadConstitution:
-          true,
-
-        canReadCharacterCore:
-          true,
-
-        canReadCharacterInstincts:
-          true,
-
-        canReadTasteProfile:
-          true,
-
-        canReadCharacterPreferences:
-          true,
-
-        canCallPreferenceResolver:
-          true,
-
-        canReadWorldview:
-          true,
-
-        canReadRelationshipStyle:
-          true,
-
-        canRetrieveCharacterFromSupabase:
-          false,
-
-        canPersistCharacterToSupabase:
-          false,
-
-        canChooseFinalRoute:
-          false,
-
-        canOverrideSemanticMeaning:
-          false,
-
-        canOverrideSituationContract:
-          false,
-
-        canOverrideSafety:
-          false,
-
-        canSelectFinalDraft:
-          false,
-
-        canWriteFinalResponse:
-          false,
-
-        canPersistState:
-          false,
-
-        role:
-          "local_character_subsystem_orchestration_and_downstream_handoff"
-      }
+      authority:
+        this.getAuthorityBoundaries()
     };
   },
 
-  // ===================================================
-  // Stage input
-  // ===================================================
+  /* =====================================================
+     STAGE INPUT
+  ===================================================== */
 
   buildCharacterStageInput(
     summary = {}
@@ -2425,20 +2925,32 @@ window.AriCharacterStage = {
       summary.characterContext ||
       {};
 
+    const originalText =
+      summary.originalUserMessage ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      "";
+
+    const resolvedText =
+      summary.resolvedUserQuestion ||
+      summary.resolvedCurrentTurn
+        ?.resolvedText ||
+      originalText;
+
     return {
       request: {
-        original:
-          summary.userMessage ||
-          summary.message ||
-          summary.input ||
-          "",
+        originalText,
 
-        resolved:
-          summary.resolvedUserQuestion ||
-          summary.userMessage ||
-          summary.message ||
-          summary.input ||
-          ""
+        resolvedText,
+
+        effectiveText:
+          resolvedText,
+
+        turnId:
+          summary.currentTurnId ||
+          summary.turnId ||
+          null
       },
 
       perception:
@@ -2463,124 +2975,46 @@ window.AriCharacterStage = {
           ?.contract ||
         null,
 
+      responsePlan:
+        summary.ariResponsePlan ||
+        summary.canonicalResponsePlan ||
+        summary.responsePlan ||
+        null,
+
       responseStrategy:
         summary.responseStrategy ||
         null,
 
       safety:
         summary.safetyStagePacket ||
+        summary.safetyDisposition ||
         null,
 
       understanding:
         summary.understandingStagePacket ||
+        summary.understandingHandoff ||
         null,
 
-      memory:
-        summary.memoryStagePacket ||
-        null,
-
-      characterState: {
-        useAllowed:
-          context.characterUseAllowed ===
-          true ||
-        summary.characterUseAllowed !==
-          false,
-
-        visibility:
-          context.characterVisibility ||
-          summary.characterVisibility ||
-          "background",
-
-        mode:
-          context.characterMode ||
-          summary.characterMode ||
-          "silent",
-
-        focus:
-          context.characterFocus ||
-          summary.characterFocus ||
-          null,
-
-        subject:
-          context.characterSubject ||
-          null,
-
-        preferredSource:
-          context.preferredCharacterSource ||
-          null,
-
-        hints:
-          context.characterHints ||
-          summary.characterHints ||
-          {},
-
-        budget:
-          context.characterBudget ||
-          null,
-
-        authorityRequest:
-          context.authorityRequest ||
-          null,
-
-        implementationDisclosure:
-          context
-            .implementationDisclosure ||
-          null,
-
-        relationship:
-          context.relationshipPacket ||
-          null
-      },
+      characterContext:
+        context,
 
       localCharacterAuthorities:
-        summary.localCharacterAuthorities ||
+        summary
+          .localCharacterAuthorities ||
         null,
 
       eligibility:
         summary.characterEligibility ||
-        null
+        null,
+
+      authority:
+        "character_stage_structured_input"
     };
   },
 
-  // ===================================================
-  // Response controls
-  // ===================================================
-
-  mergeResponseControls(
-    ...controls
-  ) {
-    return {
-      requiredBehaviors:
-        this.mergeUnique(
-          ...controls.map(
-            control =>
-              control
-                ?.requiredBehaviors
-          )
-        ),
-
-      forbiddenBehaviors:
-        this.mergeUnique(
-          ...controls.map(
-            control =>
-              control
-                ?.forbiddenBehaviors
-          )
-        ),
-
-      constraints:
-        this.mergeUnique(
-          ...controls.map(
-            control =>
-              control?.constraints
-          )
-        )
-    };
-  },
-
-  // ===================================================
-  // Fallbacks
-  // ===================================================
+  /* =====================================================
+     FALLBACKS
+  ===================================================== */
 
   buildContextFallback(
     reason = "",
@@ -2597,6 +3031,12 @@ window.AriCharacterStage = {
         source,
 
       characterUseAllowed:
+        false,
+
+      characterRelevant:
+        false,
+
+      characterGuidanceRequested:
         false,
 
       characterVisibility:
@@ -2640,10 +3080,21 @@ window.AriCharacterStage = {
       relationshipPacket:
         null,
 
+      implementationDisclosure:
+        null,
+
       responseControl: {
-        requiredBehaviors: [],
-        forbiddenBehaviors: [],
-        constraints: []
+        requiredBehaviors:
+          [],
+
+        forbiddenBehaviors:
+          [],
+
+        constraints:
+          [],
+
+        rules:
+          []
       }
     };
   },
@@ -2671,14 +3122,29 @@ window.AriCharacterStage = {
       type:
         "no_character_answer",
 
+      subtype:
+        null,
+
       status:
         "unavailable",
+
+      answer:
+        null,
+
+      groundedMeaning:
+        null,
 
       userFacingDraft:
         "",
 
       deterministicDraft:
         "",
+
+      complete:
+        false,
+
+      usable:
+        false,
 
       needsAIWriter:
         false,
@@ -2692,9 +3158,17 @@ window.AriCharacterStage = {
       reason,
 
       responseControl: {
-        requiredBehaviors: [],
-        forbiddenBehaviors: [],
-        constraints: []
+        requiredBehaviors:
+          [],
+
+        forbiddenBehaviors:
+          [],
+
+        constraints:
+          [],
+
+        rules:
+          []
       }
     };
   },
@@ -2719,111 +3193,192 @@ window.AriCharacterStage = {
       expressionLevel:
         "none",
 
+      focusedCharacter:
+        null,
+
       composerCharacter:
         null,
 
       composerCharacterPacket:
         null,
 
+      responseControl: {
+        requiredBehaviors:
+          [],
+
+        forbiddenBehaviors:
+          [],
+
+        constraints:
+          [],
+
+        rules:
+          []
+      },
+
       reason
     };
   },
 
-  // ===================================================
-  // Authority boundaries
-  // ===================================================
+  /* =====================================================
+     AUTHORITY BOUNDARIES
+  ===================================================== */
+
+  getHandoffAuthority() {
+    return {
+      canExposeFocusedCharacterResult:
+        true,
+
+      canPreserveReasoningMeaning:
+        true,
+
+      canPreserveExpressionWording:
+        true,
+
+      canPreserveCharacterStatus:
+        true,
+
+      canPreserveGrounding:
+        true,
+
+      canPreserveRealizationPolicy:
+        true,
+
+      canPreserveResponseConstraints:
+        true,
+
+      canResolvePreference:
+        false,
+
+      canCreateIdentity:
+        false,
+
+      canCreateWorldview:
+        false,
+
+      canPromoteInference:
+        false,
+
+      canGenerateFinalResponse:
+        false,
+
+      role:
+        "focused_character_downstream_handoff"
+    };
+  },
 
   getAuthorityBoundaries() {
     return {
       localOnly:
         true,
 
-      advisoryOnly:
-        true,
-
       orchestrationAuthority:
         true,
 
-      mayRunCharacterContext:
+      canRunCharacterContext:
         true,
 
-      mayInspectLocalAuthorities:
+      canInspectRequestedLocalAuthorities:
         true,
 
-      mayRunCharacterReasoning:
+      canRunCharacterReasoning:
         true,
 
-      mayRunCharacterExpression:
+      canRunCharacterExpression:
         true,
 
-      mayNormalizeComposerCharacter:
+      canNormalizeFocusedSubsystemResults:
         true,
 
-      mayBuildCharacterHandoff:
+      canBuildFocusedCharacterHandoff:
         true,
 
-      mayRegisterCharacterDraft:
+      canMergeCharacterResponseConstraints:
         true,
 
-      mayMergeResponseControls:
+      canPreserveDeterministicDraft:
         true,
 
-      mayResolvePreference:
+      canPreserveAIRealizationInstruction:
+        true,
+
+      canResolvePreference:
         false,
 
-      mayCreateCanonicalPreference:
+      canCreateCanonicalPreference:
         false,
 
-      mayPromoteInferenceToCanonical:
+      canPromoteInferenceToCanonical:
         false,
 
-      mayCreateWorldviewPosition:
+      canCreateCharacterIdentity:
         false,
 
-      mayInventCharacterMeaning:
+      canCreateWorldviewPosition:
         false,
 
-      mayClassifyWholeConversation:
+      canInventCharacterMeaning:
         false,
 
-      mayOverrideSemanticMeaning:
+      canInferGrounding:
         false,
 
-      mayOverrideConversationFunction:
+      canClassifyConversation:
         false,
 
-      mayOverrideSituationContract:
+      canOverrideSemanticMeaning:
         false,
 
-      mayOverrideSafety:
+      canOverrideConversationFunction:
         false,
 
-      mayOverrideFacts:
+      canOverrideSituationContract:
         false,
 
-      mayOverrideUserIntent:
+      canOverrideSafety:
         false,
 
-      mayRetrieveUserMemory:
+      canOverrideFacts:
         false,
 
-      mayStoreUserMemory:
+      canOverrideUserIntent:
         false,
 
-      mayAccessSupabase:
+      canCreateResponsePlan:
         false,
 
-      maySelectFinalDraft:
+      canDetermineBlueprintEligibility:
         false,
 
-      mayWriteFinalResponse:
+      canDetermineFinalAIWriterActivation:
         false,
 
-      mayExecuteTools:
+      canRegisterResponseCandidate:
+        false,
+
+      canSelectFinalDraft:
+        false,
+
+      canWriteFinalResponse:
+        false,
+
+      canRetrieveUserMemory:
+        false,
+
+      canStoreUserMemory:
+        false,
+
+      canAccessSupabase:
+        false,
+
+      canExecuteTools:
+        false,
+
+      canPersistState:
         false,
 
       role:
-        "local_character_subsystem_orchestration"
+        "focused_local_character_subsystem_orchestration"
     };
   },
 
@@ -2838,20 +3393,15 @@ window.AriCharacterStage = {
       "semanticMeaning",
       "riskLevel",
       "safetyDisposition",
-      "override",
+      "responseGoal",
       "responseShape",
-      "blockedLanes",
-      "deferredLanes",
+      "responseMoves",
+      "canonicalResponsePlan",
       "finalResponse",
       "selectedDraft",
       "recommendation",
       "knownFacts",
       "inferredFacts",
-      "medicalEscalation",
-      "legalAdvice",
-      "financialAdvice",
-      "diagnosis",
-      "toolExecutionClaim",
       "developerIntent",
       "githubEdit",
       "memorySaveDecision",
@@ -2860,139 +3410,87 @@ window.AriCharacterStage = {
     ];
   },
 
-  // ===================================================
-  // Validation
-  // ===================================================
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
 
   validate() {
-    const errors = [];
-    const warnings = [];
-
-    const boundaries =
+    const authority =
       this.getAuthorityBoundaries();
 
-    if (
-      boundaries
-        .mayResolvePreference ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_resolve_preferences"
-      );
-    }
-
-    if (
-      boundaries
-        .mayCreateCanonicalPreference ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_create_canonical_preferences"
-      );
-    }
-
-    if (
-      boundaries
-        .mayPromoteInferenceToCanonical ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_promote_inference"
-      );
-    }
-
-    if (
-      boundaries
-        .mayCreateWorldviewPosition ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_create_worldview_positions"
-      );
-    }
-
-    if (
-      boundaries
-        .mayOverrideSemanticMeaning ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_override_semantic_meaning"
-      );
-    }
-
-    if (
-      boundaries
-        .mayOverrideSituationContract ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_override_situation_contract"
-      );
-    }
-
-    if (
-      boundaries
-        .mayAccessSupabase ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_access_supabase"
-      );
-    }
-
-    if (
-      boundaries
-        .maySelectFinalDraft ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_select_final_draft"
-      );
-    }
-
-    if (
-      boundaries
-        .mayWriteFinalResponse ===
-      true
-    ) {
-      errors.push(
-        "character_stage_may_not_write_final_response"
-      );
-    }
-
-    const requiredAuthorities = [
-      [
-        "AriCharacterContextEngine",
-        window.AriCharacterContextEngine
-      ],
-      [
-        "AriCharacterReasoningEngine",
-        window.AriCharacterReasoningEngine
-      ],
-      [
-        "AriCharacterExpressionEngine",
-        window.AriCharacterExpressionEngine
-      ]
+    const forbiddenTrue = [
+      "canResolvePreference",
+      "canCreateCanonicalPreference",
+      "canPromoteInferenceToCanonical",
+      "canCreateCharacterIdentity",
+      "canCreateWorldviewPosition",
+      "canInventCharacterMeaning",
+      "canInferGrounding",
+      "canClassifyConversation",
+      "canOverrideSemanticMeaning",
+      "canOverrideConversationFunction",
+      "canOverrideSituationContract",
+      "canOverrideSafety",
+      "canOverrideFacts",
+      "canOverrideUserIntent",
+      "canCreateResponsePlan",
+      "canDetermineBlueprintEligibility",
+      "canDetermineFinalAIWriterActivation",
+      "canRegisterResponseCandidate",
+      "canSelectFinalDraft",
+      "canWriteFinalResponse",
+      "canRetrieveUserMemory",
+      "canStoreUserMemory",
+      "canAccessSupabase",
+      "canExecuteTools",
+      "canPersistState"
     ];
 
-    for (
-      const [
-        name,
-        authority
-      ]
-      of requiredAuthorities
-    ) {
-      if (!authority) {
-        warnings.push(
-          `${name}_not_loaded`
+    const errors =
+      forbiddenTrue
+        .filter(
+          key =>
+            authority[key] ===
+            true
+        )
+        .map(
+          key =>
+            `${key}_must_be_false`
         );
-      }
+
+    const warnings = [];
+
+    if (
+      !window
+        .AriCharacterContextEngine
+    ) {
+      warnings.push(
+        "AriCharacterContextEngine_not_loaded"
+      );
+    }
+
+    if (
+      !window
+        .AriCharacterReasoningEngine
+    ) {
+      warnings.push(
+        "AriCharacterReasoningEngine_not_loaded"
+      );
+    }
+
+    if (
+      !window
+        .AriCharacterExpressionEngine
+    ) {
+      warnings.push(
+        "AriCharacterExpressionEngine_not_loaded"
+      );
     }
 
     return {
       valid:
-        errors.length === 0,
+        errors.length ===
+        0,
 
       source:
         "ari-character-stage-validation",
@@ -3001,83 +3499,104 @@ window.AriCharacterStage = {
         this.version,
 
       errors,
+
       warnings,
 
       checks: {
+        focusedHandoffOnly:
+          true,
+
+        downstreamComposerCharacterAuthorityRemoved:
+          true,
+
         preferenceResolutionSeparated:
-          boundaries
-            .mayResolvePreference ===
+          authority
+            .canResolvePreference ===
           false,
 
-        canonicalCreationDisabled:
-          boundaries
-            .mayCreateCanonicalPreference ===
+        groundingInferenceDisabled:
+          authority
+            .canInferGrounding ===
           false,
 
-        inferencePromotionDisabled:
-          boundaries
-            .mayPromoteInferenceToCanonical ===
+        responsePlanAuthorityDisabled:
+          authority
+            .canCreateResponsePlan ===
           false,
 
-        worldviewCreationDisabled:
-          boundaries
-            .mayCreateWorldviewPosition ===
+        candidateRegistrationDisabled:
+          authority
+            .canRegisterResponseCandidate ===
           false,
 
-        semanticOverrideDisabled:
-          boundaries
-            .mayOverrideSemanticMeaning ===
-          false,
-
-        situationContractOverrideDisabled:
-          boundaries
-            .mayOverrideSituationContract ===
-          false,
-
-        supabaseDisabled:
-          boundaries
-            .mayAccessSupabase ===
-          false,
-
-        finalDraftSelectionDisabled:
-          boundaries
-            .maySelectFinalDraft ===
+        finalSelectionDisabled:
+          authority
+            .canSelectFinalDraft ===
           false,
 
         finalResponseAuthorityDisabled:
-          boundaries
-            .mayWriteFinalResponse ===
+          authority
+            .canWriteFinalResponse ===
           false,
 
-        contextEngineAvailable:
-          Boolean(
-            window.AriCharacterContextEngine
-          ),
-
-        reasoningEngineAvailable:
-          Boolean(
-            window.AriCharacterReasoningEngine
-          ),
-
-        expressionEngineAvailable:
-          Boolean(
-            window.AriCharacterExpressionEngine
-          )
+        supabaseDisabled:
+          authority
+            .canAccessSupabase ===
+          false
       }
     };
   },
 
-  // ===================================================
-  // Utilities
-  // ===================================================
+  /* =====================================================
+     UTILITIES
+  ===================================================== */
+
+  hasCallableMethod(
+    object = null,
+    methods = []
+  ) {
+    return Boolean(
+      object &&
+      this.toArray(
+        methods
+      ).some(
+        method =>
+          typeof object[method] ===
+          "function"
+      )
+    );
+  },
+
+  numberOr(
+    value,
+    fallback = 0
+  ) {
+    const number =
+      Number(
+        value
+      );
+
+    return Number.isFinite(
+      number
+    )
+      ? number
+      : fallback;
+  },
 
   toArray(value) {
-    if (Array.isArray(value)) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
       return value.filter(
         item =>
-          item !== undefined &&
-          item !== null &&
-          item !== ""
+          item !==
+            undefined &&
+          item !==
+            null &&
+          item !==
+            ""
       );
     }
 
@@ -3089,45 +3608,195 @@ window.AriCharacterStage = {
       return [];
     }
 
-    return [value];
+    return [
+      value
+    ];
   },
 
-  unique(values = []) {
+  uniqueStrings(
+    values = []
+  ) {
+    return [
+      ...new Set(
+        this.toArray(
+          values
+        )
+          .map(
+            value =>
+              String(
+                value ||
+                ""
+              ).trim()
+          )
+          .filter(Boolean)
+      )
+    ];
+  },
+
+  mergeUnique(
+    ...values
+  ) {
     const output = [];
-    const seen = new Set();
+    const seen =
+      new Set();
 
-    for (
-      const value
-      of this.toArray(values)
-    ) {
-      const key =
-        typeof value === "string"
-          ? value
-              .trim()
-              .toLowerCase()
-          : JSON.stringify(value);
+    values
+      .flatMap(
+        value =>
+          this.toArray(
+            value
+          )
+      )
+      .forEach(
+        value => {
+          const key =
+            typeof value ===
+              "string"
+              ? this
+                  .normalizeForComparison(
+                    value
+                  )
+              : this
+                  .normalizeForComparison(
+                    value?.id ||
+                    value?.name ||
+                    value?.type ||
+                    value?.value ||
+                    value?.claim ||
+                    this.safeJSONStringify(
+                      value
+                    )
+                  );
 
-      if (
-        !key ||
-        seen.has(key)
-      ) {
-        continue;
-      }
+          if (
+            !key ||
+            seen.has(
+              key
+            )
+          ) {
+            return;
+          }
 
-      seen.add(key);
-      output.push(value);
-    }
+          seen.add(
+            key
+          );
+
+          output.push(
+            value
+          );
+        }
+      );
 
     return output;
   },
 
-  mergeUnique(...values) {
-    return this.unique(
-      values.flatMap(
-        value =>
-          this.toArray(value)
+  safeJSONStringify(
+    value = null
+  ) {
+    const seen =
+      new WeakSet();
+
+    try {
+      return JSON.stringify(
+        value,
+        (
+          key,
+          nestedValue
+        ) => {
+          if (
+            nestedValue &&
+            typeof nestedValue ===
+              "object"
+          ) {
+            if (
+              seen.has(
+                nestedValue
+              )
+            ) {
+              return "[Circular]";
+            }
+
+            seen.add(
+              nestedValue
+            );
+          }
+
+          return nestedValue;
+        }
+      );
+    } catch (error) {
+      return "";
+    }
+  },
+
+  cleanText(
+    value = ""
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /[’‘]/g,
+        "'"
       )
-    );
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /[ \t]+/g,
+        " "
+      )
+      .replace(
+        /\n[ \t]+/g,
+        "\n"
+      )
+      .replace(
+        /\n{3,}/g,
+        "\n\n"
+      )
+      .trim();
+  },
+
+  normalizeIdentifier(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9]+/g,
+        "_"
+      )
+      .replace(
+        /^_+|_+$/g,
+        ""
+      );
+  },
+
+  normalizeForComparison(
+    value = ""
+  ) {
+    return this.cleanText(
+      value
+    )
+      .toLowerCase()
+      .replace(
+        /[_-]/g,
+        " "
+      )
+      .replace(
+        /[^\w\s']/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
   }
 };
 
@@ -3135,7 +3804,8 @@ console.log(
   "ARI CHARACTER STAGE LOADED:",
   window.AriCharacterStage?.version,
   window.AriCharacterStage
-    ?.validate?.().valid === true
+    ?.validate?.().valid ===
+    true
     ? "READY"
     : "INVALID"
 );
