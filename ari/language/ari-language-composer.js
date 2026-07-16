@@ -1,1312 +1,3456 @@
 // ari/language/ari-language-composer.js
 // Ari Language Composer
-// Purpose: Final response writer only.
-// V8.4.6 — Contract-Locked Natural AI Writer / GitHub Evidence Gated
-// Role:
-// - DOES write the final answer.
-// - DOES obey Situation Contract, Triage, Communication Plan, and Mouth Directive.
-// - DOES use AI for natural language generation when available.
-// - DOES validate output before returning.
-// - DOES NOT choose lane.
-// - DOES NOT reinterpret intent.
-// - DOES NOT override contract.
+//
+// Purpose:
+// Render the canonical Response Realization Packet into Ari's final
+// user-facing language without changing its authorized meaning.
+//
+// V10.0.0 — Realization-Native Final Renderer / Single Composer Authority
+//
+// Architectural flow:
+//
+// Response Realization Engine
+//      ↓
+// Response Realization Stage
+//      ↓
+// Ari Language Composer
+//      ↓
+// Final Composition Stage
+//      ↓
+// Delivery Pipeline
+//
+// Responsibilities:
+// - Read one authorized Response Realization Packet.
+// - Preserve the complete realized response.
+// - Apply bounded natural-language polishing.
+// - Apply approved Character and language presentation guidance.
+// - Apply the realization's optional emoji recommendation.
+// - Preserve Markdown, lists, and fenced code.
+// - Enforce safe length budgets without corrupting structured content.
+// - Validate the final rendered response.
+// - Return one explicit final-composition result.
+//
+// Non-responsibilities:
+// - Does not call OpenAI.
+// - Does not answer the user's question independently.
+// - Does not use general model knowledge.
+// - Does not reinterpret semantic meaning.
+// - Does not choose a response strategy.
+// - Does not create response moves.
+// - Does not run Blueprint Writer.
+// - Does not run AI Writer.
+// - Does not create or compare candidates.
+// - Does not arbitrate drafts.
+// - Does not inspect GitHub or file evidence.
+// - Does not create artifact patches.
+// - Does not create medical or safety guidance.
+// - Does not override safety.
+// - Does not retrieve or save memory.
+// - Does not persist runtime state.
 
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "8.4.6",
+  version: "10.0.0",
+  schemaVersion: "10.0.0",
+  source: "ari-language-composer",
 
+  /* =====================================================
+     PUBLIC ENTRY POINT
+  ===================================================== */
 
   async compose(input = {}) {
-    const summary = input.summary || input || {};
-console.log("COMPOSER INPUT", {
-  hasContract: !!summary.situationContract,
-  primary: summary.situationContract?.primary,
-  responseShape: summary.situationContract?.responseShape,
-  hasThesis: !!summary.primarySituationThesis,
-  thesisType: summary.primarySituationThesis?.thesisType,
-  narrative: summary.situationNarrative
-});
-    const handoff = summary.composerHandoff || null;
-
-if (handoff?.ready === true) {
-  return this.composeFromHandoff(handoff);
-}
-    const contract = summary.situationContract || {};
-    const communicationPlan = summary.communicationPlan || {};
-    const mouth = summary.mouthDirector || {};
-    const language = summary.humanLanguageProfile || {};
-const thesis = this.readSituationThesis(summary);
-    const userQuestion =
-      summary.resolvedUserQuestion ||
-      summary.threadQuestion?.resolvedUserQuestion ||
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
-
-    const primary =
-      contract.primary ||
-      summary.situationContractPrimary ||
-      summary.triagePrimaryLane ||
-      communicationPlan.primary ||
-      mouth.contractPrimary ||
-      "general_understanding";
-
-const safetyAction = this.readSafetyAction({ summary, contract, primary });
-
-if (safetyAction.interruptMode === "full") {
-  const forced = this.composeSafetyActionResponse({
-    summary,
-    contract,
-    primary,
-    userQuestion,
-    safetyAction
-  });
-
-  return {
-    languageMode: primary,
-    languageBody: forced,
-    languageSections: [forced],
-    finalResponse: forced,
-
-    composerVersion: this.version,
-    source: "ari-language-composer",
-
-    composerUsedAI: false,
-    composerValidation: "safety_action_full_interrupt",
-
-    composerDebug: {
-      primary,
-      responseShape: contract.responseShape || communicationPlan.answerMode || null,
-      authority: contract.authority || null,
-      safetyAction,
-      rawDraft: null
-    }
-  };
-}
-const artifactPatch = this.composeArtifactPatchResponse({
-  summary,
-  contract,
-  primary,
-  userQuestion
-});
-
-if (artifactPatch) return artifactPatch;
-
-const githubEvidenceResponse = this.shouldUseGithubEvidence(summary, primary)
-  ? this.composeFromGithubEvidence(summary)
-  : null;
-
-if (githubEvidenceResponse) {
-  return githubEvidenceResponse;
-}
-
-    const draft = await this.writeDraft({
-      summary,
-      contract,
-      communicationPlan,
-      mouth,
-      thesis,
-      language,
-      primary,
-      userQuestion
-    });
-
-    const validated = this.validateAndRepair({
-  draft,
-  summary,
-  contract,
-  communicationPlan,
-  language,
-  thesis,
-  primary,
-  userQuestion
-});
-
-    const natural = this.naturalizeResponse({
-  text: validated,
-  summary,
-  contract,
-  thesis,
-  primary,
-  userQuestion
-});
-
-const finalResponse = this.finalPolish(
-  this.enforceFinalBudget(natural, communicationPlan),
-  language
-);
-
-    return {
-      languageMode: primary,
-      languageBody: finalResponse,
-      languageSections: [finalResponse],
-      finalResponse,
-
-      composerVersion: this.version,
-      source: "ari-language-composer",
-
-      composerUsedAI: Boolean(draft.usedAI),
-      composerValidation: validated !== draft.text ? "repaired" : "passed",
-
-      composerDebug: {
-        primary,
-        responseShape: contract.responseShape || communicationPlan.answerMode || null,
-        authority: contract.authority || null,
-        communicationProfile: contract.communicationProfile || null,
-        mouthDirective: contract.mouthDirective || null,
-        situationThesis: thesis,
-        usedAI: Boolean(draft.usedAI),
-        rawDraft: draft.text
-      }
-    };
-  },
-
-shouldUseGithubEvidence(summary = {}, primary = "") {
-  const developerLane =
-    primary === "builder" ||
-    primary === "coding" ||
-    primary === "project_help";
-
-  if (!developerLane) return false;
-
-  const text = String(
-    summary.userMessage ||
-    summary.message ||
-    summary.input ||
-    ""
-  ).toLowerCase();
-
-  const hasEvidence = Boolean(
-    summary.githubFileContext?.content ||
-    summary.githubEvidence?.content ||
-    summary.appContext?.githubFileContext?.content
-  );
-
-  if (!hasEvidence) return false;
-
-  return (
-    text.includes("file") ||
-    text.includes("code") ||
-    text.includes("github") ||
-    text.includes("read file") ||
-    text.includes("read the file") ||
-    text.includes("read github") ||
-    text.includes("line") ||
-    text.includes("where is") ||
-    text.includes("show me") ||
-    text.includes("exact") ||
-    text.includes("update") ||
-    text.includes("remove") ||
-    text.includes("replace") ||
-    text.includes("bug")
-  );
-},
-
-composeFromGithubEvidence(summary = {}) {
-  const fileContext =
-    summary.githubFileContext ||
-    summary.githubEvidence ||
-    summary.appContext?.githubFileContext ||
-    null;
-
-  const content = String(fileContext?.content || "").trim();
-  const filePath = fileContext?.filePath || "the file";
-
-  if (!content) return null;
-
-  const groundedAnswer = this.answerFromFileEvidence({
-  content,
-  filePath,
-  userText: String(
-    summary.userMessage ||
-    summary.message ||
-    summary.input ||
-    ""
-  )
-});
-
-return {
-  languageMode: "file_evidence",
-  languageBody: groundedAnswer,
-  languageSections: [groundedAnswer],
-  finalResponse: groundedAnswer,
-    composerVersion: this.version,
-    source: "ari-language-composer",
-    composerUsedAI: false,
-    composerValidation: "github_evidence_grounded_return",
-    composerDebug: {
-      usedGithubEvidence: true,
-      filePath
-    }
-  };
-},
-
-answerFromFileEvidence({ content = "", filePath = "the file", userText = "" }) {
-  const text = String(userText || "").toLowerCase();
-
-  if (text.includes("what does") || text.includes("explain")) {
-    return this.explainFileEvidence(content, filePath);
-  }
-
-  if (text.includes("where")) {
-    return this.findRelevantFileLines(content, text, filePath);
-  }
-
-  return `I’m currently reading ${filePath}.\n\ngithubEvidenceAvailable is true, meaning Ari has exact file content loaded.`;
-},
-
-explainFileEvidence(content = "", filePath = "the file") {
-  const text = String(content || "");
-
-  if (text.includes("ari-action-grid") && text.includes("ari-action-tile")) {
-    return `This section creates the bottom homepage action tabs in ${filePath}. It shows three tiles: “My Goals” links to goals.html, “Progress” links to progress.html, and “Conversations” is currently a button.`;
-  }
-
-  return `I read ${filePath}. This section contains source code, and the answer should be based on the actual file content, not a generic guess.`;
-},
-
-findRelevantFileLines(content = "", userText = "", filePath = "the file") {
-  const lines = String(content || "").split("\n");
-
-  const keywords = String(userText || "")
-    .toLowerCase()
-    .replace(/[^\w\s.-]/g, " ")
-    .split(/\s+/)
-    .filter(word => word.length >= 4)
-    .slice(0, 12);
-
-  const matches = lines
-    .map((line, index) => {
-      const lower = line.toLowerCase();
-      const score = keywords.reduce((total, word) => {
-        return lower.includes(word) ? total + 1 : total;
-      }, 0);
-
-      return {
-        line: index + 1,
-        score,
-        text: line.trim()
-      };
-    })
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
-
-  if (!matches.length) {
-    return `I read ${filePath}, but I didn’t find a strong matching line.`;
-  }
-
-  return [
-    `I read ${filePath}. The most relevant lines are:`,
-    "",
-    ...matches.map(item => `Line ${item.line}: ${item.text}`)
-  ].join("\n");
-},
-
-
-composeArtifactPatchResponse({ summary = {}, contract = {}, primary = "", userQuestion = "" }) {
-  const rules = contract.responseRules || [];
-  const fileContext =
-    summary.githubFileContext ||
-    summary.githubEvidence ||
-    summary.appContext?.githubFileContext ||
-    null;
-
-  const content = String(fileContext?.content || "").trim();
-  const filePath = fileContext?.filePath || "index.html";
-  const text = String(userQuestion || "").toLowerCase();
-
-  const shouldPatch =
-    primary === "builder" &&
-    (
-      rules.includes("produce_code_or_patch") ||
-      rules.includes("use_artifact_context") ||
-      summary.situationMap?.needs?.includes("developer_artifact_operation")
-    ) &&
-    content;
-
-  if (!shouldPatch) return null;
-
-  let patched = content;
-
-  if (
-    text.includes("remove") &&
-    text.includes("conversations") &&
-    content.includes("<button class=\"ari-action-tile\">Conversations</button>")
-  ) {
-    patched = content.replace(
-      /\n\s*<button class="ari-action-tile">Conversations<\/button>/,
-      ""
-    );
-  }
-
-  if (
-  text.includes("remove") &&
-  text.includes("bottom") &&
-  text.includes("3 tiles") &&
-  content.includes("<section class=\"ari-action-grid three-actions\">")
-) {
-  patched = content.replace(
-    /<section class="ari-action-grid three-actions">[\s\S]*?<\/section>/,
-    ""
-  ).trim();
-}
-
-  if (patched === content) {
-    return {
-      languageMode: "builder",
-      languageBody: `I found the file context in ${filePath}, but I couldn’t safely infer the exact patch from that command.`,
-      languageSections: [],
-      finalResponse: `I found the file context in ${filePath}, but I couldn’t safely infer the exact patch from that command.`,
-      composerVersion: this.version,
-      source: "ari-language-composer",
-      composerUsedAI: false,
-      composerValidation: "artifact_patch_unclear"
-    };
-  }
-
-  const finalResponse =
-`Update ${filePath} to this:
-
-\`\`\`html
-${patched}
-\`\`\``;
-
-  return {
-    languageMode: "builder",
-    languageBody: finalResponse,
-    languageSections: [finalResponse],
-    finalResponse,
-    composerVersion: this.version,
-    source: "ari-language-composer",
-    composerUsedAI: false,
-    composerValidation: "artifact_patch_grounded_return",
-    composerDebug: {
-      usedArtifactPatch: true,
-      filePath
-    }
-  };
-},
-
-  async writeDraft({
-    summary = {},
-    contract = {},
-    communicationPlan = {},
-    mouth = {},
-    language = {},
-thesis = {},
-primary = "general_understanding",
-    userQuestion = ""
-  }) {
-    const instruction = this.buildAIInstruction({
-      summary,
-      contract,
-      communicationPlan,
-      mouth,
-      thesis,
-      language,
-      primary,
-      userQuestion
-    });
-
-    try {
-      if (
-        window.AriOpenAIKnowledgeClient &&
-        typeof window.AriOpenAIKnowledgeClient.ask === "function"
-      ) {
-        const aiResult = await window.AriOpenAIKnowledgeClient.ask({
-          ...summary,
-          aiInstruction: instruction
-        });
-
-        const text =
-          aiResult.finalResponse ||
-          aiResult.knowledgeAnswer ||
-          aiResult.response ||
-          aiResult.text ||
-          "";
-
-        const safe = this.safeAnswer(text);
-
-        if (safe) {
-          return {
-            usedAI: true,
-            text: safe
-          };
-        }
-      }
-    } catch (error) {
-      console.warn("AriLanguageComposer AI draft failed:", error);
-    }
-
-    return {
-      usedAI: false,
-      text: this.localFallback({ summary, primary, contract, thesis, userQuestion })
-    };
-  },
-
-readSituationThesis(summary = {}) {
-  const contract = summary.situationContract || {};
-  const map = summary.situationMap || {};
-  const triage = summary.ariTriage || summary.triage || {};
-
-  const thesis =
-    contract.situationThesis?.thesis ||
-    map.primarySituationThesis ||
-    triage.situationThesisUsed ||
-    null;
-
-  const narrative =
-    contract.situationThesis?.narrative ||
-    map.situationNarrative ||
-    thesis?.oneLine ||
-    null;
-
-  const recommendedUse =
-    contract.situationThesis?.recommendedUse ||
-    map.thesisRecommendedUse ||
-    triage.thesisRecommendedUse ||
-    "do_not_use_as_authority";
-
-  return {
-    available: Boolean(thesis || narrative),
-    thesis,
-    narrative,
-    recommendedUse,
-    mustUse: recommendedUse === "use_as_situation_blueprint"
-  };
-},
-
-  buildAIInstruction({
-    summary = {},
-    contract = {},
-    communicationPlan = {},
-    mouth = {},
-    thesis = {},
-    language = {},
-    primary = "general_understanding",
-    userQuestion = ""
-  }) {
-    const required = contract.requiredBehaviors || [];
-    const forbidden = contract.forbiddenBehaviors || [];
-    const responseRules = contract.responseRules || [];
-    const executive = contract.executive || {};
-    const mouthDirective = contract.mouthDirective || {};
-    const profile = contract.communicationProfile || {};
-    const preferredTerms =
-  summary.preferredTerms ||
-  summary.lexicalGrounding?.preferredTerms ||
-  summary.lexicalGroundingOutput?.preferredTerms ||
-  {};
-    const reasoning = summary.reasoning || {};
-const contractExecutive = contract.executive || {};
-
-const conclusion =
-  contractExecutive.executiveConclusion ||
-  summary.executiveConclusion ||
-  reasoning.executiveConclusion ||
-  {};
-    const activeThreadFacts =
-  summary.activeThreadFacts ||
-  summary.continuityUsableFacts ||
-  [];
-
-const recentMessages =
-  summary.threadRecentMessages ||
-  summary.threadState?.lastMessages ||
-  [];
-
-const emotionalContext = {
-  primaryEmotion:
-    summary.primaryEmotion ||
-    summary.semanticEmotionalTone ||
-    null,
-
-  underlyingEmotion:
-    summary.underlyingEmotion ||
-    null,
-
-  emotionalClassification:
-    summary.emotionalClassification ||
-    null,
-
-  currentNeed:
-    summary.primaryHumanNeed ||
-    summary.rootNeed ||
-    null,
-
-  event:
-    summary.activeIssue ||
-    summary.threadState?.activeIssue ||
-    summary.situationSummary ||
-    null,
-
-  identity:
-    summary.leadIdentity ||
-    summary.primaryRole ||
-    null,
-
-  recentContext: recentMessages.slice(-3),
-  activeThreadFacts
-};
-    
-    const budget = communicationPlan.languageBudget || {};
-    const sentenceRules = communicationPlan.sentenceRules || {};
-
-const responsePlan =
-  communicationPlan.responsePlan ||
-  summary.responsePlan ||
-  {};
-
-    return `
-You are Ari.
-
-Write the final answer to the user.
-
-USER QUESTION:
-${userQuestion}
-
-PRIMARY LANE:
-${primary}
-
-RESPONSE SHAPE:
-${contract.responseShape || communicationPlan.answerMode || "direct"}
-
-CONTRACT GOAL:
-${executive.contractGoal || "Answer the user's actual question clearly."}
-
-CONTRACT NEXT ACTION:
-${executive.contractNextAction || "Give the user the useful answer now."}
-
-KNOWN REASONING OR CONCLUSION:
-${JSON.stringify(
-  {
-    recommendation: conclusion.recommendation || reasoning.recommendation || null,
-keyReason: conclusion.keyReason || reasoning.coreJudgment || null,
-nextStep: conclusion.nextStep || reasoning.nextStep || null,
-decisionOption: conclusion.decisionOption || null,
-tradeoff: conclusion.tradeoff || null
-  },
-  null,
-  2
-)}
-
-RESPONSE PLAN:
-${Object.keys(responsePlan).length
-  ? JSON.stringify(responsePlan, null, 2)
-  : "No response plan provided."}
-
-RESPONSE PLAN RULES:
-- Follow the response plan before inventing your own structure.
-- Use recommendedOpening only as direction, not as exact copied text.
-- Use mustUse ideas when available.
-- Avoid mustAvoid phrases and patterns.
-- Use the decision test or recommendation from the plan.
-- End with the planned next step.
-- Do not sound like a template.
-
-SITUATION THESIS:
-${thesis.available ? JSON.stringify({
-  narrative: thesis.narrative,
-  thesisType: thesis.thesis?.thesisType || null,
-  coreConflict: thesis.thesis?.coreConflict || null,
-  userNeed: thesis.thesis?.userNeed || null,
-  bestResponse: thesis.thesis?.bestResponse || null,
-  recommendedUse: thesis.recommendedUse,
-  mustUse: thesis.mustUse
-}, null, 2) : "No approved thesis."}
-
-THESIS RULES:
-- If mustUse is true, use the thesis as the response blueprint.
-- Name the real situation in plain language.
-- If there is a coreConflict, reflect it briefly before advice.
-- Do not say “thesis,” “blueprint,” or any internal term.
-- Do not over-interpret beyond the evidence.
-
-NATURALNESS RULES:
-- Sound like a real thinking partner, not a template.
-- Start with the useful answer, not generic comfort.
-- Use the user’s actual words when possible.
-- Mention the concrete issue before giving advice.
-- Avoid vague filler like “what matters most,” “take a moment,” or “small steps” unless truly appropriate.
-- Vary sentence rhythm.
-- Do not make every response emotional.
-- Match the lane: technical = crisp, teaching = clear, decision = decisive, emotion = warm, medical = calm/direct.
-- Match the user's conversational energy.
-- If the user is simply greeting or chatting, respond socially instead of assuming they want to solve a problem.
-- Do not force every interaction into advice, decision-making, or troubleshooting.
-- If no problem has been presented, avoid asking "what are we trying to fix" or similar task-oriented questions.
-
-
-EMOTIONAL / THREAD CONTEXT:
-${JSON.stringify(emotionalContext, null, 2)}
-
-EMPATHY RULES:
-- If the user is sad, ashamed, scared, overwhelmed, or disappointed, name it plainly and briefly.
-- Do not sound generic.
-- Use the user’s actual situation, not vague phrases like “what matters most.”
-- Pair empathy with one concrete next step.
-- For mistakes, separate accountability from self-attack.
-- For work/clinical errors, encourage reporting/following policy without shaming.
-- Do not over-comfort.
-- Do not become poetic.
-- Do not ask a reflective question unless useful.
-
-EXPRESSIVENESS RULES:
-- Ari may use casual language, slang, contractions, humor, emphasis, and profanity when it naturally fits the moment.
-- Do not use a fixed list of expressions.
-- Do not randomly swear just to sound human.
-- Use stronger language mainly when the user’s energy is high, frustrated, excited, relieved, joking, or emotionally intense.
-- Match intensity to context: calm situations stay calm; big wins can sound excited; frustrating bugs can sound blunt.
-- Medical, safety, pregnancy, legal, or serious risk contexts should stay calm and restrained.
-- Avoid sounding corporate, scripted, or overly polished.
-- Do not censor personality unless the contract or safety context requires it.
-
-PREFERRED USER TERMS:
-${Object.keys(preferredTerms).length ? JSON.stringify(preferredTerms, null, 2) : "Use the user's own wording."}
-
-COMMUNICATION STYLE:
-- Tone: ${language.tone || "balanced"}
-- Directness: ${language.directness || profile.directness || "normal"}
-- Warmth: ${language.warmth || "normal"}
-- Playfulness: ${language.playfulness || 0}
-- Humor: ${language.humor || 0}
-- Wit: ${language.signatureVoice?.wit || 0}
-- Confidence: ${language.signatureVoice?.confidence || 70}
-- Anti-flatness: ${language.signatureVoice?.antiFlatness === true}
-- Emotional weight: ${profile.emotionalWeight || "normal"}
-- Validation level: ${profile.validationLevel || "light"}
-- Profanity allowed: ${profile.profanityAllowed !== false}
-
-CHARACTER VOICE:
-${JSON.stringify(language.signatureVoice || {}, null, 2)}
-
-CHARACTER RULES:
-- Ari should sound alive, charismatic, and confident when safe.
-- Use warmth, wit, playful reactions, and natural surprise when the context allows.
-- Do not sound shy, overly careful, corporate, or emotionally flat.
-- Safe playful examples: “Yeah, that’s the missing piece.” “Okay, now we’re cooking.” “That’s not overthinking — that’s your ear catching the robot smell.”
-- Serious contexts still stay calm and restrained.
-- Never force jokes. Let personality show through timing, rhythm, and word choice.
-
-LENGTH:
-- Target: ${budget.targetLength || "short"}
-- Max sentences: ${sentenceRules.maxSentences || budget.maxSentences || 5}
-- Max words: ${sentenceRules.maxWords || budget.maxWords || 120}
-
-MOUTH DIRECTIVE:
-- Opening: ${mouthDirective.opening || mouth.opening || "Answer directly."}
-- Order: ${(mouthDirective.order || mouth.order || []).join(" → ") || "direct answer → reason → next step"}
-- Closing: ${mouthDirective.closing || "none"}
-
-REQUIRED:
-${required.length ? required.map(x => "- " + x).join("\n") : "- Answer directly."}
-
-FORBIDDEN:
-${forbidden.length ? forbidden.map(x => "- " + x).join("\n") : "- Do not leak internal system labels."}
-
-RESPONSE RULES:
-${responseRules.length ? responseRules.map(x => "- " + x).join("\n") : "- Be natural, useful, and concise."}
-
-ABSOLUTE RULES:
-- Do not mention Situation Map, Triage, Contract, Mouth Director, Observer, Lead Organ, or internal pipeline.
-- Do not say "primary lane."
-- Do not explain what you are doing.
-- Do not output placeholders.
-- Do not sound robotic.
-- Do not overvalidate.
-- Do not ask a vague question unless the contract requires clarification.
-- Answer the resolved user question, not the raw thread confusion.
-- Stop when the answer is complete.
-
-Write naturally, like a smart direct human partner.
-`.trim();
-  },
-
-  validateAndRepair({
-  draft = {},
-  summary = {},
-  contract = {},
-  communicationPlan = {},
-  language = {},
-  thesis = {},
-  primary = "general_understanding",
-  userQuestion = ""
-})
-  {
-    let text = typeof draft === "string" ? draft : draft.text || "";
-
-    text = this.cleanText(text, language);
-
-if (
-  primary === "emotion" &&
-  [
-    "take a moment to breathe",
-    "think about what matters most",
-    "small steps you can take",
-    "you might be feeling lost"
-  ].some(p => text.toLowerCase().includes(p))
-) {
-  text = this.localFallback({ summary, primary, contract, thesis, userQuestion });
-}
-
-    if (!text) {
-      return this.localFallback({ summary, primary, contract, thesis, userQuestion });
-    }
-
-    if (this.containsInternalLeak(text)) {
-      text = this.removeInternalLeaks(text);
-    }
-
-    if (this.isRoboticDirective(text)) {
-      text = this.localFallback({ summary, primary, contract, thesis, userQuestion });
-    }
-
-    if (contract.clarity?.needed && contract.clarity?.placement === "only") {
-      return contract.clarity.question || "Can you clarify the risk first?";
-    }
-
-    if (contract.clarity?.needed && contract.clarity?.placement === "end") {
-      const question = contract.clarity.question;
-      if (question && !text.includes(question)) {
-        text = `${text}\n\n${question}`;
-      }
-    }
-
-const safetyAction = this.readSafetyAction({ summary, contract, primary });
-
-if (safetyAction.interruptMode === "full") {
-  return this.composeSafetyActionResponse({
-    summary,
-    contract,
-    primary,
-    userQuestion,
-    safetyAction
-  });
-}
-
-    return text;
-  },
-
-readSafetyAction({ summary = {}, contract = {}, primary = "" }) {
-  const gate = summary.safetyContextGate || {};
-  const risk = contract.risk || gate || {};
-  const rules = contract.responseRules || [];
-
-  const level = risk.level || gate.riskLevel || "none";
-  const type = risk.type || gate.riskType || null;
-  const override = risk.override || gate.override || null;
-
-  const requiredAction =
-    risk.requiredAction ||
-    contract.requiredAction ||
-    contract.executive?.requiredAction ||
-    null;
-
-  let interruptMode =
-    risk.interruptMode ||
-    contract.interruptMode ||
-    contract.conversationPriority ||
-    null;
-
-  if (!interruptMode) {
-    if (level === "critical") interruptMode = "full";
-    else if (level === "high") interruptMode = "full";
-    else if (level === "moderate") interruptMode = "partial";
-    else interruptMode = "none";
-  }
-
-  const hardSafetyRule =
-    rules.includes("medical_urgent_response_required") ||
-    rules.includes("safety_first") ||
-    rules.includes("medical_first") ||
-    rules.includes("state_urgent_thresholds");
-
-  const urgentOverride =
-  override === "medical_urgent" ||
-  override === "safety_urgent" ||
-  override === "emergency" ||
-  override === "critical_risk" ||
-  override === "immediate_danger";
-
-if (
-  urgentOverride ||
-  requiredAction ||
-  (hardSafetyRule && (level === "high" || level === "critical"))
-) {
-  interruptMode = "full";
-}
-
-  return {
-    type,
-    level,
-    override,
-    requiredAction,
-    interruptMode,
-    evidence: risk.evidence || gate.evidence || [],
-    deferredTopics: risk.deferredTopics || contract.deferredTopics || contract.deferred || []
-  };
-},
-
-composeSafetyActionResponse({
-  summary = {},
-  contract = {},
-  primary = "",
-  userQuestion = "",
-  safetyAction = {}
-}) {
-  const evidence = Array.isArray(safetyAction.evidence)
-    ? safetyAction.evidence.filter(Boolean)
-    : [];
-
-  const evidenceLine = evidence.length
-    ? ` The concerning signs are: ${evidence.join(", ")}.`
-    : "";
-
-  const action =
-    safetyAction.requiredAction ||
-    this.defaultSafetyAction({ safetyAction, primary });
-
-  if (action === "call_emergency_services_now") {
-    return `This needs emergency help now.${evidenceLine} Call emergency services now, or have someone call for you. Don’t drive yourself. The other question can wait until this is handled.`;
-  }
-
-  if (action === "get_urgent_medical_help_now") {
-    return `This needs urgent medical attention now.${evidenceLine} Don’t wait it out or downgrade it to a routine appointment. Call emergency services or have someone take you to the ER if symptoms are active, severe, or worsening. Don’t drive yourself if there’s any chance this is an emergency.`;
-  }
-
-  if (action === "contact_crisis_or_emergency_support_now") {
-    return `Safety comes first right now.${evidenceLine} Contact emergency services or a crisis support line now, and move closer to another person if you can. Don’t stay alone with the risk.`;
-  }
-
-  if (action === "leave_danger_and_call_emergency_services") {
-    return `Get away from the immediate danger first.${evidenceLine} Move to a safer place if you can, call emergency services, and don’t confront the threat. Everything else can wait until you’re physically safe.`;
-  }
-
-  if (action === "call_poison_control_or_emergency_services") {
-    return `This needs immediate poison or emergency guidance.${evidenceLine} Call Poison Control or emergency services now. Don’t wait for symptoms to get worse. Keep the substance or container nearby if it’s safe so responders know what was involved.`;
-  }
-
-  return `Safety comes first right now.${evidenceLine} Take the immediate safety step before anything lower priority. We can come back to the other question after the urgent risk is handled.`;
-},
-
-defaultSafetyAction({ safetyAction = {}, primary = "" }) {
-  if (safetyAction.type === "medical" || primary === "medical_body") {
-    return "get_urgent_medical_help_now";
-  }
-
-  if (safetyAction.type === "self_harm") {
-    return "contact_crisis_or_emergency_support_now";
-  }
-
-  if (safetyAction.type === "violence" || safetyAction.type === "immediate_danger") {
-    return "leave_danger_and_call_emergency_services";
-  }
-
-  if (safetyAction.type === "poisoning") {
-    return "call_poison_control_or_emergency_services";
-  }
-
-  return "take_immediate_safety_action";
-},
-
-  localFallback({
-  summary = {},
-  primary = "general_understanding",
-  contract = {},
-  thesis = {},
-  userQuestion = ""
-}) {
-  const question = String(userQuestion || "").trim();
-  const lower = question.toLowerCase();
-
-  if (contract.clarity?.question) {
-    return contract.clarity.question;
-  }
-
-  const isMetaRoutingQuestion =
-  lower.includes("should ari treat") ||
-  lower.includes("artifact modification") ||
-  lower.includes("file context") ||
-  lower.includes("developer routing") ||
-  lower.includes("routing behavior");
-
-if (isMetaRoutingQuestion) {
-  return "No. Ari should not treat that as an artifact modification just because the prior thread was about code. If no usable file context is loaded, Ari should answer it as a routing/explanation question or say file context is missing. Prior code context can inform the answer, but it should not trigger a patch by itself.";
-}
-
-if (
-  lower === "ari" ||
-  lower === "talk to me" ||
-  lower === "can you help me" ||
-  lower === "help me out"
-) {
-  return "Yeah. I’m here with you. Tell me what’s going on.";
-}
-
-  if (
-    lower.includes("sad") ||
-    lower.includes("down") ||
-    lower.includes("depressed") ||
-    lower.includes("overwhelmed") ||
-    lower.includes("hurt")
-  ) {
-    return "Yeah, I’m here. I’m sorry you’re feeling that way. You don’t have to carry the whole thing alone right now — tell me what happened.";
-  }
-
-  if (primary === "builder") {
-    return "Yes — I can help with that. Show me the exact behavior, file, or error, and we’ll trace it before changing more code.";
-  }
-
-  if (primary === "teacher") {
-  return question
-    ? `The clean answer: ${question}`
-    : "The clean answer is: yes, I can explain it.";
-}
-
-  if (primary === "executive_decision") {
-    return "My recommendation: slow the decision down, compare the real tradeoff, and pick the option that still makes sense after the emotion cools off.";
-  }
-
-  if (primary === "emotion") {
-    return "Yeah — that can hit hard. I’m here. Let’s slow it down and deal with the real thing, not beat you up over it.";
-  }
-
-  if (primary === "medical_body") {
-    return "Because this involves the body, safety comes first. If symptoms are severe, worsening, or involve pregnancy, get medical guidance now.";
-  }
-
-  if (primary === "safety") {
-    return "Safety comes first. Step away from immediate danger and get help now.";
-  }
-
-  return question
-    ? `I hear you. Let’s deal with this directly: ${question}`
-    : "Yeah. I’m here. Tell me what’s going on.";
-},
-
-  safeAnswer(text = "") {
-    if (!text || typeof text !== "string") return null;
-
-    let cleaned = text.trim();
-
-if (!cleaned) return null;
-
-try {
-  const parsed = JSON.parse(cleaned);
-  if (parsed?.answer) cleaned = String(parsed.answer).trim();
-  else if (parsed?.reply) cleaned = String(parsed.reply).trim();
-  else if (parsed?.response) cleaned = String(parsed.response).trim();
-  else if (parsed?.text) cleaned = String(parsed.text).trim();
-} catch {
-  // Not JSON. Keep normal text.
-}
-    if (this.containsInternalLeak(cleaned)) return null;
-    if (this.isRoboticDirective(cleaned)) return null;
-if (this.isOverlyCorporate(cleaned)) return null;
-
-    return cleaned;
-  },
-
-isOverlyCorporate(text = "") {
-  const normalized = this.normalize(text);
-
-  const corporatePhrases = [
-    "i m here to help you keep building on that success",
-  "if there s anything specific you d like to talk about",
-      "if there are specific issues you fixed that you want to share",
-    "let me know how i can assist",
-    "it is great to hear",
-    "thank you for sharing that with me"
-  ];
-
-  return corporatePhrases.some(phrase => normalized.includes(phrase));
-},
-
-  isRoboticDirective(text = "") {
-    const normalized = this.normalize(text);
-
-    const bad = [
-      "answer the primary lane directly",
-      "start with emotional grounding",
-      "validate name the emotional signal then ground",
-      "lead with immediate safety",
-      "answer with build debug help first",
-      "teach directly first",
-      "organize the decision first"
-    ];
-
-    return bad.some(phrase => normalized === phrase || normalized.includes(phrase));
-  },
-
-  containsInternalLeak(text = "") {
-    const normalized = this.normalize(text);
-
-    const leaks = [
-      "situation map",
-      "triage engine",
-      "situation contract",
-      "mouth director",
-      "lead organ",
-      "observer hierarchy",
-      "primary lane",
-      "response shape",
-      "contract goal",
-      "internal pipeline",
-      "ari rebirth response"
-    ];
-
-    return leaks.some(term => normalized.includes(term));
-  },
-
-  removeInternalLeaks(text = "") {
-    return String(text || "")
-      .replace(/situation map/gi, "context")
-      .replace(/triage engine/gi, "priority system")
-      .replace(/situation contract/gi, "instructions")
-      .replace(/mouth director/gi, "response style")
-      .replace(/primary lane/gi, "main answer")
-      .replace(/lead organ/gi, "main focus")
-      .trim();
-  },
-
-  cleanText(text = "", language = {}) {
-    if (!text || typeof text !== "string") return "";
-
-    let cleaned = text
-      .replace(/^here'?s the practical answer\.?\s*/i, "")
-      .replace(/^here'?s the direct answer\.?\s*/i, "")
-      .replace(/^let'?s organize this clearly\.?\s*/i, "")
-      .replace(/^certainly[,.]?\s*/i, "")
-      .replace(/^of course[,.]?\s*/i, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/[ \t]+$/gm, "")
-      .trim();
-
-    if (language.bannedPhrases?.length) {
-      language.bannedPhrases.forEach(phrase => {
-        cleaned = cleaned.replace(new RegExp(phrase, "gi"), "");
+    const context =
+      this.readCompositionContext(
+        input
+      );
+
+    const eligibility =
+      this.resolveEligibility(
+        context
+      );
+
+    if (
+      eligibility
+        .preserveLockedResponse ===
+      true
+    ) {
+      return this.composeLockedResponse({
+        context,
+        eligibility
       });
     }
 
-    return cleaned.trim();
+    if (
+      eligibility.compose !==
+      true
+    ) {
+      return this.returnFailure({
+        reason:
+          eligibility.reason,
+
+        context,
+
+        eligibility
+      });
+    }
+
+    const rendering =
+      this.renderRealization({
+        context,
+        eligibility
+      });
+
+    const validation =
+      this.validateRenderedResponse({
+        rendering,
+        context,
+        eligibility
+      });
+
+    if (
+      validation.valid !==
+      true
+    ) {
+      return this.returnFailure({
+        reason:
+          validation.reason ||
+          "rendered_response_failed_validation",
+
+        context,
+
+        eligibility,
+
+        rendering,
+
+        validation
+      });
+    }
+
+    return this.returnSuccess({
+      context,
+      eligibility,
+      rendering,
+      validation
+    });
   },
 
-  enforceFinalBudget(text = "", communicationPlan = {}) {
-    const budget = communicationPlan.languageBudget || {};
-    const sentenceRules = communicationPlan.sentenceRules || {};
+  /* =====================================================
+     INPUT CONTEXT
+  ===================================================== */
 
-    let result = String(text || "").trim();
+  readCompositionContext(
+    input = {}
+  ) {
+    const summary =
+      input.summary &&
+      typeof input.summary ===
+        "object"
+        ? input.summary
+        : {};
 
-    const maxSentences =
-      sentenceRules.maxSentences ||
-      budget.maxSentences ||
-      null;
+    const finalComposerPacket =
+      this.firstObject(
+        input.finalComposerPacket,
+        input.composerPacket,
+        summary.finalComposerPacket
+      );
 
-    const maxWords =
-      sentenceRules.maxWords ||
-      budget.maxWords ||
-      null;
+    const directRealization =
+      this.firstObject(
+        input.realizationPacket,
+        input.responseRealization
+          ?.packet,
+        input.responseRealization,
+        finalComposerPacket
+          ?.realization,
+        summary.realizationPacket,
+        summary
+          .responseRealizationHandoff
+          ?.realizationPacket
+      );
 
-    if (maxSentences) result = this.limitSentences(result, maxSentences);
-    if (maxWords) result = this.limitWords(result, maxWords);
+    const realization =
+      this.normalizeRealization({
+        realization:
+          directRealization,
+
+        finalComposerPacket,
+
+        summary
+      });
+
+    const lockedResponse =
+      this.readLockedResponse({
+        input,
+        finalComposerPacket,
+        summary
+      });
+
+    return {
+      input,
+
+      summary,
+
+      finalComposerPacket,
+
+      realization,
+
+      lockedResponse,
+
+      character:
+        this.readCharacterGuidance({
+          finalComposerPacket,
+          summary
+        }),
+
+      languageGuidance:
+        this.readLanguageGuidance({
+          finalComposerPacket,
+          summary
+        }),
+
+      responseControl:
+        this.readResponseControl({
+          finalComposerPacket,
+          summary,
+          realization
+        }),
+
+      safety:
+        this.readSafety({
+          finalComposerPacket,
+          summary
+        }),
+
+      request:
+        this.readRequest({
+          finalComposerPacket,
+          summary,
+          realization
+        })
+    };
+  },
+
+  normalizeRealization({
+    realization = null,
+    finalComposerPacket = {},
+    summary = {}
+  } = {}) {
+    const value =
+      realization &&
+      typeof realization ===
+        "object"
+        ? realization
+        : {};
+
+    const nested =
+      value.realization &&
+      typeof value.realization ===
+        "object"
+        ? value.realization
+        : {};
+
+    const responseText =
+      this.extractText(
+        value.responseText ||
+        nested.responseText ||
+        finalComposerPacket
+          ?.responseText ||
+        finalComposerPacket
+          ?.realization
+          ?.responseText ||
+        summary
+          .realizationResponseText ||
+        ""
+      );
+
+    const suggestedEmoji =
+      this.normalizeSuggestedEmoji(
+        value.suggestedEmoji ||
+        nested.suggestedEmoji ||
+        finalComposerPacket
+          ?.suggestedEmoji ||
+        finalComposerPacket
+          ?.realization
+          ?.suggestedEmoji ||
+        summary
+          .realizationSuggestedEmoji ||
+        ""
+      );
+
+    const emojiPlacement =
+      this.normalizeEmojiPlacement({
+        placement:
+          value.emojiPlacement ||
+          nested.emojiPlacement ||
+          finalComposerPacket
+            ?.emojiPlacement ||
+          finalComposerPacket
+            ?.realization
+            ?.emojiPlacement ||
+          summary
+            .realizationEmojiPlacement ||
+          "none",
+
+        emoji:
+          suggestedEmoji
+      });
+
+    const composerInstructions =
+      this.firstObject(
+        value.composerInstructions,
+        nested.composerInstructions,
+        finalComposerPacket
+          ?.composerInstructions,
+        finalComposerPacket
+          ?.realization
+          ?.composerInstructions,
+        summary
+          .realizationComposerInstructions
+      );
+
+    const validation =
+      this.firstObject(
+        value.validation,
+        nested.validation,
+        summary.realizationValidation
+      );
+
+    const ready =
+      (
+        value.ready ===
+          true ||
+        nested.ready ===
+          true ||
+        finalComposerPacket
+          ?.realization
+          ?.ready ===
+          true ||
+        summary.realizationReady ===
+          true
+      ) &&
+      Boolean(
+        responseText
+      );
+
+    const usable =
+      ready &&
+      (
+        value.usable ===
+          true ||
+        nested.usable ===
+          true ||
+        finalComposerPacket
+          ?.realization
+          ?.usable ===
+          true ||
+        summary.realizationUsable ===
+          true ||
+        validation.usable ===
+          true ||
+        validation.valid ===
+          true
+      );
+
+    const complete =
+      usable &&
+      (
+        value.complete ===
+          true ||
+        nested.complete ===
+          true ||
+        finalComposerPacket
+          ?.realization
+          ?.complete ===
+          true ||
+        summary.realizationComplete ===
+          true ||
+        validation.complete ===
+          true
+      );
+
+    return {
+      available:
+        Boolean(
+          Object.keys(
+            value
+          ).length ||
+          responseText
+        ),
+
+      ready,
+
+      usable,
+
+      complete,
+
+      responseText,
+
+      suggestedEmoji,
+
+      emojiPlacement,
+
+      emojiPurpose:
+        suggestedEmoji
+          ? this.cleanInlineText(
+              value.emojiPurpose ||
+              nested.emojiPurpose ||
+              finalComposerPacket
+                ?.emojiPurpose ||
+              finalComposerPacket
+                ?.realization
+                ?.emojiPurpose ||
+              summary
+                .realizationEmojiPurpose ||
+              ""
+            ) ||
+            null
+          : null,
+
+      responseStrategy:
+        this.firstObject(
+          value.responseStrategy,
+          nested.responseStrategy,
+          finalComposerPacket
+            ?.responseStrategy,
+          finalComposerPacket
+            ?.realization
+            ?.responseStrategy,
+          summary
+            .realizationResponseStrategy
+        ),
+
+      composerInstructions: {
+        preserveMeaning:
+          composerInstructions
+            .preserveMeaning !==
+          false,
+
+        preserveResponseText:
+          composerInstructions
+            .preserveResponseText !==
+          false,
+
+        maySmoothLanguage:
+          composerInstructions
+            .maySmoothLanguage !==
+          false,
+
+        useSuggestedEmoji:
+          Boolean(
+            suggestedEmoji
+          ) &&
+          composerInstructions
+            .useSuggestedEmoji !==
+            false,
+
+        maximumSentences:
+          this.firstFiniteNumber([
+            composerInstructions
+              .maximumSentences,
+            composerInstructions
+              .maxSentences,
+            null
+          ]),
+
+        maximumWords:
+          this.firstFiniteNumber([
+            composerInstructions
+              .maximumWords,
+            composerInstructions
+              .maxWords,
+            null
+          ]),
+
+        maximumParagraphs:
+          this.firstFiniteNumber([
+            composerInstructions
+              .maximumParagraphs,
+            composerInstructions
+              .maxParagraphs,
+            null
+          ])
+      },
+
+      fulfillment:
+        this.firstObject(
+          value.fulfillment,
+          nested.fulfillment,
+          finalComposerPacket
+            ?.realization
+            ?.fulfillment,
+          summary
+            .realizationFulfillment
+        ),
+
+      grounding:
+        this.firstObject(
+          value.grounding,
+          nested.grounding,
+          finalComposerPacket
+            ?.realization
+            ?.grounding,
+          summary
+            .realizationGrounding
+        ),
+
+      validation,
+
+      source:
+        value.source ||
+        nested.source ||
+        summary
+          .responseRealizationSource ||
+        "ari-response-realization-engine",
+
+      mode:
+        value.mode ||
+        nested.mode ||
+        summary.realizationMode ||
+        null,
+
+      reason:
+        value.reason ||
+        nested.reason ||
+        summary
+          .responseRealizationReason ||
+        null,
+
+      raw:
+        value
+    };
+  },
+
+  /* =====================================================
+     ELIGIBILITY
+  ===================================================== */
+
+  resolveEligibility(
+    context = {}
+  ) {
+    const lockedResponse =
+      this.extractText(
+        context.lockedResponse
+      );
+
+    if (
+      lockedResponse
+    ) {
+      return {
+        compose:
+          false,
+
+        preserveLockedResponse:
+          true,
+
+        realizationAuthorized:
+          false,
+
+        reason:
+          "locked_authoritative_response_available"
+      };
+    }
+
+    const realization =
+      context.realization ||
+      {};
+
+    if (
+      realization.available !==
+      true
+    ) {
+      return {
+        compose:
+          false,
+
+        preserveLockedResponse:
+          false,
+
+        realizationAuthorized:
+          false,
+
+        reason:
+          "response_realization_missing"
+      };
+    }
+
+    if (
+      realization.ready !==
+      true
+    ) {
+      return {
+        compose:
+          false,
+
+        preserveLockedResponse:
+          false,
+
+        realizationAuthorized:
+          false,
+
+        reason:
+          "response_realization_not_ready"
+      };
+    }
+
+    if (
+      realization.usable !==
+      true
+    ) {
+      return {
+        compose:
+          false,
+
+        preserveLockedResponse:
+          false,
+
+        realizationAuthorized:
+          false,
+
+        reason:
+          "response_realization_not_usable"
+      };
+    }
+
+    if (
+      !realization.responseText
+    ) {
+      return {
+        compose:
+          false,
+
+        preserveLockedResponse:
+          false,
+
+        realizationAuthorized:
+          false,
+
+        reason:
+          "realization_response_text_missing"
+      };
+    }
+
+    return {
+      compose:
+        true,
+
+      preserveLockedResponse:
+        false,
+
+      realizationAuthorized:
+        true,
+
+      reason:
+        "response_realization_authorized_for_rendering"
+    };
+  },
+
+  /* =====================================================
+     REALIZATION RENDERING
+  ===================================================== */
+
+  renderRealization({
+    context = {}
+  } = {}) {
+    const realization =
+      context.realization ||
+      {};
+
+    const instructions =
+      realization
+        .composerInstructions ||
+      {};
+
+    const originalText =
+      this.extractText(
+        realization.responseText
+      );
+
+    const structure =
+      this.inspectTextStructure(
+        originalText
+      );
+
+    let renderedText =
+      originalText;
+
+    /*
+     * Code, tables, and structured Markdown must not be
+     * rewritten with sentence-oriented text utilities.
+     */
+    if (
+      instructions
+        .maySmoothLanguage ===
+        true &&
+      structure
+        .containsFencedCode !==
+        true &&
+      structure
+        .containsMarkdownTable !==
+        true
+    ) {
+      renderedText =
+        this.smoothNaturalLanguage({
+          text:
+            renderedText,
+
+          context,
+
+          structure
+        });
+    }
+
+    renderedText =
+      this.normalizeWhitespace({
+        text:
+          renderedText,
+
+        preserveLineStructure:
+          structure
+            .preserveLineStructure
+      });
+
+    renderedText =
+      this.enforcePresentationBudget({
+        text:
+          renderedText,
+
+        context,
+
+        structure:
+          this.inspectTextStructure(
+            renderedText
+          )
+      });
+
+    const emojiResult =
+      this.applySuggestedEmoji({
+        text:
+          renderedText,
+
+        realization,
+
+        context
+      });
+
+    renderedText =
+      emojiResult.text;
+
+    renderedText =
+      this.finalPolish({
+        text:
+          renderedText,
+
+        structure:
+          this.inspectTextStructure(
+            renderedText
+          )
+      });
+
+    return {
+      originalText,
+
+      text:
+        renderedText,
+
+      changed:
+        renderedText !==
+        originalText,
+
+      emojiApplied:
+        emojiResult.applied,
+
+      emoji:
+        emojiResult.emoji,
+
+      emojiPlacement:
+        emojiResult.placement,
+
+      emojiReason:
+        emojiResult.reason,
+
+      structure:
+        this.inspectTextStructure(
+          renderedText
+        ),
+
+      source:
+        this.source
+    };
+  },
+
+  smoothNaturalLanguage({
+    text = "",
+    context = {},
+    structure = {}
+  } = {}) {
+    let value =
+      String(
+        text ||
+        ""
+      );
+
+    if (
+      !value
+    ) {
+      return "";
+    }
+
+    /*
+     * Preserve Markdown list structure. Smooth each line
+     * without collapsing the document into one paragraph.
+     */
+    if (
+      structure.containsList ===
+        true ||
+      structure.containsHeading ===
+        true ||
+      structure.containsBlockquote ===
+        true
+    ) {
+      return value
+        .split(
+          "\n"
+        )
+        .map(
+          line =>
+            this.smoothLine(
+              line,
+              context
+            )
+        )
+        .join(
+          "\n"
+        );
+    }
+
+    return this.smoothLine(
+      value,
+      context
+    );
+  },
+
+  smoothLine(
+    line = "",
+    context = {}
+  ) {
+    const original =
+      String(
+        line ||
+        ""
+      );
+
+    const prefixMatch =
+      original.match(
+        /^(\s*(?:[-*+]|\d+[.)]|#{1,6}|>)\s+)/
+      );
+
+    const prefix =
+      prefixMatch?.[1] ||
+      "";
+
+    let text =
+      prefix
+        ? original.slice(
+            prefix.length
+          )
+        : original;
+
+    text =
+      text
+        .replace(
+          /\bdo not\b/gi,
+          "don’t"
+        )
+        .replace(
+          /\bdoes not\b/gi,
+          "doesn’t"
+        )
+        .replace(
+          /\bdid not\b/gi,
+          "didn’t"
+        )
+        .replace(
+          /\bcan not\b/gi,
+          "can’t"
+        )
+        .replace(
+          /\bcannot\b/gi,
+          "can’t"
+        )
+        .replace(
+          /\bwill not\b/gi,
+          "won’t"
+        )
+        .replace(
+          /\bwould not\b/gi,
+          "wouldn’t"
+        )
+        .replace(
+          /\bI am\b/g,
+          "I’m"
+        )
+        .replace(
+          /\bI have\b/g,
+          "I’ve"
+        )
+        .replace(
+          /\bI will\b/g,
+          "I’ll"
+        )
+        .replace(
+          /\bI would\b/g,
+          "I’d"
+        )
+        .replace(
+          /\bit is\b/gi,
+          "it’s"
+        )
+        .replace(
+          /\bthat is\b/gi,
+          "that’s"
+        )
+        .replace(
+          /\bthere is\b/gi,
+          "there’s"
+        )
+        .replace(
+          /\bthey are\b/gi,
+          "they’re"
+        )
+        .replace(
+          /\byou are\b/gi,
+          "you’re"
+        )
+        .replace(
+          /\bwe are\b/gi,
+          "we’re"
+        )
+        .replace(
+          /[ \t]{2,}/g,
+          " "
+        )
+        .replace(
+          /\s+([,.!?;:])/g,
+          "$1"
+        )
+        .trim();
+
+    return `${prefix}${text}`;
+  },
+
+  /* =====================================================
+     EMOJI
+  ===================================================== */
+
+  applySuggestedEmoji({
+    text = "",
+    realization = {},
+    context = {}
+  } = {}) {
+    const emoji =
+      this.normalizeSuggestedEmoji(
+        realization.suggestedEmoji
+      );
+
+    const placement =
+      this.normalizeEmojiPlacement({
+        placement:
+          realization.emojiPlacement,
+
+        emoji
+      });
+
+    const instructions =
+      realization
+        .composerInstructions ||
+      {};
+
+    if (
+      !text ||
+      !emoji ||
+      placement ===
+        "none"
+    ) {
+      return {
+        text,
+
+        applied:
+          false,
+
+        emoji:
+          "",
+
+        placement:
+          "none",
+
+        reason:
+          "emoji_not_requested"
+      };
+    }
+
+    if (
+      instructions
+        .useSuggestedEmoji !==
+      true
+    ) {
+      return {
+        text,
+
+        applied:
+          false,
+
+        emoji,
+
+        placement:
+          "none",
+
+        reason:
+          "emoji_not_authorized_by_realization"
+      };
+    }
+
+    if (
+      this.emojiBlockedByContext(
+        context
+      )
+    ) {
+      return {
+        text,
+
+        applied:
+          false,
+
+        emoji,
+
+        placement:
+          "none",
+
+        reason:
+          "emoji_blocked_by_context"
+      };
+    }
+
+    if (
+      this.textAlreadyEndsWithEmoji(
+        text
+      ) ||
+      text.includes(
+        emoji
+      )
+    ) {
+      return {
+        text,
+
+        applied:
+          false,
+
+        emoji,
+
+        placement:
+          "none",
+
+        reason:
+          "emoji_already_present"
+      };
+    }
+
+    if (
+      placement ===
+      "start"
+    ) {
+      return {
+        text:
+          `${emoji} ${text}`,
+
+        applied:
+          true,
+
+        emoji,
+
+        placement,
+
+        reason:
+          "emoji_applied_at_start"
+      };
+    }
+
+    return {
+      text:
+        `${text} ${emoji}`,
+
+      applied:
+        true,
+
+      emoji,
+
+      placement:
+        "end",
+
+      reason:
+        "emoji_applied_at_end"
+    };
+  },
+
+  emojiBlockedByContext(
+    context = {}
+  ) {
+    const safety =
+      context.safety ||
+      {};
+
+    const severity =
+      this.normalizeIdentifier(
+        safety.severity ||
+        safety.disposition
+          ?.severity ||
+        safety.deepReview
+          ?.severity ||
+        ""
+      );
+
+    if (
+      safety.shouldStopNormalResponse ===
+      true ||
+      [
+        "critical",
+        "high",
+        "emergency",
+        "immediate"
+      ].includes(
+        severity
+      )
+    ) {
+      return true;
+    }
+
+    const mode =
+      this.normalizeIdentifier(
+        context.realization
+          ?.mode ||
+        ""
+      );
+
+    if (
+      [
+        "fixed_safety_response",
+        "safety_governed_realization"
+      ].includes(
+        mode
+      )
+    ) {
+      return true;
+    }
+
+    const responseText =
+      this.normalizeText(
+        context.realization
+          ?.responseText ||
+        ""
+      );
+
+    const graveSignals = [
+      "call emergency services",
+      "immediate danger",
+      "suicidal",
+      "suicide",
+      "self harm",
+      "self-harm",
+      "someone has died",
+      "passed away",
+      "medical emergency",
+      "go to the emergency room",
+      "call 911",
+      "poison control"
+    ];
+
+    return graveSignals.some(
+      signal =>
+        responseText.includes(
+          signal
+        )
+    );
+  },
+
+  /* =====================================================
+     BUDGET
+  ===================================================== */
+
+  enforcePresentationBudget({
+    text = "",
+    context = {},
+    structure = {}
+  } = {}) {
+    const budget =
+      this.resolveBudget(
+        context
+      );
+
+    let result =
+      String(
+        text ||
+        ""
+      ).trim();
+
+    /*
+     * Never slice structured code, tables, or long-form artifacts
+     * with generic word or sentence limits. The realization layer
+     * is responsible for satisfying those output contracts.
+     */
+    if (
+      structure.containsFencedCode ===
+        true ||
+      structure.containsMarkdownTable ===
+        true
+    ) {
+      return result;
+    }
+
+    if (
+      budget.maximumParagraphs
+    ) {
+      result =
+        this.limitParagraphs(
+          result,
+          budget.maximumParagraphs
+        );
+    }
+
+    const afterParagraphs =
+      this.inspectTextStructure(
+        result
+      );
+
+    if (
+      budget.maximumSentences &&
+      afterParagraphs
+        .containsList !==
+        true &&
+      afterParagraphs
+        .containsHeading !==
+        true
+    ) {
+      result =
+        this.limitSentences(
+          result,
+          budget.maximumSentences
+        );
+    }
+
+    if (
+      budget.maximumWords
+    ) {
+      result =
+        this.limitWordsSafely({
+          text:
+            result,
+
+          maximumWords:
+            budget.maximumWords,
+
+          structure:
+            this.inspectTextStructure(
+              result
+            )
+        });
+    }
 
     return result.trim();
   },
 
-  limitSentences(text = "", max = 5) {
-    const parts = String(text || "")
-      .split(/(?<=[.!?])\s+/)
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    return parts.slice(0, max).join(" ");
-  },
-
-  limitWords(text = "", max = 120) {
-    const words = String(text || "").split(/\s+/).filter(Boolean);
-
-    if (words.length <= max) return text;
-
-    return words.slice(0, max).join(" ").replace(/[,:;–-]$/, "") + ".";
-  },
-
-naturalizeResponse({ text = "", summary = {}, contract = {}, thesis = {}, primary = "", userQuestion = "" }){
-  let result = String(text || "").trim();
-  if (!result) return result;
-
-  const genericPhrases = [
-    "take a moment to breathe",
-    "think about what matters most",
-    "small steps you can take",
-    "you might be feeling lost",
-    "align with those priorities",
-    "what matters most",
-    "this situation can be challenging"
-  ];
-
-  const lower = result.toLowerCase();
-  const soundsGeneric = genericPhrases.some(phrase => lower.includes(phrase));
-
-  if (soundsGeneric) {
-    return this.localFallback({ summary, primary, contract, thesis, userQuestion });
-  }
-
-  result = result
-    .replace(/\bIt sounds like you might be\b/gi, "It sounds like you’re")
-    .replace(/\bIt is important to\b/gi, "You should")
-    .replace(/\bYou may want to consider\b/gi, "Consider")
-    .replace(/\bIn this situation,\s*/gi, "")
-    .replace(/\bMoving forward,\s*/gi, "")
-    .trim();
-
-   result = this.repairDanglingDecisionEnding({
-    text: result,
-    summary,
-    primary,
-    contract,
-    thesis,
-    userQuestion
-  });
-
-  return result;
-},
-
-repairDanglingDecisionEnding({ text = "", summary = {}, primary = "", contract = {}, thesis = {}, userQuestion = "" }) {
-  let result = String(text || "").trim();
-
-  const preferred =
-    summary.preferredTerms ||
-    summary.lexicalGrounding?.preferredTerms ||
-    summary.lexicalGroundingOutput?.preferredTerms ||
-    {};
-
-  const decisionOption =
-    preferred.decisionOption?.short ||
-    preferred.decisionOption?.phrase ||
-    "the move";
-
-  const tradeoff =
-    preferred.centralTradeoff?.short ||
-    preferred.centralTradeoff?.phrase ||
-    null;
-
-  if (
-  primary === "executive_decision" &&
-  (
-    /\bthe next step\?\s*$/i.test(result) ||
-    /\bnext step\?\s*$/i.test(result)
-  )
-) {
-    const next =
-      tradeoff
-        ? `The next step is to compare ${tradeoff} honestly, then decide whether ${decisionOption} is worth the cost.`
-        : `The next step is to decide whether ${decisionOption} is worth the cost.`;
-
-    result = result.replace(/\bThe next step\?\s*$/i, next);
-  }
-
-  return result;
-},
-
-  finalPolish(response = "", language = {}) {
-    let polished = String(response || "")
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/[ \t]+$/gm, "")
-      .trim();
-
-    if (language.polish?.preferNaturalContractions !== false) {
-      polished = polished
-        .replace(/\bdo not\b/gi, "don’t")
-        .replace(/\bcan not\b/gi, "can’t")
-        .replace(/\bwill not\b/gi, "won’t")
-        .replace(/\bI am\b/g, "I’m")
-        .replace(/\bit is\b/gi, "it’s")
-        .replace(/\bthat is\b/gi, "that’s");
-    }
-
-    return polished;
-  },
-
-composeFromHandoff(handoff = {}) {
-  const contract = {
-    primary: handoff.primary,
-    responseShape: handoff.responseShape,
-    responseRules: handoff.responseRules || [],
-    mouthDirective: handoff.mouthDirective || null
-  };
-
-  const userQuestion = handoff.userQuestion || "";
-  const primary = handoff.primary || "general_understanding";
-
-  let finalResponse = "";
-
-  if (handoff.developerHandoff?.reply) {
-    finalResponse = handoff.developerHandoff.reply;
-  } else if (handoff.githubEvidence?.content && primary === "builder") {
-    finalResponse = this.composeFromGithubEvidence({
-  userMessage: userQuestion,
-  githubEvidence: handoff.githubEvidence
-})?.finalResponse;
-  } else if (handoff.situationNarrative || handoff.situationThesis) {
-    finalResponse = this.localFallback({
-      summary: {},
-      primary,
-      contract,
-      thesis: {
-        available: Boolean(handoff.situationThesis || handoff.situationNarrative),
-        thesis: handoff.situationThesis,
-        narrative: handoff.situationNarrative,
-        recommendedUse: handoff.thesisRecommendedUse,
-        mustUse: handoff.thesisRecommendedUse === "use_as_situation_blueprint"
-      },
-      userQuestion
-    });
-  } else {
-    finalResponse = this.localFallback({
-      summary: {},
-      primary,
-      contract,
-      thesis: {},
-      userQuestion
-    });
-  }
-
-  if (
-    finalResponse === "Yeah. I’m here. Tell me what’s going on." &&
-    userQuestion
+  resolveBudget(
+    context = {}
   ) {
-    finalResponse = `I received the handoff, but composer failed to use it. Diagnostic: ${userQuestion}`;
-  }
+    const instructions =
+      context.realization
+        ?.composerInstructions ||
+      {};
 
-  return {
-    languageMode: primary,
-    languageBody: finalResponse,
-    languageSections: [finalResponse],
-    finalResponse,
-    composerVersion: this.version,
-    source: "ari-language-composer",
-    composerUsedAI: false,
-    composerValidation: "composer_handoff_locked",
-    composerDebug: {
-      usedComposerHandoff: true,
-      handoff
+    const communicationPlan =
+      context.languageGuidance
+        ?.communicationPlan ||
+      {};
+
+    const languageBudget =
+      communicationPlan
+        .languageBudget ||
+      {};
+
+    const sentenceRules =
+      communicationPlan
+        .sentenceRules ||
+      {};
+
+    return {
+      maximumSentences:
+        this.firstFiniteNumber([
+          instructions
+            .maximumSentences,
+          sentenceRules
+            .maxSentences,
+          languageBudget
+            .maxSentences,
+          null
+        ]),
+
+      maximumWords:
+        this.firstFiniteNumber([
+          instructions
+            .maximumWords,
+          sentenceRules
+            .maxWords,
+          languageBudget
+            .maxWords,
+          null
+        ]),
+
+      maximumParagraphs:
+        this.firstFiniteNumber([
+          instructions
+            .maximumParagraphs,
+          languageBudget
+            .maxParagraphs,
+          null
+        ])
+    };
+  },
+
+  limitParagraphs(
+    text = "",
+    maximum = null
+  ) {
+    const max =
+      Number(
+        maximum
+      );
+
+    if (
+      !Number.isFinite(
+        max
+      ) ||
+      max <=
+        0
+    ) {
+      return text;
     }
-  };
-},
 
-  normalize(text = "") {
-    return String(text || "")
-      .toLowerCase()
-      .replace(/[^\w\s]/g, " ")
-      .replace(/\s+/g, " ")
+    const paragraphs =
+      String(
+        text ||
+        ""
+      )
+        .split(
+          /\n{2,}/
+        )
+        .map(
+          paragraph =>
+            paragraph.trim()
+        )
+        .filter(Boolean);
+
+    if (
+      paragraphs.length <=
+      max
+    ) {
+      return text;
+    }
+
+    return paragraphs
+      .slice(
+        0,
+        max
+      )
+      .join(
+        "\n\n"
+      )
       .trim();
+  },
+
+  limitSentences(
+    text = "",
+    maximum = null
+  ) {
+    const max =
+      Number(
+        maximum
+      );
+
+    if (
+      !Number.isFinite(
+        max
+      ) ||
+      max <=
+        0
+    ) {
+      return text;
+    }
+
+    const sentences =
+      this.splitSentences(
+        text
+      );
+
+    if (
+      sentences.length <=
+      max
+    ) {
+      return text;
+    }
+
+    return sentences
+      .slice(
+        0,
+        max
+      )
+      .join(
+        " "
+      )
+      .trim();
+  },
+
+  limitWordsSafely({
+    text = "",
+    maximumWords = null,
+    structure = {}
+  } = {}) {
+    const max =
+      Number(
+        maximumWords
+      );
+
+    if (
+      !Number.isFinite(
+        max
+      ) ||
+      max <=
+        0
+    ) {
+      return text;
+    }
+
+    const words =
+      this.countWords(
+        text
+      );
+
+    if (
+      words <=
+      max
+    ) {
+      return text;
+    }
+
+    if (
+      structure.containsList ===
+        true ||
+      structure.containsHeading ===
+        true ||
+      structure.containsBlockquote ===
+        true
+    ) {
+      return this.limitStructuredWords(
+        text,
+        max
+      );
+    }
+
+    return this.limitPlainWords(
+      text,
+      max
+    );
+  },
+
+  limitStructuredWords(
+    text = "",
+    maximumWords = 120
+  ) {
+    const lines =
+      String(
+        text ||
+        ""
+      ).split(
+        "\n"
+      );
+
+    const output = [];
+    let used =
+      0;
+
+    for (
+      const line
+      of lines
+    ) {
+      const lineWords =
+        this.countWords(
+          line
+        );
+
+      if (
+        used +
+        lineWords <=
+        maximumWords
+      ) {
+        output.push(
+          line
+        );
+
+        used +=
+          lineWords;
+
+        continue;
+      }
+
+      const remaining =
+        maximumWords -
+        used;
+
+      if (
+        remaining >
+        0
+      ) {
+        const prefixMatch =
+          line.match(
+            /^(\s*(?:[-*+]|\d+[.)]|#{1,6}|>)\s+)/
+          );
+
+        const prefix =
+          prefixMatch?.[1] ||
+          "";
+
+        const body =
+          prefix
+            ? line.slice(
+                prefix.length
+              )
+            : line;
+
+        const limitedBody =
+          this.limitPlainWords(
+            body,
+            remaining
+          );
+
+        if (
+          limitedBody
+        ) {
+          output.push(
+            `${prefix}${limitedBody}`
+          );
+        }
+      }
+
+      break;
+    }
+
+    return output
+      .join(
+        "\n"
+      )
+      .trim();
+  },
+
+  limitPlainWords(
+    text = "",
+    maximumWords = 120
+  ) {
+    const words =
+      String(
+        text ||
+        ""
+      )
+        .trim()
+        .split(
+          /\s+/
+        )
+        .filter(Boolean);
+
+    if (
+      words.length <=
+      maximumWords
+    ) {
+      return text;
+    }
+
+    let limited =
+      words
+        .slice(
+          0,
+          maximumWords
+        )
+        .join(
+          " "
+        )
+        .replace(
+          /[,;:–—-]+$/,
+          ""
+        )
+        .trim();
+
+    if (
+      !/[.!?]$/.test(
+        limited
+      )
+    ) {
+      limited =
+        `${limited}.`;
+    }
+
+    return limited;
+  },
+
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
+
+  validateRenderedResponse({
+    rendering = {},
+    context = {},
+    eligibility = {}
+  } = {}) {
+    const text =
+      this.extractText(
+        rendering.text
+      );
+
+    const errors = [];
+    const warnings = [];
+
+    if (
+      eligibility
+        .realizationAuthorized !==
+      true
+    ) {
+      errors.push(
+        "response_realization_not_authorized"
+      );
+    }
+
+    if (
+      !text
+    ) {
+      errors.push(
+        "rendered_response_empty"
+      );
+    }
+
+    if (
+      text &&
+      text.length <
+        3
+    ) {
+      errors.push(
+        "rendered_response_too_short"
+      );
+    }
+
+    if (
+      this.containsInvalidValue(
+        text
+      )
+    ) {
+      errors.push(
+        "rendered_response_contains_invalid_value"
+      );
+    }
+
+    if (
+      this.containsInternalLanguage(
+        text
+      )
+    ) {
+      errors.push(
+        "rendered_response_contains_internal_language"
+      );
+    }
+
+    if (
+      this.containsWriterFailureMessage(
+        text
+      )
+    ) {
+      errors.push(
+        "rendered_response_contains_writer_failure_message"
+      );
+    }
+
+    if (
+      this.hasUnbalancedCodeFence(
+        text
+      )
+    ) {
+      errors.push(
+        "rendered_response_has_unbalanced_code_fence"
+      );
+    }
+
+    const realizationText =
+      this.extractText(
+        context.realization
+          ?.responseText
+      );
+
+    if (
+      realizationText &&
+      text &&
+      !this.meaningPreservationCheck({
+        sourceText:
+          realizationText,
+
+        renderedText:
+          text
+      })
+    ) {
+      warnings.push(
+        "rendered_response_changed_substantially"
+      );
+    }
+
+    const valid =
+      errors.length ===
+        0 &&
+      Boolean(
+        text
+      );
+
+    return {
+      valid,
+
+      usable:
+        valid,
+
+      authorized:
+        eligibility
+          .realizationAuthorized ===
+        true,
+
+      complete:
+        valid,
+
+      reason:
+        errors[0] ||
+        (
+          warnings.length
+            ? "rendered_response_valid_with_warnings"
+            : "rendered_response_valid"
+        ),
+
+      errors:
+        this.uniqueValues(
+          errors
+        ),
+
+      warnings:
+        this.uniqueValues(
+          warnings
+        ),
+
+      length:
+        text.length,
+
+      wordCount:
+        this.countWords(
+          text
+        ),
+
+      sentenceCount:
+        this.splitSentences(
+          text
+        ).length,
+
+      paragraphCount:
+        this.countParagraphs(
+          text
+        ),
+
+      emojiApplied:
+        rendering.emojiApplied ===
+          true,
+
+      source:
+        this.source
+    };
+  },
+
+  meaningPreservationCheck({
+    sourceText = "",
+    renderedText = ""
+  } = {}) {
+    const source =
+      this.normalizeForComparison(
+        sourceText
+      );
+
+    const rendered =
+      this.normalizeForComparison(
+        renderedText
+      );
+
+    if (
+      !source ||
+      !rendered
+    ) {
+      return false;
+    }
+
+    if (
+      source ===
+      rendered
+    ) {
+      return true;
+    }
+
+    const sourceTerms =
+      new Set(
+        source
+          .split(
+            " "
+          )
+          .filter(
+            term =>
+              term.length >
+              3
+          )
+      );
+
+    const renderedTerms =
+      new Set(
+        rendered
+          .split(
+            " "
+          )
+          .filter(
+            term =>
+              term.length >
+              3
+          )
+      );
+
+    if (
+      !sourceTerms.size
+    ) {
+      return true;
+    }
+
+    let overlap =
+      0;
+
+    sourceTerms.forEach(
+      term => {
+        if (
+          renderedTerms.has(
+            term
+          )
+        ) {
+          overlap +=
+            1;
+        }
+      }
+    );
+
+    return (
+      overlap /
+      sourceTerms.size
+    ) >=
+      0.55;
+  },
+
+  /* =====================================================
+     SUCCESS / FAILURE
+  ===================================================== */
+
+  composeLockedResponse({
+    context = {},
+    eligibility = {}
+  } = {}) {
+    const finalResponse =
+      this.extractText(
+        context.lockedResponse
+      );
+
+    const validation = {
+      valid:
+        Boolean(
+          finalResponse
+        ),
+
+      usable:
+        Boolean(
+          finalResponse
+        ),
+
+      authorized:
+        true,
+
+      complete:
+        Boolean(
+          finalResponse
+        ),
+
+      reason:
+        finalResponse
+          ? "locked_response_preserved"
+          : "locked_response_empty",
+
+      errors:
+        finalResponse
+          ? []
+          : [
+              "locked_response_empty"
+            ],
+
+      warnings:
+        [],
+
+      length:
+        finalResponse.length,
+
+      wordCount:
+        this.countWords(
+          finalResponse
+        ),
+
+      sentenceCount:
+        this.splitSentences(
+          finalResponse
+        ).length,
+
+      paragraphCount:
+        this.countParagraphs(
+          finalResponse
+        ),
+
+      emojiApplied:
+        false,
+
+      source:
+        "locked-authoritative-response"
+    };
+
+    return {
+      schema:
+        "ari_language_composer_result",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      languageComposerRan:
+        false,
+
+      languageComposerInvoked:
+        false,
+
+      languageComposerProducedResponse:
+        Boolean(
+          finalResponse
+        ),
+
+      languageComposerUsable:
+        Boolean(
+          finalResponse
+        ),
+
+      languageComposerAuthorized:
+        Boolean(
+          finalResponse
+        ),
+
+      languageComposerDegraded:
+        false,
+
+      languageComposerSource:
+        "locked-authoritative-response",
+
+      languageComposerVersion:
+        this.version,
+
+      languageMode:
+        "locked_response",
+
+      languageBody:
+        finalResponse,
+
+      languageSections:
+        finalResponse
+          ? [
+              finalResponse
+            ]
+          : [],
+
+      finalResponse,
+
+      source:
+        "locked-authoritative-response",
+
+      reason:
+        eligibility.reason,
+
+      realizationAuthorized:
+        false,
+
+      lockedResponseAuthorized:
+        true,
+
+      composerUsedAI:
+        false,
+
+      composerValidation:
+        validation,
+
+      diagnostics: {
+        mode:
+          "locked_response",
+
+        realizationAvailable:
+          context.realization
+            ?.available ===
+          true,
+
+        emojiApplied:
+          false
+      },
+
+      authority:
+        this.getAuthorityBoundaries()
+    };
+  },
+
+  returnSuccess({
+    context = {},
+    eligibility = {},
+    rendering = {},
+    validation = {}
+  } = {}) {
+    const finalResponse =
+      rendering.text;
+
+    const result = {
+      schema:
+        "ari_language_composer_result",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      languageComposerRan:
+        true,
+
+      languageComposerInvoked:
+        true,
+
+      languageComposerProducedResponse:
+        true,
+
+      languageComposerUsable:
+        true,
+
+      languageComposerAuthorized:
+        true,
+
+      languageComposerDegraded:
+        false,
+
+      languageComposerSource:
+        this.source,
+
+      languageComposerVersion:
+        this.version,
+
+      languageMode:
+        context.realization
+          ?.mode ||
+        "response_realization",
+
+      languageBody:
+        finalResponse,
+
+      languageSections:
+        this.toLanguageSections(
+          finalResponse
+        ),
+
+      finalResponse,
+
+      source:
+        this.source,
+
+      reason:
+        validation.reason,
+
+      realizationAuthorized:
+        true,
+
+      lockedResponseAuthorized:
+        false,
+
+      composerUsedAI:
+        false,
+
+      composerValidation:
+        validation,
+
+      rendering: {
+        changed:
+          rendering.changed ===
+          true,
+
+        emojiApplied:
+          rendering.emojiApplied ===
+          true,
+
+        emoji:
+          rendering.emoji ||
+          "",
+
+        emojiPlacement:
+          rendering
+            .emojiPlacement ||
+          "none",
+
+        emojiReason:
+          rendering.emojiReason ||
+          null,
+
+        structure:
+          rendering.structure ||
+          null
+      },
+
+      diagnostics: {
+        realizationSource:
+          context.realization
+            ?.source ||
+          null,
+
+        realizationMode:
+          context.realization
+            ?.mode ||
+          null,
+
+        originalLength:
+          rendering
+            .originalText
+            ?.length ||
+          0,
+
+        finalLength:
+          finalResponse.length,
+
+        wordCount:
+          validation.wordCount,
+
+        sentenceCount:
+          validation.sentenceCount,
+
+        paragraphCount:
+          validation.paragraphCount,
+
+        emojiApplied:
+          rendering.emojiApplied ===
+          true,
+
+        warnings:
+          validation.warnings ||
+          [],
+
+        errors:
+          validation.errors ||
+          []
+      },
+
+      authority:
+        this.getAuthorityBoundaries()
+    };
+
+    window.Ari
+      .languageComposerState =
+      result;
+
+    return result;
+  },
+
+  returnFailure({
+    reason =
+      "language_composition_failed",
+
+    context =
+      {},
+
+    eligibility =
+      {},
+
+    rendering =
+      null,
+
+    validation =
+      null
+  } = {}) {
+    const result = {
+      schema:
+        "ari_language_composer_result",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      languageComposerRan:
+        false,
+
+      languageComposerInvoked:
+        eligibility.compose ===
+        true,
+
+      languageComposerProducedResponse:
+        false,
+
+      languageComposerUsable:
+        false,
+
+      languageComposerAuthorized:
+        false,
+
+      languageComposerDegraded:
+        true,
+
+      languageComposerSource:
+        this.source,
+
+      languageComposerVersion:
+        this.version,
+
+      languageMode:
+        context.realization
+          ?.mode ||
+        null,
+
+      languageBody:
+        "",
+
+      languageSections:
+        [],
+
+      finalResponse:
+        "",
+
+      source:
+        this.source,
+
+      reason,
+
+      realizationAuthorized:
+        eligibility
+          .realizationAuthorized ===
+        true,
+
+      lockedResponseAuthorized:
+        false,
+
+      composerUsedAI:
+        false,
+
+      composerValidation:
+        validation ||
+        {
+          valid:
+            false,
+
+          usable:
+            false,
+
+          authorized:
+            false,
+
+          complete:
+            false,
+
+          reason,
+
+          errors: [
+            reason
+          ],
+
+          warnings:
+            []
+        },
+
+      rendering,
+
+      diagnostics: {
+        realizationAvailable:
+          context.realization
+            ?.available ===
+          true,
+
+        realizationReady:
+          context.realization
+            ?.ready ===
+          true,
+
+        realizationUsable:
+          context.realization
+            ?.usable ===
+          true,
+
+        realizationResponseAvailable:
+          Boolean(
+            context.realization
+              ?.responseText
+          ),
+
+        reason
+      },
+
+      authority:
+        this.getAuthorityBoundaries()
+    };
+
+    window.Ari
+      .languageComposerState =
+      result;
+
+    return result;
+  },
+
+  /* =====================================================
+     CHARACTER / LANGUAGE / CONTROL
+  ===================================================== */
+
+  readCharacterGuidance({
+    finalComposerPacket = {},
+    summary = {}
+  } = {}) {
+    const packetCharacter =
+      finalComposerPacket
+        ?.character ||
+      {};
+
+    const handoff =
+      packetCharacter.handoff ||
+      summary.characterHandoff ||
+      {};
+
+    return {
+      available:
+        Boolean(
+          Object.keys(
+            packetCharacter
+          ).length ||
+          Object.keys(
+            handoff
+          ).length
+        ),
+
+      emotion:
+        packetCharacter.emotion ||
+        handoff.emotion ||
+        summary.emotion ||
+        null,
+
+      tone:
+        packetCharacter.tone ||
+        handoff.tone ||
+        null,
+
+      warmth:
+        packetCharacter.warmth ||
+        handoff.warmth ||
+        null,
+
+      directness:
+        packetCharacter
+          .directness ||
+        handoff.directness ||
+        null,
+
+      expression:
+        packetCharacter.expression ||
+        handoff.expression ||
+        null
+    };
+  },
+
+  readLanguageGuidance({
+    finalComposerPacket = {},
+    summary = {}
+  } = {}) {
+    const packet =
+      finalComposerPacket
+        ?.languageGuidance ||
+      {};
+
+    return {
+      handoff:
+        packet.handoff ||
+        summary
+          .languageGuidanceHandoff ||
+        null,
+
+      lexicalGrounding:
+        packet.lexicalGrounding ||
+        summary.lexicalGrounding ||
+        null,
+
+      humanLanguageProfile:
+        packet
+          .humanLanguageProfile ||
+        summary
+          .humanLanguageProfile ||
+        null,
+
+      expressionPlan:
+        packet.expressionPlan ||
+        summary.expressionPlan ||
+        null,
+
+      communicationPlan:
+        packet
+          .communicationPlan ||
+        summary.communicationPlan ||
+        null,
+
+      mouthDirective:
+        packet.mouthDirective ||
+        summary.mouthDirective ||
+        null
+    };
+  },
+
+  readResponseControl({
+    finalComposerPacket = {},
+    summary = {},
+    realization = {}
+  } = {}) {
+    const packet =
+      finalComposerPacket
+        ?.responseControl ||
+      {};
+
+    return {
+      goal:
+        packet.goal ||
+        summary.responseGoal ||
+        null,
+
+      shape:
+        packet.shape ||
+        summary.responseShape ||
+        null,
+
+      posture:
+        packet.posture ||
+        summary.responsePosture ||
+        null,
+
+      order:
+        this.toArray(
+          packet.order ||
+          summary.responseOrder
+        ),
+
+      rules:
+        this.toArray(
+          packet.rules ||
+          summary.responseRules
+        ),
+
+      constraints:
+        this.toArray(
+          packet.constraints ||
+          summary
+            .responseConstraints
+        ),
+
+      requiredBehaviors:
+        this.toArray(
+          packet
+            .requiredBehaviors ||
+          summary.responseRequired
+        ),
+
+      forbiddenBehaviors:
+        this.toArray(
+          packet
+            .forbiddenBehaviors ||
+          summary.responseAvoid
+        ),
+
+      composerInstructions:
+        realization
+          .composerInstructions ||
+        null
+    };
+  },
+
+  readSafety({
+    finalComposerPacket = {},
+    summary = {}
+  } = {}) {
+    const packet =
+      finalComposerPacket
+        ?.safety ||
+      {};
+
+    const disposition =
+      packet.disposition ||
+      summary.safetyDisposition ||
+      {};
+
+    const deepReview =
+      packet.deepReview ||
+      summary.deepSafetyResult ||
+      {};
+
+    return {
+      shouldStopNormalResponse:
+        packet
+          .shouldStopNormalResponse ===
+          true ||
+        summary
+          .safetyShouldStopNormalResponse ===
+          true ||
+        disposition
+          .shouldStopNormalResponse ===
+          true ||
+        deepReview
+          .shouldStopNormalResponse ===
+          true,
+
+      severity:
+        disposition.severity ||
+        deepReview.severity ||
+        packet.earlyGate
+          ?.severity ||
+        null,
+
+      disposition,
+
+      deepReview
+    };
+  },
+
+  readRequest({
+    finalComposerPacket = {},
+    summary = {},
+    realization = {}
+  } = {}) {
+    return {
+      turnId:
+        finalComposerPacket
+          ?.request
+          ?.turnId ||
+        realization.raw
+          ?.request
+          ?.turnId ||
+        summary.turnId ||
+        null,
+
+      originalText:
+        this.extractText(
+          finalComposerPacket
+            ?.request
+            ?.originalText ||
+          realization.raw
+            ?.request
+            ?.originalText ||
+          summary.originalUserMessage ||
+          summary.userMessage ||
+          ""
+        ),
+
+      resolvedText:
+        this.extractText(
+          finalComposerPacket
+            ?.request
+            ?.resolvedText ||
+          realization.raw
+            ?.request
+            ?.resolvedText ||
+          summary
+            .resolvedUserQuestion ||
+          summary.userMessage ||
+          ""
+        )
+    };
+  },
+
+  readLockedResponse({
+    input = {},
+    finalComposerPacket = {},
+    summary = {}
+  } = {}) {
+    const locked =
+      summary
+        .developerResponseLocked ===
+        true ||
+      summary.responseLocked ===
+        true ||
+      finalComposerPacket
+        ?.developer
+        ?.locked ===
+        true;
+
+    if (
+      !locked
+    ) {
+      return "";
+    }
+
+    return this.extractText(
+      input.lockedResponse ||
+      finalComposerPacket
+        ?.developer
+        ?.lockedReply ||
+      finalComposerPacket
+        ?.lockedDeveloperReply ||
+      summary.lockedDeveloperReply ||
+      summary.finalResponse ||
+      summary.developerHandoff
+        ?.reply ||
+      summary.developerHandoff
+        ?.finalResponse ||
+      summary.developerReply ||
+      summary.developerResponse ||
+      ""
+    );
+  },
+
+  /* =====================================================
+     STRUCTURE
+  ===================================================== */
+
+  inspectTextStructure(
+    text = ""
+  ) {
+    const value =
+      String(
+        text ||
+        ""
+      );
+
+    const containsFencedCode =
+      /```[\s\S]*?```/.test(
+        value
+      );
+
+    const containsMarkdownTable =
+      /^\s*\|.*\|\s*$/m.test(
+        value
+      ) &&
+      /^\s*\|?\s*:?-{3,}/m.test(
+        value
+      );
+
+    const containsList =
+      /^\s*(?:[-*+]|\d+[.)])\s+/m
+        .test(
+          value
+        );
+
+    const containsHeading =
+      /^\s*#{1,6}\s+/m.test(
+        value
+      );
+
+    const containsBlockquote =
+      /^\s*>\s+/m.test(
+        value
+      );
+
+    const containsMultipleParagraphs =
+      /\n{2,}/.test(
+        value
+      );
+
+    const preserveLineStructure =
+      containsFencedCode ||
+      containsMarkdownTable ||
+      containsList ||
+      containsHeading ||
+      containsBlockquote ||
+      containsMultipleParagraphs;
+
+    return {
+      containsFencedCode,
+
+      containsMarkdownTable,
+
+      containsList,
+
+      containsHeading,
+
+      containsBlockquote,
+
+      containsMultipleParagraphs,
+
+      preserveLineStructure
+    };
+  },
+
+  normalizeWhitespace({
+    text = "",
+    preserveLineStructure = false
+  } = {}) {
+    const value =
+      String(
+        text ||
+        ""
+      )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .replace(
+          /[ \t]+$/gm,
+          ""
+        )
+        .replace(
+          /\n{4,}/g,
+          "\n\n\n"
+        )
+        .trim();
+
+    if (
+      preserveLineStructure
+    ) {
+      return value;
+    }
+
+    return value
+      .replace(
+        /[ \t]+/g,
+        " "
+      )
+      .replace(
+        /\n+/g,
+        " "
+      )
+      .replace(
+        /\s+([,.!?;:])/g,
+        "$1"
+      )
+      .trim();
+  },
+
+  finalPolish({
+    text = "",
+    structure = {}
+  } = {}) {
+    let value =
+      String(
+        text ||
+        ""
+      )
+        .replace(
+          /\r\n?/g,
+          "\n"
+        )
+        .replace(
+          /[ \t]+$/gm,
+          ""
+        )
+        .replace(
+          /\n{4,}/g,
+          "\n\n\n"
+        )
+        .trim();
+
+    if (
+      structure
+        .containsFencedCode !==
+      true
+    ) {
+      value =
+        value
+          .replace(
+            /[ \t]{2,}/g,
+            " "
+          )
+          .replace(
+            /\s+([,.!?;:])/g,
+            "$1"
+          );
+    }
+
+    return value.trim();
+  },
+
+  toLanguageSections(
+    text = ""
+  ) {
+    const value =
+      String(
+        text ||
+        ""
+      ).trim();
+
+    if (
+      !value
+    ) {
+      return [];
+    }
+
+    const sections =
+      value
+        .split(
+          /\n{2,}/
+        )
+        .map(
+          section =>
+            section.trim()
+        )
+        .filter(Boolean);
+
+    return sections.length
+      ? sections
+      : [
+          value
+        ];
+  },
+
+  /* =====================================================
+     VALIDATION HELPERS
+  ===================================================== */
+
+  containsInvalidValue(
+    text = ""
+  ) {
+    return /\b(?:undefined|null|\[object object\])\b/i
+      .test(
+        String(
+          text ||
+          ""
+        )
+      );
+  },
+
+  containsInternalLanguage(
+    text = ""
+  ) {
+    const normalized =
+      this.normalizeText(
+        text
+      );
+
+    const phrases = [
+      "canonical response plan",
+      "response planner",
+      "response move",
+      "response shape",
+      "response contract",
+      "composer packet",
+      "composer bridge",
+      "blueprint writer",
+      "ai writer",
+      "candidate arbiter",
+      "response candidate arbiter",
+      "response realization engine",
+      "realization packet",
+      "pipeline diagnostic",
+      "pipeline stage",
+      "internal planner",
+      "according to the packet",
+      "according to the response plan"
+    ];
+
+    return phrases.some(
+      phrase =>
+        normalized.includes(
+          phrase
+        )
+    );
+  },
+
+  containsWriterFailureMessage(
+    text = ""
+  ) {
+    const normalized =
+      this.normalizeText(
+        text
+      );
+
+    const phrases = [
+      "the ai draft was unavailable",
+      "ai draft unavailable",
+      "the writer was unavailable",
+      "no usable response candidate",
+      "composer packet missing",
+      "ai writer not loaded",
+      "blueprint writer not loaded",
+      "response realization engine failed",
+      "realization packet missing",
+      "the response generator failed",
+      "i cannot generate the response",
+      "composer failed to use it"
+    ];
+
+    return phrases.some(
+      phrase =>
+        normalized.includes(
+          phrase
+        )
+    );
+  },
+
+  hasUnbalancedCodeFence(
+    text = ""
+  ) {
+    const count =
+      (
+        String(
+          text ||
+          ""
+        ).match(
+          /```/g
+        ) ||
+        []
+      ).length;
+
+    return count %
+      2 !==
+      0;
+  },
+
+  textAlreadyEndsWithEmoji(
+    text = ""
+  ) {
+    return /[\p{Extended_Pictographic}\uFE0F]\s*$/u
+      .test(
+        String(
+          text ||
+          ""
+        )
+      );
+  },
+
+  /* =====================================================
+     EMOJI NORMALIZATION
+  ===================================================== */
+
+  normalizeSuggestedEmoji(
+    value = ""
+  ) {
+    const emoji =
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+    if (
+      !emoji
+    ) {
+      return "";
+    }
+
+    if (
+      emoji.length >
+      16
+    ) {
+      return "";
+    }
+
+    if (
+      /[a-z0-9]/i.test(
+        emoji
+      )
+    ) {
+      return "";
+    }
+
+    if (
+      !/[\p{Extended_Pictographic}\uFE0F]/u
+        .test(
+          emoji
+        )
+    ) {
+      return "";
+    }
+
+    return emoji;
+  },
+
+  normalizeEmojiPlacement({
+    placement = "none",
+    emoji = ""
+  } = {}) {
+    if (
+      !emoji
+    ) {
+      return "none";
+    }
+
+    const value =
+      this.normalizeIdentifier(
+        placement
+      );
+
+    if (
+      value ===
+      "start"
+    ) {
+      return "start";
+    }
+
+    if (
+      value ===
+      "end"
+    ) {
+      return "end";
+    }
+
+    return "none";
+  },
+
+  /* =====================================================
+     AUTHORITY
+  ===================================================== */
+
+  getAuthorityBoundaries() {
+    return {
+      canReadResponseRealization:
+        true,
+
+      canPreserveRealizationText:
+        true,
+
+      canApplyBoundedNaturalization:
+        true,
+
+      canApplyPresentationBudget:
+        true,
+
+      canPreserveMarkdown:
+        true,
+
+      canPreserveCode:
+        true,
+
+      canApplySuggestedEmoji:
+        true,
+
+      canValidateRenderedResponse:
+        true,
+
+      canReturnFinalComposerResult:
+        true,
+
+      canCallOpenAI:
+        false,
+
+      canUseGeneralModelKnowledge:
+        false,
+
+      canAnswerUserIndependently:
+        false,
+
+      canChooseResponseStrategy:
+        false,
+
+      canChangeResponseGoal:
+        false,
+
+      canCreateResponseMoves:
+        false,
+
+      canInterpretMeaning:
+        false,
+
+      canRunBlueprintWriter:
+        false,
+
+      canRunAIWriter:
+        false,
+
+      canCreateCandidates:
+        false,
+
+      canArbitrateCandidates:
+        false,
+
+      canInspectGithubEvidence:
+        false,
+
+      canCreateArtifactPatch:
+        false,
+
+      canCreateSafetyResponse:
+        false,
+
+      canOverrideSafety:
+        false,
+
+      canRetrieveMemory:
+        false,
+
+      canPersistMemory:
+        false,
+
+      canExecuteActions:
+        false,
+
+      canPersistState:
+        false,
+
+      role:
+        "realization_native_final_language_renderer"
+    };
+  },
+
+  /* =====================================================
+     GENERAL UTILITIES
+  ===================================================== */
+
+  firstObject(
+    ...values
+  ) {
+    return (
+      values.find(
+        value =>
+          value &&
+          typeof value ===
+            "object" &&
+          !Array.isArray(
+            value
+          )
+      ) ||
+      {}
+    );
+  },
+
+  firstFiniteNumber(
+    values = []
+  ) {
+    for (
+      const value
+      of this.toArray(
+        values
+      )
+    ) {
+      if (
+        value ===
+          null ||
+        value ===
+          undefined ||
+        value ===
+          ""
+      ) {
+        continue;
+      }
+
+      const number =
+        Number(
+          value
+        );
+
+      if (
+        Number.isFinite(
+          number
+        ) &&
+        number >
+          0
+      ) {
+        return number;
+      }
+    }
+
+    return null;
+  },
+
+  extractText(
+    value = null
+  ) {
+    if (
+      value ===
+        null ||
+      value ===
+        undefined
+    ) {
+      return "";
+    }
+
+    if (
+      typeof value ===
+        "string"
+    ) {
+      return value.trim();
+    }
+
+    if (
+      typeof value ===
+        "number" ||
+      typeof value ===
+        "boolean"
+    ) {
+      return String(
+        value
+      ).trim();
+    }
+
+    if (
+      typeof value ===
+        "object"
+    ) {
+      return this.extractText(
+        value.text ||
+        value.responseText ||
+        value.finalResponse ||
+        value.languageBody ||
+        value.response ||
+        value.reply ||
+        value.content ||
+        value.draft ||
+        ""
+      );
+    }
+
+    return "";
+  },
+
+  cleanInlineText(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  },
+
+  toArray(
+    value
+  ) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
+      return value.filter(
+        item =>
+          item !==
+            null &&
+          item !==
+            undefined &&
+          item !==
+            ""
+      );
+    }
+
+    if (
+      value ===
+        null ||
+      value ===
+        undefined ||
+      value ===
+        ""
+    ) {
+      return [];
+    }
+
+    return [
+      value
+    ];
+  },
+
+  uniqueValues(
+    values = []
+  ) {
+    const output = [];
+    const seen =
+      new Set();
+
+    this.toArray(
+      values
+    ).forEach(
+      value => {
+        const key =
+          typeof value ===
+            "string"
+            ? value
+            : JSON.stringify(
+                value
+              );
+
+        if (
+          !key ||
+          seen.has(
+            key
+          )
+        ) {
+          return;
+        }
+
+        seen.add(
+          key
+        );
+
+        output.push(
+          value
+        );
+      }
+    );
+
+    return output;
+  },
+
+  splitSentences(
+    value = ""
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      )
+        .replace(
+          /\n+/g,
+          " "
+        )
+        .trim();
+
+    if (
+      !text
+    ) {
+      return [];
+    }
+
+    return text
+      .split(
+        /(?<=[.!?])\s+/
+      )
+      .map(
+        sentence =>
+          sentence.trim()
+      )
+      .filter(Boolean);
+  },
+
+  countWords(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .split(
+        /\s+/
+      )
+      .filter(Boolean)
+      .length;
+  },
+
+  countParagraphs(
+    value = ""
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      ).trim();
+
+    if (
+      !text
+    ) {
+      return 0;
+    }
+
+    return text
+      .split(
+        /\n{2,}/
+      )
+      .map(
+        paragraph =>
+          paragraph.trim()
+      )
+      .filter(Boolean)
+      .length;
+  },
+
+  normalizeText(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .toLowerCase()
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /[_-]/g,
+        " "
+      )
+      .replace(
+        /[^\w\s']/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  },
+
+  normalizeForComparison(
+    value = ""
+  ) {
+    return this.normalizeText(
+      value
+    )
+      .replace(
+        /\b(?:a|an|the|and|or|but|to|of|in|on|for|with)\b/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  },
+
+  normalizeIdentifier(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .toLowerCase()
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /[^a-z0-9]+/g,
+        "_"
+      )
+      .replace(
+        /^_+|_+$/g,
+        ""
+      );
   }
 };
 
+window.Ari.languageComposer =
+  window.AriLanguageComposer;
+
 console.log(
   "ARI LANGUAGE COMPOSER LOADED:",
-  window.AriLanguageComposer?.version
+  window.AriLanguageComposer
+    ?.version
 );
