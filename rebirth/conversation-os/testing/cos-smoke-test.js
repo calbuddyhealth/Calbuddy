@@ -2,14 +2,16 @@
 // ARI Rebirth — Conversation Operating System Smoke Test
 //
 // Purpose:
-// Run a compact deterministic validation suite against the installed
-// Conversation Operating System.
+// Run a compact but meaningful deterministic validation suite against the
+// installed Conversation Operating System.
 //
-// V1.0.0 — Canonical COS Installation and Runtime Smoke Test
+// V2.0.0 — Integrated COS Runtime, Persistence, Migration, and Authority Test
 //
 // Test coverage:
 //
 // - COS installation readiness
+// - canonical empty-state shape
+// - auxiliary continuity-state presence
 // - empty-conversation placement
 // - active-thread continuation
 // - explicit reply-to-turn resolution
@@ -19,11 +21,14 @@
 // - explicit branch placement
 // - explicit interruption placement
 // - return-from-interruption placement
-// - unknown-reference rejection
+// - unresolved-reference preservation
 // - duplicate-turn rejection
-// - authoritative packet shape
-// - state persistence across turns
-// - authority-boundary preservation
+// - authoritative packet boundaries
+// - state revision progression
+// - real state-store save and load
+// - controller persistence across discarded local state
+// - legacy-state migration
+// - Rebirth integration authority preservation when installed
 //
 // Non-responsibility:
 //
@@ -33,7 +38,8 @@
 // - provide semantic interpretation,
 // - guess references,
 // - repair failed placements,
-// - alter production state outside test execution.
+// - alter production state outside isolated test conversations,
+// - silently convert failures into passes.
 //
 // Browser namespace:
 //
@@ -64,9 +70,14 @@
   root.Ari.Rebirth = root.Ari.Rebirth || {};
   root.Ari.Rebirth.ConversationOS =
     root.Ari.Rebirth.ConversationOS || {};
+  root.Ari.Rebirth.Integration =
+    root.Ari.Rebirth.Integration || {};
 
   const ConversationOS =
     root.Ari.Rebirth.ConversationOS;
+
+  const Integration =
+    root.Ari.Rebirth.Integration;
 
   ConversationOS.testing =
     ConversationOS.testing || {};
@@ -75,7 +86,7 @@
      CONSTANTS
   ===================================================== */
 
-  const VERSION = "1.0.0";
+  const VERSION = "2.0.0";
   const SCHEMA_VERSION = "1.0.0";
 
   const AUTHORITY =
@@ -84,8 +95,41 @@
   const COMPONENT_NAME =
     "cos-smoke-test";
 
+  const SMOKE_RESULT_TYPE =
+    "conversation_operating_system_smoke_test_result";
+
   const PACKET_TYPE =
     "authoritative_conversation_placement_packet";
+
+  const DEFAULT_STORAGE_ADAPTER =
+    "memory";
+
+  const REQUIRED_PACKET_KEYS =
+    Object.freeze([
+      "schemaVersion",
+      "authority",
+      "packetType",
+      "conversationId",
+      "currentTurn",
+      "placement",
+      "referenceResolution"
+    ]);
+
+  const FORBIDDEN_PACKET_KEYS =
+    Object.freeze([
+      "semanticMeaning",
+      "semanticFrame",
+      "intent",
+      "emotion",
+      "safety",
+      "safetySeverity",
+      "responsePlan",
+      "responseText",
+      "generatedResponse",
+      "modelPrompt",
+      "confidence",
+      "candidates"
+    ]);
 
   /* =====================================================
      ERROR TYPE
@@ -96,6 +140,7 @@
       code,
       message,
       {
+        test = null,
         details = null,
         cause = null
       } = {}
@@ -113,8 +158,14 @@
         code ||
         "COS_SMOKE_TEST_ERROR";
 
-      this.details = details;
-      this.cause = cause;
+      this.test =
+        test || null;
+
+      this.details =
+        details;
+
+      this.cause =
+        cause;
 
       if (
         Error.captureStackTrace &&
@@ -156,6 +207,16 @@
     );
   }
 
+  function firstDefined(...values) {
+    for (const value of values) {
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
   function firstNonEmptyString(...values) {
     for (const value of values) {
       if (isNonEmptyString(value)) {
@@ -164,6 +225,58 @@
     }
 
     return null;
+  }
+
+  function asArray(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return [];
+    }
+
+    return [value];
+  }
+
+  function uniqueStrings(values = []) {
+    const output = [];
+    const seen = new Set();
+
+    for (const value of asArray(values)) {
+      if (!isNonEmptyString(value)) {
+        continue;
+      }
+
+      const normalized =
+        value.trim();
+
+      if (seen.has(normalized)) {
+        continue;
+      }
+
+      seen.add(normalized);
+      output.push(normalized);
+    }
+
+    return output;
+  }
+
+  function normalizeInteger(
+    value,
+    fallback = 0
+  ) {
+    const numeric =
+      Number(value);
+
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+
+    return Math.trunc(numeric);
   }
 
   function safeClone(value) {
@@ -194,15 +307,61 @@
     }
   }
 
+  function deepFreeze(
+    value,
+    seen = new WeakSet()
+  ) {
+    if (
+      value === null ||
+      typeof value !== "object"
+    ) {
+      return value;
+    }
+
+    if (seen.has(value)) {
+      return value;
+    }
+
+    seen.add(value);
+
+    for (
+      const key of Reflect.ownKeys(value)
+    ) {
+      const child =
+        value[key];
+
+      if (
+        child !== null &&
+        typeof child === "object"
+      ) {
+        deepFreeze(
+          child,
+          seen
+        );
+      }
+    }
+
+    return Object.freeze(value);
+  }
+
+  function freezeClone(value) {
+    return deepFreeze(
+      safeClone(value)
+    );
+  }
+
   function nowIso() {
     return new Date().toISOString();
   }
 
   function nowMs() {
     if (
-      typeof performance !== "undefined" &&
+      typeof performance !==
+        "undefined" &&
       performance &&
-      isFunction(performance.now)
+      isFunction(
+        performance.now
+      )
     ) {
       return performance.now();
     }
@@ -217,19 +376,56 @@
     return Number.isFinite(elapsed)
       ? Math.max(
           0,
-          Math.round(elapsed * 1000) / 1000
+          Math.round(
+            elapsed * 1000
+          ) / 1000
         )
       : 0;
   }
 
-  function createId(prefix = "test") {
+  function hasOwn(
+    object,
+    property
+  ) {
+    return Object.prototype
+      .hasOwnProperty
+      .call(
+        object,
+        property
+      );
+  }
+
+  function createId(
+    prefix = "test"
+  ) {
     const time =
       Date.now().toString(36);
 
-    const random =
-      Math.random()
-        .toString(36)
-        .slice(2, 10);
+    let random = "";
+
+    if (
+      typeof crypto !== "undefined" &&
+      crypto &&
+      isFunction(
+        crypto.getRandomValues
+      )
+    ) {
+      const values =
+        new Uint32Array(2);
+
+      crypto.getRandomValues(
+        values
+      );
+
+      random =
+        values[0].toString(36) +
+        values[1].toString(36);
+    } else {
+      random =
+        Math.random()
+          .toString(36)
+          .slice(2, 12);
+    }
 
     return `${prefix}_${time}_${random}`;
   }
@@ -243,17 +439,41 @@
         code:
           firstNonEmptyString(
             error.code
-          ) || "COS_SMOKE_TEST_ERROR",
+          ) ||
+          "COS_SMOKE_TEST_ERROR",
 
         message:
           error.message ||
-          "Unknown smoke test error",
+          "Unknown smoke-test error",
+
+        test:
+          firstNonEmptyString(
+            error.test
+          ) || null,
 
         details:
           error.details === undefined
             ? null
             : safeClone(
                 error.details
+              ),
+
+        cause:
+          error.cause instanceof Error
+            ? {
+                name:
+                  error.cause.name,
+
+                code:
+                  firstNonEmptyString(
+                    error.cause.code
+                  ) || null,
+
+                message:
+                  error.cause.message
+              }
+            : safeClone(
+                error.cause
               )
       };
     }
@@ -267,11 +487,29 @@
       message:
         isNonEmptyString(error)
           ? error
-          : "Unknown smoke test error",
+          : "Unknown smoke-test error",
+
+      test: null,
 
       details:
-        safeClone(error)
+        safeClone(error),
+
+      cause: null
     };
+  }
+
+  function deepEquivalent(
+    left,
+    right
+  ) {
+    try {
+      return (
+        JSON.stringify(left) ===
+        JSON.stringify(right)
+      );
+    } catch (error) {
+      return left === right;
+    }
   }
 
   /* =====================================================
@@ -304,37 +542,38 @@
     assert(
       actual === expected,
       message ||
-        `Expected ${String(expected)} but received ${String(actual)}.`,
+        `Expected ${String(
+          expected
+        )} but received ${String(
+          actual
+        )}.`,
       {
-        actual,
-        expected
+        actual:
+          safeClone(actual),
+
+        expected:
+          safeClone(expected)
       }
     );
   }
 
-  function assertArrayIncludes(
-    array,
-    expected,
+  function assertNotEqual(
+    actual,
+    unexpected,
     message
   ) {
     assert(
-      Array.isArray(array),
+      actual !== unexpected,
       message ||
-        "Expected an array.",
+        `Did not expect ${String(
+          unexpected
+        )}.`,
       {
         actual:
-          safeClone(array)
-      }
-    );
+          safeClone(actual),
 
-    assert(
-      array.includes(expected),
-      message ||
-        `Expected array to include ${String(expected)}.`,
-      {
-        actual:
-          safeClone(array),
-        expected
+        unexpected:
+          safeClone(unexpected)
       }
     );
   }
@@ -350,6 +589,84 @@
       {
         actual:
           safeClone(value)
+      }
+    );
+  }
+
+  function assertArray(
+    value,
+    message
+  ) {
+    assert(
+      Array.isArray(value),
+      message ||
+        "Expected an array.",
+      {
+        actual:
+          safeClone(value)
+      }
+    );
+  }
+
+  function assertArrayIncludes(
+    array,
+    expected,
+    message
+  ) {
+    assertArray(
+      array,
+      message ||
+        "Expected an array."
+    );
+
+    assert(
+      array.includes(expected),
+      message ||
+        `Expected array to include ${String(
+          expected
+        )}.`,
+      {
+        actual:
+          safeClone(array),
+
+        expected:
+          safeClone(expected)
+      }
+    );
+  }
+
+  function assertNonEmptyString(
+    value,
+    message
+  ) {
+    assert(
+      isNonEmptyString(value),
+      message ||
+        "Expected a non-empty string.",
+      {
+        actual:
+          safeClone(value)
+      }
+    );
+  }
+
+  function assertGreaterThan(
+    actual,
+    minimum,
+    message
+  ) {
+    assert(
+      Number(actual) >
+        Number(minimum),
+      message ||
+        `Expected ${String(
+          actual
+        )} to be greater than ${String(
+          minimum
+        )}.`,
+      {
+        actual,
+        minimum
       }
     );
   }
@@ -376,39 +693,128 @@
     );
   }
 
-  function resolveRun(conversationOS) {
-    if (isFunction(conversationOS)) {
-      return conversationOS.bind(
-        conversationOS
+  function resolveController(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.controller ||
+      ConversationOS.cosController ||
+      root.AriCosController ||
+      null
+    );
+  }
+
+  function resolveStateComponent(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.state ||
+      ConversationOS.cosState ||
+      root.AriCosState ||
+      null
+    );
+  }
+
+  function resolveStateStore(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.stateStore ||
+      ConversationOS.cosStateStore ||
+      root.AriCosStateStore ||
+      null
+    );
+  }
+
+  function resolveStateMigrator(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.stateMigrator ||
+      ConversationOS.cosStateMigrator ||
+      root.AriCosStateMigrator ||
+      null
+    );
+  }
+
+  function resolveIntegrationStage(
+    override = null
+  ) {
+    return (
+      override ||
+      Integration.conversationOSStage ||
+      Integration.cosStage ||
+      Integration
+        .rebirthConversationOSStage ||
+      root
+        .AriRebirthConversationOSStage ||
+      null
+    );
+  }
+
+  function resolveCallable(
+    component,
+    methods,
+    errorCode,
+    errorMessage
+  ) {
+    if (isFunction(component)) {
+      return component.bind(
+        component
       );
     }
 
-    for (
-      const method of [
-        "run",
-        "execute",
-        "process"
-      ]
-    ) {
-      if (
-        conversationOS &&
-        isFunction(
-          conversationOS[method]
-        )
-      ) {
-        return conversationOS[
-          method
-        ].bind(conversationOS);
+    if (component) {
+      for (const method of methods) {
+        if (
+          isFunction(
+            component[method]
+          )
+        ) {
+          return component[
+            method
+          ].bind(component);
+        }
       }
     }
 
     throw new CosSmokeTestError(
+      errorCode,
+      errorMessage,
+      {
+        details: {
+          methods
+        }
+      }
+    );
+  }
+
+  function resolveRun(
+    conversationOS
+  ) {
+    return resolveCallable(
+      conversationOS,
+      [
+        "run",
+        "execute",
+        "process"
+      ],
       "COS_SMOKE_RUNTIME_UNAVAILABLE",
       "Conversation Operating System does not expose a callable run method."
     );
   }
 
-  function resolveInspect(conversationOS) {
+  function resolveInspect(
+    conversationOS
+  ) {
+    if (!conversationOS) {
+      return null;
+    }
+
     for (
       const method of [
         "inspect",
@@ -417,14 +823,15 @@
       ]
     ) {
       if (
-        conversationOS &&
         isFunction(
           conversationOS[method]
         )
       ) {
         return conversationOS[
           method
-        ].bind(conversationOS);
+        ].bind(
+          conversationOS
+        );
       }
     }
 
@@ -432,7 +839,7 @@
   }
 
   /* =====================================================
-     TEST DATA HELPERS
+     TEST DATA
   ===================================================== */
 
   function createTurn({
@@ -457,6 +864,7 @@
       role,
       text,
       sequence,
+
       timestamp:
         nowIso(),
 
@@ -536,7 +944,7 @@
   ) {
     const placement =
       packet &&
-      packet.placement
+      isObject(packet.placement)
         ? packet.placement
         : {};
 
@@ -549,39 +957,256 @@
         threadId:
           firstNonEmptyString(
             placement.threadId,
+            placement.thread_id,
             turn.threadId
           ) || null,
 
         parentTurnId:
           firstNonEmptyString(
             placement.parentTurnId,
+            placement.parent_turn_id,
             turn.parentTurnId
           ) || null,
 
         sourceTurnIds:
-          Array.isArray(
-            placement.sourceTurnIds
-          )
-            ? [
-                ...placement
-                  .sourceTurnIds
-              ]
-            : Array.isArray(
-                turn.sourceTurnIds
-              )
-              ? [
-                  ...turn.sourceTurnIds
-                ]
-              : []
+          uniqueStrings([
+            ...asArray(
+              placement.sourceTurnIds
+            ),
+
+            ...asArray(
+              placement.source_turn_ids
+            ),
+
+            ...asArray(
+              turn.sourceTurnIds
+            )
+          ])
       }
     ];
+  }
+
+  function createLegacyState(
+    conversationId
+  ) {
+    const timestamp =
+      nowIso();
+
+    return {
+      schemaVersion:
+        "0.0.0",
+
+      conversation_id:
+        conversationId,
+
+      state_revision: 3,
+
+      active_thread_id:
+        "legacy_thread_1",
+
+      active_turn_id:
+        "legacy_turn_1",
+
+      turns: {
+        legacy_turn_1: {
+          id:
+            "legacy_turn_1",
+
+          speaker:
+            "user",
+
+          message:
+            "Legacy state turn.",
+
+          sequence: 0,
+
+          thread_id:
+            "legacy_thread_1",
+
+          created_at:
+            timestamp
+        }
+      },
+
+      threads: {
+        legacy_thread_1: {
+          id:
+            "legacy_thread_1",
+
+          status:
+            "active",
+
+          turn_ids: [
+            "legacy_turn_1"
+          ],
+
+          first_turn_id:
+            "legacy_turn_1",
+
+          last_turn_id:
+            "legacy_turn_1",
+
+          created_at:
+            timestamp
+        }
+      },
+
+      thread_stack: [
+        "legacy_thread_1"
+      ],
+
+      interruption_stack: [],
+
+      created_at:
+        timestamp,
+
+      updated_at:
+        timestamp
+    };
+  }
+
+  /* =====================================================
+     RESULT READERS
+  ===================================================== */
+
+  function readPlacementType(
+    packetOrResult
+  ) {
+    const placement =
+      packetOrResult &&
+      isObject(
+        packetOrResult.placement
+      )
+        ? packetOrResult.placement
+        : packetOrResult &&
+          packetOrResult.packet &&
+          isObject(
+            packetOrResult
+              .packet.placement
+          )
+          ? packetOrResult
+              .packet.placement
+          : {};
+
+    return firstNonEmptyString(
+      placement.type,
+      placement.placementType,
+      placement.placement_type
+    );
+  }
+
+  function readPlacementThreadId(
+    packetOrResult
+  ) {
+    const placement =
+      packetOrResult &&
+      isObject(
+        packetOrResult.placement
+      )
+        ? packetOrResult.placement
+        : packetOrResult &&
+          packetOrResult.packet &&
+          isObject(
+            packetOrResult
+              .packet.placement
+          )
+          ? packetOrResult
+              .packet.placement
+          : {};
+
+    return firstNonEmptyString(
+      placement.threadId,
+      placement.thread_id
+    );
+  }
+
+  function readPlacementParentTurnId(
+    packetOrResult
+  ) {
+    const placement =
+      packetOrResult &&
+      isObject(
+        packetOrResult.placement
+      )
+        ? packetOrResult.placement
+        : packetOrResult &&
+          packetOrResult.packet &&
+          isObject(
+            packetOrResult
+              .packet.placement
+          )
+          ? packetOrResult
+              .packet.placement
+          : {};
+
+    return firstNonEmptyString(
+      placement.parentTurnId,
+      placement.parent_turn_id
+    );
+  }
+
+  function readReferenceResolution(
+    result
+  ) {
+    if (
+      result &&
+      isObject(
+        result.referenceResolution
+      )
+    ) {
+      return result
+        .referenceResolution;
+    }
+
+    if (
+      result &&
+      result.packet &&
+      isObject(
+        result.packet
+          .referenceResolution
+      )
+    ) {
+      return result.packet
+        .referenceResolution;
+    }
+
+    return null;
+  }
+
+  function readInspectionReady(
+    inspection
+  ) {
+    if (!isObject(inspection)) {
+      return false;
+    }
+
+    if (
+      typeof inspection.ready ===
+      "boolean"
+    ) {
+      return inspection.ready;
+    }
+
+    if (
+      typeof inspection.ok ===
+      "boolean"
+    ) {
+      return inspection.ok;
+    }
+
+    return (
+      inspection.status ===
+      "ready"
+    );
   }
 
   /* =====================================================
      RESULT ASSERTIONS
   ===================================================== */
 
-  function assertSuccess(result) {
+  function assertSuccess(
+    result
+  ) {
     assertObject(
       result,
       "COS result must be an object."
@@ -604,11 +1229,61 @@
     );
   }
 
-  function assertPacketShape(packet) {
+  function assertStructuredFailure(
+    result,
+    message
+  ) {
+    assertObject(
+      result,
+      message ||
+        "Expected a structured COS failure result."
+    );
+
+    assertEqual(
+      result.ok,
+      false,
+      message ||
+        "COS execution should fail."
+    );
+
+    assertArray(
+      result.errors,
+      "COS failure must expose an errors array."
+    );
+
+    assertGreaterThan(
+      result.errors.length,
+      0,
+      "COS failure must expose at least one error."
+    );
+  }
+
+  function assertPacketShape(
+    packet
+  ) {
     assertObject(
       packet,
       "Packet must be an object."
     );
+
+    for (
+      const requiredKey of
+        REQUIRED_PACKET_KEYS
+    ) {
+      assert(
+        hasOwn(
+          packet,
+          requiredKey
+        ),
+        `Packet is missing required field: ${requiredKey}`,
+        {
+          requiredKey,
+
+          actualKeys:
+            Object.keys(packet)
+        }
+      );
+    }
 
     assertEqual(
       packet.schemaVersion,
@@ -617,15 +1292,15 @@
     );
 
     assertEqual(
-      packet.packetType,
-      PACKET_TYPE,
-      "Packet type mismatch."
-    );
-
-    assertEqual(
       packet.authority,
       AUTHORITY,
       "Packet authority mismatch."
+    );
+
+    assertEqual(
+      packet.packetType,
+      PACKET_TYPE,
+      "Packet type mismatch."
     );
 
     assertObject(
@@ -643,48 +1318,81 @@
       "Packet requires referenceResolution."
     );
 
-    const topLevelKeys =
-      Object.keys(packet).sort();
+    for (
+      const forbiddenKey of
+        FORBIDDEN_PACKET_KEYS
+    ) {
+      assert(
+        !hasOwn(
+          packet,
+          forbiddenKey
+        ),
+        `Authoritative COS packet must not expose ${forbiddenKey}.`,
+        {
+          forbiddenKey,
 
-    const expectedKeys = [
-      "authority",
-      "conversationId",
-      "currentTurn",
-      "packetType",
-      "placement",
-      "referenceResolution",
-      "requestId",
-      "schemaVersion"
-    ].sort();
+          actualKeys:
+            Object.keys(packet)
+        }
+      );
+    }
+  }
 
-    assertEqual(
-      JSON.stringify(topLevelKeys),
-      JSON.stringify(expectedKeys),
-      "Packet contains unexpected top-level fields."
+  function assertAuxiliaryStateShape(
+    state
+  ) {
+    assertObject(
+      state.pendingInteractionState,
+      "COS state requires pendingInteractionState."
     );
 
-    assert(
-      !Object.prototype.hasOwnProperty.call(
-        packet,
-        "diagnostics"
-      ),
-      "Authoritative packet must not expose diagnostics."
+    assertObject(
+      state
+        .pendingInteractionState
+        .interactions,
+      "Pending-interaction state requires interactions."
     );
 
-    assert(
-      !Object.prototype.hasOwnProperty.call(
-        packet,
-        "confidence"
-      ),
-      "Authoritative packet must not expose confidence scores."
+    assertArray(
+      state
+        .pendingInteractionState
+        .order,
+      "Pending-interaction state requires order."
     );
 
-    assert(
-      !Object.prototype.hasOwnProperty.call(
-        packet,
-        "candidates"
-      ),
-      "Authoritative packet must not expose candidates."
+    assertObject(
+      state.artifactState,
+      "COS state requires artifactState."
+    );
+
+    assertObject(
+      state.artifactState.artifacts,
+      "Artifact state requires artifacts."
+    );
+
+    assertArray(
+      state.artifactState.order,
+      "Artifact state requires order."
+    );
+
+    assertObject(
+      state
+        .deliverySequenceState,
+      "COS state requires deliverySequenceState."
+    );
+
+    assertObject(
+      state
+        .deliverySequenceState
+        .sequences,
+      "Delivery-sequence state requires sequences."
+    );
+
+    assertArray(
+      state
+        .deliverySequenceState
+        .order,
+      "Delivery-sequence state requires order."
     );
   }
 
@@ -694,7 +1402,10 @@
 
   async function executeTest(
     name,
-    handler
+    handler,
+    {
+      optional = false
+    } = {}
   ) {
     const startedAt =
       nowIso();
@@ -706,10 +1417,50 @@
       const details =
         await handler();
 
+      if (
+        details &&
+        details.skipped === true
+      ) {
+        return {
+          name,
+
+          passed: true,
+
+          skipped: true,
+
+          optional,
+
+          status:
+            "skipped",
+
+          startedAt,
+
+          completedAt:
+            nowIso(),
+
+          durationMs:
+            elapsedMs(
+              startedAtMs
+            ),
+
+          details:
+            safeClone(details),
+
+          error: null
+        };
+      }
+
       return {
         name,
+
         passed: true,
-        status: "passed",
+
+        skipped: false,
+
+        optional,
+
+        status:
+          "passed",
 
         startedAt,
 
@@ -731,8 +1482,17 @@
     } catch (error) {
       return {
         name,
+
         passed: false,
-        status: "failed",
+
+        skipped: false,
+
+        optional,
+
+        status:
+          optional
+            ? "optional_failed"
+            : "failed",
 
         startedAt,
 
@@ -745,6 +1505,59 @@
           ),
 
         details: null,
+
+        error:
+          safeError(error)
+      };
+    }
+  }
+
+  /* =====================================================
+     PERSISTENCE HELPERS
+  ===================================================== */
+
+  async function removeStoredState(
+    controller,
+    conversationId,
+    persistenceOptions
+  ) {
+    if (!controller) {
+      return null;
+    }
+
+    const remove =
+      isFunction(
+        controller.removeState
+      )
+        ? controller.removeState.bind(
+            controller
+          )
+        : null;
+
+    if (!remove) {
+      return null;
+    }
+
+    try {
+      return await remove(
+        conversationId,
+        {
+          persistence: true,
+
+          storageAdapter:
+            persistenceOptions
+              .storageAdapter,
+
+          storageKeyPrefix:
+            persistenceOptions
+              .storageKeyPrefix,
+
+          freeze: false
+        }
+      );
+    } catch (error) {
+      return {
+        ok: false,
 
         error:
           safeError(error)
@@ -770,6 +1583,31 @@
         options.conversationOS
       );
 
+    const controller =
+      resolveController(
+        options.controller
+      );
+
+    const stateComponent =
+      resolveStateComponent(
+        options.stateComponent
+      );
+
+    const stateStore =
+      resolveStateStore(
+        options.stateStore
+      );
+
+    const stateMigrator =
+      resolveStateMigrator(
+        options.stateMigrator
+      );
+
+    const integrationStage =
+      resolveIntegrationStage(
+        options.integrationStage
+      );
+
     assert(
       conversationOS,
       "Conversation Operating System is not installed."
@@ -787,18 +1625,69 @@
 
     const conversationId =
       options.conversationId ||
-      createId("cos_smoke_conversation");
+      createId(
+        "cos_smoke_conversation"
+      );
+
+    const persistenceConversationId =
+      createId(
+        "cos_smoke_persistence"
+      );
+
+    const migrationConversationId =
+      createId(
+        "cos_smoke_migration"
+      );
+
+    const integrationConversationId =
+      createId(
+        "cos_smoke_integration"
+      );
+
+    const storageAdapter =
+      firstDefined(
+        options.storageAdapter,
+        options.adapter,
+        DEFAULT_STORAGE_ADAPTER
+      );
+
+    const storageKeyPrefix =
+      firstNonEmptyString(
+        options.storageKeyPrefix,
+        options.keyPrefix
+      ) ||
+      `ari.rebirth.cos.smoke.${createId(
+        "namespace"
+      )}`;
+
+    const persistenceOptions = {
+      storageAdapter,
+      storageKeyPrefix
+    };
 
     const runtimeOptions = {
+      persistence: false,
+
+      loadState: false,
+
+      saveState: false,
+
       strictInstallation:
         options.strictInstallation !==
-          false,
-
-      throwOnFailure:
         false,
 
-      freezeResult:
-        false,
+      requireInfrastructure:
+        true,
+
+      throwOnFailure: false,
+
+      freeze: false,
+
+      includeRuntimeStageOutputs:
+        true,
+
+      includeReferenceDiagnostics:
+        true,
 
       ...(isObject(
         options.runtimeOptions
@@ -809,33 +1698,86 @@
         : {})
     };
 
+    const persistentRuntimeOptions = {
+      ...runtimeOptions,
+
+      persistence: true,
+
+      loadState: true,
+
+      saveState: true,
+
+      stateSourcePolicy:
+        "prefer_persisted",
+
+      storageAdapter,
+
+      storageKeyPrefix,
+
+      persistenceOptions: {
+        adapter:
+          storageAdapter,
+
+        keyPrefix:
+          storageKeyPrefix
+      }
+    };
+
     let state = null;
     let history = [];
 
+    let lastSuccessfulPacket =
+      null;
+
     const IDs = Object.freeze({
-      userOne: "smoke_turn_user_1",
+      userOne:
+        "smoke_turn_user_1",
+
       assistantOne:
         "smoke_turn_assistant_1",
-      userTwo: "smoke_turn_user_2",
+
+      userTwo:
+        "smoke_turn_user_2",
+
       userAnswer:
         "smoke_turn_user_answer",
+
       userClarification:
         "smoke_turn_user_clarification",
+
       userCorrection:
         "smoke_turn_user_correction",
+
       userBranch:
         "smoke_turn_user_branch",
+
       userInterruption:
         "smoke_turn_user_interruption",
+
       userReturn:
         "smoke_turn_user_return",
+
+      unresolved:
+        "smoke_turn_unresolved",
+
       unknownTarget:
         "smoke_turn_missing_target",
-      duplicate:
-        "smoke_turn_duplicate"
+
+      persistenceOne:
+        "smoke_persistence_turn_1",
+
+      persistenceTwo:
+        "smoke_persistence_turn_2",
+
+      integration:
+        "smoke_integration_turn_1"
     });
 
     const tests = [];
+
+    /* ===================================================
+       INSTALLATION
+    =================================================== */
 
     tests.push(
       await executeTest(
@@ -847,24 +1789,147 @@
           );
 
           const inspection =
-            await inspect();
-
-          const ready =
-            typeof inspection.ok ===
-              "boolean"
-              ? inspection.ok
-              : inspection.ready;
+            await inspect(
+              {},
+              {
+                requireInfrastructure:
+                  true
+              }
+            );
 
           assertEqual(
-            ready,
+            readInspectionReady(
+              inspection
+            ),
             true,
             "COS installation should report ready."
           );
 
-          return inspection;
+          return {
+            status:
+              inspection.status ||
+              (
+                readInspectionReady(
+                  inspection
+                )
+                  ? "ready"
+                  : "not_ready"
+              ),
+
+            missingRequired:
+              safeClone(
+                inspection
+                  .missingRequired ||
+                inspection.missing ||
+                []
+              )
+          };
         }
       )
     );
+
+    /* ===================================================
+       EMPTY STATE
+    =================================================== */
+
+    tests.push(
+      await executeTest(
+        "canonical empty-state shape",
+        async () => {
+          assert(
+            stateComponent,
+            "COS state component is not installed."
+          );
+
+          const create =
+            resolveCallable(
+              stateComponent,
+              [
+                "create",
+                "initialize",
+                "createInitialState",
+                "createEmptyState"
+              ],
+              "COS_SMOKE_STATE_FACTORY_UNAVAILABLE",
+              "COS state component does not expose a state factory."
+            );
+
+          const emptyState =
+            await create(
+              {
+                conversationId
+              },
+              {
+                conversationId,
+                freeze: false
+              }
+            );
+
+          assertObject(
+            emptyState,
+            "State factory must return an object."
+          );
+
+          assertEqual(
+            emptyState.schemaVersion,
+            SCHEMA_VERSION,
+            "Empty-state schema version mismatch."
+          );
+
+          assertEqual(
+            emptyState.authority,
+            AUTHORITY,
+            "Empty-state authority mismatch."
+          );
+
+          assertEqual(
+            emptyState.conversationId,
+            conversationId,
+            "Empty state must preserve conversation ID."
+          );
+
+          assertObject(
+            emptyState.turns,
+            "Empty state requires turns."
+          );
+
+          assertObject(
+            emptyState.threads,
+            "Empty state requires threads."
+          );
+
+          assertArray(
+            emptyState.threadStack,
+            "Empty state requires threadStack."
+          );
+
+          assertArray(
+            emptyState
+              .interruptionStack,
+            "Empty state requires interruptionStack."
+          );
+
+          assertAuxiliaryStateShape(
+            emptyState
+          );
+
+          return {
+            revision:
+              emptyState.revision,
+
+            auxiliaryDomains: [
+              "pendingInteractionState",
+              "artifactState",
+              "deliverySequenceState"
+            ]
+          };
+        }
+      )
+    );
+
+    /* ===================================================
+       FIRST TURN
+    =================================================== */
 
     tests.push(
       await executeTest(
@@ -875,7 +1940,8 @@
               turnId:
                 IDs.userOne,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Hello, Ari.",
@@ -887,37 +1953,49 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
+
           assertPacketShape(
             result.packet
           );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "new_thread",
             "First turn should create a new thread."
           );
 
-          assert(
-            isNonEmptyString(
+          assertNonEmptyString(
+            readPlacementThreadId(
               result.packet
-                .placement.threadId
             ),
             "New-thread placement requires a thread ID."
           );
 
+          const referenceResolution =
+            readReferenceResolution(
+              result
+            );
+
+          assertObject(
+            referenceResolution,
+            "First-turn result requires reference resolution."
+          );
+
           assertEqual(
-            result.packet
-              .referenceResolution
-              .status,
+            referenceResolution.status,
             "not_required",
             "First turn should not require reference resolution."
           );
@@ -932,9 +2010,19 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
-            packet:
-              result.packet
+            placementType:
+              readPlacementType(
+                result.packet
+              ),
+
+            threadId:
+              readPlacementThreadId(
+                result.packet
+              )
           };
         }
       )
@@ -942,20 +2030,15 @@
 
     tests.push(
       await executeTest(
-        "state preserves active thread",
+        "state preserves active thread and auxiliary domains",
         async () => {
-          assert(
+          assertObject(
             state,
             "State should exist after first turn."
           );
 
-          const threadId =
-            state.activeThreadId;
-
-          assert(
-            isNonEmptyString(
-              threadId
-            ),
+          assertNonEmptyString(
+            state.activeThreadId,
             "State should contain an active thread."
           );
 
@@ -967,33 +2050,47 @@
 
           assertObject(
             state.threads[
-              threadId
+              state.activeThreadId
             ],
-            "Active thread record should exist."
+            "Active-thread record should exist."
           );
 
           assertObject(
             state.turns[
               IDs.userOne
             ],
-            "First turn state record should exist."
+            "First-turn record should exist."
+          );
+
+          assertAuxiliaryStateShape(
+            state
           );
 
           return {
             activeThreadId:
-              threadId,
+              state.activeThreadId,
 
             activeTurnId:
-              state.activeTurnId
+              state.activeTurnId,
+
+            revision:
+              state.revision
           };
         }
       )
     );
 
+    /* ===================================================
+       CONTINUATION
+    =================================================== */
+
     tests.push(
       await executeTest(
-        "active thread continuation",
+        "active-thread continuation",
         async () => {
+          const priorThreadId =
+            state.activeThreadId;
+
           const turn =
             createTurn({
               turnId:
@@ -1012,26 +2109,31 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "continue_thread",
             "Second turn should continue the active thread."
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            state.activeThreadId,
+            readPlacementThreadId(
+              result.packet
+            ),
+            priorThreadId,
             "Continuation should remain on the active thread."
           );
 
@@ -1045,13 +2147,23 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
-            packet:
-              result.packet
+            threadId:
+              state.activeThreadId,
+
+            activeTurnId:
+              state.activeTurnId
           };
         }
       )
     );
+
+    /* ===================================================
+       EXPLICIT REPLY
+    =================================================== */
 
     tests.push(
       await executeTest(
@@ -1062,7 +2174,8 @@
               turnId:
                 IDs.userTwo,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Tell me more.",
@@ -1077,41 +2190,52 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
+
+          const resolution =
+            readReferenceResolution(
+              result
+            );
+
+          assertObject(
+            resolution,
+            "Reply turn requires reference resolution."
+          );
 
           assertEqual(
-            result.packet
-              .referenceResolution
-              .status,
+            resolution.status,
             "resolved",
             "Explicit reply target should resolve."
           );
 
           assertArrayIncludes(
-            result.packet
-              .referenceResolution
-              .resolvedTurnIds,
+            resolution.resolvedTurnIds,
             IDs.assistantOne,
-            "Resolved turn IDs should include reply target."
+            "Resolved turn IDs should include the reply target."
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
+            readPlacementParentTurnId(
+              result.packet
+            ),
             IDs.assistantOne,
-            "Reply target should become structural parent."
+            "Reply target should become the structural parent."
           );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "continue_thread",
             "Generic explicit reply should continue the thread."
           );
@@ -1126,13 +2250,26 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
-            packet:
-              result.packet
+            resolvedTurnIds:
+              resolution
+                .resolvedTurnIds,
+
+            parentTurnId:
+              readPlacementParentTurnId(
+                result.packet
+              )
           };
         }
       )
     );
+
+    /* ===================================================
+       ANSWER
+    =================================================== */
 
     tests.push(
       await executeTest(
@@ -1143,7 +2280,8 @@
               turnId:
                 IDs.userAnswer,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Yes.",
@@ -1158,27 +2296,32 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "answer_to_turn",
             "Answer target should produce answer_to_turn."
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
+            readPlacementParentTurnId(
+              result.packet
+            ),
             IDs.assistantOne,
-            "Answer target should become parent turn."
+            "Answer target should become the parent turn."
           );
 
           state =
@@ -1191,13 +2334,22 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
-            packet:
-              result.packet
+            placementType:
+              readPlacementType(
+                result.packet
+              )
           };
         }
       )
     );
+
+    /* ===================================================
+       CLARIFICATION
+    =================================================== */
 
     tests.push(
       await executeTest(
@@ -1208,7 +2360,8 @@
               turnId:
                 IDs.userClarification,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "I meant the runtime file.",
@@ -1223,27 +2376,32 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "clarification_of_turn",
             "Clarification target should produce clarification_of_turn."
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
+            readPlacementParentTurnId(
+              result.packet
+            ),
             IDs.userTwo,
-            "Clarification target should become parent turn."
+            "Clarification target should become the parent turn."
           );
 
           state =
@@ -1256,13 +2414,22 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
-            packet:
-              result.packet
+            placementType:
+              readPlacementType(
+                result.packet
+              )
           };
         }
       )
     );
+
+    /* ===================================================
+       CORRECTION
+    =================================================== */
 
     tests.push(
       await executeTest(
@@ -1273,7 +2440,8 @@
               turnId:
                 IDs.userCorrection,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Correction: use version 2.",
@@ -1288,27 +2456,32 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "correction_of_turn",
             "Correction target should produce correction_of_turn."
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
+            readPlacementParentTurnId(
+              result.packet
+            ),
             IDs.userClarification,
-            "Correction target should become parent turn."
+            "Correction target should become the parent turn."
           );
 
           state =
@@ -1321,22 +2494,31 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
-            packet:
-              result.packet
+            placementType:
+              readPlacementType(
+                result.packet
+              )
           };
         }
       )
     );
 
-    let preBranchThreadId = null;
-    let branchThreadId = null;
+    /* ===================================================
+       BRANCH
+    =================================================== */
+
+    let branchThreadId =
+      null;
 
     tests.push(
       await executeTest(
         "explicit branch creates distinct thread",
         async () => {
-          preBranchThreadId =
+          const originThreadId =
             state.activeThreadId;
 
           const turn =
@@ -1344,7 +2526,8 @@
               turnId:
                 IDs.userBranch,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Start a separate branch.",
@@ -1359,44 +2542,48 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "branch_from_turn",
             "Branch origin should produce branch_from_turn."
           );
 
           branchThreadId =
-            result.packet
-              .placement.threadId;
+            readPlacementThreadId(
+              result.packet
+            );
 
-          assert(
-            isNonEmptyString(
-              branchThreadId
-            ),
-            "Branch placement requires a new thread ID."
+          assertNonEmptyString(
+            branchThreadId,
+            "Branch placement requires a thread ID."
           );
 
-          assert(
-            branchThreadId !==
-              preBranchThreadId,
-            "Branch thread must differ from origin thread."
+          assertNotEqual(
+            branchThreadId,
+            originThreadId,
+            "Branch thread must differ from the origin thread."
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
+            readPlacementParentTurnId(
+              result.packet
+            ),
             IDs.userTwo,
-            "Branch origin should become parent turn."
+            "Branch origin should become the parent turn."
           );
 
           state =
@@ -1409,31 +2596,43 @@
               result.packet
             );
 
-          return {
-            originThreadId:
-              preBranchThreadId,
+          lastSuccessfulPacket =
+            result.packet;
 
+          return {
+            originThreadId,
             branchThreadId
           };
         }
       )
     );
 
-    let interruptionThreadId = null;
+    /* ===================================================
+       INTERRUPTION
+    =================================================== */
+
+    let interruptionThreadId =
+      null;
 
     tests.push(
       await executeTest(
-        "explicit interruption creates interruption stack entry",
+        "explicit interruption creates interruption-stack entry",
         async () => {
           const interruptedThreadId =
             state.activeThreadId;
+
+          const stackBefore =
+            state
+              .interruptionStack
+              .length;
 
           const turn =
             createTurn({
               turnId:
                 IDs.userInterruption,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Pause that. New issue.",
@@ -1451,48 +2650,57 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "interruption",
             "Explicit interruption should remain interruption."
           );
 
           interruptionThreadId =
-            result.packet
-              .placement.threadId;
+            readPlacementThreadId(
+              result.packet
+            );
 
-          assert(
-            interruptionThreadId !==
-              interruptedThreadId,
-            "Interruption should create a distinct thread."
+          assertNonEmptyString(
+            interruptionThreadId,
+            "Interruption requires a new thread ID."
           );
 
-          assert(
-            Array.isArray(
-              result.state
-                .interruptionStack
-            ),
+          assertNotEqual(
+            interruptionThreadId,
+            interruptedThreadId,
+            "Interruption must create a distinct thread."
+          );
+
+          assertArray(
+            result.state
+              .interruptionStack,
             "State requires interruptionStack."
           );
 
-          assert(
+          assertGreaterThan(
             result.state
               .interruptionStack
-              .length > 0,
+              .length,
+            stackBefore,
             "Interruption should push an interruption record."
           );
 
-          const lastEntry =
+          const entry =
             result.state
               .interruptionStack[
                 result.state
@@ -1501,17 +2709,17 @@
               ];
 
           assertEqual(
-            lastEntry
+            entry
               .interruptedThreadId,
             interruptedThreadId,
-            "Interruption record should preserve interrupted thread."
+            "Interruption record should preserve the interrupted thread."
           );
 
           assertEqual(
-            lastEntry
+            entry
               .interruptionThreadId,
             interruptionThreadId,
-            "Interruption record should preserve interruption thread."
+            "Interruption record should preserve the interruption thread."
           );
 
           state =
@@ -1524,6 +2732,9 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
             interruptedThreadId,
             interruptionThreadId
@@ -1532,19 +2743,26 @@
       )
     );
 
+    /* ===================================================
+       RETURN
+    =================================================== */
+
     tests.push(
       await executeTest(
         "return from interruption restores prior thread",
         async () => {
           const stackBefore =
-            state.interruptionStack.length;
+            state
+              .interruptionStack
+              .length;
 
           const turn =
             createTurn({
               turnId:
                 IDs.userReturn,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Return to the earlier branch.",
@@ -1565,31 +2783,37 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "return_from_interruption",
             "Return placement should remain return_from_interruption."
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
+            readPlacementThreadId(
+              result.packet
+            ),
             branchThreadId,
             "Return should restore the interrupted branch thread."
           );
 
           assertEqual(
-            result.state.activeThreadId,
+            result.state
+              .activeThreadId,
             branchThreadId,
             "Returned thread should become active."
           );
@@ -1612,24 +2836,41 @@
               result.packet
             );
 
+          lastSuccessfulPacket =
+            result.packet;
+
           return {
-            packet:
-              result.packet
+            restoredThreadId:
+              result.state
+                .activeThreadId,
+
+            remainingInterruptions:
+              result.state
+                .interruptionStack
+                .length
           };
         }
       )
     );
 
+    /* ===================================================
+       UNRESOLVED REFERENCE
+    =================================================== */
+
     tests.push(
       await executeTest(
-        "unknown structural reference remains unresolved",
+        "unknown structural reference remains unresolved without inventing placement",
         async () => {
+          const priorActiveThreadId =
+            state.activeThreadId;
+
           const turn =
             createTurn({
               turnId:
-                "smoke_turn_unknown_reference",
+                IDs.unresolved,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "Continue from the missing turn.",
@@ -1644,50 +2885,83 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccess(
+            result
+          );
+
+          const resolution =
+            readReferenceResolution(
+              result
+            );
+
+          assertObject(
+            resolution,
+            "Unknown reference requires a reference-resolution result."
+          );
 
           assertEqual(
-            result.packet
-              .referenceResolution
-              .status,
+            resolution.status,
             "unresolved",
             "Unknown turn reference should remain unresolved."
           );
 
           assertEqual(
-            result.packet
-              .placement.type,
+            readPlacementType(
+              result.packet
+            ),
             "unresolved_placement",
-            "Unresolved reference should produce unresolved placement."
+            "Unknown reference should produce unresolved_placement."
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
+            readPlacementThreadId(
+              result.packet
+            ),
             null,
             "Unresolved placement must not claim a thread."
           );
 
-          assert(
-            result.state.activeTurnId !==
-              turn.turnId,
-            "Unresolved turn must not become the active structural turn."
+          assertObject(
+            result.state.turns[
+              turn.turnId
+            ],
+            "Unresolved turn should remain registered for audit and clarification."
+          );
+
+          assertEqual(
+            result.state
+              .activeThreadId,
+            priorActiveThreadId,
+            "Unresolved placement must not fabricate a replacement active thread."
           );
 
           return {
-            packet:
-              result.packet
+            status:
+              resolution.status,
+
+            activeTurnId:
+              result.state
+                .activeTurnId,
+
+            activeThreadId:
+              result.state
+                .activeThreadId
           };
         }
       )
     );
+
+    /* ===================================================
+       DUPLICATE TURN
+    =================================================== */
 
     tests.push(
       await executeTest(
@@ -1698,7 +2972,8 @@
               turnId:
                 IDs.userOne,
 
-              role: "user",
+              role:
+                "user",
 
               text:
                 "This ID already exists.",
@@ -1710,30 +2985,17 @@
             await execute(
               {
                 conversationId,
-                currentTurn: turn,
+                currentTurn:
+                  turn,
                 history,
                 state
               },
               runtimeOptions
             );
 
-          assertObject(
+          assertStructuredFailure(
             result,
-            "Duplicate-ID execution should return a structured result."
-          );
-
-          assertEqual(
-            result.ok,
-            false,
             "Duplicate turn ID should fail."
-          );
-
-          assert(
-            Array.isArray(
-              result.errors
-            ) &&
-              result.errors.length > 0,
-            "Duplicate-ID failure should expose structured errors."
           );
 
           return {
@@ -1744,94 +3006,46 @@
       )
     );
 
+    /* ===================================================
+       PACKET AUTHORITY
+    =================================================== */
+
     tests.push(
       await executeTest(
-        "authoritative packet excludes semantic authority",
+        "authoritative packet preserves authority boundaries",
         async () => {
-          const packet =
-            state.lastPlacement
-              ? null
-              : null;
-
-          const validPackets =
-            tests
-              .filter(
-                (test) =>
-                  test.passed &&
-                  test.details &&
-                  test.details.packet
-              )
-              .map(
-                (test) =>
-                  test.details.packet
-              );
-
-          assert(
-            validPackets.length > 0,
+          assertObject(
+            lastSuccessfulPacket,
             "At least one successful packet is required."
           );
 
-          for (
-            const authoritativePacket of
-              validPackets
-          ) {
-            assertPacketShape(
-              authoritativePacket
-            );
-
-            assert(
-              !Object.prototype.hasOwnProperty.call(
-                authoritativePacket,
-                "semanticMeaning"
-              ),
-              "COS packet must not contain semantic meaning."
-            );
-
-            assert(
-              !Object.prototype.hasOwnProperty.call(
-                authoritativePacket,
-                "intent"
-              ),
-              "COS packet must not contain intent."
-            );
-
-            assert(
-              !Object.prototype.hasOwnProperty.call(
-                authoritativePacket,
-                "emotion"
-              ),
-              "COS packet must not contain emotion."
-            );
-
-            assert(
-              !Object.prototype.hasOwnProperty.call(
-                authoritativePacket,
-                "safety"
-              ),
-              "COS packet must not contain safety classification."
-            );
-
-            assert(
-              !Object.prototype.hasOwnProperty.call(
-                authoritativePacket,
-                "responsePlan"
-              ),
-              "COS packet must not contain response planning."
-            );
-          }
+          assertPacketShape(
+            lastSuccessfulPacket
+          );
 
           return {
-            packetCount:
-              validPackets.length
+            packetKeys:
+              Object.keys(
+                lastSuccessfulPacket
+              )
           };
         }
       )
     );
 
+    /* ===================================================
+       REVISION
+    =================================================== */
+
     tests.push(
       await executeTest(
         "state revision advances across applied turns",
         async () => {
+          assertObject(
+            state,
+            "Final structural state is missing."
+          );
+
           assert(
             Number.isInteger(
               state.revision
@@ -1839,8 +3053,9 @@
             "State revision must be an integer."
           );
 
-          assert(
-            state.revision > 0,
+          assertGreaterThan(
+            state.revision,
+            0,
             "State revision should advance after transitions."
           );
 
@@ -1854,11 +3069,16 @@
             "State should preserve turns."
           );
 
-          assert(
+          assertGreaterThan(
             Object.keys(
               state.turns
-            ).length >= 8,
+            ).length,
+            7,
             "State should preserve applied smoke-test turns."
+          );
+
+          assertAuxiliaryStateShape(
+            state
           );
 
           return {
@@ -1879,13 +3099,904 @@
       )
     );
 
+    /* ===================================================
+       DIRECT STORE SAVE / LOAD
+    =================================================== */
+
+    tests.push(
+      await executeTest(
+        "state store saves and loads canonical state",
+        async () => {
+          assert(
+            stateStore,
+            "COS state store is not installed."
+          );
+
+          const save =
+            resolveCallable(
+              stateStore,
+              [
+                "save",
+                "safeSave"
+              ],
+              "COS_SMOKE_STATE_STORE_SAVE_UNAVAILABLE",
+              "COS state store does not expose save()."
+            );
+
+          const load =
+            resolveCallable(
+              stateStore,
+              [
+                "load",
+                "safeLoad"
+              ],
+              "COS_SMOKE_STATE_STORE_LOAD_UNAVAILABLE",
+              "COS state store does not expose load()."
+            );
+
+          const saveResult =
+            await save(
+              conversationId,
+              state,
+              {
+                adapter:
+                  storageAdapter,
+
+                keyPrefix:
+                  storageKeyPrefix,
+
+                validateBeforeSave:
+                  true,
+
+                includeRecord:
+                  false,
+
+                freeze: false
+              }
+            );
+
+          assertEqual(
+            saveResult.ok,
+            true,
+            "State-store save should succeed."
+          );
+
+          const loadResult =
+            await load(
+              conversationId,
+              {
+                adapter:
+                  storageAdapter,
+
+                keyPrefix:
+                  storageKeyPrefix,
+
+                migrate: false,
+
+                validate: true,
+
+                includeRecord:
+                  false,
+
+                freeze: false
+              }
+            );
+
+          assertEqual(
+            loadResult.ok,
+            true,
+            "State-store load should succeed."
+          );
+
+          assertEqual(
+            loadResult.found,
+            true,
+            "Saved state should be found."
+          );
+
+          assertObject(
+            loadResult.state,
+            "Loaded record should contain state."
+          );
+
+          assertEqual(
+            loadResult.state
+              .conversationId,
+            conversationId,
+            "Loaded state should preserve conversation ID."
+          );
+
+          assertEqual(
+            loadResult.state
+              .revision,
+            state.revision,
+            "Loaded state should preserve revision."
+          );
+
+          assert(
+            deepEquivalent(
+              loadResult.state.turns,
+              state.turns
+            ),
+            "Loaded turns should match saved turns."
+          );
+
+          assertAuxiliaryStateShape(
+            loadResult.state
+          );
+
+          return {
+            adapterType:
+              loadResult
+                .adapterType,
+
+            storageRevision:
+              loadResult
+                .storageRevision,
+
+            stateRevision:
+              loadResult
+                .state.revision
+          };
+        }
+      )
+    );
+
+    /* ===================================================
+       CONTROLLER PERSISTENCE
+    =================================================== */
+
+    tests.push(
+      await executeTest(
+        "controller restores persisted state after local state is discarded",
+        async () => {
+          assert(
+            controller,
+            "COS controller is not installed."
+          );
+
+          await removeStoredState(
+            controller,
+            persistenceConversationId,
+            persistenceOptions
+          );
+
+          const controllerRun =
+            resolveCallable(
+              controller,
+              [
+                "run",
+                "execute",
+                "process",
+                "safeRun"
+              ],
+              "COS_SMOKE_CONTROLLER_RUN_UNAVAILABLE",
+              "COS controller does not expose run()."
+            );
+
+          const firstTurn =
+            createTurn({
+              turnId:
+                IDs.persistenceOne,
+
+              role:
+                "user",
+
+              text:
+                "Persist this conversation.",
+
+              sequence: 0
+            });
+
+          const firstResult =
+            await controllerRun(
+              {
+                conversationId:
+                  persistenceConversationId,
+
+                currentTurn:
+                  firstTurn,
+
+                history: [],
+
+                state: null
+              },
+              {
+                ...persistentRuntimeOptions,
+
+                stateSourcePolicy:
+                  "prefer_persisted",
+
+                freeze: false
+              }
+            );
+
+          assertSuccess(
+            firstResult
+          );
+
+          assertEqual(
+            firstResult.stateSaved,
+            true,
+            "First persistent controller run should save state."
+          );
+
+          const firstThreadId =
+            firstResult.state
+              .activeThreadId;
+
+          assertNonEmptyString(
+            firstThreadId,
+            "First persistent run should create an active thread."
+          );
+
+          const secondTurn =
+            createTurn({
+              turnId:
+                IDs.persistenceTwo,
+
+              role:
+                "assistant",
+
+              text:
+                "This turn should load the saved state.",
+
+              sequence: 1
+            });
+
+          const secondResult =
+            await controllerRun(
+              {
+                conversationId:
+                  persistenceConversationId,
+
+                currentTurn:
+                  secondTurn,
+
+                history: [],
+
+                state: null
+              },
+              {
+                ...persistentRuntimeOptions,
+
+                stateSourcePolicy:
+                  "prefer_persisted",
+
+                freeze: false
+              }
+            );
+
+          assertSuccess(
+            secondResult
+          );
+
+          assertEqual(
+            secondResult.stateLoaded,
+            true,
+            "Second controller run should load persisted state."
+          );
+
+          assertEqual(
+            secondResult.stateSource,
+            "persisted",
+            "Second run should select persisted state."
+          );
+
+          assertEqual(
+            readPlacementType(
+              secondResult.packet
+            ),
+            "continue_thread",
+            "Second persisted turn should continue the stored active thread."
+          );
+
+          assertEqual(
+            secondResult.state
+              .activeThreadId,
+            firstThreadId,
+            "Reloaded state should preserve the original thread."
+          );
+
+          assertObject(
+            secondResult.state.turns[
+              IDs.persistenceOne
+            ],
+            "Reloaded state should preserve the first turn."
+          );
+
+          assertObject(
+            secondResult.state.turns[
+              IDs.persistenceTwo
+            ],
+            "Reloaded state should contain the second turn."
+          );
+
+          assertAuxiliaryStateShape(
+            secondResult.state
+          );
+
+          return {
+            loaded:
+              secondResult
+                .stateLoaded,
+
+            stateSource:
+              secondResult
+                .stateSource,
+
+            threadId:
+              secondResult.state
+                .activeThreadId,
+
+            stateSaved:
+              secondResult
+                .stateSaved
+          };
+        }
+      )
+    );
+
+    /* ===================================================
+       MIGRATION
+    =================================================== */
+
+    tests.push(
+      await executeTest(
+        "legacy state migrates to current schema",
+        async () => {
+          assert(
+            stateMigrator,
+            "COS state migrator is not installed."
+          );
+
+          const migrate =
+            resolveCallable(
+              stateMigrator,
+              [
+                "migrate",
+                "upgrade",
+                "run",
+                "normalize"
+              ],
+              "COS_SMOKE_MIGRATOR_UNAVAILABLE",
+              "COS state migrator does not expose migrate()."
+            );
+
+          const legacyState =
+            createLegacyState(
+              migrationConversationId
+            );
+
+          const result =
+            await migrate(
+              {
+                state:
+                  legacyState,
+
+                conversationId:
+                  migrationConversationId,
+
+                fromVersion:
+                  "0.0.0",
+
+                toVersion:
+                  SCHEMA_VERSION
+              },
+              {
+                freeze: false,
+
+                freezeState: false,
+
+                validate: true
+              }
+            );
+
+          assertObject(
+            result,
+            "Migration must return a result object."
+          );
+
+          assertObject(
+            result.state,
+            "Migration result must contain state."
+          );
+
+          assertEqual(
+            result.toVersion,
+            SCHEMA_VERSION,
+            "Migration target version mismatch."
+          );
+
+          assertEqual(
+            result.state
+              .schemaVersion,
+            SCHEMA_VERSION,
+            "Migrated state should use the current schema."
+          );
+
+          assertEqual(
+            result.state
+              .authority,
+            AUTHORITY,
+            "Migrated state authority mismatch."
+          );
+
+          assertEqual(
+            result.state
+              .conversationId,
+            migrationConversationId,
+            "Migrated state should preserve conversation ID."
+          );
+
+          assertObject(
+            result.state.turns[
+              "legacy_turn_1"
+            ],
+            "Migrated state should preserve the legacy turn."
+          );
+
+          assertObject(
+            result.state.threads[
+              "legacy_thread_1"
+            ],
+            "Migrated state should preserve the legacy thread."
+          );
+
+          assertAuxiliaryStateShape(
+            result.state
+          );
+
+          return {
+            migrated:
+              result.migrated,
+
+            fromVersion:
+              result.fromVersion,
+
+            toVersion:
+              result.toVersion,
+
+            stepCount:
+              result.stepCount
+          };
+        }
+      )
+    );
+
+    /* ===================================================
+       PERSISTED MIGRATION THROUGH CONTROLLER
+    =================================================== */
+
+    tests.push(
+      await executeTest(
+        "controller migrates a persisted legacy record",
+        async () => {
+          assert(
+            controller,
+            "COS controller is not installed."
+          );
+
+          assert(
+            stateStore,
+            "COS state store is not installed."
+          );
+
+          await removeStoredState(
+            controller,
+            migrationConversationId,
+            persistenceOptions
+          );
+
+          const save =
+            resolveCallable(
+              stateStore,
+              [
+                "save",
+                "safeSave"
+              ],
+              "COS_SMOKE_STATE_STORE_SAVE_UNAVAILABLE",
+              "COS state store does not expose save()."
+            );
+
+          const legacyState =
+            createLegacyState(
+              migrationConversationId
+            );
+
+          const saveResult =
+            await save(
+              migrationConversationId,
+              legacyState,
+              {
+                adapter:
+                  storageAdapter,
+
+                keyPrefix:
+                  storageKeyPrefix,
+
+                validateBeforeSave:
+                  false,
+
+                includeRecord:
+                  false,
+
+                freeze: false
+              }
+            );
+
+          assertEqual(
+            saveResult.ok,
+            true,
+            "Legacy state record should be saved for migration testing."
+          );
+
+          const controllerRun =
+            resolveCallable(
+              controller,
+              [
+                "run",
+                "execute",
+                "process",
+                "safeRun"
+              ],
+              "COS_SMOKE_CONTROLLER_RUN_UNAVAILABLE",
+              "COS controller does not expose run()."
+            );
+
+          const newTurn =
+            createTurn({
+              turnId:
+                "smoke_migrated_turn_2",
+
+              role:
+                "assistant",
+
+              text:
+                "Continue after migration.",
+
+              sequence: 1
+            });
+
+          const result =
+            await controllerRun(
+              {
+                conversationId:
+                  migrationConversationId,
+
+                currentTurn:
+                  newTurn,
+
+                history: [],
+
+                state: null
+              },
+              {
+                ...persistentRuntimeOptions,
+
+                stateSourcePolicy:
+                  "prefer_persisted",
+
+                migrateState: true,
+
+                freeze: false
+              }
+            );
+
+          assertSuccess(
+            result
+          );
+
+          assertEqual(
+            result.stateLoaded,
+            true,
+            "Controller should load the persisted legacy record."
+          );
+
+          assertEqual(
+            result.stateMigrated,
+            true,
+            "Controller should report that the persisted state was migrated."
+          );
+
+          assertEqual(
+            result.state
+              .schemaVersion,
+            SCHEMA_VERSION,
+            "Controller should execute with the current state schema."
+          );
+
+          assertObject(
+            result.state.turns[
+              "legacy_turn_1"
+            ],
+            "Controller migration should preserve the legacy turn."
+          );
+
+          assertObject(
+            result.state.turns[
+              "smoke_migrated_turn_2"
+            ],
+            "Controller should register the post-migration turn."
+          );
+
+          return {
+            stateLoaded:
+              result.stateLoaded,
+
+            stateMigrated:
+              result.stateMigrated,
+
+            stateSaved:
+              result.stateSaved,
+
+            schemaVersion:
+              result.state
+                .schemaVersion
+          };
+        }
+      )
+    );
+
+    /* ===================================================
+       REBIRTH INTEGRATION AUTHORITY
+    =================================================== */
+
+    tests.push(
+      await executeTest(
+        "Rebirth integration preserves semantic, conversation-function, and safety authority",
+        async () => {
+          if (!integrationStage) {
+            return {
+              skipped: true,
+
+              reason:
+                "Rebirth COS integration stage is not installed."
+            };
+          }
+
+          const integrationRun =
+            resolveCallable(
+              integrationStage,
+              [
+                "run",
+                "execute",
+                "process"
+              ],
+              "COS_SMOKE_INTEGRATION_RUN_UNAVAILABLE",
+              "Rebirth COS integration stage does not expose run()."
+            );
+
+          const semanticPacket = {
+            authority:
+              "semantic_frame_builder",
+
+            subject:
+              "runtime file",
+
+            action:
+              "continue",
+
+            semanticMeaning:
+              "Continue work on the runtime file."
+          };
+
+          const conversationFunction = {
+            authority:
+              "conversation_function_engine",
+
+            function:
+              "continuation_request"
+          };
+
+          const safetyContext = {
+            authority:
+              "safety_context",
+
+            severity:
+              "none",
+
+            governance:
+              "normal"
+          };
+
+          const runtimeState = {
+            conversationId:
+              integrationConversationId,
+
+            currentTurn:
+              createTurn({
+                turnId:
+                  IDs.integration,
+
+                role:
+                  "user",
+
+                text:
+                  "Continue.",
+
+                sequence: 0
+              }),
+
+            conversationHistory: [],
+
+            semanticPacket:
+              safeClone(
+                semanticPacket
+              ),
+
+            conversationFunction:
+              safeClone(
+                conversationFunction
+              ),
+
+            safetyContext:
+              safeClone(
+                safetyContext
+              )
+          };
+
+          const result =
+            await integrationRun(
+              runtimeState,
+              {
+                persistence: false,
+
+                loadState: false,
+
+                saveState: false,
+
+                migrateState: true,
+
+                strictInstallation:
+                  true,
+
+                strictRuntimeInstallation:
+                  true,
+
+                throwOnFailure:
+                  false,
+
+                freeze: false
+              }
+            );
+
+          assertObject(
+            result,
+            "Integration stage must return an object."
+          );
+
+          assertObject(
+            result.state,
+            "Integration result requires merged runtime state."
+          );
+
+          assert(
+            deepEquivalent(
+              result.state
+                .semanticPacket,
+              semanticPacket
+            ),
+            "COS integration must not alter the semantic packet."
+          );
+
+          assert(
+            deepEquivalent(
+              result.state
+                .conversationFunction,
+              conversationFunction
+            ),
+            "COS integration must not alter the conversation-function packet."
+          );
+
+          assert(
+            deepEquivalent(
+              result.state
+                .safetyContext,
+              safetyContext
+            ),
+            "COS integration must not alter the safety-context packet."
+          );
+
+          assertObject(
+            result.state
+              .conversationOSResult,
+            "Integration should attach the COS result."
+          );
+
+          assertObject(
+            result.state
+              .conversationOSState,
+            "Integration should attach COS state."
+          );
+
+          return {
+            ok:
+              result.ok,
+
+            semanticPreserved:
+              true,
+
+            conversationFunctionPreserved:
+              true,
+
+            safetyPreserved:
+              true
+          };
+        },
+        {
+          optional: true
+        }
+      )
+    );
+
+    /* ===================================================
+       CLEANUP
+    =================================================== */
+
+    const cleanup = [];
+
+    for (
+      const id of [
+        conversationId,
+        persistenceConversationId,
+        migrationConversationId,
+        integrationConversationId
+      ]
+    ) {
+      cleanup.push(
+        await removeStoredState(
+          controller,
+          id,
+          persistenceOptions
+        )
+      );
+    }
+
+    /* ===================================================
+       FINAL RESULT
+    =================================================== */
+
+    const requiredTests =
+      tests.filter(
+        (test) =>
+          test.optional !== true
+      );
+
+    const optionalTests =
+      tests.filter(
+        (test) =>
+          test.optional === true
+      );
+
     const passedCount =
       tests.filter(
-        (test) => test.passed
+        (test) =>
+          test.passed &&
+          !test.skipped
+      ).length;
+
+    const skippedCount =
+      tests.filter(
+        (test) =>
+          test.skipped
+      ).length;
+
+    const failedRequiredCount =
+      requiredTests.filter(
+        (test) =>
+          !test.passed
+      ).length;
+
+    const failedOptionalCount =
+      optionalTests.filter(
+        (test) =>
+          !test.passed
       ).length;
 
     const failedCount =
-      tests.length - passedCount;
+      failedRequiredCount +
+      failedOptionalCount;
 
     const result = {
       schemaVersion:
@@ -1900,15 +4011,36 @@
       version:
         VERSION,
 
+      resultType:
+        SMOKE_RESULT_TYPE,
+
       ok:
-        failedCount === 0,
+        failedRequiredCount === 0,
 
       status:
-        failedCount === 0
-          ? "passed"
+        failedRequiredCount === 0
+          ? (
+              failedOptionalCount > 0
+                ? "passed_with_optional_failures"
+                : "passed"
+            )
           : "failed",
 
       conversationId,
+
+      storageAdapter:
+        typeof storageAdapter ===
+          "string"
+          ? storageAdapter
+          : firstNonEmptyString(
+              storageAdapter &&
+                storageAdapter.type,
+              storageAdapter &&
+                storageAdapter.name
+            ) ||
+            "custom",
+
+      storageKeyPrefix,
 
       startedAt,
 
@@ -1923,11 +4055,26 @@
       testCount:
         tests.length,
 
+      requiredTestCount:
+        requiredTests.length,
+
+      optionalTestCount:
+        optionalTests.length,
+
       passedCount,
+
+      skippedCount,
 
       failedCount,
 
+      failedRequiredCount,
+
+      failedOptionalCount,
+
       tests,
+
+      cleanup:
+        safeClone(cleanup),
 
       finalState:
         options.includeFinalState ===
@@ -1968,11 +4115,18 @@
         console.table(
           tests.map(
             (test) => ({
-              Test: test.name,
+              Test:
+                test.name,
+
               Status:
                 test.status,
+
+              Required:
+                !test.optional,
+
               Duration:
                 `${test.durationMs}ms`,
+
               Error:
                 test.error
                   ? test.error.message
@@ -1983,7 +4137,9 @@
       }
     }
 
-    return result;
+    return options.freeze === true
+      ? freezeClone(result)
+      : result;
   }
 
   /* =====================================================
@@ -1996,6 +4152,7 @@
     const result =
       await run({
         ...options,
+
         log:
           options.log !== false
       });
@@ -2003,7 +4160,7 @@
     if (!result.ok) {
       throw new CosSmokeTestError(
         "COS_SMOKE_TEST_FAILED",
-        `${result.failedCount} Conversation OS smoke test(s) failed.`,
+        `${result.failedRequiredCount} required Conversation OS smoke test(s) failed.`,
         {
           details:
             result
@@ -2012,6 +4169,79 @@
     }
 
     return result;
+  }
+
+  /* =====================================================
+     SUMMARY
+  ===================================================== */
+
+  function summarize(
+    result
+  ) {
+    if (!isObject(result)) {
+      return null;
+    }
+
+    return {
+      ok:
+        result.ok === true,
+
+      status:
+        result.status || null,
+
+      testCount:
+        normalizeInteger(
+          result.testCount,
+          0
+        ),
+
+      passedCount:
+        normalizeInteger(
+          result.passedCount,
+          0
+        ),
+
+      skippedCount:
+        normalizeInteger(
+          result.skippedCount,
+          0
+        ),
+
+      failedRequiredCount:
+        normalizeInteger(
+          result
+            .failedRequiredCount,
+          0
+        ),
+
+      failedOptionalCount:
+        normalizeInteger(
+          result
+            .failedOptionalCount,
+          0
+        ),
+
+      failedTests:
+        Array.isArray(result.tests)
+          ? result.tests
+              .filter(
+                (test) =>
+                  !test.passed
+              )
+              .map(
+                (test) => ({
+                  name:
+                    test.name,
+
+                  optional:
+                    test.optional,
+
+                  error:
+                    test.error
+                })
+              )
+          : []
+    };
   }
 
   /* =====================================================
@@ -2031,6 +4261,15 @@
     component:
       COMPONENT_NAME,
 
+    resultType:
+      SMOKE_RESULT_TYPE,
+
+    requiredPacketKeys:
+      REQUIRED_PACKET_KEYS,
+
+    forbiddenPacketKeys:
+      FORBIDDEN_PACKET_KEYS,
+
     CosSmokeTestError,
 
     run,
@@ -2041,7 +4280,21 @@
     test:
       run,
 
-    assertAll
+    assertAll,
+
+    summarize,
+
+    assertPacketShape,
+
+    assertAuxiliaryStateShape,
+
+    readPlacementType,
+
+    readPlacementThreadId,
+
+    readPlacementParentTurnId,
+
+    readReferenceResolution
   };
 
   /* =====================================================
