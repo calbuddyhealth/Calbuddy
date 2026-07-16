@@ -2,16 +2,16 @@
 // Ari Final Composition Stage
 //
 // Purpose:
-// Render and normalize the final user-facing response from an authorized
-// locked response or the candidate selected by the Response Candidate Arbiter.
+// Produce the final user-facing response from an authoritative locked response
+// or a usable Response Realization Packet.
 //
-// V2.0.0 — Arbiter-Only Selection / Thin Composition / No Draft Resurrection
+// V3.0.0 — Realization-Only Authority / No Candidate Arbitration
 //
 // Architectural flow:
 //
-// Response Candidate Arbiter
+// Response Realization Stage
 //      ↓
-// Ari Language Composer V9
+// Ari Language Composer
 //      ↓
 // Final Composition Stage
 //      ↓
@@ -19,27 +19,33 @@
 //
 // Responsibilities:
 // - Determine whether final composition is eligible to run.
-// - Preserve explicitly locked developer or response authority.
-// - Pass the canonical Arbiter selection to Language Composer V9.
+// - Preserve an explicitly locked authoritative response.
+// - Read the canonical Response Realization Packet.
+// - Pass realization content and expression guidance to Language Composer.
 // - Preserve the Language Composer result.
-// - Normalize and validate the final response contract.
+// - Validate the final response against realization authority.
 // - Produce the final-composition handoff and stage packet.
 //
 // Non-responsibilities:
-// - Does not select between response candidates.
-// - Does not use raw Blueprint, Character, or AI drafts as fallbacks.
-// - Does not resurrect candidates rejected by the Arbiter.
-// - Does not independently generate a normal response.
-// - Does not preserve meal estimates or application-specific state.
-// - Does not modify routing, meaning, response planning, or safety.
-// - Does not persist state.
+// - Does not generate response candidates.
+// - Does not run Blueprint Writer.
+// - Does not run AI Writer.
+// - Does not arbitrate response candidates.
+// - Does not select a preferred draft.
+// - Does not resurrect rejected legacy drafts.
+// - Does not reinterpret semantic meaning.
+// - Does not alter the canonical response plan.
+// - Does not override safety.
+// - Does not retrieve or persist memory.
+// - Does not execute actions.
+// - Does not persist runtime state.
 
 window.Ari = window.Ari || {};
 
 window.AriFinalCompositionStage = {
-  version: "2.0.0",
+  version: "3.0.0",
+  schemaVersion: "3.0.0",
   source: "ari-final-composition-stage",
-  schemaVersion: "2.0.0",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -57,6 +63,10 @@ window.AriFinalCompositionStage = {
         "final_composition"
     };
 
+    /* =================================================
+       1. COMPOSITION ELIGIBILITY
+    ================================================= */
+
     const compositionEligibility =
       this.resolveCompositionEligibility(
         state
@@ -69,11 +79,17 @@ window.AriFinalCompositionStage = {
 
       shouldRunLanguageComposer:
         compositionEligibility
-          .runComposer
+          .runComposer ===
+        true,
+
+      shouldPreserveLockedFinal:
+        compositionEligibility
+          .preserveLockedFinal ===
+        true
     };
 
     /* =================================================
-       1. FINAL LANGUAGE COMPOSER
+       2. FINAL LANGUAGE COMPOSER
     ================================================= */
 
     mark(
@@ -83,14 +99,7 @@ window.AriFinalCompositionStage = {
     const composerResult =
       await this.runLanguageComposer({
         state,
-        eligibility:
-          compositionEligibility
-      });
 
-    state =
-      this.applyLanguageComposerResult({
-        state,
-        composerResult,
         eligibility:
           compositionEligibility
       });
@@ -99,8 +108,18 @@ window.AriFinalCompositionStage = {
       "after AriLanguageComposer"
     );
 
+    state =
+      this.applyLanguageComposerResult({
+        state,
+
+        composerResult,
+
+        eligibility:
+          compositionEligibility
+      });
+
     /* =================================================
-       2. FINAL RESPONSE NORMALIZATION
+       3. FINAL RESPONSE NORMALIZATION
     ================================================= */
 
     const normalizedResponse =
@@ -120,21 +139,28 @@ window.AriFinalCompositionStage = {
       finalResponseUsable:
         normalizedResponse.usable,
 
+      finalResponseAuthorized:
+        normalizedResponse.authorized,
+
       finalResponseDegraded:
         normalizedResponse.degraded,
 
       finalResponseFailureReason:
-        normalizedResponse.failureReason,
+        normalizedResponse
+          .failureReason,
 
       finalResponseLength:
         normalizedResponse.length,
 
       finalResponseWarnings:
-        normalizedResponse.warnings
+        normalizedResponse.warnings,
+
+      finalResponseValidation:
+        normalizedResponse.validation
     };
 
     /* =================================================
-       3. FINAL COMPOSITION HANDOFF
+       4. FINAL COMPOSITION HANDOFF
     ================================================= */
 
     state.finalCompositionHandoff =
@@ -143,7 +169,7 @@ window.AriFinalCompositionStage = {
       );
 
     /* =================================================
-       4. STAGE PACKET
+       5. STAGE PACKET
     ================================================= */
 
     state.finalCompositionStagePacket =
@@ -179,44 +205,47 @@ window.AriFinalCompositionStage = {
       summary.responseLocked ===
       true;
 
-    const existingFinal =
-      this.extractText(
-        summary.finalResponse
+    const lockedResponse =
+      this.readLockedResponse(
+        summary
       );
 
     const hasLockedFinal =
       Boolean(
-        existingFinal
+        lockedResponse
       ) &&
       (
         developerLocked ||
         responseLocked
       );
 
-    const arbitration =
-      this.readCanonicalArbitration(
+    const realization =
+      this.readCanonicalRealization(
         summary
       );
 
-    const selectedDraft =
-      this.extractText(
-        arbitration.selectedDraft ||
-        arbitration
-          .selectedCandidate
-          ?.text
+    const realizationReady =
+      realization.ready ===
+        true;
+
+    const realizationUsable =
+      realization.usable ===
+        true;
+
+    const realizationResponseAvailable =
+      Boolean(
+        realization.responseText
       );
 
-    const selectionReady =
-      arbitration.selectionReady ===
-        true &&
-      Boolean(
-        selectedDraft
-      );
+    const realizationAuthorized =
+      realizationReady &&
+      realizationUsable &&
+      realizationResponseAvailable;
 
     return {
       runComposer:
         !hasLockedFinal &&
-        selectionReady,
+        realizationAuthorized,
 
       preserveLockedFinal:
         hasLockedFinal,
@@ -227,27 +256,313 @@ window.AriFinalCompositionStage = {
 
       hasLockedFinal,
 
-      arbitrationAvailable:
-        arbitration.available,
-
-      selectionReady,
-
-      selectedDraftAvailable:
+      lockedResponseAvailable:
         Boolean(
-          selectedDraft
+          lockedResponse
         ),
+
+      realizationAvailable:
+        realization.available,
+
+      realizationReady,
+
+      realizationUsable,
+
+      realizationComplete:
+        realization.complete,
+
+      realizationResponseAvailable,
+
+      realizationAuthorized,
+
+      realizationSource:
+        realization.source,
+
+      realizationMode:
+        realization.mode,
 
       source:
         "ari-final-composition-stage-eligibility",
 
       reason:
         hasLockedFinal
-          ? "locked_final_response_already_available"
-          : selectionReady
-            ? "arbiter_selected_draft_ready"
-            : arbitration.available
-              ? "arbiter_selection_not_ready"
-              : "candidate_arbitration_missing"
+          ? "locked_final_response_available"
+          : !realization.available
+            ? "response_realization_missing"
+            : !realizationReady
+              ? "response_realization_not_ready"
+              : !realizationUsable
+                ? "response_realization_not_usable"
+                : !realizationResponseAvailable
+                  ? "realization_response_text_missing"
+                  : "response_realization_ready_for_composition"
+    };
+  },
+
+  /* =====================================================
+     CANONICAL REALIZATION
+  ===================================================== */
+
+  readCanonicalRealization(
+    summary = {}
+  ) {
+    const packet =
+      summary.realizationPacket &&
+      typeof summary
+        .realizationPacket ===
+        "object"
+        ? summary.realizationPacket
+        : summary
+              .responseRealizationHandoff
+              ?.realizationPacket &&
+            typeof summary
+              .responseRealizationHandoff
+              .realizationPacket ===
+              "object"
+          ? summary
+              .responseRealizationHandoff
+              .realizationPacket
+          : null;
+
+    const handoff =
+      summary
+        .responseRealizationHandoff &&
+      typeof summary
+        .responseRealizationHandoff ===
+        "object"
+        ? summary
+            .responseRealizationHandoff
+        : null;
+
+    if (
+      !packet &&
+      !handoff
+    ) {
+      return {
+        available:
+          false,
+
+        ready:
+          false,
+
+        usable:
+          false,
+
+        complete:
+          false,
+
+        responseText:
+          "",
+
+        suggestedEmoji:
+          "",
+
+        emojiPlacement:
+          "none",
+
+        emojiPurpose:
+          null,
+
+        responseStrategy:
+          null,
+
+        composerInstructions:
+          null,
+
+        fulfillment:
+          null,
+
+        grounding:
+          null,
+
+        validation:
+          null,
+
+        source:
+          null,
+
+        mode:
+          null,
+
+        reason:
+          "response_realization_missing",
+
+        packet:
+          null,
+
+        handoff:
+          null
+      };
+    }
+
+    const responseText =
+      this.extractText(
+        packet?.responseText ||
+        handoff?.responseText ||
+        summary
+          .realizationResponseText ||
+        ""
+      );
+
+    const suggestedEmoji =
+      this.normalizeSuggestedEmoji(
+        packet?.suggestedEmoji ||
+        handoff?.suggestedEmoji ||
+        summary
+          .realizationSuggestedEmoji ||
+        ""
+      );
+
+    const emojiPlacement =
+      this.normalizeEmojiPlacement({
+        placement:
+          packet?.emojiPlacement ||
+          handoff?.emojiPlacement ||
+          summary
+            .realizationEmojiPlacement ||
+          "none",
+
+        emoji:
+          suggestedEmoji
+      });
+
+    const ready =
+      (
+        packet?.ready ===
+          true ||
+        handoff?.ready ===
+          true ||
+        summary.realizationReady ===
+          true
+      ) &&
+      Boolean(
+        responseText
+      );
+
+    const usable =
+      ready &&
+      (
+        packet?.usable ===
+          true ||
+        handoff?.usable ===
+          true ||
+        summary.realizationUsable ===
+          true ||
+        packet?.validation
+          ?.usable ===
+          true ||
+        packet?.validation
+          ?.valid ===
+          true
+      );
+
+    const complete =
+      usable &&
+      (
+        packet?.complete ===
+          true ||
+        handoff?.complete ===
+          true ||
+        summary
+          .realizationComplete ===
+          true ||
+        packet?.validation
+          ?.complete ===
+          true
+      );
+
+    return {
+      available:
+        true,
+
+      ready,
+
+      usable,
+
+      complete,
+
+      responseText,
+
+      suggestedEmoji,
+
+      emojiPlacement,
+
+      emojiPurpose:
+        suggestedEmoji
+          ? this.cleanText(
+              packet?.emojiPurpose ||
+              handoff?.emojiPurpose ||
+              summary
+                .realizationEmojiPurpose ||
+              ""
+            ) ||
+            null
+          : null,
+
+      responseStrategy:
+        packet?.responseStrategy ||
+        handoff?.responseStrategy ||
+        summary
+          .realizationResponseStrategy ||
+        null,
+
+      composerInstructions:
+        packet
+          ?.composerInstructions ||
+        handoff
+          ?.composerInstructions ||
+        summary
+          .realizationComposerInstructions ||
+        null,
+
+      fulfillment:
+        packet?.fulfillment ||
+        handoff?.fulfillment ||
+        summary
+          .realizationFulfillment ||
+        null,
+
+      grounding:
+        packet?.grounding ||
+        handoff?.grounding ||
+        summary
+          .realizationGrounding ||
+        null,
+
+      validation:
+        packet?.validation ||
+        handoff?.validation ||
+        summary
+          .realizationValidation ||
+        null,
+
+      source:
+        packet?.source ||
+        handoff?.engineSource ||
+        summary
+          .responseRealizationSource ||
+        "ari-response-realization-engine",
+
+      mode:
+        packet?.mode ||
+        handoff?.mode ||
+        summary.realizationMode ||
+        null,
+
+      reason:
+        packet?.reason ||
+        handoff?.reason ||
+        summary
+          .responseRealizationReason ||
+        (
+          usable
+            ? "response_realization_ready"
+            : "response_realization_not_usable"
+        ),
+
+      packet,
+
+      handoff
     };
   },
 
@@ -265,8 +580,8 @@ window.AriFinalCompositionStage = {
       true
     ) {
       const lockedFinal =
-        this.extractText(
-          state.finalResponse
+        this.readLockedResponse(
+          state
         );
 
       return {
@@ -292,14 +607,19 @@ window.AriFinalCompositionStage = {
             lockedFinal
           ),
 
+        languageComposerAuthorized:
+          Boolean(
+            lockedFinal
+          ),
+
         languageComposerDegraded:
           false,
 
         languageComposerSource:
-          "locked-final-response",
+          "locked-authoritative-response",
 
         source:
-          "locked-final-response",
+          "locked-authoritative-response",
 
         reason:
           "locked_final_response_preserved",
@@ -308,7 +628,13 @@ window.AriFinalCompositionStage = {
           lockedFinal,
 
         languageBody:
-          lockedFinal
+          lockedFinal,
+
+        realizationAuthorized:
+          false,
+
+        lockedResponseAuthorized:
+          true
       };
     }
 
@@ -322,7 +648,32 @@ window.AriFinalCompositionStage = {
           "final_composition_not_eligible",
 
         source:
-          "skipped-by-expression-eligibility",
+          "skipped-by-composition-eligibility",
+
+        invoked:
+          false
+      });
+    }
+
+    const realization =
+      this.readCanonicalRealization(
+        state
+      );
+
+    if (
+      realization.ready !==
+        true ||
+      realization.usable !==
+        true ||
+      !realization.responseText
+    ) {
+      return this.buildCompositionFailure({
+        reason:
+          realization.reason ||
+          "response_realization_not_ready",
+
+        source:
+          "realization-not-ready",
 
         invoked:
           false
@@ -350,24 +701,24 @@ window.AriFinalCompositionStage = {
       });
     }
 
-    const arbitration =
-      this.readCanonicalArbitration(
+    const finalComposerPacket =
+      this.buildFinalComposerPacket(
         state
       );
 
     try {
       const result =
         await composerEngine.compose({
+          realizationPacket:
+            realization.packet,
+
+          responseRealization:
+            realization,
+
+          finalComposerPacket,
+
           composerPacket:
-            this.buildFinalComposerPacket(
-              state
-            ),
-
-          responseCandidateArbitration:
-            arbitration.raw,
-
-          arbitration:
-            arbitration.raw,
+            finalComposerPacket,
 
           summary:
             state
@@ -390,7 +741,15 @@ window.AriFinalCompositionStage = {
         });
       }
 
-      return result;
+      return {
+        ...result,
+
+        realizationAuthorized:
+          true,
+
+        lockedResponseAuthorized:
+          false
+      };
     } catch (error) {
       console.error(
         "Ari Language Composer failed:",
@@ -415,10 +774,15 @@ window.AriFinalCompositionStage = {
   buildCompositionFailure({
     reason =
       "final_composition_failed",
+
     source =
       "composition-failure",
-    invoked = false,
-    error = null
+
+    invoked =
+      false,
+
+    error =
+      null
   } = {}) {
     return {
       schema:
@@ -440,6 +804,9 @@ window.AriFinalCompositionStage = {
       languageComposerUsable:
         false,
 
+      languageComposerAuthorized:
+        false,
+
       languageComposerDegraded:
         true,
 
@@ -456,11 +823,19 @@ window.AriFinalCompositionStage = {
       languageBody:
         "",
 
+      realizationAuthorized:
+        false,
+
+      lockedResponseAuthorized:
+        false,
+
       error:
         error?.message ||
         (
           error
-            ? String(error)
+            ? String(
+                error
+              )
             : null
         )
     };
@@ -482,15 +857,17 @@ window.AriFinalCompositionStage = {
       this.extractText(
         result.finalResponse ||
         result.languageBody ||
-        result.languageComposerOutput
+        result.languageComposerOutput ||
+        result.responseText ||
+        ""
       );
 
     const lockedFinal =
       eligibility
         .preserveLockedFinal ===
         true
-        ? this.extractText(
-            state.finalResponse
+        ? this.readLockedResponse(
+            state
           )
         : "";
 
@@ -499,12 +876,9 @@ window.AriFinalCompositionStage = {
       composerFinal ||
       "";
 
-    const composerRan =
-      result.languageComposerRan ===
-      true;
-
     const composerInvoked =
-      result.languageComposerInvoked ===
+      result
+        .languageComposerInvoked ===
         true ||
       (
         eligibility.runComposer ===
@@ -514,18 +888,45 @@ window.AriFinalCompositionStage = {
           true
       );
 
+    const composerRan =
+      result.languageComposerRan ===
+        true ||
+      (
+        composerInvoked &&
+        Boolean(
+          composerFinal
+        )
+      );
+
     const producedResponse =
+      result
+        .languageComposerProducedResponse ===
+        true ||
       Boolean(
         composerFinal
       ) ||
+      Boolean(
+        lockedFinal
+      );
+
+    const realizationAuthorized =
       result
-        .languageComposerProducedResponse ===
+        .realizationAuthorized ===
+        true ||
+      eligibility
+        .realizationAuthorized ===
+        true;
+
+    const lockedResponseAuthorized =
+      result
+        .lockedResponseAuthorized ===
+        true ||
+      eligibility
+        .preserveLockedFinal ===
         true;
 
     return {
       ...state,
-
-      ...result,
 
       languageComposer:
         result,
@@ -539,121 +940,54 @@ window.AriFinalCompositionStage = {
       languageComposerProducedResponse:
         producedResponse,
 
+      languageComposerUsable:
+        result.languageComposerUsable ===
+          true ||
+        Boolean(
+          finalResponse
+        ),
+
+      languageComposerAuthorized:
+        result
+          .languageComposerAuthorized ===
+          true ||
+        realizationAuthorized ||
+        lockedResponseAuthorized,
+
+      languageComposerDegraded:
+        result
+          .languageComposerDegraded ===
+          true,
+
       languageComposerSource:
-        result.languageComposerSource ||
+        result
+          .languageComposerSource ||
         result.source ||
         (
-          eligibility
-            .preserveLockedFinal ===
-            true
-            ? "locked-final-response"
+          lockedResponseAuthorized
+            ? "locked-authoritative-response"
             : composerRan
-              ? "ari-language-composer-v9"
+              ? "ari-language-composer"
               : "composition-failure"
         ),
 
       languageComposerReason:
         result.reason ||
-        result.composerValidation ||
+        result.composerValidation
+          ?.reason ||
         null,
+
+      languageComposerError:
+        result.error ||
+        null,
+
+      realizationWasComposerAuthorized:
+        realizationAuthorized,
+
+      lockedResponseWasComposerAuthorized:
+        lockedResponseAuthorized,
 
       finalResponse
-    };
-  },
-
-  /* =====================================================
-     CANONICAL ARBITRATION
-  ===================================================== */
-
-  readCanonicalArbitration(
-    summary = {}
-  ) {
-    const raw =
-      summary
-        .responseCandidateArbitration ||
-      summary
-        .responseCandidateArbiter ||
-      summary
-        .responseCandidateArbiterResult ||
-      summary.arbitrationHandoff ||
-      null;
-
-    if (
-      !raw ||
-      typeof raw !==
-        "object"
-    ) {
-      return {
-        available:
-          false,
-
-        selectionReady:
-          false,
-
-        selectedCandidate:
-          null,
-
-        selectedDraft:
-          "",
-
-        selectedSource:
-          null,
-
-        reason:
-          "candidate_arbitration_missing",
-
-        raw:
-          null
-      };
-    }
-
-    const selectedCandidate =
-      raw.selectedCandidate &&
-      typeof raw.selectedCandidate ===
-        "object"
-        ? raw.selectedCandidate
-        : null;
-
-    const selectedDraft =
-      this.extractText(
-        selectedCandidate?.text ||
-        raw.selectedDraft ||
-        raw.finalResponseCandidate
-      );
-
-    const selectionReady =
-      raw.selectionReady ===
-        true &&
-      Boolean(
-        selectedDraft
-      );
-
-    return {
-      available:
-        true,
-
-      selectionReady,
-
-      selectedCandidate,
-
-      selectedDraft,
-
-      selectedSource:
-        selectedCandidate?.source ||
-        raw.selectedSource ||
-        raw.selectedDraftSource ||
-        null,
-
-      reason:
-        raw.selectedDraftReason ||
-        raw.reason ||
-        (
-          selectionReady
-            ? "arbiter_selected_candidate"
-            : "arbiter_selection_not_ready"
-        ),
-
-      raw
     };
   },
 
@@ -664,98 +998,239 @@ window.AriFinalCompositionStage = {
   buildFinalComposerPacket(
     summary = {}
   ) {
-    const arbitration =
-      this.readCanonicalArbitration(
+    const realization =
+      this.readCanonicalRealization(
         summary
       );
 
+    const responsePlan =
+      summary.canonicalResponsePlan ||
+      summary.responsePlan ||
+      {};
+
     return {
-      ...(
-        summary.composerPacket ||
-        {}
-      ),
+      schema:
+        "ari_final_composer_packet",
 
-      selectedCandidate:
-        arbitration
-          .selectedCandidate ||
-        null,
+      schemaVersion:
+        this.schemaVersion,
 
-      selectedDraft:
-        arbitration.selectionReady
-          ? arbitration.selectedDraft
-          : null,
+      ready:
+        realization.ready ===
+          true &&
+        realization.usable ===
+          true &&
+        Boolean(
+          realization.responseText
+        ),
 
-      selectedDraftSource:
-        arbitration.selectionReady
-          ? arbitration.selectedSource
-          : null,
+      source:
+        this.source,
 
-      selectionReady:
-        arbitration.selectionReady,
+      version:
+        this.version,
 
-      responseCandidateArbitration:
-        arbitration.raw,
+      architecture:
+        "direct-response-realization",
 
-      /*
-       * Temporary aliases retained only for compatibility
-       * with older composer consumers.
-       */
-      responseCandidateArbiter:
-        arbitration.raw,
+      request: {
+        originalText:
+          this.readOriginalCurrentTurn(
+            summary
+          ),
 
-      arbitration:
-        arbitration.raw,
+        resolvedText:
+          this.readResolvedCurrentTurn(
+            summary
+          ),
+
+        turnId:
+          summary.turnId ||
+          summary.currentTurnId ||
+          realization.packet
+            ?.request
+            ?.turnId ||
+          null
+      },
+
+      realization: {
+        ready:
+          realization.ready,
+
+        usable:
+          realization.usable,
+
+        complete:
+          realization.complete,
+
+        mode:
+          realization.mode,
+
+        source:
+          realization.source,
+
+        reason:
+          realization.reason,
+
+        responseText:
+          realization.responseText,
+
+        responseStrategy:
+          realization.responseStrategy,
+
+        suggestedEmoji:
+          realization.suggestedEmoji,
+
+        emojiPlacement:
+          realization.emojiPlacement,
+
+        emojiPurpose:
+          realization.emojiPurpose,
+
+        composerInstructions:
+          realization
+            .composerInstructions,
+
+        fulfillment:
+          realization.fulfillment,
+
+        grounding:
+          realization.grounding,
+
+        validation:
+          realization.validation
+      },
+
+      responseText:
+        realization.responseText,
+
+      suggestedEmoji:
+        realization.suggestedEmoji,
+
+      emojiPlacement:
+        realization.emojiPlacement,
+
+      emojiPurpose:
+        realization.emojiPurpose,
 
       responseStrategy:
-        summary.responseStrategy ||
-        null,
+        realization.responseStrategy,
 
-      deliberationPacket:
-        summary.deliberationPacket ||
-        null,
+      composerInstructions:
+        realization
+          .composerInstructions,
 
-      character:
-        summary.composerCharacter ||
-        summary.characterHandoff ||
-        null,
+      character: {
+        handoff:
+          summary.characterHandoff ||
+          null,
 
-      languageGuidance:
-        summary
-          .languageGuidanceHandoff ||
-        null,
+        emotion:
+          summary.emotion ||
+          summary.characterHandoff
+            ?.emotion ||
+          null,
+
+        tone:
+          summary.characterHandoff
+            ?.tone ||
+          null,
+
+        warmth:
+          summary.characterHandoff
+            ?.warmth ||
+          null,
+
+        directness:
+          summary.characterHandoff
+            ?.directness ||
+          null,
+
+        expression:
+          summary.characterHandoff
+            ?.expression ||
+          null
+      },
+
+      languageGuidance: {
+        handoff:
+          summary
+            .languageGuidanceHandoff ||
+          null,
+
+        lexicalGrounding:
+          summary.lexicalGrounding ||
+          null,
+
+        humanLanguageProfile:
+          summary
+            .humanLanguageProfile ||
+          null,
+
+        expressionPlan:
+          summary.expressionPlan ||
+          null,
+
+        communicationPlan:
+          summary.communicationPlan ||
+          null,
+
+        mouthDirective:
+          summary.mouthDirective ||
+          null
+      },
 
       responseControl: {
         goal:
           summary.responseGoal ||
+          responsePlan.responseGoal ||
           null,
 
         shape:
           summary.responseShape ||
+          responsePlan.responseShape ||
+          null,
+
+        posture:
+          summary.responsePosture ||
+          responsePlan
+            .responsePosture ||
           null,
 
         order:
           this.toArray(
-            summary.responseOrder
+            summary.responseOrder ||
+            summary.responseMoves ||
+            responsePlan.responseMoves
           ),
 
         rules:
           this.toArray(
-            summary.responseRules
+            summary.responseRules ||
+            responsePlan.responseRules
           ),
 
         constraints:
           this.toArray(
-            summary.responseConstraints
+            summary
+              .responseConstraints ||
+            responsePlan.constraints
           ),
 
         requiredBehaviors:
           this.toArray(
-            summary.responseRequired
+            summary.responseRequired ||
+            summary.requiredBehaviors ||
+            responsePlan
+              .requiredBehaviors
           ),
 
         forbiddenBehaviors:
           this.toArray(
-            summary.responseAvoid
+            summary.responseAvoid ||
+            summary.forbiddenBehaviors ||
+            responsePlan
+              .forbiddenBehaviors
           ),
 
         communicationPlan:
@@ -767,96 +1242,62 @@ window.AriFinalCompositionStage = {
           null
       },
 
-      safety: {
-        ...(
-          summary.composerPacket
-            ?.safety ||
-          {}
-        ),
-
-        earlyGate:
-          summary.safetyContextGate ||
-          summary.composerPacket
-            ?.safety
-            ?.earlyGate ||
+      continuity: {
+        semantic:
+          summary.semanticSummary
+            ?.continuity ||
           null,
 
-        gate:
+        handoff:
+          summary.continuityHandoff ||
+          summary.continuityResult ||
+          null,
+
+        realizationUsedContinuity:
+          realization.grounding
+            ?.usedContinuity ===
+          true
+      },
+
+      safety: {
+        earlyGate:
           summary.safetyContextGate ||
-          summary.composerPacket
-            ?.safety
-            ?.gate ||
           null,
 
         deepReview:
           summary.deepSafetyResult ||
-          summary.composerPacket
-            ?.safety
-            ?.deepReview ||
           null,
 
         disposition:
           summary.safetyDisposition ||
-          summary.composerPacket
-            ?.safety
-            ?.disposition ||
           null,
 
         shouldStopNormalResponse:
           summary
             .safetyShouldStopNormalResponse ===
             true ||
-          summary
-            .safetyDisposition
+          summary.safetyDisposition
             ?.shouldStopNormalResponse ===
             true ||
-          summary.composerPacket
-            ?.safety
+          summary.deepSafetyResult
             ?.shouldStopNormalResponse ===
             true,
-
-        requiredPlanner:
-          summary.safetyRequiredPlanner ||
-          null,
 
         communicationStyle:
           summary
             .safetyCommunicationStyle ||
+          summary.safetyDisposition
+            ?.communicationStyle ||
           null
       },
 
-      developerPacketLocked:
-        summary
-          .developerResponseLocked ===
-          true ||
-        summary.responseLocked ===
-          true,
-
-      developerRelevant:
-        summary
-          .composerDeveloperPacket
-          ?.enabled ===
-          true ||
-        summary
-          .developerResponseLocked ===
-          true,
-
-      lockedDeveloperReply:
-        this.readLockedResponse(
-          summary
-        ),
-
       developer: {
-        ...(
-          summary.composerPacket
-            ?.developer ||
-          {}
-        ),
-
-        responseLocked:
-          summary
-            .developerResponseLocked ===
-          true,
+        relevant:
+          summary.developerRelevant ===
+            true ||
+          summary.developerHandoff
+            ?.relevant ===
+            true,
 
         locked:
           summary
@@ -865,48 +1306,55 @@ window.AriFinalCompositionStage = {
           summary.responseLocked ===
             true,
 
-        packet:
-          summary
-            .composerDeveloperPacket ||
-          null,
-
         handoff:
           summary.developerHandoff ||
           summary
             .unlockedDeveloperHandoff ||
-          null,
+          null
+      },
 
-        lockedReply:
-          this.readLockedResponse(
-            summary
-          )
-      }
+      authority:
+        {
+          realizationAuthorized:
+            realization.ready ===
+              true &&
+            realization.usable ===
+              true &&
+            Boolean(
+              realization.responseText
+            ),
+
+          canPreserveRealizationMeaning:
+            true,
+
+          canSmoothLanguage:
+            realization
+              .composerInstructions
+              ?.maySmoothLanguage !==
+            false,
+
+          canUseSuggestedEmoji:
+            realization
+              .composerInstructions
+              ?.useSuggestedEmoji ===
+              true &&
+            Boolean(
+              realization.suggestedEmoji
+            ),
+
+          canChangeSemanticMeaning:
+            false,
+
+          canChangeResponseGoal:
+            false,
+
+          canOverrideSafety:
+            false,
+
+          role:
+            "final_realization_presentation_contract"
+        }
     };
-  },
-
-  readLockedResponse(
-    summary = {}
-  ) {
-    const locked =
-      summary
-        .developerResponseLocked ===
-        true ||
-      summary.responseLocked ===
-        true;
-
-    if (!locked) {
-      return "";
-    }
-
-    return this.extractText(
-      summary.finalResponse ||
-      summary.developerHandoff
-        ?.reply ||
-      summary.developerHandoff
-        ?.finalResponse ||
-      summary.developerReply ||
-      summary.developerResponse
-    );
   },
 
   /* =====================================================
@@ -921,19 +1369,26 @@ window.AriFinalCompositionStage = {
         summary.finalResponse
       );
 
+    const realization =
+      this.readCanonicalRealization(
+        summary
+      );
+
     const warnings = [];
+    const errors = [];
 
     if (!text) {
-      warnings.push(
+      errors.push(
         "final_response_empty"
       );
     }
 
     if (
-      text.length > 0 &&
-      text.length < 3
+      text &&
+      text.length <
+        3
     ) {
-      warnings.push(
+      errors.push(
         "final_response_too_short"
       );
     }
@@ -943,7 +1398,7 @@ window.AriFinalCompositionStage = {
         text
       )
     ) {
-      warnings.push(
+      errors.push(
         "final_response_contains_invalid_value"
       );
     }
@@ -953,7 +1408,7 @@ window.AriFinalCompositionStage = {
         text
       )
     ) {
-      warnings.push(
+      errors.push(
         "final_response_contains_internal_meta_language"
       );
     }
@@ -963,139 +1418,170 @@ window.AriFinalCompositionStage = {
         text
       )
     ) {
-      warnings.push(
+      errors.push(
         "final_response_contains_writer_failure_message"
       );
     }
 
-    const composer =
-      summary.languageComposer ||
-      {};
-
-    const selectedCandidateAuthorized =
-      composer
-        .selectedCandidateWasArbiterAuthorized ===
-        true;
-
     const lockedAuthorized =
       summary.compositionEligibility
         ?.hasLockedFinal ===
+        true &&
+      summary
+        .lockedResponseWasComposerAuthorized ===
+        true;
+
+    const realizationAuthorized =
+      summary.compositionEligibility
+        ?.realizationAuthorized ===
+        true &&
+      summary
+        .realizationWasComposerAuthorized ===
+        true &&
+      realization.ready ===
+        true &&
+      realization.usable ===
         true;
 
     const composerProducedResponse =
       summary
         .languageComposerProducedResponse ===
-        true ||
-      Boolean(
-        this.extractText(
-          composer.finalResponse ||
-          composer.languageBody
-        )
-      );
-
-    const composerFailureReason =
-      summary.languageComposerReason ||
-      composer.composerValidation ||
-      composer.reason ||
-      summary.compositionEligibility
-        ?.reason ||
-      null;
-
-    const composerReturnedHonestFallback =
-      this.isKnownHonestFallback(
-        text
-      ) &&
-      selectedCandidateAuthorized !==
         true &&
-      lockedAuthorized !==
-        true;
-
-    const fatalWarnings = [
-      "final_response_empty",
-      "final_response_too_short",
-      "final_response_contains_invalid_value",
-      "final_response_contains_internal_meta_language",
-      "final_response_contains_writer_failure_message"
-    ];
-
-    const hasFatalWarning =
-      warnings.some(
-        warning =>
-          fatalWarnings.includes(
-            warning
-          )
+      Boolean(
+        text
       );
+
+    const composerAuthorized =
+      summary
+        .languageComposerAuthorized ===
+        true;
 
     const authorized =
       lockedAuthorized ||
-      selectedCandidateAuthorized;
+      (
+        realizationAuthorized &&
+        composerAuthorized
+      );
+
+    if (
+      text &&
+      !composerProducedResponse &&
+      !lockedAuthorized
+    ) {
+      errors.push(
+        "language_composer_did_not_produce_response"
+      );
+    }
+
+    if (
+      text &&
+      !authorized
+    ) {
+      errors.push(
+        "final_response_not_authorized"
+      );
+    }
+
+    const composerFailureReason =
+      summary.languageComposerReason ||
+      summary
+        .languageComposer
+        ?.composerValidation
+        ?.reason ||
+      summary
+        .languageComposer
+        ?.reason ||
+      summary.compositionEligibility
+        ?.reason ||
+      null;
 
     const usable =
       Boolean(
         text
       ) &&
-      !hasFatalWarning &&
-      authorized &&
-      !composerReturnedHonestFallback;
+      errors.length ===
+        0 &&
+      authorized;
 
-    const degraded =
-      !usable;
+    const finalText =
+      usable
+        ? text
+        : this.honestFailureFallback();
 
     const source =
-      lockedAuthorized
-        ? "locked_authorized_response"
-        : selectedCandidateAuthorized
-          ? summary
+      usable
+        ? lockedAuthorized
+          ? "locked_authorized_response"
+          : summary
               .languageComposerSource ||
-            "ari-language-composer-v9"
-          : composerReturnedHonestFallback
-            ? "honest_failure_fallback"
-            : composerProducedResponse
-              ? summary
-                  .languageComposerSource ||
-                "unauthorized_composer_output"
-              : "composition_failure";
+            "response_realization_composition"
+        : "composition_failure";
 
     return {
       text:
-        text ||
-        this.honestFailureFallback(),
+        finalText,
 
       usable,
 
-      degraded,
-
       authorized,
+
+      degraded:
+        !usable,
 
       source,
 
       failureReason:
         usable
           ? null
-          : composerReturnedHonestFallback
-            ? composerFailureReason ||
-              "language_composer_returned_honest_failure_fallback"
-            : hasFatalWarning
-              ? warnings[0]
-              : authorized
-                ? "authorized_response_not_usable"
-                : composerFailureReason ||
-                  "no_authorized_final_response",
+          : errors[0] ||
+            composerFailureReason ||
+            "final_composition_failed",
 
       length:
-        (
-          text ||
-          this.honestFailureFallback()
-        ).length,
+        finalText.length,
 
-      warnings
+      warnings:
+        this.uniqueValues(
+          warnings
+        ),
+
+      validation: {
+        valid:
+          usable,
+
+        authorized,
+
+        lockedAuthorized,
+
+        realizationAuthorized,
+
+        composerAuthorized,
+
+        composerProducedResponse,
+
+        realizationReady:
+          realization.ready,
+
+        realizationUsable:
+          realization.usable,
+
+        errors:
+          this.uniqueValues(
+            errors
+          ),
+
+        warnings:
+          this.uniqueValues(
+            warnings
+          )
+      }
     };
   },
 
   containsInvalidValue(
     text = ""
   ) {
-    return /\b(undefined|null|\[object object\])\b/i
+    return /\b(?:undefined|null|\[object object\])\b/i
       .test(
         String(
           text ||
@@ -1121,11 +1607,14 @@ window.AriFinalCompositionStage = {
       "response candidate arbiter",
       "composer packet",
       "canonical response plan",
+      "response realization engine",
+      "realization packet",
       "response move",
       "response strategy",
       "response shape",
       "internal planner",
-      "pipeline diagnostics"
+      "pipeline diagnostics",
+      "pipeline stage"
     ];
 
     return phrases.some(
@@ -1152,10 +1641,12 @@ window.AriFinalCompositionStage = {
       "composer packet missing",
       "ai writer not loaded",
       "blueprint writer not loaded",
+      "response realization engine failed",
+      "realization packet missing",
       "try once more and ill answer",
       "try once more and i ll answer",
-      "i wont use stale developer evidence",
-      "i won t use stale developer evidence"
+      "the response generator failed",
+      "i cannot generate the response"
     ];
 
     return phrases.some(
@@ -1164,20 +1655,6 @@ window.AriFinalCompositionStage = {
           phrase
         )
     );
-  },
-
-  isKnownHonestFallback(
-    text = ""
-  ) {
-    const normalized =
-      this.normalizeText(
-        text
-      );
-
-    return normalized ===
-      this.normalizeText(
-        "I know what you’re asking, but I don’t have a reliable answer ready. I’d rather be honest than make something up."
-      );
   },
 
   honestFailureFallback() {
@@ -1193,7 +1670,12 @@ window.AriFinalCompositionStage = {
   ) {
     const ready =
       summary.finalResponseUsable ===
-      true;
+        true;
+
+    const realization =
+      this.readCanonicalRealization(
+        summary
+      );
 
     return {
       schema:
@@ -1204,6 +1686,9 @@ window.AriFinalCompositionStage = {
 
       ready,
 
+      usable:
+        ready,
+
       completed:
         true,
 
@@ -1213,12 +1698,20 @@ window.AriFinalCompositionStage = {
       version:
         this.version,
 
+      architecture:
+        "direct-response-realization",
+
       finalResponse:
         summary.finalResponse ||
         null,
 
       finalResponseUsable:
         ready,
+
+      finalResponseAuthorized:
+        summary
+          .finalResponseAuthorized ===
+        true,
 
       degraded:
         summary
@@ -1243,6 +1736,11 @@ window.AriFinalCompositionStage = {
           summary.finalResponseWarnings
         ),
 
+      validation:
+        summary
+          .finalResponseValidation ||
+        null,
+
       composer: {
         invoked:
           summary
@@ -1258,6 +1756,21 @@ window.AriFinalCompositionStage = {
             .languageComposerProducedResponse ===
           true,
 
+        usable:
+          summary
+            .languageComposerUsable ===
+          true,
+
+        authorized:
+          summary
+            .languageComposerAuthorized ===
+          true,
+
+        degraded:
+          summary
+            .languageComposerDegraded ===
+          true,
+
         source:
           summary.languageComposerSource ||
           null,
@@ -1266,43 +1779,71 @@ window.AriFinalCompositionStage = {
           summary.languageComposerReason ||
           null,
 
+        error:
+          summary.languageComposerError ||
+          null,
+
         value:
           summary.languageComposer ||
           null
       },
 
-      arbitration: {
+      realization: {
         available:
-          Boolean(
-            summary
-              .responseCandidateArbitration
-          ),
+          realization.available,
 
-        selectionReady:
-          summary.selectionReady ===
-          true,
+        ready:
+          realization.ready,
 
-        selectedCandidate:
-          summary.selectedCandidate ||
+        usable:
+          realization.usable,
+
+        complete:
+          realization.complete,
+
+        mode:
+          realization.mode,
+
+        source:
+          realization.source,
+
+        reason:
+          realization.reason,
+
+        responseText:
+          realization.responseText ||
           null,
 
-        selectedDraft:
-          summary.selectedDraft ||
-          null,
+        suggestedEmoji:
+          realization.suggestedEmoji,
 
-        selectedSource:
-          summary.selectedDraftSource ||
-          null,
+        emojiPlacement:
+          realization.emojiPlacement,
 
-        value:
+        emojiPurpose:
+          realization.emojiPurpose,
+
+        composerInstructions:
+          realization
+            .composerInstructions,
+
+        authorized:
           summary
-            .responseCandidateArbitration ||
-          null
+            .realizationWasComposerAuthorized ===
+          true
       },
 
       responseControl: {
+        goal:
+          summary.responseGoal ||
+          null,
+
         shape:
           summary.responseShape ||
+          null,
+
+        posture:
+          summary.responsePosture ||
           null,
 
         emotion:
@@ -1330,7 +1871,12 @@ window.AriFinalCompositionStage = {
   ) {
     const ready =
       summary.finalResponseUsable ===
-      true;
+        true;
+
+    const realization =
+      this.readCanonicalRealization(
+        summary
+      );
 
     return {
       schema:
@@ -1341,6 +1887,9 @@ window.AriFinalCompositionStage = {
 
       ready,
 
+      usable:
+        ready,
+
       completed:
         true,
 
@@ -1350,9 +1899,51 @@ window.AriFinalCompositionStage = {
       version:
         this.version,
 
+      architecture:
+        "direct-response-realization",
+
       eligibility:
         summary.compositionEligibility ||
         null,
+
+      realization: {
+        available:
+          realization.available,
+
+        ready:
+          realization.ready,
+
+        usable:
+          realization.usable,
+
+        complete:
+          realization.complete,
+
+        mode:
+          realization.mode,
+
+        source:
+          realization.source,
+
+        reason:
+          realization.reason,
+
+        responseTextAvailable:
+          Boolean(
+            realization.responseText
+          ),
+
+        suggestedEmoji:
+          realization.suggestedEmoji,
+
+        emojiPlacement:
+          realization.emojiPlacement,
+
+        authorized:
+          summary
+            .realizationWasComposerAuthorized ===
+          true
+      },
 
       composer: {
         invoked:
@@ -1369,12 +1960,31 @@ window.AriFinalCompositionStage = {
             .languageComposerProducedResponse ===
           true,
 
+        usable:
+          summary
+            .languageComposerUsable ===
+          true,
+
+        authorized:
+          summary
+            .languageComposerAuthorized ===
+          true,
+
+        degraded:
+          summary
+            .languageComposerDegraded ===
+          true,
+
         source:
           summary.languageComposerSource ||
           null,
 
         reason:
           summary.languageComposerReason ||
+          null,
+
+        error:
+          summary.languageComposerError ||
           null,
 
         value:
@@ -1391,6 +2001,11 @@ window.AriFinalCompositionStage = {
 
         usable:
           ready,
+
+        authorized:
+          summary
+            .finalResponseAuthorized ===
+          true,
 
         degraded:
           summary
@@ -1413,16 +2028,181 @@ window.AriFinalCompositionStage = {
         warnings:
           this.toArray(
             summary.finalResponseWarnings
-          )
+          ),
+
+        validation:
+          summary
+            .finalResponseValidation ||
+          null
       },
 
       handoff:
         summary.finalCompositionHandoff ||
         null,
 
+      legacy: {
+        arbitrationRequired:
+          false,
+
+        candidateSelectionRequired:
+          false,
+
+        selectedDraftRequired:
+          false,
+
+        blueprintDraftAllowed:
+          false,
+
+        aiWriterDraftAllowed:
+          false,
+
+        characterDraftAllowed:
+          false
+      },
+
       authority:
         this.getAuthorityBoundaries()
     };
+  },
+
+  /* =====================================================
+     LOCKED RESPONSE
+  ===================================================== */
+
+  readLockedResponse(
+    summary = {}
+  ) {
+    const locked =
+      summary
+        .developerResponseLocked ===
+        true ||
+      summary.responseLocked ===
+        true;
+
+    if (!locked) {
+      return "";
+    }
+
+    return this.extractText(
+      summary.lockedDeveloperReply ||
+      summary.finalResponse ||
+      summary.developerHandoff
+        ?.reply ||
+      summary.developerHandoff
+        ?.finalResponse ||
+      summary.developerReply ||
+      summary.developerResponse ||
+      ""
+    );
+  },
+
+  /* =====================================================
+     CURRENT TURN
+  ===================================================== */
+
+  readOriginalCurrentTurn(
+    summary = {}
+  ) {
+    return this.extractText(
+      summary.deliberationPacket
+        ?.request
+        ?.original ||
+      summary.originalUserMessage ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    );
+  },
+
+  readResolvedCurrentTurn(
+    summary = {}
+  ) {
+    return this.extractText(
+      summary.deliberationPacket
+        ?.request
+        ?.resolved ||
+      summary.resolvedUserQuestion ||
+      summary.resolvedQuestion ||
+      summary.canonicalResponsePlan
+        ?.resolvedUserQuestion ||
+      summary.responsePlan
+        ?.resolvedUserQuestion ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      ""
+    );
+  },
+
+  /* =====================================================
+     EMOJI NORMALIZATION
+  ===================================================== */
+
+  normalizeSuggestedEmoji(
+    value = ""
+  ) {
+    const emoji =
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .replace(
+          /\s+/g,
+          ""
+        );
+
+    if (!emoji) {
+      return "";
+    }
+
+    if (
+      emoji.length >
+      12
+    ) {
+      return "";
+    }
+
+    if (
+      /[a-z0-9]/i.test(
+        emoji
+      )
+    ) {
+      return "";
+    }
+
+    return emoji;
+  },
+
+  normalizeEmojiPlacement({
+    placement = "none",
+    emoji = ""
+  } = {}) {
+    if (!emoji) {
+      return "none";
+    }
+
+    const value =
+      this.normalizeIdentifier(
+        placement
+      );
+
+    if (
+      value ===
+        "start"
+    ) {
+      return "start";
+    }
+
+    if (
+      value ===
+        "end"
+    ) {
+      return "end";
+    }
+
+    return "none";
   },
 
   /* =====================================================
@@ -1431,37 +2211,61 @@ window.AriFinalCompositionStage = {
 
   getAuthorityBoundaries() {
     return {
+      canReadCanonicalRealization:
+        true,
+
       canInvokeLanguageComposer:
         true,
 
       canPreserveLockedResponse:
         true,
 
-      canPreserveArbiterSelectedDraft:
+      canPreserveRealizationAuthority:
         true,
 
       canNormalizeFinalResponseContract:
         true,
 
+      canValidateFinalResponse:
+        true,
+
       canBuildFinalCompositionHandoff:
         true,
 
-      canIndependentlySelectCandidate:
+      canBuildFinalCompositionStagePacket:
+        true,
+
+      canUseRealizationResponse:
+        true,
+
+      canUseSuggestedEmoji:
+        true,
+
+      canUseCandidateArbitration:
         false,
 
-      canUseRawAIDraftAsFallback:
+      canSelectCandidate:
         false,
 
-      canUseRawCharacterDraftAsFallback:
+      canUseSelectedDraft:
         false,
 
-      canUseRawBlueprintDraftAsFallback:
+      canUseRawAIDraft:
+        false,
+
+      canUseRawCharacterDraft:
+        false,
+
+      canUseRawBlueprintDraft:
         false,
 
       canResurrectRejectedCandidate:
         false,
 
       canGenerateNormalResponse:
+        false,
+
+      canReinterpretMeaning:
         false,
 
       canChangeRouting:
@@ -1473,11 +2277,20 @@ window.AriFinalCompositionStage = {
       canOverrideSafety:
         false,
 
+      canRetrieveMemory:
+        false,
+
+      canPersistMemory:
+        false,
+
+      canExecuteActions:
+        false,
+
       canPersistState:
         false,
 
       role:
-        "authorized_selected_candidate_final_composition"
+        "authorized_realization_final_composition"
     };
   },
 
@@ -1489,17 +2302,21 @@ window.AriFinalCompositionStage = {
     value = null
   ) {
     if (
-      value === null ||
-      value === undefined
+      value ===
+        null ||
+      value ===
+        undefined
     ) {
       return "";
     }
 
     if (
       typeof value ===
-      "string"
+        "string"
     ) {
-      return value.trim();
+      return this.cleanText(
+        value
+      );
     }
 
     if (
@@ -1515,10 +2332,11 @@ window.AriFinalCompositionStage = {
 
     if (
       typeof value ===
-      "object"
+        "object"
     ) {
       return this.extractText(
         value.text ||
+        value.responseText ||
         value.finalResponse ||
         value.languageBody ||
         value.response ||
@@ -1532,7 +2350,135 @@ window.AriFinalCompositionStage = {
     return "";
   },
 
+  toArray(
+    value
+  ) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
+      return value.filter(
+        item =>
+          item !==
+            null &&
+          item !==
+            undefined &&
+          item !==
+            ""
+      );
+    }
+
+    if (
+      value ===
+        null ||
+      value ===
+        undefined ||
+      value ===
+        ""
+    ) {
+      return [];
+    }
+
+    return [
+      value
+    ];
+  },
+
+  uniqueValues(
+    values = []
+  ) {
+    const output = [];
+    const seen =
+      new Set();
+
+    this.toArray(
+      values
+    ).forEach(
+      value => {
+        const key =
+          typeof value ===
+            "string"
+            ? value
+            : JSON.stringify(
+                value
+              );
+
+        if (
+          !key ||
+          seen.has(
+            key
+          )
+        ) {
+          return;
+        }
+
+        seen.add(
+          key
+        );
+
+        output.push(
+          value
+        );
+      }
+    );
+
+    return output;
+  },
+
+  cleanText(
+    value = ""
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /[ \t]+/g,
+        " "
+      )
+      .replace(
+        /\n[ \t]+/g,
+        "\n"
+      )
+      .replace(
+        /\n{3,}/g,
+        "\n\n"
+      )
+      .trim();
+  },
+
   normalizeText(
+    value = ""
+  ) {
+    return this.cleanText(
+      value
+    )
+      .toLowerCase()
+      .replace(
+        /[_-]/g,
+        " "
+      )
+      .replace(
+        /[^\w\s']/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  },
+
+  normalizeIdentifier(
     value = ""
   ) {
     return String(
@@ -1549,49 +2495,18 @@ window.AriFinalCompositionStage = {
         "\""
       )
       .replace(
-        /[_-]/g,
-        " "
+        /[^a-z0-9]+/g,
+        "_"
       )
       .replace(
-        /[^\w\s']/g,
-        " "
-      )
-      .replace(
-        /\s+/g,
-        " "
-      )
-      .trim();
-  },
-
-  toArray(
-    value
-  ) {
-    if (
-      Array.isArray(
-        value
-      )
-    ) {
-      return value.filter(
-        item =>
-          item !== null &&
-          item !== undefined &&
-          item !== ""
+        /^_+|_+$/g,
+        ""
       );
-    }
-
-    if (
-      value === null ||
-      value === undefined ||
-      value === ""
-    ) {
-      return [];
-    }
-
-    return [
-      value
-    ];
   }
 };
+
+window.Ari.finalCompositionStage =
+  window.AriFinalCompositionStage;
 
 console.log(
   "ARI FINAL COMPOSITION STAGE LOADED:",
