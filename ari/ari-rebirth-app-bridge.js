@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.0.1 — Canonical Runtime Entry / Delivery-Only Output Adapter
+// V2.1.0 — Delegated Runtime Services / Compatibility-Preserving Migration
 //
 // Architectural flow:
 //
@@ -13,29 +13,34 @@
 //      ↓
 // Ari Rebirth App Bridge
 //      ↓
-// Canonical Turn Envelope
+// Ari Runtime Request
 //      ↓
 // Ari Rebirth Pipeline
 //      ↓
 // Delivery Pipeline
 //      ↓
-// Authoritative Delivery Result
+// Ari Runtime Delivery
 //      ↓
 // CalBuddy UI Response
 //
 // Responsibilities:
 // - Load Ari Rebirth dependencies in deterministic order.
 // - Prevent duplicate or incomplete script loading.
-// - Validate the top-level five-layer runtime boundary.
-// - Build one canonical current-turn request envelope.
-// - Preserve app context and externally supplied evidence.
+// - Coordinate the public ask() runtime entry point.
+// - Delegate request construction to AriRuntimeRequest.
+// - Delegate runtime validation to AriRuntimeReadiness.
 // - Execute AriRebirthPipeline exactly once per request.
-// - Read only the authoritative delivery result.
-// - Adapt the delivery result to the CalBuddy UI response shape.
-// - Preserve diagnostics without exposing internal failures by default.
-// - Enforce approval requirements on outbound app actions.
+// - Delegate authoritative Delivery reading to AriRuntimeDelivery.
+// - Delegate app-response adaptation to AriRuntimeDelivery.
+// - Preserve the existing App Bridge public API.
+// - Preserve compatibility wrappers during migration.
+// - Preserve loader diagnostics.
+// - Return controlled failures when runtime bootstrapping fails.
 //
 // Non-responsibilities:
+// - Does not construct runtime requests internally.
+// - Does not independently validate runtime components.
+// - Does not scan arbitrary runtime fields for an answer.
 // - Does not classify the conversation.
 // - Does not interpret semantic meaning.
 // - Does not determine developer intent.
@@ -46,11 +51,9 @@
 // - Does not create response candidates.
 // - Does not choose between Blueprint Writer and AI Writer.
 // - Does not arbitrate drafts.
-// - Does not create file-evidence replies.
 // - Does not infer the final emotion.
 // - Does not discover actions from arbitrary runtime fields.
-// - Does not select the final response.
-// - Does not write fallback conversational answers.
+// - Does not generate conversational fallback answers.
 // - Does not retrieve or store memory.
 // - Does not execute application writes.
 // - Does not access Supabase directly.
@@ -60,10 +63,11 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.0.1",
+  version: "2.1.0",
   schemaVersion: "2.0.0",
   source: "ari-rebirth-app-bridge",
-  authorityLevel: "application_runtime_entry_and_delivery_adapter",
+  authorityLevel:
+    "application_runtime_entry_and_service_coordination",
 
   /* =====================================================
      SCRIPT DEPENDENCIES
@@ -76,6 +80,17 @@ window.AriRebirthAppBridge = {
 
     "ari/system/ari-loader.js",
     "ari/system/ari-authority.js",
+
+    // ===================================================
+    // APP BRIDGE RUNTIME SERVICES
+    //
+    // These must load before runtime readiness is checked.
+    // The App Bridge remains the bootstrap loader.
+    // ===================================================
+
+    "ari/bridge/ari-runtime-request.js",
+    "ari/bridge/ari-runtime-readiness.js",
+    "ari/bridge/ari-runtime-delivery.js",
 
     // ===================================================
     // ACTION / INTENT
@@ -123,9 +138,7 @@ window.AriRebirthAppBridge = {
 
     "ari/storage/ari-thread-store.js",
     "ari/storage/ari-memory-store.js",
-
-"ari/continuity/ari-conversation-operating-state.js",
-
+    "ari/continuity/ari-conversation-operating-state.js",
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
 
@@ -208,15 +221,11 @@ window.AriRebirthAppBridge = {
     "ari/language/ari-blueprint-writer.js",
     "ari/language/ari-ai-writer.js",
     "ari/language/ari-response-candidate-arbiter.js",
-    
 
     /*
-     * Legacy language composers remain loaded temporarily
-     * for compatibility inspection only.
-     *
-     * The App Bridge never reads their output directly.
-     * They should be removed once the main pipeline confirms
-     * that no active production stage depends on them.
+     * These composers remain active during the compatibility
+     * phase. They will be revisited only after the App Bridge
+     * migration passes its regression tests.
      */
     "ari/language/ari-language-composer-v9.js",
     "ari/language/ari-language-composer.js",
@@ -247,7 +256,6 @@ window.AriRebirthAppBridge = {
 
     "ari/confidence-system/ari-confidence-system.js",
     "ari/confidence-system/ari-confidence-calibration.js",
-
     "ari/executive-system/ari-executive-function.js",
 
     // ===================================================
@@ -407,7 +415,7 @@ window.AriRebirthAppBridge = {
     if (!cleanMessage) {
       timing.finish();
 
-      return this.makeResponse({
+      return this.makeBridgeResponse({
         reply:
           "Say something first.",
 
@@ -419,7 +427,10 @@ window.AriRebirthAppBridge = {
 
         diagnostics: {
           reason:
-            "empty_current_turn"
+            "empty_current_turn",
+
+          timing:
+            timing.getEntries()
         }
       });
     }
@@ -442,7 +453,7 @@ window.AriRebirthAppBridge = {
 
       timing.finish();
 
-      return this.makeFailureResponse({
+      return this.makeBridgeFailureResponse({
         publicReply:
           "Ari couldn’t finish loading the response system.",
 
@@ -451,12 +462,18 @@ window.AriRebirthAppBridge = {
         options,
 
         failureType:
-          "runtime_load_failure"
+          "runtime_load_failure",
+
+        timing:
+          timing.getEntries()
       });
     }
 
     const readiness =
-      this.checkReadiness();
+      this.checkReadiness({
+        requireRuntimeDelivery:
+          true
+      });
 
     if (
       readiness.ready !==
@@ -469,7 +486,7 @@ window.AriRebirthAppBridge = {
 
       timing.finish();
 
-      return this.makeFailureResponse({
+      return this.makeBridgeFailureResponse({
         publicReply:
           "Ari’s response system is not fully ready.",
 
@@ -484,17 +501,109 @@ window.AriRebirthAppBridge = {
           "runtime_readiness_failure",
 
         diagnostics:
-          readiness
+          readiness,
+
+        timing:
+          timing.getEntries()
       });
     }
 
-    const requestEnvelope =
-      this.buildRuntimeRequest({
-        message:
-          cleanMessage,
+    let requestEnvelope;
 
-        options
+    try {
+      timing.mark(
+        "before_request_build"
+      );
+
+      requestEnvelope =
+        this.buildRuntimeRequest({
+          message:
+            cleanMessage,
+
+          options: {
+            ...options,
+
+            bridgeVersion:
+              this.version
+          }
+        });
+
+      timing.mark(
+        "after_request_build"
+      );
+    } catch (error) {
+      console.error(
+        "ARI RUNTIME REQUEST BUILD ERROR:",
+        error
+      );
+
+      timing.finish();
+
+      return this.makeBridgeFailureResponse({
+        publicReply:
+          "Ari couldn’t prepare the current request.",
+
+        error,
+
+        options,
+
+        failureType:
+          "runtime_request_build_failure",
+
+        timing:
+          timing.getEntries()
       });
+    }
+
+    const requestValidation =
+      requestEnvelope
+        ?.runtimeRequestValidation ||
+      null;
+
+    if (
+      requestEnvelope
+        ?.runtimeRequestReady !==
+        true ||
+      requestValidation
+        ?.valid !==
+        true
+    ) {
+      console.error(
+        "ARI RUNTIME REQUEST INVALID:",
+        requestValidation
+      );
+
+      timing.finish();
+
+      return this.makeBridgeFailureResponse({
+        publicReply:
+          "Ari couldn’t prepare a valid runtime request.",
+
+        error:
+          requestValidation
+            ?.errors
+            ?.[0] ||
+          "runtime_request_invalid",
+
+        options,
+
+        failureType:
+          "runtime_request_validation_failure",
+
+        diagnostics: {
+          requestValidation,
+
+          turnId:
+            requestEnvelope
+              ?.turn
+              ?.turnId ||
+            null
+        },
+
+        timing:
+          timing.getEntries()
+      });
+    }
 
     let runtimeResult;
 
@@ -521,7 +630,7 @@ window.AriRebirthAppBridge = {
 
       timing.finish();
 
-      return this.makeFailureResponse({
+      return this.makeBridgeFailureResponse({
         publicReply:
           "Ari hit an internal response error.",
 
@@ -536,42 +645,53 @@ window.AriRebirthAppBridge = {
           turnId:
             requestEnvelope
               .turn
-              .turnId
-        }
+              ?.turnId ||
+            null
+        },
+
+        timing:
+          timing.getEntries()
       });
     }
 
-    const delivery =
-      this.readAuthoritativeDelivery(
-        runtimeResult
+    let normalizedDelivery;
+
+    try {
+      timing.mark(
+        "before_delivery_read"
       );
 
-    if (
-      delivery.available !==
-      true
-    ) {
+      normalizedDelivery =
+        this.readAuthoritativeDelivery(
+          runtimeResult,
+          {
+            includeSummary:
+              options.includeSummary !==
+              false
+          }
+        );
+
+      timing.mark(
+        "after_delivery_read"
+      );
+    } catch (error) {
       console.error(
-        "ARI REBIRTH DELIVERY RESULT MISSING:",
-        {
-          delivery,
-          runtimeResult
-        }
+        "ARI RUNTIME DELIVERY READ ERROR:",
+        error
       );
 
       timing.finish();
 
-      return this.makeFailureResponse({
+      return this.makeBridgeFailureResponse({
         publicReply:
-          "Ari understood the request, but the final delivery step did not complete.",
+          "Ari understood the request, but the final delivery step could not be read.",
 
-        error:
-          delivery.reason ||
-          "authoritative_delivery_result_missing",
+        error,
 
         options,
 
         failureType:
-          "delivery_result_missing",
+          "runtime_delivery_read_failure",
 
         summary:
           runtimeResult,
@@ -580,10 +700,12 @@ window.AriRebirthAppBridge = {
           turnId:
             requestEnvelope
               .turn
-              .turnId,
+              ?.turnId ||
+            null
+        },
 
-          delivery
-        }
+        timing:
+          timing.getEntries()
       });
     }
 
@@ -593,9 +715,13 @@ window.AriRebirthAppBridge = {
 
     const response =
       this.adaptDeliveryToAppResponse({
-        delivery,
+        delivery:
+          normalizedDelivery,
+
         runtimeResult,
+
         requestEnvelope,
+
         options
       });
 
@@ -605,806 +731,159 @@ window.AriRebirthAppBridge = {
 
     timing.finish();
 
-    return response;
+    return this.attachBridgeDiagnostics({
+      response,
+
+      requestEnvelope,
+
+      readiness,
+
+      timing:
+        timing.getEntries()
+    });
   },
 
   /* =====================================================
-     CANONICAL RUNTIME REQUEST
+     DELEGATED REQUEST CONSTRUCTION
   ===================================================== */
 
   buildRuntimeRequest({
     message = "",
     options = {}
   } = {}) {
-    const cleanMessage =
-      this.cleanText(
-        message
-      );
-
-    const now =
-      new Date();
-
-    const turnId =
-      this.resolveTurnId(
-        options.turnId
-      );
-
-    const source =
-      options.source ||
-      "calbuddy-health";
-
-    const githubFileContext =
-      options.githubFileContext ||
+    const service =
+      window.AriRuntimeRequest ||
+      window.Ari
+        ?.runtimeRequest ||
       null;
 
-    const githubEvidence =
-      options.githubEvidence ||
-      githubFileContext ||
-      null;
-
-    const developerInvestigation =
-      options.developerInvestigation ||
-      null;
-
-    const history =
-      this.toArray(
-        options.history
-      ).slice(
-        -20
+    if (
+      !service ||
+      typeof service.build !==
+        "function"
+    ) {
+      throw new Error(
+        "ari_runtime_request_service_unavailable"
       );
-
-    const normalizedText =
-      this.normalizeText(
-        cleanMessage
-      );
-
-    const appContext = {
-      schema:
-        "ari_app_context",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      source,
-
-      appMode:
-        "rebirth-only",
-
-      page:
-        options.page ||
-        "unknown",
-
-      debugTiming:
-        options.debugTiming ===
-        true,
-
-      ownerMode:
-        options.ownerMode ===
-        true,
-
-      userContext:
-        options.userContext ||
-        null,
-
-      coachMemorySummary:
-        options
-          .coachMemorySummary ||
-        "",
-
-      goals:
-        options.goals ||
-        null,
-
-      meals:
-        this.toArray(
-          options.meals
-        ),
-
-      todayLog:
-        this.toArray(
-          options.todayLog
-        ),
-
-      recentMeals:
-        this.toArray(
-          options.recentMeals
-        ),
-
-      favoriteFoods:
-        this.toArray(
-          options.favoriteFoods
-        ),
-
-      recentWeights:
-        this.toArray(
-          options.recentWeights
-        ),
-
-      user:
-        options.user ||
-        null,
-
-      ariPermissions:
-        options.ariPermissions ||
-        {},
-
-      history,
-
-      externalEvidence: {
-        githubFileContext,
-
-        githubEvidence,
-
-        developerInvestigation,
-
-        source:
-          githubEvidence
-            ? "app_supplied_github_evidence"
-            : developerInvestigation
-              ? "app_supplied_developer_investigation"
-              : "none"
-      },
-
-      permissions: {
-        allowDirectWrites:
-          false,
-
-        requireApprovalForActions:
-          true,
-
-        allowToolExecution:
-          false,
-
-        allowMemoryPersistence:
-          options
-            .allowMemoryPersistence ===
-          true
-      },
-
-      authority:
-        "application_context_only"
-    };
-
-    return {
-      schema:
-        "ari_rebirth_runtime_request",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      source:
-        this.source,
-
-      bridgeVersion:
-        this.version,
-
-      createdAt:
-        now.toISOString(),
-
-      debugTiming:
-        options.debugTiming ===
-        true,
-
-      turn: {
-        schema:
-          "ari_runtime_turn",
-
-        schemaVersion:
-          this.schemaVersion,
-
-        turnId,
-
-        originalText:
-          cleanMessage,
-
-        currentText:
-          cleanMessage,
-
-        effectiveText:
-          cleanMessage,
-
-        semanticInputText:
-          cleanMessage,
-
-        normalizedText,
-
-        source,
-
-        createdAt:
-          now.toISOString(),
-
-        textWasRewritten:
-          false,
-
-        originalTextPreserved:
-          true,
-
-        currentTurnWasResolved:
-          false,
-
-        ellipticalFollowUpResolved:
-          false,
-
-        resolutionSource:
-          "none",
-
-        authority:
-          "canonical_current_turn_input"
-      },
-
-      /*
-       * Compatibility aliases remain available while the
-       * five-layer pipeline migrates fully to `turn`.
-       *
-       * These values all point to the current turn and must
-       * never be populated from previous-turn state.
-       */
-      currentTurnId:
-        turnId,
-
-      turnId,
-
-      userMessage:
-        cleanMessage,
-
-      originalUserMessage:
-        cleanMessage,
-
-      message:
-        cleanMessage,
-
-      input:
-        cleanMessage,
-
-      currentTurnText:
-        cleanMessage,
-
-      semanticInputText:
-        cleanMessage,
-
-      normalizedMessage:
-        normalizedText,
-
-      resolvedUserQuestion:
-        null,
-
-      resolvedCurrentTurn:
-        null,
-
-      currentTurnWasResolved:
-        false,
-
-      ellipticalFollowUpResolved:
-        false,
-
-      resolutionSource:
-        "none",
-
-      /*
-       * Externally supplied evidence is passed into the
-       * runtime but does not become an answer at the bridge.
-       */
-      githubFileContext,
-
-      githubEvidence,
-
-      developerInvestigation,
-
-      appContext,
-
-      runtimePolicy: {
-        runMasterPipelineOnce:
-          true,
-
-        allowLegacyPipelineFallback:
-          false,
-
-        requireAuthoritativeDelivery:
-          true,
-
-        bridgeMaySelectDraft:
-          false,
-
-        bridgeMayComposeResponse:
-          false,
-
-        bridgeMayInferEmotion:
-          false,
-
-        bridgeMayInferActions:
-          false,
-
-        bridgeMayDetermineDeveloperIntent:
-          false,
-
-        bridgeMayCreateFileEvidenceReply:
-          false,
-
-        authority:
-          "runtime_entry_policy"
-      }
-    };
-  },
-
-  resolveTurnId(
-    suppliedTurnId = null
-  ) {
-    const supplied =
-      this.cleanText(
-        suppliedTurnId
-      );
-
-    if (supplied) {
-      return supplied;
     }
 
-    const random =
-      typeof crypto !==
-        "undefined" &&
-      typeof crypto.randomUUID ===
-        "function"
-        ? crypto.randomUUID()
-        : [
-            Date.now()
-              .toString(36),
-
-            Math.random()
-              .toString(36)
-              .slice(
-                2,
-                10
-              )
-          ].join(
-            "_"
-          );
-
-    return `ari_turn_${random}`;
+    return service.build({
+      message,
+      options
+    });
   },
 
   /* =====================================================
-     AUTHORITATIVE DELIVERY READING
+     DELEGATED READINESS
+  ===================================================== */
+
+  checkReadiness(
+    options = {}
+  ) {
+    const service =
+      window.AriRuntimeReadiness ||
+      window.Ari
+        ?.runtimeReadiness ||
+      null;
+
+    if (
+      !service ||
+      typeof service.check !==
+        "function"
+    ) {
+      return {
+        ready:
+          false,
+
+        source:
+          "ari-rebirth-app-bridge-readiness",
+
+        reason:
+          "runtime_readiness_service_unavailable",
+
+        error:
+          "AriRuntimeReadiness_not_loaded",
+
+        missing: [
+          "AriRuntimeReadiness"
+        ],
+
+        authority:
+          "bridge_service_availability_check"
+      };
+    }
+
+    try {
+      return service.check({
+        requireRuntimeDelivery:
+          options
+            .requireRuntimeDelivery !==
+          false,
+
+        ...options
+      });
+    } catch (error) {
+      return {
+        ready:
+          false,
+
+        source:
+          "ari-rebirth-app-bridge-readiness",
+
+        reason:
+          "runtime_readiness_service_failed",
+
+        error:
+          error?.message ||
+          String(
+            error
+          ),
+
+        errors: [
+          error?.message ||
+          String(
+            error
+          )
+        ],
+
+        authority:
+          "bridge_service_availability_check"
+      };
+    }
+  },
+
+  /* =====================================================
+     DELEGATED DELIVERY READING
   ===================================================== */
 
   readAuthoritativeDelivery(
-    runtimeResult = {}
+    runtimeResult = {},
+    options = {}
   ) {
-    const result =
-      runtimeResult &&
-      typeof runtimeResult ===
-        "object"
-        ? runtimeResult
-        : {};
+    const service =
+      window.AriRuntimeDelivery ||
+      window.Ari
+        ?.runtimeDelivery ||
+      null;
 
-    const deliveryResult =
-      this.firstObject([
-        result.deliveryResult,
-
-        result.deliveryPipelineResult,
-
-        result.deliveryStageResult,
-
-        result.deliveryPacket,
-
-        result.deliveryPipelinePacket
-          ?.result,
-
-        result.deliveryPipelinePacket
-          ?.deliveryResult,
-
-        result.deliveryPipelinePacket,
-
-        result.deliveryDiagnosticsStagePacket
-          ?.deliveryResult,
-
-        result.finalDelivery
-      ]);
-
-    const deliveryText =
-      this.extractDeliveryText(
-        deliveryResult
+    if (
+      !service ||
+      typeof service.read !==
+        "function"
+    ) {
+      throw new Error(
+        "ari_runtime_delivery_service_unavailable"
       );
-
-    if (deliveryText) {
-      return {
-        available:
-          true,
-
-        authoritative:
-          true,
-
-        source:
-          deliveryResult.source ||
-          result.deliveryPipelineSource ||
-          "ari-delivery-pipeline",
-
-        version:
-          deliveryResult.version ||
-          result.deliveryPipelineVersion ||
-          null,
-
-        status:
-          deliveryResult.status ||
-          deliveryResult.deliveryStatus ||
-          "delivered",
-
-        reply:
-          deliveryText,
-
-        emotion:
-          this.readDeliveryEmotion(
-            deliveryResult
-          ),
-
-        actions:
-          this.readDeliveryActions(
-            deliveryResult
-          ),
-
-        developerIntent:
-          deliveryResult
-            .developerIntent ||
-          result.deliveryDeveloperIntent ||
-          null,
-
-        diagnostics:
-          deliveryResult
-            .diagnostics ||
-          result.deliveryDiagnostics ||
-          null,
-
-        error:
-          deliveryResult.error ||
-          null,
-
-        raw:
-          deliveryResult,
-
-        authority:
-          "authoritative_delivery_result"
-      };
     }
 
-    /*
-     * Transitional compatibility:
-     *
-     * Until the main pipeline emits a dedicated deliveryResult,
-     * a top-level finalResponse may be accepted only when the
-     * pipeline explicitly reports that final composition or
-     * delivery completed.
-     *
-     * The bridge does not search selectedDraft, languageBody,
-     * synthesis questions, recovery questions, or arbitrary
-     * answer fields.
-     */
-    const deliveryCompleted =
-      result.deliveryPipelineRan ===
-        true ||
-      result.deliveryStageRan ===
-        true ||
-      result.deliveryComplete ===
-        true ||
-      result.finalCompositionStageRan ===
-        true ||
-      result.finalCompositionComplete ===
-        true;
-
-    const compatibilityText =
-      deliveryCompleted
-        ? this.extractResponseText(
-            result.finalResponse
-          )
-        : "";
-
-    if (compatibilityText) {
-      return {
-        available:
-          true,
-
-        authoritative:
-          false,
-
-        compatibilityFallback:
-          true,
-
-        source:
-          "top_level_final_response_compatibility",
-
-        version:
-          null,
-
-        status:
-          "delivered_with_compatibility_fallback",
-
-        reply:
-          compatibilityText,
-
-        emotion:
-          this.readDeliveryEmotion({
-            emotion:
-              result.deliveryEmotion ||
-              result.finalEmotion ||
-              result.emotion ||
-              null
-          }),
-
-        actions:
-          this.readDeliveryActions({
-            actions:
-              result.deliveredActions ||
-              result.approvedActions ||
-              []
-          }),
-
-        developerIntent:
-          result.deliveryDeveloperIntent ||
-          null,
-
-        diagnostics: {
-          warning:
-            "dedicated_delivery_result_missing",
-
-          deliveryCompleted
-        },
-
-        error:
-          null,
-
-        raw: {
-          finalResponse:
-            result.finalResponse
-        },
-
-        authority:
-          "temporary_final_response_compatibility"
-      };
-    }
-
-    return {
-      available:
-        false,
-
-      authoritative:
-        false,
-
-      source:
-        null,
-
-      status:
-        "missing",
-
-      reply:
-        "",
-
-      emotion:
-        "idle",
-
-      actions:
-        [],
-
-      developerIntent:
-        null,
-
-      diagnostics:
-        null,
-
-      error:
-        null,
-
-      reason:
-        deliveryCompleted
-          ? "delivery_completed_without_user_facing_reply"
-          : "delivery_pipeline_did_not_report_completion",
-
-      authority:
-        "no_delivery_result"
-    };
-  },
-
-  firstObject(
-    values = []
-  ) {
-    return (
-      this.toArray(
-        values
-      ).find(
-        value =>
-          value &&
-          typeof value ===
-            "object" &&
-          !Array.isArray(
-            value
-          )
-      ) ||
-      null
+    return service.read(
+      runtimeResult,
+      options
     );
-  },
-
-  extractDeliveryText(
-    delivery = null
-  ) {
-    if (!delivery) {
-      return "";
-    }
-
-    if (
-      typeof delivery ===
-      "string"
-    ) {
-      return this.cleanText(
-        delivery
-      );
-    }
-
-    if (
-      typeof delivery !==
-      "object"
-    ) {
-      return "";
-    }
-
-    const candidates = [
-      delivery.reply,
-      delivery.text,
-      delivery.finalResponse,
-      delivery.userFacingResponse,
-      delivery.deliveredResponse,
-      delivery.response
-    ];
-
-    for (
-      const candidate
-      of candidates
-    ) {
-      const text =
-        this.extractResponseText(
-          candidate
-        );
-
-      if (text) {
-        return text;
-      }
-    }
-
-    return "";
-  },
-
-  extractResponseText(
-    candidate = null
-  ) {
-    if (
-      candidate ===
-        null ||
-      candidate ===
-        undefined
-    ) {
-      return "";
-    }
-
-    if (
-      typeof candidate ===
-      "string"
-    ) {
-      return this.cleanText(
-        candidate
-      );
-    }
-
-    if (
-      typeof candidate ===
-        "number" ||
-      typeof candidate ===
-        "boolean"
-    ) {
-      return String(
-        candidate
-      ).trim();
-    }
-
-    if (
-      typeof candidate !==
-      "object"
-    ) {
-      return "";
-    }
-
-    const nested =
-      candidate.text ??
-      candidate.reply ??
-      candidate.finalResponse ??
-      candidate.userFacingResponse ??
-      candidate.deliveredResponse ??
-      candidate.response ??
-      candidate.content ??
-      candidate.message ??
-      "";
-
-    if (
-      nested ===
-      candidate
-    ) {
-      return "";
-    }
-
-    return this.extractResponseText(
-      nested
-    );
-  },
-
-  readDeliveryEmotion(
-    delivery = {}
-  ) {
-    const value =
-      this.normalizeIdentifier(
-        delivery.emotion ||
-        delivery.uiEmotion ||
-        delivery.presentation
-          ?.emotion ||
-        delivery.ui
-          ?.emotion ||
-        ""
-      );
-
-    const allowed = [
-      "idle",
-      "thinking",
-      "happy",
-      "celebrate",
-      "sad",
-      "concerned",
-      "mad",
-      "shy",
-      "coach",
-      "wow",
-      "laugh",
-      "listening",
-      "logging",
-      "success"
-    ];
-
-    return allowed.includes(
-      value
-    )
-      ? value
-      : "idle";
-  },
-
-  readDeliveryActions(
-    delivery = {}
-  ) {
-    const rawActions =
-      delivery.approvedActions ||
-      delivery.deliveredActions ||
-      delivery.actions ||
-      delivery.actionDelivery
-        ?.approvedActions ||
-      delivery.actionDelivery
-        ?.actions ||
-      [];
-
-    return this.toArray(
-      rawActions
-    )
-      .filter(
-        action =>
-          action &&
-          typeof action ===
-            "object"
-      )
-      .map(
-        action => ({
-          ...action,
-
-          requiresApproval:
-            true,
-
-          directWriteAllowed:
-            false
-        })
-      );
   },
 
   /* =====================================================
-     APP RESPONSE ADAPTATION
+     DELEGATED DELIVERY ADAPTATION
   ===================================================== */
 
   adaptDeliveryToAppResponse({
@@ -1413,137 +892,73 @@ window.AriRebirthAppBridge = {
     requestEnvelope = {},
     options = {}
   } = {}) {
-    const reply =
-      this.cleanReply(
-        delivery.reply
-      );
+    const service =
+      window.AriRuntimeDelivery ||
+      window.Ari
+        ?.runtimeDelivery ||
+      null;
 
-    if (!reply) {
-      return this.makeFailureResponse({
+    if (
+      !service ||
+      typeof service.adapt !==
+        "function"
+    ) {
+      return this.makeBridgeFailureResponse({
         publicReply:
-          "Ari’s final response was empty.",
+          "Ari’s final response adapter is unavailable.",
 
         error:
-          "authoritative_delivery_reply_empty",
+          "ari_runtime_delivery_adapter_unavailable",
 
         options,
 
         failureType:
-          "empty_delivery_reply",
+          "runtime_delivery_adapter_missing",
 
         summary:
           runtimeResult,
 
         diagnostics: {
-          delivery,
-
           turnId:
             requestEnvelope
-              .turn
+              ?.turn
               ?.turnId ||
             null
         }
       });
     }
 
-    return this.makeResponse({
-      reply,
+    return service.adapt(
+      delivery,
+      {
+        includeSummary:
+          options.includeSummary !==
+          false,
 
-      emotion:
-        delivery.emotion ||
-        "idle",
+        includeCompatibilityFields:
+          options
+            .includeCompatibilityFields !==
+          false,
 
-      actions:
-        delivery.actions,
-
-      developerIntent:
-        delivery.developerIntent ||
-        null,
-
-      summary:
-        options.includeSummary ===
+        includeFailureReply:
+          options.includeFailureReply !==
           false
-          ? null
-          : runtimeResult,
-
-      analysis:
-        null,
-
-      error:
-        delivery.error ||
-        null,
-
-      deliveryStatus:
-        delivery.status ||
-        "delivered",
-
-      diagnostics: {
-        bridge: {
-          source:
-            this.source,
-
-          version:
-            this.version,
-
-          schemaVersion:
-            this.schemaVersion
-        },
-
-        turn: {
-          turnId:
-            requestEnvelope
-              .turn
-              ?.turnId ||
-            null,
-
-          source:
-            requestEnvelope
-              .turn
-              ?.source ||
-            null
-        },
-
-        delivery: {
-          available:
-            delivery.available ===
-            true,
-
-          authoritative:
-            delivery.authoritative ===
-            true,
-
-          compatibilityFallback:
-            delivery
-              .compatibilityFallback ===
-            true,
-
-          source:
-            delivery.source ||
-            null,
-
-          version:
-            delivery.version ||
-            null,
-
-          status:
-            delivery.status ||
-            null,
-
-          diagnostics:
-            delivery.diagnostics ||
-            null
-        }
       }
-    });
+    );
   },
 
-  makeFailureResponse({
+  /* =====================================================
+     BRIDGE-LEVEL FAILURE RESPONSES
+  ===================================================== */
+
+  makeBridgeFailureResponse({
     publicReply = "Ari hit an internal response error.",
     error = null,
     options = {},
     failureType = "internal_error",
     summary = null,
-    diagnostics = null
+    diagnostics = null,
+    timing = []
   } = {}) {
     const normalizedError =
       error?.message ||
@@ -1569,14 +984,13 @@ window.AriRebirthAppBridge = {
         ? `${publicReply} ${normalizedError}`
         : publicReply;
 
-    return this.makeResponse({
+    return this.makeBridgeResponse({
       reply,
 
       emotion:
         "concerned",
 
-      actions:
-        [],
+      actions: [],
 
       developerIntent:
         null,
@@ -1587,11 +1001,20 @@ window.AriRebirthAppBridge = {
           ? null
           : summary,
 
-      analysis:
-        null,
+      error: {
+        code:
+          this.normalizeIdentifier(
+            failureType
+          ) ||
+          "internal_error",
 
-      error:
-        normalizedError,
+        message:
+          normalizedError ||
+          publicReply,
+
+        source:
+          this.source
+      },
 
       deliveryStatus:
         "failed",
@@ -1603,38 +1026,43 @@ window.AriRebirthAppBridge = {
           diagnostics,
 
         internalErrorExposed:
-          exposeInternalError
+          exposeInternalError,
+
+        timing
       }
     });
   },
 
-  makeResponse({
+  makeBridgeResponse({
     reply = "",
     emotion = "idle",
     actions = [],
     developerIntent = null,
     summary = null,
-    analysis = null,
     error = null,
     deliveryStatus = "delivered",
     diagnostics = null
   } = {}) {
+    const successful =
+      deliveryStatus ===
+      "delivered";
+
     return {
       schema:
-        "ari_rebirth_app_response",
+        "ari_app_bridge_response",
 
       schemaVersion:
         this.schemaVersion,
 
       reply:
-        this.cleanReply(
+        this.cleanText(
           reply
         ),
 
       emotion:
-        this.readDeliveryEmotion({
+        this.normalizeBridgeEmotion(
           emotion
-        }),
+        ),
 
       actions:
         this.toArray(
@@ -1645,309 +1073,261 @@ window.AriRebirthAppBridge = {
 
       summary,
 
-      analysis,
-
       error,
 
-      deliveryStatus,
+      ok:
+        successful,
 
-      diagnostics,
+      success:
+        successful,
+
+      complete:
+        successful,
+
+      deliveryStatus,
 
       source:
         this.source,
 
+      responseSource:
+        successful
+          ? "ari_rebirth_app_bridge"
+          : "ari_rebirth_app_bridge_failure",
+
       bridgeVersion:
         this.version,
 
-      authority:
-        "application_delivery_adapter"
-    };
-  },
+      diagnostics,
 
-  cleanReply(
-    reply = ""
-  ) {
-    return this.cleanText(
-      reply
-    );
-  },
+      authority: {
+        reply:
+          successful
+            ? "bridge_input_boundary"
+            : "bridge_failure_boundary",
 
-  /* =====================================================
-     RUNTIME READINESS
-  ===================================================== */
+        emotion:
+          successful
+            ? "bridge_input_boundary"
+            : "bridge_failure_boundary",
 
-  checkReadiness() {
-  const required = {
-    AriConversationOperatingState:
-      window.AriConversationOperatingState ||
-      window.Ari?.conversationOperatingState,
+        actions:
+          "none_or_upstream_preserved",
 
-    AriPerceptionPipeline:
-      window.AriPerceptionPipeline,
+        adaptation:
+          this.source
+      },
 
-    AriExecutiveRoutingPipeline:
-      window.AriExecutiveRoutingPipeline,
-
-    AriDeliberationPipeline:
-      window.AriDeliberationPipeline,
-
-    AriExpressionPipeline:
-      window.AriExpressionPipeline,
-
-    AriDeliveryPipeline:
-      window.AriDeliveryPipeline,
-
-    AriRebirthPipeline:
-      window.AriRebirthPipeline
-  };
-
-  const validators = {
-    AriConversationOperatingState:
-      component =>
-        typeof component?.beginTurn ===
-          "function" &&
-        typeof component?.completeTurn ===
-          "function",
-
-    AriPerceptionPipeline:
-      component =>
-        typeof component?.run ===
-        "function",
-
-    AriExecutiveRoutingPipeline:
-      component =>
-        typeof component?.run ===
-        "function",
-
-    AriDeliberationPipeline:
-      component =>
-        typeof component?.run ===
-        "function",
-
-    AriExpressionPipeline:
-      component =>
-        typeof component?.run ===
-        "function",
-
-    AriDeliveryPipeline:
-      component =>
-        typeof component?.run ===
-        "function",
-
-    AriRebirthPipeline:
-      component =>
-        typeof component?.run ===
-        "function"
-  };
-
-  const missing =
-    Object.entries(
-      required
-    )
-      .filter(
-        ([
-          name,
-          component
-        ]) => {
-          const validator =
-            validators[name];
-
-          return (
-            !component ||
-            typeof validator !==
-              "function" ||
-            validator(
-              component
-            ) !== true
-          );
-        }
-      )
-      .map(
-        ([
-          name
-        ]) =>
-          name
-      );
-
-  if (
-    missing.length
-  ) {
-    return {
-      ready:
-        false,
-
-      source:
-        "ari-rebirth-app-bridge-readiness",
-
-      reason:
-        "required_runtime_boundaries_missing",
-
-      missing,
-
-      error:
-        `missing_components:${missing.join(",")}`,
-
-      message:
-        `Ari Rebirth is missing required runtime boundaries: ${missing.join(", ")}.`,
-
-      authority:
-        "top_level_runtime_boundary_validation"
-    };
-  }
-
-  const layerValidation =
-    this.validateLayerContracts({
-      AriPerceptionPipeline:
-        required
-          .AriPerceptionPipeline,
-
-      AriExecutiveRoutingPipeline:
-        required
-          .AriExecutiveRoutingPipeline,
-
-      AriDeliberationPipeline:
-        required
-          .AriDeliberationPipeline,
-
-      AriExpressionPipeline:
-        required
-          .AriExpressionPipeline,
-
-      AriDeliveryPipeline:
-        required
-          .AriDeliveryPipeline,
-
-      AriRebirthPipeline:
-        required
-          .AriRebirthPipeline
-    });
-
-  return {
-    ready:
-      layerValidation.valid ===
-      true,
-
-    source:
-      "ari-rebirth-app-bridge-readiness",
-
-    checkedComponents:
-      Object.keys(
-        required
-      ),
-
-    conversationOperatingStateReady:
-  validators
-    .AriConversationOperatingState(
-      required
-        .AriConversationOperatingState
-    ) === true,
-
-    layerValidation,
-
-    reason:
-      layerValidation.valid
-        ? "top_level_runtime_ready"
-        : "one_or_more_runtime_layers_invalid",
-
-    error:
-      layerValidation.valid
-        ? null
-        : "runtime_layer_validation_failed",
-
-    authority:
-      "top_level_runtime_boundary_validation"
-  };
-},
-  validateLayerContracts(
-    required = {}
-  ) {
-    const results = [];
-
-    Object.entries(
-      required
-    ).forEach(
-      ([
-        name,
-        component
-      ]) => {
-        let validation =
-          null;
-
-        if (
-          typeof component
-            ?.validate ===
-          "function"
-        ) {
-          try {
-            validation =
-              component
-                .validate();
-          } catch (error) {
-            validation = {
-              valid:
-                false,
-
-              errors: [
-                error?.message ||
-                String(
-                  error
-                )
-              ]
-            };
-          }
-        }
-
-        results.push({
-          name,
-
-          callable:
-            typeof component
-              ?.run ===
-            "function",
-
-          validationAvailable:
-            Boolean(
-              validation
-            ),
-
-          validation,
-
-          valid:
-            typeof component
-              ?.run ===
-              "function" &&
-            (
-              !validation ||
-              validation.valid !==
-                false
-            )
-        });
-      }
-    );
-
-    const invalid =
-      results.filter(
-        item =>
-          item.valid !==
-          true
-      );
-
-    return {
-      valid:
-        invalid.length ===
-        0,
-
-      results,
-
-      invalidLayers:
-        invalid.map(
-          item =>
-            item.name
+      // Compatibility response aliases.
+      text:
+        this.cleanText(
+          reply
         ),
 
-      authority:
-        "runtime_layer_contract_inspection"
+      message:
+        this.cleanText(
+          reply
+        ),
+
+      response:
+        this.cleanText(
+          reply
+        ),
+
+      finalResponse:
+        this.cleanText(
+          reply
+        ),
+
+      finalEmotion:
+        this.normalizeBridgeEmotion(
+          emotion
+        ),
+
+      approvedActions:
+        this.toArray(
+          actions
+        ),
+
+      runtimeSummary:
+        summary
     };
+  },
+
+  attachBridgeDiagnostics({
+    response = {},
+    requestEnvelope = {},
+    readiness = {},
+    timing = []
+  } = {}) {
+    if (
+      !response ||
+      typeof response !==
+        "object" ||
+      Array.isArray(
+        response
+      )
+    ) {
+      return response;
+    }
+
+    const existingDiagnostics =
+      response.diagnostics &&
+      typeof response.diagnostics ===
+        "object" &&
+      !Array.isArray(
+        response.diagnostics
+      )
+        ? response.diagnostics
+        : {};
+
+    return {
+      ...response,
+
+      diagnostics: {
+        ...existingDiagnostics,
+
+        bridge: {
+          source:
+            this.source,
+
+          version:
+            this.version,
+
+          schemaVersion:
+            this.schemaVersion,
+
+          requestService:
+            window
+              .AriRuntimeRequest
+              ?.version ||
+            null,
+
+          readinessService:
+            window
+              .AriRuntimeReadiness
+              ?.version ||
+            null,
+
+          deliveryService:
+            window
+              .AriRuntimeDelivery
+              ?.version ||
+            null
+        },
+
+        turn: {
+          turnId:
+            requestEnvelope
+              ?.turn
+              ?.turnId ||
+            null,
+
+          source:
+            requestEnvelope
+              ?.turn
+              ?.source ||
+            null,
+
+          originalTextPreserved:
+            requestEnvelope
+              ?.turn
+              ?.originalTextPreserved ===
+            true
+        },
+
+        readiness: {
+          ready:
+            readiness.ready ===
+            true,
+
+          reason:
+            readiness.reason ||
+            null,
+
+          errors:
+            this.toArray(
+              readiness.errors
+            ),
+
+          warnings:
+            this.toArray(
+              readiness.warnings
+            )
+        },
+
+        timing
+      }
+    };
+  },
+
+  normalizeBridgeEmotion(
+    value = ""
+  ) {
+    const normalized =
+      this.normalizeIdentifier(
+        value
+      );
+
+    const aliases = {
+      neutral:
+        "idle",
+
+      concern:
+        "concerned",
+
+      anger:
+        "mad",
+
+      angry:
+        "mad",
+
+      joy:
+        "happy",
+
+      celebration:
+        "celebrate",
+
+      sadness:
+        "sad",
+
+      coaching:
+        "coach",
+
+      surprise:
+        "wow",
+
+      laughter:
+        "laugh"
+    };
+
+    const resolved =
+      aliases[
+        normalized
+      ] ||
+      normalized;
+
+    const allowed = [
+      "idle",
+      "thinking",
+      "happy",
+      "celebrate",
+      "sad",
+      "concerned",
+      "mad",
+      "shy",
+      "coach",
+      "wow",
+      "laugh",
+      "listening",
+      "logging",
+      "success"
+    ];
+
+    return allowed.includes(
+      resolved
+    )
+      ? resolved
+      : "idle";
   },
 
   /* =====================================================
@@ -1958,6 +1338,7 @@ window.AriRebirthAppBridge = {
     if (
       this.loaded ===
         true &&
+      this.areRequiredServicesReady() &&
       this.isMasterPipelineReady()
     ) {
       return true;
@@ -1976,13 +1357,14 @@ window.AriRebirthAppBridge = {
             this.loaded =
               result ===
                 true &&
+              this.areRequiredServicesReady() &&
               this.isMasterPipelineReady();
 
             if (
               !this.loaded
             ) {
               throw new Error(
-                "ari_master_pipeline_unavailable_after_script_loading"
+                "ari_runtime_unavailable_after_script_loading"
               );
             }
 
@@ -2000,6 +1382,11 @@ window.AriRebirthAppBridge = {
             sessionStorage
               .removeItem(
                 "ariLastLoadingIndex"
+              );
+
+            sessionStorage
+              .removeItem(
+                "ariLastLoadError"
               );
 
             return true;
@@ -2095,10 +1482,6 @@ window.AriRebirthAppBridge = {
           )
         );
 
-      /*
-       * Yield periodically so mobile Safari can process
-       * script evaluation and release temporary resources.
-       */
       if (
         (
           index +
@@ -2245,33 +1628,35 @@ window.AriRebirthAppBridge = {
   findExistingScript(
     src = ""
   ) {
-    return [
-      ...document.scripts
-    ].find(
-      script => {
-        const attribute =
-          script.getAttribute(
-            "src"
-          ) ||
-          "";
+    return (
+      [
+        ...document.scripts
+      ].find(
+        script => {
+          const attribute =
+            script.getAttribute(
+              "src"
+            ) ||
+            "";
 
-        const absolute =
-          script.src ||
-          "";
+          const absolute =
+            script.src ||
+            "";
 
-        return (
-          attribute ===
-            src ||
-          absolute.endsWith(
-            src
-          ) ||
-          script.dataset
-            ?.ariSource ===
-            src
-        );
-      }
-    ) ||
-    null;
+          return (
+            attribute ===
+              src ||
+            absolute.endsWith(
+              src
+            ) ||
+            script.dataset
+              ?.ariSource ===
+              src
+          );
+        }
+      ) ||
+      null
+    );
   },
 
   awaitExistingScript({
@@ -2316,12 +1701,6 @@ window.AriRebirthAppBridge = {
       );
     }
 
-    /*
-     * Scripts included directly in HTML may not contain
-     * Ari loader metadata. If document parsing has already
-     * moved beyond loading, assume the synchronously included
-     * script has completed evaluation.
-     */
     const directlyIncluded =
       script.dataset
         ?.ariDynamicScript !==
@@ -2358,44 +1737,6 @@ window.AriRebirthAppBridge = {
       ) => {
         let settled =
           false;
-
-        const timeout =
-          window.setTimeout(
-            () => {
-              if (settled) {
-                return;
-              }
-
-              settled =
-                true;
-
-              cleanup();
-
-              reject(
-                new Error(
-                  `Timed out waiting for Ari script: ${src}`
-                )
-              );
-            },
-            30000
-          );
-
-        const cleanup =
-          () => {
-            window.clearTimeout(
-              timeout
-            );
-
-            script.removeEventListener(
-              "load",
-              handleLoad
-            );
-
-            script.removeEventListener(
-              "error",
-              handleError
-            );
-          };
 
         const handleLoad =
           () => {
@@ -2439,6 +1780,44 @@ window.AriRebirthAppBridge = {
             );
           };
 
+        const timeout =
+          window.setTimeout(
+            () => {
+              if (settled) {
+                return;
+              }
+
+              settled =
+                true;
+
+              cleanup();
+
+              reject(
+                new Error(
+                  `Timed out waiting for Ari script: ${src}`
+                )
+              );
+            },
+            30000
+          );
+
+        const cleanup =
+          () => {
+            window.clearTimeout(
+              timeout
+            );
+
+            script.removeEventListener(
+              "load",
+              handleLoad
+            );
+
+            script.removeEventListener(
+              "error",
+              handleError
+            );
+          };
+
         script.addEventListener(
           "load",
           handleLoad,
@@ -2457,6 +1836,35 @@ window.AriRebirthAppBridge = {
           }
         );
       }
+    );
+  },
+
+  areRequiredServicesReady() {
+    return Boolean(
+      window
+        .AriRuntimeRequest &&
+      typeof window
+        .AriRuntimeRequest
+        .build ===
+        "function" &&
+
+      window
+        .AriRuntimeReadiness &&
+      typeof window
+        .AriRuntimeReadiness
+        .check ===
+        "function" &&
+
+      window
+        .AriRuntimeDelivery &&
+      typeof window
+        .AriRuntimeDelivery
+        .read ===
+        "function" &&
+      typeof window
+        .AriRuntimeDelivery
+        .adapt ===
+        "function"
     );
   },
 
@@ -2535,11 +1943,20 @@ window.AriRebirthAppBridge = {
         );
       };
 
+    const getEntries =
+      () =>
+        entries.map(
+          entry => ({
+            ...entry
+          })
+        );
+
     return {
       enabled,
       entries,
       mark,
-      finish
+      finish,
+      getEntries
     };
   },
 
@@ -2552,29 +1969,38 @@ window.AriRebirthAppBridge = {
       canLoadRuntimeScripts:
         true,
 
-      canValidateTopLevelRuntime:
+      canCoordinateRuntimeServices:
         true,
 
-      canBuildCanonicalTurnEnvelope:
-        true,
-
-      canAttachApplicationContext:
-        true,
-
-      canAttachExternalEvidence:
+      canValidateServiceAvailability:
         true,
 
       canRunMasterPipeline:
         true,
 
-      canReadAuthoritativeDelivery:
+      canReturnBridgeFailures:
         true,
 
-      canAdaptDeliveryForApplication:
+      canDelegateRequestConstruction:
         true,
 
-      canRequireActionApproval:
+      canDelegateRuntimeReadiness:
         true,
+
+      canDelegateDeliveryReading:
+        true,
+
+      canDelegateDeliveryAdaptation:
+        true,
+
+      canBuildCanonicalTurnEnvelope:
+        false,
+
+      canInspectRuntimeComponentsDirectly:
+        false,
+
+      canReadDeliveryFieldsDirectly:
+        false,
 
       canClassifyConversation:
         false,
@@ -2640,7 +2066,7 @@ window.AriRebirthAppBridge = {
         false,
 
       role:
-        "application_runtime_entry_and_authoritative_delivery_adapter"
+        "application_runtime_entry_and_service_coordination"
     };
   },
 
@@ -2675,6 +2101,9 @@ window.AriRebirthAppBridge = {
       this.getAuthorityBoundaries();
 
     const forbiddenTrue = [
+      "canBuildCanonicalTurnEnvelope",
+      "canInspectRuntimeComponentsDirectly",
+      "canReadDeliveryFieldsDirectly",
       "canClassifyConversation",
       "canInterpretSemanticMeaning",
       "canResolveContinuity",
@@ -2714,6 +2143,51 @@ window.AriRebirthAppBridge = {
       [];
 
     if (
+      window
+        .AriRuntimeRequest &&
+      typeof window
+        .AriRuntimeRequest
+        .build !==
+        "function"
+    ) {
+      warnings.push(
+        "AriRuntimeRequest_build_missing"
+      );
+    }
+
+    if (
+      window
+        .AriRuntimeReadiness &&
+      typeof window
+        .AriRuntimeReadiness
+        .check !==
+        "function"
+    ) {
+      warnings.push(
+        "AriRuntimeReadiness_check_missing"
+      );
+    }
+
+    if (
+      window
+        .AriRuntimeDelivery &&
+      (
+        typeof window
+          .AriRuntimeDelivery
+          .read !==
+          "function" ||
+        typeof window
+          .AriRuntimeDelivery
+          .adapt !==
+          "function"
+      )
+    ) {
+      warnings.push(
+        "AriRuntimeDelivery_contract_incomplete"
+      );
+    }
+
+    if (
       !window
         .AriRebirthPipeline
     ) {
@@ -2738,34 +2212,51 @@ window.AriRebirthAppBridge = {
       warnings,
 
       checks: {
-        masterPipelineOnly:
-          true,
+        publicAskPreserved:
+          typeof this.ask ===
+          "function",
 
-        canonicalTurnEnvelope:
-          true,
+        runtimeLoadingRetained:
+          typeof this.ensureLoaded ===
+          "function",
 
-        authoritativeDeliveryOnly:
-          true,
-
-        arbitraryReplyScanningRemoved:
-          true,
-
-        directFileEvidenceReplyRemoved:
-          true,
-
-        developerIntentInferenceRemoved:
-          true,
-
-        emotionInferenceRemoved:
-          true,
-
-        arbitraryActionDiscoveryRemoved:
-          true,
-
-        draftSelectionDisabled:
+        requestConstructionDelegated:
           authority
-            .canSelectFinalResponse ===
+            .canDelegateRequestConstruction ===
+          true,
+
+        runtimeReadinessDelegated:
+          authority
+            .canDelegateRuntimeReadiness ===
+          true,
+
+        deliveryReadingDelegated:
+          authority
+            .canDelegateDeliveryReading ===
+          true,
+
+        deliveryAdaptationDelegated:
+          authority
+            .canDelegateDeliveryAdaptation ===
+          true,
+
+        directRequestConstructionRemoved:
+          authority
+            .canBuildCanonicalTurnEnvelope ===
           false,
+
+        directRuntimeInspectionRemoved:
+          authority
+            .canInspectRuntimeComponentsDirectly ===
+          false,
+
+        directDeliveryScanningRemoved:
+          authority
+            .canReadDeliveryFieldsDirectly ===
+          false,
+
+        masterPipelineSingleEntry:
+          true,
 
         directWritesDisabled:
           authority
@@ -2845,24 +2336,6 @@ window.AriRebirthAppBridge = {
       .replace(
         /\n{3,}/g,
         "\n\n"
-      )
-      .trim();
-  },
-
-  normalizeText(
-    value = ""
-  ) {
-    return this.cleanText(
-      value
-    )
-      .toLowerCase()
-      .replace(
-        /[_-]/g,
-        " "
-      )
-      .replace(
-        /\s+/g,
-        " "
       )
       .trim();
   },
