@@ -2,61 +2,65 @@
 // Ari Composer Bridge
 //
 // Purpose:
-// Package the completed canonical Response Plan and supporting deliberation
-// and expression evidence into one Composer Packet.
+// Package the authoritative current-turn request, canonical Response Plan,
+// focused Character candidate, and supporting expression evidence into one
+// stable Composer Packet.
 //
-// V2.3.0 — Canonical Resolved Turn Preservation / Post-Continuity Handoff
+// V3.0.0 — Canonical Packaging / Focused Character Candidate Contract
 //
 // Architectural flow:
 //
-// Deliberation Packet
+// Canonical resolved current turn
 //      ↓
 // Canonical Response Plan
 //      ↓
-// Character / Language / Safety Evidence
+// Focused Character Handoff
+//      ↓
+// Supporting continuity / safety / knowledge / language evidence
 //      ↓
 // Ari Composer Bridge
 //      ↓
 // Composer Packet
 //      ↓
-// Blueprint Writer / AI Writer / Candidate Arbiter
+// Draft Generation
 //
 // Responsibilities:
 // - Preserve the original current-turn text.
+// - Preserve the canonical resolved current-turn text.
 // - Locate and preserve the canonical Response Plan.
-// - Package continuity, safety, understanding, knowledge, character,
-//   language, memory, and developer evidence.
-// - Preserve the focused Composer Character packet without exposing entire
-//   preference or worldview collections.
-// - Carry canonical, inferred, open, identity, and worldview status.
-// - Carry deterministic character drafts and AI-realization rules.
-// - Merge authoritative response controls without changing response moves.
+// - Project the canonical Response Plan into stable compatibility fields.
+// - Read one focused Character handoff.
+// - Produce one normalized Character candidate contract.
+// - Package authorized continuity, safety, knowledge, language, memory,
+//   and developer evidence.
 // - Suppress irrelevant developer evidence.
-// - Produce one structured Composer Packet.
+// - Produce one stable Composer Packet.
 //
 // Non-responsibilities:
-// - Does not create a fallback response plan.
+// - Does not reinterpret the current turn.
+// - Does not create a fallback Response Plan.
 // - Does not choose a response goal.
 // - Does not choose a response shape.
 // - Does not add, remove, reorder, or replace response moves.
-// - Does not resolve character preferences.
-// - Does not create worldview positions.
-// - Does not override safety policy.
-// - Does not rewrite writer instructions.
-// - Does not reinterpret the current user turn.
+// - Does not reconcile stale planning policy after continuity.
+// - Does not resolve Character identity, preferences, values, or worldview.
+// - Does not infer Character authority from unrelated objects.
+// - Does not decide whether Blueprint Writer should run.
+// - Does not decide whether AI Writer is needed.
+// - Does not generate a draft candidate.
+// - Does not select a response candidate.
 // - Does not write final user-facing language.
-// - Does not select the final response candidate.
 // - Does not retrieve or store memory.
 // - Does not access Supabase.
-// - Does not persist state.
+// - Does not persist runtime state.
 
 window.Ari = window.Ari || {};
 
 window.AriComposerBridge = {
-  version: "2.3.0",
-  schemaVersion: "1.3.0",
+  version: "3.0.0",
+  schemaVersion: "3.0.0",
   source: "ari-composer-bridge",
-  authorityLevel: "canonical_response_plan_packaging_authority",
+  authorityLevel: "canonical_expression_packet_packaging_authority",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -69,57 +73,70 @@ window.AriComposerBridge = {
       {};
 
     const request =
-      this.buildRequest(summary);
+      this.buildRequest(
+        summary
+      );
 
     const responsePlan =
-      this.resolveResponsePlan(summary);
+      this.readCanonicalResponsePlan(
+        summary
+      );
 
     const responseStrategy =
-      this.resolveResponseStrategy({
+      this.projectResponseStrategy({
         summary,
         responsePlan
       });
 
-    const developerContext =
-      this.resolveDeveloperContext({
+    const continuity =
+      this.readContinuityContext(
+        summary
+      );
+
+    const safety =
+      this.readSafetyContext(
+        summary
+      );
+
+    const knowledge =
+      this.readKnowledgeContext(
+        summary
+      );
+
+    const language =
+      this.readLanguageContext(
+        summary
+      );
+
+    const memory =
+      this.readMemoryContext(
+        summary
+      );
+
+    const developer =
+      this.readDeveloperContext({
         summary,
         request,
         responsePlan,
         responseStrategy
       });
 
-    const characterContext =
-      this.resolveCharacterContext(
+    const characterHandoff =
+      this.readFocusedCharacterHandoff(
         summary
       );
 
-    const continuityContext =
-      this.resolveContinuityContext(
-        summary
-      );
-
-    const safetyContext =
-      this.resolveSafetyContext(
-        summary
-      );
-
-    const knowledgeContext =
-      this.resolveKnowledgeContext(
-        summary
-      );
-
-    const languageContext =
-      this.resolveLanguageContext(
-        summary
+    const characterCandidate =
+      this.buildCharacterCandidateContract(
+        characterHandoff
       );
 
     const responseControl =
       this.buildResponseControl({
         responsePlan,
-        responseStrategy,
-        characterContext,
-        safetyContext,
-        languageContext
+        safety,
+        language,
+        characterCandidate
       });
 
     const evidence =
@@ -128,12 +145,14 @@ window.AriComposerBridge = {
         request,
         responsePlan,
         responseStrategy,
-        developerContext,
-        characterContext,
-        continuityContext,
-        safetyContext,
-        knowledgeContext,
-        languageContext
+        continuity,
+        safety,
+        knowledge,
+        language,
+        memory,
+        developer,
+        characterHandoff,
+        characterCandidate
       });
 
     const packet =
@@ -143,12 +162,14 @@ window.AriComposerBridge = {
         responsePlan,
         responseStrategy,
         responseControl,
-        developerContext,
-        characterContext,
-        continuityContext,
-        safetyContext,
-        knowledgeContext,
-        languageContext,
+        continuity,
+        safety,
+        knowledge,
+        language,
+        memory,
+        developer,
+        characterHandoff,
+        characterCandidate,
         evidence
       });
 
@@ -160,7 +181,12 @@ window.AriComposerBridge = {
 
     return {
       composerPacketReady:
-        packet.ready === true,
+        packet.ready ===
+        true,
+
+      composerPacketUsable:
+        packet.usable ===
+        true,
 
       composerPacket:
         packet,
@@ -178,10 +204,16 @@ window.AriComposerBridge = {
         this.schemaVersion,
 
       canonicalResponsePlanAvailable:
-        responsePlan.available === true,
+        responsePlan.available ===
+        true,
 
       canonicalResponsePlanReady:
-        responsePlan.ready === true,
+        responsePlan.ready ===
+        true,
+
+      canonicalResponsePlanUsable:
+        responsePlan.usable ===
+        true,
 
       canonicalResponsePlanSource:
         responsePlan.source ||
@@ -196,29 +228,33 @@ window.AriComposerBridge = {
       composerShouldAskQuestion:
         responseControl
           .questionPolicy
-          .shouldAskQuestion,
+          .shouldAskQuestion ===
+        true,
 
       composerWriterInstructions:
         responseControl.writerInstructions,
 
       composerCharacterAvailable:
-        characterContext.available ===
+        characterCandidate.available ===
         true,
 
       composerCharacterAnswerAvailable:
-        characterContext.answerAvailable ===
+        characterCandidate
+          .answerAvailable ===
         true,
 
-      composerCharacterDraftAvailable:
-        characterContext.draftAvailable ===
+      composerCharacterCandidateAvailable:
+        characterCandidate
+          .candidateAvailable ===
         true,
 
       composerCharacterNeedsAIWriter:
-        characterContext.needsAIWriter ===
+        characterCandidate
+          .needsAIWriter ===
         true,
 
       composerCharacterStatus:
-        characterContext.status ||
+        characterCandidate.status ||
         null
     };
   },
@@ -227,47 +263,19 @@ window.AriComposerBridge = {
      REQUEST
   ===================================================== */
 
-    buildRequest(summary = {}) {
+  buildRequest(summary = {}) {
     const planTurn =
-      summary.responsePlanningHandoff
-        ?.responsePlan
-        ?.turn ||
-      summary.responsePlanningStagePacket
-        ?.planner
-        ?.value
-        ?.responsePlan
-        ?.turn ||
-      summary.responsePlanningStagePacket
-        ?.planner
-        ?.value
-        ?.turn ||
-      summary.ariResponsePlan
-        ?.responsePlan
-        ?.turn ||
-      summary.ariResponsePlan
-        ?.turn ||
-      summary.responsePlan
-        ?.turn ||
-      {};
-
-        const continuityPacket =
-      summary.continuityPacket ||
-      summary.continuityStagePacket
-        ?.continuityPacket
-        ?.raw ||
-      summary.continuityStagePacket
-        ?.continuityPacket ||
-      {};
+      this.readPlanTurn(
+        summary
+      );
 
     const continuityTurn =
-      continuityPacket.currentTurn ||
-      summary.continuityStagePacket
-        ?.currentTurn ||
-      summary.continuityCurrentTurn ||
-      {};
+      this.readContinuityTurn(
+        summary
+      );
 
     const originalText =
-      this.cleanOriginal(
+      this.cleanText(
         planTurn.originalText ||
         continuityTurn.originalText ||
         summary.originalUserMessage ||
@@ -278,35 +286,23 @@ window.AriComposerBridge = {
       );
 
     const resolvedText =
-      this.cleanOriginal(
+      this.cleanText(
         planTurn.resolvedText ||
         planTurn.semanticInputText ||
         continuityTurn.resolvedText ||
-        continuityPacket
-          .resolvedUserQuestion ||
-        continuityPacket
-          .resolvedCurrentTurn
+        continuityTurn.semanticInputText ||
+        summary.resolvedUserQuestion ||
+        summary.resolvedCurrentTurn
+          ?.resolvedText ||
+        summary.continuityPacket
+          ?.resolvedUserQuestion ||
+        summary.continuityPacket
+          ?.resolvedCurrentTurn
           ?.resolvedText ||
         summary.continuityResults
           ?.resolvedUserQuestion ||
         summary.continuityResults
           ?.resolvedCurrentTurn
-          ?.resolvedText ||
-        summary.continuityResults
-          ?.outputs
-          ?.elliptical
-          ?.resolvedUserQuestion ||
-        summary.continuityResults
-          ?.outputs
-          ?.elliptical
-          ?.resolvedCurrentTurnText ||
-        summary.continuityResults
-          ?.outputs
-          ?.elliptical
-          ?.ellipticalFollowUpResolution
-          ?.resolvedText ||
-        summary.resolvedUserQuestion ||
-        summary.resolvedCurrentTurn
           ?.resolvedText ||
         originalText
       );
@@ -314,15 +310,6 @@ window.AriComposerBridge = {
     const effectiveText =
       resolvedText ||
       originalText;
-
-        const normalizedText =
-      this.normalize(
-        effectiveText ||
-        planTurn.normalizedText ||
-        continuityTurn.normalizedText ||
-        summary.normalizedMessage ||
-        originalText
-      );
 
     const turnId =
       planTurn.turnId ||
@@ -333,12 +320,13 @@ window.AriComposerBridge = {
 
     const resolvedTextDiffers =
       Boolean(
-        resolvedText
+        resolvedText &&
+        originalText
       ) &&
-      this.normalize(
+      this.normalizeForComparison(
         resolvedText
       ) !==
-      this.normalize(
+      this.normalizeForComparison(
         originalText
       );
 
@@ -349,10 +337,10 @@ window.AriComposerBridge = {
       continuityTurn
         .ellipticalFollowUpResolved ===
         true ||
-      continuityPacket
-        .ellipticalFollowUpResolved ===
-        true ||
       summary.ellipticalFollowUpResolved ===
+        true ||
+      summary.continuityPacket
+        ?.ellipticalFollowUpResolved ===
         true ||
       summary.continuityResults
         ?.ellipticalFollowUp
@@ -362,22 +350,16 @@ window.AriComposerBridge = {
         ?.outputs
         ?.elliptical
         ?.resolved ===
-        true ||
-      summary.continuityResults
-        ?.outputs
-        ?.elliptical
-        ?.ellipticalFollowUpResolution
-        ?.resolved ===
         true;
 
     const currentTurnWasResolved =
       planTurn
         .currentTurnWasSemanticallyResolved ===
         true ||
-      continuityTurn
-        .currentTurnWasResolved ===
+      planTurn
+        .currentTurnWasStructurallyResolved ===
         true ||
-      continuityPacket
+      continuityTurn
         .currentTurnWasResolved ===
         true ||
       summary.currentTurnWasResolved ===
@@ -401,22 +383,27 @@ window.AriComposerBridge = {
 
       effectiveText,
 
-      normalizedText,
-
       resolvedText:
         effectiveText,
 
       semanticInputText:
         effectiveText,
 
-      textWasRewritten:
-        false,
+      normalizedText:
+        this.normalizeForComparison(
+          effectiveText
+        ),
 
       originalTextPreserved:
         true,
 
+      textWasRewritten:
+        false,
+
       resolvedTextIsSeparateInterpretation:
         resolvedTextDiffers,
+
+      currentTurnWasResolved,
 
       currentTurnWasStructurallyResolved:
         currentTurnWasResolved,
@@ -435,14 +422,16 @@ window.AriComposerBridge = {
 
       requiresPriorContext:
         summary.routingContract
-          ?.contextLane ===
-          "continuity_follow_up" ||
-        summary.routingContract
-          ?.contextLane ===
-          "relationship_continuity" ||
-        summary.routingContract
-          ?.contextLane ===
-          "correction_or_revision" ||
+          ?.requiresPriorContext ===
+          true ||
+        [
+          "continuity_follow_up",
+          "relationship_continuity",
+          "correction_or_revision"
+        ].includes(
+          summary.routingContract
+            ?.contextLane
+        ) ||
         summary.continuityEligibility
           ?.eligible ===
           true,
@@ -451,19 +440,55 @@ window.AriComposerBridge = {
         summary.routingContract
           ?.contextLane ||
         summary.contextLane ||
-        summary.laneSplit
-          ?.lane ||
+        summary.laneSplit?.lane ||
         "direct_current_turn",
 
       authority:
-        "original_and_canonical_resolved_current_turn_handoff"
+        "canonical_current_turn_handoff"
     };
   },
+
+  readPlanTurn(summary = {}) {
+    return (
+      summary.responsePlanningHandoff
+        ?.responsePlan
+        ?.turn ||
+      summary.responsePlanningStagePacket
+        ?.planner
+        ?.value
+        ?.responsePlan
+        ?.turn ||
+      summary.ariResponsePlan
+        ?.responsePlan
+        ?.turn ||
+      summary.ariResponsePlan
+        ?.turn ||
+      summary.canonicalResponsePlan
+        ?.turn ||
+      summary.responsePlan
+        ?.turn ||
+      {}
+    );
+  },
+
+  readContinuityTurn(summary = {}) {
+    return (
+      summary.continuityPacket
+        ?.currentTurn ||
+      summary.continuityStagePacket
+        ?.currentTurn ||
+      summary.continuityCurrentTurn ||
+      {}
+    );
+  },
+
   /* =====================================================
      CANONICAL RESPONSE PLAN
   ===================================================== */
 
-  resolveResponsePlan(summary = {}) {
+  readCanonicalResponsePlan(
+    summary = {}
+  ) {
     const candidates = [
       summary.responsePlanningHandoff
         ?.responsePlan,
@@ -477,10 +502,6 @@ window.AriComposerBridge = {
         ?.planner
         ?.value
         ?.canonicalResponsePlan,
-
-      summary.responsePlanningStagePacket
-        ?.planner
-        ?.value,
 
       summary.responseStrategy
         ?.responsePlan,
@@ -501,59 +522,30 @@ window.AriComposerBridge = {
 
       summary.understandingResponsePlan,
 
-      summary.communicationPlan
-        ?.responsePlan,
-
       summary.canonicalResponsePlan,
 
       summary.responsePlan
     ];
 
-    const found =
-      candidates.find(candidate =>
-        candidate &&
-        typeof candidate === "object" &&
-        !Array.isArray(candidate) &&
-        (
-          candidate.schema ===
-            "ari_response_plan" ||
-          candidate.responsePlan
-            ?.schema ===
-            "ari_response_plan" ||
-          candidate.canonicalResponsePlan
-            ?.schema ===
-            "ari_response_plan" ||
-          candidate.responsePlannerRan ===
-            true
+    const canonical =
+      candidates
+        .map(
+          candidate =>
+            this.unwrapResponsePlan(
+              candidate
+            )
         )
-      ) ||
+        .find(Boolean) ||
       null;
 
-    const canonical =
-      found?.schema ===
-        "ari_response_plan"
-        ? found
-        : found?.responsePlan
-            ?.schema ===
-            "ari_response_plan"
-          ? found.responsePlan
-          : found
-              ?.canonicalResponsePlan
-              ?.schema ===
-              "ari_response_plan"
-            ? found
-                .canonicalResponsePlan
-            : null;
-
     if (!canonical) {
-      return this
-        .buildMissingResponsePlanRecord();
+      return this.missingResponsePlan();
     }
 
     const moves =
       this.normalizeResponseMoves(
-        canonical.moves ||
         canonical.responseMoves ||
+        canonical.moves ||
         []
       );
 
@@ -563,6 +555,10 @@ window.AriComposerBridge = {
         {}
       );
 
+    const strategy =
+      canonical.strategy ||
+      {};
+
     const interactionPolicy =
       canonical.interactionPolicy ||
       {};
@@ -571,13 +567,27 @@ window.AriComposerBridge = {
       canonical.governance ||
       {};
 
-    const strategy =
-      canonical.strategy ||
-      {};
-
     const blueprint =
       canonical.blueprint ||
       {};
+
+    const responseGoal =
+      strategy.responseGoal ||
+      canonical.responseGoal ||
+      null;
+
+    const responseShape =
+      strategy.responseShape ||
+      canonical.responseShape ||
+      writerInstructions.shape ||
+      null;
+
+    const responsePosture =
+      strategy.responsePosture ||
+      canonical.responsePosture ||
+      writerInstructions.posture ||
+      writerInstructions.tone ||
+      null;
 
     return {
       schema:
@@ -591,10 +601,18 @@ window.AriComposerBridge = {
         true,
 
       ready:
-        canonical.ready === true,
+        canonical.ready ===
+        true,
 
       usable:
-        canonical.usable === true,
+        canonical.usable ===
+          true ||
+        (
+          canonical.ready ===
+            true &&
+          moves.length >
+            0
+        ),
 
       source:
         canonical.source ||
@@ -615,18 +633,16 @@ window.AriComposerBridge = {
         canonical.turnId ||
         null,
 
-            originalQuestion:
+      originalQuestion:
         canonical.turn
           ?.originalText ||
-        canonical
-          .originalUserQuestion ||
+        canonical.originalUserQuestion ||
         null,
 
       resolvedQuestion:
         canonical.turn
           ?.resolvedText ||
-        canonical
-          .resolvedUserQuestion ||
+        canonical.resolvedUserQuestion ||
         canonical.sourceQuestion ||
         canonical.userQuestion ||
         canonical.turn
@@ -636,21 +652,9 @@ window.AriComposerBridge = {
       sourceQuestion:
         canonical.turn
           ?.resolvedText ||
-        canonical
-          .resolvedUserQuestion ||
+        canonical.resolvedUserQuestion ||
         canonical.sourceQuestion ||
         canonical.userQuestion ||
-        canonical.turn
-          ?.originalText ||
-        null,
-
-      userQuestion:
-        canonical.turn
-          ?.resolvedText ||
-        canonical
-          .resolvedUserQuestion ||
-        canonical.userQuestion ||
-        canonical.sourceQuestion ||
         canonical.turn
           ?.originalText ||
         null,
@@ -700,27 +704,14 @@ window.AriComposerBridge = {
 
       confidence:
         this.normalizeConfidence(
-          canonical.confidence ??
-          0
+          canonical.confidence
         ),
 
-      responseGoal:
-        strategy.responseGoal ||
-        canonical.responseGoal ||
-        null,
+      responseGoal,
 
-      responseShape:
-        strategy.responseShape ||
-        canonical.responseShape ||
-        writerInstructions.shape ||
-        null,
+      responseShape,
 
-      responsePosture:
-        strategy.responsePosture ||
-        canonical.responsePosture ||
-        writerInstructions.tone ||
-        writerInstructions.posture ||
-        null,
+      responsePosture,
 
       currentNeed:
         canonical.interpretation
@@ -741,7 +732,7 @@ window.AriComposerBridge = {
           .advicePolicy ||
         canonical.advicePolicy ||
         strategy.advicePolicy ||
-        null,
+        "allowed_if_useful",
 
       coachingPermissionRequired:
         interactionPolicy
@@ -767,13 +758,16 @@ window.AriComposerBridge = {
       maxQuestions:
         this.firstFiniteNumber([
           interactionPolicy
+            .maximumQuestions,
+
+          interactionPolicy
             .maxQuestions,
 
           writerInstructions
             .maxQuestions,
 
           0
-        ]),
+        ]) ?? 0,
 
       responseOrder:
         moves.map(
@@ -792,10 +786,9 @@ window.AriComposerBridge = {
           canonical.required,
 
           writerInstructions
-            .required,
+            .requiredBehaviors,
 
-          writerInstructions
-            .requiredBehaviors
+          writerInstructions.required
         ),
 
       forbiddenBehaviors:
@@ -809,18 +802,16 @@ window.AriComposerBridge = {
           canonical.avoid,
 
           writerInstructions
-            .avoid,
+            .forbiddenBehaviors,
 
-          writerInstructions
-            .forbiddenBehaviors
+          writerInstructions.avoid
         ),
 
       constraints:
         this.mergeUnique(
           governance.constraints,
           canonical.constraints,
-          writerInstructions
-            .constraints
+          writerInstructions.constraints
         ),
 
       responseRules:
@@ -829,6 +820,7 @@ window.AriComposerBridge = {
           canonical.responseRules,
           writerInstructions
             .responseRules,
+
           writerInstructions.rules
         ),
 
@@ -849,6 +841,9 @@ window.AriComposerBridge = {
         canonical,
 
       authority: {
+        canPreserveCanonicalPlan:
+          true,
+
         canDefineResponseGoal:
           false,
 
@@ -858,28 +853,59 @@ window.AriComposerBridge = {
         canDefineResponseMoves:
           false,
 
-        canDefineAdvicePolicy:
+        canModifyQuestionPolicy:
           false,
 
-        canDefineQuestionPolicy:
-          false,
-
-        canDefineWriterInstructions:
-          false,
-
-        canWriteFinalLanguage:
-          false,
-
-        canSelectFinalDraft:
+        canRewriteWriterInstructions:
           false,
 
         role:
-          "canonical_response_plan_preservation_only"
+          "canonical_response_plan_preservation"
       }
     };
   },
 
-  buildMissingResponsePlanRecord() {
+  unwrapResponsePlan(
+    candidate = null
+  ) {
+    if (
+      !candidate ||
+      typeof candidate !==
+        "object" ||
+      Array.isArray(candidate)
+    ) {
+      return null;
+    }
+
+    if (
+      candidate.schema ===
+      "ari_response_plan"
+    ) {
+      return candidate;
+    }
+
+    if (
+      candidate.responsePlan
+        ?.schema ===
+      "ari_response_plan"
+    ) {
+      return candidate.responsePlan;
+    }
+
+    if (
+      candidate
+        .canonicalResponsePlan
+        ?.schema ===
+      "ari_response_plan"
+    ) {
+      return candidate
+        .canonicalResponsePlan;
+    }
+
+    return null;
+  },
+
+  missingResponsePlan() {
     return {
       schema:
         "ari_response_plan",
@@ -906,6 +932,12 @@ window.AriComposerBridge = {
         null,
 
       turnId:
+        null,
+
+      originalQuestion:
+        null,
+
+      resolvedQuestion:
         null,
 
       sourceQuestion:
@@ -951,10 +983,7 @@ window.AriComposerBridge = {
         errors: [
           {
             type:
-              "canonical_response_plan_missing",
-
-            message:
-              "The Composer Bridge did not receive a canonical Response Plan."
+              "canonical_response_plan_missing"
           }
         ],
 
@@ -1032,12 +1061,6 @@ window.AriComposerBridge = {
         canCreateFallbackResponsePlan:
           false,
 
-        canInterpretMeaning:
-          false,
-
-        canWriteFinalLanguage:
-          false,
-
         role:
           "missing_canonical_response_plan_record"
       }
@@ -1047,8 +1070,9 @@ window.AriComposerBridge = {
   normalizeResponseMoves(
     moves = []
   ) {
-    return this
-      .toArray(moves)
+    return this.toArray(
+      moves
+    )
       .map(
         (
           move,
@@ -1063,43 +1087,55 @@ window.AriComposerBridge = {
                 move
               );
 
-            return id
-              ? {
-                  id,
-                  order:
-                    index,
+            if (!id) {
+              return null;
+            }
 
-                  type:
-                    "response_move",
+            return {
+              id,
 
-                  required:
-                    true,
+              order:
+                index,
 
-                  userFacing:
-                    true,
+              type:
+                "response_move",
 
-                  renderPolicy:
-                    "render_or_ai_repair",
+              family:
+                null,
 
-                  purpose:
-                    null,
+              required:
+                true,
 
-                  contentGuidance:
-                    null,
+              registered:
+                true,
 
-                  contentHint:
-                    null,
+              userFacing:
+                true,
 
-                  evidenceRefs:
-                    [],
+              renderPolicy:
+                "render_or_ai_repair",
 
-                  source:
-                    "canonical_response_plan",
+              purpose:
+                null,
 
-                  raw:
-                    move
-                }
-              : null;
+              contentGuidance:
+                null,
+
+              contentHint:
+                null,
+
+              evidenceRefs:
+                [],
+
+              authority:
+                null,
+
+              source:
+                "canonical_response_plan",
+
+              raw:
+                move
+            };
           }
 
           if (
@@ -1149,10 +1185,6 @@ window.AriComposerBridge = {
               move.renderer ||
               null,
 
-            purpose:
-              move.purpose ||
-              null,
-
             required:
               move.required !==
               false,
@@ -1173,6 +1205,10 @@ window.AriComposerBridge = {
                   ? "instruction_only"
                   : "render_or_ai_repair"
               ),
+
+            purpose:
+              move.purpose ||
+              null,
 
             contentGuidance:
               move.contentGuidance ||
@@ -1204,9 +1240,12 @@ window.AriComposerBridge = {
       )
       .filter(Boolean)
       .sort(
-        (a, b) =>
-          a.order -
-          b.order
+        (
+          first,
+          second
+        ) =>
+          first.order -
+          second.order
       );
   },
 
@@ -1278,23 +1317,15 @@ window.AriComposerBridge = {
   },
 
   /* =====================================================
-     RESPONSE STRATEGY
+     RESPONSE STRATEGY PROJECTION
   ===================================================== */
 
-  resolveResponseStrategy({
+  projectResponseStrategy({
     summary = {},
     responsePlan = {}
   } = {}) {
-    const canonicalStrategy =
+    const strategy =
       responsePlan.strategy ||
-      {};
-
-    const legacyStrategy =
-      summary.responsePlanningHandoff
-        ?.responseStrategy ||
-      summary.responsePlanningStagePacket
-        ?.strategy ||
-      summary.responseStrategy ||
       {};
 
     return {
@@ -1303,7 +1334,7 @@ window.AriComposerBridge = {
         true,
 
       source:
-        canonicalStrategy.source ||
+        strategy.source ||
         responsePlan.source ||
         null,
 
@@ -1320,59 +1351,53 @@ window.AriComposerBridge = {
         responsePlan.currentNeed,
 
       answerMode:
-        canonicalStrategy.answerMode ||
+        strategy.answerMode ||
         null,
 
       desiredOutcome:
-        canonicalStrategy
-          .desiredOutcome ||
+        strategy.desiredOutcome ||
         null,
 
       responseOrder:
         responsePlan.responseOrder,
 
       primaryLane:
-        canonicalStrategy
-          .primaryLane ||
-        legacyStrategy.primaryLane ||
+        strategy.primaryLane ||
         summary.routingContract
           ?.primaryLane ||
         summary.primaryLane ||
         null,
 
       contextLane:
-        canonicalStrategy
-          .contextLane ||
-        legacyStrategy.contextLane ||
+        strategy.contextLane ||
         summary.routingContract
           ?.contextLane ||
         summary.contextLane ||
         null,
 
       planner:
-        canonicalStrategy.planner ||
-        legacyStrategy.planner ||
+        strategy.planner ||
         summary.routingContract
           ?.planner ||
         summary.selectedPlanner ||
         null,
 
       mode:
-        legacyStrategy.mode ||
+        strategy.mode ||
         summary.routingContract
           ?.mode ||
         summary.conversationMode ||
         "unknown",
 
       intent:
-        legacyStrategy.intent ||
+        strategy.intent ||
         summary.routingContract
           ?.primaryIntent ||
         summary.primaryIntent ||
         "unknown",
 
       domain:
-        legacyStrategy.domain ||
+        strategy.domain ||
         summary.routingContract
           ?.domain ||
         summary.conversationDomain ||
@@ -1402,23 +1427,19 @@ window.AriComposerBridge = {
 
       personalization:
         responsePlan
-          .personalization ||
-        null,
+          .personalization,
 
       confidence:
         responsePlan.confidence,
 
       raw:
-        canonicalStrategy,
+        strategy,
 
       authority: {
-        canDescribeCanonicalStrategy:
+        canProjectCanonicalStrategy:
           true,
 
-        canOverrideCanonicalResponsePlan:
-          false,
-
-        canWriteFinalLanguage:
+        canOverrideCanonicalPlan:
           false,
 
         role:
@@ -1428,594 +1449,633 @@ window.AriComposerBridge = {
   },
 
   /* =====================================================
-     DEVELOPER CONTEXT
+     FOCUSED CHARACTER HANDOFF
   ===================================================== */
 
-  resolveDeveloperContext({
-    summary = {},
-    request = {},
-    responsePlan = {},
-    responseStrategy = {}
-  } = {}) {
-    const rawPacket =
-      summary.composerDeveloperPacket
-        ?.enabled ===
-        true
-        ? summary
-            .composerDeveloperPacket
+  readFocusedCharacterHandoff(
+    summary = {}
+  ) {
+    /*
+     * Character Stage must provide one focused handoff.
+     *
+     * The Composer Bridge does not search broad preference
+     * stores or independently combine Character authorities.
+     */
+    const handoff =
+      summary.characterHandoff ||
+      summary.characterStagePacket
+        ?.handoff ||
+      null;
+
+    if (
+      !handoff ||
+      typeof handoff !==
+        "object"
+    ) {
+      return {
+        available:
+          false,
+
+        source:
+          null,
+
+        raw:
+          null,
+
+        reason:
+          "focused_character_handoff_missing"
+      };
+    }
+
+    const composerCharacter =
+      handoff.composerCharacter &&
+      typeof handoff
+        .composerCharacter ===
+        "object"
+        ? handoff.composerCharacter
         : null;
 
-    const responseLocked =
-      summary.developerResponseLocked ===
-        true ||
-      summary.responseLocked ===
-        true ||
-      rawPacket?.locked ===
-        true;
-
-    const relevant =
-      this.isDeveloperRelevant({
-        summary,
-        request,
-        responsePlan,
-        responseStrategy
-      });
-
-    const allowed =
-      responseLocked ||
-      relevant;
-
-    const packet =
-      allowed
-        ? rawPacket
+    const reasoning =
+      handoff.reasoning &&
+      typeof handoff.reasoning ===
+        "object"
+        ? handoff.reasoning
         : null;
 
-    const lockedReply =
-      responseLocked
-        ? (
-            rawPacket?.reply ||
-            rawPacket?.finalResponse ||
-            summary.developerHandoff
-              ?.reply ||
-            summary.developerHandoff
-              ?.finalResponse ||
-            summary.developerReply ||
-            summary.developerResponse ||
-            null
-          )
-        : null;
+    const focused =
+      composerCharacter ||
+      reasoning ||
+      handoff;
 
     return {
-      applicable:
-        relevant,
+      available:
+        true,
 
-      relevant,
+      source:
+        handoff.source ||
+        focused.source ||
+        "ari-character-stage",
 
-      allowed,
+      composerCharacter,
 
-      locked:
-        responseLocked,
+      reasoning,
 
-      advisory:
-        Boolean(
-          packet &&
-          !responseLocked
-        ),
+      focused,
 
-      packet,
-
-      lockedReply,
-
-      githubEvidenceAllowed:
-        allowed,
-
-      codeEvidenceAllowed:
-        allowed,
-
-      staleEvidenceSuppressed:
-        !allowed,
+      raw:
+        handoff,
 
       reason:
-        responseLocked
-          ? "developer_response_locked"
-          : relevant
-            ? "current_request_is_developer_related"
-            : "developer_context_not_relevant_to_current_request",
-
-      authority: {
-        lockedReplyMayBeFinal:
-          responseLocked,
-
-        advisoryPacketMayBeFinal:
-          false,
-
-        staleEvidenceMayBeUsed:
-          false,
-
-        role:
-          "developer_evidence_access_policy"
-      }
+        "focused_character_handoff_available"
     };
   },
 
-  isDeveloperRelevant({
-    summary = {},
-    request = {},
-    responsePlan = {},
-    responseStrategy = {}
-  } = {}) {
-        const text =
-      this.normalize(
-        request.resolvedText ||
-        request.originalText ||
-        ""
-      );
-
-    const primary =
-      this.normalizeIdentifier(
-        responseStrategy.primaryLane ||
-        summary.primaryLane ||
-        summary.situationContractPrimary ||
-        summary.situationContract
-          ?.primary ||
-        ""
-      );
-
-    const rawMode =
-      responseStrategy.mode ||
-      summary.routingContract
-        ?.mode ||
-      "";
-
-    const mode =
-      this.normalizeIdentifier(
-        typeof rawMode === "string"
-          ? rawMode
-          : rawMode?.mode ||
-            ""
-      );
-
-    const intent =
-      this.normalizeIdentifier(
-        responseStrategy.intent ||
-        summary.routingContract
-          ?.primaryIntent ||
-        ""
-      );
-
-    const blueprint =
-      this.normalizeIdentifier(
-        responsePlan.blueprintHint ||
-        ""
-      );
-
-        const explicitFile =
-      /\b[\w./-]+\.(?:js|mjs|cjs|html|css|json|md|ts|tsx|jsx|sql|py|yml|yaml)\b/i.test(
-        request.resolvedText ||
-        request.originalText ||
-        ""
-      );
-
-    const developerEntities =
-      /\b(?:github|repo|repository|branch|commit|pull request|merge|deploy|vercel|supabase|codebase|api|pipeline|engine|composer|function|script|selector|markup|schema|debug|latency|runtime)\b/i.test(
-        text
-      );
-
-    const developerActions =
-      /\b(?:read|open|show|search|find|inspect|diagnose|debug|fix|patch|edit|update|change|replace|remove|rewrite|build|implement|wire|refactor|optimize|test|validate|send|generate)\b/i.test(
-        text
-      );
-
-    const developerAuthority =
-      [
-        "developer",
-        "builder",
-        "coding",
-        "project_help",
-        "developer_artifact"
-      ].includes(primary) ||
-      [
-        "developer",
-        "builder"
-      ].includes(mode) ||
-      intent.includes(
-        "developer"
-      ) ||
-      intent.includes(
-        "build_or_debug"
-      ) ||
-      blueprint.includes(
-        "builder"
-      ) ||
-      summary.shouldRunDeveloperLayer ===
-        true;
-
-    return Boolean(
-      developerAuthority ||
-      explicitFile ||
-      (
-        developerEntities &&
-        developerActions
-      )
-    );
-  },
-
-  /* =====================================================
-     CHARACTER
-  ===================================================== */
-
-  resolveCharacterContext(
-    summary = {}
+  buildCharacterCandidateContract(
+    handoff = {}
   ) {
-    const stagePacket =
-      summary.characterStagePacket ||
-      null;
+    if (
+      handoff.available !==
+        true ||
+      !handoff.focused
+    ) {
+      return this.emptyCharacterCandidate(
+        handoff.reason ||
+        "focused_character_handoff_missing"
+      );
+    }
 
-    const handoff =
-      summary.characterHandoff ||
-      stagePacket?.handoff ||
-      null;
-
-    const character =
-      summary.composerCharacter ||
-      handoff?.composerCharacter ||
-      summary.characterExpression
-        ?.composerCharacter ||
-      summary.characterExpression
-        ?.composerCharacterPacket ||
-      null;
-
-    const context =
-      summary.characterContext ||
-      stagePacket?.context?.value ||
-      null;
+    const source =
+      handoff.focused;
 
     const reasoning =
-      summary.characterReasoning ||
-      stagePacket?.reasoning?.value ||
-      handoff?.reasoning ||
-      null;
+      handoff.reasoning ||
+      {};
 
-    const expression =
-      summary.characterExpression ||
-      stagePacket?.expression?.value ||
-      null;
-
-    const authorities =
-      summary.localCharacterAuthorities ||
-      stagePacket
-        ?.localCharacterAuthorities ||
-      handoff?.localAuthorities ||
-      null;
-
-    const responseControl =
-      this.mergeResponseControls(
-        context?.responseControl,
-        reasoning?.responseControl,
-        expression?.responseControl,
-        character?.responseControl,
-        {
-          requiredBehaviors:
-            handoff
-              ?.requiredBehaviors,
-
-          forbiddenBehaviors:
-            handoff
-              ?.forbiddenBehaviors,
-
-          constraints:
-            handoff
-              ?.constraints
-        }
+    const realization =
+      this.normalizeCharacterRealization(
+        source.realization ||
+        handoff.raw
+          ?.realization ||
+        reasoning.realizationPolicy ||
+        {}
       );
 
     const status =
-      character?.status ||
-      handoff?.status ||
-      this.buildCharacterStatus(
-        reasoning
+      this.normalizeCharacterStatus(
+        source.status ||
+        handoff.raw?.status ||
+        reasoning.status ||
+        null,
+
+        source.type ||
+        reasoning.type ||
+        null
       );
 
-    const realization =
-      this.normalizeCharacterRealization({
-        character,
-        handoff,
-        reasoning
-      });
+    const deterministicDraft =
+      this.cleanText(
+        source.deterministicDraft ||
+        handoff.raw
+          ?.deterministicDraft ||
+        reasoning.deterministicDraft ||
+        source.draft ||
+        handoff.raw?.draft ||
+        reasoning.userFacingDraft ||
+        ""
+      );
 
     const draft =
-      String(
-        character?.draft ||
-        handoff?.draft ||
-        reasoning?.userFacingDraft ||
-        ""
-      ).trim();
-
-    const deterministicDraft =
-      String(
-        character
-          ?.deterministicDraft ||
-        handoff
-          ?.deterministicDraft ||
-        reasoning
-          ?.deterministicDraft ||
-        draft
-      ).trim();
+      this.cleanText(
+        source.draft ||
+        handoff.raw?.draft ||
+        reasoning.userFacingDraft ||
+        deterministicDraft
+      );
 
     const answerAvailable =
-      character?.answerAvailable ===
+      source.answerAvailable ===
         true ||
-      handoff?.answerAvailable ===
+      handoff.raw
+        ?.answerAvailable ===
         true ||
       reasoning
-        ?.characterAnswerAvailable ===
+        .characterAnswerAvailable ===
         true;
 
     const guidanceAvailable =
-      character?.guidanceAvailable ===
+      source.guidanceAvailable ===
         true ||
-      handoff?.guidanceAvailable ===
+      handoff.raw
+        ?.guidanceAvailable ===
         true ||
       reasoning
-        ?.characterGuidanceAvailable ===
-        true ||
-      Boolean(
-        character?.relationship ||
-        context?.relationshipPacket
-      );
-
-    const available =
-      Boolean(
-        character ||
-        handoff ||
-        context ||
-        reasoning
-      );
+        .characterGuidanceAvailable ===
+        true;
 
     const grounding =
-      character?.grounding ||
-      handoff?.grounding ||
-      this.buildCharacterGrounding({
-        reasoning,
-        status
-      });
-
-    const implementationDisclosure =
-      character
-        ?.implementationDisclosure ||
-      handoff
-        ?.implementationDisclosure ||
-      context
-        ?.implementationDisclosure ||
+      source.grounding ||
+      handoff.raw?.grounding ||
+      reasoning.grounding ||
       null;
 
-    const relationship =
-      character?.relationship ||
-      handoff?.relationship ||
-      context?.relationshipPacket ||
-      null;
+    const grounded =
+      grounding?.grounded ===
+        true;
+
+    const candidateAllowed =
+      answerAvailable &&
+      grounded &&
+      Boolean(
+        deterministicDraft
+      ) &&
+      realization.needsAIWriter !==
+        true;
+
+    const candidateAvailable =
+      candidateAllowed;
+
+    const candidatePreferred =
+      candidateAvailable &&
+      source.candidatePreferred !==
+        false &&
+      handoff.raw
+        ?.candidatePreferred !==
+        false;
+
+    const complete =
+      candidateAvailable &&
+      source.complete !==
+        false &&
+      handoff.raw?.complete !==
+        false;
+
+    const usable =
+      candidateAvailable &&
+      source.usable !==
+        false &&
+      handoff.raw?.usable !==
+        false;
 
     return {
-      available,
+      schema:
+        "ari_character_candidate",
 
-      enabled:
-        character?.enabled ===
-          true ||
-        handoff?.enabled ===
-          true,
+      schemaVersion:
+        this.schemaVersion,
 
-      relevant:
-        character
-          ?.characterRelevant ===
-          true ||
-        character?.relevant ===
-          true ||
-        handoff?.relevant ===
-          true,
-
-      useAllowed:
-        character?.enabled !==
-          false &&
-        context?.characterUseAllowed !==
-          false,
+      available:
+        true,
 
       answerAvailable,
 
       guidanceAvailable,
 
-      draftAvailable:
-        Boolean(draft),
+      grounded,
 
-      deterministicDraftAvailable:
-        Boolean(
-          deterministicDraft
-        ),
+      candidateAllowed,
+
+      candidateAvailable,
+
+      candidatePreferred,
+
+      usable,
+
+      complete,
 
       needsAIWriter:
         realization.needsAIWriter ===
         true,
 
-      mode:
-        character?.mode ||
-        handoff?.mode ||
-        context?.characterMode ||
-        "silent",
+      aiRealizationRequired:
+        realization.needsAIWriter ===
+          true &&
+        realization.mode ===
+          "ai_realization_required",
 
-      visibility:
-        character?.visibility ||
-        handoff?.visibility ||
-        context
-          ?.characterVisibility ||
-        "background",
-
-      expressionLevel:
-        character
-          ?.expressionLevel ||
-        handoff?.expressionLevel ||
-        expression
-          ?.expressionLevel ||
-        "background",
-
-      focus:
-        character?.focus ||
-        handoff?.focus ||
-        reasoning?.focus ||
-        context?.characterFocus ||
-        null,
-
-      subject:
-        character?.subject ||
-        handoff?.subject ||
-        reasoning?.subject ||
-        context?.characterSubject ||
-        null,
-
-      type:
-        character?.type ||
-        handoff?.type ||
-        reasoning?.type ||
-        null,
-
-      subtype:
-        character?.subtype ||
-        handoff?.subtype ||
-        reasoning?.subtype ||
-        null,
-
-      preferredSource:
-        character
-          ?.preferredSource ||
-        handoff
-          ?.preferredCharacterSource ||
-        reasoning?.source ||
-        context
-          ?.preferredCharacterSource ||
-        null,
-
-      status,
+      text:
+        deterministicDraft,
 
       draft,
 
       deterministicDraft,
 
       answer:
-        character?.answer ||
-        handoff?.answer ||
-        reasoning?.answer ||
-        null,
-
-      values:
-        character?.values ||
-        handoff?.values ||
-        reasoning?.values ||
+        source.answer ||
+        handoff.raw?.answer ||
+        reasoning.answer ||
         null,
 
       groundedMeaning:
-        character
+        source.groundedMeaning ||
+        handoff.raw
           ?.groundedMeaning ||
-        handoff
-          ?.groundedMeaning ||
-        reasoning
-          ?.groundedMeaning ||
+        reasoning.groundedMeaning ||
         null,
+
+      mode:
+        source.mode ||
+        handoff.raw?.mode ||
+        reasoning.request?.mode ||
+        "silent",
+
+      visibility:
+        source.visibility ||
+        handoff.raw?.visibility ||
+        "background",
+
+      expressionLevel:
+        source.expressionLevel ||
+        handoff.raw
+          ?.expressionLevel ||
+        "background",
+
+      type:
+        source.type ||
+        handoff.raw?.type ||
+        reasoning.type ||
+        null,
+
+      subtype:
+        source.subtype ||
+        handoff.raw?.subtype ||
+        reasoning.subtype ||
+        null,
+
+      focus:
+        source.focus ||
+        handoff.raw?.focus ||
+        reasoning.focus ||
+        null,
+
+      subject:
+        source.subject ||
+        handoff.raw?.subject ||
+        reasoning.subject ||
+        null,
+
+      preferenceSubject:
+        source.preferenceSubject ||
+        handoff.raw
+          ?.preferenceSubject ||
+        reasoning.preferenceSubject ||
+        null,
+
+      status,
 
       grounding,
 
       realization,
 
-      relationship,
+      aiWriterMode:
+        realization.aiWriterMode,
 
-      implementationDisclosure,
+      aiInstruction:
+        realization.aiInstruction,
 
-      responseControl,
+      preserveMeaning:
+        realization.preserveMeaning,
 
-      style:
-        character?.style ||
+      preserveStatus:
+        realization.preserveStatus,
+
+      preserveValue:
+        realization.preserveValue,
+
+      preservePosition:
+        realization.preservePosition,
+
+      preserveOpenStatus:
+        realization.preserveOpenStatus,
+
+      tentativeLanguageRequired:
+        realization
+          .tentativeLanguageRequired,
+
+      mayVaryWording:
+        realization.mayVaryWording,
+
+      relationship:
+        source.relationship ||
+        handoff.raw?.relationship ||
         null,
 
-      limits:
-        character?.limits ||
+      implementationDisclosure:
+        source
+          .implementationDisclosure ||
+        handoff.raw
+          ?.implementationDisclosure ||
         null,
 
-      characterType:
-        character
-          ?.characterType ||
-        null,
+      responseControl:
+        this.normalizeCharacterResponseControl(
+          source.responseControl ||
+          handoff.raw
+            ?.responseControl ||
+          {
+            requiredBehaviors:
+              handoff.raw
+                ?.requiredBehaviors,
 
-      rules:
-        this.mergeUnique(
-          character?.rules,
-          reasoning
-            ?.composerHints
-            ?.rules
+            forbiddenBehaviors:
+              handoff.raw
+                ?.forbiddenBehaviors,
+
+            constraints:
+              handoff.raw
+                ?.constraints
+          }
         ),
 
       authorityChain:
         this.toArray(
-          character
+          source.authorityChain ||
+          handoff.raw
             ?.authorityChain ||
-          handoff
-            ?.authorityChain ||
-          reasoning
-            ?.authorityChain
+          reasoning.authorityChain
         ),
 
       authorityPacket:
-        character
+        source.authorityPacket ||
+        handoff.raw
           ?.authorityPacket ||
-        handoff
-          ?.authorityPacket ||
-        reasoning
-          ?.authorityPacket ||
+        reasoning.authorityPacket ||
         null,
 
-      requestedAuthorities:
-        authorities
-          ?.requestedAuthorities ||
-        [],
+      source:
+        source.preferredSource ||
+        handoff.raw
+          ?.preferredCharacterSource ||
+        reasoning.source ||
+        handoff.source ||
+        "ari-character-stage",
 
-      missingRequestedAuthorities:
-        authorities
-          ?.missingRequestedAuthorities ||
-        [],
+      reason:
+        realization.needsAIWriter ===
+          true
+          ? "character_answer_requires_ai_realization"
+          : candidateAvailable
+            ? "authorized_grounded_character_candidate"
+            : !answerAvailable
+              ? "character_answer_not_available"
+              : !grounded
+                ? "character_answer_not_grounded"
+                : !deterministicDraft
+                  ? "character_deterministic_draft_missing"
+                  : "character_candidate_unavailable",
 
-      requestedAuthoritiesSatisfied:
-        authorities
-          ?.requestedAuthoritiesSatisfied !==
-        false,
+      restrictions: {
+        mayAddFacts:
+          false,
 
-      localAuthorities:
-        authorities,
+        mayAddMeaning:
+          false,
 
-      character,
-      handoff,
-      context,
-      reasoning,
-      expression,
-      stagePacket,
+        mayInventPreference:
+          false,
+
+        mayInventWorldview:
+          false,
+
+        mayInventExperience:
+          false,
+
+        mayPromoteToCanonical:
+          false,
+
+        mayModifyCharacterAuthority:
+          false
+      },
+
+      raw:
+        handoff.raw,
 
       authority:
-        "focused_character_expression_evidence_only"
+        "focused_character_candidate_contract"
     };
   },
 
-  normalizeCharacterRealization({
-    character = null,
-    handoff = null,
-    reasoning = null
-  } = {}) {
+  emptyCharacterCandidate(
+    reason =
+      "character_candidate_unavailable"
+  ) {
+    return {
+      schema:
+        "ari_character_candidate",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      available:
+        false,
+
+      answerAvailable:
+        false,
+
+      guidanceAvailable:
+        false,
+
+      grounded:
+        false,
+
+      candidateAllowed:
+        false,
+
+      candidateAvailable:
+        false,
+
+      candidatePreferred:
+        false,
+
+      usable:
+        false,
+
+      complete:
+        false,
+
+      needsAIWriter:
+        false,
+
+      aiRealizationRequired:
+        false,
+
+      text:
+        "",
+
+      draft:
+        "",
+
+      deterministicDraft:
+        "",
+
+      answer:
+        null,
+
+      groundedMeaning:
+        null,
+
+      mode:
+        "silent",
+
+      visibility:
+        "background",
+
+      expressionLevel:
+        "background",
+
+      type:
+        null,
+
+      subtype:
+        null,
+
+      focus:
+        null,
+
+      subject:
+        null,
+
+      preferenceSubject:
+        null,
+
+      status:
+        null,
+
+      grounding:
+        null,
+
+      realization:
+        null,
+
+      aiWriterMode:
+        null,
+
+      aiInstruction:
+        "",
+
+      preserveMeaning:
+        true,
+
+      preserveStatus:
+        true,
+
+      preserveValue:
+        false,
+
+      preservePosition:
+        false,
+
+      preserveOpenStatus:
+        false,
+
+      tentativeLanguageRequired:
+        false,
+
+      mayVaryWording:
+        true,
+
+      relationship:
+        null,
+
+      implementationDisclosure:
+        null,
+
+      responseControl:
+        this.normalizeCharacterResponseControl(),
+
+      authorityChain:
+        [],
+
+      authorityPacket:
+        null,
+
+      source:
+        null,
+
+      reason,
+
+      restrictions: {
+        mayAddFacts:
+          false,
+
+        mayAddMeaning:
+          false,
+
+        mayInventPreference:
+          false,
+
+        mayInventWorldview:
+          false,
+
+        mayInventExperience:
+          false,
+
+        mayPromoteToCanonical:
+          false,
+
+        mayModifyCharacterAuthority:
+          false
+      },
+
+      raw:
+        null,
+
+      authority:
+        "focused_character_candidate_contract"
+    };
+  },
+
+  normalizeCharacterRealization(
+    realization = {}
+  ) {
     const source =
-      character?.realization ||
-      handoff?.realization ||
-      reasoning?.realizationPolicy ||
-      {};
+      realization &&
+      typeof realization ===
+        "object"
+        ? realization
+        : {};
 
     const needsAIWriter =
       source.needsAIWriter ===
-        true ||
-      handoff?.needsAIWriter ===
-        true ||
-      reasoning?.needsAIWriter ===
         true;
 
     return {
@@ -2033,15 +2093,13 @@ window.AriComposerBridge = {
 
       aiWriterMode:
         source.aiWriterMode ||
-        handoff?.aiWriterMode ||
-        reasoning?.aiWriterMode ||
         null,
 
       aiInstruction:
-        source.aiInstruction ||
-        handoff?.aiInstruction ||
-        reasoning?.aiInstruction ||
-        "",
+        this.cleanText(
+          source.aiInstruction ||
+          ""
+        ),
 
       preserveMeaning:
         source.preserveMeaning !==
@@ -2053,36 +2111,20 @@ window.AriComposerBridge = {
 
       preserveValue:
         source.preserveValue ===
-          true ||
-        reasoning
-          ?.realizationPolicy
-          ?.preserveValue ===
-          true,
+        true,
 
       preservePosition:
         source.preservePosition ===
-          true ||
-        reasoning
-          ?.realizationPolicy
-          ?.preservePosition ===
-          true,
+        true,
 
       preserveOpenStatus:
         source.preserveOpenStatus ===
-          true ||
-        reasoning
-          ?.realizationPolicy
-          ?.preserveOpenStatus ===
-          true,
+        true,
 
       tentativeLanguageRequired:
         source
           .tentativeLanguageRequired ===
-          true ||
-        reasoning
-          ?.realizationPolicy
-          ?.tentativeLanguageRequired ===
-          true,
+        true,
 
       mayVaryWording:
         source.mayVaryWording !==
@@ -2111,24 +2153,102 @@ window.AriComposerBridge = {
     };
   },
 
-  buildCharacterStatus(
-    reasoning = {}
+  normalizeCharacterStatus(
+    value = null,
+    type = null
   ) {
+    if (
+      value &&
+      typeof value ===
+        "object"
+    ) {
+      const overall =
+        value.overall ||
+        value.preferenceStatus ||
+        value.worldviewStatus ||
+        value.identityStatus ||
+        "background";
+
+      return {
+        ...value,
+
+        overall,
+
+        preferenceStatus:
+          value.preferenceStatus ||
+          (
+            type ===
+            "character_preference"
+              ? overall
+              : null
+          ),
+
+        worldviewStatus:
+          value.worldviewStatus ||
+          (
+            [
+              "character_worldview",
+              "character_perspective"
+            ].includes(
+              type
+            )
+              ? overall
+              : null
+          ),
+
+        identityStatus:
+          value.identityStatus ||
+          (
+            type ===
+            "character_identity"
+              ? overall
+              : null
+          ),
+
+        canonical:
+          value.canonical ===
+            true ||
+          overall ===
+            "canonical",
+
+        inferred:
+          value.inferred ===
+            true ||
+          overall ===
+            "inferred",
+
+        open:
+          value.open ===
+            true ||
+          overall ===
+            "open",
+
+        stable:
+          value.stable ===
+            true ||
+          overall ===
+            "stable",
+
+        background:
+          value.background ===
+            true ||
+          overall ===
+            "background"
+      };
+    }
+
     const overall =
-      reasoning.status ||
-      (
-        reasoning
-          .characterAnswerAvailable ===
-        true
-          ? "stable"
-          : "background"
-      );
+      typeof value ===
+        "string" &&
+      value
+        ? value
+        : "background";
 
     return {
       overall,
 
       preferenceStatus:
-        reasoning.type ===
+        type ===
         "character_preference"
           ? overall
           : null,
@@ -2138,13 +2258,13 @@ window.AriComposerBridge = {
           "character_worldview",
           "character_perspective"
         ].includes(
-          reasoning.type
+          type
         )
           ? overall
           : null,
 
       identityStatus:
-        reasoning.type ===
+        type ===
         "character_identity"
           ? overall
           : null,
@@ -2171,67 +2291,31 @@ window.AriComposerBridge = {
     };
   },
 
-  buildCharacterGrounding({
-    reasoning = {},
-    status = {}
-  } = {}) {
+  normalizeCharacterResponseControl(
+    control = {}
+  ) {
     return {
-      grounded:
-        Boolean(
-          reasoning.groundedMeaning ||
-          reasoning.authorityPacket ||
-          reasoning.source
-        ),
-
-      status:
-        status.overall ||
-        reasoning.status ||
-        null,
-
-      source:
-        reasoning.source ||
-        null,
-
-      authorityChain:
+      requiredBehaviors:
         this.toArray(
-          reasoning.authorityChain
+          control
+            ?.requiredBehaviors
         ),
 
-      canonicalValue:
-        status.canonical ===
-        true
-          ? reasoning.answer ||
-            null
-          : null,
+      forbiddenBehaviors:
+        this.toArray(
+          control
+            ?.forbiddenBehaviors
+        ),
 
-      inferredValue:
-        status.inferred ===
-        true
-          ? reasoning.answer ||
-            null
-          : null,
+      constraints:
+        this.toArray(
+          control?.constraints
+        ),
 
-      openStatus:
-        status.open ===
-        true,
-
-      worldviewPosition:
-        [
-          "character_worldview",
-          "character_perspective"
-        ].includes(
-          reasoning.type
+      rules:
+        this.toArray(
+          control?.rules
         )
-          ? reasoning.answer ||
-            null
-          : null,
-
-      identityStatement:
-        reasoning.type ===
-        "character_identity"
-          ? reasoning.answer ||
-            null
-          : null
     };
   },
 
@@ -2239,14 +2323,14 @@ window.AriComposerBridge = {
      CONTINUITY
   ===================================================== */
 
-    resolveContinuityContext(
+  readContinuityContext(
     summary = {}
   ) {
     const stagePacket =
       summary.continuityStagePacket ||
       null;
 
-        const packet =
+    const packet =
       summary.continuityPacket ||
       stagePacket
         ?.continuityPacket
@@ -2254,43 +2338,6 @@ window.AriComposerBridge = {
       stagePacket
         ?.continuityPacket ||
       null;
-
-    const context =
-      stagePacket
-        ?.contextAssembler
-        ?.continuityContext ||
-      summary.continuityContext ||
-      summary.assembledContext ||
-      null;
-
-    const binding =
-      stagePacket
-        ?.referenceResolution
-        ?.binding ||
-      summary.continuityReferenceBinding ||
-      null;
-
-    const facts =
-      this.toArray(
-        packet?.usableFacts ||
-        stagePacket
-          ?.continuityPacket
-          ?.usableFacts ||
-        summary.continuityUsableFacts
-      );
-
-    const resolvedReferences =
-      this.toArray(
-        packet
-          ?.referenceResolution
-          ?.resolvedReferences ||
-        packet?.resolvedReferences ||
-        stagePacket
-          ?.referenceResolution
-          ?.resolvedReferences ||
-        summary
-          .continuityResolvedReferences
-      );
 
     const rawUnresolvedReferences =
       this.toArray(
@@ -2306,7 +2353,7 @@ window.AriComposerBridge = {
       );
 
     const resolvedUserQuestion =
-      this.cleanOriginal(
+      this.cleanText(
         packet?.resolvedUserQuestion ||
         packet
           ?.resolvedCurrentTurn
@@ -2317,30 +2364,12 @@ window.AriComposerBridge = {
         stagePacket
           ?.currentTurn
           ?.resolvedText ||
-        summary.continuityResults
-          ?.resolvedUserQuestion ||
-        summary.continuityResults
-          ?.resolvedCurrentTurn
-          ?.resolvedText ||
-        summary.continuityResults
-          ?.outputs
-          ?.elliptical
-          ?.resolvedUserQuestion ||
-        summary.continuityResults
-          ?.outputs
-          ?.elliptical
-          ?.resolvedCurrentTurnText ||
-        summary.continuityResults
-          ?.outputs
-          ?.elliptical
-          ?.ellipticalFollowUpResolution
-          ?.resolvedText ||
         summary.resolvedUserQuestion ||
         ""
       );
 
     const originalText =
-      this.cleanOriginal(
+      this.cleanText(
         packet
           ?.currentTurn
           ?.originalText ||
@@ -2367,31 +2396,17 @@ window.AriComposerBridge = {
         ?.ellipticalFollowUpResolved ===
         true ||
       summary.ellipticalFollowUpResolved ===
-        true ||
-      summary.continuityResults
-        ?.ellipticalFollowUp
-        ?.resolved ===
-        true ||
-      summary.continuityResults
-        ?.outputs
-        ?.elliptical
-        ?.resolved ===
-        true ||
-      summary.continuityResults
-        ?.outputs
-        ?.elliptical
-        ?.ellipticalFollowUpResolution
-        ?.resolved ===
         true;
 
     const resolvedTextDiffers =
       Boolean(
-        resolvedUserQuestion
+        resolvedUserQuestion &&
+        originalText
       ) &&
-      this.normalize(
+      this.normalizeForComparison(
         resolvedUserQuestion
       ) !==
-      this.normalize(
+      this.normalizeForComparison(
         originalText
       );
 
@@ -2412,31 +2427,24 @@ window.AriComposerBridge = {
       ellipticalFollowUpResolved ||
       resolvedTextDiffers;
 
-            const continuityResolutionComplete =
+    const resolutionComplete =
       currentTurnWasResolved &&
       Boolean(
         resolvedUserQuestion
       ) &&
-      (
-        ellipticalFollowUpResolved ||
-        rawUnresolvedReferences.length ===
-          0
-      );
+      rawUnresolvedReferences.length ===
+        0;
 
     const unresolvedReferences =
-      continuityResolutionComplete
+      resolutionComplete
         ? []
         : rawUnresolvedReferences;
-
-    const effectiveUnresolvedReferenceCount =
-      unresolvedReferences.length;
 
     return {
       available:
         Boolean(
           stagePacket ||
-          packet ||
-          context
+          packet
         ),
 
       required:
@@ -2449,25 +2457,39 @@ window.AriComposerBridge = {
           true,
 
       stagePacket,
+
       packet,
-      context,
 
       activeDialogueState:
         summary.activeDialogueState ||
         stagePacket
           ?.contextAssembler
           ?.activeDialogueState ||
-        summary.assembledContext
-          ?.activeDialogueState ||
-        summary.advisoryContext
-          ?.activeDialogueState ||
-        summary.continuityContext
-          ?.activeDialogueState ||
         null,
 
-      binding,
-      facts,
-      resolvedReferences,
+      binding:
+        stagePacket
+          ?.referenceResolution
+          ?.binding ||
+        summary
+          .continuityReferenceBinding ||
+        null,
+
+      facts:
+        this.toArray(
+          packet?.usableFacts ||
+          summary.continuityUsableFacts
+        ),
+
+      resolvedReferences:
+        this.toArray(
+          packet
+            ?.referenceResolution
+            ?.resolvedReferences ||
+          packet?.resolvedReferences ||
+          summary
+            .continuityResolvedReferences
+        ),
 
       rawUnresolvedReferences,
 
@@ -2476,10 +2498,11 @@ window.AriComposerBridge = {
 
       unresolvedReferences,
 
-      effectiveUnresolvedReferenceCount,
+      effectiveUnresolvedReferenceCount:
+        unresolvedReferences.length,
 
       referenceClarificationRequired:
-        effectiveUnresolvedReferenceCount >
+        unresolvedReferences.length >
         0,
 
       originalText,
@@ -2496,16 +2519,12 @@ window.AriComposerBridge = {
 
       ellipticalFollowUpResolved,
 
-      missingContextRecovered:
-        currentTurnWasResolved &&
-        Boolean(
-          resolvedUserQuestion
-        ),
+      resolutionComplete,
 
       staleUnresolvedReferencesSuppressed:
         rawUnresolvedReferences.length >
           0 &&
-        effectiveUnresolvedReferenceCount ===
+        unresolvedReferences.length ===
           0,
 
       resolutionSource:
@@ -2515,14 +2534,8 @@ window.AriComposerBridge = {
             ? "resolved_current_turn"
             : "none",
 
-      currentTurnTextPreserved:
-        stagePacket
-          ?.currentTurn
-          ?.textWasRewritten !==
-        true,
-
       authority:
-        "structured_continuity_and_resolved_turn_context_only"
+        "structured_continuity_evidence"
     };
   },
 
@@ -2530,7 +2543,7 @@ window.AriComposerBridge = {
      SAFETY
   ===================================================== */
 
-  resolveSafetyContext(
+  readSafetyContext(
     summary = {}
   ) {
     const stagePacket =
@@ -2592,9 +2605,10 @@ window.AriComposerBridge = {
           true,
 
       riskLevel,
+
       riskType,
 
-      authority:
+      safetyAuthority:
         summary.resolvedSafetyAuthority ||
         disposition.safetyAuthority ||
         stagePacket?.authority ||
@@ -2666,10 +2680,11 @@ window.AriComposerBridge = {
         null,
 
       disposition,
+
       stagePacket,
 
-      authorityBoundary:
-        "safety_governance_is_authoritative"
+      authority:
+        "authoritative_safety_governance"
     };
   },
 
@@ -2677,7 +2692,7 @@ window.AriComposerBridge = {
      KNOWLEDGE
   ===================================================== */
 
-  resolveKnowledgeContext(
+  readKnowledgeContext(
     summary = {}
   ) {
     const retrievalResults =
@@ -2747,9 +2762,6 @@ window.AriComposerBridge = {
         summary
           .blueprintKnowledgeHandoff ||
         meaning?.blueprintHandoff ||
-        summary
-          .knowledgeSynthesis
-          ?.blueprintHandoff ||
         null,
 
       retrievalPlan:
@@ -2760,38 +2772,33 @@ window.AriComposerBridge = {
       retrievalResults,
 
       authority:
-        "retrieved_knowledge_evidence_only"
+        "retrieved_knowledge_evidence"
     };
   },
 
   /* =====================================================
-     LANGUAGE CONTEXT
+     LANGUAGE
   ===================================================== */
 
-  resolveLanguageContext(
+  readLanguageContext(
     summary = {}
   ) {
-    const communicationPlan =
-      summary.communicationPlan ||
-      {};
-
-    const profile =
-      summary.humanLanguageProfile ||
+    const mouth =
+      summary.mouthDirector ||
       {};
 
     const guidance =
       summary.languageGuidanceHandoff ||
       {};
 
-    const mouth =
-      summary.mouthDirector ||
-      {};
-
     return {
-      communicationPlan,
+      communicationPlan:
+        summary.communicationPlan ||
+        {},
 
       humanLanguageProfile:
-        profile,
+        summary.humanLanguageProfile ||
+        {},
 
       languageGuidance:
         guidance,
@@ -2828,15 +2835,7 @@ window.AriComposerBridge = {
         mouth.blueprintHint ||
         null,
 
-      responseAvoid:
-        this.mergeUnique(
-          summary.responseAvoid,
-          mouth.responseAvoid,
-          guidance
-            .forbiddenBehaviors
-        ),
-
-      responseRequired:
+      requiredBehaviors:
         this.mergeUnique(
           summary.responseRequired,
           mouth.responseRequired,
@@ -2844,7 +2843,15 @@ window.AriComposerBridge = {
             .requiredBehaviors
         ),
 
-      responseConstraints:
+      forbiddenBehaviors:
+        this.mergeUnique(
+          summary.responseAvoid,
+          mouth.responseAvoid,
+          guidance
+            .forbiddenBehaviors
+        ),
+
+      constraints:
         this.mergeUnique(
           summary.responseConstraints,
           mouth.responseConstraints,
@@ -2852,8 +2859,255 @@ window.AriComposerBridge = {
         ),
 
       authority:
-        "language_and_expression_guidance_only"
+        "language_expression_guidance"
     };
+  },
+
+  /* =====================================================
+     MEMORY
+  ===================================================== */
+
+  readMemoryContext(
+    summary = {}
+  ) {
+    return {
+      retrieval:
+        summary.memoryRetrieval ||
+        null,
+
+      context:
+        summary.memoryContext ||
+        summary.memoryContextResult ||
+        null,
+
+      candidates:
+        this.toArray(
+          summary.memoryCandidates ||
+          summary.memoryStagePacket
+            ?.candidates ||
+          summary.memoryHandoff
+            ?.candidates
+        ),
+
+      facts:
+        this.toArray(
+          summary.memoryFacts ||
+          summary.usableMemories
+        ),
+
+      handoff:
+        summary.memoryHandoff ||
+        null,
+
+      authority:
+        "authorized_memory_evidence_only"
+    };
+  },
+
+  /* =====================================================
+     DEVELOPER
+  ===================================================== */
+
+  readDeveloperContext({
+    summary = {},
+    request = {},
+    responsePlan = {},
+    responseStrategy = {}
+  } = {}) {
+    const rawPacket =
+      summary.composerDeveloperPacket
+        ?.enabled ===
+        true
+        ? summary
+            .composerDeveloperPacket
+        : null;
+
+    const locked =
+      summary.developerResponseLocked ===
+        true ||
+      summary.responseLocked ===
+        true ||
+      rawPacket?.locked ===
+        true;
+
+    const relevant =
+      this.isDeveloperRelevant({
+        summary,
+        request,
+        responsePlan,
+        responseStrategy
+      });
+
+    const allowed =
+      locked ||
+      relevant;
+
+    const lockedReply =
+      locked
+        ? this.cleanText(
+            rawPacket?.reply ||
+            rawPacket?.finalResponse ||
+            summary.developerHandoff
+              ?.reply ||
+            summary.developerHandoff
+              ?.finalResponse ||
+            summary.developerReply ||
+            summary.developerResponse ||
+            ""
+          )
+        : "";
+
+    return {
+      applicable:
+        relevant,
+
+      relevant,
+
+      allowed,
+
+      locked,
+
+      advisory:
+        Boolean(
+          allowed &&
+          rawPacket &&
+          !locked
+        ),
+
+      packet:
+        allowed
+          ? rawPacket
+          : null,
+
+      lockedReply:
+        lockedReply ||
+        null,
+
+      githubEvidenceAllowed:
+        allowed,
+
+      codeEvidenceAllowed:
+        allowed,
+
+      staleEvidenceSuppressed:
+        !allowed,
+
+      reason:
+        locked
+          ? "developer_response_locked"
+          : relevant
+            ? "developer_context_relevant"
+            : "developer_context_not_relevant",
+
+      authority:
+        "developer_evidence_access_policy"
+    };
+  },
+
+  isDeveloperRelevant({
+    summary = {},
+    request = {},
+    responsePlan = {},
+    responseStrategy = {}
+  } = {}) {
+    const text =
+      this.normalizeForComparison(
+        request.currentText ||
+        request.originalText ||
+        ""
+      );
+
+    const rawText =
+      request.currentText ||
+      request.originalText ||
+      "";
+
+    const primary =
+      this.normalizeIdentifier(
+        responseStrategy.primaryLane ||
+        summary.primaryLane ||
+        summary.situationContractPrimary ||
+        ""
+      );
+
+    const mode =
+      this.normalizeIdentifier(
+        typeof responseStrategy.mode ===
+          "string"
+          ? responseStrategy.mode
+          : responseStrategy.mode?.mode ||
+            ""
+      );
+
+    const intent =
+      this.normalizeIdentifier(
+        responseStrategy.intent ||
+        summary.routingContract
+          ?.primaryIntent ||
+        ""
+      );
+
+    const blueprint =
+      this.normalizeIdentifier(
+        responsePlan.blueprintHint ||
+        ""
+      );
+
+    const explicitFile =
+      /\b[\w./-]+\.(?:js|mjs|cjs|html|css|json|md|ts|tsx|jsx|sql|py|yml|yaml)\b/i
+        .test(
+          rawText
+        );
+
+    const developerEntity =
+      /\b(?:github|repo|repository|branch|commit|pull request|merge|deploy|vercel|supabase|codebase|api|pipeline|engine|composer|function|script|selector|markup|schema|debug|latency|runtime)\b/i
+        .test(
+          text
+        );
+
+    const developerAction =
+      /\b(?:read|open|show|search|find|inspect|diagnose|debug|fix|patch|edit|update|change|replace|remove|rewrite|build|implement|wire|refactor|optimize|test|validate|send|generate)\b/i
+        .test(
+          text
+        );
+
+    const routedDeveloperAuthority =
+      [
+        "developer",
+        "builder",
+        "coding",
+        "project_help",
+        "developer_artifact"
+      ].includes(
+        primary
+      ) ||
+      [
+        "developer",
+        "builder"
+      ].includes(
+        mode
+      ) ||
+      intent.includes(
+        "developer"
+      ) ||
+      intent.includes(
+        "build_or_debug"
+      ) ||
+      blueprint.includes(
+        "builder"
+      ) ||
+      summary
+        .shouldRunDeveloperLayer ===
+        true;
+
+    return Boolean(
+      routedDeveloperAuthority ||
+      explicitFile ||
+      (
+        developerEntity &&
+        developerAction
+      )
+    );
   },
 
   /* =====================================================
@@ -2862,19 +3116,10 @@ window.AriComposerBridge = {
 
   buildResponseControl({
     responsePlan = {},
-    responseStrategy = {},
-    characterContext = {},
-    safetyContext = {},
-    languageContext = {}
+    safety = {},
+    language = {},
+    characterCandidate = {}
   } = {}) {
-    const interactionPolicy =
-      responsePlan.interactionPolicy ||
-      {};
-
-    const writerInstructions =
-      responsePlan.writerInstructions ||
-      {};
-
     return {
       responseGoal:
         responsePlan.responseGoal,
@@ -2911,12 +3156,9 @@ window.AriComposerBridge = {
           true,
 
         questionRequired:
-          writerInstructions
-            .questionRequired ===
-            true ||
-          interactionPolicy
+          responsePlan
             .shouldAskQuestion ===
-            true,
+          true,
 
         purpose:
           responsePlan
@@ -2927,20 +3169,22 @@ window.AriComposerBridge = {
           0
       },
 
+      /*
+       * Supporting authorities may add constraints.
+       * They may not change canonical response moves.
+       */
       requiredBehaviors:
         this.mergeUnique(
           responsePlan
             .requiredBehaviors,
 
-          safetyContext
-            .requiredBehaviors,
+          safety.requiredBehaviors,
 
-          characterContext
+          language.requiredBehaviors,
+
+          characterCandidate
             .responseControl
-            ?.requiredBehaviors,
-
-          languageContext
-            .responseRequired
+            ?.requiredBehaviors
         ),
 
       forbiddenBehaviors:
@@ -2948,29 +3192,26 @@ window.AriComposerBridge = {
           responsePlan
             .forbiddenBehaviors,
 
-          safetyContext
-            .forbiddenBehaviors,
+          safety.forbiddenBehaviors,
 
-          characterContext
+          language.forbiddenBehaviors,
+
+          characterCandidate
             .responseControl
-            ?.forbiddenBehaviors,
-
-          languageContext
-            .responseAvoid
+            ?.forbiddenBehaviors
         ),
 
       constraints:
         this.mergeUnique(
           responsePlan.constraints,
 
-          safetyContext.constraints,
+          safety.constraints,
 
-          characterContext
+          language.constraints,
+
+          characterCandidate
             .responseControl
-            ?.constraints,
-
-          languageContext
-            .responseConstraints
+            ?.constraints
         ),
 
       rules:
@@ -2978,7 +3219,9 @@ window.AriComposerBridge = {
           responsePlan
             .responseRules,
 
-          characterContext.rules
+          characterCandidate
+            .responseControl
+            ?.rules
         ),
 
       blueprintHint:
@@ -2987,52 +3230,65 @@ window.AriComposerBridge = {
       communicationPlan:
         responsePlan
           .communicationPlan ||
-        responseStrategy
-          .communicationPlan ||
+        language.communicationPlan ||
         null,
 
       composerDirective:
         responsePlan
           .composerDirective ||
-        responseStrategy
-          .composerDirective ||
         null,
 
-      writerInstructions,
+      writerInstructions:
+        responsePlan
+          .writerInstructions,
 
       characterControl: {
         available:
-          characterContext.available ===
+          characterCandidate.available ===
           true,
 
         answerAvailable:
-          characterContext
+          characterCandidate
             .answerAvailable ===
           true,
 
+        candidateAvailable:
+          characterCandidate
+            .candidateAvailable ===
+          true,
+
+        needsAIWriter:
+          characterCandidate
+            .needsAIWriter ===
+          true,
+
         status:
-          characterContext.status ||
+          characterCandidate.status ||
           null,
 
         grounding:
-          characterContext.grounding ||
+          characterCandidate.grounding ||
           null,
 
         realization:
-          characterContext.realization ||
+          characterCandidate.realization ||
           null
       },
-
-      canonicalResponsePlanReady:
-        responsePlan.ready ===
-        true,
 
       canonicalResponsePlanAvailable:
         responsePlan.available ===
         true,
 
+      canonicalResponsePlanReady:
+        responsePlan.ready ===
+        true,
+
+      canonicalResponsePlanUsable:
+        responsePlan.usable ===
+        true,
+
       authority:
-        "canonical_plan_controls_with_authoritative_supporting_constraints"
+        "canonical_plan_control_projection"
     };
   },
 
@@ -3046,19 +3302,16 @@ window.AriComposerBridge = {
     responsePlan = {},
     responseStrategy = {},
     responseControl = {},
-    developerContext = {},
-    characterContext = {},
-    continuityContext = {},
-    safetyContext = {},
-    knowledgeContext = {},
-    languageContext = {},
+    continuity = {},
+    safety = {},
+    knowledge = {},
+    language = {},
+    memory = {},
+    developer = {},
+    characterHandoff = {},
+    characterCandidate = {},
     evidence = {}
   } = {}) {
-    const lockedDeveloperReply =
-      developerContext.locked
-        ? developerContext.lockedReply
-        : null;
-
     const canonicalPlanReady =
       responsePlan.available ===
         true &&
@@ -3067,22 +3320,35 @@ window.AriComposerBridge = {
       responsePlan.usable ===
         true;
 
-        const ready =
+    const currentTurnAvailable =
+      Boolean(
+        request.currentText ||
+        request.originalText
+      );
+
+    const lockedDeveloperReply =
+      developer.locked ===
+        true
+        ? developer.lockedReply
+        : null;
+
+    const ready =
       Boolean(
         lockedDeveloperReply ||
         (
-          (
-            request.resolvedText ||
-            request.originalText
-          ) &&
+          currentTurnAvailable &&
           canonicalPlanReady
         )
       );
 
-    const characterCandidatePolicy =
-      this.buildCharacterCandidatePolicy(
-        characterContext
-      );
+    const validation =
+      this.validateComposerPacketInput({
+        request,
+        responsePlan,
+        continuity,
+        characterCandidate,
+        lockedDeveloperReply
+      });
 
     return {
       schema:
@@ -3094,7 +3360,9 @@ window.AriComposerBridge = {
       ready,
 
       usable:
-        ready,
+        ready &&
+        validation.errors.length ===
+          0,
 
       source:
         this.source,
@@ -3111,43 +3379,29 @@ window.AriComposerBridge = {
 
       request,
 
-            /*
-       * Current-turn compatibility aliases.
-       *
-       * The original text remains preserved for provenance.
-       * The resolved text is the canonical expression input when
-       * continuity successfully resolved the current turn.
-       */
       turnId:
         request.turnId,
 
       userQuestion:
-        request.resolvedText ||
-        request.originalText,
+        request.currentText,
 
       originalUserQuestion:
         request.originalText,
 
       resolvedUserQuestion:
-        request.resolvedText ||
-        request.originalText,
+        request.resolvedText,
 
       currentTurnText:
-        request.resolvedText ||
-        request.originalText,
+        request.currentText,
 
       effectiveUserQuestion:
-        request.resolvedText ||
-        request.originalText,
+        request.effectiveText,
 
       semanticInputText:
-        request.semanticInputText ||
-        request.resolvedText ||
-        request.originalText,
+        request.semanticInputText,
 
       currentTurnWasResolved:
-        request
-          .currentTurnWasStructurallyResolved ===
+        request.currentTurnWasResolved ===
         true,
 
       ellipticalFollowUpResolved:
@@ -3156,25 +3410,24 @@ window.AriComposerBridge = {
         true,
 
       resolutionSource:
-        request.resolutionSource ||
-        "none",
+        request.resolutionSource,
 
       currentTurnTextPreserved:
         request.originalTextPreserved ===
         true,
-
-      primary:
-        responseStrategy.primaryLane ||
-        summary.primaryLane ||
-        "general_understanding",
 
       contextLane:
         responseStrategy.contextLane ||
         request.contextLane ||
         "direct_current_turn",
 
+      primary:
+        responseStrategy.primaryLane ||
+        summary.primaryLane ||
+        "general_understanding",
+
       /*
-       * Canonical plan.
+       * Canonical Response Plan.
        */
       responsePlan,
 
@@ -3193,10 +3446,8 @@ window.AriComposerBridge = {
         responsePlan.usable ===
         true,
 
-      /*
-       * Derived compatibility aliases only.
-       */
       responseStrategy,
+
       responseControl,
 
       responseGoal:
@@ -3276,183 +3527,166 @@ window.AriComposerBridge = {
           .composerDirective,
 
       /*
-       * Supporting expression context.
+       * One canonical focused Character candidate.
        */
-      expressionPlan:
-        languageContext
-          .expressionPlan,
-
-      mouthDirective:
-        languageContext
-          .mouthDirective,
-
-      humanLanguageProfile:
-        languageContext
-          .humanLanguageProfile,
-
-      languageGuidance:
-        languageContext
-          .languageGuidance,
-
-      lexicalGrounding:
-        languageContext
-          .lexicalGrounding,
-
-      preferredTerms:
-        languageContext
-          .preferredTerms,
-
-      /*
-       * Focused character packet.
-       *
-       * Do not expose complete preference/worldview collections here.
-       */
-      character:
-        characterContext.character,
-
-      composerCharacter:
-        characterContext.character,
+      characterCandidate,
 
       characterHandoff:
-        characterContext.handoff,
-
-      characterContext,
+        characterHandoff.raw ||
+        null,
 
       characterAvailable:
-        characterContext.available ===
-        true,
-
-      characterEnabled:
-        characterContext.enabled ===
-        true,
-
-      characterRelevant:
-        characterContext.relevant ===
+        characterCandidate.available ===
         true,
 
       characterAnswerAvailable:
-        characterContext
+        characterCandidate
           .answerAvailable ===
         true,
 
       characterGuidanceAvailable:
-        characterContext
+        characterCandidate
           .guidanceAvailable ===
         true,
 
+      characterCandidateAllowed:
+        characterCandidate
+          .candidateAllowed ===
+        true,
+
+      characterCandidateAvailable:
+        characterCandidate
+          .candidateAvailable ===
+        true,
+
+      characterCandidatePreferred:
+        characterCandidate
+          .candidatePreferred ===
+        true,
+
       characterDraft:
-        characterContext.draft ||
+        characterCandidate.draft ||
         "",
 
       characterDeterministicDraft:
-        characterContext
+        characterCandidate
           .deterministicDraft ||
         "",
 
-      characterDraftAvailable:
-        characterContext
-          .draftAvailable ===
-        true,
-
-      characterDeterministicDraftAvailable:
-        characterContext
-          .deterministicDraftAvailable ===
-        true,
-
       characterMode:
-        characterContext.mode ||
+        characterCandidate.mode ||
         "silent",
 
       characterType:
-        characterContext.type ||
+        characterCandidate.type ||
         null,
 
       characterSubtype:
-        characterContext.subtype ||
+        characterCandidate.subtype ||
+        null,
+
+      characterFocus:
+        characterCandidate.focus ||
+        null,
+
+      characterPreferenceSubject:
+        characterCandidate
+          .preferenceSubject ||
         null,
 
       characterStatus:
-        characterContext.status ||
+        characterCandidate.status ||
         null,
 
       characterGrounding:
-        characterContext.grounding ||
+        characterCandidate.grounding ||
         null,
 
       characterRealization:
-        characterContext.realization ||
-        null,
-
-      characterRelationship:
-        characterContext.relationship ||
-        null,
-
-      characterImplementationDisclosure:
-        characterContext
-          .implementationDisclosure ||
+        characterCandidate.realization ||
         null,
 
       characterNeedsAIWriter:
-        characterContext.needsAIWriter ===
+        characterCandidate
+          .needsAIWriter ===
         true,
 
       characterAIWriterMode:
-        characterContext
-          .realization
-          ?.aiWriterMode ||
+        characterCandidate
+          .aiWriterMode ||
         null,
 
       characterAIInstruction:
-        characterContext
-          .realization
-          ?.aiInstruction ||
+        characterCandidate
+          .aiInstruction ||
         "",
 
       characterAuthorityChain:
-        characterContext
+        characterCandidate
           .authorityChain ||
         [],
 
       characterAuthorityPacket:
-        characterContext
+        characterCandidate
           .authorityPacket ||
         null,
 
       /*
-       * Supporting evidence contexts.
+       * Supporting evidence.
        */
-      continuity:
-        continuityContext,
+      continuity,
 
       activeDialogueState:
-        continuityContext
-          .activeDialogueState,
+        continuity
+          .activeDialogueState ||
+        null,
 
-      safety:
-        safetyContext,
+      safety,
 
-      knowledge:
-        knowledgeContext,
+      knowledge,
 
-      developer:
-        developerContext,
+      memory,
+
+      languageGuidance:
+        language.languageGuidance,
+
+      humanLanguageProfile:
+        language
+          .humanLanguageProfile,
+
+      expressionPlan:
+        language.expressionPlan,
+
+      mouthDirective:
+        language.mouthDirective,
+
+      lexicalGrounding:
+        language.lexicalGrounding,
+
+      preferredTerms:
+        language.preferredTerms,
+
+      developer,
 
       developerPacket:
-        developerContext.packet,
+        developer.packet,
 
       hasDeveloperPacket:
         Boolean(
-          developerContext.packet
+          developer.packet
         ),
 
       developerPacketLocked:
-        developerContext.locked,
+        developer.locked ===
+        true,
 
       developerPacketAdvisory:
-        developerContext.advisory,
+        developer.advisory ===
+        true,
 
       developerRelevant:
-        developerContext.relevant,
+        developer.relevant ===
+        true,
 
       lockedDeveloperReply,
 
@@ -3463,75 +3697,21 @@ window.AriComposerBridge = {
 
       evidence,
 
-      candidatePolicy: {
-        deterministicWriterAllowed:
-          canonicalPlanReady &&
-          !developerContext.locked,
-
-        aiWriterAllowed:
-          canonicalPlanReady &&
-          !developerContext.locked &&
-          responsePlan
-            .blueprint
-            ?.aiAllowed !==
-            false,
-
-        aiRepairAllowed:
-          canonicalPlanReady &&
-          !developerContext.locked,
-
-        lockedDeveloperReplyPreferred:
-          developerContext.locked,
-
-        blueprintMustFollowResponseMoves:
-          true,
-
-        blueprintMayRenderInternalInstructions:
-          false,
-
-        incompleteBlueprintRequiresRepair:
-          true,
-
-        unsupportedMoveRequiresRepair:
-          true,
-
-        finalCandidateMustSatisfyPlan:
-          true,
-
-        finalCandidateMustPreserveCurrentTurn:
-          true,
-
-        finalCandidateMustRespectSafety:
-          true,
-
-        character:
-          characterCandidatePolicy,
-
-        groundedCharacterCandidateAllowed:
-          characterCandidatePolicy
-            .candidateAllowed,
-
-        groundedCharacterCandidatePreferred:
-          characterCandidatePolicy
-            .candidatePreferred,
-
-        characterAIRealizationAllowed:
-          characterCandidatePolicy
-            .aiRealizationAllowed,
-
-        characterMeaningMustBePreserved:
-          true,
-
-        characterStatusMustBePreserved:
-          true,
-
-        characterAuthorityMayNotBeModified:
-          true
-      },
+      candidatePolicy:
+        this.buildCandidatePolicy({
+          canonicalPlanReady,
+          developer,
+          responsePlan,
+          characterCandidate
+        }),
 
       validation: {
         valid:
-          ready,
+          ready &&
+          validation.errors.length ===
+            0,
+
+        currentTurnAvailable,
 
         canonicalResponsePlanAvailable:
           responsePlan.available ===
@@ -3545,51 +3725,34 @@ window.AriComposerBridge = {
           responsePlan.usable ===
           true,
 
-        currentTurnAvailable:
-          Boolean(
-            request.originalText
-          ),
-
         lockedDeveloperReplyAvailable:
           Boolean(
             lockedDeveloperReply
           ),
 
         characterAvailable:
-          characterContext.available ===
+          characterCandidate.available ===
           true,
 
         characterAnswerAvailable:
-          characterContext
+          characterCandidate
             .answerAvailable ===
           true,
 
-        characterGrounded:
-          characterContext
-            .grounding
-            ?.grounded ===
+        characterCandidateAvailable:
+          characterCandidate
+            .candidateAvailable ===
           true,
 
-        characterRequestedAuthoritiesSatisfied:
-          characterContext
-            .requestedAuthoritiesSatisfied !==
-          false,
+        characterGrounded:
+          characterCandidate.grounded ===
+          true,
 
         errors:
-          this.buildComposerErrors({
-            request,
-            responsePlan,
-            lockedDeveloperReply,
-            characterContext
-          }),
+          validation.errors,
 
         warnings:
-          this.buildComposerWarnings({
-            request,
-            responsePlan,
-            continuityContext,
-            characterContext
-          })
+          validation.warnings
       },
 
       authority:
@@ -3597,156 +3760,233 @@ window.AriComposerBridge = {
     };
   },
 
-  buildCharacterCandidatePolicy(
-    characterContext = {}
-  ) {
-    const answerAvailable =
-      characterContext.answerAvailable ===
-      true;
-
-    const deterministicDraftAvailable =
-      characterContext
-        .deterministicDraftAvailable ===
-      true;
-
-    const grounded =
-      characterContext.grounding
-        ?.grounded ===
-      true;
-
-    const realization =
-      characterContext.realization ||
-      {};
-
+  buildCandidatePolicy({
+    canonicalPlanReady = false,
+    developer = {},
+    responsePlan = {},
+    characterCandidate = {}
+  } = {}) {
     return {
-      available:
-        characterContext.available ===
-        true,
-
-      answerAvailable,
-
-      guidanceAvailable:
-        characterContext
-          .guidanceAvailable ===
-        true,
-
-      grounded,
-
-      status:
-        characterContext.status ||
-        null,
-
-      candidateAllowed:
-        answerAvailable &&
-        deterministicDraftAvailable &&
-        grounded,
-
-      candidatePreferred:
-        answerAvailable &&
-        deterministicDraftAvailable &&
-        grounded &&
-        realization.needsAIWriter !==
+      deterministicWriterAllowed:
+        canonicalPlanReady &&
+        developer.locked !==
           true,
 
-      localCandidateAvailable:
-        deterministicDraftAvailable,
-
-      localCandidateText:
-        deterministicDraftAvailable
-          ? characterContext
-              .deterministicDraft
-          : "",
-
-      aiRealizationAllowed:
-        answerAvailable &&
-        realization.needsAIWriter ===
-          true,
-
-      aiRealizationRequired:
-        answerAvailable &&
-        realization.needsAIWriter ===
+      blueprintWriterAllowed:
+        canonicalPlanReady &&
+        developer.locked !==
           true &&
-        realization.mode ===
-          "ai_realization_required",
+        responsePlan.blueprint
+          ?.enabled !==
+          false,
 
-      aiWriterMode:
-        realization.aiWriterMode ||
-        null,
+      aiWriterAllowed:
+        canonicalPlanReady &&
+        developer.locked !==
+          true &&
+        responsePlan.blueprint
+          ?.aiAllowed !==
+          false,
 
-      aiInstruction:
-        realization.aiInstruction ||
-        "",
+      aiRepairAllowed:
+        canonicalPlanReady &&
+        developer.locked !==
+          true,
 
-      preserveMeaning:
+      lockedDeveloperReplyPreferred:
+        developer.locked ===
         true,
 
-      preserveStatus:
+      blueprintMustFollowResponseMoves:
         true,
 
-      preserveValue:
-        realization.preserveValue ===
+      blueprintMayRenderInternalInstructions:
+        false,
+
+      incompleteBlueprintRequiresRepair:
         true,
 
-      preservePosition:
-        realization.preservePosition ===
+      unsupportedMoveRequiresRepair:
         true,
 
-      preserveOpenStatus:
-        realization
-          .preserveOpenStatus ===
+      finalCandidateMustSatisfyPlan:
         true,
 
-      tentativeLanguageRequired:
-        realization
-          .tentativeLanguageRequired ===
+      finalCandidateMustPreserveCurrentTurn:
         true,
 
-      mayVaryWording:
-        realization.mayVaryWording !==
-        false,
+      finalCandidateMustRespectSafety:
+        true,
 
-      mayAddFacts:
-        false,
+      character: {
+        available:
+          characterCandidate.available ===
+          true,
 
-      mayAddMeaning:
-        false,
+        answerAvailable:
+          characterCandidate
+            .answerAvailable ===
+          true,
 
-      mayInventPreference:
-        false,
+        grounded:
+          characterCandidate.grounded ===
+          true,
 
-      mayInventWorldview:
-        false,
+        candidateAllowed:
+          characterCandidate
+            .candidateAllowed ===
+          true,
 
-      mayInventExperience:
-        false,
+        candidatePreferred:
+          characterCandidate
+            .candidatePreferred ===
+          true,
 
-      mayPromoteToCanonical:
-        false,
+        localCandidateAvailable:
+          characterCandidate
+            .candidateAvailable ===
+          true,
 
-      mayModifyCharacterAuthority:
-        false
+        localCandidateText:
+          characterCandidate
+            .candidateAvailable ===
+            true
+            ? characterCandidate
+                .deterministicDraft
+            : "",
+
+        aiRealizationAllowed:
+          characterCandidate
+            .answerAvailable ===
+            true &&
+          characterCandidate
+            .needsAIWriter ===
+            true,
+
+        aiRealizationRequired:
+          characterCandidate
+            .aiRealizationRequired ===
+          true,
+
+        aiWriterMode:
+          characterCandidate
+            .aiWriterMode ||
+          null,
+
+        aiInstruction:
+          characterCandidate
+            .aiInstruction ||
+          "",
+
+        preserveMeaning:
+          characterCandidate
+            .preserveMeaning !==
+          false,
+
+        preserveStatus:
+          characterCandidate
+            .preserveStatus !==
+          false,
+
+        preserveValue:
+          characterCandidate
+            .preserveValue ===
+          true,
+
+        preservePosition:
+          characterCandidate
+            .preservePosition ===
+          true,
+
+        preserveOpenStatus:
+          characterCandidate
+            .preserveOpenStatus ===
+          true,
+
+        tentativeLanguageRequired:
+          characterCandidate
+            .tentativeLanguageRequired ===
+          true,
+
+        mayVaryWording:
+          characterCandidate
+            .mayVaryWording !==
+          false,
+
+        mayAddFacts:
+          false,
+
+        mayAddMeaning:
+          false,
+
+        mayInventPreference:
+          false,
+
+        mayInventWorldview:
+          false,
+
+        mayInventExperience:
+          false,
+
+        mayPromoteToCanonical:
+          false,
+
+        mayModifyCharacterAuthority:
+          false
+      },
+
+      groundedCharacterCandidateAllowed:
+        characterCandidate
+          .candidateAllowed ===
+        true,
+
+      groundedCharacterCandidatePreferred:
+        characterCandidate
+          .candidatePreferred ===
+        true,
+
+      characterAIRealizationAllowed:
+        characterCandidate
+          .answerAvailable ===
+          true &&
+        characterCandidate
+          .needsAIWriter ===
+          true,
+
+      characterMeaningMustBePreserved:
+        true,
+
+      characterStatusMustBePreserved:
+        true,
+
+      characterAuthorityMayNotBeModified:
+        true
     };
   },
 
-  buildComposerErrors({
+  validateComposerPacketInput({
     request = {},
     responsePlan = {},
-    lockedDeveloperReply = null,
-    characterContext = {}
+    continuity = {},
+    characterCandidate = {},
+    lockedDeveloperReply = null
   } = {}) {
     const errors = [];
+    const warnings = [];
 
     if (lockedDeveloperReply) {
-      return errors;
+      return {
+        errors,
+        warnings
+      };
     }
 
-    if (!request.originalText) {
+    if (
+      !request.originalText
+    ) {
       errors.push({
         type:
-          "current_turn_missing",
-
-        message:
-          "The Composer Packet does not contain the original current-turn text."
+          "current_turn_missing"
       });
     }
 
@@ -3756,10 +3996,7 @@ window.AriComposerBridge = {
     ) {
       errors.push({
         type:
-          "canonical_response_plan_missing",
-
-        message:
-          "The Composer Bridge did not receive a canonical Response Plan."
+          "canonical_response_plan_missing"
       });
     }
 
@@ -3771,10 +4008,7 @@ window.AriComposerBridge = {
     ) {
       errors.push({
         type:
-          "canonical_response_plan_not_ready",
-
-        message:
-          "The canonical Response Plan is present but not ready."
+          "canonical_response_plan_not_ready"
       });
     }
 
@@ -3786,77 +4020,32 @@ window.AriComposerBridge = {
     ) {
       errors.push({
         type:
-          "canonical_response_plan_not_usable",
-
-        message:
-          "The canonical Response Plan is present but not usable."
+          "canonical_response_plan_not_usable"
       });
     }
 
     if (
       responsePlan.available ===
         true &&
-      !responsePlan
-        .responseMoves
-        .length
+      responsePlan.responseMoves
+        .length ===
+        0
     ) {
       errors.push({
         type:
-          "canonical_response_moves_missing",
-
-        message:
-          "The canonical Response Plan contains no response moves."
+          "canonical_response_moves_missing"
       });
     }
-
-    if (
-      characterContext
-        .answerAvailable ===
-        true &&
-      !characterContext.draftAvailable
-    ) {
-      errors.push({
-        type:
-          "character_answer_without_draft",
-
-        message:
-          "Character Reasoning reported an answer but did not provide a user-facing draft."
-      });
-    }
-
-    if (
-      characterContext
-        .answerAvailable ===
-        true &&
-      characterContext.grounding
-        ?.grounded !==
-        true
-    ) {
-      errors.push({
-        type:
-          "character_answer_not_grounded",
-
-        message:
-          "Character Reasoning reported an answer without grounded character authority."
-      });
-    }
-
-    return errors;
-  },
-
-  buildComposerWarnings({
-    request = {},
-    responsePlan = {},
-    continuityContext = {},
-    characterContext = {}
-  } = {}) {
-    const warnings = [];
 
     if (
       request.turnId &&
       responsePlan.turnId &&
-      request.turnId !==
+      String(
+        request.turnId
+      ) !==
+      String(
         responsePlan.turnId
+      )
     ) {
       warnings.push({
         type:
@@ -3871,8 +4060,10 @@ window.AriComposerBridge = {
     }
 
     if (
-      continuityContext.required &&
-      !continuityContext.available
+      continuity.required ===
+        true &&
+      continuity.available !==
+        true
     ) {
       warnings.push({
         type:
@@ -3880,15 +4071,9 @@ window.AriComposerBridge = {
       });
     }
 
-        if (
-      (
-        continuityContext
-          .effectiveUnresolvedReferenceCount ??
-        continuityContext
-          .unresolvedReferences
-          ?.length ??
-        0
-      ) >
+    if (
+      continuity
+        .effectiveUnresolvedReferenceCount >
         0 &&
       responsePlan
         .shouldAskQuestion !==
@@ -3899,38 +4084,33 @@ window.AriComposerBridge = {
           "unresolved_references_without_question_policy",
 
         count:
-          continuityContext
-            .effectiveUnresolvedReferenceCount ??
-          continuityContext
-            .unresolvedReferences
-            ?.length ??
-          0
+          continuity
+            .effectiveUnresolvedReferenceCount
       });
     }
 
     if (
-      characterContext
-        .requestedAuthoritiesSatisfied ===
-        false
+      characterCandidate
+        .answerAvailable ===
+        true &&
+      characterCandidate.grounded !==
+        true
     ) {
       warnings.push({
         type:
-          "requested_character_authority_unavailable",
-
-        missing:
-          characterContext
-            .missingRequestedAuthorities ||
-          []
+          "character_answer_not_grounded"
       });
     }
 
     if (
-      characterContext
+      characterCandidate
         .answerAvailable ===
         true &&
-      characterContext
-        .deterministicDraftAvailable !==
-        true
+      characterCandidate
+        .needsAIWriter !==
+        true &&
+      !characterCandidate
+        .deterministicDraft
     ) {
       warnings.push({
         type:
@@ -3939,44 +4119,25 @@ window.AriComposerBridge = {
     }
 
     if (
-      characterContext
-        .status
-        ?.preferenceStatus ===
-        "canonical" &&
-      !characterContext
-        .grounding
-        ?.canonicalValue
-    ) {
-      warnings.push({
-        type:
-          "canonical_preference_value_missing"
-      });
-    }
-
-    if (
-      characterContext
-        .status
-        ?.preferenceStatus ===
-        "inferred" &&
-      characterContext
-        .realization
-        ?.tentativeLanguageRequired !==
+      characterCandidate.status
+        ?.inferred ===
+        true &&
+      characterCandidate
+        .tentativeLanguageRequired !==
         true
     ) {
       warnings.push({
         type:
-          "inferred_preference_missing_tentative_language_rule"
+          "inferred_character_answer_missing_tentative_language_rule"
       });
     }
 
     if (
-      characterContext
-        .status
+      characterCandidate.status
         ?.open ===
         true &&
-      characterContext
-        .realization
-        ?.preserveOpenStatus !==
+      characterCandidate
+        .preserveOpenStatus !==
         true
     ) {
       warnings.push({
@@ -3985,7 +4146,10 @@ window.AriComposerBridge = {
       });
     }
 
-    return warnings;
+    return {
+      errors,
+      warnings
+    };
   },
 
   buildThesis(summary = {}) {
@@ -4013,7 +4177,7 @@ window.AriComposerBridge = {
         "do_not_use_as_authority",
 
       authority:
-        "advisory_situation_summary_only"
+        "advisory_situation_summary"
     };
   },
 
@@ -4026,15 +4190,17 @@ window.AriComposerBridge = {
     request = {},
     responsePlan = {},
     responseStrategy = {},
-    developerContext = {},
-    characterContext = {},
-    continuityContext = {},
-    safetyContext = {},
-    knowledgeContext = {},
-    languageContext = {}
+    continuity = {},
+    safety = {},
+    knowledge = {},
+    language = {},
+    memory = {},
+    developer = {},
+    characterHandoff = {},
+    characterCandidate = {}
   } = {}) {
     const allowDeveloperEvidence =
-      developerContext.allowed ===
+      developer.allowed ===
       true;
 
     return {
@@ -4058,170 +4224,47 @@ window.AriComposerBridge = {
         null,
 
       responsePlan,
+
       responseStrategy,
 
-      continuity: {
-        stagePacket:
-          continuityContext
-            .stagePacket,
+      continuity,
 
-        packet:
-          continuityContext.packet,
+      safety,
 
-        context:
-          continuityContext.context,
+      focusedCharacter: {
+        handoffAvailable:
+          characterHandoff.available ===
+          true,
 
-        activeDialogueState:
-          continuityContext
-            .activeDialogueState,
-
-        binding:
-          continuityContext.binding,
-
-        facts:
-          continuityContext.facts,
-
-        resolvedReferences:
-          continuityContext
-            .resolvedReferences,
-
-        unresolvedReferences:
-          continuityContext
-            .unresolvedReferences
+        candidate:
+          characterCandidate
       },
 
-      safety:
-        safetyContext,
-
-      /*
-       * Focused character evidence only.
-       *
-       * Entire preference collections and entire worldview maps
-       * are intentionally not exposed to writers.
-       */
-      character: {
-        available:
-          characterContext.available,
-
-        enabled:
-          characterContext.enabled,
-
-        relevant:
-          characterContext.relevant,
-
-        answerAvailable:
-          characterContext
-            .answerAvailable,
-
-        guidanceAvailable:
-          characterContext
-            .guidanceAvailable,
-
-        mode:
-          characterContext.mode,
-
-        type:
-          characterContext.type,
-
-        subtype:
-          characterContext.subtype,
-
-        focus:
-          characterContext.focus,
-
-        subject:
-          characterContext.subject,
-
-        status:
-          characterContext.status,
-
-        draft:
-          characterContext.draft,
-
-        deterministicDraft:
-          characterContext
-            .deterministicDraft,
-
-        grounding:
-          characterContext.grounding,
-
-        groundedMeaning:
-          characterContext
-            .groundedMeaning,
-
-        realization:
-          characterContext.realization,
-
-        relationship:
-          characterContext.relationship,
-
-        implementationDisclosure:
-          characterContext
-            .implementationDisclosure,
-
-        responseControl:
-          characterContext
-            .responseControl,
-
-        authorityChain:
-          characterContext
-            .authorityChain,
-
-        authorityPacket:
-          characterContext
-            .authorityPacket,
-
-        requestedAuthoritiesSatisfied:
-          characterContext
-            .requestedAuthoritiesSatisfied,
-
-        missingRequestedAuthorities:
-          characterContext
-            .missingRequestedAuthorities
-      },
-
-      characterContext,
+      characterCandidate,
 
       languageGuidance:
-        languageContext
-          .languageGuidance,
+        language.languageGuidance,
 
       humanLanguageProfile:
-        languageContext
+        language
           .humanLanguageProfile,
 
       lexicalGrounding:
-        languageContext
-          .lexicalGrounding,
+        language.lexicalGrounding,
 
       preferredTerms:
-        languageContext
-          .preferredTerms,
+        language.preferredTerms,
 
       expressionPlan:
-        languageContext
-          .expressionPlan,
+        language.expressionPlan,
 
-      knowledge:
-        knowledgeContext,
+      knowledge,
 
-      knowledgeMeaning:
-        knowledgeContext.meaning,
-
-      knowledgeSynthesis:
-        knowledgeContext.synthesis,
-
-      blueprintKnowledgeHandoff:
-        knowledgeContext
-          .blueprintHandoff,
+      memory,
 
       reasoning:
         summary.reasoning ||
         summary.reasoningStagePacket ||
-        null,
-
-      cognitiveExecutive:
-        summary.cognitiveExecutive ||
         null,
 
       understanding: {
@@ -4251,37 +4294,6 @@ window.AriComposerBridge = {
         handoff:
           summary
             .understandingHandoff ||
-          null
-      },
-
-      memory: {
-        retrieval:
-          summary.memoryRetrieval ||
-          null,
-
-        context:
-          summary.memoryContext ||
-          summary
-            .memoryContextResult ||
-          null,
-
-        candidates:
-          this.toArray(
-            summary.memoryCandidates ||
-            summary.memoryStagePacket
-              ?.candidates ||
-            summary.memoryHandoff
-              ?.candidates
-          ),
-
-        facts:
-          this.toArray(
-            summary.memoryFacts ||
-            summary.usableMemories
-          ),
-
-        handoff:
-          summary.memoryHandoff ||
           null
       },
 
@@ -4319,8 +4331,7 @@ window.AriComposerBridge = {
         allowDeveloperEvidence
           ? (
               summary.developerIntent ||
-              developerContext
-                .packet
+              developer.packet
                 ?.intent ||
               null
             )
@@ -4341,112 +4352,18 @@ window.AriComposerBridge = {
           : null,
 
       developerReply:
-        developerContext.locked
-          ? developerContext
-              .lockedReply
+        developer.locked ===
+          true
+          ? developer.lockedReply
           : null,
 
       developerPacket:
         allowDeveloperEvidence
-          ? developerContext.packet
+          ? developer.packet
           : null,
 
       developerEvidenceSuppressed:
-        !allowDeveloperEvidence,
-
-      aiWriter: {
-        ran:
-          summary.aiWriterRan ===
-          true,
-
-        usedAI:
-          summary.aiWriterUsedAI ===
-          true,
-
-        draft:
-          summary.aiWriterDraft ||
-          null,
-
-        source:
-          summary.aiWriterSource ||
-          null,
-
-        version:
-          summary.aiWriterVersion ||
-          null,
-
-        fallbackReason:
-          summary
-            .aiWriterFallbackReason ||
-          null
-      },
-
-      blueprintWriter: {
-        ran:
-          summary.blueprintWriterRan ===
-          true,
-
-        draft:
-          summary
-            .blueprintWriterDraft ||
-          null,
-
-        blueprint:
-          summary.blueprint ||
-          null,
-
-        source:
-          summary
-            .blueprintWriterSource ||
-          null,
-
-        version:
-          summary
-            .blueprintWriterVersion ||
-          null,
-
-        reason:
-          summary
-            .blueprintWriterReason ||
-          null
-      }
-    };
-  },
-
-  /* =====================================================
-     RESPONSE CONTROL HELPERS
-  ===================================================== */
-
-  mergeResponseControls(
-    ...controls
-  ) {
-    return {
-      requiredBehaviors:
-        this.mergeUnique(
-          ...controls.map(
-            control =>
-              control
-                ?.requiredBehaviors
-          )
-        ),
-
-      forbiddenBehaviors:
-        this.mergeUnique(
-          ...controls.map(
-            control =>
-              control
-                ?.forbiddenBehaviors
-          )
-        ),
-
-      constraints:
-        this.mergeUnique(
-          ...controls.map(
-            control =>
-              control
-                ?.constraints
-          )
-        )
+        !allowDeveloperEvidence
     };
   },
 
@@ -4459,31 +4376,40 @@ window.AriComposerBridge = {
       canPackageComposerContext:
         true,
 
-      canExposeDerivedCompatibilityAliases:
-        true,
-
-      canFilterIrrelevantDeveloperEvidence:
+      canPreserveCanonicalRequest:
         true,
 
       canPreserveCanonicalResponsePlan:
         true,
 
-      canPreserveFocusedCharacterHandoff:
+      canProjectCompatibilityFields:
         true,
 
-      canPreserveCharacterStatus:
+      canPackageFocusedCharacterHandoff:
         true,
 
-      canPreserveCharacterGrounding:
+      canCreateFocusedCharacterCandidateContract:
         true,
 
-      canPreserveCharacterRealizationPolicy:
+      canFilterIrrelevantDeveloperEvidence:
         true,
 
-      canMergeSupportingResponseConstraints:
+      canMergeSupportingConstraints:
         true,
 
       canCreateFallbackResponsePlan:
+        false,
+
+      canInterpretCurrentMeaning:
+        false,
+
+      canChangeRequestedOperation:
+        false,
+
+      canChooseResponseGoal:
+        false,
+
+      canChooseResponseShape:
         false,
 
       canAddResponseMoves:
@@ -4495,10 +4421,25 @@ window.AriComposerBridge = {
       canReorderResponseMoves:
         false,
 
+      canModifyQuestionPolicy:
+        false,
+
       canRewriteWriterInstructions:
         false,
 
       canResolveCharacterPreference:
+        false,
+
+      canResolveCharacterIdentity:
+        false,
+
+      canResolveCharacterWorldview:
+        false,
+
+      canInferCharacterAuthority:
+        false,
+
+      canMergeCharacterAuthorities:
         false,
 
       canCreateCanonicalPreference:
@@ -4516,13 +4457,19 @@ window.AriComposerBridge = {
       canExposeEntireWorldviewCollection:
         false,
 
-      canInterpretCurrentMeaning:
+      canDetermineBlueprintEligibility:
         false,
 
-      canChangeRequestedOperation:
+      canDetermineAIWriterNeed:
         false,
 
-      canChangeResponsePlan:
+      canGenerateDraftCandidate:
+        false,
+
+      canSelectFinalDraft:
+        false,
+
+      canWriteFinalLanguage:
         false,
 
       canOverrideSafety:
@@ -4537,147 +4484,65 @@ window.AriComposerBridge = {
       canAccessSupabase:
         false,
 
-      canWriteFinalLanguage:
-        false,
-
-      canSelectFinalDraft:
-        false,
-
       canPersistState:
         false,
 
       role:
-        "canonical_response_plan_and_focused_expression_packaging_handoff"
+        "canonical_expression_packet_packaging"
     };
   },
 
-  /* =====================================================
-     VALIDATION
-  ===================================================== */
-
   validate() {
-    const errors = [];
-    const warnings = [];
-
     const authority =
       this.getAuthorityBoundaries();
 
-    if (
-      authority
-        .canAddResponseMoves ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_add_response_moves"
-      );
-    }
+    const errors = [];
 
-    if (
-      authority
-        .canRewriteWriterInstructions ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_rewrite_writer_instructions"
-      );
-    }
+    const forbiddenAuthorities = [
+      "canCreateFallbackResponsePlan",
+      "canInterpretCurrentMeaning",
+      "canChangeRequestedOperation",
+      "canChooseResponseGoal",
+      "canChooseResponseShape",
+      "canAddResponseMoves",
+      "canRemoveResponseMoves",
+      "canReorderResponseMoves",
+      "canModifyQuestionPolicy",
+      "canRewriteWriterInstructions",
+      "canResolveCharacterPreference",
+      "canResolveCharacterIdentity",
+      "canResolveCharacterWorldview",
+      "canInferCharacterAuthority",
+      "canMergeCharacterAuthorities",
+      "canCreateCanonicalPreference",
+      "canPromoteInferenceToCanonical",
+      "canCreateWorldviewPosition",
+      "canExposeEntirePreferenceCollection",
+      "canExposeEntireWorldviewCollection",
+      "canDetermineBlueprintEligibility",
+      "canDetermineAIWriterNeed",
+      "canGenerateDraftCandidate",
+      "canSelectFinalDraft",
+      "canWriteFinalLanguage",
+      "canOverrideSafety",
+      "canRetrieveUserMemory",
+      "canStoreUserMemory",
+      "canAccessSupabase",
+      "canPersistState"
+    ];
 
-    if (
-      authority
-        .canResolveCharacterPreference ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_resolve_character_preferences"
-      );
-    }
-
-    if (
-      authority
-        .canCreateCanonicalPreference ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_create_canonical_preferences"
-      );
-    }
-
-    if (
-      authority
-        .canPromoteInferenceToCanonical ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_promote_inference"
-      );
-    }
-
-    if (
-      authority
-        .canCreateWorldviewPosition ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_create_worldview_positions"
-      );
-    }
-
-    if (
-      authority
-        .canExposeEntirePreferenceCollection ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_expose_entire_preference_collection"
-      );
-    }
-
-    if (
-      authority
-        .canExposeEntireWorldviewCollection ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_expose_entire_worldview_collection"
-      );
-    }
-
-    if (
-      authority.canAccessSupabase ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_access_supabase"
-      );
-    }
-
-    if (
-      authority
-        .canWriteFinalLanguage ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_write_final_language"
-      );
-    }
-
-    if (
-      authority
-        .canSelectFinalDraft ===
-      true
-    ) {
-      errors.push(
-        "composer_bridge_may_not_select_final_draft"
-      );
-    }
-
-    if (
-      !window.AriCharacterStage
-    ) {
-      warnings.push(
-        "ari_character_stage_not_loaded"
-      );
-    }
+    forbiddenAuthorities.forEach(
+      key => {
+        if (
+          authority[key] ===
+          true
+        ) {
+          errors.push(
+            `${key}_must_be_false`
+          );
+        }
+      }
+    );
 
     return {
       valid:
@@ -4691,74 +4556,16 @@ window.AriComposerBridge = {
         this.version,
 
       errors,
-      warnings,
 
-      checks: {
-        responsePlanMutationDisabled:
-          authority
-            .canAddResponseMoves ===
-          false,
+      warnings:
+        [],
 
-        writerInstructionMutationDisabled:
-          authority
-            .canRewriteWriterInstructions ===
-          false,
-
-        characterResolutionSeparated:
-          authority
-            .canResolveCharacterPreference ===
-          false,
-
-        canonicalCreationDisabled:
-          authority
-            .canCreateCanonicalPreference ===
-          false,
-
-        inferencePromotionDisabled:
-          authority
-            .canPromoteInferenceToCanonical ===
-          false,
-
-        worldviewCreationDisabled:
-          authority
-            .canCreateWorldviewPosition ===
-          false,
-
-        entirePreferenceCollectionSuppressed:
-          authority
-            .canExposeEntirePreferenceCollection ===
-          false,
-
-        entireWorldviewCollectionSuppressed:
-          authority
-            .canExposeEntireWorldviewCollection ===
-          false,
-
-        supabaseDisabled:
-          authority
-            .canAccessSupabase ===
-          false,
-
-        finalLanguageAuthorityDisabled:
-          authority
-            .canWriteFinalLanguage ===
-          false,
-
-        finalDraftSelectionDisabled:
-          authority
-            .canSelectFinalDraft ===
-          false,
-
-        characterStageAvailable:
-          Boolean(
-            window.AriCharacterStage
-          )
-      }
+      authority
     };
   },
 
   /* =====================================================
-     GENERAL HELPERS
+     GENERAL UTILITIES
   ===================================================== */
 
   firstFiniteNumber(
@@ -4777,16 +4584,248 @@ window.AriComposerBridge = {
       }
 
       const number =
-        Number(value);
+        Number(
+          value
+        );
 
       if (
-        Number.isFinite(number)
+        Number.isFinite(
+          number
+        )
       ) {
         return number;
       }
     }
 
     return null;
+  },
+
+  normalizeConfidence(
+    value = 0
+  ) {
+    if (
+      typeof value ===
+      "string"
+    ) {
+      const labels = {
+        none: 0,
+        very_low: 0.2,
+        low: 0.4,
+        medium: 0.65,
+        medium_high: 0.75,
+        high: 0.85,
+        very_high: 0.95,
+        critical: 0.98
+      };
+
+      const normalized =
+        this.normalizeIdentifier(
+          value
+        );
+
+      if (
+        labels[normalized] !==
+        undefined
+      ) {
+        return labels[
+          normalized
+        ];
+      }
+    }
+
+    const number =
+      Number(
+        value
+      );
+
+    if (
+      !Number.isFinite(
+        number
+      )
+    ) {
+      return 0;
+    }
+
+    if (
+      number >
+      1
+    ) {
+      return Math.max(
+        0,
+        Math.min(
+          1,
+          number /
+          100
+        )
+      );
+    }
+
+    return Math.max(
+      0,
+      Math.min(
+        1,
+        number
+      )
+    );
+  },
+
+  toArray(value) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
+      return value.filter(
+        item =>
+          item !==
+            null &&
+          item !==
+            undefined &&
+          item !==
+            ""
+      );
+    }
+
+    if (
+      value ===
+        undefined ||
+      value ===
+        null ||
+      value ===
+        ""
+    ) {
+      return [];
+    }
+
+    return [
+      value
+    ];
+  },
+
+  mergeUnique(
+    ...values
+  ) {
+    const output = [];
+    const seen =
+      new Set();
+
+    values
+      .flatMap(
+        value =>
+          this.toArray(
+            value
+          )
+      )
+      .forEach(
+        value => {
+          const key =
+            typeof value ===
+              "string"
+              ? this
+                  .normalizeForComparison(
+                    value
+                  )
+              : this
+                  .normalizeForComparison(
+                    value?.id ||
+                    value?.name ||
+                    value?.type ||
+                    value?.value ||
+                    value?.claim ||
+                    this.safeJSONStringify(
+                      value
+                    )
+                  );
+
+          if (
+            !key ||
+            seen.has(
+              key
+            )
+          ) {
+            return;
+          }
+
+          seen.add(
+            key
+          );
+
+          output.push(
+            value
+          );
+        }
+      );
+
+    return output;
+  },
+
+  safeJSONStringify(
+    value = null
+  ) {
+    const seen =
+      new WeakSet();
+
+    try {
+      return JSON.stringify(
+        value,
+        (
+          key,
+          nestedValue
+        ) => {
+          if (
+            nestedValue &&
+            typeof nestedValue ===
+              "object"
+          ) {
+            if (
+              seen.has(
+                nestedValue
+              )
+            ) {
+              return "[Circular]";
+            }
+
+            seen.add(
+              nestedValue
+            );
+          }
+
+          return nestedValue;
+        }
+      );
+    } catch (error) {
+      return "";
+    }
+  },
+
+  cleanText(
+    value = ""
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /[ \t]+/g,
+        " "
+      )
+      .replace(
+        /\n[ \t]+/g,
+        "\n"
+      )
+      .replace(
+        /\n{3,}/g,
+        "\n\n"
+      )
+      .trim();
   },
 
   normalizeIdentifier(
@@ -4815,164 +4854,19 @@ window.AriComposerBridge = {
       );
   },
 
-  normalizeConfidence(
-    value = 0
-  ) {
-    if (
-      typeof value ===
-      "string"
-    ) {
-      const normalized =
-        value
-          .toLowerCase()
-          .trim();
-
-      const labels = {
-        none: 0,
-        very_low: 0.2,
-        low: 0.4,
-        medium: 0.65,
-        medium_high: 0.75,
-        high: 0.85,
-        very_high: 0.95,
-        critical: 0.98
-      };
-
-      if (
-        labels[normalized] !==
-        undefined
-      ) {
-        return labels[
-          normalized
-        ];
-      }
-    }
-
-    const number =
-      Number(value);
-
-    if (
-      !Number.isFinite(number)
-    ) {
-      return 0;
-    }
-
-    if (number > 1) {
-      return Math.max(
-        0,
-        Math.min(
-          1,
-          number / 100
-        )
-      );
-    }
-
-    return Math.max(
-      0,
-      Math.min(
-        1,
-        number
-      )
-    );
-  },
-
-  toArray(value) {
-    if (
-      Array.isArray(value)
-    ) {
-      return value.filter(
-        item =>
-          item !== null &&
-          item !== undefined &&
-          item !== ""
-      );
-    }
-
-    if (
-      value === undefined ||
-      value === null ||
-      value === ""
-    ) {
-      return [];
-    }
-
-    return [value];
-  },
-
-  mergeUnique(
-    ...values
-  ) {
-    const result = [];
-    const seen =
-      new Set();
-
-    values
-      .flatMap(
-        value =>
-          this.toArray(value)
-      )
-      .forEach(value => {
-        const key =
-          typeof value ===
-          "string"
-            ? this.normalize(
-                value
-              )
-            : this.normalize(
-                value.id ||
-                value.name ||
-                value.type ||
-                value.value ||
-                value.claim ||
-                JSON.stringify(
-                  value
-                )
-              );
-
-        if (
-          !key ||
-          seen.has(key)
-        ) {
-          return;
-        }
-
-        seen.add(key);
-        result.push(value);
-      });
-
-    return result;
-  },
-
-  cleanOriginal(
+  normalizeForComparison(
     value = ""
   ) {
-    return String(
-      value ??
-      ""
+    return this.cleanText(
+      value
     )
-      .replace(
-        /[’‘]/g,
-        "'"
-      )
-      .replace(
-        /[“”]/g,
-        "\""
-      )
-      .replace(
-        /\s+/g,
-        " "
-      )
-      .trim();
-  },
-
-  normalize(
-    value = ""
-  ) {
-    return this
-      .cleanOriginal(value)
       .toLowerCase()
       .replace(
         /[_-]/g,
+        " "
+      )
+      .replace(
+        /[^\w\s']/g,
         " "
       )
       .replace(
@@ -4988,8 +4882,7 @@ window.Ari.composerBridge =
 
 console.log(
   "ARI COMPOSER BRIDGE LOADED:",
-  window.AriComposerBridge
-    ?.version,
+  window.AriComposerBridge?.version,
   window.AriComposerBridge
     ?.validate?.().valid ===
     true
