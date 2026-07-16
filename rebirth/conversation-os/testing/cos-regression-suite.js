@@ -2,62 +2,49 @@
 // ARI Rebirth — Conversation Operating System Regression Suite
 //
 // Purpose:
-// Run deterministic regression scenarios against the complete Conversation
-// Operating System and verify that future changes do not break conversation
-// placement, reference binding, thread state, or packet authority boundaries.
+// Run deterministic behavioral, structural, persistence, migration,
+// immutability, and authority-boundary regression tests against the installed
+// Conversation Operating System.
 //
-// V1.0.0 — Canonical COS Structural Regression Suite
+// V1.0.0 — Canonical COS Regression Harness
 //
-// Test groups:
+// Canonical responsibilities:
 //
-// - installation
-// - new conversation
-// - active-thread continuation
-// - explicit reply placement
-// - answer placement
-// - clarification placement
-// - correction placement
-// - branch placement
-// - interruption placement
-// - interruption return
-// - resumed thread placement
-// - unresolved references
-// - partially resolved references
-// - duplicate turn protection
-// - state immutability
-// - packet immutability
-// - packet authority boundaries
-// - thread membership
-// - parent-child preservation
-// - state revision progression
-// - repeated execution isolation
+// - verify deterministic COS behavior across repeated executions,
+// - verify structural placement across common conversation relationships,
+// - verify thread, branch, interruption, and return behavior,
+// - verify unresolved and invalid references remain unresolved,
+// - verify duplicate identities are rejected,
+// - verify pending-interaction continuity,
+// - verify artifact continuity,
+// - verify multipart delivery-sequence continuity,
+// - verify persistence across controller restarts,
+// - verify legacy-state migration,
+// - verify packet authority boundaries,
+// - verify state and packet immutability when freezing is enabled,
+// - verify Rebirth integration preserves upstream authority packets,
+// - provide reusable scenario registration and execution APIs,
+// - provide compact and full diagnostic reports.
 //
 // Non-responsibility:
 //
-// This suite does not:
+// This file must not:
 //
-// - interpret natural language,
-// - test semantic understanding,
-// - test intent classification,
-// - test conversation-function classification,
-// - infer implicit references,
-// - modify production authority,
-// - repair invalid placements.
+// - modify production authority rules,
+// - reinterpret user language,
+// - infer semantic meaning,
+// - classify intent,
+// - classify conversation function,
+// - infer safety severity,
+// - repair failed production outputs,
+// - silently weaken failed assertions,
+// - write to production conversation IDs.
 //
 // Architectural rule:
 //
-// The suite tests only the structural authority currently assigned to COS.
+// Regression tests supply explicit structural evidence.
 //
-// Natural-language references such as:
-//
-// - "Next"
-// - "Why?"
-// - "What about that?"
-// - "Send it"
-// - "Do the other one"
-//
-// are not resolved by this structural suite unless an upstream authority has
-// already supplied explicit turn-reference metadata.
+// They do not depend on natural-language phrase interpretation.
 //
 // Browser namespace:
 //
@@ -86,11 +73,18 @@
 
   root.Ari = root.Ari || {};
   root.Ari.Rebirth = root.Ari.Rebirth || {};
+
   root.Ari.Rebirth.ConversationOS =
     root.Ari.Rebirth.ConversationOS || {};
 
+  root.Ari.Rebirth.Integration =
+    root.Ari.Rebirth.Integration || {};
+
   const ConversationOS =
     root.Ari.Rebirth.ConversationOS;
+
+  const Integration =
+    root.Ari.Rebirth.Integration;
 
   ConversationOS.testing =
     ConversationOS.testing || {};
@@ -108,40 +102,84 @@
   const COMPONENT_NAME =
     "cos-regression-suite";
 
-  const PACKET_TYPE =
-    "authoritative_conversation_placement_packet";
+  const RESULT_TYPE =
+    "conversation_operating_system_regression_result";
 
-  const EXPECTED_PACKET_KEYS = Object.freeze([
-    "authority",
-    "conversationId",
-    "currentTurn",
-    "packetType",
-    "placement",
-    "referenceResolution",
-    "requestId",
-    "schemaVersion"
-  ]);
+  const SCENARIO_RESULT_TYPE =
+    "conversation_operating_system_regression_scenario_result";
 
-  const EXPECTED_CURRENT_TURN_KEYS = Object.freeze([
-    "role",
-    "sequence",
-    "text",
-    "timestamp",
-    "turnId"
-  ]);
+  const DEFAULT_STORAGE_ADAPTER =
+    "memory";
 
-  const EXPECTED_PLACEMENT_KEYS = Object.freeze([
-    "parentTurnId",
-    "sourceTurnIds",
-    "threadId",
-    "type"
-  ]);
+  const DEFAULT_PERFORMANCE_LIMITS =
+    Object.freeze({
+      singleTurnMs: 2000,
+      repeatedTurnAverageMs: 1000,
+      historyBuildMs: 5000,
+      largeHistoryTurnCount: 250
+    });
 
-  const EXPECTED_REFERENCE_KEYS = Object.freeze([
-    "resolvedTurnIds",
-    "status",
-    "unresolvedReferences"
-  ]);
+  const REQUIRED_PACKET_KEYS =
+    Object.freeze([
+      "schemaVersion",
+      "authority",
+      "packetType",
+      "conversationId",
+      "currentTurn",
+      "placement",
+      "referenceResolution"
+    ]);
+
+  const FORBIDDEN_PACKET_KEYS =
+    Object.freeze([
+      "semanticMeaning",
+      "semanticFrame",
+      "intent",
+      "emotion",
+      "safety",
+      "safetySeverity",
+      "responsePlan",
+      "responseText",
+      "generatedResponse",
+      "modelPrompt",
+      "modelResponse",
+      "confidence",
+      "candidates"
+    ]);
+
+  const STANDARD_SCENARIO_IDS =
+    Object.freeze([
+      "installation_readiness",
+      "empty_state_shape",
+      "first_turn_new_thread",
+      "active_thread_continuation",
+      "explicit_reply",
+      "explicit_answer",
+      "explicit_clarification",
+      "explicit_correction",
+      "explicit_branch",
+      "nested_branch",
+      "explicit_interruption",
+      "nested_interruption",
+      "return_from_nested_interruption",
+      "return_from_outer_interruption",
+      "unresolved_reference",
+      "duplicate_turn_rejection",
+      "packet_authority_boundary",
+      "state_revision_progression",
+      "packet_determinism",
+      "history_index_determinism",
+      "frozen_result_immutability",
+      "pending_interaction_continuity",
+      "artifact_continuity",
+      "delivery_sequence_continuity",
+      "direct_store_round_trip",
+      "controller_persistence_restart",
+      "legacy_state_migration",
+      "controller_persisted_migration",
+      "rebirth_authority_preservation",
+      "large_history_indexing"
+    ]);
 
   /* =====================================================
      ERROR TYPE
@@ -152,14 +190,16 @@
       code,
       message,
       {
+        scenarioId = null,
         details = null,
-        cause = null
+        cause = null,
+        recoverable = false
       } = {}
     ) {
       super(
         message ||
         code ||
-        "COS regression suite error"
+        "COS regression-suite error"
       );
 
       this.name =
@@ -169,8 +209,17 @@
         code ||
         "COS_REGRESSION_SUITE_ERROR";
 
-      this.details = details;
-      this.cause = cause;
+      this.scenarioId =
+        scenarioId || null;
+
+      this.details =
+        details;
+
+      this.cause =
+        cause;
+
+      this.recoverable =
+        recoverable === true;
 
       if (
         Error.captureStackTrace &&
@@ -212,6 +261,16 @@
     );
   }
 
+  function firstDefined(...values) {
+    for (const value of values) {
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
   function firstNonEmptyString(...values) {
     for (const value of values) {
       if (isNonEmptyString(value)) {
@@ -220,6 +279,70 @@
     }
 
     return null;
+  }
+
+  function asArray(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return [];
+    }
+
+    return [value];
+  }
+
+  function uniqueStrings(values = []) {
+    const output = [];
+    const seen = new Set();
+
+    for (const value of asArray(values)) {
+      if (!isNonEmptyString(value)) {
+        continue;
+      }
+
+      const normalized =
+        value.trim();
+
+      if (seen.has(normalized)) {
+        continue;
+      }
+
+      seen.add(normalized);
+      output.push(normalized);
+    }
+
+    return output;
+  }
+
+  function normalizeInteger(
+    value,
+    fallback = 0
+  ) {
+    const numeric =
+      Number(value);
+
+    if (!Number.isFinite(numeric)) {
+      return fallback;
+    }
+
+    return Math.trunc(numeric);
+  }
+
+  function normalizeNumber(
+    value,
+    fallback = 0
+  ) {
+    const numeric =
+      Number(value);
+
+    return Number.isFinite(numeric)
+      ? numeric
+      : fallback;
   }
 
   function safeClone(value) {
@@ -231,7 +354,8 @@
     }
 
     if (
-      typeof structuredClone === "function"
+      typeof structuredClone ===
+      "function"
     ) {
       try {
         return structuredClone(value);
@@ -249,15 +373,119 @@
     }
   }
 
+  function stableClone(value) {
+    if (Array.isArray(value)) {
+      return value.map(
+        stableClone
+      );
+    }
+
+    if (isObject(value)) {
+      const output = {};
+
+      for (
+        const key of
+          Object.keys(value).sort()
+      ) {
+        output[key] =
+          stableClone(
+            value[key]
+          );
+      }
+
+      return output;
+    }
+
+    return value;
+  }
+
+  function stableStringify(value) {
+    try {
+      return JSON.stringify(
+        stableClone(value)
+      );
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  function deepEquivalent(
+    left,
+    right
+  ) {
+    return (
+      stableStringify(left) ===
+      stableStringify(right)
+    );
+  }
+
+  function deepFreeze(
+    value,
+    seen = new WeakSet()
+  ) {
+    if (
+      value === null ||
+      typeof value !== "object"
+    ) {
+      return value;
+    }
+
+    if (seen.has(value)) {
+      return value;
+    }
+
+    seen.add(value);
+
+    for (
+      const key of Reflect.ownKeys(value)
+    ) {
+      const child =
+        value[key];
+
+      if (
+        child !== null &&
+        typeof child === "object"
+      ) {
+        deepFreeze(
+          child,
+          seen
+        );
+      }
+    }
+
+    return Object.freeze(value);
+  }
+
+  function freezeClone(value) {
+    return deepFreeze(
+      safeClone(value)
+    );
+  }
+
+  function hasOwn(
+    object,
+    property
+  ) {
+    return Object.prototype
+      .hasOwnProperty
+      .call(
+        object,
+        property
+      );
+  }
+
   function nowIso() {
     return new Date().toISOString();
   }
 
   function nowMs() {
     if (
-      typeof performance !== "undefined" &&
+      typeof performance !==
+        "undefined" &&
       performance &&
-      isFunction(performance.now)
+      isFunction(
+        performance.now
+      )
     ) {
       return performance.now();
     }
@@ -266,43 +494,52 @@
   }
 
   function elapsedMs(startedAtMs) {
-    const value =
+    const elapsed =
       nowMs() - startedAtMs;
 
-    return Number.isFinite(value)
+    return Number.isFinite(elapsed)
       ? Math.max(
           0,
-          Math.round(value * 1000) / 1000
+          Math.round(
+            elapsed * 1000
+          ) / 1000
         )
       : 0;
   }
 
-  function createId(prefix = "cos_test") {
-    const timestamp =
+  function createId(
+    prefix = "regression"
+  ) {
+    const time =
       Date.now().toString(36);
 
-    const random =
-      Math.random()
-        .toString(36)
-        .slice(2, 12);
+    let random = "";
 
-    return `${prefix}_${timestamp}_${random}`;
-  }
+    if (
+      typeof crypto !== "undefined" &&
+      crypto &&
+      isFunction(
+        crypto.getRandomValues
+      )
+    ) {
+      const values =
+        new Uint32Array(2);
 
-  function sortKeys(value) {
-    return Object.keys(
-      value || {}
-    ).sort();
-  }
+      crypto.getRandomValues(
+        values
+      );
 
-  function arraysEqual(
-    left,
-    right
-  ) {
-    return (
-      JSON.stringify(left) ===
-      JSON.stringify(right)
-    );
+      random =
+        values[0].toString(36) +
+        values[1].toString(36);
+    } else {
+      random =
+        Math.random()
+          .toString(36)
+          .slice(2, 12);
+    }
+
+    return `${prefix}_${time}_${random}`;
   }
 
   function safeError(error) {
@@ -319,19 +556,46 @@
 
         message:
           error.message ||
-          "Unknown regression error",
+          "Unknown regression-suite error",
+
+        scenarioId:
+          firstNonEmptyString(
+            error.scenarioId
+          ) || null,
+
+        recoverable:
+          error.recoverable === true,
 
         details:
           error.details === undefined
             ? null
             : safeClone(
                 error.details
+              ),
+
+        cause:
+          error.cause instanceof Error
+            ? {
+                name:
+                  error.cause.name,
+
+                code:
+                  firstNonEmptyString(
+                    error.cause.code
+                  ) || null,
+
+                message:
+                  error.cause.message
+              }
+            : safeClone(
+                error.cause
               )
       };
     }
 
     return {
-      name: "Error",
+      name:
+        "Error",
 
       code:
         "COS_REGRESSION_SUITE_ERROR",
@@ -339,10 +603,19 @@
       message:
         isNonEmptyString(error)
           ? error
-          : "Unknown regression error",
+          : "Unknown regression-suite error",
+
+      scenarioId:
+        null,
+
+      recoverable:
+        false,
 
       details:
-        safeClone(error)
+        safeClone(error),
+
+      cause:
+        null
     };
   }
 
@@ -350,10 +623,15 @@
      ASSERTIONS
   ===================================================== */
 
-  function fail(
+  function assert(
+    condition,
     message,
     details = null
   ) {
+    if (condition) {
+      return true;
+    }
+
     throw new CosRegressionSuiteError(
       "COS_REGRESSION_ASSERTION_FAILED",
       message,
@@ -363,44 +641,46 @@
     );
   }
 
-  function assert(
-    condition,
-    message,
-    details = null
-  ) {
-    if (!condition) {
-      fail(message, details);
-    }
-  }
-
   function assertEqual(
     actual,
     expected,
     message
   ) {
-    assert(
+    return assert(
       actual === expected,
       message ||
-        `Expected ${String(expected)} but received ${String(actual)}.`,
+        `Expected ${String(
+          expected
+        )}, received ${String(
+          actual
+        )}.`,
       {
-        actual,
-        expected
+        actual:
+          safeClone(actual),
+
+        expected:
+          safeClone(expected)
       }
     );
   }
 
   function assertNotEqual(
     actual,
-    expected,
+    unexpected,
     message
   ) {
-    assert(
-      actual !== expected,
+    return assert(
+      actual !== unexpected,
       message ||
-        `Expected values to differ, but both were ${String(actual)}.`,
+        `Did not expect ${String(
+          unexpected
+        )}.`,
       {
-        actual,
-        expected
+        actual:
+          safeClone(actual),
+
+        unexpected:
+          safeClone(unexpected)
       }
     );
   }
@@ -409,7 +689,7 @@
     value,
     message
   ) {
-    assert(
+    return assert(
       isObject(value),
       message ||
         "Expected an object.",
@@ -424,7 +704,7 @@
     value,
     message
   ) {
-    assert(
+    return assert(
       Array.isArray(value),
       message ||
         "Expected an array.",
@@ -435,71 +715,121 @@
     );
   }
 
-  function assertIncludes(
-    array,
+  function assertNonEmptyString(
     value,
     message
   ) {
-    assertArray(
-      array,
-      message
-    );
-
-    assert(
-      array.includes(value),
+    return assert(
+      isNonEmptyString(value),
       message ||
-        `Expected array to include ${String(value)}.`,
+        "Expected a non-empty string.",
       {
-        array:
-          safeClone(array),
-        value
+        actual:
+          safeClone(value)
       }
     );
   }
 
-  function assertKeys(
-    object,
-    expectedKeys,
+  function assertArrayIncludes(
+    array,
+    expected,
     message
   ) {
-    assertObject(
-      object,
-      message
+    assertArray(
+      array,
+      message ||
+        "Expected an array."
     );
 
-    const actualKeys =
-      sortKeys(object);
+    return assert(
+      array.includes(expected),
+      message ||
+        `Expected array to include ${String(
+          expected
+        )}.`,
+      {
+        actual:
+          safeClone(array),
 
-    const expected =
-      [...expectedKeys].sort();
+        expected:
+          safeClone(expected)
+      }
+    );
+  }
 
-    assert(
-      arraysEqual(
-        actualKeys,
+  function assertGreaterThan(
+    actual,
+    minimum,
+    message
+  ) {
+    return assert(
+      Number(actual) >
+        Number(minimum),
+      message ||
+        `Expected ${String(
+          actual
+        )} to be greater than ${String(
+          minimum
+        )}.`,
+      {
+        actual,
+        minimum
+      }
+    );
+  }
+
+  function assertLessThanOrEqual(
+    actual,
+    maximum,
+    message
+  ) {
+    return assert(
+      Number(actual) <=
+        Number(maximum),
+      message ||
+        `Expected ${String(
+          actual
+        )} to be less than or equal to ${String(
+          maximum
+        )}.`,
+      {
+        actual,
+        maximum
+      }
+    );
+  }
+
+  function assertDeepEqual(
+    actual,
+    expected,
+    message
+  ) {
+    return assert(
+      deepEquivalent(
+        actual,
         expected
       ),
       message ||
-        "Object keys do not match the canonical shape.",
+        "Expected values to be deeply equivalent.",
       {
-        actualKeys,
-        expectedKeys:
-          expected
+        actual:
+          safeClone(actual),
+
+        expected:
+          safeClone(expected)
       }
     );
   }
 
   /* =====================================================
-     COS DISCOVERY
+     COMPONENT DISCOVERY
   ===================================================== */
 
   function resolveConversationOS(
     override = null
   ) {
-    if (override) {
-      return override;
-    }
-
     return (
+      override ||
       ConversationOS.index ||
       ConversationOS.api ||
       ConversationOS.publicApi ||
@@ -510,67 +840,308 @@
     );
   }
 
-  function resolveRun(
-    conversationOS
+  function resolveController(
+    override = null
   ) {
-    if (isFunction(conversationOS)) {
-      return conversationOS.bind(
-        conversationOS
+    return (
+      override ||
+      ConversationOS.controller ||
+      ConversationOS.cosController ||
+      root.AriCosController ||
+      null
+    );
+  }
+
+  function resolveStateComponent(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.state ||
+      ConversationOS.cosState ||
+      root.AriCosState ||
+      null
+    );
+  }
+
+  function resolveStateStore(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.stateStore ||
+      ConversationOS.cosStateStore ||
+      root.AriCosStateStore ||
+      null
+    );
+  }
+
+  function resolveStateMigrator(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.stateMigrator ||
+      ConversationOS.cosStateMigrator ||
+      root.AriCosStateMigrator ||
+      null
+    );
+  }
+
+  function resolveHistoryIndex(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.historyIndex ||
+      ConversationOS.historyIndexer ||
+      ConversationOS.cosHistoryIndex ||
+      root.AriCosHistoryIndex ||
+      null
+    );
+  }
+
+  function resolvePendingInteractionManager(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS
+        .pendingInteractionManager ||
+      ConversationOS
+        .cosPendingInteractionManager ||
+      root
+        .AriCosPendingInteractionManager ||
+      null
+    );
+  }
+
+  function resolveArtifactRegister(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS.artifactRegister ||
+      ConversationOS
+        .cosArtifactRegister ||
+      root.AriCosArtifactRegister ||
+      null
+    );
+  }
+
+  function resolveDeliverySequenceManager(
+    override = null
+  ) {
+    return (
+      override ||
+      ConversationOS
+        .deliverySequenceManager ||
+      ConversationOS
+        .cosDeliverySequenceManager ||
+      root
+        .AriCosDeliverySequenceManager ||
+      null
+    );
+  }
+
+  function resolveIntegrationStage(
+    override = null
+  ) {
+    return (
+      override ||
+      Integration
+        .conversationOSStage ||
+      Integration.cosStage ||
+      Integration
+        .rebirthConversationOSStage ||
+      root
+        .AriRebirthConversationOSStage ||
+      null
+    );
+  }
+
+  function resolveCallable(
+    component,
+    methodNames,
+    {
+      code =
+        "COS_REGRESSION_COMPONENT_UNAVAILABLE",
+
+      message =
+        "Required regression component is unavailable."
+    } = {}
+  ) {
+    if (isFunction(component)) {
+      return component.bind(
+        component
       );
     }
 
-    for (
-      const method of [
-        "run",
-        "execute",
-        "process"
-      ]
-    ) {
-      if (
-        conversationOS &&
-        isFunction(
-          conversationOS[method]
-        )
+    if (component) {
+      for (
+        const methodName of
+          methodNames
       ) {
-        return conversationOS[
-          method
-        ].bind(conversationOS);
+        if (
+          isFunction(
+            component[
+              methodName
+            ]
+          )
+        ) {
+          return component[
+            methodName
+          ].bind(component);
+        }
       }
     }
 
     throw new CosRegressionSuiteError(
-      "COS_REGRESSION_RUNTIME_MISSING",
-      "Conversation Operating System does not expose a callable run method."
+      code,
+      message,
+      {
+        details: {
+          methodNames
+        }
+      }
     );
   }
 
-  function resolveInspect(
-    conversationOS
+  /* =====================================================
+     STRUCTURAL READERS
+  ===================================================== */
+
+  function readPlacement(
+    packetOrResult
   ) {
-    for (
-      const method of [
-        "inspect",
-        "inspectInstallation",
-        "health"
-      ]
+    if (
+      packetOrResult &&
+      isObject(
+        packetOrResult.placement
+      )
     ) {
-      if (
-        conversationOS &&
-        isFunction(
-          conversationOS[method]
-        )
-      ) {
-        return conversationOS[
-          method
-        ].bind(conversationOS);
-      }
+      return packetOrResult
+        .placement;
+    }
+
+    if (
+      packetOrResult &&
+      packetOrResult.packet &&
+      isObject(
+        packetOrResult
+          .packet.placement
+      )
+    ) {
+      return packetOrResult
+        .packet.placement;
     }
 
     return null;
   }
 
+  function readPlacementType(
+    packetOrResult
+  ) {
+    const placement =
+      readPlacement(
+        packetOrResult
+      ) || {};
+
+    return firstNonEmptyString(
+      placement.type,
+      placement.placementType,
+      placement.placement_type
+    );
+  }
+
+  function readPlacementThreadId(
+    packetOrResult
+  ) {
+    const placement =
+      readPlacement(
+        packetOrResult
+      ) || {};
+
+    return firstNonEmptyString(
+      placement.threadId,
+      placement.thread_id
+    );
+  }
+
+  function readPlacementParentTurnId(
+    packetOrResult
+  ) {
+    const placement =
+      readPlacement(
+        packetOrResult
+      ) || {};
+
+    return firstNonEmptyString(
+      placement.parentTurnId,
+      placement.parent_turn_id
+    );
+  }
+
+  function readReferenceResolution(
+    packetOrResult
+  ) {
+    if (
+      packetOrResult &&
+      isObject(
+        packetOrResult
+          .referenceResolution
+      )
+    ) {
+      return packetOrResult
+        .referenceResolution;
+    }
+
+    if (
+      packetOrResult &&
+      packetOrResult.packet &&
+      isObject(
+        packetOrResult
+          .packet
+          .referenceResolution
+      )
+    ) {
+      return packetOrResult
+        .packet
+        .referenceResolution;
+    }
+
+    return null;
+  }
+
+  function readInspectionReady(
+    inspection
+  ) {
+    if (!isObject(inspection)) {
+      return false;
+    }
+
+    if (
+      typeof inspection.ready ===
+      "boolean"
+    ) {
+      return inspection.ready;
+    }
+
+    if (
+      typeof inspection.ok ===
+      "boolean"
+    ) {
+      return inspection.ok;
+    }
+
+    return (
+      inspection.status ===
+      "ready"
+    );
+  }
+
   /* =====================================================
-     TURN FACTORY
+     TEST DATA HELPERS
   ===================================================== */
 
   function createTurn({
@@ -579,41 +1150,37 @@
     text = "",
     sequence = 0,
     timestamp = null,
-
     threadId = null,
-    placementType = null,
-
     parentTurnId = null,
     replyToTurnId = null,
-
-    sourceTurnIds = [],
-    referenceTurnIds = [],
-
     answerTargetTurnId = null,
     clarificationTargetTurnId = null,
     correctionTargetTurnId = null,
     branchOriginTurnId = null,
     interruptionOriginTurnId = null,
-    resumeTargetTurnId = null
-  }) {
+    resumeTargetTurnId = null,
+    placementType = null,
+    sourceTurnIds = [],
+    metadata = null
+  } = {}) {
     return {
-      turnId,
+      turnId:
+        turnId ||
+        createId("turn"),
+
       role,
+
       text,
+
       sequence,
 
       timestamp:
-        timestamp || nowIso(),
+        timestamp ||
+        nowIso(),
 
       ...(threadId
         ? {
             threadId
-          }
-        : {}),
-
-      ...(placementType
-        ? {
-            placementType
           }
         : {}),
 
@@ -626,20 +1193,6 @@
       ...(replyToTurnId
         ? {
             replyToTurnId
-          }
-        : {}),
-
-      ...(sourceTurnIds.length > 0
-        ? {
-            sourceTurnIds:
-              [...sourceTurnIds]
-          }
-        : {}),
-
-      ...(referenceTurnIds.length > 0
-        ? {
-            referenceTurnIds:
-              [...referenceTurnIds]
           }
         : {}),
 
@@ -677,44 +1230,215 @@
         ? {
             resumeTargetTurnId
           }
+        : {}),
+
+      ...(placementType
+        ? {
+            placementType
+          }
+        : {}),
+
+      ...(sourceTurnIds.length > 0
+        ? {
+            sourceTurnIds:
+              uniqueStrings(
+                sourceTurnIds
+              )
+          }
+        : {}),
+
+      ...(isObject(metadata)
+        ? {
+            metadata:
+              safeClone(metadata)
+          }
         : {})
     };
   }
 
-  function appendAppliedTurn(
+  function appendHistory(
     history,
-    originalTurn,
-    packet
+    turn,
+    packetOrResult
   ) {
+    const placement =
+      readPlacement(
+        packetOrResult
+      ) || {};
+
     return [
       ...history,
 
       {
-        ...safeClone(
-          originalTurn
-        ),
+        ...safeClone(turn),
 
         threadId:
-          packet.placement.threadId,
+          firstNonEmptyString(
+            placement.threadId,
+            placement.thread_id,
+            turn.threadId
+          ) || null,
 
         parentTurnId:
-          packet.placement
-            .parentTurnId,
+          firstNonEmptyString(
+            placement.parentTurnId,
+            placement.parent_turn_id,
+            turn.parentTurnId
+          ) || null,
 
         sourceTurnIds:
-          [
-            ...packet.placement
-              .sourceTurnIds
-          ]
+          uniqueStrings([
+            ...asArray(
+              placement.sourceTurnIds
+            ),
+
+            ...asArray(
+              placement.source_turn_ids
+            ),
+
+            ...asArray(
+              turn.sourceTurnIds
+            )
+          ])
       }
     ];
   }
 
+  function createLegacyState(
+    conversationId
+  ) {
+    const timestamp =
+      nowIso();
+
+    return {
+      schemaVersion:
+        "0.0.0",
+
+      conversation_id:
+        conversationId,
+
+      state_revision:
+        4,
+
+      active_thread_id:
+        "legacy_thread_1",
+
+      active_turn_id:
+        "legacy_turn_1",
+
+      turns: {
+        legacy_turn_1: {
+          id:
+            "legacy_turn_1",
+
+          speaker:
+            "user",
+
+          message:
+            "Legacy turn.",
+
+          sequence: 0,
+
+          thread_id:
+            "legacy_thread_1",
+
+          created_at:
+            timestamp
+        }
+      },
+
+      threads: {
+        legacy_thread_1: {
+          id:
+            "legacy_thread_1",
+
+          status:
+            "active",
+
+          turn_ids: [
+            "legacy_turn_1"
+          ],
+
+          first_turn_id:
+            "legacy_turn_1",
+
+          last_turn_id:
+            "legacy_turn_1",
+
+          created_at:
+            timestamp,
+
+          updated_at:
+            timestamp
+        }
+      },
+
+      thread_stack: [
+        "legacy_thread_1"
+      ],
+
+      interruption_stack: [],
+
+      created_at:
+        timestamp,
+
+      updated_at:
+        timestamp
+    };
+  }
+
+  function createLargeHistory(
+    count,
+    {
+      threadId =
+        "large_history_thread",
+
+      startSequence = 0
+    } = {}
+  ) {
+    const history = [];
+
+    for (
+      let index = 0;
+      index < count;
+      index += 1
+    ) {
+      history.push(
+        createTurn({
+          turnId:
+            `large_history_turn_${index}`,
+
+          role:
+            index % 2 === 0
+              ? "user"
+              : "assistant",
+
+          text:
+            `Large-history turn ${index}.`,
+
+          sequence:
+            startSequence + index,
+
+          threadId,
+
+          parentTurnId:
+            index > 0
+              ? `large_history_turn_${index - 1}`
+              : null
+        })
+      );
+    }
+
+    return history;
+  }
+
   /* =====================================================
-     RESULT ASSERTIONS
+     ASSERTION HELPERS
   ===================================================== */
 
-  function assertSuccess(result) {
+  function assertSuccessfulResult(
+    result
+  ) {
     assertObject(
       result,
       "COS result must be an object."
@@ -728,16 +1452,20 @@
 
     assertObject(
       result.packet,
-      "Successful COS result requires packet."
+      "Successful COS execution requires a packet."
     );
 
     assertObject(
       result.state,
-      "Successful COS result requires state."
+      "Successful COS execution requires state."
     );
+
+    return result;
   }
 
-  function assertFailure(result) {
+  function assertStructuredFailure(
+    result
+  ) {
     assertObject(
       result,
       "COS failure must be structured."
@@ -754,184 +1482,571 @@
       "COS failure requires errors."
     );
 
-    assert(
-      result.errors.length > 0,
-      "COS failure should contain at least one error."
+    assertGreaterThan(
+      result.errors.length,
+      0,
+      "COS failure requires at least one error."
     );
+
+    return result;
   }
 
-  function assertCanonicalPacket(packet) {
-    assertKeys(
+  function assertPacketShape(
+    packet
+  ) {
+    assertObject(
       packet,
-      EXPECTED_PACKET_KEYS,
-      "Packet top-level shape changed."
+      "Packet must be an object."
     );
+
+    for (
+      const requiredKey of
+        REQUIRED_PACKET_KEYS
+    ) {
+      assert(
+        hasOwn(
+          packet,
+          requiredKey
+        ),
+        `Packet is missing required key: ${requiredKey}.`,
+        {
+          actualKeys:
+            Object.keys(packet)
+        }
+      );
+    }
 
     assertEqual(
       packet.schemaVersion,
       SCHEMA_VERSION,
-      "Packet schema version changed."
-    );
-
-    assertEqual(
-      packet.packetType,
-      PACKET_TYPE,
-      "Packet type changed."
+      "Packet schema version mismatch."
     );
 
     assertEqual(
       packet.authority,
       AUTHORITY,
-      "Packet authority changed."
+      "Packet authority mismatch."
     );
 
-    assertKeys(
+    assertObject(
       packet.currentTurn,
-      EXPECTED_CURRENT_TURN_KEYS,
-      "Current-turn packet shape changed."
+      "Packet requires currentTurn."
     );
 
-    assertKeys(
+    assertObject(
       packet.placement,
-      EXPECTED_PLACEMENT_KEYS,
-      "Placement packet shape changed."
+      "Packet requires placement."
     );
 
-    assertKeys(
+    assertObject(
       packet.referenceResolution,
-      EXPECTED_REFERENCE_KEYS,
-      "Reference packet shape changed."
+      "Packet requires referenceResolution."
     );
-
-    const forbiddenKeys = [
-      "intent",
-      "meaning",
-      "semanticMeaning",
-      "conversationFunction",
-      "emotion",
-      "safety",
-      "responsePlan",
-      "confidence",
-      "score",
-      "candidates",
-      "diagnostics",
-      "timing",
-      "reasoning"
-    ];
 
     for (
       const forbiddenKey of
-        forbiddenKeys
+        FORBIDDEN_PACKET_KEYS
     ) {
       assert(
-        !Object.prototype
-          .hasOwnProperty.call(
-            packet,
-            forbiddenKey
-          ),
-        `Packet leaked forbidden field: ${forbiddenKey}`
+        !hasOwn(
+          packet,
+          forbiddenKey
+        ),
+        `COS packet must not expose ${forbiddenKey}.`,
+        {
+          actualKeys:
+            Object.keys(packet)
+        }
       );
     }
+
+    return true;
+  }
+
+  function assertAuxiliaryStateShape(
+    state
+  ) {
+    assertObject(
+      state.pendingInteractionState,
+      "State requires pendingInteractionState."
+    );
+
+    assertObject(
+      state
+        .pendingInteractionState
+        .interactions,
+      "Pending-interaction state requires interactions."
+    );
+
+    assertArray(
+      state
+        .pendingInteractionState
+        .order,
+      "Pending-interaction state requires order."
+    );
+
+    assertObject(
+      state.artifactState,
+      "State requires artifactState."
+    );
+
+    assertObject(
+      state.artifactState.artifacts,
+      "Artifact state requires artifacts."
+    );
+
+    assertArray(
+      state.artifactState.order,
+      "Artifact state requires order."
+    );
+
+    assertObject(
+      state.deliverySequenceState,
+      "State requires deliverySequenceState."
+    );
+
+    assertObject(
+      state
+        .deliverySequenceState
+        .sequences,
+      "Delivery-sequence state requires sequences."
+    );
+
+    assertArray(
+      state
+        .deliverySequenceState
+        .order,
+      "Delivery-sequence state requires order."
+    );
+
+    return true;
+  }
+
+  function assertFrozen(
+    value,
+    message
+  ) {
+    assert(
+      Object.isFrozen(value),
+      message ||
+        "Expected object to be frozen."
+    );
+
+    return true;
   }
 
   /* =====================================================
-     TEST CONTEXT
+     SCENARIO REGISTRY
   ===================================================== */
 
-  function createTestContext({
-    conversationId,
-    runCos,
-    runtimeOptions
-  }) {
-    return {
-      conversationId,
-      runCos,
-      runtimeOptions,
+  const scenarioRegistry =
+    new Map();
 
-      history: [],
-      state: null,
+  function registerScenario(
+    definition
+  ) {
+    if (!isObject(definition)) {
+      throw new CosRegressionSuiteError(
+        "COS_REGRESSION_SCENARIO_INVALID",
+        "Regression scenario definition must be an object."
+      );
+    }
 
-      packets: [],
-      results: [],
+    const id =
+      firstNonEmptyString(
+        definition.id
+      );
 
-      turns: {},
-      threads: {},
+    if (!id) {
+      throw new CosRegressionSuiteError(
+        "COS_REGRESSION_SCENARIO_ID_MISSING",
+        "Regression scenario requires an ID."
+      );
+    }
 
-      async executeTurn(turn) {
-        const result =
-          await runCos(
-            {
-              conversationId:
-                this.conversationId,
-
-              currentTurn:
-                turn,
-
-              history:
-                this.history,
-
-              state:
-                this.state
-            },
-            this.runtimeOptions
-          );
-
-        this.results.push(
-          result
-        );
-
-        if (result.ok === true) {
-          this.packets.push(
-            result.packet
-          );
-
-          this.state =
-            result.state;
-
-          this.history =
-            appendAppliedTurn(
-              this.history,
-              turn,
-              result.packet
-            );
-
-          this.turns[
-            turn.turnId
-          ] = {
-            input:
-              safeClone(turn),
-
-            packet:
-              result.packet,
-
-            state:
-              result.state
-          };
-
-          const threadId =
-            result.packet
-              .placement.threadId;
-
-          if (threadId) {
-            this.threads[
-              threadId
-            ] = true;
-          }
+    if (
+      !isFunction(
+        definition.run
+      )
+    ) {
+      throw new CosRegressionSuiteError(
+        "COS_REGRESSION_SCENARIO_RUN_MISSING",
+        "Regression scenario requires a run function.",
+        {
+          scenarioId:
+            id
         }
+      );
+    }
 
-        return result;
+    if (
+      scenarioRegistry.has(id) &&
+      definition.replace !== true
+    ) {
+      throw new CosRegressionSuiteError(
+        "COS_REGRESSION_SCENARIO_DUPLICATE",
+        "Regression scenario ID is already registered.",
+        {
+          scenarioId:
+            id
+        }
+      );
+    }
+
+    const normalized = {
+      id,
+
+      name:
+        firstNonEmptyString(
+          definition.name
+        ) || id,
+
+      description:
+        firstNonEmptyString(
+          definition.description
+        ) || null,
+
+      group:
+        firstNonEmptyString(
+          definition.group
+        ) || "general",
+
+      required:
+        definition.required !==
+        false,
+
+      enabled:
+        definition.enabled !==
+        false,
+
+      tags:
+        uniqueStrings(
+          definition.tags
+        ),
+
+      run:
+        definition.run
+    };
+
+    scenarioRegistry.set(
+      id,
+      normalized
+    );
+
+    return normalized;
+  }
+
+  function unregisterScenario(
+    scenarioId
+  ) {
+    return scenarioRegistry.delete(
+      scenarioId
+    );
+  }
+
+  function getScenario(
+    scenarioId
+  ) {
+    return (
+      scenarioRegistry.get(
+        scenarioId
+      ) || null
+    );
+  }
+
+  function listScenarios() {
+    return Array.from(
+      scenarioRegistry.values()
+    ).map(
+      (scenario) => ({
+        id:
+          scenario.id,
+
+        name:
+          scenario.name,
+
+        description:
+          scenario.description,
+
+        group:
+          scenario.group,
+
+        required:
+          scenario.required,
+
+        enabled:
+          scenario.enabled,
+
+        tags:
+          [...scenario.tags]
+      })
+    );
+  }
+
+  /* =====================================================
+     EXECUTION CONTEXT
+  ===================================================== */
+
+  function createExecutionContext(
+    options = {}
+  ) {
+    const conversationOS =
+      resolveConversationOS(
+        options.conversationOS
+      );
+
+    const controller =
+      resolveController(
+        options.controller
+      );
+
+    const stateComponent =
+      resolveStateComponent(
+        options.stateComponent
+      );
+
+    const stateStore =
+      resolveStateStore(
+        options.stateStore
+      );
+
+    const stateMigrator =
+      resolveStateMigrator(
+        options.stateMigrator
+      );
+
+    const historyIndex =
+      resolveHistoryIndex(
+        options.historyIndex
+      );
+
+    const pendingInteractionManager =
+      resolvePendingInteractionManager(
+        options.pendingInteractionManager
+      );
+
+    const artifactRegister =
+      resolveArtifactRegister(
+        options.artifactRegister
+      );
+
+    const deliverySequenceManager =
+      resolveDeliverySequenceManager(
+        options.deliverySequenceManager
+      );
+
+    const integrationStage =
+      resolveIntegrationStage(
+        options.integrationStage
+      );
+
+    assert(
+      conversationOS,
+      "Conversation Operating System is not installed."
+    );
+
+    const execute =
+      resolveCallable(
+        conversationOS,
+        [
+          "run",
+          "execute",
+          "process"
+        ],
+        {
+          code:
+            "COS_REGRESSION_RUN_UNAVAILABLE",
+
+          message:
+            "Conversation Operating System does not expose run()."
+        }
+      );
+
+    const inspect =
+      conversationOS &&
+      (
+        isFunction(
+          conversationOS.inspect
+        )
+          ? conversationOS.inspect.bind(
+              conversationOS
+            )
+          : isFunction(
+              conversationOS
+                .inspectInstallation
+            )
+            ? conversationOS
+                .inspectInstallation
+                .bind(
+                  conversationOS
+                )
+            : isFunction(
+                conversationOS.health
+              )
+              ? conversationOS
+                  .health
+                  .bind(
+                    conversationOS
+                  )
+              : null
+      );
+
+    const storageAdapter =
+      firstDefined(
+        options.storageAdapter,
+        options.adapter,
+        DEFAULT_STORAGE_ADAPTER
+      );
+
+    const storageKeyPrefix =
+      firstNonEmptyString(
+        options.storageKeyPrefix,
+        options.keyPrefix
+      ) ||
+      `ari.rebirth.cos.regression.${createId(
+        "namespace"
+      )}`;
+
+    const baseRuntimeOptions = {
+      persistence: false,
+      loadState: false,
+      saveState: false,
+      strictInstallation:
+        options.strictInstallation !==
+        false,
+      requireInfrastructure: true,
+      throwOnFailure: false,
+      freeze: false,
+      includeRuntimeStageOutputs: true,
+      includeReferenceDiagnostics: true,
+      ...(isObject(
+        options.runtimeOptions
+      )
+        ? safeClone(
+            options.runtimeOptions
+          )
+        : {})
+    };
+
+    const persistentRuntimeOptions = {
+      ...baseRuntimeOptions,
+
+      persistence: true,
+      loadState: true,
+      saveState: true,
+
+      stateSourcePolicy:
+        "prefer_persisted",
+
+      storageAdapter,
+
+      storageKeyPrefix,
+
+      persistenceOptions: {
+        adapter:
+          storageAdapter,
+
+        keyPrefix:
+          storageKeyPrefix
       }
+    };
+
+    return {
+      options,
+
+      conversationOS,
+
+      controller,
+
+      stateComponent,
+
+      stateStore,
+
+      stateMigrator,
+
+      historyIndex,
+
+      pendingInteractionManager,
+
+      artifactRegister,
+
+      deliverySequenceManager,
+
+      integrationStage,
+
+      execute,
+
+      inspect,
+
+      storageAdapter,
+
+      storageKeyPrefix,
+
+      baseRuntimeOptions,
+
+      persistentRuntimeOptions,
+
+      performanceLimits: {
+        ...DEFAULT_PERFORMANCE_LIMITS,
+
+        ...(
+          isObject(
+            options.performanceLimits
+          )
+            ? options.performanceLimits
+            : {}
+        )
+      },
+
+      ids: {
+        suite:
+          createId(
+            "cos_regression_suite"
+          ),
+
+        primaryConversation:
+          createId(
+            "cos_regression_primary"
+          ),
+
+        persistenceConversation:
+          createId(
+            "cos_regression_persistence"
+          ),
+
+        migrationConversation:
+          createId(
+            "cos_regression_migration"
+          ),
+
+        integrationConversation:
+          createId(
+            "cos_regression_integration"
+          )
+      },
+
+      shared: {
+        state: null,
+        history: [],
+        packets: [],
+        results: [],
+        branchThreadId: null,
+        outerInterruptionThreadId: null,
+        innerInterruptionThreadId: null
+      },
+
+      cleanupConversationIds:
+        new Set()
     };
   }
 
   /* =====================================================
-     TEST EXECUTOR
+     SCENARIO EXECUTION
   ===================================================== */
 
-  async function executeTest(
-    group,
-    name,
-    handler
+  async function executeScenario(
+    scenario,
+    context
   ) {
     const startedAt =
       nowIso();
@@ -941,14 +2056,52 @@
 
     try {
       const details =
-        await handler();
+        await scenario.run(
+          context
+        );
+
+      const skipped =
+        Boolean(
+          details &&
+          details.skipped === true
+        );
 
       return {
-        group,
-        name,
+        schemaVersion:
+          SCHEMA_VERSION,
+
+        authority:
+          AUTHORITY,
+
+        component:
+          COMPONENT_NAME,
+
+        resultType:
+          SCENARIO_RESULT_TYPE,
+
+        id:
+          scenario.id,
+
+        name:
+          scenario.name,
+
+        group:
+          scenario.group,
+
+        required:
+          scenario.required,
+
+        tags:
+          [...scenario.tags],
 
         passed: true,
-        status: "passed",
+
+        skipped,
+
+        status:
+          skipped
+            ? "skipped"
+            : "passed",
 
         startedAt,
 
@@ -963,19 +2116,54 @@
         details:
           details === undefined
             ? null
-            : safeClone(
-                details
-              ),
+            : safeClone(details),
 
-        error: null
+        error:
+          null
       };
     } catch (error) {
+      const normalized =
+        safeError(error);
+
+      normalized.scenarioId =
+        scenario.id;
+
       return {
-        group,
-        name,
+        schemaVersion:
+          SCHEMA_VERSION,
+
+        authority:
+          AUTHORITY,
+
+        component:
+          COMPONENT_NAME,
+
+        resultType:
+          SCENARIO_RESULT_TYPE,
+
+        id:
+          scenario.id,
+
+        name:
+          scenario.name,
+
+        group:
+          scenario.group,
+
+        required:
+          scenario.required,
+
+        tags:
+          [...scenario.tags],
 
         passed: false,
-        status: "failed",
+
+        skipped: false,
+
+        status:
+          scenario.required
+            ? "failed"
+            : "optional_failed",
 
         startedAt,
 
@@ -987,7 +2175,61 @@
             startedAtMs
           ),
 
-        details: null,
+        details:
+          null,
+
+        error:
+          normalized
+      };
+    }
+  }
+
+  /* =====================================================
+     CLEANUP
+  ===================================================== */
+
+  async function removeStoredState(
+    context,
+    conversationId
+  ) {
+    if (
+      !context.controller ||
+      !isFunction(
+        context.controller
+          .removeState
+      )
+    ) {
+      return {
+        ok: true,
+        skipped: true,
+        conversationId
+      };
+    }
+
+    try {
+      return await context
+        .controller
+        .removeState(
+          conversationId,
+          {
+            storageAdapter:
+              context
+                .storageAdapter,
+
+            storageKeyPrefix:
+              context
+                .storageKeyPrefix,
+
+            persistence: true,
+
+            freeze: false
+          }
+        );
+    } catch (error) {
+      return {
+        ok: false,
+
+        conversationId,
 
         error:
           safeError(error)
@@ -995,630 +2237,1059 @@
     }
   }
 
+  async function cleanupContext(
+    context
+  ) {
+    const results = [];
+
+    for (
+      const conversationId of
+        context
+          .cleanupConversationIds
+    ) {
+      results.push(
+        await removeStoredState(
+          context,
+          conversationId
+        )
+      );
+    }
+
+    return results;
+  }
+
   /* =====================================================
-     REGRESSION SUITE
+     STANDARD SCENARIOS
   ===================================================== */
 
-  async function run(
-    options = {}
-  ) {
-    const suiteStartedAt =
-      nowIso();
+  function registerStandardScenarios() {
+    if (
+      scenarioRegistry.size > 0
+    ) {
+      return;
+    }
 
-    const suiteStartedAtMs =
-      nowMs();
+    registerScenario({
+      id:
+        "installation_readiness",
 
-    const conversationOS =
-      resolveConversationOS(
-        options.conversationOS
-      );
+      name:
+        "Installation readiness",
 
-    assert(
-      conversationOS,
-      "Conversation Operating System is not installed."
-    );
-
-    const runCos =
-      resolveRun(
-        conversationOS
-      );
-
-    const inspect =
-      resolveInspect(
-        conversationOS
-      );
-
-    const runtimeOptions = {
-      strictInstallation:
-        options.strictInstallation !==
-          false,
-
-      throwOnFailure: false,
-
-      freezeResult:
-        false,
-
-      ...(isObject(
-        options.runtimeOptions
-      )
-        ? safeClone(
-            options.runtimeOptions
-          )
-        : {})
-    };
-
-    const context =
-      createTestContext({
-        conversationId:
-          options.conversationId ||
-          createId(
-            "cos_regression"
-          ),
-
-        runCos,
-
-        runtimeOptions
-      });
-
-    const tests = [];
-
-    const IDs = Object.freeze({
-      rootUser:
-        "regression_root_user",
-
-      rootAssistant:
-        "regression_root_assistant",
-
-      continuation:
-        "regression_continuation",
-
-      answer:
-        "regression_answer",
-
-      clarification:
-        "regression_clarification",
-
-      correction:
-        "regression_correction",
-
-      branch:
-        "regression_branch",
-
-      branchReply:
-        "regression_branch_reply",
-
-      interruption:
-        "regression_interruption",
-
-      interruptionReply:
-        "regression_interruption_reply",
-
-      returnTurn:
-        "regression_return",
-
-      resumeTurn:
-        "regression_resume",
-
-      unresolved:
-        "regression_unresolved",
-
-      partial:
-        "regression_partial",
-
-      duplicate:
-        "regression_duplicate",
-
-      unknownOne:
-        "regression_unknown_one",
-
-      unknownTwo:
-        "regression_unknown_two"
-    });
-
-    let rootThreadId = null;
-    let branchThreadId = null;
-    let interruptionThreadId = null;
-
-    /* ===================================================
-       INSTALLATION
-    =================================================== */
-
-    tests.push(
-      await executeTest(
+      group:
         "installation",
-        "complete installation reports ready",
-        async () => {
+
+      tags: [
+        "installation",
+        "health"
+      ],
+
+      run:
+        async (context) => {
           assert(
-            inspect,
-            "COS inspection API is unavailable."
+            context.inspect,
+            "COS installation inspection is unavailable."
           );
 
           const inspection =
-            await inspect();
-
-          const ready =
-            typeof inspection.ready ===
-              "boolean"
-              ? inspection.ready
-              : inspection.ok;
+            await context.inspect(
+              {},
+              {
+                requireInfrastructure:
+                  true
+              }
+            );
 
           assertEqual(
-            ready,
+            readInspectionReady(
+              inspection
+            ),
             true,
-            "COS installation must be ready."
+            "COS installation should report ready."
           );
 
-          return inspection;
+          return {
+            status:
+              inspection.status ||
+              "ready",
+
+            missing:
+              safeClone(
+                inspection
+                  .missingRequired ||
+                inspection.missing ||
+                []
+              )
+          };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       NEW CONVERSATION
-    =================================================== */
+    registerScenario({
+      id:
+        "empty_state_shape",
 
-    tests.push(
-      await executeTest(
+      name:
+        "Canonical empty-state shape",
+
+      group:
+        "state",
+
+      tags: [
+        "state",
+        "schema",
+        "auxiliary"
+      ],
+
+      run:
+        async (context) => {
+          assert(
+            context.stateComponent,
+            "COS state component is unavailable."
+          );
+
+          const create =
+            resolveCallable(
+              context.stateComponent,
+              [
+                "create",
+                "initialize",
+                "createInitialState",
+                "createEmptyState"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_STATE_FACTORY_UNAVAILABLE",
+
+                message:
+                  "COS state factory is unavailable."
+              }
+            );
+
+          const state =
+            await create(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation
+              },
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                freeze: false
+              }
+            );
+
+          assertObject(
+            state,
+            "State factory must return an object."
+          );
+
+          assertEqual(
+            state.schemaVersion,
+            SCHEMA_VERSION,
+            "State schema version mismatch."
+          );
+
+          assertEqual(
+            state.authority,
+            AUTHORITY,
+            "State authority mismatch."
+          );
+
+          assertObject(
+            state.turns,
+            "State requires turns."
+          );
+
+          assertObject(
+            state.threads,
+            "State requires threads."
+          );
+
+          assertArray(
+            state.threadStack,
+            "State requires threadStack."
+          );
+
+          assertArray(
+            state.interruptionStack,
+            "State requires interruptionStack."
+          );
+
+          assertAuxiliaryStateShape(
+            state
+          );
+
+          return {
+            revision:
+              state.revision,
+
+            stateType:
+              state.stateType
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "first_turn_new_thread",
+
+      name:
+        "First turn creates a new thread",
+
+      group:
         "placement",
-        "first turn creates new thread",
-        async () => {
+
+      tags: [
+        "placement",
+        "thread"
+      ],
+
+      run:
+        async (context) => {
           const turn =
             createTurn({
               turnId:
-                IDs.rootUser,
+                "regression_turn_1",
+
+              role:
+                "user",
 
               text:
-                "Initial user turn.",
+                "Initial turn.",
 
               sequence: 0
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-          assertCanonicalPacket(
+          assertSuccessfulResult(
+            result
+          );
+
+          assertPacketShape(
             result.packet
           );
 
           assertEqual(
-            result.packet
-              .placement.type,
-            "new_thread",
-            "First turn must create a thread."
-          );
-
-          assertEqual(
-            result.packet
-              .placement.parentTurnId,
-            null,
-            "New thread must not have a parent."
-          );
-
-          assertEqual(
-            result.packet
-              .referenceResolution
-              .status,
-            "not_required",
-            "First turn should not require references."
-          );
-
-          rootThreadId =
-            result.packet
-              .placement.threadId;
-
-          assert(
-            isNonEmptyString(
-              rootThreadId
+            readPlacementType(
+              result
             ),
-            "New thread ID is required."
+            "new_thread",
+            "First turn should create a new thread."
+          );
+
+          assertNonEmptyString(
+            readPlacementThreadId(
+              result
+            ),
+            "New thread requires a thread ID."
+          );
+
+          const resolution =
+            readReferenceResolution(
+              result
+            );
+
+          assertObject(
+            resolution,
+            "Result requires reference resolution."
+          );
+
+          assertEqual(
+            resolution.status,
+            "not_required",
+            "First turn should not require reference resolution."
+          );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
+
+          context.shared.packets.push(
+            safeClone(
+              result.packet
+            )
+          );
+
+          context.shared.results.push(
+            safeClone(result)
           );
 
           return {
-            rootThreadId
+            threadId:
+              result.state
+                .activeThreadId,
+
+            turnId:
+              result.state
+                .activeTurnId
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       CONTINUATION
-    =================================================== */
+    registerScenario({
+      id:
+        "active_thread_continuation",
 
-    tests.push(
-      await executeTest(
+      name:
+        "Active thread continuation",
+
+      group:
         "placement",
-        "active conversation continues active thread",
-        async () => {
+
+      tags: [
+        "placement",
+        "continuation"
+      ],
+
+      run:
+        async (context) => {
+          const priorThreadId =
+            context.shared.state
+              .activeThreadId;
+
           const turn =
             createTurn({
               turnId:
-                IDs.rootAssistant,
+                "regression_turn_2",
 
               role:
                 "assistant",
 
               text:
-                "Initial assistant turn.",
+                "Continuation.",
 
               sequence: 1
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "continue_thread",
-            "Active conversation should continue."
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            rootThreadId,
-            "Continuation changed threads."
+            readPlacementType(
+              result
+            ),
+            "continue_thread",
+            "Second turn should continue the active thread."
+          );
+
+          assertEqual(
+            readPlacementThreadId(
+              result
+            ),
+            priorThreadId,
+            "Continuation should preserve the active thread."
+          );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
+
+          context.shared.packets.push(
+            safeClone(
+              result.packet
+            )
           );
 
           return {
-            packet:
-              result.packet
+            threadId:
+              result.state
+                .activeThreadId
           };
         }
-      )
-    );
+    });
 
-    tests.push(
-      await executeTest(
-        "placement",
-        "second continuation remains on root thread",
-        async () => {
+    registerScenario({
+      id:
+        "explicit_reply",
+
+      name:
+        "Explicit reply resolution",
+
+      group:
+        "references",
+
+      tags: [
+        "reference",
+        "reply"
+      ],
+
+      run:
+        async (context) => {
           const turn =
             createTurn({
               turnId:
-                IDs.continuation,
+                "regression_turn_reply",
+
+              role:
+                "user",
 
               text:
-                "Continue structurally.",
+                "Reply.",
 
-              sequence: 2
+              sequence: 2,
+
+              replyToTurnId:
+                "regression_turn_2"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
+          assertSuccessfulResult(
+            result
+          );
+
+          const resolution =
+            readReferenceResolution(
+              result
+            );
 
           assertEqual(
-            result.packet
-              .placement.type,
-            "continue_thread"
+            resolution.status,
+            "resolved",
+            "Explicit reply should resolve."
+          );
+
+          assertArrayIncludes(
+            resolution.resolvedTurnIds,
+            "regression_turn_2",
+            "Reply target should be resolved."
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            rootThreadId
+            readPlacementParentTurnId(
+              result
+            ),
+            "regression_turn_2",
+            "Reply target should become the parent turn."
           );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
 
           return {
-            packet:
-              result.packet
+            resolvedTurnIds:
+              resolution
+                .resolvedTurnIds
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       ANSWER
-    =================================================== */
+    registerScenario({
+      id:
+        "explicit_answer",
 
-    tests.push(
-      await executeTest(
+      name:
+        "Explicit answer placement",
+
+      group:
         "references",
-        "answer target resolves exact source",
-        async () => {
+
+      tags: [
+        "reference",
+        "answer"
+      ],
+
+      run:
+        async (context) => {
           const turn =
             createTurn({
               turnId:
-                IDs.answer,
+                "regression_turn_answer",
 
-              text: "Yes.",
+              role:
+                "user",
+
+              text:
+                "Yes.",
 
               sequence: 3,
 
               answerTargetTurnId:
-                IDs.rootAssistant
+                "regression_turn_2"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "answer_to_turn"
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
-            IDs.rootAssistant
-          );
-
-          assertIncludes(
-            result.packet
-              .referenceResolution
-              .resolvedTurnIds,
-            IDs.rootAssistant
+            readPlacementType(
+              result
+            ),
+            "answer_to_turn",
+            "Answer target should produce answer_to_turn."
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            rootThreadId
+            readPlacementParentTurnId(
+              result
+            ),
+            "regression_turn_2",
+            "Answer target should become the parent."
           );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
 
           return {
-            packet:
-              result.packet
+            placementType:
+              readPlacementType(
+                result
+              )
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       CLARIFICATION
-    =================================================== */
+    registerScenario({
+      id:
+        "explicit_clarification",
 
-    tests.push(
-      await executeTest(
+      name:
+        "Explicit clarification placement",
+
+      group:
         "references",
-        "clarification binds to exact target",
-        async () => {
+
+      tags: [
+        "reference",
+        "clarification"
+      ],
+
+      run:
+        async (context) => {
           const turn =
             createTurn({
               turnId:
-                IDs.clarification,
+                "regression_turn_clarification",
+
+              role:
+                "user",
 
               text:
-                "Clarifying the prior user turn.",
+                "I meant the other file.",
 
               sequence: 4,
 
               clarificationTargetTurnId:
-                IDs.continuation
+                "regression_turn_reply"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "clarification_of_turn"
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
-            IDs.continuation
+            readPlacementType(
+              result
+            ),
+            "clarification_of_turn",
+            "Clarification target should produce clarification_of_turn."
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            rootThreadId
+            readPlacementParentTurnId(
+              result
+            ),
+            "regression_turn_reply",
+            "Clarification target should become the parent."
           );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
 
           return {
-            packet:
-              result.packet
+            placementType:
+              readPlacementType(
+                result
+              )
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       CORRECTION
-    =================================================== */
+    registerScenario({
+      id:
+        "explicit_correction",
 
-    tests.push(
-      await executeTest(
+      name:
+        "Explicit correction placement",
+
+      group:
         "references",
-        "correction binds to exact target",
-        async () => {
+
+      tags: [
+        "reference",
+        "correction"
+      ],
+
+      run:
+        async (context) => {
           const turn =
             createTurn({
               turnId:
-                IDs.correction,
+                "regression_turn_correction",
+
+              role:
+                "user",
 
               text:
-                "Correcting the clarification.",
+                "Correction.",
 
               sequence: 5,
 
               correctionTargetTurnId:
-                IDs.clarification
+                "regression_turn_clarification"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "correction_of_turn"
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
-            IDs.clarification
+            readPlacementType(
+              result
+            ),
+            "correction_of_turn",
+            "Correction target should produce correction_of_turn."
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            rootThreadId
+            readPlacementParentTurnId(
+              result
+            ),
+            "regression_turn_clarification",
+            "Correction target should become the parent."
           );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
 
           return {
-            packet:
-              result.packet
+            placementType:
+              readPlacementType(
+                result
+              )
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       BRANCH
-    =================================================== */
+    registerScenario({
+      id:
+        "explicit_branch",
 
-    tests.push(
-      await executeTest(
+      name:
+        "Explicit branch placement",
+
+      group:
         "threads",
-        "branch creates distinct thread",
-        async () => {
+
+      tags: [
+        "branch",
+        "thread"
+      ],
+
+      run:
+        async (context) => {
+          const originThreadId =
+            context.shared.state
+              .activeThreadId;
+
           const turn =
             createTurn({
               turnId:
-                IDs.branch,
+                "regression_turn_branch_1",
+
+              role:
+                "user",
 
               text:
-                "Create an explicit branch.",
+                "Branch.",
 
               sequence: 6,
 
               branchOriginTurnId:
-                IDs.continuation
+                "regression_turn_reply"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "branch_from_turn"
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            result.packet
-              .placement.parentTurnId,
-            IDs.continuation
+            readPlacementType(
+              result
+            ),
+            "branch_from_turn",
+            "Branch target should produce branch_from_turn."
           );
 
-          branchThreadId =
-            result.packet
-              .placement.threadId;
+          const branchThreadId =
+            readPlacementThreadId(
+              result
+            );
+
+          assertNonEmptyString(
+            branchThreadId,
+            "Branch requires a thread ID."
+          );
 
           assertNotEqual(
             branchThreadId,
-            rootThreadId,
-            "Branch reused root thread."
+            originThreadId,
+            "Branch thread must differ from the origin thread."
           );
 
-          assertEqual(
-            result.state.activeThreadId,
-            branchThreadId
-          );
+          context.shared
+            .branchThreadId =
+            branchThreadId;
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
 
           return {
-            rootThreadId,
+            originThreadId,
             branchThreadId
           };
         }
-      )
-    );
+    });
 
-    tests.push(
-      await executeTest(
+    registerScenario({
+      id:
+        "nested_branch",
+
+      name:
+        "Nested branch placement",
+
+      group:
         "threads",
-        "branch continuation remains on branch",
-        async () => {
+
+      tags: [
+        "branch",
+        "nested"
+      ],
+
+      run:
+        async (context) => {
+          const parentBranchThreadId =
+            context.shared.state
+              .activeThreadId;
+
           const turn =
             createTurn({
               turnId:
-                IDs.branchReply,
+                "regression_turn_branch_2",
 
               role:
-                "assistant",
+                "user",
 
               text:
-                "Continue the branch.",
+                "Nested branch.",
 
-              sequence: 7
+              sequence: 7,
+
+              branchOriginTurnId:
+                "regression_turn_branch_1"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "continue_thread"
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            branchThreadId
+            readPlacementType(
+              result
+            ),
+            "branch_from_turn",
+            "Nested branch should remain branch_from_turn."
           );
+
+          assertNotEqual(
+            readPlacementThreadId(
+              result
+            ),
+            parentBranchThreadId,
+            "Nested branch requires another distinct thread."
+          );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
 
           return {
-            packet:
-              result.packet
+            parentBranchThreadId,
+
+            nestedBranchThreadId:
+              result.state
+                .activeThreadId
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       INTERRUPTION
-    =================================================== */
+    registerScenario({
+      id:
+        "explicit_interruption",
 
-    tests.push(
-      await executeTest(
-        "threads",
-        "interruption creates separate active thread",
-        async () => {
+      name:
+        "Explicit interruption",
+
+      group:
+        "interruptions",
+
+      tags: [
+        "interruption",
+        "thread"
+      ],
+
+      run:
+        async (context) => {
+          const interruptedThreadId =
+            context.shared.state
+              .activeThreadId;
+
+          const stackBefore =
+            context.shared.state
+              .interruptionStack
+              .length;
+
           const turn =
             createTurn({
               turnId:
-                IDs.interruption,
+                "regression_turn_interrupt_1",
+
+              role:
+                "user",
 
               text:
-                "Create an interruption.",
+                "Interrupt.",
 
               sequence: 8,
 
@@ -1626,139 +3297,233 @@
                 "interruption",
 
               interruptionOriginTurnId:
-                IDs.branchReply
+                "regression_turn_branch_2"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "interruption"
+          assertSuccessfulResult(
+            result
           );
 
-          interruptionThreadId =
-            result.packet
-              .placement.threadId;
+          assertEqual(
+            readPlacementType(
+              result
+            ),
+            "interruption",
+            "Explicit interruption should remain interruption."
+          );
 
           assertNotEqual(
-            interruptionThreadId,
-            branchThreadId,
-            "Interruption reused interrupted thread."
+            result.state
+              .activeThreadId,
+            interruptedThreadId,
+            "Interruption should activate a new thread."
           );
 
-          assertEqual(
-            result.state.activeThreadId,
-            interruptionThreadId
-          );
-
-          assert(
+          assertGreaterThan(
             result.state
               .interruptionStack
-              .length > 0,
-            "Interruption stack was not updated."
+              .length,
+            stackBefore,
+            "Interruption should push the stack."
           );
 
-          const lastEntry =
+          context.shared
+            .outerInterruptionThreadId =
             result.state
-              .interruptionStack[
-                result.state
-                  .interruptionStack
-                  .length - 1
-              ];
+              .activeThreadId;
 
-          assertEqual(
-            lastEntry
-              .interruptedThreadId,
-            branchThreadId
-          );
+          context.shared.state =
+            result.state;
 
-          assertEqual(
-            lastEntry
-              .interruptionThreadId,
-            interruptionThreadId
-          );
-
-          return {
-            branchThreadId,
-            interruptionThreadId
-          };
-        }
-      )
-    );
-
-    tests.push(
-      await executeTest(
-        "threads",
-        "interruption thread can continue",
-        async () => {
-          const turn =
-            createTurn({
-              turnId:
-                IDs.interruptionReply,
-
-              role:
-                "assistant",
-
-              text:
-                "Continue interruption.",
-
-              sequence: 9
-            });
-
-          const result =
-            await context.executeTurn(
-              turn
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "continue_thread"
-          );
-
-          assertEqual(
-            result.packet
-              .placement.threadId,
-            interruptionThreadId
-          );
-
           return {
-            packet:
-              result.packet
+            interruptedThreadId,
+
+            interruptionThreadId:
+              result.state
+                .activeThreadId
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       RETURN
-    =================================================== */
+    registerScenario({
+      id:
+        "nested_interruption",
 
-    tests.push(
-      await executeTest(
-        "threads",
-        "return from interruption restores branch",
-        async () => {
+      name:
+        "Nested interruption",
+
+      group:
+        "interruptions",
+
+      tags: [
+        "interruption",
+        "nested"
+      ],
+
+      run:
+        async (context) => {
+          const interruptedThreadId =
+            context.shared.state
+              .activeThreadId;
+
           const stackBefore =
-            context.state
+            context.shared.state
               .interruptionStack
               .length;
 
           const turn =
             createTurn({
               turnId:
-                IDs.returnTurn,
+                "regression_turn_interrupt_2",
+
+              role:
+                "user",
 
               text:
-                "Return structurally.",
+                "Interrupt again.",
+
+              sequence: 9,
+
+              placementType:
+                "interruption",
+
+              interruptionOriginTurnId:
+                "regression_turn_interrupt_1"
+            });
+
+          const result =
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
+            );
+
+          assertSuccessfulResult(
+            result
+          );
+
+          assertEqual(
+            readPlacementType(
+              result
+            ),
+            "interruption",
+            "Nested interruption should remain interruption."
+          );
+
+          assertGreaterThan(
+            result.state
+              .interruptionStack
+              .length,
+            stackBefore,
+            "Nested interruption should push another entry."
+          );
+
+          context.shared
+            .innerInterruptionThreadId =
+            result.state
+              .activeThreadId;
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
+
+          return {
+            interruptedThreadId,
+
+            nestedInterruptionThreadId:
+              result.state
+                .activeThreadId,
+
+            stackDepth:
+              result.state
+                .interruptionStack
+                .length
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "return_from_nested_interruption",
+
+      name:
+        "Return from nested interruption",
+
+      group:
+        "interruptions",
+
+      tags: [
+        "return",
+        "nested"
+      ],
+
+      run:
+        async (context) => {
+          const stackBefore =
+            context.shared.state
+              .interruptionStack
+              .length;
+
+          const turn =
+            createTurn({
+              turnId:
+                "regression_turn_return_1",
+
+              role:
+                "user",
+
+              text:
+                "Return once.",
 
               sequence: 10,
 
@@ -1766,34 +3531,53 @@
                 "return_from_interruption",
 
               threadId:
-                branchThreadId,
+                context.shared
+                  .outerInterruptionThreadId,
 
               resumeTargetTurnId:
-                IDs.branchReply
+                "regression_turn_interrupt_1"
             });
 
           const result =
-            await context.executeTurn(
-              turn
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
             );
 
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "return_from_interruption"
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            result.packet
-              .placement.threadId,
-            branchThreadId
+            readPlacementType(
+              result
+            ),
+            "return_from_interruption",
+            "Nested return should remain return_from_interruption."
           );
 
           assertEqual(
-            result.state.activeThreadId,
-            branchThreadId
+            result.state
+              .activeThreadId,
+            context.shared
+              .outerInterruptionThreadId,
+            "Nested return should restore the outer interruption thread."
           );
 
           assert(
@@ -1801,279 +3585,319 @@
               .interruptionStack
               .length <
               stackBefore,
-            "Return did not pop interruption."
+            "Nested return should pop the stack."
           );
 
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
+
           return {
-            packet:
-              result.packet
+            restoredThreadId:
+              result.state
+                .activeThreadId,
+
+            stackDepth:
+              result.state
+                .interruptionStack
+                .length
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       RESUME
-    =================================================== */
+    registerScenario({
+      id:
+        "return_from_outer_interruption",
 
-    tests.push(
-      await executeTest(
-        "threads",
-        "explicit resume returns to root thread",
-        async () => {
+      name:
+        "Return from outer interruption",
+
+      group:
+        "interruptions",
+
+      tags: [
+        "return",
+        "thread"
+      ],
+
+      run:
+        async (context) => {
+          const stackBefore =
+            context.shared.state
+              .interruptionStack
+              .length;
+
+          const expectedThreadId =
+            context.shared
+              .branchThreadId;
+
           const turn =
             createTurn({
               turnId:
-                IDs.resumeTurn,
+                "regression_turn_return_2",
+
+              role:
+                "user",
 
               text:
-                "Resume root structurally.",
+                "Return again.",
 
               sequence: 11,
 
               placementType:
-                "resume_thread",
+                "return_from_interruption",
 
               threadId:
-                rootThreadId,
+                expectedThreadId,
 
               resumeTargetTurnId:
-                IDs.correction
+                "regression_turn_branch_1"
             });
 
           const result =
-            await context.executeTurn(
-              turn
-            );
-
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "resume_thread"
-          );
-
-          assertEqual(
-            result.packet
-              .placement.threadId,
-            rootThreadId
-          );
-
-          assertEqual(
-            result.state.activeThreadId,
-            rootThreadId
-          );
-
-          return {
-            packet:
-              result.packet
-          };
-        }
-      )
-    );
-
-    /* ===================================================
-       UNRESOLVED
-    =================================================== */
-
-    tests.push(
-      await executeTest(
-        "failure handling",
-        "unknown explicit reference remains unresolved",
-        async () => {
-          const activeThreadBefore =
-            context.state.activeThreadId;
-
-          const activeTurnBefore =
-            context.state.activeTurnId;
-
-          const turn =
-            createTurn({
-              turnId:
-                IDs.unresolved,
-
-              text:
-                "Reference an unknown turn.",
-
-              sequence: 12,
-
-              replyToTurnId:
-                IDs.unknownOne
-            });
-
-          const result =
-            await context.executeTurn(
-              turn
-            );
-
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .referenceResolution
-              .status,
-            "unresolved"
-          );
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "unresolved_placement"
-          );
-
-          assertEqual(
-            result.packet
-              .placement.threadId,
-            null
-          );
-
-          assertEqual(
-            result.state.activeThreadId,
-            activeThreadBefore,
-            "Unresolved placement changed active thread."
-          );
-
-          assertEqual(
-            result.state.activeTurnId,
-            activeTurnBefore,
-            "Unresolved placement changed active turn."
-          );
-
-          return {
-            packet:
-              result.packet
-          };
-        }
-      )
-    );
-
-    tests.push(
-      await executeTest(
-        "failure handling",
-        "mixed known and unknown references remain partially resolved",
-        async () => {
-          const activeThreadBefore =
-            context.state.activeThreadId;
-
-          const turn =
-            createTurn({
-              turnId:
-                IDs.partial,
-
-              text:
-                "Reference one known and one unknown turn.",
-
-              sequence: 13,
-
-              referenceTurnIds: [
-                IDs.rootAssistant,
-                IDs.unknownTwo
-              ]
-            });
-
-          const result =
-            await context.executeTurn(
-              turn
-            );
-
-          assertSuccess(result);
-
-          assertEqual(
-            result.packet
-              .referenceResolution
-              .status,
-            "partially_resolved"
-          );
-
-          assertIncludes(
-            result.packet
-              .referenceResolution
-              .resolvedTurnIds,
-            IDs.rootAssistant
-          );
-
-          assertEqual(
-            result.packet
-              .placement.type,
-            "unresolved_placement"
-          );
-
-          assertEqual(
-            result.state.activeThreadId,
-            activeThreadBefore
-          );
-
-          return {
-            packet:
-              result.packet
-          };
-        }
-      )
-    );
-
-    /* ===================================================
-       DUPLICATE TURN
-    =================================================== */
-
-    tests.push(
-      await executeTest(
-        "identity",
-        "duplicate turn ID is rejected",
-        async () => {
-          const stateBefore =
-            safeClone(
-              context.state
-            );
-
-          const historyLengthBefore =
-            context.history.length;
-
-          const turn =
-            createTurn({
-              turnId:
-                IDs.rootUser,
-
-              text:
-                "Duplicate ID.",
-
-              sequence: 14
-            });
-
-          const result =
-            await runCos(
+            await context.execute(
               {
                 conversationId:
-                  context.conversationId,
+                  context.ids
+                    .primaryConversation,
 
                 currentTurn:
                   turn,
 
                 history:
-                  context.history,
+                  context.shared
+                    .history,
 
                 state:
-                  context.state
+                  context.shared
+                    .state
               },
-              runtimeOptions
+              context
+                .baseRuntimeOptions
             );
 
-          assertFailure(result);
-
-          assertEqual(
-            context.history.length,
-            historyLengthBefore,
-            "Failed duplicate test mutated test history."
+          assertSuccessfulResult(
+            result
           );
 
           assertEqual(
-            JSON.stringify(
-              context.state
+            readPlacementType(
+              result
             ),
-            JSON.stringify(
-              stateBefore
+            "return_from_interruption",
+            "Outer return should remain return_from_interruption."
+          );
+
+          assertEqual(
+            result.state
+              .activeThreadId,
+            expectedThreadId,
+            "Outer return should restore the original branch thread."
+          );
+
+          assert(
+            result.state
+              .interruptionStack
+              .length <
+              stackBefore,
+            "Outer return should pop the stack."
+          );
+
+          context.shared.state =
+            result.state;
+
+          context.shared.history =
+            appendHistory(
+              context.shared.history,
+              turn,
+              result
+            );
+
+          return {
+            restoredThreadId:
+              result.state
+                .activeThreadId
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "unresolved_reference",
+
+      name:
+        "Unresolved reference remains unresolved",
+
+      group:
+        "references",
+
+      tags: [
+        "reference",
+        "unresolved"
+      ],
+
+      run:
+        async (context) => {
+          const priorActiveThreadId =
+            context.shared.state
+              .activeThreadId;
+
+          const turn =
+            createTurn({
+              turnId:
+                "regression_turn_unresolved",
+
+              role:
+                "user",
+
+              text:
+                "Missing reference.",
+
+              sequence: 12,
+
+              replyToTurnId:
+                "missing_turn_id"
+            });
+
+          const result =
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
+            );
+
+          assertSuccessfulResult(
+            result
+          );
+
+          const resolution =
+            readReferenceResolution(
+              result
+            );
+
+          assertEqual(
+            resolution.status,
+            "unresolved",
+            "Missing reference must remain unresolved."
+          );
+
+          assertEqual(
+            readPlacementType(
+              result
             ),
-            "Failed duplicate test mutated retained state."
+            "unresolved_placement",
+            "Missing reference must produce unresolved_placement."
+          );
+
+          assertEqual(
+            readPlacementThreadId(
+              result
+            ),
+            null,
+            "Unresolved placement must not claim a thread."
+          );
+
+          assertEqual(
+            result.state
+              .activeThreadId,
+            priorActiveThreadId,
+            "Unresolved placement must not fabricate a new active thread."
+          );
+
+          assertObject(
+            result.state.turns[
+              turn.turnId
+            ],
+            "Unresolved turn should remain registered."
+          );
+
+          return {
+            status:
+              resolution.status,
+
+            activeThreadId:
+              result.state
+                .activeThreadId
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "duplicate_turn_rejection",
+
+      name:
+        "Duplicate turn identity rejection",
+
+      group:
+        "validation",
+
+      tags: [
+        "duplicate",
+        "turn"
+      ],
+
+      run:
+        async (context) => {
+          const turn =
+            createTurn({
+              turnId:
+                "regression_turn_1",
+
+              role:
+                "user",
+
+              text:
+                "Duplicate.",
+
+              sequence: 13
+            });
+
+          const result =
+            await context.execute(
+              {
+                conversationId:
+                  context.ids
+                    .primaryConversation,
+
+                currentTurn:
+                  turn,
+
+                history:
+                  context.shared
+                    .history,
+
+                state:
+                  context.shared
+                    .state
+              },
+              context
+                .baseRuntimeOptions
+            );
+
+          assertStructuredFailure(
+            result
           );
 
           return {
@@ -2081,531 +3905,2173 @@
               result.errors
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       THREAD MEMBERSHIP
-    =================================================== */
+    registerScenario({
+      id:
+        "packet_authority_boundary",
 
-    tests.push(
-      await executeTest(
-        "state",
-        "thread records preserve turn membership",
-        async () => {
-          const state =
-            context.state;
+      name:
+        "Packet authority boundary",
 
-          assertObject(
-            state.threads[
-              rootThreadId
-            ]
-          );
-
-          assertObject(
-            state.threads[
-              branchThreadId
-            ]
-          );
-
-          assertObject(
-            state.threads[
-              interruptionThreadId
-            ]
-          );
-
-          assertIncludes(
-            state.threads[
-              rootThreadId
-            ].turnIds,
-            IDs.rootUser
-          );
-
-          assertIncludes(
-            state.threads[
-              branchThreadId
-            ].turnIds,
-            IDs.branch
-          );
-
-          assertIncludes(
-            state.threads[
-              interruptionThreadId
-            ].turnIds,
-            IDs.interruption
-          );
-
-          return {
-            rootTurnCount:
-              state.threads[
-                rootThreadId
-              ].turnIds.length,
-
-            branchTurnCount:
-              state.threads[
-                branchThreadId
-              ].turnIds.length,
-
-            interruptionTurnCount:
-              state.threads[
-                interruptionThreadId
-              ].turnIds.length
-          };
-        }
-      )
-    );
-
-    /* ===================================================
-       PARENT PRESERVATION
-    =================================================== */
-
-    tests.push(
-      await executeTest(
-        "state",
-        "state preserves authoritative parent relationships",
-        async () => {
-          const state =
-            context.state;
-
-          assertEqual(
-            state.turns[
-              IDs.answer
-            ].parentTurnId,
-            IDs.rootAssistant
-          );
-
-          assertEqual(
-            state.turns[
-              IDs.clarification
-            ].parentTurnId,
-            IDs.continuation
-          );
-
-          assertEqual(
-            state.turns[
-              IDs.correction
-            ].parentTurnId,
-            IDs.clarification
-          );
-
-          assertEqual(
-            state.turns[
-              IDs.branch
-            ].parentTurnId,
-            IDs.continuation
-          );
-
-          return {
-            verifiedTurnIds: [
-              IDs.answer,
-              IDs.clarification,
-              IDs.correction,
-              IDs.branch
-            ]
-          };
-        }
-      )
-    );
-
-    /* ===================================================
-       PACKET AUTHORITY
-    =================================================== */
-
-    tests.push(
-      await executeTest(
+      group:
         "authority",
-        "all successful packets preserve canonical lean shape",
-        async () => {
-          assert(
-            context.packets.length > 0,
-            "No packets were produced."
+
+      tags: [
+        "packet",
+        "authority"
+      ],
+
+      run:
+        async (context) => {
+          assertGreaterThan(
+            context.shared
+              .packets.length,
+            0,
+            "At least one packet is required."
           );
 
           for (
             const packet of
-              context.packets
+              context.shared.packets
           ) {
-            assertCanonicalPacket(
+            assertPacketShape(
               packet
             );
           }
 
           return {
             packetCount:
-              context.packets.length
+              context.shared
+                .packets.length
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       PACKET IMMUTABILITY
-    =================================================== */
+    registerScenario({
+      id:
+        "state_revision_progression",
 
-    tests.push(
-      await executeTest(
-        "immutability",
-        "authoritative packets are frozen",
-        async () => {
-          const packet =
-            context.packets[0];
+      name:
+        "State revision progression",
 
-          assert(
-            Object.isFrozen(packet),
-            "Packet root should be frozen."
+      group:
+        "state",
+
+      tags: [
+        "revision",
+        "state"
+      ],
+
+      run:
+        async (context) => {
+          const state =
+            context.shared.state;
+
+          assertObject(
+            state,
+            "Shared state is unavailable."
           );
 
           assert(
-            Object.isFrozen(
-              packet.currentTurn
+            Number.isInteger(
+              state.revision
             ),
-            "Current-turn section should be frozen."
+            "State revision must be an integer."
           );
 
-          assert(
-            Object.isFrozen(
-              packet.placement
-            ),
-            "Placement section should be frozen."
+          assertGreaterThan(
+            state.revision,
+            0,
+            "State revision should advance."
           );
 
-          assert(
-            Object.isFrozen(
-              packet.referenceResolution
-            ),
-            "Reference section should be frozen."
+          assertGreaterThan(
+            Object.keys(
+              state.turns
+            ).length,
+            8,
+            "State should preserve applied turns."
+          );
+
+          assertAuxiliaryStateShape(
+            state
           );
 
           return {
-            frozen: true
+            revision:
+              state.revision,
+
+            turnCount:
+              Object.keys(
+                state.turns
+              ).length,
+
+            threadCount:
+              Object.keys(
+                state.threads
+              ).length
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       INPUT IMMUTABILITY
-    =================================================== */
+    registerScenario({
+      id:
+        "packet_determinism",
 
-    tests.push(
-      await executeTest(
-        "immutability",
-        "runtime does not mutate supplied input history",
-        async () => {
-          const isolatedConversationId =
+      name:
+        "Packet determinism",
+
+      group:
+        "determinism",
+
+      tags: [
+        "packet",
+        "determinism"
+      ],
+
+      run:
+        async (context) => {
+          const conversationId =
             createId(
-              "cos_input_immutability"
+              "cos_regression_determinism"
+            );
+
+          const turn =
+            createTurn({
+              turnId:
+                "determinism_turn_1",
+
+              role:
+                "user",
+
+              text:
+                "Deterministic turn.",
+
+              sequence: 0,
+
+              timestamp:
+                "2026-01-01T00:00:00.000Z"
+            });
+
+          const input = {
+            conversationId,
+            currentTurn:
+              turn,
+            history: [],
+            state: null
+          };
+
+          const first =
+            await context.execute(
+              input,
+              {
+                ...context
+                  .baseRuntimeOptions,
+
+                freeze: false
+              }
+            );
+
+          const second =
+            await context.execute(
+              input,
+              {
+                ...context
+                  .baseRuntimeOptions,
+
+                freeze: false
+              }
+            );
+
+          assertSuccessfulResult(
+            first
+          );
+
+          assertSuccessfulResult(
+            second
+          );
+
+          const normalizePacket =
+            (packet) => {
+              const clone =
+                safeClone(packet);
+
+              delete clone.requestId;
+              delete clone.createdAt;
+              delete clone.updatedAt;
+              delete clone.generatedAt;
+              delete clone.completedAt;
+              delete clone.durationMs;
+
+              return clone;
+            };
+
+          assertDeepEqual(
+            normalizePacket(
+              first.packet
+            ),
+            normalizePacket(
+              second.packet
+            ),
+            "Equivalent input should produce equivalent packet structure."
+          );
+
+          return {
+            deterministic:
+              true
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "history_index_determinism",
+
+      name:
+        "History-index determinism",
+
+      group:
+        "determinism",
+
+      tags: [
+        "history",
+        "index"
+      ],
+
+      run:
+        async (context) => {
+          assert(
+            context.historyIndex,
+            "History-index component is unavailable."
+          );
+
+          const build =
+            resolveCallable(
+              context.historyIndex,
+              [
+                "build",
+                "index",
+                "createIndex",
+                "run"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_HISTORY_INDEX_UNAVAILABLE",
+
+                message:
+                  "History-index build method is unavailable."
+              }
             );
 
           const history = [
             createTurn({
               turnId:
-                "immutability_history_1",
+                "det_index_turn_2",
+
+              sequence: 2,
+
+              role:
+                "assistant",
 
               text:
-                "Stored turn.",
+                "Second.",
 
-              sequence: 0,
+              timestamp:
+                "2026-01-01T00:00:02.000Z"
+            }),
 
-              threadId:
-                "immutability_thread"
+            createTurn({
+              turnId:
+                "det_index_turn_1",
+
+              sequence: 1,
+
+              role:
+                "user",
+
+              text:
+                "First.",
+
+              timestamp:
+                "2026-01-01T00:00:01.000Z"
             })
           ];
 
-          const original =
-            JSON.stringify(history);
-
-          await runCos(
-            {
-              conversationId:
-                isolatedConversationId,
-
-              currentTurn:
-                createTurn({
-                  turnId:
-                    "immutability_current_1",
-
-                  text:
-                    "Current turn.",
-
-                  sequence: 1,
-
-                  threadId:
-                    "immutability_thread",
-
-                  placementType:
-                    "continue_thread"
-                }),
-
-              history,
-
-              state: {
-                schemaVersion:
-                  SCHEMA_VERSION,
-
-                authority:
-                  AUTHORITY,
-
-                conversationId:
-                  isolatedConversationId,
-
-                revision: 1,
-
-                activeThreadId:
-                  "immutability_thread",
-
-                activeTurnId:
-                  "immutability_history_1",
-
-                threads: {
-                  immutability_thread: {
-                    threadId:
-                      "immutability_thread",
-
-                    status: "active",
-
-                    turnIds: [
-                      "immutability_history_1"
-                    ],
-
-                    firstTurnId:
-                      "immutability_history_1",
-
-                    lastTurnId:
-                      "immutability_history_1"
-                  }
-                },
-
-                turns: {
-                  immutability_history_1: {
-                    turnId:
-                      "immutability_history_1",
-
-                    threadId:
-                      "immutability_thread",
-
-                    role: "user",
-
-                    sequence: 0
-                  }
-                },
-
-                threadStack: [
-                  "immutability_thread"
-                ],
-
-                interruptionStack: []
+          const first =
+            await build(
+              {
+                history,
+                strict: true,
+                freeze: false
+              },
+              {
+                strict: true,
+                freeze: false
               }
-            },
-            runtimeOptions
+            );
+
+          const second =
+            await build(
+              {
+                history:
+                  safeClone(history),
+
+                strict: true,
+                freeze: false
+              },
+              {
+                strict: true,
+                freeze: false
+              }
+            );
+
+          assertDeepEqual(
+            first.orderedTurnIds,
+            second.orderedTurnIds,
+            "History index ordering must be deterministic."
+          );
+
+          assertDeepEqual(
+            first.bySequence,
+            second.bySequence,
+            "History sequence index must be deterministic."
           );
 
           assertEqual(
-            JSON.stringify(history),
-            original,
-            "COS mutated supplied history."
+            first.orderedTurnIds[0],
+            "det_index_turn_1",
+            "Sequence ordering should place turn 1 first."
           );
 
           return {
-            unchanged: true
+            orderedTurnIds:
+              first.orderedTurnIds
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       REVISION
-    =================================================== */
+    registerScenario({
+      id:
+        "frozen_result_immutability",
 
-    tests.push(
-      await executeTest(
-        "state",
-        "state revision progresses monotonically",
-        async () => {
-          const successfulStates =
-            context.results
-              .filter(
-                (result) =>
-                  result &&
-                  result.ok === true &&
-                  result.state
-              )
-              .map(
-                (result) =>
-                  result.state.revision
-              );
+      name:
+        "Frozen result immutability",
 
-          assert(
-            successfulStates.length > 1,
-            "Insufficient states for revision test."
-          );
+      group:
+        "immutability",
 
-          for (
-            let index = 1;
-            index <
-            successfulStates.length;
-            index += 1
-          ) {
-            assert(
-              successfulStates[index] >
-                successfulStates[
-                  index - 1
-                ],
-              "State revision did not increase.",
+      tags: [
+        "freeze",
+        "immutability"
+      ],
+
+      run:
+        async (context) => {
+          const conversationId =
+            createId(
+              "cos_regression_freeze"
+            );
+
+          const result =
+            await context.execute(
               {
-                previous:
-                  successfulStates[
-                    index - 1
-                  ],
+                conversationId,
 
-                current:
-                  successfulStates[
-                    index
-                  ]
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "freeze_turn_1",
+
+                    role:
+                      "user",
+
+                    text:
+                      "Freeze.",
+
+                    sequence: 0
+                  }),
+
+                history: [],
+
+                state: null
+              },
+              {
+                ...context
+                  .baseRuntimeOptions,
+
+                freeze: true
               }
             );
+
+          assertSuccessfulResult(
+            result
+          );
+
+          assertFrozen(
+            result,
+            "Top-level result should be frozen."
+          );
+
+          assertFrozen(
+            result.state,
+            "Returned state should be frozen."
+          );
+
+          assertFrozen(
+            result.packet,
+            "Returned packet should be frozen."
+          );
+
+          return {
+            resultFrozen:
+              Object.isFrozen(
+                result
+              ),
+
+            stateFrozen:
+              Object.isFrozen(
+                result.state
+              ),
+
+            packetFrozen:
+              Object.isFrozen(
+                result.packet
+              )
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "pending_interaction_continuity",
+
+      name:
+        "Pending-interaction continuity",
+
+      group:
+        "auxiliary",
+
+      tags: [
+        "pending",
+        "interaction"
+      ],
+
+      run:
+        async (context) => {
+          if (
+            !context
+              .pendingInteractionManager
+          ) {
+            return {
+              skipped: true,
+              reason:
+                "Pending-interaction manager is unavailable."
+            };
           }
 
+          const manager =
+            context
+              .pendingInteractionManager;
+
+          const createState =
+            resolveCallable(
+              manager,
+              [
+                "createEmptyState",
+                "createState",
+                "create"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_PENDING_STATE_FACTORY_UNAVAILABLE",
+
+                message:
+                  "Pending-interaction state factory is unavailable."
+              }
+            );
+
+          const transition =
+            resolveCallable(
+              manager,
+              [
+                "transition",
+                "apply",
+                "run"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_PENDING_TRANSITION_UNAVAILABLE",
+
+                message:
+                  "Pending-interaction transition is unavailable."
+              }
+            );
+
+          const conversationId =
+            createId(
+              "pending_regression"
+            );
+
+          let pendingState =
+            await createState({
+              conversationId
+            });
+
+          const createResult =
+            await transition(
+              {
+                conversationId,
+
+                state:
+                  pendingState,
+
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "pending_source_turn",
+
+                    role:
+                      "assistant",
+
+                    text:
+                      "Choose A or B.",
+
+                    sequence: 0
+                  }),
+
+                command: {
+                  type:
+                    "create",
+
+                  interactionId:
+                    "pending_interaction_1",
+
+                  interactionType:
+                    "choice",
+
+                  sourceTurnId:
+                    "pending_source_turn",
+
+                  choices: [
+                    "A",
+                    "B"
+                  ]
+                }
+              },
+              {
+                freeze: false
+              }
+            );
+
+          assertObject(
+            createResult.state,
+            "Pending create transition requires state."
+          );
+
+          pendingState =
+            createResult.state;
+
+          assertNonEmptyString(
+            pendingState
+              .activeInteractionId,
+            "Pending interaction should become active."
+          );
+
+          const resolveResult =
+            await transition(
+              {
+                conversationId,
+
+                state:
+                  pendingState,
+
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "pending_answer_turn",
+
+                    role:
+                      "user",
+
+                    text:
+                      "A",
+
+                    sequence: 1
+                  }),
+
+                command: {
+                  type:
+                    "resolve",
+
+                  interactionId:
+                    pendingState
+                      .activeInteractionId,
+
+                  resolution: {
+                    selected:
+                      "A"
+                  }
+                }
+              },
+              {
+                freeze: false
+              }
+            );
+
+          assertObject(
+            resolveResult.state,
+            "Pending resolve transition requires state."
+          );
+
           return {
-            revisions:
-              successfulStates
+            created:
+              true,
+
+            resolved:
+              true,
+
+            activeInteractionId:
+              resolveResult.state
+                .activeInteractionId
           };
         }
-      )
-    );
+    });
 
-    /* ===================================================
-       EXECUTION ISOLATION
-    =================================================== */
+    registerScenario({
+      id:
+        "artifact_continuity",
 
-    tests.push(
-      await executeTest(
-        "isolation",
-        "separate conversations receive separate state",
-        async () => {
-          const conversationA =
-            createId(
-              "conversation_a"
-            );
+      name:
+        "Artifact continuity",
 
-          const conversationB =
-            createId(
-              "conversation_b"
-            );
+      group:
+        "auxiliary",
 
-          const resultA =
-            await runCos(
+      tags: [
+        "artifact",
+        "revision"
+      ],
+
+      run:
+        async (context) => {
+          if (
+            !context.artifactRegister
+          ) {
+            return {
+              skipped: true,
+              reason:
+                "Artifact register is unavailable."
+            };
+          }
+
+          const register =
+            context.artifactRegister;
+
+          const createState =
+            resolveCallable(
+              register,
+              [
+                "createEmptyState",
+                "createState",
+                "create"
+              ],
               {
-                conversationId:
-                  conversationA,
+                code:
+                  "COS_REGRESSION_ARTIFACT_STATE_FACTORY_UNAVAILABLE",
+
+                message:
+                  "Artifact state factory is unavailable."
+              }
+            );
+
+          const transition =
+            resolveCallable(
+              register,
+              [
+                "transition",
+                "apply",
+                "run"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_ARTIFACT_TRANSITION_UNAVAILABLE",
+
+                message:
+                  "Artifact transition is unavailable."
+              }
+            );
+
+          const conversationId =
+            createId(
+              "artifact_regression"
+            );
+
+          let artifactState =
+            await createState({
+              conversationId
+            });
+
+          const createResult =
+            await transition(
+              {
+                conversationId,
+
+                state:
+                  artifactState,
 
                 currentTurn:
                   createTurn({
                     turnId:
-                      "isolation_a_1",
+                      "artifact_source_turn",
+
+                    role:
+                      "assistant",
 
                     text:
-                      "Conversation A.",
+                      "Created file.",
 
                     sequence: 0
                   }),
 
-                history: [],
-                state: null
+                command: {
+                  type:
+                    "create",
+
+                  artifactId:
+                    "artifact_1",
+
+                  artifactType:
+                    "code_file",
+
+                  filePath:
+                    "rebirth/test.js",
+
+                  title:
+                    "Regression Artifact",
+
+                  sourceTurnId:
+                    "artifact_source_turn"
+                }
               },
-              runtimeOptions
+              {
+                freeze: false
+              }
             );
 
-          const resultB =
-            await runCos(
+          artifactState =
+            createResult.state;
+
+          assertNonEmptyString(
+            artifactState
+              .activeArtifactId,
+            "Created artifact should become active."
+          );
+
+          const updateResult =
+            await transition(
               {
-                conversationId:
-                  conversationB,
+                conversationId,
+
+                state:
+                  artifactState,
 
                 currentTurn:
                   createTurn({
                     turnId:
-                      "isolation_b_1",
+                      "artifact_update_turn",
+
+                    role:
+                      "assistant",
 
                     text:
-                      "Conversation B.",
+                      "Updated file.",
+
+                    sequence: 1
+                  }),
+
+                command: {
+                  type:
+                    "update",
+
+                  artifactId:
+                    artifactState
+                      .activeArtifactId,
+
+                  revisionNote:
+                    "Regression update",
+
+                  sourceTurnId:
+                    "artifact_update_turn"
+                }
+              },
+              {
+                freeze: false
+              }
+            );
+
+          assertObject(
+            updateResult.state,
+            "Artifact update requires state."
+          );
+
+          return {
+            artifactId:
+              updateResult.state
+                .activeArtifactId,
+
+            artifactCount:
+              Object.keys(
+                updateResult.state
+                  .artifacts
+              ).length
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "delivery_sequence_continuity",
+
+      name:
+        "Delivery-sequence continuity",
+
+      group:
+        "auxiliary",
+
+      tags: [
+        "sequence",
+        "next"
+      ],
+
+      run:
+        async (context) => {
+          if (
+            !context
+              .deliverySequenceManager
+          ) {
+            return {
+              skipped: true,
+              reason:
+                "Delivery-sequence manager is unavailable."
+            };
+          }
+
+          const manager =
+            context
+              .deliverySequenceManager;
+
+          const createState =
+            resolveCallable(
+              manager,
+              [
+                "createEmptyState",
+                "createState",
+                "create"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_SEQUENCE_STATE_FACTORY_UNAVAILABLE",
+
+                message:
+                  "Delivery-sequence state factory is unavailable."
+              }
+            );
+
+          const transition =
+            resolveCallable(
+              manager,
+              [
+                "transition",
+                "apply",
+                "run"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_SEQUENCE_TRANSITION_UNAVAILABLE",
+
+                message:
+                  "Delivery-sequence transition is unavailable."
+              }
+            );
+
+          const conversationId =
+            createId(
+              "sequence_regression"
+            );
+
+          let sequenceState =
+            await createState({
+              conversationId
+            });
+
+          const createResult =
+            await transition(
+              {
+                conversationId,
+
+                state:
+                  sequenceState,
+
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "sequence_source_turn",
+
+                    role:
+                      "assistant",
+
+                    text:
+                      "Part 1.",
 
                     sequence: 0
                   }),
 
-                history: [],
-                state: null
+                command: {
+                  type:
+                    "create",
+
+                  sequenceId:
+                    "delivery_sequence_1",
+
+                  sequenceType:
+                    "multipart_code",
+
+                  sourceTurnId:
+                    "sequence_source_turn",
+
+                  items: [
+                    {
+                      itemId:
+                        "part_1",
+
+                      position: 1,
+
+                      status:
+                        "pending"
+                    },
+
+                    {
+                      itemId:
+                        "part_2",
+
+                      position: 2,
+
+                      status:
+                        "pending"
+                    },
+
+                    {
+                      itemId:
+                        "part_3",
+
+                      position: 3,
+
+                      status:
+                        "pending"
+                    }
+                  ]
+                }
               },
-              runtimeOptions
+              {
+                freeze: false
+              }
             );
 
-          assertSuccess(resultA);
-          assertSuccess(resultB);
+          sequenceState =
+            createResult.state;
 
-          assertNotEqual(
-            resultA.packet
+          assertNonEmptyString(
+            sequenceState
+              .activeSequenceId,
+            "Created sequence should become active."
+          );
+
+          const deliveryResult =
+            await transition(
+              {
+                conversationId,
+
+                state:
+                  sequenceState,
+
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "sequence_delivery_turn",
+
+                    role:
+                      "assistant",
+
+                    text:
+                      "Delivered part 1.",
+
+                    sequence: 1
+                  }),
+
+                command: {
+                  type:
+                    "mark_delivered",
+
+                  sequenceId:
+                    sequenceState
+                      .activeSequenceId,
+
+                  itemId:
+                    "part_1",
+
+                  sourceTurnId:
+                    "sequence_delivery_turn"
+                }
+              },
+              {
+                freeze: false
+              }
+            );
+
+          assertObject(
+            deliveryResult.state,
+            "Delivery transition requires state."
+          );
+
+          return {
+            sequenceId:
+              deliveryResult.state
+                .activeSequenceId,
+
+            sequenceCount:
+              Object.keys(
+                deliveryResult.state
+                  .sequences
+              ).length
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "direct_store_round_trip",
+
+      name:
+        "Direct state-store round trip",
+
+      group:
+        "persistence",
+
+      tags: [
+        "store",
+        "save",
+        "load"
+      ],
+
+      run:
+        async (context) => {
+          assert(
+            context.stateStore,
+            "COS state store is unavailable."
+          );
+
+          const conversationId =
+            createId(
+              "direct_store_round_trip"
+            );
+
+          context
+            .cleanupConversationIds
+            .add(
+              conversationId
+            );
+
+          const save =
+            resolveCallable(
+              context.stateStore,
+              [
+                "save",
+                "safeSave"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_STORE_SAVE_UNAVAILABLE",
+
+                message:
+                  "State-store save is unavailable."
+              }
+            );
+
+          const load =
+            resolveCallable(
+              context.stateStore,
+              [
+                "load",
+                "safeLoad"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_STORE_LOAD_UNAVAILABLE",
+
+                message:
+                  "State-store load is unavailable."
+              }
+            );
+
+          const state = {
+            ...safeClone(
+              context.shared.state
+            ),
+
+            conversationId
+          };
+
+          const saveResult =
+            await save(
+              conversationId,
+              state,
+              {
+                adapter:
+                  context
+                    .storageAdapter,
+
+                keyPrefix:
+                  context
+                    .storageKeyPrefix,
+
+                validateBeforeSave:
+                  true,
+
+                freeze: false
+              }
+            );
+
+          assertEqual(
+            saveResult.ok,
+            true,
+            "State-store save should succeed."
+          );
+
+          const loadResult =
+            await load(
+              conversationId,
+              {
+                adapter:
+                  context
+                    .storageAdapter,
+
+                keyPrefix:
+                  context
+                    .storageKeyPrefix,
+
+                migrate: false,
+
+                validate: true,
+
+                freeze: false
+              }
+            );
+
+          assertEqual(
+            loadResult.ok,
+            true,
+            "State-store load should succeed."
+          );
+
+          assertEqual(
+            loadResult.found,
+            true,
+            "Saved state should be found."
+          );
+
+          assertEqual(
+            loadResult.state
               .conversationId,
-            resultB.packet
-              .conversationId
+            conversationId,
+            "Round-trip state should preserve conversation ID."
           );
 
-          assertNotEqual(
-            resultA.packet
-              .placement.threadId,
-            resultB.packet
-              .placement.threadId
+          assertDeepEqual(
+            loadResult.state.turns,
+            state.turns,
+            "Round-trip turns should remain equal."
           );
 
           return {
-            conversationA:
-              resultA.packet
-                .conversationId,
+            storageRevision:
+              loadResult
+                .storageRevision,
 
-            conversationB:
-              resultB.packet
-                .conversationId
+            stateRevision:
+              loadResult.state
+                .revision
           };
         }
-      )
+    });
+
+    registerScenario({
+      id:
+        "controller_persistence_restart",
+
+      name:
+        "Controller persistence across restart",
+
+      group:
+        "persistence",
+
+      tags: [
+        "controller",
+        "restart"
+      ],
+
+      run:
+        async (context) => {
+          assert(
+            context.controller,
+            "COS controller is unavailable."
+          );
+
+          const conversationId =
+            context.ids
+              .persistenceConversation;
+
+          context
+            .cleanupConversationIds
+            .add(
+              conversationId
+            );
+
+          await removeStoredState(
+            context,
+            conversationId
+          );
+
+          const runController =
+            resolveCallable(
+              context.controller,
+              [
+                "run",
+                "execute",
+                "process",
+                "safeRun"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_CONTROLLER_RUN_UNAVAILABLE",
+
+                message:
+                  "COS controller run is unavailable."
+              }
+            );
+
+          const first =
+            await runController(
+              {
+                conversationId,
+
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "persistence_restart_turn_1",
+
+                    role:
+                      "user",
+
+                    text:
+                      "Persist me.",
+
+                    sequence: 0
+                  }),
+
+                history: [],
+
+                state: null
+              },
+              {
+                ...context
+                  .persistentRuntimeOptions,
+
+                freeze: false
+              }
+            );
+
+          assertSuccessfulResult(
+            first
+          );
+
+          assertEqual(
+            first.stateSaved,
+            true,
+            "Initial controller run should save state."
+          );
+
+          const threadId =
+            first.state
+              .activeThreadId;
+
+          const second =
+            await runController(
+              {
+                conversationId,
+
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "persistence_restart_turn_2",
+
+                    role:
+                      "assistant",
+
+                    text:
+                      "Restored.",
+
+                    sequence: 1
+                  }),
+
+                history: [],
+
+                state: null
+              },
+              {
+                ...context
+                  .persistentRuntimeOptions,
+
+                freeze: false
+              }
+            );
+
+          assertSuccessfulResult(
+            second
+          );
+
+          assertEqual(
+            second.stateLoaded,
+            true,
+            "Second run should load state."
+          );
+
+          assertEqual(
+            second.stateSource,
+            "persisted",
+            "Second run should use persisted state."
+          );
+
+          assertEqual(
+            second.state
+              .activeThreadId,
+            threadId,
+            "Restart should preserve the thread."
+          );
+
+          assertObject(
+            second.state.turns[
+              "persistence_restart_turn_1"
+            ],
+            "Restart should preserve the first turn."
+          );
+
+          return {
+            threadId,
+
+            stateLoaded:
+              second.stateLoaded,
+
+            stateSaved:
+              second.stateSaved
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "legacy_state_migration",
+
+      name:
+        "Legacy state migration",
+
+      group:
+        "migration",
+
+      tags: [
+        "legacy",
+        "migration"
+      ],
+
+      run:
+        async (context) => {
+          assert(
+            context.stateMigrator,
+            "COS state migrator is unavailable."
+          );
+
+          const migrate =
+            resolveCallable(
+              context.stateMigrator,
+              [
+                "migrate",
+                "upgrade",
+                "run",
+                "normalize"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_MIGRATOR_UNAVAILABLE",
+
+                message:
+                  "COS state migration is unavailable."
+              }
+            );
+
+          const conversationId =
+            context.ids
+              .migrationConversation;
+
+          const result =
+            await migrate(
+              {
+                conversationId,
+
+                state:
+                  createLegacyState(
+                    conversationId
+                  ),
+
+                fromVersion:
+                  "0.0.0",
+
+                toVersion:
+                  SCHEMA_VERSION
+              },
+              {
+                freeze: false,
+
+                freezeState:
+                  false,
+
+                validate: true
+              }
+            );
+
+          assertObject(
+            result.state,
+            "Migration requires resulting state."
+          );
+
+          assertEqual(
+            result.state
+              .schemaVersion,
+            SCHEMA_VERSION,
+            "Migrated state should use current schema."
+          );
+
+          assertObject(
+            result.state.turns[
+              "legacy_turn_1"
+            ],
+            "Migration should preserve the legacy turn."
+          );
+
+          assertObject(
+            result.state.threads[
+              "legacy_thread_1"
+            ],
+            "Migration should preserve the legacy thread."
+          );
+
+          assertAuxiliaryStateShape(
+            result.state
+          );
+
+          return {
+            migrated:
+              result.migrated,
+
+            fromVersion:
+              result.fromVersion,
+
+            toVersion:
+              result.toVersion
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "controller_persisted_migration",
+
+      name:
+        "Controller migration of persisted legacy state",
+
+      group:
+        "migration",
+
+      tags: [
+        "controller",
+        "legacy",
+        "persistence"
+      ],
+
+      run:
+        async (context) => {
+          assert(
+            context.controller,
+            "COS controller is unavailable."
+          );
+
+          assert(
+            context.stateStore,
+            "COS state store is unavailable."
+          );
+
+          const conversationId =
+            createId(
+              "persisted_legacy"
+            );
+
+          context
+            .cleanupConversationIds
+            .add(
+              conversationId
+            );
+
+          await removeStoredState(
+            context,
+            conversationId
+          );
+
+          const save =
+            resolveCallable(
+              context.stateStore,
+              [
+                "save",
+                "safeSave"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_STORE_SAVE_UNAVAILABLE",
+
+                message:
+                  "State-store save is unavailable."
+              }
+            );
+
+          const runController =
+            resolveCallable(
+              context.controller,
+              [
+                "run",
+                "execute",
+                "process",
+                "safeRun"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_CONTROLLER_RUN_UNAVAILABLE",
+
+                message:
+                  "Controller run is unavailable."
+              }
+            );
+
+          const saveResult =
+            await save(
+              conversationId,
+              createLegacyState(
+                conversationId
+              ),
+              {
+                adapter:
+                  context
+                    .storageAdapter,
+
+                keyPrefix:
+                  context
+                    .storageKeyPrefix,
+
+                validateBeforeSave:
+                  false,
+
+                freeze: false
+              }
+            );
+
+          assertEqual(
+            saveResult.ok,
+            true,
+            "Legacy record should be saved."
+          );
+
+          const result =
+            await runController(
+              {
+                conversationId,
+
+                currentTurn:
+                  createTurn({
+                    turnId:
+                      "post_migration_turn",
+
+                    role:
+                      "assistant",
+
+                    text:
+                      "Post migration.",
+
+                    sequence: 1
+                  }),
+
+                history: [],
+
+                state: null
+              },
+              {
+                ...context
+                  .persistentRuntimeOptions,
+
+                migrateState:
+                  true,
+
+                stateSourcePolicy:
+                  "prefer_persisted",
+
+                freeze: false
+              }
+            );
+
+          assertSuccessfulResult(
+            result
+          );
+
+          assertEqual(
+            result.stateLoaded,
+            true,
+            "Controller should load the legacy state."
+          );
+
+          assertEqual(
+            result.stateMigrated,
+            true,
+            "Controller should report migration."
+          );
+
+          assertEqual(
+            result.state
+              .schemaVersion,
+            SCHEMA_VERSION,
+            "Controller should execute current schema."
+          );
+
+          assertObject(
+            result.state.turns[
+              "legacy_turn_1"
+            ],
+            "Controller should preserve the legacy turn."
+          );
+
+          assertObject(
+            result.state.turns[
+              "post_migration_turn"
+            ],
+            "Controller should register the post-migration turn."
+          );
+
+          return {
+            stateLoaded:
+              result.stateLoaded,
+
+            stateMigrated:
+              result.stateMigrated,
+
+            stateSaved:
+              result.stateSaved
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "rebirth_authority_preservation",
+
+      name:
+        "Rebirth authority preservation",
+
+      group:
+        "authority",
+
+      required:
+        false,
+
+      tags: [
+        "integration",
+        "authority"
+      ],
+
+      run:
+        async (context) => {
+          if (
+            !context.integrationStage
+          ) {
+            return {
+              skipped: true,
+
+              reason:
+                "Rebirth COS integration stage is unavailable."
+            };
+          }
+
+          const runIntegration =
+            resolveCallable(
+              context.integrationStage,
+              [
+                "run",
+                "execute",
+                "process"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_INTEGRATION_UNAVAILABLE",
+
+                message:
+                  "Rebirth COS integration execution is unavailable."
+              }
+            );
+
+          const semanticPacket = {
+            authority:
+              "semantic_frame_builder",
+
+            subject:
+              "runtime",
+
+            action:
+              "continue",
+
+            semanticMeaning:
+              "Continue the runtime work."
+          };
+
+          const conversationFunction = {
+            authority:
+              "conversation_function_engine",
+
+            function:
+              "continuation_request"
+          };
+
+          const safetyContext = {
+            authority:
+              "safety_context",
+
+            severity:
+              "none",
+
+            governance:
+              "normal"
+          };
+
+          const runtimeState = {
+            conversationId:
+              context.ids
+                .integrationConversation,
+
+            currentTurn:
+              createTurn({
+                turnId:
+                  "integration_regression_turn",
+
+                role:
+                  "user",
+
+                text:
+                  "Continue.",
+
+                sequence: 0
+              }),
+
+            conversationHistory: [],
+
+            semanticPacket:
+              safeClone(
+                semanticPacket
+              ),
+
+            conversationFunction:
+              safeClone(
+                conversationFunction
+              ),
+
+            safetyContext:
+              safeClone(
+                safetyContext
+              )
+          };
+
+          const result =
+            await runIntegration(
+              runtimeState,
+              {
+                persistence: false,
+                loadState: false,
+                saveState: false,
+                migrateState: true,
+                strictInstallation:
+                  true,
+                strictRuntimeInstallation:
+                  true,
+                throwOnFailure:
+                  false,
+                freeze:
+                  false
+              }
+            );
+
+          assertObject(
+            result.state,
+            "Integration requires merged runtime state."
+          );
+
+          assertDeepEqual(
+            result.state
+              .semanticPacket,
+            semanticPacket,
+            "Integration must preserve semantic authority."
+          );
+
+          assertDeepEqual(
+            result.state
+              .conversationFunction,
+            conversationFunction,
+            "Integration must preserve conversation-function authority."
+          );
+
+          assertDeepEqual(
+            result.state
+              .safetyContext,
+            safetyContext,
+            "Integration must preserve safety authority."
+          );
+
+          assertObject(
+            result.state
+              .conversationOSState,
+            "Integration should attach COS state."
+          );
+
+          assertObject(
+            result.state
+              .conversationOSResult,
+            "Integration should attach COS result."
+          );
+
+          return {
+            semanticPreserved:
+              true,
+
+            conversationFunctionPreserved:
+              true,
+
+            safetyPreserved:
+              true
+          };
+        }
+    });
+
+    registerScenario({
+      id:
+        "large_history_indexing",
+
+      name:
+        "Large-history indexing",
+
+      group:
+        "performance",
+
+      tags: [
+        "history",
+        "performance"
+      ],
+
+      run:
+        async (context) => {
+          assert(
+            context.historyIndex,
+            "History-index component is unavailable."
+          );
+
+          const build =
+            resolveCallable(
+              context.historyIndex,
+              [
+                "build",
+                "index",
+                "createIndex",
+                "run"
+              ],
+              {
+                code:
+                  "COS_REGRESSION_HISTORY_INDEX_UNAVAILABLE",
+
+                message:
+                  "History-index build is unavailable."
+              }
+            );
+
+          const count =
+            normalizeInteger(
+              context
+                .performanceLimits
+                .largeHistoryTurnCount,
+              250
+            );
+
+          const history =
+            createLargeHistory(
+              count
+            );
+
+          const startedAt =
+            nowMs();
+
+          const index =
+            await build(
+              {
+                history,
+                strict: true,
+                freeze: false
+              },
+              {
+                strict: true,
+                freeze: false
+              }
+            );
+
+          const durationMs =
+            elapsedMs(
+              startedAt
+            );
+
+          assertEqual(
+            index.count,
+            count,
+            "Large-history index count mismatch."
+          );
+
+          assertEqual(
+            index.orderedTurnIds
+              .length,
+            count,
+            "Large-history ordered-turn count mismatch."
+          );
+
+          assertLessThanOrEqual(
+            durationMs,
+            context
+              .performanceLimits
+              .historyBuildMs,
+            "Large-history indexing exceeded the configured performance limit."
+          );
+
+          return {
+            count,
+            durationMs,
+
+            limitMs:
+              context
+                .performanceLimits
+                .historyBuildMs
+          };
+        }
+    });
+  }
+
+  /* =====================================================
+     SCENARIO FILTERING
+  ===================================================== */
+
+  function selectScenarios(
+    options = {}
+  ) {
+    const includeIds =
+      uniqueStrings(
+        options.scenarioIds ||
+        options.includeScenarioIds
+      );
+
+    const excludeIds =
+      new Set(
+        uniqueStrings(
+          options.excludeScenarioIds
+        )
+      );
+
+    const includeGroups =
+      new Set(
+        uniqueStrings(
+          options.groups ||
+          options.includeGroups
+        )
+      );
+
+    const includeTags =
+      new Set(
+        uniqueStrings(
+          options.tags ||
+          options.includeTags
+        )
+      );
+
+    return Array.from(
+      scenarioRegistry.values()
+    ).filter(
+      (scenario) => {
+        if (!scenario.enabled) {
+          return false;
+        }
+
+        if (
+          includeIds.length > 0 &&
+          !includeIds.includes(
+            scenario.id
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          excludeIds.has(
+            scenario.id
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          includeGroups.size > 0 &&
+          !includeGroups.has(
+            scenario.group
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          includeTags.size > 0 &&
+          !scenario.tags.some(
+            (tag) =>
+              includeTags.has(tag)
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          options.requiredOnly ===
+            true &&
+          !scenario.required
+        ) {
+          return false;
+        }
+
+        return true;
+      }
     );
+  }
 
-    /* ===================================================
-       FINAL RESULT
-    =================================================== */
+  /* =====================================================
+     PUBLIC RUN
+  ===================================================== */
 
-    const passedCount =
-      tests.filter(
-        (test) => test.passed
-      ).length;
+  async function run(
+    options = {}
+  ) {
+    registerStandardScenarios();
 
-    const failedCount =
-      tests.length -
-      passedCount;
+    const startedAt =
+      nowIso();
 
-    const groupSummary = {};
+    const startedAtMs =
+      nowMs();
 
-    for (const test of tests) {
-      groupSummary[test.group] =
-        groupSummary[test.group] || {
-          testCount: 0,
-          passedCount: 0,
-          failedCount: 0
-        };
+    const context =
+      createExecutionContext(
+        options
+      );
 
-      groupSummary[
-        test.group
-      ].testCount += 1;
+    const selectedScenarios =
+      selectScenarios(
+        options
+      );
 
-      if (test.passed) {
-        groupSummary[
-          test.group
-        ].passedCount += 1;
-      } else {
-        groupSummary[
-          test.group
-        ].failedCount += 1;
+    const results = [];
+
+    for (
+      const scenario of
+        selectedScenarios
+    ) {
+      const result =
+        await executeScenario(
+          scenario,
+          context
+        );
+
+      results.push(result);
+
+      if (
+        result.passed === false &&
+        scenario.required &&
+        options.stopOnFailure ===
+          true
+      ) {
+        break;
       }
     }
+
+    const cleanup =
+      options.cleanup === false
+        ? []
+        : await cleanupContext(
+            context
+          );
+
+    const requiredResults =
+      results.filter(
+        (result) =>
+          result.required === true
+      );
+
+    const optionalResults =
+      results.filter(
+        (result) =>
+          result.required !== true
+      );
+
+    const failedRequired =
+      requiredResults.filter(
+        (result) =>
+          result.passed === false
+      );
+
+    const failedOptional =
+      optionalResults.filter(
+        (result) =>
+          result.passed === false
+      );
+
+    const skipped =
+      results.filter(
+        (result) =>
+          result.skipped === true
+      );
+
+    const passed =
+      results.filter(
+        (result) =>
+          result.passed === true &&
+          result.skipped !== true
+      );
+
+    const status =
+      failedRequired.length > 0
+        ? "failed"
+        : failedOptional.length > 0
+          ? "passed_with_optional_failures"
+          : "passed";
 
     const result = {
       schemaVersion:
@@ -2620,67 +6086,137 @@
       version:
         VERSION,
 
+      resultType:
+        RESULT_TYPE,
+
+      suiteId:
+        context.ids.suite,
+
       ok:
-        failedCount === 0,
+        failedRequired.length === 0,
 
-      status:
-        failedCount === 0
-          ? "passed"
-          : "failed",
+      status,
 
-      conversationId:
-        context.conversationId,
-
-      startedAt:
-        suiteStartedAt,
+      startedAt,
 
       completedAt:
         nowIso(),
 
       durationMs:
         elapsedMs(
-          suiteStartedAtMs
+          startedAtMs
         ),
 
-      testCount:
-        tests.length,
+      scenarioCount:
+        results.length,
 
-      passedCount,
+      requiredScenarioCount:
+        requiredResults.length,
 
-      failedCount,
+      optionalScenarioCount:
+        optionalResults.length,
 
-      groupSummary,
+      passedCount:
+        passed.length,
 
-      tests,
+      skippedCount:
+        skipped.length,
 
-      finalState:
-        options.includeFinalState ===
+      failedCount:
+        failedRequired.length +
+        failedOptional.length,
+
+      failedRequiredCount:
+        failedRequired.length,
+
+      failedOptionalCount:
+        failedOptional.length,
+
+      storageAdapter:
+        typeof context
+          .storageAdapter ===
+          "string"
+          ? context
+              .storageAdapter
+          : firstNonEmptyString(
+              context
+                .storageAdapter &&
+                context
+                  .storageAdapter
+                  .type,
+
+              context
+                .storageAdapter &&
+                context
+                  .storageAdapter
+                  .name
+            ) ||
+            "custom",
+
+      storageKeyPrefix:
+        context.storageKeyPrefix,
+
+      performanceLimits:
+        safeClone(
+          context
+            .performanceLimits
+        ),
+
+      scenarios:
+        results,
+
+      failures:
+        results
+          .filter(
+            (scenario) =>
+              scenario.passed ===
+              false
+          )
+          .map(
+            (scenario) => ({
+              id:
+                scenario.id,
+
+              name:
+                scenario.name,
+
+              group:
+                scenario.group,
+
+              required:
+                scenario.required,
+
+              error:
+                scenario.error
+            })
+          ),
+
+      cleanup:
+        safeClone(cleanup),
+
+      finalSharedState:
+        options
+          .includeFinalState ===
           true
           ? safeClone(
-              context.state
+              context.shared.state
             )
           : null,
 
-      finalHistory:
-        options.includeFinalHistory ===
+      finalSharedHistory:
+        options
+          .includeFinalHistory ===
           true
           ? safeClone(
-              context.history
-            )
-          : null,
-
-      packets:
-        options.includePackets ===
-          true
-          ? safeClone(
-              context.packets
+              context.shared.history
             )
           : null
     };
 
     if (
       options.log !== false &&
-      typeof console !== "undefined"
+      typeof console !==
+        "undefined"
     ) {
       const logger =
         result.ok
@@ -2701,23 +6237,30 @@
         )
       ) {
         console.table(
-          tests.map(
-            (test) => ({
-              Group:
-                test.group,
+          results.map(
+            (scenario) => ({
+              Scenario:
+                scenario.name,
 
-              Test:
-                test.name,
+              ID:
+                scenario.id,
+
+              Group:
+                scenario.group,
+
+              Required:
+                scenario.required,
 
               Status:
-                test.status,
+                scenario.status,
 
               Duration:
-                `${test.durationMs}ms`,
+                `${scenario.durationMs}ms`,
 
               Error:
-                test.error
-                  ? test.error.message
+                scenario.error
+                  ? scenario
+                      .error.message
                   : ""
             })
           )
@@ -2725,7 +6268,10 @@
       }
     }
 
-    return result;
+    return options.freeze ===
+      true
+      ? freezeClone(result)
+      : result;
   }
 
   /* =====================================================
@@ -2736,12 +6282,17 @@
     options = {}
   ) {
     const result =
-      await run(options);
+      await run({
+        ...options,
+
+        log:
+          options.log !== false
+      });
 
     if (!result.ok) {
       throw new CosRegressionSuiteError(
         "COS_REGRESSION_SUITE_FAILED",
-        `${result.failedCount} COS regression test(s) failed.`,
+        `${result.failedRequiredCount} required COS regression scenario(s) failed.`,
         {
           details:
             result
@@ -2750,6 +6301,226 @@
     }
 
     return result;
+  }
+
+  /* =====================================================
+     RUN SINGLE SCENARIO
+  ===================================================== */
+
+  async function runScenario(
+    scenarioId,
+    options = {}
+  ) {
+    registerStandardScenarios();
+
+    const scenario =
+      getScenario(
+        scenarioId
+      );
+
+    if (!scenario) {
+      throw new CosRegressionSuiteError(
+        "COS_REGRESSION_SCENARIO_UNKNOWN",
+        "Unknown COS regression scenario.",
+        {
+          scenarioId
+        }
+      );
+    }
+
+    const context =
+      createExecutionContext(
+        options
+      );
+
+    const prerequisites =
+      firstDefined(
+        options.runPrerequisites,
+        true
+      ) !== false;
+
+    if (
+      prerequisites &&
+      scenarioId !==
+        "installation_readiness"
+    ) {
+      const installation =
+        getScenario(
+          "installation_readiness"
+        );
+
+      const installationResult =
+        await executeScenario(
+          installation,
+          context
+        );
+
+      if (
+        !installationResult.passed
+      ) {
+        return {
+          schemaVersion:
+            SCHEMA_VERSION,
+
+          authority:
+            AUTHORITY,
+
+          component:
+            COMPONENT_NAME,
+
+          version:
+            VERSION,
+
+          resultType:
+            RESULT_TYPE,
+
+          ok: false,
+
+          status:
+            "failed",
+
+          scenarioCount: 1,
+
+          scenarios: [
+            installationResult
+          ],
+
+          failures: [
+            {
+              id:
+                installationResult.id,
+
+              error:
+                installationResult
+                  .error
+            }
+          ]
+        };
+      }
+    }
+
+    const result =
+      await executeScenario(
+        scenario,
+        context
+      );
+
+    if (
+      options.cleanup !== false
+    ) {
+      await cleanupContext(
+        context
+      );
+    }
+
+    return {
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      component:
+        COMPONENT_NAME,
+
+      version:
+        VERSION,
+
+      resultType:
+        RESULT_TYPE,
+
+      ok:
+        result.passed === true,
+
+      status:
+        result.status,
+
+      scenarioCount: 1,
+
+      scenarios: [
+        result
+      ],
+
+      failures:
+        result.passed
+          ? []
+          : [
+              {
+                id:
+                  result.id,
+
+                error:
+                  result.error
+              }
+            ]
+    };
+  }
+
+  /* =====================================================
+     SUMMARY
+  ===================================================== */
+
+  function summarize(
+    result
+  ) {
+    if (!isObject(result)) {
+      return null;
+    }
+
+    return {
+      ok:
+        result.ok === true,
+
+      status:
+        result.status || null,
+
+      scenarioCount:
+        normalizeInteger(
+          result.scenarioCount,
+          0
+        ),
+
+      passedCount:
+        normalizeInteger(
+          result.passedCount,
+          0
+        ),
+
+      skippedCount:
+        normalizeInteger(
+          result.skippedCount,
+          0
+        ),
+
+      failedRequiredCount:
+        normalizeInteger(
+          result
+            .failedRequiredCount,
+          0
+        ),
+
+      failedOptionalCount:
+        normalizeInteger(
+          result
+            .failedOptionalCount,
+          0
+        ),
+
+      durationMs:
+        normalizeNumber(
+          result.durationMs,
+          0
+        ),
+
+      failures:
+        Array.isArray(
+          result.failures
+        )
+          ? safeClone(
+              result.failures
+            )
+          : []
+    };
   }
 
   /* =====================================================
@@ -2769,6 +6540,24 @@
     component:
       COMPONENT_NAME,
 
+    resultType:
+      RESULT_TYPE,
+
+    scenarioResultType:
+      SCENARIO_RESULT_TYPE,
+
+    standardScenarioIds:
+      STANDARD_SCENARIO_IDS,
+
+    defaultPerformanceLimits:
+      DEFAULT_PERFORMANCE_LIMITS,
+
+    requiredPacketKeys:
+      REQUIRED_PACKET_KEYS,
+
+    forbiddenPacketKeys:
+      FORBIDDEN_PACKET_KEYS,
+
     CosRegressionSuiteError,
 
     run,
@@ -2779,7 +6568,47 @@
     test:
       run,
 
-    assertAll
+    assertAll,
+
+    runScenario,
+
+    summarize,
+
+    registerScenario,
+
+    unregisterScenario,
+
+    getScenario,
+
+    listScenarios,
+
+    selectScenarios,
+
+    registerStandardScenarios,
+
+    createExecutionContext,
+
+    createTurn,
+
+    createLegacyState,
+
+    createLargeHistory,
+
+    appendHistory,
+
+    assertPacketShape,
+
+    assertAuxiliaryStateShape,
+
+    readPlacement,
+
+    readPlacementType,
+
+    readPlacementThreadId,
+
+    readPlacementParentTurnId,
+
+    readReferenceResolution
   };
 
   /* =====================================================
