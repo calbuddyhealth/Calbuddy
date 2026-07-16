@@ -2,9 +2,9 @@
 // Ari AI Writer
 //
 // Purpose:
-// Produce an AI-assisted response candidate from the canonical Composer Packet.
+// Render one AI-assisted response candidate from the canonical Composer Packet.
 //
-// V2.3.0 — Post-Continuity Question Policy Reconciliation
+// V3.0.0 — Focused AI Rendering / No Selection / No Deterministic Fallback Authority
 //
 // Architectural flow:
 //
@@ -12,404 +12,500 @@
 //      ↓
 // Composer Packet
 //      ↓
-// Blueprint Writer Candidate
+// Arbiter Precheck authorizes AI rendering
 //      ↓
 // Ari AI Writer
 //      ↓
-// AI Draft Candidate
+// Explicit AI Candidate
 //      ↓
-// Candidate Arbiter
+// Response Candidate Arbiter
 //
 // Responsibilities:
-// - Read the canonical Response Plan from the Composer Packet.
-// - Preserve the original current-turn request.
-// - Follow canonical response moves in their official order.
-// - Follow advice, question, safety, developer, continuity, and length policy.
-// - Use AI to render, improve, or repair the authorized response plan.
-// - Preserve a complete usable Blueprint Writer candidate when AI is unnecessary.
-// - Validate AI output before returning it as a candidate.
-// - Return structured diagnostics for candidate arbitration.
+// - Read the canonical current-turn request from the Composer Packet.
+// - Read the canonical writer contract.
+// - Read the focused Character realization instruction when supplied.
+// - Read only authorized evidence already present in the Composer Packet.
+// - Render or repair the canonical Response Plan.
+// - Validate its own generated candidate.
+// - Return one explicit candidate contract for arbitration.
 //
 // Non-responsibilities:
-// - Does not reinterpret the user’s raw language.
-// - Does not independently classify intent or conversation function.
-// - Does not choose the response goal.
-// - Does not choose the response shape.
-// - Does not create a new response plan.
-// - Does not override safety severity.
-// - Does not retrieve new continuity or memory.
-// - Does not select the final response candidate.
+// - Does not decide whether AI writing is required.
+// - Does not decide whether a Blueprint candidate should be preserved.
+// - Does not select between candidates.
+// - Does not restore rejected Blueprint candidates.
+// - Does not create deterministic Character fallbacks.
+// - Does not generate safety fallbacks.
+// - Does not create memory acknowledgments.
+// - Does not preserve locked developer responses.
+// - Does not independently determine developer relevance.
+// - Does not reinterpret the user’s meaning.
+// - Does not classify conversation function.
+// - Does not choose or modify the Response Plan.
+// - Does not create response moves.
+// - Does not override safety.
+// - Does not retrieve memory, continuity, files, or knowledge.
+// - Does not compose the final response.
 // - Does not persist state.
 
 window.Ari = window.Ari || {};
 
 window.AriAIWriter = {
-  version: "2.3.0",
-  schemaVersion: "1.1.0",
+  version: "3.0.0",
+  source: "ari-ai-writer",
+  schemaVersion: "3.0.0",
 
   /* =====================================================
      PUBLIC ENTRY POINT
   ===================================================== */
 
   async write(input = {}) {
-    const packet = input.composerPacket || input.packet || input || {};
+    const packet =
+      input.composerPacket ||
+      input.packet ||
+      null;
 
-    if (!packet || typeof packet !== "object" || packet.ready !== true) {
-      return this.returnDraft({
-        draft: "",
-        reason: "composer_packet_missing_or_not_ready",
-        usedAI: false,
-        usable: false,
-        complete: false,
-        requiresRepair: true,
+    const summary =
+      input.summary ||
+      {};
+
+    const repairRequest =
+      this.readRepairRequest({
+        input,
+        summary,
         packet
       });
-    }
 
-    const safePacket = this.buildSafePacket(packet);
-    const request = this.readRequest(safePacket);
-    const writerContract = this.readWriterContract(safePacket);
-    const blueprintCandidate =
-  this.readBlueprintCandidate(
-    safePacket
-  );
+    if (
+      !packet ||
+      typeof packet !==
+        "object"
+    ) {
+      return this.returnCandidate({
+        reason:
+          "composer_packet_missing",
 
-const lockedDeveloperDraft =
-  this.readLockedDeveloperDraft(
-    safePacket
-  );
+        usable:
+          false,
 
-const characterContext =
-  this.readCharacterContext(
-    safePacket
-  );
-    if (!request.currentText && !lockedDeveloperDraft) {
-      return this.returnDraft({
-        draft: "",
-        reason: "current_turn_missing",
-        usedAI: false,
-        usable: false,
-        complete: false,
-        requiresRepair: true,
-        packet: safePacket,
-        request,
-        writerContract,
-        blueprintCandidate
+        complete:
+          false,
+
+        requiresRepair:
+          true,
+
+        repairRequest
       });
     }
 
-    if (lockedDeveloperDraft) {
-      return this.returnDraft({
-        draft: lockedDeveloperDraft,
-        reason: "locked_developer_reply",
-        usedAI: false,
-        usable: true,
-        complete: true,
-        requiresRepair: false,
-        packet: safePacket,
+    if (
+      packet.ready !==
+      true
+    ) {
+      return this.returnCandidate({
+        reason:
+          "composer_packet_not_ready",
+
+        usable:
+          false,
+
+        complete:
+          false,
+
+        requiresRepair:
+          true,
+
+        packet,
+
+        repairRequest
+      });
+    }
+
+    const request =
+      this.readRequest(
+        packet
+      );
+
+    const writerContract =
+      this.readWriterContract(
+        packet
+      );
+
+    const focusedCharacter =
+      this.readFocusedCharacter(
+        packet
+      );
+
+    if (
+      !request.currentText
+    ) {
+      return this.returnCandidate({
+        reason:
+          "canonical_current_turn_missing",
+
+        usable:
+          false,
+
+        complete:
+          false,
+
+        requiresRepair:
+          true,
+
+        packet,
+
         request,
+
         writerContract,
-        blueprintCandidate,
+
+        focusedCharacter,
+
+        repairRequest
+      });
+    }
+
+    if (
+      !this.aiWritingAuthorized({
+        packet,
+        writerContract,
+        repairRequest
+      })
+    ) {
+      return this.returnCandidate({
+        reason:
+          "ai_writing_not_authorized",
+
+        usable:
+          false,
+
+        complete:
+          false,
+
+        requiresRepair:
+          true,
+
+        packet,
+
+        request,
+
+        writerContract,
+
+        focusedCharacter,
+
+        repairRequest,
+
         validation: {
-          valid: true,
-          reason: "locked_developer_reply",
-          warnings: [],
-          errors: []
+          valid:
+            false,
+
+          complete:
+            false,
+
+          reason:
+            "ai_writing_not_authorized",
+
+          text:
+            "",
+
+          warnings:
+            [],
+
+          errors: [
+            "ai_writing_not_authorized"
+          ]
         }
       });
     }
 
-    const memoryAcknowledgment = this.resolveAuthorizedMemoryAcknowledgment({
-      packet: safePacket,
-      request,
-      writerContract
-    });
-
-    if (memoryAcknowledgment) {
-      return this.returnDraft({
-        draft: memoryAcknowledgment,
-        reason: "authorized_memory_acknowledgment",
-        usedAI: false,
-        usable: true,
-        complete: true,
-        requiresRepair: false,
-        packet: safePacket,
+    const instruction =
+      this.buildInstruction({
+        packet,
         request,
         writerContract,
-        blueprintCandidate,
-        validation: {
-          valid: true,
-          reason: "authorized_memory_acknowledgment",
-          warnings: [],
-          errors: []
-        },
-        canonicalMemoryAuthorizationUsed: true
+        focusedCharacter,
+        repairRequest
       });
-    }
-
-    const blueprintDecision =
-  this.evaluateBlueprintCandidate({
-    packet:
-      safePacket,
-
-    request,
-
-    writerContract,
-
-    blueprintCandidate,
-
-    characterContext
-  });
-
-    if (blueprintDecision.useWithoutAI) {
-      return this.returnDraft({
-        draft: blueprintCandidate.text,
-        reason: "usable_blueprint_candidate_preserved",
-        usedAI: false,
-        usable: true,
-        complete: blueprintCandidate.complete,
-        requiresRepair: false,
-        packet: safePacket,
-        request,
-        writerContract,
-        blueprintCandidate,
-        validation: blueprintDecision.validation
-      });
-    }
-
-    if (!this.aiWritingAllowed(safePacket, writerContract)) {
-      const fallback = this.resolveNonAIFallback({
-        packet: safePacket,
-        request,
-        writerContract,
-        blueprintCandidate
-      });
-
-      return this.returnDraft({
-        draft: fallback.text,
-        reason: fallback.reason,
-        usedAI: false,
-        usable: fallback.usable,
-        complete: fallback.complete,
-        requiresRepair: fallback.requiresRepair,
-        packet: safePacket,
-        request,
-        writerContract,
-        blueprintCandidate,
-        validation: fallback.validation
-      });
-    }
-
-    const instruction = this.buildInstruction({
-      packet: safePacket,
-      request,
-      writerContract,
-      blueprintCandidate,
-      blueprintDecision
-    });
 
     try {
-      const aiText = await this.requestAIDraft({
-        packet: safePacket,
-        request,
-        instruction
-      });
-
-      const validation = this.validateAIDraft({
-        text: aiText,
-        packet: safePacket,
-        request,
-        writerContract,
-        blueprintCandidate
-      });
-
-      if (validation.valid) {
-        return this.returnDraft({
-          draft: validation.text,
-          reason: blueprintDecision.repairRequired
-            ? "ai_writer_repair_success"
-            : "ai_writer_success",
-          usedAI: true,
-          usable: true,
-          complete: validation.complete,
-          requiresRepair: false,
-          packet: safePacket,
+      const generatedText =
+        await this.requestAIDraft({
+          packet,
           request,
           writerContract,
-          blueprintCandidate,
-          validation
+          instruction
         });
-      }
 
-      const rejectedDraft =
-  this.cleanOriginal(
-    aiText
-  );
+      const validation =
+        this.validateGeneratedDraft({
+          text:
+            generatedText,
 
-if (rejectedDraft) {
-  return this.returnDraft({
-    draft:
-      rejectedDraft,
+          packet,
 
-    reason:
-      "ai_candidate_failed_writer_validation",
+          request,
 
-    usedAI:
-      true,
+          writerContract,
 
-    usable:
-      false,
+          focusedCharacter
+        });
 
-    complete:
-      false,
+      return this.returnCandidate({
+        draft:
+          validation.text,
 
-    requiresRepair:
-      true,
+        reason:
+          validation.valid
+            ? repairRequest.required
+              ? "ai_repair_candidate_generated"
+              : "ai_candidate_generated"
+            : "ai_candidate_failed_validation",
 
-    packet:
-      safePacket,
+        usedAI:
+          true,
 
-    request,
+        usable:
+          validation.valid,
 
-    writerContract,
+        complete:
+          validation.complete,
 
-    blueprintCandidate,
+        requiresRepair:
+          !validation.valid ||
+          !validation.complete,
 
-    validation: {
-      ...validation,
+        packet,
 
-      valid:
-        false,
-
-      candidatePreserved:
-        true,
-
-      finalSelectionAuthority:
-        "ari-response-candidate-arbiter"
-    }
-  });
-}
-
-const fallback =
-  this.resolveRejectedAIFallback({
-    packet:
-      safePacket,
-
-    request,
-
-    writerContract,
-
-    blueprintCandidate,
-
-    validation
-  });
-
-return this.returnDraft({
-  draft:
-    fallback.text,
-
-  reason:
-    fallback.reason,
-
-  usedAI:
-    false,
-
-  usable:
-    fallback.usable,
-
-  complete:
-    fallback.complete,
-
-  requiresRepair:
-    fallback.requiresRepair,
-
-  packet:
-    safePacket,
-
-  request,
-
-  writerContract,
-
-  blueprintCandidate,
-
-  validation:
-    fallback.validation ||
-    validation
-});
-    } catch (error) {
-      console.warn("AriAIWriter failed:", error);
-
-      const fallback = this.resolveUnavailableAIFallback({
-        packet: safePacket,
         request,
+
         writerContract,
-        blueprintCandidate,
-        error
+
+        focusedCharacter,
+
+        repairRequest,
+
+        validation
       });
+    } catch (error) {
+      console.warn(
+        "Ari AI Writer failed:",
+        error
+      );
 
-      return this.returnDraft({
-        draft: fallback.text,
-        reason: fallback.reason,
-        usedAI: false,
-        usable: fallback.usable,
-        complete: fallback.complete,
-        requiresRepair: fallback.requiresRepair,
-        packet: safePacket,
+      return this.returnCandidate({
+        reason:
+          "ai_generation_failed",
+
+        usedAI:
+          false,
+
+        usable:
+          false,
+
+        complete:
+          false,
+
+        requiresRepair:
+          true,
+
+        packet,
+
         request,
+
         writerContract,
-        blueprintCandidate,
-        validation: fallback.validation,
+
+        focusedCharacter,
+
+        repairRequest,
+
+        validation: {
+          valid:
+            false,
+
+          complete:
+            false,
+
+          reason:
+            "ai_generation_failed",
+
+          text:
+            "",
+
+          warnings:
+            error?.message
+              ? [
+                  error.message
+                ]
+              : [],
+
+          errors: [
+            "ai_generation_failed"
+          ]
+        },
+
         error
       });
     }
   },
 
   /* =====================================================
-     REQUEST
+     REPAIR AUTHORIZATION
+  ===================================================== */
+
+  readRepairRequest({
+    input = {},
+    summary = {},
+    packet = {}
+  } = {}) {
+    const precheck =
+      input.arbiterPrecheck ||
+      summary.arbiterPrecheck ||
+      packet
+        ?.responseCandidateArbiter ||
+      packet
+        ?.responseCandidateArbitration ||
+      null;
+
+    const required =
+      input.needsAIWriter ===
+        true ||
+      summary.needsAIWriter ===
+        true ||
+      summary.shouldRunAIWriter ===
+        true ||
+      precheck?.needsAIWriter ===
+        true;
+
+    const reason =
+      input.aiRepairReason ||
+      summary.aiRepairReason ||
+      precheck?.aiRepairReason ||
+      precheck?.reason ||
+      null;
+
+    return {
+      required,
+
+      reason,
+
+      source:
+        precheck?.source ||
+        (
+          required
+            ? "draft_arbitration_stage"
+            : null
+        ),
+
+      precheck:
+        precheck &&
+        typeof precheck ===
+          "object"
+          ? precheck
+          : null,
+
+      authority:
+        "arbiter_precheck_ai_render_authorization"
+    };
+  },
+
+  aiWritingAuthorized({
+    packet = {},
+    writerContract = {},
+    repairRequest = {}
+  } = {}) {
+    if (
+      packet.developerPacketLocked ===
+        true ||
+      packet.developer
+        ?.locked ===
+        true
+    ) {
+      return false;
+    }
+
+    if (
+      packet.responseLocked ===
+        true
+    ) {
+      return false;
+    }
+
+    if (
+      packet.candidatePolicy
+        ?.aiWriterAllowed ===
+        false
+    ) {
+      return false;
+    }
+
+    if (
+      writerContract
+        .aiWriterAllowed ===
+        false
+    ) {
+      return false;
+    }
+
+    /*
+     * The Draft Arbitration Stage is the authority that
+     * decides whether this writer should run.
+     *
+     * Compatibility remains for callers that invoke the
+     * writer directly without attaching a precheck object,
+     * provided the canonical packet explicitly permits AI.
+     */
+    if (
+      repairRequest.required ===
+      true
+    ) {
+      return true;
+    }
+
+    return (
+      packet.candidatePolicy
+        ?.aiWriterAllowed ===
+        true ||
+      packet.aiWriterAuthorized ===
+        true
+    );
+  },
+
+  /* =====================================================
+     CANONICAL REQUEST
   ===================================================== */
 
   readRequest(packet = {}) {
-    const packetRequest = packet.request || {};
+    const request =
+      packet.request ||
+      {};
 
-        const currentText =
+    const currentText =
       this.cleanOriginal(
-        packetRequest.resolvedText ||
-        packetRequest.semanticInputText ||
-        packetRequest.effectiveText ||
+        request.resolvedText ||
+        request.semanticInputText ||
+        request.effectiveText ||
         packet.resolvedUserQuestion ||
         packet.effectiveUserQuestion ||
         packet.semanticInputText ||
-        packetRequest.currentText ||
+        request.currentText ||
         packet.currentTurnText ||
         packet.userQuestion ||
-        packetRequest.originalText ||
-        packet.originalUserQuestion ||
         ""
       );
 
     const originalText =
       this.cleanOriginal(
-        packetRequest.originalText ||
+        request.originalText ||
         packet.originalUserQuestion ||
         currentText
       );
 
     return {
       turnId:
-        packetRequest.turnId ||
+        request.turnId ||
         packet.turnId ||
         null,
 
       currentText,
-
-      effectiveText:
-        currentText,
-
-      resolvedText:
-        currentText,
-
-      semanticInputText:
-        currentText,
 
       originalText,
 
@@ -419,27 +515,27 @@ return this.returnDraft({
         ),
 
       contextLane:
-        packetRequest.contextLane ||
+        request.contextLane ||
         packet.contextLane ||
         "direct_current_turn",
 
       requiresPriorContext:
-        packetRequest
+        request
           .requiresPriorContext ===
         true,
 
       currentTurnWasResolved:
-        packetRequest
+        request
           .currentTurnWasStructurallyResolved ===
           true ||
-        packetRequest
+        request
           .currentTurnWasSemanticallyResolved ===
           true ||
         packet.currentTurnWasResolved ===
           true,
 
       ellipticalFollowUpResolved:
-        packetRequest
+        request
           .ellipticalFollowUpResolved ===
           true ||
         packet
@@ -447,70 +543,21 @@ return this.returnDraft({
           true,
 
       resolutionSource:
-        packetRequest
-          .resolutionSource ||
+        request.resolutionSource ||
         packet.resolutionSource ||
         "none",
 
       originalTextPreserved:
-        packetRequest
+        request
           .originalTextPreserved !==
         false,
 
       textWasRewritten:
-        packetRequest
-          .textWasRewritten ===
+        request.textWasRewritten ===
         true,
 
       authority:
-        "composer_packet_canonical_resolved_current_turn"
-    };
-}, 
-  /* =====================================================
-     SAFE PACKET
-  ===================================================== */
-
-  buildSafePacket(packet = {}) {
-    const developerRelevant = this.isDeveloperRelevant(packet);
-    const developerLocked = packet.developerPacketLocked === true || packet.developer?.locked === true;
-
-    if (developerRelevant || developerLocked) return packet;
-
-    return {
-      ...packet,
-      developerPacket: null,
-      hasDeveloperPacket: false,
-      developerPacketLocked: false,
-      developerPacketAdvisory: false,
-      developerRelevant: false,
-      lockedDeveloperReply: null,
-
-      developer: {
-        ...(packet.developer || {}),
-        applicable: false,
-        relevant: false,
-        allowed: false,
-        locked: false,
-        advisory: false,
-        packet: null,
-        lockedReply: null,
-        githubEvidenceAllowed: false,
-        codeEvidenceAllowed: false,
-        staleEvidenceSuppressed: true
-      },
-
-      evidence: {
-        ...(packet.evidence || {}),
-        github: null,
-        developerPacket: null,
-        developerIntent: null,
-        developerHandoff: null,
-        developerResponse: null,
-        developerReply: null,
-        codeUnderstanding: null,
-        developerUnderstanding: null,
-        developerEvidenceSuppressed: true
-      }
+        "composer_packet_canonical_current_turn"
     };
   },
 
@@ -519,194 +566,105 @@ return this.returnDraft({
   ===================================================== */
 
   readWriterContract(packet = {}) {
-    const responsePlan = packet.canonicalResponsePlan || packet.responsePlan || {};
-    const responseControl = packet.responseControl || {};
+    const responsePlan =
+      packet
+        .canonicalResponsePlan ||
+      packet.responsePlan ||
+      {};
+
+    const responseControl =
+      packet.responseControl ||
+      {};
+
     const instructions =
       packet.writerInstructions ||
-      responseControl.writerInstructions ||
-      responsePlan.writerInstructions ||
+      responseControl
+        .writerInstructions ||
+      responsePlan
+        .writerInstructions ||
       {};
 
-    const rawMoves = this.firstNonEmptyArray(
-      packet.responseMoves,
-      responseControl.responseMoves,
-      responsePlan.responseMoves,
-      responsePlan.moves,
-      instructions.responseMoves,
-      instructions.moves,
-      instructions.sequence
-    );
+    const responseMoves =
+      this.normalizeMoves(
+        this.firstNonEmptyArray(
+          packet.responseMoves,
+          responseControl
+            .responseMoves,
+          responsePlan
+            .responseMoves,
+          responsePlan.moves,
+          instructions
+            .responseMoves,
+          instructions.moves,
+          instructions.sequence
+        )
+      );
 
-    const responseMoves = this.normalizeMoves(rawMoves);
+    const requiredBehaviors =
+      this.mergeUnique(
+        packet.requiredBehaviors,
+        packet.responseRequired,
+        responseControl
+          .requiredBehaviors,
+        responsePlan
+          .requiredBehaviors,
+        responsePlan.required,
+        instructions
+          .requiredBehaviors,
+        instructions.required
+      );
 
-    const requiredBehaviors = this.mergeUnique(
-      packet.requiredBehaviors,
-      packet.responseRequired,
-      responseControl.requiredBehaviors,
-      responsePlan.requiredBehaviors,
-      responsePlan.required,
-      instructions.requiredBehaviors,
-      instructions.required
-    );
+    const forbiddenBehaviors =
+      this.mergeUnique(
+        packet.forbiddenBehaviors,
+        packet.responseAvoid,
+        responseControl
+          .forbiddenBehaviors,
+        responsePlan
+          .forbiddenBehaviors,
+        responsePlan.avoid,
+        instructions
+          .forbiddenBehaviors,
+        instructions.avoid
+      );
 
-    const forbiddenBehaviors = this.mergeUnique(
-      packet.forbiddenBehaviors,
-      packet.responseAvoid,
-      responseControl.forbiddenBehaviors,
-      responsePlan.forbiddenBehaviors,
-      responsePlan.avoid,
-      instructions.forbiddenBehaviors,
-      instructions.avoid
-    );
+    const constraints =
+      this.mergeUnique(
+        packet
+          .responseConstraints,
+        responseControl
+          .constraints,
+        responsePlan
+          .constraints,
+        instructions.constraints
+      );
 
-    const constraints = this.mergeUnique(
-      packet.responseConstraints,
-      responseControl.constraints,
-      responsePlan.constraints,
-      instructions.constraints
-    );
+    const responseRules =
+      this.mergeUnique(
+        packet.responseRules,
+        responseControl.rules,
+        responsePlan
+          .responseRules,
+        instructions
+          .responseRules,
+        instructions.rules
+      );
 
-    const responseRules = this.mergeUnique(
-      packet.responseRules,
-      responseControl.rules,
-      responsePlan.responseRules,
-      instructions.responseRules,
-      instructions.rules
-    );
-
-        const questionPolicy =
-      responseControl.questionPolicy ||
-      responsePlan.interactionPolicy ||
+    const questionPolicy =
+      responseControl
+        .questionPolicy ||
+      responsePlan
+        .interactionPolicy ||
       {};
 
-    const rawQuestionPurpose =
-      packet.questionPurpose ||
-      questionPolicy.purpose ||
-      questionPolicy.questionPurpose ||
-      responsePlan.questionPurpose ||
-      instructions.questionPurpose ||
-      null;
-
-    const normalizedQuestionPurpose =
-      this.normalizeIdentifier(
-        rawQuestionPurpose ||
-        ""
-      );
-
-    const planner =
-      this.normalizeIdentifier(
-        packet.responseStrategy
-          ?.planner ||
-        responsePlan.strategy
-          ?.planner ||
-        packet.routingContract
-          ?.planner ||
-        ""
-      );
-
-    const responseGoal =
-      this.normalizeIdentifier(
-        packet.responseGoal ||
-        responseControl.responseGoal ||
-        responsePlan.responseGoal ||
-        responsePlan.strategy
-          ?.responseGoal ||
-        ""
-      );
-
-    const blueprintHint =
-      this.normalizeIdentifier(
-        packet.blueprintHint ||
-        responseControl.blueprintHint ||
-        responsePlan.blueprintHint ||
-        responsePlan.blueprint
-          ?.id ||
-        instructions.blueprintId ||
-        ""
-      );
-
-    const continuity =
-      packet.continuity ||
-      packet.evidence
-        ?.continuity ||
-      {};
-
-    const effectiveUnresolvedReferenceCount =
-      Number(
-        continuity
-          .effectiveUnresolvedReferenceCount ??
-        continuity
-          .unresolvedReferences
-          ?.length ??
-        0
-      );
-
-    const resolvedUserQuestion =
-      this.cleanOriginal(
-        packet.resolvedUserQuestion ||
-        packet.request
-          ?.resolvedText ||
-        continuity
-          .resolvedUserQuestion ||
-        continuity
-          .effectiveUserQuestion ||
-        ""
-      );
-
-    const currentTurnWasResolved =
-      packet.currentTurnWasResolved ===
-        true ||
-      packet
-        .ellipticalFollowUpResolved ===
-        true ||
-      packet.request
-        ?.currentTurnWasStructurallyResolved ===
-        true ||
-      packet.request
-        ?.currentTurnWasSemanticallyResolved ===
-        true ||
-      continuity
-        .currentTurnWasResolved ===
-        true ||
-      continuity
-        .ellipticalFollowUpResolved ===
-        true;
-
-    const continuityResolutionComplete =
-      currentTurnWasResolved &&
-      Boolean(
-        resolvedUserQuestion
-      ) &&
-      effectiveUnresolvedReferenceCount ===
-        0;
-
-    const clarificationQuestionPolicy =
-      planner ===
-        "clarification_planner" ||
-      normalizedQuestionPurpose.includes(
-        "clarif"
-      ) ||
-      normalizedQuestionPurpose.includes(
-        "missing_context"
-      ) ||
-      normalizedQuestionPurpose.includes(
-        "missing_reference"
-      ) ||
-      normalizedQuestionPurpose.includes(
-        "resolve_reference"
-      ) ||
-      responseGoal.includes(
-        "clarif"
-      ) ||
-      blueprintHint.includes(
-        "clarif"
-      );
-
-    const rawShouldAskQuestion =
+    const shouldAskQuestion =
       packet.shouldAskQuestion ===
         true ||
       questionPolicy
         .shouldAskQuestion ===
+        true ||
+      questionPolicy
+        .questionRequired ===
         true ||
       responsePlan
         .shouldAskQuestion ===
@@ -715,811 +673,734 @@ return this.returnDraft({
         .questionRequired ===
         true;
 
-    /*
-     * A clarification question planned before continuity resolution
-     * becomes stale once continuity has produced a complete resolved
-     * current-turn question with no remaining unresolved references.
-     *
-     * This does not suppress ordinary conversational, reflective,
-     * permission, or safety questions.
-     */
-    const staleClarificationQuestionSuppressed =
-      rawShouldAskQuestion &&
-      clarificationQuestionPolicy &&
-      continuityResolutionComplete;
-
-    const shouldAskQuestion =
-      rawShouldAskQuestion &&
-      !staleClarificationQuestionSuppressed;
-
-    const questionPurpose =
-      staleClarificationQuestionSuppressed
-        ? null
-        : rawQuestionPurpose;
-
     const maximumQuestions =
-      staleClarificationQuestionSuppressed
-        ? 0
-        : this.firstFiniteNumber([
-            questionPolicy
-              .maximumQuestions,
+      this.firstFiniteNumber([
+        questionPolicy
+          .maximumQuestions,
 
-            questionPolicy
-              .maxQuestions,
+        questionPolicy
+          .maxQuestions,
 
-            instructions
-              .maxQuestions,
+        instructions
+          .maxQuestions,
 
-            shouldAskQuestion
-              ? 1
-              : 0
-          ]);
+        shouldAskQuestion
+          ? 1
+          : 0
+      ]);
+
+    const finalQuestionAllowed =
+      shouldAskQuestion ||
+      questionPolicy
+        .finalQuestionAllowed ===
+        true ||
+      instructions
+        .finalQuestionAllowed ===
+        true;
 
     return {
-      schema: "ari_ai_writer_contract",
-      schemaVersion: this.schemaVersion,
+      schema:
+        "ari_ai_writer_contract",
+
+      schemaVersion:
+        this.schemaVersion,
 
       responseGoal:
         packet.responseGoal ||
-        responseControl.responseGoal ||
-        responsePlan.responseGoal ||
-        responsePlan.strategy?.responseGoal ||
+        responseControl
+          .responseGoal ||
+        responsePlan
+          .responseGoal ||
+        responsePlan.strategy
+          ?.responseGoal ||
         "answer_user",
 
       responseShape:
         packet.responseShape ||
-        responseControl.responseShape ||
-        responsePlan.responseShape ||
-        responsePlan.strategy?.responseShape ||
+        responseControl
+          .responseShape ||
+        responsePlan
+          .responseShape ||
+        responsePlan.strategy
+          ?.responseShape ||
         instructions.shape ||
-        "clear_explanation",
+        "clear_response",
 
       responsePosture:
         packet.responsePosture ||
-        responseControl.responsePosture ||
-        responsePlan.responsePosture ||
-        responsePlan.strategy?.responsePosture ||
+        responseControl
+          .responsePosture ||
+        responsePlan
+          .responsePosture ||
+        responsePlan.strategy
+          ?.responsePosture ||
         instructions.posture ||
         null,
 
       currentNeed:
         responsePlan.currentNeed ||
-        responsePlan.interpretation?.currentNeed ||
+        responsePlan
+          .interpretation
+          ?.currentNeed ||
         packet.currentNeed ||
         null,
 
       responseMoves,
 
+      requiredMoveIds:
+        responseMoves
+          .filter(
+            move =>
+              move.required !==
+                false &&
+              move.userFacing !==
+                false
+          )
+          .map(
+            move =>
+              move.id
+          ),
+
       advicePolicy:
         packet.advicePolicy ||
-        responseControl.advicePolicy ||
-        responsePlan.advicePolicy ||
-        responsePlan.interactionPolicy?.advicePolicy ||
+        responseControl
+          .advicePolicy ||
+        responsePlan
+          .advicePolicy ||
+        responsePlan
+          .interactionPolicy
+          ?.advicePolicy ||
         "allowed_if_useful",
 
       coachingPermissionRequired:
-        packet.coachingPermissionRequired === true ||
-        responseControl.coachingPermissionRequired === true ||
-        responsePlan.coachingPermissionRequired === true ||
-        responsePlan.interactionPolicy?.coachingPermissionRequired === true,
+        packet
+          .coachingPermissionRequired ===
+          true ||
+        responseControl
+          .coachingPermissionRequired ===
+          true ||
+        responsePlan
+          .coachingPermissionRequired ===
+          true ||
+        responsePlan
+          .interactionPolicy
+          ?.coachingPermissionRequired ===
+          true,
 
-            shouldAskQuestion,
+      shouldAskQuestion,
 
-      questionPurpose,
+      questionPurpose:
+        packet.questionPurpose ||
+        questionPolicy.purpose ||
+        questionPolicy
+          .questionPurpose ||
+        responsePlan
+          .questionPurpose ||
+        instructions
+          .questionPurpose ||
+        null,
 
-      rawShouldAskQuestion,
-
-      rawQuestionPurpose,
-
-      clarificationQuestionPolicy,
-
-      continuityResolutionComplete,
-
-      staleClarificationQuestionSuppressed,
-
-      finalQuestionAllowed:
-        staleClarificationQuestionSuppressed
-          ? false
-          : (
-              instructions
-                .finalQuestionAllowed ===
-                true ||
-              questionPolicy
-                .finalQuestionAllowed ===
-                true ||
-              shouldAskQuestion
-            ),
+      finalQuestionAllowed,
 
       maximumQuestions:
-        staleClarificationQuestionSuppressed
-          ? 0
-          : Math.max(
+        finalQuestionAllowed
+          ? Math.max(
               0,
               Number(
-                maximumQuestions ||
-                0
+                maximumQuestions ??
+                1
               )
-            ),
+            )
+          : 0,
+
       requiredBehaviors,
+
       forbiddenBehaviors,
+
       constraints,
+
       responseRules,
 
       blueprintHint:
         packet.blueprintHint ||
-        responseControl.blueprintHint ||
-        responsePlan.blueprintHint ||
-        responsePlan.blueprint?.id ||
-        instructions.blueprintId ||
+        responseControl
+          .blueprintHint ||
+        responsePlan
+          .blueprintHint ||
+        responsePlan.blueprint
+          ?.id ||
+        instructions
+          .blueprintId ||
         null,
 
-      maxSentences: this.firstFiniteNumber([
-        instructions.maxSentences,
-        packet.communicationPlan?.languageBudget?.maxSentences,
-        4
-      ]),
+      maxSentences:
+        this.firstFiniteNumber([
+          instructions.maxSentences,
+          packet
+            .communicationPlan
+            ?.languageBudget
+            ?.maxSentences,
+          null
+        ]),
 
-      minimumSentences: this.firstFiniteNumber([
-        instructions.minimumSentences,
-        1
-      ]),
+      minimumSentences:
+        this.firstFiniteNumber([
+          instructions
+            .minimumSentences,
+          null
+        ]),
 
-      maxWords: this.firstFiniteNumber([
-        instructions.maxWords,
-        packet.communicationPlan?.languageBudget?.maxWords,
-        null
-      ]),
+      maxWords:
+        this.firstFiniteNumber([
+          instructions.maxWords,
+          packet
+            .communicationPlan
+            ?.languageBudget
+            ?.maxWords,
+          null
+        ]),
 
-      maxParagraphs: this.firstFiniteNumber([
-        instructions.maxParagraphs,
-        packet.communicationPlan?.languageBudget?.maxParagraphs,
-        null
-      ]),
+      maxParagraphs:
+        this.firstFiniteNumber([
+          instructions
+            .maxParagraphs,
+          packet
+            .communicationPlan
+            ?.languageBudget
+            ?.maxParagraphs,
+          null
+        ]),
 
-      answerFirst: instructions.answerFirst !== false,
-      reflectFirst: instructions.reflectFirst === true,
-      preserveMoveOrder: instructions.preserveMoveOrder !== false,
-      preserveOriginalTurn: instructions.preserveOriginalTurn !== false,
-      useConcreteTerms: instructions.useConcreteTerms !== false,
-      onePracticalStepMaximum: instructions.onePracticalStepMaximum === true,
-      internalInstructionsAreNotUserFacing: instructions.internalInstructionsAreNotUserFacing !== false,
-      doNotRenderInstructionText: instructions.doNotRenderInstructionText !== false,
+      answerFirst:
+        instructions.answerFirst !==
+        false,
 
-      unsupportedMovePolicy:
-        instructions.unsupportedMovePolicy ||
-        (packet.candidatePolicy?.unsupportedMoveRequiresRepair === true
-          ? "request_ai_repair"
-          : "allow_partial"),
+      reflectFirst:
+        instructions.reflectFirst ===
+        true,
 
-      incompletePlanPolicy:
-        instructions.incompletePlanPolicy ||
-        (packet.candidatePolicy?.incompleteBlueprintRequiresRepair === true
-          ? "request_ai_repair"
-          : "allow_partial"),
+      preserveMoveOrder:
+        instructions
+          .preserveMoveOrder !==
+        false,
+
+      preserveOriginalTurn:
+        instructions
+          .preserveOriginalTurn !==
+        false,
+
+      useConcreteTerms:
+        instructions
+          .useConcreteTerms !==
+        false,
+
+      onePracticalStepMaximum:
+        instructions
+          .onePracticalStepMaximum ===
+        true,
 
       factualClaimPolicy:
-        instructions.factualClaimPolicy ||
-        "require_evidence_or_explicit_uncertainty",
+        instructions
+          .factualClaimPolicy ||
+        "require_authorized_evidence_or_uncertainty",
 
-      doNotWrite: this.mergeUnique(
-        instructions.doNotWrite,
-        [
-          "internal planner instructions",
-          "pipeline diagnostics",
-          "meta commentary about answering",
-          "stale developer evidence",
-          "unsupported factual certainty"
-        ]
-      ),
+      aiWriterAllowed:
+        packet.candidatePolicy
+          ?.aiWriterAllowed !==
+        false,
 
-      candidatePolicy: packet.candidatePolicy || {},
-      authority: "canonical_ai_writer_contract"
+      candidatePolicy:
+        packet.candidatePolicy ||
+        {},
+
+      authority:
+        "canonical_ai_language_rendering_contract"
     };
   },
 
   normalizeMoves(moves = []) {
-    return this.toArray(moves)
-      .map((move, index) => {
-        if (typeof move === "string") {
+    return this.toArray(
+      moves
+    )
+      .map(
+        (
+          move,
+          index
+        ) => {
+          if (
+            typeof move ===
+            "string"
+          ) {
+            const id =
+              this.normalizeIdentifier(
+                move
+              );
+
+            return id
+              ? {
+                  id,
+
+                  order:
+                    index,
+
+                  required:
+                    true,
+
+                  userFacing:
+                    true,
+
+                  renderPolicy:
+                    "render",
+
+                  purpose:
+                    null,
+
+                  contentHint:
+                    null,
+
+                  evidenceRefs:
+                    []
+                }
+              : null;
+          }
+
+          if (
+            !move ||
+            typeof move !==
+              "object"
+          ) {
+            return null;
+          }
+
+          const id =
+            this.normalizeIdentifier(
+              move.id ||
+              move.move ||
+              move.name ||
+              move.type ||
+              ""
+            );
+
+          if (!id) {
+            return null;
+          }
+
           return {
-            id: this.normalizeMoveId(move),
-            order: index,
-            required: true,
-            userFacing: true,
-            renderPolicy: "render_or_ai_repair",
-            purpose: null,
-            contentHint: null,
-            evidenceRefs: [],
-            raw: move
+            id,
+
+            order:
+              Number.isFinite(
+                Number(
+                  move.order
+                )
+              )
+                ? Number(
+                    move.order
+                  )
+                : index,
+
+            required:
+              move.required !==
+              false,
+
+            userFacing:
+              move.userFacing !==
+              false,
+
+            renderPolicy:
+              move.renderPolicy ||
+              (
+                move.userFacing ===
+                  false
+                  ? "instruction_only"
+                  : "render"
+              ),
+
+            purpose:
+              move.purpose ||
+              null,
+
+            contentHint:
+              move
+                .contentGuidance ||
+              move.contentHint ||
+              move.hint ||
+              null,
+
+            evidenceRefs:
+              this.toArray(
+                move.evidenceRefs
+              ),
+
+            source:
+              move.source ||
+              "canonical_response_plan"
           };
         }
-
-        if (!move || typeof move !== "object") return null;
-
-        const id = this.normalizeMoveId(
-          move.id ||
-          move.move ||
-          move.name ||
-          move.type ||
-          ""
-        );
-
-        if (!id) return null;
-
-        return {
-          id,
-          order: Number.isFinite(Number(move.order)) ? Number(move.order) : index,
-          required: move.required !== false,
-          userFacing: move.userFacing !== false,
-          renderPolicy:
-            move.renderPolicy ||
-            (move.userFacing === false ? "instruction_only" : "render_or_ai_repair"),
-          purpose: move.purpose || null,
-          contentHint:
-            move.contentGuidance ||
-            move.contentHint ||
-            move.hint ||
-            null,
-          evidenceRefs: this.toArray(move.evidenceRefs),
-          source: move.source || "canonical_response_plan",
-          renderer: move.renderer || null,
-          raw: move
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.order - b.order);
-  },
-
-  normalizeMoveId(value = "") {
-    const id = this.normalizeIdentifier(value);
-
-    const aliases = {
-      attune: "attune_to_emotion",
-      sadness_attune: "attune_to_sadness",
-      sadness_validate: "validate_sadness",
-      anxiety_attune: "attune_to_anxiety",
-      anxiety_validate: "validate_anxiety",
-      anger_attune: "attune_to_anger",
-      anger_validate: "validate_anger",
-      gentle_validation: "validate_emotion",
-      validate_weight: "validate_emotion",
-      validate_emotional_weight: "validate_emotion",
-      invite_context: "invite_context_or_stay_present",
-      direct_answer: "answer_directly",
-      usable_example: "provide_usable_context",
-      usable_context: "provide_usable_context",
-      confirm_practical: "confirm_practical_goal",
-      contained_patch: "give_contained_steps",
-      test_before_more_changes: "suggest_test_or_followup",
-      separate_questions: "separate_options",
-      recommend_priority: "recommend_next_decision_step",
-      safe_first_step: "name_safe_first_step",
-      red_flags: "include_red_flags_or_clinician_boundary",
-      pause: "pause_and_prioritize_safety",
-      immediate_safety: "give_direct_safety_step",
-      trusted_help: "urge_trusted_or_emergency_support",
-      name_relationship_truth: "name_relationship_or_conflict_truth",
-      reduce_blame: "lower_blame",
-      repair_script: "offer_one_repair_step",
-      one_next_step: "offer_one_next_step",
-      small_next_step: "offer_one_next_step",
-      next_step: "offer_one_next_step",
-      simple_ack: "memory_acknowledgment",
-      acknowledge_memory_request: "memory_acknowledgment",
-      principle: "state_principle",
-      apply_principle: "apply_principle"
-    };
-
-    return aliases[id] || id;
-  },
-
-/* =====================================================
-   FOCUSED CHARACTER CONTEXT
-===================================================== */
-
-readCharacterContext(packet = {}) {
-  const context =
-    packet.characterContext ||
-    {};
-
-  const character =
-    packet.composerCharacter ||
-    packet.character ||
-    context.composerCharacter ||
-    context.character ||
-    packet.evidence
-      ?.composerCharacter ||
-    packet.evidence
-      ?.character ||
-    null;
-
-  const handoff =
-    packet.characterHandoff ||
-    context.handoff ||
-    packet.evidence
-      ?.characterHandoff ||
-    null;
-
-  const reasoning =
-    packet.characterReasoning ||
-    context.reasoning ||
-    handoff?.reasoning ||
-    character?.reasoning ||
-    packet.evidence
-      ?.characterReasoning ||
-    null;
-
-  const realization =
-    packet.characterRealization ||
-    context.realization ||
-    character?.realization ||
-    handoff?.realization ||
-    packet.evidence
-      ?.characterRealization ||
-    reasoning?.realizationPolicy ||
-    {};
-
-  const draft =
-    this.cleanForUser(
-      packet
-        .characterDeterministicDraft ||
-      packet.characterDraft ||
-      context.draft ||
-      handoff?.draft ||
-      character
-        ?.deterministicDraft ||
-      character?.draft ||
-      reasoning
-        ?.deterministicDraft ||
-      reasoning
-        ?.userFacingDraft ||
-      ""
-    );
-
-  const answer =
-    this.cleanForUser(
-      packet.characterAnswer ||
-      context.answer ||
-      handoff?.answer ||
-      character?.answer ||
-      reasoning?.answer ||
-      ""
-    );
-
-  const reason =
-    this.cleanForUser(
-      packet.characterReason ||
-      context.reason ||
-      handoff?.reason ||
-      (
-        typeof handoff
-          ?.reasoning ===
-          "string"
-          ? handoff.reasoning
-          : ""
-      ) ||
-      character?.reason ||
-      (
-        typeof character
-          ?.reasoning ===
-          "string"
-          ? character.reasoning
-          : ""
-      ) ||
-      reasoning?.reasoning ||
-      ""
-    );
-
-  const answerAvailable =
-    packet
-      .characterAnswerAvailable ===
-      true ||
-    context.answerAvailable ===
-      true ||
-    handoff?.answerAvailable ===
-      true ||
-    character?.answerAvailable ===
-      true ||
-    reasoning
-      ?.characterAnswerAvailable ===
-      true ||
-    Boolean(
-      draft &&
-      (
-        answer ||
-        reason
       )
-    );
-
-  const needsAIWriter =
-    packet
-      .characterNeedsAIWriter ===
-      true ||
-    context.needsAIWriter ===
-      true ||
-    handoff?.needsAIWriter ===
-      true ||
-    realization.needsAIWriter ===
-      true ||
-    reasoning?.needsAIWriter ===
-      true;
-
-  const aiWriterMode =
-    packet.characterAIWriterMode ||
-    context.aiWriterMode ||
-    handoff?.aiWriterMode ||
-    realization.aiWriterMode ||
-    reasoning?.aiWriterMode ||
-    null;
-
-  const aiInstruction =
-    this.cleanOriginal(
-      packet.characterAIInstruction ||
-      context.aiInstruction ||
-      handoff?.aiInstruction ||
-      realization.aiInstruction ||
-      reasoning?.aiInstruction ||
-      ""
-    );
-
-  const status =
-    packet.characterStatus ||
-    context.status ||
-    handoff?.status ||
-    character?.status ||
-    reasoning?.status ||
-    null;
-
-  return {
-    available:
-      packet.characterAvailable ===
-        true ||
-      context.available ===
-        true ||
-      Boolean(
-        character ||
-        handoff ||
-        reasoning
-      ),
-
-    enabled:
-      packet.characterEnabled ===
-        true ||
-      context.enabled ===
-        true ||
-      character?.enabled ===
-        true ||
-      handoff?.enabled ===
-        true,
-
-    relevant:
-      packet.characterRelevant ===
-        true ||
-      context.relevant ===
-        true ||
-      context.useAllowed ===
-        true ||
-      character?.relevant ===
-        true ||
-      handoff?.relevant ===
-        true ||
-      answerAvailable,
-
-    answerAvailable,
-
-    needsAIWriter,
-
-    draftAvailable:
-      Boolean(draft),
-
-    mode:
-      packet.characterMode ||
-      context.mode ||
-      handoff?.mode ||
-      character?.mode ||
-      "silent",
-
-    type:
-      packet.characterType ||
-      context.type ||
-      reasoning?.type ||
-      character?.type ||
-      handoff?.type ||
-      null,
-
-    subtype:
-      packet.characterSubtype ||
-      context.subtype ||
-      reasoning?.subtype ||
-      character?.subtype ||
-      handoff?.subtype ||
-      null,
-
-    focus:
-      packet.characterFocus ||
-      context.focus ||
-      reasoning?.focus ||
-      character?.focus ||
-      handoff?.focus ||
-      null,
-
-    preferenceSubject:
-      packet
-        .characterPreferenceSubject ||
-      context.preferenceSubject ||
-      reasoning
-        ?.preferenceSubject ||
-      null,
-
-    answer,
-
-    reasoning:
-      reason,
-
-    draft,
-
-    status,
-
-    confidence:
-      reasoning?.confidence ||
-      null,
-
-    source:
-      reasoning?.source ||
-      handoff
-        ?.preferredCharacterSource ||
-      character?.preferredSource ||
-      context
-        .preferredCharacterSource ||
-      null,
-
-    aiWriterMode,
-
-    aiInstruction,
-
-    realization,
-
-    character,
-
-    handoff,
-
-    reasoningPacket:
-      reasoning,
-
-    authority:
-      "resolved_focused_character_handoff_only"
-  };
-},
+      .filter(Boolean)
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          first.order -
+          second.order
+      );
+  },
 
   /* =====================================================
-     BLUEPRINT CANDIDATE
+     FOCUSED CHARACTER HANDOFF
   ===================================================== */
 
-  readBlueprintCandidate(packet = {}) {
-    const source =
-      packet.blueprintWriterState ||
-      packet.evidence?.blueprintWriter ||
-      packet.blueprintCandidate ||
+  readFocusedCharacter(
+    packet = {}
+  ) {
+    const context =
+      packet.characterContext ||
       {};
 
     const candidate =
-      packet.blueprintWriterCandidate ||
-      source.candidate ||
+      packet.characterCandidate ||
+      packet.draftGeneration
+        ?.characterCandidate ||
+      null;
+
+    const character =
+      packet.composerCharacter ||
+      packet.character ||
+      context.character ||
+      null;
+
+    const handoff =
+      packet.characterHandoff ||
+      context.handoff ||
+      null;
+
+    const realization =
+      packet.characterRealization ||
+      candidate?.realization ||
+      context.realization ||
+      character?.realization ||
+      handoff?.realization ||
       {};
 
-    const text = this.cleanOriginal(
-      packet.blueprintWriterDraft ||
-      source.blueprintWriterDraft ||
-      source.draft ||
-      candidate.text ||
-      ""
-    );
+    const answerAvailable =
+      packet
+        .characterAnswerAvailable ===
+        true ||
+      candidate
+        ?.answerAvailable ===
+        true ||
+      context.answerAvailable ===
+        true ||
+      character?.answerAvailable ===
+        true ||
+      handoff?.answerAvailable ===
+        true;
 
-    const renderedMoves = this.toArray(
-      packet.renderedResponseMoves ||
-      source.renderedResponseMoves ||
-      source.renderedMoves
-    );
-
-    const unsupportedMoves = this.toArray(
-      packet.unsupportedResponseMoves ||
-      source.unsupportedResponseMoves ||
-      source.unsupportedMoves
-    );
-
-    const skippedMoves = this.toArray(
-      packet.skippedResponseMoves ||
-      source.skippedResponseMoves ||
-      source.skippedMoves
-    );
+    const needsAIWriter =
+      packet
+        .characterNeedsAIWriter ===
+        true ||
+      candidate?.needsAIWriter ===
+        true ||
+      context.needsAIWriter ===
+        true ||
+      realization.needsAIWriter ===
+        true ||
+      handoff?.needsAIWriter ===
+        true;
 
     return {
-      available: Boolean(text),
-      text,
-      usable:
-        packet.blueprintWriterUsable === true ||
-        source.blueprintWriterUsable === true ||
-        candidate.usable === true,
+      available:
+        Boolean(
+          candidate ||
+          character ||
+          handoff ||
+          Object.keys(
+            context
+          ).length
+        ),
 
-      complete:
-        packet.blueprintWriterComplete === true ||
-        source.blueprintWriterComplete === true ||
-        source.complete === true,
+      relevant:
+        packet.characterRelevant ===
+          true ||
+        candidate?.available ===
+          true ||
+        context.relevant ===
+          true ||
+        character?.relevant ===
+          true ||
+        handoff?.relevant ===
+          true ||
+        answerAvailable,
 
-      requiresAIRepair:
-        packet.blueprintWriterRequiresAIRepair === true ||
-        source.blueprintWriterRequiresAIRepair === true ||
-        candidate.requiresAIRepair === true,
+      answerAvailable,
 
-      canonicalResponsePlanUsed:
-        candidate.evidence?.canonicalResponsePlanUsed === true ||
-        source.canonicalResponsePlanUsed === true ||
-        source.blueprint?.canonicalResponsePlanUsed === true,
+      needsAIWriter,
 
-      reason:
-        packet.blueprintWriterReason ||
-        source.blueprintWriterReason ||
-        source.reason ||
+      type:
+        packet.characterType ||
+        candidate?.type ||
+        context.type ||
+        character?.type ||
+        handoff?.type ||
         null,
 
-      renderedMoves,
-      unsupportedMoves,
-      skippedMoves,
-      warnings: this.toArray(packet.renderWarnings || source.renderWarnings || source.warnings),
-      source: source.blueprintWriterSource || source.source || "ari-blueprint-writer",
-      version: source.blueprintWriterVersion || source.version || null,
-      raw: source
+      subtype:
+        packet.characterSubtype ||
+        candidate?.subtype ||
+        context.subtype ||
+        character?.subtype ||
+        handoff?.subtype ||
+        null,
+
+      focus:
+        packet.characterFocus ||
+        candidate?.focus ||
+        context.focus ||
+        character?.focus ||
+        handoff?.focus ||
+        null,
+
+      subject:
+        packet.characterSubject ||
+        candidate?.subject ||
+        context.subject ||
+        character?.subject ||
+        handoff?.subject ||
+        null,
+
+      status:
+        packet.characterStatus ||
+        candidate?.status ||
+        context.status ||
+        character?.status ||
+        handoff?.status ||
+        null,
+
+      answer:
+        this.cleanInstructionValue(
+          packet.characterAnswer ||
+          candidate?.answer ||
+          context.answer ||
+          character?.answer ||
+          handoff?.answer ||
+          ""
+        ),
+
+      groundedMeaning:
+        this.cleanInstructionValue(
+          packet
+            .characterGroundedMeaning ||
+          candidate
+            ?.groundedMeaning ||
+          context
+            .groundedMeaning ||
+          character
+            ?.groundedMeaning ||
+          handoff
+            ?.groundedMeaning ||
+          ""
+        ),
+
+      deterministicDraft:
+        this.cleanInstructionValue(
+          packet
+            .characterDeterministicDraft ||
+          packet.characterDraft ||
+          candidate
+            ?.deterministicDraft ||
+          candidate?.draft ||
+          context.draft ||
+          character
+            ?.deterministicDraft ||
+          character?.draft ||
+          handoff
+            ?.deterministicDraft ||
+          handoff?.draft ||
+          ""
+        ),
+
+      aiWriterMode:
+        packet
+          .characterAIWriterMode ||
+        candidate?.aiWriterMode ||
+        context.aiWriterMode ||
+        realization.aiWriterMode ||
+        handoff?.aiWriterMode ||
+        null,
+
+      aiInstruction:
+        this.cleanOriginal(
+          packet
+            .characterAIInstruction ||
+          candidate?.aiInstruction ||
+          context.aiInstruction ||
+          realization.aiInstruction ||
+          handoff?.aiInstruction ||
+          ""
+        ),
+
+      preserveMeaning:
+        realization
+          .preserveMeaning !==
+        false,
+
+      preserveStatus:
+        realization
+          .preserveStatus !==
+        false,
+
+      preserveValue:
+        realization
+          .preserveValue ===
+          true,
+
+      preservePosition:
+        realization
+          .preservePosition ===
+          true,
+
+      preserveOpenStatus:
+        realization
+          .preserveOpenStatus ===
+          true,
+
+      tentativeLanguageRequired:
+        realization
+          .tentativeLanguageRequired ===
+          true,
+
+      authority:
+        "focused_character_handoff_only"
     };
   },
 
-  evaluateBlueprintCandidate({
-  packet = {},
-  request = {},
-  writerContract = {},
-  blueprintCandidate = {},
-  characterContext = {}
-} = {}) {
-  const characterRealizationRequired =
-    characterContext
-      .answerAvailable ===
-      true &&
-    characterContext
-      .needsAIWriter ===
-      true;
-
-  if (
-    !blueprintCandidate
-      .available
-  ) {
-    return {
-      useWithoutAI:
-        false,
-
-      repairRequired:
-        true,
-
-      characterRealizationRequired,
-
-      reason:
-        characterRealizationRequired
-          ? "focused_character_realization_required"
-          : "blueprint_candidate_missing",
-
-      requiredUnsupportedMoveIds:
-        [],
-
-      validation: {
-        valid:
-          false,
-
-        reason:
-          "blueprint_candidate_missing",
-
-        warnings:
-          characterRealizationRequired
-            ? [
-                "focused_character_realization_required"
-              ]
-            : [],
-
-        errors: [
-          "blueprint_candidate_missing"
-        ]
-      }
-    };
-  }
-
-  const validation =
-    this.validateCandidateText({
-      text:
-        blueprintCandidate.text,
-
-      packet,
-
-      request,
-
-      writerContract,
-
-      source:
-        "blueprint_writer"
-    });
-
-  const requiredUnsupported =
-    blueprintCandidate
-      .unsupportedMoves
-      .filter(
-        move =>
-          move?.required !==
-          false
-      );
-
-  const repairRequired =
-    characterRealizationRequired ||
-    blueprintCandidate
-      .requiresAIRepair ||
-    !blueprintCandidate.usable ||
-    !blueprintCandidate.complete ||
-    requiredUnsupported.length >
-      0 ||
-    !validation.valid;
-
-  let reason =
-    "blueprint_candidate_complete";
-
-  if (
-    characterRealizationRequired
-  ) {
-    reason =
-      "focused_character_realization_required";
-  } else if (
-    repairRequired
-  ) {
-    reason =
-      "blueprint_candidate_requires_ai_repair";
-  }
-
-  return {
-    useWithoutAI:
-      !repairRequired,
-
-    repairRequired,
-
-    characterRealizationRequired,
-
-    reason,
-
-    requiredUnsupportedMoveIds:
-      requiredUnsupported
-        .map(
-          move =>
-            move?.id
-        )
-        .filter(Boolean),
-
-    validation
-  };
-},
-
   /* =====================================================
-     AI PERMISSION
+     AUTHORIZED EVIDENCE
   ===================================================== */
 
-  aiWritingAllowed(packet = {}, writerContract = {}) {
-    if (packet.developerPacketLocked === true || packet.developer?.locked === true) {
-      return false;
-    }
+  buildAuthorizedEvidence(
+    packet = {}
+  ) {
+    const developerAuthorized =
+      packet.developerRelevant ===
+        true ||
+      packet.developer
+        ?.relevant ===
+        true ||
+      packet.developer
+        ?.allowed ===
+        true;
 
-    if (packet.candidatePolicy?.aiWriterAllowed === false) return false;
-    if (packet.canonicalResponsePlan?.blueprint?.aiAllowed === false) return false;
-    if (packet.responsePlan?.blueprint?.aiAllowed === false) return false;
+    return {
+      meaning:
+        packet.meaningInterpretation ||
+        packet.evidence
+          ?.understanding
+          ?.meaning ||
+        null,
 
-    const blueprint = this.normalizeIdentifier(writerContract.blueprintHint || "");
+      humanState:
+        packet.humanState ||
+        packet.evidence
+          ?.understanding
+          ?.humanState ||
+        null,
 
-    if (blueprint.startsWith("safety_") && packet.safety?.shouldStopNormalResponse === true) {
-      return false;
-    }
+      knowledge:
+        packet.knowledge ||
+        packet.evidence
+          ?.knowledge ||
+        null,
 
-    return true;
+      continuity:
+        packet.continuity ||
+        packet.evidence
+          ?.continuity ||
+        null,
+
+      activeDialogueState:
+        packet
+          .activeDialogueState ||
+        packet.evidence
+          ?.continuity
+          ?.activeDialogueState ||
+        null,
+
+      memory:
+        packet.memory ||
+        packet.evidence
+          ?.memory ||
+        null,
+
+      safety:
+        packet.safety ||
+        packet.evidence
+          ?.safety ||
+        null,
+
+      reasoning:
+        packet.reasoning ||
+        packet.evidence
+          ?.reasoning ||
+        null,
+
+      languageGuidance:
+        packet.languageGuidance ||
+        packet.evidence
+          ?.languageGuidance ||
+        null,
+
+      humanLanguageProfile:
+        packet
+          .humanLanguageProfile ||
+        packet.evidence
+          ?.humanLanguageProfile ||
+        null,
+
+      preferredTerms:
+        packet.preferredTerms ||
+        packet.evidence
+          ?.preferredTerms ||
+        null,
+
+      thesis:
+        packet.thesis ||
+        null,
+
+      developer:
+        developerAuthorized
+          ? {
+              github:
+                packet.evidence
+                  ?.github ||
+                null,
+
+              intent:
+                packet.evidence
+                  ?.developerIntent ||
+                null,
+
+              handoff:
+                packet.evidence
+                  ?.developerHandoff ||
+                null,
+
+              response:
+                packet.evidence
+                  ?.developerResponse ||
+                null,
+
+              codeUnderstanding:
+                packet.evidence
+                  ?.codeUnderstanding ||
+                null
+            }
+          : null
+    };
   },
 
   /* =====================================================
@@ -1527,78 +1408,92 @@ readCharacterContext(packet = {}) {
   ===================================================== */
 
   async requestAIDraft({
-  packet = {},
-  request = {},
-  instruction = ""
-} = {}) {
-  if (
-    !window.AriOpenAIKnowledgeClient ||
-    typeof window.AriOpenAIKnowledgeClient.ask !== "function"
-  ) {
-    throw new Error(
-      "ari_openai_knowledge_client_unavailable"
+    packet = {},
+    request = {},
+    writerContract = {},
+    instruction = ""
+  } = {}) {
+    const client =
+      window
+        .AriOpenAIKnowledgeClient;
+
+    if (
+      !client ||
+      typeof client.ask !==
+        "function"
+    ) {
+      throw new Error(
+        "ari_openai_knowledge_client_unavailable"
+      );
+    }
+
+    const result =
+      await client.ask({
+        summary: {
+          userMessage:
+            request.currentText,
+
+          message:
+            request.currentText,
+
+          input:
+            request.currentText,
+
+          question:
+            request.currentText,
+
+          originalUserMessage:
+            request.originalText,
+
+          resolvedUserQuestion:
+            request.currentText,
+
+          aiInstruction:
+            instruction,
+
+          responseGoal:
+            writerContract
+              .responseGoal ||
+            null,
+
+          responseShape:
+            writerContract
+              .responseShape ||
+            null,
+
+          responsePosture:
+            writerContract
+              .responsePosture ||
+            null,
+
+          source:
+            this.source,
+
+          aiWriterVersion:
+            this.version,
+
+          composerPacketTurnId:
+            request.turnId ||
+            null,
+
+          aiRepairReason:
+            packet.aiRepairReason ||
+            packet
+              .responseCandidateArbiter
+              ?.aiRepairReason ||
+            null
+        }
+      });
+
+    return this.cleanOriginal(
+      result?.finalResponse ||
+      result?.knowledgeAnswer ||
+      result?.response ||
+      result?.answer ||
+      result?.text ||
+      ""
     );
-  }
-
-  const result =
-    await window.AriOpenAIKnowledgeClient.ask({
-      summary: {
-        userMessage:
-          request.currentText,
-
-        message:
-          request.currentText,
-
-        input:
-          request.currentText,
-
-        question:
-          request.currentText,
-
-        originalUserMessage:
-          request.originalText,
-
-        resolvedUserQuestion:
-          request.currentText,
-
-        aiInstruction:
-          instruction,
-
-        responseGoal:
-          packet.responseGoal ||
-          packet.responseControl
-            ?.responseGoal ||
-          null,
-
-        responseShape:
-          packet.responseShape ||
-          packet.responseControl
-            ?.responseShape ||
-          null,
-
-        responsePosture:
-          packet.responsePosture ||
-          packet.responseControl
-            ?.responsePosture ||
-          null,
-
-        source:
-          "ari-ai-writer",
-
-        aiWriterVersion:
-          this.version
-      }
-    });
-
-  return this.cleanOriginal(
-    result?.finalResponse ||
-    result?.knowledgeAnswer ||
-    result?.response ||
-    result?.answer ||
-    result?.text ||
-    ""
-  );
-},
+  },
 
   /* =====================================================
      AI INSTRUCTION
@@ -1608,1446 +1503,1277 @@ readCharacterContext(packet = {}) {
     packet = {},
     request = {},
     writerContract = {},
-    blueprintCandidate = {},
-    blueprintDecision = {}
+    focusedCharacter = {},
+    repairRequest = {}
   } = {}) {
-    const developerRelevant = this.isDeveloperRelevant(packet);
+    const responseMoveText =
+      writerContract
+        .responseMoves
+        .map(
+          (
+            move,
+            index
+          ) => {
+            const attributes = [
+              move.required
+                ? "required"
+                : "optional",
 
-const characterContext =
-  this.readCharacterContext(
-    packet
-  );
+              move.userFacing
+                ? "user-facing"
+                : "instruction-only",
 
-    const moveInstructions = writerContract.responseMoves.map((move, index) => {
-      const parts = [
-        `${index + 1}. ${move.id}`,
-        move.required ? "required" : "optional",
-        move.renderPolicy || null,
-        move.contentHint ? `guidance: ${move.contentHint}` : null
-      ].filter(Boolean);
+              move.contentHint
+                ? `guidance: ${this.extractInstructionText(
+                    move.contentHint
+                  )}`
+                : null
+            ]
+              .filter(Boolean)
+              .join("; ");
 
-      return parts.join(" — ");
-    });
+            return (
+              `${index + 1}. ${move.id}` +
+              (
+                attributes
+                  ? ` — ${attributes}`
+                  : ""
+              )
+            );
+          }
+        )
+        .join("\n");
 
-    const evidencePacket = this.buildAIEvidencePacket({
-      packet,
-      developerRelevant
-    });
+    const evidence =
+      this.buildAuthorizedEvidence(
+        packet
+      );
+
+    const characterStatus =
+      typeof focusedCharacter
+        .status ===
+        "string"
+        ? focusedCharacter.status
+        : focusedCharacter
+            .status
+            ?.overall ||
+          null;
 
     return `
-You are Ari’s AI language renderer.
+You are Ari's authorized AI language renderer.
 
-You are not the response planner.
+You are not the response planner, router, classifier, arbiter, safety authority, memory authority, Character authority, or final composer.
 
-Your job is to express or repair the canonical response plan already contained in this packet.
+Your only task is to produce one user-facing response candidate that follows the canonical contract below.
 
-CURRENT USER TURN:
+CURRENT TURN
+
+Resolved current turn:
 ${request.currentText}
 
-CURRENT TURN RULES:
-- Preserve the meaning and requested operation of the current user turn.
-- Do not replace the current turn with prior context.
-- Do not reinterpret the user’s intent.
-- Do not mention internal pipeline stages or diagnostics.
-- Do not report that another writer failed.
+Original current turn:
+${request.originalText || request.currentText}
 
-RESPONSE GOAL:
+Turn resolution:
+- resolved: ${request.currentTurnWasResolved ? "yes" : "no"}
+- elliptical follow-up resolved: ${request.ellipticalFollowUpResolved ? "yes" : "no"}
+- resolution source: ${request.resolutionSource || "none"}
+
+CURRENT-TURN RULES
+
+- Answer the resolved current turn.
+- Preserve the operation requested by the user.
+- Do not replace the current turn with prior conversation context.
+- Do not reinterpret the user's meaning.
+- Do not classify the request.
+- Do not invent missing context.
+- Do not mention resolution, routing, planning, packets, stages, candidates, or diagnostics.
+
+RENDER AUTHORIZATION
+
+- AI rendering requested: ${repairRequest.required ? "yes" : "no"}
+- AI repair reason: ${repairRequest.reason || "none"}
+
+RESPONSE CONTRACT
+
+Response goal:
 ${writerContract.responseGoal}
 
-RESPONSE SHAPE:
+Response shape:
 ${writerContract.responseShape}
 
-RESPONSE POSTURE:
+Response posture:
 ${writerContract.responsePosture || "natural_direct"}
 
-CURRENT NEED:
+Current need:
 ${writerContract.currentNeed || "not_specified"}
 
-CANONICAL RESPONSE MOVES:
-${moveInstructions.join("\n") || "No canonical response moves were supplied."}
-
-ADVICE POLICY:
+Advice policy:
 ${writerContract.advicePolicy}
 
-COACHING PERMISSION REQUIRED:
+Coaching permission required:
 ${writerContract.coachingPermissionRequired ? "yes" : "no"}
 
-QUESTION POLICY:
-- shouldAskQuestion: ${writerContract.shouldAskQuestion ? "yes" : "no"}
-- finalQuestionAllowed: ${writerContract.finalQuestionAllowed ? "yes" : "no"}
-- maximumQuestions: ${writerContract.maximumQuestions}
-- purpose: ${writerContract.questionPurpose || "none"}
+Question policy:
+- question required: ${writerContract.shouldAskQuestion ? "yes" : "no"}
+- final question allowed: ${writerContract.finalQuestionAllowed ? "yes" : "no"}
+- maximum user-directed questions: ${writerContract.maximumQuestions}
+- question purpose: ${writerContract.questionPurpose || "none"}
 
-REQUIRED BEHAVIORS:
-${this.formatInstructionList(writerContract.requiredBehaviors, "None supplied.")}
+CANONICAL RESPONSE MOVES
 
-FORBIDDEN BEHAVIORS:
-${this.formatInstructionList(writerContract.forbiddenBehaviors, "None supplied.")}
-
-CONSTRAINTS:
-${this.formatInstructionList(writerContract.constraints, "None supplied.")}
-
-RESPONSE RULES:
-${this.formatInstructionList(writerContract.responseRules, "Answer the current request directly.")}
-
-LANGUAGE BUDGET:
-- maximum sentences: ${writerContract.maxSentences || 4}
-- maximum words: ${writerContract.maxWords || "not specified"}
-- maximum paragraphs: ${writerContract.maxParagraphs || "not specified"}
-- minimum sentences: ${writerContract.minimumSentences || 1}
-
-BLUEPRINT CANDIDATE:
-${blueprintCandidate.text || "No Blueprint Writer candidate is available."}
-
-BLUEPRINT STATUS:
-- available: ${blueprintCandidate.available ? "yes" : "no"}
-- usable: ${blueprintCandidate.usable ? "yes" : "no"}
-- complete: ${blueprintCandidate.complete ? "yes" : "no"}
-- requires AI repair: ${blueprintDecision.repairRequired ? "yes" : "no"}
-- unsupported moves: ${
-      blueprintCandidate.unsupportedMoves
-        .map(move => move?.id)
-        .filter(Boolean)
-        .join(", ") || "none"
-    }
-
-FOCUSED CHARACTER HANDOFF:
-- available: ${characterContext.available ? "yes" : "no"}
-- enabled: ${characterContext.enabled ? "yes" : "no"}
-- relevant: ${characterContext.relevant ? "yes" : "no"}
-- answer available: ${characterContext.answerAvailable ? "yes" : "no"}
-- AI realization required: ${characterContext.needsAIWriter ? "yes" : "no"}
-- mode: ${characterContext.mode || "silent"}
-- type: ${characterContext.type || "none"}
-- subtype: ${characterContext.subtype || "none"}
-- focus: ${characterContext.focus || "none"}
-- preference subject: ${characterContext.preferenceSubject || "none"}
-- status: ${
-  typeof characterContext.status === "string"
-    ? characterContext.status
-    : characterContext.status?.overall || "none"
-}
-- confidence: ${characterContext.confidence || "not specified"}
-- resolved answer: ${characterContext.answer || "none"}
-- resolved reasoning: ${characterContext.reasoning || "none"}
-- deterministic draft: ${characterContext.draft || "none"}
-- AI writer mode: ${characterContext.aiWriterMode || "none"}
-- source: ${characterContext.source || "none"}
-
-CHARACTER REALIZATION INSTRUCTION:
 ${
-  characterContext.aiInstruction ||
+  responseMoveText ||
+  "No explicit response moves were supplied. Follow the response goal and constraints without inventing a new plan."
+}
+
+REQUIRED BEHAVIORS
+
+${this.formatInstructionList(
+  writerContract
+    .requiredBehaviors,
+  "None supplied."
+)}
+
+FORBIDDEN BEHAVIORS
+
+${this.formatInstructionList(
+  writerContract
+    .forbiddenBehaviors,
+  "None supplied."
+)}
+
+CONSTRAINTS
+
+${this.formatInstructionList(
+  writerContract.constraints,
+  "None supplied."
+)}
+
+RESPONSE RULES
+
+${this.formatInstructionList(
+  writerContract
+    .responseRules,
+  "Answer the current request directly."
+)}
+
+LANGUAGE BUDGET
+
+- maximum sentences: ${writerContract.maxSentences ?? "not specified"}
+- minimum sentences: ${writerContract.minimumSentences ?? "not specified"}
+- maximum words: ${writerContract.maxWords ?? "not specified"}
+- maximum paragraphs: ${writerContract.maxParagraphs ?? "not specified"}
+
+FOCUSED CHARACTER AUTHORIZATION
+
+- available: ${focusedCharacter.available ? "yes" : "no"}
+- relevant: ${focusedCharacter.relevant ? "yes" : "no"}
+- answer available: ${focusedCharacter.answerAvailable ? "yes" : "no"}
+- AI realization required: ${focusedCharacter.needsAIWriter ? "yes" : "no"}
+- type: ${focusedCharacter.type || "none"}
+- subtype: ${focusedCharacter.subtype || "none"}
+- focus: ${focusedCharacter.focus || "none"}
+- subject: ${focusedCharacter.subject || "none"}
+- status: ${characterStatus || "none"}
+- resolved answer: ${focusedCharacter.answer || "none"}
+- grounded meaning: ${focusedCharacter.groundedMeaning || "none"}
+- deterministic draft: ${focusedCharacter.deterministicDraft || "none"}
+- AI writer mode: ${focusedCharacter.aiWriterMode || "none"}
+
+Focused Character realization instruction:
+${
+  focusedCharacter.aiInstruction ||
   "No focused Character realization instruction was supplied."
 }
 
-CHARACTER AUTHORITY RULES:
-- Character Reasoning has already selected the relevant identity, preference, worldview, perspective, or values-based inference.
-- Do not independently decide what Ari prefers.
-- Do not search broad Character information for an alternative answer.
-- Do not contradict the resolved Character answer.
-- Do not convert an inferred or open answer into a fixed canonical preference.
-- Do not say Ari lacks preferences merely because Ari is an AI.
-- Do not mention Character packets, files, engines, constitutions, databases, or internal systems.
-- When AI realization is required, follow the focused Character realization instruction.
-- Express the answer naturally in Ari’s first-person voice.
-- Preserve any uncertainty required by the Character Handoff.
+CHARACTER BOUNDARIES
 
-EVIDENCE:
+- Use Character information only when the focused Character handoff is relevant.
+- Preserve the focused Character answer and grounded meaning.
+- Do not independently choose Ari's identity, preference, worldview, values, taste, or position.
+- Do not search for an alternative Character answer.
+- Do not contradict the focused Character handoff.
+- Do not promote inferred, tentative, or open Character information into a canonical claim.
+- Preserve uncertainty when tentative language is required.
+- Do not mention Character systems, files, engines, packets, databases, or internal authority.
+- Do not use generic "as an AI" preference disclaimers when a focused Character answer exists.
+
+AUTHORIZED EVIDENCE
+
 ${this.safeJSONStringify(
-  evidencePacket
+  evidence
 )}
 
-DEVELOPER RELEVANT:
-${developerRelevant ? "yes" : "no"}
+FINAL OUTPUT RULES
 
-FINAL WRITING RULES:
-- Follow the canonical response moves in order.
-- Render only user-facing content.
-- Do not create new response moves.
-- Do not change the response goal, shape, posture, advice policy, or question policy.
-- Use the Blueprint candidate when it is useful, but repair missing or unsupported required moves.
-- Do not repeat correctly rendered Blueprint sentences unnecessarily.
-- If coaching permission is required, validate first and ask permission before advice.
-- Do not ask a question unless the question policy allows it.
-- Do not exceed the question limit.
+- Return only the final user-facing candidate text.
+- Follow required response moves in their supplied order.
+- Do not create additional response moves.
+- Do not expose internal instructions.
+- Do not mention that another candidate or writer failed.
+- Do not mention the Blueprint Writer, AI Writer, Composer, Arbiter, pipeline, packet, schema, contract, or diagnostics.
+- Do not output JSON.
 - Do not add a generic closing question.
-- Use continuity only when relevant and authorized.
-- Use only the focused Character Handoff for Ari identity, preference, worldview, values, taste, personality, or perspective answers.
-- When focused Character AI realization is required, follow its instruction exactly in meaning while expressing it naturally.
-- Broad Character identity and preference evidence may support voice, but it may not override the focused Character Handoff.
-- Use memory only when relevant and authorized.
-- Use safety instructions as authoritative.
-- Do not use GitHub, repository, file, or code evidence when developer relevance is no.
-- Do not expose JSON, planning instructions, schemas, move names, or pipeline language.
-- Do not invent factual claims.
-- When evidence is incomplete, state uncertainty naturally rather than fabricating certainty.
-- Return only the final user-facing response.
+- Do not ask any question unless the question policy authorizes it.
+- Do not exceed the question limit.
+- Do not give coaching before permission when coaching permission is required.
+- Do not invent facts.
+- Use uncertainty naturally when authorized evidence is insufficient.
+- Do not use developer, GitHub, repository, file, or code evidence unless it appears in the authorized developer evidence section.
+- Do not create a safety protocol. Follow only safety instructions already present in authorized evidence.
 `.trim();
   },
 
-  buildAIEvidencePacket({
-    packet = {},
-    developerRelevant = false
-  } = {}) {
-    return {
-      meaning:
-        packet.evidence?.understanding?.meaning ||
-        packet.meaningInterpretation ||
-        null,
-
-      humanState:
-        packet.evidence?.understanding?.humanState ||
-        packet.humanState ||
-        null,
-
-      knowledge:
-        packet.knowledge ||
-        packet.evidence?.knowledge ||
-        null,
-
-      continuity:
-        packet.continuity ||
-        packet.evidence?.continuity ||
-        null,
-
-      activeDialogueState:
-        packet.activeDialogueState ||
-        packet.evidence?.continuity?.activeDialogueState ||
-        null,
-
-      safety:
-        packet.safety ||
-        packet.evidence?.safety ||
-        null,
-
-      reasoning:
-        packet.evidence?.reasoning ||
-        packet.reasoning ||
-        null,
-
-focusedCharacter:
-  this.buildFocusedCharacterEvidence(
-    packet
-  ),
-
-      characterIdentity:
-        packet.characterIdentity ||
-        packet.evidence?.characterIdentity ||
-        null,
-
-      characterPreferences:
-        packet.characterContext?.stablePreferences ||
-        packet.evidence?.characterPreferences ||
-        null,
-
-      languageGuidance:
-        packet.languageGuidance ||
-        packet.evidence?.languageGuidance ||
-        null,
-
-      humanLanguageProfile:
-        packet.humanLanguageProfile ||
-        packet.evidence?.humanLanguageProfile ||
-        null,
-
-      preferredTerms:
-        packet.preferredTerms ||
-        packet.evidence?.preferredTerms ||
-        null,
-
-      thesis:
-        packet.thesis ||
-        null,
-
-      developer:
-        developerRelevant
-          ? {
-              github: packet.evidence?.github || null,
-              intent: packet.evidence?.developerIntent || null,
-              handoff: packet.evidence?.developerHandoff || null,
-              response: packet.evidence?.developerResponse || null,
-              codeUnderstanding: packet.evidence?.codeUnderstanding || null
-            }
-          : null
-    };
-  },
-
-buildFocusedCharacterEvidence(
-  packet = {}
-) {
-  const context =
-    this.readCharacterContext(
-      packet
-    );
-
-  return {
-    available:
-      context.available === true,
-
-    enabled:
-      context.enabled === true,
-
-    relevant:
-      context.relevant === true,
-
-    answerAvailable:
-      context.answerAvailable === true,
-
-    needsAIWriter:
-      context.needsAIWriter === true,
-
-    mode:
-      context.mode ||
-      "silent",
-
-    type:
-      context.type ||
-      null,
-
-    subtype:
-      context.subtype ||
-      null,
-
-    focus:
-      context.focus ||
-      null,
-
-    preferenceSubject:
-      context.preferenceSubject ||
-      null,
-
-    answer:
-      context.answer ||
-      "",
-
-    reasoning:
-      context.reasoning ||
-      "",
-
-    draft:
-      context.draft ||
-      "",
-
-    status:
-      context.status ||
-      null,
-
-    confidence:
-      context.confidence ||
-      null,
-
-    source:
-      context.source ||
-      null,
-
-    aiWriterMode:
-      context.aiWriterMode ||
-      null,
-
-    aiInstruction:
-      context.aiInstruction ||
-      ""
-  };
-},
-
-safeJSONStringify(
-  value = null
-) {
-  const seen =
-    new WeakSet();
-
-  try {
-    return JSON.stringify(
-      value,
-      (key, nestedValue) => {
-        if (
-          nestedValue &&
-          typeof nestedValue ===
-            "object"
-        ) {
-          if (
-            seen.has(
-              nestedValue
-            )
-          ) {
-            return "[Circular]";
-          }
-
-          seen.add(
-            nestedValue
-          );
-        }
-
-        return nestedValue;
-      },
-      2
-    );
-  } catch (error) {
-    console.warn(
-      "Ari AI Writer evidence serialization failed:",
-      error
-    );
-
-    return JSON.stringify({
-      available:
-        false,
-
-      reason:
-        "evidence_serialization_failed"
-    });
-  }
-},
-
-  formatInstructionList(values = [], fallback = "") {
-    const items = this.toArray(values)
-      .map(value => this.extractInstructionText(value))
-      .filter(Boolean);
-
-    if (!items.length) return `- ${fallback}`;
-
-    return items.map(item => `- ${item}`).join("\n");
-  },
-
-  extractInstructionText(value = null) {
-    if (value === null || value === undefined) return "";
-
-    if (typeof value === "string" || typeof value === "number") {
-      return String(value).trim();
-    }
-
-    if (typeof value === "object") {
-      return this.cleanOriginal(
-        value.text ||
-        value.message ||
-        value.rule ||
-        value.claim ||
-        value.description ||
-        value.id ||
-        value.name ||
-        value.type ||
-        ""
-      );
-    }
-
-    return "";
-  },
-
   /* =====================================================
-     AI DRAFT VALIDATION
+     VALIDATION
   ===================================================== */
 
-  validateAIDraft({
+  validateGeneratedDraft({
     text = "",
     packet = {},
     request = {},
     writerContract = {},
-    blueprintCandidate = {}
+    focusedCharacter = {}
   } = {}) {
-    const baseValidation = this.validateCandidateText({
-      text,
-      packet,
-      request,
-      writerContract,
-      source: "ai_writer"
-    });
+    const draft =
+      this.cleanOriginal(
+        text
+      );
 
-    const warnings = [...baseValidation.warnings];
-    const errors = [...baseValidation.errors];
+    const warnings = [];
+    const errors = [];
 
-    const draft = baseValidation.text;
-    const interactionQuestions =
-  this.countUserDirectedQuestions(
-    draft
-  );
-
-const totalQuestionMarks =
-  this.countQuestions(
-    draft
-  );
+    if (!draft) {
+      errors.push(
+        "empty_ai_candidate"
+      );
+    }
 
     if (
-  writerContract
-    .shouldAskQuestion ===
-    true &&
-  interactionQuestions ===
-    0
-) {
-  errors.push(
-    "required_question_missing"
-  );
-}
+      draft &&
+      draft.length < 3
+    ) {
+      errors.push(
+        "ai_candidate_has_no_meaningful_content"
+      );
+    } else if (
+      draft.length < 8
+    ) {
+      warnings.push(
+        "ai_candidate_very_short"
+      );
+    }
 
-if (
-  writerContract
-    .finalQuestionAllowed !==
-    true &&
-  interactionQuestions >
-    0
-) {
-  errors.push(
-    "question_not_allowed"
-  );
-}
+    if (
+      this.containsInternalLanguage(
+        draft
+      )
+    ) {
+      errors.push(
+        "internal_pipeline_language_detected"
+      );
+    }
 
-if (
-  interactionQuestions >
-  Number(
-    writerContract
-      .maximumQuestions ||
-    0
-  )
-) {
-  errors.push(
-    "question_limit_exceeded"
-  );
-}
+    if (
+      this.containsWriterFailureMessage(
+        draft
+      )
+    ) {
+      errors.push(
+        "writer_failure_message_detected"
+      );
+    }
 
-if (
-  writerContract
-    .coachingPermissionRequired ===
-    true &&
-  this.containsAdviceLanguage(
-    draft
-  ) &&
-  interactionQuestions ===
-    0
-) {
-  errors.push(
-    "coaching_given_without_permission_question"
-  );
-}
+    if (
+      this.containsRawJSONDump(
+        draft
+      )
+    ) {
+      errors.push(
+        "raw_json_detected"
+      );
+    }
 
-    const sentenceCount = this.splitSentences(draft).length;
-    const wordCount = this.countWords(draft);
+    if (
+      !this.developerEvidenceAuthorized(
+        packet
+      ) &&
+      this.containsDeveloperEvidenceClaim(
+        draft
+      )
+    ) {
+      errors.push(
+        "unauthorized_developer_evidence_claim"
+      );
+    }
+
+    if (
+      request
+        .originalTextPreserved ===
+        false ||
+      request.textWasRewritten ===
+        true
+    ) {
+      warnings.push(
+        "current_turn_provenance_warning"
+      );
+    }
+
+    if (
+      focusedCharacter
+        .answerAvailable ===
+        true &&
+      focusedCharacter.relevant ===
+        true &&
+      this.containsGenericCharacterDodge(
+        draft
+      )
+    ) {
+      errors.push(
+        "generic_character_dodge_detected"
+      );
+    }
+
+    const interactionQuestionCount =
+      this.countUserDirectedQuestions(
+        draft
+      );
+
+    if (
+      writerContract
+        .shouldAskQuestion ===
+        true &&
+      interactionQuestionCount ===
+        0
+    ) {
+      errors.push(
+        "required_question_missing"
+      );
+    }
+
+    if (
+      writerContract
+        .finalQuestionAllowed !==
+        true &&
+      interactionQuestionCount >
+        0
+    ) {
+      errors.push(
+        "unauthorized_question_detected"
+      );
+    }
+
+    if (
+      interactionQuestionCount >
+      Number(
+        writerContract
+          .maximumQuestions ||
+        0
+      )
+    ) {
+      errors.push(
+        "question_limit_exceeded"
+      );
+    }
+
+    if (
+      writerContract
+        .coachingPermissionRequired ===
+        true &&
+      this.containsAdviceLanguage(
+        draft
+      ) &&
+      interactionQuestionCount ===
+        0
+    ) {
+      errors.push(
+        "coaching_given_without_permission"
+      );
+    }
+
+    const sentenceCount =
+      this.splitSentences(
+        draft
+      ).length;
+
+    const wordCount =
+      this.countWords(
+        draft
+      );
+
+    const paragraphCount =
+      this.countParagraphs(
+        draft
+      );
 
     if (
       writerContract.maxSentences &&
       sentenceCount >
-      writerContract.maxSentences
+        writerContract
+          .maxSentences
     ) {
-      warnings.push("sentence_budget_exceeded");
+      warnings.push(
+        "sentence_budget_exceeded"
+      );
     }
 
     if (
       writerContract.maxWords &&
       wordCount >
-      writerContract.maxWords
+        writerContract
+          .maxWords
     ) {
-      warnings.push("word_budget_exceeded");
+      warnings.push(
+        "word_budget_exceeded"
+      );
     }
 
     if (
-      writerContract.minimumSentences &&
-      sentenceCount <
-      writerContract.minimumSentences
+      writerContract.maxParagraphs &&
+      paragraphCount >
+        writerContract
+          .maxParagraphs
     ) {
-      warnings.push("minimum_sentence_target_not_met");
+      warnings.push(
+        "paragraph_budget_exceeded"
+      );
     }
 
-    const requiredMoveCoverage = this.evaluateRequiredMoveCoverage({
-      draft,
-      writerContract,
-      blueprintCandidate
-    });
-
-    if (!requiredMoveCoverage.complete) {
-      warnings.push({
-        type: "required_move_coverage_uncertain",
-        moveIds: requiredMoveCoverage.unconfirmedMoveIds
-      });
-    }
-
-    const finalText = this.enforceLanguageBudget({
-      text: draft,
+    if (
       writerContract
-    });
+        .minimumSentences &&
+      sentenceCount <
+        writerContract
+          .minimumSentences
+    ) {
+      warnings.push(
+        "minimum_sentence_target_not_met"
+      );
+    }
+
+    const responseMoveCoverage =
+      this.evaluateResponseMoveCoverage({
+        draft,
+        writerContract
+      });
+
+    if (
+      !responseMoveCoverage.complete
+    ) {
+      errors.push(
+        "required_response_move_coverage_unconfirmed"
+      );
+    }
+
+    const valid =
+      errors.length ===
+        0 &&
+      Boolean(
+        draft
+      );
 
     return {
-      valid: errors.length === 0 && Boolean(finalText),
-      complete: errors.length === 0,
-      reason: errors.length ? errors[0] : "valid_ai_candidate",
-      text: finalText,
-      warnings,
-      errors,
-      sentenceCount: this.splitSentences(finalText).length,
-      wordCount: this.countWords(finalText),
+      valid,
+
+      complete:
+        valid &&
+        responseMoveCoverage
+          .complete,
+
+      reason:
+        errors[0] ||
+        "valid_ai_candidate",
+
+      text:
+        draft,
+
+      warnings:
+        this.uniqueValues(
+          warnings
+        ),
+
+      errors:
+        this.uniqueValues(
+          errors
+        ),
+
+      sentenceCount,
+
+      wordCount,
+
+      paragraphCount,
+
       questionCount:
-  this.countUserDirectedQuestions(
-    finalText
-  ),
+        interactionQuestionCount,
 
-totalQuestionMarkCount:
-  this.countQuestions(
-    finalText
-  ),
+      totalQuestionMarkCount:
+        this.countQuestions(
+          draft
+        ),
 
-originalTotalQuestionMarkCount:
-  totalQuestionMarks,
-      requiredMoveCoverage
+      requiredMoveCoverage:
+        responseMoveCoverage,
+
+      candidatePreserved:
+        true,
+
+      finalSelectionAuthority:
+        "ari-response-candidate-arbiter"
     };
   },
 
-  validateCandidateText({
-    text = "",
-    packet = {},
-    request = {},
-    writerContract = {},
-    source = "candidate"
-  } = {}) {
-    const draft = this.cleanOriginal(text);
-    const warnings = [];
-    const errors = [];
-
-    if (!draft) {
-      errors.push("empty_candidate");
-    }
-
-    if (draft && draft.length < 8) {
-      warnings.push("candidate_very_short");
-    }
-
-    if (this.containsInternalPlannerLanguage(draft)) {
-      errors.push("internal_planner_language_detected");
-    }
-
-    if (!this.isDeveloperRelevant(packet) && this.containsStaleDeveloperLanguage(draft)) {
-      errors.push("stale_developer_language_detected");
-    }
-
-    if (this.containsAIFailureMessage(draft)) {
-      errors.push("ai_failure_message_detected");
-    }
-
-    if (this.containsRawJSONDump(draft)) {
-      errors.push("raw_json_detected");
-    }
-
-    if (
-      request.originalTextPreserved === false ||
-      request.textWasRewritten === true
-    ) {
-      warnings.push("current_turn_provenance_warning");
-    }
-
-    if (
-      this.isAriPreferenceQuestion(request.currentText) &&
-      this.containsGenericPreferenceDodge(draft)
-    ) {
-      errors.push("generic_preference_dodge_detected");
-    }
-
-    if (
-  writerContract
-    .finalQuestionAllowed !==
-    true &&
-  this.countUserDirectedQuestions(
-    draft
-  ) > 0
-) {
-  errors.push(
-    "unauthorized_question_detected"
-  );
-}
-
-    return {
-      valid: errors.length === 0 && Boolean(draft),
-      complete: errors.length === 0,
-      reason: errors.length ? errors[0] : `${source}_candidate_valid`,
-      text: draft,
-      warnings,
-      errors
-    };
-  },
-
-  evaluateRequiredMoveCoverage({
+  evaluateResponseMoveCoverage({
     draft = "",
-    writerContract = {},
-    blueprintCandidate = {}
+    writerContract = {}
   } = {}) {
-    const requiredMoves = writerContract.responseMoves.filter(
-      move =>
-        move.required !== false &&
-        move.userFacing !== false &&
-        move.renderPolicy !== "instruction_only"
-    );
+    const requiredMoves =
+      this.toArray(
+        writerContract
+          .responseMoves
+      ).filter(
+        move =>
+          move.required !==
+            false &&
+          move.userFacing !==
+            false &&
+          move.renderPolicy !==
+            "instruction_only"
+      );
 
-    const renderedBlueprintIds = new Set(
-      blueprintCandidate.renderedMoves
-        .map(move => this.normalizeMoveId(move?.id || move))
-        .filter(Boolean)
-    );
+    if (
+      !requiredMoves.length
+    ) {
+      return {
+        complete:
+          true,
 
-    const unsupportedBlueprintIds = new Set(
-      blueprintCandidate.unsupportedMoves
-        .map(move => this.normalizeMoveId(move?.id || move))
-        .filter(Boolean)
-    );
+        requiredMoveCount:
+          0,
 
-    const unconfirmedMoveIds = requiredMoves
-      .filter(move => {
-        if (renderedBlueprintIds.has(move.id) && !unsupportedBlueprintIds.has(move.id)) {
-          return false;
+        confirmedMoveIds:
+          [],
+
+        unconfirmedMoveIds:
+          []
+      };
+    }
+
+    const confirmedMoveIds = [];
+    const unconfirmedMoveIds = [];
+
+    requiredMoves.forEach(
+      move => {
+        const explicitValidation =
+          this.readExplicitMoveValidation({
+            move,
+            writerContract
+          });
+
+        if (
+          explicitValidation ===
+          true
+        ) {
+          confirmedMoveIds.push(
+            move.id
+          );
+
+          return;
         }
 
-        return !this.moveAppearsRepresented({
-          moveId: move.id,
-          draft
-        });
-      })
-      .map(move => move.id);
+        if (
+          this.moveAppearsRepresented({
+            move,
+            draft
+          })
+        ) {
+          confirmedMoveIds.push(
+            move.id
+          );
+        } else {
+          unconfirmedMoveIds.push(
+            move.id
+          );
+        }
+      }
+    );
 
     return {
-      complete: unconfirmedMoveIds.length === 0,
-      requiredMoveCount: requiredMoves.length,
+      complete:
+        unconfirmedMoveIds
+          .length ===
+        0,
+
+      requiredMoveCount:
+        requiredMoves.length,
+
+      confirmedMoveIds,
+
       unconfirmedMoveIds
     };
   },
 
+  readExplicitMoveValidation({
+    move = {},
+    writerContract = {}
+  } = {}) {
+    const validations =
+      writerContract
+        .candidatePolicy
+        ?.responseMoveValidation ||
+      {};
+
+    if (
+      validations[
+        move.id
+      ] === true
+    ) {
+      return true;
+    }
+
+    return null;
+  },
+
   moveAppearsRepresented({
-    moveId = "",
+    move = {},
     draft = ""
   } = {}) {
-    const text = this.normalize(draft);
-
-    const patterns = {
-      pause_and_prioritize_safety:
-        /\b(?:pause|right now|immediate safety|focus on safety)\b/,
-
-      give_direct_safety_step:
-        /\b(?:move away|call|contact|go somewhere safe|remove yourself|get help)\b/,
-
-      urge_trusted_or_emergency_support:
-        /\b(?:emergency|911|trusted person|someone you trust|crisis|support)\b/,
-
-      calm_medical_frame:
-        /\b(?:take it seriously|do not panic|don'?t panic|not necessarily|symptom)\b/,
-
-      name_safe_first_step:
-        /\b(?:first step|start by|for now|right now)\b/,
-
-      include_red_flags_or_clinician_boundary:
-        /\b(?:seek care|medical care|clinician|doctor|urgent|worsening|severe|red flag)\b/,
-
-      join_positive_emotion:
-        /\b(?:hell yeah|that'?s great|worth feeling good|happy for you|take the win)\b/,
-
-      validate_feeling:
-        /\b(?:makes sense|understand why|can feel|that sounds|i hear you)\b/,
-
-      validate_emotion:
-        /\b(?:makes sense|understand why|can feel|that sounds|i hear you)\b/,
-
-      attune_to_emotion:
-        /\b(?:i hear you|i'?m with you|that sounds|yeah)\b/,
-
-      reflect_initial_defensiveness:
-        /\b(?:defensive|protect yourself|first reaction)\b/,
-
-      distinguish_first_reaction_from_final_position:
-        /\b(?:first reaction|final position|after you process|settled reaction)\b/,
-
-      validate_processing_time:
-        /\b(?:time to process|need time|come back to the conversation|return to it)\b/,
-
-      translate_pattern_for_partner:
-        /\b(?:you could say|tell your partner|explain it by saying|i may get defensive)\b/,
-
-      ask_permission_before_coaching:
-        /\b(?:do you want|would you like)\b.*\?/,
-
-      invite_context_or_stay_present:
-        /\b(?:what happened|tell me|what was said|do you want to talk)\b.*\?/,
-
-      name_relationship_or_conflict_truth:
-        /\b(?:argument|conflict|relationship|temperature|win the argument|understand)\b/,
-
-      lower_blame:
-        /\b(?:without blame|not the enemy|own your part|lower the temperature)\b/,
-
-      offer_one_repair_step:
-        /\b(?:you could say|repair|apologize|revisit the conversation|own your part)\b/,
-
-      name_tradeoff:
-        /\b(?:tradeoff|choice is between|real decision|versus)\b/,
-
-      separate_options:
-        /\b(?:option|versus|separate|first question|second question)\b/,
-
-      recommend_next_decision_step:
-        /\b(?:next step|choose|prioritize|decide)\b/,
-
-      answer_directly:
-        draft.trim().length > 0 ? /.*/ : /$a/,
-
-      brief_explanation:
-        this.splitSentences(draft).length >= 2 ? /.*/ : /$a/,
-
-      provide_usable_context:
-        /\b(?:for example|in practice|that means|so you can|which means)\b/,
-
-      confirm_practical_goal:
-        /\b(?:goal is|you'?re trying to|what we need to do|the target is)\b/,
-
-      give_contained_steps:
-        /\b(?:first|then|next|replace|update|change|test)\b/,
-
-      suggest_test_or_followup:
-        /\b(?:test|verify|check|confirm|before changing)\b/,
-
-      memory_acknowledgment:
-        /\b(?:i'?ll remember|keep that in mind|got it)\b/,
-
-      reflect_understanding:
-        /\b(?:it sounds like|you'?re saying|what i hear|seems like)\b/,
-
-      ask_clarifying_question:
-        /\?/,
-
-      offer_small_practical_next_step:
-        /\b(?:start by|next step|do one|for now)\b/,
-
-      name_pattern_gently:
-        /\b(?:may be|might be|could be|pattern|seems)\b/
-    };
-
-    const pattern = patterns[moveId];
-    return pattern ? pattern.test(text) : true;
-  },
-
-  /* =====================================================
-     FALLBACKS
-  ===================================================== */
-
-    resolveNonAIFallback({
-    packet = {},
-    request = {},
-    writerContract = {},
-    blueprintCandidate = {}
-  } = {}) {
-    const characterContext =
-      this.readCharacterContext(
-        packet
+    const text =
+      this.normalize(
+        draft
       );
 
-    const degradedCharacterFallback =
-      this.resolveCharacterDegradedFallback({
-        packet,
-        request,
-        writerContract,
-        blueprintCandidate,
-        characterContext,
-        failureReason:
-          "character_ai_realization_not_allowed"
-      });
-
-    if (degradedCharacterFallback) {
-      return degradedCharacterFallback;
-    }
-
-    if (blueprintCandidate.available) {
-      const validation = this.validateCandidateText({
-        text: blueprintCandidate.text,
-        packet,
-        request,
-        writerContract,
-        source: "blueprint_writer"
-      });
-
-      return {
-        text: validation.valid ? blueprintCandidate.text : "",
-        reason: validation.valid
-          ? "ai_not_allowed_blueprint_candidate_used"
-          : "ai_not_allowed_blueprint_candidate_invalid",
-        usable: validation.valid,
-        complete: blueprintCandidate.complete && validation.valid,
-        requiresRepair: !validation.valid || !blueprintCandidate.complete,
-        validation
-      };
-    }
-
-    const safetyFallback = this.resolveSafetyFallback({
-      packet,
-      writerContract
-    });
-
-    if (safetyFallback) return safetyFallback;
-
-    return {
-      text: "",
-      reason: "ai_not_allowed_and_no_usable_candidate",
-      usable: false,
-      complete: false,
-      requiresRepair: true,
-      validation: {
-        valid: false,
-        reason: "ai_not_allowed_and_no_usable_candidate",
-        warnings: [],
-        errors: ["no_usable_candidate"]
-      }
-    };
-  },
-
-    resolveRejectedAIFallback({
-    packet = {},
-    request = {},
-    writerContract = {},
-    blueprintCandidate = {},
-    validation = {}
-  } = {}) {
-    const characterContext =
-      this.readCharacterContext(
-        packet
+    const moveId =
+      this.normalizeIdentifier(
+        move.id ||
+        ""
       );
 
-    const degradedCharacterFallback =
-      this.resolveCharacterDegradedFallback({
-        packet,
-        request,
-        writerContract,
-        blueprintCandidate,
-        characterContext,
-        failureReason:
-          "character_ai_realization_rejected"
-      });
+    if (!moveId) {
+      return false;
+    }
 
-    if (degradedCharacterFallback) {
-      return degradedCharacterFallback;
+    /*
+     * Universal structural moves can be checked without
+     * interpreting the user's meaning.
+     */
+    if (
+      moveId ===
+      "answer_directly"
+    ) {
+      return Boolean(
+        text
+      );
     }
 
     if (
-      blueprintCandidate.available
+      moveId ===
+      "ask_clarifying_question"
     ) {
-      const blueprintValidation =
-        this.validateCandidateText({
-          text:
-            blueprintCandidate.text,
-
-          packet,
-
-          request,
-
-          writerContract,
-
-          source:
-            "blueprint_writer"
-        });
-
-      if (blueprintValidation.valid) {
-        return {
-          text:
-            blueprintCandidate.text,
-
-          reason:
-            "ai_draft_rejected_blueprint_candidate_restored",
-
-          usable:
-            true,
-
-          complete:
-            blueprintCandidate.complete ===
-            true,
-
-          requiresRepair:
-            blueprintCandidate
-              .requiresAIRepair ===
-              true ||
-            blueprintCandidate
-              .complete !==
-              true,
-
-          validation:
-            blueprintValidation
-        };
-      }
+      return (
+        this.countUserDirectedQuestions(
+          draft
+        ) >
+        0
+      );
     }
 
-    const safetyFallback =
-      this.resolveSafetyFallback({
-        packet,
-        writerContract
-      });
-
-    if (safetyFallback) {
-      return safetyFallback;
+    if (
+      moveId ===
+      "ask_permission_before_coaching"
+    ) {
+      return /\b(?:do you want|would you like|want me to)\b.*\?/i
+        .test(
+          draft
+        );
     }
 
-    return {
-      text:
-        "",
+    if (
+      moveId ===
+      "memory_acknowledgment"
+    ) {
+      return /\b(?:i(?:'|’)ll remember|i will remember|got it|keep that in mind)\b/i
+        .test(
+          draft
+        );
+    }
 
-      reason:
-        validation.reason ||
-        "ai_draft_rejected",
+    /*
+     * When a move carries explicit content guidance, use
+     * its significant terms as a limited rendering check.
+     * The writer does not maintain a second global library
+     * of semantic move definitions.
+     */
+    const contentHint =
+      this.extractInstructionText(
+        move.contentHint ||
+        move.purpose ||
+        ""
+      );
 
-      usable:
-        false,
+    if (!contentHint) {
+      /*
+       * Unknown semantic moves are not reinterpreted here.
+       * Their presence was supplied to the model, but the
+       * writer cannot independently prove their meaning.
+       */
+      return true;
+    }
 
-      complete:
-        false,
+    const significantTerms =
+      this.extractSignificantTerms(
+        contentHint
+      );
 
-      requiresRepair:
-        true,
+    if (
+      !significantTerms.length
+    ) {
+      return true;
+    }
 
-      validation
-    };
+    return significantTerms.some(
+      term =>
+        text.includes(
+          term
+        )
+    );
   },
 
-  resolveUnavailableAIFallback({
+  /* =====================================================
+     RETURN CONTRACT
+  ===================================================== */
+
+  returnCandidate({
+    draft = "",
+    reason = "ai_writer_result",
+    usedAI = false,
+    usable = false,
+    complete = false,
+    requiresRepair = false,
     packet = {},
     request = {},
     writerContract = {},
-    blueprintCandidate = {},
+    focusedCharacter = {},
+    repairRequest = {},
+    validation = null,
     error = null
   } = {}) {
-    const characterContext =
-      this.readCharacterContext(
-        packet
+    const text =
+      this.cleanOriginal(
+        draft
       );
 
-    const degradedCharacterFallback =
-      this.resolveCharacterDegradedFallback({
-        packet,
-        request,
-        writerContract,
-        blueprintCandidate,
-        characterContext,
-        failureReason:
-          "character_ai_realization_unavailable"
-      });
-
-    if (degradedCharacterFallback) {
-      return degradedCharacterFallback;
-    }
-
-    if (
-      blueprintCandidate.available
-    ) {
-      const blueprintValidation =
-        this.validateCandidateText({
-          text:
-            blueprintCandidate.text,
-
-          packet,
-
-          request,
-
-          writerContract,
-
-          source:
-            "blueprint_writer"
-        });
-
-      if (blueprintValidation.valid) {
-        return {
-          text:
-            blueprintCandidate.text,
-
-          reason:
-            "ai_unavailable_blueprint_candidate_used",
-
-          usable:
-            true,
-
-          complete:
-            blueprintCandidate.complete ===
-            true,
-
-          requiresRepair:
-            blueprintCandidate
-              .requiresAIRepair ===
-              true ||
-            blueprintCandidate
-              .complete !==
-              true,
-
-          validation: {
-            ...blueprintValidation,
-
-            warnings: [
-              ...this.toArray(
-                blueprintValidation.warnings
-              ),
-
-              ...(
-                error?.message
-                  ? [error.message]
-                  : []
-              )
-            ]
-          }
-        };
-      }
-    }
-
-    const safetyFallback =
-      this.resolveSafetyFallback({
-        packet,
+    const responseMoves =
+      this.toArray(
         writerContract
-      });
+          .responseMoves
+      );
 
-    if (safetyFallback) {
-      return safetyFallback;
-    }
-
-    return {
-      text:
-        "",
-
-      reason:
-        "ai_unavailable_no_usable_candidate",
-
-      usable:
-        false,
-
-      complete:
-        false,
-
-      requiresRepair:
-        true,
-
-      validation: {
+    const candidateValidation =
+      validation ||
+      {
         valid:
-          false,
-
-        reason:
-          "ai_unavailable_no_usable_candidate",
-
-        warnings:
-          error?.message
-            ? [error.message]
-            : [],
-
-        errors: [
-          "no_usable_candidate"
-        ]
-      }
-    };
-  },
-
-  resolveCharacterDegradedFallback({
-    packet = {},
-    request = {},
-    writerContract = {},
-    blueprintCandidate = {},
-    characterContext = {},
-    failureReason =
-      "character_ai_realization_unavailable"
-  } = {}) {
-    const characterRealizationRequired =
-      characterContext
-        .answerAvailable ===
-        true &&
-      characterContext
-        .needsAIWriter ===
-        true;
-
-    if (!characterRealizationRequired) {
-      return null;
-    }
-
-    const candidates = [
-      characterContext.draft,
-      blueprintCandidate.text,
-      characterContext.answer,
-      characterContext.reasoning
-    ]
-      .map(value =>
-        this.cleanForUser(
-          value
-        )
-      )
-      .filter(Boolean);
-
-    const fallbackText =
-      candidates[0] ||
-      "";
-
-    if (!fallbackText) {
-      return null;
-    }
-
-    const text =
-      this.enforceLanguageBudget({
-        text:
-          fallbackText,
-
-        writerContract
-      });
-
-    if (!text) {
-      return null;
-    }
-
-    const validation =
-      this.validateCandidateText({
-        text,
-
-        packet,
-
-        request,
-
-        writerContract,
-
-        source:
-          "character_degraded_fallback"
-      });
-
-    if (!validation.valid) {
-      return null;
-    }
-
-    return {
-      text,
-
-      reason:
-        failureReason,
-
-      usable:
-        true,
-
-      complete:
-        false,
-
-      requiresRepair:
-        true,
-
-      validation: {
-        ...validation,
+          usable ===
+          true,
 
         complete:
-          false,
+          complete ===
+          true,
 
-        reason:
-          failureReason,
+        reason,
 
-        warnings: [
-          ...this.toArray(
-            validation.warnings
+        text,
+
+        warnings:
+          [],
+
+        errors:
+          usable
+            ? []
+            : [
+                reason
+              ]
+      };
+
+    const candidate = {
+      id:
+        this.createCandidateId({
+          turnId:
+            request.turnId,
+
+          text,
+
+          reason
+        }),
+
+      source:
+        "ai_writer",
+
+      text,
+
+      priority:
+        usable
+          ? usedAI
+            ? 80
+            : 65
+          : 20,
+
+      usable:
+        usable ===
+        true,
+
+      complete:
+        complete ===
+        true,
+
+      requiresAIRepair:
+        requiresRepair ===
+        true,
+
+      requiresRepair:
+        requiresRepair ===
+        true,
+
+      taskType:
+        "canonical_response_plan_ai_render",
+
+      validation:
+        candidateValidation,
+
+      evidence: {
+        usedAI:
+          usedAI ===
+          true,
+
+        writerMarkedUsable:
+          usable ===
+          true,
+
+        writerMarkedComplete:
+          complete ===
+          true,
+
+        writerRequiresRepair:
+          requiresRepair ===
+          true,
+
+        validated:
+          candidateValidation
+            ?.valid ===
+          true,
+
+        repairRequested:
+          repairRequest.required ===
+          true,
+
+        repairReason:
+          repairRequest.reason ||
+          null,
+
+        writerReason:
+          reason,
+
+        writerSource:
+          this.source,
+
+        writerVersion:
+          this.version,
+
+        canonicalResponsePlanUsed:
+          Boolean(
+            packet
+              .canonicalResponsePlan ||
+            packet.responsePlan
           ),
 
-          "focused_character_realization_used_degraded_deterministic_fallback"
-        ]
+        responseMovesSatisfied:
+          candidateValidation
+            ?.requiredMoveCoverage
+            ?.complete ===
+          true,
+
+        candidatePreserved:
+          candidateValidation
+            ?.candidatePreserved ===
+          true,
+
+        groundedInCurrentFile:
+          packet.developerRelevant ===
+            true &&
+          Boolean(
+            packet.evidence
+              ?.github
+              ?.content
+          ),
+
+        turnId:
+          request.turnId ||
+          null,
+
+        sourceQuestion:
+          request.originalText ||
+          null,
+
+        characterAvailable:
+          focusedCharacter
+            .available ===
+          true,
+
+        characterRelevant:
+          focusedCharacter
+            .relevant ===
+          true,
+
+        characterAnswerAvailable:
+          focusedCharacter
+            .answerAvailable ===
+          true,
+
+        characterRealizationRequired:
+          focusedCharacter
+            .needsAIWriter ===
+          true,
+
+        characterType:
+          focusedCharacter.type ||
+          null,
+
+        characterSubtype:
+          focusedCharacter.subtype ||
+          null,
+
+        characterFocus:
+          focusedCharacter.focus ||
+          null,
+
+        characterStatus:
+          focusedCharacter.status ||
+          null
       }
     };
+
+    const result = {
+      schema:
+        "ari_ai_writer_candidate",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      aiWriterRan:
+        true,
+
+      aiWriterUsedAI:
+        usedAI ===
+        true,
+
+      aiWriterSource:
+        this.source,
+
+      aiWriterVersion:
+        this.version,
+
+      aiWriterSchemaVersion:
+        this.schemaVersion,
+
+      aiWriterReason:
+        reason,
+
+      aiWriterFallbackReason:
+        usedAI
+          ? null
+          : reason,
+
+      aiWriterUsable:
+        usable ===
+        true,
+
+      aiWriterComplete:
+        complete ===
+        true,
+
+      aiWriterRequiresRepair:
+        requiresRepair ===
+        true,
+
+      draft:
+        text,
+
+      aiWriterDraft:
+        text,
+
+      candidate,
+
+      validation:
+        candidateValidation,
+
+      repairRequest: {
+        required:
+          repairRequest.required ===
+          true,
+
+        reason:
+          repairRequest.reason ||
+          null,
+
+        source:
+          repairRequest.source ||
+          null
+      },
+
+      responseGoal:
+        writerContract
+          .responseGoal ||
+        packet.responseGoal ||
+        null,
+
+      responseShape:
+        writerContract
+          .responseShape ||
+        packet.responseShape ||
+        null,
+
+      responsePosture:
+        writerContract
+          .responsePosture ||
+        packet.responsePosture ||
+        null,
+
+      responseMoves,
+
+      responseMoveIds:
+        responseMoves
+          .map(
+            move =>
+              move?.id
+          )
+          .filter(Boolean),
+
+      canonicalResponsePlanUsed:
+        Boolean(
+          packet
+            .canonicalResponsePlan ||
+          packet.responsePlan
+        ),
+
+      responseMovesSatisfied:
+        candidateValidation
+          ?.requiredMoveCoverage
+          ?.complete ===
+        true,
+
+      aiWriterUsedCharacter:
+        focusedCharacter.relevant ===
+          true &&
+        focusedCharacter
+          .answerAvailable ===
+          true,
+
+      characterRealizationRequired:
+        focusedCharacter
+          .needsAIWriter ===
+        true,
+
+      characterAIWriterMode:
+        focusedCharacter
+          .aiWriterMode ||
+        null,
+
+      characterFocus:
+        focusedCharacter.focus ||
+        null,
+
+      characterType:
+        focusedCharacter.type ||
+        null,
+
+      characterStatus:
+        focusedCharacter.status ||
+        null,
+
+      diagnostics: {
+        reason,
+
+        usedAI:
+          usedAI ===
+          true,
+
+        usable:
+          usable ===
+          true,
+
+        complete:
+          complete ===
+          true,
+
+        requiresRepair:
+          requiresRepair ===
+          true,
+
+        turnId:
+          request.turnId ||
+          null,
+
+        characterCount:
+          text.length,
+
+        wordCount:
+          this.countWords(
+            text
+          ),
+
+        sentenceCount:
+          this.splitSentences(
+            text
+          ).length,
+
+        questionCount:
+          this.countUserDirectedQuestions(
+            text
+          ),
+
+        validationErrors:
+          this.toArray(
+            candidateValidation
+              ?.errors
+          ),
+
+        validationWarnings:
+          this.toArray(
+            candidateValidation
+              ?.warnings
+          ),
+
+        error:
+          error?.message ||
+          (
+            error
+              ? String(
+                  error
+                )
+              : null
+          )
+      },
+
+      authority:
+        this.getAuthorityBoundaries()
+    };
+
+    window.Ari.aiWriterState =
+      result;
+
+    return result;
   },
 
-  resolveSafetyFallback({
-    packet = {},
-    writerContract = {}
-  } = {}) {
-    const safety = packet.safety || {};
-    const contract = safety.contract || {};
-
-    const urgent =
-      safety.shouldStopNormalResponse === true ||
-      writerContract.currentNeed === "immediate_safety" ||
-      this.normalizeIdentifier(writerContract.blueprintHint || "").startsWith("safety_");
-
-    if (!urgent) return null;
-
-    const parts = [
-      this.cleanOriginal(contract.opening || "Pause everything else and focus on immediate safety."),
-      this.cleanOriginal(
-        contract.immediateAction ||
-        contract.action ||
-        "Move away from the immediate danger if you can and contact emergency help."
-      ),
-      this.cleanOriginal(
-        contract.trustedSupport ||
-        contract.supportStep ||
-        "Contact someone you trust who can stay with you or help you get support."
-      )
-    ].filter(Boolean);
-
-    const text = this.enforceLanguageBudget({
-      text: parts.join(" "),
-      writerContract
-    });
-
+  getAuthorityBoundaries() {
     return {
-      text,
-      reason: "deterministic_safety_fallback",
-      usable: Boolean(text),
-      complete: Boolean(text),
-      requiresRepair: false,
-      validation: {
-        valid: Boolean(text),
-        reason: "deterministic_safety_fallback",
-        warnings: [],
-        errors: text ? [] : ["safety_fallback_empty"]
-      }
+      canRenderCanonicalResponsePlan:
+        true,
+
+      canRepairAuthorizedCandidateGap:
+        true,
+
+      canUseAuthorizedCharacterHandoff:
+        true,
+
+      canUseAuthorizedEvidence:
+        true,
+
+      canValidateOwnCandidate:
+        true,
+
+      canDetermineWhetherAIIsNeeded:
+        false,
+
+      canSelectBlueprintCandidate:
+        false,
+
+      canPreserveBlueprintCandidate:
+        false,
+
+      canRestoreRejectedCandidate:
+        false,
+
+      canCreateCharacterFallback:
+        false,
+
+      canCreateSafetyFallback:
+        false,
+
+      canCreateMemoryAcknowledgment:
+        false,
+
+      canPreserveLockedDeveloperReply:
+        false,
+
+      canDetermineDeveloperRelevance:
+        false,
+
+      canChooseResponsePlan:
+        false,
+
+      canChangeResponseGoal:
+        false,
+
+      canChangeResponseShape:
+        false,
+
+      canChangeResponseMoves:
+        false,
+
+      canInterpretMeaning:
+        false,
+
+      canClassifyConversationFunction:
+        false,
+
+      canOverrideSafety:
+        false,
+
+      canSelectFinalDraft:
+        false,
+
+      canComposeFinalResponse:
+        false,
+
+      canRetrieveEvidence:
+        false,
+
+      canPersistState:
+        false,
+
+      role:
+        "authorized_canonical_response_plan_ai_renderer"
     };
   },
 
   /* =====================================================
-     LOCKED DEVELOPER
+     CONTENT VALIDATION
   ===================================================== */
 
-  readLockedDeveloperDraft(packet = {}) {
-    const locked =
-      packet.developerPacketLocked === true ||
-      packet.developer?.locked === true;
-
-    if (!locked) return "";
-
-    return this.cleanOriginal(
-      packet.lockedDeveloperReply ||
-      packet.developer?.lockedReply ||
-      packet.developerPacket?.reply ||
-      packet.developerPacket?.finalResponse ||
-      packet.evidence?.developerReply ||
-      ""
+  developerEvidenceAuthorized(
+    packet = {}
+  ) {
+    return (
+      packet.developerRelevant ===
+        true ||
+      packet.developer
+        ?.relevant ===
+        true ||
+      packet.developer
+        ?.allowed ===
+        true
     );
   },
 
-  /* =====================================================
-     MEMORY ACKNOWLEDGMENT
-  ===================================================== */
-
-  resolveAuthorizedMemoryAcknowledgment({
-    packet = {},
-    request = {},
-    writerContract = {}
-  } = {}) {
-    const moveAuthorized = writerContract.responseMoves.some(
-      move => move.id === "memory_acknowledgment"
-    );
-
-    const planAuthorized =
-      moveAuthorized ||
-      writerContract.currentNeed === "memory_acknowledgment" ||
-      writerContract.responseGoal === "acknowledge_memory_request" ||
-      writerContract.responseGoal === "confirm_memory_saved" ||
-      this.normalizeIdentifier(writerContract.blueprintHint || "").includes("memory") ||
-      packet.memoryPolicy?.acknowledgmentRequired === true;
-
-    if (!planAuthorized) return null;
-
-    const candidate = this.readMemoryCandidate(packet);
-
-    const claim = this.cleanForUser(
-      candidate?.displayClaim ||
-      packet.memoryPolicy?.displayClaim ||
-      this.toUserFacingClaim(request.currentText)
-    );
-
-    return claim
-      ? `Got it — I’ll remember that ${claim}.`
-      : "Got it — I’ll remember that.";
-  },
-
-  readMemoryCandidate(packet = {}) {
-    const candidates = this.toArray(
-      packet.memoryCandidates ||
-      packet.evidence?.memoryCandidates ||
-      packet.evidence?.memory?.candidates
-    );
-
-    return candidates[0] || null;
-  },
-
-  toUserFacingClaim(text = "") {
-    return String(text || "")
-      .replace(/^\s*(?:hey ari,?\s*)/i, "")
-      .replace(
-        /^\s*(?:remember that|remember this|save this|store this|note that|keep this in mind|add this to memory)\s*/i,
-        ""
-      )
-      .replace(/\bone of my favorite\b/gi, "one of your favorite")
-      .replace(/\bmy favorite\b/gi, "your favorite")
-      .replace(/\bmy\b/gi, "your")
-      .replace(/\bi am\b/gi, "you are")
-      .replace(/\bi'm\b/gi, "you’re")
-      .replace(/\bi prefer\b/gi, "you prefer")
-      .replace(/\bi like\b/gi, "you like")
-      .replace(/\bi love\b/gi, "you love")
-      .replace(/\bi hate\b/gi, "you hate")
-      .replace(/\bi dislike\b/gi, "you dislike")
-      .replace(/[.!?]\s*$/, "")
-      .trim();
-  },
-
-  /* =====================================================
-     DEVELOPER RELEVANCE
-  ===================================================== */
-
-  isDeveloperRelevant(packet = {}) {
-    if (
-      packet.developerPacketLocked === true ||
-      packet.developer?.locked === true
-    ) {
-      return true;
-    }
-
-    if (
-      packet.developerRelevant === true ||
-      packet.developer?.relevant === true
-    ) {
-      return true;
-    }
-
-    const question = this.normalize(
-      packet.request?.currentText ||
-      packet.userQuestion ||
-      ""
-    );
-
-    const primary = this.normalizeIdentifier(
-      packet.primary ||
-      packet.responseStrategy?.primaryLane ||
-      packet.responsePlan?.routing?.primaryLane ||
-      ""
-    );
-
-    const shape = this.normalizeIdentifier(
-      packet.responseShape ||
-      packet.responseControl?.responseShape ||
-      ""
-    );
-
-    const blueprint = this.normalizeIdentifier(
-      packet.blueprintHint ||
-      packet.responsePlan?.blueprint?.id ||
-      ""
-    );
-
-    const explicitCodeFile =
-      /\b[\w./-]+\.(?:js|mjs|cjs|html|css|json|md|ts|tsx|jsx|sql|py|yml|yaml)\b/i.test(
-        question
+  containsInternalLanguage(
+    text = ""
+  ) {
+    const normalized =
+      this.normalize(
+        text
       );
 
-    const developerEntities =
-      /\b(?:github|repo|repository|branch|commit|deploy|vercel|supabase|pull request|merge|codebase|api|pipeline|engine|composer|function|script|selector|markup|schema|debug|runtime|latency)\b/i.test(
-        question
-      );
-
-    const developerActions =
-      /\b(?:read|open|show|search|find|inspect|diagnose|debug|fix|patch|edit|update|change|replace|remove|rewrite|build|implement|wire|refactor|optimize|test|validate|send|generate)\b/i.test(
-        question
-      );
-
-    const developerAuthority =
-      ["developer", "builder", "coding", "project_help", "developer_artifact"].includes(primary) ||
-      shape.includes("developer") ||
-      shape.includes("code") ||
-      shape.includes("patch") ||
-      blueprint.includes("builder");
-
-    return Boolean(
-      developerAuthority ||
-      explicitCodeFile ||
-      (developerEntities && developerActions)
-    );
-  },
-
-  /* =====================================================
-     CONTENT CHECKS
-  ===================================================== */
-
-  containsInternalPlannerLanguage(text = "") {
-    const normalized = this.normalize(text);
-
-    const patterns = [
+    const phrases = [
       "canonical response plan",
       "response planner",
       "response move",
@@ -3059,80 +2785,124 @@ originalTotalQuestionMarkCount:
       "blueprint writer",
       "ai writer",
       "candidate arbiter",
+      "response candidate arbiter",
       "pipeline diagnostic",
+      "pipeline stage",
       "internal planner",
-      "follow the response plan",
+      "according to the packet",
+      "according to the response plan",
       "the writer should",
       "the composer should",
-      "the user is asking",
-      "according to the packet",
-      "according to the plan"
+      "the user is asking"
     ];
 
-    return patterns.some(pattern => normalized.includes(pattern));
-  },
-
-  containsStaleDeveloperLanguage(text = "") {
-    return (
-      /\bi (?:read|opened|checked|inspected)\b.*\b(?:index\.html|style\.css|github|repo|repository|file|codebase)\b/i.test(
-        text
-      ) ||
-      /\bloaded file evidence\b/i.test(text) ||
-      /\bgithub evidence\b/i.test(text) ||
-      /\brepository evidence\b/i.test(text)
+    return phrases.some(
+      phrase =>
+        normalized.includes(
+          phrase
+        )
     );
   },
 
-  containsAIFailureMessage(text = "") {
-    const normalized = this.normalize(text);
+  containsWriterFailureMessage(
+    text = ""
+  ) {
+    const normalized =
+      this.normalize(
+        text
+      );
 
-    const patterns = [
+    const phrases = [
       "the ai draft was unavailable",
       "ai was unavailable",
       "ai writer failed",
       "blueprint writer failed",
       "the draft failed",
+      "the writer was unavailable",
+      "no usable response candidate",
+      "composer packet missing",
       "try once more",
-      "i cannot generate the response",
-      "the response generator failed"
+      "the response generator failed",
+      "i cannot generate the response"
     ];
 
-    return patterns.some(pattern => normalized.includes(pattern));
+    return phrases.some(
+      phrase =>
+        normalized.includes(
+          phrase
+        )
+    );
   },
 
-  containsRawJSONDump(text = "") {
-    const trimmed = String(text || "").trim();
+  containsRawJSONDump(
+    text = ""
+  ) {
+    const trimmed =
+      String(
+        text ||
+        ""
+      ).trim();
 
-    if (!trimmed) return false;
+    if (!trimmed) {
+      return false;
+    }
 
     return (
-      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-      (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-      /```json/i.test(trimmed)
+      (
+        trimmed.startsWith(
+          "{"
+        ) &&
+        trimmed.endsWith(
+          "}"
+        )
+      ) ||
+      (
+        trimmed.startsWith(
+          "["
+        ) &&
+        trimmed.endsWith(
+          "]"
+        )
+      ) ||
+      /```json/i.test(
+        trimmed
+      )
     );
   },
 
-  containsAdviceLanguage(text = "") {
-    return /\b(?:you should|you need to|start by|try to|the next step|do this|make sure|I recommend|I’d recommend|consider doing)\b/i.test(
-      text
-    );
-  },
-
-  isAriPreferenceQuestion(text = "") {
-    const question = this.normalize(text);
-
+  containsDeveloperEvidenceClaim(
+    text = ""
+  ) {
     return (
-      /\b(?:what'?s your favorite|what is your favorite|your favorite|do you like|what do you like|what would you choose|what would you prefer|what matters to you|what do you value|your values|your beliefs|your taste|your style|your personality|who are you|what are you|tell me about yourself)\b/.test(
-        question
-      ) &&
-      /\b(?:you|your|ari|yourself)\b/.test(question)
+      /\bi (?:read|opened|checked|inspected|reviewed)\b.*\b(?:file|github|repo|repository|codebase)\b/i
+        .test(
+          text
+        ) ||
+      /\b(?:loaded file evidence|github evidence|repository evidence)\b/i
+        .test(
+          text
+        )
     );
   },
 
-  containsGenericPreferenceDodge(text = "") {
-    const normalized = this.normalize(text);
+  containsAdviceLanguage(
+    text = ""
+  ) {
+    return /\b(?:you should|you need to|start by|try to|the next step|do this|make sure|i recommend|i'd recommend|consider doing)\b/i
+      .test(
+        text
+      );
+  },
 
-    const dodges = [
+  containsGenericCharacterDodge(
+    text = ""
+  ) {
+    const normalized =
+      this.normalize(
+        text
+      );
+
+    const phrases = [
       "as an ai",
       "i don't have personal",
       "i do not have personal",
@@ -3142,600 +2912,443 @@ originalTotalQuestionMarkCount:
       "i do not have preferences"
     ];
 
-    return dodges.some(dodge => normalized.includes(dodge));
-  },
-
-  /* =====================================================
-     LANGUAGE BUDGET
-  ===================================================== */
-
-  enforceLanguageBudget({
-    text = "",
-    writerContract = {}
-  } = {}) {
-    let sentences = this.splitSentences(text);
-
-    if (
-  writerContract
-    .finalQuestionAllowed !==
-  true
-) {
-  sentences =
-    sentences.filter(
-      sentence =>
-        !this.isUserDirectedQuestion(
-          sentence
+    return phrases.some(
+      phrase =>
+        normalized.includes(
+          phrase
         )
     );
-} else {
-  const maximumQuestions =
-    Math.max(
-      0,
-      Number(
-        writerContract
-          .maximumQuestions ||
-        0
+  },
+
+  /* =====================================================
+     QUESTION DETECTION
+  ===================================================== */
+
+  isQuotedOrNarrativeQuestion(
+    sentence = ""
+  ) {
+    const value =
+      this.cleanOriginal(
+        sentence
+      );
+
+    if (
+      !value ||
+      !value.includes(
+        "?"
       )
+    ) {
+      return false;
+    }
+
+    const quotedQuestion =
+      /["“'][^"”']*\?[^"”']*["”']/u
+        .test(
+          value
+        );
+
+    const attributedQuestion =
+      /\?\s*["”']?\s*(?:he|she|they|i|we|the\s+\w+|[A-Z][a-z]+)\s+(?:asked|said|whispered|shouted|replied|wondered|called|murmured)\b/u
+        .test(
+          value
+        );
+
+    return (
+      quotedQuestion ||
+      attributedQuestion
     );
+  },
 
-  let interactionQuestionsUsed =
-    0;
+  isUserDirectedQuestion(
+    sentence = ""
+  ) {
+    const value =
+      this.cleanOriginal(
+        sentence
+      );
 
-  sentences =
-    sentences.filter(
-      sentence => {
-        if (
-          !this.isUserDirectedQuestion(
+    if (
+      !value ||
+      !value.includes(
+        "?"
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      this.isQuotedOrNarrativeQuestion(
+        value
+      )
+    ) {
+      return false;
+    }
+
+    const normalized =
+      this.normalize(
+        value
+      );
+
+    return (
+      /^(?:so\s+)?(?:do|did|are|were|have|has|can|could|would|will|should|what|why|how|where|when|who|which)\b/
+        .test(
+          normalized
+        ) ||
+      /\b(?:do you|did you|are you|were you|have you|can you|could you|would you|will you|what do you|what did you|how do you|how are you|why do you|where do you|when do you|would you like|do you want|want me to)\b/
+        .test(
+          normalized
+        )
+    );
+  },
+
+  countUserDirectedQuestions(
+    value = ""
+  ) {
+    return this
+      .splitSentences(
+        value
+      )
+      .filter(
+        sentence =>
+          this.isUserDirectedQuestion(
             sentence
           )
-        ) {
-          return true;
-        }
-
-        if (
-          interactionQuestionsUsed >=
-          maximumQuestions
-        ) {
-          return false;
-        }
-
-        interactionQuestionsUsed +=
-          1;
-
-        return true;
-      }
-    );
-}
-
-    if (writerContract.maxSentences) {
-      sentences = sentences.slice(0, writerContract.maxSentences);
-    }
-
-    let output = sentences.join(" ").trim();
-
-    if (writerContract.maxWords) {
-      output = this.limitWords(output, writerContract.maxWords);
-    }
-
-    return this.smoothDraft(output);
-  },
-
-  limitWords(value = "", maxWords = null) {
-    const maximum = Number(maxWords);
-
-    if (!Number.isFinite(maximum) || maximum <= 0) return value;
-
-    const words = String(value || "").split(/\s+/).filter(Boolean);
-
-    if (words.length <= maximum) return value;
-
-    const limited = words
-      .slice(0, maximum)
-      .join(" ")
-      .replace(/[,;:]$/, "")
-      .trim();
-
-    return /[.!?]$/.test(limited)
-      ? limited
-      : `${limited}.`;
-  },
-
-  /* =====================================================
-     RETURN PAYLOAD
-  ===================================================== */
-
-  returnDraft({
-    draft = "",
-    reason = "fallback",
-    usedAI = false,
-    usable = false,
-    complete = false,
-    requiresRepair = false,
-    packet = {},
-    request = {},
-    writerContract = {},
-    blueprintCandidate = {},
-    validation = null,
-    error = null,
-    canonicalMemoryAuthorizationUsed = false
-  } = {}) {
-    const text = this.cleanOriginal(draft);
-
-    const responseMoves = this.toArray(writerContract.responseMoves);
-
-const characterContext =
-  this.readCharacterContext(
-    packet
-  );
-
-const characterUsed =
-  characterContext.relevant ===
-    true &&
-  characterContext
-    .answerAvailable ===
-    true;
-
-    const result = {
-      aiWriterRan: true,
-      aiWriterUsedAI: usedAI === true,
-      aiWriterSource: "ari-ai-writer",
-      aiWriterVersion: this.version,
-      aiWriterSchemaVersion: this.schemaVersion,
-
-      aiWriterReason: reason,
-      aiWriterFallbackReason: usedAI ? null : reason,
-      aiWriterUsable: usable === true,
-      aiWriterComplete: complete === true,
-      aiWriterRequiresRepair: requiresRepair === true,
-
-aiWriterUsedCharacter:
-  characterUsed,
-
-characterRealizationRequired:
-  characterContext
-    .needsAIWriter ===
-  true,
-
-characterAIWriterMode:
-  characterContext
-    .aiWriterMode ||
-  null,
-
-characterFocus:
-  characterContext.focus ||
-  null,
-
-characterType:
-  characterContext.type ||
-  null,
-
-characterStatus:
-  characterContext.status ||
-  null,
-
-      draft: text,
-      aiWriterDraft: text,
-
-      responseGoal: writerContract.responseGoal || packet.responseGoal || null,
-      responseShape: writerContract.responseShape || packet.responseShape || null,
-      responsePosture: writerContract.responsePosture || packet.responsePosture || null,
-      questionPolicyReconciliation: {
-        rawShouldAskQuestion:
-          writerContract.rawShouldAskQuestion === true,
-
-        rawQuestionPurpose:
-          writerContract.rawQuestionPurpose || null,
-
-        clarificationQuestionPolicy:
-          writerContract.clarificationQuestionPolicy === true,
-
-        continuityResolutionComplete:
-          writerContract.continuityResolutionComplete === true,
-
-        staleClarificationQuestionSuppressed:
-          writerContract.staleClarificationQuestionSuppressed === true,
-
-        shouldAskQuestion:
-          writerContract.shouldAskQuestion === true,
-
-        finalQuestionAllowed:
-          writerContract.finalQuestionAllowed === true,
-
-        maximumQuestions:
-          writerContract.maximumQuestions ?? 0
-      },
-      canonicalResponsePlanUsed:
-        Boolean(
-          packet.canonicalResponsePlan ||
-          packet.responsePlan
-        ),
-
-      canonicalMemoryAuthorizationUsed:
-        canonicalMemoryAuthorizationUsed === true,
-
-      responseMoves,
-      responseMoveIds: responseMoves.map(move => move.id).filter(Boolean),
-
-      blueprintCandidate: {
-        available: blueprintCandidate.available === true,
-        usable: blueprintCandidate.usable === true,
-        complete: blueprintCandidate.complete === true,
-        requiresAIRepair: blueprintCandidate.requiresAIRepair === true,
-        canonicalResponsePlanUsed:
-          blueprintCandidate.canonicalResponsePlanUsed === true,
-        reason: blueprintCandidate.reason || null,
-        renderedMoveIds: this.toArray(blueprintCandidate.renderedMoves)
-          .map(move => move?.id)
-          .filter(Boolean),
-        unsupportedMoveIds: this.toArray(blueprintCandidate.unsupportedMoves)
-          .map(move => move?.id)
-          .filter(Boolean)
-      },
-
-      validation: validation || null,
-
-      candidate: {
-        source: "ai_writer",
-        text,
-        usable: usable === true,
-        complete: complete === true,
-        requiresAIRepair: requiresRepair === true,
-        usedAI: usedAI === true,
-        taskType: "canonical_response_plan_expression",
-        priority: usable ? (usedAI ? 75 : 68) : 20,
-
-        evidence: {
-          canonicalResponsePlanUsed:
-            Boolean(
-              packet.canonicalResponsePlan ||
-              packet.responsePlan
-            ),
-
-          canonicalMemoryAuthorizationUsed:
-            canonicalMemoryAuthorizationUsed === true,
-
-characterAvailable:
-  characterContext.available ===
-  true,
-
-characterEnabled:
-  characterContext.enabled ===
-  true,
-
-characterRelevant:
-  characterContext.relevant ===
-  true,
-
-characterAnswerAvailable:
-  characterContext
-    .answerAvailable ===
-  true,
-
-characterUsed,
-
-characterRealizationRequired:
-  characterContext
-    .needsAIWriter ===
-  true,
-
-characterAIWriterMode:
-  characterContext
-    .aiWriterMode ||
-  null,
-
-characterFocus:
-  characterContext.focus ||
-  null,
-
-characterType:
-  characterContext.type ||
-  null,
-
-characterSubtype:
-  characterContext.subtype ||
-  null,
-
-characterStatus:
-  characterContext.status ||
-  null,
-
-characterSource:
-  characterContext.source ||
-  null,
-
-          responseMoveCount:
-            responseMoves.length,
-
-          blueprintCandidateAvailable:
-            blueprintCandidate.available === true,
-
-          blueprintCandidateComplete:
-            blueprintCandidate.complete === true,
-
-          blueprintCandidateRequiredRepair:
-            blueprintCandidate.requiresAIRepair === true,
-
-          candidateValidated:
-            validation?.valid === true,
-
-          candidateComplete:
-            complete === true,
-
-                    questionCount:
-            validation
-              ?.questionCount ??
-            this.countUserDirectedQuestions(
-              text
-            ),
-
-          totalQuestionMarkCount:
-            validation
-              ?.totalQuestionMarkCount ??
-            this.countQuestions(
-              text
-            ),
-
-          containsInternalPlannerLanguage:
-            this.containsInternalPlannerLanguage(text),
-
-          containsStaleDeveloperLanguage:
-            !this.isDeveloperRelevant(packet) &&
-            this.containsStaleDeveloperLanguage(text)
-        }
-      },
-
-      diagnostics: {
-        reason,
-        usedAI: usedAI === true,
-        usable: usable === true,
-        complete: complete === true,
-        requiresRepair: requiresRepair === true,
-        characterUsed,
-
-characterAnswerAvailable:
-  characterContext
-    .answerAvailable ===
-  true,
-
-characterRealizationRequired:
-  characterContext
-    .needsAIWriter ===
-  true,
-
-characterAIWriterMode:
-  characterContext
-    .aiWriterMode ||
-  null,
-
-characterFocus:
-  characterContext.focus ||
-  null,
-
-characterType:
-  characterContext.type ||
-  null,
-        turnId: request.turnId || null,
-        characterCount: text.length,
-        wordCount: this.countWords(text),
-        sentenceCount: this.splitSentences(text).length,
-        validationErrors: this.toArray(validation?.errors),
-        validationWarnings: this.toArray(validation?.warnings),
-        error:
-          error?.message ||
-          (error ? String(error) : null)
-      },
-
-      authority: {
-        canRenderCanonicalResponsePlan: true,
-        canRepairBlueprintCandidate: true,
-        canUseAuthorizedCharacterContext: true,
-        canUseAuthorizedKnowledgeEvidence: true,
-        canUseAuthorizedContinuityContext: true,
-        canUseAuthorizedDeveloperEvidence: true,
-        canValidateOwnCandidate: true,
-
-        canChooseResponsePlan: false,
-        canChangeResponseGoal: false,
-        canChangeResponseShape: false,
-        canChangeResponseMoves: false,
-        canInterpretMeaning: false,
-        canOverrideSafety: false,
-        canSelectFinalDraft: false,
-        canPersistState: false,
-
-        role: "canonical_response_plan_ai_language_renderer"
-      }
-    };
-
-    window.Ari.aiWriterState = result;
-
-    return result;
-  },
-
-  /* =====================================================
-     TEXT UTILITIES
-  ===================================================== */
-
-  cleanForUser(value = "") {
-    return String(value || "")
-      .replace(/\bAri should\b/gi, "")
-      .replace(/\bHelp Ari recognize when\b/gi, "This matters when")
-      .replace(/\bHelp Ari\b/gi, "The point is to")
-      .replace(/\bthe user\b/gi, "you")
-      .replace(/\busers\b/gi, "people")
-      .replace(/\s+/g, " ")
-      .trim();
-  },
-
-  cleanOriginal(value = "") {
-    return String(value ?? "")
-      .replace(/[’‘]/g, "'")
-      .replace(/[“”]/g, "\"")
-      .replace(/\s+/g, " ")
-      .trim();
-  },
-
-  normalize(value = "") {
-    return this.cleanOriginal(value)
-      .toLowerCase()
-      .replace(/[_-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  },
-
-  normalizeIdentifier(value = "") {
-    return String(value || "")
-      .toLowerCase()
-      .replace(/[’‘]/g, "'")
-      .replace(/[“”]/g, "\"")
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-  },
-
-  splitSentences(value = "") {
-    const text = this.cleanOriginal(value);
-
-    if (!text) return [];
-
-    return text
-      .split(/(?<=[.!?])\s+/)
-      .map(sentence => sentence.trim())
-      .filter(Boolean);
-  },
-
-  smoothDraft(value = "") {
-    return String(value || "")
-      .replace(/\s+/g, " ")
-      .replace(/\bdo not\b/gi, "don’t")
-      .replace(/\bI would\b/g, "I’d")
-      .replace(/\bIt is\b/g, "It’s")
-      .replace(/\s+([,.!?])/g, "$1")
-      .trim();
-  },
-
-  countWords(value = "") {
-    return String(value || "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
+      )
       .length;
   },
 
-  countQuestions(value = "") {
-    return (String(value || "").match(/\?/g) || []).length;
+  countQuestions(
+    value = ""
+  ) {
+    return (
+      String(
+        value ||
+        ""
+      ).match(
+        /\?/g
+      ) ||
+      []
+    ).length;
   },
-isQuotedOrNarrativeQuestion(
-  sentence = ""
-) {
-  const value =
-    this.cleanOriginal(
-      sentence
-    );
 
-  if (
-    !value ||
-    !value.includes("?")
+  /* =====================================================
+     INSTRUCTION UTILITIES
+  ===================================================== */
+
+  formatInstructionList(
+    values = [],
+    fallback = ""
   ) {
-    return false;
-  }
-
-  const hasQuotedQuestion =
-    /["“'][^"”']*\?[^"”']*["”']/u.test(
-      value
-    );
-
-  const hasSpeechAttribution =
-    /\?\s*["”']?\s*(?:he|she|they|i|we|the\s+\w+|[A-Z][a-z]+)\s+(?:asked|said|whispered|shouted|replied|wondered|called|murmured)\b/u.test(
-      value
-    );
-
-  return (
-    hasQuotedQuestion ||
-    hasSpeechAttribution
-  );
-},
-
-isUserDirectedQuestion(
-  sentence = ""
-) {
-  const value =
-    this.cleanOriginal(
-      sentence
-    );
-
-  if (
-    !value ||
-    !value.includes("?")
-  ) {
-    return false;
-  }
-
-  if (
-    this.isQuotedOrNarrativeQuestion(
-      value
-    )
-  ) {
-    return false;
-  }
-
-  const normalized =
-    this.normalize(
-      value
-    );
-
-  return (
-    /^(?:so\s+)?(?:do|did|are|were|have|has|can|could|would|will|should|what|why|how|where|when|who|which)\b/.test(
-      normalized
-    ) ||
-    /\b(?:do you|did you|are you|were you|have you|can you|could you|would you|will you|what do you|what did you|how do you|how are you|why do you|where do you|when do you|would you like|do you want)\b/.test(
-      normalized
-    )
-  );
-},
-
-countUserDirectedQuestions(
-  value = ""
-) {
-  return this
-    .splitSentences(
-      value
-    )
-    .filter(
-      sentence =>
-        this.isUserDirectedQuestion(
-          sentence
+    const items =
+      this.toArray(
+        values
+      )
+        .map(
+          value =>
+            this.extractInstructionText(
+              value
+            )
         )
+        .filter(Boolean);
+
+    if (!items.length) {
+      return `- ${fallback}`;
+    }
+
+    return items
+      .map(
+        item =>
+          `- ${item}`
+      )
+      .join(
+        "\n"
+      );
+  },
+
+  extractInstructionText(
+    value = null
+  ) {
+    if (
+      value ===
+        null ||
+      value ===
+        undefined
+    ) {
+      return "";
+    }
+
+    if (
+      typeof value ===
+        "string" ||
+      typeof value ===
+        "number"
+    ) {
+      return String(
+        value
+      ).trim();
+    }
+
+    if (
+      typeof value ===
+      "object"
+    ) {
+      return this.cleanOriginal(
+        value.text ||
+        value.message ||
+        value.rule ||
+        value.claim ||
+        value.description ||
+        value.contentGuidance ||
+        value.contentHint ||
+        value.hint ||
+        value.id ||
+        value.name ||
+        value.type ||
+        ""
+      );
+    }
+
+    return "";
+  },
+
+  cleanInstructionValue(
+    value = ""
+  ) {
+    if (
+      typeof value ===
+      "string"
+    ) {
+      return this.cleanOriginal(
+        value
+      );
+    }
+
+    if (
+      value &&
+      typeof value ===
+        "object"
+    ) {
+      return this.extractInstructionText(
+        value
+      );
+    }
+
+    return "";
+  },
+
+  extractSignificantTerms(
+    value = ""
+  ) {
+    const ignored =
+      new Set([
+        "the",
+        "and",
+        "that",
+        "this",
+        "with",
+        "from",
+        "into",
+        "about",
+        "user",
+        "response",
+        "should",
+        "could",
+        "would",
+        "must",
+        "include",
+        "provide",
+        "offer",
+        "give",
+        "make",
+        "explain",
+        "state",
+        "name",
+        "briefly",
+        "clearly"
+      ]);
+
+    return this.normalize(
+      value
     )
-    .length;
-},
+      .split(
+        /\s+/
+      )
+      .filter(
+        term =>
+          term.length >=
+            4 &&
+          !ignored.has(
+            term
+          )
+      )
+      .slice(
+        0,
+        8
+      );
+  },
+
+  safeJSONStringify(
+    value = null
+  ) {
+    const seen =
+      new WeakSet();
+
+    try {
+      return JSON.stringify(
+        value,
+        (
+          key,
+          nestedValue
+        ) => {
+          if (
+            nestedValue &&
+            typeof nestedValue ===
+              "object"
+          ) {
+            if (
+              seen.has(
+                nestedValue
+              )
+            ) {
+              return "[Circular]";
+            }
+
+            seen.add(
+              nestedValue
+            );
+          }
+
+          return nestedValue;
+        },
+        2
+      );
+    } catch (error) {
+      console.warn(
+        "Ari AI Writer evidence serialization failed:",
+        error
+      );
+
+      return JSON.stringify({
+        available:
+          false,
+
+        reason:
+          "evidence_serialization_failed"
+      });
+    }
+  },
+
   /* =====================================================
      GENERAL UTILITIES
   ===================================================== */
 
-  firstNonEmptyArray(...values) {
+  createCandidateId({
+    turnId = null,
+    text = "",
+    reason = ""
+  } = {}) {
+    const value = [
+      turnId ||
+        "no_turn",
+
+      reason ||
+        "no_reason",
+
+      text ||
+        "no_text"
+    ].join(
+      "|"
+    );
+
+    return `ai_writer_${this.hashString(
+      value
+    )}`;
+  },
+
+  hashString(
+    value = ""
+  ) {
+    let hash =
+      2166136261;
+
+    const text =
+      String(
+        value ||
+        ""
+      );
+
+    for (
+      let index = 0;
+      index < text.length;
+      index += 1
+    ) {
+      hash ^=
+        text.charCodeAt(
+          index
+        );
+
+      hash +=
+        (hash << 1) +
+        (hash << 4) +
+        (hash << 7) +
+        (hash << 8) +
+        (hash << 24);
+    }
+
+    return (
+      hash >>>
+      0
+    ).toString(
+      36
+    );
+  },
+
+  firstNonEmptyArray(
+    ...values
+  ) {
     return (
       values.find(
         value =>
-          Array.isArray(value) &&
-          value.length > 0
+          Array.isArray(
+            value
+          ) &&
+          value.length >
+            0
       ) ||
       []
     );
   },
 
-  firstFiniteNumber(values = []) {
-    for (const value of this.toArray(values)) {
+  firstFiniteNumber(
+    values = []
+  ) {
+    for (
+      const value
+      of this.toArray(
+        values
+      )
+    ) {
       if (
-        value === null ||
-        value === undefined ||
-        value === ""
+        value ===
+          null ||
+        value ===
+          undefined ||
+        value ===
+          ""
       ) {
         continue;
       }
 
-      const number = Number(value);
+      const number =
+        Number(
+          value
+        );
 
-      if (Number.isFinite(number)) {
+      if (
+        Number.isFinite(
+          number
+        )
+      ) {
         return number;
       }
     }
@@ -3744,56 +3357,283 @@ countUserDirectedQuestions(
   },
 
   toArray(value) {
-    if (Array.isArray(value)) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
       return value.filter(
         item =>
-          item !== null &&
-          item !== undefined &&
-          item !== ""
+          item !==
+            null &&
+          item !==
+            undefined &&
+          item !==
+            ""
       );
     }
 
     if (
-      value === undefined ||
-      value === null ||
-      value === ""
+      value ===
+        undefined ||
+      value ===
+        null ||
+      value ===
+        ""
     ) {
       return [];
     }
 
-    return [value];
+    return [
+      value
+    ];
   },
 
-  mergeUnique(...values) {
-    const result = [];
-    const seen = new Set();
+  mergeUnique(
+    ...values
+  ) {
+    const output = [];
+    const seen =
+      new Set();
 
     values
-      .flatMap(value => this.toArray(value))
-      .forEach(value => {
+      .flatMap(
+        value =>
+          this.toArray(
+            value
+          )
+      )
+      .forEach(
+        value => {
+          const key =
+            typeof value ===
+            "string"
+              ? this.normalize(
+                  value
+                )
+              : this.normalize(
+                  value?.id ||
+                  value?.name ||
+                  value?.type ||
+                  value?.value ||
+                  value?.claim ||
+                  this.safeJSONStringify(
+                    value
+                  )
+                );
+
+          if (
+            !key ||
+            seen.has(
+              key
+            )
+          ) {
+            return;
+          }
+
+          seen.add(
+            key
+          );
+
+          output.push(
+            value
+          );
+        }
+      );
+
+    return output;
+  },
+
+  uniqueValues(
+    values = []
+  ) {
+    const output = [];
+    const seen =
+      new Set();
+
+    this.toArray(
+      values
+    ).forEach(
+      value => {
         const key =
-          typeof value === "string"
-            ? this.normalize(value)
-            : this.normalize(
-                value.id ||
-value.name ||
-value.type ||
-value.value ||
-value.claim ||
-this.safeJSONStringify(value)
+          typeof value ===
+          "string"
+            ? value
+            : this.safeJSONStringify(
+                value
               );
 
-        if (!key || seen.has(key)) return;
+        if (
+          !key ||
+          seen.has(
+            key
+          )
+        ) {
+          return;
+        }
 
-        seen.add(key);
-        result.push(value);
-      });
+        seen.add(
+          key
+        );
 
-    return result;
+        output.push(
+          value
+        );
+      }
+    );
+
+    return output;
+  },
+
+  cleanOriginal(
+    value = ""
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /[ \t]+/g,
+        " "
+      )
+      .replace(
+        /\n[ \t]+/g,
+        "\n"
+      )
+      .replace(
+        /\n{3,}/g,
+        "\n\n"
+      )
+      .trim();
+  },
+
+  normalize(
+    value = ""
+  ) {
+    return this
+      .cleanOriginal(
+        value
+      )
+      .toLowerCase()
+      .replace(
+        /[_-]/g,
+        " "
+      )
+      .replace(
+        /[^\w\s']/g,
+        " "
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  },
+
+  normalizeIdentifier(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .toLowerCase()
+      .replace(
+        /[’‘]/g,
+        "'"
+      )
+      .replace(
+        /[“”]/g,
+        "\""
+      )
+      .replace(
+        /[^a-z0-9]+/g,
+        "_"
+      )
+      .replace(
+        /^_+|_+$/g,
+        ""
+      );
+  },
+
+  splitSentences(
+    value = ""
+  ) {
+    const text =
+      this.cleanOriginal(
+        value
+      );
+
+    if (!text) {
+      return [];
+    }
+
+    return text
+      .replace(
+        /\n+/g,
+        " "
+      )
+      .split(
+        /(?<=[.!?])\s+/
+      )
+      .map(
+        sentence =>
+          sentence.trim()
+      )
+      .filter(Boolean);
+  },
+
+  countWords(
+    value = ""
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .split(
+        /\s+/
+      )
+      .filter(Boolean)
+      .length;
+  },
+
+  countParagraphs(
+    value = ""
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      ).trim();
+
+    if (!text) {
+      return 0;
+    }
+
+    return text
+      .split(
+        /\n{2,}/
+      )
+      .map(
+        paragraph =>
+          paragraph.trim()
+      )
+      .filter(Boolean)
+      .length;
   }
 };
 
-window.Ari.aiWriter = window.AriAIWriter;
+window.Ari.aiWriter =
+  window.AriAIWriter;
 
 console.log(
   "ARI AI WRITER LOADED:",
