@@ -1,50 +1,72 @@
 // ari/pipeline-stages/expression/ari-draft-arbitration-stage.js
 // Ari Draft Arbitration Stage
-// Purpose: Decide whether AI writing is needed, generate AI draft candidates,
-// and select the strongest available draft.
-// V1.1.0 — Candidate Status Preservation / Safe Fallback Selection
+//
+// Purpose:
+// Coordinate candidate precheck, optional AI realization,
+// final candidate arbitration, and arbitration handoff.
+//
+// V2.0.0 — Arbiter Authority / No Candidate Resurrection / Canonical AI Activation
+//
+// Architectural flow:
+//
+// Draft Generation Stage
+//      ↓
+// Response Candidate Arbiter Precheck
+//      ↓
+// Optional AI Writer
+//      ↓
+// Response Candidate Arbiter Final Selection
+//      ↓
+// Final Composition Stage
+//
+// Responsibilities:
+// - Determine whether arbitration is eligible to run.
+// - Run the Response Candidate Arbiter precheck.
+// - Preserve upstream AI Writer requirements.
+// - Run the AI Writer only when repair or realization is required.
+// - Run final candidate arbitration.
+// - Preserve the Arbiter-selected candidate and draft.
+// - Produce a normalized arbitration handoff and stage packet.
+//
+// Non-responsibilities:
+// - Does not independently register Character candidates.
+// - Does not independently register Blueprint candidates.
+// - Does not independently register AI candidates.
+// - Does not bypass required Character AI realization.
+// - Does not independently score or compare candidates.
+// - Does not resurrect candidates rejected by the Arbiter.
+// - Does not compose the final response.
+// - Does not change the canonical Response Plan.
+// - Does not override safety.
+// - Does not persist state.
 
-window.Ari = window.Ari || {}; 
+window.Ari = window.Ari || {};
 
 window.AriDraftArbitrationStage = {
-  version: "1.1.0",
+  version: "2.0.0",
+  source: "ari-draft-arbitration-stage",
+  schemaVersion: "2.0.0",
+
+  /* =====================================================
+     PUBLIC ENTRY POINT
+  ===================================================== */
 
   async run(summary = {}, runtime = {}) {
     const {
-      mark = () => {},
-
-      addCandidateDraft =
-        (existing = [], candidate = {}) => {
-          const text =
-            String(candidate.text || "").trim();
-
-          if (!text) {
-            return Array.isArray(existing)
-              ? existing
-              : [];
-          }
-
-          return [
-            ...(Array.isArray(existing)
-              ? existing
-              : []),
-
-            {
-              ...candidate,
-              text,
-              createdAt: Date.now()
-            }
-          ];
-        }
+      mark = () => {}
     } = runtime;
 
     let state = {
       ...summary,
-      activeExpressionStage: "draft_arbitration"
+
+      activeExpressionStage:
+        "draft_arbitration"
     };
 
     const arbitrationEligibility =
-      this.resolveArbitrationEligibility(state);
+      this.resolveArbitrationEligibility(
+        state
+      );
 
     state = {
       ...state,
@@ -52,492 +74,179 @@ window.AriDraftArbitrationStage = {
       arbitrationEligibility,
 
       shouldRunArbiterPrecheck:
-        arbitrationEligibility.runPrecheck,
+        arbitrationEligibility
+          .runPrecheck,
 
       shouldAllowAIWriter:
-        arbitrationEligibility.allowAIWriter,
+        arbitrationEligibility
+          .allowAIWriter,
 
       shouldRunCandidateArbiter:
-        arbitrationEligibility.runCandidateArbiter
+        arbitrationEligibility
+          .runCandidateArbiter
     };
 
-    // =================================================
-    // 1. Arbiter Precheck
-    // =================================================
+    /* =================================================
+       1. RESPONSE CANDIDATE ARBITER PRECHECK
+    ================================================= */
 
-    mark("before arbiterPrecheck");
+    mark(
+      "before arbiterPrecheck"
+    );
 
     const arbiterPrecheck =
-      arbitrationEligibility.runPrecheck &&
-      window.AriResponseCandidateArbiter?.precheck
-        ? await window.AriResponseCandidateArbiter.precheck({
-            summary: state,
+      await this.runArbiterPrecheck({
+        state,
+        eligibility:
+          arbitrationEligibility
+      });
 
-            composerPacket:
-              state.composerPacket ||
-              null,
+    const upstreamAIRequirement =
+      this.readUpstreamAIRequirement(
+        state
+      );
 
-            candidates:
-              state.candidateDrafts ||
-              []
-          })
-        : {
-            arbiterPrecheckRan:
-              false,
+    const precheckNeedsAIWriter =
+      arbiterPrecheck
+        .arbiterPrecheckRan ===
+        true &&
+      arbiterPrecheck
+        .needsAIWriter ===
+        true;
 
-            needsAIWriter:
-              arbitrationEligibility.allowAIWriter,
+    /*
+     * Upstream Character realization or Draft Generation
+     * requirements remain authoritative. The Arbiter may
+     * escalate the requirement, but an unavailable precheck
+     * may not erase an existing requirement.
+     */
+    const needsAIWriter =
+      arbitrationEligibility
+        .allowAIWriter ===
+        true &&
+      (
+        upstreamAIRequirement
+          .required ===
+          true ||
+        precheckNeedsAIWriter
+      );
 
-            aiRepairReason:
-              arbitrationEligibility.allowAIWriter
-                ? "arbiter_precheck_not_loaded"
-                : null,
-
-            source:
-              arbitrationEligibility.runPrecheck
-                ? "not-loaded"
-                : "skipped-by-expression-eligibility"
-          };
+    const aiRepairReason =
+      arbiterPrecheck
+        .aiRepairReason ||
+      upstreamAIRequirement
+        .reason ||
+      null;
 
     state = {
       ...state,
 
       arbiterPrecheck,
 
-      needsAIWriter:
-        arbiterPrecheck.needsAIWriter === true,
-
-      aiRepairReason:
-        arbiterPrecheck.aiRepairReason ||
-        null,
-
       arbiterPrecheckRan:
         arbiterPrecheck
-          .arbiterPrecheckRan === true,
+          .arbiterPrecheckRan ===
+        true,
 
       arbiterPrecheckSource:
         arbiterPrecheck.source ||
         (
-          state.arbiterPrecheckRan
+          arbiterPrecheck
+            .arbiterPrecheckRan ===
+            true
             ? "ari-response-candidate-arbiter"
             : "unknown"
-        )
+        ),
+
+      upstreamAIRequirement,
+
+      precheckNeedsAIWriter,
+
+      needsAIWriter,
+
+      aiRepairReason
     };
 
-    mark("after arbiterPrecheck");
-
-    // =================================================
-    // 2. Character response bypass
-    // =================================================
-
-    const characterDraft =
-      state.characterDraftCandidate ||
-      state.characterReasoning
-        ?.userFacingDraft ||
-      state.composerCharacter
-        ?.draft ||
-      null;
-
-    const shouldBypassAIWriterForCharacter =
-      state.characterAnswerAvailable === true &&
-      Boolean(
-        String(characterDraft || "").trim()
-      );
-
-    state = {
-      ...state,
-      shouldBypassAIWriterForCharacter
-    };
-
-    if (
-  shouldBypassAIWriterForCharacter &&
-  characterDraft
-) {
-  state.candidateDrafts =
-    addCandidateDraft(
-      state.candidateDrafts,
-      {
-        source:
-          "character_reasoning",
-
-        text:
-          characterDraft,
-
-        priority:
-          75,
-
-        usable:
-          true,
-
-        complete:
-          true,
-
-        requiresRepair:
-          false,
-
-        evidence: {
-          bypassedAIWriter:
-            true,
-
-          reason:
-            "character_reasoning_complete_answer"
-        }
-      }
+    mark(
+      "after arbiterPrecheck"
     );
-}
 
-    // =================================================
-    // 3. AI Writer
-    // =================================================
+    /* =================================================
+       2. AI WRITER
+    ================================================= */
 
     const shouldRunAIWriter =
-      arbitrationEligibility.allowAIWriter &&
-      state.needsAIWriter === true &&
-      !shouldBypassAIWriterForCharacter;
+      arbitrationEligibility
+        .allowAIWriter ===
+        true &&
+      needsAIWriter ===
+        true;
 
     state = {
       ...state,
+
       shouldRunAIWriter
     };
 
-    mark("before aiWriter");
-
-    let aiWriterResult;
-
-    if (shouldBypassAIWriterForCharacter) {
-      aiWriterResult = {
-        aiWriterRan:
-          false,
-
-        aiWriterUsedAI:
-          false,
-
-        aiWriterSource:
-          "bypassed-character-reasoning",
-
-        draft:
-          characterDraft,
-
-        aiWriterDraft:
-          characterDraft,
-
-        aiWriterBypassReason:
-          "Character reasoning already produced a complete answer."
-      };
-    } else if (
-      shouldRunAIWriter &&
-      window.AriAIWriter?.write
-    ) {
-      aiWriterResult =
-        await window.AriAIWriter.write({
-          composerPacket: {
-            ...(state.composerPacket || {}),
-
-            responseCandidateArbiter:
-              state.arbiterPrecheck ||
-              null,
-
-            aiRepairReason:
-              state.aiRepairReason ||
-              null,
-
-            meaningInterpretation:
-              state.meaningInterpretation ||
-              state.composerPacket
-                ?.meaningInterpretation ||
-              null,
-
-            humanState:
-              state.humanState ||
-              state.composerPacket
-                ?.humanState ||
-              null,
-
-            responsePlan:
-              state.ariResponsePlan ||
-              state.understandingResponsePlan ||
-              state.composerPacket
-                ?.responsePlan ||
-              null,
-
-            blueprintWriterDraft:
-              state.blueprintWriterDraft ||
-              null,
-
-            blueprintWriter:
-              state.blueprintWriter ||
-              null,
-
-            candidateDrafts:
-              state.candidateDrafts ||
-              []
-          },
-
-          summary:
-            state
-        });
-    } else {
-      aiWriterResult = {
-        aiWriterRan:
-          false,
-
-        aiWriterUsedAI:
-          false,
-
-        aiWriterSource:
-          shouldRunAIWriter
-            ? "not-loaded"
-            : "skipped-by-arbitration",
-
-        draft:
-          null,
-
-        aiWriterDraft:
-          null,
-
-        aiWriterFallbackReason:
-          shouldRunAIWriter
-            ? "ai_writer_not_loaded"
-            : "ai_writer_not_required"
-      };
-    }
-
-    state = {
-  ...state,
-
-  ...(aiWriterResult || {}),
-
-  aiWriter:
-    aiWriterResult ||
-    null,
-
-  aiWriterDraft:
-    aiWriterResult?.draft ||
-    aiWriterResult
-      ?.aiWriterDraft ||
-    state.aiWriterDraft ||
-    null,
-
-  aiWriterRan:
-    aiWriterResult
-      ?.aiWriterRan ===
-    true,
-
-  aiWriterUsedAI:
-    aiWriterResult
-      ?.aiWriterUsedAI ===
-    true,
-
-  aiWriterUsable:
-    aiWriterResult
-      ?.aiWriterUsable ===
-    true,
-
-  aiWriterComplete:
-    aiWriterResult
-      ?.aiWriterComplete ===
-    true,
-
-  aiWriterRequiresRepair:
-    aiWriterResult
-      ?.aiWriterRequiresRepair ===
-    true,
-
-  aiWriterValidation:
-    aiWriterResult
-      ?.validation ||
-    null,
-
-  aiWriterReason:
-    aiWriterResult
-      ?.aiWriterReason ||
-    null,
-
-  aiWriterSource:
-    aiWriterResult
-      ?.aiWriterSource ||
-    aiWriterResult?.source ||
-    "unknown"
-};
-    if (
-  state.aiWriterDraft &&
-  !shouldBypassAIWriterForCharacter
-) {
-  const aiCandidate =
-    aiWriterResult?.candidate &&
-    typeof aiWriterResult.candidate ===
-      "object"
-      ? aiWriterResult.candidate
-      : {};
-
-  const writerMarkedUsable =
-    aiWriterResult
-      ?.aiWriterUsable ===
-    true;
-
-  const writerMarkedComplete =
-    aiWriterResult
-      ?.aiWriterComplete ===
-    true;
-
-  const writerRequiresRepair =
-    aiWriterResult
-      ?.aiWriterRequiresRepair ===
-    true;
-
-  state.candidateDrafts =
-    addCandidateDraft(
-      state.candidateDrafts,
-      {
-        ...aiCandidate,
-
-        source:
-          "ai_writer",
-
-        text:
-          state.aiWriterDraft,
-
-        priority:
-          Number.isFinite(
-            Number(
-              aiCandidate.priority
-            )
-          )
-            ? Number(
-                aiCandidate.priority
-              )
-            : writerMarkedUsable
-              ? 80
-              : 20,
-
-        usable:
-          writerMarkedUsable,
-
-        complete:
-          writerMarkedComplete,
-
-        requiresRepair:
-          writerRequiresRepair,
-
-        validation:
-          aiWriterResult
-            ?.validation ||
-          aiCandidate.validation ||
-          null,
-
-        evidence: {
-          ...(
-            aiCandidate.evidence ||
-            {}
-          ),
-
-          usedAI:
-            state.aiWriterUsedAI ===
-            true,
-
-          writerMarkedUsable,
-
-          writerMarkedComplete,
-
-          writerRequiresRepair,
-
-          writerReason:
-            aiWriterResult
-              ?.aiWriterReason ||
-            null,
-
-          repairReason:
-            state.aiRepairReason ||
-            null
-        }
-      }
+    mark(
+      "before aiWriter"
     );
-}
-    mark("after aiWriter");
 
-    // =================================================
-    // 4. Candidate Arbiter
-    // =================================================
+    const aiWriterResult =
+      await this.runAIWriter({
+        state,
+        shouldRunAIWriter
+      });
 
-    mark("before responseCandidateArbiter");
+    state =
+      this.applyAIWriterResult({
+        state,
+        aiWriterResult,
+        shouldRunAIWriter
+      });
 
-    const arbiterResult =
-      arbitrationEligibility.runCandidateArbiter &&
-      window.AriResponseCandidateArbiter?.choose
-        ? await window.AriResponseCandidateArbiter.choose({
-            summary: state,
+    mark(
+      "after aiWriter"
+    );
 
-            composerPacket:
-              state.composerPacket ||
-              null,
+    /* =================================================
+       3. FINAL RESPONSE CANDIDATE ARBITRATION
+    ================================================= */
 
-            candidates:
-              state.candidateDrafts ||
-              []
-          })
-        : null;
+    mark(
+      "before responseCandidateArbiter"
+    );
 
-    const fallbackSelectedDraft =
-  this.selectFallbackDraft(
-    state
-  );
+    const finalArbitration =
+      await this.runFinalArbitration({
+        state,
+        eligibility:
+          arbitrationEligibility
+      });
 
-const selectedDraft =
-  arbiterResult
-    ?.selectedDraft ||
-  fallbackSelectedDraft ||
-  null;
+    state =
+      this.applyFinalArbitration({
+        state,
+        arbitration:
+          finalArbitration
+      });
 
-const selectedDraftSource =
-  arbiterResult
-    ?.selectedSource ||
-  this.resolveSelectedDraftSource(
-    selectedDraft,
-    state
-  ) ||
-  (
-    arbiterResult
-      ?.selectedDraft
-      ? "unknown_candidate"
-      : null
-  );
+    mark(
+      "after responseCandidateArbiter"
+    );
 
-state = {
-  ...state,
+    /* =================================================
+       4. ARBITRATION HANDOFF
+    ================================================= */
 
-  ...(arbiterResult || {}),
+    state.arbitrationHandoff =
+      this.buildArbitrationHandoff(
+        state
+      );
 
-  responseCandidateArbiter:
-    arbiterResult ||
-    null,
-
-  selectedDraft,
-
-  selectedDraftSource,
-
-  responseCandidateArbiterRan:
-    Boolean(
-      arbiterResult
-    )
-};
-
-    mark("after responseCandidateArbiter");
-
-    // =================================================
-    // 5. Arbitration handoff
-    // =================================================
-
-    const arbitrationHandoff =
-      this.buildArbitrationHandoff(state);
-
-    state = {
-      ...state,
-      arbitrationHandoff
-    };
-
-    // =================================================
-    // 6. Stage packet
-    // =================================================
+    /* =================================================
+       5. STAGE PACKET
+    ================================================= */
 
     state.draftArbitrationStagePacket =
       this.buildDraftArbitrationStagePacket(
@@ -548,7 +257,7 @@ state = {
       true;
 
     state.draftArbitrationStageSource =
-      "ari-draft-arbitration-stage";
+      this.source;
 
     state.draftArbitrationStageVersion =
       this.version;
@@ -556,44 +265,64 @@ state = {
     return state;
   },
 
-  // ===================================================
-  // Eligibility
-  // ===================================================
+  /* =====================================================
+     ELIGIBILITY
+  ===================================================== */
 
   resolveArbitrationEligibility(
     summary = {}
   ) {
     const developerLocked =
-      summary.developerResponseLocked === true;
+      summary
+        .developerResponseLocked ===
+      true;
 
     const responseLocked =
-      summary.responseLocked === true;
+      summary.responseLocked ===
+      true;
 
-    const hasFinalResponse =
+    const lockedFinalResponse =
+      this.extractText(
+        summary.finalResponse
+      );
+
+    const hasLockedFinal =
       Boolean(
-        String(
-          summary.finalResponse ||
-          ""
-        ).trim()
+        lockedFinalResponse
+      ) &&
+      (
+        developerLocked ||
+        responseLocked
+      );
+
+    const hasPreexistingFinal =
+      Boolean(
+        lockedFinalResponse
       );
 
     return {
       runPrecheck:
         !developerLocked &&
-        !responseLocked,
+        !responseLocked &&
+        !hasPreexistingFinal,
 
       allowAIWriter:
         !developerLocked &&
         !responseLocked &&
-        !hasFinalResponse,
+        !hasPreexistingFinal,
 
       runCandidateArbiter:
         !developerLocked &&
-        !responseLocked,
+        !responseLocked &&
+        !hasPreexistingFinal,
 
       developerLocked,
+
       responseLocked,
-      hasFinalResponse,
+
+      hasLockedFinal,
+
+      hasPreexistingFinal,
 
       source:
         "ari-draft-arbitration-stage-eligibility",
@@ -603,293 +332,1163 @@ state = {
           ? "developer_response_locked"
           : responseLocked
             ? "response_locked"
-            : hasFinalResponse
+            : hasPreexistingFinal
               ? "final_response_already_available"
               : "draft_arbitration_required"
     };
   },
 
-  // ===================================================
-  // Fallback draft selection
-  // ===================================================
-  
-  selectFallbackDraft(
-  summary = {}
-) {
-  const candidates =
-    Array.isArray(
-      summary.candidateDrafts
-    )
-      ? summary.candidateDrafts
-      : [];
+  /* =====================================================
+     ARBITER PRECHECK
+  ===================================================== */
 
-  const usableCandidates =
-    candidates
-      .filter(
-        candidate =>
-          candidate?.usable ===
-            true &&
-          Boolean(
-            String(
-              candidate?.text ||
-              ""
-            ).trim()
-          )
-      )
-      .sort(
-        (a, b) => {
-          const completeDifference =
-            Number(
-              b?.complete === true
-            ) -
-            Number(
-              a?.complete === true
-            );
+  async runArbiterPrecheck({
+    state = {},
+    eligibility = {}
+  } = {}) {
+    if (
+      eligibility.runPrecheck !==
+      true
+    ) {
+      return {
+        schema:
+          "ari_response_candidate_precheck_skip",
 
-          if (
-            completeDifference !==
-            0
-          ) {
-            return completeDifference;
-          }
+        schemaVersion:
+          this.schemaVersion,
 
-          return (
-            Number(
-              b?.priority ||
-              0
-            ) -
-            Number(
-              a?.priority ||
-              0
-            )
-          );
-        }
-      );
+        arbiterPrecheckRan:
+          false,
 
-  if (
-    usableCandidates.length
-  ) {
-    return (
-      usableCandidates[0]
-        .text ||
-      null
-    );
-  }
+        needsAIWriter:
+          false,
 
-  const characterDraft =
-    String(
-      summary
-        .characterDraftCandidate ||
-      ""
-    ).trim();
+        aiRepairReason:
+          null,
 
-  if (
-    summary
-      .characterAnswerAvailable ===
-      true &&
-    characterDraft
-  ) {
-    return characterDraft;
-  }
+        source:
+          "skipped-by-expression-eligibility",
 
-  const blueprintDraft =
-    String(
-      summary
-        .blueprintWriterDraft ||
-      ""
-    ).trim();
-
-  const blueprintUsable =
-    summary
-      .blueprintWriterUsable ===
-      true ||
-    summary.blueprintWriter
-      ?.blueprintWriterUsable ===
-      true ||
-    summary.blueprintWriter
-      ?.candidate
-      ?.usable ===
-      true;
-
-  if (
-    blueprintUsable &&
-    blueprintDraft
-  ) {
-    return blueprintDraft;
-  }
-
-  return null;
-},
-  
-  resolveSelectedDraftSource(
-    draft = "",
-    summary = {}
-  ) {
-    const text =
-      String(draft || "").trim();
-
-    if (!text) {
-      return null;
+        reason:
+          eligibility.reason ||
+          "arbiter_precheck_not_required"
+      };
     }
 
-    const candidate =
-      (summary.candidateDrafts || [])
-        .find(item =>
-          String(
-            item?.text || ""
-          ).trim() === text
+    const arbiter =
+      window
+        .AriResponseCandidateArbiter;
+
+    if (
+      !arbiter ||
+      typeof arbiter.precheck !==
+        "function"
+    ) {
+      const upstream =
+        this.readUpstreamAIRequirement(
+          state
         );
 
-    if (candidate?.source) {
-      return candidate.source;
+      return {
+        schema:
+          "ari_response_candidate_precheck_unavailable",
+
+        schemaVersion:
+          this.schemaVersion,
+
+        arbiterPrecheckRan:
+          false,
+
+        needsAIWriter:
+          upstream.required ===
+          true,
+
+        aiRepairReason:
+          upstream.reason ||
+          (
+            upstream.required
+              ? "arbiter_precheck_unavailable_upstream_ai_requirement_preserved"
+              : null
+          ),
+
+        source:
+          "not-loaded",
+
+        reason:
+          "response_candidate_arbiter_precheck_not_loaded"
+      };
     }
 
-    if (
-      text ===
-      String(
-        summary.aiWriterDraft || ""
-      ).trim()
-    ) {
-      return "ai_writer";
-    }
+    try {
+      /*
+       * candidateDrafts already exists in state.
+       * Do not pass the same collection separately and
+       * cause duplicate ingestion inside the Arbiter.
+       */
+      const result =
+        await arbiter.precheck({
+          summary:
+            state,
 
-    if (
-      text ===
-      String(
-        summary.characterDraftCandidate || ""
-      ).trim()
-    ) {
-      return "character_reasoning";
-    }
+          composerPacket:
+            state.composerPacket ||
+            null
+        });
 
-    if (
-      text ===
-      String(
-        summary.blueprintWriterDraft || ""
-      ).trim()
-    ) {
-      return "blueprint_writer";
-    }
+      if (
+        !result ||
+        typeof result !==
+          "object"
+      ) {
+        const upstream =
+          this.readUpstreamAIRequirement(
+            state
+          );
 
-    return "fallback";
+        return {
+          schema:
+            "ari_response_candidate_precheck_invalid",
+
+          schemaVersion:
+            this.schemaVersion,
+
+          arbiterPrecheckRan:
+            false,
+
+          needsAIWriter:
+            upstream.required ===
+            true,
+
+          aiRepairReason:
+            upstream.reason ||
+            null,
+
+          source:
+            "invalid-result",
+
+          reason:
+            "response_candidate_arbiter_precheck_returned_invalid_result"
+        };
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        "Ari candidate Arbiter precheck failed:",
+        error
+      );
+
+      const upstream =
+        this.readUpstreamAIRequirement(
+          state
+        );
+
+      return {
+        schema:
+          "ari_response_candidate_precheck_error",
+
+        schemaVersion:
+          this.schemaVersion,
+
+        arbiterPrecheckRan:
+          false,
+
+        needsAIWriter:
+          upstream.required ===
+          true,
+
+        aiRepairReason:
+          upstream.reason ||
+          null,
+
+        source:
+          "precheck-error",
+
+        reason:
+          "response_candidate_arbiter_precheck_failed",
+
+        error:
+          error?.message ||
+          String(error)
+      };
+    }
   },
 
-  // ===================================================
-  // Arbitration handoff
-  // ===================================================
+  /* =====================================================
+     UPSTREAM AI REQUIREMENT
+  ===================================================== */
 
-  buildArbitrationHandoff(summary = {}) {
+  readUpstreamAIRequirement(
+    summary = {}
+  ) {
+    const preparation =
+      summary.aiWriterPreparation ||
+      {};
+
+    const characterCandidate =
+      summary.characterCandidate ||
+      {};
+
+    const characterRequiresAI =
+      summary.characterNeedsAIWriter ===
+        true ||
+      characterCandidate
+        .needsAIWriter ===
+        true ||
+      summary.composerPacket
+        ?.characterNeedsAIWriter ===
+        true ||
+      summary.composerPacket
+        ?.characterRealization
+        ?.needsAIWriter ===
+        true;
+
+    const preparationRequiresAI =
+      preparation.required ===
+        true ||
+      summary.shouldRunAIWriter ===
+        true ||
+      summary.needsAIWriter ===
+        true;
+
+    const required =
+      characterRequiresAI ||
+      preparationRequiresAI;
+
     return {
-      ready:
-        Boolean(
-          String(
-            summary.selectedDraft ||
-            ""
-          ).trim()
+      required,
+
+      allowed:
+        preparation.allowed !==
+        false,
+
+      mode:
+        preparation.mode ||
+        summary.aiWriterMode ||
+        summary.characterAIWriterMode ||
+        null,
+
+      instruction:
+        preparation.instruction ||
+        summary.aiWriterInstruction ||
+        summary.characterAIInstruction ||
+        "",
+
+      reason:
+        preparation.reason ||
+        (
+          characterRequiresAI
+            ? "character_authority_requested_ai_realization"
+            : required
+              ? "draft_generation_requested_ai_writer"
+              : null
         ),
 
+      characterRequiresAI,
+
+      preparationRequiresAI,
+
+      source:
+        "ari-draft-arbitration-upstream-ai-requirement"
+    };
+  },
+
+  /* =====================================================
+     AI WRITER
+  ===================================================== */
+
+  async runAIWriter({
+    state = {},
+    shouldRunAIWriter = false
+  } = {}) {
+    if (!shouldRunAIWriter) {
+      return {
+        aiWriterRan:
+          false,
+
+        aiWriterInvoked:
+          false,
+
+        aiWriterUsedAI:
+          false,
+
+        aiWriterSource:
+          "skipped-by-arbitration",
+
+        aiWriterReason:
+          "ai_writer_not_required",
+
+        aiWriterFallbackReason:
+          null,
+
+        draft:
+          null,
+
+        aiWriterDraft:
+          null,
+
+        candidate:
+          null
+      };
+    }
+
+    const writer =
+      window.AriAIWriter;
+
+    if (
+      !writer ||
+      typeof writer.write !==
+        "function"
+    ) {
+      return {
+        aiWriterRan:
+          false,
+
+        aiWriterInvoked:
+          false,
+
+        aiWriterUsedAI:
+          false,
+
+        aiWriterSource:
+          "not-loaded",
+
+        aiWriterReason:
+          "ai_writer_not_loaded",
+
+        aiWriterFallbackReason:
+          "ai_writer_not_loaded",
+
+        draft:
+          null,
+
+        aiWriterDraft:
+          null,
+
+        candidate:
+          null
+      };
+    }
+
+    try {
+      const composerPacket =
+        this.buildAIWriterComposerPacket(
+          state
+        );
+
+      const result =
+        await writer.write({
+          composerPacket,
+
+          summary:
+            state
+        });
+
+      if (
+        !result ||
+        typeof result !==
+          "object"
+      ) {
+        return {
+          aiWriterRan:
+            false,
+
+          aiWriterInvoked:
+            true,
+
+          aiWriterUsedAI:
+            false,
+
+          aiWriterSource:
+            "invalid-result",
+
+          aiWriterReason:
+            "ai_writer_returned_invalid_result",
+
+          aiWriterFallbackReason:
+            "ai_writer_returned_invalid_result",
+
+          draft:
+            null,
+
+          aiWriterDraft:
+            null,
+
+          candidate:
+            null
+        };
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        "Ari AI Writer execution failed:",
+        error
+      );
+
+      return {
+        aiWriterRan:
+          false,
+
+        aiWriterInvoked:
+          true,
+
+        aiWriterUsedAI:
+          false,
+
+        aiWriterSource:
+          "writer-error",
+
+        aiWriterReason:
+          "ai_writer_execution_failed",
+
+        aiWriterFallbackReason:
+          "ai_writer_execution_failed",
+
+        draft:
+          null,
+
+        aiWriterDraft:
+          null,
+
+        candidate:
+          null,
+
+        error:
+          error?.message ||
+          String(error)
+      };
+    }
+  },
+
+  buildAIWriterComposerPacket(
+    summary = {}
+  ) {
+    const packet = {
+      ...(
+        summary.composerPacket ||
+        {}
+      ),
+
+      responseCandidateArbiter:
+        summary.arbiterPrecheck ||
+        null,
+
+      responseCandidateArbitrationPrecheck:
+        summary.arbiterPrecheck ||
+        null,
+
+      aiRepairReason:
+        summary.aiRepairReason ||
+        null,
+
+      aiWriterPreparation:
+        summary.aiWriterPreparation ||
+        null,
+
+      aiWriterMode:
+        summary
+          .upstreamAIRequirement
+          ?.mode ||
+        summary.aiWriterMode ||
+        null,
+
+      aiWriterInstruction:
+        summary
+          .upstreamAIRequirement
+          ?.instruction ||
+        summary.aiWriterInstruction ||
+        "",
+
+      meaningInterpretation:
+        summary.meaningInterpretation ||
+        summary.composerPacket
+          ?.meaningInterpretation ||
+        null,
+
+      humanState:
+        summary.humanState ||
+        summary.composerPacket
+          ?.humanState ||
+        null,
+
+      responsePlan:
+        summary.ariResponsePlan ||
+        summary
+          .understandingResponsePlan ||
+        summary.composerPacket
+          ?.responsePlan ||
+        null,
+
+      blueprintWriterDraft:
+        summary.blueprintWriterDraft ||
+        null,
+
+      blueprintWriterDraftUsable:
+        summary
+          .blueprintWriterDraftUsable ===
+        true,
+
+      blueprintWriterUsable:
+        summary
+          .blueprintWriterDraftUsable ===
+          true ||
+        summary.blueprintWriterUsable ===
+          true,
+
+      blueprintWriter:
+        summary.blueprintWriter ||
+        null,
+
+      characterCandidate:
+        summary.characterCandidate ||
+        null,
+
+      characterNeedsAIWriter:
+        summary.characterNeedsAIWriter ===
+          true ||
+        summary.characterCandidate
+          ?.needsAIWriter ===
+          true,
+
+      characterAIWriterMode:
+        summary.characterAIWriterMode ||
+        summary.characterCandidate
+          ?.aiWriterMode ||
+        null,
+
+      characterAIInstruction:
+        summary.characterAIInstruction ||
+        summary.characterCandidate
+          ?.aiInstruction ||
+        "",
+
+      candidateDrafts:
+        this.toArray(
+          summary.candidateDrafts
+        )
+    };
+
+    return packet;
+  },
+
+  applyAIWriterResult({
+    state = {},
+    aiWriterResult = {},
+    shouldRunAIWriter = false
+  } = {}) {
+    const result =
+      aiWriterResult &&
+      typeof aiWriterResult ===
+        "object"
+        ? aiWriterResult
+        : {};
+
+    const draft =
+      this.extractText(
+        result.aiWriterDraft ||
+        result.draft
+      );
+
+    return {
+      ...state,
+
+      ...result,
+
+      aiWriter:
+        result,
+
+      aiWriterInvoked:
+        shouldRunAIWriter ===
+          true,
+
+      aiWriterDraft:
+        draft ||
+        null,
+
+      aiWriterRan:
+        result.aiWriterRan ===
+        true,
+
+      aiWriterUsedAI:
+        result.aiWriterUsedAI ===
+        true,
+
+      aiWriterUsable:
+        result.aiWriterUsable ===
+        true,
+
+      aiWriterComplete:
+        result.aiWriterComplete ===
+        true,
+
+      aiWriterRequiresRepair:
+        result
+          .aiWriterRequiresRepair ===
+        true,
+
+      aiWriterValidation:
+        result.validation ||
+        null,
+
+      aiWriterReason:
+        result.aiWriterReason ||
+        result.reason ||
+        null,
+
+      aiWriterFallbackReason:
+        result
+          .aiWriterFallbackReason ||
+        null,
+
+      aiWriterSource:
+        result.aiWriterSource ||
+        result.source ||
+        (
+          shouldRunAIWriter
+            ? "unknown"
+            : "skipped-by-arbitration"
+        )
+    };
+  },
+
+  /* =====================================================
+     FINAL ARBITRATION
+  ===================================================== */
+
+  async runFinalArbitration({
+    state = {},
+    eligibility = {}
+  } = {}) {
+    if (
+      eligibility.runCandidateArbiter !==
+      true
+    ) {
+      return {
+        schema:
+          "ari_response_candidate_arbitration_skip",
+
+        schemaVersion:
+          this.schemaVersion,
+
+        responseCandidateArbiterRan:
+          false,
+
+        selectionReady:
+          false,
+
+        selectedCandidate:
+          null,
+
+        selectedDraft:
+          null,
+
+        selectedSource:
+          null,
+
+        source:
+          "skipped-by-expression-eligibility",
+
+        reason:
+          eligibility.reason ||
+          "candidate_arbitration_not_required"
+      };
+    }
+
+    const arbiter =
+      window
+        .AriResponseCandidateArbiter;
+
+    if (
+      !arbiter ||
+      typeof arbiter.choose !==
+        "function"
+    ) {
+      /*
+       * The fallback is allowed only because the Arbiter
+       * itself is unavailable. It may never run after the
+       * Arbiter evaluated and rejected candidates.
+       */
+      return this.buildUnavailableArbiterFallback(
+        state
+      );
+    }
+
+    try {
+      /*
+       * candidateDrafts and AI Writer output are already
+       * available through state. Do not supply the same
+       * candidates a second time.
+       */
+      const result =
+        await arbiter.choose({
+          summary:
+            state,
+
+          composerPacket:
+            state.composerPacket ||
+            null
+        });
+
+      if (
+        !result ||
+        typeof result !==
+          "object"
+      ) {
+        return {
+          schema:
+            "ari_response_candidate_arbitration_invalid",
+
+          schemaVersion:
+            this.schemaVersion,
+
+          responseCandidateArbiterRan:
+            false,
+
+          selectionReady:
+            false,
+
+          selectedCandidate:
+            null,
+
+          selectedDraft:
+            null,
+
+          selectedSource:
+            null,
+
+          source:
+            "invalid-result",
+
+          reason:
+            "response_candidate_arbiter_returned_invalid_result"
+        };
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        "Ari final candidate arbitration failed:",
+        error
+      );
+
+      return {
+        schema:
+          "ari_response_candidate_arbitration_error",
+
+        schemaVersion:
+          this.schemaVersion,
+
+        responseCandidateArbiterRan:
+          false,
+
+        selectionReady:
+          false,
+
+        selectedCandidate:
+          null,
+
+        selectedDraft:
+          null,
+
+        selectedSource:
+          null,
+
+        source:
+          "arbitration-error",
+
+        reason:
+          "response_candidate_arbitration_failed",
+
+        error:
+          error?.message ||
+          String(error)
+      };
+    }
+  },
+
+  /*
+   * This compatibility path runs only when the canonical
+   * Arbiter is not loaded. It must never resurrect a draft
+   * after the Arbiter itself returned no selection.
+   */
+  buildUnavailableArbiterFallback(
+    summary = {}
+  ) {
+    const candidates =
+      this.toArray(
+        summary.candidateDrafts
+      )
+        .filter(
+          candidate =>
+            candidate?.usable ===
+              true &&
+            candidate
+              ?.requiresAIRepair !==
+              true &&
+            candidate
+              ?.requiresRepair !==
+              true &&
+            Boolean(
+              this.extractText(
+                candidate?.text
+              )
+            )
+        )
+        .sort(
+          (
+            first,
+            second
+          ) => {
+            const completionDifference =
+              Number(
+                second?.complete ===
+                true
+              ) -
+              Number(
+                first?.complete ===
+                true
+              );
+
+            if (
+              completionDifference !==
+              0
+            ) {
+              return completionDifference;
+            }
+
+            return (
+              Number(
+                second?.priority ||
+                0
+              ) -
+              Number(
+                first?.priority ||
+                0
+              )
+            );
+          }
+        );
+
+    const selectedCandidate =
+      candidates[0] ||
+      null;
+
+    const selectedDraft =
+      this.extractText(
+        selectedCandidate?.text
+      );
+
+    return {
+      schema:
+        "ari_response_candidate_arbitration_compatibility_fallback",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      responseCandidateArbiterRan:
+        false,
+
+      compatibilityFallbackUsed:
+        true,
+
+      selectionReady:
+        Boolean(
+          selectedDraft
+        ),
+
+      selectedCandidate,
+
       selectedDraft:
-        summary.selectedDraft ||
+        selectedDraft ||
         null,
 
       selectedSource:
-        summary.selectedDraftSource ||
+        selectedCandidate?.source ||
+        null,
+
+      selectedDraftSource:
+        selectedCandidate?.source ||
+        null,
+
+      source:
+        "arbiter-not-loaded-compatibility-fallback",
+
+      reason:
+        selectedDraft
+          ? "highest_priority_explicitly_usable_candidate_selected"
+          : "response_candidate_arbiter_not_loaded_and_no_explicitly_usable_candidate"
+    };
+  },
+
+  applyFinalArbitration({
+    state = {},
+    arbitration = {}
+  } = {}) {
+    const result =
+      arbitration &&
+      typeof arbitration ===
+        "object"
+        ? arbitration
+        : {};
+
+    const selectedCandidate =
+      result.selectedCandidate &&
+      typeof result
+        .selectedCandidate ===
+        "object"
+        ? result.selectedCandidate
+        : null;
+
+    const selectedDraft =
+      this.extractText(
+        selectedCandidate?.text ||
+        result.selectedDraft ||
+        result.finalResponseCandidate
+      );
+
+    const selectedSource =
+      selectedCandidate?.source ||
+      result.selectedSource ||
+      result.selectedDraftSource ||
+      null;
+
+    const selectionReady =
+      result.selectionReady ===
+        true &&
+      Boolean(
+        selectedDraft
+      );
+
+    return {
+      ...state,
+
+      /*
+       * Preserve Arbiter diagnostics at the top level while
+       * retaining one canonical arbitration object.
+       */
+      ...result,
+
+      responseCandidateArbitration:
+        result,
+
+      /*
+       * Temporary compatibility alias. Remove after all
+       * consumers use responseCandidateArbitration.
+       */
+      responseCandidateArbiter:
+        result,
+
+      selectedCandidate,
+
+      selectedDraft:
+        selectionReady
+          ? selectedDraft
+          : null,
+
+      selectedDraftSource:
+        selectionReady
+          ? selectedSource
+          : null,
+
+      selectedSource:
+        selectionReady
+          ? selectedSource
+          : null,
+
+      selectionReady,
+
+      responseCandidateArbiterRan:
+        result
+          .responseCandidateArbiterRan ===
+        true
+    };
+  },
+
+  /* =====================================================
+     ARBITRATION HANDOFF
+  ===================================================== */
+
+  buildArbitrationHandoff(
+    summary = {}
+  ) {
+    const selectedDraft =
+      this.extractText(
+        summary.selectedDraft
+      );
+
+    const ready =
+      summary.selectionReady ===
+        true &&
+      Boolean(
+        selectedDraft
+      );
+
+    return {
+      schema:
+        "ari_draft_arbitration_handoff",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ready,
+
+      source:
+        this.source,
+
+      version:
+        this.version,
+
+      selectionReady:
+        ready,
+
+      selectedCandidate:
+        ready
+          ? summary.selectedCandidate ||
+            null
+          : null,
+
+      selectedDraft:
+        ready
+          ? selectedDraft
+          : null,
+
+      selectedSource:
+        ready
+          ? summary.selectedDraftSource ||
+            summary.selectedSource ||
+            null
+          : null,
+
+      arbitration:
+        summary
+          .responseCandidateArbitration ||
         null,
 
       candidates:
-        summary.candidateDrafts ||
-        [],
+        this.toArray(
+          summary.candidateDrafts
+        ),
 
       precheck:
         summary.arbiterPrecheck ||
         null,
 
       aiWriter: {
-  needed:
-    summary.needsAIWriter ===
-    true,
-
-  ran:
-    summary.aiWriterRan ===
-    true,
-
-  usedAI:
-    summary.aiWriterUsedAI ===
-    true,
-
-  usable:
-    summary.aiWriterUsable ===
-    true,
-
-  complete:
-    summary.aiWriterComplete ===
-    true,
-
-  requiresRepair:
-    summary
-      .aiWriterRequiresRepair ===
-    true,
-
-  source:
-    summary.aiWriterSource ||
-    null,
-
-  reason:
-    summary.aiWriterReason ||
-    null,
-
-  draft:
-    summary.aiWriterDraft ||
-    null,
-
-  validation:
-    summary.aiWriterValidation ||
-    null,
-
-  repairReason:
-    summary.aiRepairReason ||
-    null
-},
-
-      characterBypass:
-        summary
-          .shouldBypassAIWriterForCharacter === true,
-
-      authority: {
-        canRequestAIWriter:
+        required:
+          summary.needsAIWriter ===
           true,
 
-        canRegisterDraftCandidates:
+        shouldRun:
+          summary.shouldRunAIWriter ===
           true,
 
-        canSelectPreferredDraft:
+        invoked:
+          summary.aiWriterInvoked ===
           true,
 
-        canWriteFinalResponse:
-          false,
+        ran:
+          summary.aiWriterRan ===
+          true,
 
-        canPersistState:
-          false,
+        usedAI:
+          summary.aiWriterUsedAI ===
+          true,
 
-        role:
-          "draft_candidate_generation_and_selection"
-      }
+        usable:
+          summary.aiWriterUsable ===
+          true,
+
+        complete:
+          summary.aiWriterComplete ===
+          true,
+
+        requiresRepair:
+          summary
+            .aiWriterRequiresRepair ===
+          true,
+
+        source:
+          summary.aiWriterSource ||
+          null,
+
+        reason:
+          summary.aiWriterReason ||
+          null,
+
+        fallbackReason:
+          summary
+            .aiWriterFallbackReason ||
+          null,
+
+        draft:
+          summary.aiWriterDraft ||
+          null,
+
+        validation:
+          summary.aiWriterValidation ||
+          null,
+
+        repairReason:
+          summary.aiRepairReason ||
+          null,
+
+        upstreamRequirement:
+          summary.upstreamAIRequirement ||
+          null
+      },
+
+      failure: {
+        selectionUnavailable:
+          !ready,
+
+        reason:
+          ready
+            ? null
+            : summary
+                .responseCandidateArbitration
+                ?.reason ||
+              "no_arbiter_authorized_candidate"
+      },
+
+      authority:
+        this.getAuthorityBoundaries()
     };
   },
 
-  // ===================================================
-  // Stage packet
-  // ===================================================
+  /* =====================================================
+     STAGE PACKET
+  ===================================================== */
 
   buildDraftArbitrationStagePacket(
     summary = {}
   ) {
+    const selectedDraft =
+      this.extractText(
+        summary.selectedDraft
+      );
+
+    const ready =
+      summary.selectionReady ===
+        true &&
+      Boolean(
+        selectedDraft
+      );
+
     return {
-      ready:
+      schema:
+        "ari_draft_arbitration_stage_packet",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ready,
+
+      completed:
         true,
 
       source:
-        "ari-draft-arbitration-stage",
+        this.source,
 
       version:
         this.version,
@@ -900,7 +1499,8 @@ state = {
 
       precheck: {
         ran:
-          summary.arbiterPrecheckRan === true,
+          summary.arbiterPrecheckRan ===
+          true,
 
         source:
           summary.arbiterPrecheckSource ||
@@ -910,8 +1510,13 @@ state = {
           summary.arbiterPrecheck ||
           null,
 
+        upstreamAIRequirement:
+          summary.upstreamAIRequirement ||
+          null,
+
         needsAIWriter:
-          summary.needsAIWriter === true,
+          summary.needsAIWriter ===
+          true,
 
         repairReason:
           summary.aiRepairReason ||
@@ -919,108 +1524,280 @@ state = {
       },
 
       aiWriter: {
-  shouldRun:
-    summary.shouldRunAIWriter ===
-    true,
+        shouldRun:
+          summary.shouldRunAIWriter ===
+          true,
 
-  ran:
-    summary.aiWriterRan ===
-    true,
+        invoked:
+          summary.aiWriterInvoked ===
+          true,
 
-  usedAI:
-    summary.aiWriterUsedAI ===
-    true,
+        ran:
+          summary.aiWriterRan ===
+          true,
 
-  usable:
-    summary.aiWriterUsable ===
-    true,
+        usedAI:
+          summary.aiWriterUsedAI ===
+          true,
 
-  complete:
-    summary.aiWriterComplete ===
-    true,
+        usable:
+          summary.aiWriterUsable ===
+          true,
 
-  requiresRepair:
-    summary
-      .aiWriterRequiresRepair ===
-    true,
+        complete:
+          summary.aiWriterComplete ===
+          true,
 
-  source:
-    summary.aiWriterSource ||
-    null,
+        requiresRepair:
+          summary
+            .aiWriterRequiresRepair ===
+          true,
 
-  reason:
-    summary.aiWriterReason ||
-    null,
+        source:
+          summary.aiWriterSource ||
+          null,
 
-  draft:
-    summary.aiWriterDraft ||
-    null,
+        reason:
+          summary.aiWriterReason ||
+          null,
 
-  validation:
-    summary.aiWriterValidation ||
-    null,
+        fallbackReason:
+          summary
+            .aiWriterFallbackReason ||
+          null,
 
-  raw:
-    summary.aiWriter ||
-    null
-},
+        draft:
+          summary.aiWriterDraft ||
+          null,
+
+        validation:
+          summary.aiWriterValidation ||
+          null,
+
+        raw:
+          summary.aiWriter ||
+          null
+      },
 
       arbiter: {
         ran:
           summary
-            .responseCandidateArbiterRan === true,
+            .responseCandidateArbiterRan ===
+          true,
+
+        selectionReady:
+          ready,
+
+        selectedCandidate:
+          ready
+            ? summary.selectedCandidate ||
+              null
+            : null,
+
+        selectedDraft:
+          ready
+            ? selectedDraft
+            : null,
+
+        selectedSource:
+          ready
+            ? summary.selectedDraftSource ||
+              null
+            : null,
 
         value:
-          summary.responseCandidateArbiter ||
+          summary
+            .responseCandidateArbitration ||
           null
       },
 
       result: {
+        ready,
+
+        selectedCandidate:
+          ready
+            ? summary.selectedCandidate ||
+              null
+            : null,
+
         selectedDraft:
-          summary.selectedDraft ||
-          null,
+          ready
+            ? selectedDraft
+            : null,
 
         selectedSource:
-          summary.selectedDraftSource ||
-          null,
+          ready
+            ? summary.selectedDraftSource ||
+              null
+            : null,
 
-        candidates:
-          summary.candidateDrafts ||
-          [],
+        candidateCount:
+          this.toArray(
+            summary.candidateDrafts
+          ).length,
 
-        characterBypass:
-          summary
-            .shouldBypassAIWriterForCharacter === true
+        failureReason:
+          ready
+            ? null
+            : summary
+                .responseCandidateArbitration
+                ?.reason ||
+              "no_arbiter_authorized_candidate"
       },
 
       handoff:
         summary.arbitrationHandoff ||
         null,
 
-      authority: {
-        canRunArbiterPrecheck:
-          true,
-
-        canRunAIWriter:
-          true,
-
-        canSelectPreferredDraft:
-          true,
-
-        canComposeFinalResponse:
-          false,
-
-        canPersistState:
-          false,
-
-        role:
-          "ai_writer_activation_and_draft_arbitration"
-      }
+      authority:
+        this.getAuthorityBoundaries()
     };
+  },
+
+  /* =====================================================
+     AUTHORITY
+  ===================================================== */
+
+  getAuthorityBoundaries() {
+    return {
+      canRunArbiterPrecheck:
+        true,
+
+      canRequestAIWriter:
+        true,
+
+      canRunAIWriter:
+        true,
+
+      canRunFinalCandidateArbitration:
+        true,
+
+      canPreserveArbiterSelection:
+        true,
+
+      canBuildArbitrationHandoff:
+        true,
+
+      canRegisterCharacterCandidate:
+        false,
+
+      canRegisterBlueprintCandidate:
+        false,
+
+      canIndependentlyRegisterAICandidate:
+        false,
+
+      canIndependentlyScoreCandidates:
+        false,
+
+      canIndependentlySelectCandidate:
+        false,
+
+      canResurrectRejectedCandidate:
+        false,
+
+      canBypassRequiredCharacterRealization:
+        false,
+
+      canComposeFinalResponse:
+        false,
+
+      canChangeResponsePlan:
+        false,
+
+      canOverrideSafety:
+        false,
+
+      canPersistState:
+        false,
+
+      role:
+        "ai_writer_activation_and_canonical_candidate_arbitration_orchestration"
+    };
+  },
+
+  /* =====================================================
+     HELPERS
+  ===================================================== */
+
+  extractText(
+    value = null
+  ) {
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return "";
+    }
+
+    if (
+      typeof value ===
+      "string"
+    ) {
+      return value.trim();
+    }
+
+    if (
+      typeof value ===
+        "number" ||
+      typeof value ===
+        "boolean"
+    ) {
+      return String(
+        value
+      ).trim();
+    }
+
+    if (
+      typeof value ===
+      "object"
+    ) {
+      return this.extractText(
+        value.text ||
+        value.draft ||
+        value.finalResponse ||
+        value.response ||
+        value.reply ||
+        value.content ||
+        ""
+      );
+    }
+
+    return "";
+  },
+
+  toArray(
+    value
+  ) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
+      return value.filter(
+        item =>
+          item !== null &&
+          item !== undefined &&
+          item !== ""
+      );
+    }
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return [];
+    }
+
+    return [
+      value
+    ];
   }
 };
 
 console.log(
   "ARI DRAFT ARBITRATION STAGE LOADED:",
-  window.AriDraftArbitrationStage?.version
+  window.AriDraftArbitrationStage
+    ?.version
 );
