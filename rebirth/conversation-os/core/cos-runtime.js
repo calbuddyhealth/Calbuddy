@@ -2,82 +2,80 @@
 // ARI Rebirth — Conversation Operating System Runtime
 //
 // Purpose:
-// Orchestrate deterministic conversation-placement processing for the
-// Conversation Operating System.
+// Execute the complete deterministic Conversation Operating System pipeline
+// for one registered conversation turn.
 //
-// V1.0.0 — Deterministic Conversation Placement Runtime
+// V2.0.0 — Expanded Canonical COS Runtime Integration
 //
-// Canonical flow:
+// Canonical execution flow:
 //
 // Runtime Input
 //      ↓
 // Contract Validation
 //      ↓
-// COS State Initialization
+// State Normalization
 //      ↓
-// History Indexing
+// History Index Construction
 //      ↓
 // Current-Turn Registration
 //      ↓
-// Reference Resolution
+// Pending Interaction Transition
 //      ↓
-// Conversation Placement
+// Artifact Transition
+//      ↓
+// Delivery Sequence Transition
+//      ↓
+// Reference Candidate Construction
+//      ↓
+// Reference Adjudication
+//      ↓
+// Canonical Reference Resolution
+//      ↓
+// Placement Determination
 //      ↓
 // Thread-State Transition
 //      ↓
 // Placement Validation
 //      ↓
-// Authoritative Conversation Placement Packet
+// Packet Construction
 //      ↓
-// COS Runtime Result
+// Final State Validation
+//      ↓
+// Canonical COS Runtime Result
 //
 // Authority:
 //
-// The Conversation Operating System is authoritative only for:
+// This component is authoritative only for:
 //
-// - conversation placement,
-// - turn attachment,
-// - structural thread continuity,
-// - source-turn binding,
-// - structural reference resolution,
-// - conversation-thread lifecycle state.
+// - executing COS components in canonical order,
+// - carrying canonical state between COS stages,
+// - preserving stage outputs,
+// - enforcing required stage availability,
+// - validating stage boundaries,
+// - collecting deterministic diagnostics,
+// - returning the final COS packet and state.
 //
 // Non-authority:
 //
-// This runtime must not:
+// This component must not:
 //
-// - interpret semantic meaning,
-// - classify intent,
-// - classify conversation function,
-// - infer emotion,
-// - infer safety severity,
-// - determine the user's goal,
-// - select response strategy,
-// - plan a response,
-// - generate a response,
-// - reinterpret raw language,
-// - override semantic authorities,
-// - convert uncertain references into fabricated certainty.
+// - reinterpret raw user language,
+// - independently infer semantic meaning,
+// - independently classify intent,
+// - independently classify conversation function,
+// - independently infer emotion,
+// - independently infer safety severity,
+// - independently resolve references,
+// - independently determine placement,
+// - independently generate thread relationships,
+// - independently generate responses.
 //
 // Architectural rule:
 //
-// This runtime orchestrates authoritative COS components.
-// It does not replace those components with hidden language understanding.
+// The runtime orchestrates authorities.
+// It does not replace them.
 //
-// Dependencies:
-//
-// Required:
-// - rebirth/conversation-os/core/cos-contract.js
-// - rebirth/conversation-os/core/cos-state.js
-//
-// Pluggable components:
-// - cos-history-index.js
-// - cos-turn-register.js
-// - cos-reference-resolver.js
-// - cos-placement-engine.js
-// - cos-thread-state-manager.js
-// - cos-placement-validator.js
-// - cos-packet-builder.js
+// Each stage may only make decisions within its declared authority.
 //
 // Browser namespace:
 //
@@ -85,156 +83,92 @@
 // window.Ari.Rebirth
 // window.Ari.Rebirth.ConversationOS
 // window.Ari.Rebirth.ConversationOS.runtime
+//
+// CommonJS:
+//
+// module.exports = cosRuntime
 
 (function initializeCosRuntime(globalScope) {
   "use strict";
 
   const root =
     globalScope ||
-    (typeof globalThis !== "undefined"
-      ? globalThis
-      : typeof window !== "undefined"
-        ? window
-        : {});
+    (
+      typeof globalThis !== "undefined"
+        ? globalThis
+        : typeof window !== "undefined"
+          ? window
+          : {}
+    );
 
   root.Ari = root.Ari || {};
   root.Ari.Rebirth = root.Ari.Rebirth || {};
   root.Ari.Rebirth.ConversationOS =
     root.Ari.Rebirth.ConversationOS || {};
 
-  const ConversationOS = root.Ari.Rebirth.ConversationOS;
+  const ConversationOS =
+    root.Ari.Rebirth.ConversationOS;
 
   /* =====================================================
      CONSTANTS
   ===================================================== */
 
-  const VERSION = "1.0.0";
+  const VERSION = "2.0.0";
   const SCHEMA_VERSION = "1.0.0";
 
-  const AUTHORITY = "conversation_operating_system";
-  const RUNTIME_NAME = "cos-runtime";
+  const AUTHORITY =
+    "conversation_operating_system";
 
-  const STAGES = Object.freeze({
-    CONTRACT_VALIDATION: "contract_validation",
-    STATE_INITIALIZATION: "state_initialization",
-    HISTORY_INDEXING: "history_indexing",
-    TURN_REGISTRATION: "turn_registration",
-    REFERENCE_RESOLUTION: "reference_resolution",
-    CONVERSATION_PLACEMENT: "conversation_placement",
-    THREAD_STATE_TRANSITION: "thread_state_transition",
-    PLACEMENT_VALIDATION: "placement_validation",
-    PACKET_BUILDING: "packet_building",
-    RESULT_FINALIZATION: "result_finalization"
-  });
+  const COMPONENT_NAME =
+    "cos-runtime";
 
-  const STAGE_ORDER = Object.freeze([
-    STAGES.CONTRACT_VALIDATION,
-    STAGES.STATE_INITIALIZATION,
-    STAGES.HISTORY_INDEXING,
-    STAGES.TURN_REGISTRATION,
-    STAGES.REFERENCE_RESOLUTION,
-    STAGES.CONVERSATION_PLACEMENT,
-    STAGES.THREAD_STATE_TRANSITION,
-    STAGES.PLACEMENT_VALIDATION,
-    STAGES.PACKET_BUILDING,
-    STAGES.RESULT_FINALIZATION
+  const RUNTIME_RESULT_TYPE =
+    "conversation_operating_system_runtime_result";
+
+  const STAGE_NAMES = Object.freeze([
+    "contract_validation",
+    "state_normalization",
+    "history_indexing",
+    "turn_registration",
+    "pending_interaction_transition",
+    "artifact_transition",
+    "delivery_sequence_transition",
+    "reference_candidate_construction",
+    "reference_adjudication",
+    "reference_resolution",
+    "placement",
+    "thread_state_transition",
+    "placement_validation",
+    "packet_construction",
+    "final_state_validation"
   ]);
 
-  const PLACEMENT_TYPES = Object.freeze([
-    "new_thread",
-    "continue_thread",
-    "resume_thread",
-    "branch_from_turn",
-    "answer_to_turn",
-    "clarification_of_turn",
-    "correction_of_turn",
-    "interruption",
-    "return_from_interruption",
-    "unresolved_placement"
+  const REQUIRED_COMPONENTS = Object.freeze([
+    "contract",
+    "state",
+    "historyIndex",
+    "turnRegister",
+    "pendingInteractionManager",
+    "artifactRegister",
+    "deliverySequenceManager",
+    "referenceCandidateBuilder",
+    "referenceAdjudicator",
+    "referenceResolver",
+    "placementEngine",
+    "threadStateManager",
+    "placementValidator",
+    "packetBuilder"
   ]);
 
-  const REFERENCE_STATUSES = Object.freeze([
-    "not_required",
-    "resolved",
-    "partially_resolved",
-    "unresolved"
-  ]);
+  const AUXILIARY_COMMAND_NAMES = Object.freeze({
+    pendingInteraction:
+      "pendingInteractionCommand",
 
-  const THREAD_STATUSES = Object.freeze([
-    "active",
-    "paused",
-    "interrupted",
-    "resumed",
-    "closed",
-    "unknown"
-  ]);
+    artifact:
+      "artifactCommand",
 
-  const COMPONENT_ALIASES = Object.freeze({
-    contract: [
-      "contract",
-      "cosContract",
-      "CosContract",
-      "COSContract"
-    ],
-
-    state: [
-      "state",
-      "cosState",
-      "CosState",
-      "COSState"
-    ],
-
-    historyIndex: [
-      "historyIndex",
-      "historyIndexer",
-      "cosHistoryIndex",
-      "CosHistoryIndex",
-      "COSHistoryIndex"
-    ],
-
-    turnRegister: [
-      "turnRegister",
-      "currentTurnRegister",
-      "cosTurnRegister",
-      "CosTurnRegister",
-      "COSTurnRegister"
-    ],
-
-    referenceResolver: [
-      "referenceResolver",
-      "cosReferenceResolver",
-      "CosReferenceResolver",
-      "COSReferenceResolver"
-    ],
-
-    placementEngine: [
-      "placementEngine",
-      "conversationPlacementEngine",
-      "cosPlacementEngine",
-      "CosPlacementEngine",
-      "COSPlacementEngine"
-    ],
-
-    threadStateManager: [
-      "threadStateManager",
-      "cosThreadStateManager",
-      "CosThreadStateManager",
-      "COSThreadStateManager"
-    ],
-
-    placementValidator: [
-      "placementValidator",
-      "cosPlacementValidator",
-      "CosPlacementValidator",
-      "COSPlacementValidator"
-    ],
-
-    packetBuilder: [
-      "packetBuilder",
-      "cosPacketBuilder",
-      "CosPacketBuilder",
-      "COSPacketBuilder"
-    ]
+    deliverySequence:
+      "deliverySequenceCommand"
   });
 
   /* =====================================================
@@ -247,25 +181,45 @@
       message,
       {
         stage = null,
-        cause = null,
         details = null,
+        cause = null,
         recoverable = false
       } = {}
     ) {
-      super(message || code || "COS runtime error");
+      super(
+        message ||
+        code ||
+        "COS runtime error"
+      );
 
-      this.name = "CosRuntimeError";
-      this.code = code || "COS_RUNTIME_ERROR";
-      this.stage = stage;
-      this.cause = cause || null;
-      this.details = details || null;
-      this.recoverable = recoverable === true;
+      this.name =
+        "CosRuntimeError";
+
+      this.code =
+        code ||
+        "COS_RUNTIME_ERROR";
+
+      this.stage =
+        stage || null;
+
+      this.details =
+        details;
+
+      this.cause =
+        cause;
+
+      this.recoverable =
+        recoverable === true;
 
       if (
         Error.captureStackTrace &&
-        typeof Error.captureStackTrace === "function"
+        typeof Error.captureStackTrace ===
+          "function"
       ) {
-        Error.captureStackTrace(this, CosRuntimeError);
+        Error.captureStackTrace(
+          this,
+          CosRuntimeError
+        );
       }
     }
   }
@@ -291,44 +245,10 @@
   }
 
   function isNonEmptyString(value) {
-    return isString(value) && value.trim().length > 0;
-  }
-
-  function asArray(value) {
-    if (Array.isArray(value)) {
-      return value;
-    }
-
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return [];
-    }
-
-    return [value];
-  }
-
-  function uniqueStrings(values = []) {
-    const output = [];
-    const seen = new Set();
-
-    for (const value of asArray(values)) {
-      if (!isNonEmptyString(value)) {
-        continue;
-      }
-
-      const normalized = value.trim();
-
-      if (seen.has(normalized)) {
-        continue;
-      }
-
-      seen.add(normalized);
-      output.push(normalized);
-    }
-
-    return output;
+    return (
+      isString(value) &&
+      value.trim().length > 0
+    );
   }
 
   function firstDefined(...values) {
@@ -351,14 +271,27 @@
     return null;
   }
 
-  function normalizeBoolean(value, fallback = false) {
-    return typeof value === "boolean"
-      ? value
-      : fallback;
+  function asArray(value) {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return [];
+    }
+
+    return [value];
   }
 
-  function normalizeInteger(value, fallback = 0) {
-    const numeric = Number(value);
+  function normalizeInteger(
+    value,
+    fallback = 0
+  ) {
+    const numeric =
+      Number(value);
 
     if (!Number.isFinite(numeric)) {
       return fallback;
@@ -367,79 +300,38 @@
     return Math.trunc(numeric);
   }
 
-  function normalizeTimestamp(value, fallback = null) {
-    if (value instanceof Date) {
-      const timestamp = value.toISOString();
-      return timestamp;
-    }
-
-    if (isNonEmptyString(value)) {
-      const parsed = new Date(value);
-
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toISOString();
-      }
-    }
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-      const parsed = new Date(value);
-
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toISOString();
-      }
-    }
-
-    return fallback;
+  function normalizeBoolean(
+    value,
+    fallback = false
+  ) {
+    return typeof value === "boolean"
+      ? value
+      : fallback;
   }
 
-  function nowIso() {
-    return new Date().toISOString();
-  }
+  function uniqueStrings(values = []) {
+    const output = [];
+    const seen = new Set();
 
-  function nowMs() {
-    if (
-      typeof performance !== "undefined" &&
-      performance &&
-      isFunction(performance.now)
+    for (
+      const value of asArray(values)
     ) {
-      return performance.now();
+      if (!isNonEmptyString(value)) {
+        continue;
+      }
+
+      const normalized =
+        value.trim();
+
+      if (seen.has(normalized)) {
+        continue;
+      }
+
+      seen.add(normalized);
+      output.push(normalized);
     }
 
-    return Date.now();
-  }
-
-  function elapsedMs(start) {
-    const value = nowMs() - start;
-
-    return Number.isFinite(value)
-      ? Math.max(0, Math.round(value * 1000) / 1000)
-      : 0;
-  }
-
-  function createId(prefix = "cos") {
-    const time = Date.now().toString(36);
-
-    let random = "";
-
-    if (
-      typeof crypto !== "undefined" &&
-      crypto &&
-      isFunction(crypto.getRandomValues)
-    ) {
-      const values = new Uint32Array(2);
-      crypto.getRandomValues(values);
-
-      random =
-        values[0].toString(36) +
-        values[1].toString(36);
-    } else {
-      random =
-        Math.random()
-          .toString(36)
-          .slice(2, 12);
-    }
-
-    return `${prefix}_${time}_${random}`;
+    return output;
   }
 
   function safeClone(value) {
@@ -450,22 +342,30 @@
       return value;
     }
 
-    if (typeof structuredClone === "function") {
+    if (
+      typeof structuredClone ===
+      "function"
+    ) {
       try {
         return structuredClone(value);
       } catch (error) {
-        // Continue to fallback clone.
+        // Continue to JSON fallback.
       }
     }
 
     try {
-      return JSON.parse(JSON.stringify(value));
+      return JSON.parse(
+        JSON.stringify(value)
+      );
     } catch (error) {
       return value;
     }
   }
 
-  function deepFreeze(value, seen = new WeakSet()) {
+  function deepFreeze(
+    value,
+    seen = new WeakSet()
+  ) {
     if (
       value === null ||
       typeof value !== "object"
@@ -479,16 +379,20 @@
 
     seen.add(value);
 
-    const properties = Reflect.ownKeys(value);
-
-    for (const property of properties) {
-      const child = value[property];
+    for (
+      const key of Reflect.ownKeys(value)
+    ) {
+      const child =
+        value[key];
 
       if (
         child !== null &&
         typeof child === "object"
       ) {
-        deepFreeze(child, seen);
+        deepFreeze(
+          child,
+          seen
+        );
       }
     }
 
@@ -496,2312 +400,2161 @@
   }
 
   function freezeClone(value) {
-    return deepFreeze(safeClone(value));
+    return deepFreeze(
+      safeClone(value)
+    );
   }
 
-  function safeError(error, fallbackCode = "COS_RUNTIME_ERROR") {
-    if (error instanceof CosRuntimeError) {
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
+  function monotonicNow() {
+    if (
+      typeof performance !==
+        "undefined" &&
+      performance &&
+      isFunction(
+        performance.now
+      )
+    ) {
+      return performance.now();
+    }
+
+    return Date.now();
+  }
+
+  function elapsedMilliseconds(
+    startedAt
+  ) {
+    return Math.max(
+      0,
+      monotonicNow() -
+      startedAt
+    );
+  }
+
+  function hasOwn(
+    object,
+    property
+  ) {
+    return Object.prototype
+      .hasOwnProperty
+      .call(
+        object,
+        property
+      );
+  }
+
+  function safeError(error) {
+    if (error instanceof Error) {
       return {
-        name: error.name,
-        code: error.code,
-        message: error.message,
-        stage: error.stage,
-        recoverable: error.recoverable,
-        details: safeClone(error.details),
+        name:
+          error.name || "Error",
+
+        code:
+          firstNonEmptyString(
+            error.code
+          ) ||
+          "COS_RUNTIME_ERROR",
+
+        message:
+          error.message ||
+          "Unknown COS runtime error",
+
+        stage:
+          firstNonEmptyString(
+            error.stage
+          ) || null,
+
+        recoverable:
+          error.recoverable === true,
+
+        details:
+          error.details === undefined
+            ? null
+            : safeClone(
+                error.details
+              ),
+
         cause:
           error.cause instanceof Error
             ? {
-                name: error.cause.name,
-                message: error.cause.message
-              }
-            : safeClone(error.cause)
-      };
-    }
+                name:
+                  error.cause.name,
 
-    if (error instanceof Error) {
-      return {
-        name: error.name || "Error",
-        code: fallbackCode,
-        message: error.message || "Unknown error",
-        stage: null,
-        recoverable: false,
-        details: null,
-        cause: null
+                code:
+                  firstNonEmptyString(
+                    error.cause.code
+                  ) || null,
+
+                message:
+                  error.cause.message
+              }
+            : safeClone(
+                error.cause
+              )
       };
     }
 
     return {
       name: "Error",
-      code: fallbackCode,
+
+      code:
+        "COS_RUNTIME_ERROR",
+
       message:
         isNonEmptyString(error)
           ? error
-          : "Unknown error",
+          : "Unknown COS runtime error",
+
       stage: null,
+
       recoverable: false,
-      details: safeClone(error),
+
+      details:
+        safeClone(error),
+
       cause: null
     };
-  }
-
-  function readPath(source, path) {
-    if (!source || !isNonEmptyString(path)) {
-      return undefined;
-    }
-
-    const segments = path.split(".");
-    let cursor = source;
-
-    for (const segment of segments) {
-      if (
-        cursor === null ||
-        cursor === undefined
-      ) {
-        return undefined;
-      }
-
-      cursor = cursor[segment];
-    }
-
-    return cursor;
-  }
-
-  function readFirstPath(source, paths = []) {
-    for (const path of paths) {
-      const value = readPath(source, path);
-
-      if (value !== undefined) {
-        return value;
-      }
-    }
-
-    return undefined;
   }
 
   /* =====================================================
      COMPONENT DISCOVERY
   ===================================================== */
 
-  function resolveComponent({
-    explicit = null,
-    componentKey,
-    required = false
-  }) {
-    if (explicit) {
-      return explicit;
-    }
-
-    const aliases =
-      COMPONENT_ALIASES[componentKey] || [];
-
+  function resolveFromNamespace(
+    aliases = []
+  ) {
     const namespaces = [
       ConversationOS,
       ConversationOS.core,
+      ConversationOS.indexing,
+      ConversationOS.turns,
+      ConversationOS.interactions,
+      ConversationOS.artifacts,
+      ConversationOS.sequences,
+      ConversationOS.references,
+      ConversationOS.placement,
+      ConversationOS.threads,
+      ConversationOS.validation,
+      ConversationOS.packets,
       ConversationOS.components,
+      root.Ari.Rebirth,
       root.Ari,
       root
     ].filter(Boolean);
 
-    for (const namespace of namespaces) {
-      for (const alias of aliases) {
+    for (
+      const namespace of
+        namespaces
+    ) {
+      for (
+        const alias of aliases
+      ) {
         if (namespace[alias]) {
           return namespace[alias];
         }
       }
     }
 
-    if (required) {
+    return null;
+  }
+
+  function resolveComponents(
+    overrides = {}
+  ) {
+    return {
+      contract:
+        overrides.contract ||
+        resolveFromNamespace([
+          "contract",
+          "cosContract",
+          "AriCosContract"
+        ]),
+
+      state:
+        overrides.state ||
+        resolveFromNamespace([
+          "state",
+          "cosState",
+          "AriCosState"
+        ]),
+
+      historyIndex:
+        overrides.historyIndex ||
+        resolveFromNamespace([
+          "historyIndex",
+          "historyIndexer",
+          "cosHistoryIndex",
+          "AriCosHistoryIndex"
+        ]),
+
+      turnRegister:
+        overrides.turnRegister ||
+        resolveFromNamespace([
+          "turnRegister",
+          "currentTurnRegister",
+          "cosTurnRegister",
+          "AriCosTurnRegister"
+        ]),
+
+      pendingInteractionManager:
+        overrides
+          .pendingInteractionManager ||
+        resolveFromNamespace([
+          "pendingInteractionManager",
+          "cosPendingInteractionManager",
+          "AriCosPendingInteractionManager"
+        ]),
+
+      artifactRegister:
+        overrides.artifactRegister ||
+        resolveFromNamespace([
+          "artifactRegister",
+          "cosArtifactRegister",
+          "AriCosArtifactRegister"
+        ]),
+
+      deliverySequenceManager:
+        overrides
+          .deliverySequenceManager ||
+        resolveFromNamespace([
+          "deliverySequenceManager",
+          "cosDeliverySequenceManager",
+          "AriCosDeliverySequenceManager"
+        ]),
+
+      referenceCandidateBuilder:
+        overrides
+          .referenceCandidateBuilder ||
+        resolveFromNamespace([
+          "referenceCandidateBuilder",
+          "cosReferenceCandidateBuilder",
+          "AriCosReferenceCandidateBuilder"
+        ]),
+
+      referenceAdjudicator:
+        overrides
+          .referenceAdjudicator ||
+        resolveFromNamespace([
+          "referenceAdjudicator",
+          "cosReferenceAdjudicator",
+          "AriCosReferenceAdjudicator"
+        ]),
+
+      referenceResolver:
+        overrides.referenceResolver ||
+        resolveFromNamespace([
+          "referenceResolver",
+          "cosReferenceResolver",
+          "AriCosReferenceResolver"
+        ]),
+
+      placementEngine:
+        overrides.placementEngine ||
+        resolveFromNamespace([
+          "placementEngine",
+          "conversationPlacementEngine",
+          "cosPlacementEngine",
+          "AriCosPlacementEngine"
+        ]),
+
+      threadStateManager:
+        overrides.threadStateManager ||
+        resolveFromNamespace([
+          "threadStateManager",
+          "cosThreadStateManager",
+          "AriCosThreadStateManager"
+        ]),
+
+      placementValidator:
+        overrides.placementValidator ||
+        resolveFromNamespace([
+          "placementValidator",
+          "cosPlacementValidator",
+          "AriCosPlacementValidator"
+        ]),
+
+      packetBuilder:
+        overrides.packetBuilder ||
+        resolveFromNamespace([
+          "packetBuilder",
+          "cosPacketBuilder",
+          "AriCosPacketBuilder"
+        ])
+    };
+  }
+
+  function assertComponents(
+    components
+  ) {
+    const missing = [];
+
+    for (
+      const componentName of
+        REQUIRED_COMPONENTS
+    ) {
+      if (
+        !components[
+          componentName
+        ]
+      ) {
+        missing.push(
+          componentName
+        );
+      }
+    }
+
+    if (missing.length > 0) {
       throw new CosRuntimeError(
-        "COS_COMPONENT_MISSING",
-        `Required COS component is missing: ${componentKey}`,
+        "COS_RUNTIME_COMPONENTS_MISSING",
+        "Required Conversation Operating System components are missing.",
         {
-          stage: STAGES.CONTRACT_VALIDATION,
+          stage:
+            "component_resolution",
+
           details: {
-            componentKey,
-            aliases
+            missing
           }
         }
       );
     }
 
-    return null;
-  }
-
-  function resolveComponents(overrides = {}) {
-    return {
-      contract: resolveComponent({
-        explicit: overrides.contract,
-        componentKey: "contract",
-        required: true
-      }),
-
-      state: resolveComponent({
-        explicit: overrides.state,
-        componentKey: "state",
-        required: true
-      }),
-
-      historyIndex: resolveComponent({
-        explicit:
-          overrides.historyIndex ||
-          overrides.historyIndexer,
-        componentKey: "historyIndex",
-        required: false
-      }),
-
-      turnRegister: resolveComponent({
-        explicit:
-          overrides.turnRegister ||
-          overrides.currentTurnRegister,
-        componentKey: "turnRegister",
-        required: false
-      }),
-
-      referenceResolver: resolveComponent({
-        explicit: overrides.referenceResolver,
-        componentKey: "referenceResolver",
-        required: false
-      }),
-
-      placementEngine: resolveComponent({
-        explicit: overrides.placementEngine,
-        componentKey: "placementEngine",
-        required: false
-      }),
-
-      threadStateManager: resolveComponent({
-        explicit: overrides.threadStateManager,
-        componentKey: "threadStateManager",
-        required: false
-      }),
-
-      placementValidator: resolveComponent({
-        explicit: overrides.placementValidator,
-        componentKey: "placementValidator",
-        required: false
-      }),
-
-      packetBuilder: resolveComponent({
-        explicit: overrides.packetBuilder,
-        componentKey: "packetBuilder",
-        required: false
-      })
-    };
+    return true;
   }
 
   function resolveCallable(
     component,
-    methodNames = [],
-    {
-      required = false,
-      componentName = "component",
-      stage = null
-    } = {}
+    methodNames,
+    componentName
   ) {
     if (isFunction(component)) {
-      return component.bind(component);
+      return component.bind(
+        component
+      );
     }
 
     if (component) {
-      for (const methodName of methodNames) {
-        if (isFunction(component[methodName])) {
-          return component[methodName].bind(component);
+      for (
+        const methodName of
+          methodNames
+      ) {
+        if (
+          isFunction(
+            component[
+              methodName
+            ]
+          )
+        ) {
+          return component[
+            methodName
+          ].bind(component);
         }
       }
     }
 
-    if (required) {
-      throw new CosRuntimeError(
-        "COS_COMPONENT_METHOD_MISSING",
-        `No callable method found for ${componentName}`,
-        {
-          stage,
-          details: {
-            componentName,
-            methodNames
-          }
-        }
-      );
-    }
+    throw new CosRuntimeError(
+      "COS_RUNTIME_COMPONENT_NOT_CALLABLE",
+      `COS component is not callable: ${componentName}`,
+      {
+        stage:
+          "component_resolution",
 
-    return null;
+        details: {
+          componentName,
+          methodNames
+        }
+      }
+    );
   }
 
   /* =====================================================
      INPUT NORMALIZATION
   ===================================================== */
 
-  function normalizeTurn(rawTurn, {
-    fallbackRole = "user",
-    fallbackSequence = 0
-  } = {}) {
+  function normalizeRuntimeInput(
+    rawInput = {}
+  ) {
     const source =
-      isObject(rawTurn)
-        ? rawTurn
+      isObject(rawInput)
+        ? rawInput
         : {
-            text:
-              rawTurn === null ||
-              rawTurn === undefined
-                ? ""
-                : String(rawTurn)
+            currentTurn:
+              rawInput
           };
 
-    const text = firstDefined(
-      source.text,
-      source.content,
-      source.message,
-      source.rawText,
-      ""
-    );
+    const runtimeOptions =
+      isObject(source.options)
+        ? safeClone(
+            source.options
+          )
+        : {};
 
-    const turnId = firstNonEmptyString(
-      source.turnId,
-      source.turn_id,
-      source.id
-    );
-
-    const role =
-      firstNonEmptyString(
-        source.role,
-        source.speaker,
-        fallbackRole
-      ) || fallbackRole;
-
-    const sequence = normalizeInteger(
+    const state =
       firstDefined(
-        source.sequence,
-        source.turnIndex,
-        source.turn_index,
-        source.index
-      ),
-      fallbackSequence
-    );
+        source.state,
+        source.cosState,
+        source.cos_state,
+        {}
+      );
 
-    const timestamp = normalizeTimestamp(
-      firstDefined(
-        source.timestamp,
-        source.createdAt,
-        source.created_at,
-        source.time
-      ),
-      null
-    );
-
-    return {
-      ...safeClone(source),
-
-      turnId,
-      role,
-      text:
-        text === null ||
-        text === undefined
-          ? ""
-          : String(text),
-      sequence,
-      timestamp
-    };
-  }
-
-  function normalizeHistory(rawHistory = []) {
-    const source = Array.isArray(rawHistory)
-      ? rawHistory
-      : [];
-
-    return source.map((turn, index) =>
-      normalizeTurn(turn, {
-        fallbackRole: "unknown",
-        fallbackSequence: index
-      })
-    );
-  }
-
-  function normalizeRuntimeInput(rawInput = {}) {
-    const source = isObject(rawInput)
-      ? rawInput
-      : {
-          currentTurn: rawInput
-        };
-
-    const history = normalizeHistory(
+    const history =
       firstDefined(
         source.history,
-        source.turns,
         source.conversationHistory,
         source.conversation_history,
         []
-      )
-    );
+      );
 
-    const currentTurnSource = firstDefined(
-      source.currentTurn,
-      source.current_turn,
-      source.turn,
-      source.message,
-      source.input,
-      null
-    );
-
-    const currentTurn = normalizeTurn(
-      currentTurnSource,
-      {
-        fallbackRole: "user",
-        fallbackSequence: history.length
-      }
-    );
-
-    if (!currentTurn.turnId) {
-      currentTurn.turnId = createId("turn");
-    }
-
-    if (
-      currentTurn.sequence === 0 &&
-      history.length > 0 &&
-      !Number.isFinite(
-        Number(
-          currentTurnSource &&
-          currentTurnSource.sequence
-        )
-      )
-    ) {
-      currentTurn.sequence = history.length;
-    }
-
-    const existingState = firstDefined(
-      source.state,
-      source.cosState,
-      source.cos_state,
-      source.previousState,
-      source.previous_state,
-      null
-    );
-
-    const metadata = isObject(source.metadata)
-      ? safeClone(source.metadata)
-      : {};
-
-    const runtimeOptions = isObject(source.options)
-      ? safeClone(source.options)
-      : {};
+    const currentTurn =
+      firstDefined(
+        source.currentTurn,
+        source.current_turn,
+        source.turn,
+        source.message,
+        {}
+      );
 
     return {
-      schemaVersion:
-        firstNonEmptyString(
-          source.schemaVersion,
-          source.schema_version
-        ) || SCHEMA_VERSION,
-
-      requestId:
-        firstNonEmptyString(
-          source.requestId,
-          source.request_id,
-          source.executionId,
-          source.execution_id
-        ) || createId("cos_request"),
-
       conversationId:
         firstNonEmptyString(
           source.conversationId,
           source.conversation_id,
-          source.threadRootId,
-          source.thread_root_id
+          state &&
+            state.conversationId,
+          state &&
+            state.conversation_id
         ) || null,
 
-      currentTurn,
-      history,
-      existingState:
-        existingState === null ||
-        existingState === undefined
-          ? null
-          : safeClone(existingState),
+      state:
+        isObject(state)
+          ? safeClone(state)
+          : {},
 
-      metadata,
-      options: runtimeOptions,
+      history:
+        Array.isArray(history)
+          ? safeClone(history)
+          : [],
 
-      rawInput: source
+      currentTurn:
+        isObject(currentTurn)
+          ? safeClone(currentTurn)
+          : {
+              text:
+                currentTurn === null ||
+                currentTurn === undefined
+                  ? ""
+                  : String(
+                      currentTurn
+                    )
+            },
+
+      semanticPacket:
+        isObject(
+          source.semanticPacket
+        )
+          ? safeClone(
+              source.semanticPacket
+            )
+          : isObject(
+              source.semantic_packet
+            )
+            ? safeClone(
+                source.semantic_packet
+              )
+            : null,
+
+      conversationFunction:
+        isObject(
+          source.conversationFunction
+        )
+          ? safeClone(
+              source.conversationFunction
+            )
+          : isObject(
+              source.conversation_function
+            )
+            ? safeClone(
+                source.conversation_function
+              )
+            : null,
+
+      upstreamCandidates:
+        Array.isArray(
+          source.upstreamCandidates
+        )
+          ? safeClone(
+              source.upstreamCandidates
+            )
+          : Array.isArray(
+              source.upstream_candidates
+            )
+            ? safeClone(
+                source.upstream_candidates
+              )
+            : Array.isArray(
+                source.referenceCandidates
+              )
+              ? safeClone(
+                  source.referenceCandidates
+                )
+              : [],
+
+      uiMetadata:
+        isObject(source.uiMetadata)
+          ? safeClone(
+              source.uiMetadata
+            )
+          : isObject(
+              source.ui_metadata
+            )
+            ? safeClone(
+                source.ui_metadata
+              )
+            : {},
+
+      pendingInteractionCommand:
+        normalizeOptionalCommand(
+          firstDefined(
+            source
+              .pendingInteractionCommand,
+            source
+              .pending_interaction_command,
+            source.commands &&
+              source.commands
+                .pendingInteraction,
+            source.commands &&
+              source.commands
+                .pending_interaction,
+            null
+          )
+        ),
+
+      artifactCommand:
+        normalizeOptionalCommand(
+          firstDefined(
+            source.artifactCommand,
+            source.artifact_command,
+            source.commands &&
+              source.commands.artifact,
+            null
+          )
+        ),
+
+      deliverySequenceCommand:
+        normalizeOptionalCommand(
+          firstDefined(
+            source
+              .deliverySequenceCommand,
+            source
+              .delivery_sequence_command,
+            source.commands &&
+              source.commands
+                .deliverySequence,
+            source.commands &&
+              source.commands
+                .delivery_sequence,
+            null
+          )
+        ),
+
+      placementEvidence:
+        isObject(
+          source.placementEvidence
+        )
+          ? safeClone(
+              source.placementEvidence
+            )
+          : isObject(
+              source.placement_evidence
+            )
+            ? safeClone(
+                source.placement_evidence
+              )
+            : {},
+
+      metadata:
+        isObject(source.metadata)
+          ? safeClone(
+              source.metadata
+            )
+          : {},
+
+      options:
+        runtimeOptions
     };
   }
 
-  /* =====================================================
-     DIAGNOSTICS AND TIMING
-  ===================================================== */
-
-  function createRuntimeContext(input, options = {}) {
-    return {
-      runtimeId: createId("cos_runtime"),
-      requestId: input.requestId,
-      conversationId: input.conversationId,
-      startedAt: nowIso(),
-      startedAtMs: nowMs(),
-      completedAt: null,
-
-      currentStage: null,
-
-      options: {
-        strict:
-          options.strict !== false,
-
-        allowStructuralFallbacks:
-          options.allowStructuralFallbacks !== false,
-
-        freezePacket:
-          options.freezePacket !== false,
-
-        freezeResult:
-          options.freezeResult === true,
-
-        collectDiagnostics:
-          options.collectDiagnostics !== false,
-
-        collectTiming:
-          options.collectTiming !== false,
-
-        throwOnFailure:
-          options.throwOnFailure === true
-      },
-
-      timings: {
-        totalMs: 0,
-        stages: {}
-      },
-
-      diagnostics: {
-        runtime: {
-          name: RUNTIME_NAME,
-          version: VERSION,
-          schemaVersion: SCHEMA_VERSION,
-          authority: AUTHORITY
-        },
-
-        componentAvailability: {},
-
-        stages: [],
-
-        warnings: [],
-
-        notes: []
-      },
-
-      errors: []
-    };
-  }
-
-  function addWarning(context, warning) {
-    if (!context.options.collectDiagnostics) {
-      return;
+  function normalizeOptionalCommand(
+    value
+  ) {
+    if (
+      value === null ||
+      value === undefined ||
+      value === false
+    ) {
+      return null;
     }
 
-    const normalized = isObject(warning)
-      ? {
-          code:
-            firstNonEmptyString(warning.code) ||
-            "COS_RUNTIME_WARNING",
-
-          message:
-            firstNonEmptyString(warning.message) ||
-            "COS runtime warning",
-
-          stage:
-            firstNonEmptyString(
-              warning.stage,
-              context.currentStage
-            ) || null,
-
-          details:
-            warning.details === undefined
-              ? null
-              : safeClone(warning.details)
-        }
-      : {
-          code: "COS_RUNTIME_WARNING",
-          message: String(warning),
-          stage: context.currentStage,
-          details: null
-        };
-
-    context.diagnostics.warnings.push(normalized);
-  }
-
-  function addNote(context, note) {
-    if (!context.options.collectDiagnostics) {
-      return;
+    if (isNonEmptyString(value)) {
+      return {
+        type:
+          value.trim()
+      };
     }
 
-    context.diagnostics.notes.push(
-      isObject(note)
-        ? safeClone(note)
-        : {
-            message: String(note)
-          }
+    return isObject(value)
+      ? safeClone(value)
+      : null;
+  }
+
+  function readCurrentTurnId(
+    turn
+  ) {
+    return firstNonEmptyString(
+      turn &&
+        turn.turnId,
+      turn &&
+        turn.turn_id,
+      turn &&
+        turn.id,
+      turn &&
+        turn.messageId,
+      turn &&
+        turn.message_id
     );
   }
 
-  function recordComponentAvailability(
-    context,
-    components
-  ) {
-    if (!context.options.collectDiagnostics) {
-      return;
-    }
+  /* =====================================================
+     DIAGNOSTIC RECORDER
+  ===================================================== */
 
-    const availability = {};
-
-    for (const [name, component] of Object.entries(components)) {
-      availability[name] = Boolean(component);
-    }
-
-    context.diagnostics.componentAvailability =
-      availability;
-  }
-
-  async function runStage(
-    context,
-    stageName,
-    handler
-  ) {
-    context.currentStage = stageName;
-
-    const started = nowMs();
-    const stageRecord = {
-      stage: stageName,
-      status: "running",
-      startedAt: nowIso(),
+  function createDiagnostics() {
+    return {
+      stages: [],
+      warnings: [],
+      errors: [],
+      startedAt:
+        nowIso(),
       completedAt: null,
       durationMs: 0
     };
+  }
 
-    if (context.options.collectDiagnostics) {
-      context.diagnostics.stages.push(stageRecord);
+  function recordStage(
+    diagnostics,
+    {
+      stage,
+      startedAt,
+      status = "completed",
+      output = null,
+      warnings = [],
+      metadata = {}
+    }
+  ) {
+    diagnostics.stages.push({
+      stage,
+
+      status,
+
+      durationMs:
+        elapsedMilliseconds(
+          startedAt
+        ),
+
+      warningCount:
+        Array.isArray(warnings)
+          ? warnings.length
+          : 0,
+
+      warnings:
+        Array.isArray(warnings)
+          ? safeClone(warnings)
+          : [],
+
+      outputSummary:
+        summarizeStageOutput(
+          stage,
+          output
+        ),
+
+      metadata:
+        isObject(metadata)
+          ? safeClone(metadata)
+          : {}
+    });
+
+    if (
+      Array.isArray(warnings) &&
+      warnings.length > 0
+    ) {
+      diagnostics.warnings.push(
+        ...warnings.map(
+          (warning) => ({
+            stage,
+            ...safeClone(warning)
+          })
+        )
+      );
+    }
+  }
+
+  function summarizeStageOutput(
+    stage,
+    output
+  ) {
+    if (!isObject(output)) {
+      return output === null ||
+        output === undefined
+        ? null
+        : {
+            type:
+              typeof output
+          };
     }
 
-    try {
-      const value = await handler();
+    switch (stage) {
+      case "state_normalization":
+        return {
+          conversationId:
+            output.conversationId ||
+            null,
 
-      stageRecord.status = "completed";
+          revision:
+            output.revision,
 
-      return value;
-    } catch (error) {
-      stageRecord.status = "failed";
+          turnCount:
+            output.turns
+              ? Object.keys(
+                  output.turns
+                ).length
+              : 0,
 
-      if (error instanceof CosRuntimeError) {
-        if (!error.stage) {
-          error.stage = stageName;
-        }
+          threadCount:
+            output.threads
+              ? Object.keys(
+                  output.threads
+                ).length
+              : 0
+        };
 
-        throw error;
-      }
+      case "history_indexing":
+        return {
+          count:
+            output.count || 0,
 
-      throw new CosRuntimeError(
-        "COS_STAGE_FAILURE",
-        `COS stage failed: ${stageName}`,
-        {
-          stage: stageName,
-          cause: error
-        }
-      );
-    } finally {
-      const duration = elapsedMs(started);
+          threadCount:
+            output.byThreadId
+              ? Object.keys(
+                  output.byThreadId
+                ).length
+              : 0,
 
-      stageRecord.completedAt = nowIso();
-      stageRecord.durationMs = duration;
+          warningCount:
+            output.diagnostics &&
+            output.diagnostics
+              .warningCount
+              ? output.diagnostics
+                  .warningCount
+              : 0
+        };
 
-      if (context.options.collectTiming) {
-        context.timings.stages[stageName] = duration;
-      }
+      case "turn_registration":
+        return {
+          turnId:
+            firstNonEmptyString(
+              output.turnId,
+              output.currentTurnId,
+              output.turn &&
+                output.turn.turnId
+            ),
+
+          role:
+            firstNonEmptyString(
+              output.role,
+              output.turn &&
+                output.turn.role
+            )
+        };
+
+      case "reference_candidate_construction":
+        return {
+          candidateCount:
+            output.candidateCount ||
+            0,
+
+          validCandidateCount:
+            output
+              .validCandidateCount ||
+            0,
+
+          invalidCandidateCount:
+            output
+              .invalidCandidateCount ||
+            0
+        };
+
+      case "reference_adjudication":
+        return {
+          status:
+            output.status || null,
+
+          resolutionMode:
+            output.resolutionMode ||
+            null,
+
+          selectedCandidateCount:
+            output
+              .selectedCandidateCount ||
+            0
+        };
+
+      case "reference_resolution":
+        return {
+          status:
+            output.status || null,
+
+          resolvedTurnIds:
+            Array.isArray(
+              output.resolvedTurnIds
+            )
+              ? output.resolvedTurnIds
+              : [],
+
+          primaryTurnId:
+            output.primaryTurnId ||
+            null
+        };
+
+      case "placement":
+        return {
+          placementType:
+            firstNonEmptyString(
+              output.placementType,
+              output.type
+            ),
+
+          threadId:
+            output.threadId ||
+            null,
+
+          parentTurnId:
+            output.parentTurnId ||
+            null
+        };
+
+      case "thread_state_transition":
+        return {
+          activeThreadId:
+            output.state &&
+            output.state.activeThreadId
+              ? output.state
+                  .activeThreadId
+              : output.activeThreadId ||
+                null,
+
+          activeTurnId:
+            output.state &&
+            output.state.activeTurnId
+              ? output.state
+                  .activeTurnId
+              : output.activeTurnId ||
+                null
+        };
+
+      case "packet_construction":
+        return {
+          packetType:
+            firstNonEmptyString(
+              output.packetType,
+              output.type
+            ),
+
+          currentTurnId:
+            output.currentTurnId ||
+            null,
+
+          threadId:
+            output.threadId ||
+            null
+        };
+
+      default:
+        return {
+          component:
+            output.component ||
+            null,
+
+          status:
+            output.status ||
+            null
+        };
     }
   }
 
   /* =====================================================
-     CONTRACT ADAPTER
+     GENERIC STAGE EXECUTION
   ===================================================== */
 
-  async function validateRuntimeInput({
-    contract,
-    input,
-    context
-  }) {
-    const validate = resolveCallable(
-      contract,
-      [
-        "validateRuntimeInput",
-        "validateInput",
-        "validate",
-        "assertRuntimeInput",
-        "assertInput"
-      ],
-      {
-        required: false,
-        componentName: "cos-contract",
-        stage: STAGES.CONTRACT_VALIDATION
-      }
-    );
+  async function executeStage(
+    diagnostics,
+    stage,
+    operation
+  ) {
+    const startedAt =
+      monotonicNow();
 
-    if (!validate) {
-      validateMinimumInput(input);
-      return {
-        valid: true,
-        source: "runtime_minimum_validation"
-      };
-    }
+    try {
+      const output =
+        await operation();
 
-    const result = await validate(input, {
-      authority: AUTHORITY,
-      runtime: RUNTIME_NAME,
-      version: VERSION
-    });
+      const warnings =
+        extractWarnings(
+          output
+        );
 
-    const normalized = normalizeValidationResult(result);
-
-    if (!normalized.valid) {
-      throw new CosRuntimeError(
-        "COS_INPUT_CONTRACT_REJECTED",
-        "COS runtime input failed contract validation",
+      recordStage(
+        diagnostics,
         {
-          stage: STAGES.CONTRACT_VALIDATION,
-          details: {
-            errors: normalized.errors,
-            warnings: normalized.warnings
+          stage,
+          startedAt,
+          status:
+            "completed",
+          output,
+          warnings
+        }
+      );
+
+      return output;
+    } catch (error) {
+      const wrapped =
+        error instanceof
+        CosRuntimeError
+          ? error
+          : new CosRuntimeError(
+              "COS_RUNTIME_STAGE_FAILED",
+              `COS runtime stage failed: ${stage}`,
+              {
+                stage,
+                cause: error,
+                details: {
+                  originalError:
+                    safeError(error)
+                }
+              }
+            );
+
+      diagnostics.errors.push(
+        safeError(wrapped)
+      );
+
+      recordStage(
+        diagnostics,
+        {
+          stage,
+          startedAt,
+          status:
+            "failed",
+          output: null,
+          warnings: [],
+          metadata: {
+            error:
+              safeError(wrapped)
           }
         }
       );
-    }
 
-    for (const warning of normalized.warnings) {
-      addWarning(context, {
-        code: "COS_CONTRACT_WARNING",
-        message:
-          firstNonEmptyString(
-            warning.message,
-            warning
-          ) || "COS contract warning",
-        stage: STAGES.CONTRACT_VALIDATION,
-        details: warning
-      });
-    }
-
-    return normalized;
-  }
-
-  function validateMinimumInput(input) {
-    if (!isObject(input)) {
-      throw new CosRuntimeError(
-        "COS_INPUT_INVALID",
-        "COS runtime input must be an object",
-        {
-          stage: STAGES.CONTRACT_VALIDATION
-        }
-      );
-    }
-
-    if (!isObject(input.currentTurn)) {
-      throw new CosRuntimeError(
-        "COS_CURRENT_TURN_MISSING",
-        "COS runtime requires a current turn",
-        {
-          stage: STAGES.CONTRACT_VALIDATION
-        }
-      );
-    }
-
-    if (!isNonEmptyString(input.currentTurn.turnId)) {
-      throw new CosRuntimeError(
-        "COS_CURRENT_TURN_ID_MISSING",
-        "Current turn requires a turnId",
-        {
-          stage: STAGES.CONTRACT_VALIDATION
-        }
-      );
-    }
-
-    if (!isString(input.currentTurn.text)) {
-      throw new CosRuntimeError(
-        "COS_CURRENT_TURN_TEXT_INVALID",
-        "Current turn text must be a string",
-        {
-          stage: STAGES.CONTRACT_VALIDATION
-        }
-      );
-    }
-
-    if (!Array.isArray(input.history)) {
-      throw new CosRuntimeError(
-        "COS_HISTORY_INVALID",
-        "Conversation history must be an array",
-        {
-          stage: STAGES.CONTRACT_VALIDATION
-        }
-      );
+      throw wrapped;
     }
   }
 
-  function normalizeValidationResult(result) {
-    if (result === undefined || result === null) {
-      return {
-        valid: true,
-        errors: [],
-        warnings: []
-      };
+  function extractWarnings(
+    output
+  ) {
+    if (!isObject(output)) {
+      return [];
     }
 
-    if (result === true) {
-      return {
-        valid: true,
-        errors: [],
-        warnings: []
-      };
+    if (
+      Array.isArray(
+        output.warnings
+      )
+    ) {
+      return output.warnings;
     }
+
+    if (
+      output.diagnostics &&
+      Array.isArray(
+        output.diagnostics.warnings
+      )
+    ) {
+      return output.diagnostics
+        .warnings;
+    }
+
+    if (
+      output.validation &&
+      Array.isArray(
+        output.validation.warnings
+      )
+    ) {
+      return output.validation
+        .warnings;
+    }
+
+    return [];
+  }
+
+  /* =====================================================
+     CONTRACT VALIDATION
+  ===================================================== */
+
+  async function validateContract(
+    component,
+    input,
+    options
+  ) {
+    const validate =
+      resolveCallable(
+        component,
+        [
+          "validateInput",
+          "validate",
+          "assertInput",
+          "assert",
+          "run"
+        ],
+        "cos-contract"
+      );
+
+    const result =
+      await validate(
+        input,
+        {
+          ...options,
+          freeze: false
+        }
+      );
 
     if (result === false) {
-      return {
-        valid: false,
-        errors: [
-          {
-            code: "COS_CONTRACT_REJECTED"
-          }
-        ],
-        warnings: []
-      };
+      throw new CosRuntimeError(
+        "COS_RUNTIME_CONTRACT_REJECTED",
+        "COS runtime input failed contract validation.",
+        {
+          stage:
+            "contract_validation"
+        }
+      );
     }
+
+    if (
+      isObject(result) &&
+      result.valid === false
+    ) {
+      throw new CosRuntimeError(
+        "COS_RUNTIME_CONTRACT_INVALID",
+        "COS runtime input failed contract validation.",
+        {
+          stage:
+            "contract_validation",
+
+          details:
+            result
+        }
+      );
+    }
+
+    return isObject(result)
+      ? result
+      : {
+          valid: true
+        };
+  }
+
+  /* =====================================================
+     STATE NORMALIZATION
+  ===================================================== */
+
+  async function normalizeState(
+    component,
+    input
+  ) {
+    const normalize =
+      resolveCallable(
+        component,
+        [
+          "normalize",
+          "normalizeState",
+          "create",
+          "initialize",
+          "createInitialState"
+        ],
+        "cos-state"
+      );
+
+    const hasSuppliedState =
+      isObject(input.state) &&
+      Object.keys(
+        input.state
+      ).length > 0;
+
+    const result =
+      hasSuppliedState
+        ? await normalize(
+            input.state,
+            {
+              conversationId:
+                input.conversationId,
+
+              freeze: false
+            }
+          )
+        : await normalize(
+            {
+              conversationId:
+                input.conversationId
+            },
+            {
+              conversationId:
+                input.conversationId,
+
+              freeze: false
+            }
+          );
 
     if (!isObject(result)) {
-      return {
-        valid: Boolean(result),
-        errors: [],
-        warnings: []
-      };
+      throw new CosRuntimeError(
+        "COS_RUNTIME_STATE_NORMALIZATION_INVALID",
+        "COS state component returned an invalid state.",
+        {
+          stage:
+            "state_normalization"
+        }
+      );
     }
 
-    const errors = asArray(
-      firstDefined(
-        result.errors,
-        result.violations,
-        result.failures,
-        []
-      )
+    return safeClone(result);
+  }
+
+  /* =====================================================
+     HISTORY INDEX
+  ===================================================== */
+
+  async function buildHistoryIndex(
+    component,
+    {
+      input,
+      state,
+      options
+    }
+  ) {
+    const build =
+      resolveCallable(
+        component,
+        [
+          "build",
+          "index",
+          "create",
+          "createIndex",
+          "run"
+        ],
+        "cos-history-index"
+      );
+
+    const history =
+      mergeHistoryWithState(
+        input.history,
+        state
+      );
+
+    return await build(
+      {
+        conversationId:
+          input.conversationId,
+
+        history,
+
+        state,
+
+        strict:
+          firstDefined(
+            options.strictHistory,
+            input.options
+              .strictHistory
+          ) !== false,
+
+        freeze: false
+      },
+      {
+        strict:
+          firstDefined(
+            options.strictHistory,
+            input.options
+              .strictHistory
+          ) !== false,
+
+        freeze: false
+      }
+    );
+  }
+
+  function mergeHistoryWithState(
+    history,
+    state
+  ) {
+    const supplied =
+      Array.isArray(history)
+        ? safeClone(history)
+        : [];
+
+    const seen = new Set();
+
+    for (const turn of supplied) {
+      const turnId =
+        readCurrentTurnId(turn);
+
+      if (turnId) {
+        seen.add(turnId);
+      }
+    }
+
+    if (
+      state &&
+      isObject(state.turns)
+    ) {
+      const stateTurns =
+        Object.values(
+          state.turns
+        )
+          .filter(isObject)
+          .sort(
+            (left, right) => {
+              const leftSequence =
+                normalizeInteger(
+                  left.sequence,
+                  0
+                );
+
+              const rightSequence =
+                normalizeInteger(
+                  right.sequence,
+                  0
+                );
+
+              if (
+                leftSequence !==
+                rightSequence
+              ) {
+                return (
+                  leftSequence -
+                  rightSequence
+                );
+              }
+
+              return String(
+                left.turnId || ""
+              ).localeCompare(
+                String(
+                  right.turnId || ""
+                )
+              );
+            }
+          );
+
+      for (
+        const stateTurn of
+          stateTurns
+      ) {
+        const turnId =
+          readCurrentTurnId(
+            stateTurn
+          );
+
+        if (
+          turnId &&
+          !seen.has(turnId)
+        ) {
+          supplied.push(
+            safeClone(stateTurn)
+          );
+
+          seen.add(turnId);
+        }
+      }
+    }
+
+    return supplied;
+  }
+
+  /* =====================================================
+     TURN REGISTRATION
+  ===================================================== */
+
+  async function registerCurrentTurn(
+    component,
+    {
+      input,
+      state,
+      historyIndex,
+      options
+    }
+  ) {
+    const register =
+      resolveCallable(
+        component,
+        [
+          "register",
+          "registerTurn",
+          "create",
+          "run"
+        ],
+        "cos-turn-register"
+      );
+
+    const result =
+      await register(
+        {
+          conversationId:
+            input.conversationId,
+
+          currentTurn:
+            input.currentTurn,
+
+          turn:
+            input.currentTurn,
+
+          history:
+            input.history,
+
+          historyIndex,
+
+          state,
+
+          metadata:
+            input.metadata,
+
+          semanticPacket:
+            input.semanticPacket,
+
+          conversationFunction:
+            input.conversationFunction
+        },
+        {
+          ...options,
+          freeze: false
+        }
+      );
+
+    return normalizeTurnRegistrationResult(
+      result,
+      state
+    );
+  }
+
+  function normalizeTurnRegistrationResult(
+    result,
+    priorState
+  ) {
+    if (!isObject(result)) {
+      throw new CosRuntimeError(
+        "COS_RUNTIME_TURN_REGISTRATION_INVALID",
+        "Turn register returned an invalid result.",
+        {
+          stage:
+            "turn_registration"
+        }
+      );
+    }
+
+    const registeredTurn =
+      isObject(result.turn)
+        ? result.turn
+        : isObject(
+            result.currentTurn
+          )
+          ? result.currentTurn
+          : (
+              readCurrentTurnId(result)
+                ? result
+                : null
+            );
+
+    if (!registeredTurn) {
+      throw new CosRuntimeError(
+        "COS_RUNTIME_REGISTERED_TURN_MISSING",
+        "Turn register did not return a registered current turn.",
+        {
+          stage:
+            "turn_registration",
+
+          details:
+            result
+        }
+      );
+    }
+
+    const currentTurnId =
+      readCurrentTurnId(
+        registeredTurn
+      );
+
+    if (!currentTurnId) {
+      throw new CosRuntimeError(
+        "COS_RUNTIME_REGISTERED_TURN_ID_MISSING",
+        "Registered current turn is missing its canonical turn ID.",
+        {
+          stage:
+            "turn_registration"
+        }
+      );
+    }
+
+    let nextState =
+      isObject(result.state)
+        ? safeClone(result.state)
+        : safeClone(priorState);
+
+    if (!isObject(nextState.turns)) {
+      nextState.turns = {};
+    }
+
+    nextState.turns[
+      currentTurnId
+    ] = safeClone(
+      registeredTurn
     );
 
-    const warnings = asArray(
-      firstDefined(
-        result.warnings,
-        result.notices,
-        []
-      )
-    );
-
-    const explicitValid = firstDefined(
-      result.valid,
-      result.ok,
-      result.passed,
-      result.success
-    );
+    nextState.activeTurnId =
+      currentTurnId;
 
     return {
       ...safeClone(result),
-      valid:
-        typeof explicitValid === "boolean"
-          ? explicitValid
-          : errors.length === 0,
-      errors,
-      warnings
+
+      turn:
+        safeClone(
+          registeredTurn
+        ),
+
+      currentTurn:
+        safeClone(
+          registeredTurn
+        ),
+
+      currentTurnId,
+
+      state:
+        nextState
     };
   }
 
-  async function validateFinalPacketWithContract({
-    contract,
-    packet
-  }) {
-    const validate = resolveCallable(
-      contract,
-      [
-        "validatePlacementPacket",
-        "validatePacket",
-        "assertPlacementPacket",
-        "assertPacket"
-      ],
-      {
-        required: false,
-        componentName: "cos-contract",
-        stage: STAGES.PACKET_BUILDING
-      }
-    );
+  /* =====================================================
+     AUXILIARY TRANSITIONS
+  ===================================================== */
 
-    if (!validate) {
-      validateMinimumPacket(packet);
-
+  async function transitionPendingInteraction(
+    component,
+    {
+      command,
+      state,
+      currentTurn,
+      conversationId,
+      options
+    }
+  ) {
+    if (!command) {
       return {
-        valid: true,
-        errors: [],
-        warnings: []
+        applied: false,
+
+        state:
+          safeClone(
+            state
+              .pendingInteractionState
+          ),
+
+        activeInteraction:
+          readActivePendingInteraction(
+            state
+              .pendingInteractionState
+          ),
+
+        commandType:
+          "noop"
       };
     }
 
-    const result = await validate(packet, {
-      authority: AUTHORITY,
-      runtime: RUNTIME_NAME,
-      version: VERSION
-    });
-
-    const normalized = normalizeValidationResult(result);
-
-    if (!normalized.valid) {
-      throw new CosRuntimeError(
-        "COS_PACKET_CONTRACT_REJECTED",
-        "Final placement packet failed contract validation",
-        {
-          stage: STAGES.PACKET_BUILDING,
-          details: {
-            errors: normalized.errors,
-            warnings: normalized.warnings
-          }
-        }
+    const transition =
+      resolveCallable(
+        component,
+        [
+          "transition",
+          "apply",
+          "run"
+        ],
+        "cos-pending-interaction-manager"
       );
-    }
 
-    return normalized;
-  }
-
-  /* =====================================================
-     STATE ADAPTER
-  ===================================================== */
-
-  async function initializeState({
-    stateComponent,
-    input,
-    context
-  }) {
-    const initialize = resolveCallable(
-      stateComponent,
-      [
-        "initialize",
-        "create",
-        "createInitialState",
-        "from",
-        "hydrate",
-        "load"
-      ],
+    return await transition(
       {
-        required: false,
-        componentName: "cos-state",
-        stage: STAGES.STATE_INITIALIZATION
-      }
-    );
+        conversationId,
 
-    let state;
+        state:
+          state
+            .pendingInteractionState,
 
-    if (initialize) {
-      state = await initialize({
-        existingState: input.existingState,
-        conversationId: input.conversationId,
-        currentTurn: input.currentTurn,
-        history: input.history,
-        metadata: input.metadata,
-        requestId: input.requestId
-      });
-    } else if (input.existingState) {
-      state = safeClone(input.existingState);
-    } else {
-      state = createMinimumState(input);
-    }
+        currentTurn,
 
-    if (!isObject(state)) {
-      throw new CosRuntimeError(
-        "COS_STATE_INITIALIZATION_INVALID",
-        "COS state initializer did not return an object",
-        {
-          stage: STAGES.STATE_INITIALIZATION,
-          details: {
-            returnedType: typeof state
-          }
-        }
-      );
-    }
-
-    state = ensureMinimumStateShape(state, input);
-
-    const validate = resolveCallable(
-      stateComponent,
-      [
-        "validate",
-        "validateState",
-        "assert",
-        "assertState"
-      ],
+        command
+      },
       {
-        required: false,
-        componentName: "cos-state",
-        stage: STAGES.STATE_INITIALIZATION
+        ...options,
+        freeze: false
       }
     );
-
-    if (validate) {
-      const result = normalizeValidationResult(
-        await validate(state)
-      );
-
-      if (!result.valid) {
-        throw new CosRuntimeError(
-          "COS_STATE_INVALID",
-          "COS state failed state validation",
-          {
-            stage: STAGES.STATE_INITIALIZATION,
-            details: {
-              errors: result.errors,
-              warnings: result.warnings
-            }
-          }
-        );
-      }
-
-      for (const warning of result.warnings) {
-        addWarning(context, {
-          code: "COS_STATE_WARNING",
-          message:
-            firstNonEmptyString(
-              warning.message,
-              warning
-            ) || "COS state warning",
-          stage: STAGES.STATE_INITIALIZATION,
-          details: warning
-        });
-      }
-    }
-
-    return state;
   }
 
-  function createMinimumState(input) {
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      authority: AUTHORITY,
-
-      conversationId:
-        input.conversationId ||
-        createId("conversation"),
-
-      revision: 0,
-
-      activeThreadId: null,
-      activeTurnId: null,
-
-      threads: {},
-      turns: {},
-
-      threadStack: [],
-      interruptionStack: [],
-
-      lastPlacement: null,
-      lastReferenceResolution: null,
-
-      createdAt: nowIso(),
-      updatedAt: nowIso()
-    };
-  }
-
-  function ensureMinimumStateShape(state, input) {
-    const output = {
-      ...safeClone(state)
-    };
-
-    output.schemaVersion =
-      firstNonEmptyString(output.schemaVersion) ||
-      SCHEMA_VERSION;
-
-    output.authority =
-      firstNonEmptyString(output.authority) ||
-      AUTHORITY;
-
-    output.conversationId =
-      firstNonEmptyString(
-        output.conversationId,
-        input.conversationId
-      ) || createId("conversation");
-
-    output.revision = Math.max(
-      0,
-      normalizeInteger(output.revision, 0)
-    );
-
-    output.activeThreadId =
-      firstNonEmptyString(output.activeThreadId) ||
-      null;
-
-    output.activeTurnId =
-      firstNonEmptyString(output.activeTurnId) ||
-      null;
-
-    output.threads = isObject(output.threads)
-      ? output.threads
-      : {};
-
-    output.turns = isObject(output.turns)
-      ? output.turns
-      : {};
-
-    output.threadStack = Array.isArray(output.threadStack)
-      ? output.threadStack
-      : [];
-
-    output.interruptionStack = Array.isArray(
-      output.interruptionStack
-    )
-      ? output.interruptionStack
-      : [];
-
-    output.lastPlacement = isObject(output.lastPlacement)
-      ? output.lastPlacement
-      : null;
-
-    output.lastReferenceResolution = isObject(
-      output.lastReferenceResolution
-    )
-      ? output.lastReferenceResolution
-      : null;
-
-    output.createdAt =
-      normalizeTimestamp(output.createdAt, nowIso());
-
-    output.updatedAt = nowIso();
-
-    return output;
-  }
-
-  /* =====================================================
-     HISTORY INDEXING
-  ===================================================== */
-
-  async function buildHistoryIndex({
+  async function transitionArtifact(
     component,
-    input,
-    state,
-    context
-  }) {
-    const build = resolveCallable(
-      component,
-      [
-        "build",
-        "index",
-        "create",
-        "createIndex",
-        "run"
-      ],
-      {
-        required: false,
-        componentName: "cos-history-index",
-        stage: STAGES.HISTORY_INDEXING
-      }
-    );
-
-    if (build) {
-      const result = await build({
-        history: input.history,
-        currentTurn: input.currentTurn,
-        state,
-        conversationId: state.conversationId
-      });
-
-      if (!isObject(result)) {
-        throw new CosRuntimeError(
-          "COS_HISTORY_INDEX_INVALID",
-          "History index component must return an object",
-          {
-            stage: STAGES.HISTORY_INDEXING
-          }
-        );
-      }
-
-      return result;
+    {
+      command,
+      state,
+      currentTurn,
+      conversationId,
+      options
     }
+  ) {
+    if (!command) {
+      return {
+        applied: false,
 
-    addWarning(context, {
-      code: "COS_HISTORY_INDEX_FALLBACK",
-      message:
-        "History index component is unavailable; using deterministic structural indexing.",
-      stage: STAGES.HISTORY_INDEXING
-    });
+        state:
+          safeClone(
+            state.artifactState
+          ),
 
-    return createStructuralHistoryIndex(
-      input.history,
-      state
-    );
-  }
+        activeArtifact:
+          readActiveArtifact(
+            state.artifactState
+          ),
 
-  function createStructuralHistoryIndex(history, state) {
-    const byTurnId = {};
-    const orderedTurnIds = [];
-    const userTurnIds = [];
-    const assistantTurnIds = [];
-    const byThreadId = {};
-
-    for (let index = 0; index < history.length; index += 1) {
-      const source = history[index];
-
-      const turn = normalizeTurn(source, {
-        fallbackRole: "unknown",
-        fallbackSequence: index
-      });
-
-      if (!turn.turnId) {
-        turn.turnId = `history_turn_${index}`;
-      }
-
-      const threadId = firstNonEmptyString(
-        turn.threadId,
-        turn.thread_id,
-        state.turns &&
-          state.turns[turn.turnId] &&
-          state.turns[turn.turnId].threadId
-      );
-
-      const indexedTurn = {
-        ...turn,
-        threadId: threadId || null,
-        historyIndex: index
+        commandType:
+          "noop"
       };
-
-      byTurnId[indexedTurn.turnId] = indexedTurn;
-      orderedTurnIds.push(indexedTurn.turnId);
-
-      if (indexedTurn.role === "user") {
-        userTurnIds.push(indexedTurn.turnId);
-      }
-
-      if (indexedTurn.role === "assistant") {
-        assistantTurnIds.push(indexedTurn.turnId);
-      }
-
-      if (indexedTurn.threadId) {
-        byThreadId[indexedTurn.threadId] =
-          byThreadId[indexedTurn.threadId] || [];
-
-        byThreadId[indexedTurn.threadId].push(
-          indexedTurn.turnId
-        );
-      }
     }
 
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      authority: AUTHORITY,
+    const transition =
+      resolveCallable(
+        component,
+        [
+          "transition",
+          "apply",
+          "run"
+        ],
+        "cos-artifact-register"
+      );
 
-      count: orderedTurnIds.length,
+    return await transition(
+      {
+        conversationId,
 
-      orderedTurnIds,
-      byTurnId,
-      byThreadId,
+        state:
+          state.artifactState,
 
-      userTurnIds,
-      assistantTurnIds,
+        currentTurn,
 
-      firstTurnId:
-        orderedTurnIds.length > 0
-          ? orderedTurnIds[0]
-          : null,
-
-      lastTurnId:
-        orderedTurnIds.length > 0
-          ? orderedTurnIds[
-              orderedTurnIds.length - 1
-            ]
-          : null,
-
-      lastUserTurnId:
-        userTurnIds.length > 0
-          ? userTurnIds[userTurnIds.length - 1]
-          : null,
-
-      lastAssistantTurnId:
-        assistantTurnIds.length > 0
-          ? assistantTurnIds[
-              assistantTurnIds.length - 1
-            ]
-          : null
-    };
+        command
+      },
+      {
+        ...options,
+        freeze: false
+      }
+    );
   }
 
-  /* =====================================================
-     CURRENT-TURN REGISTRATION
-  ===================================================== */
-
-  async function registerCurrentTurn({
+  async function transitionDeliverySequence(
     component,
-    input,
-    state,
-    historyIndex,
-    context
-  }) {
-    const register = resolveCallable(
-      component,
-      [
-        "register",
-        "registerTurn",
-        "create",
-        "run"
-      ],
+    {
+      command,
+      state,
+      currentTurn,
+      conversationId,
+      options
+    }
+  ) {
+    if (!command) {
+      return {
+        applied: false,
+
+        state:
+          safeClone(
+            state
+              .deliverySequenceState
+          ),
+
+        activeSequence:
+          readActiveDeliverySequence(
+            state
+              .deliverySequenceState
+          ),
+
+        commandType:
+          "noop"
+      };
+    }
+
+    const transition =
+      resolveCallable(
+        component,
+        [
+          "transition",
+          "apply",
+          "run"
+        ],
+        "cos-delivery-sequence-manager"
+      );
+
+    return await transition(
       {
-        required: false,
-        componentName: "cos-turn-register",
-        stage: STAGES.TURN_REGISTRATION
+        conversationId,
+
+        state:
+          state
+            .deliverySequenceState,
+
+        currentTurn,
+
+        command
+      },
+      {
+        ...options,
+        freeze: false
       }
     );
+  }
 
-    let registeredTurn;
-
-    if (register) {
-      registeredTurn = await register({
-        currentTurn: input.currentTurn,
-        history: input.history,
-        historyIndex,
-        state,
-        conversationId: state.conversationId,
-        requestId: input.requestId
-      });
-    } else {
-      addWarning(context, {
-        code: "COS_TURN_REGISTER_FALLBACK",
-        message:
-          "Turn register component is unavailable; using deterministic structural registration.",
-        stage: STAGES.TURN_REGISTRATION
-      });
-
-      registeredTurn = createRegisteredTurn({
-        currentTurn: input.currentTurn,
-        historyIndex,
-        state
-      });
-    }
-
-    if (!isObject(registeredTurn)) {
-      throw new CosRuntimeError(
-        "COS_REGISTERED_TURN_INVALID",
-        "Turn registration must return an object",
-        {
-          stage: STAGES.TURN_REGISTRATION
-        }
-      );
-    }
-
-    registeredTurn = normalizeRegisteredTurn(
-      registeredTurn,
-      input.currentTurn,
-      historyIndex,
-      state
-    );
+  function applyAuxiliaryStateResult(
+    state,
+    property,
+    transitionResult
+  ) {
+    const next =
+      safeClone(state);
 
     if (
-      historyIndex.byTurnId &&
-      historyIndex.byTurnId[registeredTurn.turnId]
+      transitionResult &&
+      isObject(
+        transitionResult.state
+      )
     ) {
-      throw new CosRuntimeError(
-        "COS_DUPLICATE_TURN_ID",
-        `Current turn ID already exists in history: ${registeredTurn.turnId}`,
-        {
-          stage: STAGES.TURN_REGISTRATION,
-          details: {
-            turnId: registeredTurn.turnId
-          }
-        }
-      );
+      next[property] =
+        safeClone(
+          transitionResult.state
+        );
     }
 
-    return registeredTurn;
+    return next;
   }
 
-  function createRegisteredTurn({
-    currentTurn,
-    historyIndex,
-    state
-  }) {
-    return {
-      ...safeClone(currentTurn),
-
-      turnId:
-        currentTurn.turnId ||
-        createId("turn"),
-
-      role:
-        firstNonEmptyString(currentTurn.role) ||
-        "user",
-
-      text:
-        currentTurn.text === null ||
-        currentTurn.text === undefined
-          ? ""
-          : String(currentTurn.text),
-
-      sequence:
-        Number.isFinite(Number(currentTurn.sequence))
-          ? normalizeInteger(currentTurn.sequence, 0)
-          : historyIndex.count,
-
-      timestamp:
-        normalizeTimestamp(
-          currentTurn.timestamp,
-          nowIso()
-        ),
-
-      conversationId: state.conversationId,
-
-      registeredAt: nowIso()
-    };
-  }
-
-  function normalizeRegisteredTurn(
-    registeredTurn,
-    fallbackTurn,
-    historyIndex,
-    state
+  function readActivePendingInteraction(
+    pendingState
   ) {
-    const normalized = {
-      ...safeClone(fallbackTurn),
-      ...safeClone(registeredTurn)
-    };
+    if (
+      !isObject(pendingState) ||
+      !isObject(
+        pendingState.interactions
+      )
+    ) {
+      return null;
+    }
 
-    normalized.turnId =
+    const activeId =
       firstNonEmptyString(
-        normalized.turnId,
-        normalized.turn_id,
-        fallbackTurn.turnId
-      ) || createId("turn");
-
-    normalized.role =
-      firstNonEmptyString(
-        normalized.role,
-        fallbackTurn.role
-      ) || "user";
-
-    normalized.text =
-      firstDefined(
-        normalized.text,
-        normalized.content,
-        fallbackTurn.text,
-        ""
+        pendingState
+          .activeInteractionId,
+        pendingState
+          .active_interaction_id
       );
 
-    normalized.text =
-      normalized.text === null ||
-      normalized.text === undefined
-        ? ""
-        : String(normalized.text);
+    if (!activeId) {
+      return null;
+    }
 
-    normalized.sequence = normalizeInteger(
-      firstDefined(
-        normalized.sequence,
-        fallbackTurn.sequence,
-        historyIndex.count
-      ),
-      historyIndex.count
+    const value =
+      pendingState.interactions[
+        activeId
+      ];
+
+    return isObject(value)
+      ? value
+      : null;
+  }
+
+  function readActiveArtifact(
+    artifactState
+  ) {
+    if (
+      !isObject(artifactState) ||
+      !isObject(
+        artifactState.artifacts
+      )
+    ) {
+      return null;
+    }
+
+    const activeId =
+      firstNonEmptyString(
+        artifactState
+          .activeArtifactId,
+        artifactState
+          .active_artifact_id
+      );
+
+    if (!activeId) {
+      return null;
+    }
+
+    const value =
+      artifactState.artifacts[
+        activeId
+      ];
+
+    return isObject(value)
+      ? value
+      : null;
+  }
+
+  function readActiveDeliverySequence(
+    sequenceState
+  ) {
+    if (
+      !isObject(sequenceState) ||
+      !isObject(
+        sequenceState.sequences
+      )
+    ) {
+      return null;
+    }
+
+    const activeId =
+      firstNonEmptyString(
+        sequenceState
+          .activeSequenceId,
+        sequenceState
+          .active_sequence_id
+      );
+
+    if (!activeId) {
+      return null;
+    }
+
+    const value =
+      sequenceState.sequences[
+        activeId
+      ];
+
+    return isObject(value)
+      ? value
+      : null;
+  }
+
+  /* =====================================================
+     REFERENCE CANDIDATE CONSTRUCTION
+  ===================================================== */
+
+  async function buildReferenceCandidates(
+    component,
+    context
+  ) {
+    const build =
+      resolveCallable(
+        component,
+        [
+          "build",
+          "buildCandidates",
+          "create",
+          "run"
+        ],
+        "cos-reference-candidate-builder"
+      );
+
+    return await build(
+      {
+        conversationId:
+          context.conversationId,
+
+        currentTurn:
+          context.currentTurn,
+
+        history:
+          context.history,
+
+        historyIndex:
+          context.historyIndex,
+
+        state:
+          context.state,
+
+        pendingInteraction:
+          context.activePendingInteraction,
+
+        activeArtifact:
+          context.activeArtifact,
+
+        deliverySequence:
+          context.activeDeliverySequence,
+
+        upstreamCandidates:
+          context.upstreamCandidates,
+
+        uiMetadata:
+          context.uiMetadata,
+
+        options: {
+          includeActiveThread:
+            context.options
+              .includeActiveThread !==
+            false,
+
+          includeHistoryLandmark:
+            context.options
+              .includeHistoryLandmark ===
+            true,
+
+          freeze: false
+        }
+      },
+      {
+        freeze: false
+      }
     );
+  }
 
-    normalized.timestamp =
-      normalizeTimestamp(
-        firstDefined(
-          normalized.timestamp,
-          fallbackTurn.timestamp
-        ),
-        nowIso()
+  /* =====================================================
+     REFERENCE ADJUDICATION
+  ===================================================== */
+
+  async function adjudicateReferences(
+    component,
+    context
+  ) {
+    const adjudicate =
+      resolveCallable(
+        component,
+        [
+          "adjudicate",
+          "resolve",
+          "decide",
+          "run"
+        ],
+        "cos-reference-adjudicator"
       );
 
-    normalized.conversationId =
-      firstNonEmptyString(
-        normalized.conversationId,
-        state.conversationId
-      ) || state.conversationId;
+    return await adjudicate(
+      {
+        conversationId:
+          context.conversationId,
 
-    normalized.registeredAt =
-      normalizeTimestamp(
-        normalized.registeredAt,
-        nowIso()
-      );
+        currentTurn:
+          context.currentTurn,
 
-    return normalized;
+        candidateSet:
+          context.candidateSet
+      },
+      {
+        freeze: false
+      }
+    );
   }
 
   /* =====================================================
      REFERENCE RESOLUTION
   ===================================================== */
 
-  async function resolveReferences({
+  async function resolveReferences(
     component,
-    input,
-    state,
-    historyIndex,
-    currentTurn,
     context
-  }) {
-    const resolve = resolveCallable(
-      component,
-      [
-        "resolve",
-        "resolveReferences",
-        "run"
-      ],
-      {
-        required: false,
-        componentName: "cos-reference-resolver",
-        stage: STAGES.REFERENCE_RESOLUTION
-      }
-    );
-
-    let result;
-
-    if (resolve) {
-      result = await resolve({
-        currentTurn,
-        history: input.history,
-        historyIndex,
-        state,
-        conversationId: state.conversationId,
-        metadata: input.metadata
-      });
-    } else {
-      addWarning(context, {
-        code: "COS_REFERENCE_RESOLVER_UNAVAILABLE",
-        message:
-          "Reference resolver is unavailable; unresolved structural references will not be guessed.",
-        stage: STAGES.REFERENCE_RESOLUTION
-      });
-
-      result = createConservativeReferenceResolution({
-        currentTurn
-      });
-    }
-
-    return normalizeReferenceResolution(
-      result,
-      historyIndex
-    );
-  }
-
-  function createConservativeReferenceResolution({
-    currentTurn
-  }) {
-    const explicitSourceTurnIds = uniqueStrings(
-      firstDefined(
-        currentTurn.sourceTurnIds,
-        currentTurn.source_turn_ids,
-        currentTurn.referenceTurnIds,
-        currentTurn.reference_turn_ids,
-        currentTurn.replyToTurnId,
-        currentTurn.reply_to_turn_id,
-        []
-      )
-    );
-
-    const explicitParentTurnId =
-      firstNonEmptyString(
-        currentTurn.parentTurnId,
-        currentTurn.parent_turn_id,
-        currentTurn.replyToTurnId,
-        currentTurn.reply_to_turn_id
-      );
-
-    if (
-      explicitParentTurnId &&
-      !explicitSourceTurnIds.includes(
-        explicitParentTurnId
-      )
-    ) {
-      explicitSourceTurnIds.unshift(
-        explicitParentTurnId
-      );
-    }
-
-    if (explicitSourceTurnIds.length > 0) {
-      return {
-        status: "resolved",
-        required: true,
-        resolvedTurnIds: explicitSourceTurnIds,
-        unresolvedReferences: [],
-        parentTurnId:
-          explicitParentTurnId ||
-          explicitSourceTurnIds[0],
-        source: "explicit_turn_metadata"
-      };
-    }
-
-    return {
-      status: "not_required",
-      required: false,
-      resolvedTurnIds: [],
-      unresolvedReferences: [],
-      parentTurnId: null,
-      source: "no_explicit_structural_reference"
-    };
-  }
-
-  function normalizeReferenceResolution(
-    result,
-    historyIndex
   ) {
-    const source = isObject(result)
-      ? safeClone(result)
-      : {};
-
-    let resolvedTurnIds = uniqueStrings(
-      firstDefined(
-        source.resolvedTurnIds,
-        source.resolved_turn_ids,
-        source.sourceTurnIds,
-        source.source_turn_ids,
-        source.turnIds,
-        source.turn_ids,
-        []
-      )
-    );
-
-    const parentTurnId =
-      firstNonEmptyString(
-        source.parentTurnId,
-        source.parent_turn_id,
-        source.primaryTurnId,
-        source.primary_turn_id
+    const resolve =
+      resolveCallable(
+        component,
+        [
+          "resolve",
+          "run",
+          "execute",
+          "process"
+        ],
+        "cos-reference-resolver"
       );
 
-    if (
-      parentTurnId &&
-      !resolvedTurnIds.includes(parentTurnId)
-    ) {
-      resolvedTurnIds.unshift(parentTurnId);
-    }
-
-    const unresolvedReferences = asArray(
-      firstDefined(
-        source.unresolvedReferences,
-        source.unresolved_references,
-        source.unresolved,
-        []
-      )
-    ).map((item) => safeClone(item));
-
-    const unknownResolvedTurnIds =
-      resolvedTurnIds.filter(
-        (turnId) =>
-          !historyIndex.byTurnId ||
-          !historyIndex.byTurnId[turnId]
-      );
-
-    if (unknownResolvedTurnIds.length > 0) {
-      resolvedTurnIds = resolvedTurnIds.filter(
-        (turnId) =>
-          historyIndex.byTurnId &&
-          historyIndex.byTurnId[turnId]
-      );
-
-      for (const turnId of unknownResolvedTurnIds) {
-        unresolvedReferences.push({
-          type: "unknown_turn_id",
-          turnId
-        });
-      }
-    }
-
-    const required = normalizeBoolean(
-      firstDefined(
-        source.required,
-        source.referenceRequired,
-        source.reference_required
-      ),
-      resolvedTurnIds.length > 0 ||
-        unresolvedReferences.length > 0
-    );
-
-    let status = firstNonEmptyString(
-      source.status,
-      source.resolutionStatus,
-      source.resolution_status
-    );
-
-    if (!REFERENCE_STATUSES.includes(status)) {
-      if (!required) {
-        status = "not_required";
-      } else if (
-        resolvedTurnIds.length > 0 &&
-        unresolvedReferences.length === 0
-      ) {
-        status = "resolved";
-      } else if (
-        resolvedTurnIds.length > 0 &&
-        unresolvedReferences.length > 0
-      ) {
-        status = "partially_resolved";
-      } else {
-        status = "unresolved";
-      }
-    }
-
-    return {
-      ...source,
-
-      status,
-      required,
-
-      resolvedTurnIds,
-      unresolvedReferences,
-
-      parentTurnId:
-        parentTurnId &&
-        resolvedTurnIds.includes(parentTurnId)
-          ? parentTurnId
-          : resolvedTurnIds[0] || null
-    };
-  }
-
-  /* =====================================================
-     CONVERSATION PLACEMENT
-  ===================================================== */
-
-  async function determinePlacement({
-    component,
-    input,
-    state,
-    historyIndex,
-    currentTurn,
-    referenceResolution,
-    context
-  }) {
-    const place = resolveCallable(
-      component,
-      [
-        "place",
-        "determinePlacement",
-        "resolvePlacement",
-        "run"
-      ],
-      {
-        required: false,
-        componentName: "cos-placement-engine",
-        stage: STAGES.CONVERSATION_PLACEMENT
-      }
-    );
-
-    let placement;
-
-    if (place) {
-      placement = await place({
-        currentTurn,
-        history: input.history,
-        historyIndex,
-        referenceResolution,
-        state,
-        conversationId: state.conversationId,
-        metadata: input.metadata
-      });
-    } else {
-      addWarning(context, {
-        code: "COS_PLACEMENT_ENGINE_FALLBACK",
-        message:
-          "Placement engine is unavailable; using conservative structural placement.",
-        stage: STAGES.CONVERSATION_PLACEMENT
-      });
-
-      placement = createConservativePlacement({
-        state,
-        historyIndex,
-        currentTurn,
-        referenceResolution
-      });
-    }
-
-    return normalizePlacement({
-      placement,
-      state,
-      historyIndex,
-      currentTurn,
-      referenceResolution
-    });
-  }
-
-  function createConservativePlacement({
-    state,
-    historyIndex,
-    currentTurn,
-    referenceResolution
-  }) {
-    const explicitPlacementType =
-      firstNonEmptyString(
-        currentTurn.placementType,
-        currentTurn.placement_type
-      );
-
-    const explicitThreadId =
-      firstNonEmptyString(
-        currentTurn.threadId,
-        currentTurn.thread_id
-      );
-
-    const sourceTurnIds =
-      referenceResolution.resolvedTurnIds;
-
-    const parentTurnId =
-      referenceResolution.parentTurnId ||
-      sourceTurnIds[0] ||
-      null;
-
-    if (
-      explicitPlacementType &&
-      PLACEMENT_TYPES.includes(explicitPlacementType)
-    ) {
-      return {
-        type: explicitPlacementType,
-        threadId:
-          explicitThreadId ||
-          deriveThreadIdFromParent(
-            parentTurnId,
-            historyIndex,
-            state
-          ) ||
-          state.activeThreadId ||
-          createId("thread"),
-        parentTurnId,
-        sourceTurnIds
-      };
-    }
-
-    if (
-      referenceResolution.status === "unresolved" ||
-      referenceResolution.status ===
-        "partially_resolved"
-    ) {
-      return {
-        type: "unresolved_placement",
-        threadId:
-          explicitThreadId ||
-          state.activeThreadId ||
-          null,
-        parentTurnId,
-        sourceTurnIds
-      };
-    }
-
-    if (sourceTurnIds.length > 0) {
-      return {
-        type: "continue_thread",
-        threadId:
-          explicitThreadId ||
-          deriveThreadIdFromParent(
-            parentTurnId,
-            historyIndex,
-            state
-          ) ||
-          state.activeThreadId ||
-          createId("thread"),
-        parentTurnId,
-        sourceTurnIds
-      };
-    }
-
-    if (state.activeThreadId) {
-      return {
-        type: "continue_thread",
-        threadId: state.activeThreadId,
-        parentTurnId:
-          state.activeTurnId ||
-          historyIndex.lastTurnId ||
-          null,
-        sourceTurnIds: []
-      };
-    }
-
-    if (historyIndex.count > 0) {
-      const lastTurnId = historyIndex.lastTurnId;
-
-      return {
-        type: "continue_thread",
-        threadId:
-          deriveThreadIdFromParent(
-            lastTurnId,
-            historyIndex,
-            state
-          ) || createId("thread"),
-        parentTurnId: lastTurnId,
-        sourceTurnIds: []
-      };
-    }
-
-    return {
-      type: "new_thread",
-      threadId:
-        explicitThreadId ||
-        createId("thread"),
-      parentTurnId: null,
-      sourceTurnIds: []
-    };
-  }
-
-  function deriveThreadIdFromParent(
-    parentTurnId,
-    historyIndex,
-    state
-  ) {
-    if (!parentTurnId) {
-      return null;
-    }
-
-    const indexedTurn =
-      historyIndex.byTurnId &&
-      historyIndex.byTurnId[parentTurnId];
-
-    const stateTurn =
-      state.turns &&
-      state.turns[parentTurnId];
-
-    return firstNonEmptyString(
-      indexedTurn && indexedTurn.threadId,
-      stateTurn && stateTurn.threadId
-    );
-  }
-
-  function normalizePlacement({
-    placement,
-    state,
-    historyIndex,
-    currentTurn,
-    referenceResolution
-  }) {
-    const source = isObject(placement)
-      ? safeClone(placement)
-      : {};
-
-    let type = firstNonEmptyString(
-      source.type,
-      source.placementType,
-      source.placement_type
-    );
-
-    if (!PLACEMENT_TYPES.includes(type)) {
-      type = "unresolved_placement";
-    }
-
-    let sourceTurnIds = uniqueStrings(
-      firstDefined(
-        source.sourceTurnIds,
-        source.source_turn_ids,
-        referenceResolution.resolvedTurnIds,
-        []
-      )
-    );
-
-    const parentTurnId =
-      firstNonEmptyString(
-        source.parentTurnId,
-        source.parent_turn_id,
-        referenceResolution.parentTurnId
-      );
-
-    if (
-      parentTurnId &&
-      !sourceTurnIds.includes(parentTurnId) &&
-      referenceResolution.resolvedTurnIds.includes(
-        parentTurnId
-      )
-    ) {
-      sourceTurnIds.unshift(parentTurnId);
-    }
-
-    sourceTurnIds = sourceTurnIds.filter(
-      (turnId) =>
-        historyIndex.byTurnId &&
-        historyIndex.byTurnId[turnId]
-    );
-
-    let threadId = firstNonEmptyString(
-      source.threadId,
-      source.thread_id,
-      currentTurn.threadId,
-      currentTurn.thread_id
-    );
-
-    if (!threadId && parentTurnId) {
-      threadId = deriveThreadIdFromParent(
-        parentTurnId,
-        historyIndex,
-        state
-      );
-    }
-
-    if (!threadId && type !== "unresolved_placement") {
-      threadId =
-        state.activeThreadId ||
-        createId("thread");
-    }
-
-    if (
-      type === "new_thread" &&
-      parentTurnId
-    ) {
-      type = "branch_from_turn";
-    }
-
-    if (
-      type === "continue_thread" &&
-      !threadId
-    ) {
-      type = "unresolved_placement";
-    }
-
-    return {
-      ...source,
-
-      type,
-      threadId: threadId || null,
-      parentTurnId: parentTurnId || null,
-      sourceTurnIds
-    };
-  }
-
-  /* =====================================================
-     THREAD-STATE TRANSITION
-  ===================================================== */
-
-  async function transitionThreadState({
-    component,
-    input,
-    state,
-    historyIndex,
-    currentTurn,
-    referenceResolution,
-    placement,
-    context
-  }) {
-    const transition = resolveCallable(
-      component,
-      [
-        "transition",
-        "apply",
-        "update",
-        "updateState",
-        "run"
-      ],
-      {
-        required: false,
-        componentName: "cos-thread-state-manager",
-        stage: STAGES.THREAD_STATE_TRANSITION
-      }
-    );
-
-    let result;
-
-    if (transition) {
-      result = await transition({
-        state,
-        currentTurn,
-        history: input.history,
-        historyIndex,
-        referenceResolution,
-        placement,
-        conversationId: state.conversationId,
-        requestId: input.requestId
-      });
-    } else {
-      addWarning(context, {
-        code: "COS_THREAD_MANAGER_FALLBACK",
-        message:
-          "Thread-state manager is unavailable; using deterministic structural state transition.",
-        stage: STAGES.THREAD_STATE_TRANSITION
-      });
-
-      result = applyStructuralStateTransition({
-        state,
-        currentTurn,
-        placement,
-        referenceResolution
-      });
-    }
-
-    return normalizeStateTransitionResult(
-      result,
-      state,
-      currentTurn,
-      placement,
-      referenceResolution
-    );
-  }
-
-  function applyStructuralStateTransition({
-    state,
-    currentTurn,
-    placement,
-    referenceResolution
-  }) {
-    const nextState = ensureMinimumStateShape(
-      state,
-      {
-        conversationId: state.conversationId
-      }
-    );
-
-    const threadId = placement.threadId;
-
-    if (
-      threadId &&
-      placement.type !== "unresolved_placement"
-    ) {
-      const existingThread = isObject(
-        nextState.threads[threadId]
-      )
-        ? nextState.threads[threadId]
-        : {};
-
-      const previousStatus =
-        firstNonEmptyString(
-          existingThread.status
-        ) || "unknown";
-
-      const nextStatus = determineThreadStatus(
-        placement.type,
-        previousStatus
-      );
-
-      const existingTurnIds = uniqueStrings(
-        existingThread.turnIds || []
-      );
-
-      if (
-        !existingTurnIds.includes(
-          currentTurn.turnId
-        )
-      ) {
-        existingTurnIds.push(currentTurn.turnId);
-      }
-
-      nextState.threads[threadId] = {
-        ...existingThread,
-
-        threadId,
-
-        status: nextStatus,
-
-        rootTurnId:
-          firstNonEmptyString(
-            existingThread.rootTurnId
-          ) ||
-          placement.parentTurnId ||
-          currentTurn.turnId,
-
-        turnIds: existingTurnIds,
-
-        lastTurnId: currentTurn.turnId,
-
-        updatedAt: nowIso(),
-
-        createdAt:
-          normalizeTimestamp(
-            existingThread.createdAt,
-            nowIso()
-          )
-      };
-
-      nextState.turns[currentTurn.turnId] = {
-        ...(isObject(nextState.turns[currentTurn.turnId])
-          ? nextState.turns[currentTurn.turnId]
-          : {}),
-
-        turnId: currentTurn.turnId,
-        threadId,
-
-        role: currentTurn.role,
-        sequence: currentTurn.sequence,
-
-        parentTurnId:
-          placement.parentTurnId,
-
-        sourceTurnIds:
-          placement.sourceTurnIds,
-
-        placementType:
-          placement.type,
-
-        createdAt:
-          currentTurn.timestamp ||
-          nowIso()
-      };
-
-      nextState.activeThreadId = threadId;
-      nextState.activeTurnId = currentTurn.turnId;
-
-      if (
-        !nextState.threadStack.includes(threadId)
-      ) {
-        nextState.threadStack.push(threadId);
-      }
-
-      if (placement.type === "interruption") {
-        const previousActiveThreadId =
-          state.activeThreadId;
-
-        if (
-          previousActiveThreadId &&
-          previousActiveThreadId !== threadId
-        ) {
-          nextState.interruptionStack.push({
-            interruptedThreadId:
-              previousActiveThreadId,
-            interruptionThreadId: threadId,
-            interruptionTurnId:
-              currentTurn.turnId,
-            createdAt: nowIso()
-          });
-        }
-      }
-
-      if (
-        placement.type ===
-          "return_from_interruption" &&
-        nextState.interruptionStack.length > 0
-      ) {
-        nextState.interruptionStack.pop();
-      }
-    }
-
-    nextState.lastPlacement =
-      safeClone(placement);
-
-    nextState.lastReferenceResolution =
-      safeClone(referenceResolution);
-
-    nextState.revision =
-      Math.max(
-        0,
-        normalizeInteger(nextState.revision, 0)
-      ) + 1;
-
-    nextState.updatedAt = nowIso();
-
-    return {
-      state: nextState,
-      transition: {
-        applied:
-          placement.type !==
-          "unresolved_placement",
-
-        threadId:
-          placement.threadId,
-
-        turnId:
-          currentTurn.turnId,
-
-        placementType:
-          placement.type
-      }
-    };
-  }
-
-  function determineThreadStatus(
-    placementType,
-    previousStatus
-  ) {
-    switch (placementType) {
-      case "new_thread":
-      case "continue_thread":
-      case "branch_from_turn":
-      case "answer_to_turn":
-      case "clarification_of_turn":
-      case "correction_of_turn":
-        return "active";
-
-      case "resume_thread":
-      case "return_from_interruption":
-        return "resumed";
-
-      case "interruption":
-        return "interrupted";
-
-      case "unresolved_placement":
-        return THREAD_STATUSES.includes(previousStatus)
-          ? previousStatus
-          : "unknown";
-
-      default:
-        return "active";
-    }
-  }
-
-  function normalizeStateTransitionResult(
-    result,
-    previousState,
-    currentTurn,
-    placement,
-    referenceResolution
-  ) {
-    let nextState;
-    let transition;
-
-    if (
-      isObject(result) &&
-      isObject(result.state)
-    ) {
-      nextState = result.state;
-      transition = isObject(result.transition)
-        ? result.transition
-        : {};
-    } else if (isObject(result)) {
-      nextState = result;
-      transition = {};
-    } else {
-      throw new CosRuntimeError(
-        "COS_STATE_TRANSITION_INVALID",
-        "Thread-state transition must return a state object",
-        {
-          stage: STAGES.THREAD_STATE_TRANSITION
-        }
-      );
-    }
-
-    nextState = ensureMinimumStateShape(
-      nextState,
+    return await resolve(
       {
         conversationId:
-          previousState.conversationId
+          context.conversationId,
+
+        currentTurn:
+          context.currentTurn,
+
+        history:
+          context.history,
+
+        historyIndex:
+          context.historyIndex,
+
+        state:
+          context.state,
+
+        pendingInteractionState:
+          context.state
+            .pendingInteractionState,
+
+        artifactState:
+          context.state.artifactState,
+
+        deliverySequenceState:
+          context.state
+            .deliverySequenceState,
+
+        pendingInteraction:
+          context.activePendingInteraction,
+
+        activeArtifact:
+          context.activeArtifact,
+
+        deliverySequence:
+          context.activeDeliverySequence,
+
+        upstreamCandidates:
+          context.upstreamCandidates,
+
+        uiMetadata:
+          context.uiMetadata,
+
+        candidateSet:
+          context.candidateSet,
+
+        adjudication:
+          context.adjudication,
+
+        options: {
+          includeDiagnostics:
+            context.options
+              .includeReferenceDiagnostics !==
+            false,
+
+          freeze: false
+        }
+      },
+      {
+        includeDiagnostics:
+          context.options
+            .includeReferenceDiagnostics !==
+          false,
+
+        freeze: false
       }
     );
+  }
 
-    nextState.lastPlacement =
-      isObject(nextState.lastPlacement)
-        ? nextState.lastPlacement
-        : safeClone(placement);
+  /* =====================================================
+     PLACEMENT
+  ===================================================== */
 
-    nextState.lastReferenceResolution =
-      isObject(nextState.lastReferenceResolution)
-        ? nextState.lastReferenceResolution
-        : safeClone(referenceResolution);
+  async function determinePlacement(
+    component,
+    context
+  ) {
+    const place =
+      resolveCallable(
+        component,
+        [
+          "place",
+          "determine",
+          "determinePlacement",
+          "resolve",
+          "run"
+        ],
+        "cos-placement-engine"
+      );
+
+    return await place(
+      {
+        conversationId:
+          context.conversationId,
+
+        currentTurn:
+          context.currentTurn,
+
+        state:
+          context.state,
+
+        history:
+          context.history,
+
+        historyIndex:
+          context.historyIndex,
+
+        referenceResolution:
+          context.referenceResolution,
+
+        semanticPacket:
+          context.semanticPacket,
+
+        conversationFunction:
+          context.conversationFunction,
+
+        placementEvidence:
+          context.placementEvidence,
+
+        pendingInteraction:
+          context.activePendingInteraction,
+
+        activeArtifact:
+          context.activeArtifact,
+
+        deliverySequence:
+          context.activeDeliverySequence
+      },
+      {
+        ...context.options,
+        freeze: false
+      }
+    );
+  }
+
+  /* =====================================================
+     THREAD STATE TRANSITION
+  ===================================================== */
+
+  async function transitionThreadState(
+    component,
+    context
+  ) {
+    const transition =
+      resolveCallable(
+        component,
+        [
+          "transition",
+          "apply",
+          "applyPlacement",
+          "update",
+          "run"
+        ],
+        "cos-thread-state-manager"
+      );
+
+    const result =
+      await transition(
+        {
+          conversationId:
+            context.conversationId,
+
+          state:
+            context.state,
+
+          currentTurn:
+            context.currentTurn,
+
+          placement:
+            context.placement,
+
+          referenceResolution:
+            context.referenceResolution,
+
+          historyIndex:
+            context.historyIndex
+        },
+        {
+          ...context.options,
+          freeze: false
+        }
+      );
+
+    return normalizeThreadTransitionResult(
+      result,
+      context
+    );
+  }
+
+  function normalizeThreadTransitionResult(
+    result,
+    context
+  ) {
+    if (!isObject(result)) {
+      throw new CosRuntimeError(
+        "COS_RUNTIME_THREAD_TRANSITION_INVALID",
+        "Thread state manager returned an invalid result.",
+        {
+          stage:
+            "thread_state_transition"
+        }
+      );
+    }
+
+    const nextState =
+      isObject(result.state)
+        ? safeClone(result.state)
+        : safeClone(context.state);
+
+    const turnId =
+      readCurrentTurnId(
+        context.currentTurn
+      );
+
+    if (!isObject(nextState.turns)) {
+      nextState.turns = {};
+    }
 
     if (
-      placement.type !== "unresolved_placement" &&
-      placement.threadId
+      turnId &&
+      !nextState.turns[turnId]
     ) {
-      nextState.activeThreadId =
-        firstNonEmptyString(
-          nextState.activeThreadId,
-          placement.threadId
-        );
-
-      nextState.activeTurnId =
-        firstNonEmptyString(
-          nextState.activeTurnId,
-          currentTurn.turnId
+      nextState.turns[turnId] =
+        safeClone(
+          context.currentTurn
         );
     }
 
-    nextState.updatedAt = nowIso();
+    if (turnId) {
+      nextState.activeTurnId =
+        turnId;
+    }
+
+    nextState.lastPlacement =
+      safeClone(
+        context.placement
+      );
+
+    nextState
+      .lastReferenceResolution =
+      safeClone(
+        context.referenceResolution
+      );
+
+    nextState
+      .pendingInteractionState =
+      safeClone(
+        context.state
+          .pendingInteractionState
+      );
+
+    nextState.artifactState =
+      safeClone(
+        context.state.artifactState
+      );
+
+    nextState
+      .deliverySequenceState =
+      safeClone(
+        context.state
+          .deliverySequenceState
+      );
 
     return {
-      state: nextState,
+      ...safeClone(result),
 
-      transition: {
-        applied:
-          placement.type !==
-          "unresolved_placement",
-
-        threadId:
-          placement.threadId,
-
-        turnId:
-          currentTurn.turnId,
-
-        placementType:
-          placement.type,
-
-        ...safeClone(transition)
-      }
+      state:
+        nextState
     };
   }
 
@@ -2809,1070 +2562,1543 @@
      PLACEMENT VALIDATION
   ===================================================== */
 
-  async function validatePlacement({
+  async function validatePlacement(
     component,
-    state,
-    historyIndex,
-    currentTurn,
-    referenceResolution,
-    placement,
-    transition,
     context
-  }) {
-    const validate = resolveCallable(
-      component,
-      [
-        "validate",
-        "validatePlacement",
-        "assert",
-        "run"
-      ],
-      {
-        required: false,
-        componentName: "cos-placement-validator",
-        stage: STAGES.PLACEMENT_VALIDATION
-      }
-    );
+  ) {
+    const validate =
+      resolveCallable(
+        component,
+        [
+          "validatePlacement",
+          "validate",
+          "run",
+          "assert"
+        ],
+        "cos-placement-validator"
+      );
 
-    let result;
-
-    if (validate) {
-      result = await validate({
-        state,
-        historyIndex,
-        currentTurn,
-        referenceResolution,
-        placement,
-        transition
-      });
-    } else {
-      result = validateMinimumPlacement({
-        state,
-        historyIndex,
-        currentTurn,
-        referenceResolution,
-        placement
-      });
-    }
-
-    const normalized = normalizeValidationResult(
-      result
-    );
-
-    for (const warning of normalized.warnings) {
-      addWarning(context, {
-        code:
-          firstNonEmptyString(warning.code) ||
-          "COS_PLACEMENT_WARNING",
-
-        message:
-          firstNonEmptyString(
-            warning.message,
-            warning
-          ) || "COS placement warning",
-
-        stage: STAGES.PLACEMENT_VALIDATION,
-
-        details: warning
-      });
-    }
-
-    if (!normalized.valid) {
-      throw new CosRuntimeError(
-        "COS_PLACEMENT_INVALID",
-        "Conversation placement failed validation",
+    const validation =
+      await validate(
         {
-          stage: STAGES.PLACEMENT_VALIDATION,
-          details: {
-            errors: normalized.errors,
-            warnings: normalized.warnings,
-            placement
-          }
+          conversationId:
+            context.conversationId,
+
+          state:
+            context.state,
+
+          currentTurn:
+            context.currentTurn,
+
+          historyIndex:
+            context.historyIndex,
+
+          referenceResolution:
+            context.referenceResolution,
+
+          placement:
+            context.placement,
+
+          threadTransition:
+            context.threadTransition
+        },
+        {
+          ...context.options,
+          freeze: false
+        }
+      );
+
+    if (validation === false) {
+      throw new CosRuntimeError(
+        "COS_RUNTIME_PLACEMENT_REJECTED",
+        "Placement validator rejected the COS placement.",
+        {
+          stage:
+            "placement_validation"
         }
       );
     }
 
-    return normalized;
-  }
-
-  function validateMinimumPlacement({
-    state,
-    historyIndex,
-    currentTurn,
-    referenceResolution,
-    placement
-  }) {
-    const errors = [];
-    const warnings = [];
-
     if (
-      !PLACEMENT_TYPES.includes(
-        placement.type
-      )
+      isObject(validation) &&
+      validation.valid === false
     ) {
-      errors.push({
-        code: "INVALID_PLACEMENT_TYPE",
-        placementType: placement.type
-      });
+      throw new CosRuntimeError(
+        "COS_RUNTIME_PLACEMENT_INVALID",
+        "COS placement failed validation.",
+        {
+          stage:
+            "placement_validation",
+
+          details:
+            validation
+        }
+      );
     }
 
-    if (
-      placement.type !==
-        "unresolved_placement" &&
-      !isNonEmptyString(placement.threadId)
-    ) {
-      errors.push({
-        code: "THREAD_ID_REQUIRED",
-        placementType: placement.type
-      });
-    }
-
-    if (
-      placement.parentTurnId &&
-      (!historyIndex.byTurnId ||
-        !historyIndex.byTurnId[
-          placement.parentTurnId
-        ])
-    ) {
-      errors.push({
-        code: "UNKNOWN_PARENT_TURN",
-        parentTurnId:
-          placement.parentTurnId
-      });
-    }
-
-    for (const turnId of placement.sourceTurnIds) {
-      if (
-        !historyIndex.byTurnId ||
-        !historyIndex.byTurnId[turnId]
-      ) {
-        errors.push({
-          code: "UNKNOWN_SOURCE_TURN",
-          turnId
-        });
-      }
-    }
-
-    if (
-      referenceResolution.status ===
-        "unresolved" &&
-      placement.type !==
-        "unresolved_placement"
-    ) {
-      errors.push({
-        code:
-          "UNRESOLVED_REFERENCE_REQUIRES_UNRESOLVED_PLACEMENT"
-      });
-    }
-
-    if (
-      placement.type === "new_thread" &&
-      placement.parentTurnId
-    ) {
-      errors.push({
-        code:
-          "NEW_THREAD_CANNOT_HAVE_PARENT"
-      });
-    }
-
-    if (
-      placement.type ===
-        "unresolved_placement" &&
-      isNonEmptyString(placement.threadId)
-    ) {
-      warnings.push({
-        code:
-          "UNRESOLVED_PLACEMENT_HAS_THREAD_ID",
-        message:
-          "Unresolved placement retains a provisional thread ID."
-      });
-    }
-
-    if (
-      state.activeTurnId ===
-        currentTurn.turnId &&
-      placement.type ===
-        "unresolved_placement"
-    ) {
-      warnings.push({
-        code:
-          "UNRESOLVED_TURN_SET_ACTIVE",
-        message:
-          "An unresolved turn should generally not become the active structural turn."
-      });
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings
-    };
+    return isObject(validation)
+      ? validation
+      : {
+          valid: true,
+          errors: [],
+          warnings: []
+        };
   }
 
   /* =====================================================
-     PACKET BUILDING
+     PACKET CONSTRUCTION
   ===================================================== */
 
-  async function buildPlacementPacket({
+  async function buildPacket(
     component,
-    contract,
-    input,
-    state,
-    currentTurn,
-    referenceResolution,
-    placement,
-    validation,
     context
-  }) {
-    const build = resolveCallable(
-      component,
-      [
-        "build",
-        "buildPacket",
-        "create",
-        "run"
-      ],
-      {
-        required: false,
-        componentName: "cos-packet-builder",
-        stage: STAGES.PACKET_BUILDING
-      }
-    );
+  ) {
+    const build =
+      resolveCallable(
+        component,
+        [
+          "build",
+          "create",
+          "createPacket",
+          "run"
+        ],
+        "cos-packet-builder"
+      );
 
-    let packet;
+    const packet =
+      await build(
+        {
+          conversationId:
+            context.conversationId,
 
-    if (build) {
-      packet = await build({
-        schemaVersion: SCHEMA_VERSION,
-        authority: AUTHORITY,
-        conversationId: state.conversationId,
-        currentTurn,
-        placement,
-        referenceResolution,
-        state,
-        validation,
-        requestId: input.requestId
-      });
-    } else {
-      packet = createCanonicalPlacementPacket({
-        input,
-        state,
-        currentTurn,
-        referenceResolution,
-        placement
-      });
-    }
+          state:
+            context.state,
 
-    packet = normalizePlacementPacket({
-      packet,
-      input,
-      state,
-      currentTurn,
-      referenceResolution,
-      placement
-    });
+          previousState:
+            context.previousState,
 
-    const contractValidation =
-      await validateFinalPacketWithContract({
-        contract,
-        packet
-      });
+          currentTurn:
+            context.currentTurn,
 
-    for (
-      const warning of contractValidation.warnings
-    ) {
-      addWarning(context, {
-        code: "COS_PACKET_CONTRACT_WARNING",
-        message:
-          firstNonEmptyString(
-            warning.message,
-            warning
-          ) || "Placement packet warning",
-        stage: STAGES.PACKET_BUILDING,
-        details: warning
-      });
-    }
+          historyIndex:
+            context.historyIndex,
 
-    return context.options.freezePacket
-      ? freezeClone(packet)
-      : packet;
-  }
+          candidateSet:
+            context.candidateSet,
 
-  function createCanonicalPlacementPacket({
-    input,
-    state,
-    currentTurn,
-    referenceResolution,
-    placement
-  }) {
-    return {
-      schemaVersion: SCHEMA_VERSION,
-      authority: AUTHORITY,
+          referenceAdjudication:
+            context.adjudication,
 
-      conversationId:
-        state.conversationId,
+          referenceResolution:
+            context.referenceResolution,
 
-      requestId:
-        input.requestId,
+          placement:
+            context.placement,
 
-      currentTurn: {
-        turnId: currentTurn.turnId,
-        role: currentTurn.role,
-        text: currentTurn.text,
-        sequence: currentTurn.sequence,
-        timestamp:
-          currentTurn.timestamp || null
-      },
+          threadTransition:
+            context.threadTransition,
 
-      placement: {
-        type: placement.type,
-        threadId: placement.threadId,
-        parentTurnId:
-          placement.parentTurnId,
-        sourceTurnIds:
-          placement.sourceTurnIds
-      },
+          placementValidation:
+            context.placementValidation,
 
-      referenceResolution: {
-        status:
-          referenceResolution.status,
+          pendingInteraction:
+            context.activePendingInteraction,
 
-        resolvedTurnIds:
-          referenceResolution.resolvedTurnIds,
+          activeArtifact:
+            context.activeArtifact,
 
-        unresolvedReferences:
-          referenceResolution.unresolvedReferences
-      }
-    };
-  }
+          deliverySequence:
+            context.activeDeliverySequence,
 
-  function normalizePlacementPacket({
-    packet,
-    input,
-    state,
-    currentTurn,
-    referenceResolution,
-    placement
-  }) {
-    const source = isObject(packet)
-      ? safeClone(packet)
-      : {};
+          auxiliaryTransitions:
+            context.auxiliaryTransitions,
 
-    const packetCurrentTurn = isObject(
-      source.currentTurn
-    )
-      ? source.currentTurn
-      : {};
+          semanticPacket:
+            context.semanticPacket,
 
-    const packetPlacement = isObject(
-      source.placement
-    )
-      ? source.placement
-      : {};
+          conversationFunction:
+            context.conversationFunction,
 
-    const packetReferenceResolution =
-      isObject(source.referenceResolution)
-        ? source.referenceResolution
-        : {};
+          metadata:
+            context.metadata
+        },
+        {
+          ...context.options,
+          freeze: false
+        }
+      );
 
-    return {
-      schemaVersion:
-        firstNonEmptyString(
-          source.schemaVersion
-        ) || SCHEMA_VERSION,
-
-      authority:
-        firstNonEmptyString(source.authority) ||
-        AUTHORITY,
-
-      conversationId:
-        firstNonEmptyString(
-          source.conversationId,
-          state.conversationId
-        ) || state.conversationId,
-
-      requestId:
-        firstNonEmptyString(
-          source.requestId,
-          input.requestId
-        ) || input.requestId,
-
-      currentTurn: {
-        turnId:
-          firstNonEmptyString(
-            packetCurrentTurn.turnId,
-            currentTurn.turnId
-          ) || currentTurn.turnId,
-
-        role:
-          firstNonEmptyString(
-            packetCurrentTurn.role,
-            currentTurn.role
-          ) || "user",
-
-        text:
-          firstDefined(
-            packetCurrentTurn.text,
-            currentTurn.text,
-            ""
-          ),
-
-        sequence: normalizeInteger(
-          firstDefined(
-            packetCurrentTurn.sequence,
-            currentTurn.sequence
-          ),
-          0
-        ),
-
-        timestamp:
-          normalizeTimestamp(
-            firstDefined(
-              packetCurrentTurn.timestamp,
-              currentTurn.timestamp
-            ),
-            null
-          )
-      },
-
-      placement: {
-        type:
-          PLACEMENT_TYPES.includes(
-            packetPlacement.type
-          )
-            ? packetPlacement.type
-            : placement.type,
-
-        threadId:
-          firstNonEmptyString(
-            packetPlacement.threadId,
-            placement.threadId
-          ) || null,
-
-        parentTurnId:
-          firstNonEmptyString(
-            packetPlacement.parentTurnId,
-            placement.parentTurnId
-          ) || null,
-
-        sourceTurnIds:
-          uniqueStrings(
-            firstDefined(
-              packetPlacement.sourceTurnIds,
-              placement.sourceTurnIds,
-              []
-            )
-          )
-      },
-
-      referenceResolution: {
-        status:
-          REFERENCE_STATUSES.includes(
-            packetReferenceResolution.status
-          )
-            ? packetReferenceResolution.status
-            : referenceResolution.status,
-
-        resolvedTurnIds:
-          uniqueStrings(
-            firstDefined(
-              packetReferenceResolution
-                .resolvedTurnIds,
-              referenceResolution
-                .resolvedTurnIds,
-              []
-            )
-          ),
-
-        unresolvedReferences:
-          asArray(
-            firstDefined(
-              packetReferenceResolution
-                .unresolvedReferences,
-              referenceResolution
-                .unresolvedReferences,
-              []
-            )
-          ).map((item) => safeClone(item))
-      }
-    };
-  }
-
-  function validateMinimumPacket(packet) {
     if (!isObject(packet)) {
       throw new CosRuntimeError(
-        "COS_PACKET_INVALID",
-        "Placement packet must be an object",
+        "COS_RUNTIME_PACKET_INVALID",
+        "Packet builder returned an invalid packet.",
         {
-          stage: STAGES.PACKET_BUILDING
+          stage:
+            "packet_construction"
         }
       );
     }
 
-    if (packet.authority !== AUTHORITY) {
-      throw new CosRuntimeError(
-        "COS_PACKET_AUTHORITY_INVALID",
-        "Placement packet has an invalid authority",
-        {
-          stage: STAGES.PACKET_BUILDING,
-          details: {
-            authority: packet.authority
-          }
-        }
-      );
-    }
+    return packet;
+  }
 
-    if (!isObject(packet.currentTurn)) {
-      throw new CosRuntimeError(
-        "COS_PACKET_CURRENT_TURN_MISSING",
-        "Placement packet requires currentTurn",
-        {
-          stage: STAGES.PACKET_BUILDING
-        }
-      );
-    }
+  /* =====================================================
+     FINAL STATE VALIDATION
+  ===================================================== */
 
-    if (!isObject(packet.placement)) {
-      throw new CosRuntimeError(
-        "COS_PACKET_PLACEMENT_MISSING",
-        "Placement packet requires placement",
-        {
-          stage: STAGES.PACKET_BUILDING
-        }
+  async function validateFinalState(
+    component,
+    state
+  ) {
+    const validate =
+      resolveCallable(
+        component,
+        [
+          "validateState",
+          "validate",
+          "assertValid",
+          "assertState"
+        ],
+        "cos-state"
       );
-    }
 
-    if (
-      !PLACEMENT_TYPES.includes(
-        packet.placement.type
-      )
-    ) {
+    const result =
+      await validate(state);
+
+    if (result === false) {
       throw new CosRuntimeError(
-        "COS_PACKET_PLACEMENT_TYPE_INVALID",
-        "Placement packet contains an invalid placement type",
+        "COS_RUNTIME_FINAL_STATE_REJECTED",
+        "Final COS state failed validation.",
         {
-          stage: STAGES.PACKET_BUILDING,
-          details: {
-            placementType:
-              packet.placement.type
-          }
+          stage:
+            "final_state_validation"
         }
       );
     }
 
     if (
-      !isObject(
-        packet.referenceResolution
-      )
+      isObject(result) &&
+      result.valid === false
     ) {
       throw new CosRuntimeError(
-        "COS_PACKET_REFERENCE_RESOLUTION_MISSING",
-        "Placement packet requires referenceResolution",
+        "COS_RUNTIME_FINAL_STATE_INVALID",
+        "Final COS state failed validation.",
         {
-          stage: STAGES.PACKET_BUILDING
+          stage:
+            "final_state_validation",
+
+          details:
+            result
         }
       );
     }
 
-    if (
-      !REFERENCE_STATUSES.includes(
-        packet.referenceResolution.status
-      )
-    ) {
-      throw new CosRuntimeError(
-        "COS_PACKET_REFERENCE_STATUS_INVALID",
-        "Placement packet contains an invalid reference-resolution status",
-        {
-          stage: STAGES.PACKET_BUILDING,
-          details: {
-            status:
-              packet.referenceResolution.status
-          }
-        }
+    return isObject(result)
+      ? result
+      : {
+          valid: true,
+          errors: [],
+          warnings: []
+        };
+  }
+
+  /* =====================================================
+     STATE FINALIZATION
+  ===================================================== */
+
+  function finalizeState(
+    state,
+    {
+      currentTurn,
+      placement,
+      referenceResolution
+    }
+  ) {
+    const next =
+      safeClone(state);
+
+    const turnId =
+      readCurrentTurnId(
+        currentTurn
       );
+
+    next.schemaVersion =
+      SCHEMA_VERSION;
+
+    next.authority =
+      AUTHORITY;
+
+    next.component =
+      "cos-state";
+
+    next.stateType =
+      next.stateType ||
+      "conversation_operating_system_state";
+
+    next.revision =
+      Math.max(
+        0,
+        normalizeInteger(
+          next.revision,
+          0
+        )
+      ) + 1;
+
+    if (turnId) {
+      next.activeTurnId =
+        turnId;
+
+      if (!isObject(next.turns)) {
+        next.turns = {};
+      }
+
+      next.turns[turnId] = {
+        ...safeClone(
+          next.turns[turnId] || {}
+        ),
+
+        ...safeClone(
+          currentTurn
+        ),
+
+        turnId
+      };
+    }
+
+    next.lastPlacement =
+      safeClone(placement);
+
+    next
+      .lastReferenceResolution =
+      safeClone(
+        referenceResolution
+      );
+
+    next.updatedAt =
+      nowIso();
+
+    return next;
+  }
+
+  /* =====================================================
+     MAIN EXECUTION
+  ===================================================== */
+
+  async function run(
+    rawInput = {},
+    options = {}
+  ) {
+    const runtimeStartedAt =
+      monotonicNow();
+
+    const diagnostics =
+      createDiagnostics();
+
+    const input =
+      normalizeRuntimeInput(
+        rawInput
+      );
+
+    const mergedOptions = {
+      ...input.options,
+      ...(
+        isObject(options)
+          ? options
+          : {}
+      )
+    };
+
+    const freeze =
+      mergedOptions.freeze !== false;
+
+    const throwOnFailure =
+      mergedOptions.throwOnFailure ===
+      true;
+
+    const includeStageOutputs =
+      mergedOptions
+        .includeStageOutputs !==
+      false;
+
+    let components;
+
+    try {
+      components =
+        resolveComponents(
+          isObject(
+            mergedOptions.components
+          )
+            ? mergedOptions.components
+            : {}
+        );
+
+      assertComponents(
+        components
+      );
+    } catch (error) {
+      return handleRuntimeFailure({
+        error,
+        input,
+        diagnostics,
+        runtimeStartedAt,
+        throwOnFailure,
+        freeze
+      });
+    }
+
+    let contractValidation;
+    let initialState;
+    let historyIndex;
+    let turnRegistration;
+    let state;
+    let pendingInteractionTransition;
+    let artifactTransition;
+    let deliverySequenceTransition;
+    let candidateSet;
+    let adjudication;
+    let referenceResolution;
+    let placement;
+    let threadTransition;
+    let placementValidation;
+    let packet;
+    let finalStateValidation;
+
+    try {
+      contractValidation =
+        await executeStage(
+          diagnostics,
+          "contract_validation",
+          () =>
+            validateContract(
+              components.contract,
+              input,
+              mergedOptions
+            )
+        );
+
+      initialState =
+        await executeStage(
+          diagnostics,
+          "state_normalization",
+          () =>
+            normalizeState(
+              components.state,
+              input
+            )
+        );
+
+      state =
+        safeClone(initialState);
+
+      historyIndex =
+        await executeStage(
+          diagnostics,
+          "history_indexing",
+          () =>
+            buildHistoryIndex(
+              components.historyIndex,
+              {
+                input,
+                state,
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      turnRegistration =
+        await executeStage(
+          diagnostics,
+          "turn_registration",
+          () =>
+            registerCurrentTurn(
+              components.turnRegister,
+              {
+                input,
+                state,
+                historyIndex,
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      state =
+        safeClone(
+          turnRegistration.state
+        );
+
+      const currentTurn =
+        safeClone(
+          turnRegistration.turn
+        );
+
+      pendingInteractionTransition =
+        await executeStage(
+          diagnostics,
+          "pending_interaction_transition",
+          () =>
+            transitionPendingInteraction(
+              components
+                .pendingInteractionManager,
+              {
+                command:
+                  input
+                    .pendingInteractionCommand,
+
+                state,
+
+                currentTurn,
+
+                conversationId:
+                  input.conversationId,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      state =
+        applyAuxiliaryStateResult(
+          state,
+          "pendingInteractionState",
+          pendingInteractionTransition
+        );
+
+      artifactTransition =
+        await executeStage(
+          diagnostics,
+          "artifact_transition",
+          () =>
+            transitionArtifact(
+              components.artifactRegister,
+              {
+                command:
+                  input.artifactCommand,
+
+                state,
+
+                currentTurn,
+
+                conversationId:
+                  input.conversationId,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      state =
+        applyAuxiliaryStateResult(
+          state,
+          "artifactState",
+          artifactTransition
+        );
+
+      deliverySequenceTransition =
+        await executeStage(
+          diagnostics,
+          "delivery_sequence_transition",
+          () =>
+            transitionDeliverySequence(
+              components
+                .deliverySequenceManager,
+              {
+                command:
+                  input
+                    .deliverySequenceCommand,
+
+                state,
+
+                currentTurn,
+
+                conversationId:
+                  input.conversationId,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      state =
+        applyAuxiliaryStateResult(
+          state,
+          "deliverySequenceState",
+          deliverySequenceTransition
+        );
+
+      const activePendingInteraction =
+        pendingInteractionTransition &&
+        pendingInteractionTransition
+          .activeInteraction
+          ? safeClone(
+              pendingInteractionTransition
+                .activeInteraction
+            )
+          : readActivePendingInteraction(
+              state
+                .pendingInteractionState
+            );
+
+      const activeArtifact =
+        artifactTransition &&
+        artifactTransition
+          .activeArtifact
+          ? safeClone(
+              artifactTransition
+                .activeArtifact
+            )
+          : readActiveArtifact(
+              state.artifactState
+            );
+
+      const activeDeliverySequence =
+        deliverySequenceTransition &&
+        deliverySequenceTransition
+          .activeSequence
+          ? safeClone(
+              deliverySequenceTransition
+                .activeSequence
+            )
+          : readActiveDeliverySequence(
+              state
+                .deliverySequenceState
+            );
+
+      const referenceContext = {
+        conversationId:
+          input.conversationId,
+
+        currentTurn,
+
+        state,
+
+        history:
+          mergeHistoryWithState(
+            input.history,
+            state
+          ),
+
+        historyIndex,
+
+        activePendingInteraction,
+
+        activeArtifact,
+
+        activeDeliverySequence,
+
+        upstreamCandidates:
+          input.upstreamCandidates,
+
+        uiMetadata:
+          input.uiMetadata,
+
+        options:
+          mergedOptions
+      };
+
+      candidateSet =
+        await executeStage(
+          diagnostics,
+          "reference_candidate_construction",
+          () =>
+            buildReferenceCandidates(
+              components
+                .referenceCandidateBuilder,
+              referenceContext
+            )
+        );
+
+      adjudication =
+        await executeStage(
+          diagnostics,
+          "reference_adjudication",
+          () =>
+            adjudicateReferences(
+              components
+                .referenceAdjudicator,
+              {
+                ...referenceContext,
+                candidateSet
+              }
+            )
+        );
+
+      referenceResolution =
+        await executeStage(
+          diagnostics,
+          "reference_resolution",
+          () =>
+            resolveReferences(
+              components
+                .referenceResolver,
+              {
+                ...referenceContext,
+                candidateSet,
+                adjudication
+              }
+            )
+        );
+
+      placement =
+        await executeStage(
+          diagnostics,
+          "placement",
+          () =>
+            determinePlacement(
+              components
+                .placementEngine,
+              {
+                conversationId:
+                  input.conversationId,
+
+                currentTurn,
+
+                state,
+
+                history:
+                  referenceContext.history,
+
+                historyIndex,
+
+                referenceResolution,
+
+                semanticPacket:
+                  input.semanticPacket,
+
+                conversationFunction:
+                  input
+                    .conversationFunction,
+
+                placementEvidence:
+                  input
+                    .placementEvidence,
+
+                activePendingInteraction,
+
+                activeArtifact,
+
+                activeDeliverySequence,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      threadTransition =
+        await executeStage(
+          diagnostics,
+          "thread_state_transition",
+          () =>
+            transitionThreadState(
+              components
+                .threadStateManager,
+              {
+                conversationId:
+                  input.conversationId,
+
+                state,
+
+                currentTurn,
+
+                placement,
+
+                referenceResolution,
+
+                historyIndex,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      state =
+        finalizeState(
+          threadTransition.state,
+          {
+            currentTurn,
+            placement,
+            referenceResolution
+          }
+        );
+
+      placementValidation =
+        await executeStage(
+          diagnostics,
+          "placement_validation",
+          () =>
+            validatePlacement(
+              components
+                .placementValidator,
+              {
+                conversationId:
+                  input.conversationId,
+
+                state,
+
+                currentTurn,
+
+                historyIndex,
+
+                referenceResolution,
+
+                placement,
+
+                threadTransition,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      packet =
+        await executeStage(
+          diagnostics,
+          "packet_construction",
+          () =>
+            buildPacket(
+              components.packetBuilder,
+              {
+                conversationId:
+                  input.conversationId,
+
+                state,
+
+                previousState:
+                  initialState,
+
+                currentTurn,
+
+                historyIndex,
+
+                candidateSet,
+
+                adjudication,
+
+                referenceResolution,
+
+                placement,
+
+                threadTransition,
+
+                placementValidation,
+
+                activePendingInteraction:
+                  readActivePendingInteraction(
+                    state
+                      .pendingInteractionState
+                  ),
+
+                activeArtifact:
+                  readActiveArtifact(
+                    state.artifactState
+                  ),
+
+                activeDeliverySequence:
+                  readActiveDeliverySequence(
+                    state
+                      .deliverySequenceState
+                  ),
+
+                auxiliaryTransitions: {
+                  pendingInteraction:
+                    pendingInteractionTransition,
+
+                  artifact:
+                    artifactTransition,
+
+                  deliverySequence:
+                    deliverySequenceTransition
+                },
+
+                semanticPacket:
+                  input.semanticPacket,
+
+                conversationFunction:
+                  input
+                    .conversationFunction,
+
+                metadata:
+                  input.metadata,
+
+                options:
+                  mergedOptions
+              }
+            )
+        );
+
+      finalStateValidation =
+        await executeStage(
+          diagnostics,
+          "final_state_validation",
+          () =>
+            validateFinalState(
+              components.state,
+              state
+            )
+        );
+
+      diagnostics.completedAt =
+        nowIso();
+
+      diagnostics.durationMs =
+        elapsedMilliseconds(
+          runtimeStartedAt
+        );
+
+      const result = {
+        ok: true,
+
+        schemaVersion:
+          SCHEMA_VERSION,
+
+        authority:
+          AUTHORITY,
+
+        component:
+          COMPONENT_NAME,
+
+        version:
+          VERSION,
+
+        runtimeResultType:
+          RUNTIME_RESULT_TYPE,
+
+        conversationId:
+          firstNonEmptyString(
+            input.conversationId,
+            state.conversationId
+          ) || null,
+
+        currentTurnId:
+          readCurrentTurnId(
+            currentTurn
+          ),
+
+        packet:
+          safeClone(packet),
+
+        state:
+          safeClone(state),
+
+        currentTurn:
+          safeClone(currentTurn),
+
+        placement:
+          safeClone(placement),
+
+        referenceResolution:
+          safeClone(
+            referenceResolution
+          ),
+
+        candidateSet:
+          includeStageOutputs
+            ? safeClone(
+                candidateSet
+              )
+            : null,
+
+        referenceAdjudication:
+          includeStageOutputs
+            ? safeClone(
+                adjudication
+              )
+            : null,
+
+        historyIndex:
+          includeStageOutputs
+            ? safeClone(
+                historyIndex
+              )
+            : null,
+
+        turnRegistration:
+          includeStageOutputs
+            ? safeClone(
+                turnRegistration
+              )
+            : null,
+
+        auxiliaryTransitions:
+          includeStageOutputs
+            ? {
+                pendingInteraction:
+                  safeClone(
+                    pendingInteractionTransition
+                  ),
+
+                artifact:
+                  safeClone(
+                    artifactTransition
+                  ),
+
+                deliverySequence:
+                  safeClone(
+                    deliverySequenceTransition
+                  )
+              }
+            : null,
+
+        threadTransition:
+          includeStageOutputs
+            ? safeClone(
+                threadTransition
+              )
+            : null,
+
+        placementValidation:
+          safeClone(
+            placementValidation
+          ),
+
+        finalStateValidation:
+          safeClone(
+            finalStateValidation
+          ),
+
+        contractValidation:
+          includeStageOutputs
+            ? safeClone(
+                contractValidation
+              )
+            : null,
+
+        diagnostics:
+          safeClone(
+            diagnostics
+          ),
+
+        startedAt:
+          diagnostics.startedAt,
+
+        completedAt:
+          diagnostics.completedAt,
+
+        durationMs:
+          diagnostics.durationMs,
+
+        errors: []
+      };
+
+      return freeze
+        ? freezeClone(result)
+        : result;
+    } catch (error) {
+      return handleRuntimeFailure({
+        error,
+        input,
+        diagnostics,
+        runtimeStartedAt,
+        throwOnFailure,
+        freeze,
+        partial: {
+          contractValidation,
+          initialState,
+          historyIndex,
+          turnRegistration,
+          state,
+          pendingInteractionTransition,
+          artifactTransition,
+          deliverySequenceTransition,
+          candidateSet,
+          adjudication,
+          referenceResolution,
+          placement,
+          threadTransition,
+          placementValidation,
+          packet,
+          finalStateValidation
+        }
+      });
     }
   }
 
   /* =====================================================
-     RESULT FINALIZATION
+     FAILURE RESULT
   ===================================================== */
 
-  function createSuccessResult({
+  function handleRuntimeFailure({
+    error,
     input,
-    context,
-    packet,
-    state,
-    transition,
-    validation
+    diagnostics,
+    runtimeStartedAt,
+    throwOnFailure,
+    freeze,
+    partial = {}
   }) {
-    context.completedAt = nowIso();
-    context.timings.totalMs = elapsedMs(
-      context.startedAtMs
-    );
+    diagnostics.completedAt =
+      nowIso();
+
+    diagnostics.durationMs =
+      elapsedMilliseconds(
+        runtimeStartedAt
+      );
+
+    const normalizedError =
+      safeError(error);
+
+    if (
+      !diagnostics.errors.some(
+        (candidate) =>
+          candidate.code ===
+            normalizedError.code &&
+          candidate.message ===
+            normalizedError.message
+      )
+    ) {
+      diagnostics.errors.push(
+        normalizedError
+      );
+    }
+
+    if (throwOnFailure) {
+      throw error;
+    }
+
+    const fallbackState =
+      isObject(partial.state)
+        ? safeClone(partial.state)
+        : isObject(input.state)
+          ? safeClone(input.state)
+          : null;
 
     const result = {
-      ok: true,
+      ok: false,
 
-      schemaVersion: SCHEMA_VERSION,
+      schemaVersion:
+        SCHEMA_VERSION,
 
-      runtime: {
-        name: RUNTIME_NAME,
-        version: VERSION,
-        authority: AUTHORITY,
-        runtimeId: context.runtimeId,
-        requestId: input.requestId,
-        conversationId:
-          state.conversationId,
-        startedAt: context.startedAt,
-        completedAt: context.completedAt
+      authority:
+        AUTHORITY,
+
+      component:
+        COMPONENT_NAME,
+
+      version:
+        VERSION,
+
+      runtimeResultType:
+        RUNTIME_RESULT_TYPE,
+
+      conversationId:
+        firstNonEmptyString(
+          input.conversationId,
+          fallbackState &&
+            fallbackState
+              .conversationId
+        ) || null,
+
+      currentTurnId:
+        readCurrentTurnId(
+          partial.turnRegistration &&
+          partial.turnRegistration.turn
+            ? partial.turnRegistration
+                .turn
+            : input.currentTurn
+        ),
+
+      packet:
+        partial.packet
+          ? safeClone(
+              partial.packet
+            )
+          : null,
+
+      state:
+        fallbackState,
+
+      currentTurn:
+        partial.turnRegistration &&
+        partial.turnRegistration.turn
+          ? safeClone(
+              partial.turnRegistration
+                .turn
+            )
+          : safeClone(
+              input.currentTurn
+            ),
+
+      placement:
+        partial.placement
+          ? safeClone(
+              partial.placement
+            )
+          : null,
+
+      referenceResolution:
+        partial.referenceResolution
+          ? safeClone(
+              partial
+                .referenceResolution
+            )
+          : null,
+
+      candidateSet:
+        partial.candidateSet
+          ? safeClone(
+              partial.candidateSet
+            )
+          : null,
+
+      referenceAdjudication:
+        partial.adjudication
+          ? safeClone(
+              partial.adjudication
+            )
+          : null,
+
+      historyIndex:
+        partial.historyIndex
+          ? safeClone(
+              partial.historyIndex
+            )
+          : null,
+
+      turnRegistration:
+        partial.turnRegistration
+          ? safeClone(
+              partial.turnRegistration
+            )
+          : null,
+
+      auxiliaryTransitions: {
+        pendingInteraction:
+          partial
+            .pendingInteractionTransition
+            ? safeClone(
+                partial
+                  .pendingInteractionTransition
+              )
+            : null,
+
+        artifact:
+          partial.artifactTransition
+            ? safeClone(
+                partial
+                  .artifactTransition
+              )
+            : null,
+
+        deliverySequence:
+          partial
+            .deliverySequenceTransition
+            ? safeClone(
+                partial
+                  .deliverySequenceTransition
+              )
+            : null
       },
 
-      packet,
+      threadTransition:
+        partial.threadTransition
+          ? safeClone(
+              partial.threadTransition
+            )
+          : null,
 
-      state: safeClone(state),
+      placementValidation:
+        partial.placementValidation
+          ? safeClone(
+              partial
+                .placementValidation
+            )
+          : null,
 
-      transition:
-        safeClone(transition),
+      finalStateValidation:
+        partial.finalStateValidation
+          ? safeClone(
+              partial
+                .finalStateValidation
+            )
+          : null,
 
-      validation:
-        safeClone(validation),
+      contractValidation:
+        partial.contractValidation
+          ? safeClone(
+              partial
+                .contractValidation
+            )
+          : null,
 
       diagnostics:
-        context.options.collectDiagnostics
-          ? safeClone(context.diagnostics)
-          : null,
+        safeClone(
+          diagnostics
+        ),
 
-      timing:
-        context.options.collectTiming
-          ? safeClone(context.timings)
-          : null,
+      startedAt:
+        diagnostics.startedAt,
 
-      errors: []
+      completedAt:
+        diagnostics.completedAt,
+
+      durationMs:
+        diagnostics.durationMs,
+
+      errors: [
+        normalizedError
+      ]
     };
 
-    return context.options.freezeResult
+    return freeze
       ? freezeClone(result)
       : result;
   }
 
-  function createFailureResult({
-    input,
-    context,
-    error,
-    state = null,
-    partial = {}
-  }) {
-    context.completedAt = nowIso();
-    context.timings.totalMs = elapsedMs(
-      context.startedAtMs
+  /* =====================================================
+     SAFE EXECUTION
+  ===================================================== */
+
+  async function safeRun(
+    input = {},
+    options = {}
+  ) {
+    return run(
+      input,
+      {
+        ...options,
+        throwOnFailure: false
+      }
     );
+  }
 
-    const normalizedError = safeError(error);
+  async function execute(
+    input = {},
+    options = {}
+  ) {
+    return run(
+      input,
+      options
+    );
+  }
 
-    context.errors.push(normalizedError);
-
-    return {
-      ok: false,
-
-      schemaVersion: SCHEMA_VERSION,
-
-      runtime: {
-        name: RUNTIME_NAME,
-        version: VERSION,
-        authority: AUTHORITY,
-        runtimeId: context.runtimeId,
-        requestId:
-          input && input.requestId
-            ? input.requestId
-            : null,
-        conversationId:
-          state && state.conversationId
-            ? state.conversationId
-            : input && input.conversationId
-              ? input.conversationId
-              : null,
-        startedAt: context.startedAt,
-        completedAt: context.completedAt,
-        failedStage:
-          normalizedError.stage ||
-          context.currentStage
-      },
-
-      packet: null,
-
-      state:
-        state === null
-          ? null
-          : safeClone(state),
-
-      partial: safeClone(partial),
-
-      diagnostics:
-        context.options.collectDiagnostics
-          ? safeClone(context.diagnostics)
-          : null,
-
-      timing:
-        context.options.collectTiming
-          ? safeClone(context.timings)
-          : null,
-
-      errors: safeClone(context.errors)
-    };
+  async function process(
+    input = {},
+    options = {}
+  ) {
+    return run(
+      input,
+      options
+    );
   }
 
   /* =====================================================
-     PUBLIC RUNTIME
+     HEALTH
+  ===================================================== */
+
+  function health(
+    overrides = {}
+  ) {
+    const components =
+      resolveComponents(
+        overrides
+      );
+
+    const installed = {};
+    const missing = [];
+
+    for (
+      const componentName of
+        REQUIRED_COMPONENTS
+    ) {
+      const component =
+        components[
+          componentName
+        ];
+
+      const available =
+        Boolean(component);
+
+      installed[
+        componentName
+      ] = {
+        available,
+
+        version:
+          component &&
+          firstNonEmptyString(
+            component.version,
+            component.VERSION
+          ),
+
+        authority:
+          component &&
+          firstNonEmptyString(
+            component.authority,
+            component.AUTHORITY
+          )
+      };
+
+      if (!available) {
+        missing.push(
+          componentName
+        );
+      }
+    }
+
+    return {
+      ok:
+        missing.length === 0,
+
+      schemaVersion:
+        SCHEMA_VERSION,
+
+      authority:
+        AUTHORITY,
+
+      component:
+        COMPONENT_NAME,
+
+      version:
+        VERSION,
+
+      status:
+        missing.length === 0
+          ? "ready"
+          : "not_ready",
+
+      installed,
+
+      missing,
+
+      checkedAt:
+        nowIso()
+    };
+  }
+
+  function assertReady(
+    overrides = {}
+  ) {
+    const report =
+      health(overrides);
+
+    if (!report.ok) {
+      throw new CosRuntimeError(
+        "COS_RUNTIME_NOT_READY",
+        "Conversation Operating System runtime is not ready.",
+        {
+          stage:
+            "component_resolution",
+
+          details:
+            report
+        }
+      );
+    }
+
+    return report;
+  }
+
+  /* =====================================================
+     PUBLIC COMPONENT
   ===================================================== */
 
   const cosRuntime = {
-    version: VERSION,
-    schemaVersion: SCHEMA_VERSION,
-    authority: AUTHORITY,
+    version:
+      VERSION,
 
-    stages: STAGES,
-    stageOrder: STAGE_ORDER,
+    schemaVersion:
+      SCHEMA_VERSION,
 
-    placementTypes: PLACEMENT_TYPES,
-    referenceStatuses: REFERENCE_STATUSES,
-    threadStatuses: THREAD_STATUSES,
+    authority:
+      AUTHORITY,
+
+    component:
+      COMPONENT_NAME,
+
+    runtimeResultType:
+      RUNTIME_RESULT_TYPE,
+
+    stageNames:
+      STAGE_NAMES,
+
+    requiredComponents:
+      REQUIRED_COMPONENTS,
+
+    auxiliaryCommandNames:
+      AUXILIARY_COMMAND_NAMES,
 
     CosRuntimeError,
 
-    /**
-     * Execute the Conversation Operating System.
-     *
-     * @param {Object} rawInput
-     * @param {Object} runtimeOptions
-     * @returns {Promise<Object>}
-     */
-    async run(
-      rawInput = {},
-      runtimeOptions = {}
-    ) {
-      let input;
+    run,
 
-      try {
-        input = normalizeRuntimeInput(rawInput);
-      } catch (error) {
-        const fallbackInput = {
-          requestId: createId("cos_request"),
-          conversationId: null
-        };
+    execute,
 
-        const fallbackContext =
-          createRuntimeContext(
-            fallbackInput,
-            runtimeOptions
-          );
+    process,
 
-        const result = createFailureResult({
-          input: fallbackInput,
-          context: fallbackContext,
-          error: new CosRuntimeError(
-            "COS_INPUT_NORMALIZATION_FAILED",
-            "COS runtime input normalization failed",
-            {
-              stage:
-                STAGES.CONTRACT_VALIDATION,
-              cause: error
-            }
-          )
-        });
+    safeRun,
 
-        if (runtimeOptions.throwOnFailure === true) {
-          throw error;
-        }
+    health,
 
-        return result;
-      }
+    assertReady,
 
-      const mergedOptions = {
-        ...input.options,
-        ...runtimeOptions
-      };
+    normalizeInput:
+      normalizeRuntimeInput,
 
-      const context = createRuntimeContext(
-        input,
-        mergedOptions
-      );
+    resolveComponents,
 
-      let components = null;
-      let state = null;
-      let historyIndex = null;
-      let currentTurn = null;
-      let referenceResolution = null;
-      let placement = null;
-      let transitionResult = null;
-      let validation = null;
-      let packet = null;
+    assertComponents,
 
-      try {
-        components = resolveComponents(
-          mergedOptions.components || {}
-        );
+    mergeHistoryWithState,
 
-        recordComponentAvailability(
-          context,
-          components
-        );
+    validateContract,
 
-        await runStage(
-          context,
-          STAGES.CONTRACT_VALIDATION,
-          async () => {
-            await validateRuntimeInput({
-              contract: components.contract,
-              input,
-              context
-            });
-          }
-        );
+    normalizeState,
 
-        state = await runStage(
-          context,
-          STAGES.STATE_INITIALIZATION,
-          async () =>
-            initializeState({
-              stateComponent: components.state,
-              input,
-              context
-            })
-        );
+    buildHistoryIndex,
 
-        historyIndex = await runStage(
-          context,
-          STAGES.HISTORY_INDEXING,
-          async () =>
-            buildHistoryIndex({
-              component:
-                components.historyIndex,
-              input,
-              state,
-              context
-            })
-        );
+    registerCurrentTurn,
 
-        currentTurn = await runStage(
-          context,
-          STAGES.TURN_REGISTRATION,
-          async () =>
-            registerCurrentTurn({
-              component:
-                components.turnRegister,
-              input,
-              state,
-              historyIndex,
-              context
-            })
-        );
+    transitionPendingInteraction,
 
-        referenceResolution = await runStage(
-          context,
-          STAGES.REFERENCE_RESOLUTION,
-          async () =>
-            resolveReferences({
-              component:
-                components.referenceResolver,
-              input,
-              state,
-              historyIndex,
-              currentTurn,
-              context
-            })
-        );
+    transitionArtifact,
 
-        placement = await runStage(
-          context,
-          STAGES.CONVERSATION_PLACEMENT,
-          async () =>
-            determinePlacement({
-              component:
-                components.placementEngine,
-              input,
-              state,
-              historyIndex,
-              currentTurn,
-              referenceResolution,
-              context
-            })
-        );
+    transitionDeliverySequence,
 
-        transitionResult = await runStage(
-          context,
-          STAGES.THREAD_STATE_TRANSITION,
-          async () =>
-            transitionThreadState({
-              component:
-                components.threadStateManager,
-              input,
-              state,
-              historyIndex,
-              currentTurn,
-              referenceResolution,
-              placement,
-              context
-            })
-        );
+    buildReferenceCandidates,
 
-        state = transitionResult.state;
+    adjudicateReferences,
 
-        validation = await runStage(
-          context,
-          STAGES.PLACEMENT_VALIDATION,
-          async () =>
-            validatePlacement({
-              component:
-                components.placementValidator,
-              state,
-              historyIndex,
-              currentTurn,
-              referenceResolution,
-              placement,
-              transition:
-                transitionResult.transition,
-              context
-            })
-        );
+    resolveReferences,
 
-        packet = await runStage(
-          context,
-          STAGES.PACKET_BUILDING,
-          async () =>
-            buildPlacementPacket({
-              component:
-                components.packetBuilder,
-              contract: components.contract,
-              input,
-              state,
-              currentTurn,
-              referenceResolution,
-              placement,
-              validation,
-              context
-            })
-        );
+    determinePlacement,
 
-        return await runStage(
-          context,
-          STAGES.RESULT_FINALIZATION,
-          async () =>
-            createSuccessResult({
-              input,
-              context,
-              packet,
-              state,
-              transition:
-                transitionResult.transition,
-              validation
-            })
-        );
-      } catch (error) {
-        const failure = createFailureResult({
-          input,
-          context,
-          error,
-          state,
-          partial: {
-            historyIndex,
-            currentTurn,
-            referenceResolution,
-            placement,
-            transition:
-              transitionResult &&
-              transitionResult.transition
-                ? transitionResult.transition
-                : null,
-            validation
-          }
-        });
+    transitionThreadState,
 
-        if (context.options.throwOnFailure) {
-          if (error instanceof Error) {
-            error.cosRuntimeResult = failure;
-          }
+    validatePlacement,
 
-          throw error;
-        }
+    buildPacket,
 
-        return failure;
-      }
-    },
+    validateFinalState,
 
-    /**
-     * Normalize runtime input without executing COS.
-     */
-    normalizeInput(rawInput = {}) {
-      return normalizeRuntimeInput(rawInput);
-    },
-
-    /**
-     * Discover currently installed COS components.
-     */
-    inspectComponents(overrides = {}) {
-      const components =
-        resolveComponents(overrides);
-
-      return Object.fromEntries(
-        Object.entries(components).map(
-          ([name, component]) => [
-            name,
-            {
-              available: Boolean(component),
-              version:
-                component &&
-                firstNonEmptyString(
-                  component.version,
-                  component.VERSION
-                )
-                  ? firstNonEmptyString(
-                      component.version,
-                      component.VERSION
-                    )
-                  : null
-            }
-          ]
-        )
-      );
-    },
-
-    /**
-     * Validate a placement packet using the installed contract.
-     */
-    async validatePacket(
-      packet,
-      {
-        contract = null
-      } = {}
-    ) {
-      const resolvedContract =
-        resolveComponent({
-          explicit: contract,
-          componentKey: "contract",
-          required: true
-        });
-
-      return validateFinalPacketWithContract({
-        contract: resolvedContract,
-        packet
-      });
-    }
+    finalizeState
   };
 
   /* =====================================================
      NAMESPACE EXPORTS
   ===================================================== */
 
-  ConversationOS.runtime = cosRuntime;
-  ConversationOS.cosRuntime = cosRuntime;
+  ConversationOS.runtime =
+    cosRuntime;
 
-  root.AriCosRuntime = cosRuntime;
+  ConversationOS.cosRuntime =
+    cosRuntime;
+
+  root.AriCosRuntime =
+    cosRuntime;
 
   if (
     typeof module !== "undefined" &&
     module.exports
   ) {
-    module.exports = cosRuntime;
+    module.exports =
+      cosRuntime;
   }
 })(
   typeof globalThis !== "undefined"
