@@ -6,58 +6,33 @@
 // and adapt it into the stable application response contract expected by
 // CalBuddy Health, Ari Lab, and the Ari Rebirth App Bridge.
 //
-// V1.0.1 — Canonical Runtime State Resolution / Summary Object Rejection
-//
-// Architectural flow:
-//
-// Ari Rebirth Pipeline
-//      ↓
-// Delivery Pipeline
-//      ↓
-// Authoritative Delivery Result
-//      ↓
-// Ari Runtime Delivery
-//      ↓
-// Stable App Response Contract
+// V2.0.0 — Canonical Five-Layer Runtime State / Rebirth-Native Diagnostics
 //
 // Responsibilities:
-// - Locate the authoritative Delivery result in the completed runtime state.
-// - Reject incomplete or non-authoritative runtime output.
-// - Extract the final user-facing reply.
-// - Extract the final emotion selected by the runtime.
-// - Extract approved application actions.
-// - Extract developer intent without independently inferring it.
-// - Preserve runtime diagnostics and summary data.
-// - Normalize runtime errors into a stable application error contract.
-// - Adapt the result into the response shape currently expected by the app.
-// - Preserve compatibility fields during the bridge migration.
+// - Resolve the canonical completed runtime state.
+// - Locate and validate the authoritative Delivery result.
+// - Extract reply, emotion, approved actions, and developer intent.
+// - Preserve the complete runtime state for diagnostics.
+// - Build fresh diagnostics from canonical Rebirth flags and packets.
+// - Avoid accepting stale compact summaries as runtime truth.
+// - Adapt Delivery into the stable application response contract.
+// - Preserve migration compatibility fields.
 //
 // Non-responsibilities:
-// - Does not load scripts.
-// - Does not build runtime requests.
-// - Does not execute AriRebirthPipeline.
-// - Does not classify the conversation.
-// - Does not interpret semantic meaning.
-// - Does not resolve continuity.
-// - Does not determine safety severity.
-// - Does not determine developer relevance.
-// - Does not generate response language.
-// - Does not select a draft.
-// - Does not create fallback factual answers.
-// - Does not invent actions.
-// - Does not execute actions.
-// - Does not retrieve or store memory.
-// - Does not persist runtime state.
+// - Does not execute the runtime.
+// - Does not classify, deliberate, compose, or generate language.
+// - Does not infer emotion, actions, developer intent, or safety.
+// - Does not retrieve, store, or persist memory.
 // - Does not access Supabase.
 
 window.Ari = window.Ari || {};
 
 window.AriRuntimeDelivery = {
-  version: "1.0.1",
-  schemaVersion: "2.0.0",
+  version: "2.0.0",
+  schemaVersion: "3.0.0",
   source: "ari-runtime-delivery",
   authorityLevel:
-    "authoritative_delivery_reading_and_application_adaptation",
+    "canonical_runtime_delivery_reading_and_application_adaptation",
 
   /* =====================================================
      PUBLIC ENTRY POINTS
@@ -65,32 +40,23 @@ window.AriRuntimeDelivery = {
 
   read(runtimeOutput = null, options = {}) {
     const normalizedOptions =
-      this.normalizeOptions(
-        options
-      );
+      this.normalizeOptions(options);
 
     const runtimeState =
-      this.resolveRuntimeState(
-        runtimeOutput
-      );
+      this.resolveRuntimeState(runtimeOutput);
 
     const deliveryCandidate =
-      this.resolveDeliveryCandidate(
-        runtimeState
-      );
+      this.resolveDeliveryCandidate(runtimeState);
 
     const deliveryResult =
       this.normalizeDeliveryResult({
         runtimeState,
         deliveryCandidate,
-        options:
-          normalizedOptions
+        options: normalizedOptions
       });
 
     const validation =
-      this.validateDeliveryResult(
-        deliveryResult
-      );
+      this.validateDeliveryResult(deliveryResult);
 
     return {
       ...deliveryResult,
@@ -99,8 +65,7 @@ window.AriRuntimeDelivery = {
         validation,
 
       runtimeDeliveryReady:
-        validation.valid ===
-        true,
+        validation.valid === true,
 
       runtimeDeliverySource:
         this.source,
@@ -115,14 +80,10 @@ window.AriRuntimeDelivery = {
 
   adapt(input = null, options = {}) {
     const normalizedOptions =
-      this.normalizeOptions(
-        options
-      );
+      this.normalizeOptions(options);
 
     const delivery =
-      this.isNormalizedDeliveryResult(
-        input
-      )
+      this.isNormalizedDeliveryResult(input)
         ? input
         : this.read(
             input,
@@ -130,50 +91,16 @@ window.AriRuntimeDelivery = {
           );
 
     const validation =
-      delivery
-        ?.runtimeDeliveryValidation ||
-      this.validateDeliveryResult(
-        delivery
-      );
+      delivery?.runtimeDeliveryValidation ||
+      this.validateDeliveryResult(delivery);
 
-    if (
-      validation.valid !==
-      true
-    ) {
+    if (validation.valid !== true) {
       return this.buildFailureResponse({
         delivery,
         validation,
-        options:
-          normalizedOptions
+        options: normalizedOptions
       });
     }
-
-    const reply =
-      this.resolveReply(
-        delivery
-      );
-
-    const emotion =
-      this.resolveEmotion(
-        delivery
-      );
-
-    const actions =
-      this.resolveActions(
-        delivery
-      );
-
-    const developerIntent =
-      this.resolveDeveloperIntent(
-        delivery
-      );
-
-    const summary =
-      this.resolveSummary({
-        delivery,
-        options:
-          normalizedOptions
-      });
 
     const response = {
       schema:
@@ -182,15 +109,25 @@ window.AriRuntimeDelivery = {
       schemaVersion:
         this.schemaVersion,
 
-      reply,
+      reply:
+        this.resolveReply(delivery),
 
-      emotion,
+      emotion:
+        this.resolveEmotion(delivery),
 
-      actions,
+      actions:
+        this.resolveActions(delivery),
 
-      developerIntent,
+      developerIntent:
+        this.resolveDeveloperIntent(
+          delivery
+        ),
 
-      summary,
+      summary:
+        this.resolveSummary({
+          delivery,
+          options: normalizedOptions
+        }),
 
       error:
         null,
@@ -231,8 +168,7 @@ window.AriRuntimeDelivery = {
 
       createdAt:
         delivery.createdAt ||
-        new Date()
-          .toISOString(),
+        new Date().toISOString(),
 
       completedAt:
         delivery.completedAt ||
@@ -258,7 +194,7 @@ window.AriRuntimeDelivery = {
           "upstream_runtime_preserved_by_delivery",
 
         summary:
-          "completed_runtime_state",
+          "canonical_completed_runtime_state",
 
         adaptation:
           this.source
@@ -268,8 +204,7 @@ window.AriRuntimeDelivery = {
     return this.attachCompatibilityFields({
       response,
       delivery,
-      options:
-        normalizedOptions
+      options: normalizedOptions
     });
   },
 
@@ -290,130 +225,107 @@ window.AriRuntimeDelivery = {
      RUNTIME STATE RESOLUTION
   ===================================================== */
 
-  resolveRuntimeState(
-  runtimeOutput = null
-) {
-  if (
-    !runtimeOutput ||
-    typeof runtimeOutput !==
-      "object" ||
-    Array.isArray(
-      runtimeOutput
-    )
-  ) {
-    return {};
-  }
-
-  /*
-   * Do not treat runtimeOutput.summary as canonical runtime state.
-   *
-   * A compact diagnostic summary may contain fields such as
-   * lifecycle or delivery, but it does not contain the complete
-   * working state produced by the five-layer runtime.
-   */
-  const candidates = [
-    runtimeOutput.runtimeState,
-    runtimeOutput.state,
-    runtimeOutput.result,
-    runtimeOutput.output,
-    runtimeOutput
-  ];
-
-  for (
-    const candidate
-    of candidates
-  ) {
-    if (
-      candidate &&
-      typeof candidate ===
-        "object" &&
-      !Array.isArray(
-        candidate
-      ) &&
-      this.looksLikeRuntimeState(
-        candidate
-      )
-    ) {
-      return candidate;
+  resolveRuntimeState(runtimeOutput = null) {
+    if (!this.isPlainObject(runtimeOutput)) {
+      return {};
     }
-  }
 
-  /*
-   * Preserve the original object as a final compatibility fallback.
-   * This does not authorize summary objects as runtime state; it only
-   * prevents the adapter from discarding an unfamiliar result shape.
-   */
-  return runtimeOutput;
-},
+    const candidates = [
+      runtimeOutput.runtimeState,
+      runtimeOutput.canonicalRuntimeState,
+      runtimeOutput.pipelineState,
+      runtimeOutput.state,
+      runtimeOutput.result,
+      runtimeOutput.output,
+      runtimeOutput
+    ];
 
-  looksLikeRuntimeState(
-  value = {}
-) {
-  if (
-    !value ||
-    typeof value !==
-      "object" ||
-    Array.isArray(
-      value
-    )
-  ) {
-    return false;
-  }
+    for (const candidate of candidates) {
+      if (
+        this.looksLikeRuntimeState(
+          candidate
+        )
+      ) {
+        return candidate;
+      }
+    }
 
-  /*
-   * A lifecycle field by itself is not enough.
-   *
-   * Compact summaries also contain lifecycle data, so requiring
-   * stronger runtime evidence prevents a summary from being
-   * mistaken for the completed canonical state.
-   */
-  const hasCanonicalTurn =
-    Boolean(
-      value.turn ||
-      value.currentTurnId ||
-      value.turnId ||
-      value.userMessage ||
-      value.originalUserMessage
+    /*
+     * Keep the original object only as a compatibility fallback.
+     * buildRuntimeSummary() will still refuse to trust a compact
+     * supplied summary as canonical runtime evidence.
+     */
+    return runtimeOutput;
+  },
+
+  looksLikeRuntimeState(value = {}) {
+    if (!this.isPlainObject(value)) {
+      return false;
+    }
+
+    const hasRequestEvidence =
+      Boolean(
+        value.runtimeRequest ||
+        value.requestEnvelope ||
+        value.request ||
+        value.turn ||
+        value.currentTurn ||
+        value.userMessage ||
+        value.originalUserMessage ||
+        value.resolvedUserQuestion ||
+        value.currentTurnId ||
+        value.turnId
+      );
+
+    const hasCanonicalPackets =
+      Boolean(
+        value.perceptionPacket ||
+        value.executivePacket ||
+        value.executiveRoutingPacket ||
+        value.deliberationPacket ||
+        value.expressionPacket ||
+        value.deliveryPacket ||
+        value.deliveryResult
+      );
+
+    const hasPipelineFlags =
+      Boolean(
+        value.perceptionPipelineRan === true ||
+        value.executiveRoutingPipelineRan === true ||
+        value.deliberationPipelineRan === true ||
+        value.expressionPipelineRan === true ||
+        value.deliveryPipelineRan === true
+      );
+
+    const hasLifecycleEvidence =
+      Boolean(
+        value.lifecycle ||
+        value.pipelineLifecycle ||
+        value.pipelineTiming ||
+        value.timing ||
+        value.pipelineLayerResults ||
+        value.layerResults ||
+        value.pipelineLifecycleErrors ||
+        value.lifecycleErrors ||
+        value.runtimeArchitecture
+      );
+
+    const hasResponseEvidence =
+      Boolean(
+        value.finalResponse ||
+        value.finalReply ||
+        value.finalComposition ||
+        value.expressionResult
+      );
+
+    return Boolean(
+      hasRequestEvidence ||
+      hasCanonicalPackets ||
+      hasPipelineFlags ||
+      hasLifecycleEvidence ||
+      hasResponseEvidence
     );
-
-  const hasPipelineState =
-    Boolean(
-      value.perceptionResult ||
-      value.routingDecision ||
-      value.executivePacket ||
-      value.deliberationResult ||
-      value.canonicalResponsePlan ||
-      value.expressionResult ||
-      value.deliveryResult ||
-      value.deliveryPipelineResult ||
-      value.finalComposition ||
-      value.finalResponse
-    );
-
-  const hasExecutionEvidence =
-    Boolean(
-      value.perceptionPipelineRan ===
-        true ||
-      value.executiveRoutingPipelineRan ===
-        true ||
-      value.deliberationPipelineRan ===
-        true ||
-      value.expressionPipelineRan ===
-        true ||
-      value.deliveryPipelineRan ===
-        true ||
-      value.completed ===
-        true ||
-      value.complete ===
-        true
-    );
-
-  return Boolean(
-    hasCanonicalTurn ||
-    hasPipelineState ||
-    hasExecutionEvidence
-  );
-},
+  },
 
   /* =====================================================
      DELIVERY CANDIDATE RESOLUTION
@@ -422,31 +334,38 @@ window.AriRuntimeDelivery = {
   resolveDeliveryCandidate(
     runtimeState = {}
   ) {
+    if (!this.isPlainObject(runtimeState)) {
+      return null;
+    }
+
     const candidates = [
+      runtimeState.deliveryPacket,
       runtimeState.deliveryResult,
       runtimeState.authoritativeDelivery,
+      runtimeState.deliveryPipelineResult,
       runtimeState.delivery,
-      runtimeState.deliveryPacket,
-      runtimeState.output
+
+      runtimeState.pipelineResult
+        ?.deliveryPacket,
+
+      runtimeState.pipelineResult
         ?.deliveryResult,
+
+      runtimeState.result
+        ?.deliveryPacket,
+
       runtimeState.result
         ?.deliveryResult,
-      runtimeState.summary
+
+      runtimeState.output
+        ?.deliveryPacket,
+
+      runtimeState.output
         ?.deliveryResult
     ];
 
-    for (
-      const candidate
-      of candidates
-    ) {
-      if (
-        candidate &&
-        typeof candidate ===
-          "object" &&
-        !Array.isArray(
-          candidate
-        )
-      ) {
+    for (const candidate of candidates) {
+      if (this.isPlainObject(candidate)) {
         return candidate;
       }
     }
@@ -464,10 +383,7 @@ window.AriRuntimeDelivery = {
     options = {}
   } = {}) {
     const candidate =
-      deliveryCandidate &&
-      typeof deliveryCandidate ===
-        "object" &&
-      !Array.isArray(
+      this.isPlainObject(
         deliveryCandidate
       )
         ? deliveryCandidate
@@ -560,29 +476,24 @@ window.AriRuntimeDelivery = {
         this.cleanText(
           candidate.source ||
           candidate.deliverySource ||
-          runtimeState
-            .deliverySource ||
+          candidate.deliveryPipelineSource ||
+          runtimeState.deliveryPipelineSource ||
+          runtimeState.deliverySource ||
           "ari-delivery-pipeline"
         ) ||
         "ari-delivery-pipeline",
 
       reply,
-
       emotion,
-
       actions,
-
       developerIntent,
-
       summary,
 
       error:
         runtimeError,
 
       complete,
-
       authoritative,
-
       deliveryStatus,
 
       delivered:
@@ -594,37 +505,44 @@ window.AriRuntimeDelivery = {
       createdAt:
         candidate.createdAt ||
         runtimeState.createdAt ||
+        runtimeState.startedAt ||
         null,
 
       completedAt:
         candidate.completedAt ||
         runtimeState.completedAt ||
+        runtimeState.finishedAt ||
         null,
 
       rawDeliveryResult:
         candidate,
 
+      /*
+       * The complete runtime state remains attached to the normalized
+       * Delivery result. adapt() may therefore receive the normalized
+       * result without losing lifecycle, timing, or packet evidence.
+       */
       runtimeState,
 
       evidence: {
+        runtimeStateAvailable:
+          Object.keys(
+            runtimeState
+          ).length > 0,
+
         deliveryCandidateAvailable:
           Boolean(
             deliveryCandidate
           ),
 
         replyAvailable:
-          Boolean(
-            reply
-          ),
+          Boolean(reply),
 
         emotionAvailable:
-          Boolean(
-            emotion
-          ),
+          Boolean(emotion),
 
         actionsAvailable:
-          actions.length >
-          0,
+          actions.length > 0,
 
         developerIntentAvailable:
           Boolean(
@@ -636,8 +554,37 @@ window.AriRuntimeDelivery = {
             runtimeError
           ),
 
-        authoritative,
+        perceptionPipelineRan:
+          this.didPipelineRun(
+            runtimeState,
+            "perception"
+          ),
 
+        executiveRoutingPipelineRan:
+          this.didPipelineRun(
+            runtimeState,
+            "routing"
+          ),
+
+        deliberationPipelineRan:
+          this.didPipelineRun(
+            runtimeState,
+            "deliberation"
+          ),
+
+        expressionPipelineRan:
+          this.didPipelineRun(
+            runtimeState,
+            "expression"
+          ),
+
+        deliveryPipelineRan:
+          this.didPipelineRun(
+            runtimeState,
+            "delivery"
+          ),
+
+        authoritative,
         complete
       },
 
@@ -649,6 +596,9 @@ window.AriRuntimeDelivery = {
           true,
 
         canAdaptApplicationResponse:
+          true,
+
+        canPreserveCanonicalRuntimeState:
           true,
 
         canGenerateReply:
@@ -670,7 +620,7 @@ window.AriRuntimeDelivery = {
           false,
 
         role:
-          "authoritative_delivery_reading"
+          "canonical_authoritative_delivery_reading"
       }
     };
   },
@@ -686,17 +636,31 @@ window.AriRuntimeDelivery = {
     const candidateValues = [
       deliveryCandidate.reply,
       deliveryCandidate.text,
+      deliveryCandidate.finalResponse,
       deliveryCandidate.response,
       deliveryCandidate.message,
       deliveryCandidate.content,
-      deliveryCandidate.finalResponse,
       deliveryCandidate.outputText,
       deliveryCandidate.userFacingText,
 
+      deliveryCandidate.response
+        ?.text,
+
+      deliveryCandidate.response
+        ?.reply,
+
+      deliveryCandidate.result
+        ?.reply,
+
+      deliveryCandidate.result
+        ?.text,
+
       deliveryCandidate.payload
         ?.reply,
+
       deliveryCandidate.payload
         ?.text,
+
       deliveryCandidate.payload
         ?.response,
 
@@ -707,30 +671,50 @@ window.AriRuntimeDelivery = {
 
       runtimeState.finalComposition
         ?.reply,
+
       runtimeState.finalComposition
         ?.text,
+
       runtimeState.finalComposition
         ?.response,
 
-      runtimeState.composerResult
+      runtimeState.expressionPacket
+        ?.finalResponse,
+
+      runtimeState.expressionPacket
         ?.reply,
-      runtimeState.composerResult
+
+      runtimeState.expressionPacket
+        ?.text,
+
+      runtimeState.expressionPacket
+        ?.result
+        ?.finalResponse,
+
+      runtimeState.expressionPacket
+        ?.result
+        ?.reply,
+
+      runtimeState.expressionPacket
+        ?.result
         ?.text,
 
       runtimeState.expressionResult
         ?.reply,
+
       runtimeState.expressionResult
+        ?.text,
+
+      runtimeState.composerResult
+        ?.reply,
+
+      runtimeState.composerResult
         ?.text
     ];
 
-    for (
-      const value
-      of candidateValues
-    ) {
+    for (const value of candidateValues) {
       const text =
-        this.extractTextValue(
-          value
-        );
+        this.extractTextValue(value);
 
       if (text) {
         return text;
@@ -740,36 +724,22 @@ window.AriRuntimeDelivery = {
     return "";
   },
 
-  extractTextValue(
-    value = null
-  ) {
+  extractTextValue(value = null) {
     if (
-      value ===
-        null ||
-      value ===
-        undefined
+      value === null ||
+      value === undefined
     ) {
       return "";
     }
 
     if (
-      typeof value ===
-      "string" ||
-      typeof value ===
-      "number"
+      typeof value === "string" ||
+      typeof value === "number"
     ) {
-      return this.cleanText(
-        value
-      );
+      return this.cleanText(value);
     }
 
-    if (
-      typeof value !==
-        "object" ||
-      Array.isArray(
-        value
-      )
-    ) {
+    if (!this.isPlainObject(value)) {
       return "";
     }
 
@@ -780,15 +750,21 @@ window.AriRuntimeDelivery = {
       value.message,
       value.response,
       value.output,
-      value.final
+      value.final,
+      value.finalResponse,
+      value.userFacingText
     ];
 
     for (
       const candidate
       of nestedCandidates
     ) {
+      if (candidate === value) {
+        continue;
+      }
+
       const text =
-        this.cleanText(
+        this.extractTextValue(
           candidate
         );
 
@@ -800,9 +776,7 @@ window.AriRuntimeDelivery = {
     return "";
   },
 
-  resolveReply(
-    delivery = {}
-  ) {
+  resolveReply(delivery = {}) {
     return this.cleanText(
       delivery.reply
     );
@@ -823,8 +797,15 @@ window.AriRuntimeDelivery = {
       deliveryCandidate.mood,
       deliveryCandidate.expression,
 
+      deliveryCandidate.response
+        ?.emotion,
+
+      deliveryCandidate.result
+        ?.emotion,
+
       deliveryCandidate.payload
         ?.emotion,
+
       deliveryCandidate.payload
         ?.finalEmotion,
 
@@ -833,22 +814,33 @@ window.AriRuntimeDelivery = {
       runtimeState.selectedEmotion,
       runtimeState.emotion,
 
+      runtimeState.deliveryPacket
+        ?.emotion,
+
+      runtimeState.deliveryPacket
+        ?.response
+        ?.emotion,
+
+      runtimeState.expressionPacket
+        ?.emotion,
+
+      runtimeState.expressionPacket
+        ?.result
+        ?.emotion,
+
       runtimeState.finalComposition
         ?.emotion,
+
       runtimeState.expressionResult
         ?.emotion,
+
       runtimeState.characterResult
         ?.emotion
     ];
 
-    for (
-      const candidate
-      of candidates
-    ) {
+    for (const candidate of candidates) {
       const emotion =
-        this.normalizeEmotion(
-          candidate
-        );
+        this.normalizeEmotion(candidate);
 
       if (emotion) {
         return emotion;
@@ -858,17 +850,8 @@ window.AriRuntimeDelivery = {
     return "neutral";
   },
 
-  normalizeEmotion(
-    value = null
-  ) {
-    if (
-      value &&
-      typeof value ===
-        "object" &&
-      !Array.isArray(
-        value
-      )
-    ) {
+  normalizeEmotion(value = null) {
+    if (this.isPlainObject(value)) {
       value =
         value.name ||
         value.emotion ||
@@ -878,15 +861,22 @@ window.AriRuntimeDelivery = {
     }
 
     const normalized =
-      this.normalizeIdentifier(
-        value
-      );
+      this.normalizeIdentifier(value);
 
     if (!normalized) {
       return "";
     }
 
     const aliases = {
+      idle:
+        "neutral",
+
+      idle_open:
+        "neutral",
+
+      neutral_idle:
+        "neutral",
+
       concern:
         "concerned",
 
@@ -939,26 +929,16 @@ window.AriRuntimeDelivery = {
         "success",
 
       thinking_mode:
-        "thinking",
-
-      idle_open:
-        "neutral",
-
-      idle:
-        "neutral"
+        "thinking"
     };
 
     return (
-      aliases[
-        normalized
-      ] ||
+      aliases[normalized] ||
       normalized
     );
   },
 
-  resolveEmotion(
-    delivery = {}
-  ) {
+  resolveEmotion(delivery = {}) {
     return (
       this.normalizeEmotion(
         delivery.emotion
@@ -975,7 +955,7 @@ window.AriRuntimeDelivery = {
     runtimeState = {},
     deliveryCandidate = {}
   } = {}) {
-    const candidateCollections = [
+    const collections = [
       deliveryCandidate.actions,
       deliveryCandidate.approvedActions,
       deliveryCandidate.applicationActions,
@@ -983,6 +963,7 @@ window.AriRuntimeDelivery = {
 
       deliveryCandidate.payload
         ?.actions,
+
       deliveryCandidate.payload
         ?.approvedActions,
 
@@ -991,25 +972,26 @@ window.AriRuntimeDelivery = {
       runtimeState.applicationActions,
       runtimeState.actions,
 
+      runtimeState.deliveryPacket
+        ?.actions,
+
+      runtimeState.deliveryPacket
+        ?.approvedActions,
+
       runtimeState.actionGovernance
         ?.approvedActions,
+
       runtimeState.finalComposition
         ?.actions
     ];
 
-    for (
-      const collection
-      of candidateCollections
-    ) {
+    for (const collection of collections) {
       const normalized =
         this.normalizeActions(
           collection
         );
 
-      if (
-        normalized.length >
-        0
-      ) {
+      if (normalized.length > 0) {
         return normalized;
       }
     }
@@ -1017,17 +999,10 @@ window.AriRuntimeDelivery = {
     return [];
   },
 
-  normalizeActions(
-    value = []
-  ) {
-    return this.toArray(
-      value
-    )
+  normalizeActions(value = []) {
+    return this.toArray(value)
       .map(
-        (
-          action,
-          index
-        ) =>
+        (action, index) =>
           this.normalizeAction(
             action,
             index
@@ -1041,18 +1016,13 @@ window.AriRuntimeDelivery = {
     index = 0
   ) {
     if (
-      action ===
-        null ||
-      action ===
-        undefined
+      action === null ||
+      action === undefined
     ) {
       return null;
     }
 
-    if (
-      typeof action ===
-      "string"
-    ) {
+    if (typeof action === "string") {
       const type =
         this.normalizeIdentifier(
           action
@@ -1077,13 +1047,7 @@ window.AriRuntimeDelivery = {
         : null;
     }
 
-    if (
-      typeof action !==
-        "object" ||
-      Array.isArray(
-        action
-      )
-    ) {
+    if (!this.isPlainObject(action)) {
       return null;
     }
 
@@ -1101,12 +1065,9 @@ window.AriRuntimeDelivery = {
     }
 
     const approved =
-      action.approved !==
-        false &&
-      action.rejected !==
-        true &&
-      action.blocked !==
-        true;
+      action.approved !== false &&
+      action.rejected !== true &&
+      action.blocked !== true;
 
     if (!approved) {
       return null;
@@ -1116,9 +1077,7 @@ window.AriRuntimeDelivery = {
       ...action,
 
       id:
-        this.cleanText(
-          action.id
-        ) ||
+        this.cleanText(action.id) ||
         `ari_action_${index + 1}`,
 
       type,
@@ -1127,8 +1086,7 @@ window.AriRuntimeDelivery = {
         true,
 
       requiresApproval:
-        action
-          .requiresApproval ===
+        action.requiresApproval ===
         true,
 
       source:
@@ -1137,9 +1095,7 @@ window.AriRuntimeDelivery = {
     };
   },
 
-  resolveActions(
-    delivery = {}
-  ) {
+  resolveActions(delivery = {}) {
     return this.normalizeActions(
       delivery.actions
     );
@@ -1160,37 +1116,31 @@ window.AriRuntimeDelivery = {
       deliveryCandidate
         .developerDisposition,
 
-      deliveryCandidate
-        .payload
+      deliveryCandidate.payload
         ?.developerIntent,
 
-      runtimeState
-        .developerIntent,
+      runtimeState.developerIntent,
 
       runtimeState
         .resolvedDeveloperIntent,
 
-      runtimeState
-        .developerRouting
+      runtimeState.developerRouting
         ?.developerIntent,
 
-      runtimeState
-        .developerInvestigation
+      runtimeState.developerInvestigation
         ?.intent,
 
-      runtimeState
-        .executivePacket
+      runtimeState.executivePacket
         ?.developerIntent,
 
-      runtimeState
-        .routingDecision
+      runtimeState.executiveRoutingPacket
+        ?.developerIntent,
+
+      runtimeState.routingDecision
         ?.developerIntent
     ];
 
-    for (
-      const candidate
-      of candidates
-    ) {
+    for (const candidate of candidates) {
       const normalized =
         this.normalizeDeveloperIntent(
           candidate
@@ -1208,20 +1158,14 @@ window.AriRuntimeDelivery = {
     value = null
   ) {
     if (
-      value ===
-        null ||
-      value ===
-        undefined ||
-      value ===
-        false
+      value === null ||
+      value === undefined ||
+      value === false
     ) {
       return null;
     }
 
-    if (
-      typeof value ===
-      "string"
-    ) {
+    if (typeof value === "string") {
       const type =
         this.normalizeIdentifier(
           value
@@ -1230,23 +1174,13 @@ window.AriRuntimeDelivery = {
       return type
         ? {
             type,
-
-            active:
-              true,
-
-            source:
-              "runtime"
+            active: true,
+            source: "runtime"
           }
         : null;
     }
 
-    if (
-      typeof value !==
-        "object" ||
-      Array.isArray(
-        value
-      )
-    ) {
+    if (!this.isPlainObject(value)) {
       return null;
     }
 
@@ -1260,17 +1194,11 @@ window.AriRuntimeDelivery = {
       );
 
     const active =
-      value.active !==
-        false &&
-      value.relevant !==
-        false &&
-      value.detected !==
-        false;
+      value.active !== false &&
+      value.relevant !== false &&
+      value.detected !== false;
 
-    if (
-      !type &&
-      !active
-    ) {
+    if (!type && !active) {
       return null;
     }
 
@@ -1324,18 +1252,18 @@ window.AriRuntimeDelivery = {
       runtimeState.lifecycle
         ?.lifecycleErrors,
 
+      runtimeState.pipelineLifecycle
+        ?.errors,
+
+      runtimeState.pipelineLifecycleErrors,
+
       runtimeState.deliveryResult
         ?.error
     ];
 
-    for (
-      const candidate
-      of candidates
-    ) {
+    for (const candidate of candidates) {
       const normalized =
-        this.normalizeError(
-          candidate
-        );
+        this.normalizeError(candidate);
 
       if (normalized) {
         return normalized;
@@ -1345,49 +1273,30 @@ window.AriRuntimeDelivery = {
     return null;
   },
 
-  normalizeError(
-    value = null
-  ) {
+  normalizeError(value = null) {
     if (
-      value ===
-        null ||
-      value ===
-        undefined ||
-      value ===
-        false ||
-      value ===
-        ""
+      value === null ||
+      value === undefined ||
+      value === false ||
+      value === ""
     ) {
       return null;
     }
 
-    if (
-      Array.isArray(
+    if (Array.isArray(value)) {
+      return (
         value
-      )
-    ) {
-      const first =
-        value
-          .map(
-            item =>
-              this.normalizeError(
-                item
-              )
+          .map(item =>
+            this.normalizeError(item)
           )
-          .find(Boolean);
-
-      return first ||
-        null;
+          .find(Boolean) ||
+        null
+      );
     }
 
-    if (
-      typeof value ===
-      "string"
-    ) {
+    if (typeof value === "string") {
       const message =
-        this.cleanText(
-          value
-        );
+        this.cleanText(value);
 
       return message
         ? {
@@ -1402,10 +1311,7 @@ window.AriRuntimeDelivery = {
         : null;
     }
 
-    if (
-      value instanceof
-      Error
-    ) {
+    if (value instanceof Error) {
       return {
         code:
           this.normalizeIdentifier(
@@ -1428,18 +1334,13 @@ window.AriRuntimeDelivery = {
       };
     }
 
-    if (
-      typeof value !==
-        "object"
-    ) {
+    if (!this.isPlainObject(value)) {
       return {
         code:
           "runtime_error",
 
         message:
-          this.cleanText(
-            value
-          ) ||
+          this.cleanText(value) ||
           "Runtime execution failed.",
 
         source:
@@ -1490,34 +1391,39 @@ window.AriRuntimeDelivery = {
     reply = ""
   } = {}) {
     if (
-      deliveryCandidate.complete ===
-        true ||
-      deliveryCandidate.completed ===
-        true ||
-      deliveryCandidate.delivered ===
-        true
+      deliveryCandidate.complete === true ||
+      deliveryCandidate.completed === true ||
+      deliveryCandidate.delivered === true
     ) {
       return true;
     }
 
     if (
-      runtimeState.complete ===
-        true ||
-      runtimeState.completed ===
-        true ||
+      runtimeState.complete === true ||
+      runtimeState.completed === true ||
+      runtimeState.pipelineComplete === true ||
+      runtimeState.runtimeComplete === true ||
       runtimeState.lifecycle
-        ?.complete ===
-        true ||
+        ?.complete === true ||
       runtimeState.lifecycle
-        ?.completed ===
-        true
+        ?.completed === true ||
+      runtimeState.pipelineLifecycle
+        ?.complete === true ||
+      runtimeState.pipelineLifecycle
+        ?.completed === true
     ) {
       return true;
     }
 
     return Boolean(
       reply &&
-      deliveryCandidate
+      Object.keys(
+        deliveryCandidate
+      ).length > 0 &&
+      this.didPipelineRun(
+        runtimeState,
+        "delivery"
+      )
     );
   },
 
@@ -1526,19 +1432,15 @@ window.AriRuntimeDelivery = {
     deliveryCandidate = {}
   } = {}) {
     if (
-      deliveryCandidate.authoritative ===
-        false ||
-      deliveryCandidate.isAuthoritative ===
-        false
+      deliveryCandidate.authoritative === false ||
+      deliveryCandidate.isAuthoritative === false
     ) {
       return false;
     }
 
     if (
-      deliveryCandidate.authoritative ===
-        true ||
-      deliveryCandidate.isAuthoritative ===
-        true ||
+      deliveryCandidate.authoritative === true ||
+      deliveryCandidate.isAuthoritative === true ||
       deliveryCandidate.authority ===
         "delivery_pipeline" ||
       deliveryCandidate.authority
@@ -1554,15 +1456,20 @@ window.AriRuntimeDelivery = {
         true &&
       Object.keys(
         deliveryCandidate
-      ).length >
-        0
+      ).length > 0
     ) {
       return true;
     }
 
     return Boolean(
-      runtimeState.deliveryResult &&
-      deliveryCandidate
+      (
+        runtimeState.deliveryPacket ||
+        runtimeState.deliveryResult ||
+        runtimeState.authoritativeDelivery
+      ) &&
+      Object.keys(
+        deliveryCandidate
+      ).length > 0
     );
   },
 
@@ -1576,12 +1483,9 @@ window.AriRuntimeDelivery = {
   } = {}) {
     const explicitStatus =
       this.normalizeIdentifier(
-        deliveryCandidate
-          .deliveryStatus ||
-        deliveryCandidate
-          .status ||
-        runtimeState
-          .deliveryStatus ||
+        deliveryCandidate.deliveryStatus ||
+        deliveryCandidate.status ||
+        runtimeState.deliveryStatus ||
         ""
       );
 
@@ -1590,23 +1494,21 @@ window.AriRuntimeDelivery = {
     }
 
     if (
-      explicitStatus ===
-        "delivered" ||
-      explicitStatus ===
-        "complete" ||
-      explicitStatus ===
-        "completed" ||
-      explicitStatus ===
+      [
+        "delivered",
+        "complete",
+        "completed",
         "success"
+      ].includes(explicitStatus)
     ) {
       return "delivered";
     }
 
     if (
-      explicitStatus ===
-        "failed" ||
-      explicitStatus ===
+      [
+        "failed",
         "error"
+      ].includes(explicitStatus)
     ) {
       return "failed";
     }
@@ -1615,10 +1517,7 @@ window.AriRuntimeDelivery = {
       return "non_authoritative";
     }
 
-    if (
-      !complete ||
-      !reply
-    ) {
+    if (!complete || !reply) {
       return "incomplete";
     }
 
@@ -1636,12 +1535,15 @@ window.AriRuntimeDelivery = {
     return (
       this.cleanText(
         deliveryCandidate.turnId ||
-        deliveryCandidate
-          .currentTurnId ||
-        runtimeState
-          .currentTurnId ||
+        deliveryCandidate.currentTurnId ||
+        runtimeState.currentTurnId ||
         runtimeState.turnId ||
-        runtimeState.turn
+        runtimeState.turn?.turnId ||
+        runtimeState.currentTurn
+          ?.turnId ||
+        runtimeState.runtimeRequest
+          ?.turnId ||
+        runtimeState.requestEnvelope
           ?.turnId ||
         ""
       ) ||
@@ -1650,7 +1552,7 @@ window.AriRuntimeDelivery = {
   },
 
   /* =====================================================
-     SUMMARY
+     CANONICAL RUNTIME SUMMARY
   ===================================================== */
 
   buildRuntimeSummary({
@@ -1658,57 +1560,23 @@ window.AriRuntimeDelivery = {
     deliveryCandidate = {},
     options = {}
   } = {}) {
-    if (
-      options.includeSummary ===
-      false
-    ) {
+    if (options.includeSummary === false) {
       return null;
     }
 
-    const suppliedSummary =
-      deliveryCandidate.summary ||
-      runtimeState.runtimeSummary ||
-      runtimeState.pipelineSummary ||
-      null;
-
-    if (
-      suppliedSummary &&
-      typeof suppliedSummary ===
-        "object" &&
-      !Array.isArray(
-        suppliedSummary
-      )
-    ) {
-      return suppliedSummary;
-    }
-
+    /*
+     * Always rebuild this summary from the complete runtime state.
+     *
+     * Do not return deliveryCandidate.summary, runtimeSummary, or
+     * pipelineSummary directly. Those values may be compact, stale,
+     * or may have been produced before all five layers completed.
+     */
     return {
-      request: {
-        userMessage:
-          this.cleanText(
-            runtimeState
-              .userMessage ||
-            runtimeState
-              .turn
-              ?.originalText ||
-            ""
-          ) ||
-          null,
-
-        resolvedUserQuestion:
-          this.cleanText(
-            runtimeState
-              .resolvedUserQuestion ||
-            ""
-          ) ||
-          null,
-
-        turnId:
-          this.extractTurnId({
-            runtimeState,
-            deliveryCandidate
-          })
-      },
+      request:
+        this.normalizeRequestSummary(
+          runtimeState,
+          deliveryCandidate
+        ),
 
       lifecycle:
         this.normalizeLifecycle(
@@ -1739,6 +1607,74 @@ window.AriRuntimeDelivery = {
         this.normalizeDeliverySummary({
           runtimeState,
           deliveryCandidate
+        }),
+
+      timing:
+        this.normalizeTimingSummary(
+          runtimeState
+        )
+    };
+  },
+
+  normalizeRequestSummary(
+    runtimeState = {},
+    deliveryCandidate = {}
+  ) {
+    const userMessage =
+      this.cleanText(
+        runtimeState.userMessage ||
+        runtimeState.originalUserMessage ||
+        runtimeState.currentTurn
+          ?.originalText ||
+        runtimeState.currentTurn
+          ?.text ||
+        runtimeState.turn
+          ?.originalText ||
+        runtimeState.turn
+          ?.text ||
+        runtimeState.runtimeRequest
+          ?.userMessage ||
+        runtimeState.runtimeRequest
+          ?.message ||
+        runtimeState.requestEnvelope
+          ?.userMessage ||
+        runtimeState.requestEnvelope
+          ?.message ||
+        runtimeState.request
+          ?.userMessage ||
+        runtimeState.request
+          ?.message ||
+        ""
+      );
+
+    const resolvedUserQuestion =
+      this.cleanText(
+        runtimeState.resolvedUserQuestion ||
+        runtimeState.resolvedCurrentTurn
+          ?.question ||
+        runtimeState.semanticFrame
+          ?.resolvedUserQuestion ||
+        runtimeState.perceptionPacket
+          ?.resolvedUserQuestion ||
+        runtimeState.perceptionPacket
+          ?.semanticFrame
+          ?.resolvedUserQuestion ||
+        ""
+      );
+
+    return {
+      userMessage:
+        userMessage ||
+        null,
+
+      resolvedUserQuestion:
+        resolvedUserQuestion ||
+        null,
+
+      turnId:
+        this.extractTurnId({
+          runtimeState,
+          deliveryCandidate
         })
     };
   },
@@ -1747,88 +1683,157 @@ window.AriRuntimeDelivery = {
     runtimeState = {}
   ) {
     const lifecycle =
-      runtimeState.lifecycle &&
-      typeof runtimeState.lifecycle ===
-        "object"
-        ? runtimeState.lifecycle
-        : {};
+      this.firstPlainObject([
+        runtimeState.pipelineLifecycle,
+        runtimeState.lifecycle
+      ]);
+
+    const layers =
+      this.firstPlainObject([
+        lifecycle.layers,
+        runtimeState.pipelineLayerResults,
+        runtimeState.layerResults
+      ]);
+
+    const lifecycleErrors =
+      this.uniqueValues([
+        ...this.toArray(
+          lifecycle.lifecycleErrors
+        ),
+        ...this.toArray(
+          lifecycle.errors
+        ),
+        ...this.toArray(
+          runtimeState.pipelineLifecycleErrors
+        ),
+        ...this.toArray(
+          runtimeState.lifecycleErrors
+        )
+      ]);
+
+    const layerStatus = {
+      perception:
+        this.didPipelineRun(
+          runtimeState,
+          "perception"
+        ),
+
+      routing:
+        this.didPipelineRun(
+          runtimeState,
+          "routing"
+        ),
+
+      deliberation:
+        this.didPipelineRun(
+          runtimeState,
+          "deliberation"
+        ),
+
+      expression:
+        this.didPipelineRun(
+          runtimeState,
+          "expression"
+        ),
+
+      delivery:
+        this.didPipelineRun(
+          runtimeState,
+          "delivery"
+        )
+    };
+
+    const allLayersRan =
+      Object.values(
+        layerStatus
+      ).every(Boolean);
 
     return {
       architecture:
         lifecycle.architecture ||
-        runtimeState
-          .runtimeArchitecture ||
+        runtimeState.runtimeArchitecture ||
         "canonical-five-layer",
 
       complete:
-        lifecycle.complete ===
-          true ||
-        runtimeState.complete ===
-          true ||
-        runtimeState.completed ===
-          true,
+        lifecycle.complete === true ||
+        lifecycle.completed === true ||
+        runtimeState.pipelineComplete === true ||
+        runtimeState.runtimeComplete === true ||
+        runtimeState.complete === true ||
+        runtimeState.completed === true ||
+        allLayersRan,
 
       layers:
-        lifecycle.layers ||
-        runtimeState.layerResults ||
-        {},
+        Object.keys(layers).length > 0
+          ? layers
+          : layerStatus,
 
-      lifecycleErrors:
-        this.toArray(
-          lifecycle
-            .lifecycleErrors ||
-          lifecycle.errors ||
-          runtimeState
-            .lifecycleErrors
-        )
+      layerStatus,
+
+      lifecycleErrors
     };
   },
 
   normalizePerceptionSummary(
     runtimeState = {}
   ) {
+    const packet =
+      this.firstPlainObject([
+        runtimeState.perceptionPacket,
+        runtimeState.perceptionResult
+      ]);
+
+    const ledger =
+      this.firstPlainObject([
+        packet.perceptionLedger,
+        packet.ledger,
+        runtimeState.perceptionLedger
+      ]);
+
+    const semanticFrame =
+      this.firstPlainObject([
+        packet.semanticFrame,
+        runtimeState.semanticFrame
+      ]);
+
+    const conversationFunction =
+      packet.conversationFunction ||
+      runtimeState.conversationFunction ||
+      null;
+
     return {
       ran:
-        runtimeState
-          .perceptionResult !=
-        null ||
-        runtimeState
-          .perceptionCompleted ===
-        true,
+        this.didPipelineRun(
+          runtimeState,
+          "perception"
+        ),
 
       observationCount:
         this.toArray(
-          runtimeState
-            .perceptionLedger
-            ?.observations ||
-          runtimeState
-            .observations
+          ledger.observations ||
+          packet.observations ||
+          runtimeState.observations
         ).length,
 
       primaryFunction:
-        runtimeState
-          .conversationFunction
-          ?.primary ||
-        runtimeState
-          .conversationFunction ||
-        null,
+        this.extractPrimaryValue(
+          conversationFunction
+        ),
 
       conversationType:
-        runtimeState
-          .conversationType ||
+        packet.conversationType ||
+        runtimeState.conversationType ||
         null,
 
       conversationIntent:
-        runtimeState
-          .conversationIntent ||
+        packet.conversationIntent ||
+        runtimeState.conversationIntent ||
         null,
 
       semanticSummary:
-        runtimeState
-          .semanticFrame
-          ?.summary ||
-        runtimeState
-          .semanticSummary ||
+        semanticFrame.summary ||
+        packet.semanticSummary ||
+        runtimeState.semanticSummary ||
         null
     };
   },
@@ -1836,52 +1841,62 @@ window.AriRuntimeDelivery = {
   normalizeRoutingSummary(
     runtimeState = {}
   ) {
+    const packet =
+      this.firstPlainObject([
+        runtimeState.executivePacket,
+        runtimeState.executiveRoutingPacket,
+        runtimeState.routingDecision
+      ]);
+
+    const routing =
+      this.firstPlainObject([
+        packet.routingDecision,
+        packet.routing,
+        runtimeState.routingDecision,
+        packet
+      ]);
+
     return {
+      ran:
+        this.didPipelineRun(
+          runtimeState,
+          "routing"
+        ),
+
       mode:
-        runtimeState
-          .routingDecision
-          ?.mode ||
-        runtimeState
-          .routingMode ||
+        routing.mode ||
+        packet.mode ||
+        runtimeState.routingMode ||
         null,
 
       primaryIntent:
-        runtimeState
-          .routingDecision
-          ?.primaryIntent ||
-        runtimeState
-          .primaryIntent ||
+        routing.primaryIntent ||
+        packet.primaryIntent ||
+        runtimeState.primaryIntent ||
         null,
 
       domain:
-        runtimeState
-          .routingDecision
-          ?.domain ||
+        routing.domain ||
+        packet.domain ||
         runtimeState.domain ||
         null,
 
       contextLane:
-        runtimeState
-          .routingDecision
-          ?.contextLane ||
-        runtimeState
-          .contextLane ||
+        routing.contextLane ||
+        packet.contextLane ||
+        runtimeState.contextLane ||
         null,
 
       primaryLane:
-        runtimeState
-          .routingDecision
-          ?.primaryLane ||
-        runtimeState
-          .primaryLane ||
+        routing.primaryLane ||
+        packet.primaryLane ||
+        runtimeState.primaryLane ||
         null,
 
       planner:
-        runtimeState
-          .routingDecision
-          ?.planner ||
-        runtimeState
-          .planner ||
+        routing.planner ||
+        packet.planner ||
+        runtimeState.planner ||
         null
     };
   },
@@ -1889,46 +1904,55 @@ window.AriRuntimeDelivery = {
   normalizeDeliberationSummary(
     runtimeState = {}
   ) {
+    const packet =
+      this.firstPlainObject([
+        runtimeState.deliberationPacket,
+        runtimeState.deliberationResult
+      ]);
+
+    const plan =
+      this.firstPlainObject([
+        packet.canonicalResponsePlan,
+        packet.responsePlan,
+        runtimeState.canonicalResponsePlan
+      ]);
+
+    const safetyContext =
+      this.firstPlainObject([
+        packet.safetyContext,
+        runtimeState.safetyContext
+      ]);
+
     return {
       ran:
-        runtimeState
-          .deliberationResult !=
-        null ||
-        runtimeState
-          .deliberationCompleted ===
-        true,
+        this.didPipelineRun(
+          runtimeState,
+          "deliberation"
+        ),
 
       responseGoal:
-        runtimeState
-          .canonicalResponsePlan
-          ?.responseGoal ||
-        runtimeState
-          .responseGoal ||
+        plan.responseGoal ||
+        packet.responseGoal ||
+        runtimeState.responseGoal ||
         null,
 
       responseShape:
-        runtimeState
-          .canonicalResponsePlan
-          ?.responseShape ||
-        runtimeState
-          .responseShape ||
+        plan.responseShape ||
+        packet.responseShape ||
+        runtimeState.responseShape ||
         null,
 
       responseMoveCount:
         this.toArray(
-          runtimeState
-            .canonicalResponsePlan
-            ?.responseMoves ||
-          runtimeState
-            .responseMoves
+          plan.responseMoves ||
+          packet.responseMoves ||
+          runtimeState.responseMoves
         ).length,
 
       safetyDisposition:
-        runtimeState
-          .safetyDisposition ||
-        runtimeState
-          .safetyContext
-          ?.disposition ||
+        packet.safetyDisposition ||
+        runtimeState.safetyDisposition ||
+        safetyContext.disposition ||
         null
     };
   },
@@ -1936,31 +1960,48 @@ window.AriRuntimeDelivery = {
   normalizeExpressionSummary(
     runtimeState = {}
   ) {
+    const packet =
+      this.firstPlainObject([
+        runtimeState.expressionPacket,
+        runtimeState.expressionResult
+      ]);
+
+    const selectedDraft =
+      packet.selectedDraft ||
+      runtimeState.selectedDraft ||
+      null;
+
+    const finalComposition =
+      packet.finalComposition ||
+      runtimeState.finalComposition ||
+      null;
+
+    const finalResponse =
+      packet.finalResponse ||
+      runtimeState.finalResponse ||
+      null;
+
     return {
       ran:
-        runtimeState
-          .expressionResult !=
-        null ||
-        runtimeState
-          .expressionCompleted ===
-        true,
+        this.didPipelineRun(
+          runtimeState,
+          "expression"
+        ),
 
       selectedDraftAvailable:
-        Boolean(
-          runtimeState
-            .selectedDraft
-        ),
+        Boolean(selectedDraft),
 
       finalCompositionAvailable:
-        Boolean(
-          runtimeState
-            .finalComposition
-        ),
+        Boolean(finalComposition),
 
       finalResponseAvailable:
         Boolean(
-          runtimeState
-            .finalResponse
+          this.extractTextValue(
+            finalResponse
+          ) ||
+          this.extractTextValue(
+            finalComposition
+          )
         )
     };
   },
@@ -1969,55 +2010,239 @@ window.AriRuntimeDelivery = {
     runtimeState = {},
     deliveryCandidate = {}
   } = {}) {
+    const reply =
+      this.extractReply({
+        runtimeState,
+        deliveryCandidate
+      });
+
+    const authoritative =
+      this.resolveAuthoritativeStatus({
+        runtimeState,
+        deliveryCandidate
+      });
+
+    const complete =
+      this.resolveCompletionStatus({
+        runtimeState,
+        deliveryCandidate,
+        reply
+      });
+
     return {
       ran:
-        Boolean(
-          runtimeState
-            .deliveryResult ||
-          deliveryCandidate
+        this.didPipelineRun(
+          runtimeState,
+          "delivery"
         ),
 
-      authoritative:
-        this.resolveAuthoritativeStatus({
+      authoritative,
+      complete,
+
+      status:
+        deliveryCandidate.deliveryStatus ||
+        deliveryCandidate.status ||
+        runtimeState.deliveryStatus ||
+        (
+          authoritative &&
+          complete &&
+          reply
+            ? "delivered"
+            : null
+        ),
+
+      replyAvailable:
+        Boolean(reply),
+
+      emotion:
+        this.extractEmotion({
           runtimeState,
           deliveryCandidate
         }),
 
-      complete:
-        this.resolveCompletionStatus({
+      actionCount:
+        this.extractActions({
           runtimeState,
-          deliveryCandidate,
-          reply:
-            this.extractReply({
-              runtimeState,
-              deliveryCandidate
-            })
-        }),
-
-      status:
-        deliveryCandidate
-          .deliveryStatus ||
-        runtimeState
-          .deliveryStatus ||
-        null
+          deliveryCandidate
+        }).length
     };
+  },
+
+  normalizeTimingSummary(
+    runtimeState = {}
+  ) {
+    const rawTiming =
+      this.firstPlainObject([
+        runtimeState.pipelineTiming,
+        runtimeState.timing,
+        runtimeState.pipelineTimings,
+        runtimeState.runtimeTiming,
+        runtimeState.diagnostics
+          ?.pipelineTiming
+      ]);
+
+    if (Object.keys(rawTiming).length > 0) {
+      return rawTiming;
+    }
+
+    const marks =
+      this.toArray(
+        runtimeState.timingMarks ||
+        runtimeState.pipelineMarks ||
+        runtimeState.diagnostics
+          ?.timingMarks
+      );
+
+    return marks.length > 0
+      ? {
+          marks
+        }
+      : null;
   },
 
   resolveSummary({
     delivery = {},
     options = {}
   } = {}) {
-    if (
-      options.includeSummary ===
-      false
-    ) {
+    if (options.includeSummary === false) {
       return null;
     }
 
-    return (
-      delivery.summary ||
-      null
-    );
+    /*
+     * Prefer the freshly built summary. If a normalized result somehow
+     * arrived without one, rebuild it from the attached runtime state.
+     */
+    if (
+      this.isPlainObject(
+        delivery.summary
+      )
+    ) {
+      return delivery.summary;
+    }
+
+    return this.buildRuntimeSummary({
+      runtimeState:
+        this.isPlainObject(
+          delivery.runtimeState
+        )
+          ? delivery.runtimeState
+          : {},
+
+      deliveryCandidate:
+        this.isPlainObject(
+          delivery.rawDeliveryResult
+        )
+          ? delivery.rawDeliveryResult
+          : {},
+
+      options
+    });
+  },
+
+  didPipelineRun(
+    runtimeState = {},
+    layer = ""
+  ) {
+    const names = {
+      perception: [
+        "perceptionPipelineRan",
+        "perceptionCompleted"
+      ],
+
+      routing: [
+        "executiveRoutingPipelineRan",
+        "routingPipelineRan",
+        "executiveRoutingCompleted"
+      ],
+
+      deliberation: [
+        "deliberationPipelineRan",
+        "deliberationCompleted"
+      ],
+
+      expression: [
+        "expressionPipelineRan",
+        "expressionCompleted"
+      ],
+
+      delivery: [
+        "deliveryPipelineRan",
+        "deliveryCompleted"
+      ]
+    };
+
+    const packetNames = {
+      perception: [
+        "perceptionPacket",
+        "perceptionResult"
+      ],
+
+      routing: [
+        "executivePacket",
+        "executiveRoutingPacket",
+        "routingDecision"
+      ],
+
+      deliberation: [
+        "deliberationPacket",
+        "deliberationResult",
+        "canonicalResponsePlan"
+      ],
+
+      expression: [
+        "expressionPacket",
+        "expressionResult",
+        "finalComposition",
+        "finalResponse"
+      ],
+
+      delivery: [
+        "deliveryPacket",
+        "deliveryResult",
+        "authoritativeDelivery"
+      ]
+    };
+
+    for (const name of names[layer] || []) {
+      if (runtimeState[name] === true) {
+        return true;
+      }
+    }
+
+    for (
+      const name
+      of packetNames[layer] || []
+    ) {
+      if (
+        runtimeState[name] !==
+          undefined &&
+        runtimeState[name] !==
+          null
+      ) {
+        return true;
+      }
+    }
+
+    const lifecycle =
+      this.firstPlainObject([
+        runtimeState.pipelineLifecycle,
+        runtimeState.lifecycle
+      ]);
+
+    const lifecycleLayer =
+      lifecycle.layers
+        ?.[layer];
+
+    if (
+      lifecycleLayer === true ||
+      lifecycleLayer?.ran === true ||
+      lifecycleLayer?.complete === true ||
+      lifecycleLayer?.completed === true
+    ) {
+      return true;
+    }
+
+    return false;
   },
 
   /* =====================================================
@@ -2030,20 +2255,10 @@ window.AriRuntimeDelivery = {
     const errors = [];
     const warnings = [];
 
-    if (
-      !delivery ||
-      typeof delivery !==
-        "object" ||
-      Array.isArray(
-        delivery
-      )
-    ) {
+    if (!this.isPlainObject(delivery)) {
       return {
-        valid:
-          false,
-
-        ready:
-          false,
+        valid: false,
+        ready: false,
 
         errors: [
           "delivery_result_invalid"
@@ -2071,26 +2286,20 @@ window.AriRuntimeDelivery = {
     }
 
     if (
-      delivery.authoritative !==
-      true
+      delivery.authoritative !== true
     ) {
       errors.push(
         "delivery_result_not_authoritative"
       );
     }
 
-    if (
-      delivery.complete !==
-      true
-    ) {
+    if (delivery.complete !== true) {
       errors.push(
         "delivery_result_incomplete"
       );
     }
 
-    if (
-      delivery.error
-    ) {
+    if (delivery.error) {
       errors.push(
         delivery.error.code ||
         "runtime_delivery_error"
@@ -2106,17 +2315,13 @@ window.AriRuntimeDelivery = {
       );
     }
 
-    if (
-      !delivery.turnId
-    ) {
+    if (!delivery.turnId) {
       warnings.push(
         "delivery_turn_id_missing"
       );
     }
 
-    if (
-      !delivery.emotion
-    ) {
+    if (!delivery.emotion) {
       warnings.push(
         "delivery_emotion_missing"
       );
@@ -2134,41 +2339,30 @@ window.AriRuntimeDelivery = {
 
     return {
       valid:
-        errors.length ===
-        0,
+        errors.length === 0,
 
       ready:
-        errors.length ===
-        0,
+        errors.length === 0,
 
       errors:
-        this.uniqueValues(
-          errors
-        ),
+        this.uniqueValues(errors),
 
       warnings:
-        this.uniqueValues(
-          warnings
-        ),
+        this.uniqueValues(warnings),
 
       checks: {
         deliveryResultAvailable:
-          Boolean(
-            delivery
-          ),
+          true,
 
         replyAvailable:
-          Boolean(
-            reply
-          ),
+          Boolean(reply),
 
         authoritative:
           delivery.authoritative ===
           true,
 
         complete:
-          delivery.complete ===
-          true,
+          delivery.complete === true,
 
         delivered:
           delivery.deliveryStatus ===
@@ -2185,6 +2379,11 @@ window.AriRuntimeDelivery = {
         actionsNormalized:
           Array.isArray(
             delivery.actions
+          ),
+
+        runtimeStatePreserved:
+          this.isPlainObject(
+            delivery.runtimeState
           )
       },
 
@@ -2200,12 +2399,7 @@ window.AriRuntimeDelivery = {
     value = null
   ) {
     return Boolean(
-      value &&
-      typeof value ===
-        "object" &&
-      !Array.isArray(
-        value
-      ) &&
+      this.isPlainObject(value) &&
       value.schema ===
         "ari_runtime_delivery_result"
     );
@@ -2226,8 +2420,7 @@ window.AriRuntimeDelivery = {
 
     const message =
       this.cleanText(
-        runtimeError
-          ?.message
+        runtimeError?.message
       ) ||
       this.resolveFailureMessage({
         delivery,
@@ -2235,11 +2428,8 @@ window.AriRuntimeDelivery = {
       });
 
     const errorCode =
-      runtimeError
-        ?.code ||
-      validation
-        ?.errors
-        ?.[0] ||
+      runtimeError?.code ||
+      validation?.errors?.[0] ||
       "runtime_delivery_failed";
 
     const response = {
@@ -2250,8 +2440,7 @@ window.AriRuntimeDelivery = {
         this.schemaVersion,
 
       reply:
-        options
-          .includeFailureReply ===
+        options.includeFailureReply ===
         false
           ? ""
           : message,
@@ -2272,8 +2461,10 @@ window.AriRuntimeDelivery = {
         options.includeSummary ===
         false
           ? null
-          : delivery.summary ||
-            null,
+          : this.resolveSummary({
+              delivery,
+              options
+            }),
 
       error: {
         code:
@@ -2295,8 +2486,7 @@ window.AriRuntimeDelivery = {
           ),
 
         source:
-          runtimeError
-            ?.source ||
+          runtimeError?.source ||
           this.source
       },
 
@@ -2335,8 +2525,7 @@ window.AriRuntimeDelivery = {
 
       createdAt:
         delivery.createdAt ||
-        new Date()
-          .toISOString(),
+        new Date().toISOString(),
 
       completedAt:
         delivery.completedAt ||
@@ -2362,7 +2551,7 @@ window.AriRuntimeDelivery = {
           "upstream_runtime_preserved_if_available",
 
         summary:
-          "completed_runtime_state_if_available",
+          "canonical_runtime_state_if_available",
 
         adaptation:
           this.source
@@ -2429,8 +2618,7 @@ window.AriRuntimeDelivery = {
 
     if (
       emotion &&
-      emotion !==
-      "neutral"
+      emotion !== "neutral"
     ) {
       return emotion;
     }
@@ -2446,10 +2634,16 @@ window.AriRuntimeDelivery = {
     delivery = {},
     validation = {}
   } = {}) {
+    const runtimeState =
+      this.isPlainObject(
+        delivery.runtimeState
+      )
+        ? delivery.runtimeState
+        : {};
+
     return {
       runtimeDeliveryReady:
-        validation.valid ===
-        true,
+        validation.valid === true,
 
       runtimeDeliverySource:
         this.source,
@@ -2458,12 +2652,10 @@ window.AriRuntimeDelivery = {
         this.version,
 
       authoritative:
-        delivery.authoritative ===
-        true,
+        delivery.authoritative === true,
 
       complete:
-        delivery.complete ===
-        true,
+        delivery.complete === true,
 
       deliveryStatus:
         delivery.deliveryStatus ||
@@ -2490,6 +2682,50 @@ window.AriRuntimeDelivery = {
           delivery.developerIntent
         ),
 
+      runtimeStatePreserved:
+        Object.keys(
+          runtimeState
+        ).length > 0,
+
+      pipelineFlags: {
+        perception:
+          this.didPipelineRun(
+            runtimeState,
+            "perception"
+          ),
+
+        routing:
+          this.didPipelineRun(
+            runtimeState,
+            "routing"
+          ),
+
+        deliberation:
+          this.didPipelineRun(
+            runtimeState,
+            "deliberation"
+          ),
+
+        expression:
+          this.didPipelineRun(
+            runtimeState,
+            "expression"
+          ),
+
+        delivery:
+          this.didPipelineRun(
+            runtimeState,
+            "delivery"
+          )
+      },
+
+      timingAvailable:
+        Boolean(
+          this.normalizeTimingSummary(
+            runtimeState
+          )
+        ),
+
       errors:
         this.toArray(
           validation.errors
@@ -2512,8 +2748,7 @@ window.AriRuntimeDelivery = {
     options = {}
   } = {}) {
     if (
-      options
-        .includeCompatibilityFields ===
+      options.includeCompatibilityFields ===
       false
     ) {
       return response;
@@ -2543,6 +2778,10 @@ window.AriRuntimeDelivery = {
       runtimeSummary:
         response.summary,
 
+      pipelineTiming:
+        response.summary?.timing ||
+        null,
+
       deliveryResult: {
         reply:
           response.reply,
@@ -2560,8 +2799,7 @@ window.AriRuntimeDelivery = {
           response.complete,
 
         authoritative:
-          response.ok ===
-          true,
+          response.ok === true,
 
         status:
           response.deliveryStatus,
@@ -2580,37 +2818,21 @@ window.AriRuntimeDelivery = {
      OPTIONS
   ===================================================== */
 
-  normalizeOptions(
-    options = {}
-  ) {
-    if (
-      !options ||
-      typeof options !==
-        "object" ||
-      Array.isArray(
-        options
-      )
-    ) {
+  normalizeOptions(options = {}) {
+    if (!this.isPlainObject(options)) {
       return {
-        includeSummary:
-          true,
-
-        includeCompatibilityFields:
-          true,
-
-        includeFailureReply:
-          true
+        includeSummary: true,
+        includeCompatibilityFields: true,
+        includeFailureReply: true
       };
     }
 
     return {
       includeSummary:
-        options.includeSummary !==
-        false,
+        options.includeSummary !== false,
 
       includeCompatibilityFields:
-        options
-          .includeCompatibilityFields !==
+        options.includeCompatibilityFields !==
         false,
 
       includeFailureReply:
@@ -2646,6 +2868,9 @@ window.AriRuntimeDelivery = {
         true,
 
       canPreserveRuntimeSummary:
+        true,
+
+      canPreserveCanonicalRuntimeState:
         true,
 
       canExposeCompatibilityFields:
@@ -2706,7 +2931,7 @@ window.AriRuntimeDelivery = {
         false,
 
       role:
-        "authoritative_delivery_reading_and_application_adaptation"
+        "canonical_runtime_delivery_reading_and_application_adaptation"
     };
   },
 
@@ -2761,8 +2986,7 @@ window.AriRuntimeDelivery = {
       forbiddenTrue
         .filter(
           key =>
-            authority[key] ===
-            true
+            authority[key] === true
         )
         .map(
           key =>
@@ -2771,8 +2995,7 @@ window.AriRuntimeDelivery = {
 
     return {
       valid:
-        errors.length ===
-        0,
+        errors.length === 0,
 
       source:
         "ari-runtime-delivery-validation",
@@ -2781,48 +3004,43 @@ window.AriRuntimeDelivery = {
         this.version,
 
       errors,
-
       warnings: [],
 
       checks: {
         deliveryReadingEnabled:
-          authority
-            .canReadAuthoritativeDelivery ===
+          authority.canReadAuthoritativeDelivery ===
           true,
 
         deliveryValidationEnabled:
-          authority
-            .canValidateDeliveryResult ===
+          authority.canValidateDeliveryResult ===
           true,
 
         applicationAdaptationEnabled:
-          authority
-            .canAdaptApplicationResponse ===
+          authority.canAdaptApplicationResponse ===
+          true,
+
+        canonicalRuntimePreservationEnabled:
+          authority.canPreserveCanonicalRuntimeState ===
           true,
 
         responseGenerationDisabled:
-          authority
-            .canGenerateReply ===
+          authority.canGenerateReply ===
           false,
 
         emotionInferenceDisabled:
-          authority
-            .canInferEmotion ===
+          authority.canInferEmotion ===
           false,
 
         actionInventionDisabled:
-          authority
-            .canInventActions ===
+          authority.canInventActions ===
           false,
 
         actionExecutionDisabled:
-          authority
-            .canExecuteActions ===
+          authority.canExecuteActions ===
           false,
 
         persistenceDisabled:
-          authority
-            .canPersistState ===
+          authority.canPersistState ===
           false
       }
     };
@@ -2832,55 +3050,93 @@ window.AriRuntimeDelivery = {
      GENERAL UTILITIES
   ===================================================== */
 
-  toArray(
-    value
+  isPlainObject(value = null) {
+    return Boolean(
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    );
+  },
+
+  firstPlainObject(
+    candidates = []
+  ) {
+    for (
+      const candidate
+      of this.toArray(candidates)
+    ) {
+      if (this.isPlainObject(candidate)) {
+        return candidate;
+      }
+    }
+
+    return {};
+  },
+
+  extractPrimaryValue(
+    value = null
   ) {
     if (
-      Array.isArray(
-        value
-      )
+      value === null ||
+      value === undefined
     ) {
+      return null;
+    }
+
+    if (
+      typeof value === "string" ||
+      typeof value === "number"
+    ) {
+      return this.cleanText(value) ||
+        null;
+    }
+
+    if (!this.isPlainObject(value)) {
+      return null;
+    }
+
+    return (
+      this.cleanText(
+        value.primary ||
+        value.primaryFunction ||
+        value.function ||
+        value.type ||
+        value.name ||
+        ""
+      ) ||
+      null
+    );
+  },
+
+  toArray(value) {
+    if (Array.isArray(value)) {
       return value.filter(
         item =>
-          item !==
-            undefined &&
-          item !==
-            null &&
-          item !==
-            ""
+          item !== undefined &&
+          item !== null &&
+          item !== ""
       );
     }
 
     if (
-      value ===
-        undefined ||
-      value ===
-        null ||
-      value ===
-        ""
+      value === undefined ||
+      value === null ||
+      value === ""
     ) {
       return [];
     }
 
-    return [
-      value
-    ];
+    return [value];
   },
 
-  uniqueValues(
-    values = []
-  ) {
+  uniqueValues(values = []) {
     const output = [];
-    const seen =
-      new Set();
+    const seen = new Set();
 
-    this.toArray(
-      values
-    ).forEach(
+    this.toArray(values).forEach(
       value => {
         const key =
-          typeof value ===
-          "string"
+          typeof value === "string"
             ? value
             : this.safeJSONStringify(
                 value
@@ -2888,55 +3144,38 @@ window.AriRuntimeDelivery = {
 
         if (
           !key ||
-          seen.has(
-            key
-          )
+          seen.has(key)
         ) {
           return;
         }
 
-        seen.add(
-          key
-        );
-
-        output.push(
-          value
-        );
+        seen.add(key);
+        output.push(value);
       }
     );
 
     return output;
   },
 
-  safeJSONStringify(
-    value = null
-  ) {
-    const seen =
-      new WeakSet();
+  safeJSONStringify(value = null) {
+    const seen = new WeakSet();
 
     try {
       return JSON.stringify(
         value,
-        (
-          _key,
-          nestedValue
-        ) => {
+        (_key, nestedValue) => {
           if (
             nestedValue &&
             typeof nestedValue ===
               "object"
           ) {
             if (
-              seen.has(
-                nestedValue
-              )
+              seen.has(nestedValue)
             ) {
               return "[Circular]";
             }
 
-            seen.add(
-              nestedValue
-            );
+            seen.add(nestedValue);
           }
 
           return nestedValue;
@@ -2947,43 +3186,18 @@ window.AriRuntimeDelivery = {
     }
   },
 
-  cleanText(
-    value = ""
-  ) {
-    return String(
-      value ??
-      ""
-    )
-      .replace(
-        /[’‘]/g,
-        "'"
-      )
-      .replace(
-        /[“”]/g,
-        "\""
-      )
-      .replace(
-        /[ \t]+/g,
-        " "
-      )
-      .replace(
-        /\n[ \t]+/g,
-        "\n"
-      )
-      .replace(
-        /\n{3,}/g,
-        "\n\n"
-      )
+  cleanText(value = "") {
+    return String(value ?? "")
+      .replace(/[’‘]/g, "'")
+      .replace(/[“”]/g, "\"")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n[ \t]+/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
   },
 
-  normalizeIdentifier(
-    value = ""
-  ) {
-    return String(
-      value ||
-      ""
-    )
+  normalizeIdentifier(value = "") {
+    return String(value || "")
       .toLowerCase()
       .replace(
         /[^a-z0-9]+/g,
@@ -3001,12 +3215,10 @@ window.Ari.runtimeDelivery =
 
 console.log(
   "ARI RUNTIME DELIVERY LOADED:",
-  window.AriRuntimeDelivery
-    ?.version,
+  window.AriRuntimeDelivery?.version,
   window.AriRuntimeDelivery
     ?.validate?.()
-    .valid ===
-    true
+    .valid === true
     ? "READY"
     : "INVALID"
 );
