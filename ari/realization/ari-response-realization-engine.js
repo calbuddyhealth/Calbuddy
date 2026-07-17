@@ -6,7 +6,7 @@
 // meaning, continuity, safety, reasoning, Character, and response planning
 // have already been resolved.
 //
-// V1.0.0 — Primary OpenAI Realization / Structured Response Packet
+// V1.0.1 — Primary OpenAI Realization / Structured Response Packet
 //
 // Architectural flow:
 //
@@ -59,8 +59,8 @@
 window.Ari = window.Ari || {};
 
 window.AriResponseRealizationEngine = {
-  version: "1.0.0",
-  schemaVersion: "1.0.0",
+  version: "1.0.1",
+  schemaVersion: "1.0.1",
   source: "ari-response-realization-engine",
 
   /* =====================================================
@@ -2459,37 +2459,39 @@ Output rules:
   ===================================================== */
 
   extractRawModelText(
-    result = {}
+  result = {}
+) {
+  if (
+    typeof result ===
+    "string"
   ) {
-    if (
-      typeof result ===
-      "string"
-    ) {
-      return this.cleanText(
-        result
-      );
-    }
-
-    if (
-      !result ||
-      typeof result !==
-        "object"
-    ) {
-      return "";
-    }
-
     return this.cleanText(
-      result.finalResponse ||
-      result.knowledgeAnswer ||
-      result.response ||
-      result.answer ||
-      result.text ||
-      result.content ||
-      result.message ||
-      result.output ||
-      ""
+      result
     );
-  },
+  }
+
+  if (
+    !result ||
+    typeof result !==
+      "object"
+  ) {
+    return "";
+  }
+
+  return this.cleanText(
+    result.outputText ||
+    result.responseText ||
+    result.finalResponse ||
+    result.output ||
+    result.text ||
+    result.content ||
+    result.response ||
+    result.answer ||
+    result.message ||
+    result.knowledgeAnswer ||
+    ""
+  );
+},
 
   parseModelResponse(
     rawText = ""
