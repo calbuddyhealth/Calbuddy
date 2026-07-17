@@ -318,11 +318,11 @@ window.AriRebirthPipeline = {
           ),
 
       /*
-       * Transitional alias for Delivery stages that still
-       * invoke the prior persistence method name.
-       *
-       * This alias delegates to Conversation Operating State.
-       */
+ * Delegated persistence entry retained for Delivery-stage compatibility.
+ *
+ * The pipeline does not persist thread state directly. This method
+ * delegates completion authority to Conversation Operating State.
+ */
       saveFinalThreadState:
         state =>
           this.completeConversationTurn(
@@ -2662,9 +2662,9 @@ window.AriRebirthPipeline = {
   },
 
   normalizeLifecycleLayer(
-    value = {},
-    compatibilityRan = false
-  ) {
+  value = {},
+  reportedRan = false
+) {
     const source =
       value &&
       typeof value ===
@@ -2676,14 +2676,14 @@ window.AriRebirthPipeline = {
       ran:
         source.ran ===
           true ||
-        compatibilityRan ===
+        reportedRan ===
           true,
 
       ready:
         source.ready ===
           true ||
         (
-          compatibilityRan ===
+          reportedRan ===
             true &&
           source.ready !==
             false
@@ -3240,9 +3240,8 @@ window.AriRebirthPipeline = {
   },
 
   /* =====================================================
-     DEVELOPER LAYER COMPATIBILITY
-  ===================================================== */
-
+   DEVELOPER RUNTIME COORDINATION
+===================================================== */
   async runDeveloperLayer(
     summary = {}
   ) {
@@ -3475,9 +3474,8 @@ window.AriRebirthPipeline = {
   },
 
   /* =====================================================
-     CONTRACT BRIDGE COMPATIBILITY
-  ===================================================== */
-
+   RUNTIME CONTRACT PROJECTION
+===================================================== */
   applyContractBridge(
     summary = {}
   ) {
@@ -4054,39 +4052,46 @@ window.AriRebirthPipeline = {
     );
 
     console.log(
-      "===== FINAL COMPOSITION =====",
-      {
-        stageRan:
-          summary
-            .finalCompositionStageRan ===
-          true,
+  "===== FINAL COMPOSITION =====",
+  {
+    stageRan:
+      summary
+        .finalCompositionStageRan ===
+      true,
 
-        composerRan:
-          summary
-            .languageComposerRan ===
-          true,
+    realizationReady:
+      summary
+        .realizationReady ===
+      true,
 
-        composerAuthorized:
-          summary
-            .languageComposerAuthorized ===
-          true,
+    realizationUsable:
+      summary
+        .realizationUsable ===
+      true,
 
-        usable:
-          summary
-            .finalResponseUsable ===
-          true,
+    finalResponseUsable:
+      summary
+        .finalResponseUsable ===
+      true,
 
-        source:
-          summary
-            .finalResponseSource ||
-          null,
+    finalResponseAuthorized:
+      summary
+        .finalResponseAuthorized ===
+      true,
 
-        failureReason:
-          summary
-            .finalResponseFailureReason ||
-          null
-      }
-    );
+    source:
+      summary
+        .finalResponseSource ||
+      summary
+        .finalCompositionStageSource ||
+      null,
+
+    failureReason:
+      summary
+        .finalResponseFailureReason ||
+      null
+  }
+);
 
     console.log(
       "===== DELIVERY PACKET =====",
@@ -4141,157 +4146,159 @@ window.AriRebirthPipeline = {
   ===================================================== */
 
   getAuthorityBoundaries() {
-    return {
-      canNormalizeRuntimeRequest:
-        true,
+  return {
+    canNormalizeRuntimeRequest:
+      true,
 
-      canClearPriorTurnOutputs:
-        true,
+    canClearPriorTurnOutputs:
+      true,
 
-      canPreserveCanonicalCurrentTurn:
-        true,
+    canPreserveCanonicalCurrentTurn:
+      true,
 
-      canBeginConversationOperatingState:
-        true,
+    canBeginConversationOperatingState:
+      true,
 
-      canCompleteConversationOperatingState:
-        true,
+    canCompleteConversationOperatingState:
+      true,
 
-      canPreserveExternalEvidence:
-        true,
+    canPreserveExternalEvidence:
+      true,
 
-      canExecutePerceptionLayer:
-        true,
+    canCoordinateDeveloperRuntime:
+      true,
 
-      canExecuteExecutiveRoutingLayer:
-        true,
+    canProjectRuntimeContracts:
+      true,
 
-      canExecuteDeliberationLayer:
-        true,
+    canExecutePerceptionLayer:
+      true,
 
-      canExecuteExpressionLayer:
-        true,
+    canExecuteExecutiveRoutingLayer:
+      true,
 
-      canExecuteDeliveryLayer:
-        true,
+    canExecuteDeliberationLayer:
+      true,
 
-      canEnforceLayerOrder:
-        true,
+    canExecuteExpressionLayer:
+      true,
 
-      canRecordLifecycleFailures:
-        true,
+    canExecuteDeliveryLayer:
+      true,
 
-      canNormalizeDeliveryResult:
-        true,
+    canEnforceLayerOrder:
+      true,
 
-      canSaveApplicationConversationHistory:
-        true,
+    canRecordLifecycleFailures:
+      true,
 
-      canLoadPersistedThreadContextDirectly:
-        false,
+    canNormalizeAuthoritativeDelivery:
+      true,
 
-      canNormalizeStoredTurnsDirectly:
-        false,
+    canSaveApplicationConversationHistory:
+      true,
 
-      canBuildThreadContextDirectly:
-        false,
+    canLoadPersistedThreadContextDirectly:
+      false,
 
-      canBuildReferenceCandidatesDirectly:
-        false,
+    canNormalizeStoredTurnsDirectly:
+      false,
 
-      canPersistThreadStateDirectly:
-        false,
+    canBuildThreadContextDirectly:
+      false,
 
-      canClassifyConversation:
-        false,
+    canBuildReferenceCandidatesDirectly:
+      false,
 
-      canInterpretSemanticMeaning:
-        false,
+    canPersistThreadStateDirectly:
+      false,
 
-      canChooseConversationFunction:
-        false,
+    canClassifyConversation:
+      false,
 
-      canChoosePrimaryRoute:
-        false,
+    canInterpretSemanticMeaning:
+      false,
 
-      canDetermineSafetySeverity:
-        false,
+    canChooseConversationFunction:
+      false,
 
-      canCreateResponsePlan:
-        false,
+    canChoosePrimaryRoute:
+      false,
 
-      canCreateComposerPacket:
-        false,
+    canDetermineSafetySeverity:
+      false,
 
-      canRunBlueprintWriter:
-        false,
+    canCreateResponsePlan:
+      false,
 
-      canRunAIWriter:
-        false,
+    canModifyResponsePlan:
+      false,
 
-      canGenerateResponseCandidate:
-        false,
+    canExecuteExpressionStagesDirectly:
+      false,
 
-      canArbitrateDrafts:
-        false,
+    canGenerateResponseRealizationDirectly:
+      false,
 
-      canSelectDraft:
-        false,
+    canComposeFinalResponse:
+      false,
 
-      canComposeFinalResponse:
-        false,
+    canSelectFinalResponse:
+      false,
 
-      canInferFinalResponseFromIntermediateFields:
-        false,
+    canRewriteFinalResponse:
+      false,
 
-      canUseFinalResponseAsDeliveryFallback:
-        false,
+    canInferFinalResponseFromIntermediateFields:
+      false,
 
-      canOverrideDeliveryResult:
-        false,
+    canUseIntermediateOutputAsDeliveryFallback:
+      false,
 
-      canExecuteApplicationWrites:
-        false,
+    canOverrideDeliveryResult:
+      false,
 
-      canAccessSupabaseDirectly:
-        false,
+    canExecuteApplicationWrites:
+      false,
 
-      canRetrieveLongTermUserMemory:
-        false,
+    canAccessSupabaseDirectly:
+      false,
 
-      canStoreLongTermUserMemory:
-        false,
+    canRetrieveLongTermUserMemory:
+      false,
 
-      role:
-        "canonical_realization_native_five_layer_runtime_with_cos_delegation"
-    };
-  },
+    canStoreLongTermUserMemory:
+      false,
+
+    role:
+      "canonical_realization_native_five_layer_runtime_with_cos_delegation"
+  };
+},
 
   cannotSet() {
-    return [
-      "conversationFunction",
-      "semanticMeaning",
-      "primaryLane",
-      "routingDecision",
-      "riskLevel",
-      "safetyDisposition",
-      "canonicalResponsePlan",
-      "responseGoal",
-      "responseShape",
-      "responseMoves",
-      "composerPacket",
-      "realizationResponseMeaning",
-      "finalResponseLanguage",
-      "developerIntent",
-      "approvedActions",
-      "memorySaveDecision",
-      "toolExecutionDecision",
-      "threadContext",
-      "recentTurns",
-      "referenceCandidates",
-      "persistedThreadState"
-    ];
-  },
+  return [
+    "conversationFunction",
+    "semanticMeaning",
+    "primaryLane",
+    "routingDecision",
+    "riskLevel",
+    "safetyDisposition",
+    "canonicalResponsePlan",
+    "responseGoal",
+    "responseShape",
+    "responseMoves",
+    "realizationResponseMeaning",
+    "finalResponseLanguage",
+    "developerIntent",
+    "approvedActions",
+    "memorySaveDecision",
+    "toolExecutionDecision",
+    "threadContext",
+    "recentTurns",
+    "referenceCandidates",
+    "persistedThreadState"
+  ];
+},
 
   /* =====================================================
      VALIDATION
@@ -4302,32 +4309,31 @@ window.AriRebirthPipeline = {
       this.getAuthorityBoundaries();
 
     const forbiddenTrue = [
-      "canLoadPersistedThreadContextDirectly",
-      "canNormalizeStoredTurnsDirectly",
-      "canBuildThreadContextDirectly",
-      "canBuildReferenceCandidatesDirectly",
-      "canPersistThreadStateDirectly",
-      "canClassifyConversation",
-      "canInterpretSemanticMeaning",
-      "canChooseConversationFunction",
-      "canChoosePrimaryRoute",
-      "canDetermineSafetySeverity",
-      "canCreateResponsePlan",
-      "canCreateComposerPacket",
-      "canRunBlueprintWriter",
-      "canRunAIWriter",
-      "canGenerateResponseCandidate",
-      "canArbitrateDrafts",
-      "canSelectDraft",
-      "canComposeFinalResponse",
-      "canInferFinalResponseFromIntermediateFields",
-      "canUseFinalResponseAsDeliveryFallback",
-      "canOverrideDeliveryResult",
-      "canExecuteApplicationWrites",
-      "canAccessSupabaseDirectly",
-      "canRetrieveLongTermUserMemory",
-      "canStoreLongTermUserMemory"
-    ];
+  "canLoadPersistedThreadContextDirectly",
+  "canNormalizeStoredTurnsDirectly",
+  "canBuildThreadContextDirectly",
+  "canBuildReferenceCandidatesDirectly",
+  "canPersistThreadStateDirectly",
+  "canClassifyConversation",
+  "canInterpretSemanticMeaning",
+  "canChooseConversationFunction",
+  "canChoosePrimaryRoute",
+  "canDetermineSafetySeverity",
+  "canCreateResponsePlan",
+  "canModifyResponsePlan",
+  "canExecuteExpressionStagesDirectly",
+  "canGenerateResponseRealizationDirectly",
+  "canComposeFinalResponse",
+  "canSelectFinalResponse",
+  "canRewriteFinalResponse",
+  "canInferFinalResponseFromIntermediateFields",
+  "canUseIntermediateOutputAsDeliveryFallback",
+  "canOverrideDeliveryResult",
+  "canExecuteApplicationWrites",
+  "canAccessSupabaseDirectly",
+  "canRetrieveLongTermUserMemory",
+  "canStoreLongTermUserMemory"
+];
 
     const errors =
       forbiddenTrue
@@ -4515,70 +4521,6 @@ window.AriRebirthPipeline = {
             `${name}_not_loaded`
         );
 
-    const legacyComponents = [
-      [
-        "AriBlueprintWriter",
-        window
-          .AriBlueprintWriter
-      ],
-
-      [
-        "AriAIWriter",
-        window
-          .AriAIWriter
-      ],
-
-      [
-        "AriResponseCandidateArbiter",
-        window
-          .AriResponseCandidateArbiter
-      ],
-
-      [
-        "AriLanguageComposerV9",
-        window
-          .AriLanguageComposerV9
-      ],
-
-      [
-        "AriDraftGenerationStage",
-        window
-          .AriDraftGenerationStage
-      ],
-
-      [
-        "AriDraftArbitrationStage",
-        window
-          .AriDraftArbitrationStage
-      ]
-    ];
-
-    const legacyLoaded =
-      legacyComponents
-        .filter(
-          ([
-            _name,
-            component
-          ]) =>
-            Boolean(
-              component
-            )
-        )
-        .map(
-          ([
-            name
-          ]) =>
-            name
-        );
-
-    legacyLoaded.forEach(
-      name => {
-        warnings.push(
-          `${name}_legacy_component_still_loaded`
-        );
-      }
-    );
-
     return {
       valid:
         errors.length ===
@@ -4607,96 +4549,6 @@ window.AriRebirthPipeline = {
         this.uniqueValues(
           warnings
         ),
-
-      legacyLoaded,
-
-      checks: {
-        canonicalTurnPreserved:
-          true,
-
-        priorTurnOutputsCleared:
-          authority
-            .canClearPriorTurnOutputs ===
-          true,
-
-        conversationOperatingStateDelegation:
-          true,
-
-        directThreadLoadingRemoved:
-          authority
-            .canLoadPersistedThreadContextDirectly ===
-          false,
-
-        directThreadNormalizationRemoved:
-          authority
-            .canNormalizeStoredTurnsDirectly ===
-          false,
-
-        directReferenceCandidateBuildingRemoved:
-          authority
-            .canBuildReferenceCandidatesDirectly ===
-          false,
-
-        directThreadPersistenceRemoved:
-          authority
-            .canPersistThreadStateDirectly ===
-          false,
-
-        fiveLayerOrderEnforced:
-          true,
-
-        layerExecutionSinglePass:
-          true,
-
-        responseRealizationRequired:
-          true,
-
-        singleLanguageComposerRequired:
-          true,
-
-        blueprintWriterDisabled:
-          authority
-            .canRunBlueprintWriter ===
-          false,
-
-        aiWriterDisabled:
-          authority
-            .canRunAIWriter ===
-          false,
-
-        candidateGenerationDisabled:
-          authority
-            .canGenerateResponseCandidate ===
-          false,
-
-        draftArbitrationDisabled:
-          authority
-            .canArbitrateDrafts ===
-          false,
-
-        dedicatedDeliveryResultRequired:
-          true,
-
-        finalResponseCompatibilityFallbackDisabled:
-          authority
-            .canUseFinalResponseAsDeliveryFallback ===
-          false,
-
-        responseCompositionDisabled:
-          authority
-            .canComposeFinalResponse ===
-          false,
-
-        deliveryOverrideDisabled:
-          authority
-            .canOverrideDeliveryResult ===
-          false,
-
-        directSupabaseAccessDisabled:
-          authority
-            .canAccessSupabaseDirectly ===
-          false
-      }
     };
   },
 
