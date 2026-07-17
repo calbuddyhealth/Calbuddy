@@ -2,10 +2,11 @@
 // Ari Elliptical Follow-Up Resolver
 //
 // Purpose:
-// Resolve context-dependent follow-up turns whose complete meaning depends
-// on an immediately available conversational anchor.
+// Detect context-dependent follow-up turns, prepare a bounded continuity
+// packet, ask the configured model layer to resolve the omitted meaning,
+// validate the model result, and publish a canonical continuity result.
 //
-// V2.0.0 — Structural Deixis Detection / Opinion Follow-Up Resolution
+// V3.0.0 — AI-Assisted Ellipsis Resolution / Deterministic Governance
 //
 // Execution position:
 //
@@ -18,79 +19,70 @@
 // Continuity Packet
 //
 // Responsibilities:
-// - Detect omitted subjects, objects, propositions, events, options,
-//   quantities, reasons, methods, sources, consequences, and opinions.
-// - Detect demonstrative references such as "that", "this", "it",
-//   "that one", "the other one", and "what you said".
 // - Preserve the original current-turn text exactly.
-// - Select the closest compatible recent-thread anchor.
-// - Inherit only the minimum context needed to complete the turn.
-// - Produce a resolved current-turn question for downstream reasoning.
-// - Surface ambiguity instead of inventing an anchor.
+// - Detect likely context dependence with lightweight structural signals.
+// - Collect only the nearest useful conversation context.
+// - Ask the configured Ari model layer to resolve the follow-up.
+// - Require structured model output.
+// - Reject unsupported, malformed, invented, or overconfident resolutions.
 // - Publish compatibility fields consumed by the continuity pipeline.
 //
 // Non-responsibilities:
-// - Does not decide whether the continuity stage executes.
+// - Does not answer the user.
+// - Does not select the conversation function or executive lane.
 // - Does not replace the Semantic Frame Builder.
 // - Does not replace the Entity & Reference Resolver.
-// - Does not select the conversation function or executive lane.
-// - Does not answer the user.
 // - Does not change safety severity.
 // - Does not retrieve long-term memory.
 // - Does not persist thread state.
+// - Does not independently invent a resolved meaning.
 
 window.Ari = window.Ari || {};
 
 window.AriEllipticalFollowUpResolver = {
-  version: "2.0.0",
-  schemaVersion: "2.0.0",
+  version: "3.0.0",
+  schemaVersion: "3.0.0",
+
+  config: {
+    maxRecentTurns: 8,
+    maxContextCharacters: 6000,
+    maxResolvedCharacters: 1200,
+    minimumAcceptedConfidence: 0.72
+  },
 
   /* =====================================================
      PUBLIC ENTRY POINT
   ===================================================== */
 
-  resolve(input = {}) {
+  async resolve(input = {}) {
     const summary =
       input.summary ||
       input ||
       {};
 
-    const threadContext =
-      this.readThreadContext(
-        summary
-      );
-
-    const continuityContext =
-      this.readContinuityContext(
-        summary
-      );
-
-    const semanticContext =
-      this.readSemanticContext(
-        summary
-      );
+    const runtime =
+      input.runtime ||
+      summary.runtime ||
+      {};
 
     const currentTurn =
-      this.readCurrentTurn({
-        summary,
-        threadContext,
-        semanticContext
-      });
+      this.readCurrentTurn(summary);
 
-    const recentExchange =
-      this.readRecentExchange({
+    const threadContext =
+      this.readThreadContext(summary);
+
+    const recentTurns =
+      this.collectRecentTurns({
         summary,
         threadContext,
-        continuityContext,
         currentTurn
       });
 
     const detection =
-      this.detectEllipticalFollowUp({
+      this.detectContextDependency({
         currentTurn,
-        recentExchange,
-        continuityContext,
-        semanticContext
+        recentTurns,
+        summary
       });
 
     if (
@@ -100,99 +92,71 @@ window.AriEllipticalFollowUpResolver = {
       const result =
         this.buildNotDetectedResult({
           currentTurn,
-          recentExchange,
-          detection,
-          semanticContext,
-          continuityContext
+          recentTurns,
+          detection
         });
 
-      this.publishResult(
-        result
-      );
+      this.publishResult(result);
 
       return this.buildReturnPayload(
         result
       );
     }
 
-    const familyResolution =
-      this.resolveFollowUpFamily({
+    const resolutionPacket =
+      this.buildResolutionPacket({
         currentTurn,
+        recentTurns,
         detection,
-        semanticContext,
-        recentExchange
+        summary
       });
 
-    const anchorCandidates =
-      this.buildAnchorCandidates({
+    let modelResponse = null;
+    let modelError = null;
+
+    try {
+      modelResponse =
+        await this.invokeModelResolver({
+          packet:
+            resolutionPacket,
+
+          runtime,
+          summary
+        });
+    } catch (error) {
+      modelError =
+        this.serializeError(
+          error
+        );
+    }
+
+    const parsed =
+      this.parseModelResponse(
+        modelResponse
+      );
+
+    const validation =
+      this.validateModelResolution({
+        parsed,
+        packet:
+          resolutionPacket,
+
         currentTurn,
-        recentExchange,
-        semanticContext,
-        continuityContext,
-        familyResolution
-      });
-
-    const rankedAnchors =
-      this.rankAnchorCandidates({
-        candidates:
-          anchorCandidates,
-
-        currentTurn,
-        familyResolution,
-        recentExchange
-      });
-
-    const anchorDecision =
-      this.selectAnchor({
-        rankedAnchors,
-        currentTurn,
-        familyResolution
-      });
-
-    const inheritedContext =
-      this.buildInheritedContext({
-        anchorDecision,
-        familyResolution,
-        recentExchange
-      });
-
-    const resolvedTurn =
-      this.buildResolvedTurn({
-        currentTurn,
-        familyResolution,
-        anchorDecision,
-        inheritedContext,
-        recentExchange
-      });
-
-    const quality =
-      this.buildQuality({
-        detection,
-        familyResolution,
-        anchorDecision,
-        resolvedTurn,
-        recentExchange
+        recentTurns
       });
 
     const result =
       this.buildCanonicalResult({
         currentTurn,
-        recentExchange,
+        recentTurns,
         detection,
-        familyResolution,
-        anchorCandidates,
-        rankedAnchors,
-        anchorDecision,
-        inheritedContext,
-        resolvedTurn,
-        semanticContext,
-        continuityContext,
-        quality
+        resolutionPacket,
+        parsed,
+        validation,
+        modelError
       });
 
-    this.publishResult(
-      result
-    );
+    this.publishResult(result);
 
     return this.buildReturnPayload(
       result
@@ -203,11 +167,9 @@ window.AriEllipticalFollowUpResolver = {
      CURRENT TURN
   ===================================================== */
 
-  readCurrentTurn({
-    summary = {},
-    threadContext = {},
-    semanticContext = {}
-  } = {}) {
+  readCurrentTurn(
+    summary = {}
+  ) {
     const originalText =
       this.clean(
         summary.originalUserMessage ||
@@ -215,9 +177,11 @@ window.AriEllipticalFollowUpResolver = {
         summary.message ||
         summary.input ||
         summary.normalizedMessage ||
-        threadContext.currentTurn
+        summary.threadContext
+          ?.currentTurn
           ?.originalText ||
-        threadContext.currentTurn
+        summary.threadContext
+          ?.currentTurn
           ?.text ||
         ""
       );
@@ -236,10 +200,11 @@ window.AriEllipticalFollowUpResolver = {
       turnId:
         summary.turnId ||
         summary.currentTurnId ||
-        semanticContext.turnId ||
-        threadContext.currentTurn
+        summary.threadContext
+          ?.currentTurn
           ?.turnId ||
-        threadContext.currentTurn
+        summary.threadContext
+          ?.currentTurn
           ?.id ||
         this.createStableId(
           "turn",
@@ -261,35 +226,6 @@ window.AriEllipticalFollowUpResolver = {
       characterCount:
         originalText.length,
 
-      punctuationOnly:
-        Boolean(
-          originalText
-        ) &&
-        !/[a-z0-9]/i.test(
-          originalText
-        ),
-
-      endsWithQuestionMark:
-        /\?$/.test(
-          originalText
-        ),
-
-      beginsWithQuestionWord:
-        /^(?:why|how|what|who|where|when|which)\b/
-          .test(
-            normalizedText
-          ),
-
-      demonstratives:
-        this.detectDemonstratives(
-          normalizedText
-        ),
-
-      omittedObjectPressure:
-        this.detectOmittedObjectPressure(
-          normalizedText
-        ),
-
       authority:
         "current_turn_record_only"
     };
@@ -304,39 +240,27 @@ window.AriEllipticalFollowUpResolver = {
   ) {
     const candidates = [
       summary.threadContext,
-
       summary
         .threadUnderstanding
         ?.threadContext,
-
       summary
         .threadUnderstandingResult
         ?.threadContext,
-
       summary
         .continuityResults
         ?.outputs
         ?.thread
         ?.threadContext,
-
       summary
         .continuityResults
         ?.outputs
         ?.thread,
-
       summary
         .continuityPacket
         ?.threadContext,
-
-      summary
-        .contextAssembler
-        ?.threadContext,
-
       summary.threadState,
-
       window.Ari
         ?.threadContext,
-
       window.Ari
         ?.threadUnderstanding
         ?.threadContext
@@ -378,477 +302,32 @@ window.AriEllipticalFollowUpResolver = {
           found.messages
         ),
 
-      referenceCandidates:
-        this.asArray(
-          found.referenceCandidates
-        ),
-
-      continuitySignals:
-        found.continuitySignals ||
-        {},
-
-      workingContext:
-        found.workingContext ||
-        null,
-
       source:
         found.source ||
         "thread_context_fallback"
     };
   },
 
-  readContinuityContext(
-    summary = {}
-  ) {
-    const semanticContinuity =
-      summary.semanticFrame
-        ?.continuity ||
-      summary.semanticSummary
-        ?.continuity ||
-      summary
-        .perceptionReconciliation
-        ?.semanticSummary
-        ?.continuity ||
-      summary.canonicalMeaning
-        ?.continuity ||
-      summary
-        .semanticFrameBuilder
-        ?.canonicalMeaning
-        ?.continuity ||
-      {};
-
-    const laneRouting =
-      summary.laneSplit
-        ?.routing ||
-      summary.routingDecision ||
-      summary.routingContract ||
-      {};
-
-    return {
-      requiresPriorContext:
-        semanticContinuity
-          .requiresPriorContext ===
-          true ||
-        summary
-          .shouldUseContinuity ===
-          true ||
-        laneRouting.useThread ===
-          true,
-
-      isContinuation:
-        semanticContinuity
-          .isContinuation ===
-          true ||
-        summary.isFollowUp ===
-          true ||
-        summary.conversationMode
-          ?.isFollowUp ===
-          true,
-
-      referencesPriorContext:
-        semanticContinuity
-          .referencesPriorContext ===
-          true,
-
-      priorContextAvailable:
-        semanticContinuity
-          .priorContextAvailable !==
-          false,
-
-      previousAnswerSummary:
-        semanticContinuity
-          .previousAnswerSummary ||
-        summary.previousAnswerSummary ||
-        null,
-
-      anchor:
-        semanticContinuity.anchor ||
-        null,
-
-      anchorResolved:
-        semanticContinuity
-          .anchorResolved ===
-          true,
-
-      missingAnchor:
-        semanticContinuity
-          .missingAnchor ===
-          true,
-
-      contextDependency:
-        this.normalizeConfidence(
-          semanticContinuity
-            .contextDependency ??
-          summary.contextDependency ??
-          0
-        ),
-
-      followUpPressure:
-        this.normalizeConfidence(
-          semanticContinuity
-            .followUpPressure ??
-          summary.followUpPressure ??
-          0
-        ),
-
-      routeUsesThread:
-        laneRouting.useThread ===
-          true,
-
-      routeUsesReferenceResolution:
-        laneRouting
-          .useReferenceResolution ===
-          true,
-
-      source:
-        "preserved_continuity_context",
-
-      authority:
-        "continuity_evidence_only"
-    };
-  },
-
-  readSemanticContext(
-    summary = {}
-  ) {
-    const canonicalMeaning =
-      summary.canonicalMeaning ||
-      summary.semanticSummary
-        ?.canonicalMeaning ||
-      summary.semanticFrame
-        ?.canonicalMeaning ||
-      summary
-        .semanticFrameBuilder
-        ?.canonicalMeaning ||
-      summary
-        .perceptionReconciliation
-        ?.semanticSummary
-        ?.canonicalMeaning ||
-      {};
-
-    const semanticSummary =
-      summary.semanticSummary ||
-      summary.semanticFrame ||
-      summary
-        .perceptionReconciliation
-        ?.semanticSummary ||
-      {};
-
-    const semanticStructure =
-      summary.semanticStructure ||
-      summary.currentSemanticStructure ||
-      summary
-        .threadUnderstanding
-        ?.semanticStructure ||
-      window.Ari
-        ?.semanticStructure ||
-      {};
-
-    const ambiguity =
-      canonicalMeaning.ambiguity ||
-      semanticSummary.ambiguity ||
-      {};
-
-    const slotCompleteness =
-      canonicalMeaning
-        .slotCompleteness ||
-      semanticSummary
-        .framePriority
-        ?.slotCompleteness ||
-      {};
-
-    const target =
-      canonicalMeaning.target ||
-      semanticSummary.target ||
-      null;
-
-    const targetObject =
-      canonicalMeaning
-        .targetObject ||
-      canonicalMeaning.object ||
-      semanticSummary
-        .targetObject ||
-      null;
-
-    return {
-      turnId:
-        canonicalMeaning.turnId ||
-        semanticStructure.turnId ||
-        summary.turnId ||
-        null,
-
-      speechAct:
-        canonicalMeaning.speechAct ||
-        semanticSummary.speechAct ||
-        null,
-
-      interactionFamily:
-        canonicalMeaning
-          .interactionFamily ||
-        semanticSummary
-          .interactionFamily ||
-        null,
-
-      intentFamily:
-        canonicalMeaning.intentFamily ||
-        semanticSummary.intentFamily ||
-        null,
-
-      requestedOperation:
-        canonicalMeaning
-          .requestedOperation ||
-        semanticSummary.operation ||
-        semanticSummary.intent ||
-        null,
-
-      requestedOutput:
-        canonicalMeaning
-          .requestedOutput ||
-        semanticSummary
-          .requestedOutput ||
-        null,
-
-      subject:
-        canonicalMeaning.subject ||
-        semanticSummary.subject ||
-        null,
-
-      target,
-
-      targetObject,
-
-      object:
-        targetObject,
-
-      referent:
-        canonicalMeaning.referent ||
-        semanticSummary.referent ||
-        null,
-
-      options:
-        this.asArray(
-          canonicalMeaning.options ||
-          semanticSummary.options
-        ),
-
-      criteria:
-        this.asArray(
-          canonicalMeaning.criteria ||
-          semanticSummary.criteria
-        ),
-
-      unresolvedSlots:
-        this.asArray(
-          ambiguity.unresolvedSlots ||
-          slotCompleteness.missing
-        ),
-
-      ambiguityPresent:
-        ambiguity.present ===
-          true ||
-        ambiguity.ambiguous ===
-          true,
-
-      requiresClarification:
-        ambiguity
-          .requiresClarification ===
-          true,
-
-      slotCompletenessScore:
-        this.normalizeConfidence(
-          slotCompleteness.score ??
-          1
-        ),
-
-      references:
-        this.asArray(
-          semanticStructure.references
-        ),
-
-      entities:
-        this.asArray(
-          semanticStructure.entities
-        ),
-
-      events:
-        this.asArray(
-          semanticStructure.events
-        ),
-
-      claims:
-        this.asArray(
-          semanticStructure.claims
-        ),
-
-      quantities:
-        this.asArray(
-          semanticStructure.quantities
-        ),
-
-      source:
-        "preserved_semantic_context",
-
-      authority:
-        "semantic_context_read_only"
-    };
-  },
-
-  /* =====================================================
-     RECENT EXCHANGE
-  ===================================================== */
-
-  readRecentExchange({
-    summary = {},
-    threadContext = {},
-    continuityContext = {},
-    currentTurn = {}
-  } = {}) {
-    const recentTurns =
-      this.collectRecentTurns({
-        summary,
-        threadContext
-      });
-
-    const priorTurns =
-      recentTurns.filter(
-        turn =>
-          !this.isCurrentTurn({
-            turn,
-            currentTurn
-          })
-      );
-
-    const previousAssistantTurn =
-      this.findLastTurnByRole(
-        priorTurns,
-        "assistant"
-      ) ||
-      this.normalizeTurn(
-        threadContext
-          .immediatePreviousAssistantTurn
-      );
-
-    const previousUserTurn =
-      this.findPreviousUserTurnBeforeAssistant({
-        turns:
-          priorTurns,
-
-        assistantTurn:
-          previousAssistantTurn
-      }) ||
-      this.findLastTurnByRole(
-        priorTurns,
-        "user"
-      ) ||
-      this.normalizeTurn(
-        threadContext
-          .immediatePreviousUserTurn
-      );
-
-    const previousAssistantText =
-      this.clean(
-        previousAssistantTurn
-          ?.text ||
-        continuityContext
-          .previousAnswerSummary ||
-        ""
-      );
-
-    const previousUserText =
-      this.clean(
-        previousUserTurn
-          ?.text ||
-        ""
-      );
-
-    return {
-      available:
-        Boolean(
-          previousAssistantText ||
-          previousUserText
-        ),
-
-      previousUserTurn:
-        previousUserTurn ||
-        null,
-
-      previousAssistantTurn:
-        previousAssistantTurn ||
-        null,
-
-      previousUserText,
-
-      previousAssistantText,
-
-      recentTurns:
-        priorTurns,
-
-      priorPairAvailable:
-        Boolean(
-          previousUserText &&
-          previousAssistantText
-        ),
-
-      previousAnswerContainsClaim:
-        this.looksLikeClaim(
-          previousAssistantText
-        ),
-
-      previousAnswerContainsChoice:
-        this.looksLikeChoice(
-          previousAssistantText
-        ),
-
-      previousAnswerContainsQuantity:
-        this.looksLikeQuantity(
-          previousAssistantText
-        ),
-
-      previousAnswerContainsRecommendation:
-        this.looksLikeRecommendation(
-          previousAssistantText
-        ),
-
-      previousQuestionContainsOptions:
-        this.looksLikeOptionQuestion(
-          previousUserText
-        ),
-
-      authority:
-        "recent_exchange_record_only"
-    };
-  },
-
   collectRecentTurns({
     summary = {},
-    threadContext = {}
+    threadContext = {},
+    currentTurn = {}
   } = {}) {
     const sources = [
       threadContext.recentTurns,
-
       summary.recentMessages,
-
       summary.threadMessages,
-
       summary.conversationHistory,
-
-      summary
-        .semanticSummary
-        ?.continuity
-        ?.recentMessages,
-
-      summary
-        .semanticFrame
-        ?.continuity
-        ?.recentMessages,
-
       summary
         .continuityPacket
         ?.recentTurns,
-
       summary
         .threadState
-        ?.recentMessages
+        ?.recentMessages,
+      threadContext
+        .immediatePreviousUserTurn,
+      threadContext
+        .immediatePreviousAssistantTurn
     ];
 
     const collected = [];
@@ -865,7 +344,13 @@ window.AriEllipticalFollowUpResolver = {
               );
 
             if (
-              normalized?.text
+              normalized?.text &&
+              !this.isCurrentTurn({
+                turn:
+                  normalized,
+
+                currentTurn
+              })
             ) {
               collected.push(
                 normalized
@@ -876,32 +361,14 @@ window.AriEllipticalFollowUpResolver = {
       }
     );
 
-    [
-      threadContext
-        .immediatePreviousUserTurn,
-
-      threadContext
-        .immediatePreviousAssistantTurn
-    ]
-      .map(
-        turn =>
-          this.normalizeTurn(
-            turn
-          )
-      )
-      .filter(Boolean)
-      .forEach(
-        turn =>
-          collected.push(
-            turn
-          )
+    const deduped =
+      this.dedupeTurns(
+        collected
       );
 
-    return this
-      .dedupeTurns(
-        collected
-      )
-      .slice(-16);
+    return deduped.slice(
+      -this.config.maxRecentTurns
+    );
   },
 
   normalizeTurn(
@@ -920,34 +387,23 @@ window.AriEllipticalFollowUpResolver = {
           turn
         );
 
-      if (!text) {
-        return null;
-      }
+      return text
+        ? {
+            id:
+              this.createStableId(
+                "turn",
+                text
+              ),
 
-      return {
-        id:
-          this.createStableId(
-            "turn",
-            text
-          ),
+            role:
+              null,
 
-        role:
-          null,
+            text,
 
-        text,
-
-        createdAt:
-          null,
-
-        entities: [],
-        events: [],
-        claims: [],
-        quantities: [],
-        options: [],
-
-        raw:
-          turn
-      };
+            createdAt:
+              null
+          }
+        : null;
     }
 
     if (
@@ -981,7 +437,8 @@ window.AriEllipticalFollowUpResolver = {
           [
             turn.role,
             text,
-            turn.createdAt
+            turn.createdAt ||
+              turn.timestamp
           ].join("|")
         ),
 
@@ -1001,35 +458,6 @@ window.AriEllipticalFollowUpResolver = {
         turn.timestamp ||
         null,
 
-      entities:
-        this.asArray(
-          turn.entities
-        ),
-
-      events:
-        this.asArray(
-          turn.events
-        ),
-
-      claims:
-        this.asArray(
-          turn.claims
-        ),
-
-      quantities:
-        this.asArray(
-          turn.quantities
-        ),
-
-      options:
-        this.asArray(
-          turn.options
-        ),
-
-      semanticSummary:
-        turn.semanticSummary ||
-        null,
-
       raw:
         turn
     };
@@ -1040,294 +468,170 @@ window.AriEllipticalFollowUpResolver = {
     currentTurn = {}
   } = {}) {
     if (
-      currentTurn.turnId &&
       turn.id &&
+      currentTurn.turnId &&
       String(
-        currentTurn.turnId
+        turn.id
       ) ===
         String(
-          turn.id
+          currentTurn.turnId
         )
     ) {
       return true;
     }
 
-    const currentText =
-      this.normalize(
-        currentTurn.originalText
-      );
-
-    const turnText =
+    return Boolean(
+      turn.text &&
+      currentTurn.originalText &&
       this.normalize(
         turn.text
-      );
-
-    return Boolean(
-      currentText &&
-      turnText &&
-      currentText ===
-        turnText
+      ) ===
+        this.normalize(
+          currentTurn.originalText
+        )
     );
   },
 
-  findLastTurnByRole(
-    turns = [],
-    role = ""
+  dedupeTurns(
+    turns = []
   ) {
-    const normalizedRole =
-      this.normalizeRole(
-        role
-      );
+    const seen =
+      new Set();
 
-    for (
-      let index =
-        this.asArray(
-          turns
-        ).length -
-        1;
+    return this.asArray(
+      turns
+    ).filter(
+      turn => {
+        const key =
+          [
+            turn.id ||
+              "no_id",
+            turn.role ||
+              "no_role",
+            this.normalize(
+              turn.text
+            )
+          ].join("|");
 
-      index >= 0;
-
-      index -= 1
-    ) {
-      const turn =
-        turns[index];
-
-      if (
-        this.normalizeRole(
-          turn?.role
-        ) ===
-        normalizedRole
-      ) {
-        return turn;
-      }
-    }
-
-    return null;
-  },
-
-  findPreviousUserTurnBeforeAssistant({
-    turns = [],
-    assistantTurn = null
-  } = {}) {
-    if (!assistantTurn) {
-      return null;
-    }
-
-    const assistantIndex =
-      turns.findIndex(
-        turn =>
-          turn ===
-            assistantTurn ||
-          (
-            turn.id &&
-            assistantTurn.id &&
-            turn.id ===
-              assistantTurn.id
+        if (
+          !turn.text ||
+          seen.has(
+            key
           )
-      );
+        ) {
+          return false;
+        }
 
-    if (
-      assistantIndex <= 0
-    ) {
-      return null;
-    }
+        seen.add(
+          key
+        );
 
-    for (
-      let index =
-        assistantIndex - 1;
-
-      index >= 0;
-
-      index -= 1
-    ) {
-      if (
-        this.normalizeRole(
-          turns[index]
-            ?.role
-        ) ===
-        "user"
-      ) {
-        return turns[index];
+        return true;
       }
-    }
-
-    return null;
+    );
   },
 
   /* =====================================================
-     STRUCTURAL DETECTION
+     LIGHTWEIGHT DETECTION
   ===================================================== */
 
-  detectEllipticalFollowUp({
+  detectContextDependency({
     currentTurn = {},
-    recentExchange = {},
-    continuityContext = {},
-    semanticContext = {}
+    recentTurns = [],
+    summary = {}
   } = {}) {
-    const patternMatch =
-      this.matchEllipticalPattern(
-        currentTurn.normalizedText
-      );
-
-    const demonstrativeReference =
-      this.detectDemonstratives(
-        currentTurn.normalizedText
-      );
-
-    const omittedObjectPressure =
-      this.detectOmittedObjectPressure(
-        currentTurn.normalizedText
-      );
-
-    const placeholderSemanticTarget =
-      this.semanticTargetIsPlaceholder({
-        semanticContext,
-        currentTurn
-      });
-
-    const missingSemanticSlot =
-      semanticContext
-        .unresolvedSlots
-        .length >
-        0 ||
-      this.semanticTargetMissing(
-        semanticContext
-      ) ||
-      placeholderSemanticTarget;
-
-    const shortTurn =
-      currentTurn.wordCount >
-        0 &&
-      currentTurn.wordCount <=
-        12;
-
-    const veryShortTurn =
-      currentTurn.wordCount >
-        0 &&
-      currentTurn.wordCount <=
-        4;
-
-    const continuityEvidence =
-      continuityContext
-        .requiresPriorContext ||
-      continuityContext
-        .isContinuation ||
-      continuityContext
-        .referencesPriorContext ||
-      continuityContext
-        .contextDependency >=
-        0.5 ||
-      continuityContext
-        .followUpPressure >=
-        0.5;
+    const text =
+      currentTurn.normalizedText;
 
     const priorContextAvailable =
-      recentExchange.available ===
-        true;
+      recentTurns.length >
+      0;
 
-    const explicitPattern =
-      Boolean(
-        patternMatch
-      );
-
-    const genericQuestionWord =
-      /^(?:why|how|what|who|where|when|which|really|and|then|so)\b/
+    const explicitReference =
+      /\b(?:that|this|it|those|these|them|that one|this one|the other one|what you said|your answer|your response|the previous answer)\b/
         .test(
-          currentTurn.normalizedText
+          text
         );
 
-    const structuralDependency =
-      demonstrativeReference.present ===
+    const bareFollowUp =
+      /^(?:why|why not|how|how so|what|who|where|when|which|which one|really|seriously|are you sure|then what|what next|now what|and then|continue|go on|what else|thoughts|your thoughts|what do you think|how do you feel|do you agree|what about it|what about that|what about this)$/i
+        .test(
+          text
+        );
+
+    const shortInterrogative =
+      currentTurn.wordCount >
+        0 &&
+      currentTurn.wordCount <=
+        8 &&
+      /^(?:why|how|what|who|where|when|which)\b/
+        .test(
+          text
+        );
+
+    const upstreamContinuity =
+      summary
+        .shouldUseContinuity ===
         true ||
-      omittedObjectPressure ===
+      summary.isFollowUp ===
         true ||
-      missingSemanticSlot ===
+      summary.conversationMode
+        ?.isFollowUp ===
+        true ||
+      summary.semanticFrame
+        ?.continuity
+        ?.requiresPriorContext ===
+        true ||
+      summary.semanticSummary
+        ?.continuity
+        ?.requiresPriorContext ===
+        true ||
+      summary.laneSplit
+        ?.routing
+        ?.useThread ===
         true;
 
-    const likelyEllipsis =
+    const detected =
       priorContextAvailable &&
       (
-        explicitPattern ||
+        explicitReference ||
+        bareFollowUp ||
+        upstreamContinuity ||
         (
-          shortTurn &&
-          structuralDependency
-        ) ||
-        (
-          veryShortTurn &&
-          genericQuestionWord
+          shortInterrogative &&
+          currentTurn.wordCount <=
+            3
         )
       );
 
-    const fullySpecified =
-      this.looksFullySpecified({
-        text:
-          currentTurn.normalizedText,
-
-        demonstrativeReference,
-
-        placeholderSemanticTarget
-      });
-
-    const detected =
-      likelyEllipsis &&
-      !fullySpecified;
-
     const signals = [];
 
-    if (shortTurn) {
-      signals.push(
-        "short_current_turn"
-      );
-    }
-
-    if (veryShortTurn) {
-      signals.push(
-        "very_short_current_turn"
-      );
-    }
-
-    if (explicitPattern) {
-      signals.push(
-        "elliptical_surface_pattern"
-      );
-    }
-
     if (
-      demonstrativeReference
-        .present
+      explicitReference
     ) {
       signals.push(
-        "unresolved_demonstrative_reference"
+        "explicit_discourse_reference"
       );
     }
 
     if (
-      omittedObjectPressure
+      bareFollowUp
     ) {
       signals.push(
-        "predicate_requires_missing_object"
+        "bare_follow_up_construction"
       );
     }
 
     if (
-      placeholderSemanticTarget
+      shortInterrogative
     ) {
       signals.push(
-        "semantic_target_is_unresolved_placeholder"
+        "short_interrogative"
       );
     }
 
     if (
-      missingSemanticSlot
-    ) {
-      signals.push(
-        "missing_semantic_slot"
-      );
-    }
-
-    if (
-      continuityEvidence
+      upstreamContinuity
     ) {
       signals.push(
         "upstream_continuity_evidence"
@@ -1338,83 +642,52 @@ window.AriEllipticalFollowUpResolver = {
       priorContextAvailable
     ) {
       signals.push(
-        "prior_exchange_available"
-      );
-    }
-
-    if (
-      fullySpecified
-    ) {
-      signals.push(
-        "current_turn_appears_fully_specified"
+        "recent_context_available"
       );
     }
 
     let confidence = 0;
 
-    if (detected) {
+    if (
+      detected
+    ) {
       confidence =
-        0.48;
+        0.55;
 
       if (
-        explicitPattern
+        explicitReference
       ) {
         confidence +=
           0.2;
       }
 
       if (
-        demonstrativeReference
-          .present
+        bareFollowUp
       ) {
         confidence +=
-          0.14;
+          0.15;
       }
 
       if (
-        omittedObjectPressure
+        upstreamContinuity
       ) {
         confidence +=
           0.08;
-      }
-
-      if (
-        placeholderSemanticTarget
-      ) {
-        confidence +=
-          0.06;
-      }
-
-      if (
-        continuityEvidence
-      ) {
-        confidence +=
-          0.04;
       }
     }
 
     return {
       detected,
 
-      patternMatch,
-
-      shortTurn,
-
-      veryShortTurn,
-
-      demonstrativeReference,
-
-      omittedObjectPressure,
-
-      placeholderSemanticTarget,
-
-      missingSemanticSlot,
-
-      continuityEvidence,
-
       priorContextAvailable,
 
-      fullySpecified,
+      explicitReference,
+
+      bareFollowUp,
+
+      shortInterrogative,
+
+      upstreamContinuity,
 
       signals,
 
@@ -1425,2998 +698,639 @@ window.AriEllipticalFollowUpResolver = {
 
       reason:
         detected
-          ? "The current turn requires a recent conversational referent to complete its meaning."
-          : fullySpecified
-            ? "The current turn appears semantically complete without inherited context."
-            : !priorContextAvailable
-              ? "No usable recent exchange was available for elliptical resolution."
-              : "The current turn did not contain sufficient structural evidence of ellipsis.",
+          ? "The turn appears to depend on immediately available conversation context."
+          : !priorContextAvailable
+            ? "No recent conversation context was available."
+            : "The turn appears complete enough to continue without elliptical resolution.",
 
       authority:
-        "elliptical_follow_up_detection_only"
+        "context_dependency_detection_only"
     };
-  },
-
-  detectDemonstratives(
-    normalizedText = ""
-  ) {
-    const text =
-      this.normalize(
-        normalizedText
-      );
-
-    const matches = [];
-
-    const patterns = [
-      {
-        surface:
-          "that",
-
-        pattern:
-          /\bthat\b/
-      },
-
-      {
-        surface:
-          "this",
-
-        pattern:
-          /\bthis\b/
-      },
-
-      {
-        surface:
-          "it",
-
-        pattern:
-          /\bit\b/
-      },
-
-      {
-        surface:
-          "that one",
-
-        pattern:
-          /\bthat one\b/
-      },
-
-      {
-        surface:
-          "this one",
-
-        pattern:
-          /\bthis one\b/
-      },
-
-      {
-        surface:
-          "the other one",
-
-        pattern:
-          /\bthe other one\b/
-      },
-
-      {
-        surface:
-          "what you said",
-
-        pattern:
-          /\bwhat you said\b/
-      },
-
-      {
-        surface:
-          "your answer",
-
-        pattern:
-          /\byour (?:answer|response|point|opinion|recommendation)\b/
-      },
-
-      {
-        surface:
-          "the previous answer",
-
-        pattern:
-          /\bthe previous (?:answer|response|message|point)\b/
-      }
-    ];
-
-    patterns.forEach(
-      item => {
-        if (
-          item.pattern.test(
-            text
-          )
-        ) {
-          matches.push(
-            item.surface
-          );
-        }
-      }
-    );
-
-    return {
-      present:
-        matches.length >
-        0,
-
-      surfaces:
-        [
-          ...new Set(
-            matches
-          )
-        ],
-
-      primarySurface:
-        matches[0] ||
-        null
-    };
-  },
-
-  detectOmittedObjectPressure(
-    normalizedText = ""
-  ) {
-    const text =
-      this.normalize(
-        normalizedText
-      );
-
-    if (!text) {
-      return false;
-    }
-
-    const patterns = [
-      /^(?:what do you think|what do you think about|what do you think of)$/,
-      /^(?:how do you feel|how do you feel about)$/,
-      /^(?:do you agree|would you agree|you agree)$/,
-      /^(?:is that true|is this true|is it true)$/,
-      /^(?:why is that|why is this|why is it)$/,
-      /^(?:how is that|how is this|how is it)$/,
-      /^(?:what does that mean|what does this mean|what does it mean)$/,
-      /^(?:what about that|what about this|what about it)$/,
-      /^(?:really|seriously|are you sure)$/,
-      /^(?:why|how|what|who|where|when|which)$/
-    ];
-
-    return patterns.some(
-      pattern =>
-        pattern.test(
-          text
-        )
-    );
-  },
-
-  matchEllipticalPattern(
-    normalizedText = ""
-  ) {
-    const text =
-      this.normalize(
-        normalizedText
-      );
-
-    if (!text) {
-      return null;
-    }
-
-    const patterns = [
-      {
-        family:
-          "opinion_about_prior_referent",
-
-        operation:
-          "request_opinion",
-
-        pattern:
-          /^(?:so\s+)?what\s+do\s+you\s+think(?:\s+(?:about|of))?\s+(?:that|this|it|what\s+you\s+said|your\s+(?:answer|response|point|opinion))$/
-      },
-
-      {
-        family:
-          "opinion_about_prior_referent",
-
-        operation:
-          "request_opinion",
-
-        pattern:
-          /^(?:so\s+)?what\s+are\s+your\s+thoughts(?:\s+(?:about|on))?\s+(?:that|this|it)$/
-      },
-
-      {
-        family:
-          "emotional_opinion_about_prior_referent",
-
-        operation:
-          "request_emotional_opinion",
-
-        pattern:
-          /^(?:so\s+)?how\s+do\s+you\s+feel(?:\s+about)?\s+(?:that|this|it)$/
-      },
-
-      {
-        family:
-          "agreement_about_prior_referent",
-
-        operation:
-          "request_agreement",
-
-        pattern:
-          /^(?:so\s+)?(?:do|would)\s+you\s+agree(?:\s+with)?\s+(?:that|this|it)$/
-      },
-
-      {
-        family:
-          "causal_explanation",
-
-        operation:
-          "request_reason",
-
-        pattern:
-          /^(?:but\s+)?why(?:\s+though)?$/
-      },
-
-      {
-        family:
-          "causal_explanation",
-
-        operation:
-          "request_reason",
-
-        pattern:
-          /^why\s+(?:is|was|would|does|did)\s+(?:that|this|it)(?:\s+so)?$/
-      },
-
-      {
-        family:
-          "negative_causal_explanation",
-
-        operation:
-          "request_reason_for_rejection",
-
-        pattern:
-          /^why\s+not$/
-      },
-
-      {
-        family:
-          "method_or_mechanism",
-
-        operation:
-          "request_method_or_explanation",
-
-        pattern:
-          /^(?:but\s+)?how(?:\s+so)?$/
-      },
-
-      {
-        family:
-          "method_or_mechanism",
-
-        operation:
-          "request_method_or_explanation",
-
-        pattern:
-          /^how\s+(?:does|did|would|can|could|is|was)\s+(?:that|this|it)(?:\s+work|\s+happen)?$/
-      },
-
-      {
-        family:
-          "confirmation",
-
-        operation:
-          "request_confirmation",
-
-        pattern:
-          /^(?:wait\s+)?(?:really|seriously|for\s+real|are\s+you\s+sure)$/
-      },
-
-      {
-        family:
-          "confirmation",
-
-        operation:
-          "request_confirmation",
-
-        pattern:
-          /^(?:is|was)\s+(?:that|this|it)\s+(?:true|correct|right)$/
-      },
-
-      {
-        family:
-          "clarification",
-
-        operation:
-          "request_clarification",
-
-        pattern:
-          /^(?:what\s+do\s+you\s+mean|meaning|huh|what)$/
-      },
-
-      {
-        family:
-          "clarification",
-
-        operation:
-          "request_clarification",
-
-        pattern:
-          /^what\s+does\s+(?:that|this|it)\s+mean$/
-      },
-
-      {
-        family:
-          "person_identification",
-
-        operation:
-          "request_person",
-
-        pattern:
-          /^who(?:\s+exactly)?$/
-      },
-
-      {
-        family:
-          "location_identification",
-
-        operation:
-          "request_location",
-
-        pattern:
-          /^where(?:\s+exactly)?$/
-      },
-
-      {
-        family:
-          "time_identification",
-
-        operation:
-          "request_time",
-
-        pattern:
-          /^when(?:\s+exactly)?$/
-      },
-
-      {
-        family:
-          "selection",
-
-        operation:
-          "request_selection",
-
-        pattern:
-          /^which(?:\s+one)?$/
-      },
-
-      {
-        family:
-          "quantity_or_degree",
-
-        operation:
-          "request_quantity_or_degree",
-
-        pattern:
-          /^how\s+(?:much|many|big|small|long|far|often|old)$/
-      },
-
-      {
-        family:
-          "severity",
-
-        operation:
-          "request_severity",
-
-        pattern:
-          /^how\s+(?:bad|serious|severe)$/
-      },
-
-      {
-        family:
-          "probability",
-
-        operation:
-          "request_probability",
-
-        pattern:
-          /^how\s+likely$/
-      },
-
-      {
-        family:
-          "evidence",
-
-        operation:
-          "request_evidence",
-
-        pattern:
-          /^(?:based\s+on\s+what|what\s+is\s+that\s+based\s+on|what\s+evidence)$/
-      },
-
-      {
-        family:
-          "source",
-
-        operation:
-          "request_source",
-
-        pattern:
-          /^(?:says\s+who|according\s+to\s+who|source)$/
-      },
-
-      {
-        family:
-          "significance",
-
-        operation:
-          "request_significance",
-
-        pattern:
-          /^(?:so\s+what|why\s+does\s+(?:that|this|it)\s+matter)$/
-      },
-
-      {
-        family:
-          "consequence_or_next_step",
-
-        operation:
-          "request_consequence_or_next_step",
-
-        pattern:
-          /^(?:then\s+what|what\s+next|now\s+what|and\s+then)$/
-      },
-
-      {
-        family:
-          "continuation",
-
-        operation:
-          "request_continuation",
-
-        pattern:
-          /^(?:and|go\s+on|continue|what\s+else)$/
-      },
-
-      {
-        family:
-          "alternative_or_comparison",
-
-        operation:
-          "request_alternative_or_comparison",
-
-        pattern:
-          /^what\s+about(?:\s+that|\s+this|\s+it|\s+the\s+other\s+one|\s+the\s+second\s+one|\s+the\s+first\s+one)?$/
-      },
-
-      {
-        family:
-          "selection_reference",
-
-        operation:
-          "request_referenced_option",
-
-        pattern:
-          /^(?:why|how)\s+(?:that|this)\s+one$/
-      },
-
-      {
-        family:
-          "demonstrative_follow_up",
-
-        operation:
-          "request_about_prior_referent",
-
-        pattern:
-          /^(?:tell\s+me\s+more\s+about|explain|elaborate\s+on)\s+(?:that|this|it)$/
-      }
-    ];
-
-    const match =
-      patterns.find(
-        item =>
-          item.pattern.test(
-            text
-          )
-      );
-
-    if (!match) {
-      return null;
-    }
-
-    return {
-      family:
-        match.family,
-
-      operation:
-        match.operation,
-
-      matchedText:
-        text,
-
-      source:
-        "surface_pattern"
-    };
-  },
-
-  semanticTargetMissing(
-    semanticContext = {}
-  ) {
-    const targetValue =
-      this.extractSemanticValue(
-        semanticContext.target
-      );
-
-    const objectValue =
-      this.extractSemanticValue(
-        semanticContext.targetObject
-      );
-
-    return (
-      !targetValue &&
-      !objectValue
-    );
-  },
-
-  semanticTargetIsPlaceholder({
-    semanticContext = {},
-    currentTurn = {}
-  } = {}) {
-    const values = [
-      this.extractSemanticValue(
-        semanticContext.target
-      ),
-
-      this.extractSemanticValue(
-        semanticContext.targetObject
-      ),
-
-      this.extractSemanticValue(
-        semanticContext.referent
-      )
-    ]
-      .map(
-        value =>
-          this.normalize(
-            value
-          )
-      )
-      .filter(Boolean);
-
-    if (
-      !values.length
-    ) {
-      return false;
-    }
-
-    const currentText =
-      currentTurn.normalizedText ||
-      "";
-
-    return values.some(
-      value =>
-        this.isPlaceholderTarget(
-          value,
-          currentText
-        )
-    );
-  },
-
-  isPlaceholderTarget(
-    value = "",
-    currentText = ""
-  ) {
-    const text =
-      this.normalize(
-        value
-      );
-
-    const placeholders = [
-      "that",
-      "this",
-      "it",
-      "that one",
-      "this one",
-      "the other one",
-      "think about that",
-      "think about this",
-      "think about it",
-      "what do you think about that",
-      "what do you think about this",
-      "what do you think about it",
-      "feel about that",
-      "feel about this",
-      "feel about it",
-      "information request",
-      "previous answer",
-      "prior statement",
-      "the thing",
-      "the topic"
-    ];
-
-    if (
-      placeholders.includes(
-        text
-      )
-    ) {
-      return true;
-    }
-
-    if (
-      /^(?:think|feel|agree|say|mean)\s+(?:about|with)?\s*(?:that|this|it)$/
-        .test(
-          text
-        )
-    ) {
-      return true;
-    }
-
-    if (
-      currentText &&
-      text ===
-        currentText
-    ) {
-      return true;
-    }
-
-    return false;
-  },
-
-  looksFullySpecified({
-    text = "",
-    demonstrativeReference = {},
-    placeholderSemanticTarget = false
-  } = {}) {
-    const normalizedText =
-      this.normalize(
-        text
-      );
-
-    if (!normalizedText) {
-      return false;
-    }
-
-    if (
-      demonstrativeReference
-        .present ||
-      placeholderSemanticTarget
-    ) {
-      return false;
-    }
-
-    const words =
-      normalizedText
-        .split(/\s+/)
-        .filter(Boolean);
-
-    if (
-      words.length <=
-      4
-    ) {
-      return false;
-    }
-
-    const explicitNamedObject =
-      /\b(?:bible|verse|money|prozac|fluoxetine|big bang theory|car|job|file|code|engine|pipeline|person|place|price|problem|answer|reason|choice|option|plan|idea|symptom|medicine|event|team|game|movie|book|relationship|recommendation)\b/
-        .test(
-          normalizedText
-        );
-
-    const unresolvedPronounEnding =
-      /\b(?:that|this|it|one|them|those|these)$/
-        .test(
-          normalizedText
-        );
-
-    if (
-      unresolvedPronounEnding
-    ) {
-      return false;
-    }
-
-    return (
-      words.length >=
-        6 &&
-      explicitNamedObject
-    );
   },
 
   /* =====================================================
-     FOLLOW-UP FAMILY
+     MODEL PACKET
   ===================================================== */
 
-  resolveFollowUpFamily({
+  buildResolutionPacket({
     currentTurn = {},
+    recentTurns = [],
     detection = {},
-    semanticContext = {},
-    recentExchange = {}
+    summary = {}
   } = {}) {
-    if (
-      detection.patternMatch
-    ) {
-      return {
-        family:
-          detection
-            .patternMatch
-            .family,
-
-        operation:
-          detection
-            .patternMatch
-            .operation,
-
-        source:
-          detection
-            .patternMatch
-            .source,
-
-        confidence:
-          0.97
-      };
-    }
-
-    const text =
-      currentTurn.normalizedText;
-
-    let family =
-      "general_elaboration";
-
-    let operation =
-      "request_elaboration";
-
-    if (
-      /what\s+do\s+you\s+think|your\s+thoughts/
-        .test(
-          text
-        )
-    ) {
-      family =
-        "opinion_about_prior_referent";
-
-      operation =
-        "request_opinion";
-    } else if (
-      /how\s+do\s+you\s+feel/
-        .test(
-          text
-        )
-    ) {
-      family =
-        "emotional_opinion_about_prior_referent";
-
-      operation =
-        "request_emotional_opinion";
-    } else if (
-      /(?:do|would)\s+you\s+agree/
-        .test(
-          text
-        )
-    ) {
-      family =
-        "agreement_about_prior_referent";
-
-      operation =
-        "request_agreement";
-    } else if (
-      /^why\b/.test(
-        text
-      )
-    ) {
-      family =
-        "causal_explanation";
-
-      operation =
-        "request_reason";
-    } else if (
-      /^how\b/.test(
-        text
-      )
-    ) {
-      family =
-        "method_or_mechanism";
-
-      operation =
-        "request_method_or_explanation";
-    } else if (
-      /^who\b/.test(
-        text
-      )
-    ) {
-      family =
-        "person_identification";
-
-      operation =
-        "request_person";
-    } else if (
-      /^where\b/.test(
-        text
-      )
-    ) {
-      family =
-        "location_identification";
-
-      operation =
-        "request_location";
-    } else if (
-      /^when\b/.test(
-        text
-      )
-    ) {
-      family =
-        "time_identification";
-
-      operation =
-        "request_time";
-    } else if (
-      /^which\b/.test(
-        text
-      )
-    ) {
-      family =
-        "selection";
-
-      operation =
-        "request_selection";
-    } else if (
-      /^(?:really|seriously)\b/
-        .test(
-          text
-        )
-    ) {
-      family =
-        "confirmation";
-
-      operation =
-        "request_confirmation";
-    } else if (
-      /^then\b/.test(
-        text
-      )
-    ) {
-      family =
-        "consequence_or_next_step";
-
-      operation =
-        "request_consequence_or_next_step";
-    } else if (
-      /^and\b/.test(
-        text
-      )
-    ) {
-      family =
-        "continuation";
-
-      operation =
-        "request_continuation";
-    } else if (
-      /^what\b/.test(
-        text
-      )
-    ) {
-      family =
-        recentExchange
-          .previousQuestionContainsOptions
-          ? "alternative_or_comparison"
-          : "general_elaboration";
-
-      operation =
-        recentExchange
-          .previousQuestionContainsOptions
-          ? "request_alternative_or_comparison"
-          : "request_elaboration";
-    }
-
-    if (
-      semanticContext
-        .unresolvedSlots
-        .includes(
-          "person"
-        )
-    ) {
-      family =
-        "person_identification";
-
-      operation =
-        "request_person";
-    }
-
-    if (
-      semanticContext
-        .unresolvedSlots
-        .includes(
-          "location"
-        )
-    ) {
-      family =
-        "location_identification";
-
-      operation =
-        "request_location";
-    }
-
-    if (
-      semanticContext
-        .unresolvedSlots
-        .includes(
-          "time"
-        )
-    ) {
-      family =
-        "time_identification";
-
-      operation =
-        "request_time";
-    }
+    const boundedTurns =
+      this.boundContextTurns(
+        recentTurns
+      );
 
     return {
-      family,
-      operation,
+      schema:
+        "ari_elliptical_follow_up_model_request",
 
-      source:
-        "structural_family_inference",
+      schemaVersion:
+        this.schemaVersion,
 
-      confidence:
-        0.8
-    };
-  },
+      task:
+        "Resolve the current follow-up turn into a complete standalone user request using only the supplied recent conversation.",
 
-  /* =====================================================
-     ANCHOR CANDIDATES
-  ===================================================== */
-
-  buildAnchorCandidates({
-    recentExchange = {},
-    semanticContext = {},
-    continuityContext = {}
-  } = {}) {
-    const candidates = [];
-
-    const add =
-      candidate => {
-        const normalized =
-          this.normalizeAnchorCandidate(
-            candidate
-          );
-
-        if (
-          normalized?.text
-        ) {
-          candidates.push(
-            normalized
-          );
-        }
-      };
-
-    if (
-      recentExchange
-        .previousAssistantText
-    ) {
-      add({
-        type:
-          "previous_assistant_proposition",
-
-        semanticType:
-          "proposition",
-
-        text:
-          recentExchange
-            .previousAssistantText,
-
-        role:
-          "assistant",
-
-        sourceTurnId:
-          recentExchange
-            .previousAssistantTurn
-            ?.id,
-
-        turnDistance:
-          1,
-
-        priority:
-          100,
-
-        metadata: {
-          containsClaim:
-            recentExchange
-              .previousAnswerContainsClaim,
-
-          containsChoice:
-            recentExchange
-              .previousAnswerContainsChoice,
-
-          containsQuantity:
-            recentExchange
-              .previousAnswerContainsQuantity,
-
-          containsRecommendation:
-            recentExchange
-              .previousAnswerContainsRecommendation
-        }
-      });
-    }
-
-    this.asArray(
-      recentExchange
-        .previousAssistantTurn
-        ?.claims
-    ).forEach(
-      claim => {
-        add({
-          type:
-            "previous_assistant_claim",
-
-          semanticType:
-            "claim",
-
-          text:
-            this.extractNodeText(
-              claim
-            ),
-
-          role:
-            "assistant",
-
-          sourceTurnId:
-            recentExchange
-              .previousAssistantTurn
-              ?.id,
-
-          turnDistance:
-            1,
-
-          priority:
-            104,
-
-          raw:
-            claim
-        });
-      }
-    );
-
-    this.asArray(
-      recentExchange
-        .previousAssistantTurn
-        ?.events
-    ).forEach(
-      event => {
-        add({
-          type:
-            "previous_assistant_event",
-
-          semanticType:
-            "event",
-
-          text:
-            this.extractNodeText(
-              event
-            ),
-
-          role:
-            "assistant",
-
-          sourceTurnId:
-            recentExchange
-              .previousAssistantTurn
-              ?.id,
-
-          turnDistance:
-            1,
-
-          priority:
-            96,
-
-          raw:
-            event
-        });
-      }
-    );
-
-    this.asArray(
-      recentExchange
-        .previousAssistantTurn
-        ?.quantities
-    ).forEach(
-      quantity => {
-        add({
-          type:
-            "previous_assistant_quantity",
-
-          semanticType:
-            "quantity",
-
-          text:
-            this.extractNodeText(
-              quantity
-            ),
-
-          role:
-            "assistant",
-
-          sourceTurnId:
-            recentExchange
-              .previousAssistantTurn
-              ?.id,
-
-          turnDistance:
-            1,
-
-          priority:
-            98,
-
-          raw:
-            quantity
-        });
-      }
-    );
-
-    if (
-      recentExchange
-        .previousUserText
-    ) {
-      add({
-        type:
-          "previous_user_request",
-
-        semanticType:
-          "request",
-
-        text:
-          recentExchange
-            .previousUserText,
-
-        role:
-          "user",
-
-        sourceTurnId:
-          recentExchange
-            .previousUserTurn
-            ?.id,
-
-        turnDistance:
-          recentExchange
-            .previousAssistantText
-            ? 2
-            : 1,
-
-        priority:
-          72,
-
-        metadata: {
-          containsOptions:
-            recentExchange
-              .previousQuestionContainsOptions
-        }
-      });
-    }
-
-    this.asArray(
-      recentExchange
-        .previousUserTurn
-        ?.options
-    ).forEach(
-      option => {
-        add({
-          type:
-            "previous_user_option",
-
-          semanticType:
-            "option",
-
-          text:
-            this.extractNodeText(
-              option
-            ),
-
-          role:
-            "user",
-
-          sourceTurnId:
-            recentExchange
-              .previousUserTurn
-              ?.id,
-
-          turnDistance:
-            2,
-
-          priority:
-            92,
-
-          raw:
-            option
-        });
-      }
-    );
-
-    const semanticTarget =
-      this.extractSemanticValue(
-        semanticContext.target
-      );
-
-    if (
-      semanticTarget &&
-      !this.isPlaceholderTarget(
-        semanticTarget
-      )
-    ) {
-      add({
-        type:
-          "current_semantic_target",
-
-        semanticType:
-          semanticContext.target
-            ?.type ||
-          "concept",
-
-        text:
-          semanticTarget,
-
-        role:
-          "current_turn",
-
-        turnDistance:
-          0,
-
-        priority:
-          55,
-
-        raw:
-          semanticContext.target
-      });
-    }
-
-    const semanticObject =
-      this.extractSemanticValue(
-        semanticContext.targetObject
-      );
-
-    if (
-      semanticObject &&
-      semanticObject !==
-        semanticTarget &&
-      !this.isPlaceholderTarget(
-        semanticObject
-      )
-    ) {
-      add({
-        type:
-          "current_semantic_object",
-
-        semanticType:
-          semanticContext
-            .targetObject
-            ?.type ||
-          "concept",
-
-        text:
-          semanticObject,
-
-        role:
-          "current_turn",
-
-        turnDistance:
-          0,
-
-        priority:
-          54,
-
-        raw:
-          semanticContext
-            .targetObject
-      });
-    }
-
-    const continuityAnchor =
-      this.extractSemanticValue(
-        continuityContext.anchor
-      );
-
-    if (
-      continuityAnchor &&
-      !this.isPlaceholderTarget(
-        continuityAnchor
-      )
-    ) {
-      add({
-        type:
-          "continuity_anchor",
-
-        semanticType:
-          "continuity_anchor",
-
-        text:
-          continuityAnchor,
-
-        role:
-          "continuity",
-
-        turnDistance:
-          1,
-
-        priority:
-          continuityContext
-            .anchorResolved
-            ? 102
-            : 68,
-
-        metadata: {
-          anchorResolved:
-            continuityContext
-              .anchorResolved
-        },
-
-        raw:
-          continuityContext.anchor
-      });
-    }
-
-    return this.dedupeAnchorCandidates(
-      candidates
-    );
-  },
-
-  normalizeAnchorCandidate(
-    candidate = {}
-  ) {
-    const text =
-      this.clean(
-        candidate.text ||
-        candidate.value ||
-        candidate.label ||
-        ""
-      );
-
-    if (!text) {
-      return null;
-    }
-
-    return {
-      id:
-        candidate.id ||
-        this.createStableId(
-          "ellipsis_anchor",
-          [
-            candidate.type,
-            candidate.sourceTurnId,
-            text
-          ].join("|")
-        ),
-
-      type:
-        candidate.type ||
-        "unknown_anchor",
-
-      semanticType:
-        this.normalizeIdentifier(
-          candidate.semanticType ||
-          this.inferAnchorSemanticType(
-            text
-          )
-        ),
-
-      text,
-
-      normalizedText:
-        this.normalize(
-          text
-        ),
-
-      role:
-        candidate.role ||
-        null,
-
-      sourceTurnId:
-        candidate.sourceTurnId ||
-        null,
-
-      turnDistance:
-        Number.isFinite(
-          Number(
-            candidate.turnDistance
-          )
-        )
-          ? Number(
-              candidate.turnDistance
-            )
-          : 1,
-
-      priority:
-        Number.isFinite(
-          Number(
-            candidate.priority
-          )
-        )
-          ? Number(
-              candidate.priority
-            )
-          : 50,
-
-      metadata:
-        candidate.metadata ||
-        {},
-
-      raw:
-        candidate.raw ||
-        candidate
-    };
-  },
-
-  rankAnchorCandidates({
-    candidates = [],
-    currentTurn = {},
-    familyResolution = {},
-    recentExchange = {}
-  } = {}) {
-    return this.asArray(
-      candidates
-    )
-      .map(
-        candidate => {
-          const breakdown =
-            this.scoreAnchorCandidate({
-              candidate,
-              currentTurn,
-              familyResolution,
-              recentExchange
-            });
-
-          const score =
-            Object.values(
-              breakdown
-            ).reduce(
-              (
-                total,
-                value
-              ) =>
-                total +
-                Number(
-                  value ||
-                  0
-                ),
-              0
-            );
-
-          return {
-            ...candidate,
-
-            score:
-              this.roundScore(
-                score
-              ),
-
-            scoreBreakdown:
-              breakdown
-          };
-        }
-      )
-      .sort(
-        (
-          first,
-          second
-        ) =>
-          second.score -
-          first.score
-      );
-  },
-
-  scoreAnchorCandidate({
-    candidate = {},
-    currentTurn = {},
-    familyResolution = {},
-    recentExchange = {}
-  } = {}) {
-    return {
-      basePriority:
-        Number(
-          candidate.priority ||
-          0
-        ),
-
-      recency:
-        this.scoreAnchorRecency(
-          candidate
-        ),
-
-      roleCompatibility:
-        this.scoreAnchorRoleCompatibility({
-          candidate,
-          familyResolution
-        }),
-
-      semanticCompatibility:
-        this.scoreAnchorSemanticCompatibility({
-          candidate,
-          familyResolution
-        }),
-
-      lexicalCompatibility:
-        this.scoreAnchorLexicalCompatibility({
-          candidate,
-          currentTurn
-        }),
-
-      exchangeCompatibility:
-        this.scoreExchangeCompatibility({
-          candidate,
-          familyResolution,
-          recentExchange
-        }),
-
-      thinPenalty:
-        this.scoreThinAnchorPenalty(
-          candidate
-        )
-    };
-  },
-
-  scoreAnchorRecency(
-    candidate = {}
-  ) {
-    const distance =
-      Number(
-        candidate.turnDistance ||
-        0
-      );
-
-    if (
-      distance === 0
-    ) {
-      return 4;
-    }
-
-    if (
-      distance === 1
-    ) {
-      return 22;
-    }
-
-    if (
-      distance === 2
-    ) {
-      return 11;
-    }
-
-    return Math.max(
-      -10,
-      7 -
-        distance *
-        3
-    );
-  },
-
-  scoreAnchorRoleCompatibility({
-    candidate = {},
-    familyResolution = {}
-  } = {}) {
-    const family =
-      familyResolution.family;
-
-    const assistantPreferred = [
-      "opinion_about_prior_referent",
-      "emotional_opinion_about_prior_referent",
-      "agreement_about_prior_referent",
-      "causal_explanation",
-      "negative_causal_explanation",
-      "confirmation",
-      "evidence",
-      "source",
-      "significance",
-      "clarification",
-      "method_or_mechanism",
-      "continuation",
-      "demonstrative_follow_up",
-      "general_elaboration"
-    ];
-
-    if (
-      assistantPreferred.includes(
-        family
-      ) &&
-      candidate.role ===
-        "assistant"
-    ) {
-      return 26;
-    }
-
-    if (
-      [
-        "selection",
-        "alternative_or_comparison",
-        "selection_reference"
-      ].includes(
-        family
-      )
-    ) {
-      if (
-        candidate.semanticType ===
-        "option"
-      ) {
-        return 22;
-      }
-
-      if (
-        candidate.role ===
-        "user"
-      ) {
-        return 12;
-      }
-    }
-
-    return 3;
-  },
-
-  scoreAnchorSemanticCompatibility({
-    candidate = {},
-    familyResolution = {}
-  } = {}) {
-    const family =
-      familyResolution.family;
-
-    const type =
-      candidate.semanticType;
-
-    const acceptedTypes = {
-      opinion_about_prior_referent: [
-        "proposition",
-        "claim",
-        "event",
-        "concept"
-      ],
-
-      emotional_opinion_about_prior_referent: [
-        "proposition",
-        "claim",
-        "event",
-        "concept"
-      ],
-
-      agreement_about_prior_referent: [
-        "proposition",
-        "claim"
-      ],
-
-      causal_explanation: [
-        "proposition",
-        "claim",
-        "event",
-        "concept"
-      ],
-
-      negative_causal_explanation: [
-        "proposition",
-        "claim",
-        "event",
-        "option"
-      ],
-
-      method_or_mechanism: [
-        "event",
-        "claim",
-        "proposition",
-        "concept"
-      ],
-
-      confirmation: [
-        "claim",
-        "proposition",
-        "event"
-      ],
-
-      clarification: [
-        "claim",
-        "proposition",
-        "concept"
-      ],
-
-      evidence: [
-        "claim",
-        "proposition",
-        "recommendation"
-      ],
-
-      source: [
-        "claim",
-        "proposition"
-      ],
-
-      quantity_or_degree: [
-        "quantity",
-        "attribute",
-        "claim"
-      ],
-
-      severity: [
-        "claim",
-        "event",
-        "attribute"
-      ],
-
-      probability: [
-        "claim",
-        "event",
-        "prediction"
-      ],
-
-      selection: [
-        "option"
-      ],
-
-      alternative_or_comparison: [
-        "option",
-        "claim",
-        "request"
-      ],
-
-      consequence_or_next_step: [
-        "event",
-        "claim",
-        "plan",
-        "proposition"
-      ],
-
-      continuation: [
-        "proposition",
-        "claim",
-        "event"
-      ],
-
-      demonstrative_follow_up: [
-        "proposition",
-        "claim",
-        "event",
-        "concept"
-      ],
-
-      general_elaboration: [
-        "proposition",
-        "claim",
-        "event",
-        "concept"
-      ]
-    };
-
-    const accepted =
-      acceptedTypes[
-        family
-      ] ||
-      [];
-
-    if (
-      accepted.includes(
-        type
-      )
-    ) {
-      return 28;
-    }
-
-    if (
-      candidate.type ===
-      "previous_assistant_proposition"
-    ) {
-      return 18;
-    }
-
-    if (
-      candidate.type ===
-      "previous_user_request"
-    ) {
-      return 7;
-    }
-
-    return 1;
-  },
-
-  scoreAnchorLexicalCompatibility({
-    candidate = {},
-    currentTurn = {}
-  } = {}) {
-    const currentText =
-      currentTurn.normalizedText;
-
-    let score = 0;
-
-    if (
-      currentTurn
-        .demonstratives
-        ?.present &&
-      candidate.role ===
-        "assistant"
-    ) {
-      score += 14;
-    }
-
-    if (
-      /\bother\s+one\b/.test(
-        currentText
-      ) &&
-      (
-        candidate.semanticType ===
-          "option" ||
-        candidate.metadata
-          ?.containsOptions ===
-          true
-      )
-    ) {
-      score += 24;
-    }
-
-    if (
-      /\b(?:that|this)\s+one\b/
-        .test(
-          currentText
-        ) &&
-      candidate.semanticType ===
-        "option"
-    ) {
-      score += 18;
-    }
-
-    if (
-      /\bhow\s+much\b/.test(
-        currentText
-      ) &&
-      (
-        candidate.semanticType ===
-          "quantity" ||
-        this.looksLikeQuantity(
-          candidate.text
-        )
-      )
-    ) {
-      score += 22;
-    }
-
-    return score;
-  },
-
-  scoreExchangeCompatibility({
-    candidate = {},
-    familyResolution = {},
-    recentExchange = {}
-  } = {}) {
-    let score = 0;
-
-    if (
-      [
-        "opinion_about_prior_referent",
-        "emotional_opinion_about_prior_referent",
-        "agreement_about_prior_referent"
-      ].includes(
-        familyResolution.family
-      ) &&
-      candidate.role ===
-        "assistant"
-    ) {
-      score += 24;
-    }
-
-    if (
-      familyResolution.family ===
-        "causal_explanation" &&
-      recentExchange
-        .previousAnswerContainsChoice &&
-      candidate.role ===
-        "assistant"
-    ) {
-      score += 16;
-    }
-
-    if (
-      familyResolution.family ===
-        "confirmation" &&
-      recentExchange
-        .previousAnswerContainsClaim &&
-      candidate.role ===
-        "assistant"
-    ) {
-      score += 18;
-    }
-
-    if (
-      familyResolution.family ===
-        "alternative_or_comparison" &&
-      recentExchange
-        .previousQuestionContainsOptions
-    ) {
-      score += 18;
-    }
-
-    if (
-      familyResolution.family ===
-        "quantity_or_degree" &&
-      recentExchange
-        .previousAnswerContainsQuantity
-    ) {
-      score += 16;
-    }
-
-    if (
-      familyResolution.family ===
-        "consequence_or_next_step" &&
-      recentExchange
-        .previousAnswerContainsRecommendation
-    ) {
-      score += 14;
-    }
-
-    return score;
-  },
-
-  scoreThinAnchorPenalty(
-    candidate = {}
-  ) {
-    const words =
-      candidate.normalizedText
-        .split(/\s+/)
-        .filter(Boolean)
-        .length;
-
-    if (
-      words <= 1
-    ) {
-      return -20;
-    }
-
-    if (
-      words <= 3
-    ) {
-      return -7;
-    }
-
-    if (
-      this.isPlaceholderTarget(
-        candidate.normalizedText
-      )
-    ) {
-      return -50;
-    }
-
-    return 0;
-  },
-
-  /* =====================================================
-     ANCHOR SELECTION
-  ===================================================== */
-
-  selectAnchor({
-    rankedAnchors = [],
-    currentTurn = {},
-    familyResolution = {}
-  } = {}) {
-    const best =
-      rankedAnchors[0] ||
-      null;
-
-    const second =
-      rankedAnchors[1] ||
-      null;
-
-    if (!best) {
-      return {
-        status:
-          "unresolved",
-
-        selected:
-          null,
-
-        confidence:
-          0,
-
-        score:
-          0,
-
-        margin:
-          0,
-
-        requiresClarification:
-          true,
-
-        reason:
-          "No usable recent conversational anchor was available.",
-
-        competingAnchors:
-          []
-      };
-    }
-
-    const score =
-      Number(
-        best.score ||
-        0
-      );
-
-    const secondScore =
-      Number(
-        second?.score ||
-        0
-      );
-
-    const margin =
-      score -
-      secondScore;
-
-    const threshold =
-      this.anchorThreshold({
-        currentTurn,
-        familyResolution
-      });
-
-    const requiredMargin =
-      this.anchorMarginRequirement({
-        familyResolution
-      });
-
-    if (
-      score <
-      threshold
-    ) {
-      return {
-        status:
-          "unresolved",
-
-        selected:
-          null,
-
-        confidence:
-          this.anchorScoreToConfidence(
-            score,
-            margin
-          ),
-
-        score,
-        margin,
-
-        requiresClarification:
-          true,
-
-        reason:
-          `The strongest anchor score ${score} did not meet the threshold ${threshold}.`,
-
-        competingAnchors:
-          rankedAnchors
-            .slice(
-              0,
-              3
-            )
-      };
-    }
-
-    if (
-      second &&
-      margin <
-        requiredMargin &&
-      !this.sameUnderlyingTurn(
-        best,
-        second
-      )
-    ) {
-      return {
-        status:
-          "ambiguous",
-
-        selected:
-          null,
-
-        confidence:
-          this.anchorScoreToConfidence(
-            score,
-            margin
-          ),
-
-        score,
-        margin,
-
-        requiresClarification:
-          true,
-
-        reason:
-          `The leading anchors were too close. Required margin: ${requiredMargin}; observed margin: ${margin}.`,
-
-        competingAnchors:
-          rankedAnchors
-            .slice(
-              0,
-              3
-            )
-      };
-    }
-
-    return {
-      status:
-        "resolved",
-
-      selected:
-        best,
-
-      confidence:
-        this.anchorScoreToConfidence(
-          score,
-          margin
-        ),
-
-      score,
-      margin,
-
-      requiresClarification:
-        false,
-
-      reason:
-        `The follow-up was anchored to the ${best.type} from the recent conversation.`,
-
-      competingAnchors:
-        rankedAnchors
-          .slice(
-            1,
-            4
-          )
-    };
-  },
-
-  sameUnderlyingTurn(
-    first = {},
-    second = {}
-  ) {
-    return Boolean(
-      first.sourceTurnId &&
-      second.sourceTurnId &&
-      first.sourceTurnId ===
-        second.sourceTurnId
-    );
-  },
-
-  anchorThreshold({
-    currentTurn = {},
-    familyResolution = {}
-  } = {}) {
-    if (
-      [
-        "opinion_about_prior_referent",
-        "emotional_opinion_about_prior_referent",
-        "agreement_about_prior_referent"
-      ].includes(
-        familyResolution.family
-      )
-    ) {
-      return 90;
-    }
-
-    if (
-      currentTurn.wordCount <=
-      1
-    ) {
-      return 94;
-    }
-
-    if (
-      [
-        "alternative_or_comparison",
-        "selection",
-        "selection_reference"
-      ].includes(
-        familyResolution.family
-      )
-    ) {
-      return 88;
-    }
-
-    return 82;
-  },
-
-  anchorMarginRequirement({
-    familyResolution = {}
-  } = {}) {
-    if (
-      [
-        "selection",
-        "alternative_or_comparison",
-        "selection_reference"
-      ].includes(
-        familyResolution.family
-      )
-    ) {
-      return 10;
-    }
-
-    if (
-      [
-        "person_identification",
-        "location_identification",
-        "time_identification"
-      ].includes(
-        familyResolution.family
-      )
-    ) {
-      return 12;
-    }
-
-    return 7;
-  },
-
-  anchorScoreToConfidence(
-    score = 0,
-    margin = 0
-  ) {
-    const value =
-      0.42 +
-      Math.min(
-        0.42,
-        Number(
-          score ||
-          0
-        ) /
-          300
-      ) +
-      Math.min(
-        0.14,
-        Number(
-          margin ||
-          0
-        ) /
-          100
-      );
-
-    return Number(
-      Math.max(
-        0,
-        Math.min(
-          0.98,
-          value
-        )
-      ).toFixed(
-        3
-      )
-    );
-  },
-
-  /* =====================================================
-     INHERITED CONTEXT
-  ===================================================== */
-
-  buildInheritedContext({
-    anchorDecision = {},
-    familyResolution = {},
-    recentExchange = {}
-  } = {}) {
-    const selected =
-      anchorDecision.selected;
-
-    if (!selected) {
-      return {
-        inherited:
-          false,
-
-        subject:
-          null,
-
-        target:
-          null,
-
-        object:
-          null,
-
-        proposition:
-          null,
-
-        event:
-          null,
-
-        option:
-          null,
-
-        quantity:
-          null,
-
-        sourceTurnId:
-          null,
-
-        sourceRole:
-          null,
-
-        reason:
-          "No anchor was selected."
-      };
-    }
-
-    const anchorText =
-      this.clean(
-        selected.text
-      );
-
-    const family =
-      familyResolution.family;
-
-    const extractedChoice =
-      this.extractChoiceFromText(
-        anchorText
-      );
-
-    const extractedQuantity =
-      this.extractQuantityFromText(
-        anchorText
-      );
-
-    const propositionFamilies = [
-      "opinion_about_prior_referent",
-      "emotional_opinion_about_prior_referent",
-      "agreement_about_prior_referent",
-      "causal_explanation",
-      "negative_causal_explanation",
-      "confirmation",
-      "clarification",
-      "evidence",
-      "source",
-      "significance",
-      "continuation",
-      "demonstrative_follow_up",
-      "general_elaboration"
-    ];
-
-    return {
-      inherited:
-        true,
-
-      subject:
-        this.extractSubjectFromQuestion(
-          recentExchange
-            .previousUserText
-        ) ||
-        null,
-
-      target:
-        extractedChoice ||
-        anchorText,
-
-      object:
-        extractedChoice ||
-        anchorText,
-
-      proposition:
-        propositionFamilies.includes(
-          family
-        )
-          ? anchorText
-          : null,
-
-      event:
-        [
-          "method_or_mechanism",
-          "consequence_or_next_step"
-        ].includes(
-          family
-        )
-          ? anchorText
-          : null,
-
-      option:
-        [
-          "selection",
-          "selection_reference",
-          "alternative_or_comparison"
-        ].includes(
-          family
-        )
-          ? extractedChoice ||
-            anchorText
-          : null,
-
-      quantity:
-        [
-          "quantity_or_degree",
-          "severity",
-          "probability"
-        ].includes(
-          family
-        )
-          ? extractedQuantity
-          : null,
-
-      sourceTurnId:
-        selected.sourceTurnId,
-
-      sourceRole:
-        selected.role,
-
-      anchorType:
-        selected.type,
-
-      anchorText,
-
-      minimumNecessaryContextOnly:
-        true,
-
-      reason:
-        "Inherited only the recent-thread content required to complete the current request.",
-
-      authority:
-        "elliptical_slot_inheritance_only"
-    };
-  },
-
-  /* =====================================================
-     RESOLVED TURN
-  ===================================================== */
-
-  buildResolvedTurn({
-    currentTurn = {},
-    familyResolution = {},
-    anchorDecision = {},
-    inheritedContext = {},
-    recentExchange = {}
-  } = {}) {
-    if (
-      anchorDecision.status !==
-        "resolved" ||
-      !anchorDecision.selected
-    ) {
-      return {
-        resolved:
-          false,
+      currentTurn: {
+        turnId:
+          currentTurn.turnId,
 
         originalText:
-          currentTurn.originalText,
-
-        text:
-          currentTurn.originalText,
-
-        resolvedText:
-          currentTurn.originalText,
-
-        currentTurnWasResolved:
-          false,
-
-        requiresClarification:
-          true,
-
-        resolutionReason:
-          anchorDecision.reason,
-
-        authority:
-          "resolved_turn_record_only"
-      };
-    }
-
-    const resolvedText =
-      this.renderResolvedText({
-        currentTurn,
-        familyResolution,
-        inheritedContext,
-        recentExchange,
-        anchor:
-          anchorDecision.selected
-      });
-
-    const changed =
-      Boolean(
-        resolvedText
-      ) &&
-      this.normalize(
-        resolvedText
-      ) !==
-        this.normalize(
           currentTurn.originalText
-        );
+      },
 
-    return {
-      resolved:
-        Boolean(
-          resolvedText
+      recentConversation:
+        boundedTurns.map(
+          turn => ({
+            id:
+              turn.id ||
+              null,
+
+            role:
+              turn.role ||
+              "unknown",
+
+            text:
+              turn.text
+          })
         ),
 
-      originalText:
-        currentTurn.originalText,
+      detectionSignals:
+        detection.signals,
 
-      text:
-        resolvedText ||
-        currentTurn.originalText,
+      upstreamHints: {
+        requestedOperation:
+          summary.canonicalMeaning
+            ?.requestedOperation ||
+          summary.semanticSummary
+            ?.operation ||
+          null,
 
-      resolvedText:
-        resolvedText ||
-        currentTurn.originalText,
+        requestedOutput:
+          summary.canonicalMeaning
+            ?.requestedOutput ||
+          summary.semanticSummary
+            ?.requestedOutput ||
+          null
+      },
 
-      currentTurnWasResolved:
-        changed,
+      rules: [
+        "Do not answer the user.",
+        "Do not add facts that are not present in the supplied conversation.",
+        "Preserve the user's intended operation.",
+        "Resolve only omitted or deictic meaning required for a standalone request.",
+        "Prefer the closest compatible prior turn.",
+        "If more than one materially different interpretation is plausible, mark the result ambiguous.",
+        "If the turn is already complete, mark resolved false.",
+        "Return JSON only."
+      ],
 
-      followUpFamily:
-        familyResolution.family,
+      expectedOutput: {
+        resolved:
+          "boolean",
 
-      followUpOperation:
-        familyResolution.operation,
+        ambiguous:
+          "boolean",
 
-      inheritedSubject:
-        inheritedContext.subject,
+        resolvedText:
+          "string or null",
 
-      inheritedTarget:
-        inheritedContext.target,
+        referent:
+          "string or null",
 
-      inheritedObject:
-        inheritedContext.object,
+        sourceTurnIds:
+          "array of supplied turn ids",
 
-      inheritedProposition:
-        inheritedContext.proposition,
+        followUpFamily:
+          "short snake_case label or null",
 
-      inheritedEvent:
-        inheritedContext.event,
+        confidence:
+          "number from 0 to 1",
 
-      inheritedOption:
-        inheritedContext.option,
-
-      inheritedQuantity:
-        inheritedContext.quantity,
-
-      sourceTurnId:
-        inheritedContext.sourceTurnId,
-
-      sourceRole:
-        inheritedContext.sourceRole,
-
-      referenceType:
-        "elliptical_or_deictic_reference",
-
-      referenceSurface:
-        currentTurn
-          .demonstratives
-          ?.primarySurface ||
-        null,
-
-      referenceResolved:
-        true,
-
-      resolvedReferenceValue:
-        inheritedContext.anchorText ||
-        inheritedContext.target ||
-        null,
-
-      resolvedReferenceSourceTurnId:
-        inheritedContext.sourceTurnId ||
-        null,
-
-      requiresClarification:
-        !resolvedText,
-
-      resolutionReason:
-        resolvedText
-          ? "The omitted referent was reconstructed from the selected recent-thread anchor."
-          : "A safe natural-language reconstruction could not be produced.",
-
-      originalPreserved:
-        true,
+        reason:
+          "short explanation"
+      },
 
       authority:
-        "resolved_current_turn_only"
+        "model_resolution_request_only"
     };
   },
 
-  renderResolvedText({
-    currentTurn = {},
-    familyResolution = {},
-    inheritedContext = {},
-    recentExchange = {},
-    anchor = {}
-  } = {}) {
-    const family =
-      familyResolution.family;
+  boundContextTurns(
+    turns = []
+  ) {
+    const selected = [];
+    let characters = 0;
 
-    const fullAnchor =
-      this.clean(
-        inheritedContext
-          .anchorText ||
-        inheritedContext
-          .proposition ||
-        inheritedContext.target ||
-        anchor.text ||
-        ""
+    const reversed =
+      [...this.asArray(
+        turns
+      )].reverse();
+
+    for (
+      const turn
+      of reversed
+    ) {
+      const size =
+        String(
+          turn.text ||
+          ""
+        ).length;
+
+      if (
+        selected.length >
+          0 &&
+        characters +
+          size >
+          this.config
+            .maxContextCharacters
+      ) {
+        break;
+      }
+
+      selected.push(
+        turn
       );
 
-    const conciseAnchor =
-      this.buildConciseAnchorDescription({
-        target:
-          fullAnchor,
+      characters +=
+        size;
+    }
 
-        previousQuestion:
-          recentExchange
-            .previousUserText,
+    return selected.reverse();
+  },
 
-        previousAnswer:
-          recentExchange
-            .previousAssistantText,
+  /* =====================================================
+     MODEL INVOCATION
+  ===================================================== */
 
-        family
-      });
+  async invokeModelResolver({
+    packet = {},
+    runtime = {},
+    summary = {}
+  } = {}) {
+    const directResolver =
+      runtime
+        .resolveEllipticalFollowUp ||
+      summary
+        .resolveEllipticalFollowUp;
 
-    switch (family) {
-      case "opinion_about_prior_referent":
-        return conciseAnchor
-          ? `What do you think about this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "What do you think about the previous answer?";
+    if (
+      typeof directResolver ===
+      "function"
+    ) {
+      return await directResolver(
+        packet
+      );
+    }
 
-      case "emotional_opinion_about_prior_referent":
-        return conciseAnchor
-          ? `How do you feel about this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "How do you feel about the previous answer?";
+    const orchestrators = [
+      runtime
+        .modelOrchestrator,
+      summary
+        .modelOrchestrator,
+      window.Ari
+        ?.modelOrchestrator,
+      window
+        .AriModelOrchestrator
+    ].filter(Boolean);
 
-      case "agreement_about_prior_referent":
-        return conciseAnchor
-          ? `Do you agree with this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Do you agree with the previous answer?";
+    for (
+      const orchestrator
+      of orchestrators
+    ) {
+      if (
+        typeof orchestrator
+          .resolveStructured ===
+          "function"
+      ) {
+        return await orchestrator
+          .resolveStructured({
+            capability:
+              "elliptical_follow_up_resolution",
 
-      case "causal_explanation":
-        return conciseAnchor
-          ? `Why is this prior statement true or appropriate: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Why did you give the previous answer?";
+            packet
+          });
+      }
 
-      case "negative_causal_explanation":
-        return conciseAnchor
-          ? `Why would the opposite of this prior statement be preferable: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Why not?";
+      if (
+        typeof orchestrator
+          .run ===
+          "function"
+      ) {
+        return await orchestrator.run({
+          capability:
+            "elliptical_follow_up_resolution",
 
-      case "method_or_mechanism":
-        return conciseAnchor
-          ? `How does the subject described in this prior statement work or happen: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "How does the subject of the previous answer work?";
+          responseFormat:
+            "json",
 
-      case "confirmation":
-        return conciseAnchor
-          ? `Is this prior statement really correct: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Is the previous answer really correct?";
-
-      case "clarification":
-        return conciseAnchor
-          ? `What do you mean by this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "What do you mean by the previous answer?";
-
-      case "person_identification":
-        return conciseAnchor
-          ? `Who is the person referred to in this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Who are you referring to in the previous answer?";
-
-      case "location_identification":
-        return conciseAnchor
-          ? `Where does the subject of this prior statement occur or apply: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Where does the previous answer apply?";
-
-      case "time_identification":
-        return conciseAnchor
-          ? `When does the subject of this prior statement occur or apply: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "When does the previous answer apply?";
-
-      case "selection":
-        return "Which option from the previous discussion is the better choice?";
-
-      case "selection_reference":
-        return conciseAnchor
-          ? `Why or how does the referenced option relate to this prior discussion: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Why or how does that option relate to the previous discussion?";
-
-      case "alternative_or_comparison":
-        return this.renderAlternativeResolution({
-          original:
-            currentTurn.originalText,
-
-          recentExchange,
-
-          conciseTarget:
-            conciseAnchor
+          packet
         });
-
-      case "quantity_or_degree":
-        return conciseAnchor
-          ? `What is the relevant amount or degree associated with this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "What is the relevant amount or degree from the previous answer?";
-
-      case "severity":
-        return conciseAnchor
-          ? `How serious is the situation described in this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "How serious is the situation described in the previous answer?";
-
-      case "probability":
-        return conciseAnchor
-          ? `How likely is the outcome described in this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "How likely is the outcome described in the previous answer?";
-
-      case "evidence":
-        return conciseAnchor
-          ? `What evidence supports this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "What evidence supports the previous answer?";
-
-      case "source":
-        return conciseAnchor
-          ? `What source supports this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "What is the source for the previous answer?";
-
-      case "significance":
-        return conciseAnchor
-          ? `Why does this prior statement matter: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Why does the previous answer matter?";
-
-      case "consequence_or_next_step":
-        return conciseAnchor
-          ? `What happens next based on this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "What should happen next based on the previous answer?";
-
-      case "continuation":
-        return conciseAnchor
-          ? `Continue explaining this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}.`
-          : "Continue the previous explanation.";
-
-      case "demonstrative_follow_up":
-      case "general_elaboration":
-      default:
-        return conciseAnchor
-          ? `Can you elaborate on this prior statement: ${this.quoteIfNeeded(
-              conciseAnchor
-            )}?`
-          : "Can you elaborate on the previous answer?";
+      }
     }
-  },
 
-  renderAlternativeResolution({
-    original = "",
-    recentExchange = {},
-    conciseTarget = ""
-  } = {}) {
-    const normalized =
-      this.normalize(
-        original
-      );
+    const clients = [
+      runtime.openAIClient,
+      summary.openAIClient,
+      window.Ari
+        ?.openAIClient,
+      window
+        .AriOpenAIClient
+    ].filter(Boolean);
 
-    if (
-      /\bother\s+one\b/.test(
-        normalized
-      )
+    for (
+      const client
+      of clients
     ) {
-      return "What about the other option from the previous discussion?";
+      if (
+        typeof client
+          .completeJSON ===
+          "function"
+      ) {
+        return await client
+          .completeJSON({
+            task:
+              packet.task,
+
+            input:
+              packet
+          });
+      }
+
+      if (
+        typeof client
+          .request ===
+          "function"
+      ) {
+        return await client.request({
+          capability:
+            "elliptical_follow_up_resolution",
+
+          responseFormat:
+            "json",
+
+          input:
+            packet
+        });
+      }
     }
 
-    if (
-      /\bsecond\s+one\b/.test(
-        normalized
-      )
-    ) {
-      return "What about the second option from the previous discussion?";
-    }
-
-    if (
-      /\bfirst\s+one\b/.test(
-        normalized
-      )
-    ) {
-      return "What about the first option from the previous discussion?";
-    }
-
-    if (
-      recentExchange
-        .previousQuestionContainsOptions
-    ) {
-      return "How does the alternative option compare with the option just discussed?";
-    }
-
-    return conciseTarget
-      ? `What about an alternative to this prior statement: ${this.quoteIfNeeded(
-          conciseTarget
-        )}?`
-      : "What about the alternative from the previous discussion?";
-  },
-
-  buildConciseAnchorDescription({
-    target = "",
-    previousAnswer = ""
-  } = {}) {
-    const cleanedTarget =
-      this.clean(
-        target ||
-        previousAnswer
-      );
-
-    if (!cleanedTarget) {
-      return "";
-    }
-
-    const sentences =
-      this.splitSentences(
-        cleanedTarget
-      );
-
-    const firstSentence =
-      sentences[0] ||
-      cleanedTarget;
-
-    if (
-      firstSentence.length <=
-      240
-    ) {
-      return this.stripTerminalPunctuation(
-        firstSentence
-      );
-    }
-
-    return this.stripTerminalPunctuation(
-      firstSentence.slice(
-        0,
-        237
-      ) +
-        "..."
+    throw new Error(
+      "No AI resolver adapter was available. Provide runtime.resolveEllipticalFollowUp(packet), a modelOrchestrator, or an OpenAI client adapter."
     );
   },
 
   /* =====================================================
-     QUALITY AND RESULTS
+     MODEL RESPONSE PARSING
   ===================================================== */
 
-  buildQuality({
-    detection = {},
-    familyResolution = {},
-    anchorDecision = {},
-    resolvedTurn = {},
-    recentExchange = {}
+  parseModelResponse(
+    response
+  ) {
+    if (
+      response === null ||
+      response === undefined
+    ) {
+      return null;
+    }
+
+    if (
+      typeof response ===
+      "object"
+    ) {
+      const candidate =
+        response.output ||
+        response.result ||
+        response.data ||
+        response.parsed ||
+        response;
+
+      if (
+        typeof candidate ===
+        "object" &&
+        candidate !==
+          null
+      ) {
+        return candidate;
+      }
+
+      if (
+        typeof candidate ===
+        "string"
+      ) {
+        return this.parseJSONString(
+          candidate
+        );
+      }
+    }
+
+    if (
+      typeof response ===
+      "string"
+    ) {
+      return this.parseJSONString(
+        response
+      );
+    }
+
+    return null;
+  },
+
+  parseJSONString(
+    value = ""
+  ) {
+    const text =
+      this.clean(
+        value
+      )
+        .replace(
+          /^```(?:json)?\s*/i,
+          ""
+        )
+        .replace(
+          /\s*```$/,
+          ""
+        );
+
+    try {
+      return JSON.parse(
+        text
+      );
+    } catch {
+      const match =
+        text.match(
+          /\{[\s\S]*\}/
+        );
+
+      if (!match) {
+        return null;
+      }
+
+      try {
+        return JSON.parse(
+          match[0]
+        );
+      } catch {
+        return null;
+      }
+    }
+  },
+
+  /* =====================================================
+     DETERMINISTIC VALIDATION
+  ===================================================== */
+
+  validateModelResolution({
+    parsed = null,
+    packet = {},
+    currentTurn = {},
+    recentTurns = []
   } = {}) {
     const warnings = [];
 
     if (
-      recentExchange.available !==
-      true
+      !parsed ||
+      typeof parsed !==
+        "object"
     ) {
-      warnings.push(
-        "prior_exchange_unavailable"
-      );
-    }
+      return {
+        accepted:
+          false,
 
-    if (
-      detection.detected !==
-      true
-    ) {
-      warnings.push(
-        "elliptical_follow_up_not_detected"
-      );
-    }
-
-    if (
-      anchorDecision.status ===
-      "ambiguous"
-    ) {
-      warnings.push(
-        "multiple_plausible_anchors"
-      );
-    }
-
-    if (
-      anchorDecision.status ===
-      "unresolved"
-    ) {
-      warnings.push(
-        "no_safe_anchor_resolution"
-      );
-    }
-
-    if (
-      resolvedTurn.resolved !==
-      true
-    ) {
-      warnings.push(
-        "resolved_turn_unavailable"
-      );
-    }
-
-    const confidenceParts = [
-      detection.confidence,
-      familyResolution.confidence,
-      anchorDecision.confidence,
-      resolvedTurn.resolved
-        ? 0.96
-        : 0.15
-    ];
-
-    const confidence =
-      confidenceParts.reduce(
-        (
-          total,
-          value
-        ) =>
-          total +
-          Number(
-            value ||
-            0
-          ),
-        0
-      ) /
-      confidenceParts.length;
-
-    return {
-      ready:
-        detection.detected ===
-          true &&
-        anchorDecision.status ===
-          "resolved" &&
-        resolvedTurn.resolved ===
+        requiresClarification:
           true,
 
-      healthy:
-        warnings.length ===
+        confidence:
           0,
 
-      detected:
-        detection.detected ===
-          true,
+        warnings: [
+          "model_response_missing_or_invalid"
+        ],
 
-      anchorResolved:
-        anchorDecision.status ===
-          "resolved",
+        reason:
+          "The model did not return a usable structured resolution."
+      };
+    }
 
-      turnResolved:
-        resolvedTurn.resolved ===
-          true,
+    const resolved =
+      parsed.resolved ===
+      true;
+
+    const ambiguous =
+      parsed.ambiguous ===
+      true;
+
+    const resolvedText =
+      this.clean(
+        parsed.resolvedText ||
+        parsed.resolvedQuestion ||
+        ""
+      );
+
+    const referent =
+      this.clean(
+        parsed.referent ||
+        ""
+      );
+
+    const sourceTurnIds =
+      this.asArray(
+        parsed.sourceTurnIds ||
+        parsed.source_turn_ids
+      ).map(String);
+
+    const confidence =
+      this.normalizeConfidence(
+        parsed.confidence
+      );
+
+    const allowedTurnIds =
+      new Set(
+        recentTurns
+          .map(
+            turn =>
+              turn.id
+          )
+          .filter(Boolean)
+          .map(String)
+      );
+
+    const unsupportedSource =
+      sourceTurnIds.some(
+        id =>
+          !allowedTurnIds.has(
+            id
+          )
+      );
+
+    if (
+      unsupportedSource
+    ) {
+      warnings.push(
+        "model_cited_unknown_source_turn"
+      );
+    }
+
+    if (
+      resolved &&
+      !resolvedText
+    ) {
+      warnings.push(
+        "resolved_text_missing"
+      );
+    }
+
+    if (
+      resolvedText.length >
+      this.config
+        .maxResolvedCharacters
+    ) {
+      warnings.push(
+        "resolved_text_too_long"
+      );
+    }
+
+    if (
+      resolvedText &&
+      this.normalize(
+        resolvedText
+      ) ===
+        this.normalize(
+          currentTurn.originalText
+        )
+    ) {
+      warnings.push(
+        "resolved_text_unchanged"
+      );
+    }
+
+    if (
+      confidence <
+      this.config
+        .minimumAcceptedConfidence
+    ) {
+      warnings.push(
+        "model_confidence_below_threshold"
+      );
+    }
+
+    if (
+      ambiguous
+    ) {
+      warnings.push(
+        "model_marked_resolution_ambiguous"
+      );
+    }
+
+    const accepted =
+      resolved &&
+      !ambiguous &&
+      Boolean(
+        resolvedText
+      ) &&
+      !unsupportedSource &&
+      resolvedText.length <=
+        this.config
+          .maxResolvedCharacters &&
+      confidence >=
+        this.config
+          .minimumAcceptedConfidence;
+
+    return {
+      accepted,
+
+      resolved,
+
+      ambiguous,
+
+      resolvedText:
+        accepted
+          ? resolvedText
+          : currentTurn
+              .originalText,
+
+      referent:
+        accepted
+          ? referent ||
+            null
+          : null,
+
+      sourceTurnIds:
+        accepted
+          ? sourceTurnIds
+          : [],
+
+      followUpFamily:
+        accepted
+          ? this.normalizeIdentifier(
+              parsed.followUpFamily ||
+              parsed.follow_up_family ||
+              "context_dependent_follow_up"
+            )
+          : null,
+
+      confidence,
 
       requiresClarification:
-        resolvedTurn
-          .requiresClarification ===
-          true ||
-        anchorDecision
-          .requiresClarification ===
-          true,
+        !accepted,
 
-      confidence:
-        Number(
-          this.normalizeConfidence(
-            confidence
-          ).toFixed(
-            3
-          )
-        ),
+      warnings,
 
-      warnings
+      reason:
+        accepted
+          ? this.clean(
+              parsed.reason ||
+              "The model resolved the omitted meaning using supplied recent conversation only."
+            )
+          : ambiguous
+            ? "The model found more than one materially plausible interpretation."
+            : warnings.length
+              ? warnings.join(
+                  ", "
+                )
+              : "The model resolution was not accepted."
     };
   },
 
+  /* =====================================================
+     RESULT BUILDERS
+  ===================================================== */
+
   buildCanonicalResult({
     currentTurn = {},
-    recentExchange = {},
+    recentTurns = [],
     detection = {},
-    familyResolution = {},
-    anchorCandidates = [],
-    rankedAnchors = [],
-    anchorDecision = {},
-    inheritedContext = {},
-    resolvedTurn = {},
-    semanticContext = {},
-    continuityContext = {},
-    quality = {}
+    resolutionPacket = {},
+    parsed = null,
+    validation = {},
+    modelError = null
   } = {}) {
-    return {
+    const resolved =
+      validation.accepted ===
+      true;
+
+    const resolvedText =
+      resolved
+        ? validation
+            .resolvedText
+        : currentTurn
+            .originalText;
+
+    const selectedSources =
+      recentTurns.filter(
+        turn =>
+          validation
+            .sourceTurnIds
+            ?.includes(
+              String(
+                turn.id
+              )
+            )
+      );
+
+    const result = {
       schema:
         "ari_elliptical_follow_up_resolution",
 
@@ -4454,187 +1368,260 @@ window.AriEllipticalFollowUpResolver = {
       originalText:
         currentTurn.originalText,
 
-      resolvedText:
-        resolvedTurn.resolvedText ||
-        currentTurn.originalText,
+      resolvedText,
 
       currentTurnWasResolved:
-        resolvedTurn
-          .currentTurnWasResolved ===
-          true,
+        resolved,
 
       followUpFamily:
-        familyResolution.family,
-
-      followUpOperation:
-        familyResolution.operation,
-
-      referenceType:
-        resolvedTurn.referenceType ||
-        (
-          detection
-            .demonstrativeReference
-            ?.present
-            ? "deictic_reference"
-            : "elliptical_reference"
-        ),
-
-      referenceSurface:
-        resolvedTurn.referenceSurface ||
-        detection
-          .demonstrativeReference
-          ?.primarySurface ||
+        validation
+          .followUpFamily ||
         null,
 
+      followUpOperation:
+        resolved
+          ? "resolve_context_dependent_follow_up"
+          : null,
+
+      referenceType:
+        resolved
+          ? "model_resolved_discourse_reference"
+          : detection
+              .explicitReference
+            ? "unresolved_deictic_reference"
+            : "unresolved_elliptical_reference",
+
+      referenceSurface:
+        this.extractReferenceSurface(
+          currentTurn.normalizedText
+        ),
+
       referenceResolved:
-        resolvedTurn.referenceResolved ===
-          true,
+        resolved,
 
       resolvedReferenceValue:
-        resolvedTurn
-          .resolvedReferenceValue ||
+        validation.referent ||
         null,
 
       resolvedReferenceSourceTurnId:
-        resolvedTurn
-          .resolvedReferenceSourceTurnId ||
+        validation
+          .sourceTurnIds
+          ?.[0] ||
         null,
 
       currentTurn,
 
-      recentExchange: {
-        available:
-          recentExchange.available,
-
-        previousUserTurn:
-          recentExchange
-            .previousUserTurn,
-
-        previousAssistantTurn:
-          recentExchange
-            .previousAssistantTurn,
-
-        previousUserText:
-          recentExchange
-            .previousUserText,
-
-        previousAssistantText:
-          recentExchange
-            .previousAssistantText
-      },
+      recentTurns,
 
       detection,
 
-      familyResolution,
+      modelResolution: {
+        attempted:
+          true,
+
+        adapterAvailable:
+          !modelError,
+
+        rawParsed:
+          parsed,
+
+        validation,
+
+        error:
+          modelError
+      },
 
       anchor: {
         status:
-          anchorDecision.status,
+          resolved
+            ? "resolved"
+            : validation.ambiguous
+              ? "ambiguous"
+              : "unresolved",
 
-        selected:
-          anchorDecision.selected,
+        selectedSources,
+
+        sourceTurnIds:
+          validation
+            .sourceTurnIds ||
+          [],
 
         confidence:
-          anchorDecision.confidence,
-
-        score:
-          anchorDecision.score,
-
-        margin:
-          anchorDecision.margin,
+          validation.confidence ||
+          0,
 
         reason:
-          anchorDecision.reason,
-
-        competingAnchors:
-          anchorDecision
-            .competingAnchors
+          validation.reason
       },
 
-      anchorCandidates,
+      inheritedContext: {
+        inherited:
+          resolved,
 
-      rankedAnchors,
+        target:
+          validation.referent ||
+          null,
 
-      inheritedContext,
+        object:
+          validation.referent ||
+          null,
 
-      inheritedSubject:
-        inheritedContext.subject,
+        sourceTurnIds:
+          validation
+            .sourceTurnIds ||
+          [],
 
-      inheritedTarget:
-        inheritedContext.target,
+        minimumNecessaryContextOnly:
+          true,
 
-      inheritedObject:
-        inheritedContext.object,
+        authority:
+          "model_proposed_context_inheritance_validated_deterministically"
+      },
 
-      inheritedProposition:
-        inheritedContext.proposition,
+      resolvedCurrentTurn: {
+        resolved,
 
-      inheritedEvent:
-        inheritedContext.event,
+        originalText:
+          currentTurn.originalText,
 
-      inheritedOption:
-        inheritedContext.option,
+        text:
+          resolvedText,
 
-      inheritedQuantity:
-        inheritedContext.quantity,
+        resolvedText,
 
-      resolvedCurrentTurn:
-        resolvedTurn,
+        currentTurnWasResolved:
+          resolved,
+
+        followUpFamily:
+          validation
+            .followUpFamily ||
+          null,
+
+        referenceType:
+          resolved
+            ? "model_resolved_discourse_reference"
+            : null,
+
+        referenceResolved:
+          resolved,
+
+        resolvedReferenceValue:
+          validation.referent ||
+          null,
+
+        resolvedReferenceSourceTurnId:
+          validation
+            .sourceTurnIds
+            ?.[0] ||
+          null,
+
+        requiresClarification:
+          validation
+            .requiresClarification ===
+            true,
+
+        resolutionReason:
+          validation.reason,
+
+        originalPreserved:
+          true,
+
+        authority:
+          "resolved_current_turn_only"
+      },
 
       requiresClarification:
-        quality
+        validation
           .requiresClarification ===
           true,
 
-      semanticContext: {
-        requestedOperation:
-          semanticContext
-            .requestedOperation,
+      quality: {
+        ready:
+          resolved,
 
-        requestedOutput:
-          semanticContext
-            .requestedOutput,
+        healthy:
+          resolved &&
+          !validation
+            .warnings
+            ?.length &&
+          !modelError,
 
-        unresolvedSlots:
-          semanticContext
-            .unresolvedSlots,
+        detected:
+          true,
 
-        ambiguityPresent:
-          semanticContext
-            .ambiguityPresent,
+        anchorResolved:
+          resolved,
 
-        originalTarget:
-          semanticContext.target,
+        turnResolved:
+          resolved,
 
-        originalObject:
-          semanticContext
-            .targetObject
+        requiresClarification:
+          validation
+            .requiresClarification ===
+            true,
+
+        confidence:
+          validation.confidence ||
+          0,
+
+        warnings: [
+          ...this.asArray(
+            validation.warnings
+          ),
+          ...(
+            modelError
+              ? [
+                  "model_resolution_error"
+                ]
+              : []
+          )
+        ]
       },
 
-      continuityContext,
-
-      quality,
-
       confidence:
-        quality.confidence,
+        validation.confidence ||
+        0,
 
-      warnings:
-        quality.warnings,
+      warnings: [
+        ...this.asArray(
+          validation.warnings
+        ),
+        ...(
+          modelError
+            ? [
+                "model_resolution_error"
+              ]
+            : []
+        )
+      ],
 
       originalTurnPreserved:
         true,
 
+      resolutionPacketSummary: {
+        recentTurnCount:
+          resolutionPacket
+            .recentConversation
+            ?.length ||
+          0,
+
+        detectionSignals:
+          resolutionPacket
+            .detectionSignals ||
+          []
+      },
+
       authority: {
-        canDetectEllipticalFollowUp:
+        canDetectContextDependency:
           true,
 
-        canResolveOmittedSemanticSlots:
+        canPrepareModelResolutionPacket:
           true,
 
-        canResolveDemonstrativeReferences:
+        canRequestModelResolution:
           true,
 
-        canSelectRecentThreadAnchor:
+        canValidateModelResolution:
           true,
 
         canConstructResolvedCurrentTurn:
@@ -4645,9 +1632,6 @@ window.AriEllipticalFollowUpResolver = {
 
         canLeaveAmbiguousFollowUpUnresolved:
           true,
-
-        canChooseWhetherContinuityRuns:
-          false,
 
         canChooseConversationFunction:
           false,
@@ -4671,17 +1655,17 @@ window.AriEllipticalFollowUpResolver = {
           false,
 
         role:
-          "canonical_elliptical_follow_up_resolution_only"
+          "ai_assisted_elliptical_follow_up_resolution_with_deterministic_governance"
       }
     };
+
+    return result;
   },
 
   buildNotDetectedResult({
     currentTurn = {},
-    recentExchange = {},
-    detection = {},
-    semanticContext = {},
-    continuityContext = {}
+    recentTurns = [],
+    detection = {}
   } = {}) {
     return {
       schema:
@@ -4746,67 +1730,47 @@ window.AriEllipticalFollowUpResolver = {
 
       currentTurn,
 
-      recentExchange: {
-        available:
-          recentExchange.available,
-
-        previousUserTurn:
-          recentExchange
-            .previousUserTurn,
-
-        previousAssistantTurn:
-          recentExchange
-            .previousAssistantTurn,
-
-        previousUserText:
-          recentExchange
-            .previousUserText,
-
-        previousAssistantText:
-          recentExchange
-            .previousAssistantText
-      },
+      recentTurns,
 
       detection,
 
-      familyResolution:
-        null,
+      modelResolution: {
+        attempted:
+          false,
+
+        adapterAvailable:
+          null,
+
+        rawParsed:
+          null,
+
+        validation:
+          null,
+
+        error:
+          null
+      },
 
       anchor: {
         status:
           "not_required",
 
-        selected:
-          null,
+        selectedSources:
+          [],
+
+        sourceTurnIds:
+          [],
 
         confidence:
           1,
 
-        score:
-          0,
-
-        margin:
-          0,
-
         reason:
-          "Elliptical follow-up resolution was not required.",
-
-        competingAnchors:
-          []
+          "Elliptical follow-up resolution was not required."
       },
-
-      anchorCandidates:
-        [],
-
-      rankedAnchors:
-        [],
 
       inheritedContext: {
         inherited:
           false,
-
-        subject:
-          null,
 
         target:
           null,
@@ -4814,39 +1778,12 @@ window.AriEllipticalFollowUpResolver = {
         object:
           null,
 
-        proposition:
-          null,
+        sourceTurnIds:
+          [],
 
-        event:
-          null,
-
-        option:
-          null,
-
-        quantity:
-          null
+        minimumNecessaryContextOnly:
+          true
       },
-
-      inheritedSubject:
-        null,
-
-      inheritedTarget:
-        null,
-
-      inheritedObject:
-        null,
-
-      inheritedProposition:
-        null,
-
-      inheritedEvent:
-        null,
-
-      inheritedOption:
-        null,
-
-      inheritedQuantity:
-        null,
 
       resolvedCurrentTurn: {
         resolved:
@@ -4870,39 +1807,15 @@ window.AriEllipticalFollowUpResolver = {
         resolutionReason:
           detection.reason,
 
+        originalPreserved:
+          true,
+
         authority:
-          "resolved_turn_record_only"
+          "resolved_current_turn_only"
       },
 
       requiresClarification:
         false,
-
-      semanticContext: {
-        requestedOperation:
-          semanticContext
-            .requestedOperation,
-
-        requestedOutput:
-          semanticContext
-            .requestedOutput,
-
-        unresolvedSlots:
-          semanticContext
-            .unresolvedSlots,
-
-        ambiguityPresent:
-          semanticContext
-            .ambiguityPresent,
-
-        originalTarget:
-          semanticContext.target,
-
-        originalObject:
-          semanticContext
-            .targetObject
-      },
-
-      continuityContext,
 
       quality: {
         ready:
@@ -4940,16 +1853,16 @@ window.AriEllipticalFollowUpResolver = {
         true,
 
       authority: {
-        canDetectEllipticalFollowUp:
+        canDetectContextDependency:
           true,
 
-        canResolveOmittedSemanticSlots:
+        canPrepareModelResolutionPacket:
           true,
 
-        canResolveDemonstrativeReferences:
+        canRequestModelResolution:
           true,
 
-        canSelectRecentThreadAnchor:
+        canValidateModelResolution:
           true,
 
         canConstructResolvedCurrentTurn:
@@ -4960,9 +1873,6 @@ window.AriEllipticalFollowUpResolver = {
 
         canLeaveAmbiguousFollowUpUnresolved:
           true,
-
-        canChooseWhetherContinuityRuns:
-          false,
 
         canChooseConversationFunction:
           false,
@@ -4986,7 +1896,7 @@ window.AriEllipticalFollowUpResolver = {
           false,
 
         role:
-          "canonical_elliptical_follow_up_resolution_only"
+          "ai_assisted_elliptical_follow_up_resolution_with_deterministic_governance"
       }
     };
   },
@@ -4998,11 +1908,6 @@ window.AriEllipticalFollowUpResolver = {
   buildReturnPayload(
     resolution = {}
   ) {
-    const resolvedCurrentTurn =
-      resolution
-        .resolvedCurrentTurn ||
-      {};
-
     return {
       ellipticalFollowUpResolverRan:
         true,
@@ -5020,7 +1925,10 @@ window.AriEllipticalFollowUpResolver = {
       ellipticalFollowUpResolution:
         resolution,
 
-      resolvedCurrentTurn,
+      resolvedCurrentTurn:
+        resolution
+          .resolvedCurrentTurn ||
+        null,
 
       originalCurrentTurn: {
         text:
@@ -5095,34 +2003,16 @@ window.AriEllipticalFollowUpResolver = {
         resolution.followUpOperation ||
         null,
 
-      inheritedSubject:
-        resolution.inheritedSubject ||
-        null,
-
       inheritedTarget:
-        resolution.inheritedTarget ||
+        resolution
+          .inheritedContext
+          ?.target ||
         null,
 
       inheritedObject:
-        resolution.inheritedObject ||
-        null,
-
-      inheritedProposition:
         resolution
-          .inheritedProposition ||
-        null,
-
-      inheritedEvent:
-        resolution.inheritedEvent ||
-        null,
-
-      inheritedOption:
-        resolution.inheritedOption ||
-        null,
-
-      inheritedQuantity:
-        resolution
-          .inheritedQuantity ||
+          .inheritedContext
+          ?.object ||
         null,
 
       ellipticalFollowUpAnchor:
@@ -5169,344 +2059,22 @@ window.AriEllipticalFollowUpResolver = {
   },
 
   /* =====================================================
-     EXTRACTION AND HEURISTICS
+     UTILITIES
   ===================================================== */
 
-  extractChoiceFromText(
-    value = ""
-  ) {
-    const text =
-      this.clean(
-        value
-      );
-
-    const patterns = [
-      /\b(?:i would|i'd|i will|i'll|my choice would be|i choose|i chose|i prefer|my favorite is)\s+(?:choose\s+)?([^.!?]+?)(?:\s+because|\s+since|[.!?]|$)/i,
-
-      /\b(?:the better choice is|the best option is|the answer is|it is|it's)\s+([^.!?]+?)(?:\s+because|\s+since|[.!?]|$)/i
-    ];
-
-    for (
-      const pattern
-      of patterns
-    ) {
-      const match =
-        text.match(
-          pattern
-        );
-
-      if (
-        match?.[1]
-      ) {
-        return this.clean(
-          match[1]
-        )
-          .replace(
-            /[.!?]+$/,
-            ""
-          )
-          .trim();
-      }
-    }
-
-    return null;
-  },
-
-  extractSubjectFromQuestion(
-    question = ""
-  ) {
-    const text =
-      this.clean(
-        question
-      );
-
-    if (!text) {
-      return null;
-    }
-
-    const favoriteMatch =
-      text.match(
-        /\byour\s+favorite\s+([^?]+?)(?:\?|$)/i
-      );
-
-    if (
-      favoriteMatch?.[1]
-    ) {
-      return `assistant preference about ${this.clean(
-        favoriteMatch[1]
-      )}`;
-    }
-
-    return null;
-  },
-
-  extractQuantityFromText(
-    value = ""
+  extractReferenceSurface(
+    normalizedText = ""
   ) {
     const match =
-      this.clean(
-        value
+      this.normalize(
+        normalizedText
       ).match(
-        /\b\$?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:percent|%|dollars?|hours?|days?|weeks?|months?|years?|miles?|feet|inches?|pounds?|lbs?|kg|kilograms?|degrees?))?\b/i
+        /\b(?:that one|this one|the other one|what you said|your answer|your response|the previous answer|that|this|it|those|these|them)\b/
       );
 
     return match?.[0] ||
       null;
   },
-
-  extractSemanticValue(
-    value
-  ) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return "";
-    }
-
-    if (
-      typeof value ===
-      "string"
-    ) {
-      return this.clean(
-        value
-      );
-    }
-
-    if (
-      typeof value ===
-      "number"
-    ) {
-      return String(
-        value
-      );
-    }
-
-    if (
-      typeof value ===
-      "object"
-    ) {
-      return this.clean(
-        value.value ||
-        value.name ||
-        value.label ||
-        value.surface ||
-        value.text ||
-        value.claim ||
-        value.proposition ||
-        value.target ||
-        ""
-      );
-    }
-
-    return this.clean(
-      String(
-        value
-      )
-    );
-  },
-
-  extractNodeText(
-    node = {}
-  ) {
-    return this.clean(
-      node.text ||
-      node.value ||
-      node.label ||
-      node.surface ||
-      node.name ||
-      node.claim ||
-      node.proposition ||
-      node.event ||
-      node.description ||
-      ""
-    );
-  },
-
-  inferAnchorSemanticType(
-    text = ""
-  ) {
-    if (
-      this.looksLikeQuantity(
-        text
-      )
-    ) {
-      return "quantity";
-    }
-
-    if (
-      this.looksLikeChoice(
-        text
-      )
-    ) {
-      return "option";
-    }
-
-    if (
-      this.looksLikeClaim(
-        text
-      )
-    ) {
-      return "claim";
-    }
-
-    return "concept";
-  },
-
-  looksLikeClaim(
-    value = ""
-  ) {
-    const text =
-      this.normalize(
-        value
-      );
-
-    return Boolean(
-      text &&
-      /\b(?:is|are|was|were|will|would|can|could|should|has|have|had|fits|means|causes|requires|includes|works|matters|states|emphasizes)\b/
-        .test(
-          text
-        )
-    );
-  },
-
-  looksLikeChoice(
-    value = ""
-  ) {
-    return /\b(?:choose|choice|prefer|favorite|best option|better option|i'd|i would|my pick|my choice)\b/i
-      .test(
-        String(
-          value ||
-          ""
-        )
-      );
-  },
-
-  looksLikeQuantity(
-    value = ""
-  ) {
-    return /\b\$?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:%|percent|dollars?|hours?|days?|weeks?|months?|years?|miles?|feet|inches?|pounds?|lbs?|kg|degrees?))?\b/i
-      .test(
-        String(
-          value ||
-          ""
-        )
-      );
-  },
-
-  looksLikeRecommendation(
-    value = ""
-  ) {
-    return /\b(?:should|recommend|best option|better choice|next step|i'd suggest|i would suggest|you can|you could|start with)\b/i
-      .test(
-        String(
-          value ||
-          ""
-        )
-      );
-  },
-
-  looksLikeOptionQuestion(
-    value = ""
-  ) {
-    return /\b(?:which|option|choice|between|versus|vs|or the|first one|second one|other one)\b/i
-      .test(
-        String(
-          value ||
-          ""
-        )
-      );
-  },
-
-  /* =====================================================
-     DEDUPLICATION
-  ===================================================== */
-
-  dedupeTurns(
-    turns = []
-  ) {
-    const seen =
-      new Set();
-
-    return this.asArray(
-      turns
-    ).filter(
-      turn => {
-        const key =
-          [
-            turn.id ||
-              "no_id",
-
-            turn.role ||
-              "no_role",
-
-            this.normalize(
-              turn.text
-            )
-          ].join("|");
-
-        if (
-          !turn.text ||
-          seen.has(
-            key
-          )
-        ) {
-          return false;
-        }
-
-        seen.add(
-          key
-        );
-
-        return true;
-      }
-    );
-  },
-
-  dedupeAnchorCandidates(
-    candidates = []
-  ) {
-    const seen =
-      new Map();
-
-    this.asArray(
-      candidates
-    ).forEach(
-      candidate => {
-        const key =
-          [
-            candidate.type,
-            candidate.sourceTurnId ||
-              "none",
-            candidate.normalizedText
-          ].join("|");
-
-        const existing =
-          seen.get(
-            key
-          );
-
-        if (
-          !existing ||
-          candidate.priority >
-            existing.priority
-        ) {
-          seen.set(
-            key,
-            candidate
-          );
-        }
-      }
-    );
-
-    return [
-      ...seen.values()
-    ];
-  },
-
-  /* =====================================================
-     GENERAL UTILITIES
-  ===================================================== */
 
   normalizeRole(
     value = ""
@@ -5554,14 +2122,6 @@ window.AriEllipticalFollowUpResolver = {
     )
       .toLowerCase()
       .replace(
-        /[’‘]/g,
-        "'"
-      )
-      .replace(
-        /[“”]/g,
-        "\""
-      )
-      .replace(
         /[^a-z0-9]+/g,
         "_"
       )
@@ -5574,36 +2134,6 @@ window.AriEllipticalFollowUpResolver = {
   normalizeConfidence(
     value = 0
   ) {
-    if (
-      typeof value ===
-      "string"
-    ) {
-      const normalized =
-        value
-          .toLowerCase()
-          .trim();
-
-      const labels = {
-        none: 0,
-        very_low: 0.2,
-        low: 0.4,
-        medium: 0.65,
-        high: 0.85,
-        very_high: 0.95
-      };
-
-      if (
-        labels[
-          normalized
-        ] !==
-        undefined
-      ) {
-        return labels[
-          normalized
-        ];
-      }
-    }
-
     const number =
       Number(
         value
@@ -5618,7 +2148,8 @@ window.AriEllipticalFollowUpResolver = {
     }
 
     if (
-      number > 1
+      number >
+      1
     ) {
       return Math.max(
         0,
@@ -5639,76 +2170,21 @@ window.AriEllipticalFollowUpResolver = {
     );
   },
 
-  splitSentences(
-    value = ""
+  serializeError(
+    error
   ) {
-    const text =
-      this.clean(
-        value
-      );
+    return {
+      name:
+        error?.name ||
+        "Error",
 
-    if (!text) {
-      return [];
-    }
-
-    return text
-      .split(
-        /(?<=[.!?])\s+/
-      )
-      .map(
-        sentence =>
-          sentence.trim()
-      )
-      .filter(
-        Boolean
-      );
-  },
-
-  stripTerminalPunctuation(
-    value = ""
-  ) {
-    return this.clean(
-      value
-    ).replace(
-      /[.!?]+$/,
-      ""
-    );
-  },
-
-  quoteIfNeeded(
-    value = ""
-  ) {
-    const text =
-      this.clean(
-        value
-      );
-
-    if (!text) {
-      return "";
-    }
-
-    if (
-      /^["'].*["']$/.test(
-        text
-      )
-    ) {
-      return text;
-    }
-
-    return `"${text}"`;
-  },
-
-  roundScore(
-    value = 0
-  ) {
-    return Number(
-      Number(
-        value ||
-        0
-      ).toFixed(
-        3
-      )
-    );
+      message:
+        error?.message ||
+        String(
+          error ||
+          "Unknown model resolution error."
+        )
+    };
   },
 
   createStableId(
@@ -5781,16 +2257,22 @@ window.AriEllipticalFollowUpResolver = {
     ) {
       return value.filter(
         item =>
-          item !== null &&
-          item !== undefined &&
-          item !== ""
+          item !==
+            null &&
+          item !==
+            undefined &&
+          item !==
+            ""
       );
     }
 
     if (
-      value === null ||
-      value === undefined ||
-      value === ""
+      value ===
+        null ||
+      value ===
+        undefined ||
+      value ===
+        ""
     ) {
       return [];
     }
