@@ -271,7 +271,10 @@ window.AriExpressionPipeline = {
         });
       }
 
-      return result;
+      return {
+  ...summary,
+  ...result
+};
     } catch (error) {
       console.error(
         `Ari expression stage error: ${stageName}`,
