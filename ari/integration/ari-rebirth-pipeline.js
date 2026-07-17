@@ -1567,41 +1567,32 @@ window.AriRebirthPipeline = {
       };
 
       let nextState = {
-        ...result,
+  ...summary,
+  ...result,
 
-        pipelineLifecycleErrors:
-          this.mergeLifecycleErrors(
-            summary
-              .pipelineLifecycleErrors,
+  pipelineLifecycleErrors:
+    this.mergeLifecycleErrors(
+      summary.pipelineLifecycleErrors,
+      result.pipelineLifecycleErrors
+    ),
 
-            result
-              .pipelineLifecycleErrors
-          ),
+  pipelineLifecycleWarnings:
+    this.mergeLifecycleErrors(
+      summary.pipelineLifecycleWarnings,
+      result.pipelineLifecycleWarnings
+    ),
 
-        pipelineLifecycleWarnings:
-          this.mergeLifecycleErrors(
-            summary
-              .pipelineLifecycleWarnings,
+  pipelineExecutionOrder:
+    summary.pipelineExecutionOrder,
 
-            result
-              .pipelineLifecycleWarnings
-          ),
+  pipelineLayerResults: {
+    ...summary.pipelineLayerResults,
+    ...result.pipelineLayerResults,
 
-        pipelineExecutionOrder:
-          summary
-            .pipelineExecutionOrder,
-
-        pipelineLayerResults: {
-          ...summary
-            .pipelineLayerResults,
-
-          ...result
-            .pipelineLayerResults,
-
-          [name]:
-            layerResult
-        }
-      };
+    [name]:
+      layerResult
+  }
+};
 
       if (
         layer.required ===
