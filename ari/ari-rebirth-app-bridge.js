@@ -92,7 +92,7 @@ window.AriRebirthAppBridge = {
     "ari/bridge/ari-runtime-request.js",
     "ari/bridge/ari-runtime-readiness.js",
     "ari/bridge/ari-runtime-delivery.js",
-
+"ari/bridge/ari-runtime-diagnostics.js",
     // ===================================================
     // ACTION / INTENT
     // ===================================================
