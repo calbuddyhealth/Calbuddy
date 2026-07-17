@@ -449,7 +449,8 @@ window.AriRebirthAppBridge = {
       timing.mark(
         "after_runtime_load"
       );
-    } catch (error) {
+   
+     } catch (error) {
       console.error(
         "ARI REBIRTH SCRIPT LOAD ERROR:",
         error
@@ -1360,22 +1361,45 @@ window.AriRebirthAppBridge = {
     }
 
     this.loadingPromise =
-      this.loadRequiredScripts()
-        .then(
-          result => {
-            this.loaded =
-              result ===
-                true &&
-              this.areRequiredServicesReady() &&
-              this.isMasterPipelineReady();
+  this.loadRequiredScripts()
+    .then(result => {
 
-            if (
-              !this.loaded
-            ) {
-              throw new Error(
-                "ari_runtime_unavailable_after_script_loading"
-              );
-            }
+console.log("========== ARI POST LOAD ==========");
+
+console.table({
+  scriptsLoaded: result,
+
+  requestService:
+    typeof window.AriRuntimeRequest?.build === "function",
+
+  readinessService:
+    typeof window.AriRuntimeReadiness?.check === "function",
+
+  deliveryRead:
+    typeof window.AriRuntimeDelivery?.read === "function",
+
+  deliveryAdapt:
+    typeof window.AriRuntimeDelivery?.adapt === "function",
+
+  pipeline:
+    typeof window.AriRebirthPipeline?.run === "function"
+});
+
+console.log("AriRuntimeRequest", window.AriRuntimeRequest);
+console.log("AriRuntimeReadiness", window.AriRuntimeReadiness);
+console.log("AriRuntimeDelivery", window.AriRuntimeDelivery);
+console.log("AriRebirthPipeline", window.AriRebirthPipeline);
+
+      this.loaded =
+        result === true &&
+        this.areRequiredServicesReady() &&
+        this.isMasterPipelineReady();
+
+      if (!this.loaded) {
+        throw new Error(
+          "ari_runtime_unavailable_after_script_loading"
+        );
+      }
 
             this.setLoaderDiagnostic(
               "ariLoadingCompleted",
@@ -1474,6 +1498,8 @@ window.AriRebirthAppBridge = {
       await this.loadScriptOnce(
         src
       );
+
+console.log(`[LOADED ${index + 1}/${this.requiredScripts.length}] ${src}`);
 
       this.setLoaderDiagnostic(
         "ariLastLoadedScript",
