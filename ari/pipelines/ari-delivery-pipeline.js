@@ -275,23 +275,42 @@ window.AriDeliveryPipeline = {
       [];
 
     return {
-      ready:
-        Boolean(finalResponse),
+  ready:
+    Boolean(finalResponse),
 
-      source:
-        "ari-delivery-pipeline",
+  available:
+    Boolean(finalResponse),
 
-      version:
-        this.version,
+  authoritative:
+    true,
 
-      // -----------------------------------------------
-      // Input contracts
-      // -----------------------------------------------
+  reply:
+    finalResponse || "",
 
-      perceptionPacket:
-        summary.perceptionPacket ||
-        null,
+  text:
+    finalResponse || "",
 
+  finalResponse:
+    finalResponse || "",
+
+  emotion:
+    summary.emotion ||
+    summary.expressionPacket?.result?.emotion ||
+    "idle",
+
+  source:
+    "ari-delivery-pipeline",
+
+  version:
+    this.version,
+
+  // -----------------------------------------------
+  // Input contracts
+  // -----------------------------------------------
+
+  perceptionPacket:
+    summary.perceptionPacket ||
+    null,
       executivePacket:
         summary.executivePacket ||
         null,
