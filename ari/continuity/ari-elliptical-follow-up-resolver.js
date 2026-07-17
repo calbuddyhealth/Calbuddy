@@ -314,10 +314,11 @@ window.AriEllipticalFollowUpResolver = {
     currentTurn = {}
   } = {}) {
     const sources = [
-      threadContext.recentTurns,
-      summary.recentMessages,
-      summary.threadMessages,
-      summary.conversationHistory,
+  threadContext.recentTurns,
+  summary.recentMessages,
+  summary.messages,
+  summary.threadMessages,
+  summary.conversationHistory,
       summary
         .continuityPacket
         ?.recentTurns,
@@ -536,177 +537,159 @@ window.AriEllipticalFollowUpResolver = {
   ===================================================== */
 
   detectContextDependency({
-    currentTurn = {},
-    recentTurns = [],
-    summary = {}
-  } = {}) {
-    const text =
-      currentTurn.normalizedText;
+  currentTurn = {},
+  recentTurns = [],
+  summary = {}
+} = {}) {
+  const text =
+    currentTurn.normalizedText || "";
 
-    const priorContextAvailable =
-      recentTurns.length >
-      0;
+  const priorContextAvailable =
+    recentTurns.length > 0;
 
-    const explicitReference =
-      /\b(?:that|this|it|those|these|them|that one|this one|the other one|what you said|your answer|your response|the previous answer)\b/
-        .test(
-          text
-        );
+  const explicitReference =
+    /\b(?:that one|this one|the other one|what you said|your answer|your response|the previous answer|that|this|it|those|these|them)\b/i
+      .test(text);
 
-    const bareFollowUp =
-      /^(?:why|why not|how|how so|what|who|where|when|which|which one|really|seriously|are you sure|then what|what next|now what|and then|continue|go on|what else|thoughts|your thoughts|what do you think|how do you feel|do you agree|what about it|what about that|what about this)$/i
-        .test(
-          text
-        );
+  const bareFollowUp =
+    /^(?:why|why not|how|how so|what|who|where|when|which|which one|really|seriously|are you sure|then what|what next|now what|and then|continue|go on|what else|thoughts|your thoughts|what do you think|how do you feel|do you agree|what about it|what about that|what about this)$/i
+      .test(text);
 
-    const shortInterrogative =
-      currentTurn.wordCount >
-        0 &&
-      currentTurn.wordCount <=
-        8 &&
-      /^(?:why|how|what|who|where|when|which)\b/
-        .test(
-          text
-        );
+  const elaborationFollowUp =
+    /\b(?:elaborate|expand)(?:\s+more)?(?:\s+on)?\s+(?:that|this|it)(?:\s+more|\s+further)?\b/i
+      .test(text) ||
+    /\b(?:tell me more|say more|go deeper|go into more detail)(?:\s+about|\s+on)?\s*(?:that|this|it)?\b/i
+      .test(text) ||
+    /\bexplain\s+(?:that|this|it)(?:\s+more|\s+further)?\b/i
+      .test(text);
 
-    const upstreamContinuity =
-      summary
-        .shouldUseContinuity ===
-        true ||
-      summary.isFollowUp ===
-        true ||
-      summary.conversationMode
-        ?.isFollowUp ===
-        true ||
-      summary.semanticFrame
-        ?.continuity
-        ?.requiresPriorContext ===
-        true ||
-      summary.semanticSummary
-        ?.continuity
-        ?.requiresPriorContext ===
-        true ||
-      summary.laneSplit
-        ?.routing
-        ?.useThread ===
-        true;
+  const shortInterrogative =
+    currentTurn.wordCount > 0 &&
+    currentTurn.wordCount <= 8 &&
+    /^(?:why|how|what|who|where|when|which)\b/i
+      .test(text);
 
-    const detected =
-      priorContextAvailable &&
+  const upstreamContinuity =
+    summary.shouldUseContinuity === true ||
+    summary.isFollowUp === true ||
+    summary.conversationMode
+      ?.isFollowUp === true ||
+    summary.semanticFrame
+      ?.continuity
+      ?.requiresPriorContext === true ||
+    summary.semanticSummary
+      ?.continuity
+      ?.requiresPriorContext === true ||
+    summary.laneSplit
+      ?.routing
+      ?.useThread === true;
+
+  const detected =
+    priorContextAvailable &&
+    (
+      explicitReference ||
+      elaborationFollowUp ||
+      bareFollowUp ||
+      upstreamContinuity ||
       (
-        explicitReference ||
-        bareFollowUp ||
-        upstreamContinuity ||
-        (
-          shortInterrogative &&
-          currentTurn.wordCount <=
-            3
-        )
-      );
+        shortInterrogative &&
+        currentTurn.wordCount <= 3
+      )
+    );
 
-    const signals = [];
+  const signals = [];
 
-    if (
-      explicitReference
-    ) {
-      signals.push(
-        "explicit_discourse_reference"
-      );
+  if (explicitReference) {
+    signals.push(
+      "explicit_discourse_reference"
+    );
+  }
+
+  if (elaborationFollowUp) {
+    signals.push(
+      "elaboration_follow_up"
+    );
+  }
+
+  if (bareFollowUp) {
+    signals.push(
+      "bare_follow_up_construction"
+    );
+  }
+
+  if (shortInterrogative) {
+    signals.push(
+      "short_interrogative"
+    );
+  }
+
+  if (upstreamContinuity) {
+    signals.push(
+      "upstream_continuity_evidence"
+    );
+  }
+
+  if (priorContextAvailable) {
+    signals.push(
+      "recent_context_available"
+    );
+  }
+
+  let confidence = 0;
+
+  if (detected) {
+    confidence = 0.55;
+
+    if (explicitReference) {
+      confidence += 0.2;
     }
 
-    if (
-      bareFollowUp
-    ) {
-      signals.push(
-        "bare_follow_up_construction"
-      );
+    if (elaborationFollowUp) {
+      confidence += 0.15;
     }
 
-    if (
-      shortInterrogative
-    ) {
-      signals.push(
-        "short_interrogative"
-      );
+    if (bareFollowUp) {
+      confidence += 0.15;
     }
 
-    if (
-      upstreamContinuity
-    ) {
-      signals.push(
-        "upstream_continuity_evidence"
-      );
+    if (upstreamContinuity) {
+      confidence += 0.08;
     }
+  }
 
-    if (
-      priorContextAvailable
-    ) {
-      signals.push(
-        "recent_context_available"
-      );
-    }
+  return {
+    detected,
 
-    let confidence = 0;
+    priorContextAvailable,
 
-    if (
+    explicitReference,
+
+    elaborationFollowUp,
+
+    bareFollowUp,
+
+    shortInterrogative,
+
+    upstreamContinuity,
+
+    signals,
+
+    confidence:
+      this.normalizeConfidence(
+        confidence
+      ),
+
+    reason:
       detected
-    ) {
-      confidence =
-        0.55;
+        ? "The turn appears to depend on immediately available conversation context."
+        : !priorContextAvailable
+          ? "No recent conversation context was available."
+          : "The turn appears complete enough to continue without elliptical resolution.",
 
-      if (
-        explicitReference
-      ) {
-        confidence +=
-          0.2;
-      }
-
-      if (
-        bareFollowUp
-      ) {
-        confidence +=
-          0.15;
-      }
-
-      if (
-        upstreamContinuity
-      ) {
-        confidence +=
-          0.08;
-      }
-    }
-
-    return {
-      detected,
-
-      priorContextAvailable,
-
-      explicitReference,
-
-      bareFollowUp,
-
-      shortInterrogative,
-
-      upstreamContinuity,
-
-      signals,
-
-      confidence:
-        this.normalizeConfidence(
-          confidence
-        ),
-
-      reason:
-        detected
-          ? "The turn appears to depend on immediately available conversation context."
-          : !priorContextAvailable
-            ? "No recent conversation context was available."
-            : "The turn appears complete enough to continue without elliptical resolution.",
-
-      authority:
-        "context_dependency_detection_only"
-    };
-  },
+    authority:
+      "context_dependency_detection_only"
+  };
+},
 
   /* =====================================================
      MODEL PACKET
@@ -870,6 +853,45 @@ window.AriEllipticalFollowUpResolver = {
     runtime = {},
     summary = {}
   } = {}) {
+    
+    console.log(
+  "ARI ELLIPSIS MODEL ADAPTER CHECK:",
+  {
+    directResolver:
+      typeof runtime
+        .resolveEllipticalFollowUp,
+
+    runtimeOrchestrator:
+      Boolean(
+        runtime.modelOrchestrator
+      ),
+
+    summaryOrchestrator:
+      Boolean(
+        summary.modelOrchestrator
+      ),
+
+    globalOrchestrator:
+      Boolean(
+        window.Ari
+          ?.modelOrchestrator ||
+        window.AriModelOrchestrator
+      ),
+
+    runtimeOpenAIClient:
+      Boolean(
+        runtime.openAIClient
+      ),
+
+    globalOpenAIClient:
+      Boolean(
+        window.Ari
+          ?.openAIClient ||
+        window.AriOpenAIClient
+      )
+  }
+);
+    
     const directResolver =
       runtime
         .resolveEllipticalFollowUp ||
@@ -1346,6 +1368,23 @@ window.AriEllipticalFollowUpResolver = {
       source:
         "ari-elliptical-follow-up-resolver",
 
+continuityResolverRan:
+  true,
+
+continuityResolverVersion:
+  this.version,
+
+continuityResolverSource:
+  "ari-elliptical-follow-up-resolver",
+
+status:
+  resolved
+    ? "resolved"
+    : validation
+        .requiresClarification === true
+      ? "clarification_required"
+      : "unresolved",
+
       ran:
         true,
 
@@ -1683,6 +1722,18 @@ window.AriEllipticalFollowUpResolver = {
       source:
         "ari-elliptical-follow-up-resolver",
 
+continuityResolverRan:
+  true,
+
+continuityResolverVersion:
+  this.version,
+
+continuityResolverSource:
+  "ari-elliptical-follow-up-resolver",
+
+status:
+  "not_required",
+
       ran:
         true,
 
@@ -1906,17 +1957,43 @@ window.AriEllipticalFollowUpResolver = {
   ===================================================== */
 
   buildReturnPayload(
-    resolution = {}
-  ) {
-    return {
-      ellipticalFollowUpResolverRan:
-        true,
+  resolution = {}
+) {
+  const resolved =
+    resolution.currentTurnWasResolved === true;
 
-      ellipticalFollowUpResolverVersion:
-        this.version,
+  const detected =
+    resolution.detected === true;
 
-      ellipticalFollowUpResolverSource:
-        "ari-elliptical-follow-up-resolver",
+  const status =
+    resolved
+      ? "resolved"
+      : detected
+        ? resolution.requiresClarification === true
+          ? "clarification_required"
+          : "unresolved"
+        : "not_required";
+
+  return {
+    continuityResolverRan:
+      true,
+
+    continuityResolverVersion:
+      this.version,
+
+    continuityResolverSource:
+      "ari-elliptical-follow-up-resolver",
+
+    status,
+
+    ellipticalFollowUpResolverRan:
+      true,
+
+    ellipticalFollowUpResolverVersion:
+      this.version,
+
+    ellipticalFollowUpResolverSource:
+      "ari-elliptical-follow-up-resolver",
 
       ellipticalFollowUpDetected:
         resolution.detected ===
