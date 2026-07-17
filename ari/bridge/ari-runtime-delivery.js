@@ -6,7 +6,7 @@
 // and adapt it into the stable application response contract expected by
 // CalBuddy Health, Ari Lab, and the Ari Rebirth App Bridge.
 //
-// V1.0.0 — Authoritative Delivery Reading / App Response Adaptation
+// V1.0.1 — Canonical Runtime State Resolution / Summary Object Rejection
 //
 // Architectural flow:
 //
@@ -53,7 +53,7 @@
 window.Ari = window.Ari || {};
 
 window.AriRuntimeDelivery = {
-  version: "1.0.0",
+  version: "1.0.1",
   schemaVersion: "2.0.0",
   source: "ari-runtime-delivery",
   authorityLevel:
@@ -291,70 +291,129 @@ window.AriRuntimeDelivery = {
   ===================================================== */
 
   resolveRuntimeState(
-    runtimeOutput = null
+  runtimeOutput = null
+) {
+  if (
+    !runtimeOutput ||
+    typeof runtimeOutput !==
+      "object" ||
+    Array.isArray(
+      runtimeOutput
+    )
+  ) {
+    return {};
+  }
+
+  /*
+   * Do not treat runtimeOutput.summary as canonical runtime state.
+   *
+   * A compact diagnostic summary may contain fields such as
+   * lifecycle or delivery, but it does not contain the complete
+   * working state produced by the five-layer runtime.
+   */
+  const candidates = [
+    runtimeOutput.runtimeState,
+    runtimeOutput.state,
+    runtimeOutput.result,
+    runtimeOutput.output,
+    runtimeOutput
+  ];
+
+  for (
+    const candidate
+    of candidates
   ) {
     if (
-      !runtimeOutput ||
-      typeof runtimeOutput !==
-        "object" ||
-      Array.isArray(
-        runtimeOutput
+      candidate &&
+      typeof candidate ===
+        "object" &&
+      !Array.isArray(
+        candidate
+      ) &&
+      this.looksLikeRuntimeState(
+        candidate
       )
     ) {
-      return {};
+      return candidate;
     }
+  }
 
-    const candidates = [
-      runtimeOutput.runtimeState,
-      runtimeOutput.state,
-      runtimeOutput.summary,
-      runtimeOutput.result,
-      runtimeOutput.output,
-      runtimeOutput
-    ];
-
-    for (
-      const candidate
-      of candidates
-    ) {
-      if (
-        candidate &&
-        typeof candidate ===
-          "object" &&
-        !Array.isArray(
-          candidate
-        )
-      ) {
-        if (
-          this.looksLikeRuntimeState(
-            candidate
-          )
-        ) {
-          return candidate;
-        }
-      }
-    }
-
-    return runtimeOutput;
-  },
+  /*
+   * Preserve the original object as a final compatibility fallback.
+   * This does not authorize summary objects as runtime state; it only
+   * prevents the adapter from discarding an unfamiliar result shape.
+   */
+  return runtimeOutput;
+},
 
   looksLikeRuntimeState(
-    value = {}
+  value = {}
+) {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
   ) {
-    return Boolean(
-      value.deliveryResult ||
-      value.delivery ||
-      value.finalResponse ||
-      value.finalComposition ||
-      value.lifecycle ||
+    return false;
+  }
+
+  /*
+   * A lifecycle field by itself is not enough.
+   *
+   * Compact summaries also contain lifecycle data, so requiring
+   * stronger runtime evidence prevents a summary from being
+   * mistaken for the completed canonical state.
+   */
+  const hasCanonicalTurn =
+    Boolean(
       value.turn ||
       value.currentTurnId ||
+      value.turnId ||
+      value.userMessage ||
+      value.originalUserMessage
+    );
+
+  const hasPipelineState =
+    Boolean(
+      value.perceptionResult ||
+      value.routingDecision ||
+      value.executivePacket ||
+      value.deliberationResult ||
+      value.canonicalResponsePlan ||
+      value.expressionResult ||
+      value.deliveryResult ||
+      value.deliveryPipelineResult ||
+      value.finalComposition ||
+      value.finalResponse
+    );
+
+  const hasExecutionEvidence =
+    Boolean(
+      value.perceptionPipelineRan ===
+        true ||
+      value.executiveRoutingPipelineRan ===
+        true ||
+      value.deliberationPipelineRan ===
+        true ||
+      value.expressionPipelineRan ===
+        true ||
+      value.deliveryPipelineRan ===
+        true ||
       value.completed ===
         true ||
       value.complete ===
         true
     );
-  },
+
+  return Boolean(
+    hasCanonicalTurn ||
+    hasPipelineState ||
+    hasExecutionEvidence
+  );
+},
 
   /* =====================================================
      DELIVERY CANDIDATE RESOLUTION
