@@ -5,7 +5,7 @@
 // Validate that the current Ari Rebirth runtime is loaded, callable,
 // contract-compatible, and ready before the App Bridge executes a turn.
 //
-// V1.0.0 — Current Pipeline Compatibility / Runtime Boundary Validation
+// V1.0.1 — Public Runtime Boundary Validation / Internal Dependency Diagnostics
 //
 // Architectural flow:
 //
@@ -50,7 +50,7 @@
 window.Ari = window.Ari || {};
 
 window.AriRuntimeReadiness = {
-  version: "1.0.0",
+  version: "1.0.1",
   schemaVersion: "2.0.0",
   source: "ari-runtime-readiness",
   authorityLevel:
@@ -815,35 +815,40 @@ window.AriRuntimeReadiness = {
       },
 
       {
-        name:
-          "AriResponseCandidateArbiter",
+  name:
+    "AriResponseCandidateArbiter",
 
-        group:
-          "legacy_expression_pathway",
+  group:
+    "legacy_expression_pathway",
 
-        required:
-          true,
+  /*
+   * This is an internal Expression dependency.
+   *
+   * Runtime Readiness records its availability for diagnostics,
+   * but the Expression Pipeline owns enforcement of its exact
+   * callable contract.
+   */
+  required:
+    false,
 
-        component:
-          window
-            .AriResponseCandidateArbiter ||
-          null,
+  component:
+    window
+      .AriResponseCandidateArbiter ||
+    null,
 
-        methods: [
-          "arbitrate"
-        ],
+  /*
+   * Do not guess the Arbiter's production entry method here.
+   * Its own validate() method and the Expression Pipeline are
+   * responsible for validating its internal contract.
+   */
+  methods: [],
 
-        alternateMethods: [
-          "select",
-          "run"
-        ],
+  validateMethod:
+    "validate",
 
-        validateMethod:
-          "validate",
-
-        role:
-          "response_candidate_arbiter"
-      },
+  role:
+    "response_candidate_arbiter"
+},
 
       /*
        * Future Response Realization pathway.
@@ -1298,13 +1303,13 @@ window.AriRuntimeReadiness = {
       );
 
     if (
-      expressionArchitecture ===
-      "legacy_candidate_pathway_incomplete"
-    ) {
-      errors.push(
-        "legacy_expression_pathway_incomplete"
-      );
-    }
+  expressionArchitecture ===
+  "legacy_candidate_pathway_incomplete"
+) {
+  warnings.push(
+    "legacy_expression_pathway_incomplete"
+  );
+}
 
     if (
       expressionArchitecture ===
