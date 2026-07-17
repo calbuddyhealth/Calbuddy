@@ -451,27 +451,59 @@ window.AriRebirthAppBridge = {
       );
    
      } catch (error) {
-      console.error(
-        "ARI REBIRTH SCRIPT LOAD ERROR:",
-        error
-      );
+  console.error(
+    "ARI REBIRTH SCRIPT LOAD ERROR:",
+    error
+  );
 
-      timing.finish();
+  timing.finish();
 
-      return this.makeBridgeFailureResponse({
-        publicReply:
-          "Ari couldn’t finish loading the response system.",
+  const loadError =
+    error?.message ||
+    String(
+      error ||
+      "unknown_runtime_load_error"
+    );
 
-        error,
-        options,
+  const lastLoadingScript =
+    (() => {
+      try {
+        return (
+          sessionStorage.getItem(
+            "ariLastLoadingScript"
+          ) ||
+          "unknown_script"
+        );
+      } catch {
+        return "session_storage_unavailable";
+      }
+    })();
 
-        failureType:
-          "runtime_load_failure",
+  return this.makeBridgeFailureResponse({
+    publicReply:
+      `Ari couldn’t finish loading the response system. ` +
+      `Error: ${loadError}. ` +
+      `Last script: ${lastLoadingScript}.`,
 
-        timing:
-          timing.getEntries()
-      });
-    }
+    error,
+    options: {
+      ...options,
+      exposeInternalErrors:
+        true
+    },
+
+    failureType:
+      "runtime_load_failure",
+
+    diagnostics: {
+      loadError,
+      lastLoadingScript
+    },
+
+    timing:
+      timing.getEntries()
+  });
+}
 
     const readiness =
       this.checkReadiness({
