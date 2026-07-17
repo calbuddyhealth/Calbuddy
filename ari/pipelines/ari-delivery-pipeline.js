@@ -214,7 +214,10 @@ window.AriDeliveryPipeline = {
         };
       }
 
-      return result;
+      return {
+  ...summary,
+  ...result
+};
     } catch (error) {
       console.error(
         `Ari delivery stage error: ${stageName}`,
