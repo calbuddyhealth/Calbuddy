@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.2.0 — Realization-Native Runtime Boundary
+// V2.3.0 — Realization-Native Runtime Boundary Cleanup
 //
 // Architectural flow:
 //
@@ -33,7 +33,7 @@
 // - Delegate authoritative Delivery reading to AriRuntimeDelivery.
 // - Delegate application-response adaptation to AriRuntimeDelivery.
 // - Preserve the existing App Bridge public API.
-// - Preserve application-facing response aliases.
+// - Preserve application-facing failure-response aliases.
 // - Preserve loader and boundary diagnostics.
 // - Return controlled failures when runtime bootstrapping or execution fails.
 //
@@ -58,17 +58,20 @@
 // - Does not retrieve or store memory.
 // - Does not execute application writes.
 // - Does not access Supabase directly.
-// - Does not persist runtime state beyond loader diagnostics.
+// - Does not persist runtime state beyond non-blocking loader diagnostics.
 
 window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.2.0",
-  schemaVersion: "2.1.0",
+  version: "2.3.0",
+  schemaVersion: "2.3.0",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
+
+  loaderDebug:
+    false,
 
   /* =====================================================
      SCRIPT DEPENDENCIES
@@ -384,9 +387,10 @@ window.AriRebirthAppBridge = {
   ===================================================== */
 
   async ask(message, options = {}) {
-    const cleanMessage =
-      this.cleanText(
-        message
+    const originalMessage =
+      String(
+        message ??
+        ""
       );
 
     const timing =
@@ -399,7 +403,9 @@ window.AriRebirthAppBridge = {
       "bridge_ask_started"
     );
 
-    if (!cleanMessage) {
+    if (
+      !originalMessage.trim()
+    ) {
       timing.finish();
 
       return this.makeBridgeResponse({
@@ -408,6 +414,17 @@ window.AriRebirthAppBridge = {
 
         emotion:
           "idle",
+
+        error: {
+          code:
+            "empty_current_turn",
+
+          message:
+            "A current-turn message is required.",
+
+          source:
+            this.source
+        },
 
         deliveryStatus:
           "input_rejected",
@@ -445,7 +462,6 @@ window.AriRebirthAppBridge = {
           "Ari couldn’t finish loading the response system.",
 
         error,
-
         options,
 
         failureType:
@@ -505,7 +521,7 @@ window.AriRebirthAppBridge = {
       requestEnvelope =
         this.buildRuntimeRequest({
           message:
-            cleanMessage,
+            originalMessage,
 
           options: {
             ...options,
@@ -531,7 +547,6 @@ window.AriRebirthAppBridge = {
           "Ari couldn’t prepare the current request.",
 
         error,
-
         options,
 
         failureType:
@@ -622,7 +637,6 @@ window.AriRebirthAppBridge = {
           "Ari hit an internal response error.",
 
         error,
-
         options,
 
         failureType:
@@ -674,7 +688,6 @@ window.AriRebirthAppBridge = {
           "Ari understood the request, but the final delivery step could not be read.",
 
         error,
-
         options,
 
         failureType:
@@ -706,9 +719,7 @@ window.AriRebirthAppBridge = {
           normalizedDelivery,
 
         runtimeResult,
-
         requestEnvelope,
-
         options
       });
 
@@ -720,9 +731,7 @@ window.AriRebirthAppBridge = {
 
     return this.attachBridgeDiagnostics({
       response,
-
       requestEnvelope,
-
       readiness,
 
       timing:
@@ -958,21 +967,14 @@ window.AriRebirthAppBridge = {
       );
 
     const exposeInternalError =
-      options.debugTiming ===
-        true ||
       options.debug ===
         true ||
       options.exposeInternalErrors ===
         true;
 
-    const reply =
-      exposeInternalError &&
-      normalizedError
-        ? `${publicReply} ${normalizedError}`
-        : publicReply;
-
     return this.makeBridgeResponse({
-      reply,
+      reply:
+        publicReply,
 
       emotion:
         "concerned",
@@ -1014,6 +1016,11 @@ window.AriRebirthAppBridge = {
 
         internalErrorExposed:
           exposeInternalError,
+
+        internalError:
+          exposeInternalError
+            ? normalizedError
+            : null,
 
         timing
       }
@@ -1066,9 +1073,7 @@ window.AriRebirthAppBridge = {
         normalizedActions,
 
       developerIntent,
-
       summary,
-
       error,
 
       ok:
@@ -1115,7 +1120,7 @@ window.AriRebirthAppBridge = {
           this.source
       },
 
-      // Application-facing response aliases.
+      // Failure-boundary application aliases.
       text:
         normalizedReply,
 
@@ -1372,26 +1377,25 @@ window.AriRebirthAppBridge = {
               );
             }
 
-            sessionStorage
-              .setItem(
-                "ariLoadingCompleted",
-                "true"
-              );
+            this.setLoaderDiagnostic(
+              "ariLoadingCompleted",
+              "true"
+            );
 
-            sessionStorage
-              .removeItem(
-                "ariLastLoadingScript"
-              );
+            this.removeLoaderDiagnostic(
+              "ariLastLoadingScript"
+            );
 
-            sessionStorage
-              .removeItem(
-                "ariLastLoadingIndex"
-              );
+            this.removeLoaderDiagnostic(
+              "ariLastLoadingIndex"
+            );
 
-            sessionStorage
-              .removeItem(
-                "ariLastLoadError"
-              );
+            this.removeLoaderDiagnostic(
+              "ariLastLoadError"
+            );
+
+            this.loadingPromise =
+              null;
 
             return true;
           }
@@ -1404,20 +1408,18 @@ window.AriRebirthAppBridge = {
             this.loadingPromise =
               null;
 
-            sessionStorage
-              .setItem(
-                "ariLoadingCompleted",
-                "false"
-              );
+            this.setLoaderDiagnostic(
+              "ariLoadingCompleted",
+              "false"
+            );
 
-            sessionStorage
-              .setItem(
-                "ariLastLoadError",
-                error?.message ||
-                String(
-                  error
-                )
-              );
+            this.setLoaderDiagnostic(
+              "ariLastLoadError",
+              error?.message ||
+              String(
+                error
+              )
+            );
 
             throw error;
           }
@@ -1427,16 +1429,14 @@ window.AriRebirthAppBridge = {
   },
 
   async loadRequiredScripts() {
-    sessionStorage
-      .setItem(
-        "ariLoadingCompleted",
-        "false"
-      );
+    this.setLoaderDiagnostic(
+      "ariLoadingCompleted",
+      "false"
+    );
 
-    sessionStorage
-      .removeItem(
-        "ariLastLoadError"
-      );
+    this.removeLoaderDiagnostic(
+      "ariLastLoadError"
+    );
 
     for (
       let index = 0;
@@ -1449,42 +1449,43 @@ window.AriRebirthAppBridge = {
           index
         ];
 
-      sessionStorage
-        .setItem(
-          "ariLastLoadingScript",
-          src
-        );
-
-      sessionStorage
-        .setItem(
-          "ariLastLoadingIndex",
-          String(
-            index
-          )
-        );
-
-      console.log(
-        `[ARI LOADER ${index + 1}/${this.requiredScripts.length}]`,
+      this.setLoaderDiagnostic(
+        "ariLastLoadingScript",
         src
       );
+
+      this.setLoaderDiagnostic(
+        "ariLastLoadingIndex",
+        String(
+          index
+        )
+      );
+
+      if (
+        this.loaderDebug ===
+        true
+      ) {
+        console.log(
+          `[ARI LOADER ${index + 1}/${this.requiredScripts.length}]`,
+          src
+        );
+      }
 
       await this.loadScriptOnce(
         src
       );
 
-      sessionStorage
-        .setItem(
-          "ariLastLoadedScript",
-          src
-        );
+      this.setLoaderDiagnostic(
+        "ariLastLoadedScript",
+        src
+      );
 
-      sessionStorage
-        .setItem(
-          "ariLastLoadedIndex",
-          String(
-            index
-          )
-        );
+      this.setLoaderDiagnostic(
+        "ariLastLoadedIndex",
+        String(
+          index
+        )
+      );
 
       if (
         (
@@ -1580,10 +1581,15 @@ window.AriRebirthAppBridge = {
 
             cleanup();
 
-            console.log(
-              "[ARI LOADER SUCCESS]",
-              cleanSource
-            );
+            if (
+              this.loaderDebug ===
+              true
+            ) {
+              console.log(
+                "[ARI LOADER SUCCESS]",
+                cleanSource
+              );
+            }
 
             resolve(
               true
@@ -1601,11 +1607,10 @@ window.AriRebirthAppBridge = {
                 `Failed to load Ari script: ${cleanSource}`
               );
 
-            sessionStorage
-              .setItem(
-                "ariLastLoadError",
-                error.message
-              );
+            this.setLoaderDiagnostic(
+              "ariLastLoadError",
+              error.message
+            );
 
             console.error(
               "[ARI LOADER FAILURE]",
@@ -1684,10 +1689,15 @@ window.AriRebirthAppBridge = {
       state ===
       "loaded"
     ) {
-      console.log(
-        "[ARI LOADER ALREADY LOADED]",
-        src
-      );
+      if (
+        this.loaderDebug ===
+        true
+      ) {
+        console.log(
+          "[ARI LOADER ALREADY LOADED]",
+          src
+        );
+      }
 
       return Promise.resolve(
         true
@@ -1717,22 +1727,32 @@ window.AriRebirthAppBridge = {
     ) {
       script.dataset
         .ariLoadState =
-        "loaded";
+        "present";
 
-      console.log(
-        "[ARI LOADER STATIC SCRIPT PRESENT]",
-        src
-      );
+      if (
+        this.loaderDebug ===
+        true
+      ) {
+        console.log(
+          "[ARI LOADER STATIC SCRIPT PRESENT]",
+          src
+        );
+      }
 
       return Promise.resolve(
         true
       );
     }
 
-    console.log(
-      "[ARI LOADER AWAITING EXISTING SCRIPT]",
-      src
-    );
+    if (
+      this.loaderDebug ===
+      true
+    ) {
+      console.log(
+        "[ARI LOADER AWAITING EXISTING SCRIPT]",
+        src
+      );
+    }
 
     return new Promise(
       (
@@ -1891,6 +1911,32 @@ window.AriRebirthAppBridge = {
       typeof pipeline.run ===
         "function"
     );
+  },
+
+  setLoaderDiagnostic(
+    key = "",
+    value = ""
+  ) {
+    try {
+      sessionStorage.setItem(
+        key,
+        String(value)
+      );
+    } catch {
+      // Loader diagnostics must never block runtime loading.
+    }
+  },
+
+  removeLoaderDiagnostic(
+    key = ""
+  ) {
+    try {
+      sessionStorage.removeItem(
+        key
+      );
+    } catch {
+      // Loader diagnostics must never block runtime loading.
+    }
   },
 
   yieldToBrowser() {
@@ -2096,35 +2142,9 @@ window.AriRebirthAppBridge = {
     };
   },
 
-  cannotSet() {
-    return [
-      "conversationFunction",
-      "semanticMeaning",
-      "primaryLane",
-      "routingDecision",
-      "riskLevel",
-      "safetyDisposition",
-      "developerIntent",
-      "resolvedUserQuestion",
-      "canonicalResponsePlan",
-      "responseGoal",
-      "responseShape",
-      "responseMoves",
-      "realizationPacket",
-      "realizationResponseText",
-      "responseRealizationResult",
-      "finalCompositionHandoff",
-      "deliveryResult",
-      "finalEmotion",
-      "approvedActions",
-      "memorySaveDecision",
-      "toolExecutionDecision",
-      "threadContext",
-      "recentTurns",
-      "referenceCandidates",
-      "persistedThreadState"
-    ];
-  },
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
 
   validate() {
     const authority =
@@ -2201,46 +2221,44 @@ window.AriRebirthAppBridge = {
       null;
 
     if (
-      requestService &&
+      !requestService ||
       typeof requestService.build !==
         "function"
     ) {
       warnings.push(
-        "AriRuntimeRequest_build_missing"
+        "AriRuntimeRequest_not_ready"
       );
     }
 
     if (
-      readinessService &&
+      !readinessService ||
       typeof readinessService.check !==
         "function"
     ) {
       warnings.push(
-        "AriRuntimeReadiness_check_missing"
+        "AriRuntimeReadiness_not_ready"
       );
     }
 
     if (
-      deliveryService &&
-      (
-        typeof deliveryService.read !==
-          "function" ||
-        typeof deliveryService.adapt !==
-          "function"
-      )
+      !deliveryService ||
+      typeof deliveryService.read !==
+        "function" ||
+      typeof deliveryService.adapt !==
+        "function"
     ) {
       warnings.push(
-        "AriRuntimeDelivery_contract_incomplete"
+        "AriRuntimeDelivery_not_ready"
       );
     }
 
     if (
-      pipeline &&
+      !pipeline ||
       typeof pipeline.run !==
         "function"
     ) {
       warnings.push(
-        "AriRebirthPipeline_run_missing"
+        "AriRebirthPipeline_not_ready"
       );
     }
 
@@ -2248,6 +2266,12 @@ window.AriRebirthAppBridge = {
       valid:
         errors.length ===
         0,
+
+      ready:
+        errors.length ===
+          0 &&
+        warnings.length ===
+          0,
 
       source:
         "ari-rebirth-app-bridge-validation",
@@ -2257,7 +2281,10 @@ window.AriRebirthAppBridge = {
 
       errors,
 
-      warnings,
+      warnings:
+        this.toArray(
+          warnings
+        ),
 
       checks: {
         publicAskPreserved:
@@ -2451,10 +2478,14 @@ console.log(
     ?.version,
 
   ariRebirthAppBridgeValidation
-    ?.valid ===
+    ?.ready ===
     true
     ? "READY"
-    : "INVALID",
+    : ariRebirthAppBridgeValidation
+        ?.valid ===
+        true
+      ? "VALID_BUT_DEPENDENCIES_MISSING"
+      : "INVALID",
 
   ariRebirthAppBridgeValidation
 );
