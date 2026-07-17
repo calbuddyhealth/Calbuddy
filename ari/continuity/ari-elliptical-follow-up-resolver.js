@@ -6,7 +6,7 @@
 // packet, ask the configured model layer to resolve the omitted meaning,
 // validate the model result, and publish a canonical continuity result.
 //
-// V3.0.0 — AI-Assisted Ellipsis Resolution / Deterministic Governance
+// V3.0.1 — AI-Assisted Ellipsis Resolution / Deterministic Governance
 //
 // Execution position:
 //
@@ -40,8 +40,8 @@
 window.Ari = window.Ari || {};
 
 window.AriEllipticalFollowUpResolver = {
-  version: "3.0.0",
-  schemaVersion: "3.0.0",
+  version: "3.0.1",
+  schemaVersion: "3.0.1",
 
   config: {
     maxRecentTurns: 8,
