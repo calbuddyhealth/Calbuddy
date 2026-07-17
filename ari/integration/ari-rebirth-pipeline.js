@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.0.0 — Realization-Native Five-Layer Runtime / Strict Turn Isolation
+// V7.1.0 — Realization-Native Architecture Cleanup / Strict Turn Isolation
 //
 // Architectural flow:
 //
@@ -57,14 +57,12 @@
 // - Does not reinterpret semantic meaning.
 // - Does not choose Conversation Function or primary routing.
 // - Does not determine safety severity.
-// - Does not create a Response Plan.
-// - Does not create a Composer Packet.
-// - Does not run Blueprint Writer.
-// - Does not run AI Writer.
-// - Does not create response candidates.
-// - Does not arbitrate or select drafts.
-// - Does not compose final response language.
+// - Does not create or modify the authoritative Response Plan.
+// - Does not execute Expression stages independently.
+// - Does not independently generate response realization artifacts.
+// - Does not compose, select, or rewrite final response language.
 // - Does not infer a response from arbitrary intermediate fields.
+// - Does not substitute intermediate output for Delivery authority.
 // - Does not execute application writes.
 // - Does not directly access Supabase.
 // - Does not retrieve or store long-term memory.
@@ -73,8 +71,8 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.0.0",
-  schemaVersion: "7.0.0",
+  version: "7.1.0",
+  schemaVersion: "7.1.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
     "canonical_realization_native_five_layer_runtime_authority",
