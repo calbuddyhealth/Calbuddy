@@ -105,10 +105,10 @@ window.AriDeliveryPipeline = {
     // =================================================
 
     state.deliveryPacket =
-      this.buildDeliveryPacket(state);
+  this.buildDeliveryPacket(state);
 
-    state.deliveryResult =
-      state.deliveryPacket;
+state.deliveryResult =
+  state.deliveryPacket.deliveryResult;
 
     state.deliveryPipelineRan =
       true;
@@ -179,9 +179,10 @@ window.AriDeliveryPipeline = {
         );
 
       if (
-        !result ||
-        typeof result !== "object"
-      ) {
+  !result ||
+  typeof result !== "object" ||
+  Array.isArray(result)
+) {
         return {
           ...summary,
 
@@ -265,44 +266,66 @@ window.AriDeliveryPipeline = {
 
   buildDeliveryPacket(summary = {}) {
     const finalResponse =
-      String(
-        summary.finalResponse ||
-        ""
-      ).trim();
+  String(
+    summary.finalResponse ||
+    summary.expressionPacket?.result?.finalResponse ||
+    summary.expressionPacket?.result?.text ||
+    summary.responseResult?.result?.finalResponse ||
+    summary.realizationResponseText ||
+    ""
+  ).trim();
 
-    const deliveryErrors =
-      summary.deliveryStageErrors ||
-      [];
+const deliveryResult = {
+  schema: "ari_delivery_result",
+  schemaVersion: this.version,
 
-    return {
-  ready:
-    Boolean(finalResponse),
+  ready: Boolean(finalResponse),
+  available: Boolean(finalResponse),
+  authoritative: true,
 
-  available:
-    Boolean(finalResponse),
-
-  authoritative:
-    true,
-
-  reply:
-    finalResponse || "",
-
-  text:
-    finalResponse || "",
-
-  finalResponse:
-    finalResponse || "",
+  reply: finalResponse,
+  text: finalResponse,
+  finalResponse: finalResponse,
 
   emotion:
     summary.emotion ||
     summary.expressionPacket?.result?.emotion ||
     "idle",
 
+  actions:
+    summary.actionHandoff?.executableActions ||
+    [],
+
+  developerIntent:
+    summary.developerIntent ||
+    null,
+
+  source: "ari-delivery-pipeline",
+  version: this.version
+};
+
+    const deliveryErrors =
+  Array.isArray(summary.deliveryStageErrors)
+    ? summary.deliveryStageErrors
+    : [];
+
+    return {
+  ready:
+    deliveryResult.ready,
+
+  available:
+    deliveryResult.available,
+
+  authoritative:
+    true,
+
   source:
     "ari-delivery-pipeline",
 
   version:
     this.version,
+
+  deliveryResult,
 
   // -----------------------------------------------
   // Input contracts
