@@ -18,42 +18,29 @@
     ></textarea>
 
     <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
-  <button
-    id="ariAnalyzeBtn"
-    type="button"
-    style="padding: 12px 18px; font-weight: 700;"
-  >
-    Analyze with Ari
-  </button>
+      <button id="ariAnalyzeBtn" type="button" style="padding: 12px 18px; font-weight: 700;">
+        Analyze with Ari
+      </button>
 
-  <button
-    id="ariMedicalDebugBtn"
-    type="button"
-    style="padding: 12px 18px; font-weight: 700;"
-  >
-    Medical OS Debug
-  </button>
+      <button id="ariMedicalDebugBtn" type="button" style="padding: 12px 18px; font-weight: 700;">
+        Medical OS Debug
+      </button>
 
-  <button
-    id="ariClearBtn"
-    type="button"
-    style="padding: 12px 18px; font-weight: 700;"
-  >
-    Clear Output
-  </button>
-</div>
+      <button id="ariClearBtn" type="button" style="padding: 12px 18px; font-weight: 700;">
+        Clear Output
+      </button>
+    </div>
 
     <pre
       id="ariOutput"
-      style="margin-top: 20px; padding: 16px; background: #111827; color: #d1fae5; white-space: pre-wrap; overflow:auto;"
+      style="margin-top: 20px; padding: 16px; background: #111827; color: #d1fae5; white-space: pre-wrap; overflow: auto;"
     ></pre>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="calbuddy-core.js?v=3.5.8"></script>
-
-  <script src="ari/ari-rebirth-app-bridge.js?v=1.8.0"></script>
+  <script src="ari/ari-rebirth-app-bridge.js?v=2.3.1"></script>
 
   <!-- Medical OS Core -->
   <script src="ari/medical/executive/ari-clinical-situation-room.js"></script>
@@ -106,6 +93,44 @@
       ].join("\n");
     }
 
+    function firstObject(...values) {
+      for (const value of values) {
+        if (
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
+          return value;
+        }
+      }
+
+      return {};
+    }
+
+    function firstText(...values) {
+      for (const value of values) {
+        if (
+          typeof value === "string" &&
+          value.trim()
+        ) {
+          return value.trim();
+        }
+      }
+
+      return "";
+    }
+
+    function getRuntimeSummary(result = {}) {
+      return firstObject(
+        result.summary,
+        result.runtimeSummary,
+        result.delivery?.summary,
+        result.delivery?.runtimeSummary,
+        result.diagnostics?.summary,
+        result.diagnostics?.runtimeSummary
+      );
+    }
+
     async function runAriOnce(message, options = {}) {
       if (
         !window.AriRebirthAppBridge ||
@@ -117,160 +142,402 @@
       const result = await window.AriRebirthAppBridge.ask(message, {
         source: "ari-lab",
         appMode: "rebirth-only",
+        debug: true,
+        exposeInternalErrors: true,
         debugTiming: true,
         ownerMode: true,
+
         ariPermissions: {
           owner_access: true,
           suggest_code_changes: true,
           direct_code_editing: true,
           create_developer_tasks: true
         },
+
         githubFileContext: null,
         ...options
       });
 
       return {
-        reply: result.reply,
-        emotion: result.emotion,
-        source: result.source || "ari-rebirth-app-bridge",
-        summary: result.summary || {},
-        analysis: result.analysis || {},
-        raw: result
+        reply:
+          firstText(
+            result.reply,
+            result.text,
+            result.message,
+            result.response,
+            result.finalResponse
+          ),
+
+        emotion:
+          firstText(
+            result.emotion,
+            result.finalEmotion
+          ) || "idle",
+
+        source:
+          firstText(
+            result.responseSource,
+            result.source
+          ) || "ari-rebirth-app-bridge",
+
+        summary:
+          getRuntimeSummary(result),
+
+        analysis:
+          firstObject(result.analysis),
+
+        raw:
+          result
       };
     }
 
-    function formatTiming(summary = {}) {
-      if (!Array.isArray(summary.pipelineTiming)) {
-        return "No pipeline timing found.";
+    function formatTiming(summary = {}, raw = {}) {
+      const pipelineTiming =
+        Array.isArray(summary.pipelineTiming)
+          ? summary.pipelineTiming
+          : [];
+
+      const bridgeTiming =
+        Array.isArray(raw?.diagnostics?.timing)
+          ? raw.diagnostics.timing
+          : [];
+
+      const lines = [];
+
+      if (bridgeTiming.length) {
+        lines.push("BRIDGE TIMING");
+
+        lines.push(
+          ...bridgeTiming.map(
+            item => `${item.label}: ${item.ms}ms`
+          )
+        );
       }
 
-      return summary.pipelineTiming
-        .map(item => `${item.label}: ${item.ms}ms`)
-        .join("\n");
+      if (
+        bridgeTiming.length &&
+        pipelineTiming.length
+      ) {
+        lines.push("");
+      }
+
+      if (pipelineTiming.length) {
+        lines.push("PIPELINE TIMING");
+
+        lines.push(
+          ...pipelineTiming.map(
+            item => `${item.label}: ${item.ms}ms`
+          )
+        );
+      }
+
+      return lines.length
+        ? lines.join("\n")
+        : "No bridge or pipeline timing found.";
     }
 
     function formatFinalSummary(run = {}) {
-  const summary = run.summary || {};
+      const summary = run.summary || {};
+      const raw = run.raw || {};
 
-  const compactSummary = {
-    request: {
-      userMessage: summary.userMessage || null,
-      resolvedUserQuestion: summary.resolvedUserQuestion || null
-    },
+      const bridgeDiagnostics = {
+        ok: raw.ok === true,
+        success: raw.success === true,
+        complete: raw.complete === true,
+        deliveryStatus: raw.deliveryStatus || null,
+        bridgeVersion: raw.bridgeVersion || null,
+        responseSource: raw.responseSource || null,
+        source: raw.source || null,
+        error: raw.error || null,
+        diagnostics: raw.diagnostics || null
+      };
 
-    lifecycle: {
-      architecture: summary.pipelineArchitecture || null,
-      complete: summary.pipelineLifecycleComplete === true,
-      layers: summary.pipelineLayers || {},
-      lifecycleErrors: summary.pipelineLifecycleErrors || []
-    },
+      const finalResponseText =
+        firstText(
+          summary.finalResponse,
+          summary.finalResponseText,
+          summary.finalComposition?.text,
+          summary.responseRealization?.text
+        );
 
-    perception: {
-      ran: summary.perceptionPipelineRan === true,
-      observationCount: summary.observationCount || 0,
-      primaryFunction:
-        summary.conversationFunction?.primaryFunction || null,
-      conversationType:
-        summary.universalConversationClassification?.conversationType || null,
-      conversationIntent:
-        summary.universalConversationClassification?.conversationIntent || null,
-      semanticSummary: summary.semanticSummary || null
-    },
+      const compactSummary = {
+        request: {
+          userMessage:
+            summary.userMessage ||
+            summary.turn?.originalText ||
+            summary.turn?.text ||
+            null,
 
-    routing: {
-      mode: summary.conversationMode || null,
-      primaryIntent: summary.primaryIntent || null,
-      domain: summary.conversationDomain || null,
-      contextLane: summary.contextLane || summary.lane || null,
-      primaryLane: summary.primaryLane || null,
-      planner: summary.selectedPlanner || null
-    },
+          resolvedUserQuestion:
+            summary.resolvedUserQuestion ||
+            summary.resolvedQuestion ||
+            null
+        },
 
-    deliberation: {
-      ran: summary.deliberationPipelineRan === true,
-      resolvedQuestion: summary.resolvedUserQuestion || null,
-      situation: summary.situationMap?.situations?.[0] || null,
-      triageLane: summary.triage?.primaryLane || null,
-      reasoningRan: summary.reasoningEngineRan === true,
-      memoryRetrievalRan: summary.memoryRetrievalRan === true,
-      responsePlannerRan: summary.responsePlannerRan === true
-    },
+        lifecycle: {
+          architecture:
+            summary.pipelineArchitecture ||
+            summary.architecture ||
+            null,
 
-    expression: {
-  ran: summary.expressionPipelineRan === true,
+          complete:
+            summary.pipelineLifecycleComplete === true ||
+            summary.complete === true,
 
-  composerPacketReady:
-    summary.composerPacket?.ready === true,
+          layers:
+            summary.pipelineLayers ||
+            summary.layers ||
+            {},
 
-  candidateCount:
-    Array.isArray(summary.candidateDrafts)
-      ? summary.candidateDrafts.length
-      : 0,
+          lifecycleErrors:
+            summary.pipelineLifecycleErrors ||
+            summary.lifecycleErrors ||
+            []
+        },
 
-  selectedDraftSource:
-    summary.selectedDraftSource || null,
+        perception: {
+          ran:
+            summary.perceptionPipelineRan === true ||
+            summary.layers?.perception?.ran === true,
 
-  blueprintWriterRan:
-    summary.blueprintWriterRan === true,
+          observationCount:
+            summary.observationCount ||
+            summary.observations?.length ||
+            0,
 
-  aiWriterRan:
-    summary.aiWriterRan === true,
+          primaryFunction:
+            summary.conversationFunction?.primaryFunction ||
+            null,
 
-  languageComposerRan:
-    summary.languageComposerRan === true,
+          conversationType:
+            summary
+              .universalConversationClassification
+              ?.conversationType ||
+            null,
 
-  blueprintDraft:
-    summary.blueprintWriterDraft || null,
+          conversationIntent:
+            summary
+              .universalConversationClassification
+              ?.conversationIntent ||
+            null,
 
-  precheckWinner:
-    summary.arbiterPrecheck?.selectedCandidate || null,
+          semanticSummary:
+            summary.semanticSummary ||
+            summary.semanticFrame?.summary ||
+            null
+        },
 
-  needsAIWriter:
-    summary.arbiterPrecheck?.needsAIWriter === true,
+        routing: {
+          mode:
+            summary.conversationMode ||
+            null,
 
-  aiRepairReason:
-    summary.arbiterPrecheck?.aiRepairReason || null
-},
+          primaryIntent:
+            summary.primaryIntent ||
+            null,
 
-    delivery: {
-      ran: summary.deliveryPipelineRan === true,
-      threadSaved: summary.threadSaveRan === true,
-      conversationHistorySaved:
-        summary.conversationHistorySaveRan === true,
-      memorySaved: summary.memorySaveRan === true,
-      healthy: summary.deliveryDiagnostics?.healthy === true,
-      warnings: summary.deliveryDiagnostics?.warnings || []
-    },
+          domain:
+            summary.conversationDomain ||
+            null,
 
-    errors: {
-      deliberation: summary.deliberationStageErrors || [],
-      expression: summary.expressionStageErrors || [],
-      delivery: summary.deliveryStageErrors || []
-    },
+          contextLane:
+            summary.contextLane ||
+            summary.lane ||
+            null,
 
-    finalResponse: {
-      text: summary.finalResponse || null,
-      source: summary.finalResponseSource || null,
-      usable: summary.finalResponseUsable !== false,
-      length: String(summary.finalResponse || "").length
+          primaryLane:
+            summary.primaryLane ||
+            null,
+
+          planner:
+            summary.selectedPlanner ||
+            null
+        },
+
+        deliberation: {
+          ran:
+            summary.deliberationPipelineRan === true ||
+            summary.layers?.deliberation?.ran === true,
+
+          resolvedQuestion:
+            summary.resolvedUserQuestion ||
+            summary.resolvedQuestion ||
+            null,
+
+          situation:
+            summary.situationMap?.situations?.[0] ||
+            null,
+
+          triageLane:
+            summary.triage?.primaryLane ||
+            null,
+
+          reasoningRan:
+            summary.reasoningEngineRan === true,
+
+          memoryRetrievalRan:
+            summary.memoryRetrievalRan === true,
+
+          responsePlannerRan:
+            summary.responsePlannerRan === true
+        },
+
+        expression: {
+          ran:
+            summary.expressionPipelineRan === true ||
+            summary.layers?.expression?.ran === true,
+
+          characterStageRan:
+            summary.characterStageRan === true ||
+            summary.expressionStages?.character?.ran === true,
+
+          languageGuidanceStageRan:
+            summary.languageGuidanceStageRan === true ||
+            summary.expressionStages?.languageGuidance?.ran === true,
+
+          responseRealizationStageRan:
+            summary.responseRealizationStageRan === true ||
+            summary.expressionStages?.responseRealization?.ran === true,
+
+          responseRealizationRan:
+            summary.responseRealizationRan === true ||
+            summary.responseRealization?.ran === true,
+
+          realizationReady:
+            summary.responseRealization?.ready === true ||
+            summary.realizationReady === true,
+
+          realizationUsable:
+            summary.responseRealization?.usable === true ||
+            summary.realizationUsable === true,
+
+          realizationSource:
+            summary.responseRealization?.source ||
+            summary.realizationSource ||
+            null,
+
+          realizationText:
+            summary.responseRealization?.text ||
+            summary.realizationResponseText ||
+            null,
+
+          languageComposerRan:
+            summary.languageComposerRan === true ||
+            summary.responseRealization?.languageComposerRan === true,
+
+          finalCompositionStageRan:
+            summary.finalCompositionStageRan === true ||
+            summary.expressionStages?.finalComposition?.ran === true,
+
+          finalCompositionReady:
+            summary.finalComposition?.ready === true ||
+            summary.finalCompositionReady === true,
+
+          finalCompositionSource:
+            summary.finalComposition?.source ||
+            summary.finalCompositionSource ||
+            null
+        },
+
+        delivery: {
+          ran:
+            summary.deliveryPipelineRan === true ||
+            summary.layers?.delivery?.ran === true,
+
+          threadSaved:
+            summary.threadSaveRan === true,
+
+          conversationHistorySaved:
+            summary.conversationHistorySaveRan === true,
+
+          memorySaved:
+            summary.memorySaveRan === true,
+
+          healthy:
+            summary.deliveryDiagnostics?.healthy === true,
+
+          warnings:
+            summary.deliveryDiagnostics?.warnings ||
+            []
+        },
+
+        errors: {
+          deliberation:
+            summary.deliberationStageErrors ||
+            [],
+
+          expression:
+            summary.expressionStageErrors ||
+            [],
+
+          delivery:
+            summary.deliveryStageErrors ||
+            []
+        },
+
+        finalResponse: {
+          text:
+            finalResponseText ||
+            null,
+
+          source:
+            summary.finalResponseSource ||
+            summary.finalComposition?.source ||
+            null,
+
+          usable:
+            summary.finalResponseUsable !== false,
+
+          length:
+            finalResponseText.length
+        }
+      };
+
+      return [
+        "===== ARI REBIRTH APP RESPONSE =====",
+        "",
+        run.reply || "none",
+        "",
+        `Emotion:\n${run.emotion || "none"}`,
+        "",
+        `Source:\n${run.source || "none"}`,
+
+        section(
+          "BRIDGE DIAGNOSTICS",
+          JSON.stringify(
+            bridgeDiagnostics,
+            null,
+            2
+          )
+        ),
+
+        section(
+          "TIMING",
+          formatTiming(
+            summary,
+            raw
+          )
+        ),
+
+        section(
+          "COMPACT PIPELINE SUMMARY",
+          JSON.stringify(
+            compactSummary,
+            null,
+            2
+          )
+        ),
+
+        section(
+          "RAW APP BRIDGE RESULT",
+          JSON.stringify(
+            raw,
+            null,
+            2
+          )
+        )
+      ].join("\n");
     }
-  };
-
-  return [
-    "===== ARI REBIRTH APP RESPONSE =====",
-    "",
-    run.reply || "none",
-    "",
-    `Emotion:\n${run.emotion || "none"}`,
-    "",
-    `Source:\n${run.source || "none"}`,
-    section("TIMING", formatTiming(summary)),
-    section(
-      "COMPACT PIPELINE SUMMARY",
-      JSON.stringify(compactSummary, null, 2)
-    )
-  ].join("\n");
-}
 
     function engineStatus() {
       const checks = [
@@ -286,10 +553,10 @@
         ["Test Harness", window.AriMedicalOSTestHarness]
       ];
 
-      return checks.map(([name, obj]) => ({
+      return checks.map(([name, object]) => ({
         name,
-        loaded: Boolean(obj),
-        version: obj?.version || "none"
+        loaded: Boolean(object),
+        version: object?.version || "none"
       }));
     }
 
@@ -297,151 +564,269 @@
       return [
         "===== ARI MEDICAL OS DEBUG =====",
         "",
-        section("ENGINE STATUS", JSON.stringify(engineStatus(), null, 2)),
-        section("RESPONSE", result.response || "none"),
-        section("EXECUTIVE SUMMARY", JSON.stringify(result.room?.executiveSummary || null, null, 2)),
-        section("OPERATIONS", JSON.stringify(result.operations || null, null, 2)),
-        section("MONITORING", JSON.stringify(result.monitoring || null, null, 2)),
-        section("WHY", JSON.stringify(result.why || null, null, 2)),
-        section("SITUATION ROOM", JSON.stringify(result.room || null, null, 2)),
-        section("FULL RESULT", JSON.stringify(result, null, 2))
+
+        section(
+          "ENGINE STATUS",
+          JSON.stringify(engineStatus(), null, 2)
+        ),
+
+        section(
+          "RESPONSE",
+          result.response || "none"
+        ),
+
+        section(
+          "EXECUTIVE SUMMARY",
+          JSON.stringify(
+            result.room?.executiveSummary || null,
+            null,
+            2
+          )
+        ),
+
+        section(
+          "OPERATIONS",
+          JSON.stringify(
+            result.operations || null,
+            null,
+            2
+          )
+        ),
+
+        section(
+          "MONITORING",
+          JSON.stringify(
+            result.monitoring || null,
+            null,
+            2
+          )
+        ),
+
+        section(
+          "WHY",
+          JSON.stringify(
+            result.why || null,
+            null,
+            2
+          )
+        ),
+
+        section(
+          "SITUATION ROOM",
+          JSON.stringify(
+            result.room || null,
+            null,
+            2
+          )
+        ),
+
+        section(
+          "FULL RESULT",
+          JSON.stringify(
+            result,
+            null,
+            2
+          )
+        )
       ].join("\n");
     }
 
     document
-  .getElementById("ariAnalyzeBtn")
-  .addEventListener("click", async event => {
-    event.preventDefault();
-    event.stopPropagation();
+      .getElementById("ariAnalyzeBtn")
+      .addEventListener("click", async event => {
+        event.preventDefault();
+        event.stopPropagation();
 
-    const button = event.currentTarget;
+        const button = event.currentTarget;
 
-    try {
-      const message =
-        document.getElementById("ariInput").value.trim();
+        try {
+          const message =
+            document
+              .getElementById("ariInput")
+              .value
+              .trim();
 
-      if (!message) {
-        print("Enter a message first.");
-        return;
-      }
+          if (!message) {
+            print("Enter a message first.");
+            return;
+          }
 
-      button.disabled = true;
-      print("Loading Ari Rebirth...");
+          button.disabled = true;
+          print("Loading Ari Rebirth...");
 
-      const run = await runAriOnce(message);
-console.dir(run.raw, { depth: null });
-      print(formatFinalSummary(run));
-    } catch (error) {
-      console.error("[ARI LAB ERROR]", error);
+          const run =
+            await runAriOnce(message);
 
-      print([
-        "===== ARI LAB ERROR =====",
-        "",
-        error?.message || String(error),
-        "",
-        error?.stack || ""
-      ].join("\n"));
-    } finally {
-      button.disabled = false;
-    }
-  });
+          console.dir(
+            run.raw,
+            {
+              depth: null
+            }
+          );
 
-    document
-  .getElementById("ariMedicalDebugBtn")
-  .addEventListener("click", event => {
-    event.preventDefault();
-    event.stopPropagation();
+          print(
+            formatFinalSummary(run)
+          );
+        } catch (error) {
+          console.error(
+            "[ARI LAB ERROR]",
+            error
+          );
 
-    try {
-      const message =
-        document.getElementById("ariInput").value.trim();
-
-      if (!message) {
-        print("Enter a medical scenario first.");
-        return;
-      }
-
-      if (!window.AriMedicalOSOrchestrator?.run) {
-        print("Ari Medical OS Orchestrator is not loaded.");
-        return;
-      }
-
-      const result = window.AriMedicalOSOrchestrator.run({
-        userMessage: message,
-        chiefComplaint: message,
-        context: {
-          source: "ari-lab-medical-debug",
-          debugMode: true
+          print(
+            [
+              "===== ARI LAB ERROR =====",
+              "",
+              error?.message ||
+                String(error),
+              "",
+              error?.stack ||
+                ""
+            ].join("\n")
+          );
+        } finally {
+          button.disabled = false;
         }
       });
 
-      print(formatMedicalDebug(result));
-    } catch (error) {
-      console.error("[ARI MEDICAL DEBUG ERROR]", error);
+    document
+      .getElementById("ariMedicalDebugBtn")
+      .addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
 
-      print([
-        "===== ARI MEDICAL DEBUG ERROR =====",
-        "",
-        error?.message || String(error),
-        "",
-        error?.stack || ""
-      ].join("\n"));
-    }
-  });
+        try {
+          const message =
+            document
+              .getElementById("ariInput")
+              .value
+              .trim();
+
+          if (!message) {
+            print("Enter a medical scenario first.");
+            return;
+          }
+
+          if (!window.AriMedicalOSOrchestrator?.run) {
+            print("Ari Medical OS Orchestrator is not loaded.");
+            return;
+          }
+
+          const result =
+            window.AriMedicalOSOrchestrator.run({
+              userMessage: message,
+              chiefComplaint: message,
+
+              context: {
+                source:
+                  "ari-lab-medical-debug",
+
+                debugMode:
+                  true
+              }
+            });
+
+          print(
+            formatMedicalDebug(result)
+          );
+        } catch (error) {
+          console.error(
+            "[ARI MEDICAL DEBUG ERROR]",
+            error
+          );
+
+          print(
+            [
+              "===== ARI MEDICAL DEBUG ERROR =====",
+              "",
+              error?.message ||
+                String(error),
+              "",
+              error?.stack ||
+                ""
+            ].join("\n")
+          );
+        }
+      });
 
     document
-  .getElementById("ariClearBtn")
-  .addEventListener("click", event => {
-    event.preventDefault();
-    event.stopPropagation();
-    print("");
-  });
-  
-  function showPriorAriLoadInterruption() {
-  const loadingCompleted =
-    sessionStorage.getItem("ariLoadingCompleted");
+      .getElementById("ariClearBtn")
+      .addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        print("");
+      });
 
-  const attemptedScript =
-    sessionStorage.getItem("ariLastLoadingScript");
+    function showPriorAriLoadInterruption() {
+      let loadingCompleted = null;
+      let attemptedScript = null;
+      let lastSuccessfulScript = null;
+      let attemptedIndex = null;
+      let lastSuccessfulIndex = null;
+      let loadError = null;
 
-  const lastSuccessfulScript =
-    sessionStorage.getItem("ariLastLoadedScript");
+      try {
+        loadingCompleted =
+          sessionStorage.getItem(
+            "ariLoadingCompleted"
+          );
 
-  const attemptedIndex =
-    sessionStorage.getItem("ariLastLoadingIndex");
+        attemptedScript =
+          sessionStorage.getItem(
+            "ariLastLoadingScript"
+          );
 
-  const lastSuccessfulIndex =
-    sessionStorage.getItem("ariLastLoadedIndex");
+        lastSuccessfulScript =
+          sessionStorage.getItem(
+            "ariLastLoadedScript"
+          );
 
-  const loadError =
-    sessionStorage.getItem("ariLastLoadError");
+        attemptedIndex =
+          sessionStorage.getItem(
+            "ariLastLoadingIndex"
+          );
 
-  if (
-    loadingCompleted === "false" &&
-    attemptedScript
-  ) {
-    print([
-      "===== ARI LOAD WAS INTERRUPTED =====",
-      "",
-      `Script being processed when the page reloaded:`,
-      attemptedScript,
-      "",
-      `Script index:`,
-      attemptedIndex || "unknown",
-      "",
-      `Last successful script:`,
-      lastSuccessfulScript || "none",
-      "",
-      `Last successful index:`,
-      lastSuccessfulIndex || "none",
-      "",
-      `Recorded load error:`,
-      loadError || "none"
-    ].join("\n"));
-  }
-}
+        lastSuccessfulIndex =
+          sessionStorage.getItem(
+            "ariLastLoadedIndex"
+          );
 
-showPriorAriLoadInterruption();
+        loadError =
+          sessionStorage.getItem(
+            "ariLastLoadError"
+          );
+      } catch {
+        return;
+      }
+
+      if (
+        loadingCompleted === "false" &&
+        attemptedScript
+      ) {
+        print(
+          [
+            "===== ARI LOAD WAS INTERRUPTED =====",
+            "",
+            "Script being processed when the page reloaded:",
+            attemptedScript,
+            "",
+            "Script index:",
+            attemptedIndex || "unknown",
+            "",
+            "Last successful script:",
+            lastSuccessfulScript || "none",
+            "",
+            "Last successful index:",
+            lastSuccessfulIndex || "none",
+            "",
+            "Recorded load error:",
+            loadError || "none"
+          ].join("\n")
+        );
+      }
+    }
+
+    showPriorAriLoadInterruption();
   </script>
 </body>
 </html>
