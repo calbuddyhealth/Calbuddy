@@ -1,12 +1,12 @@
 // ari/pipelines/ari-perception-pipeline.js
 // Ari Perception Pipeline
 // Purpose: Collect, preserve, merge, and structure evidence about the current user message.
-// V1.4.0 — V4 Reconciliation Contract / Canonical Intent Packet
+// V1.5.0 — Canonical Current Turn / Continuity Orchestration
 
 window.Ari = window.Ari || {};
 
 window.AriPerceptionPipeline = {
-  version: "1.4.0",
+  version: "1.5.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -14,11 +14,21 @@ window.AriPerceptionPipeline = {
       runEngine = async (_engine, _methods, fallback = {}) => fallback
     } = runtime;
 
-    let state = {
-      ...summary,
-      activePipelineLayer: "perception",
-      perceptionStageErrors: []
-    };
+    const originalText =
+  this.extractMessageText(summary);
+
+let state = {
+  ...summary,
+
+  activePipelineLayer:
+    "perception",
+
+  perceptionStageErrors:
+    [],
+
+  originalUserMessage:
+    originalText
+};
 
     /* =====================================================
        1. EARLY SAFETY CONTEXT SCREEN
@@ -55,8 +65,236 @@ window.AriPerceptionPipeline = {
 
     mark("after safetyContextGate");
 
+
+/* =====================================================
+   2. CONTINUITY RESOLUTION
+   Resolves elliptical follow-ups and prior-turn references
+   before downstream meaning engines interpret the message.
+
+   Safety has already inspected the original raw message.
+===================================================== */
+
+mark("before continuityResolution");
+
+const continuityInput = {
+  ...state,
+
+  userMessage:
+    originalText,
+
+  message:
+    originalText,
+
+  input:
+    originalText,
+
+  currentTurn: {
+    originalText,
+
+    effectiveText:
+      originalText,
+
+    normalizedText:
+      this.normalizeMessageText(
+        originalText
+      ),
+
+    wasResolved:
+      false,
+
+    resolutionSource:
+      null
+  }
+};
+
+const continuityFallback = {
+  continuityResolverRan:
+    false,
+
+  continuityResolverVersion:
+    null,
+
+  continuityResolverSource:
+    "not-loaded",
+
+  status:
+    "not_evaluated",
+
+  isContinuation:
+    null,
+
+  requiresPriorContext:
+    null,
+
+  priorContextAvailable:
+    null,
+
+  referencesPriorContext:
+    null,
+
+  referenceSurface:
+    null,
+
+  referenceResolved:
+    null,
+
+  resolvedReferenceValue:
+    null,
+
+  resolvedReferenceSourceTurnId:
+    null,
+
+  originalText,
+
+  resolvedText:
+    null,
+
+  currentTurnWasResolved:
+    false,
+
+  requiresClarification:
+    false,
+
+  confidence:
+    0,
+
+  confidenceLabel:
+    "very_low",
+
+  evidence:
+    [],
+
+  reasons:
+    []
+};
+
+const continuityResolutionResult =
+  await runEngine(
+    window.AriEllipticalFollowUpResolver ||
+    window.Ari?.ellipticalFollowUpResolver,
+    ["resolve", "analyze"],
+    continuityFallback,
+    continuityInput
+  );
+
+const continuityResolution =
+  continuityResolutionResult &&
+  typeof continuityResolutionResult ===
+    "object"
+    ? {
+        ...continuityFallback,
+        ...continuityResolutionResult
+      }
+    : continuityFallback;
+const resolvedText =
+  this.extractResolvedText(
+    continuityResolution
+  );
+
+const effectiveText =
+  resolvedText ||
+  originalText;
+
+const currentTurnWasResolved =
+  Boolean(
+    resolvedText &&
+    this.normalizeMessageText(
+      resolvedText
+    ) &&
+    this.normalizeMessageText(
+      resolvedText
+    ) !==
+      this.normalizeMessageText(
+        originalText
+      )
+  );
+
+const currentTurn = {
+  originalText,
+
+  effectiveText,
+
+  normalizedText:
+    this.normalizeMessageText(
+      effectiveText
+    ),
+
+  wasResolved:
+    currentTurnWasResolved,
+
+  resolutionSource:
+    currentTurnWasResolved
+      ? (
+          continuityResolution
+            .continuityResolverSource ||
+          continuityResolution.source ||
+          "elliptical_follow_up_resolver"
+        )
+      : null,
+
+  continuity:
+    continuityResolution
+};
+
+state = {
+  ...state,
+
+  continuityResolution,
+
+  authoritativeContinuity:
+    continuityResolution,
+
+  continuity:
+    continuityResolution,
+
+  currentTurn,
+
+  originalUserMessage:
+    originalText,
+
+  effectiveUserMessage:
+    effectiveText,
+
+  resolvedUserQuestion:
+    currentTurnWasResolved
+      ? effectiveText
+      : null,
+
+  currentTurnWasResolved,
+
+  continuityStatus:
+    continuityResolution.status ||
+    (
+      continuityResolution
+        .continuityResolverRan === true
+        ? "evaluated"
+        : "not_evaluated"
+    ),
+
+  isContinuation:
+    continuityResolution
+      .isContinuation ??
+    null,
+
+  requiresPriorContext:
+    continuityResolution
+      .requiresPriorContext ??
+    null,
+
+  priorContextAvailable:
+    continuityResolution
+      .priorContextAvailable ??
+    null,
+
+  continuityRequiresClarification:
+    continuityResolution
+      .requiresClarification === true
+};
+
+mark("after continuityResolution");
+
     /* =====================================================
-       2. GENERAL OBSERVER NETWORK
+       3. GENERAL OBSERVER NETWORK
     ===================================================== */
 
     mark("before observerEvidence");
@@ -76,7 +314,7 @@ window.AriPerceptionPipeline = {
         observedDomains: [],
         observationCount: 0
       },
-      state
+      this.buildEffectiveTurnState(state)
     );
 
     state = {
@@ -124,7 +362,7 @@ window.AriPerceptionPipeline = {
     mark("after observerEvidence");
 
     /* =====================================================
-       3. QUESTION UNDERSTANDING SPECIALIST
+       4. QUESTION UNDERSTANDING SPECIALIST
     ===================================================== */
 
     mark("before questionUnderstanding");
@@ -145,7 +383,7 @@ window.AriPerceptionPipeline = {
         observationCount: 0,
         responseHints: {}
       },
-      state
+      this.buildEffectiveTurnState(state)
     );
 
     state = {
@@ -183,7 +421,7 @@ window.AriPerceptionPipeline = {
     mark("after questionUnderstanding");
 
     /* =====================================================
-       4. LIFE-SIGNAL SPECIALIST
+       5. LIFE-SIGNAL SPECIALIST
     ===================================================== */
 
     mark("before lifeSignalExtractor");
@@ -210,7 +448,7 @@ window.AriPerceptionPipeline = {
         pressures: [],
         transitions: []
       },
-      state
+      this.buildEffectiveTurnState(state)
     );
 
     state = {
@@ -252,7 +490,7 @@ window.AriPerceptionPipeline = {
     mark("after lifeSignalExtractor");
 
     /* =====================================================
-       5. CANONICAL OBSERVATION LEDGER MERGE
+       6. CANONICAL OBSERVATION LEDGER MERGE
     ===================================================== */
 
     mark("before perceptionLedgerMerge");
@@ -349,7 +587,7 @@ window.AriPerceptionPipeline = {
     mark("after perceptionLedgerMerge");
 
         /* =====================================================
-       6. UNIVERSAL CONVERSATION CLASSIFIER
+       7. UNIVERSAL CONVERSATION CLASSIFIER
        Broad interaction family, intent family, and domains.
        Uses only upstream evidence.
     ===================================================== */
@@ -386,7 +624,7 @@ window.AriPerceptionPipeline = {
         confidence: 0,
         confidenceLabel: "very_low"
       },
-      state
+      this.buildEffectiveTurnState(state)
     );
 
     state = {
@@ -438,7 +676,7 @@ window.AriPerceptionPipeline = {
     mark("after universalConversationClassifier");
 
     /* =====================================================
-       7. OBSERVER ROUTING EVIDENCE
+       8. OBSERVER ROUTING EVIDENCE
        Converts observer evidence into pressures only.
        It cannot choose the route.
     ===================================================== */
@@ -448,9 +686,14 @@ window.AriPerceptionPipeline = {
     const routingEvidence =
       window.Ari?.observerRoutingEvidence?.analyze
         ? await window.Ari.observerRoutingEvidence.analyze({
-            summary: state,
-            observer: state.observerEvidence
-          })
+    summary:
+      this.buildEffectiveTurnState(
+        state
+      ),
+
+    observer:
+      state.observerEvidence
+  })
         : {
             engine: "ari-observer-routing-evidence",
             source: "not-loaded",
@@ -511,7 +754,7 @@ window.AriPerceptionPipeline = {
     mark("after observerRoutingEvidence");
 
     /* =====================================================
-       8. SEMANTIC FRAME BUILDER
+       9. SEMANTIC FRAME BUILDER
        Builds structured meaning using the classifier as broad
        evidence, not as final authority.
     ===================================================== */
@@ -541,7 +784,7 @@ window.AriPerceptionPipeline = {
 
         semanticSummary: null
       },
-      state
+      this.buildEffectiveTurnState(state)
     );
 
     state = {
@@ -573,8 +816,17 @@ window.AriPerceptionPipeline = {
         null,
 
       semanticContinuity:
-        semanticFrameOutput.continuity ||
-        {},
+  semanticFrameOutput.continuity ||
+  {},
+
+semanticContinuityPassthrough:
+  semanticFrameOutput.continuity ||
+  {},
+
+authoritativeContinuity:
+  state.continuityResolution ||
+  state.authoritativeContinuity ||
+  null,
 
       semanticResponseCharacteristics:
         semanticFrameOutput.responseCharacteristics ||
@@ -592,7 +844,7 @@ window.AriPerceptionPipeline = {
     mark("after semanticFrameBuilder");
 
     /* =====================================================
-       9. CONVERSATION FUNCTION
+       10. CONVERSATION FUNCTION
        Determines what Ari must do after full meaning exists.
     ===================================================== */
 
@@ -740,7 +992,7 @@ window.AriPerceptionPipeline = {
       {}
   }
 },
-      state
+      this.buildEffectiveTurnState(state)
     );
 
     state = {
@@ -804,7 +1056,7 @@ window.AriPerceptionPipeline = {
     mark("after conversationFunction");
 
     /* =====================================================
-       10. PERCEPTION RECONCILIATION
+       11. PERCEPTION RECONCILIATION
        Reconciles structured semantic meaning, conversation
        purpose, safety, continuity, ambiguity, and response
        requirements into one downstream intent packet.
@@ -1064,7 +1316,7 @@ window.AriPerceptionPipeline = {
               false
           }
         },
-        state
+        this.buildEffectiveTurnState(state)
       );
 
     const conversationIntentPacket =
@@ -1231,7 +1483,7 @@ window.AriPerceptionPipeline = {
 
     mark("after perceptionReconciliation");
     /* =====================================================
-       11. PERCEPTION DIAGNOSTICS
+       12. PERCEPTION DIAGNOSTICS
     ===================================================== */
 
     mark("before perceptionDiagnostics");
@@ -1257,7 +1509,7 @@ window.AriPerceptionPipeline = {
     mark("after perceptionDiagnostics");
 
     /* =====================================================
-       12. FINAL PERCEPTION PACKET
+       13. FINAL PERCEPTION PACKET
     ===================================================== */
 
     state.perceptionPacket =
@@ -1274,6 +1526,146 @@ window.AriPerceptionPipeline = {
 
     return state;
   },
+
+/* =====================================================
+   CURRENT TURN HELPERS
+===================================================== */
+
+extractMessageText(summary = {}) {
+  const candidates = [
+    summary.currentTurn
+      ?.originalText,
+
+    summary.originalUserMessage,
+
+    summary.userMessage,
+
+    summary.message,
+
+    summary.input
+  ];
+
+  const selected =
+    candidates.find(value =>
+      typeof value === "string" &&
+      value.trim()
+    );
+
+  return selected
+    ? selected.trim()
+    : "";
+},
+
+extractResolvedText(
+  continuityResolution = {}
+) {
+  const candidates = [
+    continuityResolution.resolvedText,
+
+    continuityResolution
+      .resolvedUserQuestion,
+
+    continuityResolution
+      .effectiveText,
+
+    continuityResolution
+      .currentTurn
+      ?.effectiveText
+  ];
+
+  const selected =
+    candidates.find(value =>
+      typeof value === "string" &&
+      value.trim()
+    );
+
+  return selected
+    ? selected.trim()
+    : null;
+},
+
+normalizeMessageText(message = "") {
+  return String(message)
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+},
+
+buildEffectiveTurnState(
+  state = {}
+) {
+  const originalText =
+    state.currentTurn
+      ?.originalText ||
+    state.originalUserMessage ||
+    this.extractMessageText(state);
+
+  const effectiveText =
+    state.currentTurn
+      ?.effectiveText ||
+    state.effectiveUserMessage ||
+    originalText;
+
+  const normalizedText =
+    state.currentTurn
+      ?.normalizedText ||
+    this.normalizeMessageText(
+      effectiveText
+    );
+
+  return {
+    ...state,
+
+    userMessage:
+      effectiveText,
+
+    message:
+      effectiveText,
+
+    input:
+      effectiveText,
+
+    normalizedMessage:
+      normalizedText,
+
+    originalUserMessage:
+      originalText,
+
+    effectiveUserMessage:
+      effectiveText,
+
+    currentTurn: {
+      ...(state.currentTurn || {}),
+
+      originalText,
+
+      effectiveText,
+
+      normalizedText,
+
+      wasResolved:
+        state.currentTurn
+          ?.wasResolved === true,
+
+      resolutionSource:
+        state.currentTurn
+          ?.resolutionSource ||
+        null,
+
+      continuity:
+        state.continuityResolution ||
+        state.authoritativeContinuity ||
+        state.currentTurn
+          ?.continuity ||
+        null
+    },
+
+    authoritativeContinuity:
+      state.continuityResolution ||
+      state.authoritativeContinuity ||
+      null
+  };
+},
 
   /* =====================================================
      CANONICAL LEDGER MERGE
@@ -1795,12 +2187,15 @@ window.AriPerceptionPipeline = {
     const warnings = [];
 
     const message =
-      String(
-        summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        ""
-      ).trim();
+  String(
+    summary.currentTurn
+      ?.effectiveText ||
+    summary.effectiveUserMessage ||
+    summary.userMessage ||
+    summary.message ||
+    summary.input ||
+    ""
+  ).trim();
 
     const observations =
       summary.canonicalObservationLedger ||
@@ -1898,6 +2293,16 @@ if (!reconciliationLoaded) {
       );
     }
 
+const continuityLoaded =
+  summary.continuityResolution
+    ?.continuityResolverRan === true;
+
+if (!continuityLoaded) {
+  warnings.push(
+    "continuity_resolver_not_available"
+  );
+}
+
     const operationObservations =
       observations.filter(item =>
         item.operation ||
@@ -1950,6 +2355,9 @@ if (!reconciliationLoaded) {
   safety:
     summary.safetyContextGate
       ?.safetyContextGateRan === true,
+
+continuity:
+    continuityLoaded,
 
   observer:
     observerLoaded,
@@ -2071,17 +2479,31 @@ const reconciliation =
       semanticFrame.normalizedFrame ||
       null;
 
-    const message =
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
+    const originalMessage =
+  summary.currentTurn
+    ?.originalText ||
+  summary.originalUserMessage ||
+  summary.userMessage ||
+  summary.message ||
+  summary.input ||
+  "";
 
-    const normalizedMessage =
-      summary.normalizedMessage ||
-      String(message)
-        .toLowerCase()
-        .trim();
+const effectiveMessage =
+  summary.currentTurn
+    ?.effectiveText ||
+  summary.effectiveUserMessage ||
+  originalMessage;
+
+const normalizedMessage =
+  summary.currentTurn
+    ?.normalizedText ||
+  summary.normalizedMessage ||
+  this.normalizeMessageText(
+    effectiveMessage
+  );
+
+const message =
+  effectiveMessage;
 
     return {
             ready:
@@ -2102,21 +2524,106 @@ const reconciliation =
         this.version,
 
       message: {
-        raw:
-          message,
+  raw:
+    originalMessage,
 
-        normalized:
-          normalizedMessage,
+  original:
+    originalMessage,
 
-        length:
-          String(message).length,
+  effective:
+    effectiveMessage,
 
-        wordCount:
-          String(normalizedMessage)
-            .split(/\s+/)
-            .filter(Boolean)
-            .length
-      },
+  normalized:
+    normalizedMessage,
+
+  wasResolved:
+    summary.currentTurn
+      ?.wasResolved === true,
+
+  resolutionSource:
+    summary.currentTurn
+      ?.resolutionSource ||
+    null,
+
+  originalLength:
+    String(
+      originalMessage
+    ).length,
+
+  effectiveLength:
+    String(
+      effectiveMessage
+    ).length,
+
+  wordCount:
+    String(normalizedMessage)
+      .split(/\s+/)
+      .filter(Boolean)
+      .length
+},
+
+continuity: {
+  available:
+    summary.continuityResolution
+      ?.continuityResolverRan === true,
+
+  status:
+    summary.continuityResolution
+      ?.status ||
+    "not_evaluated",
+
+  isContinuation:
+    summary.continuityResolution
+      ?.isContinuation ??
+    null,
+
+  requiresPriorContext:
+    summary.continuityResolution
+      ?.requiresPriorContext ??
+    null,
+
+  priorContextAvailable:
+    summary.continuityResolution
+      ?.priorContextAvailable ??
+    null,
+
+  referencesPriorContext:
+    summary.continuityResolution
+      ?.referencesPriorContext ??
+    null,
+
+  referenceResolved:
+    summary.continuityResolution
+      ?.referenceResolved ??
+    null,
+
+  resolvedReferenceValue:
+    summary.continuityResolution
+      ?.resolvedReferenceValue ||
+    null,
+
+  resolvedReferenceSourceTurnId:
+    summary.continuityResolution
+      ?.resolvedReferenceSourceTurnId ||
+    null,
+
+  currentTurnWasResolved:
+    summary.currentTurn
+      ?.wasResolved === true,
+
+  requiresClarification:
+    summary.continuityResolution
+      ?.requiresClarification === true,
+
+  confidence:
+    summary.continuityResolution
+      ?.confidence ??
+    0,
+
+  raw:
+    summary.continuityResolution ||
+    null
+},
 
       conversationIntentPacket:
         reconciliation
@@ -2563,12 +3070,20 @@ const reconciliation =
           summary.semanticSummary ||
           null,
 
-        continuity:
-          semanticFrame
-            .continuity ||
-          summary
-            .semanticContinuity ||
-          {},
+          continuity:
+    semanticFrame.continuity ||
+    summary.semanticContinuity ||
+    {},
+
+  continuityPassthrough:
+    semanticFrame.continuity ||
+    summary.semanticContinuityPassthrough ||
+    {},
+
+  authoritativeContinuity:
+    summary.continuityResolution ||
+    summary.authoritativeContinuity ||
+    null,
 
         responseCharacteristics:
           semanticFrame
@@ -3011,6 +3526,27 @@ const reconciliation =
             String(message).trim()
           ),
 
+hasContinuityResolution:
+  summary.continuityResolution
+    ?.continuityResolverRan === true,
+
+currentTurnWasResolved:
+  summary.currentTurn
+    ?.wasResolved === true,
+
+effectiveMessageAvailable:
+  Boolean(
+    String(
+      summary.currentTurn
+        ?.effectiveText ||
+      ""
+    ).trim()
+  ),
+
+continuityRequiresClarification:
+  summary.continuityResolution
+    ?.requiresClarification === true,
+
         hasObservations:
           observations.length > 0,
 
@@ -3096,6 +3632,13 @@ const reconciliation =
           !String(message).trim()
             ? "message"
             : null,
+
+summary.continuityResolution
+  ?.requiresPriorContext === true &&
+summary.continuityResolution
+  ?.priorContextAvailable !== true
+    ? "prior_context"
+    : null,
 
           !observations.length
             ? "observations"
