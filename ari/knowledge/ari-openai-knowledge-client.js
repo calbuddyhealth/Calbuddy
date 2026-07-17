@@ -4,7 +4,7 @@
 // Browser-side client that prepares a rich reasoning payload and
 // asks the server API to use OpenAI.
 //
-// V2.1.4
+// V2.1.5
 // Upgrades:
 // - Preserves structured mealEstimate / foodAnalysis / nutritionEstimate
 // - Prevents action planner from scraping wrong calorie numbers
@@ -13,7 +13,7 @@
 window.Ari = window.Ari || {};
 
 window.AriOpenAIKnowledgeClient = {
-  version: "2.1.4",
+  version: "2.1.5",
 
   async ask(input = {}) {
     const summary = input.summary || input || {};
@@ -55,19 +55,18 @@ window.AriOpenAIKnowledgeClient = {
 console.log("[Ari Knowledge Response Status]", response.status, response.ok);
 console.log("[Ari Knowledge Response Data]", data);
 
+if (!response.ok) {
+  return this.fail(
+    data?.error ||
+    data?.message ||
+    `Knowledge request failed with status ${response.status}.`
+  );
+}
+
 const answer =
-  data.answer ||
-  data.finalResponse ||
-  data.reply ||
-  data.knowledgeAnswer ||
-  data.response?.reply ||
-  data.response?.answer ||
-  data.response ||
-  data.text ||
-  "";
-      if (!response.ok) {
-        return this.fail(data?.error || "Knowledge request failed.");
-      }
+  this.extractAnswer(
+    data
+  );
 
       const mealEstimate =
         data.mealEstimate ||
@@ -95,12 +94,82 @@ const answer =
         knowledgeProvider: "openai",
         knowledgeSource: data.source || "openai",
 
-        knowledgeAnswer: answer,
-finalResponse: answer || null,
+        knowledgeAnswer:
+  answer ||
+  null,
 
-        response:
-          data.response ||
-          null,
+finalResponse:
+  answer ||
+  null,
+
+responseText:
+  answer ||
+  null,
+
+outputText:
+  answer ||
+  null,
+
+response:
+  data.response ||
+  null,
+
+serverResponseStatus:
+  response.status,
+
+serverResponseOK:
+  response.ok,
+
+serverAnswerFields: {
+  responseText:
+    typeof data.responseText ===
+      "string",
+
+  outputText:
+    typeof data.outputText ===
+      "string",
+
+  finalResponse:
+    typeof data.finalResponse ===
+      "string",
+
+  answer:
+    typeof data.answer ===
+      "string",
+
+  reply:
+    typeof data.reply ===
+      "string",
+
+  knowledgeAnswer:
+    typeof data.knowledgeAnswer ===
+      "string",
+
+  nestedResponseType:
+  Array.isArray(
+    data.response
+  )
+    ? "array"
+    : typeof data.response,
+
+nestedResponseHasResponseText:
+  Boolean(
+    data.response &&
+    typeof data.response ===
+      "object" &&
+    typeof data.response.responseText ===
+      "string"
+  ),
+
+nestedResponseHasAnswer:
+  Boolean(
+    data.response &&
+    typeof data.response ===
+      "object" &&
+    typeof data.response.answer ===
+      "string"
+  ),
+},
 
         mealEstimate,
         foodAnalysis,
@@ -517,6 +586,94 @@ Do not output phrases like:
 - "I will answer directly..."
 `.trim();
   },
+
+extractAnswer(
+  data = {}
+) {
+  if (
+    typeof data ===
+    "string"
+  ) {
+    return this.safeTrim(
+      data
+    );
+  }
+
+  if (
+    !data ||
+    typeof data !==
+      "object"
+  ) {
+    return "";
+  }
+
+  const nestedResponse =
+    data.response &&
+    typeof data.response ===
+      "object"
+      ? data.response
+      : {};
+
+  const nestedOutput =
+    data.output &&
+    typeof data.output ===
+      "object"
+      ? data.output
+      : {};
+
+  const candidates = [
+    data.responseText,
+    data.outputText,
+    data.finalResponse,
+
+    nestedResponse.responseText,
+    nestedResponse.outputText,
+    nestedResponse.finalResponse,
+    nestedResponse.reply,
+    nestedResponse.answer,
+    nestedResponse.text,
+
+    nestedOutput.responseText,
+    nestedOutput.outputText,
+    nestedOutput.finalResponse,
+    nestedOutput.text,
+
+    data.reply,
+    data.text,
+    data.content,
+    data.answer,
+    data.knowledgeAnswer
+  ];
+
+  for (
+    const candidate
+    of candidates
+  ) {
+    if (
+      typeof candidate ===
+        "string" &&
+      candidate.trim()
+    ) {
+      return candidate.trim();
+    }
+  }
+
+  if (
+    typeof data.response ===
+      "string"
+  ) {
+    return data.response.trim();
+  }
+
+  if (
+    typeof data.output ===
+      "string"
+  ) {
+    return data.output.trim();
+  }
+
+  return "";
+},
 
   fail(message = "Knowledge request failed.") {
     return {
