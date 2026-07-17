@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.1.0 — Realization-Native Architecture Cleanup / Strict Turn Isolation
+// V7.2.0 — In-Place Runtime Cleanup / Strict Turn Isolation
 //
 // Architectural flow:
 //
@@ -22,10 +22,6 @@
 // Layer 3 — Deliberation
 //      ↓
 // Layer 4 — Expression
-//          Character
-//          Language Guidance
-//          Response Realization
-//          Final Composition
 //      ↓
 // Layer 5 — Delivery
 //      ↓
@@ -39,40 +35,30 @@
 // - Normalize and preserve one canonical current-turn envelope.
 // - Remove generated output inherited from any prior turn.
 // - Preserve valid conversation, memory, application, and external evidence.
-// - Begin the canonical turn through Conversation Operating State.
-// - Require a ready operating-state handoff before Perception.
+// - Begin and complete the canonical turn through Conversation Operating State.
 // - Execute each of the five runtime layers exactly once and in order.
-// - Preserve layer outputs without reconstructing their authorities.
 // - Stop downstream processing when a required runtime boundary fails.
-// - Build one canonical pipeline lifecycle record.
-// - Read only authoritative Delivery output for production delivery.
-// - Complete the canonical turn through Conversation Operating State.
-// - Preserve application conversation history after successful completion.
-// - Preserve structured diagnostics and timing.
+// - Preserve structured lifecycle diagnostics and timing.
+// - Normalize authoritative Delivery output for the application boundary.
 //
 // Non-responsibilities:
 // - Does not directly load or normalize persisted thread state.
 // - Does not directly build thread context or reference candidates.
-// - Does not classify the conversation.
-// - Does not reinterpret semantic meaning.
-// - Does not choose Conversation Function or primary routing.
-// - Does not determine safety severity.
+// - Does not classify the conversation or reinterpret semantic meaning.
+// - Does not choose Conversation Function, primary routing, or safety severity.
 // - Does not create or modify the authoritative Response Plan.
 // - Does not execute Expression stages independently.
-// - Does not independently generate response realization artifacts.
 // - Does not compose, select, or rewrite final response language.
-// - Does not infer a response from arbitrary intermediate fields.
-// - Does not substitute intermediate output for Delivery authority.
-// - Does not execute application writes.
-// - Does not directly access Supabase.
+// - Does not substitute arbitrary intermediate output for Delivery authority.
+// - Does not execute application writes or directly access Supabase.
 // - Does not retrieve or store long-term memory.
 // - Does not replace Delivery authority.
 
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.1.0",
-  schemaVersion: "7.1.0",
+  version: "7.2.0",
+  schemaVersion: "7.2.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
     "canonical_realization_native_five_layer_runtime_authority",
@@ -84,21 +70,14 @@ window.AriRebirthPipeline = {
   async run(systemSummary = {}) {
     const normalizedInput =
       this.clearPriorTurnOutputs(
-        this.normalizeInput(
-          systemSummary
-        )
+        this.normalizeInput(systemSummary)
       );
 
     const debugTiming =
-      normalizedInput.debugTiming ===
-        true ||
-      normalizedInput.appContext
-        ?.debugTiming ===
-        true;
+      normalizedInput.debugTiming === true ||
+      normalizedInput.appContext?.debugTiming === true;
 
-    const timingStart =
-      performance.now();
-
+    const timingStart = performance.now();
     const timing = [];
 
     let summary = {
@@ -117,14 +96,12 @@ window.AriRebirthPipeline = {
 
       pipelineLifecycleErrors:
         this.toArray(
-          normalizedInput
-            .pipelineLifecycleErrors
+          normalizedInput.pipelineLifecycleErrors
         ),
 
       pipelineLifecycleWarnings:
         this.toArray(
-          normalizedInput
-            .pipelineLifecycleWarnings
+          normalizedInput.pipelineLifecycleWarnings
         ),
 
       pipelineLayerResults:
@@ -185,9 +162,7 @@ window.AriRebirthPipeline = {
           "AriRebirthPipeline.run complete"
         );
 
-        console.table(
-          timing
-        );
+        console.table(timing);
 
         console.log(
           "[AriRebirthPipeline Timing] Total:",
@@ -234,8 +209,7 @@ window.AriRebirthPipeline = {
     );
 
     if (
-      summary
-        .conversationOperatingStateReady !==
+      summary.conversationOperatingStateReady !==
       true
     ) {
       summary = {
@@ -253,7 +227,7 @@ window.AriRebirthPipeline = {
     }
 
     /* =================================================
-       2. PRESERVE EXTERNAL CURRENT-TURN EVIDENCE
+       2. PRESERVE CURRENT-TURN EVIDENCE
     ================================================= */
 
     summary =
@@ -274,12 +248,6 @@ window.AriRebirthPipeline = {
       mark,
 
       runEngine,
-
-      preserveDeveloperEvidence:
-        state =>
-          this.preserveExternalEvidence(
-            state
-          ),
 
       preserveExternalEvidence:
         state =>
@@ -317,24 +285,6 @@ window.AriRebirthPipeline = {
             state
           ),
 
-      /*
- * Delegated persistence entry retained for Delivery-stage compatibility.
- *
- * The pipeline does not persist thread state directly. This method
- * delegates completion authority to Conversation Operating State.
- */
-      saveFinalThreadState:
-        state =>
-          this.completeConversationTurn(
-            state
-          ),
-
-      saveAriConversationHistory:
-        state =>
-          this.saveAriConversationHistory(
-            state
-          ),
-
       buildCanonicalDeliveryResult:
         state =>
           this.buildCanonicalDeliveryResult(
@@ -349,10 +299,7 @@ window.AriRebirthPipeline = {
        4. FIVE-LAYER LIFECYCLE
     ================================================= */
 
-    for (
-      const layer
-      of layers
-    ) {
+    for (const layer of layers) {
       if (
         summary.pipelineStopped ===
         true
@@ -363,8 +310,7 @@ window.AriRebirthPipeline = {
             layer,
 
             reason:
-              summary
-                .pipelineStopReason ||
+              summary.pipelineStopReason ||
               "pipeline_stopped"
           });
 
@@ -382,9 +328,7 @@ window.AriRebirthPipeline = {
           layer.name,
 
         pipelineExecutionOrder: [
-          ...summary
-            .pipelineExecutionOrder,
-
+          ...summary.pipelineExecutionOrder,
           layer.name
         ]
       };
@@ -454,27 +398,22 @@ window.AriRebirthPipeline = {
 
       deliveryResult,
 
-      finalDelivery:
-        deliveryResult,
-
-      deliveryPipelineResult:
-        deliveryResult,
-
       deliveryComplete:
-        deliveryResult
-          .available ===
+        deliveryResult.available ===
         true,
 
       pipelineOutputReady:
-        deliveryResult
-          .available ===
+        deliveryResult.available ===
         true
     };
 
+    /*
+     * Temporary compatibility projection.
+     * Remove after the App Bridge and all downstream readers
+     * are confirmed to consume deliveryResult.reply directly.
+     */
     if (
-      deliveryResult
-        .available ===
-        true &&
+      deliveryResult.available === true &&
       deliveryResult.reply
     ) {
       summary.finalResponse =
@@ -516,14 +455,11 @@ window.AriRebirthPipeline = {
         true,
 
       rebirthPipelineReady:
-        summary
-          .pipelineLifecycleComplete ===
+        summary.pipelineLifecycleComplete ===
           true &&
-        summary.deliveryResult
-          ?.available ===
+        summary.deliveryResult?.available ===
           true &&
-        summary
-          .conversationOperatingStateCompleted ===
+        summary.conversationOperatingStateCompleted ===
           true,
 
       rebirthPipelineSource:
@@ -542,9 +478,7 @@ window.AriRebirthPipeline = {
         this.getAuthorityBoundaries()
     };
 
-    this.debugLog(
-      summary
-    );
+    this.debugLog(summary);
 
     finishTiming();
 
@@ -564,13 +498,6 @@ window.AriRebirthPipeline = {
   clearPriorTurnOutputs(
     summary = {}
   ) {
-    /*
-     * Preserve conversation state, thread context, memories,
-     * user context, application evidence, and prior turns.
-     *
-     * Remove only generated output that must belong exclusively
-     * to the new current turn.
-     */
     return {
       ...summary,
 
@@ -748,12 +675,6 @@ window.AriRebirthPipeline = {
       languageComposerError:
         null,
 
-      realizationWasComposerAuthorized:
-        false,
-
-      lockedResponseWasComposerAuthorized:
-        false,
-
       compositionEligibility:
         null,
 
@@ -773,12 +694,6 @@ window.AriRebirthPipeline = {
         null,
 
       deliveryResult:
-        null,
-
-      finalDelivery:
-        null,
-
-      deliveryPipelineResult:
         null,
 
       deliveryStageResult:
@@ -820,9 +735,6 @@ window.AriRebirthPipeline = {
       finalPersistenceReason:
         null,
 
-      conversationHistorySave:
-        null,
-
       conversationOperatingStateCompleted:
         false,
 
@@ -849,10 +761,8 @@ window.AriRebirthPipeline = {
 
   getConversationOperatingState() {
     return (
-      window
-        .AriConversationOperatingState ||
-      window.Ari
-        ?.conversationOperatingState ||
+      window.AriConversationOperatingState ||
+      window.Ari?.conversationOperatingState ||
       null
     );
   },
@@ -865,8 +775,7 @@ window.AriRebirthPipeline = {
 
     if (
       !operatingState ||
-      typeof operatingState
-        .beginTurn !==
+      typeof operatingState.beginTurn !==
         "function"
     ) {
       const error =
@@ -901,9 +810,7 @@ window.AriRebirthPipeline = {
 
         pipelineLifecycleErrors:
           this.appendUniqueError(
-            summary
-              .pipelineLifecycleErrors,
-
+            summary.pipelineLifecycleErrors,
             error
           )
       };
@@ -911,18 +818,15 @@ window.AriRebirthPipeline = {
 
     try {
       const result =
-        await operatingState
-          .beginTurn(
-            summary
-          );
+        await operatingState.beginTurn(
+          summary
+        );
 
       if (
         !result ||
         typeof result !==
           "object" ||
-        Array.isArray(
-          result
-        )
+        Array.isArray(result)
       ) {
         throw new Error(
           "conversation_operating_state_begin_turn_returned_invalid_result"
@@ -930,15 +834,13 @@ window.AriRebirthPipeline = {
       }
 
       const ready =
-        result
-          .conversationOperatingStateReady !==
+        result.conversationOperatingStateReady !==
           false &&
         result.ready !==
           false;
 
       return {
         ...summary,
-
         ...result,
 
         conversationOperatingStateRan:
@@ -948,15 +850,13 @@ window.AriRebirthPipeline = {
           ready,
 
         conversationOperatingStateSource:
-          result
-            .conversationOperatingStateSource ||
+          result.conversationOperatingStateSource ||
           result.source ||
           operatingState.source ||
           "ari-conversation-operating-state",
 
         conversationOperatingStateVersion:
-          result
-            .conversationOperatingStateVersion ||
+          result.conversationOperatingStateVersion ||
           result.version ||
           operatingState.version ||
           null,
@@ -975,9 +875,7 @@ window.AriRebirthPipeline = {
 
           message:
             error?.message ||
-            String(
-              error
-            ),
+            String(error),
 
           fatal:
             true
@@ -1001,9 +899,7 @@ window.AriRebirthPipeline = {
 
         pipelineLifecycleErrors:
           this.appendUniqueError(
-            summary
-              .pipelineLifecycleErrors,
-
+            summary.pipelineLifecycleErrors,
             lifecycleError
           )
       };
@@ -1018,8 +914,7 @@ window.AriRebirthPipeline = {
       {};
 
     if (
-      delivery.available !==
-        true ||
+      delivery.available !== true ||
       !delivery.reply
     ) {
       return {
@@ -1039,15 +934,8 @@ window.AriRebirthPipeline = {
       };
     }
 
-    /*
-     * Delivery may invoke the transitional saveFinalThreadState
-     * alias before the master pipeline reaches final completion.
-     *
-     * Do not complete the same turn twice.
-     */
     if (
-      summary
-        .conversationOperatingStateCompleted ===
+      summary.conversationOperatingStateCompleted ===
       true
     ) {
       return summary;
@@ -1058,8 +946,7 @@ window.AriRebirthPipeline = {
 
     if (
       !operatingState ||
-      typeof operatingState
-        .completeTurn !==
+      typeof operatingState.completeTurn !==
         "function"
     ) {
       return {
@@ -1081,62 +968,43 @@ window.AriRebirthPipeline = {
 
     try {
       const result =
-        await operatingState
-          .completeTurn(
-            summary
-          );
+        await operatingState.completeTurn(
+          summary
+        );
 
       if (
         !result ||
         typeof result !==
           "object" ||
-        Array.isArray(
-          result
-        )
+        Array.isArray(result)
       ) {
         throw new Error(
           "conversation_operating_state_complete_turn_returned_invalid_result"
         );
       }
 
-      const completedState = {
-        ...summary,
-
-        ...result
-      };
-
-      const historyResult =
-        this.saveAriConversationHistory(
-          completedState
-        );
-
       return {
-        ...completedState,
+        ...summary,
+        ...result,
 
         conversationOperatingStateCompleted:
-          result
-            .conversationOperatingStateCompleted !==
+          result.conversationOperatingStateCompleted !==
           false,
 
         conversationOperatingStateCompletionSource:
-          result
-            .conversationOperatingStateSource ||
+          result.conversationOperatingStateSource ||
           result.source ||
           operatingState.source ||
           "ari-conversation-operating-state",
 
         conversationOperatingStateCompletionVersion:
-          result
-            .conversationOperatingStateVersion ||
+          result.conversationOperatingStateVersion ||
           result.version ||
           operatingState.version ||
           null,
 
         conversationOperatingStateCompleteResult:
           result,
-
-        conversationHistorySave:
-          historyResult,
 
         finalPersistenceRan:
           true,
@@ -1155,9 +1023,7 @@ window.AriRebirthPipeline = {
 
           message:
             error?.message ||
-            String(
-              error
-            ),
+            String(error),
 
           fatal:
             false
@@ -1183,9 +1049,7 @@ window.AriRebirthPipeline = {
 
         pipelineLifecycleWarnings:
           this.appendUniqueError(
-            summary
-              .pipelineLifecycleWarnings,
-
+            summary.pipelineLifecycleWarnings,
             lifecycleError
           )
       };
@@ -1221,8 +1085,7 @@ window.AriRebirthPipeline = {
           true,
 
         pipeline:
-          window
-            .AriPerceptionPipeline
+          window.AriPerceptionPipeline
       },
 
       {
@@ -1248,8 +1111,7 @@ window.AriRebirthPipeline = {
           true,
 
         pipeline:
-          window
-            .AriExecutiveRoutingPipeline
+          window.AriExecutiveRoutingPipeline
       },
 
       {
@@ -1275,8 +1137,7 @@ window.AriRebirthPipeline = {
           true,
 
         pipeline:
-          window
-            .AriDeliberationPipeline
+          window.AriDeliberationPipeline
       },
 
       {
@@ -1302,8 +1163,7 @@ window.AriRebirthPipeline = {
           true,
 
         pipeline:
-          window
-            .AriExpressionPipeline
+          window.AriExpressionPipeline
       },
 
       {
@@ -1329,8 +1189,7 @@ window.AriRebirthPipeline = {
           true,
 
         pipeline:
-          window
-            .AriDeliveryPipeline
+          window.AriDeliveryPipeline
       }
     ];
   },
@@ -1389,8 +1248,7 @@ window.AriRebirthPipeline = {
           error.message,
 
         pipelineLayerResults: {
-          ...summary
-            .pipelineLayerResults,
+          ...summary.pipelineLayerResults,
 
           [name]: {
             ran:
@@ -1418,9 +1276,7 @@ window.AriRebirthPipeline = {
 
         pipelineLifecycleErrors:
           this.appendUniqueError(
-            summary
-              .pipelineLifecycleErrors,
-
+            summary.pipelineLifecycleErrors,
             error
           )
       };
@@ -1437,9 +1293,7 @@ window.AriRebirthPipeline = {
         !result ||
         typeof result !==
           "object" ||
-        Array.isArray(
-          result
-        )
+        Array.isArray(result)
       ) {
         const error =
           this.buildLayerError({
@@ -1470,8 +1324,7 @@ window.AriRebirthPipeline = {
             error.message,
 
           pipelineLayerResults: {
-            ...summary
-              .pipelineLayerResults,
+            ...summary.pipelineLayerResults,
 
             [name]: {
               ran:
@@ -1491,7 +1344,7 @@ window.AriRebirthPipeline = {
                 Math.round(
                   performance.now() -
                   startedAt
-                ),
+              ),
 
               error
             }
@@ -1499,24 +1352,18 @@ window.AriRebirthPipeline = {
 
           pipelineLifecycleErrors:
             this.appendUniqueError(
-              summary
-                .pipelineLifecycleErrors,
-
+              summary.pipelineLifecycleErrors,
               error
             )
         };
       }
 
       const ran =
-        result[
-          layer.ranKey
-        ] ===
+        result[layer.ranKey] ===
         true;
 
       const source =
-        result[
-          layer.sourceKey
-        ] ||
+        result[layer.sourceKey] ||
         pipeline.source ||
         layer.label ||
         name;
@@ -1530,9 +1377,7 @@ window.AriRebirthPipeline = {
 
       const layerResult = {
         ran,
-
         ready,
-
         source,
 
         version:
@@ -1548,9 +1393,7 @@ window.AriRebirthPipeline = {
 
         packetAvailable:
           Boolean(
-            result[
-              layer.packetKey
-            ]
+            result[layer.packetKey]
           ),
 
         durationMs:
@@ -1560,48 +1403,43 @@ window.AriRebirthPipeline = {
           ),
 
         error:
-          result[
-            layer.errorKey
-          ] ||
+          result[layer.errorKey] ||
           null
       };
 
       let nextState = {
-  ...summary,
-  ...result,
+        ...summary,
+        ...result,
 
-  pipelineLifecycleErrors:
-    this.mergeLifecycleErrors(
-      summary.pipelineLifecycleErrors,
-      result.pipelineLifecycleErrors
-    ),
+        pipelineLifecycleErrors:
+          this.mergeLifecycleErrors(
+            summary.pipelineLifecycleErrors,
+            result.pipelineLifecycleErrors
+          ),
 
-  pipelineLifecycleWarnings:
-    this.mergeLifecycleErrors(
-      summary.pipelineLifecycleWarnings,
-      result.pipelineLifecycleWarnings
-    ),
+        pipelineLifecycleWarnings:
+          this.mergeLifecycleErrors(
+            summary.pipelineLifecycleWarnings,
+            result.pipelineLifecycleWarnings
+          ),
 
-  pipelineExecutionOrder:
-    summary.pipelineExecutionOrder,
+        pipelineExecutionOrder:
+          summary.pipelineExecutionOrder,
 
-  pipelineLayerResults: {
-    ...summary.pipelineLayerResults,
-    ...result.pipelineLayerResults,
+        pipelineLayerResults: {
+          ...summary.pipelineLayerResults,
+          ...result.pipelineLayerResults,
 
-    [name]:
-      layerResult
-  }
-};
+          [name]:
+            layerResult
+        }
+      };
 
       if (
-        layer.required ===
-          true &&
+        layer.required === true &&
         (
-          ran !==
-            true ||
-          ready !==
-            true
+          ran !== true ||
+          ready !== true
         )
       ) {
         const error =
@@ -1610,14 +1448,12 @@ window.AriRebirthPipeline = {
               name,
 
             type:
-              ran !==
-                true
+              ran !== true
                 ? "required_pipeline_did_not_run"
                 : "required_pipeline_not_ready",
 
             message:
-              ran !==
-                true
+              ran !== true
                 ? `The required ${name} pipeline did not report successful execution.`
                 : `The required ${name} pipeline ran but did not produce a ready result.`,
 
@@ -1630,15 +1466,12 @@ window.AriRebirthPipeline = {
 
           pipelineLifecycleErrors:
             this.appendUniqueError(
-              nextState
-                .pipelineLifecycleErrors,
-
+              nextState.pipelineLifecycleErrors,
               error
             ),
 
           pipelineLayerResults: {
-            ...nextState
-              .pipelineLayerResults,
+            ...nextState.pipelineLayerResults,
 
             [name]: {
               ...layerResult,
@@ -1663,9 +1496,7 @@ window.AriRebirthPipeline = {
 
           message:
             error?.message ||
-            String(
-              error
-            ),
+            String(error),
 
           fatal:
             layer.required ===
@@ -1685,8 +1516,7 @@ window.AriRebirthPipeline = {
           lifecycleError.message,
 
         pipelineLayerResults: {
-          ...summary
-            .pipelineLayerResults,
+          ...summary.pipelineLayerResults,
 
           [name]: {
             ran:
@@ -1715,9 +1545,7 @@ window.AriRebirthPipeline = {
 
         pipelineLifecycleErrors:
           this.appendUniqueError(
-            summary
-              .pipelineLifecycleErrors,
-
+            summary.pipelineLifecycleErrors,
             lifecycleError
           )
       };
@@ -1740,54 +1568,37 @@ window.AriRebirthPipeline = {
       "pipelineReady"
     ];
 
-    for (
-      const key
-      of explicitReadyKeys
-    ) {
-      if (
-        result[key] ===
-        true
-      ) {
+    for (const key of explicitReadyKeys) {
+      if (result[key] === true) {
         return true;
       }
 
-      if (
-        result[key] ===
-        false
-      ) {
+      if (result[key] === false) {
         return false;
       }
     }
 
     const packet =
-      result[
-        layer.packetKey
-      ];
+      result[layer.packetKey];
 
     if (
       packet &&
       typeof packet ===
         "object"
     ) {
-      if (
-        packet.ready ===
-        true
-      ) {
+      if (packet.ready === true) {
         return true;
       }
 
       if (
-        packet.ready ===
-          false &&
-        packet.required ===
-          true
+        packet.ready === false &&
+        packet.required === true
       ) {
         return false;
       }
     }
 
-    return ran ===
-      true;
+    return ran === true;
   },
 
   resolvePipelineStopDecision({
@@ -1795,16 +1606,13 @@ window.AriRebirthPipeline = {
     summary = {}
   } = {}) {
     const result =
-      summary
-        .pipelineLayerResults
+      summary.pipelineLayerResults
         ?.[layer.name] ||
       {};
 
     if (
-      layer.required ===
-        true &&
-      result.ran !==
-        true
+      layer.required === true &&
+      result.ran !== true
     ) {
       return {
         stop:
@@ -1816,10 +1624,8 @@ window.AriRebirthPipeline = {
     }
 
     if (
-      layer.required ===
-        true &&
-      result.ready !==
-        true
+      layer.required === true &&
+      result.ready !== true
     ) {
       return {
         stop:
@@ -1857,8 +1663,7 @@ window.AriRebirthPipeline = {
         reason,
 
       pipelineLayerResults: {
-        ...summary
-          .pipelineLayerResults,
+        ...summary.pipelineLayerResults,
 
         [layer.name]: {
           ran:
@@ -1895,14 +1700,10 @@ window.AriRebirthPipeline = {
 
     for (
       const method
-      of this.toArray(
-        methods
-      )
+      of this.toArray(methods)
     ) {
       if (
-        typeof engine[
-          method
-        ] !==
+        typeof engine[method] !==
         "function"
       ) {
         continue;
@@ -1910,9 +1711,7 @@ window.AriRebirthPipeline = {
 
       try {
         const result =
-          await engine[
-            method
-          ](
+          await engine[method](
             inputState
           );
 
@@ -1925,13 +1724,17 @@ window.AriRebirthPipeline = {
         );
       } catch (error) {
         return {
-          ...fallback,
+          ...(
+            fallback &&
+            typeof fallback ===
+              "object"
+              ? fallback
+              : {}
+          ),
 
           error:
             error?.message ||
-            String(
-              error
-            ),
+            String(error),
 
           failedMethod:
             method,
@@ -1957,9 +1760,7 @@ window.AriRebirthPipeline = {
       systemSummary &&
       typeof systemSummary ===
         "object" &&
-      !Array.isArray(
-        systemSummary
-      )
+      !Array.isArray(systemSummary)
         ? systemSummary
         : {};
 
@@ -2004,16 +1805,14 @@ window.AriRebirthPipeline = {
     const createdAt =
       suppliedTurn.createdAt ||
       source.createdAt ||
-      new Date()
-        .toISOString();
+      new Date().toISOString();
 
     const turn = {
       schema:
         "ari_runtime_turn",
 
       schemaVersion:
-        suppliedTurn
-          .schemaVersion ||
+        suppliedTurn.schemaVersion ||
         this.schemaVersion,
 
       turnId,
@@ -2026,16 +1825,14 @@ window.AriRebirthPipeline = {
 
       effectiveText:
         this.cleanText(
-          suppliedTurn
-            .effectiveText ||
+          suppliedTurn.effectiveText ||
           currentText ||
           originalText
         ),
 
       semanticInputText:
         this.cleanText(
-          suppliedTurn
-            .semanticInputText ||
+          suppliedTurn.semanticInputText ||
           currentText ||
           originalText
         ),
@@ -2044,42 +1841,34 @@ window.AriRebirthPipeline = {
 
       source:
         suppliedTurn.source ||
-        source.appContext
-          ?.source ||
+        source.appContext?.source ||
         source.source ||
         "unknown",
 
       createdAt,
 
       textWasRewritten:
-        suppliedTurn
-          .textWasRewritten ===
+        suppliedTurn.textWasRewritten ===
         true,
 
       originalTextPreserved:
-        suppliedTurn
-          .originalTextPreserved !==
+        suppliedTurn.originalTextPreserved !==
         false,
 
       currentTurnWasResolved:
-        suppliedTurn
-          .currentTurnWasResolved ===
+        suppliedTurn.currentTurnWasResolved ===
           true ||
-        source
-          .currentTurnWasResolved ===
+        source.currentTurnWasResolved ===
           true,
 
       ellipticalFollowUpResolved:
-        suppliedTurn
-          .ellipticalFollowUpResolved ===
+        suppliedTurn.ellipticalFollowUpResolved ===
           true ||
-        source
-          .ellipticalFollowUpResolved ===
+        source.ellipticalFollowUpResolved ===
           true,
 
       resolutionSource:
-        suppliedTurn
-          .resolutionSource ||
+        suppliedTurn.resolutionSource ||
         source.resolutionSource ||
         "none",
 
@@ -2129,8 +1918,7 @@ window.AriRebirthPipeline = {
       resolvedUserQuestion:
         turn.currentTurnWasResolved
           ? this.cleanText(
-              source
-                .resolvedUserQuestion ||
+              source.resolvedUserQuestion ||
               turn.effectiveText
             )
           : null,
@@ -2138,14 +1926,12 @@ window.AriRebirthPipeline = {
       resolvedCurrentTurn:
         turn.currentTurnWasResolved
           ? (
-              source
-                .resolvedCurrentTurn ||
+              source.resolvedCurrentTurn ||
               {
                 originalText,
 
                 resolvedText:
-                  turn
-                    .effectiveText,
+                  turn.effectiveText,
 
                 turnId
               }
@@ -2153,20 +1939,16 @@ window.AriRebirthPipeline = {
           : null,
 
       currentTurnWasResolved:
-        turn
-          .currentTurnWasResolved,
+        turn.currentTurnWasResolved,
 
       ellipticalFollowUpResolved:
-        turn
-          .ellipticalFollowUpResolved,
+        turn.ellipticalFollowUpResolved,
 
       resolutionSource:
         turn.resolutionSource,
 
       runtimeRequestAccepted:
-        Boolean(
-          originalText
-        ),
+        Boolean(originalText),
 
       runtimeRequestSource:
         this.source
@@ -2177,27 +1959,15 @@ window.AriRebirthPipeline = {
     const random =
       typeof crypto !==
         "undefined" &&
-      typeof crypto
-        .randomUUID ===
+      typeof crypto.randomUUID ===
         "function"
         ? crypto.randomUUID()
         : [
-            Date.now()
-              .toString(
-                36
-              ),
-
+            Date.now().toString(36),
             Math.random()
-              .toString(
-                36
-              )
-              .slice(
-                2,
-                10
-              )
-          ].join(
-            "_"
-          );
+              .toString(36)
+              .slice(2, 10)
+          ].join("_");
 
     return `ari_turn_${random}`;
   },
@@ -2214,34 +1984,26 @@ window.AriRebirthPipeline = {
       {};
 
     const externalEvidence =
-      appContext
-        .externalEvidence ||
+      appContext.externalEvidence ||
       {};
 
     const githubFileContext =
-      summary
-        .githubFileContext ||
-      appContext
-        .githubFileContext ||
-      externalEvidence
-        .githubFileContext ||
+      summary.githubFileContext ||
+      appContext.githubFileContext ||
+      externalEvidence.githubFileContext ||
       null;
 
     const suppliedGithubEvidence =
       summary.githubEvidence ||
       appContext.githubEvidence ||
-      externalEvidence
-        .githubEvidence ||
+      externalEvidence.githubEvidence ||
       githubFileContext ||
       null;
 
     const developerInvestigation =
-      summary
-        .developerInvestigation ||
-      appContext
-        .developerInvestigation ||
-      externalEvidence
-        .developerInvestigation ||
+      summary.developerInvestigation ||
+      appContext.developerInvestigation ||
+      externalEvidence.developerInvestigation ||
       null;
 
     const githubEvidence =
@@ -2253,21 +2015,16 @@ window.AriRebirthPipeline = {
       ...summary,
 
       githubFileContext,
-
       githubEvidence,
-
       developerInvestigation,
 
       githubEvidenceAvailable:
-        githubEvidence
-          .available ===
+        githubEvidence.available ===
         true,
 
       externalEvidence: {
         githubFileContext,
-
         githubEvidence,
-
         developerInvestigation,
 
         authority:
@@ -2279,24 +2036,12 @@ window.AriRebirthPipeline = {
 
         externalEvidence: {
           ...externalEvidence,
-
           githubFileContext,
-
           githubEvidence,
-
           developerInvestigation
         }
       }
     };
-  },
-
-  preserveDeveloperEvidence(
-    summary = {}
-  ) {
-    return this
-      .preserveExternalEvidence(
-        summary
-      );
   },
 
   normalizeGithubEvidence(
@@ -2357,10 +2102,7 @@ window.AriRebirthPipeline = {
         content.length,
 
       contentPreview:
-        content.slice(
-          0,
-          5000
-        ),
+        content.slice(0, 5000),
 
       source:
         value.source ||
@@ -2376,39 +2118,29 @@ window.AriRebirthPipeline = {
   ) {
     const text =
       String(
-        summary.turn
-          ?.originalText ||
+        summary.turn?.originalText ||
         summary.userMessage ||
         ""
       );
 
     const wantsMealLog =
       /\b(log|add|save|track)\b/i
-        .test(
-          text
-        );
+        .test(text);
 
     const newMealEstimate =
       summary.mealEstimate ||
-      summary.aiData
-        ?.mealEstimate ||
-      summary.structuredOutput
-        ?.mealEstimate ||
-      summary.rawOpenAIData
-        ?.mealEstimate ||
-      summary.response
-        ?.mealEstimate ||
+      summary.aiData?.mealEstimate ||
+      summary.structuredOutput?.mealEstimate ||
+      summary.rawOpenAIData?.mealEstimate ||
+      summary.response?.mealEstimate ||
       null;
 
     const priorMealEstimate =
       wantsMealLog
         ? (
-            summary
-              .lastMealEstimate ||
-            summary.appContext
-              ?.lastMealEstimate ||
-            summary.threadState
-              ?.lastMealEstimate ||
+            summary.lastMealEstimate ||
+            summary.appContext?.lastMealEstimate ||
+            summary.threadState?.lastMealEstimate ||
             null
           )
         : null;
@@ -2430,10 +2162,7 @@ window.AriRebirthPipeline = {
         mealEstimate,
 
       appContext: {
-        ...(
-          summary.appContext ||
-          {}
-        ),
+        ...(summary.appContext || {}),
 
         lastMealEstimate:
           mealEstimate,
@@ -2451,71 +2180,54 @@ window.AriRebirthPipeline = {
     summary = {}
   ) {
     const layerResults =
-      summary
-        .pipelineLayerResults ||
+      summary.pipelineLayerResults ||
       {};
 
     const layers = {
       perception:
         this.normalizeLifecycleLayer(
           layerResults.perception,
-
-          summary
-            .perceptionPipelineRan
+          summary.perceptionPipelineRan
         ),
 
       executiveRouting:
         this.normalizeLifecycleLayer(
-          layerResults
-            .executiveRouting,
-
-          summary
-            .executiveRoutingPipelineRan
+          layerResults.executiveRouting,
+          summary.executiveRoutingPipelineRan
         ),
 
       deliberation:
         this.normalizeLifecycleLayer(
-          layerResults
-            .deliberation,
-
-          summary
-            .deliberationPipelineRan
+          layerResults.deliberation,
+          summary.deliberationPipelineRan
         ),
 
       expression:
         this.normalizeLifecycleLayer(
           layerResults.expression,
-
-          summary
-            .expressionPipelineRan
+          summary.expressionPipelineRan
         ),
 
       delivery:
         this.normalizeLifecycleLayer(
           layerResults.delivery,
-
-          summary
-            .deliveryPipelineRan
+          summary.deliveryPipelineRan
         )
     };
 
     const allRan =
-      Object.values(
-        layers
-      ).every(
-        layer =>
-          layer.ran ===
-          true
-      );
+      Object.values(layers)
+        .every(
+          layer =>
+            layer.ran === true
+        );
 
     const allReady =
-      Object.values(
-        layers
-      ).every(
-        layer =>
-          layer.ready ===
-          true
-      );
+      Object.values(layers)
+        .every(
+          layer =>
+            layer.ready === true
+        );
 
     const complete =
       allRan &&
@@ -2540,34 +2252,24 @@ window.AriRebirthPipeline = {
 
       pipelineLayers:
         Object.fromEntries(
-          Object.entries(
-            layers
-          ).map(
-            ([
-              key,
-              value
-            ]) => [
-              key,
-              value.ran ===
-                true
-            ]
-          )
+          Object.entries(layers)
+            .map(
+              ([key, value]) => [
+                key,
+                value.ran === true
+              ]
+            )
         ),
 
       pipelineLayerReadiness:
         Object.fromEntries(
-          Object.entries(
-            layers
-          ).map(
-            ([
-              key,
-              value
-            ]) => [
-              key,
-              value.ready ===
-                true
-            ]
-          )
+          Object.entries(layers)
+            .map(
+              ([key, value]) => [
+                key,
+                value.ready === true
+              ]
+            )
         ),
 
       pipelineLifecycle: {
@@ -2582,29 +2284,24 @@ window.AriRebirthPipeline = {
 
         conversationOperatingState: {
           began:
-            summary
-              .conversationOperatingStateRan ===
+            summary.conversationOperatingStateRan ===
             true,
 
           ready:
-            summary
-              .conversationOperatingStateReady ===
+            summary.conversationOperatingStateReady ===
             true,
 
           source:
-            summary
-              .conversationOperatingStateSource ||
+            summary.conversationOperatingStateSource ||
             null,
 
           version:
-            summary
-              .conversationOperatingStateVersion ||
+            summary.conversationOperatingStateVersion ||
             null
         },
 
         executionOrder:
-          summary
-            .pipelineExecutionOrder ||
+          summary.pipelineExecutionOrder ||
           [],
 
         layers,
@@ -2620,25 +2317,21 @@ window.AriRebirthPipeline = {
           true,
 
         stopLayer:
-          summary
-            .pipelineStopLayer ||
+          summary.pipelineStopLayer ||
           null,
 
         stopReason:
-          summary
-            .pipelineStopReason ||
+          summary.pipelineStopReason ||
           null,
 
         errors:
           this.toArray(
-            summary
-              .pipelineLifecycleErrors
+            summary.pipelineLifecycleErrors
           ),
 
         warnings:
           this.toArray(
-            summary
-              .pipelineLifecycleWarnings
+            summary.pipelineLifecycleWarnings
           ),
 
         complete,
@@ -2653,9 +2346,9 @@ window.AriRebirthPipeline = {
   },
 
   normalizeLifecycleLayer(
-  value = {},
-  reportedRan = false
-) {
+    value = {},
+    reportedRan = false
+  ) {
     const source =
       value &&
       typeof value ===
@@ -2665,28 +2358,21 @@ window.AriRebirthPipeline = {
 
     return {
       ran:
-        source.ran ===
-          true ||
-        reportedRan ===
-          true,
+        source.ran === true ||
+        reportedRan === true,
 
       ready:
-        source.ready ===
-          true ||
+        source.ready === true ||
         (
-          reportedRan ===
-            true &&
-          source.ready !==
-            false
+          reportedRan === true &&
+          source.ready !== false
         ),
 
       skipped:
-        source.skipped ===
-        true,
+        source.skipped === true,
 
       required:
-        source.required !==
-        false,
+        source.required !== false,
 
       source:
         source.source ||
@@ -2697,8 +2383,7 @@ window.AriRebirthPipeline = {
         null,
 
       packetAvailable:
-        source
-          .packetAvailable ===
+        source.packetAvailable ===
         true,
 
       durationMs:
@@ -2730,24 +2415,19 @@ window.AriRebirthPipeline = {
     const authoritativeSource =
       deliverySources.find(
         source =>
-          source.authoritative ===
-            true &&
           this.extractDeliveryReply(
             source.value
           )
       ) ||
       null;
 
-    if (
-      authoritativeSource
-    ) {
-      return this
-        .normalizeDeliveryResult({
-          sourceRecord:
-            authoritativeSource,
+    if (authoritativeSource) {
+      return this.normalizeDeliveryResult({
+        sourceRecord:
+          authoritativeSource,
 
-          summary
-        });
+        summary
+      });
     }
 
     return {
@@ -2791,46 +2471,37 @@ window.AriRebirthPipeline = {
         this.version,
 
       error:
-        summary.pipelineStopped ===
-          true
-          ? summary
-              .pipelineStopReason
+        summary.pipelineStopped === true
+          ? summary.pipelineStopReason
           : "authoritative_delivery_result_missing",
 
       diagnostics: {
         deliveryPipelineRan:
-          summary
-            .deliveryPipelineRan ===
+          summary.deliveryPipelineRan ===
           true,
 
         finalCompositionStageRan:
-          summary
-            .finalCompositionStageRan ===
+          summary.finalCompositionStageRan ===
           true,
 
         realizationStageRan:
-          summary
-            .responseRealizationStageRan ===
+          summary.responseRealizationStageRan ===
           true,
 
         realizationReady:
-          summary
-            .realizationReady ===
+          summary.realizationReady ===
           true,
 
         realizationUsable:
-          summary
-            .realizationUsable ===
+          summary.realizationUsable ===
           true,
 
         finalResponseUsable:
-          summary
-            .finalResponseUsable ===
+          summary.finalResponseUsable ===
           true,
 
         pipelineLifecycleComplete:
-          summary
-            .pipelineLifecycleComplete ===
+          summary.pipelineLifecycleComplete ===
           true,
 
         pipelineStopped:
@@ -2838,13 +2509,11 @@ window.AriRebirthPipeline = {
           true,
 
         pipelineStopLayer:
-          summary
-            .pipelineStopLayer ||
+          summary.pipelineStopLayer ||
           null,
 
         pipelineStopReason:
-          summary
-            .pipelineStopReason ||
+          summary.pipelineStopReason ||
           null,
 
         examinedSources:
@@ -2852,9 +2521,6 @@ window.AriRebirthPipeline = {
             source => ({
               key:
                 source.key,
-
-              authoritative:
-                source.authoritative,
 
               replyAvailable:
                 Boolean(
@@ -2881,10 +2547,7 @@ window.AriRebirthPipeline = {
 
         value:
           summary.deliveryPacket
-            ?.deliveryResult,
-
-        authoritative:
-          true
+            ?.deliveryResult
       },
 
       {
@@ -2892,25 +2555,8 @@ window.AriRebirthPipeline = {
           "deliveryPipelinePacket.deliveryResult",
 
         value:
-          summary
-            .deliveryPipelinePacket
-            ?.deliveryResult,
-
-        authoritative:
-          true
-      },
-
-      {
-        key:
-          "deliveryDiagnosticsStagePacket.deliveryResult",
-
-        value:
-          summary
-            .deliveryDiagnosticsStagePacket
-            ?.deliveryResult,
-
-        authoritative:
-          true
+          summary.deliveryPipelinePacket
+            ?.deliveryResult
       },
 
       {
@@ -2918,33 +2564,16 @@ window.AriRebirthPipeline = {
           "deliveryStageResult",
 
         value:
-          summary
-            .deliveryStageResult,
-
-        authoritative:
-          true
-      },
-
-      {
-        key:
-          "deliveryResult",
-
-        value:
-          summary.deliveryResult,
-
-        authoritative:
-          Boolean(
-            summary.deliveryResult &&
-            summary.deliveryResult
-              .source !==
-              this.source
-          )
+          summary.deliveryStageResult
       }
     ].filter(
       source =>
         source.value &&
         typeof source.value ===
-          "object"
+          "object" &&
+        !Array.isArray(
+          source.value
+        )
     );
   },
 
@@ -2962,13 +2591,9 @@ window.AriRebirthPipeline = {
       );
 
     const ready =
-      Boolean(
-        reply
-      ) &&
-      raw.ready !==
-        false &&
-      raw.available !==
-        false;
+      Boolean(reply) &&
+      raw.ready !== false &&
+      raw.available !== false;
 
     return {
       schema:
@@ -3004,10 +2629,8 @@ window.AriRebirthPipeline = {
         this.resolveDeliveredEmotion(
           raw.emotion ||
           raw.uiEmotion ||
-          raw.presentation
-            ?.emotion ||
-          raw.ui
-            ?.emotion ||
+          raw.presentation?.emotion ||
+          raw.ui?.emotion ||
           "idle"
         ),
 
@@ -3016,17 +2639,14 @@ window.AriRebirthPipeline = {
           raw.approvedActions ||
           raw.deliveredActions ||
           raw.actions ||
-          raw.actionDelivery
-            ?.approvedActions ||
-          raw.actionDelivery
-            ?.actions ||
+          raw.actionDelivery?.approvedActions ||
+          raw.actionDelivery?.actions ||
           []
         ),
 
       developerIntent:
         raw.developerIntent ||
-        raw
-          .deliveryDeveloperIntent ||
+        raw.deliveryDeveloperIntent ||
         null,
 
       source:
@@ -3040,8 +2660,7 @@ window.AriRebirthPipeline = {
 
       version:
         raw.version ||
-        summary
-          .deliveryPipelineVersion ||
+        summary.deliveryPipelineVersion ||
         null,
 
       error:
@@ -3050,8 +2669,7 @@ window.AriRebirthPipeline = {
 
       diagnostics:
         raw.diagnostics ||
-        raw
-          .deliveryDiagnostics ||
+        raw.deliveryDiagnostics ||
         null,
 
       raw,
@@ -3072,14 +2690,12 @@ window.AriRebirthPipeline = {
       typeof delivery ===
       "string"
     ) {
-      return this.cleanText(
-        delivery
-      );
+      return this.cleanText(delivery);
     }
 
     if (
       typeof delivery !==
-      "object"
+        "object"
     ) {
       return "";
     }
@@ -3093,10 +2709,7 @@ window.AriRebirthPipeline = {
       delivery.response
     ];
 
-    for (
-      const candidate
-      of candidates
-    ) {
+    for (const candidate of candidates) {
       const text =
         this.extractResponseText(
           candidate
@@ -3114,10 +2727,8 @@ window.AriRebirthPipeline = {
     candidate = null
   ) {
     if (
-      candidate ===
-        null ||
-      candidate ===
-        undefined
+      candidate === null ||
+      candidate === undefined
     ) {
       return "";
     }
@@ -3137,14 +2748,13 @@ window.AriRebirthPipeline = {
       typeof candidate ===
         "boolean"
     ) {
-      return String(
-        candidate
-      ).trim();
+      return String(candidate)
+        .trim();
     }
 
     if (
       typeof candidate !==
-      "object"
+        "object"
     ) {
       return "";
     }
@@ -3160,26 +2770,20 @@ window.AriRebirthPipeline = {
       candidate.message ??
       "";
 
-    if (
-      nested ===
-      candidate
-    ) {
+    if (nested === candidate) {
       return "";
     }
 
-    return this
-      .extractResponseText(
-        nested
-      );
+    return this.extractResponseText(
+      nested
+    );
   },
 
   resolveDeliveredEmotion(
     value = "idle"
   ) {
     const emotion =
-      this.normalizeIdentifier(
-        value
-      );
+      this.normalizeIdentifier(value);
 
     const allowed = [
       "idle",
@@ -3198,9 +2802,7 @@ window.AriRebirthPipeline = {
       "success"
     ];
 
-    return allowed.includes(
-      emotion
-    )
+    return allowed.includes(emotion)
       ? emotion
       : "idle";
   },
@@ -3208,9 +2810,7 @@ window.AriRebirthPipeline = {
   normalizeDeliveredActions(
     actions = []
   ) {
-    return this.toArray(
-      actions
-    )
+    return this.toArray(actions)
       .filter(
         action =>
           action &&
@@ -3231,20 +2831,16 @@ window.AriRebirthPipeline = {
   },
 
   /* =====================================================
-   DEVELOPER RUNTIME COORDINATION
-===================================================== */
+     DEVELOPER RUNTIME COORDINATION
+  ===================================================== */
+
   async runDeveloperLayer(
     summary = {}
   ) {
     const ownerMode =
-      summary.ownerMode ===
-        true ||
-      summary.appContext
-        ?.ownerMode ===
-        true ||
-      summary.userContext
-        ?.ownerMode ===
-        true;
+      summary.ownerMode === true ||
+      summary.appContext?.ownerMode === true ||
+      summary.userContext?.ownerMode === true;
 
     if (!ownerMode) {
       return summary;
@@ -3255,19 +2851,16 @@ window.AriRebirthPipeline = {
         ?.run
         ?.developer ===
         true ||
-      summary.routingContract
-        ?.mode ===
+      summary.routingContract?.mode ===
         "developer" ||
-      summary
-        .shouldRunDeveloperLayer ===
+      summary.shouldRunDeveloperLayer ===
         true;
 
     const conversationAuthorized =
       summary.conversationFunction
         ?.developerArtifactRequest ===
         true ||
-      summary
-        .developerArtifactRequest ===
+      summary.developerArtifactRequest ===
         true ||
       summary.primaryFunction ===
         "developer_artifact_request" ||
@@ -3284,107 +2877,73 @@ window.AriRebirthPipeline = {
     const chain = [
       [
         "developerUnderstanding",
-        window
-          .AriRebirthDeveloperUnderstandingEngine,
-        [
-          "understand"
-        ]
+        window.AriRebirthDeveloperUnderstandingEngine,
+        ["understand"]
       ],
 
       [
         "projectKnowledgeGraph",
-        window
-          .AriRebirthProjectKnowledgeGraphEngine,
-        [
-          "build"
-        ]
+        window.AriRebirthProjectKnowledgeGraphEngine,
+        ["build"]
       ],
 
       [
         "capabilityRegistry",
-        window
-          .AriRebirthCapabilityRegistryEngine,
-        [
-          "inspect"
-        ]
+        window.AriRebirthCapabilityRegistryEngine,
+        ["inspect"]
       ],
 
       [
         "architecture",
-        window
-          .AriRebirthArchitectureEngine,
-        [
-          "design"
-        ]
+        window.AriRebirthArchitectureEngine,
+        ["design"]
       ],
 
       [
         "uiLayoutPlanner",
-        window
-          .AriRebirthUILayoutPlannerEngine,
-        [
-          "plan"
-        ]
+        window.AriRebirthUILayoutPlannerEngine,
+        ["plan"]
       ],
 
       [
         "bugDiagnosis",
-        window
-          .AriRebirthBugDiagnosisEngine,
-        [
-          "diagnose"
-        ]
+        window.AriRebirthBugDiagnosisEngine,
+        ["diagnose"]
       ],
 
       [
         "executionPlanner",
-        window
-          .AriRebirthExecutionPlannerEngine,
-        [
-          "plan"
-        ]
+        window.AriRebirthExecutionPlannerEngine,
+        ["plan"]
       ],
 
       [
         "codeEvidence",
-        window
-          .AriRebirthCodeEvidenceEngine,
-        [
-          "build"
-        ]
+        window.AriRebirthCodeEvidenceEngine,
+        ["build"]
       ],
 
       [
         "codeUnderstanding",
-        window
-          .AriRebirthCodeUnderstandingEngine,
-        [
-          "understand"
-        ]
+        window.AriRebirthCodeUnderstandingEngine,
+        ["understand"]
       ],
 
       [
         "patchDecision",
-        window
-          .AriRebirthPatchDecisionEngine,
-        [
-          "decide"
-        ]
+        window.AriRebirthPatchDecisionEngine,
+        ["decide"]
       ],
 
       [
         "patchValidation",
-        window
-          .AriRebirthPatchValidationEngine,
-        [
-          "validate"
-        ]
+        window.AriRebirthPatchValidationEngine,
+        ["validate"]
       ],
 
       [
         "developerHandoff",
-        window
-          .AriRebirthDeveloperHandoffEngine,
+        window.AriRebirthDeveloperHandoffEngine,
         [
           "handoff",
           "create",
@@ -3437,12 +2996,8 @@ window.AriRebirthPipeline = {
 
         [
           `rebirth${key
-            .charAt(
-              0
-            )
-            .toUpperCase()}${key.slice(
-            1
-          )}`
+            .charAt(0)
+            .toUpperCase()}${key.slice(1)}`
         ]:
           result,
 
@@ -3465,8 +3020,9 @@ window.AriRebirthPipeline = {
   },
 
   /* =====================================================
-   RUNTIME CONTRACT PROJECTION
-===================================================== */
+     RUNTIME CONTRACT PROJECTION
+  ===================================================== */
+
   applyContractBridge(
     summary = {}
   ) {
@@ -3500,8 +3056,7 @@ window.AriRebirthPipeline = {
     const primary =
       safetyOverride
         ? (
-            summary
-              .safetyRequiredPlanner ||
+            summary.safetyRequiredPlanner ||
             contract.primary ||
             triage.primaryLane ||
             "immediate_safety_response"
@@ -3512,8 +3067,7 @@ window.AriRebirthPipeline = {
           : (
               contract.primary ||
               triage.primaryLane ||
-              summary
-                .situationContractPrimary ||
+              summary.situationContractPrimary ||
               summary.primaryLane ||
               "general_understanding"
             );
@@ -3561,45 +3115,33 @@ window.AriRebirthPipeline = {
       responseRules:
         this.mergeUnique(
           contract.responseRules,
-          triage
-            .responseConstraints,
+          triage.responseConstraints,
           summary.responseRules
         ),
 
       responseConstraints:
         this.mergeUnique(
           contract.responseRules,
-          triage
-            .responseConstraints,
-          summary
-            .responseConstraints
+          triage.responseConstraints,
+          summary.responseConstraints
         ),
 
       primarySituationThesis:
-        contract
-          .situationThesis
-          ?.thesis ||
-        map
-          .primarySituationThesis ||
-        summary
-          .primarySituationThesis ||
+        contract.situationThesis?.thesis ||
+        map.primarySituationThesis ||
+        summary.primarySituationThesis ||
         null,
 
       situationNarrative:
-        contract
-          .situationThesis
-          ?.narrative ||
+        contract.situationThesis?.narrative ||
         map.situationNarrative ||
         summary.situationNarrative ||
         null,
 
       thesisRecommendedUse:
-        contract
-          .situationThesis
-          ?.recommendedUse ||
+        contract.situationThesis?.recommendedUse ||
         map.thesisRecommendedUse ||
-        summary
-          .thesisRecommendedUse ||
+        summary.thesisRecommendedUse ||
         "do_not_use_as_authority",
 
       situationContractSupport:
@@ -3630,167 +3172,6 @@ window.AriRebirthPipeline = {
   },
 
   /* =====================================================
-     APPLICATION CONVERSATION HISTORY
-  ===================================================== */
-
-  saveAriConversationHistory(
-    summary = {}
-  ) {
-    try {
-      const userMessage =
-        this.cleanText(
-          summary.turn
-            ?.originalText ||
-          summary.userMessage ||
-          ""
-        );
-
-      const ariReply =
-        this.cleanText(
-          summary.deliveryResult
-            ?.reply ||
-          ""
-        );
-
-      if (
-        !userMessage ||
-        !ariReply
-      ) {
-        return {
-          saved:
-            false,
-
-          source:
-            "local-storage",
-
-          reason:
-            "completed_turn_missing"
-        };
-      }
-
-      const stored =
-        localStorage.getItem(
-          "ariConversationHistory"
-        );
-
-      const parsed =
-        stored
-          ? JSON.parse(
-              stored
-            )
-          : [];
-
-      const history =
-        Array.isArray(
-          parsed
-        )
-          ? parsed
-          : [];
-
-      const createdAt =
-        new Date()
-          .toISOString();
-
-      history.push({
-        id:
-          summary
-            .currentTurnId ||
-          Date.now(),
-
-        turnId:
-          summary
-            .currentTurnId ||
-          summary.turnId ||
-          null,
-
-        title:
-          userMessage.slice(
-            0,
-            80
-          ),
-
-        preview:
-          ariReply.slice(
-            0,
-            180
-          ),
-
-        messages: [
-          {
-            role:
-              "user",
-
-            content:
-              userMessage,
-
-            created_at:
-              summary.turn
-                ?.createdAt ||
-              createdAt
-          },
-
-          {
-            role:
-              "ari",
-
-            content:
-              ariReply,
-
-            emotion:
-              summary.deliveryResult
-                ?.emotion ||
-              null,
-
-            created_at:
-              createdAt
-          }
-        ],
-
-        created_at:
-          createdAt
-      });
-
-      const retainedHistory =
-        history.slice(
-          -100
-        );
-
-      localStorage.setItem(
-        "ariConversationHistory",
-
-        JSON.stringify(
-          retainedHistory
-        )
-      );
-
-      return {
-        saved:
-          true,
-
-        source:
-          "local-storage",
-
-        historyCount:
-          retainedHistory.length
-      };
-    } catch (error) {
-      return {
-        saved:
-          false,
-
-        source:
-          "local-storage",
-
-        error:
-          error?.message ||
-          String(
-            error
-          )
-      };
-    }
-  },
-
-  /* =====================================================
      ERRORS
   ===================================================== */
 
@@ -3802,7 +3183,6 @@ window.AriRebirthPipeline = {
   } = {}) {
     return {
       layer,
-
       type,
 
       error:
@@ -3811,15 +3191,13 @@ window.AriRebirthPipeline = {
       message,
 
       fatal:
-        fatal ===
-        true,
+        fatal === true,
 
       source:
         this.source,
 
       createdAt:
-        new Date()
-          .toISOString()
+        new Date().toISOString()
     };
   },
 
@@ -3828,80 +3206,54 @@ window.AriRebirthPipeline = {
     error = null
   ) {
     if (!error) {
-      return this.toArray(
-        existing
-      );
+      return this.toArray(existing);
     }
 
-    return this
-      .mergeLifecycleErrors(
-        existing,
-        [
-          error
-        ]
-      );
+    return this.mergeLifecycleErrors(
+      existing,
+      [error]
+    );
   },
 
   mergeLifecycleErrors(
     ...values
   ) {
     const output = [];
-
-    const seen =
-      new Set();
+    const seen = new Set();
 
     values
       .flatMap(
         value =>
-          this.toArray(
-            value
-          )
+          this.toArray(value)
       )
       .forEach(
         value => {
           const key =
             typeof value ===
               "string"
-              ? this.normalizeText(
-                  value
-                )
+              ? this.normalizeText(value)
               : [
-                  value?.layer ||
-                    "",
-
+                  value?.layer || "",
                   value?.type ||
                     value?.error ||
                     "",
-
-                  value?.message ||
-                    ""
+                  value?.message || ""
                 ]
                   .map(
                     item =>
-                      this.normalizeText(
-                        item
-                      )
+                      this.normalizeText(item)
                   )
-                  .join(
-                    "|"
-                  );
+                  .join("|");
 
           if (
             !key ||
-            seen.has(
-              key
-            )
+            seen.has(key)
           ) {
             return;
           }
 
-          seen.add(
-            key
-          );
-
-          output.push(
-            value
-          );
+          seen.add(key);
+          output.push(value);
         }
       );
 
@@ -3929,46 +3281,37 @@ window.AriRebirthPipeline = {
       "===== CONVERSATION OPERATING STATE =====",
       {
         began:
-          summary
-            .conversationOperatingStateRan ===
+          summary.conversationOperatingStateRan ===
           true,
 
         ready:
-          summary
-            .conversationOperatingStateReady ===
+          summary.conversationOperatingStateReady ===
           true,
 
         completed:
-          summary
-            .conversationOperatingStateCompleted ===
+          summary.conversationOperatingStateCompleted ===
           true,
 
         source:
-          summary
-            .conversationOperatingStateSource ||
-          summary
-            .conversationOperatingStateCompletionSource ||
+          summary.conversationOperatingStateSource ||
+          summary.conversationOperatingStateCompletionSource ||
           null,
 
         error:
-          summary
-            .conversationOperatingStateError ||
-          summary
-            .conversationOperatingStateCompletionError ||
+          summary.conversationOperatingStateError ||
+          summary.conversationOperatingStateCompletionError ||
           null
       }
     );
 
     console.log(
       "===== PIPELINE LIFECYCLE =====",
-      summary
-        .pipelineLifecycle
+      summary.pipelineLifecycle
     );
 
     console.log(
       "===== PIPELINE LAYER RESULTS =====",
-      summary
-        .pipelineLayerResults
+      summary.pipelineLayerResults
     );
 
     console.log(
@@ -3993,8 +3336,7 @@ window.AriRebirthPipeline = {
       "===== RESPONSE REALIZATION =====",
       {
         stageRan:
-          summary
-            .responseRealizationStageRan ===
+          summary.responseRealizationStageRan ===
           true,
 
         ready:
@@ -4014,24 +3356,18 @@ window.AriRebirthPipeline = {
           null,
 
         source:
-          summary
-            .responseRealizationSource ||
-          summary.realizationPacket
-            ?.source ||
+          summary.responseRealizationSource ||
+          summary.realizationPacket?.source ||
           null,
 
         responseText:
-          summary
-            .realizationResponseText ||
-          summary.realizationPacket
-            ?.responseText ||
+          summary.realizationResponseText ||
+          summary.realizationPacket?.responseText ||
           null,
 
         suggestedEmoji:
-          summary
-            .realizationSuggestedEmoji ||
-          summary.realizationPacket
-            ?.suggestedEmoji ||
+          summary.realizationSuggestedEmoji ||
+          summary.realizationPacket?.suggestedEmoji ||
           null
       }
     );
@@ -4043,46 +3379,38 @@ window.AriRebirthPipeline = {
     );
 
     console.log(
-  "===== FINAL COMPOSITION =====",
-  {
-    stageRan:
-      summary
-        .finalCompositionStageRan ===
-      true,
+      "===== FINAL COMPOSITION =====",
+      {
+        stageRan:
+          summary.finalCompositionStageRan ===
+          true,
 
-    realizationReady:
-      summary
-        .realizationReady ===
-      true,
+        realizationReady:
+          summary.realizationReady ===
+          true,
 
-    realizationUsable:
-      summary
-        .realizationUsable ===
-      true,
+        realizationUsable:
+          summary.realizationUsable ===
+          true,
 
-    finalResponseUsable:
-      summary
-        .finalResponseUsable ===
-      true,
+        finalResponseUsable:
+          summary.finalResponseUsable ===
+          true,
 
-    finalResponseAuthorized:
-      summary
-        .finalResponseAuthorized ===
-      true,
+        finalResponseAuthorized:
+          summary.finalResponseAuthorized ===
+          true,
 
-    source:
-      summary
-        .finalResponseSource ||
-      summary
-        .finalCompositionStageSource ||
-      null,
+        source:
+          summary.finalResponseSource ||
+          summary.finalCompositionStageSource ||
+          null,
 
-    failureReason:
-      summary
-        .finalResponseFailureReason ||
-      null
-  }
-);
+        failureReason:
+          summary.finalResponseFailureReason ||
+          null
+      }
+    );
 
     console.log(
       "===== DELIVERY PACKET =====",
@@ -4100,13 +3428,11 @@ window.AriRebirthPipeline = {
       "===== PIPELINE ERRORS =====",
       {
         lifecycle:
-          summary
-            .pipelineLifecycleErrors ||
+          summary.pipelineLifecycleErrors ||
           [],
 
         warnings:
-          summary
-            .pipelineLifecycleWarnings ||
+          summary.pipelineLifecycleWarnings ||
           []
       }
     );
@@ -4115,18 +3441,15 @@ window.AriRebirthPipeline = {
       "===== FINAL PERSISTENCE =====",
       {
         ran:
-          summary
-            .finalPersistenceRan ===
+          summary.finalPersistenceRan ===
           true,
 
         source:
-          summary
-            .finalPersistenceSource ||
+          summary.finalPersistenceSource ||
           null,
 
-        historySave:
-          summary
-            .conversationHistorySave ||
+        reason:
+          summary.finalPersistenceReason ||
           null
       }
     );
@@ -4137,159 +3460,134 @@ window.AriRebirthPipeline = {
   ===================================================== */
 
   getAuthorityBoundaries() {
-  return {
-    canNormalizeRuntimeRequest:
-      true,
+    return {
+      canNormalizeRuntimeRequest:
+        true,
 
-    canClearPriorTurnOutputs:
-      true,
+      canClearPriorTurnOutputs:
+        true,
 
-    canPreserveCanonicalCurrentTurn:
-      true,
+      canPreserveCanonicalCurrentTurn:
+        true,
 
-    canBeginConversationOperatingState:
-      true,
+      canBeginConversationOperatingState:
+        true,
 
-    canCompleteConversationOperatingState:
-      true,
+      canCompleteConversationOperatingState:
+        true,
 
-    canPreserveExternalEvidence:
-      true,
+      canPreserveExternalEvidence:
+        true,
 
-    canCoordinateDeveloperRuntime:
-      true,
+      canCoordinateDeveloperRuntime:
+        true,
 
-    canProjectRuntimeContracts:
-      true,
+      canProjectRuntimeContracts:
+        true,
 
-    canExecutePerceptionLayer:
-      true,
+      canExecutePerceptionLayer:
+        true,
 
-    canExecuteExecutiveRoutingLayer:
-      true,
+      canExecuteExecutiveRoutingLayer:
+        true,
 
-    canExecuteDeliberationLayer:
-      true,
+      canExecuteDeliberationLayer:
+        true,
 
-    canExecuteExpressionLayer:
-      true,
+      canExecuteExpressionLayer:
+        true,
 
-    canExecuteDeliveryLayer:
-      true,
+      canExecuteDeliveryLayer:
+        true,
 
-    canEnforceLayerOrder:
-      true,
+      canEnforceLayerOrder:
+        true,
 
-    canRecordLifecycleFailures:
-      true,
+      canRecordLifecycleFailures:
+        true,
 
-    canNormalizeAuthoritativeDelivery:
-      true,
+      canNormalizeAuthoritativeDelivery:
+        true,
 
-    canSaveApplicationConversationHistory:
-      true,
+      canSaveApplicationConversationHistory:
+        false,
 
-    canLoadPersistedThreadContextDirectly:
-      false,
+      canLoadPersistedThreadContextDirectly:
+        false,
 
-    canNormalizeStoredTurnsDirectly:
-      false,
+      canNormalizeStoredTurnsDirectly:
+        false,
 
-    canBuildThreadContextDirectly:
-      false,
+      canBuildThreadContextDirectly:
+        false,
 
-    canBuildReferenceCandidatesDirectly:
-      false,
+      canBuildReferenceCandidatesDirectly:
+        false,
 
-    canPersistThreadStateDirectly:
-      false,
+      canPersistThreadStateDirectly:
+        false,
 
-    canClassifyConversation:
-      false,
+      canClassifyConversation:
+        false,
 
-    canInterpretSemanticMeaning:
-      false,
+      canInterpretSemanticMeaning:
+        false,
 
-    canChooseConversationFunction:
-      false,
+      canChooseConversationFunction:
+        false,
 
-    canChoosePrimaryRoute:
-      false,
+      canChoosePrimaryRoute:
+        false,
 
-    canDetermineSafetySeverity:
-      false,
+      canDetermineSafetySeverity:
+        false,
 
-    canCreateResponsePlan:
-      false,
+      canCreateResponsePlan:
+        false,
 
-    canModifyResponsePlan:
-      false,
+      canModifyResponsePlan:
+        false,
 
-    canExecuteExpressionStagesDirectly:
-      false,
+      canExecuteExpressionStagesDirectly:
+        false,
 
-    canGenerateResponseRealizationDirectly:
-      false,
+      canGenerateResponseRealizationDirectly:
+        false,
 
-    canComposeFinalResponse:
-      false,
+      canComposeFinalResponse:
+        false,
 
-    canSelectFinalResponse:
-      false,
+      canSelectFinalResponse:
+        false,
 
-    canRewriteFinalResponse:
-      false,
+      canRewriteFinalResponse:
+        false,
 
-    canInferFinalResponseFromIntermediateFields:
-      false,
+      canInferFinalResponseFromIntermediateFields:
+        false,
 
-    canUseIntermediateOutputAsDeliveryFallback:
-      false,
+      canUseIntermediateOutputAsDeliveryFallback:
+        false,
 
-    canOverrideDeliveryResult:
-      false,
+      canOverrideDeliveryResult:
+        false,
 
-    canExecuteApplicationWrites:
-      false,
+      canExecuteApplicationWrites:
+        false,
 
-    canAccessSupabaseDirectly:
-      false,
+      canAccessSupabaseDirectly:
+        false,
 
-    canRetrieveLongTermUserMemory:
-      false,
+      canRetrieveLongTermUserMemory:
+        false,
 
-    canStoreLongTermUserMemory:
-      false,
+      canStoreLongTermUserMemory:
+        false,
 
-    role:
-      "canonical_realization_native_five_layer_runtime_with_cos_delegation"
-  };
-},
-
-  cannotSet() {
-  return [
-    "conversationFunction",
-    "semanticMeaning",
-    "primaryLane",
-    "routingDecision",
-    "riskLevel",
-    "safetyDisposition",
-    "canonicalResponsePlan",
-    "responseGoal",
-    "responseShape",
-    "responseMoves",
-    "realizationResponseMeaning",
-    "finalResponseLanguage",
-    "developerIntent",
-    "approvedActions",
-    "memorySaveDecision",
-    "toolExecutionDecision",
-    "threadContext",
-    "recentTurns",
-    "referenceCandidates",
-    "persistedThreadState"
-  ];
-},
+      role:
+        "canonical_realization_native_five_layer_runtime_with_cos_delegation"
+    };
+  },
 
   /* =====================================================
      VALIDATION
@@ -4300,38 +3598,38 @@ window.AriRebirthPipeline = {
       this.getAuthorityBoundaries();
 
     const forbiddenTrue = [
-  "canLoadPersistedThreadContextDirectly",
-  "canNormalizeStoredTurnsDirectly",
-  "canBuildThreadContextDirectly",
-  "canBuildReferenceCandidatesDirectly",
-  "canPersistThreadStateDirectly",
-  "canClassifyConversation",
-  "canInterpretSemanticMeaning",
-  "canChooseConversationFunction",
-  "canChoosePrimaryRoute",
-  "canDetermineSafetySeverity",
-  "canCreateResponsePlan",
-  "canModifyResponsePlan",
-  "canExecuteExpressionStagesDirectly",
-  "canGenerateResponseRealizationDirectly",
-  "canComposeFinalResponse",
-  "canSelectFinalResponse",
-  "canRewriteFinalResponse",
-  "canInferFinalResponseFromIntermediateFields",
-  "canUseIntermediateOutputAsDeliveryFallback",
-  "canOverrideDeliveryResult",
-  "canExecuteApplicationWrites",
-  "canAccessSupabaseDirectly",
-  "canRetrieveLongTermUserMemory",
-  "canStoreLongTermUserMemory"
-];
+      "canSaveApplicationConversationHistory",
+      "canLoadPersistedThreadContextDirectly",
+      "canNormalizeStoredTurnsDirectly",
+      "canBuildThreadContextDirectly",
+      "canBuildReferenceCandidatesDirectly",
+      "canPersistThreadStateDirectly",
+      "canClassifyConversation",
+      "canInterpretSemanticMeaning",
+      "canChooseConversationFunction",
+      "canChoosePrimaryRoute",
+      "canDetermineSafetySeverity",
+      "canCreateResponsePlan",
+      "canModifyResponsePlan",
+      "canExecuteExpressionStagesDirectly",
+      "canGenerateResponseRealizationDirectly",
+      "canComposeFinalResponse",
+      "canSelectFinalResponse",
+      "canRewriteFinalResponse",
+      "canInferFinalResponseFromIntermediateFields",
+      "canUseIntermediateOutputAsDeliveryFallback",
+      "canOverrideDeliveryResult",
+      "canExecuteApplicationWrites",
+      "canAccessSupabaseDirectly",
+      "canRetrieveLongTermUserMemory",
+      "canStoreLongTermUserMemory"
+    ];
 
     const errors =
       forbiddenTrue
         .filter(
           key =>
-            authority[key] ===
-            true
+            authority[key] === true
         )
         .map(
           key =>
@@ -4342,23 +3640,19 @@ window.AriRebirthPipeline = {
       [
         "AriConversationOperatingState",
 
-        this
-          .getConversationOperatingState(),
+        this.getConversationOperatingState(),
 
         component =>
-          typeof component
-            ?.beginTurn ===
+          typeof component?.beginTurn ===
             "function" &&
-          typeof component
-            ?.completeTurn ===
+          typeof component?.completeTurn ===
             "function"
       ],
 
       [
         "AriPerceptionPipeline",
 
-        window
-          .AriPerceptionPipeline,
+        window.AriPerceptionPipeline,
 
         component =>
           typeof component?.run ===
@@ -4368,8 +3662,7 @@ window.AriRebirthPipeline = {
       [
         "AriExecutiveRoutingPipeline",
 
-        window
-          .AriExecutiveRoutingPipeline,
+        window.AriExecutiveRoutingPipeline,
 
         component =>
           typeof component?.run ===
@@ -4379,100 +3672,17 @@ window.AriRebirthPipeline = {
       [
         "AriDeliberationPipeline",
 
-        window
-          .AriDeliberationPipeline,
+        window.AriDeliberationPipeline,
 
         component =>
           typeof component?.run ===
-          "function"
-      ],
-
-      [
-        "AriCharacterStage",
-
-        window
-          .AriCharacterStage,
-
-        component =>
-          typeof component?.run ===
-          "function"
-      ],
-
-      [
-        "AriLanguageGuidanceStage",
-
-        window
-          .AriLanguageGuidanceStage,
-
-        component =>
-          typeof component?.run ===
-          "function"
-      ],
-
-      [
-        "AriResponseRealizationEngine",
-
-        window
-          .AriResponseRealizationEngine,
-
-        component =>
-          typeof component?.run ===
-            "function" ||
-          typeof component?.realize ===
-            "function" ||
-          typeof component?.create ===
-            "function"
-      ],
-
-      [
-        "AriResponseRealizationStage",
-
-        window
-          .AriResponseRealizationStage,
-
-        component =>
-          typeof component?.run ===
-          "function"
-      ],
-
-      [
-        "AriLanguageComposer",
-
-        window
-          .AriLanguageComposer,
-
-        component =>
-          typeof component?.compose ===
-          "function"
-      ],
-
-      [
-        "AriFinalCompositionStage",
-
-        window
-          .AriFinalCompositionStage,
-
-        component =>
-          typeof component?.run ===
-          "function"
-      ],
-
-      [
-        "AriOpenAIKnowledgeClient",
-
-        window
-          .AriOpenAIKnowledgeClient,
-
-        component =>
-          typeof component?.ask ===
           "function"
       ],
 
       [
         "AriExpressionPipeline",
 
-        window
-          .AriExpressionPipeline,
+        window.AriExpressionPipeline,
 
         component =>
           typeof component?.run ===
@@ -4482,8 +3692,7 @@ window.AriRebirthPipeline = {
       [
         "AriDeliveryPipeline",
 
-        window
-          .AriDeliveryPipeline,
+        window.AriDeliveryPipeline,
 
         component =>
           typeof component?.run ===
@@ -4500,144 +3709,114 @@ window.AriRebirthPipeline = {
             validator
           ]) =>
             !component ||
-            validator(
-              component
-            ) !==
+            validator(component) !==
               true
         )
         .map(
-          ([
-            name
-          ]) =>
+          ([name]) =>
             `${name}_not_loaded`
         );
 
     return {
-  valid:
-    errors.length ===
-    0,
+      valid:
+        errors.length === 0,
 
-  ready:
-    errors.length ===
-      0 &&
-    warnings.filter(
-      warning =>
-        warning.endsWith(
-          "_not_loaded"
-        )
-    ).length ===
-      0,
+      ready:
+        errors.length === 0 &&
+        warnings.length === 0,
 
-  source:
-    "ari-rebirth-pipeline-validation",
+      source:
+        "ari-rebirth-pipeline-validation",
 
-  version:
-    this.version,
+      version:
+        this.version,
 
-  errors,
+      errors,
 
-  warnings:
-    this.uniqueValues(
-      warnings
-    ),
+      warnings:
+        this.uniqueValues(warnings),
 
-  checks: {
-    canonicalTurnPreserved:
-      true,
+      checks: {
+        canonicalTurnPreserved:
+          true,
 
-    priorTurnOutputsCleared:
-      authority
-        .canClearPriorTurnOutputs ===
-      true,
+        priorTurnOutputsCleared:
+          authority.canClearPriorTurnOutputs ===
+          true,
 
-    conversationOperatingStateDelegation:
-      authority
-        .canBeginConversationOperatingState ===
-        true &&
-      authority
-        .canCompleteConversationOperatingState ===
-        true,
+        conversationOperatingStateDelegation:
+          authority.canBeginConversationOperatingState ===
+            true &&
+          authority.canCompleteConversationOperatingState ===
+            true,
 
-    directThreadLoadingDisabled:
-      authority
-        .canLoadPersistedThreadContextDirectly ===
-      false,
+        directThreadLoadingDisabled:
+          authority.canLoadPersistedThreadContextDirectly ===
+          false,
 
-    directThreadNormalizationDisabled:
-      authority
-        .canNormalizeStoredTurnsDirectly ===
-      false,
+        directThreadNormalizationDisabled:
+          authority.canNormalizeStoredTurnsDirectly ===
+          false,
 
-    directReferenceCandidateBuildingDisabled:
-      authority
-        .canBuildReferenceCandidatesDirectly ===
-      false,
+        directReferenceCandidateBuildingDisabled:
+          authority.canBuildReferenceCandidatesDirectly ===
+          false,
 
-    directThreadPersistenceDisabled:
-      authority
-        .canPersistThreadStateDirectly ===
-      false,
+        directThreadPersistenceDisabled:
+          authority.canPersistThreadStateDirectly ===
+          false,
 
-    fiveLayerOrderEnforced:
-      authority
-        .canEnforceLayerOrder ===
-      true,
+        fiveLayerOrderEnforced:
+          authority.canEnforceLayerOrder ===
+          true,
 
-    layerExecutionSinglePass:
-      true,
+        layerExecutionSinglePass:
+          true,
 
-    responseRealizationRequired:
-      true,
+        expressionInternalsRemainDelegated:
+          authority.canExecuteExpressionStagesDirectly ===
+          false,
 
-    expressionInternalsRemainDelegated:
-      authority
-        .canExecuteExpressionStagesDirectly ===
-      false,
+        directResponseRealizationDisabled:
+          authority.canGenerateResponseRealizationDirectly ===
+          false,
 
-    directResponseRealizationDisabled:
-      authority
-        .canGenerateResponseRealizationDirectly ===
-      false,
+        responseCompositionDisabled:
+          authority.canComposeFinalResponse ===
+          false,
 
-    responseCompositionDisabled:
-      authority
-        .canComposeFinalResponse ===
-      false,
+        responseSelectionDisabled:
+          authority.canSelectFinalResponse ===
+          false,
 
-    responseSelectionDisabled:
-      authority
-        .canSelectFinalResponse ===
-      false,
+        responseRewritingDisabled:
+          authority.canRewriteFinalResponse ===
+          false,
 
-    responseRewritingDisabled:
-      authority
-        .canRewriteFinalResponse ===
-      false,
+        dedicatedDeliveryResultRequired:
+          true,
 
-    dedicatedDeliveryResultRequired:
-      true,
+        intermediateDeliveryFallbackDisabled:
+          authority.canUseIntermediateOutputAsDeliveryFallback ===
+          false,
 
-    intermediateDeliveryFallbackDisabled:
-      authority
-        .canUseIntermediateOutputAsDeliveryFallback ===
-      false,
+        deliveryOverrideDisabled:
+          authority.canOverrideDeliveryResult ===
+          false,
 
-    deliveryOverrideDisabled:
-      authority
-        .canOverrideDeliveryResult ===
-      false,
+        applicationHistoryWriteDisabled:
+          authority.canSaveApplicationConversationHistory ===
+          false,
 
-    directApplicationWritesDisabled:
-      authority
-        .canExecuteApplicationWrites ===
-      false,
+        directApplicationWritesDisabled:
+          authority.canExecuteApplicationWrites ===
+          false,
 
         directSupabaseAccessDisabled:
-      authority
-        .canAccessSupabaseDirectly ===
-      false
-  }
-};
+          authority.canAccessSupabaseDirectly ===
+          false
+      }
+    };
   },
 
   /* =====================================================
@@ -4647,96 +3826,61 @@ window.AriRebirthPipeline = {
   toArray(
     value
   ) {
-    if (
-      Array.isArray(
-        value
-      )
-    ) {
+    if (Array.isArray(value)) {
       return value.filter(
         item =>
-          item !==
-            undefined &&
-          item !==
-            null &&
-          item !==
-            ""
+          item !== undefined &&
+          item !== null &&
+          item !== ""
       );
     }
 
     if (
-      value ===
-        undefined ||
-      value ===
-        null ||
-      value ===
-        ""
+      value === undefined ||
+      value === null ||
+      value === ""
     ) {
       return [];
     }
 
-    return [
-      value
-    ];
-  },
-
-  arrayFrom(
-    value
-  ) {
-    return this.toArray(
-      value
-    );
+    return [value];
   },
 
   mergeUnique(
     ...values
   ) {
     const output = [];
-
-    const seen =
-      new Set();
+    const seen = new Set();
 
     values
       .flatMap(
         value =>
-          this.toArray(
-            value
-          )
+          this.toArray(value)
       )
       .forEach(
         value => {
           const key =
             typeof value ===
               "string"
-              ? this.normalizeText(
-                  value
-                )
+              ? this.normalizeText(value)
               : this.normalizeText(
                   value?.id ||
                   value?.name ||
                   value?.type ||
                   value?.value ||
                   value?.claim ||
-                  this.safeJSONStringify(
-                    value
-                  )
+                  this.safeJSONStringify(value)
                 );
 
           if (
             !key ||
-            seen.has(
-              key
-            )
+            seen.has(key)
           ) {
             return;
           }
 
-          seen.add(
-            key
-          );
-
-          output.push(
-            value
-          );
+          seen.add(key);
+          output.push(value);
         }
       );
 
@@ -4747,40 +3891,30 @@ window.AriRebirthPipeline = {
     values = []
   ) {
     const output = [];
+    const seen = new Set();
 
-    const seen =
-      new Set();
+    this.toArray(values)
+      .forEach(
+        value => {
+          const key =
+            typeof value ===
+              "string"
+              ? value
+              : this.safeJSONStringify(
+                  value
+                );
 
-    this.toArray(
-      values
-    ).forEach(
-      value => {
-        const key =
-          typeof value ===
-            "string"
-            ? value
-            : this.safeJSONStringify(
-                value
-              );
+          if (
+            !key ||
+            seen.has(key)
+          ) {
+            return;
+          }
 
-        if (
-          !key ||
-          seen.has(
-            key
-          )
-        ) {
-          return;
+          seen.add(key);
+          output.push(value);
         }
-
-        seen.add(
-          key
-        );
-
-        output.push(
-          value
-        );
-      }
-    );
+      );
 
     return output;
   },
@@ -4788,8 +3922,7 @@ window.AriRebirthPipeline = {
   safeJSONStringify(
     value = null
   ) {
-    const seen =
-      new WeakSet();
+    const seen = new WeakSet();
 
     try {
       return JSON.stringify(
@@ -4805,16 +3938,12 @@ window.AriRebirthPipeline = {
               "object"
           ) {
             if (
-              seen.has(
-                nestedValue
-              )
+              seen.has(nestedValue)
             ) {
               return "[Circular]";
             }
 
-            seen.add(
-              nestedValue
-            );
+            seen.add(nestedValue);
           }
 
           return nestedValue;
@@ -4858,9 +3987,7 @@ window.AriRebirthPipeline = {
   normalizeText(
     value = ""
   ) {
-    return this.cleanText(
-      value
-    )
+    return this.cleanText(value)
       .toLowerCase()
       .replace(
         /[_-]/g,
