@@ -5,7 +5,7 @@
 // Validate that the current Ari Rebirth runtime is loaded, callable,
 // contract-compatible, and ready before the App Bridge executes a turn.
 //
-// V1.0.1 — Public Runtime Boundary Validation / Internal Dependency Diagnostics
+// V2.0.0 — Rebirth-Native Runtime Readiness / Realization Architecture
 //
 // Architectural flow:
 //
@@ -13,23 +13,49 @@
 //      ↓
 // Ari Runtime Readiness
 //      ↓
-// Runtime Component Inspection
+// Runtime Component Registry
+//      ↓
+// Component Inspection
 //      ↓
 // Five-Layer Contract Validation
+//      ↓
+// Rebirth Expression Path Validation
 //      ↓
 // Readiness Result
 //
 // Responsibilities:
-// - Locate the current canonical runtime components.
+// - Locate the canonical Ari Rebirth runtime components.
 // - Verify Conversation Operating State availability.
-// - Verify the five required pipeline layers.
+// - Verify runtime request and delivery boundary services.
+// - Verify the five required runtime layers.
 // - Verify the master Ari Rebirth Pipeline.
+// - Verify the active Rebirth Expression pathway.
 // - Run component-level validate() methods when available.
-// - Verify the current Expression pathway dependencies.
-// - Verify the runtime request and delivery support services.
-// - Return one normalized readiness contract.
 // - Preserve warnings separately from fatal readiness errors.
+// - Return one normalized readiness contract.
 // - Provide diagnostics suitable for Ari Lab and the App Bridge.
+//
+// Active Expression architecture:
+//
+// Ari Character Stage
+//      ↓
+// Ari Language Guidance Stage
+//      ↓
+// Ari Response Realization Stage
+//      ↓
+// Ari Response Realization Engine
+//      ↓
+// Ari Language Composer
+//      ↓
+// Ari Final Composition Stage
+//
+// Removed legacy requirements:
+// - AriDraftGenerationStage
+// - AriDraftArbitrationStage
+// - AriComposerBridge
+// - AriBlueprintWriter
+// - AriAIWriter
+// - AriResponseCandidateArbiter
 //
 // Non-responsibilities:
 // - Does not load scripts.
@@ -41,8 +67,8 @@
 // - Does not determine safety severity.
 // - Does not determine developer relevance.
 // - Does not create a response plan.
-// - Does not create a Composer Packet.
-// - Does not generate or select a response.
+// - Does not create response realization packets.
+// - Does not generate, select, or rewrite a response.
 // - Does not adapt Delivery output.
 // - Does not persist runtime state.
 // - Does not access Supabase.
@@ -50,8 +76,8 @@
 window.Ari = window.Ari || {};
 
 window.AriRuntimeReadiness = {
-  version: "1.0.1",
-  schemaVersion: "2.0.0",
+  version: "2.0.0",
+  schemaVersion: "2.1.0",
   source: "ari-runtime-readiness",
   authorityLevel:
     "runtime_boundary_and_component_readiness_validation",
@@ -76,22 +102,18 @@ window.AriRuntimeReadiness = {
           normalizedOptions
       });
 
-    const fatalResults =
+    const requiredFailures =
       componentResults.filter(
         result =>
-          result.required ===
-            true &&
-          result.ready !==
-            true
+          result.required === true &&
+          result.ready !== true
       );
 
     const optionalFailures =
       componentResults.filter(
         result =>
-          result.required !==
-            true &&
-          result.ready !==
-            true
+          result.required !== true &&
+          result.ready !== true
       );
 
     const contractResults =
@@ -102,26 +124,20 @@ window.AriRuntimeReadiness = {
           normalizedOptions
       });
 
-    const fatalContractErrors =
+    const contractErrors =
       this.toArray(
         contractResults.errors
       );
 
-    const ready =
-      fatalResults.length ===
-        0 &&
-      fatalContractErrors.length ===
-        0;
-
     const errors =
       this.uniqueValues([
-        ...fatalResults.map(
+        ...requiredFailures.map(
           result =>
             result.error ||
             `${result.name}_not_ready`
         ),
 
-        ...fatalContractErrors
+        ...contractErrors
       ]);
 
     const warnings =
@@ -136,6 +152,15 @@ window.AriRuntimeReadiness = {
           contractResults.warnings
         )
       ]);
+
+    const ready =
+      requiredFailures.length === 0 &&
+      contractErrors.length === 0;
+
+    const expressionPathway =
+      this.buildExpressionPathwayStatus(
+        componentResults
+      );
 
     const readiness = {
       schema:
@@ -157,12 +182,11 @@ window.AriRuntimeReadiness = {
           .toISOString(),
 
       reason:
-        ready
-          ? "runtime_ready"
-          : fatalResults.length >
-              0
-            ? "required_runtime_components_not_ready"
-            : "runtime_contract_validation_failed",
+        this.resolveReadinessReason({
+          ready,
+          requiredFailures,
+          contractErrors
+        }),
 
       error:
         errors[0] ||
@@ -173,11 +197,10 @@ window.AriRuntimeReadiness = {
       warnings,
 
       missing:
-        fatalResults
+        requiredFailures
           .filter(
             result =>
-              result.present !==
-              true
+              result.present !== true
           )
           .map(
             result =>
@@ -185,13 +208,11 @@ window.AriRuntimeReadiness = {
           ),
 
       invalid:
-        fatalResults
+        requiredFailures
           .filter(
             result =>
-              result.present ===
-                true &&
-              result.ready !==
-                true
+              result.present === true &&
+              result.ready !== true
           )
           .map(
             result =>
@@ -207,80 +228,17 @@ window.AriRuntimeReadiness = {
       components:
         componentResults,
 
-      runtime: {
-        conversationOperatingState:
-          this.findResult(
-            componentResults,
-            "AriConversationOperatingState"
-          ),
-
-        perception:
-          this.findResult(
-            componentResults,
-            "AriPerceptionPipeline"
-          ),
-
-        executiveRouting:
-          this.findResult(
-            componentResults,
-            "AriExecutiveRoutingPipeline"
-          ),
-
-        deliberation:
-          this.findResult(
-            componentResults,
-            "AriDeliberationPipeline"
-          ),
-
-        expression:
-          this.findResult(
-            componentResults,
-            "AriExpressionPipeline"
-          ),
-
-        delivery:
-          this.findResult(
-            componentResults,
-            "AriDeliveryPipeline"
-          ),
-
-        masterPipeline:
-          this.findResult(
-            componentResults,
-            "AriRebirthPipeline"
-          )
-      },
-
-      supportServices: {
-        runtimeRequest:
-          this.findResult(
-            componentResults,
-            "AriRuntimeRequest"
-          ),
-
-        runtimeDelivery:
-          this.findResult(
-            componentResults,
-            "AriRuntimeDelivery"
-          ),
-
-        languageComposer:
-          this.findResult(
-            componentResults,
-            "AriLanguageComposer"
-          ),
-
-        finalCompositionStage:
-          this.findResult(
-            componentResults,
-            "AriFinalCompositionStage"
-          )
-      },
-
-      expressionPathway:
-        this.buildExpressionPathwayStatus(
+      runtime:
+        this.buildRuntimeStatus(
           componentResults
         ),
+
+      supportServices:
+        this.buildSupportServiceStatus(
+          componentResults
+        ),
+
+      expressionPathway,
 
       contracts:
         contractResults,
@@ -289,40 +247,56 @@ window.AriRuntimeReadiness = {
         requiredComponentCount:
           componentResults.filter(
             result =>
-              result.required ===
-              true
+              result.required === true
           ).length,
 
         optionalComponentCount:
           componentResults.filter(
             result =>
-              result.required !==
-              true
+              result.required !== true
           ).length,
 
         readyComponentCount:
           componentResults.filter(
             result =>
-              result.ready ===
-              true
+              result.ready === true
+          ).length,
+
+        failedComponentCount:
+          componentResults.filter(
+            result =>
+              result.ready !== true
           ).length,
 
         fatalComponentFailureCount:
-          fatalResults.length,
+          requiredFailures.length,
 
         optionalComponentFailureCount:
           optionalFailures.length,
 
         fatalContractErrorCount:
-          fatalContractErrors.length,
+          contractErrors.length,
 
         runtimeArchitecture:
-          "canonical-five-layer-with-conversation-operating-state",
+          "canonical-five-layer-rebirth-runtime",
 
-        currentExpressionArchitecture:
-          this.resolveExpressionArchitecture(
-            componentResults
-          )
+        expressionArchitecture:
+          expressionPathway
+            .architecture,
+
+        expressionMigrationState:
+          "realization_native",
+
+        legacyExpressionDependenciesRequired:
+          false,
+
+        strictValidation:
+          normalizedOptions
+            .strictValidation === true,
+
+        runtimeDeliveryRequired:
+          normalizedOptions
+            .requireRuntimeDelivery === true
       },
 
       authority:
@@ -341,6 +315,10 @@ window.AriRuntimeReadiness = {
 
   buildRuntimeRegistry() {
     return [
+      // =================================================
+      // RUNTIME FOUNDATION
+      // =================================================
+
       {
         name:
           "AriConversationOperatingState",
@@ -370,182 +348,9 @@ window.AriRuntimeReadiness = {
           "conversation_operating_state_authority"
       },
 
-      {
-        name:
-          "AriPerceptionPipeline",
-
-        group:
-          "five_layer_runtime",
-
-        layer:
-          "perception",
-
-        required:
-          true,
-
-        component:
-          window
-            .AriPerceptionPipeline ||
-          null,
-
-        methods: [
-          "run"
-        ],
-
-        validateMethod:
-          "validate",
-
-        role:
-          "perception_pipeline"
-      },
-
-      {
-        name:
-          "AriExecutiveRoutingPipeline",
-
-        group:
-          "five_layer_runtime",
-
-        layer:
-          "executiveRouting",
-
-        required:
-          true,
-
-        component:
-          window
-            .AriExecutiveRoutingPipeline ||
-          null,
-
-        methods: [
-          "run"
-        ],
-
-        validateMethod:
-          "validate",
-
-        role:
-          "executive_routing_pipeline"
-      },
-
-      {
-        name:
-          "AriDeliberationPipeline",
-
-        group:
-          "five_layer_runtime",
-
-        layer:
-          "deliberation",
-
-        required:
-          true,
-
-        component:
-          window
-            .AriDeliberationPipeline ||
-          null,
-
-        methods: [
-          "run"
-        ],
-
-        validateMethod:
-          "validate",
-
-        role:
-          "deliberation_pipeline"
-      },
-
-      {
-        name:
-          "AriExpressionPipeline",
-
-        group:
-          "five_layer_runtime",
-
-        layer:
-          "expression",
-
-        required:
-          true,
-
-        component:
-          window
-            .AriExpressionPipeline ||
-          null,
-
-        methods: [
-          "run"
-        ],
-
-        validateMethod:
-          "validate",
-
-        role:
-          "expression_pipeline"
-      },
-
-      {
-        name:
-          "AriDeliveryPipeline",
-
-        group:
-          "five_layer_runtime",
-
-        layer:
-          "delivery",
-
-        required:
-          true,
-
-        component:
-          window
-            .AriDeliveryPipeline ||
-          null,
-
-        methods: [
-          "run"
-        ],
-
-        validateMethod:
-          "validate",
-
-        role:
-          "delivery_pipeline"
-      },
-
-      {
-        name:
-          "AriRebirthPipeline",
-
-        group:
-          "master_runtime",
-
-        required:
-          true,
-
-        component:
-          window
-            .AriRebirthPipeline ||
-          null,
-
-        methods: [
-          "run"
-        ],
-
-        validateMethod:
-          "validate",
-
-        role:
-          "canonical_master_pipeline"
-      },
-
-      /*
-       * Runtime Request is required after the App Bridge
-       * migration begins because the bridge delegates request
-       * construction to this service.
-       */
+      // =================================================
+      // BRIDGE SUPPORT SERVICES
+      // =================================================
 
       {
         name:
@@ -572,17 +377,8 @@ window.AriRuntimeReadiness = {
           "validate",
 
         role:
-          "runtime_request_builder"
+          "canonical_runtime_request_builder"
       },
-
-      /*
-       * Runtime Delivery becomes required once File 3 is added.
-       *
-       * During the short interval between File 2 and File 3,
-       * it is treated as optional so this file can be loaded and
-       * inspected independently. The updated App Bridge will call
-       * check({ requireRuntimeDelivery: true }).
-       */
 
       {
         name:
@@ -613,30 +409,31 @@ window.AriRuntimeReadiness = {
           "validate",
 
         role:
-          "runtime_delivery_adapter"
+          "authoritative_runtime_delivery_adapter"
       },
 
-      /*
-       * Current production Expression pathway.
-       *
-       * The existing pipeline still routes through Final
-       * Composition and Ari Language Composer. These remain
-       * required until Response Realization replaces them.
-       */
+      // =================================================
+      // FIVE-LAYER RUNTIME
+      // =================================================
 
       {
         name:
-          "AriFinalCompositionStage",
+          "AriPerceptionPipeline",
 
         group:
-          "expression_support",
+          "five_layer_runtime",
+
+        layer:
+          "perception",
 
         required:
           true,
 
         component:
           window
-            .AriFinalCompositionStage ||
+            .AriPerceptionPipeline ||
+          window.Ari
+            ?.perceptionPipeline ||
           null,
 
         methods: [
@@ -647,56 +444,27 @@ window.AriRuntimeReadiness = {
           "validate",
 
         role:
-          "final_composition_stage"
+          "perception_pipeline"
       },
 
       {
         name:
-          "AriLanguageComposer",
+          "AriExecutiveRoutingPipeline",
 
         group:
-          "expression_support",
+          "five_layer_runtime",
+
+        layer:
+          "executiveRouting",
 
         required:
           true,
 
         component:
           window
-            .AriLanguageComposer ||
-          null,
-
-        methods: [
-          "compose"
-        ],
-
-        validateMethod:
-          "validate",
-
-        role:
-          "final_language_composer"
-      },
-
-      /*
-       * Current legacy candidate pathway.
-       *
-       * These are required for the pipeline that exists today.
-       * They will not be removed from readiness until the
-       * Response Realization pathway is installed and tested.
-       */
-
-      {
-        name:
-          "AriDraftGenerationStage",
-
-        group:
-          "legacy_expression_pathway",
-
-        required:
-          true,
-
-        component:
-          window
-            .AriDraftGenerationStage ||
+            .AriExecutiveRoutingPipeline ||
+          window.Ari
+            ?.executiveRoutingPipeline ||
           null,
 
         methods: [
@@ -707,22 +475,27 @@ window.AriRuntimeReadiness = {
           "validate",
 
         role:
-          "draft_generation_stage"
+          "executive_routing_pipeline"
       },
 
       {
         name:
-          "AriDraftArbitrationStage",
+          "AriDeliberationPipeline",
 
         group:
-          "legacy_expression_pathway",
+          "five_layer_runtime",
+
+        layer:
+          "deliberation",
 
         required:
           true,
 
         component:
           window
-            .AriDraftArbitrationStage ||
+            .AriDeliberationPipeline ||
+          window.Ari
+            ?.deliberationPipeline ||
           null,
 
         methods: [
@@ -733,143 +506,178 @@ window.AriRuntimeReadiness = {
           "validate",
 
         role:
-          "draft_arbitration_stage"
+          "deliberation_pipeline"
       },
 
       {
         name:
-          "AriComposerBridge",
+          "AriExpressionPipeline",
 
         group:
-          "legacy_expression_pathway",
+          "five_layer_runtime",
+
+        layer:
+          "expression",
 
         required:
           true,
 
         component:
           window
-            .AriComposerBridge ||
+            .AriExpressionPipeline ||
+          window.Ari
+            ?.expressionPipeline ||
           null,
 
         methods: [
-          "build"
+          "run"
         ],
 
         validateMethod:
           "validate",
 
         role:
-          "composer_packet_builder"
+          "expression_pipeline"
       },
 
       {
         name:
-          "AriBlueprintWriter",
+          "AriDeliveryPipeline",
 
         group:
-          "legacy_expression_pathway",
+          "five_layer_runtime",
+
+        layer:
+          "delivery",
 
         required:
           true,
 
         component:
           window
-            .AriBlueprintWriter ||
+            .AriDeliveryPipeline ||
+          window.Ari
+            ?.deliveryPipeline ||
           null,
 
         methods: [
-          "write"
+          "run"
         ],
 
         validateMethod:
           "validate",
 
         role:
-          "deterministic_blueprint_writer"
+          "delivery_pipeline"
       },
+
+      // =================================================
+      // MASTER RUNTIME
+      // =================================================
 
       {
         name:
-          "AriAIWriter",
+          "AriRebirthPipeline",
 
         group:
-          "legacy_expression_pathway",
+          "master_runtime",
 
         required:
           true,
 
         component:
           window
-            .AriAIWriter ||
+            .AriRebirthPipeline ||
+          window.Ari
+            ?.rebirthPipeline ||
           null,
 
         methods: [
-          "write"
+          "run"
         ],
 
         validateMethod:
           "validate",
 
         role:
-          "ai_candidate_writer"
+          "canonical_master_pipeline"
+      },
+
+      // =================================================
+      // REBIRTH EXPRESSION PATHWAY
+      // =================================================
+
+      {
+        name:
+          "AriCharacterStage",
+
+        group:
+          "expression_pathway",
+
+        required:
+          true,
+
+        component:
+          window
+            .AriCharacterStage ||
+          window.Ari
+            ?.characterStage ||
+          null,
+
+        methods: [
+          "run"
+        ],
+
+        validateMethod:
+          "validate",
+
+        role:
+          "character_expression_stage"
       },
 
       {
-  name:
-    "AriResponseCandidateArbiter",
+        name:
+          "AriLanguageGuidanceStage",
 
-  group:
-    "legacy_expression_pathway",
+        group:
+          "expression_pathway",
 
-  /*
-   * This is an internal Expression dependency.
-   *
-   * Runtime Readiness records its availability for diagnostics,
-   * but the Expression Pipeline owns enforcement of its exact
-   * callable contract.
-   */
-  required:
-    false,
+        required:
+          true,
 
-  component:
-    window
-      .AriResponseCandidateArbiter ||
-    null,
+        component:
+          window
+            .AriLanguageGuidanceStage ||
+          window.Ari
+            ?.languageGuidanceStage ||
+          null,
 
-  /*
-   * Do not guess the Arbiter's production entry method here.
-   * Its own validate() method and the Expression Pipeline are
-   * responsible for validating its internal contract.
-   */
-  methods: [],
+        methods: [
+          "run"
+        ],
 
-  validateMethod:
-    "validate",
+        validateMethod:
+          "validate",
 
-  role:
-    "response_candidate_arbiter"
-},
-
-      /*
-       * Future Response Realization pathway.
-       *
-       * These remain optional until we intentionally migrate
-       * the Expression pipeline.
-       */
+        role:
+          "language_guidance_stage"
+      },
 
       {
         name:
           "AriResponseRealizationStage",
 
         group:
-          "future_expression_pathway",
+          "expression_pathway",
 
         required:
-          false,
+          true,
 
         component:
           window
             .AriResponseRealizationStage ||
+          window.Ari
+            ?.responseRealizationStage ||
           null,
 
         methods: [
@@ -888,14 +696,16 @@ window.AriRuntimeReadiness = {
           "AriResponseRealizationEngine",
 
         group:
-          "future_expression_pathway",
+          "expression_pathway",
 
         required:
-          false,
+          true,
 
         component:
           window
             .AriResponseRealizationEngine ||
+          window.Ari
+            ?.responseRealizationEngine ||
           null,
 
         methods: [
@@ -912,6 +722,101 @@ window.AriRuntimeReadiness = {
 
         role:
           "response_realization_engine"
+      },
+
+      {
+        name:
+          "AriLanguageComposer",
+
+        group:
+          "expression_pathway",
+
+        required:
+          true,
+
+        component:
+          window
+            .AriLanguageComposer ||
+          window.Ari
+            ?.languageComposer ||
+          null,
+
+        methods: [
+          "compose"
+        ],
+
+        alternateMethods: [
+          "run",
+          "build"
+        ],
+
+        validateMethod:
+          "validate",
+
+        role:
+          "language_composition_engine"
+      },
+
+      {
+        name:
+          "AriFinalCompositionStage",
+
+        group:
+          "expression_pathway",
+
+        required:
+          true,
+
+        component:
+          window
+            .AriFinalCompositionStage ||
+          window.Ari
+            ?.finalCompositionStage ||
+          null,
+
+        methods: [
+          "run"
+        ],
+
+        validateMethod:
+          "validate",
+
+        role:
+          "final_composition_stage"
+      },
+
+      // =================================================
+      // KNOWLEDGE / MODEL SUPPORT
+      // =================================================
+
+      {
+        name:
+          "AriOpenAIKnowledgeClient",
+
+        group:
+          "model_support",
+
+        required:
+          false,
+
+        component:
+          window
+            .AriOpenAIKnowledgeClient ||
+          window.Ari
+            ?.openAIKnowledgeClient ||
+          window.Ari
+            ?.openaiKnowledgeClient ||
+          null,
+
+        methods: [
+          "ask"
+        ],
+
+        validateMethod:
+          "validate",
+
+        role:
+          "openai_model_client"
       }
     ];
   },
@@ -944,8 +849,7 @@ window.AriRuntimeReadiness = {
       null;
 
     const required =
-      definition.required ===
-        true ||
+      definition.required === true ||
       (
         definition
           .conditionallyRequiredBy &&
@@ -967,23 +871,31 @@ window.AriRuntimeReadiness = {
 
     const alternateMethods =
       this.toArray(
-        definition
-          .alternateMethods
+        definition.alternateMethods
       );
 
-    const missingMethods =
+    const availableRequiredMethods =
       present
         ? requiredMethods.filter(
             method =>
-              typeof component[
+              typeof component?.[
                 method
-              ] !==
+              ] ===
               "function"
           )
-        : requiredMethods;
+        : [];
 
-    const alternateMethodAvailable =
-      alternateMethods.some(
+    const missingMethods =
+      requiredMethods.filter(
+        method =>
+          typeof component?.[
+            method
+          ] !==
+          "function"
+      );
+
+    const availableAlternateMethods =
+      alternateMethods.filter(
         method =>
           typeof component?.[
             method
@@ -991,53 +903,50 @@ window.AriRuntimeReadiness = {
           "function"
       );
 
+    const alternateMethodAvailable =
+      availableAlternateMethods.length >
+      0;
+
+    const requiredMethodContractSatisfied =
+      requiredMethods.length === 0 ||
+      missingMethods.length === 0;
+
+    const alternateContractSatisfied =
+      requiredMethods.length === 1 &&
+      alternateMethodAvailable;
+
     const callable =
       present &&
       (
-        missingMethods.length ===
-          0 ||
-        (
-          requiredMethods.length ===
-            1 &&
-          alternateMethodAvailable
-        )
+        requiredMethodContractSatisfied ||
+        alternateContractSatisfied
       );
 
     const validation =
       this.runComponentValidation({
         component,
         validateMethod:
-          definition
-            .validateMethod
+          definition.validateMethod,
+        strictValidation:
+          options.strictValidation
       });
 
     const validationValid =
       !validation ||
-      validation.valid !==
-        false;
+      validation.valid !== false;
 
     const ready =
       present &&
       callable &&
       validationValid;
 
-    let error =
-      null;
-
-    if (!present) {
-      error =
-        `${definition.name}_not_loaded`;
-    } else if (!callable) {
-      error =
-        `${definition.name}_missing_required_method`;
-    } else if (
-      validation &&
-      validation.valid ===
-        false
-    ) {
-      error =
-        `${definition.name}_validation_failed`;
-    }
+    const error =
+      this.resolveComponentError({
+        definition,
+        present,
+        callable,
+        validation
+      });
 
     return {
       name:
@@ -1079,13 +988,16 @@ window.AriRuntimeReadiness = {
         null,
 
       schemaVersion:
-        component
-          ?.schemaVersion ||
+        component?.schemaVersion ||
         null,
 
       requiredMethods,
 
       alternateMethods,
+
+      availableRequiredMethods,
+
+      availableAlternateMethods,
 
       missingMethods,
 
@@ -1105,9 +1017,38 @@ window.AriRuntimeReadiness = {
     };
   },
 
+  resolveComponentError({
+    definition = {},
+    present = false,
+    callable = false,
+    validation = null
+  } = {}) {
+    const name =
+      definition.name ||
+      "unknown_component";
+
+    if (!present) {
+      return `${name}_not_loaded`;
+    }
+
+    if (!callable) {
+      return `${name}_missing_required_method`;
+    }
+
+    if (
+      validation &&
+      validation.valid === false
+    ) {
+      return `${name}_validation_failed`;
+    }
+
+    return null;
+  },
+
   runComponentValidation({
     component = null,
-    validateMethod = "validate"
+    validateMethod = "validate",
+    strictValidation = true
   } = {}) {
     if (
       !component ||
@@ -1135,13 +1076,24 @@ window.AriRuntimeReadiness = {
       ) {
         return {
           valid:
-            false,
+            strictValidation !== true,
 
-          errors: [
-            "component_validate_returned_invalid_result"
-          ],
+          source:
+            "ari-runtime-readiness-component-validation",
 
-          warnings: []
+          errors:
+            strictValidation === true
+              ? [
+                  "component_validate_returned_invalid_result"
+                ]
+              : [],
+
+          warnings:
+            strictValidation === true
+              ? []
+              : [
+                  "component_validate_returned_invalid_result"
+                ]
         };
       }
 
@@ -1149,8 +1101,7 @@ window.AriRuntimeReadiness = {
         ...result,
 
         valid:
-          result.valid !==
-          false,
+          result.valid !== false,
 
         errors:
           this.toArray(
@@ -1166,6 +1117,9 @@ window.AriRuntimeReadiness = {
       return {
         valid:
           false,
+
+        source:
+          "ari-runtime-readiness-component-validation",
 
         errors: [
           error?.message ||
@@ -1197,6 +1151,18 @@ window.AriRuntimeReadiness = {
         "AriConversationOperatingState"
       );
 
+    const requestService =
+      this.findResult(
+        componentResults,
+        "AriRuntimeRequest"
+      );
+
+    const deliveryService =
+      this.findResult(
+        componentResults,
+        "AriRuntimeDelivery"
+      );
+
     const masterPipeline =
       this.findResult(
         componentResults,
@@ -1220,20 +1186,62 @@ window.AriRuntimeReadiness = {
           )
       );
 
+    const expressionNames = [
+      "AriCharacterStage",
+      "AriLanguageGuidanceStage",
+      "AriResponseRealizationStage",
+      "AriResponseRealizationEngine",
+      "AriLanguageComposer",
+      "AriFinalCompositionStage"
+    ];
+
+    const expressionResults =
+      expressionNames.map(
+        name =>
+          this.findResult(
+            componentResults,
+            name
+          )
+      );
+
     if (
-      operatingState?.ready !==
-      true
+      operatingState?.ready !== true
     ) {
       errors.push(
         "conversation_operating_state_not_ready"
       );
     }
 
+    if (
+      requestService?.ready !== true
+    ) {
+      errors.push(
+        "runtime_request_service_not_ready"
+      );
+    }
+
+    if (
+      options.requireRuntimeDelivery === true &&
+      deliveryService?.ready !== true
+    ) {
+      errors.push(
+        "runtime_delivery_service_not_ready"
+      );
+    }
+
+    if (
+      options.requireRuntimeDelivery !== true &&
+      deliveryService?.ready !== true
+    ) {
+      warnings.push(
+        "runtime_delivery_service_not_ready"
+      );
+    }
+
     const failedLayers =
       fiveLayerResults.filter(
         result =>
-          result?.ready !==
-          true
+          result?.ready !== true
       );
 
     if (
@@ -1243,142 +1251,92 @@ window.AriRuntimeReadiness = {
       errors.push(
         "one_or_more_five_layer_pipelines_not_ready"
       );
+
+      failedLayers.forEach(
+        result => {
+          if (result?.name) {
+            errors.push(
+              `${result.name}_not_ready`
+            );
+          }
+        }
+      );
     }
 
     if (
-      masterPipeline?.ready !==
-      true
+      masterPipeline?.ready !== true
     ) {
       errors.push(
         "master_pipeline_not_ready"
       );
     }
 
-    const requestService =
-      this.findResult(
-        componentResults,
-        "AriRuntimeRequest"
+    const failedExpressionComponents =
+      expressionResults.filter(
+        result =>
+          result?.ready !== true
       );
 
     if (
-      requestService?.ready !==
-      true
+      failedExpressionComponents.length >
+      0
     ) {
       errors.push(
-        "runtime_request_service_not_ready"
-      );
-    }
-
-    const deliveryService =
-      this.findResult(
-        componentResults,
-        "AriRuntimeDelivery"
+        "response_realization_expression_pathway_not_ready"
       );
 
-    if (
-      options
-        .requireRuntimeDelivery ===
-        true &&
-      deliveryService?.ready !==
-        true
-    ) {
-      errors.push(
-        "runtime_delivery_service_not_ready"
-      );
-    } else if (
-      options
-        .requireRuntimeDelivery !==
-        true &&
-      deliveryService?.ready !==
-        true
-    ) {
-      warnings.push(
-        "runtime_delivery_service_not_loaded_yet"
-      );
-    }
-
-    const expressionArchitecture =
-      this.resolveExpressionArchitecture(
-        componentResults
-      );
-
-    if (
-  expressionArchitecture ===
-  "legacy_candidate_pathway_incomplete"
-) {
-  warnings.push(
-    "legacy_expression_pathway_incomplete"
-  );
-}
-
-    if (
-      expressionArchitecture ===
-      "response_realization_partial"
-    ) {
-      warnings.push(
-        "response_realization_pathway_partially_loaded"
-      );
-    }
-
-    if (
-      expressionArchitecture ===
-      "legacy_candidate_pathway"
-    ) {
-      warnings.push(
-        "legacy_expression_pathway_active"
-      );
-    }
-
-    if (
-      expressionArchitecture ===
-      "mixed_expression_architecture"
-    ) {
-      warnings.push(
-        "legacy_and_response_realization_components_loaded_together"
-      );
-    }
-
-    const masterValidation =
-      masterPipeline
-        ?.validation;
-
-    if (
-      masterValidation &&
-      masterValidation.valid ===
-        false
-    ) {
-      errors.push(
-        ...this.toArray(
-          masterValidation.errors
-        )
-      );
-    }
-
-    componentResults.forEach(
-      result => {
-        if (
-          result?.validation
-            ?.warnings
-            ?.length
-        ) {
-          warnings.push(
-            ...result.validation
-              .warnings
-              .map(
-                warning =>
-                  `${result.name}:${this.extractDiagnosticText(
-                    warning
-                  )}`
-              )
-          );
+      failedExpressionComponents.forEach(
+        result => {
+          if (result?.name) {
+            errors.push(
+              `${result.name}_not_ready`
+            );
+          }
         }
-      }
-    );
+      );
+    }
+
+    const expressionPipeline =
+      this.findResult(
+        componentResults,
+        "AriExpressionPipeline"
+      );
+
+    if (
+      expressionPipeline?.ready === true &&
+      failedExpressionComponents.length >
+      0
+    ) {
+      warnings.push(
+        "expression_pipeline_loaded_but_internal_pathway_incomplete"
+      );
+    }
+
+    const openAIClient =
+      this.findResult(
+        componentResults,
+        "AriOpenAIKnowledgeClient"
+      );
+
+    if (
+      openAIClient?.ready !== true
+    ) {
+      warnings.push(
+        "openai_knowledge_client_not_ready"
+      );
+    }
+
+    this.collectValidationDiagnostics({
+      componentResults,
+      errors,
+      warnings,
+      strictValidation:
+        options.strictValidation
+    });
 
     return {
       valid:
-        errors.length ===
-        0,
+        errors.length === 0,
 
       source:
         "ari-runtime-readiness-contract-validation",
@@ -1398,68 +1356,99 @@ window.AriRuntimeReadiness = {
 
       checks: {
         conversationOperatingStateReady:
-          operatingState?.ready ===
-          true,
+          operatingState?.ready === true,
+
+        runtimeRequestReady:
+          requestService?.ready === true,
+
+        runtimeDeliveryReady:
+          deliveryService?.ready === true,
 
         fiveLayerRuntimeReady:
-          failedLayers.length ===
-          0,
+          failedLayers.length === 0,
 
         perceptionReady:
           this.findResult(
             componentResults,
             "AriPerceptionPipeline"
-          )?.ready ===
-          true,
+          )?.ready === true,
 
         executiveRoutingReady:
           this.findResult(
             componentResults,
             "AriExecutiveRoutingPipeline"
-          )?.ready ===
-          true,
+          )?.ready === true,
 
         deliberationReady:
           this.findResult(
             componentResults,
             "AriDeliberationPipeline"
-          )?.ready ===
-          true,
+          )?.ready === true,
 
         expressionReady:
-          this.findResult(
-            componentResults,
-            "AriExpressionPipeline"
-          )?.ready ===
-          true,
+          expressionPipeline?.ready === true,
 
         deliveryReady:
           this.findResult(
             componentResults,
             "AriDeliveryPipeline"
-          )?.ready ===
-          true,
+          )?.ready === true,
 
         masterPipelineReady:
-          masterPipeline?.ready ===
-          true,
+          masterPipeline?.ready === true,
 
-        runtimeRequestReady:
-          requestService?.ready ===
-          true,
+        characterStageReady:
+          this.findResult(
+            componentResults,
+            "AriCharacterStage"
+          )?.ready === true,
 
-        runtimeDeliveryReady:
-          deliveryService?.ready ===
-          true,
+        languageGuidanceStageReady:
+          this.findResult(
+            componentResults,
+            "AriLanguageGuidanceStage"
+          )?.ready === true,
 
-        currentExpressionArchitecture:
-          expressionArchitecture,
+        responseRealizationStageReady:
+          this.findResult(
+            componentResults,
+            "AriResponseRealizationStage"
+          )?.ready === true,
+
+        responseRealizationEngineReady:
+          this.findResult(
+            componentResults,
+            "AriResponseRealizationEngine"
+          )?.ready === true,
+
+        languageComposerReady:
+          this.findResult(
+            componentResults,
+            "AriLanguageComposer"
+          )?.ready === true,
+
+        finalCompositionStageReady:
+          this.findResult(
+            componentResults,
+            "AriFinalCompositionStage"
+          )?.ready === true,
+
+        expressionPathwayReady:
+          failedExpressionComponents.length ===
+          0,
+
+        openAIKnowledgeClientReady:
+          openAIClient?.ready === true,
 
         authoritativeDeliveryRequired:
+          options.requireRuntimeDelivery ===
           true,
 
         pipelineSinglePassExpected:
-          true
+          true,
+
+        legacyDraftArchitectureRequired:
+          false
       },
 
       inspectedRegistryCount:
@@ -1472,6 +1461,160 @@ window.AriRuntimeReadiness = {
     };
   },
 
+  collectValidationDiagnostics({
+    componentResults = [],
+    errors = [],
+    warnings = [],
+    strictValidation = true
+  } = {}) {
+    this.toArray(
+      componentResults
+    ).forEach(
+      result => {
+        const validation =
+          result?.validation;
+
+        if (!validation) {
+          return;
+        }
+
+        const validationErrors =
+          this.toArray(
+            validation.errors
+          );
+
+        const validationWarnings =
+          this.toArray(
+            validation.warnings
+          );
+
+        if (
+          validation.valid === false &&
+          result.required === true &&
+          strictValidation === true
+        ) {
+          validationErrors.forEach(
+            error => {
+              errors.push(
+                `${result.name}:${this.extractDiagnosticText(
+                  error
+                )}`
+              );
+            }
+          );
+        } else {
+          validationErrors.forEach(
+            error => {
+              warnings.push(
+                `${result.name}:${this.extractDiagnosticText(
+                  error
+                )}`
+              );
+            }
+          );
+        }
+
+        validationWarnings.forEach(
+          warning => {
+            warnings.push(
+              `${result.name}:${this.extractDiagnosticText(
+                warning
+              )}`
+            );
+          }
+        );
+      }
+    );
+  },
+
+  /* =====================================================
+     STATUS BUILDERS
+  ===================================================== */
+
+  buildRuntimeStatus(
+    componentResults = []
+  ) {
+    return {
+      conversationOperatingState:
+        this.findResult(
+          componentResults,
+          "AriConversationOperatingState"
+        ),
+
+      perception:
+        this.findResult(
+          componentResults,
+          "AriPerceptionPipeline"
+        ),
+
+      executiveRouting:
+        this.findResult(
+          componentResults,
+          "AriExecutiveRoutingPipeline"
+        ),
+
+      deliberation:
+        this.findResult(
+          componentResults,
+          "AriDeliberationPipeline"
+        ),
+
+      expression:
+        this.findResult(
+          componentResults,
+          "AriExpressionPipeline"
+        ),
+
+      delivery:
+        this.findResult(
+          componentResults,
+          "AriDeliveryPipeline"
+        ),
+
+      masterPipeline:
+        this.findResult(
+          componentResults,
+          "AriRebirthPipeline"
+        )
+    };
+  },
+
+  buildSupportServiceStatus(
+    componentResults = []
+  ) {
+    return {
+      runtimeRequest:
+        this.findResult(
+          componentResults,
+          "AriRuntimeRequest"
+        ),
+
+      runtimeDelivery:
+        this.findResult(
+          componentResults,
+          "AriRuntimeDelivery"
+        ),
+
+      openAIKnowledgeClient:
+        this.findResult(
+          componentResults,
+          "AriOpenAIKnowledgeClient"
+        ),
+
+      languageComposer:
+        this.findResult(
+          componentResults,
+          "AriLanguageComposer"
+        ),
+
+      responseRealizationEngine:
+        this.findResult(
+          componentResults,
+          "AriResponseRealizationEngine"
+        )
+    };
+  },
+
   /* =====================================================
      EXPRESSION PATHWAY
   ===================================================== */
@@ -1479,205 +1622,195 @@ window.AriRuntimeReadiness = {
   buildExpressionPathwayStatus(
     componentResults = []
   ) {
-    const names = {
-      finalComposition:
-        "AriFinalCompositionStage",
+    const characterStage =
+      this.findResult(
+        componentResults,
+        "AriCharacterStage"
+      );
 
-      languageComposer:
-        "AriLanguageComposer",
+    const languageGuidanceStage =
+      this.findResult(
+        componentResults,
+        "AriLanguageGuidanceStage"
+      );
 
-      draftGeneration:
-        "AriDraftGenerationStage",
+    const realizationStage =
+      this.findResult(
+        componentResults,
+        "AriResponseRealizationStage"
+      );
 
-      draftArbitration:
-        "AriDraftArbitrationStage",
-
-      composerBridge:
-        "AriComposerBridge",
-
-      blueprintWriter:
-        "AriBlueprintWriter",
-
-      aiWriter:
-        "AriAIWriter",
-
-      candidateArbiter:
-        "AriResponseCandidateArbiter",
-
-      realizationStage:
-        "AriResponseRealizationStage",
-
-      realizationEngine:
+    const realizationEngine =
+      this.findResult(
+        componentResults,
         "AriResponseRealizationEngine"
-    };
+      );
 
-    const result = {};
+    const languageComposer =
+      this.findResult(
+        componentResults,
+        "AriLanguageComposer"
+      );
 
-    Object.entries(
-      names
-    ).forEach(
-      ([
-        key,
-        name
-      ]) => {
-        result[key] =
-          this.findResult(
-            componentResults,
-            name
-          );
-      }
-    );
+    const finalCompositionStage =
+      this.findResult(
+        componentResults,
+        "AriFinalCompositionStage"
+      );
+
+    const requiredResults = [
+      characterStage,
+      languageGuidanceStage,
+      realizationStage,
+      realizationEngine,
+      languageComposer,
+      finalCompositionStage
+    ];
+
+    const readyCount =
+      requiredResults.filter(
+        result =>
+          result?.ready === true
+      ).length;
+
+    const missing =
+      requiredResults
+        .filter(
+          result =>
+            result?.present !== true
+        )
+        .map(
+          result =>
+            result?.name
+        )
+        .filter(
+          Boolean
+        );
+
+    const invalid =
+      requiredResults
+        .filter(
+          result =>
+            result?.present === true &&
+            result?.ready !== true
+        )
+        .map(
+          result =>
+            result?.name
+        )
+        .filter(
+          Boolean
+        );
+
+    const ready =
+      readyCount ===
+      requiredResults.length;
 
     return {
       architecture:
-        this.resolveExpressionArchitecture(
-          componentResults
-        ),
+        ready
+          ? "response_realization_pathway"
+          : readyCount > 0
+            ? "response_realization_pathway_incomplete"
+            : "response_realization_pathway_unavailable",
 
-      currentProductionPath: {
+      ready,
+
+      requiredComponentCount:
+        requiredResults.length,
+
+      readyComponentCount:
+        readyCount,
+
+      missing,
+
+      invalid,
+
+      stages: {
+        character:
+          characterStage,
+
+        languageGuidance:
+          languageGuidanceStage,
+
+        responseRealization:
+          realizationStage,
+
         finalComposition:
-          result.finalComposition,
+          finalCompositionStage
+      },
+
+      engines: {
+        responseRealization:
+          realizationEngine,
 
         languageComposer:
-          result.languageComposer,
-
-        draftGeneration:
-          result.draftGeneration,
-
-        draftArbitration:
-          result.draftArbitration,
-
-        composerBridge:
-          result.composerBridge,
-
-        blueprintWriter:
-          result.blueprintWriter,
-
-        aiWriter:
-          result.aiWriter,
-
-        candidateArbiter:
-          result.candidateArbiter
+          languageComposer
       },
 
-      futureRealizationPath: {
-        realizationStage:
-          result.realizationStage,
+      executionOrder: [
+        "AriCharacterStage",
+        "AriLanguageGuidanceStage",
+        "AriResponseRealizationStage",
+        "AriResponseRealizationEngine",
+        "AriLanguageComposer",
+        "AriFinalCompositionStage"
+      ],
 
-        realizationEngine:
-          result.realizationEngine
+      legacyPathway: {
+        required:
+          false,
+
+        active:
+          false,
+
+        components: [
+          "AriDraftGenerationStage",
+          "AriDraftArbitrationStage",
+          "AriComposerBridge",
+          "AriBlueprintWriter",
+          "AriAIWriter",
+          "AriResponseCandidateArbiter"
+        ]
       },
-
-      migrationReady:
-        result
-          .realizationStage
-          ?.ready ===
-          true &&
-        result
-          .realizationEngine
-          ?.ready ===
-          true &&
-        result
-          .languageComposer
-          ?.ready ===
-          true &&
-        result
-          .finalComposition
-          ?.ready ===
-          true,
 
       authority:
-        "expression_pathway_readiness_description"
+        "rebirth_expression_pathway_readiness_description"
     };
   },
 
-  resolveExpressionArchitecture(
-    componentResults = []
-  ) {
-    const legacyNames = [
-      "AriDraftGenerationStage",
-      "AriDraftArbitrationStage",
-      "AriComposerBridge",
-      "AriBlueprintWriter",
-      "AriAIWriter",
-      "AriResponseCandidateArbiter"
-    ];
+  /* =====================================================
+     READINESS REASON
+  ===================================================== */
 
-    const realizationNames = [
-      "AriResponseRealizationStage",
-      "AriResponseRealizationEngine"
-    ];
-
-    const legacyResults =
-      legacyNames.map(
-        name =>
-          this.findResult(
-            componentResults,
-            name
-          )
-      );
-
-    const realizationResults =
-      realizationNames.map(
-        name =>
-          this.findResult(
-            componentResults,
-            name
-          )
-      );
-
-    const legacyReadyCount =
-      legacyResults.filter(
-        result =>
-          result?.ready ===
-          true
-      ).length;
-
-    const realizationReadyCount =
-      realizationResults.filter(
-        result =>
-          result?.ready ===
-          true
-      ).length;
-
-    const legacyComplete =
-      legacyReadyCount ===
-      legacyNames.length;
-
-    const realizationComplete =
-      realizationReadyCount ===
-      realizationNames.length;
-
-    if (
-      legacyComplete &&
-      realizationComplete
-    ) {
-      return "mixed_expression_architecture";
-    }
-
-    if (realizationComplete) {
-      return "response_realization_pathway";
+  resolveReadinessReason({
+    ready = false,
+    requiredFailures = [],
+    contractErrors = []
+  } = {}) {
+    if (ready) {
+      return "runtime_ready";
     }
 
     if (
-      realizationReadyCount >
+      this.toArray(
+        requiredFailures
+      ).length >
       0
     ) {
-      return "response_realization_partial";
-    }
-
-    if (legacyComplete) {
-      return "legacy_candidate_pathway";
+      return "required_runtime_components_not_ready";
     }
 
     if (
-      legacyReadyCount >
+      this.toArray(
+        contractErrors
+      ).length >
       0
     ) {
-      return "legacy_candidate_pathway_incomplete";
+      return "runtime_contract_validation_failed";
     }
 
-    return "expression_pathway_unavailable";
+    return "runtime_not_ready";
   },
 
   /* =====================================================
@@ -1704,10 +1837,8 @@ window.AriRuntimeReadiness = {
     value = null
   ) {
     if (
-      value ===
-        null ||
-      value ===
-        undefined
+      value === null ||
+      value === undefined
     ) {
       return "";
     }
@@ -1759,7 +1890,16 @@ window.AriRuntimeReadiness = {
         options
       )
     ) {
-      return {};
+      return {
+        requireRuntimeDelivery:
+          false,
+
+        strictValidation:
+          true,
+
+        includeOptionalComponents:
+          true
+      };
     }
 
     return {
@@ -1818,6 +1958,12 @@ window.AriRuntimeReadiness = {
       canExecuteMasterPipeline:
         false,
 
+      canExecuteRuntimeLayer:
+        false,
+
+      canExecuteExpressionStage:
+        false,
+
       canResolveContinuity:
         false,
 
@@ -1836,13 +1982,13 @@ window.AriRuntimeReadiness = {
       canChooseResponsePlan:
         false,
 
-      canCreateComposerPacket:
+      canCreateRealizationPacket:
         false,
 
-      canGenerateResponseCandidate:
+      canGenerateResponse:
         false,
 
-      canSelectResponseCandidate:
+      canSelectResponse:
         false,
 
       canComposeFinalResponse:
@@ -1888,9 +2034,12 @@ window.AriRuntimeReadiness = {
       "responseGoal",
       "responseShape",
       "responseMoves",
-      "composerPacket",
-      "candidateDrafts",
-      "selectedDraft",
+      "characterPacket",
+      "languageGuidance",
+      "realizationPacket",
+      "realizationResponseText",
+      "responseRealizationResult",
+      "finalCompositionHandoff",
       "finalResponse",
       "deliveryResult",
       "finalEmotion",
@@ -1908,15 +2057,17 @@ window.AriRuntimeReadiness = {
       "canLoadScripts",
       "canBuildRuntimeRequest",
       "canExecuteMasterPipeline",
+      "canExecuteRuntimeLayer",
+      "canExecuteExpressionStage",
       "canResolveContinuity",
       "canClassifyConversation",
       "canInterpretMeaning",
       "canDetermineDeveloperIntent",
       "canDetermineSafetySeverity",
       "canChooseResponsePlan",
-      "canCreateComposerPacket",
-      "canGenerateResponseCandidate",
-      "canSelectResponseCandidate",
+      "canCreateRealizationPacket",
+      "canGenerateResponse",
+      "canSelectResponse",
       "canComposeFinalResponse",
       "canReadDeliveryResult",
       "canAdaptApplicationResponse",
@@ -1965,9 +2116,19 @@ window.AriRuntimeReadiness = {
             .canValidateRuntimeContracts ===
           true,
 
+        componentValidationEnabled:
+          authority
+            .canRunComponentValidation ===
+          true,
+
         readinessAuthorityEnabled:
           authority
             .canDetermineRuntimeReadiness ===
+          true,
+
+        expressionArchitectureDescriptionEnabled:
+          authority
+            .canDescribeExpressionArchitecture ===
           true,
 
         scriptLoadingDisabled:
@@ -1975,12 +2136,32 @@ window.AriRuntimeReadiness = {
             .canLoadScripts ===
           false,
 
+        requestBuildingDisabled:
+          authority
+            .canBuildRuntimeRequest ===
+          false,
+
         pipelineExecutionDisabled:
           authority
             .canExecuteMasterPipeline ===
           false,
 
+        runtimeLayerExecutionDisabled:
+          authority
+            .canExecuteRuntimeLayer ===
+          false,
+
+        expressionStageExecutionDisabled:
+          authority
+            .canExecuteExpressionStage ===
+          false,
+
         responseGenerationDisabled:
+          authority
+            .canGenerateResponse ===
+          false,
+
+        finalCompositionDisabled:
           authority
             .canComposeFinalResponse ===
           false,
@@ -1993,7 +2174,13 @@ window.AriRuntimeReadiness = {
         persistenceDisabled:
           authority
             .canPersistState ===
-          false
+          false,
+
+        legacyDraftGenerationRemoved:
+          true,
+
+        realizationNativeArchitecture:
+          true
       }
     };
   },
@@ -2012,22 +2199,16 @@ window.AriRuntimeReadiness = {
     ) {
       return value.filter(
         item =>
-          item !==
-            undefined &&
-          item !==
-            null &&
-          item !==
-            ""
+          item !== undefined &&
+          item !== null &&
+          item !== ""
       );
     }
 
     if (
-      value ===
-        undefined ||
-      value ===
-        null ||
-      value ===
-        ""
+      value === undefined ||
+      value === null ||
+      value === ""
     ) {
       return [];
     }
@@ -2050,7 +2231,7 @@ window.AriRuntimeReadiness = {
       value => {
         const key =
           typeof value ===
-          "string"
+            "string"
             ? value
             : this.safeJSONStringify(
                 value
@@ -2169,14 +2350,19 @@ window.AriRuntimeReadiness = {
 window.Ari.runtimeReadiness =
   window.AriRuntimeReadiness;
 
+const ariRuntimeReadinessValidation =
+  window.AriRuntimeReadiness
+    ?.validate?.();
+
 console.log(
   "ARI RUNTIME READINESS LOADED:",
   window.AriRuntimeReadiness
     ?.version,
-  window.AriRuntimeReadiness
-    ?.validate?.()
-    .valid ===
-    true
+
+  ariRuntimeReadinessValidation
+    ?.valid === true
     ? "READY"
-    : "INVALID"
+    : "INVALID",
+
+  ariRuntimeReadinessValidation
 );
