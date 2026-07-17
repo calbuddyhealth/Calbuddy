@@ -329,7 +329,7 @@
       print("Loading Ari Rebirth...");
 
       const run = await runAriOnce(message);
-
+console.dir(run.raw, { depth: null });
       print(formatFinalSummary(run));
     } catch (error) {
       console.error("[ARI LAB ERROR]", error);
