@@ -3801,31 +3801,52 @@ Output rules:
   },
 
   containsWriterFailureMessage(
-    text = ""
-  ) {
-    const normalized =
-      this.normalizeText(
-        text
-      );
-
-    const phrases = [
-      "the ai draft was unavailable",
-      "ai writer failed",
-      "blueprint writer failed",
-      "no usable response candidate",
-      "composer packet missing",
-      "try once more",
-      "the response generator failed",
-      "i cannot generate the response"
-    ];
-
-    return phrases.some(
-      phrase =>
-        normalized.includes(
-          phrase
-        )
+  text = ""
+) {
+  const normalized =
+    this.normalizeText(
+      text
     );
-  },
+
+  const exactFailureMessages = [
+    "i don't have enough reliable information to answer that clearly yet",
+    "i do not have enough reliable information to answer that clearly yet",
+    "i know what you're asking but i don't have a reliable answer ready i'd rather be honest than make something up",
+    "i know what you are asking but i do not have a reliable answer ready i would rather be honest than make something up"
+  ];
+
+  if (
+    exactFailureMessages.includes(
+      normalized
+    )
+  ) {
+    return true;
+  }
+
+  const failurePhrases = [
+    "the ai draft was unavailable",
+    "ai writer failed",
+    "blueprint writer failed",
+    "no usable response candidate",
+    "composer packet missing",
+    "the response generator failed",
+    "i cannot generate the response",
+    "i can't generate the response",
+    "i do not have enough reliable information",
+    "i don't have enough reliable information",
+    "i do not have a reliable answer ready",
+    "i don't have a reliable answer ready",
+    "rather be honest than make something up",
+    "not enough information to answer clearly"
+  ];
+
+  return failurePhrases.some(
+    phrase =>
+      normalized.includes(
+        phrase
+      )
+  );
+},
 
   /* =====================================================
      QUESTION DETECTION
