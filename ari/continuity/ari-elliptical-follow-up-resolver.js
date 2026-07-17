@@ -2,11 +2,10 @@
 // Ari Elliptical Follow-Up Resolver
 //
 // Purpose:
-// Resolve short, context-dependent follow-up turns whose semantic meaning
-// omits a subject, object, proposition, event, option, quantity, reason,
-// method, source, consequence, or other anchor supplied by the recent thread.
+// Resolve context-dependent follow-up turns whose complete meaning depends
+// on an immediately available conversational anchor.
 //
-// V1.0.0 — Canonical Elliptical Follow-Up Resolution
+// V2.0.0 — Structural Deixis Detection / Opinion Follow-Up Resolution
 //
 // Execution position:
 //
@@ -19,50 +18,32 @@
 // Continuity Packet
 //
 // Responsibilities:
-// - Detect context-dependent elliptical follow-ups.
-// - Preserve the user's original current-turn text exactly.
-// - Read recent thread context without changing upstream routing authority.
-// - Identify the semantic family of the follow-up.
-// - Identify the most appropriate prior conversational anchor.
-// - Inherit only the minimum context needed to complete the current turn.
+// - Detect omitted subjects, objects, propositions, events, options,
+//   quantities, reasons, methods, sources, consequences, and opinions.
+// - Detect demonstrative references such as "that", "this", "it",
+//   "that one", "the other one", and "what you said".
+// - Preserve the original current-turn text exactly.
+// - Select the closest compatible recent-thread anchor.
+// - Inherit only the minimum context needed to complete the turn.
 // - Produce a resolved current-turn question for downstream reasoning.
-// - Report ambiguity when more than one anchor remains plausible.
-// - Avoid forcing a resolution when evidence is insufficient.
-// - Return structured diagnostics and compatibility aliases.
-//
-// Examples:
-// - "Why?" → resolve against the previous answer or proposition.
-// - "How?" → request method, mechanism, or explanation.
-// - "Really?" → request confirmation of the prior claim.
-// - "What about the other one?" → resolve the comparison alternative.
-// - "Then what?" → request the next event, consequence, or step.
-// - "Based on what?" → request evidence or source.
-// - "Who?" → request the missing person or actor.
-// - "Where?" → request the missing location.
-// - "When?" → request the missing time.
-// - "How much?" → request quantity, degree, price, or magnitude.
+// - Surface ambiguity instead of inventing an anchor.
+// - Publish compatibility fields consumed by the continuity pipeline.
 //
 // Non-responsibilities:
-// - Does not choose whether continuity should run.
-// - Does not reinterpret fully specified standalone questions.
-// - Does not choose the canonical semantic frame.
-// - Does not choose the conversation function.
-// - Does not choose the executive lane.
+// - Does not decide whether the continuity stage executes.
+// - Does not replace the Semantic Frame Builder.
+// - Does not replace the Entity & Reference Resolver.
+// - Does not select the conversation function or executive lane.
 // - Does not answer the user.
-// - Does not modify safety severity.
+// - Does not change safety severity.
 // - Does not retrieve long-term memory.
-// - Does not persist state.
-// - Does not replace entity-reference resolution.
-// - Does not overwrite the original user message.
+// - Does not persist thread state.
 
 window.Ari = window.Ari || {};
 
 window.AriEllipticalFollowUpResolver = {
-  version:
-    "1.0.0",
-
-  schemaVersion:
-    "1.0.0",
+  version: "2.0.0",
+  schemaVersion: "2.0.0",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -100,7 +81,8 @@ window.AriEllipticalFollowUpResolver = {
       this.readRecentExchange({
         summary,
         threadContext,
-        continuityContext
+        continuityContext,
+        currentTurn
       });
 
     const detection =
@@ -108,15 +90,14 @@ window.AriEllipticalFollowUpResolver = {
         currentTurn,
         recentExchange,
         continuityContext,
-        semanticContext,
-        summary
+        semanticContext
       });
 
     if (
       detection.detected !==
       true
     ) {
-      const unresolvedResult =
+      const result =
         this.buildNotDetectedResult({
           currentTurn,
           recentExchange,
@@ -126,11 +107,11 @@ window.AriEllipticalFollowUpResolver = {
         });
 
       this.publishResult(
-        unresolvedResult
+        result
       );
 
       return this.buildReturnPayload(
-        unresolvedResult
+        result
       );
     }
 
@@ -145,11 +126,10 @@ window.AriEllipticalFollowUpResolver = {
     const anchorCandidates =
       this.buildAnchorCandidates({
         currentTurn,
-        familyResolution,
         recentExchange,
         semanticContext,
         continuityContext,
-        summary
+        familyResolution
       });
 
     const rankedAnchors =
@@ -159,7 +139,6 @@ window.AriEllipticalFollowUpResolver = {
 
         currentTurn,
         familyResolution,
-        semanticContext,
         recentExchange
       });
 
@@ -167,17 +146,13 @@ window.AriEllipticalFollowUpResolver = {
       this.selectAnchor({
         rankedAnchors,
         currentTurn,
-        familyResolution,
-        semanticContext,
-        recentExchange
+        familyResolution
       });
 
     const inheritedContext =
       this.buildInheritedContext({
         anchorDecision,
         familyResolution,
-        currentTurn,
-        semanticContext,
         recentExchange
       });
 
@@ -187,17 +162,14 @@ window.AriEllipticalFollowUpResolver = {
         familyResolution,
         anchorDecision,
         inheritedContext,
-        recentExchange,
-        semanticContext
+        recentExchange
       });
 
     const quality =
       this.buildQuality({
-        currentTurn,
         detection,
         familyResolution,
         anchorDecision,
-        inheritedContext,
         resolvedTurn,
         recentExchange
       });
@@ -228,7 +200,7 @@ window.AriEllipticalFollowUpResolver = {
   },
 
   /* =====================================================
-     INPUT READING
+     CURRENT TURN
   ===================================================== */
 
   readCurrentTurn({
@@ -263,9 +235,12 @@ window.AriEllipticalFollowUpResolver = {
     return {
       turnId:
         summary.turnId ||
+        summary.currentTurnId ||
         semanticContext.turnId ||
         threadContext.currentTurn
           ?.turnId ||
+        threadContext.currentTurn
+          ?.id ||
         this.createStableId(
           "turn",
           originalText
@@ -287,7 +262,9 @@ window.AriEllipticalFollowUpResolver = {
         originalText.length,
 
       punctuationOnly:
-        Boolean(originalText) &&
+        Boolean(
+          originalText
+        ) &&
         !/[a-z0-9]/i.test(
           originalText
         ),
@@ -298,15 +275,29 @@ window.AriEllipticalFollowUpResolver = {
         ),
 
       beginsWithQuestionWord:
-        /^(?:why|how|what|who|where|when|which)\b/i
+        /^(?:why|how|what|who|where|when|which)\b/
           .test(
             normalizedText
           ),
+
+      demonstratives:
+        this.detectDemonstratives(
+          normalizedText
+        ),
+
+      omittedObjectPressure:
+        this.detectOmittedObjectPressure(
+          normalizedText
+        ),
 
       authority:
         "current_turn_record_only"
     };
   },
+
+  /* =====================================================
+     THREAD CONTEXT
+  ===================================================== */
 
   readThreadContext(
     summary = {}
@@ -325,13 +316,13 @@ window.AriEllipticalFollowUpResolver = {
       summary
         .continuityResults
         ?.outputs
-        ?.thread,
+        ?.thread
+        ?.threadContext,
 
       summary
         .continuityResults
         ?.outputs
-        ?.thread
-        ?.threadContext,
+        ?.thread,
 
       summary
         .continuityPacket
@@ -341,10 +332,13 @@ window.AriEllipticalFollowUpResolver = {
         .contextAssembler
         ?.threadContext,
 
-      window.Ari.threadContext,
+      summary.threadState,
 
       window.Ari
-        .threadUnderstanding
+        ?.threadContext,
+
+      window.Ari
+        ?.threadUnderstanding
         ?.threadContext
     ];
 
@@ -353,7 +347,10 @@ window.AriEllipticalFollowUpResolver = {
         candidate =>
           candidate &&
           typeof candidate ===
-            "object"
+            "object" &&
+          !Array.isArray(
+            candidate
+          )
       ) ||
       {};
 
@@ -376,7 +373,9 @@ window.AriEllipticalFollowUpResolver = {
 
       recentTurns:
         this.asArray(
-          found.recentTurns
+          found.recentTurns ||
+          found.recentMessages ||
+          found.messages
         ),
 
       referenceCandidates:
@@ -410,8 +409,7 @@ window.AriEllipticalFollowUpResolver = {
         .perceptionReconciliation
         ?.semanticSummary
         ?.continuity ||
-      summary
-        .canonicalMeaning
+      summary.canonicalMeaning
         ?.continuity ||
       summary
         .semanticFrameBuilder
@@ -542,7 +540,8 @@ window.AriEllipticalFollowUpResolver = {
       summary
         .threadUnderstanding
         ?.semanticStructure ||
-      window.Ari.semanticStructure ||
+      window.Ari
+        ?.semanticStructure ||
       {};
 
     const ambiguity =
@@ -686,11 +685,6 @@ window.AriEllipticalFollowUpResolver = {
           semanticStructure.quantities
         ),
 
-      optionsFromStructure:
-        this.asArray(
-          semanticStructure.options
-        ),
-
       source:
         "preserved_semantic_context",
 
@@ -706,7 +700,8 @@ window.AriEllipticalFollowUpResolver = {
   readRecentExchange({
     summary = {},
     threadContext = {},
-    continuityContext = {}
+    continuityContext = {},
+    currentTurn = {}
   } = {}) {
     const recentTurns =
       this.collectRecentTurns({
@@ -719,8 +714,7 @@ window.AriEllipticalFollowUpResolver = {
         turn =>
           !this.isCurrentTurn({
             turn,
-            summary,
-            threadContext
+            currentTurn
           })
       );
 
@@ -751,30 +745,28 @@ window.AriEllipticalFollowUpResolver = {
           .immediatePreviousUserTurn
       );
 
-    const previousAnswerSummary =
+    const previousAssistantText =
       this.clean(
+        previousAssistantTurn
+          ?.text ||
         continuityContext
           .previousAnswerSummary ||
-        previousAssistantTurn
+        ""
+      );
+
+    const previousUserText =
+      this.clean(
+        previousUserTurn
           ?.text ||
         ""
       );
 
-    const previousQuestion =
-      this.clean(
-        previousUserTurn?.text ||
-        ""
-      );
-
-    const priorPairAvailable =
-      Boolean(
-        previousQuestion ||
-        previousAnswerSummary
-      );
-
     return {
       available:
-        priorPairAvailable,
+        Boolean(
+          previousAssistantText ||
+          previousUserText
+        ),
 
       previousUserTurn:
         previousUserTurn ||
@@ -784,40 +776,42 @@ window.AriEllipticalFollowUpResolver = {
         previousAssistantTurn ||
         null,
 
-      previousUserText:
-        previousQuestion,
+      previousUserText,
 
-      previousAssistantText:
-        previousAnswerSummary,
+      previousAssistantText,
 
       recentTurns:
         priorTurns,
 
-      priorPairAvailable,
+      priorPairAvailable:
+        Boolean(
+          previousUserText &&
+          previousAssistantText
+        ),
 
       previousAnswerContainsClaim:
         this.looksLikeClaim(
-          previousAnswerSummary
+          previousAssistantText
         ),
 
       previousAnswerContainsChoice:
         this.looksLikeChoice(
-          previousAnswerSummary
+          previousAssistantText
         ),
 
       previousAnswerContainsQuantity:
         this.looksLikeQuantity(
-          previousAnswerSummary
+          previousAssistantText
         ),
 
       previousAnswerContainsRecommendation:
         this.looksLikeRecommendation(
-          previousAnswerSummary
+          previousAssistantText
         ),
 
       previousQuestionContainsOptions:
         this.looksLikeOptionQuestion(
-          previousQuestion
+          previousUserText
         ),
 
       authority:
@@ -837,6 +831,16 @@ window.AriEllipticalFollowUpResolver = {
       summary.threadMessages,
 
       summary.conversationHistory,
+
+      summary
+        .semanticSummary
+        ?.continuity
+        ?.recentMessages,
+
+      summary
+        .semanticFrame
+        ?.continuity
+        ?.recentMessages,
 
       summary
         .continuityPacket
@@ -861,8 +865,7 @@ window.AriEllipticalFollowUpResolver = {
               );
 
             if (
-              normalized &&
-              normalized.text
+              normalized?.text
             ) {
               collected.push(
                 normalized
@@ -873,25 +876,32 @@ window.AriEllipticalFollowUpResolver = {
       }
     );
 
-    const immediateTurns = [
-      this.normalizeTurn(
-        threadContext
-          .immediatePreviousUserTurn
-      ),
+    [
+      threadContext
+        .immediatePreviousUserTurn,
 
-      this.normalizeTurn(
-        threadContext
-          .immediatePreviousAssistantTurn
+      threadContext
+        .immediatePreviousAssistantTurn
+    ]
+      .map(
+        turn =>
+          this.normalizeTurn(
+            turn
+          )
       )
-    ].filter(Boolean);
+      .filter(Boolean)
+      .forEach(
+        turn =>
+          collected.push(
+            turn
+          )
+      );
 
-    collected.push(
-      ...immediateTurns
-    );
-
-    return this.dedupeTurns(
-      collected
-    ).slice(-12);
+    return this
+      .dedupeTurns(
+        collected
+      )
+      .slice(-16);
   },
 
   normalizeTurn(
@@ -905,21 +915,35 @@ window.AriEllipticalFollowUpResolver = {
       typeof turn ===
       "string"
     ) {
+      const text =
+        this.clean(
+          turn
+        );
+
+      if (!text) {
+        return null;
+      }
+
       return {
         id:
           this.createStableId(
             "turn",
-            turn
+            text
           ),
 
         role:
           null,
 
-        text:
-          this.clean(turn),
+        text,
 
         createdAt:
           null,
+
+        entities: [],
+        events: [],
+        claims: [],
+        quantities: [],
+        options: [],
 
         raw:
           turn
@@ -1013,18 +1037,24 @@ window.AriEllipticalFollowUpResolver = {
 
   isCurrentTurn({
     turn = {},
-    summary = {},
-    threadContext = {}
+    currentTurn = {}
   } = {}) {
+    if (
+      currentTurn.turnId &&
+      turn.id &&
+      String(
+        currentTurn.turnId
+      ) ===
+        String(
+          turn.id
+        )
+    ) {
+      return true;
+    }
+
     const currentText =
       this.normalize(
-        summary.originalUserMessage ||
-        summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        threadContext.currentTurn
-          ?.text ||
-        ""
+        currentTurn.originalText
       );
 
     const turnText =
@@ -1032,37 +1062,12 @@ window.AriEllipticalFollowUpResolver = {
         turn.text
       );
 
-    if (
-      !currentText ||
-      !turnText
-    ) {
-      return false;
-    }
-
-    if (
-      currentText !==
-      turnText
-    ) {
-      return false;
-    }
-
-    const currentTurnId =
-      summary.turnId ||
-      threadContext.currentTurn
-        ?.turnId ||
-      null;
-
-    if (
-      currentTurnId &&
-      turn.id
-    ) {
-      return (
-        String(turn.id) ===
-        String(currentTurnId)
-      );
-    }
-
-    return true;
+    return Boolean(
+      currentText &&
+      turnText &&
+      currentText ===
+        turnText
+    );
   },
 
   findLastTurnByRole(
@@ -1076,7 +1081,9 @@ window.AriEllipticalFollowUpResolver = {
 
     for (
       let index =
-        this.asArray(turns).length -
+        this.asArray(
+          turns
+        ).length -
         1;
 
       index >= 0;
@@ -1110,8 +1117,14 @@ window.AriEllipticalFollowUpResolver = {
     const assistantIndex =
       turns.findIndex(
         turn =>
-          turn.id ===
-          assistantTurn.id
+          turn ===
+            assistantTurn ||
+          (
+            turn.id &&
+            assistantTurn.id &&
+            turn.id ===
+              assistantTurn.id
+          )
       );
 
     if (
@@ -1130,7 +1143,8 @@ window.AriEllipticalFollowUpResolver = {
     ) {
       if (
         this.normalizeRole(
-          turns[index]?.role
+          turns[index]
+            ?.role
         ) ===
         "user"
       ) {
@@ -1142,7 +1156,7 @@ window.AriEllipticalFollowUpResolver = {
   },
 
   /* =====================================================
-     DETECTION
+     STRUCTURAL DETECTION
   ===================================================== */
 
   detectEllipticalFollowUp({
@@ -1156,21 +1170,43 @@ window.AriEllipticalFollowUpResolver = {
         currentTurn.normalizedText
       );
 
-    const shortTurn =
-      currentTurn.wordCount > 0 &&
-      currentTurn.wordCount <= 8;
+    const demonstrativeReference =
+      this.detectDemonstratives(
+        currentTurn.normalizedText
+      );
 
-    const veryShortTurn =
-      currentTurn.wordCount > 0 &&
-      currentTurn.wordCount <= 3;
+    const omittedObjectPressure =
+      this.detectOmittedObjectPressure(
+        currentTurn.normalizedText
+      );
+
+    const placeholderSemanticTarget =
+      this.semanticTargetIsPlaceholder({
+        semanticContext,
+        currentTurn
+      });
 
     const missingSemanticSlot =
       semanticContext
         .unresolvedSlots
-        .length > 0 ||
+        .length >
+        0 ||
       this.semanticTargetMissing(
         semanticContext
-      );
+      ) ||
+      placeholderSemanticTarget;
+
+    const shortTurn =
+      currentTurn.wordCount >
+        0 &&
+      currentTurn.wordCount <=
+        12;
+
+    const veryShortTurn =
+      currentTurn.wordCount >
+        0 &&
+      currentTurn.wordCount <=
+        4;
 
     const continuityEvidence =
       continuityContext
@@ -1181,16 +1217,13 @@ window.AriEllipticalFollowUpResolver = {
         .referencesPriorContext ||
       continuityContext
         .contextDependency >=
-        0.55 ||
+        0.5 ||
       continuityContext
         .followUpPressure >=
-        0.55;
+        0.5;
 
     const priorContextAvailable =
       recentExchange.available ===
-        true ||
-      continuityContext
-        .priorContextAvailable ===
         true;
 
     const explicitPattern =
@@ -1198,30 +1231,43 @@ window.AriEllipticalFollowUpResolver = {
         patternMatch
       );
 
-    const genericShortQuestion =
-      veryShortTurn &&
+    const genericQuestionWord =
       /^(?:why|how|what|who|where|when|which|really|and|then|so)\b/
         .test(
           currentTurn.normalizedText
         );
 
+    const structuralDependency =
+      demonstrativeReference.present ===
+        true ||
+      omittedObjectPressure ===
+        true ||
+      missingSemanticSlot ===
+        true;
+
     const likelyEllipsis =
       priorContextAvailable &&
-      shortTurn &&
       (
         explicitPattern ||
-        genericShortQuestion ||
-        missingSemanticSlot
-      ) &&
-      (
-        continuityEvidence ||
-        explicitPattern
+        (
+          shortTurn &&
+          structuralDependency
+        ) ||
+        (
+          veryShortTurn &&
+          genericQuestionWord
+        )
       );
 
     const fullySpecified =
-      this.looksFullySpecified(
-        currentTurn.normalizedText
-      );
+      this.looksFullySpecified({
+        text:
+          currentTurn.normalizedText,
+
+        demonstrativeReference,
+
+        placeholderSemanticTarget
+      });
 
     const detected =
       likelyEllipsis &&
@@ -1247,25 +1293,58 @@ window.AriEllipticalFollowUpResolver = {
       );
     }
 
-    if (missingSemanticSlot) {
+    if (
+      demonstrativeReference
+        .present
+    ) {
+      signals.push(
+        "unresolved_demonstrative_reference"
+      );
+    }
+
+    if (
+      omittedObjectPressure
+    ) {
+      signals.push(
+        "predicate_requires_missing_object"
+      );
+    }
+
+    if (
+      placeholderSemanticTarget
+    ) {
+      signals.push(
+        "semantic_target_is_unresolved_placeholder"
+      );
+    }
+
+    if (
+      missingSemanticSlot
+    ) {
       signals.push(
         "missing_semantic_slot"
       );
     }
 
-    if (continuityEvidence) {
+    if (
+      continuityEvidence
+    ) {
       signals.push(
-        "continuity_dependency"
+        "upstream_continuity_evidence"
       );
     }
 
-    if (priorContextAvailable) {
+    if (
+      priorContextAvailable
+    ) {
       signals.push(
         "prior_exchange_available"
       );
     }
 
-    if (fullySpecified) {
+    if (
+      fullySpecified
+    ) {
       signals.push(
         "current_turn_appears_fully_specified"
       );
@@ -1275,34 +1354,42 @@ window.AriEllipticalFollowUpResolver = {
 
     if (detected) {
       confidence =
-        0.42;
+        0.48;
 
-      if (explicitPattern) {
+      if (
+        explicitPattern
+      ) {
         confidence +=
-          0.22;
-      }
-
-      if (veryShortTurn) {
-        confidence +=
-          0.1;
-      }
-
-      if (missingSemanticSlot) {
-        confidence +=
-          0.1;
-      }
-
-      if (continuityEvidence) {
-        confidence +=
-          0.1;
+          0.2;
       }
 
       if (
-        recentExchange
-          .priorPairAvailable
+        demonstrativeReference
+          .present
       ) {
         confidence +=
-          0.05;
+          0.14;
+      }
+
+      if (
+        omittedObjectPressure
+      ) {
+        confidence +=
+          0.08;
+      }
+
+      if (
+        placeholderSemanticTarget
+      ) {
+        confidence +=
+          0.06;
+      }
+
+      if (
+        continuityEvidence
+      ) {
+        confidence +=
+          0.04;
       }
     }
 
@@ -1314,6 +1401,12 @@ window.AriEllipticalFollowUpResolver = {
       shortTurn,
 
       veryShortTurn,
+
+      demonstrativeReference,
+
+      omittedObjectPressure,
+
+      placeholderSemanticTarget,
 
       missingSemanticSlot,
 
@@ -1332,16 +1425,165 @@ window.AriEllipticalFollowUpResolver = {
 
       reason:
         detected
-          ? "The current turn is a short context-dependent follow-up with omitted semantic content."
+          ? "The current turn requires a recent conversational referent to complete its meaning."
           : fullySpecified
             ? "The current turn appears semantically complete without inherited context."
             : !priorContextAvailable
-              ? "No usable prior exchange was available for elliptical resolution."
-              : "The available signals were insufficient to classify the current turn as elliptical.",
+              ? "No usable recent exchange was available for elliptical resolution."
+              : "The current turn did not contain sufficient structural evidence of ellipsis.",
 
       authority:
         "elliptical_follow_up_detection_only"
     };
+  },
+
+  detectDemonstratives(
+    normalizedText = ""
+  ) {
+    const text =
+      this.normalize(
+        normalizedText
+      );
+
+    const matches = [];
+
+    const patterns = [
+      {
+        surface:
+          "that",
+
+        pattern:
+          /\bthat\b/
+      },
+
+      {
+        surface:
+          "this",
+
+        pattern:
+          /\bthis\b/
+      },
+
+      {
+        surface:
+          "it",
+
+        pattern:
+          /\bit\b/
+      },
+
+      {
+        surface:
+          "that one",
+
+        pattern:
+          /\bthat one\b/
+      },
+
+      {
+        surface:
+          "this one",
+
+        pattern:
+          /\bthis one\b/
+      },
+
+      {
+        surface:
+          "the other one",
+
+        pattern:
+          /\bthe other one\b/
+      },
+
+      {
+        surface:
+          "what you said",
+
+        pattern:
+          /\bwhat you said\b/
+      },
+
+      {
+        surface:
+          "your answer",
+
+        pattern:
+          /\byour (?:answer|response|point|opinion|recommendation)\b/
+      },
+
+      {
+        surface:
+          "the previous answer",
+
+        pattern:
+          /\bthe previous (?:answer|response|message|point)\b/
+      }
+    ];
+
+    patterns.forEach(
+      item => {
+        if (
+          item.pattern.test(
+            text
+          )
+        ) {
+          matches.push(
+            item.surface
+          );
+        }
+      }
+    );
+
+    return {
+      present:
+        matches.length >
+        0,
+
+      surfaces:
+        [
+          ...new Set(
+            matches
+          )
+        ],
+
+      primarySurface:
+        matches[0] ||
+        null
+    };
+  },
+
+  detectOmittedObjectPressure(
+    normalizedText = ""
+  ) {
+    const text =
+      this.normalize(
+        normalizedText
+      );
+
+    if (!text) {
+      return false;
+    }
+
+    const patterns = [
+      /^(?:what do you think|what do you think about|what do you think of)$/,
+      /^(?:how do you feel|how do you feel about)$/,
+      /^(?:do you agree|would you agree|you agree)$/,
+      /^(?:is that true|is this true|is it true)$/,
+      /^(?:why is that|why is this|why is it)$/,
+      /^(?:how is that|how is this|how is it)$/,
+      /^(?:what does that mean|what does this mean|what does it mean)$/,
+      /^(?:what about that|what about this|what about it)$/,
+      /^(?:really|seriously|are you sure)$/,
+      /^(?:why|how|what|who|where|when|which)$/
+    ];
+
+    return patterns.some(
+      pattern =>
+        pattern.test(
+          text
+        )
+    );
   },
 
   matchEllipticalPattern(
@@ -1359,6 +1601,50 @@ window.AriEllipticalFollowUpResolver = {
     const patterns = [
       {
         family:
+          "opinion_about_prior_referent",
+
+        operation:
+          "request_opinion",
+
+        pattern:
+          /^(?:so\s+)?what\s+do\s+you\s+think(?:\s+(?:about|of))?\s+(?:that|this|it|what\s+you\s+said|your\s+(?:answer|response|point|opinion))$/
+      },
+
+      {
+        family:
+          "opinion_about_prior_referent",
+
+        operation:
+          "request_opinion",
+
+        pattern:
+          /^(?:so\s+)?what\s+are\s+your\s+thoughts(?:\s+(?:about|on))?\s+(?:that|this|it)$/
+      },
+
+      {
+        family:
+          "emotional_opinion_about_prior_referent",
+
+        operation:
+          "request_emotional_opinion",
+
+        pattern:
+          /^(?:so\s+)?how\s+do\s+you\s+feel(?:\s+about)?\s+(?:that|this|it)$/
+      },
+
+      {
+        family:
+          "agreement_about_prior_referent",
+
+        operation:
+          "request_agreement",
+
+        pattern:
+          /^(?:so\s+)?(?:do|would)\s+you\s+agree(?:\s+with)?\s+(?:that|this|it)$/
+      },
+
+      {
+        family:
           "causal_explanation",
 
         operation:
@@ -1366,6 +1652,17 @@ window.AriEllipticalFollowUpResolver = {
 
         pattern:
           /^(?:but\s+)?why(?:\s+though)?$/
+      },
+
+      {
+        family:
+          "causal_explanation",
+
+        operation:
+          "request_reason",
+
+        pattern:
+          /^why\s+(?:is|was|would|does|did)\s+(?:that|this|it)(?:\s+so)?$/
       },
 
       {
@@ -1392,6 +1689,17 @@ window.AriEllipticalFollowUpResolver = {
 
       {
         family:
+          "method_or_mechanism",
+
+        operation:
+          "request_method_or_explanation",
+
+        pattern:
+          /^how\s+(?:does|did|would|can|could|is|was)\s+(?:that|this|it)(?:\s+work|\s+happen)?$/
+      },
+
+      {
+        family:
           "confirmation",
 
         operation:
@@ -1403,6 +1711,17 @@ window.AriEllipticalFollowUpResolver = {
 
       {
         family:
+          "confirmation",
+
+        operation:
+          "request_confirmation",
+
+        pattern:
+          /^(?:is|was)\s+(?:that|this|it)\s+(?:true|correct|right)$/
+      },
+
+      {
+        family:
           "clarification",
 
         operation:
@@ -1410,6 +1729,17 @@ window.AriEllipticalFollowUpResolver = {
 
         pattern:
           /^(?:what\s+do\s+you\s+mean|meaning|huh|what)$/
+      },
+
+      {
+        family:
+          "clarification",
+
+        operation:
+          "request_clarification",
+
+        pattern:
+          /^what\s+does\s+(?:that|this|it)\s+mean$/
       },
 
       {
@@ -1519,7 +1849,7 @@ window.AriEllipticalFollowUpResolver = {
           "request_significance",
 
         pattern:
-          /^(?:so\s+what|why\s+does\s+that\s+matter)$/
+          /^(?:so\s+what|why\s+does\s+(?:that|this|it)\s+matter)$/
       },
 
       {
@@ -1574,7 +1904,7 @@ window.AriEllipticalFollowUpResolver = {
           "request_about_prior_referent",
 
         pattern:
-          /^(?:what|why|how)\s+about\s+(?:that|this|it)$/
+          /^(?:tell\s+me\s+more\s+about|explain|elaborate\s+on)\s+(?:that|this|it)$/
       }
     ];
 
@@ -1605,51 +1935,6 @@ window.AriEllipticalFollowUpResolver = {
     };
   },
 
-  looksFullySpecified(
-    normalizedText = ""
-  ) {
-    const text =
-      this.normalize(
-        normalizedText
-      );
-
-    if (!text) {
-      return false;
-    }
-
-    const words =
-      text
-        .split(/\s+/)
-        .filter(Boolean);
-
-    if (
-      words.length <= 3
-    ) {
-      return false;
-    }
-
-    const hasExplicitObject =
-      /\b(?:why|how|what|who|where|when|which)\b.+\b(?:is|are|was|were|do|does|did|can|could|should|would|will|has|have|had|the|this|that|my|your|his|her|their|our)\b/
-        .test(
-          text
-        );
-
-    const hasContentNoun =
-      /\b(?:color|flower|car|job|file|code|engine|pipeline|person|place|time|price|cost|problem|answer|reason|choice|option|plan|idea|symptom|medicine|event|team|game|movie|book)\b/
-        .test(
-          text
-        );
-
-    return (
-      words.length >= 7 &&
-      hasExplicitObject
-    ) ||
-    (
-      words.length >= 5 &&
-      hasContentNoun
-    );
-  },
-
   semanticTargetMissing(
     semanticContext = {}
   ) {
@@ -1663,8 +1948,173 @@ window.AriEllipticalFollowUpResolver = {
         semanticContext.targetObject
       );
 
-    return !targetValue &&
-      !objectValue;
+    return (
+      !targetValue &&
+      !objectValue
+    );
+  },
+
+  semanticTargetIsPlaceholder({
+    semanticContext = {},
+    currentTurn = {}
+  } = {}) {
+    const values = [
+      this.extractSemanticValue(
+        semanticContext.target
+      ),
+
+      this.extractSemanticValue(
+        semanticContext.targetObject
+      ),
+
+      this.extractSemanticValue(
+        semanticContext.referent
+      )
+    ]
+      .map(
+        value =>
+          this.normalize(
+            value
+          )
+      )
+      .filter(Boolean);
+
+    if (
+      !values.length
+    ) {
+      return false;
+    }
+
+    const currentText =
+      currentTurn.normalizedText ||
+      "";
+
+    return values.some(
+      value =>
+        this.isPlaceholderTarget(
+          value,
+          currentText
+        )
+    );
+  },
+
+  isPlaceholderTarget(
+    value = "",
+    currentText = ""
+  ) {
+    const text =
+      this.normalize(
+        value
+      );
+
+    const placeholders = [
+      "that",
+      "this",
+      "it",
+      "that one",
+      "this one",
+      "the other one",
+      "think about that",
+      "think about this",
+      "think about it",
+      "what do you think about that",
+      "what do you think about this",
+      "what do you think about it",
+      "feel about that",
+      "feel about this",
+      "feel about it",
+      "information request",
+      "previous answer",
+      "prior statement",
+      "the thing",
+      "the topic"
+    ];
+
+    if (
+      placeholders.includes(
+        text
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      /^(?:think|feel|agree|say|mean)\s+(?:about|with)?\s*(?:that|this|it)$/
+        .test(
+          text
+        )
+    ) {
+      return true;
+    }
+
+    if (
+      currentText &&
+      text ===
+        currentText
+    ) {
+      return true;
+    }
+
+    return false;
+  },
+
+  looksFullySpecified({
+    text = "",
+    demonstrativeReference = {},
+    placeholderSemanticTarget = false
+  } = {}) {
+    const normalizedText =
+      this.normalize(
+        text
+      );
+
+    if (!normalizedText) {
+      return false;
+    }
+
+    if (
+      demonstrativeReference
+        .present ||
+      placeholderSemanticTarget
+    ) {
+      return false;
+    }
+
+    const words =
+      normalizedText
+        .split(/\s+/)
+        .filter(Boolean);
+
+    if (
+      words.length <=
+      4
+    ) {
+      return false;
+    }
+
+    const explicitNamedObject =
+      /\b(?:bible|verse|money|prozac|fluoxetine|big bang theory|car|job|file|code|engine|pipeline|person|place|price|problem|answer|reason|choice|option|plan|idea|symptom|medicine|event|team|game|movie|book|relationship|recommendation)\b/
+        .test(
+          normalizedText
+        );
+
+    const unresolvedPronounEnding =
+      /\b(?:that|this|it|one|them|those|these)$/
+        .test(
+          normalizedText
+        );
+
+    if (
+      unresolvedPronounEnding
+    ) {
+      return false;
+    }
+
+    return (
+      words.length >=
+        6 &&
+      explicitNamedObject
+    );
   },
 
   /* =====================================================
@@ -1697,7 +2147,7 @@ window.AriEllipticalFollowUpResolver = {
             .source,
 
         confidence:
-          0.96
+          0.97
       };
     }
 
@@ -1711,6 +2161,39 @@ window.AriEllipticalFollowUpResolver = {
       "request_elaboration";
 
     if (
+      /what\s+do\s+you\s+think|your\s+thoughts/
+        .test(
+          text
+        )
+    ) {
+      family =
+        "opinion_about_prior_referent";
+
+      operation =
+        "request_opinion";
+    } else if (
+      /how\s+do\s+you\s+feel/
+        .test(
+          text
+        )
+    ) {
+      family =
+        "emotional_opinion_about_prior_referent";
+
+      operation =
+        "request_emotional_opinion";
+    } else if (
+      /(?:do|would)\s+you\s+agree/
+        .test(
+          text
+        )
+    ) {
+      family =
+        "agreement_about_prior_referent";
+
+      operation =
+        "request_agreement";
+    } else if (
       /^why\b/.test(
         text
       )
@@ -1822,7 +2305,9 @@ window.AriEllipticalFollowUpResolver = {
     if (
       semanticContext
         .unresolvedSlots
-        .includes("person")
+        .includes(
+          "person"
+        )
     ) {
       family =
         "person_identification";
@@ -1834,7 +2319,9 @@ window.AriEllipticalFollowUpResolver = {
     if (
       semanticContext
         .unresolvedSlots
-        .includes("location")
+        .includes(
+          "location"
+        )
     ) {
       family =
         "location_identification";
@@ -1846,7 +2333,9 @@ window.AriEllipticalFollowUpResolver = {
     if (
       semanticContext
         .unresolvedSlots
-        .includes("time")
+        .includes(
+          "time"
+        )
     ) {
       family =
         "time_identification";
@@ -1857,14 +2346,13 @@ window.AriEllipticalFollowUpResolver = {
 
     return {
       family,
-
       operation,
 
       source:
-        "semantic_family_inference",
+        "structural_family_inference",
 
       confidence:
-        0.78
+        0.8
     };
   },
 
@@ -1887,15 +2375,12 @@ window.AriEllipticalFollowUpResolver = {
           );
 
         if (
-          !normalized ||
-          !normalized.text
+          normalized?.text
         ) {
-          return;
+          candidates.push(
+            normalized
+          );
         }
-
-        candidates.push(
-          normalized
-        );
       };
 
     if (
@@ -1905,6 +2390,9 @@ window.AriEllipticalFollowUpResolver = {
       add({
         type:
           "previous_assistant_proposition",
+
+        semanticType:
+          "proposition",
 
         text:
           recentExchange
@@ -1922,7 +2410,7 @@ window.AriEllipticalFollowUpResolver = {
           1,
 
         priority:
-          92,
+          100,
 
         metadata: {
           containsClaim:
@@ -1944,6 +2432,120 @@ window.AriEllipticalFollowUpResolver = {
       });
     }
 
+    this.asArray(
+      recentExchange
+        .previousAssistantTurn
+        ?.claims
+    ).forEach(
+      claim => {
+        add({
+          type:
+            "previous_assistant_claim",
+
+          semanticType:
+            "claim",
+
+          text:
+            this.extractNodeText(
+              claim
+            ),
+
+          role:
+            "assistant",
+
+          sourceTurnId:
+            recentExchange
+              .previousAssistantTurn
+              ?.id,
+
+          turnDistance:
+            1,
+
+          priority:
+            104,
+
+          raw:
+            claim
+        });
+      }
+    );
+
+    this.asArray(
+      recentExchange
+        .previousAssistantTurn
+        ?.events
+    ).forEach(
+      event => {
+        add({
+          type:
+            "previous_assistant_event",
+
+          semanticType:
+            "event",
+
+          text:
+            this.extractNodeText(
+              event
+            ),
+
+          role:
+            "assistant",
+
+          sourceTurnId:
+            recentExchange
+              .previousAssistantTurn
+              ?.id,
+
+          turnDistance:
+            1,
+
+          priority:
+            96,
+
+          raw:
+            event
+        });
+      }
+    );
+
+    this.asArray(
+      recentExchange
+        .previousAssistantTurn
+        ?.quantities
+    ).forEach(
+      quantity => {
+        add({
+          type:
+            "previous_assistant_quantity",
+
+          semanticType:
+            "quantity",
+
+          text:
+            this.extractNodeText(
+              quantity
+            ),
+
+          role:
+            "assistant",
+
+          sourceTurnId:
+            recentExchange
+              .previousAssistantTurn
+              ?.id,
+
+          turnDistance:
+            1,
+
+          priority:
+            98,
+
+          raw:
+            quantity
+        });
+      }
+    );
+
     if (
       recentExchange
         .previousUserText
@@ -1951,6 +2553,9 @@ window.AriEllipticalFollowUpResolver = {
       add({
         type:
           "previous_user_request",
+
+        semanticType:
+          "request",
 
         text:
           recentExchange
@@ -1971,7 +2576,7 @@ window.AriEllipticalFollowUpResolver = {
             : 1,
 
         priority:
-          75,
+          72,
 
         metadata: {
           containsOptions:
@@ -1980,113 +2585,6 @@ window.AriEllipticalFollowUpResolver = {
         }
       });
     }
-
-    const previousAssistantTurn =
-      recentExchange
-        .previousAssistantTurn ||
-      {};
-
-    this.asArray(
-      previousAssistantTurn.claims
-    ).forEach(
-      claim => {
-        add({
-          type:
-            "previous_assistant_claim",
-
-          text:
-            this.extractNodeText(
-              claim
-            ),
-
-          semanticType:
-            "claim",
-
-          role:
-            "assistant",
-
-          sourceTurnId:
-            previousAssistantTurn.id,
-
-          turnDistance:
-            1,
-
-          priority:
-            96,
-
-          raw:
-            claim
-        });
-      }
-    );
-
-    this.asArray(
-      previousAssistantTurn.events
-    ).forEach(
-      event => {
-        add({
-          type:
-            "previous_assistant_event",
-
-          text:
-            this.extractNodeText(
-              event
-            ),
-
-          semanticType:
-            "event",
-
-          role:
-            "assistant",
-
-          sourceTurnId:
-            previousAssistantTurn.id,
-
-          turnDistance:
-            1,
-
-          priority:
-            88,
-
-          raw:
-            event
-        });
-      }
-    );
-
-    this.asArray(
-      previousAssistantTurn.quantities
-    ).forEach(
-      quantity => {
-        add({
-          type:
-            "previous_assistant_quantity",
-
-          text:
-            this.extractNodeText(
-              quantity
-            ),
-
-          semanticType:
-            "quantity",
-
-          role:
-            "assistant",
-
-          sourceTurnId:
-            previousAssistantTurn.id,
-
-          turnDistance:
-            1,
-
-          priority:
-            90,
-
-          raw:
-            quantity
-        });
-      }
-    );
 
     this.asArray(
       recentExchange
@@ -2098,13 +2596,13 @@ window.AriEllipticalFollowUpResolver = {
           type:
             "previous_user_option",
 
+          semanticType:
+            "option",
+
           text:
             this.extractNodeText(
               option
             ),
-
-          semanticType:
-            "option",
 
           role:
             "user",
@@ -2118,7 +2616,7 @@ window.AriEllipticalFollowUpResolver = {
             2,
 
           priority:
-            84,
+            92,
 
           raw:
             option
@@ -2131,18 +2629,23 @@ window.AriEllipticalFollowUpResolver = {
         semanticContext.target
       );
 
-    if (semanticTarget) {
+    if (
+      semanticTarget &&
+      !this.isPlaceholderTarget(
+        semanticTarget
+      )
+    ) {
       add({
         type:
           "current_semantic_target",
-
-        text:
-          semanticTarget,
 
         semanticType:
           semanticContext.target
             ?.type ||
           "concept",
+
+        text:
+          semanticTarget,
 
         role:
           "current_turn",
@@ -2151,7 +2654,7 @@ window.AriEllipticalFollowUpResolver = {
           0,
 
         priority:
-          60,
+          55,
 
         raw:
           semanticContext.target
@@ -2166,20 +2669,23 @@ window.AriEllipticalFollowUpResolver = {
     if (
       semanticObject &&
       semanticObject !==
-      semanticTarget
+        semanticTarget &&
+      !this.isPlaceholderTarget(
+        semanticObject
+      )
     ) {
       add({
         type:
           "current_semantic_object",
-
-        text:
-          semanticObject,
 
         semanticType:
           semanticContext
             .targetObject
             ?.type ||
           "concept",
+
+        text:
+          semanticObject,
 
         role:
           "current_turn",
@@ -2188,7 +2694,7 @@ window.AriEllipticalFollowUpResolver = {
           0,
 
         priority:
-          58,
+          54,
 
         raw:
           semanticContext
@@ -2196,18 +2702,26 @@ window.AriEllipticalFollowUpResolver = {
       });
     }
 
+    const continuityAnchor =
+      this.extractSemanticValue(
+        continuityContext.anchor
+      );
+
     if (
-      continuityContext.anchor
+      continuityAnchor &&
+      !this.isPlaceholderTarget(
+        continuityAnchor
+      )
     ) {
       add({
         type:
           "continuity_anchor",
 
+        semanticType:
+          "continuity_anchor",
+
         text:
-          this.extractSemanticValue(
-            continuityContext.anchor
-          ) ||
-          continuityContext.anchor,
+          continuityAnchor,
 
         role:
           "continuity",
@@ -2218,8 +2732,8 @@ window.AriEllipticalFollowUpResolver = {
         priority:
           continuityContext
             .anchorResolved
-            ? 94
-            : 70,
+            ? 102
+            : 68,
 
         metadata: {
           anchorResolved:
@@ -2424,7 +2938,7 @@ window.AriEllipticalFollowUpResolver = {
           recentExchange
         }),
 
-      duplicateOrThinPenalty:
+      thinPenalty:
         this.scoreThinAnchorPenalty(
           candidate
         )
@@ -2440,23 +2954,29 @@ window.AriEllipticalFollowUpResolver = {
         0
       );
 
-    if (distance === 0) {
-      return 6;
+    if (
+      distance === 0
+    ) {
+      return 4;
     }
 
-    if (distance === 1) {
-      return 18;
+    if (
+      distance === 1
+    ) {
+      return 22;
     }
 
-    if (distance === 2) {
-      return 12;
+    if (
+      distance === 2
+    ) {
+      return 11;
     }
 
     return Math.max(
       -10,
-      8 -
-      distance *
-      3
+      7 -
+        distance *
+        3
     );
   },
 
@@ -2467,26 +2987,31 @@ window.AriEllipticalFollowUpResolver = {
     const family =
       familyResolution.family;
 
+    const assistantPreferred = [
+      "opinion_about_prior_referent",
+      "emotional_opinion_about_prior_referent",
+      "agreement_about_prior_referent",
+      "causal_explanation",
+      "negative_causal_explanation",
+      "confirmation",
+      "evidence",
+      "source",
+      "significance",
+      "clarification",
+      "method_or_mechanism",
+      "continuation",
+      "demonstrative_follow_up",
+      "general_elaboration"
+    ];
+
     if (
-      [
-        "causal_explanation",
-        "negative_causal_explanation",
-        "confirmation",
-        "evidence",
-        "source",
-        "significance",
-        "clarification",
-        "method_or_mechanism"
-      ].includes(
+      assistantPreferred.includes(
         family
-      )
-    ) {
-      if (
-        candidate.role ===
+      ) &&
+      candidate.role ===
         "assistant"
-      ) {
-        return 20;
-      }
+    ) {
+      return 26;
     }
 
     if (
@@ -2499,30 +3024,21 @@ window.AriEllipticalFollowUpResolver = {
       )
     ) {
       if (
+        candidate.semanticType ===
+        "option"
+      ) {
+        return 22;
+      }
+
+      if (
         candidate.role ===
         "user"
       ) {
         return 12;
       }
-
-      if (
-        candidate.semanticType ===
-        "option"
-      ) {
-        return 18;
-      }
     }
 
-    if (
-      family ===
-      "continuation" &&
-      candidate.role ===
-        "assistant"
-    ) {
-      return 16;
-    }
-
-    return 4;
+    return 3;
   },
 
   scoreAnchorSemanticCompatibility({
@@ -2535,43 +3051,68 @@ window.AriEllipticalFollowUpResolver = {
     const type =
       candidate.semanticType;
 
-    const map = {
-      causal_explanation: [
+    const acceptedTypes = {
+      opinion_about_prior_referent: [
+        "proposition",
         "claim",
         "event",
-        "concept",
-        "previous_assistant_proposition"
+        "concept"
+      ],
+
+      emotional_opinion_about_prior_referent: [
+        "proposition",
+        "claim",
+        "event",
+        "concept"
+      ],
+
+      agreement_about_prior_referent: [
+        "proposition",
+        "claim"
+      ],
+
+      causal_explanation: [
+        "proposition",
+        "claim",
+        "event",
+        "concept"
       ],
 
       negative_causal_explanation: [
+        "proposition",
         "claim",
         "event",
-        "option",
-        "concept"
+        "option"
       ],
 
       method_or_mechanism: [
         "event",
         "claim",
-        "process",
+        "proposition",
         "concept"
       ],
 
       confirmation: [
         "claim",
-        "previous_assistant_proposition",
+        "proposition",
         "event"
+      ],
+
+      clarification: [
+        "claim",
+        "proposition",
+        "concept"
       ],
 
       evidence: [
         "claim",
-        "previous_assistant_proposition",
+        "proposition",
         "recommendation"
       ],
 
       source: [
         "claim",
-        "previous_assistant_proposition"
+        "proposition"
       ],
 
       quantity_or_degree: [
@@ -2599,51 +3140,66 @@ window.AriEllipticalFollowUpResolver = {
       alternative_or_comparison: [
         "option",
         "claim",
-        "previous_user_request"
+        "request"
       ],
 
       consequence_or_next_step: [
         "event",
         "claim",
         "plan",
-        "previous_assistant_proposition"
+        "proposition"
       ],
 
       continuation: [
-        "previous_assistant_proposition",
+        "proposition",
         "claim",
         "event"
+      ],
+
+      demonstrative_follow_up: [
+        "proposition",
+        "claim",
+        "event",
+        "concept"
+      ],
+
+      general_elaboration: [
+        "proposition",
+        "claim",
+        "event",
+        "concept"
       ]
     };
 
     const accepted =
-      map[family] ||
+      acceptedTypes[
+        family
+      ] ||
       [];
 
     if (
-      accepted.includes(type) ||
       accepted.includes(
-        candidate.type
+        type
       )
     ) {
-      return 24;
+      return 28;
     }
 
     if (
       candidate.type ===
       "previous_assistant_proposition"
     ) {
-      return 12;
+      return 18;
     }
 
     if (
       candidate.type ===
       "previous_user_request"
     ) {
-      return 8;
+      return 7;
     }
 
-    return 2;
+    return 1;
   },
 
   scoreAnchorLexicalCompatibility({
@@ -2653,10 +3209,17 @@ window.AriEllipticalFollowUpResolver = {
     const currentText =
       currentTurn.normalizedText;
 
-    const anchorText =
-      candidate.normalizedText;
-
     let score = 0;
+
+    if (
+      currentTurn
+        .demonstratives
+        ?.present &&
+      candidate.role ===
+        "assistant"
+    ) {
+      score += 14;
+    }
 
     if (
       /\bother\s+one\b/.test(
@@ -2664,7 +3227,7 @@ window.AriEllipticalFollowUpResolver = {
       ) &&
       (
         candidate.semanticType ===
-        "option" ||
+          "option" ||
         candidate.metadata
           ?.containsOptions ===
           true
@@ -2674,9 +3237,10 @@ window.AriEllipticalFollowUpResolver = {
     }
 
     if (
-      /\bthat\s+one\b/.test(
-        currentText
-      ) &&
+      /\b(?:that|this)\s+one\b/
+        .test(
+          currentText
+        ) &&
       candidate.semanticType ===
         "option"
     ) {
@@ -2689,25 +3253,13 @@ window.AriEllipticalFollowUpResolver = {
       ) &&
       (
         candidate.semanticType ===
-        "quantity" ||
+          "quantity" ||
         this.looksLikeQuantity(
-          anchorText
+          candidate.text
         )
       )
     ) {
       score += 22;
-    }
-
-    if (
-      /\bwho\b/.test(
-        currentText
-      ) &&
-      /\b(?:he|she|they|person|man|woman|doctor|friend|brother|wife|husband|user|assistant)\b/
-        .test(
-          anchorText
-        )
-    ) {
-      score += 12;
     }
 
     return score;
@@ -2719,6 +3271,20 @@ window.AriEllipticalFollowUpResolver = {
     recentExchange = {}
   } = {}) {
     let score = 0;
+
+    if (
+      [
+        "opinion_about_prior_referent",
+        "emotional_opinion_about_prior_referent",
+        "agreement_about_prior_referent"
+      ].includes(
+        familyResolution.family
+      ) &&
+      candidate.role ===
+        "assistant"
+    ) {
+      score += 24;
+    }
 
     if (
       familyResolution.family ===
@@ -2781,26 +3347,31 @@ window.AriEllipticalFollowUpResolver = {
         .filter(Boolean)
         .length;
 
-    if (words <= 1) {
+    if (
+      words <= 1
+    ) {
       return -20;
     }
 
-    if (words <= 3) {
-      return -8;
+    if (
+      words <= 3
+    ) {
+      return -7;
     }
 
     if (
-      candidate.normalizedText ===
-      "information request"
+      this.isPlaceholderTarget(
+        candidate.normalizedText
+      )
     ) {
-      return -30;
+      return -50;
     }
 
     return 0;
   },
 
   /* =====================================================
-     ANCHOR DECISION
+     ANCHOR SELECTION
   ===================================================== */
 
   selectAnchor({
@@ -2837,7 +3408,7 @@ window.AriEllipticalFollowUpResolver = {
           true,
 
         reason:
-          "No usable prior conversational anchor was available.",
+          "No usable recent conversational anchor was available.",
 
         competingAnchors:
           []
@@ -2872,7 +3443,8 @@ window.AriEllipticalFollowUpResolver = {
       });
 
     if (
-      score < threshold
+      score <
+      threshold
     ) {
       return {
         status:
@@ -2888,25 +3460,31 @@ window.AriEllipticalFollowUpResolver = {
           ),
 
         score,
-
         margin,
 
         requiresClarification:
           true,
 
         reason:
-          `The strongest anchor score ${score} did not meet the required threshold ${threshold}.`,
+          `The strongest anchor score ${score} did not meet the threshold ${threshold}.`,
 
         competingAnchors:
           rankedAnchors
-            .slice(0, 3)
+            .slice(
+              0,
+              3
+            )
       };
     }
 
     if (
       second &&
       margin <
-      requiredMargin
+        requiredMargin &&
+      !this.sameUnderlyingTurn(
+        best,
+        second
+      )
     ) {
       return {
         status:
@@ -2922,18 +3500,20 @@ window.AriEllipticalFollowUpResolver = {
           ),
 
         score,
-
         margin,
 
         requiresClarification:
           true,
 
         reason:
-          `The strongest anchors were too close. Required margin: ${requiredMargin}; observed margin: ${margin}.`,
+          `The leading anchors were too close. Required margin: ${requiredMargin}; observed margin: ${margin}.`,
 
         competingAnchors:
           rankedAnchors
-            .slice(0, 3)
+            .slice(
+              0,
+              3
+            )
       };
     }
 
@@ -2951,7 +3531,6 @@ window.AriEllipticalFollowUpResolver = {
         ),
 
       score,
-
       margin,
 
       requiresClarification:
@@ -2962,8 +3541,23 @@ window.AriEllipticalFollowUpResolver = {
 
       competingAnchors:
         rankedAnchors
-          .slice(1, 4)
+          .slice(
+            1,
+            4
+          )
     };
+  },
+
+  sameUnderlyingTurn(
+    first = {},
+    second = {}
+  ) {
+    return Boolean(
+      first.sourceTurnId &&
+      second.sourceTurnId &&
+      first.sourceTurnId ===
+        second.sourceTurnId
+    );
   },
 
   anchorThreshold({
@@ -2971,9 +3565,22 @@ window.AriEllipticalFollowUpResolver = {
     familyResolution = {}
   } = {}) {
     if (
-      currentTurn.wordCount <= 1
+      [
+        "opinion_about_prior_referent",
+        "emotional_opinion_about_prior_referent",
+        "agreement_about_prior_referent"
+      ].includes(
+        familyResolution.family
+      )
     ) {
-      return 95;
+      return 90;
+    }
+
+    if (
+      currentTurn.wordCount <=
+      1
+    ) {
+      return 94;
     }
 
     if (
@@ -3028,14 +3635,20 @@ window.AriEllipticalFollowUpResolver = {
     const value =
       0.42 +
       Math.min(
-        0.4,
-        Number(score || 0) /
-        300
+        0.42,
+        Number(
+          score ||
+          0
+        ) /
+          300
       ) +
       Math.min(
         0.14,
-        Number(margin || 0) /
-        100
+        Number(
+          margin ||
+          0
+        ) /
+          100
       );
 
     return Number(
@@ -3045,7 +3658,9 @@ window.AriEllipticalFollowUpResolver = {
           0.98,
           value
         )
-      ).toFixed(3)
+      ).toFixed(
+        3
+      )
     );
   },
 
@@ -3056,7 +3671,6 @@ window.AriEllipticalFollowUpResolver = {
   buildInheritedContext({
     anchorDecision = {},
     familyResolution = {},
-    currentTurn = {},
     recentExchange = {}
   } = {}) {
     const selected =
@@ -3099,40 +3713,98 @@ window.AriEllipticalFollowUpResolver = {
       };
     }
 
-    const extraction =
-      this.extractAnchorMeaning({
-        anchor:
-          selected,
+    const anchorText =
+      this.clean(
+        selected.text
+      );
 
-        familyResolution,
-        currentTurn,
-        recentExchange
-      });
+    const family =
+      familyResolution.family;
+
+    const extractedChoice =
+      this.extractChoiceFromText(
+        anchorText
+      );
+
+    const extractedQuantity =
+      this.extractQuantityFromText(
+        anchorText
+      );
+
+    const propositionFamilies = [
+      "opinion_about_prior_referent",
+      "emotional_opinion_about_prior_referent",
+      "agreement_about_prior_referent",
+      "causal_explanation",
+      "negative_causal_explanation",
+      "confirmation",
+      "clarification",
+      "evidence",
+      "source",
+      "significance",
+      "continuation",
+      "demonstrative_follow_up",
+      "general_elaboration"
+    ];
 
     return {
       inherited:
         true,
 
       subject:
-        extraction.subject,
+        this.extractSubjectFromQuestion(
+          recentExchange
+            .previousUserText
+        ) ||
+        null,
 
       target:
-        extraction.target,
+        extractedChoice ||
+        anchorText,
 
       object:
-        extraction.object,
+        extractedChoice ||
+        anchorText,
 
       proposition:
-        extraction.proposition,
+        propositionFamilies.includes(
+          family
+        )
+          ? anchorText
+          : null,
 
       event:
-        extraction.event,
+        [
+          "method_or_mechanism",
+          "consequence_or_next_step"
+        ].includes(
+          family
+        )
+          ? anchorText
+          : null,
 
       option:
-        extraction.option,
+        [
+          "selection",
+          "selection_reference",
+          "alternative_or_comparison"
+        ].includes(
+          family
+        )
+          ? extractedChoice ||
+            anchorText
+          : null,
 
       quantity:
-        extraction.quantity,
+        [
+          "quantity_or_degree",
+          "severity",
+          "probability"
+        ].includes(
+          family
+        )
+          ? extractedQuantity
+          : null,
 
       sourceTurnId:
         selected.sourceTurnId,
@@ -3143,196 +3815,17 @@ window.AriEllipticalFollowUpResolver = {
       anchorType:
         selected.type,
 
-      anchorText:
-        selected.text,
+      anchorText,
 
       minimumNecessaryContextOnly:
         true,
 
       reason:
-        "Inherited only the context required to complete the elliptical follow-up.",
+        "Inherited only the recent-thread content required to complete the current request.",
 
       authority:
         "elliptical_slot_inheritance_only"
     };
-  },
-
-  extractAnchorMeaning({
-    anchor = {},
-    familyResolution = {},
-    recentExchange = {}
-  } = {}) {
-    const text =
-      this.clean(
-        anchor.text
-      );
-
-    const family =
-      familyResolution.family;
-
-    const extractedChoice =
-      this.extractChoiceFromText(
-        text
-      );
-
-    const extractedQuantity =
-      this.extractQuantityFromText(
-        text
-      );
-
-    const extractedSubject =
-      this.extractSubjectFromQuestion(
-        recentExchange
-          .previousUserText
-      );
-
-    const base = {
-      subject:
-        extractedSubject ||
-        (
-          anchor.role ===
-          "assistant"
-            ? "assistant"
-            : null
-        ),
-
-      target:
-        null,
-
-      object:
-        null,
-
-      proposition:
-        text ||
-        null,
-
-      event:
-        null,
-
-      option:
-        null,
-
-      quantity:
-        null
-    };
-
-    if (
-      [
-        "causal_explanation",
-        "negative_causal_explanation",
-        "confirmation",
-        "clarification",
-        "evidence",
-        "source",
-        "significance"
-      ].includes(
-        family
-      )
-    ) {
-      base.target =
-        extractedChoice ||
-        text;
-
-      base.object =
-        extractedChoice ||
-        text;
-
-      base.proposition =
-        text;
-    }
-
-    if (
-      family ===
-      "method_or_mechanism"
-    ) {
-      base.event =
-        text;
-
-      base.target =
-        text;
-    }
-
-    if (
-      [
-        "selection",
-        "selection_reference",
-        "alternative_or_comparison"
-      ].includes(
-        family
-      )
-    ) {
-      base.option =
-        extractedChoice ||
-        text;
-
-      base.target =
-        extractedChoice ||
-        text;
-    }
-
-    if (
-      [
-        "quantity_or_degree",
-        "severity",
-        "probability"
-      ].includes(
-        family
-      )
-    ) {
-      base.quantity =
-        extractedQuantity;
-
-      base.target =
-        text;
-    }
-
-    if (
-      family ===
-      "consequence_or_next_step"
-    ) {
-      base.event =
-        text;
-
-      base.target =
-        text;
-    }
-
-    if (
-      family ===
-      "continuation"
-    ) {
-      base.proposition =
-        text;
-
-      base.target =
-        text;
-    }
-
-    if (
-      family ===
-      "person_identification"
-    ) {
-      base.target =
-        "person associated with the prior statement";
-    }
-
-    if (
-      family ===
-      "location_identification"
-    ) {
-      base.target =
-        "location associated with the prior statement";
-    }
-
-    if (
-      family ===
-      "time_identification"
-    ) {
-      base.target =
-        "time associated with the prior statement";
-    }
-
-    return base;
   },
 
   /* =====================================================
@@ -3348,7 +3841,7 @@ window.AriEllipticalFollowUpResolver = {
   } = {}) {
     if (
       anchorDecision.status !==
-      "resolved" ||
+        "resolved" ||
       !anchorDecision.selected
     ) {
       return {
@@ -3356,6 +3849,9 @@ window.AriEllipticalFollowUpResolver = {
           false,
 
         originalText:
+          currentTurn.originalText,
+
+        text:
           currentTurn.originalText,
 
         resolvedText:
@@ -3386,12 +3882,15 @@ window.AriEllipticalFollowUpResolver = {
       });
 
     const changed =
+      Boolean(
+        resolvedText
+      ) &&
       this.normalize(
         resolvedText
       ) !==
-      this.normalize(
-        currentTurn.originalText
-      );
+        this.normalize(
+          currentTurn.originalText
+        );
 
     return {
       resolved:
@@ -3446,12 +3945,33 @@ window.AriEllipticalFollowUpResolver = {
       sourceRole:
         inheritedContext.sourceRole,
 
+      referenceType:
+        "elliptical_or_deictic_reference",
+
+      referenceSurface:
+        currentTurn
+          .demonstratives
+          ?.primarySurface ||
+        null,
+
+      referenceResolved:
+        true,
+
+      resolvedReferenceValue:
+        inheritedContext.anchorText ||
+        inheritedContext.target ||
+        null,
+
+      resolvedReferenceSourceTurnId:
+        inheritedContext.sourceTurnId ||
+        null,
+
       requiresClarification:
         !resolvedText,
 
       resolutionReason:
         resolvedText
-          ? "The omitted semantic content was reconstructed from the selected recent-thread anchor."
+          ? "The omitted referent was reconstructed from the selected recent-thread anchor."
           : "A safe natural-language reconstruction could not be produced.",
 
       originalPreserved:
@@ -3469,26 +3989,25 @@ window.AriEllipticalFollowUpResolver = {
     recentExchange = {},
     anchor = {}
   } = {}) {
-    const original =
-      currentTurn.originalText;
-
     const family =
       familyResolution.family;
 
-    const target =
+    const fullAnchor =
       this.clean(
+        inheritedContext
+          .anchorText ||
+        inheritedContext
+          .proposition ||
         inheritedContext.target ||
-        inheritedContext.object ||
-        inheritedContext.option ||
-        inheritedContext.event ||
-        inheritedContext.proposition ||
         anchor.text ||
         ""
       );
 
-    const conciseTarget =
+    const conciseAnchor =
       this.buildConciseAnchorDescription({
-        target,
+        target:
+          fullAnchor,
+
         previousQuestion:
           recentExchange
             .previousUserText,
@@ -3501,183 +4020,169 @@ window.AriEllipticalFollowUpResolver = {
       });
 
     switch (family) {
-      case "causal_explanation":
-        return this.renderWhyResolution({
-          conciseTarget,
-          previousQuestion:
-            recentExchange
-              .previousUserText,
+      case "opinion_about_prior_referent":
+        return conciseAnchor
+          ? `What do you think about this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "What do you think about the previous answer?";
 
-          previousAnswer:
-            recentExchange
-              .previousAssistantText
-        });
+      case "emotional_opinion_about_prior_referent":
+        return conciseAnchor
+          ? `How do you feel about this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "How do you feel about the previous answer?";
+
+      case "agreement_about_prior_referent":
+        return conciseAnchor
+          ? `Do you agree with this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "Do you agree with the previous answer?";
+
+      case "causal_explanation":
+        return conciseAnchor
+          ? `Why is this prior statement true or appropriate: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "Why did you give the previous answer?";
 
       case "negative_causal_explanation":
-        return conciseTarget
-          ? `Why would ${conciseTarget} not be the preferred choice?`
-          : `Why not?`;
+        return conciseAnchor
+          ? `Why would the opposite of this prior statement be preferable: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "Why not?";
 
       case "method_or_mechanism":
-        return conciseTarget
-          ? `How does ${conciseTarget} work or happen?`
-          : `How does the previous answer work?`;
+        return conciseAnchor
+          ? `How does the subject described in this prior statement work or happen: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "How does the subject of the previous answer work?";
 
       case "confirmation":
-        return conciseTarget
-          ? `Is it really true that ${this.lowercaseFirst(
-              conciseTarget
+        return conciseAnchor
+          ? `Is this prior statement really correct: ${this.quoteIfNeeded(
+              conciseAnchor
             )}?`
-          : `Is the previous answer really correct?`;
+          : "Is the previous answer really correct?";
 
       case "clarification":
-        return conciseTarget
-          ? `What do you mean by ${this.quoteIfNeeded(
-              conciseTarget
+        return conciseAnchor
+          ? `What do you mean by this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
             )}?`
-          : `What do you mean by your previous answer?`;
+          : "What do you mean by the previous answer?";
 
       case "person_identification":
-        return conciseTarget
-          ? `Who is the person connected to ${this.quoteIfNeeded(
-              conciseTarget
+        return conciseAnchor
+          ? `Who is the person referred to in this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
             )}?`
-          : `Who are you referring to in the previous answer?`;
+          : "Who are you referring to in the previous answer?";
 
       case "location_identification":
-        return conciseTarget
-          ? `Where does ${conciseTarget} take place or apply?`
-          : `Where does the previous answer apply?`;
+        return conciseAnchor
+          ? `Where does the subject of this prior statement occur or apply: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "Where does the previous answer apply?";
 
       case "time_identification":
-        return conciseTarget
-          ? `When does ${conciseTarget} happen or apply?`
-          : `When does the previous answer apply?`;
+        return conciseAnchor
+          ? `When does the subject of this prior statement occur or apply: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "When does the previous answer apply?";
 
       case "selection":
-        return `Which option from the previous discussion is the better choice?`;
+        return "Which option from the previous discussion is the better choice?";
 
       case "selection_reference":
-        return conciseTarget
-          ? `${this.capitalizeFirst(
-              original
-            )} because of ${conciseTarget}?`
-          : `${this.capitalizeFirst(
-              original
-            )}?`;
+        return conciseAnchor
+          ? `Why or how does the referenced option relate to this prior discussion: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "Why or how does that option relate to the previous discussion?";
 
       case "alternative_or_comparison":
         return this.renderAlternativeResolution({
-          original,
+          original:
+            currentTurn.originalText,
+
           recentExchange,
-          conciseTarget
+
+          conciseTarget:
+            conciseAnchor
         });
 
       case "quantity_or_degree":
-        return conciseTarget
-          ? `What is the amount, degree, or magnitude associated with ${conciseTarget}?`
-          : `What is the relevant amount or degree from the previous answer?`;
+        return conciseAnchor
+          ? `What is the relevant amount or degree associated with this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "What is the relevant amount or degree from the previous answer?";
 
       case "severity":
-        return conciseTarget
-          ? `How serious or severe is ${conciseTarget}?`
-          : `How serious is the situation described in the previous answer?`;
+        return conciseAnchor
+          ? `How serious is the situation described in this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "How serious is the situation described in the previous answer?";
 
       case "probability":
-        return conciseTarget
-          ? `How likely is ${conciseTarget}?`
-          : `How likely is the outcome described in the previous answer?`;
+        return conciseAnchor
+          ? `How likely is the outcome described in this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "How likely is the outcome described in the previous answer?";
 
       case "evidence":
-        return conciseTarget
-          ? `What evidence supports the claim that ${this.lowercaseFirst(
-              conciseTarget
+        return conciseAnchor
+          ? `What evidence supports this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
             )}?`
-          : `What evidence supports the previous answer?`;
+          : "What evidence supports the previous answer?";
 
       case "source":
-        return conciseTarget
-          ? `What source supports the claim that ${this.lowercaseFirst(
-              conciseTarget
+        return conciseAnchor
+          ? `What source supports this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
             )}?`
-          : `What is the source for the previous answer?`;
+          : "What is the source for the previous answer?";
 
       case "significance":
-        return conciseTarget
-          ? `Why does ${conciseTarget} matter?`
-          : `Why does the previous answer matter?`;
+        return conciseAnchor
+          ? `Why does this prior statement matter: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "Why does the previous answer matter?";
 
       case "consequence_or_next_step":
-        return conciseTarget
-          ? `What happens next after ${conciseTarget}?`
-          : `What should happen next based on the previous answer?`;
+        return conciseAnchor
+          ? `What happens next based on this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "What should happen next based on the previous answer?";
 
       case "continuation":
-        return conciseTarget
-          ? `Continue explaining ${conciseTarget}.`
-          : `Continue the previous explanation.`;
+        return conciseAnchor
+          ? `Continue explaining this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}.`
+          : "Continue the previous explanation.";
 
       case "demonstrative_follow_up":
-        return conciseTarget
-          ? `${this.capitalizeFirst(
-              original
-            )} in relation to ${conciseTarget}?`
-          : `${this.capitalizeFirst(
-              original
-            )}?`;
-
       case "general_elaboration":
       default:
-        return conciseTarget
-          ? `Can you elaborate on ${conciseTarget}?`
-          : `Can you elaborate on the previous answer?`;
+        return conciseAnchor
+          ? `Can you elaborate on this prior statement: ${this.quoteIfNeeded(
+              conciseAnchor
+            )}?`
+          : "Can you elaborate on the previous answer?";
     }
-  },
-
-  renderWhyResolution({
-    conciseTarget = "",
-    previousQuestion = "",
-    previousAnswer = ""
-  } = {}) {
-    const choice =
-      this.extractChoiceFromText(
-        previousAnswer
-      );
-
-    const preferenceSubject =
-      this.extractPreferenceSubject(
-        previousQuestion
-      );
-
-    if (
-      choice &&
-      preferenceSubject
-    ) {
-      return `Why would you choose ${choice} as your ${preferenceSubject}?`;
-    }
-
-    if (choice) {
-      return `Why would you choose ${choice}?`;
-    }
-
-    if (
-      conciseTarget &&
-      this.looksLikeCompleteClaim(
-        conciseTarget
-      )
-    ) {
-      return `Why is it true that ${this.lowercaseFirst(
-        conciseTarget
-      )}?`;
-    }
-
-    if (conciseTarget) {
-      return `Why did you say ${this.quoteIfNeeded(
-        conciseTarget
-      )}?`;
-    }
-
-    return "Why did you give the previous answer?";
   },
 
   renderAlternativeResolution({
@@ -3718,92 +4223,59 @@ window.AriEllipticalFollowUpResolver = {
       recentExchange
         .previousQuestionContainsOptions
     ) {
-      return "How does the alternative option compare with the one just discussed?";
+      return "How does the alternative option compare with the option just discussed?";
     }
 
     return conciseTarget
-      ? `What about the alternative to ${conciseTarget}?`
+      ? `What about an alternative to this prior statement: ${this.quoteIfNeeded(
+          conciseTarget
+        )}?`
       : "What about the alternative from the previous discussion?";
   },
 
   buildConciseAnchorDescription({
     target = "",
-    previousQuestion = "",
-    previousAnswer = "",
-    family = ""
+    previousAnswer = ""
   } = {}) {
     const cleanedTarget =
       this.clean(
-        target
-      );
-
-    const choice =
-      this.extractChoiceFromText(
+        target ||
         previousAnswer
       );
 
-    if (
-      [
-        "causal_explanation",
-        "confirmation",
-        "clarification",
-        "evidence",
-        "source",
-        "significance"
-      ].includes(
-        family
-      ) &&
-      choice
-    ) {
-      return choice;
+    if (!cleanedTarget) {
+      return "";
     }
 
-    if (
-      cleanedTarget.length <=
-      180
-    ) {
-      return this.stripTerminalPunctuation(
-        cleanedTarget
-      );
-    }
-
-    const firstSentence =
+    const sentences =
       this.splitSentences(
         cleanedTarget
-      )[0] ||
+      );
+
+    const firstSentence =
+      sentences[0] ||
       cleanedTarget;
 
     if (
       firstSentence.length <=
-      180
+      240
     ) {
       return this.stripTerminalPunctuation(
         firstSentence
       );
     }
 
-    const preferenceSubject =
-      this.extractPreferenceSubject(
-        previousQuestion
-      );
-
-    if (
-      choice &&
-      preferenceSubject
-    ) {
-      return `${choice} as your ${preferenceSubject}`;
-    }
-
     return this.stripTerminalPunctuation(
       firstSentence.slice(
         0,
-        177
-      ) + "..."
+        237
+      ) +
+        "..."
     );
   },
 
   /* =====================================================
-     QUALITY
+     QUALITY AND RESULTS
   ===================================================== */
 
   buildQuality({
@@ -3865,8 +4337,8 @@ window.AriEllipticalFollowUpResolver = {
       familyResolution.confidence,
       anchorDecision.confidence,
       resolvedTurn.resolved
-        ? 0.95
-        : 0.2
+        ? 0.96
+        : 0.15
     ];
 
     const confidence =
@@ -3876,7 +4348,10 @@ window.AriEllipticalFollowUpResolver = {
           value
         ) =>
           total +
-          Number(value || 0),
+          Number(
+            value ||
+            0
+          ),
         0
       ) /
       confidenceParts.length;
@@ -3918,16 +4393,14 @@ window.AriEllipticalFollowUpResolver = {
         Number(
           this.normalizeConfidence(
             confidence
-          ).toFixed(3)
+          ).toFixed(
+            3
+          )
         ),
 
       warnings
     };
   },
-
-  /* =====================================================
-     CANONICAL RESULT
-  ===================================================== */
 
   buildCanonicalResult({
     currentTurn = {},
@@ -3966,6 +4439,18 @@ window.AriEllipticalFollowUpResolver = {
         detection.detected ===
           true,
 
+      isContinuation:
+        detection.detected ===
+          true,
+
+      requiresPriorContext:
+        detection.detected ===
+          true,
+
+      referencesPriorContext:
+        detection.detected ===
+          true,
+
       originalText:
         currentTurn.originalText,
 
@@ -3983,6 +4468,37 @@ window.AriEllipticalFollowUpResolver = {
 
       followUpOperation:
         familyResolution.operation,
+
+      referenceType:
+        resolvedTurn.referenceType ||
+        (
+          detection
+            .demonstrativeReference
+            ?.present
+            ? "deictic_reference"
+            : "elliptical_reference"
+        ),
+
+      referenceSurface:
+        resolvedTurn.referenceSurface ||
+        detection
+          .demonstrativeReference
+          ?.primarySurface ||
+        null,
+
+      referenceResolved:
+        resolvedTurn.referenceResolved ===
+          true,
+
+      resolvedReferenceValue:
+        resolvedTurn
+          .resolvedReferenceValue ||
+        null,
+
+      resolvedReferenceSourceTurnId:
+        resolvedTurn
+          .resolvedReferenceSourceTurnId ||
+        null,
 
       currentTurn,
 
@@ -4115,6 +4631,9 @@ window.AriEllipticalFollowUpResolver = {
         canResolveOmittedSemanticSlots:
           true,
 
+        canResolveDemonstrativeReferences:
+          true,
+
         canSelectRecentThreadAnchor:
           true,
 
@@ -4186,6 +4705,15 @@ window.AriEllipticalFollowUpResolver = {
       detected:
         false,
 
+      isContinuation:
+        false,
+
+      requiresPriorContext:
+        false,
+
+      referencesPriorContext:
+        false,
+
       originalText:
         currentTurn.originalText,
 
@@ -4199,6 +4727,21 @@ window.AriEllipticalFollowUpResolver = {
         null,
 
       followUpOperation:
+        null,
+
+      referenceType:
+        null,
+
+      referenceSurface:
+        null,
+
+      referenceResolved:
+        false,
+
+      resolvedReferenceValue:
+        null,
+
+      resolvedReferenceSourceTurnId:
         null,
 
       currentTurn,
@@ -4403,6 +4946,9 @@ window.AriEllipticalFollowUpResolver = {
         canResolveOmittedSemanticSlots:
           true,
 
+        canResolveDemonstrativeReferences:
+          true,
+
         canSelectRecentThreadAnchor:
           true,
 
@@ -4446,7 +4992,7 @@ window.AriEllipticalFollowUpResolver = {
   },
 
   /* =====================================================
-     RETURN PAYLOAD
+     RETURN AND PUBLICATION
   ===================================================== */
 
   buildReturnPayload(
@@ -4503,6 +5049,43 @@ window.AriEllipticalFollowUpResolver = {
         resolution
           .currentTurnWasResolved ===
           true,
+
+      isContinuation:
+        resolution.isContinuation ===
+          true,
+
+      requiresPriorContext:
+        resolution
+          .requiresPriorContext ===
+          true,
+
+      referencesPriorContext:
+        resolution
+          .referencesPriorContext ===
+          true,
+
+      referenceType:
+        resolution.referenceType ||
+        null,
+
+      referenceSurface:
+        resolution.referenceSurface ||
+        null,
+
+      referenceResolved:
+        resolution
+          .referenceResolved ===
+          true,
+
+      resolvedReferenceValue:
+        resolution
+          .resolvedReferenceValue ||
+        null,
+
+      resolvedReferenceSourceTurnId:
+        resolution
+          .resolvedReferenceSourceTurnId ||
+        null,
 
       followUpFamily:
         resolution.followUpFamily ||
@@ -4586,7 +5169,7 @@ window.AriEllipticalFollowUpResolver = {
   },
 
   /* =====================================================
-     TEXT AND MEANING EXTRACTION
+     EXTRACTION AND HEURISTICS
   ===================================================== */
 
   extractChoiceFromText(
@@ -4597,18 +5180,15 @@ window.AriEllipticalFollowUpResolver = {
         value
       );
 
-    if (!text) {
-      return null;
-    }
-
     const patterns = [
-      /\b(?:i would|i'd|i will|i'll|i would probably|my choice would be|i choose|i chose|i prefer|my favorite is)\s+(?:choose\s+)?([^.!?]+?)(?:\s+because|\s+since|\s+as\s+my|[.!?]|$)/i,
+      /\b(?:i would|i'd|i will|i'll|my choice would be|i choose|i chose|i prefer|my favorite is)\s+(?:choose\s+)?([^.!?]+?)(?:\s+because|\s+since|[.!?]|$)/i,
 
       /\b(?:the better choice is|the best option is|the answer is|it is|it's)\s+([^.!?]+?)(?:\s+because|\s+since|[.!?]|$)/i
     ];
 
     for (
-      const pattern of patterns
+      const pattern
+      of patterns
     ) {
       const match =
         text.match(
@@ -4618,72 +5198,15 @@ window.AriEllipticalFollowUpResolver = {
       if (
         match?.[1]
       ) {
-        return this.cleanChoice(
+        return this.clean(
           match[1]
-        );
+        )
+          .replace(
+            /[.!?]+$/,
+            ""
+          )
+          .trim();
       }
-    }
-
-    return null;
-  },
-
-  cleanChoice(
-    value = ""
-  ) {
-    return this.clean(
-      value
-    )
-      .replace(
-        /^(?:the|a|an)\s+/i,
-        match =>
-          match.toLowerCase()
-      )
-      .replace(
-        /\s+(?:as|because|since)\s+.*$/i,
-        ""
-      )
-      .replace(
-        /[.!?]+$/,
-        ""
-      )
-      .trim();
-  },
-
-  extractPreferenceSubject(
-    question = ""
-  ) {
-    const text =
-      this.normalize(
-        question
-      );
-
-    if (!text) {
-      return null;
-    }
-
-    const match =
-      text.match(
-        /\b(?:your|the)\s+favorite\s+([a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,3})/
-      );
-
-    if (
-      match?.[1]
-    ) {
-      return match[1]
-        .replace(
-          /\b(?:is|are|was|were|do|does|did)\b.*$/,
-          ""
-        )
-        .trim();
-    }
-
-    if (
-      /\bwhich\s+(?:one|option|choice)\b/
-        .test(
-          text
-        )
-    ) {
-      return "preferred option";
     }
 
     return null;
@@ -4714,33 +5237,17 @@ window.AriEllipticalFollowUpResolver = {
       )}`;
     }
 
-    const subjectMatch =
-      text.match(
-        /^(?:why|how|what|who|where|when|which|is|are|do|does|did|can|could|should|would|will)\s+(?:is|are|was|were|do|does|did|can|could|should|would|will)?\s*(.+?)(?:\?|$)/i
-      );
-
-    if (
-      subjectMatch?.[1]
-    ) {
-      return this.clean(
-        subjectMatch[1]
-      );
-    }
-
     return null;
   },
 
   extractQuantityFromText(
     value = ""
   ) {
-    const text =
+    const match =
       this.clean(
         value
-      );
-
-    const match =
-      text.match(
-        /\b(?:\$?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:percent|%|dollars?|hours?|days?|weeks?|months?|years?|miles?|feet|inches?|pounds?|lbs?|kg|kilograms?|degrees?))?)\b/i
+      ).match(
+        /\b\$?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:percent|%|dollars?|hours?|days?|weeks?|months?|years?|miles?|feet|inches?|pounds?|lbs?|kg|kilograms?|degrees?))?\b/i
       );
 
     return match?.[0] ||
@@ -4770,7 +5277,9 @@ window.AriEllipticalFollowUpResolver = {
       typeof value ===
       "number"
     ) {
-      return String(value);
+      return String(
+        value
+      );
     }
 
     if (
@@ -4791,7 +5300,9 @@ window.AriEllipticalFollowUpResolver = {
     }
 
     return this.clean(
-      String(value)
+      String(
+        value
+      )
     );
   },
 
@@ -4842,10 +5353,6 @@ window.AriEllipticalFollowUpResolver = {
     return "concept";
   },
 
-  /* =====================================================
-     HEURISTICS
-  ===================================================== */
-
   looksLikeClaim(
     value = ""
   ) {
@@ -4856,32 +5363,10 @@ window.AriEllipticalFollowUpResolver = {
 
     return Boolean(
       text &&
-      /\b(?:is|are|was|were|will|would|can|could|should|has|have|had|fits|means|causes|requires|includes|works|matters)\b/
+      /\b(?:is|are|was|were|will|would|can|could|should|has|have|had|fits|means|causes|requires|includes|works|matters|states|emphasizes)\b/
         .test(
           text
         )
-    );
-  },
-
-  looksLikeCompleteClaim(
-    value = ""
-  ) {
-    const text =
-      this.normalize(
-        value
-      );
-
-    const wordCount =
-      text
-        .split(/\s+/)
-        .filter(Boolean)
-        .length;
-
-    return (
-      wordCount >= 4 &&
-      this.looksLikeClaim(
-        text
-      )
     );
   },
 
@@ -4950,10 +5435,10 @@ window.AriEllipticalFollowUpResolver = {
         const key =
           [
             turn.id ||
-            "no_id",
+              "no_id",
 
             turn.role ||
-            "no_role",
+              "no_role",
 
             this.normalize(
               turn.text
@@ -4962,12 +5447,16 @@ window.AriEllipticalFollowUpResolver = {
 
         if (
           !turn.text ||
-          seen.has(key)
+          seen.has(
+            key
+          )
         ) {
           return false;
         }
 
-        seen.add(key);
+        seen.add(
+          key
+        );
 
         return true;
       }
@@ -4988,27 +5477,19 @@ window.AriEllipticalFollowUpResolver = {
           [
             candidate.type,
             candidate.sourceTurnId ||
-            "none",
+              "none",
             candidate.normalizedText
           ].join("|");
 
-        if (
-          !seen.has(key)
-        ) {
-          seen.set(
-            key,
-            candidate
+        const existing =
+          seen.get(
+            key
           );
 
-          return;
-        }
-
-        const existing =
-          seen.get(key);
-
         if (
+          !existing ||
           candidate.priority >
-          existing.priority
+            existing.priority
         ) {
           seen.set(
             key,
@@ -5103,52 +5584,48 @@ window.AriEllipticalFollowUpResolver = {
           .trim();
 
       const labels = {
-        none:
-          0,
-
-        very_low:
-          0.2,
-
-        low:
-          0.4,
-
-        medium:
-          0.65,
-
-        high:
-          0.85,
-
-        very_high:
-          0.95
+        none: 0,
+        very_low: 0.2,
+        low: 0.4,
+        medium: 0.65,
+        high: 0.85,
+        very_high: 0.95
       };
 
       if (
-        labels[normalized] !==
+        labels[
+          normalized
+        ] !==
         undefined
       ) {
-        return labels[normalized];
+        return labels[
+          normalized
+        ];
       }
     }
 
     const number =
-      Number(value);
+      Number(
+        value
+      );
 
     if (
-      !Number.isFinite(number)
+      !Number.isFinite(
+        number
+      )
     ) {
       return 0;
     }
 
     if (
-      number >
-      1
+      number > 1
     ) {
       return Math.max(
         0,
         Math.min(
           1,
           number /
-          100
+            100
         )
       );
     }
@@ -5182,7 +5659,9 @@ window.AriEllipticalFollowUpResolver = {
         sentence =>
           sentence.trim()
       )
-      .filter(Boolean);
+      .filter(
+        Boolean
+      );
   },
 
   stripTerminalPunctuation(
@@ -5193,44 +5672,6 @@ window.AriEllipticalFollowUpResolver = {
     ).replace(
       /[.!?]+$/,
       ""
-    );
-  },
-
-  lowercaseFirst(
-    value = ""
-  ) {
-    const text =
-      this.clean(
-        value
-      );
-
-    if (!text) {
-      return "";
-    }
-
-    return (
-      text.charAt(0)
-        .toLowerCase() +
-      text.slice(1)
-    );
-  },
-
-  capitalizeFirst(
-    value = ""
-  ) {
-    const text =
-      this.clean(
-        value
-      );
-
-    if (!text) {
-      return "";
-    }
-
-    return (
-      text.charAt(0)
-        .toUpperCase() +
-      text.slice(1)
     );
   },
 
@@ -5264,7 +5705,9 @@ window.AriEllipticalFollowUpResolver = {
       Number(
         value ||
         0
-      ).toFixed(3)
+      ).toFixed(
+        3
+      )
     );
   },
 
@@ -5408,5 +5851,6 @@ window.Ari.ellipticalFollowUpResolver =
 
 console.log(
   "ARI ELLIPTICAL FOLLOW-UP RESOLVER LOADED:",
-  window.AriEllipticalFollowUpResolver?.version
+  window.AriEllipticalFollowUpResolver
+    ?.version
 );
