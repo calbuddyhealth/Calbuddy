@@ -79,6 +79,11 @@ mark("before continuityResolution");
 const continuityInput = {
   ...state,
 
+  runtime,
+
+  originalUserMessage:
+    originalText,
+
   userMessage:
     originalText,
 
@@ -209,6 +214,106 @@ const currentTurnWasResolved =
       )
   );
 
+const unresolvedContextDependentTurn =
+  continuityResolution
+    .isContinuation === true &&
+  continuityResolution
+    .requiresPriorContext === true &&
+  currentTurnWasResolved !== true;
+  
+  const rawAnchor =
+
+  continuityResolution.anchor;
+
+const normalizedAnchor =
+
+  rawAnchor &&
+
+  typeof rawAnchor === "object" &&
+
+  !Array.isArray(rawAnchor)
+
+    ? rawAnchor
+
+    : {
+
+        value:
+
+          typeof rawAnchor === "string"
+
+            ? rawAnchor
+
+            : null
+
+      };
+const governedContinuityResolution = {
+  ...continuityResolution,
+
+  requiresClarification:
+    continuityResolution
+      .requiresClarification === true ||
+    unresolvedContextDependentTurn,
+
+  unresolvedContextDependentTurn,
+
+  status:
+    currentTurnWasResolved
+      ? "resolved"
+      : unresolvedContextDependentTurn
+        ? "clarification_required"
+        : continuityResolution.status,
+
+  anchor: {
+    ...(
+      continuityResolution.anchor ||
+      {}
+    ),
+
+    status:
+      currentTurnWasResolved
+        ? "resolved"
+        : unresolvedContextDependentTurn
+          ? "unresolved"
+          : (
+              continuityResolution
+                .anchor
+                ?.status ||
+              "not_required"
+            ),
+
+    resolved:
+      currentTurnWasResolved,
+
+    missing:
+      unresolvedContextDependentTurn
+  },
+
+  quality: {
+    ...(
+      continuityResolution.quality ||
+      {}
+    ),
+
+    ready:
+      currentTurnWasResolved ||
+      continuityResolution
+        .isContinuation !== true,
+
+    healthy:
+      (
+        currentTurnWasResolved ||
+        continuityResolution
+          .isContinuation !== true
+      ) &&
+      !unresolvedContextDependentTurn,
+
+    requiresClarification:
+      continuityResolution
+        .requiresClarification === true ||
+      unresolvedContextDependentTurn
+  }
+};
+
 const currentTurn = {
   originalText,
 
@@ -233,18 +338,22 @@ const currentTurn = {
       : null,
 
   continuity:
-    continuityResolution
+    governedContinuityResolution
 };
 
 state = {
   ...state,
 
-  continuityResolution,
+  continuityResolution:
+    governedContinuityResolution,
 
   authoritativeContinuity:
-    continuityResolution,
+    governedContinuityResolution,
 
   continuity:
+    governedContinuityResolution,
+
+  rawContinuityResolution:
     continuityResolution,
 
   currentTurn,
@@ -262,36 +371,103 @@ state = {
 
   currentTurnWasResolved,
 
+  unresolvedContextDependentTurn,
+
   continuityStatus:
-    continuityResolution.status ||
+    governedContinuityResolution.status ||
     (
-      continuityResolution
+      governedContinuityResolution
         .continuityResolverRan === true
         ? "evaluated"
         : "not_evaluated"
     ),
 
   isContinuation:
-    continuityResolution
+    governedContinuityResolution
       .isContinuation ??
     null,
 
   requiresPriorContext:
-    continuityResolution
+    governedContinuityResolution
       .requiresPriorContext ??
     null,
 
   priorContextAvailable:
-    continuityResolution
+    governedContinuityResolution
       .priorContextAvailable ??
     null,
 
   continuityRequiresClarification:
-    continuityResolution
+    governedContinuityResolution
       .requiresClarification === true
 };
 
 mark("after continuityResolution");
+
+console.log(
+  "ARI PERCEPTION CONTINUITY HANDOFF:",
+  {
+    resolverLoaded:
+      Boolean(
+        window
+          .AriEllipticalFollowUpResolver ||
+        window.Ari
+          ?.ellipticalFollowUpResolver
+      ),
+
+    resolverRan:
+      continuityResolution
+        .continuityResolverRan === true,
+
+    rawResolverStatus:
+      continuityResolution.status,
+
+    governedStatus:
+      governedContinuityResolution.status,
+
+    originalText,
+
+    resolverMarkedResolved:
+      continuityResolution
+        .currentTurnWasResolved === true,
+
+    referenceResolved:
+      continuityResolution
+        .referenceResolved === true,
+
+    returnedResolvedQuestion:
+      continuityResolution
+        .resolvedUserQuestion,
+
+    selectedResolvedText:
+      resolvedText,
+
+    selectedEffectiveText:
+      effectiveText,
+
+    currentTurnWasResolved,
+
+    unresolvedContextDependentTurn,
+
+    rawRequiresClarification:
+      continuityResolution
+        .requiresClarification === true,
+
+    governedRequiresClarification:
+      governedContinuityResolution
+        .requiresClarification === true,
+
+    warnings:
+      continuityResolution.warnings ||
+      [],
+
+    modelResolution:
+      continuityResolution
+        .ellipticalFollowUpResolution
+        ?.modelResolution ||
+      null
+  }
+);
 
     /* =====================================================
        3. GENERAL OBSERVER NETWORK
@@ -1559,11 +1735,39 @@ extractMessageText(summary = {}) {
 extractResolvedText(
   continuityResolution = {}
 ) {
-  const candidates = [
-    continuityResolution.resolvedText,
+  const resolutionConfirmed =
+    continuityResolution
+      .currentTurnWasResolved === true ||
+    continuityResolution
+      .referenceResolved === true ||
+    continuityResolution
+      .resolvedCurrentTurn
+      ?.currentTurnWasResolved === true ||
+    continuityResolution
+      .resolvedCurrentTurn
+      ?.resolved === true;
 
+  if (!resolutionConfirmed) {
+    return null;
+  }
+
+  const candidates = [
     continuityResolution
       .resolvedUserQuestion,
+
+    continuityResolution
+      .resolvedCurrentTurnText,
+
+    continuityResolution
+      .resolvedText,
+
+    continuityResolution
+      .resolvedCurrentTurn
+      ?.resolvedText,
+
+    continuityResolution
+      .resolvedCurrentTurn
+      ?.text,
 
     continuityResolution
       .effectiveText,
@@ -1633,6 +1837,16 @@ buildEffectiveTurnState(
 
     effectiveUserMessage:
       effectiveText,
+
+resolvedUserQuestion:
+  state.currentTurn
+    ?.wasResolved === true
+    ? effectiveText
+    : null,
+
+currentTurnWasResolved:
+  state.currentTurn
+    ?.wasResolved === true,
 
     currentTurn: {
       ...(state.currentTurn || {}),
@@ -2275,6 +2489,16 @@ if (!reconciliationLoaded) {
       );
     }
 
+if (
+  summary
+    .unresolvedContextDependentTurn ===
+  true
+) {
+  warnings.push(
+    "context_dependent_turn_unresolved"
+  );
+}
+
     if (!conversationFunctionLoaded) {
       warnings.push(
         "conversation_function_not_available"
@@ -2610,6 +2834,14 @@ continuity: {
   currentTurnWasResolved:
     summary.currentTurn
       ?.wasResolved === true,
+
+unresolvedContextDependentTurn:
+
+    summary
+
+      .unresolvedContextDependentTurn ===
+
+    true,
 
   requiresClarification:
     summary.continuityResolution
@@ -3544,6 +3776,8 @@ effectiveMessageAvailable:
   ),
 
 continuityRequiresClarification:
+  summary.continuityRequiresClarification ===
+    true ||
   summary.continuityResolution
     ?.requiresClarification === true,
 
@@ -3638,6 +3872,11 @@ summary.continuityResolution
 summary.continuityResolution
   ?.priorContextAvailable !== true
     ? "prior_context"
+    : null,
+
+summary
+  .unresolvedContextDependentTurn === true
+    ? "unresolved_continuity_reference"
     : null,
 
           !observations.length
