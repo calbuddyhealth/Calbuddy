@@ -4641,12 +4641,13 @@ window.AriRebirthPipeline = {
         .canExecuteApplicationWrites ===
       false,
 
-    directSupabaseAccessDisabled:
+        directSupabaseAccessDisabled:
       authority
         .canAccessSupabaseDirectly ===
       false
   }
 };
+  },
 
   /* =====================================================
      GENERAL UTILITIES
