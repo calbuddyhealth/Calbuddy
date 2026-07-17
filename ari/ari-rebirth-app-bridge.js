@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.1.0 — Delegated Runtime Services / Compatibility-Preserving Migration
+// V2.2.0 — Realization-Native Runtime Boundary
 //
 // Architectural flow:
 //
@@ -13,46 +13,47 @@
 //      ↓
 // Ari Rebirth App Bridge
 //      ↓
-// Ari Runtime Request
+// Canonical Runtime Request
 //      ↓
 // Ari Rebirth Pipeline
 //      ↓
-// Delivery Pipeline
+// Authoritative Delivery Result
 //      ↓
 // Ari Runtime Delivery
 //      ↓
 // CalBuddy UI Response
 //
 // Responsibilities:
-// - Load Ari Rebirth dependencies in deterministic order.
+// - Load the Ari Rebirth runtime in deterministic dependency order.
 // - Prevent duplicate or incomplete script loading.
-// - Coordinate the public ask() runtime entry point.
+// - Coordinate the public ask() entry point.
 // - Delegate request construction to AriRuntimeRequest.
 // - Delegate runtime validation to AriRuntimeReadiness.
 // - Execute AriRebirthPipeline exactly once per request.
 // - Delegate authoritative Delivery reading to AriRuntimeDelivery.
-// - Delegate app-response adaptation to AriRuntimeDelivery.
+// - Delegate application-response adaptation to AriRuntimeDelivery.
 // - Preserve the existing App Bridge public API.
-// - Preserve compatibility wrappers during migration.
-// - Preserve loader diagnostics.
-// - Return controlled failures when runtime bootstrapping fails.
+// - Preserve application-facing response aliases.
+// - Preserve loader and boundary diagnostics.
+// - Return controlled failures when runtime bootstrapping or execution fails.
 //
 // Non-responsibilities:
-// - Does not construct runtime requests internally.
-// - Does not independently validate runtime components.
-// - Does not scan arbitrary runtime fields for an answer.
-// - Does not classify the conversation.
+// - Does not construct canonical runtime requests internally.
+// - Does not independently validate internal runtime components.
+// - Does not inspect arbitrary runtime fields for an answer.
+// - Does not execute individual runtime layers or stages.
+// - Does not participate in perception, routing, or deliberation.
 // - Does not interpret semantic meaning.
+// - Does not determine conversation function.
 // - Does not determine developer intent.
 // - Does not determine safety severity.
-// - Does not run continuity directly.
-// - Does not select a response plan.
-// - Does not create a Composer Packet.
-// - Does not create response candidates.
-// - Does not choose between Blueprint Writer and AI Writer.
-// - Does not arbitrate drafts.
+// - Does not resolve continuity.
+// - Does not create or modify the canonical Response Plan.
+// - Does not participate in response realization.
+// - Does not participate in final composition.
+// - Does not select or rewrite successful runtime responses.
 // - Does not infer the final emotion.
-// - Does not discover actions from arbitrary runtime fields.
+// - Does not discover actions from arbitrary runtime state.
 // - Does not generate conversational fallback answers.
 // - Does not retrieve or store memory.
 // - Does not execute application writes.
@@ -63,11 +64,11 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.1.0",
-  schemaVersion: "2.0.0",
+  version: "2.2.0",
+  schemaVersion: "2.1.0",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
-    "application_runtime_entry_and_service_coordination",
+    "application_runtime_boundary_and_service_coordination",
 
   /* =====================================================
      SCRIPT DEPENDENCIES
@@ -82,10 +83,7 @@ window.AriRebirthAppBridge = {
     "ari/system/ari-authority.js",
 
     // ===================================================
-    // APP BRIDGE RUNTIME SERVICES
-    //
-    // These must load before runtime readiness is checked.
-    // The App Bridge remains the bootstrap loader.
+    // APPLICATION RUNTIME BOUNDARY SERVICES
     // ===================================================
 
     "ari/bridge/ari-runtime-request.js",
@@ -165,7 +163,7 @@ window.AriRebirthAppBridge = {
     "ari/continuity/ari-continuity-packet.js",
     "ari/continuity/ari-continuity-entry-point.js",
 
-    // Diagnostic compatibility only.
+    // Diagnostic support.
     "ari/context/ari-thread-question-generator.js",
 
     // ===================================================
@@ -214,20 +212,10 @@ window.AriRebirthAppBridge = {
     "ari/character/ari-character-expression-engine.js",
 
     // ===================================================
-    // RESPONSE EXPRESSION AUTHORITIES
+    // RESPONSE REALIZATION FOUNDATION
     // ===================================================
 
-    "ari/language/ari-composer-bridge.js",
-    "ari/language/ari-blueprint-writer.js",
-    "ari/language/ari-ai-writer.js",
-    "ari/language/ari-response-candidate-arbiter.js",
-
-    /*
-     * These composers remain active during the compatibility
-     * phase. They will be revisited only after the App Bridge
-     * migration passes its regression tests.
-     */
-    "ari/language/ari-language-composer-v9.js",
+    "ari/realization/ari-response-realization-engine.js",
     "ari/language/ari-language-composer.js",
 
     // ===================================================
@@ -346,7 +334,7 @@ window.AriRebirthAppBridge = {
     "ari/pipelines/ari-executive-routing-pipeline.js",
 
     // ===================================================
-    // LAYER 3 — DELIBERATION STAGES
+    // LAYER 3 — DELIBERATION
     // ===================================================
 
     "ari/pipeline-stages/deliberation/ari-continuity-stage.js",
@@ -360,19 +348,18 @@ window.AriRebirthAppBridge = {
     "ari/pipelines/ari-deliberation-pipeline.js",
 
     // ===================================================
-    // LAYER 4 — EXPRESSION STAGES
+    // LAYER 4 — EXPRESSION
     // ===================================================
 
     "ari/pipeline-stages/expression/ari-character-stage.js",
     "ari/pipeline-stages/expression/ari-language-guidance-stage.js",
-    "ari/pipeline-stages/expression/ari-draft-generation-stage.js",
-    "ari/pipeline-stages/expression/ari-draft-arbitration-stage.js",
+    "ari/pipeline-stages/expression/ari-response-realization-stage.js",
     "ari/pipeline-stages/expression/ari-final-composition-stage.js",
 
     "ari/pipelines/ari-expression-pipeline.js",
 
     // ===================================================
-    // LAYER 5 — DELIVERY STAGES
+    // LAYER 5 — DELIVERY
     // ===================================================
 
     "ari/pipeline-stages/delivery/ari-action-delivery-stage.js",
@@ -382,7 +369,7 @@ window.AriRebirthAppBridge = {
     "ari/pipelines/ari-delivery-pipeline.js",
 
     // ===================================================
-    // MASTER FIVE-LAYER PIPELINE
+    // MASTER FIVE-LAYER RUNTIME
     // MUST LOAD LAST
     // ===================================================
 
@@ -744,7 +731,7 @@ window.AriRebirthAppBridge = {
   },
 
   /* =====================================================
-     DELEGATED REQUEST CONSTRUCTION
+     REQUEST CONSTRUCTION DELEGATION
   ===================================================== */
 
   buildRuntimeRequest({
@@ -774,7 +761,7 @@ window.AriRebirthAppBridge = {
   },
 
   /* =====================================================
-     DELEGATED READINESS
+     RUNTIME READINESS DELEGATION
   ===================================================== */
 
   checkReadiness(
@@ -853,7 +840,7 @@ window.AriRebirthAppBridge = {
   },
 
   /* =====================================================
-     DELEGATED DELIVERY READING
+     DELIVERY READING DELEGATION
   ===================================================== */
 
   readAuthoritativeDelivery(
@@ -883,7 +870,7 @@ window.AriRebirthAppBridge = {
   },
 
   /* =====================================================
-     DELEGATED DELIVERY ADAPTATION
+     DELIVERY ADAPTATION DELEGATION
   ===================================================== */
 
   adaptDeliveryToAppResponse({
@@ -1043,6 +1030,21 @@ window.AriRebirthAppBridge = {
     deliveryStatus = "delivered",
     diagnostics = null
   } = {}) {
+    const normalizedReply =
+      this.cleanText(
+        reply
+      );
+
+    const normalizedEmotion =
+      this.normalizeBridgeEmotion(
+        emotion
+      );
+
+    const normalizedActions =
+      this.toArray(
+        actions
+      );
+
     const successful =
       deliveryStatus ===
       "delivered";
@@ -1055,19 +1057,13 @@ window.AriRebirthAppBridge = {
         this.schemaVersion,
 
       reply:
-        this.cleanText(
-          reply
-        ),
+        normalizedReply,
 
       emotion:
-        this.normalizeBridgeEmotion(
-          emotion
-        ),
+        normalizedEmotion,
 
       actions:
-        this.toArray(
-          actions
-        ),
+        normalizedActions,
 
       developerIntent,
 
@@ -1091,7 +1087,7 @@ window.AriRebirthAppBridge = {
 
       responseSource:
         successful
-          ? "ari_rebirth_app_bridge"
+          ? "ari_rebirth_runtime_delivery"
           : "ari_rebirth_app_bridge_failure",
 
       bridgeVersion:
@@ -1102,51 +1098,41 @@ window.AriRebirthAppBridge = {
       authority: {
         reply:
           successful
-            ? "bridge_input_boundary"
+            ? "authoritative_runtime_delivery"
             : "bridge_failure_boundary",
 
         emotion:
           successful
-            ? "bridge_input_boundary"
+            ? "authoritative_runtime_delivery"
             : "bridge_failure_boundary",
 
         actions:
-          "none_or_upstream_preserved",
+          successful
+            ? "authoritative_runtime_delivery"
+            : "none",
 
         adaptation:
           this.source
       },
 
-      // Compatibility response aliases.
+      // Application-facing response aliases.
       text:
-        this.cleanText(
-          reply
-        ),
+        normalizedReply,
 
       message:
-        this.cleanText(
-          reply
-        ),
+        normalizedReply,
 
       response:
-        this.cleanText(
-          reply
-        ),
+        normalizedReply,
 
       finalResponse:
-        this.cleanText(
-          reply
-        ),
+        normalizedReply,
 
       finalEmotion:
-        this.normalizeBridgeEmotion(
-          emotion
-        ),
+        normalizedEmotion,
 
       approvedActions:
-        this.toArray(
-          actions
-        ),
+        normalizedActions,
 
       runtimeSummary:
         summary
@@ -1200,17 +1186,35 @@ window.AriRebirthAppBridge = {
             window
               .AriRuntimeRequest
               ?.version ||
+            window.Ari
+              ?.runtimeRequest
+              ?.version ||
             null,
 
           readinessService:
             window
               .AriRuntimeReadiness
               ?.version ||
+            window.Ari
+              ?.runtimeReadiness
+              ?.version ||
             null,
 
           deliveryService:
             window
               .AriRuntimeDelivery
+              ?.version ||
+            window.Ari
+              ?.runtimeDelivery
+              ?.version ||
+            null,
+
+          pipeline:
+            window
+              .AriRebirthPipeline
+              ?.version ||
+            window.Ari
+              ?.rebirthPipeline
               ?.version ||
             null
         },
@@ -1840,41 +1844,51 @@ window.AriRebirthAppBridge = {
   },
 
   areRequiredServicesReady() {
+    const requestService =
+      window.AriRuntimeRequest ||
+      window.Ari
+        ?.runtimeRequest ||
+      null;
+
+    const readinessService =
+      window.AriRuntimeReadiness ||
+      window.Ari
+        ?.runtimeReadiness ||
+      null;
+
+    const deliveryService =
+      window.AriRuntimeDelivery ||
+      window.Ari
+        ?.runtimeDelivery ||
+      null;
+
     return Boolean(
-      window
-        .AriRuntimeRequest &&
-      typeof window
-        .AriRuntimeRequest
-        .build ===
+      requestService &&
+      typeof requestService.build ===
         "function" &&
 
-      window
-        .AriRuntimeReadiness &&
-      typeof window
-        .AriRuntimeReadiness
-        .check ===
+      readinessService &&
+      typeof readinessService.check ===
         "function" &&
 
-      window
-        .AriRuntimeDelivery &&
-      typeof window
-        .AriRuntimeDelivery
-        .read ===
+      deliveryService &&
+      typeof deliveryService.read ===
         "function" &&
-      typeof window
-        .AriRuntimeDelivery
-        .adapt ===
+      typeof deliveryService.adapt ===
         "function"
     );
   },
 
   isMasterPipelineReady() {
+    const pipeline =
+      window.AriRebirthPipeline ||
+      window.Ari
+        ?.rebirthPipeline ||
+      null;
+
     return Boolean(
-      window
-        .AriRebirthPipeline &&
-      typeof window
-        .AriRebirthPipeline
-        .run ===
+      pipeline &&
+      typeof pipeline.run ===
         "function"
     );
   },
@@ -1978,7 +1992,7 @@ window.AriRebirthAppBridge = {
       canRunMasterPipeline:
         true,
 
-      canReturnBridgeFailures:
+      canReturnBoundaryFailures:
         true,
 
       canDelegateRequestConstruction:
@@ -1993,7 +2007,7 @@ window.AriRebirthAppBridge = {
       canDelegateDeliveryAdaptation:
         true,
 
-      canBuildCanonicalTurnEnvelope:
+      canBuildCanonicalRuntimeRequest:
         false,
 
       canInspectRuntimeComponentsDirectly:
@@ -2002,13 +2016,34 @@ window.AriRebirthAppBridge = {
       canReadDeliveryFieldsDirectly:
         false,
 
-      canClassifyConversation:
+      canExecuteRuntimeLayers:
+        false,
+
+      canExecuteRuntimeStages:
+        false,
+
+      canParticipateInPerception:
+        false,
+
+      canParticipateInRouting:
+        false,
+
+      canParticipateInDeliberation:
+        false,
+
+      canParticipateInExpression:
+        false,
+
+      canParticipateInDelivery:
         false,
 
       canInterpretSemanticMeaning:
         false,
 
       canResolveContinuity:
+        false,
+
+      canDetermineConversationFunction:
         false,
 
       canDetermineDeveloperIntent:
@@ -2020,31 +2055,22 @@ window.AriRebirthAppBridge = {
       canChooseResponsePlan:
         false,
 
-      canCreateComposerPacket:
+      canExecuteResponseRealization:
         false,
 
-      canCreateResponseCandidate:
-        false,
-
-      canChooseBlueprintWriter:
-        false,
-
-      canChooseAIWriter:
-        false,
-
-      canArbitrateDrafts:
-        false,
-
-      canCreateFileEvidenceReply:
+      canExecuteFinalComposition:
         false,
 
       canInferEmotion:
         false,
 
-      canDiscoverActionsFromSummary:
+      canDiscoverActionsFromRuntimeState:
         false,
 
-      canSelectFinalResponse:
+      canSelectSuccessfulRuntimeResponse:
+        false,
+
+      canRewriteSuccessfulRuntimeResponse:
         false,
 
       canWriteConversationalFallback:
@@ -2066,7 +2092,7 @@ window.AriRebirthAppBridge = {
         false,
 
       role:
-        "application_runtime_entry_and_service_coordination"
+        "application_runtime_boundary_and_service_coordination"
     };
   },
 
@@ -2084,15 +2110,19 @@ window.AriRebirthAppBridge = {
       "responseGoal",
       "responseShape",
       "responseMoves",
-      "composerPacket",
-      "candidateDrafts",
-      "selectedDraft",
-      "finalResponse",
+      "realizationPacket",
+      "realizationResponseText",
+      "responseRealizationResult",
+      "finalCompositionHandoff",
       "deliveryResult",
       "finalEmotion",
       "approvedActions",
       "memorySaveDecision",
-      "toolExecutionDecision"
+      "toolExecutionDecision",
+      "threadContext",
+      "recentTurns",
+      "referenceCandidates",
+      "persistedThreadState"
     ];
   },
 
@@ -2101,24 +2131,28 @@ window.AriRebirthAppBridge = {
       this.getAuthorityBoundaries();
 
     const forbiddenTrue = [
-      "canBuildCanonicalTurnEnvelope",
+      "canBuildCanonicalRuntimeRequest",
       "canInspectRuntimeComponentsDirectly",
       "canReadDeliveryFieldsDirectly",
-      "canClassifyConversation",
+      "canExecuteRuntimeLayers",
+      "canExecuteRuntimeStages",
+      "canParticipateInPerception",
+      "canParticipateInRouting",
+      "canParticipateInDeliberation",
+      "canParticipateInExpression",
+      "canParticipateInDelivery",
       "canInterpretSemanticMeaning",
       "canResolveContinuity",
+      "canDetermineConversationFunction",
       "canDetermineDeveloperIntent",
       "canDetermineSafetySeverity",
       "canChooseResponsePlan",
-      "canCreateComposerPacket",
-      "canCreateResponseCandidate",
-      "canChooseBlueprintWriter",
-      "canChooseAIWriter",
-      "canArbitrateDrafts",
-      "canCreateFileEvidenceReply",
+      "canExecuteResponseRealization",
+      "canExecuteFinalComposition",
       "canInferEmotion",
-      "canDiscoverActionsFromSummary",
-      "canSelectFinalResponse",
+      "canDiscoverActionsFromRuntimeState",
+      "canSelectSuccessfulRuntimeResponse",
+      "canRewriteSuccessfulRuntimeResponse",
       "canWriteConversationalFallback",
       "canExecuteApplicationWrite",
       "canRetrieveMemory",
@@ -2142,12 +2176,33 @@ window.AriRebirthAppBridge = {
     const warnings =
       [];
 
+    const requestService =
+      window.AriRuntimeRequest ||
+      window.Ari
+        ?.runtimeRequest ||
+      null;
+
+    const readinessService =
+      window.AriRuntimeReadiness ||
+      window.Ari
+        ?.runtimeReadiness ||
+      null;
+
+    const deliveryService =
+      window.AriRuntimeDelivery ||
+      window.Ari
+        ?.runtimeDelivery ||
+      null;
+
+    const pipeline =
+      window.AriRebirthPipeline ||
+      window.Ari
+        ?.rebirthPipeline ||
+      null;
+
     if (
-      window
-        .AriRuntimeRequest &&
-      typeof window
-        .AriRuntimeRequest
-        .build !==
+      requestService &&
+      typeof requestService.build !==
         "function"
     ) {
       warnings.push(
@@ -2156,11 +2211,8 @@ window.AriRebirthAppBridge = {
     }
 
     if (
-      window
-        .AriRuntimeReadiness &&
-      typeof window
-        .AriRuntimeReadiness
-        .check !==
+      readinessService &&
+      typeof readinessService.check !==
         "function"
     ) {
       warnings.push(
@@ -2169,16 +2221,11 @@ window.AriRebirthAppBridge = {
     }
 
     if (
-      window
-        .AriRuntimeDelivery &&
+      deliveryService &&
       (
-        typeof window
-          .AriRuntimeDelivery
-          .read !==
+        typeof deliveryService.read !==
           "function" ||
-        typeof window
-          .AriRuntimeDelivery
-          .adapt !==
+        typeof deliveryService.adapt !==
           "function"
       )
     ) {
@@ -2188,11 +2235,12 @@ window.AriRebirthAppBridge = {
     }
 
     if (
-      !window
-        .AriRebirthPipeline
+      pipeline &&
+      typeof pipeline.run !==
+        "function"
     ) {
       warnings.push(
-        "AriRebirthPipeline_not_loaded"
+        "AriRebirthPipeline_run_missing"
       );
     }
 
@@ -2240,19 +2288,49 @@ window.AriRebirthAppBridge = {
             .canDelegateDeliveryAdaptation ===
           true,
 
-        directRequestConstructionRemoved:
+        directRequestConstructionDisabled:
           authority
-            .canBuildCanonicalTurnEnvelope ===
+            .canBuildCanonicalRuntimeRequest ===
           false,
 
-        directRuntimeInspectionRemoved:
+        directRuntimeInspectionDisabled:
           authority
             .canInspectRuntimeComponentsDirectly ===
           false,
 
-        directDeliveryScanningRemoved:
+        directDeliveryScanningDisabled:
           authority
             .canReadDeliveryFieldsDirectly ===
+          false,
+
+        runtimeLayerExecutionDisabled:
+          authority
+            .canExecuteRuntimeLayers ===
+          false,
+
+        runtimeStageExecutionDisabled:
+          authority
+            .canExecuteRuntimeStages ===
+          false,
+
+        responseRealizationDisabled:
+          authority
+            .canExecuteResponseRealization ===
+          false,
+
+        finalCompositionDisabled:
+          authority
+            .canExecuteFinalComposition ===
+          false,
+
+        successfulResponseSelectionDisabled:
+          authority
+            .canSelectSuccessfulRuntimeResponse ===
+          false,
+
+        successfulResponseRewritingDisabled:
+          authority
+            .canRewriteSuccessfulRuntimeResponse ===
           false,
 
         masterPipelineSingleEntry:
@@ -2362,16 +2440,21 @@ window.AriRebirthAppBridge = {
 window.Ari.appBridge =
   window.AriRebirthAppBridge;
 
+const ariRebirthAppBridgeValidation =
+  window.AriRebirthAppBridge
+    ?.validate?.();
+
 console.log(
   "ARI REBIRTH APP BRIDGE LOADED:",
   window
     .AriRebirthAppBridge
     ?.version,
-  window
-    .AriRebirthAppBridge
-    ?.validate?.()
-    .valid ===
+
+  ariRebirthAppBridgeValidation
+    ?.valid ===
     true
     ? "READY"
-    : "INVALID"
+    : "INVALID",
+
+  ariRebirthAppBridgeValidation
 );
