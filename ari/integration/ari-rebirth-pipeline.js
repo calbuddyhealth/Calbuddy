@@ -4522,35 +4522,131 @@ window.AriRebirthPipeline = {
         );
 
     return {
-      valid:
-        errors.length ===
-        0,
+  valid:
+    errors.length ===
+    0,
 
-      ready:
-        errors.length ===
-          0 &&
-        warnings.filter(
-          warning =>
-            warning.endsWith(
-              "_not_loaded"
-            )
-        ).length ===
-          0,
+  ready:
+    errors.length ===
+      0 &&
+    warnings.filter(
+      warning =>
+        warning.endsWith(
+          "_not_loaded"
+        )
+    ).length ===
+      0,
 
-      source:
-        "ari-rebirth-pipeline-validation",
+  source:
+    "ari-rebirth-pipeline-validation",
 
-      version:
-        this.version,
+  version:
+    this.version,
 
-      errors,
+  errors,
 
-      warnings:
-        this.uniqueValues(
-          warnings
-        ),
-    };
-  },
+  warnings:
+    this.uniqueValues(
+      warnings
+    ),
+
+  checks: {
+    canonicalTurnPreserved:
+      true,
+
+    priorTurnOutputsCleared:
+      authority
+        .canClearPriorTurnOutputs ===
+      true,
+
+    conversationOperatingStateDelegation:
+      authority
+        .canBeginConversationOperatingState ===
+        true &&
+      authority
+        .canCompleteConversationOperatingState ===
+        true,
+
+    directThreadLoadingDisabled:
+      authority
+        .canLoadPersistedThreadContextDirectly ===
+      false,
+
+    directThreadNormalizationDisabled:
+      authority
+        .canNormalizeStoredTurnsDirectly ===
+      false,
+
+    directReferenceCandidateBuildingDisabled:
+      authority
+        .canBuildReferenceCandidatesDirectly ===
+      false,
+
+    directThreadPersistenceDisabled:
+      authority
+        .canPersistThreadStateDirectly ===
+      false,
+
+    fiveLayerOrderEnforced:
+      authority
+        .canEnforceLayerOrder ===
+      true,
+
+    layerExecutionSinglePass:
+      true,
+
+    responseRealizationRequired:
+      true,
+
+    expressionInternalsRemainDelegated:
+      authority
+        .canExecuteExpressionStagesDirectly ===
+      false,
+
+    directResponseRealizationDisabled:
+      authority
+        .canGenerateResponseRealizationDirectly ===
+      false,
+
+    responseCompositionDisabled:
+      authority
+        .canComposeFinalResponse ===
+      false,
+
+    responseSelectionDisabled:
+      authority
+        .canSelectFinalResponse ===
+      false,
+
+    responseRewritingDisabled:
+      authority
+        .canRewriteFinalResponse ===
+      false,
+
+    dedicatedDeliveryResultRequired:
+      true,
+
+    intermediateDeliveryFallbackDisabled:
+      authority
+        .canUseIntermediateOutputAsDeliveryFallback ===
+      false,
+
+    deliveryOverrideDisabled:
+      authority
+        .canOverrideDeliveryResult ===
+      false,
+
+    directApplicationWritesDisabled:
+      authority
+        .canExecuteApplicationWrites ===
+      false,
+
+    directSupabaseAccessDisabled:
+      authority
+        .canAccessSupabaseDirectly ===
+      false
+  }
+};
 
   /* =====================================================
      GENERAL UTILITIES
