@@ -6,7 +6,7 @@
 // packet, ask the configured model layer to resolve the omitted meaning,
 // validate the model result, and publish a canonical continuity result.
 //
-// V3.1.0 — Structural Context Dependency / Deterministic Governance
+// V3.2.0 — Structural Context Dependency / Deterministic Governance
 //
 // Execution position:
 //
@@ -40,8 +40,8 @@
 window.Ari = window.Ari || {};
 
 window.AriEllipticalFollowUpResolver = {
-  version: "3.1.0",
-  schemaVersion: "3.1.0",
+  version: "3.2.0",
+  schemaVersion: "3.2.0",
 
   config: {
     maxRecentTurns: 8,
@@ -552,26 +552,14 @@ window.AriEllipticalFollowUpResolver = {
 
   if (!priorContextAvailable) {
     return {
-      detected:
-        false,
-
-      priorContextAvailable:
-        false,
-
+      detected: false,
+      priorContextAvailable: false,
       ...features,
-
-      score:
-        0,
-
-      signals:
-        [],
-
-      confidence:
-        0,
-
+      score: 0,
+      signals: [],
+      confidence: 0,
       reason:
         "No recent conversation context was available.",
-
       authority:
         "context_dependency_detection_only"
     };
@@ -579,59 +567,74 @@ window.AriEllipticalFollowUpResolver = {
 
   let score = 0;
 
-  if (
-    features.explicitDiscourseReference
-  ) {
-    score += 4;
-  }
+  const weightedFeatures = [
+    [
+      "explicitDiscourseReference",
+      4
+    ],
+    [
+      "pronominalReference",
+      2
+    ],
+    [
+      "temporalSequenceReference",
+      3
+    ],
+    [
+      "leadingConnector",
+      1
+    ],
+    [
+      "elaborationRequest",
+      4
+    ],
+    [
+      "continuationCommand",
+      4
+    ],
+    [
+      "shortInterrogative",
+      1
+    ],
+    [
+      "structurallyIncompleteQuestion",
+      3
+    ],
+    [
+      "bareReactionFollowUp",
+      3
+    ],
+    [
+      "bareSequenceFollowUp",
+      4
+    ],
+    [
+      "clarificationFollowUp",
+      4
+    ],
+    [
+      "causalChallengeFollowUp",
+      4
+    ],
+    [
+      "upstreamContinuity",
+      5
+    ]
+  ];
 
-  if (
-    features.pronominalReference
-  ) {
-    score += 2;
-  }
-
-  if (
-    features.temporalSequenceReference
-  ) {
-    score += 3;
-  }
-
-  if (
-    features.leadingConnector
-  ) {
-    score += 1;
-  }
-
-  if (
-    features.elaborationRequest
-  ) {
-    score += 4;
-  }
-
-  if (
-    features.continuationCommand
-  ) {
-    score += 4;
-  }
-
-  if (
-    features.shortInterrogative
-  ) {
-    score += 1;
-  }
-
-  if (
-    features.structurallyIncompleteQuestion
-  ) {
-    score += 3;
-  }
-
-  if (
-    features.upstreamContinuity
-  ) {
-    score += 5;
-  }
+  weightedFeatures.forEach(
+    ([
+      feature,
+      weight
+    ]) => {
+      if (
+        features[feature] ===
+        true
+      ) {
+        score += weight;
+      }
+    }
+  );
 
   if (
     features.appearsStandalone
@@ -642,79 +645,71 @@ window.AriEllipticalFollowUpResolver = {
   const detected =
     score >= 3;
 
-  const signals = [];
+  const signalMap = {
+    explicitDiscourseReference:
+      "explicit_discourse_reference",
 
-  if (
-    features.explicitDiscourseReference
-  ) {
-    signals.push(
-      "explicit_discourse_reference"
-    );
-  }
+    pronominalReference:
+      "pronominal_reference",
 
-  if (
-    features.pronominalReference
-  ) {
-    signals.push(
-      "pronominal_reference"
-    );
-  }
+    temporalSequenceReference:
+      "temporal_sequence_reference",
 
-  if (
-    features.temporalSequenceReference
-  ) {
-    signals.push(
-      "temporal_sequence_reference"
-    );
-  }
+    leadingConnector:
+      "leading_discourse_connector",
 
-  if (
-    features.leadingConnector
-  ) {
-    signals.push(
-      "leading_discourse_connector"
-    );
-  }
+    elaborationRequest:
+      "elaboration_request",
 
-  if (
-    features.elaborationRequest
-  ) {
-    signals.push(
-      "elaboration_request"
-    );
-  }
+    continuationCommand:
+      "continuation_command",
 
-  if (
-    features.continuationCommand
-  ) {
-    signals.push(
-      "continuation_command"
-    );
-  }
+    shortInterrogative:
+      "short_interrogative",
 
-  if (
-    features.shortInterrogative
-  ) {
-    signals.push(
-      "short_interrogative"
-    );
-  }
+    structurallyIncompleteQuestion:
+      "structurally_incomplete_question",
 
-  if (
-    features.structurallyIncompleteQuestion
-  ) {
-    signals.push(
-      "structurally_incomplete_question"
-    );
-  }
+    bareInterrogativeFollowUp:
+      "bare_interrogative_follow_up",
 
-  if (
-    features.upstreamContinuity
-  ) {
-    signals.push(
+    bareReactionFollowUp:
+      "bare_reaction_follow_up",
+
+    bareSequenceFollowUp:
+      "bare_sequence_follow_up",
+
+    clarificationFollowUp:
+      "clarification_follow_up",
+
+    causalChallengeFollowUp:
+      "causal_challenge_follow_up",
+
+    likelyConnectorTypoFollowUp:
+      "likely_connector_typo_follow_up",
+
+    upstreamContinuity:
       "upstream_continuity_evidence"
-    );
-  }
+  };
+
+  const signals =
+    Object.entries(
+      signalMap
+    )
+      .filter(
+        ([
+          feature
+        ]) =>
+          features[feature] ===
+          true
+      )
+      .map(
+        ([
+          ,
+          signal
+        ]) =>
+          signal
+      );
 
   signals.push(
     "recent_context_available"
@@ -722,13 +717,9 @@ window.AriEllipticalFollowUpResolver = {
 
   return {
     detected,
-
     priorContextAvailable,
-
     ...features,
-
     score,
-
     signals,
 
     confidence:
@@ -737,23 +728,19 @@ window.AriEllipticalFollowUpResolver = {
             Math.min(
               0.98,
               0.5 +
-              (
-                Math.max(
-                  0,
-                  score
-                ) *
-                0.07
-              )
+              Math.max(
+                0,
+                score
+              ) *
+              0.07
             )
           )
         : this.normalizeConfidence(
             Math.max(
               0,
               0.45 +
-              (
-                score *
-                0.05
-              )
+              score *
+              0.05
             )
           ),
 
@@ -822,25 +809,73 @@ extractContextDependencyFeatures({
     wordCount > 0 &&
     wordCount <= 8;
 
-  /*
-   * Structural incompleteness is evidence that the operation is present
-   * but its discourse anchor, event, object, proposition, or referent is
-   * omitted.
-   *
-   * These are feature patterns, not complete accepted utterance lists.
-   */
   const connectorLedInterrogative =
-  /^(?:so|and|but|then|well)\s+(?:why|how|what|who|where|when|which)\b/i
-    .test(text);
+    /^(?:so|and|but|then|well)\s+(?:why|how|what|who|where|when|which)\b/i
+      .test(text);
 
-const structurallyIncompleteQuestion =
-  shortInterrogative &&
-  (
-    explicitDiscourseReference ||
-    pronominalReference ||
-    temporalSequenceReference ||
-    connectorLedInterrogative
-  );
+  /*
+   * A very short interrogative generally supplies an operation but
+   * omits its proposition, event, entity, place, time, or explanation.
+   */
+  const bareInterrogativeFollowUp =
+    shortInterrogative &&
+    wordCount <= 3;
+
+  /*
+   * Conversational reactions whose interpretation depends on the
+   * immediately preceding assertion or event.
+   */
+  const bareReactionFollowUp =
+    /^(?:huh|really|seriously|seriously though|for real|for reals|is that so|no way)$/i
+      .test(text);
+
+  /*
+   * Sequence expressions whose event argument is omitted.
+   */
+  const bareSequenceFollowUp =
+    /^(?:then|and then|so then|next|after that|what next|then what|now what|what happened next)$/i
+      .test(text);
+
+  /*
+   * Requests for clarification of the preceding wording, assertion,
+   * explanation, or intended meaning.
+   */
+  const clarificationFollowUp =
+    /^(?:what do you mean|what does that mean|what did you mean|meaning|meaning what|how so|in what way|can you clarify|clarify what|explain that)$/i
+      .test(text);
+
+  /*
+   * Challenges asking for the reason behind the immediately preceding
+   * proposition.
+   */
+  const causalChallengeFollowUp =
+    /^(?:because|because why|why is that|but why|so why|and why|why though|but how|how come)$/i
+      .test(text);
+
+  /*
+   * Narrow typo handling. This does not globally redefine "buy" as
+   * "but"; it only recognizes a tiny context-dependent challenge form.
+   */
+  const likelyConnectorTypoFollowUp =
+    /^(?:buy why|buy how)$/i
+      .test(text);
+
+  const structurallyIncompleteQuestion =
+    (
+      shortInterrogative &&
+      (
+        explicitDiscourseReference ||
+        pronominalReference ||
+        temporalSequenceReference ||
+        connectorLedInterrogative ||
+        bareInterrogativeFollowUp
+      )
+    ) ||
+    bareReactionFollowUp ||
+    bareSequenceFollowUp ||
+    clarificationFollowUp ||
+    causalChallengeFollowUp ||
+    likelyConnectorTypoFollowUp;
 
   const upstreamContinuity =
     summary.shouldUseContinuity ===
@@ -863,11 +898,6 @@ const structurallyIncompleteQuestion =
       ?.useThread ===
       true;
 
-  /*
-   * This is deliberately conservative. It only subtracts evidence when
-   * the turn is reasonably long and contains none of the principal
-   * dependency features.
-   */
   const appearsStandalone =
     wordCount >= 9 &&
     !explicitDiscourseReference &&
@@ -875,54 +905,49 @@ const structurallyIncompleteQuestion =
     !temporalSequenceReference &&
     !leadingConnector &&
     !elaborationRequest &&
-    !continuationCommand;
+    !continuationCommand &&
+    !bareReactionFollowUp &&
+    !bareSequenceFollowUp &&
+    !clarificationFollowUp &&
+    !causalChallengeFollowUp &&
+    !likelyConnectorTypoFollowUp;
 
   return {
     explicitDiscourseReference,
 
-    /*
-     * Compatibility field retained for existing consumers.
-     */
     explicitReference:
       explicitDiscourseReference,
 
     pronominalReference,
-
     temporalSequenceReference,
-
     leadingConnector,
-
     elaborationRequest,
 
-    /*
-     * Compatibility field retained for diagnostics built against V3.0.1.
-     */
     elaborationFollowUp:
       elaborationRequest,
 
     continuationCommand,
+    interrogative,
+    shortInterrogative,
+    connectorLedInterrogative,
+    bareInterrogativeFollowUp,
+    bareReactionFollowUp,
+    bareSequenceFollowUp,
+    clarificationFollowUp,
+    causalChallengeFollowUp,
+    likelyConnectorTypoFollowUp,
+    structurallyIncompleteQuestion,
+    upstreamContinuity,
+    appearsStandalone,
 
-    /*
-     * The old bare-follow-up concept is retained as an output field,
-     * but it is now derived from structural classes rather than being
-     * the governing phrase whitelist.
-     */
     bareFollowUp:
       continuationCommand ||
-      (
-        shortInterrogative &&
-        wordCount <= 3
-      ),
-
-    interrogative,
-
-    shortInterrogative,
-
-    structurallyIncompleteQuestion,
-
-    upstreamContinuity,
-
-    appearsStandalone
+      bareInterrogativeFollowUp ||
+      bareReactionFollowUp ||
+      bareSequenceFollowUp ||
+      clarificationFollowUp ||
+      causalChallengeFollowUp ||
+      likelyConnectorTypoFollowUp
   };
 },
 
