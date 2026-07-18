@@ -2568,6 +2568,7 @@ if (!continuityLoaded) {
 
       complete:
   errors.length === 0 &&
+  continuityLoaded &&
   observerLoaded &&
   questionUnderstandingLoaded &&
   lifeSignalsLoaded &&
