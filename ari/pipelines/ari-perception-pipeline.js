@@ -1,12 +1,12 @@
 // ari/pipelines/ari-perception-pipeline.js
 // Ari Perception Pipeline
 // Purpose: Collect, preserve, merge, and structure evidence about the current user message.
-// V1.5.0 — Canonical Current Turn / Continuity Orchestration
+// V1.5.1 — Governed Continuity Handoff
 
 window.Ari = window.Ari || {};
 
 window.AriPerceptionPipeline = {
-  version: "1.5.0",
+  version: "1.5.1",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -222,30 +222,20 @@ const unresolvedContextDependentTurn =
   currentTurnWasResolved !== true;
   
   const rawAnchor =
-
   continuityResolution.anchor;
 
 const normalizedAnchor =
-
   rawAnchor &&
-
   typeof rawAnchor === "object" &&
-
   !Array.isArray(rawAnchor)
-
     ? rawAnchor
-
     : {
-
         value:
-
           typeof rawAnchor === "string"
-
             ? rawAnchor
-
             : null
-
       };
+
 const governedContinuityResolution = {
   ...continuityResolution,
 
@@ -264,10 +254,7 @@ const governedContinuityResolution = {
         : continuityResolution.status,
 
   anchor: {
-    ...(
-      continuityResolution.anchor ||
-      {}
-    ),
+    ...normalizedAnchor,
 
     status:
       currentTurnWasResolved
@@ -275,14 +262,16 @@ const governedContinuityResolution = {
         : unresolvedContextDependentTurn
           ? "unresolved"
           : (
-              continuityResolution
-                .anchor
-                ?.status ||
+              normalizedAnchor.status ||
               "not_required"
             ),
 
     resolved:
       currentTurnWasResolved,
+
+    referenceResolved:
+      continuityResolution
+        .referenceResolved === true,
 
     missing:
       unresolvedContextDependentTurn
@@ -296,8 +285,12 @@ const governedContinuityResolution = {
 
     ready:
       currentTurnWasResolved ||
-      continuityResolution
-        .isContinuation !== true,
+      (
+        continuityResolution
+          .isContinuation !== true &&
+        continuityResolution
+          .requiresClarification !== true
+      ),
 
     healthy:
       (
@@ -305,7 +298,9 @@ const governedContinuityResolution = {
         continuityResolution
           .isContinuation !== true
       ) &&
-      !unresolvedContextDependentTurn,
+      !unresolvedContextDependentTurn &&
+      continuityResolution
+        .requiresClarification !== true,
 
     requiresClarification:
       continuityResolution
@@ -1735,11 +1730,10 @@ extractMessageText(summary = {}) {
 extractResolvedText(
   continuityResolution = {}
 ) {
+  
   const resolutionConfirmed =
     continuityResolution
       .currentTurnWasResolved === true ||
-    continuityResolution
-      .referenceResolved === true ||
     continuityResolution
       .resolvedCurrentTurn
       ?.currentTurnWasResolved === true ||
@@ -1847,6 +1841,16 @@ resolvedUserQuestion:
 currentTurnWasResolved:
   state.currentTurn
     ?.wasResolved === true,
+
+unresolvedContextDependentTurn:
+  state
+    .unresolvedContextDependentTurn ===
+  true,
+
+continuityRequiresClarification:
+  state
+    .continuityRequiresClarification ===
+  true,
 
     currentTurn: {
       ...(state.currentTurn || {}),
@@ -2836,12 +2840,9 @@ continuity: {
       ?.wasResolved === true,
 
 unresolvedContextDependentTurn:
-
-    summary
-
-      .unresolvedContextDependentTurn ===
-
-    true,
+  summary
+    .unresolvedContextDependentTurn ===
+  true,
 
   requiresClarification:
     summary.continuityResolution
