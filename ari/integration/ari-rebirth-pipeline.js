@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.2.0 — In-Place Runtime Cleanup / Strict Turn Isolation
+// V7.3.0 — Evidence / Cognitive Validation Contract Migration
 //
 // Architectural flow:
 //
@@ -16,10 +16,15 @@
 // Conversation Operating State — Begin Turn
 //      ↓
 // Layer 1 — Perception
+//   Observer Network
+//   Deterministic Evidence Builder
 //      ↓
 // Layer 2 — Executive Routing
 //      ↓
 // Layer 3 — Deliberation
+//   OpenAI Cognitive Reasoning
+//   Semantic Frame Validation
+//   Response Planning
 //      ↓
 // Layer 4 — Expression
 //      ↓
@@ -57,11 +62,11 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.2.0",
-  schemaVersion: "7.2.0",
+  version: "7.3.0",
+  schemaVersion: "7.3.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
-    "canonical_realization_native_five_layer_runtime_authority",
+    "canonical_five_layer_openai_cognitive_contract_authority",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -372,7 +377,69 @@ window.AriRebirthPipeline = {
     }
 
     /* =================================================
-       5. PIPELINE LIFECYCLE RECORD
+       5. COGNITIVE CONTRACT INVARIANTS
+    ================================================= */
+
+    const cognitiveRuntimeValidation =
+      this.validateCognitiveRuntimeState(
+        summary
+      );
+
+    summary = {
+      ...summary,
+
+      cognitiveRuntimeValidation,
+
+      pipelineLifecycleErrors:
+        cognitiveRuntimeValidation.enforced === true &&
+        cognitiveRuntimeValidation.valid !== true
+          ? this.mergeLifecycleErrors(
+              summary.pipelineLifecycleErrors,
+
+              cognitiveRuntimeValidation.errors
+                .map(
+                  message =>
+                    this.buildLayerError({
+                      layer:
+                        "cognitiveRuntime",
+
+                      type:
+                        message,
+
+                      message,
+
+                      fatal:
+                        true
+                    })
+                )
+            )
+          : summary.pipelineLifecycleErrors,
+
+      pipelineLifecycleWarnings:
+        this.mergeLifecycleErrors(
+          summary.pipelineLifecycleWarnings,
+
+          cognitiveRuntimeValidation.warnings
+            .map(
+              message =>
+                this.buildLayerError({
+                  layer:
+                    "cognitiveRuntime",
+
+                  type:
+                    message,
+
+                  message,
+
+                  fatal:
+                    false
+                })
+            )
+        )
+    };
+
+    /* =================================================
+       6. PIPELINE LIFECYCLE RECORD
     ================================================= */
 
     summary =
@@ -381,7 +448,7 @@ window.AriRebirthPipeline = {
       );
 
     /* =================================================
-       6. AUTHORITATIVE DELIVERY NORMALIZATION
+       7. AUTHORITATIVE DELIVERY NORMALIZATION
     ================================================= */
 
     mark(
@@ -425,7 +492,7 @@ window.AriRebirthPipeline = {
     );
 
     /* =================================================
-       7. COMPLETE CANONICAL TURN
+       8. COMPLETE CANONICAL TURN
     ================================================= */
 
     mark(
@@ -442,7 +509,7 @@ window.AriRebirthPipeline = {
     );
 
     /* =================================================
-       8. FINAL RUNTIME METADATA
+       9. FINAL RUNTIME METADATA
     ================================================= */
 
     summary = {
@@ -472,7 +539,7 @@ window.AriRebirthPipeline = {
         this.schemaVersion,
 
       pipelineArchitecture:
-        "canonical-five-layer-realization-native-with-conversation-operating-state",
+        "canonical-five-layer-openai-cognitive-authority-with-evidence-and-semantic-validation",
 
       pipelineAuthority:
         this.getAuthorityBoundaries()
@@ -539,6 +606,135 @@ window.AriRebirthPipeline = {
 
       pipelineLayerReadiness:
         null,
+
+      cognitiveRuntimeValidation:
+        null,
+
+      evidenceBuilderResult:
+        null,
+
+      evidenceBuilderRan:
+        false,
+
+      evidenceBuilderReady:
+        false,
+
+      evidenceBuilderSource:
+        null,
+
+      evidenceBuilderVersion:
+        null,
+
+      evidenceBuilderValidation:
+        null,
+
+      evidencePacket:
+        null,
+
+      observations:
+        [],
+
+      extractedFacts:
+        null,
+
+      explicitSignals:
+        null,
+
+      continuityEvidence:
+        null,
+
+      contextEvidence:
+        null,
+
+      artifactEvidence:
+        null,
+
+      evidenceSourceIndex:
+        null,
+
+      evidenceQuality:
+        null,
+
+      cognitiveReasoningResult:
+        null,
+
+      cognitiveReasoningReady:
+        false,
+
+      cognitiveReasoningSource:
+        null,
+
+      cognitiveReasoningVersion:
+        null,
+
+      semanticFrame:
+        null,
+
+      responseStrategy:
+        null,
+
+      modelDraftResponse:
+        null,
+
+      semanticValidationStagePacket:
+        null,
+
+      semanticValidationStageRan:
+        false,
+
+      semanticValidationStageReady:
+        false,
+
+      semanticValidationStageSource:
+        null,
+
+      semanticValidationStageVersion:
+        null,
+
+      semanticFrameValidatorResult:
+        null,
+
+      semanticFrameValidatorRan:
+        false,
+
+      semanticFrameValidatorReady:
+        false,
+
+      semanticFrameValidatorSource:
+        null,
+
+      semanticFrameValidatorVersion:
+        null,
+
+      validatedSemanticFrame:
+        null,
+
+      rejectedSemanticFrame:
+        null,
+
+      semanticFrameValidation:
+        null,
+
+      semanticFrameProvenance:
+        null,
+
+      semanticCompatibility:
+        null,
+
+      responsePlan:
+        null,
+
+      responsePlanReady:
+        false,
+
+      responsePlanningStagePacket:
+        null,
+
+      responsePlanningStageRan:
+        false,
+
+      responsePlanningStageReady:
+        false,
 
       perceptionPacket:
         null,
@@ -2248,7 +2444,7 @@ window.AriRebirthPipeline = {
         this.version,
 
       pipelineArchitecture:
-        "canonical-five-layer-realization-native-with-conversation-operating-state",
+        "canonical-five-layer-openai-cognitive-authority-with-evidence-and-semantic-validation",
 
       pipelineLayers:
         Object.fromEntries(
@@ -2280,7 +2476,7 @@ window.AriRebirthPipeline = {
           this.schemaVersion,
 
         architecture:
-          "canonical-five-layer-realization-native-with-conversation-operating-state",
+          "canonical-five-layer-openai-cognitive-authority-with-evidence-and-semantic-validation",
 
         conversationOperatingState: {
           began:
@@ -3261,6 +3457,161 @@ window.AriRebirthPipeline = {
   },
 
   /* =====================================================
+     COGNITIVE CONTRACT INVARIANTS
+  ===================================================== */
+
+  validateCognitiveRuntimeState(
+    summary = {}
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    const evidenceAvailable =
+      Boolean(
+        summary.evidencePacket ||
+        summary.perceptionPacket
+          ?.evidencePacket
+      );
+
+    const cognitiveResultAvailable =
+      Boolean(
+        summary.cognitiveReasoningResult ||
+        summary.deliberationPacket
+          ?.cognitiveReasoningResult
+      );
+
+    const semanticValidationAccepted =
+      summary.semanticFrameValidation
+        ?.accepted ===
+        true ||
+      summary.deliberationPacket
+        ?.semanticFrameValidation
+        ?.accepted ===
+        true;
+
+    const validatedFrameAvailable =
+      Boolean(
+        summary.validatedSemanticFrame ||
+        summary.deliberationPacket
+          ?.validatedSemanticFrame
+      );
+
+    const responsePlanAvailable =
+      Boolean(
+        summary.responsePlan ||
+        summary.deliberationPacket
+          ?.responsePlan
+      );
+
+    const cognitiveContractsObserved =
+      evidenceAvailable ||
+      cognitiveResultAvailable ||
+      summary.evidenceBuilderRan ===
+        true ||
+      summary.semanticValidationStageRan ===
+        true ||
+      summary.semanticFrameValidatorRan ===
+        true;
+
+    const explicitlyEnforced =
+      summary.enforceCognitiveContracts ===
+        true ||
+      summary.appContext
+        ?.enforceCognitiveContracts ===
+        true;
+
+    const enforced =
+      explicitlyEnforced ||
+      cognitiveContractsObserved;
+
+    if (
+      enforced &&
+      summary.perceptionPipelineRan ===
+        true &&
+      !evidenceAvailable
+    ) {
+      errors.push(
+        "perception_ran_without_evidence_packet"
+      );
+    }
+
+    if (
+      enforced &&
+      summary.deliberationPipelineRan ===
+        true &&
+      !cognitiveResultAvailable
+    ) {
+      errors.push(
+        "deliberation_ran_without_cognitive_reasoning_result"
+      );
+    }
+
+    if (
+      enforced &&
+      responsePlanAvailable &&
+      (
+        !semanticValidationAccepted ||
+        !validatedFrameAvailable
+      )
+    ) {
+      errors.push(
+        "response_plan_created_without_accepted_validated_semantic_frame"
+      );
+    }
+
+    if (
+      summary.semanticFrame &&
+      !cognitiveResultAvailable
+    ) {
+      warnings.push(
+        "semantic_frame_present_without_cognitive_reasoning_result"
+      );
+    }
+
+    if (!enforced) {
+      warnings.push(
+        "cognitive_contracts_not_yet_observed"
+      );
+    }
+
+    return {
+      valid:
+        errors.length ===
+        0,
+
+      ready:
+        enforced &&
+        errors.length ===
+          0 &&
+        evidenceAvailable &&
+        cognitiveResultAvailable &&
+        semanticValidationAccepted &&
+        validatedFrameAvailable,
+
+      enforced,
+
+      migrationPending:
+        !enforced,
+
+      errors,
+      warnings,
+
+      checks: {
+        evidenceAvailable,
+        cognitiveResultAvailable,
+        semanticValidationAccepted,
+        validatedFrameAvailable,
+        responsePlanAvailable,
+        cognitiveContractsObserved,
+        explicitlyEnforced
+      },
+
+      authority:
+        "cross_layer_runtime_invariant_validation_only"
+    };
+  },
+
+  /* =====================================================
      DEBUGGING
   ===================================================== */
 
@@ -3321,6 +3672,39 @@ window.AriRebirthPipeline = {
     );
 
     console.log(
+      "===== EVIDENCE BUILDER =====",
+      {
+        ran:
+          summary.evidenceBuilderRan ===
+          true,
+
+        ready:
+          summary.evidenceBuilderReady ===
+          true,
+
+        source:
+          summary.evidenceBuilderSource ||
+          null,
+
+        version:
+          summary.evidenceBuilderVersion ||
+          null,
+
+        validation:
+          summary.evidenceBuilderValidation ||
+          null
+      }
+    );
+
+    console.log(
+      "===== EVIDENCE PACKET =====",
+      summary.evidencePacket ||
+      summary.perceptionPacket
+        ?.evidencePacket ||
+      null
+    );
+
+    console.log(
       "===== EXECUTIVE PACKET =====",
       summary.executivePacket ||
       null
@@ -3329,6 +3713,36 @@ window.AriRebirthPipeline = {
     console.log(
       "===== DELIBERATION PACKET =====",
       summary.deliberationPacket ||
+      null
+    );
+
+    console.log(
+      "===== COGNITIVE REASONING RESULT =====",
+      summary.cognitiveReasoningResult ||
+      summary.deliberationPacket
+        ?.cognitiveReasoningResult ||
+      null
+    );
+
+    console.log(
+      "===== VALIDATED SEMANTIC FRAME =====",
+      summary.validatedSemanticFrame ||
+      summary.deliberationPacket
+        ?.validatedSemanticFrame ||
+      null
+    );
+
+    console.log(
+      "===== SEMANTIC FRAME VALIDATION =====",
+      summary.semanticFrameValidation ||
+      summary.deliberationPacket
+        ?.semanticFrameValidation ||
+      null
+    );
+
+    console.log(
+      "===== COGNITIVE RUNTIME INVARIANTS =====",
+      summary.cognitiveRuntimeValidation ||
       null
     );
 
@@ -3509,6 +3923,45 @@ window.AriRebirthPipeline = {
       canNormalizeAuthoritativeDelivery:
         true,
 
+      canPreserveEvidencePacket:
+        true,
+
+      canPreserveCognitiveReasoningResult:
+        true,
+
+      canPreserveValidatedSemanticFrame:
+        true,
+
+      canRequireSemanticValidationBeforePlanning:
+        true,
+
+      canBuildEvidencePacketDirectly:
+        false,
+
+      canInvokeEvidenceBuilderDirectly:
+        false,
+
+      canInvokeCognitiveReasoningDirectly:
+        false,
+
+      canConstructSemanticFrameDirectly:
+        false,
+
+      canInvokeSemanticFrameValidatorDirectly:
+        false,
+
+      canValidateSemanticFrameDirectly:
+        false,
+
+      canRepairRejectedSemanticFrame:
+        false,
+
+      canSelectSemanticOperation:
+        false,
+
+      canGenerateResponseStrategy:
+        false,
+
       canSaveApplicationConversationHistory:
         false,
 
@@ -3585,7 +4038,7 @@ window.AriRebirthPipeline = {
         false,
 
       role:
-        "canonical_realization_native_five_layer_runtime_with_cos_delegation"
+        "canonical_five_layer_runtime_with_openai_cognitive_authority_and_cos_delegation"
     };
   },
 
@@ -3598,6 +4051,15 @@ window.AriRebirthPipeline = {
       this.getAuthorityBoundaries();
 
     const forbiddenTrue = [
+      "canBuildEvidencePacketDirectly",
+      "canInvokeEvidenceBuilderDirectly",
+      "canInvokeCognitiveReasoningDirectly",
+      "canConstructSemanticFrameDirectly",
+      "canInvokeSemanticFrameValidatorDirectly",
+      "canValidateSemanticFrameDirectly",
+      "canRepairRejectedSemanticFrame",
+      "canSelectSemanticOperation",
+      "canGenerateResponseStrategy",
       "canSaveApplicationConversationHistory",
       "canLoadPersistedThreadContextDirectly",
       "canNormalizeStoredTurnsDirectly",
@@ -3646,6 +4108,56 @@ window.AriRebirthPipeline = {
           typeof component?.beginTurn ===
             "function" &&
           typeof component?.completeTurn ===
+            "function"
+      ],
+
+      [
+        "AriOperationRegistry",
+
+        (
+          window.AriOperationRegistry ||
+          window.Ari?.operationRegistry ||
+          null
+        ),
+
+        component =>
+          typeof component?.normalizeOperation ===
+            "function" &&
+          typeof component?.getOperation ===
+            "function" &&
+          typeof component?.hasOperation ===
+            "function"
+      ],
+
+      [
+        "AriEvidenceBuilder",
+
+        (
+          window.AriEvidenceBuilder ||
+          window.Ari?.evidenceBuilder ||
+          null
+        ),
+
+        component =>
+          typeof component?.build ===
+            "function" &&
+          typeof component?.validateEvidencePacket ===
+            "function"
+      ],
+
+      [
+        "AriSemanticFrameValidator",
+
+        (
+          window.AriSemanticFrameValidator ||
+          window.Ari?.semanticFrameValidator ||
+          null
+        ),
+
+        component =>
+          typeof component?.validate ===
+            "function" &&
+          typeof component?.buildCompatibilityProjection ===
             "function"
       ],
 
@@ -3749,6 +4261,42 @@ window.AriRebirthPipeline = {
             true &&
           authority.canCompleteConversationOperatingState ===
             true,
+
+        operationRegistryDelegated:
+          authority.canSelectSemanticOperation ===
+          false,
+
+        evidenceBuildingDelegated:
+          authority.canBuildEvidencePacketDirectly ===
+            false &&
+          authority.canInvokeEvidenceBuilderDirectly ===
+            false,
+
+        cognitiveReasoningDelegated:
+          authority.canInvokeCognitiveReasoningDirectly ===
+          false,
+
+        semanticFrameConstructionDelegated:
+          authority.canConstructSemanticFrameDirectly ===
+          false,
+
+        semanticValidationDelegated:
+          authority.canInvokeSemanticFrameValidatorDirectly ===
+            false &&
+          authority.canValidateSemanticFrameDirectly ===
+            false,
+
+        rejectedFrameRepairDisabled:
+          authority.canRepairRejectedSemanticFrame ===
+          false,
+
+        responseStrategyGenerationDisabled:
+          authority.canGenerateResponseStrategy ===
+          false,
+
+        semanticValidationRequiredBeforePlanning:
+          authority.canRequireSemanticValidationBeforePlanning ===
+          true,
 
         directThreadLoadingDisabled:
           authority.canLoadPersistedThreadContextDirectly ===
