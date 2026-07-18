@@ -1,638 +1,2005 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
-// Purpose: Build a universal evidence-based case model from structured upstream context.
-// V8.4.0 — Universal Case Modeler / Structured Inputs Only / No Final Recommendation Authority
+// Purpose:
+//   Build the canonical cognitive evidence packet,
+//   invoke OpenAI as ARI's authoritative reasoning engine,
+//   validate the structured result,
+//   and expose a safe compatibility contract.
+//
+// V9.0.0 — OpenAI Cognitive Reasoning Adapter
+//
+// Authority model:
+//
+//   ARI:
+//   - gathers evidence
+//   - defines binding safety and execution constraints
+//   - validates model output
+//   - controls tools, persistence, and delivery
+//
+//   OpenAI:
+//   - interprets user meaning
+//   - builds the semantic frame
+//   - analyzes the situation
+//   - proposes decisions and actions
+//   - defines response strategy
+//   - drafts response language
+//
+//   OpenAI may propose actions.
+//   OpenAI may not execute actions or override safety.
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "8.4.0",
+  version: "9.0.0",
 
-  create(input = {}) {
-    const summary = input.summary || input || {};
-    const contract = summary.situationContract || {};
-    const triage = summary.triage || summary.ariTriage || {};
-    const map = summary.situationMap || {};
+  requestSchema:
+    "ari_cognitive_reasoning_request",
 
-    const primary =
-      contract.primary ||
-      summary.situationContractPrimary ||
-      triage.primaryLane ||
-      summary.triagePrimaryLane ||
-      "general_understanding";
+  requestSchemaVersion:
+    "1.0.0",
 
-    const reasoning = this.blankReasoning({ primary, contract, triage, map });
+  resultSchema:
+    "ari_cognitive_reasoning_result",
 
-    this.loadStructuredInputs(reasoning, summary);
-    this.buildUniversalCaseModel(reasoning, summary);
-    this.buildUniversalOptions(reasoning, summary);
-    this.buildUniversalTradeoffs(reasoning, summary);
-    this.buildDecisionMemo(reasoning);
-    this.buildConfidence(reasoning);
-    this.finalize(reasoning);
+  resultSchemaVersion:
+    "1.0.0",
 
-    return {
-      reasoningEngineRan: true,
-      reasoningEngineVersion: this.version,
-      reasoningSource: "ari-reasoning-engine",
+  // ===================================================
+  // Public entry points
+  // ===================================================
 
-      reasoning,
-
-      reasoningAnswer: null,
-      reasoningRecommendation: null,
-      reasoningConfidence: reasoning.confidence?.score ?? null,
-      reasoningPrimary: primary,
-
-      authority: "case_modeling_only"
-    };
+  async create(input = {}) {
+    return this.reason(input);
   },
 
-  blankReasoning({ primary, contract = {}, triage = {}, map = {} }) {
-    return {
-      version: this.version,
-      source: "ari-reasoning-engine",
-
-      primary,
-      contractPrimary: contract.primary || primary,
-      triagePrimary: triage.primaryLane || null,
-      responseShape: contract.responseShape || triage.responseShape || null,
-
-      authority: "case_modeling_only",
-
-      cannotSet: [
-        "primaryLane",
-        "triagePrimaryLane",
-        "situationContractPrimary",
-        "finalResponse",
-        "responseText",
-        "mouthPattern",
-        "tone",
-        "recommendation",
-        "finalRecommendation",
-        "medicalEscalation",
-        "riskOverride"
-      ],
-
-      upstream: {
-        contract,
-        triage,
-        map
-      },
-
-      structuredInputs: {
-        userText: null,
-        semanticSummary: {},
-        situationThesis: null,
-        preferredTerms: {},
-        conceptMap: {},
-        groundedContext: {},
-        observations: [],
-        domains: [],
-        situations: [],
-        needs: [],
-        risks: [],
-        questions: [],
-        constraints: [],
-        responseRules: []
-      },
-
-      knownFacts: [],
-      inferredFacts: [],
-      unknowns: [],
-      constraints: [],
-      risks: [],
-      resources: [],
-
-      caseModel: {
-        frame: null,
-        situation: null,
-        userQuestion: null,
-        primaryLane: primary,
-        userNeed: null,
-        coreConflict: null,
-        activeProblem: null,
-        goals: [],
-        constraints: [],
-        obligations: [],
-        risks: [],
-        unknowns: [],
-        options: [],
-        consequences: [],
-        tradeoffs: [],
-        nextActionCandidates: []
-      },
-
-      options: [],
-      likelyOutcomes: [],
-      tradeoffs: [],
-      counterfactuals: [],
-
-      decisionMemo: {
-        summary: null,
-        strongestFacts: [],
-        materialUnknowns: [],
-        safestAvailableActions: [],
-        actionsToAvoid: [],
-        confidence: null
-      },
-
-      executiveConclusion: {
-        primary,
-        framing: null,
-        analysisSummary: null,
-        candidateActions: [],
-        keyRisk: null,
-        keyTradeoff: null,
-        uncertainty: null,
-        mustInclude: [
-          ...(contract.responseRules || []),
-          ...(contract.mouthDirective?.required || [])
-        ],
-        mustAvoid: [
-          ...(contract.blocked || []),
-          ...(contract.mouthDirective?.avoid || [])
-        ],
-        ownsFinalRecommendation: false
-      },
-
-      confidence: {
-        score: 0,
-        level: "low",
-        reasons: [],
-        uncertaintyDrivers: []
-      },
-
-      answer: null,
-      recommendation: null,
-      obeyedContract: true,
-      contractViolations: []
-    };
-  },
-
-  loadStructuredInputs(reasoning, summary = {}) {
-    const map = summary.situationMap || {};
-    const contract = summary.situationContract || {};
-    const triage = summary.triage || summary.ariTriage || {};
-
-    const semanticSummary =
-      summary.semanticSummary ||
-      summary.semanticFrameOutput?.semanticSummary ||
+  async reason(input = {}) {
+    const summary =
+      input.summary ||
+      input ||
       {};
 
-    const situationThesis =
-      contract.situationThesis?.thesis ||
-      map.primarySituationThesis ||
-      triage.situationThesisUsed ||
-      summary.triageSituationThesis ||
-      null;
+    const reasoningRequest =
+      this.resolveReasoningRequest(summary);
 
-    reasoning.structuredInputs = {
-      userText: this.getOriginalText(summary),
-      semanticSummary,
-      situationThesis,
-      preferredTerms:
-        summary.preferredTerms ||
-        summary.lexicalGrounding?.preferredTerms ||
-        {},
-      conceptMap:
-        summary.conceptMap ||
-        summary.lexicalGrounding?.conceptMap ||
-        {},
-      groundedContext:
-        summary.groundedContext ||
-        summary.entityReference?.groundedContext ||
-        summary.subjectGraphState?.groundedContext ||
-        {},
-      observations:
-        summary.observations ||
-        summary.observationLedger ||
-        [],
-      domains: map.domains || [],
-      situations: map.situations || [],
-      needs: map.needs || [],
-      risks: map.risks || [],
-      questions: map.questions || [],
-      constraints: [
-        ...(map.responseConstraints || []),
-        ...(triage.responseConstraints || []),
-        ...(contract.responseRules || [])
-      ],
-      responseRules: contract.responseRules || []
-    };
+    const requestValidation =
+      this.validateReasoningRequest(
+        reasoningRequest
+      );
 
-    this.extractFactsFromStructuredInputs(reasoning);
-  },
+    if (!requestValidation.valid) {
+      return this.buildFailureResult({
+        reason:
+          "invalid_reasoning_request",
 
-  extractFactsFromStructuredInputs(reasoning) {
-    const input = reasoning.structuredInputs;
-    const thesis = input.situationThesis || {};
-    const semantic = input.semanticSummary || {};
-    const terms = input.preferredTerms || {};
-    const conceptMap = input.conceptMap || {};
+        errors:
+          requestValidation.errors,
 
-    this.add(reasoning.knownFacts, `Primary lane: ${reasoning.primary}`);
+        request:
+          reasoningRequest,
 
-    if (semantic.primaryMeaning) {
-      this.add(reasoning.knownFacts, `Primary meaning: ${semantic.primaryMeaning}`);
-    }
-
-    if (semantic.intent) {
-      this.add(reasoning.knownFacts, `Intent: ${semantic.intent}`);
-    }
-
-    if (semantic.domain) {
-      this.add(reasoning.knownFacts, `Domain: ${semantic.domain}`);
-    }
-
-    if (thesis.oneLine) {
-      this.add(reasoning.knownFacts, `Situation thesis: ${thesis.oneLine}`);
-    }
-
-    if (thesis.coreConflict) {
-      this.add(reasoning.knownFacts, `Core conflict: ${thesis.coreConflict}`);
-    }
-
-    if (thesis.userNeed) {
-      this.add(reasoning.knownFacts, `User need: ${thesis.userNeed}`);
-    }
-
-    Object.entries(terms).forEach(([key, value]) => {
-      const text = this.termText(value);
-      if (text) this.add(reasoning.knownFacts, `${key}: ${text}`);
-    });
-
-    Object.entries(conceptMap).forEach(([key, value]) => {
-      const text = this.termText(value);
-      if (text) this.add(reasoning.knownFacts, `Concept ${key}: ${text}`);
-    });
-
-    input.domains.forEach(x => this.add(reasoning.knownFacts, `Domain signal: ${x}`));
-    input.situations.forEach(x => this.add(reasoning.knownFacts, `Situation signal: ${x}`));
-    input.needs.forEach(x => this.add(reasoning.knownFacts, `Need signal: ${x}`));
-    input.questions.forEach(x => this.add(reasoning.knownFacts, `Question signal: ${x}`));
-
-    input.risks.forEach(x => this.add(reasoning.risks, x));
-    input.constraints.forEach(x => this.add(reasoning.constraints, x));
-  },
-
-  buildUniversalCaseModel(reasoning, summary = {}) {
-    const input = reasoning.structuredInputs;
-    const thesis = input.situationThesis || {};
-    const semantic = input.semanticSummary || {};
-    const terms = input.preferredTerms || {};
-
-    const model = reasoning.caseModel;
-
-    model.frame =
-      thesis.thesisType ||
-      semantic.primaryMeaning ||
-      reasoning.primary ||
-      "general_case";
-
-    model.situation =
-      thesis.oneLine ||
-      semantic.primaryMeaning ||
-      "The user is asking for help with the current situation.";
-
-    model.userQuestion = input.userText;
-
-    model.userNeed =
-      thesis.userNeed ||
-      this.termText(terms.primaryGoal) ||
-      this.first(input.needs) ||
-      "a useful next step";
-
-    model.coreConflict =
-      thesis.coreConflict ||
-      this.inferConflictFromSignals(input) ||
-      null;
-
-    model.activeProblem =
-      this.termText(terms.activeProblem) ||
-      this.termText(terms.issue) ||
-      this.termText(terms.object) ||
-      semantic.primaryMeaning ||
-      null;
-
-    model.goals = this.cleanList([
-      this.termText(terms.primaryGoal),
-      thesis.userNeed,
-      semantic.intent,
-      ...input.needs
-    ]);
-
-    model.constraints = this.cleanList([
-      ...reasoning.constraints,
-      this.termText(terms.constraintPhrase),
-      this.termText(terms.deadline),
-      this.termText(terms.limitingResource)
-    ]);
-
-    model.obligations = this.cleanList([
-      this.termText(terms.personOrRelationship),
-      this.termText(terms.lifeTransition),
-      ...input.domains.filter(x =>
-        x.includes("family") ||
-        x.includes("relationship") ||
-        x.includes("medical") ||
-        x.includes("financial") ||
-        x.includes("career")
-      )
-    ]);
-
-    model.risks = this.cleanList([
-      ...reasoning.risks,
-      ...input.risks
-    ]);
-
-    model.unknowns = this.cleanList([
-      "which detail would materially change the next step",
-      "whether any hidden constraint is more important than the visible one",
-      "what option best protects the user's highest priority"
-    ]);
-
-    reasoning.unknowns.push(...model.unknowns);
-  },
-
-  buildUniversalOptions(reasoning) {
-    const model = reasoning.caseModel;
-    const primary = reasoning.primary;
-
-    const options = [];
-
-    options.push({
-      option: "Name the priority",
-      benefits: [
-        "prevents treating every concern as equal",
-        "makes the next step easier to choose"
-      ],
-      risks: [
-        "may temporarily delay action"
-      ],
-      reversibility: "high"
-    });
-
-    options.push({
-      option: "Protect the highest-risk constraint first",
-      benefits: [
-        "reduces avoidable harm",
-        "keeps the decision grounded"
-      ],
-      risks: [
-        "may feel less emotionally satisfying in the short term"
-      ],
-      reversibility: "medium"
-    });
-
-    options.push({
-      option: "Choose the smallest useful next step",
-      benefits: [
-        "creates progress without overcommitting",
-        "preserves flexibility"
-      ],
-      risks: [
-        "may need another step after new information appears"
-      ],
-      reversibility: "high"
-    });
-
-    if (primary === "builder") {
-      options.push({
-        option: "Apply the smallest targeted technical change",
-        benefits: [
-          "reduces regression risk",
-          "keeps debugging clean"
-        ],
-        risks: [
-          "may not fix deeper architecture issues"
-        ],
-        reversibility: "high"
+        engineRan:
+          false
       });
     }
 
-    if (primary === "executive_decision") {
-      options.push({
-        option: "Compare options by consequence, not emotion alone",
-        benefits: [
-          "improves decision quality",
-          "reduces impulse-driven choices"
+    const modelInvoker =
+      this.resolveModelInvoker(summary);
+
+    if (!modelInvoker) {
+      return this.buildFailureResult({
+        reason:
+          "openai_reasoning_invoker_not_available",
+
+        errors: [
+          "No supported OpenAI reasoning client or injected invoker was found."
         ],
-        risks: [
-          "can feel slower than choosing immediately"
-        ],
-        reversibility: "medium"
+
+        request:
+          reasoningRequest,
+
+        engineRan:
+          false
       });
     }
 
-    if (primary === "medical_body" || primary === "medical_context") {
-      options.push({
-        option: "Check red flags and choose the safest care threshold",
-        benefits: [
-          "avoids false reassurance",
-          "keeps medical context practical"
+    let rawModelResult;
+
+    try {
+      rawModelResult =
+        await modelInvoker({
+          task:
+            "ari_cognitive_reasoning",
+
+          request:
+            reasoningRequest,
+
+          responseSchema:
+            this.getResponseSchema(),
+
+          instructions:
+            this.getReasoningInstructions()
+        });
+    } catch (error) {
+      return this.buildFailureResult({
+        reason:
+          "openai_reasoning_invocation_failed",
+
+        errors: [
+          error?.message ||
+          "The OpenAI reasoning invocation failed."
         ],
-        risks: [
-          "may require outside medical input"
-        ],
-        reversibility: "medium"
+
+        request:
+          reasoningRequest,
+
+        engineRan:
+          true
       });
     }
 
-    model.options = options;
-    reasoning.options = options;
+    const cognitiveReasoningResult =
+      this.validateAndNormalizeResult({
+        rawResult:
+          rawModelResult,
 
-    model.consequences = options.map(option => ({
-      option: option.option,
-      likelyOutcome: option.benefits?.[0] || "may improve clarity",
-      riskLevel: option.reversibility === "high" ? "low" : "moderate"
-    }));
-
-    reasoning.likelyOutcomes = model.consequences;
-
-    model.nextActionCandidates = this.cleanList([
-      "State the priority.",
-      "Name the main constraint.",
-      "Pick the smallest useful next step.",
-      primary === "builder" ? "Make one targeted code change and retest." : null,
-      primary === "executive_decision" ? "Choose the option that protects stability first." : null,
-      primary === "medical_body" || primary === "medical_context"
-        ? "Check whether red flags or urgent thresholds are present."
-        : null
-    ]);
-  },
-
-  buildUniversalTradeoffs(reasoning) {
-    const model = reasoning.caseModel;
-
-    const tradeoffs = [];
-
-    if (model.coreConflict) {
-      tradeoffs.push({
-        sideA: model.coreConflict.split(" vs ")[0] || "one priority",
-        sideB: model.coreConflict.split(" vs ")[1] || "competing priority"
+        request:
+          reasoningRequest
       });
-    }
 
-    tradeoffs.push({
-      sideA: "acting quickly",
-      sideB: "protecting the outcome that matters most"
+    return this.buildEngineResult({
+      cognitiveReasoningResult,
+
+      request:
+        reasoningRequest,
+
+      engineRan:
+        true
     });
-
-    if (model.constraints.length) {
-      tradeoffs.push({
-        sideA: "what the user wants to do",
-        sideB: "the constraint that limits the decision"
-      });
-    }
-
-    model.tradeoffs = this.cleanTradeoffs(tradeoffs);
-    reasoning.tradeoffs = model.tradeoffs;
   },
 
-  buildDecisionMemo(reasoning) {
-    const model = reasoning.caseModel;
+  // ===================================================
+  // Request construction
+  // ===================================================
 
-    reasoning.decisionMemo.summary = model.situation;
-    reasoning.decisionMemo.strongestFacts = reasoning.knownFacts.slice(0, 8);
-    reasoning.decisionMemo.materialUnknowns = model.unknowns.slice(0, 5);
-    reasoning.decisionMemo.safestAvailableActions =
-      model.nextActionCandidates.slice(0, 4);
-
-    reasoning.decisionMemo.actionsToAvoid = this.cleanList([
-      "Do not let a lower-priority signal override the contract primary.",
-      "Do not create a final recommendation inside the reasoning engine.",
-      "Do not escalate medical or safety context unless the Safety Gate supports it.",
-      "Do not replace a direct answer with a vague reflective question."
-    ]);
-
-    reasoning.executiveConclusion.analysisSummary = model.situation;
-    reasoning.executiveConclusion.framing = model.frame;
-    reasoning.executiveConclusion.candidateActions = model.nextActionCandidates;
-    reasoning.executiveConclusion.keyRisk = model.risks[0] || null;
-    reasoning.executiveConclusion.keyTradeoff = model.tradeoffs[0] || null;
-    reasoning.executiveConclusion.uncertainty = model.unknowns[0] || null;
-  },
-
-  buildConfidence(reasoning) {
-    const model = reasoning.caseModel;
-
-    let score = 0.35;
-
-    if (reasoning.primary) score += 0.1;
-    if (model.frame) score += 0.1;
-    if (model.situation) score += 0.1;
-    if (reasoning.knownFacts.length) score += 0.15;
-    if (model.goals.length) score += 0.08;
-    if (model.constraints.length) score += 0.08;
-    if (model.options.length) score += 0.1;
-    if (model.tradeoffs.length) score += 0.08;
-    if (model.nextActionCandidates.length) score += 0.08;
-
-    reasoning.confidence.score = Math.min(0.95, Number(score.toFixed(2)));
-
-    reasoning.confidence.level =
-      reasoning.confidence.score >= 0.8 ? "high" :
-      reasoning.confidence.score >= 0.6 ? "medium" :
-      "low";
-
-    reasoning.confidence.reasons = this.cleanList([
-      model.frame ? "A usable frame was available." : null,
-      reasoning.knownFacts.length ? "Structured facts were available." : null,
-      model.options.length ? "Options were generated." : null,
-      model.tradeoffs.length ? "Tradeoffs were identified." : null,
-      model.nextActionCandidates.length ? "Next action candidates were identified." : null
-    ]);
-
-    reasoning.confidence.uncertaintyDrivers = model.unknowns || [];
-    reasoning.decisionMemo.confidence = reasoning.confidence.level;
-  },
-
-  finalize(reasoning) {
-    reasoning.answer = null;
-    reasoning.recommendation = null;
-    reasoning.executiveConclusion.ownsFinalRecommendation = false;
+  resolveReasoningRequest(summary = {}) {
+    const suppliedRequest =
+      summary.reasoningStageInput;
 
     if (
-      reasoning.recommendation ||
-      reasoning.answer ||
-      reasoning.executiveConclusion.ownsFinalRecommendation
+      suppliedRequest &&
+      typeof suppliedRequest === "object"
     ) {
-      reasoning.obeyedContract = false;
-      reasoning.contractViolations.push(
-        "Reasoning engine attempted to own final answer authority."
+      return this.normalizeReasoningRequest(
+        suppliedRequest,
+        summary
       );
     }
+
+    return this.buildReasoningRequest(
+      summary
+    );
   },
 
-  inferConflictFromSignals(input = {}) {
-    const domains = input.domains || [];
-    const situations = input.situations || [];
+  buildReasoningRequest(summary = {}) {
+    return {
+      schema:
+        this.requestSchema,
 
+      schemaVersion:
+        this.requestSchemaVersion,
+
+      request:
+        this.buildUserRequest(summary),
+
+      conversation:
+        this.buildConversationContext(summary),
+
+      perception:
+        summary.perceptionPacket ||
+        null,
+
+      routing:
+        summary.routingContract ||
+        null,
+
+      executive:
+        summary.executivePacket ||
+        null,
+
+      continuity:
+        summary.continuityStagePacket ||
+        null,
+
+      safety:
+        summary.safetyStagePacket ||
+        null,
+
+      situation:
+        summary.situationStagePacket ||
+        null,
+
+      memory:
+        summary.memoryStagePacket ||
+        null,
+
+      understanding:
+        summary.understandingStagePacket ||
+        null,
+
+      developerEvidence:
+        this.buildDeveloperEvidence(summary),
+
+      responseControl:
+        this.buildResponseControl(summary),
+
+      capabilities:
+        this.buildCapabilityContext(summary),
+
+      authority:
+        this.buildAuthorityContract(),
+
+      outputContract:
+        this.getResponseSchema()
+    };
+  },
+
+  normalizeReasoningRequest(
+    request = {},
+    summary = {}
+  ) {
+    return {
+      schema:
+        request.schema ||
+        this.requestSchema,
+
+      schemaVersion:
+        request.schemaVersion ||
+        this.requestSchemaVersion,
+
+      request: {
+        ...this.buildUserRequest(summary),
+        ...this.objectOrEmpty(
+          request.request
+        )
+      },
+
+      conversation: {
+        ...this.buildConversationContext(
+          summary
+        ),
+
+        ...this.objectOrEmpty(
+          request.conversation
+        )
+      },
+
+      perception:
+        request.perception ??
+        summary.perceptionPacket ??
+        null,
+
+      routing:
+        request.routing ??
+        summary.routingContract ??
+        null,
+
+      executive:
+        request.executive ??
+        summary.executivePacket ??
+        null,
+
+      continuity:
+        request.continuity ??
+        summary.continuityStagePacket ??
+        null,
+
+      safety:
+        request.safety ??
+        summary.safetyStagePacket ??
+        null,
+
+      situation:
+        request.situation ??
+        summary.situationStagePacket ??
+        null,
+
+      memory:
+        request.memory ??
+        summary.memoryStagePacket ??
+        null,
+
+      understanding:
+        request.understanding ??
+        summary.understandingStagePacket ??
+        null,
+
+      developerEvidence: {
+        ...this.buildDeveloperEvidence(
+          summary
+        ),
+
+        ...this.objectOrEmpty(
+          request.developerEvidence
+        )
+      },
+
+      responseControl: {
+        ...this.buildResponseControl(
+          summary
+        ),
+
+        ...this.objectOrEmpty(
+          request.responseControl
+        )
+      },
+
+      capabilities: {
+        ...this.buildCapabilityContext(
+          summary
+        ),
+
+        ...this.objectOrEmpty(
+          request.capabilities
+        )
+      },
+
+      authority: {
+        ...this.buildAuthorityContract(),
+
+        ...this.objectOrEmpty(
+          request.authority
+        ),
+
+        // These boundaries are always binding.
+        safetyIsBinding:
+          true,
+
+        mayExecuteActions:
+          false,
+
+        mayPersistState:
+          false,
+
+        mayOverrideSafety:
+          false
+      },
+
+      outputContract:
+        request.outputContract ||
+        this.getResponseSchema()
+    };
+  },
+
+  buildUserRequest(summary = {}) {
+    const original =
+      summary.turn?.originalText ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      "";
+
+    const effective =
+      summary.turn?.effectiveText ||
+      summary.resolvedUserQuestion ||
+      original;
+
+    return {
+      original,
+
+      effective,
+
+      turnId:
+        summary.turn?.turnId ||
+        summary.turnId ||
+        null,
+
+      currentTurnWasResolved:
+        summary.currentTurnWasResolved ===
+        true,
+
+      language:
+        summary.language ||
+        summary.detectedLanguage ||
+        null
+    };
+  },
+
+  buildConversationContext(summary = {}) {
+    return {
+      recentTurns:
+        this.arrayOrEmpty(
+          summary.conversationContext
+            ?.recentTurns ||
+          summary.recentTurns
+        ),
+
+      activeThreads:
+        this.arrayOrEmpty(
+          summary.activeThreads
+        ),
+
+      currentTopic:
+        summary.currentTopic ||
+        summary.conversationContext
+          ?.currentTopic ||
+        null,
+
+      userContext:
+        summary.userContext ||
+        null,
+
+      operatingState:
+        summary.conversationOperatingState ||
+        null
+    };
+  },
+
+  buildDeveloperEvidence(summary = {}) {
+    return {
+      github:
+        summary.githubEvidence ||
+        null,
+
+      fileContext:
+        summary.githubFileContext ||
+        null,
+
+      investigation:
+        summary.developerInvestigation ||
+        null,
+
+      developerIntent:
+        summary.developerIntent ||
+        null,
+
+      handoff:
+        summary.developerHandoff ||
+        summary.unlockedDeveloperHandoff ||
+        null,
+
+      composerPacket:
+        summary.composerDeveloperPacket ||
+        null
+    };
+  },
+
+  buildResponseControl(summary = {}) {
+    return {
+      contextLane:
+        summary.contextLane ||
+        null,
+
+      primaryLane:
+        summary.primaryLane ||
+        summary.routingContract
+          ?.primaryLane ||
+        null,
+
+      responseShape:
+        summary.responseShape ||
+        summary.routingContract
+          ?.responseShape ||
+        null,
+
+      rules:
+        this.arrayOrEmpty(
+          summary.responseRules
+        ),
+
+      constraints:
+        this.arrayOrEmpty(
+          summary.responseConstraints
+        ),
+
+      requiredBehaviors:
+        this.arrayOrEmpty(
+          summary.responseRequired
+        ),
+
+      forbiddenBehaviors:
+        this.arrayOrEmpty(
+          summary.responseAvoid
+        ),
+
+      blocked:
+        this.arrayOrEmpty(
+          summary.blocked
+        )
+    };
+  },
+
+  buildCapabilityContext(summary = {}) {
+    return {
+      available:
+        this.arrayOrEmpty(
+          summary.availableCapabilities
+        ),
+
+      required:
+        this.arrayOrEmpty(
+          summary.requiredCapabilities
+        ),
+
+      toolAvailability:
+        summary.toolAvailability ||
+        summary.availableTools ||
+        null
+    };
+  },
+
+  buildAuthorityContract() {
+    return {
+      safetyIsBinding:
+        true,
+
+      routingIsBinding:
+        true,
+
+      responseConstraintsAreBinding:
+        true,
+
+      upstreamSemanticSignalsAreAdvisory:
+        true,
+
+      mayInterpretMeaning:
+        true,
+
+      mayResolveAmbiguity:
+        true,
+
+      mayBuildSemanticFrame:
+        true,
+
+      mayAnalyzeEvidence:
+        true,
+
+      mayCompareOptions:
+        true,
+
+      mayRecommendStrategy:
+        true,
+
+      mayPlanResponse:
+        true,
+
+      mayDraftResponse:
+        true,
+
+      mayProposeActions:
+        true,
+
+      mayExecuteActions:
+        false,
+
+      mayPersistState:
+        false,
+
+      mayOverrideSafety:
+        false,
+
+      mayClaimToolSuccess:
+        false,
+
+      mayExposePrivateChainOfThought:
+        false
+    };
+  },
+
+  // ===================================================
+  // Model invocation
+  // ===================================================
+
+  resolveModelInvoker(summary = {}) {
     if (
-      domains.includes("financial_resource_domain") &&
-      domains.includes("family_context_domain")
+      typeof summary.openAIReasoningInvoker ===
+      "function"
     ) {
-      return "financial stability vs family responsibility";
+      return summary.openAIReasoningInvoker;
     }
 
     if (
-      domains.includes("career_work_domain") &&
-      domains.includes("family_context_domain")
+      typeof summary.modelInvoker ===
+      "function"
     ) {
-      return "career movement vs family stability";
+      return summary.modelInvoker;
     }
 
     if (
-      situations.includes("tradeoff_or_competing_priorities")
+      typeof window.AriOpenAIReasoningClient
+        ?.reason === "function"
     ) {
-      return "choice vs consequence";
+      return payload =>
+        window.AriOpenAIReasoningClient
+          .reason(payload);
+    }
+
+    if (
+      typeof window.AriOpenAIClient
+        ?.generateStructured === "function"
+    ) {
+      return payload =>
+        window.AriOpenAIClient
+          .generateStructured(payload);
+    }
+
+    if (
+      typeof window.AriOpenAIClient
+        ?.reason === "function"
+    ) {
+      return payload =>
+        window.AriOpenAIClient
+          .reason(payload);
+    }
+
+    if (
+      typeof window.AriOpenAIClient
+        ?.createResponse === "function"
+    ) {
+      return payload =>
+        window.AriOpenAIClient
+          .createResponse(payload);
     }
 
     return null;
   },
 
-  termText(term) {
-    if (!term) return null;
-    if (typeof term === "string") return term;
-    return (
-      term.raw ||
-      term.phrase ||
-      term.noun ||
-      term.short ||
-      term.value ||
-      term.label ||
-      term.evidence ||
-      null
+  getReasoningInstructions() {
+    return [
+      "Use the complete evidence packet to interpret the user's current request.",
+
+      "Treat safety, routing, response constraints, required behaviors, and forbidden behaviors as binding.",
+
+      "Treat upstream semantic labels as evidence, not as unquestionable conclusions.",
+
+      "Resolve meaning by considering the current turn, recent conversation, continuity evidence, memory, situation, understanding signals, and external evidence together.",
+
+      "Do not provide private chain-of-thought or hidden reasoning. Return concise conclusions, evidence references, assumptions, uncertainties, and decision rationale only.",
+
+      "Do not claim that an action, tool call, message, file change, or external operation has occurred.",
+
+      "Any action must be returned only as a proposed action.",
+
+      "Build one coherent interpretation, semantic frame, response strategy, and optional draft response.",
+
+      "Use an empty array or empty object when a field is not applicable.",
+
+      "Return only data conforming to the supplied response schema."
+    ];
+  },
+
+  // ===================================================
+  // Request validation
+  // ===================================================
+
+  validateReasoningRequest(request = {}) {
+    const errors = [];
+
+    if (
+      !request ||
+      typeof request !== "object"
+    ) {
+      return {
+        valid:
+          false,
+
+        errors: [
+          "reasoning_request_must_be_an_object"
+        ]
+      };
+    }
+
+    if (
+      request.schema !==
+      this.requestSchema
+    ) {
+      errors.push(
+        "invalid_reasoning_request_schema"
+      );
+    }
+
+    const effectiveText =
+      request.request?.effective;
+
+    if (
+      typeof effectiveText !== "string" ||
+      !effectiveText.trim()
+    ) {
+      errors.push(
+        "missing_effective_user_request"
+      );
+    }
+
+    if (
+      request.authority
+        ?.safetyIsBinding !== true
+    ) {
+      errors.push(
+        "safety_authority_must_be_binding"
+      );
+    }
+
+    if (
+      request.authority
+        ?.mayExecuteActions === true
+    ) {
+      errors.push(
+        "model_may_not_execute_actions"
+      );
+    }
+
+    if (
+      request.authority
+        ?.mayOverrideSafety === true
+    ) {
+      errors.push(
+        "model_may_not_override_safety"
+      );
+    }
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors
+    };
+  },
+
+  // ===================================================
+  // Response contract
+  // ===================================================
+
+  getResponseSchema() {
+    return {
+      schema:
+        this.resultSchema,
+
+      schemaVersion:
+        this.resultSchemaVersion,
+
+      required: [
+        "ready",
+        "interpretation",
+        "reasoningDecision",
+        "semanticFrame",
+        "responseStrategy",
+        "grounding",
+        "confidence"
+      ],
+
+      properties: {
+        ready: {
+          type:
+            "boolean"
+        },
+
+        interpretation: {
+          type:
+            "object",
+
+          expectedFields: [
+            "conversationFunction",
+            "userGoal",
+            "operation",
+            "meaning",
+            "subjects",
+            "clarificationRequired",
+            "clarificationQuestion"
+          ]
+        },
+
+        reasoningDecision: {
+          type:
+            "object",
+
+          expectedFields: [
+            "answerDirectly",
+            "reasoningMode",
+            "toolsNeeded",
+            "proposedActions",
+            "decisionRationale"
+          ]
+        },
+
+        semanticFrame: {
+          type:
+            "object",
+
+          expectedFields: [
+            "operation",
+            "target",
+            "domain",
+            "primaryLane",
+            "requestedOutput",
+            "constraints"
+          ]
+        },
+
+        caseModel: {
+          type:
+            "object"
+        },
+
+        options: {
+          type:
+            "array"
+        },
+
+        tradeoffs: {
+          type:
+            "array"
+        },
+
+        uncertainties: {
+          type:
+            "array"
+        },
+
+        responseStrategy: {
+          type:
+            "object",
+
+          expectedFields: [
+            "goal",
+            "shape",
+            "tone",
+            "orderedPoints",
+            "requiredBehaviors",
+            "forbiddenBehaviors",
+            "constraints"
+          ]
+        },
+
+        draftResponse: {
+          type:
+            "string"
+        },
+
+        grounding: {
+          type:
+            "object",
+
+          expectedFields: [
+            "evidenceUsed",
+            "assumptions",
+            "unresolvedConflicts"
+          ]
+        },
+
+        confidence: {
+          type:
+            "number",
+
+          minimum:
+            0,
+
+          maximum:
+            1
+        }
+      },
+
+      constraints: {
+        actionsAreProposalsOnly:
+          true,
+
+        neverOverrideSafety:
+          true,
+
+        neverClaimExecution:
+          true,
+
+        neverPersistState:
+          true,
+
+        neverReturnPrivateChainOfThought:
+          true
+      }
+    };
+  },
+
+  // ===================================================
+  // Result validation and normalization
+  // ===================================================
+
+  validateAndNormalizeResult({
+    rawResult = {},
+    request = {}
+  } = {}) {
+    const value =
+      this.extractModelValue(
+        rawResult
+      );
+
+    const validationErrors = [];
+
+    const interpretation =
+      this.objectOrEmpty(
+        value.interpretation
+      );
+
+    const reasoningDecision =
+      this.objectOrEmpty(
+        value.reasoningDecision ||
+        value.decision
+      );
+
+    const semanticFrame =
+      this.objectOrEmpty(
+        value.semanticFrame
+      );
+
+    const caseModel =
+      this.objectOrEmpty(
+        value.caseModel
+      );
+
+    const responseStrategy =
+      this.objectOrEmpty(
+        value.responseStrategy
+      );
+
+    const grounding =
+      this.objectOrEmpty(
+        value.grounding
+      );
+
+    if (
+      !Object.keys(
+        interpretation
+      ).length
+    ) {
+      validationErrors.push(
+        "missing_interpretation"
+      );
+    }
+
+    if (
+      !Object.keys(
+        reasoningDecision
+      ).length
+    ) {
+      validationErrors.push(
+        "missing_reasoning_decision"
+      );
+    }
+
+    if (
+      !Object.keys(
+        semanticFrame
+      ).length
+    ) {
+      validationErrors.push(
+        "missing_semantic_frame"
+      );
+    }
+
+    if (
+      !Object.keys(
+        responseStrategy
+      ).length
+    ) {
+      validationErrors.push(
+        "missing_response_strategy"
+      );
+    }
+
+    const proposedActions =
+      this.normalizeProposedActions(
+        reasoningDecision.proposedActions ||
+        value.proposedActions
+      );
+
+    const safetyConflict =
+      this.detectSafetyConflict({
+        request,
+        reasoningDecision,
+        responseStrategy
+      });
+
+    if (safetyConflict) {
+      validationErrors.push(
+        safetyConflict
+      );
+    }
+
+    const executionConflict =
+      proposedActions.some(
+        action =>
+          action.executed === true ||
+          action.status === "completed" ||
+          action.status === "executed"
+      );
+
+    if (executionConflict) {
+      validationErrors.push(
+        "model_claimed_action_execution"
+      );
+    }
+
+    const confidence =
+      this.normalizeConfidence(
+        value.confidence
+      );
+
+    const ready =
+      value.ready !== false &&
+      validationErrors.length === 0;
+
+    return {
+      schema:
+        this.resultSchema,
+
+      schemaVersion:
+        this.resultSchemaVersion,
+
+      ready,
+
+      authoritative:
+        ready,
+
+      interpretation:
+        this.normalizeInterpretation(
+          interpretation
+        ),
+
+      reasoningDecision:
+        this.normalizeReasoningDecision({
+          reasoningDecision,
+          proposedActions
+        }),
+
+      semanticFrame:
+        this.normalizeSemanticFrame(
+          semanticFrame
+        ),
+
+      caseModel,
+
+      options:
+        this.normalizeOptions(
+          value.options
+        ),
+
+      tradeoffs:
+        this.normalizeTradeoffs(
+          value.tradeoffs
+        ),
+
+      uncertainties:
+        this.normalizeUncertainties(
+          value.uncertainties ||
+          value.unknowns
+        ),
+
+      responseStrategy:
+        this.normalizeResponseStrategy(
+          responseStrategy
+        ),
+
+      draftResponse:
+        this.normalizeDraftResponse(
+          value.draftResponse
+        ),
+
+      grounding:
+        this.normalizeGrounding(
+          grounding
+        ),
+
+      confidence,
+
+      validation: {
+        passed:
+          validationErrors.length === 0,
+
+        errors:
+          validationErrors
+      },
+
+      source:
+        value.source ||
+        rawResult.source ||
+        "openai-cognitive-reasoning",
+
+      authority:
+        "semantic_interpretation_and_response_planning"
+    };
+  },
+
+  extractModelValue(rawResult = {}) {
+    if (
+      rawResult.cognitiveReasoningResult &&
+      typeof rawResult
+        .cognitiveReasoningResult ===
+        "object"
+    ) {
+      return rawResult
+        .cognitiveReasoningResult;
+    }
+
+    if (
+      rawResult.result &&
+      typeof rawResult.result ===
+        "object"
+    ) {
+      return rawResult.result;
+    }
+
+    if (
+      rawResult.output &&
+      typeof rawResult.output ===
+        "object"
+    ) {
+      return rawResult.output;
+    }
+
+    return this.objectOrEmpty(
+      rawResult
     );
   },
 
-  getOriginalText(summary = {}) {
-    return summary.userMessage || summary.message || summary.input || "";
+  detectSafetyConflict({
+    request = {},
+    reasoningDecision = {},
+    responseStrategy = {}
+  } = {}) {
+    const safety =
+      request.safety ||
+      {};
+
+    const shouldStop =
+      safety.shouldStopNormalResponse ===
+        true ||
+      safety.safetyShouldStopNormalResponse ===
+        true ||
+      safety.disposition
+        ?.shouldStopNormalResponse === true;
+
+    if (!shouldStop) {
+      return null;
+    }
+
+    const safetyLimited =
+      reasoningDecision.reasoningMode ===
+        "safety_limited" ||
+      responseStrategy.mode ===
+        "safety_limited";
+
+    if (
+      reasoningDecision.answerDirectly ===
+        true &&
+      !safetyLimited
+    ) {
+      return "safety_contract_conflict";
+    }
+
+    return null;
   },
 
-  first(arr = []) {
-    return Array.isArray(arr) && arr.length ? arr[0] : null;
+  normalizeInterpretation(
+    interpretation = {}
+  ) {
+    return {
+      conversationFunction:
+        this.nullableString(
+          interpretation
+            .conversationFunction
+        ),
+
+      userGoal:
+        this.nullableString(
+          interpretation.userGoal
+        ),
+
+      operation:
+        this.nullableString(
+          interpretation.operation
+        ),
+
+      meaning:
+        this.nullableString(
+          interpretation.meaning ||
+          interpretation
+            .primaryMeaning
+        ),
+
+      subjects:
+        this.stringArray(
+          interpretation.subjects
+        ),
+
+      contextUsed:
+        interpretation.contextUsed ===
+        true,
+
+      clarificationRequired:
+        interpretation
+          .clarificationRequired === true,
+
+      clarificationQuestion:
+        this.nullableString(
+          interpretation
+            .clarificationQuestion
+        ),
+
+      ambiguity:
+        this.stringArray(
+          interpretation.ambiguity
+        )
+    };
   },
 
-  add(arr, value) {
-    if (!value || !Array.isArray(arr)) return;
-    if (!arr.includes(value)) arr.push(value);
+  normalizeReasoningDecision({
+    reasoningDecision = {},
+    proposedActions = []
+  } = {}) {
+    return {
+      answerDirectly:
+        reasoningDecision
+          .answerDirectly !== false,
+
+      reasoningMode:
+        this.nullableString(
+          reasoningDecision
+            .reasoningMode
+        ) ||
+        "analysis",
+
+      toolsNeeded:
+        this.stringArray(
+          reasoningDecision
+            .toolsNeeded
+        ),
+
+      proposedActions,
+
+      decisionRationale:
+        this.nullableString(
+          reasoningDecision
+            .decisionRationale
+        ),
+
+      shouldAskClarifyingQuestion:
+        reasoningDecision
+          .shouldAskClarifyingQuestion ===
+        true
+    };
   },
 
-  cleanList(list = []) {
-    return [...new Set((list || []).filter(Boolean).map(x => String(x).trim()))];
+  normalizeSemanticFrame(
+    semanticFrame = {}
+  ) {
+    return {
+      ...semanticFrame,
+
+      operation:
+        this.nullableString(
+          semanticFrame.operation
+        ),
+
+      target:
+        semanticFrame.target ??
+        null,
+
+      domain:
+        this.nullableString(
+          semanticFrame.domain
+        ),
+
+      primaryLane:
+        this.nullableString(
+          semanticFrame.primaryLane
+        ),
+
+      requestedOutput:
+        this.nullableString(
+          semanticFrame
+            .requestedOutput
+        ),
+
+      constraints:
+        this.stringArray(
+          semanticFrame.constraints
+        )
+    };
   },
 
-  cleanTradeoffs(list = []) {
-    const seen = new Set();
+  normalizeResponseStrategy(
+    responseStrategy = {}
+  ) {
+    return {
+      ...responseStrategy,
 
-    return list.filter(item => {
-      if (!item?.sideA || !item?.sideB) return false;
-      const key = `${item.sideA}::${item.sideB}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+      goal:
+        this.nullableString(
+          responseStrategy.goal
+        ),
+
+      shape:
+        this.nullableString(
+          responseStrategy.shape
+        ),
+
+      tone:
+        this.nullableString(
+          responseStrategy.tone
+        ),
+
+      orderedPoints:
+        this.arrayOrEmpty(
+          responseStrategy
+            .orderedPoints
+        ),
+
+      requiredBehaviors:
+        this.stringArray(
+          responseStrategy
+            .requiredBehaviors
+        ),
+
+      forbiddenBehaviors:
+        this.stringArray(
+          responseStrategy
+            .forbiddenBehaviors
+        ),
+
+      constraints:
+        this.stringArray(
+          responseStrategy.constraints
+        )
+    };
+  },
+
+  normalizeGrounding(
+    grounding = {}
+  ) {
+    return {
+      evidenceUsed:
+        this.arrayOrEmpty(
+          grounding.evidenceUsed
+        ),
+
+      assumptions:
+        this.arrayOrEmpty(
+          grounding.assumptions
+        ),
+
+      unresolvedConflicts:
+        this.arrayOrEmpty(
+          grounding
+            .unresolvedConflicts
+        )
+    };
+  },
+
+  normalizeOptions(options) {
+    return this.arrayOrEmpty(
+      options
+    ).map(option => {
+      if (
+        typeof option === "string"
+      ) {
+        return {
+          label:
+            option,
+
+          benefits:
+            [],
+
+          risks:
+            [],
+
+          reversibility:
+            null
+        };
+      }
+
+      const value =
+        this.objectOrEmpty(option);
+
+      return {
+        ...value,
+
+        label:
+          this.nullableString(
+            value.label ||
+            value.option ||
+            value.name
+          ),
+
+        benefits:
+          this.stringArray(
+            value.benefits
+          ),
+
+        risks:
+          this.stringArray(
+            value.risks
+          ),
+
+        reversibility:
+          this.nullableString(
+            value.reversibility
+          )
+      };
     });
+  },
+
+  normalizeTradeoffs(tradeoffs) {
+    return this.arrayOrEmpty(
+      tradeoffs
+    ).map(tradeoff => {
+      if (
+        typeof tradeoff === "string"
+      ) {
+        return {
+          description:
+            tradeoff,
+
+          sideA:
+            null,
+
+          sideB:
+            null
+        };
+      }
+
+      const value =
+        this.objectOrEmpty(
+          tradeoff
+        );
+
+      return {
+        ...value,
+
+        description:
+          this.nullableString(
+            value.description
+          ),
+
+        sideA:
+          this.nullableString(
+            value.sideA
+          ),
+
+        sideB:
+          this.nullableString(
+            value.sideB
+          )
+      };
+    });
+  },
+
+  normalizeUncertainties(
+    uncertainties
+  ) {
+    return this.arrayOrEmpty(
+      uncertainties
+    ).map(uncertainty => {
+      if (
+        typeof uncertainty ===
+        "string"
+      ) {
+        return {
+          description:
+            uncertainty,
+
+          material:
+            true,
+
+          resolution:
+            null
+        };
+      }
+
+      const value =
+        this.objectOrEmpty(
+          uncertainty
+        );
+
+      return {
+        ...value,
+
+        description:
+          this.nullableString(
+            value.description ||
+            value.unknown
+          ),
+
+        material:
+          value.material !== false,
+
+        resolution:
+          this.nullableString(
+            value.resolution
+          )
+      };
+    });
+  },
+
+  normalizeProposedActions(actions) {
+    return this.arrayOrEmpty(
+      actions
+    )
+      .filter(action =>
+        action &&
+        typeof action === "object" &&
+        typeof action.type ===
+          "string"
+      )
+      .map(action => ({
+        type:
+          action.type,
+
+        arguments:
+          this.objectOrEmpty(
+            action.arguments
+          ),
+
+        rationale:
+          this.nullableString(
+            action.rationale
+          ),
+
+        requiresApproval:
+          action.requiresApproval !==
+          false,
+
+        // Model output can never mark an
+        // action as already executed.
+        executed:
+          false,
+
+        status:
+          "proposed"
+      }));
+  },
+
+  normalizeDraftResponse(value) {
+    return typeof value === "string"
+      ? value
+      : "";
+  },
+
+  normalizeConfidence(value) {
+    if (
+      value &&
+      typeof value === "object"
+    ) {
+      return this.clampConfidence(
+        value.score
+      );
+    }
+
+    return this.clampConfidence(
+      value
+    );
+  },
+
+  // ===================================================
+  // Engine response construction
+  // ===================================================
+
+  buildEngineResult({
+    cognitiveReasoningResult = {},
+    request = {},
+    engineRan = false
+  } = {}) {
+    return {
+      reasoningEngineRan:
+        engineRan,
+
+      reasoningEngineReady:
+        cognitiveReasoningResult
+          .ready === true,
+
+      reasoningEngineVersion:
+        this.version,
+
+      reasoningSource:
+        cognitiveReasoningResult
+          .source ||
+        "openai-cognitive-reasoning",
+
+      cognitiveReasoningResult,
+
+      // Compatibility contract for modules that
+      // still consume summary.reasoning.
+      reasoning: {
+        interpretation:
+          cognitiveReasoningResult
+            .interpretation ||
+          {},
+
+        decision:
+          cognitiveReasoningResult
+            .reasoningDecision ||
+          {},
+
+        semanticFrame:
+          cognitiveReasoningResult
+            .semanticFrame ||
+          {},
+
+        caseModel:
+          cognitiveReasoningResult
+            .caseModel ||
+          {},
+
+        options:
+          cognitiveReasoningResult
+            .options ||
+          [],
+
+        tradeoffs:
+          cognitiveReasoningResult
+            .tradeoffs ||
+          [],
+
+        uncertainties:
+          cognitiveReasoningResult
+            .uncertainties ||
+          [],
+
+        responseStrategy:
+          cognitiveReasoningResult
+            .responseStrategy ||
+          {},
+
+        grounding:
+          cognitiveReasoningResult
+            .grounding ||
+          {},
+
+        capabilities:
+          this.arrayOrEmpty(
+            request.capabilities
+              ?.required
+          ),
+
+        requiredCapabilities:
+          this.arrayOrEmpty(
+            request.capabilities
+              ?.required
+          ),
+
+        requiredBehaviors:
+          this.arrayOrEmpty(
+            cognitiveReasoningResult
+              .responseStrategy
+              ?.requiredBehaviors
+          ),
+
+        forbiddenBehaviors:
+          this.arrayOrEmpty(
+            cognitiveReasoningResult
+              .responseStrategy
+              ?.forbiddenBehaviors
+          ),
+
+        constraints:
+          this.arrayOrEmpty(
+            cognitiveReasoningResult
+              .responseStrategy
+              ?.constraints
+          ),
+
+        confidence:
+          cognitiveReasoningResult
+            .confidence ??
+          0
+      },
+
+      // These stay null because downstream
+      // Expression owns final language delivery.
+      reasoningAnswer:
+        null,
+
+      reasoningRecommendation:
+        null,
+
+      reasoningConfidence:
+        cognitiveReasoningResult
+          .confidence ??
+        0,
+
+      reasoningPrimary:
+        cognitiveReasoningResult
+          .semanticFrame
+          ?.primaryLane ||
+        request.responseControl
+          ?.primaryLane ||
+        request.routing
+          ?.primaryLane ||
+        null,
+
+      authority:
+        "openai_cognitive_reasoning"
+    };
+  },
+
+  buildFailureResult({
+    reason =
+      "reasoning_failed",
+
+    errors = [],
+
+    request = {},
+
+    engineRan = false
+  } = {}) {
+    const cognitiveReasoningResult = {
+      schema:
+        this.resultSchema,
+
+      schemaVersion:
+        this.resultSchemaVersion,
+
+      ready:
+        false,
+
+      authoritative:
+        false,
+
+      interpretation: {
+        conversationFunction:
+          null,
+
+        userGoal:
+          null,
+
+        operation:
+          null,
+
+        meaning:
+          null,
+
+        subjects:
+          [],
+
+        contextUsed:
+          false,
+
+        clarificationRequired:
+          false,
+
+        clarificationQuestion:
+          null,
+
+        ambiguity:
+          []
+      },
+
+      reasoningDecision: {
+        answerDirectly:
+          false,
+
+        reasoningMode:
+          "clarification",
+
+        toolsNeeded:
+          [],
+
+        proposedActions:
+          [],
+
+        decisionRationale:
+          null,
+
+        shouldAskClarifyingQuestion:
+          false
+      },
+
+      semanticFrame: {
+        operation:
+          null,
+
+        target:
+          null,
+
+        domain:
+          null,
+
+        primaryLane:
+          null,
+
+        requestedOutput:
+          null,
+
+        constraints:
+          []
+      },
+
+      caseModel:
+        {},
+
+      options:
+        [],
+
+      tradeoffs:
+        [],
+
+      uncertainties:
+        [],
+
+      responseStrategy: {
+        goal:
+          null,
+
+        shape:
+          null,
+
+        tone:
+          null,
+
+        orderedPoints:
+          [],
+
+        requiredBehaviors:
+          [],
+
+        forbiddenBehaviors:
+          [],
+
+        constraints:
+          []
+      },
+
+      draftResponse:
+        "",
+
+      grounding: {
+        evidenceUsed:
+          [],
+
+        assumptions:
+          [],
+
+        unresolvedConflicts:
+          []
+      },
+
+      confidence:
+        0,
+
+      validation: {
+        passed:
+          false,
+
+        errors:
+          this.cleanStringList([
+            reason,
+            ...errors
+          ])
+      },
+
+      source:
+        "ari-reasoning-engine-failure",
+
+      authority:
+        "none"
+    };
+
+    return {
+      reasoningEngineRan:
+        engineRan,
+
+      reasoningEngineReady:
+        false,
+
+      reasoningEngineVersion:
+        this.version,
+
+      reasoningSource:
+        "ari-reasoning-engine-failure",
+
+      cognitiveReasoningResult,
+
+      reasoning:
+        {},
+
+      reasoningAnswer:
+        null,
+
+      reasoningRecommendation:
+        null,
+
+      reasoningConfidence:
+        0,
+
+      reasoningPrimary:
+        request.responseControl
+          ?.primaryLane ||
+        null,
+
+      authority:
+        "none",
+
+      reason,
+
+      errors:
+        cognitiveReasoningResult
+          .validation.errors
+    };
+  },
+
+  // ===================================================
+  // Utilities
+  // ===================================================
+
+  objectOrEmpty(value) {
+    return (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    )
+      ? value
+      : {};
+  },
+
+  arrayOrEmpty(value) {
+    return Array.isArray(value)
+      ? value.filter(
+          item =>
+            item !== undefined &&
+            item !== null
+        )
+      : [];
+  },
+
+  stringArray(value) {
+    return [
+      ...new Set(
+        this.arrayOrEmpty(value)
+          .map(item =>
+            typeof item === "string"
+              ? item.trim()
+              : ""
+          )
+          .filter(Boolean)
+      )
+    ];
+  },
+
+  cleanStringList(value) {
+    return [
+      ...new Set(
+        this.arrayOrEmpty(value)
+          .map(item =>
+            String(item || "")
+              .trim()
+          )
+          .filter(Boolean)
+      )
+    ];
+  },
+
+  nullableString(value) {
+    if (
+      typeof value !== "string"
+    ) {
+      return null;
+    }
+
+    const clean =
+      value.trim();
+
+    return clean || null;
+  },
+
+  clampConfidence(value) {
+    const number =
+      Number(value);
+
+    if (
+      !Number.isFinite(number)
+    ) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      Math.min(1, number)
+    );
   }
 };
 
