@@ -6,7 +6,7 @@
 // packet, ask the configured model layer to resolve the omitted meaning,
 // validate the model result, and publish a canonical continuity result.
 //
-// V3.0.1 — AI-Assisted Ellipsis Resolution / Deterministic Governance
+// V3.1.0 — Structural Context Dependency / Deterministic Governance
 //
 // Execution position:
 //
@@ -40,8 +40,8 @@
 window.Ari = window.Ari || {};
 
 window.AriEllipticalFollowUpResolver = {
-  version: "3.0.1",
-  schemaVersion: "3.0.1",
+  version: "3.1.0",
+  schemaVersion: "3.1.0",
 
   config: {
     maxRecentTurns: 8,
@@ -541,153 +541,388 @@ window.AriEllipticalFollowUpResolver = {
   recentTurns = [],
   summary = {}
 } = {}) {
-  const text =
-    currentTurn.normalizedText || "";
-
   const priorContextAvailable =
     recentTurns.length > 0;
 
-  const explicitReference =
-    /\b(?:that one|this one|the other one|what you said|your answer|your response|the previous answer|that|this|it|those|these|them)\b/i
-      .test(text);
+  const features =
+    this.extractContextDependencyFeatures({
+      currentTurn,
+      summary
+    });
 
-  const bareFollowUp =
-    /^(?:why|why not|how|how so|what|who|where|when|which|which one|really|seriously|are you sure|then what|what next|now what|and then|continue|go on|what else|thoughts|your thoughts|what do you think|how do you feel|do you agree|what about it|what about that|what about this)$/i
-      .test(text);
+  if (!priorContextAvailable) {
+    return {
+      detected:
+        false,
 
-  const elaborationFollowUp =
-    /\b(?:elaborate|expand)(?:\s+more)?(?:\s+on)?\s+(?:that|this|it)(?:\s+more|\s+further)?\b/i
-      .test(text) ||
-    /\b(?:tell me more|say more|go deeper|go into more detail)(?:\s+about|\s+on)?\s*(?:that|this|it)?\b/i
-      .test(text) ||
-    /\bexplain\s+(?:that|this|it)(?:\s+more|\s+further)?\b/i
-      .test(text);
+      priorContextAvailable:
+        false,
 
-  const shortInterrogative =
-    currentTurn.wordCount > 0 &&
-    currentTurn.wordCount <= 8 &&
-    /^(?:why|how|what|who|where|when|which)\b/i
-      .test(text);
+      ...features,
 
-  const upstreamContinuity =
-    summary.shouldUseContinuity === true ||
-    summary.isFollowUp === true ||
-    summary.conversationMode
-      ?.isFollowUp === true ||
-    summary.semanticFrame
-      ?.continuity
-      ?.requiresPriorContext === true ||
-    summary.semanticSummary
-      ?.continuity
-      ?.requiresPriorContext === true ||
-    summary.laneSplit
-      ?.routing
-      ?.useThread === true;
+      score:
+        0,
+
+      signals:
+        [],
+
+      confidence:
+        0,
+
+      reason:
+        "No recent conversation context was available.",
+
+      authority:
+        "context_dependency_detection_only"
+    };
+  }
+
+  let score = 0;
+
+  if (
+    features.explicitDiscourseReference
+  ) {
+    score += 4;
+  }
+
+  if (
+    features.pronominalReference
+  ) {
+    score += 2;
+  }
+
+  if (
+    features.temporalSequenceReference
+  ) {
+    score += 3;
+  }
+
+  if (
+    features.leadingConnector
+  ) {
+    score += 1;
+  }
+
+  if (
+    features.elaborationRequest
+  ) {
+    score += 4;
+  }
+
+  if (
+    features.continuationCommand
+  ) {
+    score += 4;
+  }
+
+  if (
+    features.shortInterrogative
+  ) {
+    score += 1;
+  }
+
+  if (
+    features.structurallyIncompleteQuestion
+  ) {
+    score += 3;
+  }
+
+  if (
+    features.upstreamContinuity
+  ) {
+    score += 5;
+  }
+
+  if (
+    features.appearsStandalone
+  ) {
+    score -= 4;
+  }
 
   const detected =
-    priorContextAvailable &&
-    (
-      explicitReference ||
-      elaborationFollowUp ||
-      bareFollowUp ||
-      upstreamContinuity ||
-      (
-        shortInterrogative &&
-        currentTurn.wordCount <= 3
-      )
-    );
+    score >= 3;
 
   const signals = [];
 
-  if (explicitReference) {
+  if (
+    features.explicitDiscourseReference
+  ) {
     signals.push(
       "explicit_discourse_reference"
     );
   }
 
-  if (elaborationFollowUp) {
+  if (
+    features.pronominalReference
+  ) {
     signals.push(
-      "elaboration_follow_up"
+      "pronominal_reference"
     );
   }
 
-  if (bareFollowUp) {
+  if (
+    features.temporalSequenceReference
+  ) {
     signals.push(
-      "bare_follow_up_construction"
+      "temporal_sequence_reference"
     );
   }
 
-  if (shortInterrogative) {
+  if (
+    features.leadingConnector
+  ) {
+    signals.push(
+      "leading_discourse_connector"
+    );
+  }
+
+  if (
+    features.elaborationRequest
+  ) {
+    signals.push(
+      "elaboration_request"
+    );
+  }
+
+  if (
+    features.continuationCommand
+  ) {
+    signals.push(
+      "continuation_command"
+    );
+  }
+
+  if (
+    features.shortInterrogative
+  ) {
     signals.push(
       "short_interrogative"
     );
   }
 
-  if (upstreamContinuity) {
+  if (
+    features.structurallyIncompleteQuestion
+  ) {
+    signals.push(
+      "structurally_incomplete_question"
+    );
+  }
+
+  if (
+    features.upstreamContinuity
+  ) {
     signals.push(
       "upstream_continuity_evidence"
     );
   }
 
-  if (priorContextAvailable) {
-    signals.push(
-      "recent_context_available"
-    );
-  }
-
-  let confidence = 0;
-
-  if (detected) {
-    confidence = 0.55;
-
-    if (explicitReference) {
-      confidence += 0.2;
-    }
-
-    if (elaborationFollowUp) {
-      confidence += 0.15;
-    }
-
-    if (bareFollowUp) {
-      confidence += 0.15;
-    }
-
-    if (upstreamContinuity) {
-      confidence += 0.08;
-    }
-  }
+  signals.push(
+    "recent_context_available"
+  );
 
   return {
     detected,
 
     priorContextAvailable,
 
-    explicitReference,
+    ...features,
 
-    elaborationFollowUp,
-
-    bareFollowUp,
-
-    shortInterrogative,
-
-    upstreamContinuity,
+    score,
 
     signals,
 
     confidence:
-      this.normalizeConfidence(
-        confidence
-      ),
+      detected
+        ? this.normalizeConfidence(
+            Math.min(
+              0.98,
+              0.5 +
+              (
+                Math.max(
+                  0,
+                  score
+                ) *
+                0.07
+              )
+            )
+          )
+        : this.normalizeConfidence(
+            Math.max(
+              0,
+              0.45 +
+              (
+                score *
+                0.05
+              )
+            )
+          ),
 
     reason:
       detected
-        ? "The turn appears to depend on immediately available conversation context."
-        : !priorContextAvailable
-          ? "No recent conversation context was available."
-          : "The turn appears complete enough to continue without elliptical resolution.",
+        ? "The turn contains structural evidence that omitted meaning must be recovered from recent conversation."
+        : "The turn appears sufficiently self-contained for downstream semantic analysis.",
 
     authority:
       "context_dependency_detection_only"
+  };
+},
+
+extractContextDependencyFeatures({
+  currentTurn = {},
+  summary = {}
+} = {}) {
+  const text =
+    currentTurn.normalizedText ||
+    "";
+
+  const wordCount =
+    Number(
+      currentTurn.wordCount ||
+      0
+    );
+
+  const explicitDiscourseReference =
+    /\b(?:that one|this one|the other one|what you said|your answer|your response|the previous answer|the earlier answer|that|this|those|these|there)\b/i
+      .test(text);
+
+  const pronominalReference =
+    /\b(?:it|they|them|he|him|she|her|one|ones)\b/i
+      .test(text);
+
+  const temporalSequenceReference =
+    /\b(?:then|next|after that|before that|afterward|afterwards|subsequently|earlier|later)\b/i
+      .test(text);
+
+  const leadingConnector =
+    /^(?:so|and|but|then|well|okay|ok|also|anyway|still|instead|otherwise)\b/i
+      .test(text);
+
+  const elaborationRequest =
+    (
+      /\b(?:elaborate|expand|explain)\b/i
+        .test(text) &&
+      (
+        explicitDiscourseReference ||
+        wordCount <= 8
+      )
+    ) ||
+    /\b(?:tell me more|say more|go deeper|go into more detail)\b/i
+      .test(text);
+
+  const continuationCommand =
+    /^(?:(?:so|and|okay|ok|well)\s+)?(?:continue|go on|keep going|and then|then what|what next|now what|what else)$/i
+      .test(text);
+
+  const interrogative =
+    /\b(?:why|how|what|who|where|when|which)\b/i
+      .test(text);
+
+  const shortInterrogative =
+    interrogative &&
+    wordCount > 0 &&
+    wordCount <= 8;
+
+  /*
+   * Structural incompleteness is evidence that the operation is present
+   * but its discourse anchor, event, object, proposition, or referent is
+   * omitted.
+   *
+   * These are feature patterns, not complete accepted utterance lists.
+   */
+  const connectorLedInterrogative =
+  /^(?:so|and|but|then|well)\s+(?:why|how|what|who|where|when|which)\b/i
+    .test(text);
+
+const structurallyIncompleteQuestion =
+  shortInterrogative &&
+  (
+    explicitDiscourseReference ||
+    pronominalReference ||
+    temporalSequenceReference ||
+    connectorLedInterrogative
+  );
+
+  const upstreamContinuity =
+    summary.shouldUseContinuity ===
+      true ||
+    summary.isFollowUp ===
+      true ||
+    summary.conversationMode
+      ?.isFollowUp ===
+      true ||
+    summary.semanticFrame
+      ?.continuity
+      ?.requiresPriorContext ===
+      true ||
+    summary.semanticSummary
+      ?.continuity
+      ?.requiresPriorContext ===
+      true ||
+    summary.laneSplit
+      ?.routing
+      ?.useThread ===
+      true;
+
+  /*
+   * This is deliberately conservative. It only subtracts evidence when
+   * the turn is reasonably long and contains none of the principal
+   * dependency features.
+   */
+  const appearsStandalone =
+    wordCount >= 9 &&
+    !explicitDiscourseReference &&
+    !pronominalReference &&
+    !temporalSequenceReference &&
+    !leadingConnector &&
+    !elaborationRequest &&
+    !continuationCommand;
+
+  return {
+    explicitDiscourseReference,
+
+    /*
+     * Compatibility field retained for existing consumers.
+     */
+    explicitReference:
+      explicitDiscourseReference,
+
+    pronominalReference,
+
+    temporalSequenceReference,
+
+    leadingConnector,
+
+    elaborationRequest,
+
+    /*
+     * Compatibility field retained for diagnostics built against V3.0.1.
+     */
+    elaborationFollowUp:
+      elaborationRequest,
+
+    continuationCommand,
+
+    /*
+     * The old bare-follow-up concept is retained as an output field,
+     * but it is now derived from structural classes rather than being
+     * the governing phrase whitelist.
+     */
+    bareFollowUp:
+      continuationCommand ||
+      (
+        shortInterrogative &&
+        wordCount <= 3
+      ),
+
+    interrogative,
+
+    shortInterrogative,
+
+    structurallyIncompleteQuestion,
+
+    upstreamContinuity,
+
+    appearsStandalone
   };
 },
 
@@ -1105,217 +1340,308 @@ window.AriEllipticalFollowUpResolver = {
   ===================================================== */
 
   validateModelResolution({
-    parsed = null,
-    packet = {},
-    currentTurn = {},
-    recentTurns = []
-  } = {}) {
-    const warnings = [];
+  parsed = null,
+  packet = {},
+  currentTurn = {},
+  recentTurns = []
+} = {}) {
+  const warnings = [];
 
-    if (
-      !parsed ||
-      typeof parsed !==
-        "object"
-    ) {
-      return {
-        accepted:
-          false,
-
-        requiresClarification:
-          true,
-
-        confidence:
-          0,
-
-        warnings: [
-          "model_response_missing_or_invalid"
-        ],
-
-        reason:
-          "The model did not return a usable structured resolution."
-      };
-    }
-
-    const resolved =
-      parsed.resolved ===
-      true;
-
-    const ambiguous =
-      parsed.ambiguous ===
-      true;
-
-    const resolvedText =
-      this.clean(
-        parsed.resolvedText ||
-        parsed.resolvedQuestion ||
-        ""
-      );
-
-    const referent =
-      this.clean(
-        parsed.referent ||
-        ""
-      );
-
-    const sourceTurnIds =
-      this.asArray(
-        parsed.sourceTurnIds ||
-        parsed.source_turn_ids
-      ).map(String);
-
-    const confidence =
-      this.normalizeConfidence(
-        parsed.confidence
-      );
-
-    const allowedTurnIds =
-      new Set(
-        recentTurns
-          .map(
-            turn =>
-              turn.id
-          )
-          .filter(Boolean)
-          .map(String)
-      );
-
-    const unsupportedSource =
-      sourceTurnIds.some(
-        id =>
-          !allowedTurnIds.has(
-            id
-          )
-      );
-
-    if (
-      unsupportedSource
-    ) {
-      warnings.push(
-        "model_cited_unknown_source_turn"
-      );
-    }
-
-    if (
-      resolved &&
-      !resolvedText
-    ) {
-      warnings.push(
-        "resolved_text_missing"
-      );
-    }
-
-    if (
-      resolvedText.length >
-      this.config
-        .maxResolvedCharacters
-    ) {
-      warnings.push(
-        "resolved_text_too_long"
-      );
-    }
-
-    if (
-      resolvedText &&
-      this.normalize(
-        resolvedText
-      ) ===
-        this.normalize(
-          currentTurn.originalText
-        )
-    ) {
-      warnings.push(
-        "resolved_text_unchanged"
-      );
-    }
-
-    if (
-      confidence <
-      this.config
-        .minimumAcceptedConfidence
-    ) {
-      warnings.push(
-        "model_confidence_below_threshold"
-      );
-    }
-
-    if (
-      ambiguous
-    ) {
-      warnings.push(
-        "model_marked_resolution_ambiguous"
-      );
-    }
-
-    const accepted =
-      resolved &&
-      !ambiguous &&
-      Boolean(
-        resolvedText
-      ) &&
-      !unsupportedSource &&
-      resolvedText.length <=
-        this.config
-          .maxResolvedCharacters &&
-      confidence >=
-        this.config
-          .minimumAcceptedConfidence;
-
+  if (
+    !parsed ||
+    typeof parsed !==
+      "object"
+  ) {
     return {
-      accepted,
+      accepted:
+        false,
 
-      resolved,
+      resolved:
+        false,
 
-      ambiguous,
+      ambiguous:
+        false,
+
+      disposition:
+        "resolution_failed",
 
       resolvedText:
-        accepted
-          ? resolvedText
-          : currentTurn
-              .originalText,
+        currentTurn.originalText,
 
       referent:
-        accepted
-          ? referent ||
-            null
-          : null,
+        null,
 
       sourceTurnIds:
-        accepted
-          ? sourceTurnIds
-          : [],
+        [],
 
       followUpFamily:
-        accepted
-          ? this.normalizeIdentifier(
-              parsed.followUpFamily ||
-              parsed.follow_up_family ||
-              "context_dependent_follow_up"
-            )
-          : null,
+        null,
 
-      confidence,
+      confidence:
+        0,
 
       requiresClarification:
-        !accepted,
+        false,
 
-      warnings,
+      warnings: [
+        "model_response_missing_or_invalid"
+      ],
 
       reason:
-        accepted
-          ? this.clean(
-              parsed.reason ||
-              "The model resolved the omitted meaning using supplied recent conversation only."
-            )
-          : ambiguous
-            ? "The model found more than one materially plausible interpretation."
+        "The model did not return a usable structured resolution."
+    };
+  }
+
+  const resolvedFieldValid =
+    typeof parsed.resolved ===
+    "boolean";
+
+  const ambiguousFieldValid =
+    typeof parsed.ambiguous ===
+    "boolean";
+
+  const resolved =
+    resolvedFieldValid &&
+    parsed.resolved === true;
+
+  const ambiguous =
+    ambiguousFieldValid &&
+    parsed.ambiguous === true;
+
+  const resolvedText =
+    this.clean(
+      parsed.resolvedText ||
+      parsed.resolvedQuestion ||
+      ""
+    );
+
+  const referent =
+    this.clean(
+      parsed.referent ||
+      ""
+    );
+
+  const sourceTurnIds =
+    this.asArray(
+      parsed.sourceTurnIds ||
+      parsed.source_turn_ids
+    ).map(String);
+
+  const confidence =
+    this.normalizeConfidence(
+      parsed.confidence
+    );
+
+  const allowedTurnIds =
+    new Set(
+      recentTurns
+        .map(
+          turn =>
+            turn.id
+        )
+        .filter(Boolean)
+        .map(String)
+    );
+
+  const unsupportedSource =
+    sourceTurnIds.some(
+      id =>
+        !allowedTurnIds.has(
+          id
+        )
+    );
+
+  const textChanged =
+    Boolean(
+      resolvedText
+    ) &&
+    this.normalize(
+      resolvedText
+    ) !==
+      this.normalize(
+        currentTurn.originalText
+      );
+
+  if (
+    !resolvedFieldValid
+  ) {
+    warnings.push(
+      "resolved_field_missing_or_invalid"
+    );
+  }
+
+  if (
+    !ambiguousFieldValid
+  ) {
+    warnings.push(
+      "ambiguous_field_missing_or_invalid"
+    );
+  }
+
+  if (
+    unsupportedSource
+  ) {
+    warnings.push(
+      "model_cited_unknown_source_turn"
+    );
+  }
+
+  if (
+    resolved &&
+    !resolvedText
+  ) {
+    warnings.push(
+      "resolved_text_missing"
+    );
+  }
+
+  if (
+    resolved &&
+    resolvedText &&
+    !textChanged
+  ) {
+    warnings.push(
+      "resolved_text_unchanged"
+    );
+  }
+
+  if (
+    resolvedText.length >
+    this.config
+      .maxResolvedCharacters
+  ) {
+    warnings.push(
+      "resolved_text_too_long"
+    );
+  }
+
+  if (
+    confidence <
+    this.config
+      .minimumAcceptedConfidence
+  ) {
+    warnings.push(
+      "model_confidence_below_threshold"
+    );
+  }
+
+  if (
+    ambiguous
+  ) {
+    warnings.push(
+      "model_marked_resolution_ambiguous"
+    );
+  }
+
+  const accepted =
+    resolvedFieldValid &&
+    ambiguousFieldValid &&
+    resolved &&
+    !ambiguous &&
+    Boolean(
+      resolvedText
+    ) &&
+    textChanged &&
+    !unsupportedSource &&
+    resolvedText.length <=
+      this.config
+        .maxResolvedCharacters &&
+    confidence >=
+      this.config
+        .minimumAcceptedConfidence;
+
+  let disposition =
+    "resolution_failed";
+
+  if (
+    accepted
+  ) {
+    disposition =
+      "resolved";
+  } else if (
+    resolvedFieldValid &&
+    ambiguousFieldValid &&
+    ambiguous
+  ) {
+    disposition =
+      "clarification_required";
+  } else if (
+    resolvedFieldValid &&
+    ambiguousFieldValid &&
+    resolved === false &&
+    ambiguous === false
+  ) {
+    disposition =
+      "not_resolved";
+  }
+
+  const requiresClarification =
+    disposition ===
+    "clarification_required";
+
+  return {
+    accepted,
+
+    resolved,
+
+    ambiguous,
+
+    disposition,
+
+    resolvedText:
+      accepted
+        ? resolvedText
+        : currentTurn
+            .originalText,
+
+    referent:
+      accepted
+        ? referent ||
+          null
+        : null,
+
+    sourceTurnIds:
+      accepted
+        ? sourceTurnIds
+        : [],
+
+    followUpFamily:
+      accepted
+        ? this.normalizeIdentifier(
+            parsed.followUpFamily ||
+            parsed.follow_up_family ||
+            "context_dependent_follow_up"
+          )
+        : null,
+
+    confidence,
+
+    requiresClarification,
+
+    warnings,
+
+    reason:
+      accepted
+        ? this.clean(
+            parsed.reason ||
+            "The omitted meaning was resolved using supplied recent conversation."
+          )
+        : disposition ===
+            "clarification_required"
+          ? "More than one materially plausible interpretation remained."
+          : disposition ===
+              "not_resolved"
+            ? this.clean(
+                parsed.reason ||
+                "The model did not identify a supported elliptical resolution."
+              )
             : warnings.length
               ? warnings.join(
                   ", "
                 )
-              : "The model resolution was not accepted."
-    };
-  },
-
+              : "The proposed resolution was not accepted."
+  };
+},
   /* =====================================================
      RESULT BUILDERS
   ===================================================== */
@@ -1378,13 +1704,15 @@ continuityResolverSource:
   "ari-elliptical-follow-up-resolver",
 
 status:
-  resolved
-    ? "resolved"
-    : validation
-        .requiresClarification === true
-      ? "clarification_required"
-      : "unresolved",
-
+  validation.disposition ||
+  (
+    resolved
+      ? "resolved"
+      : validation
+          .requiresClarification === true
+        ? "clarification_required"
+        : "unresolved"
+  ),
       ran:
         true,
 
@@ -1461,6 +1789,12 @@ status:
         adapterAvailable:
           !modelError,
 
+disposition:
+
+    validation.disposition ||
+
+    "resolution_failed",
+
         rawParsed:
           parsed,
 
@@ -1472,12 +1806,13 @@ status:
 
       anchor: {
         status:
-          resolved
-            ? "resolved"
-            : validation.ambiguous
-              ? "ambiguous"
-              : "unresolved",
-
+  resolved
+    ? "resolved"
+    : validation.disposition ===
+        "clarification_required"
+      ? "ambiguous"
+      : validation.disposition ||
+        "unresolved",
         selectedSources,
 
         sourceTurnIds:
@@ -1966,20 +2301,26 @@ status:
     resolution.detected === true;
 
   const status =
+  resolution.status ||
+  (
     resolved
       ? "resolved"
       : detected
         ? resolution.requiresClarification === true
           ? "clarification_required"
           : "unresolved"
-        : "not_required";
-
+        : "not_required"
+  );
   return {
     continuityResolverRan:
       true,
 
     continuityResolverVersion:
       this.version,
+
+disposition:
+  resolution.status ||
+  null,
 
     continuityResolverSource:
       "ari-elliptical-follow-up-resolver",
