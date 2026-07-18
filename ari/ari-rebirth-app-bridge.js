@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.3.1 — Expression Runtime Registration Verification
+// V2.4.0 — Evidence and Semantic Validation Registration
 //
 // Architectural flow:
 //
@@ -64,8 +64,8 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.3.1",
-  schemaVersion: "2.3.1",
+  version: "2.4.0",
+  schemaVersion: "2.4.0",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
@@ -85,6 +85,9 @@ window.AriRebirthAppBridge = {
     "ari/system/ari-loader.js",
     "ari/system/ari-authority.js",
 
+    // Shared cognitive operation contracts.
+    "ari/contracts/ari-operation-registry.js",
+
     // ===================================================
     // APPLICATION RUNTIME BOUNDARY SERVICES
     // ===================================================
@@ -92,7 +95,7 @@ window.AriRebirthAppBridge = {
     "ari/bridge/ari-runtime-request.js",
     "ari/bridge/ari-runtime-readiness.js",
     "ari/bridge/ari-runtime-delivery.js",
-"ari/bridge/ari-runtime-diagnostics.js",
+
     // ===================================================
     // ACTION / INTENT
     // ===================================================
@@ -128,6 +131,11 @@ window.AriRebirthAppBridge = {
 
     "ari/safety/ari-safety-context-gate.js",
     "ari/observer-system/ari-observer-network.js",
+
+    // Deterministic evidence aggregation. This replaces semantic frame
+    // construction inside Perception.
+    "ari/perception/ari-evidence-builder.js",
+
     "ari/conversation/ari-conversation-function-engine.js",
     "ari/conversation/ari-universal-conversation-classifier.js",
     "ari/observer-system/ari-observer-routing-evidence.js",
@@ -170,10 +178,10 @@ window.AriRebirthAppBridge = {
     "ari/context/ari-thread-question-generator.js",
 
     // ===================================================
-    // MEANING / RECONCILIATION
+    // PERCEPTION RECONCILIATION / SITUATION EVIDENCE
     // ===================================================
 
-    "ari/meaning/ari-semantic-frame-builder.js",
+    // Semantic frame construction no longer belongs here.
     "ari/perception/ari-perception-reconciliation-engine.js",
     "ari/meaning/ari-situation-map-engine.js",
 
@@ -285,6 +293,10 @@ window.AriRebirthAppBridge = {
     "ari/knowledge/ari-openai-knowledge-client.js",
     "ari/knowledge/ari-supabase-knowledge-client.js",
     "ari/reasoning/ari-reasoning-engine.js",
+
+    // Post-reasoning structural and contract validation.
+    "ari/meaning/ari-semantic-frame-validator.js",
+
     "ari/cognition/ari-cognitive-executive.js",
     "ari/knowledge/ari-knowledge-router.js",
     "ari/knowledge/ari-knowledge-meaning-interpreter.js",
@@ -449,61 +461,28 @@ window.AriRebirthAppBridge = {
       timing.mark(
         "after_runtime_load"
       );
-   
-     } catch (error) {
-  console.error(
-    "ARI REBIRTH SCRIPT LOAD ERROR:",
-    error
-  );
+    } catch (error) {
+      console.error(
+        "ARI REBIRTH SCRIPT LOAD ERROR:",
+        error
+      );
 
-  timing.finish();
+      timing.finish();
 
-  const loadError =
-    error?.message ||
-    String(
-      error ||
-      "unknown_runtime_load_error"
-    );
+      return this.makeBridgeFailureResponse({
+        publicReply:
+          "Ari couldn’t finish loading the response system.",
 
-  const lastLoadingScript =
-    (() => {
-      try {
-        return (
-          sessionStorage.getItem(
-            "ariLastLoadingScript"
-          ) ||
-          "unknown_script"
-        );
-      } catch {
-        return "session_storage_unavailable";
-      }
-    })();
+        error,
+        options,
 
-  return this.makeBridgeFailureResponse({
-    publicReply:
-      `Ari couldn’t finish loading the response system. ` +
-      `Error: ${loadError}. ` +
-      `Last script: ${lastLoadingScript}.`,
+        failureType:
+          "runtime_load_failure",
 
-    error,
-    options: {
-      ...options,
-      exposeInternalErrors:
-        true
-    },
-
-    failureType:
-      "runtime_load_failure",
-
-    diagnostics: {
-      loadError,
-      lastLoadingScript
-    },
-
-    timing:
-      timing.getEntries()
-  });
-}
+        timing:
+          timing.getEntries()
+      });
+    }
 
     const readiness =
       this.checkReadiness({
@@ -800,6 +779,37 @@ window.AriRebirthAppBridge = {
       message,
       options
     });
+  },
+
+  /* =====================================================
+     REGISTERED COGNITIVE CONTRACT ACCESSORS
+  ===================================================== */
+
+  getOperationRegistry() {
+    return (
+      window.AriOperationRegistry ||
+      window.Ari
+        ?.operationRegistry ||
+      null
+    );
+  },
+
+  getEvidenceBuilder() {
+    return (
+      window.AriEvidenceBuilder ||
+      window.Ari
+        ?.evidenceBuilder ||
+      null
+    );
+  },
+
+  getSemanticFrameValidator() {
+    return (
+      window.AriSemanticFrameValidator ||
+      window.Ari
+        ?.semanticFrameValidator ||
+      null
+    );
   },
 
   /* =====================================================
@@ -1254,6 +1264,21 @@ window.AriRebirthAppBridge = {
             window.Ari
               ?.rebirthPipeline
               ?.version ||
+            null,
+
+          operationRegistry:
+            this.getOperationRegistry()
+              ?.version ||
+            null,
+
+          evidenceBuilder:
+            this.getEvidenceBuilder()
+              ?.version ||
+            null,
+
+          semanticFrameValidator:
+            this.getSemanticFrameValidator()
+              ?.version ||
             null
         },
 
@@ -1377,203 +1402,89 @@ window.AriRebirthAppBridge = {
   ===================================================== */
 
   async ensureLoaded() {
-  if (
-    this.loaded === true &&
-    this.areRequiredServicesReady() &&
-    this.isMasterPipelineReady()
-  ) {
-    const expressionValidation =
-      this.validateExpressionArchitecture();
-
     if (
-      expressionValidation.valid ===
-      true
+      this.loaded ===
+        true &&
+      this.areRequiredServicesReady() &&
+      this.isMasterPipelineReady()
     ) {
       return true;
     }
 
-    this.loaded =
-      false;
-  }
+    if (
+      this.loadingPromise
+    ) {
+      return this.loadingPromise;
+    }
 
-  if (
-    this.loadingPromise
-  ) {
+    this.loadingPromise =
+      this.loadRequiredScripts()
+        .then(
+          result => {
+            this.loaded =
+              result ===
+                true &&
+              this.areRequiredServicesReady() &&
+              this.isMasterPipelineReady();
+
+            if (
+              !this.loaded
+            ) {
+              throw new Error(
+                "ari_runtime_unavailable_after_script_loading"
+              );
+            }
+
+            this.setLoaderDiagnostic(
+              "ariLoadingCompleted",
+              "true"
+            );
+
+            this.removeLoaderDiagnostic(
+              "ariLastLoadingScript"
+            );
+
+            this.removeLoaderDiagnostic(
+              "ariLastLoadingIndex"
+            );
+
+            this.removeLoaderDiagnostic(
+              "ariLastLoadError"
+            );
+
+            this.loadingPromise =
+              null;
+
+            return true;
+          }
+        )
+        .catch(
+          error => {
+            this.loaded =
+              false;
+
+            this.loadingPromise =
+              null;
+
+            this.setLoaderDiagnostic(
+              "ariLoadingCompleted",
+              "false"
+            );
+
+            this.setLoaderDiagnostic(
+              "ariLastLoadError",
+              error?.message ||
+              String(
+                error
+              )
+            );
+
+            throw error;
+          }
+        );
+
     return this.loadingPromise;
-  }
-
-  this.loadingPromise =
-    this.loadRequiredScripts()
-      .then(
-        result => {
-          console.log(
-            "========== ARI POST LOAD =========="
-          );
-
-          const expressionValidation =
-            this.validateExpressionArchitecture();
-
-          console.table({
-            scriptsLoaded:
-              result,
-
-            requestService:
-              typeof window
-                .AriRuntimeRequest
-                ?.build ===
-              "function",
-
-            readinessService:
-              typeof window
-                .AriRuntimeReadiness
-                ?.check ===
-              "function",
-
-            deliveryRead:
-              typeof window
-                .AriRuntimeDelivery
-                ?.read ===
-              "function",
-
-            deliveryAdapt:
-              typeof window
-                .AriRuntimeDelivery
-                ?.adapt ===
-              "function",
-
-            pipeline:
-              typeof window
-                .AriRebirthPipeline
-                ?.run ===
-              "function",
-
-            expressionVersion:
-              expressionValidation
-                .version,
-
-            expressionDirectRealization:
-              expressionValidation
-                .hasDirectRealization,
-
-            expressionHasDraftGeneration:
-              expressionValidation
-                .hasDraftGeneration,
-
-            expressionHasDraftArbitration:
-              expressionValidation
-                .hasDraftArbitration,
-
-            expressionValid:
-              expressionValidation
-                .valid
-          });
-
-          console.log(
-            "AriRuntimeRequest",
-            window.AriRuntimeRequest
-          );
-
-          console.log(
-            "AriRuntimeReadiness",
-            window.AriRuntimeReadiness
-          );
-
-          console.log(
-            "AriRuntimeDelivery",
-            window.AriRuntimeDelivery
-          );
-
-          console.log(
-            "AriRebirthPipeline",
-            window.AriRebirthPipeline
-          );
-
-          console.log(
-            "AriExpressionPipeline",
-            window.AriExpressionPipeline
-          );
-
-          console.log(
-            "ARI EXPRESSION ARCHITECTURE VALIDATION:",
-            expressionValidation
-          );
-
-          if (
-            expressionValidation.valid !==
-            true
-          ) {
-            throw new Error(
-              expressionValidation.error ||
-              "expression_pipeline_architecture_invalid"
-            );
-          }
-
-          this.loaded =
-            result ===
-              true &&
-            this
-              .areRequiredServicesReady() &&
-            this
-              .isMasterPipelineReady();
-
-          if (
-            !this.loaded
-          ) {
-            throw new Error(
-              "ari_runtime_unavailable_after_script_loading"
-            );
-          }
-
-          this.setLoaderDiagnostic(
-            "ariLoadingCompleted",
-            "true"
-          );
-
-          this.removeLoaderDiagnostic(
-            "ariLastLoadingScript"
-          );
-
-          this.removeLoaderDiagnostic(
-            "ariLastLoadingIndex"
-          );
-
-          this.removeLoaderDiagnostic(
-            "ariLastLoadError"
-          );
-
-          this.loadingPromise =
-            null;
-
-          return true;
-        }
-      )
-      .catch(
-        error => {
-          this.loaded =
-            false;
-
-          this.loadingPromise =
-            null;
-
-          this.setLoaderDiagnostic(
-            "ariLoadingCompleted",
-            "false"
-          );
-
-          this.setLoaderDiagnostic(
-            "ariLastLoadError",
-            error?.message ||
-            String(
-              error
-            )
-          );
-
-          throw error;
-        }
-      );
-
-  return this.loadingPromise;
-},
+  },
 
   async loadRequiredScripts() {
     this.setLoaderDiagnostic(
@@ -1621,8 +1532,6 @@ window.AriRebirthAppBridge = {
       await this.loadScriptOnce(
         src
       );
-
-console.log(`[LOADED ${index + 1}/${this.requiredScripts.length}] ${src}`);
 
       this.setLoaderDiagnostic(
         "ariLastLoadedScript",
@@ -1865,33 +1774,33 @@ console.log(`[LOADED ${index + 1}/${this.requiredScripts.length}] ${src}`);
     }
 
     const directlyIncluded =
-  script.dataset
-    ?.ariDynamicScript !==
-  "true";
+      script.dataset
+        ?.ariDynamicScript !==
+      "true";
 
-if (
-  directlyIncluded &&
-  document.readyState !==
-    "loading"
-) {
-  script.dataset
-    .ariLoadState =
-    "present";
+    if (
+      directlyIncluded &&
+      document.readyState !==
+        "loading"
+    ) {
+      script.dataset
+        .ariLoadState =
+        "present";
 
-  if (
-    this.loaderDebug ===
-    true
-  ) {
-    console.warn(
-      "[ARI LOADER STATIC SCRIPT PRESENT — REGISTRATION MUST BE VERIFIED]",
-      src
-    );
-  }
+      if (
+        this.loaderDebug ===
+        true
+      ) {
+        console.log(
+          "[ARI LOADER STATIC SCRIPT PRESENT]",
+          src
+        );
+      }
 
-  return Promise.resolve(
-    true
-  );
-}
+      return Promise.resolve(
+        true
+      );
+    }
 
     if (
       this.loaderDebug ===
@@ -2011,109 +1920,6 @@ if (
       }
     );
   },
-
-validateExpressionArchitecture() {
-  const pipeline =
-    window.AriExpressionPipeline ||
-    window.Ari
-      ?.expressionPipeline ||
-    null;
-
-  if (
-    !pipeline ||
-    typeof pipeline.run !==
-      "function"
-  ) {
-    return {
-      valid:
-        false,
-
-      version:
-        pipeline?.version ||
-        null,
-
-      source:
-        pipeline?.source ||
-        null,
-
-      hasDirectRealization:
-        false,
-
-      hasDraftGeneration:
-        false,
-
-      hasDraftArbitration:
-        false,
-
-      error:
-        "AriExpressionPipeline_not_loaded"
-    };
-  }
-
-  let runSource =
-    "";
-
-  try {
-    runSource =
-      Function.prototype
-        .toString
-        .call(
-          pipeline.run
-        );
-  } catch {
-    runSource =
-      "";
-  }
-
-  const hasDirectRealization =
-    runSource.includes(
-      "responseRealizationStage"
-    );
-
-  const hasDraftGeneration =
-    runSource.includes(
-      "draftGenerationStage"
-    );
-
-  const hasDraftArbitration =
-    runSource.includes(
-      "draftArbitrationStage"
-    );
-
-  const valid =
-    pipeline.version ===
-      "2.0.0" &&
-    hasDirectRealization &&
-    !hasDraftGeneration &&
-    !hasDraftArbitration;
-
-  return {
-    valid,
-
-    version:
-      pipeline.version ||
-      null,
-
-    schemaVersion:
-      pipeline.schemaVersion ||
-      null,
-
-    source:
-      pipeline.source ||
-      null,
-
-    hasDirectRealization,
-
-    hasDraftGeneration,
-
-    hasDraftArbitration,
-
-    error:
-      valid
-        ? null
-        : "legacy_or_invalid_expression_pipeline_registered"
-  };
-},
 
   areRequiredServicesReady() {
     const requestService =
@@ -2472,6 +2278,15 @@ validateExpressionArchitecture() {
         ?.rebirthPipeline ||
       null;
 
+    const operationRegistry =
+      this.getOperationRegistry();
+
+    const evidenceBuilder =
+      this.getEvidenceBuilder();
+
+    const semanticFrameValidator =
+      this.getSemanticFrameValidator();
+
     if (
       !requestService ||
       typeof requestService.build !==
@@ -2511,6 +2326,36 @@ validateExpressionArchitecture() {
     ) {
       warnings.push(
         "AriRebirthPipeline_not_ready"
+      );
+    }
+
+    if (
+      !operationRegistry ||
+      typeof operationRegistry.getOperation !==
+        "function"
+    ) {
+      warnings.push(
+        "AriOperationRegistry_not_ready"
+      );
+    }
+
+    if (
+      !evidenceBuilder ||
+      typeof evidenceBuilder.build !==
+        "function"
+    ) {
+      warnings.push(
+        "AriEvidenceBuilder_not_ready"
+      );
+    }
+
+    if (
+      !semanticFrameValidator ||
+      typeof semanticFrameValidator.validate !==
+        "function"
+    ) {
+      warnings.push(
+        "AriSemanticFrameValidator_not_ready"
       );
     }
 
@@ -2566,6 +2411,27 @@ validateExpressionArchitecture() {
           authority
             .canDelegateDeliveryAdaptation ===
           true,
+
+        operationRegistryRegistered:
+          Boolean(
+            operationRegistry &&
+            typeof operationRegistry.getOperation ===
+              "function"
+          ),
+
+        evidenceBuilderRegistered:
+          Boolean(
+            evidenceBuilder &&
+            typeof evidenceBuilder.build ===
+              "function"
+          ),
+
+        semanticFrameValidatorRegistered:
+          Boolean(
+            semanticFrameValidator &&
+            typeof semanticFrameValidator.validate ===
+              "function"
+          ),
 
         directRequestConstructionDisabled:
           authority
