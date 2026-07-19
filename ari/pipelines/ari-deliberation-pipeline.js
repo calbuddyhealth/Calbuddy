@@ -1,13 +1,36 @@
 // ari/pipelines/ari-deliberation-pipeline.js
 // Ari Deliberation Pipeline
-// Purpose: Coordinate continuity, safety, situation, memory,
-// understanding, reasoning, and response planning stages.
-// V1.1.0 — Accumulated State Protection + Corrected Deliberation Order
+//
+// Purpose:
+// Coordinate deterministic context preparation, OpenAI reasoning,
+// semantic validation, and response planning.
+//
+// V2.0.0 — OpenAI Cognitive Authority + Semantic Validation
+//
+// Canonical order:
+// 1. Continuity
+// 2. Safety
+// 3. Situation
+// 4. Memory
+// 5. OpenAI Reasoning
+// 6. Semantic Validation
+// 7. Response Planning
+//
+// Authority model:
+// - Deterministic stages prepare evidence and constraints.
+// - OpenAI Reasoning is the sole semantic authority.
+// - AriSemanticFrameValidator validates but never invents meaning.
+// - Response Planning may consume only validated AI output.
+// - This pipeline orchestrates stages but does not itself interpret meaning.
 
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "1.1.0",
+  version: "2.0.0",
+  schemaVersion: "2.0.0",
+  source: "ari-deliberation-pipeline",
+  architecture:
+    "openai-semantic-authority-with-deterministic-validation",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -16,29 +39,45 @@ window.AriDeliberationPipeline = {
 
     let state = {
       ...summary,
-      activePipelineLayer: "deliberation"
+
+      activePipelineLayer:
+        "deliberation",
+
+      deliberationStageErrors:
+        Array.isArray(
+          summary.deliberationStageErrors
+        )
+          ? [
+              ...summary.deliberationStageErrors
+            ]
+          : []
     };
 
     const executivePacket =
       state.executivePacket ||
-      this.buildFallbackExecutivePacket(state);
+      this.buildFallbackExecutivePacket(
+        state
+      );
 
     state = {
       ...state,
       executivePacket
     };
 
-    // =================================================
-    // 1. Continuity Stage
-    // Resolve current-turn dependence, prior-thread
-    // context, references, and continuity requirements.
-    // =================================================
+    /* =====================================================
+       1. CONTINUITY STAGE
+       Retrieves and preserves continuity context.
+
+       It may resolve references and gather prior-turn facts.
+       It must not infer current-turn semantic meaning.
+    ===================================================== */
 
     mark("before continuityStage");
 
     state =
       await this.runStage(
-        window.AriContinuityStage,
+        window.AriContinuityStage ||
+        window.Ari?.continuityStage,
         state,
         runtime,
         "continuity"
@@ -46,17 +85,18 @@ window.AriDeliberationPipeline = {
 
     mark("after continuityStage");
 
-    // =================================================
-    // 2. Safety Stage
-    // Establish response-governance requirements before
-    // deeper interpretation or reasoning occurs.
-    // =================================================
+    /* =====================================================
+       2. SAFETY STAGE
+       Establishes deterministic response-governance
+       requirements before OpenAI reasoning.
+    ===================================================== */
 
     mark("before safetyStage");
 
     state =
       await this.runStage(
-        window.AriSafetyDeliberationStage,
+        window.AriSafetyDeliberationStage ||
+        window.Ari?.safetyDeliberationStage,
         state,
         runtime,
         "safety"
@@ -64,17 +104,18 @@ window.AriDeliberationPipeline = {
 
     mark("after safetyStage");
 
-    // =================================================
-    // 3. Situation Stage
-    // Model the active situation, triage lane, and
-    // multi-lane response requirements.
-    // =================================================
+    /* =====================================================
+       3. SITUATION STAGE
+       Models situational facts, lanes, stakes, and
+       constraints without selecting semantic intent.
+    ===================================================== */
 
     mark("before situationStage");
 
     state =
       await this.runStage(
-        window.AriSituationStage,
+        window.AriSituationStage ||
+        window.Ari?.situationStage,
         state,
         runtime,
         "situation"
@@ -82,17 +123,18 @@ window.AriDeliberationPipeline = {
 
     mark("after situationStage");
 
-    // =================================================
-    // 4. Memory Stage
-    // Retrieve durable context only when routing requires
-    // it, then build a controlled memory handoff.
-    // =================================================
+    /* =====================================================
+       4. MEMORY STAGE
+       Retrieves controlled memory context when allowed by
+       routing and continuity requirements.
+    ===================================================== */
 
     mark("before memoryStage");
 
     state =
       await this.runStage(
-        window.AriMemoryStage,
+        window.AriMemoryStage ||
+        window.Ari?.memoryStage,
         state,
         runtime,
         "memory"
@@ -100,66 +142,153 @@ window.AriDeliberationPipeline = {
 
     mark("after memoryStage");
 
-    // =================================================
-    // 5. Understanding Stage
-    // Build the final deliberative understanding using
-    // current-turn, continuity, situation, and memory.
-    // =================================================
+    /* =====================================================
+       5. OPENAI REASONING STAGE
+       Sole semantic authority.
 
-    mark("before understandingStage");
+       Required input:
+       - evidencePacket
+       - executivePacket / routing contract
+       - continuity context
+       - safety constraints
+       - situation facts
+       - memory facts
 
-    state =
-      await this.runStage(
-        window.AriUnderstandingStage,
-        state,
-        runtime,
-        "understanding"
-      );
-
-    mark("after understandingStage");
-
-    // =================================================
-    // 6. Reasoning Stage
-    // Reason only after the relevant continuity, safety,
-    // situation, memory, and understanding outputs exist.
-    // =================================================
+       Expected output:
+       - cognitiveReasoningResult
+       - semanticFrame
+       - responseRequirements
+       - executionMetadata
+       - evidenceReferences
+    ===================================================== */
 
     mark("before reasoningStage");
 
     state =
       await this.runStage(
-        window.AriReasoningStage,
+        window.AriReasoningStage ||
+        window.AriOpenAIReasoningStage ||
+        window.Ari?.reasoningStage ||
+        window.Ari?.openAIReasoningStage,
         state,
         runtime,
         "reasoning"
       );
 
+    state =
+      this.normalizeReasoningOutputs(
+        state
+      );
+
     mark("after reasoningStage");
 
-    // =================================================
-    // 7. Response Planning Stage
-    // Convert the completed deliberative state into a
-    // controlled response strategy for expression.
-    // =================================================
+    /* =====================================================
+       6. SEMANTIC VALIDATION STAGE
+       Validates AI-produced meaning.
+
+       It may reject invalid output.
+       It may generate compatibility projections strictly
+       from validated AI output.
+       It must never repair or invent meaning.
+    ===================================================== */
+
+    mark("before semanticValidationStage");
+
+    state =
+      await this.runSemanticValidationStage(
+        state,
+        runtime
+      );
+
+    mark("after semanticValidationStage");
+
+    /* =====================================================
+       7. RESPONSE PLANNING STAGE
+       May run only after semantic validation accepts the
+       AI-produced semantic frame.
+    ===================================================== */
 
     mark("before responsePlanningStage");
 
-    state =
-      await this.runStage(
-        window.AriResponsePlanningStage,
-        state,
-        runtime,
-        "response_planning"
-      );
+    if (
+      this.isSemanticValidationAccepted(
+        state
+      )
+    ) {
+      state =
+        await this.runStage(
+          window.AriResponsePlanningStage ||
+          window.Ari?.responsePlanningStage,
+          state,
+          runtime,
+          "response_planning"
+        );
+    } else {
+      state = {
+        ...state,
+
+        responsePlanningStageRan:
+          false,
+
+        responsePlanningStageSource:
+          "blocked-by-semantic-validation",
+
+        responsePlanningStageError:
+          "Response planning was blocked because semantic validation did not accept the AI semantic frame.",
+
+        responsePlan:
+          null,
+
+        responseStrategy:
+          null,
+
+        deliberationStageErrors: [
+          ...this.toArray(
+            state.deliberationStageErrors
+          ),
+
+          {
+            stage:
+              "response_planning",
+
+            error:
+              "semantic_validation_not_accepted"
+          }
+        ]
+      };
+    }
 
     mark("after responsePlanningStage");
 
-    // =================================================
-    // Deliberation Packet
-    // =================================================
+    /* =====================================================
+       8. DELIBERATION DIAGNOSTICS
+    ===================================================== */
+
+    const deliberationDiagnostics =
+      this.buildDeliberationDiagnostics(
+        state
+      );
+
+    state = {
+      ...state,
+
+      deliberationDiagnostics,
+
+      deliberationHealthy:
+        deliberationDiagnostics.healthy,
+
+      deliberationWarnings:
+        deliberationDiagnostics.warnings
+    };
+
+    /* =====================================================
+       9. FINAL DELIBERATION PACKET
+    ===================================================== */
 
     state.deliberationPacket =
-      this.buildDeliberationPacket(state);
+      this.buildDeliberationPacket(
+        state
+      );
 
     // Temporary compatibility alias.
     state.deliberationContract =
@@ -168,8 +297,12 @@ window.AriDeliberationPipeline = {
     state.deliberationPipelineRan =
       true;
 
+    state.deliberationPipelineReady =
+      state.deliberationPacket
+        ?.ready === true;
+
     state.deliberationPipelineSource =
-      "ari-deliberation-pipeline";
+      this.source;
 
     state.deliberationPipelineVersion =
       this.version;
@@ -177,9 +310,9 @@ window.AriDeliberationPipeline = {
     return state;
   },
 
-  // ===================================================
-  // Stage runner
-  // ===================================================
+  /* =====================================================
+     GENERIC STAGE RUNNER
+  ===================================================== */
 
   async runStage(
     stage,
@@ -187,37 +320,18 @@ window.AriDeliberationPipeline = {
     runtime = {},
     stageName = "unknown"
   ) {
-    if (!stage || typeof stage.run !== "function") {
-      return {
-        ...summary,
-
-        [`${stageName}StageRan`]:
-          false,
-
-        [`${stageName}StageSource`]:
-          "not-loaded",
-
-        [`${stageName}StageError`]:
-          `The ${stageName} stage was not loaded.`,
-
-        deliberationStageErrors: [
-          ...(
-            Array.isArray(
-              summary.deliberationStageErrors
-            )
-              ? summary.deliberationStageErrors
-              : []
-          ),
-
-          {
-            stage:
-              stageName,
-
-            error:
-              "stage_not_loaded"
-          }
-        ]
-      };
+    if (
+      !stage ||
+      typeof stage.run !==
+        "function"
+    ) {
+      return this.appendStageError(
+        summary,
+        stageName,
+        "stage_not_loaded",
+        `The ${stageName} stage was not loaded.`,
+        "not-loaded"
+      );
     }
 
     try {
@@ -227,46 +341,23 @@ window.AriDeliberationPipeline = {
           runtime
         );
 
-      if (!result || typeof result !== "object") {
-        return {
-          ...summary,
-
-          [`${stageName}StageRan`]:
-            false,
-
-          [`${stageName}StageSource`]:
-            "invalid-result",
-
-          [`${stageName}StageError`]:
-            `The ${stageName} stage returned an invalid result.`,
-
-          deliberationStageErrors: [
-            ...(
-              Array.isArray(
-                summary.deliberationStageErrors
-              )
-                ? summary.deliberationStageErrors
-                : []
-            ),
-
-            {
-              stage:
-                stageName,
-
-              error:
-                "invalid_stage_result"
-            }
-          ]
-        };
+      if (
+        !result ||
+        typeof result !==
+          "object" ||
+        Array.isArray(result)
+      ) {
+        return this.appendStageError(
+          summary,
+          stageName,
+          "invalid_stage_result",
+          `The ${stageName} stage returned an invalid result.`,
+          "invalid-result"
+        );
       }
 
-      // The orchestrator owns accumulated deliberation state.
-      // A stage may return either:
-      // - the complete state, or
-      // - only the fields it produced.
-      //
-      // Merging here prevents a partial stage result from
-      // deleting outputs produced by earlier stages.
+      // The pipeline owns accumulated state. A stage may
+      // return either a full state or only fields it produced.
       return {
         ...summary,
         ...result
@@ -277,118 +368,738 @@ window.AriDeliberationPipeline = {
         error
       );
 
-      return {
-        ...summary,
-
-        [`${stageName}StageRan`]:
-          false,
-
-        [`${stageName}StageSource`]:
-          "stage-error",
-
-        [`${stageName}StageError`]:
-          error?.message ||
+      return this.appendStageError(
+        summary,
+        stageName,
+        error?.message ||
           String(error),
-
-        deliberationStageErrors: [
-          ...(
-            Array.isArray(
-              summary.deliberationStageErrors
-            )
-              ? summary.deliberationStageErrors
-              : []
-          ),
-
-          {
-            stage:
-              stageName,
-
-            error:
-              error?.message ||
-              String(error)
-          }
-        ]
-      };
+        error?.message ||
+          String(error),
+        "stage-error"
+      );
     }
   },
 
-  // ===================================================
-  // Deliberation Packet
-  // ===================================================
-
-  buildDeliberationPacket(summary = {}) {
+  appendStageError(
+    summary = {},
+    stageName = "unknown",
+    code = "stage_error",
+    message = "Stage error.",
+    source = "stage-error"
+  ) {
     return {
-      ready:
+      ...summary,
+
+      [`${stageName}StageRan`]:
+        false,
+
+      [`${stageName}StageSource`]:
+        source,
+
+      [`${stageName}StageError`]:
+        message,
+
+      deliberationStageErrors: [
+        ...this.toArray(
+          summary.deliberationStageErrors
+        ),
+
+        {
+          stage:
+            stageName,
+
+          error:
+            code,
+
+          message
+        }
+      ]
+    };
+  },
+
+  /* =====================================================
+     REASONING NORMALIZATION
+  ===================================================== */
+
+  normalizeReasoningOutputs(
+    summary = {}
+  ) {
+    const reasoningPacket =
+      summary.cognitiveReasoningResult ||
+      summary.reasoningResult ||
+      summary.reasoningStagePacket ||
+      summary.openAIReasoningResult ||
+      null;
+
+    const semanticFrame =
+      reasoningPacket
+        ?.semanticFrame ||
+      summary.semanticFrame ||
+      null;
+
+    const responseRequirements =
+      reasoningPacket
+        ?.responseRequirements ||
+      summary.responseRequirements ||
+      null;
+
+    const executionMetadata =
+      reasoningPacket
+        ?.executionMetadata ||
+      summary.executionMetadata ||
+      null;
+
+    const evidenceReferences =
+      reasoningPacket
+        ?.evidenceReferences ||
+      summary.evidenceReferences ||
+      [];
+
+    return {
+      ...summary,
+
+      cognitiveReasoningResult:
+        reasoningPacket,
+
+      reasoningResult:
+        reasoningPacket,
+
+      semanticFrame,
+
+      aiSemanticFrame:
+        semanticFrame,
+
+      responseRequirements,
+
+      executionMetadata,
+
+      evidenceReferences,
+
+      reasoningPacketAvailable:
+        Boolean(
+          reasoningPacket
+        ),
+
+      semanticFrameAvailable:
+        Boolean(
+          semanticFrame
+        )
+    };
+  },
+
+  /* =====================================================
+     SEMANTIC VALIDATION
+  ===================================================== */
+
+  async runSemanticValidationStage(
+    summary = {},
+    runtime = {}
+  ) {
+    const stage =
+      window.AriSemanticValidationStage ||
+      window.Ari?.semanticValidationStage ||
+      null;
+
+    if (
+      stage &&
+      typeof stage.run ===
+        "function"
+    ) {
+      const result =
+        await this.runStage(
+          stage,
+          summary,
+          runtime,
+          "semantic_validation"
+        );
+
+      return this.normalizeSemanticValidationOutputs(
+        result
+      );
+    }
+
+    const validator =
+      window.AriSemanticFrameValidator ||
+      window.Ari?.semanticFrameValidator ||
+      null;
+
+    if (
+      !validator ||
+      (
+        typeof validator.validate !==
+          "function" &&
+        typeof validator.run !==
+          "function"
+      )
+    ) {
+      return this.appendStageError(
+        summary,
+        "semantic_validation",
+        "semantic_frame_validator_not_loaded",
+        "AriSemanticFrameValidator was not loaded.",
+        "not-loaded"
+      );
+    }
+
+    try {
+      const validationInput = {
+        semanticFrame:
+          summary.semanticFrame ||
+          summary
+            .cognitiveReasoningResult
+            ?.semanticFrame ||
+          null,
+
+        cognitiveReasoningResult:
+          summary
+            .cognitiveReasoningResult ||
+          null,
+
+        evidencePacket:
+          summary.evidencePacket ||
+          summary.perceptionPacket
+            ?.evidencePacket ||
+          null,
+
+        operationRegistry:
+          window.AriOperationRegistry ||
+          window.Ari?.operationRegistry ||
+          null,
+
+        continuity:
+          summary.continuityStagePacket ||
+          summary.continuityResolution ||
+          null,
+
+        executionMetadata:
+          summary.executionMetadata ||
+          null,
+
+        responseRequirements:
+          summary.responseRequirements ||
+          null
+      };
+
+      const validateMethod =
+        typeof validator.validate ===
+          "function"
+          ? validator.validate
+          : validator.run;
+
+      const result =
+        await validateMethod.call(
+          validator,
+          validationInput,
+          runtime
+        );
+
+      if (
+        !result ||
+        typeof result !==
+          "object" ||
+        Array.isArray(result)
+      ) {
+        return this.appendStageError(
+          summary,
+          "semantic_validation",
+          "invalid_validator_result",
+          "AriSemanticFrameValidator returned an invalid result.",
+          "invalid-result"
+        );
+      }
+
+      return this.normalizeSemanticValidationOutputs({
+        ...summary,
+
+        semanticValidationStageRan:
+          true,
+
+        semanticValidationStageSource:
+          result.source ||
+          "ari-semantic-frame-validator",
+
+        semanticValidationStagePacket:
+          result,
+
+        semanticFrameValidatorResult:
+          result
+      });
+    } catch (error) {
+      console.error(
+        "Ari semantic validation error:",
+        error
+      );
+
+      return this.appendStageError(
+        summary,
+        "semantic_validation",
+        error?.message ||
+          String(error),
+        error?.message ||
+          String(error),
+        "stage-error"
+      );
+    }
+  },
+
+  normalizeSemanticValidationOutputs(
+    summary = {}
+  ) {
+    const validation =
+      summary
+        .semanticFrameValidatorResult ||
+      summary
+        .semanticValidationStagePacket ||
+      summary
+        .semanticFrameValidation ||
+      null;
+
+    const accepted =
+      validation
+        ?.accepted === true ||
+      validation
+        ?.valid === true ||
+      validation
+        ?.status ===
+        "accepted";
+
+    const validatedSemanticFrame =
+      accepted
+        ? (
+            validation
+              ?.validatedSemanticFrame ||
+            validation
+              ?.semanticFrame ||
+            summary.semanticFrame ||
+            null
+          )
+        : null;
+
+    const compatibility =
+      validation
+        ?.compatibility ||
+      validation
+        ?.compatibilityProjections ||
+      validation
+        ?.projections ||
+      null;
+
+    return {
+      ...summary,
+
+      semanticFrameValidatorResult:
+        validation,
+
+      semanticFrameValidation:
+        validation,
+
+      semanticValidationAccepted:
+        accepted,
+
+      semanticValidationRejected:
+        !accepted,
+
+      validatedSemanticFrame,
+
+      rejectedSemanticFrame:
+        accepted
+          ? null
+          : (
+              validation
+                ?.rejectedSemanticFrame ||
+              summary.semanticFrame ||
+              null
+            ),
+
+      semanticCompatibility:
+        compatibility,
+
+      canonicalMeaning:
+        compatibility
+          ?.canonicalMeaning ||
+        null,
+
+      primaryFrame:
+        compatibility
+          ?.primaryFrame ||
+        validatedSemanticFrame ||
+        null,
+
+      semanticSummary:
+        compatibility
+          ?.semanticSummary ||
+        validatedSemanticFrame
+          ?.semanticSummary ||
+        null,
+
+      semanticSlots:
+        compatibility
+          ?.semanticSlots ||
+        validatedSemanticFrame
+          ?.slots ||
+        null,
+
+      validatedResponseRequirements:
+        compatibility
+          ?.responseRequirements ||
+        validation
+          ?.responseRequirements ||
+        summary.responseRequirements ||
+        null
+    };
+  },
+
+  isSemanticValidationAccepted(
+    summary = {}
+  ) {
+    return (
+      summary
+        .semanticValidationAccepted ===
+        true &&
+      Boolean(
+        summary.validatedSemanticFrame
+      )
+    );
+  },
+
+  /* =====================================================
+     DELIBERATION DIAGNOSTICS
+  ===================================================== */
+
+  buildDeliberationDiagnostics(
+    summary = {}
+  ) {
+    const errors = [
+      ...this.toArray(
+        summary.deliberationStageErrors
+      )
+    ];
+
+    const warnings = [];
+
+    const evidencePacket =
+      summary.evidencePacket ||
+      summary.perceptionPacket
+        ?.evidencePacket ||
+      null;
+
+    const reasoningAvailable =
+      Boolean(
+        summary.cognitiveReasoningResult
+      );
+
+    const semanticFrameAvailable =
+      Boolean(
+        summary.semanticFrame
+      );
+
+    const validationAccepted =
+      this.isSemanticValidationAccepted(
+        summary
+      );
+
+    const responsePlanAvailable =
+      Boolean(
+        summary.responsePlan ||
+        summary.responseStrategy ||
+        summary
+          .responsePlanningStagePacket
+      );
+
+    if (!evidencePacket) {
+      errors.push({
+        stage:
+          "deliberation",
+
+        error:
+          "evidence_packet_missing"
+      });
+    }
+
+    if (!reasoningAvailable) {
+      errors.push({
+        stage:
+          "reasoning",
+
+        error:
+          "cognitive_reasoning_result_missing"
+      });
+    }
+
+    if (!semanticFrameAvailable) {
+      errors.push({
+        stage:
+          "reasoning",
+
+        error:
+          "semantic_frame_missing"
+      });
+    }
+
+    if (!validationAccepted) {
+      errors.push({
+        stage:
+          "semantic_validation",
+
+        error:
+          "semantic_validation_not_accepted"
+      });
+    }
+
+    if (
+      responsePlanAvailable &&
+      !validationAccepted
+    ) {
+      errors.push({
+        stage:
+          "response_planning",
+
+        error:
+          "response_plan_exists_without_validated_semantic_frame"
+      });
+    }
+
+    if (
+      !summary.executivePacket
+    ) {
+      warnings.push(
+        "executive_packet_missing_or_fallback_used"
+      );
+    }
+
+    return {
+      deliberationDiagnosticsRan:
         true,
 
+      deliberationDiagnosticsVersion:
+        this.version,
+
+      healthy:
+        errors.length ===
+        0,
+
+      complete:
+        errors.length ===
+          0 &&
+        responsePlanAvailable,
+
+      errors,
+      warnings,
+
+      stages: {
+        continuity:
+          summary.continuityStageRan ===
+          true,
+
+        safety:
+          summary.safetyStageRan ===
+          true,
+
+        situation:
+          summary.situationStageRan ===
+          true,
+
+        memory:
+          summary.memoryStageRan ===
+          true,
+
+        reasoning:
+          reasoningAvailable,
+
+        semanticValidation:
+          validationAccepted,
+
+        responsePlanning:
+          summary
+            .responsePlanningStageRan ===
+          true
+      },
+
+      contracts: {
+        evidencePacketAvailable:
+          Boolean(
+            evidencePacket
+          ),
+
+        reasoningResultAvailable:
+          reasoningAvailable,
+
+        semanticFrameAvailable,
+
+        validatedSemanticFrameAvailable:
+          Boolean(
+            summary
+              .validatedSemanticFrame
+          ),
+
+        responseRequirementsAvailable:
+          Boolean(
+            summary
+              .validatedResponseRequirements ||
+            summary
+              .responseRequirements
+          ),
+
+        responsePlanAvailable
+      },
+
+      invariants: {
+        openAIIsSoleSemanticAuthority:
+          true,
+
+        semanticFrameValidatedBeforePlanning:
+          validationAccepted,
+
+        responsePlanningBlockedOnValidationFailure:
+          !responsePlanAvailable ||
+          validationAccepted,
+
+        localUnderstandingStageRemoved:
+          true
+      }
+    };
+  },
+
+  /* =====================================================
+     DELIBERATION PACKET
+  ===================================================== */
+
+  buildDeliberationPacket(
+    summary = {}
+  ) {
+    const diagnostics =
+      summary.deliberationDiagnostics ||
+      null;
+
+    const evidencePacket =
+      summary.evidencePacket ||
+      summary.perceptionPacket
+        ?.evidencePacket ||
+      null;
+
+    const reasoningResult =
+      summary.cognitiveReasoningResult ||
+      null;
+
+    const validation =
+      summary
+        .semanticFrameValidatorResult ||
+      summary
+        .semanticFrameValidation ||
+      null;
+
+    const validatedSemanticFrame =
+      summary.validatedSemanticFrame ||
+      null;
+
+    const responsePlan =
+      summary.responsePlan ||
+      summary.responseStrategy ||
+      summary
+        .responsePlanningStagePacket ||
+      null;
+
+    return {
+      schema:
+        "ari_deliberation_packet",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ready:
+        diagnostics
+          ?.complete === true,
+
       source:
-        "ari-deliberation-pipeline",
+        this.source,
 
       version:
         this.version,
 
-      // -----------------------------------------------
-      // Input contracts
-      // -----------------------------------------------
+      architecture:
+        this.architecture,
 
-      perceptionPacket:
-        summary.perceptionPacket ||
-        null,
+      /* -----------------------------------------------
+         Input contracts
+      ----------------------------------------------- */
 
-      executivePacket:
-        summary.executivePacket ||
-        null,
-
-      routingContract:
-        summary.routingContract ||
-        null,
-
-      // -----------------------------------------------
-      // Stage packets
-      // -----------------------------------------------
-
-      stages: {
-        continuity:
-          summary.continuityStagePacket ||
+      inputs: {
+        perceptionPacket:
+          summary.perceptionPacket ||
           null,
 
-        safety:
-          summary.safetyStagePacket ||
+        evidencePacket,
+
+        executivePacket:
+          summary.executivePacket ||
           null,
 
-        situation:
-          summary.situationStagePacket ||
-          null,
-
-        memory:
-          summary.memoryStagePacket ||
-          null,
-
-        understanding:
-          summary.understandingStagePacket ||
-          null,
-
-        reasoning:
-          summary.reasoningStagePacket ||
-          null,
-
-        responsePlanning:
-          summary.responsePlanningStagePacket ||
+        routingContract:
+          summary.routingContract ||
+          summary.executivePacket
+            ?.routingContract ||
           null
       },
 
-      // -----------------------------------------------
-      // Request
-      // -----------------------------------------------
+      /* -----------------------------------------------
+         Deterministic context stages
+      ----------------------------------------------- */
+
+      stages: {
+        continuity:
+          summary
+            .continuityStagePacket ||
+          null,
+
+        safety:
+          summary
+            .safetyStagePacket ||
+          null,
+
+        situation:
+          summary
+            .situationStagePacket ||
+          null,
+
+        memory:
+          summary
+            .memoryStagePacket ||
+          null,
+
+        reasoning:
+          summary
+            .reasoningStagePacket ||
+          reasoningResult,
+
+        semanticValidation:
+          summary
+            .semanticValidationStagePacket ||
+          validation,
+
+        responsePlanning:
+          summary
+            .responsePlanningStagePacket ||
+          null
+      },
+
+      /* -----------------------------------------------
+         Current request
+      ----------------------------------------------- */
 
       request: {
         original:
+          summary.currentTurn
+            ?.originalText ||
+          summary.originalUserMessage ||
           summary.userMessage ||
           summary.message ||
           summary.input ||
           "",
 
-        resolved:
+        effective:
+          summary.currentTurn
+            ?.effectiveText ||
+          summary.effectiveUserMessage ||
           summary.resolvedUserQuestion ||
           summary.userMessage ||
           summary.message ||
@@ -396,253 +1107,167 @@ window.AriDeliberationPipeline = {
           "",
 
         currentTurnWasResolved:
-          summary.currentTurnWasResolved === true
+          summary
+            .currentTurnWasResolved ===
+          true
       },
 
-      // -----------------------------------------------
-      // Context
-      // -----------------------------------------------
+      /* -----------------------------------------------
+         Context and governance
+      ----------------------------------------------- */
 
       context: {
-        contextLane:
-          summary.contextLane ||
-          summary.routingContract
-            ?.contextLane ||
+        continuity:
+          summary
+            .continuityStagePacket ||
+          summary.continuityResolution ||
           null,
 
-        continuityRequired:
-          summary.shouldUseContinuity === true,
-
-        continuityFacts:
-          summary.continuityUsableFacts ||
-          [],
-
-        memoryAvailable:
-          summary.memoryAvailable === true,
-
-        memoryFacts:
-          summary.memoryFacts ||
-          [],
-
-        unresolvedReferences:
-          summary.continuityUnresolvedReferences ||
-          []
-      },
-
-      // -----------------------------------------------
-      // Safety
-      // -----------------------------------------------
-
-      safety: {
-        applicable:
-          summary.safetyApplicable === true,
-
-        riskLevel:
-          summary.resolvedSafetyRiskLevel ||
-          summary.safetyDisposition
-            ?.riskLevel ||
-          "none",
-
-        riskType:
-          summary.resolvedSafetyRiskType ||
-          summary.safetyDisposition
-            ?.riskType ||
-          "none",
-
-        authority:
-          summary.resolvedSafetyAuthority ||
-          summary.safetyDisposition
-            ?.safetyAuthority ||
-          "none",
-
-        shouldStopNormalResponse:
+        safety:
+          summary.safetyDisposition ||
           summary
-            .safetyShouldStopNormalResponse === true,
+            .safetyStagePacket ||
+          null,
 
-        requiresClarification:
-          summary
-            .safetyRequiresClarification === true,
-
-        contract:
-          summary.safetyResponseContract ||
-          null
-      },
-
-      // -----------------------------------------------
-      // Situation and lanes
-      // -----------------------------------------------
-
-      situation: {
-        map:
+        situation:
+          summary.situationContract ||
           summary.situationMap ||
           null,
 
-        triage:
-          summary.triage ||
+        memory:
+          summary.memoryHandoff ||
+          summary.memoryContext ||
+          null
+      },
+
+      /* -----------------------------------------------
+         OpenAI cognitive authority
+      ----------------------------------------------- */
+
+      reasoning: {
+        available:
+          Boolean(
+            reasoningResult
+          ),
+
+        source:
+          reasoningResult
+            ?.source ||
+          summary.reasoningStageSource ||
           null,
 
-        multiLanePlan:
-          summary.multiLanePlan ||
+        model:
+          reasoningResult
+            ?.model ||
+          reasoningResult
+            ?.modelId ||
           null,
 
-        contract:
-          summary.situationContract ||
+        result:
+          reasoningResult,
+
+        semanticFrame:
+          summary.semanticFrame ||
+          reasoningResult
+            ?.semanticFrame ||
           null,
 
-        contextLane:
-          summary.contextLane ||
+        responseRequirements:
+          summary.responseRequirements ||
+          reasoningResult
+            ?.responseRequirements ||
           null,
 
-        primaryLane:
-          summary.primaryLane ||
+        executionMetadata:
+          summary.executionMetadata ||
+          reasoningResult
+            ?.executionMetadata ||
           null,
 
-        supportLanes:
-          summary.supportLaneSuggestions ||
-          [],
-
-        deferredLanes:
-          summary.deferredLaneSuggestions ||
-          [],
-
-        blockedLanes:
-          summary.blockedLanes ||
+        evidenceReferences:
+          summary.evidenceReferences ||
+          reasoningResult
+            ?.evidenceReferences ||
           []
       },
 
-      // -----------------------------------------------
-      // Memory
-      // -----------------------------------------------
+      /* -----------------------------------------------
+         Semantic validation
+      ----------------------------------------------- */
 
-      memory: {
-        retrievalRan:
-          summary.memoryRetrievalRan === true,
-
-        contextBuilt:
-          summary.memoryContextBuilderRan === true,
-
+      semanticValidation: {
         available:
-          summary.memoryAvailable === true,
+          Boolean(
+            validation
+          ),
 
-        facts:
-          summary.memoryFacts ||
-          [],
+        accepted:
+          summary
+            .semanticValidationAccepted ===
+          true,
 
-        context:
-          summary.memoryContext ||
+        rejected:
+          summary
+            .semanticValidationRejected ===
+          true,
+
+        result:
+          validation,
+
+        validatedSemanticFrame,
+
+        rejectedSemanticFrame:
+          summary.rejectedSemanticFrame ||
           null,
 
-        handoff:
-          summary.memoryHandoff ||
+        compatibility:
+          summary.semanticCompatibility ||
+          null,
+
+        canonicalMeaning:
+          summary.canonicalMeaning ||
+          null,
+
+        primaryFrame:
+          summary.primaryFrame ||
+          validatedSemanticFrame ||
+          null,
+
+        semanticSummary:
+          summary.semanticSummary ||
+          null,
+
+        semanticSlots:
+          summary.semanticSlots ||
+          null,
+
+        responseRequirements:
+          summary
+            .validatedResponseRequirements ||
           null
       },
 
-      // -----------------------------------------------
-      // Understanding
-      // -----------------------------------------------
+      /* -----------------------------------------------
+         Response planning
+      ----------------------------------------------- */
 
-      understanding: {
-        language:
-          summary.languageUnderstanding ||
-          null,
-
-        semantic:
-          summary.semanticUnderstanding ||
-          null,
-
-        event:
-          summary.eventUnderstanding ||
-          null,
-
-        meaning:
-          summary.meaningInterpretation ||
-          null,
-
-        humanState:
-          summary.humanState ||
-          null,
-
-        handoff:
-          summary.understandingHandoff ||
-          null
-      },
-
-      // -----------------------------------------------
-      // Reasoning
-      // -----------------------------------------------
-
-      reasoning: {
-        cognitiveExecutive:
-          summary.cognitiveExecutive ||
-          null,
-
-        general:
-          summary.reasoning ||
-          {},
-
-        requirements:
-          summary.reasoningRequirements ||
-          null,
-
-        developer: {
-          applicable:
+      responsePlanning: {
+        allowed:
+          this.isSemanticValidationAccepted(
             summary
-              .shouldRunDeveloperLayer === true,
+          ),
 
-          ran:
-            summary.developerLayerRan === true,
+        ran:
+          summary
+            .responsePlanningStageRan ===
+          true,
 
-          responseLocked:
-            summary
-              .developerResponseLocked === true,
+        plan:
+          responsePlan,
 
-          handoff:
-            summary.developerHandoff ||
-            summary.unlockedDeveloperHandoff ||
-            null,
-
-          composerPacket:
-            summary.composerDeveloperPacket ||
-            null
-        }
-      },
-
-      // -----------------------------------------------
-      // Final response strategy handoff
-      // -----------------------------------------------
-
-      responseStrategy:
-        summary.responseStrategy ||
-        null,
-
-      responseControl: {
-        goal:
-          summary.responseGoal ||
+        strategy:
+          summary.responseStrategy ||
           null,
-
-        shape:
-          summary.responseShape ||
-          null,
-
-        order:
-          summary.responseOrder ||
-          [],
-
-        rules:
-          summary.responseRules ||
-          [],
-
-        constraints:
-          summary.responseConstraints ||
-          [],
-
-        requiredBehaviors:
-          summary.responseRequired ||
-          [],
-
-        forbiddenBehaviors:
-          summary.responseAvoid ||
-          [],
 
         communicationPlan:
           summary.communicationPlan ||
@@ -653,83 +1278,111 @@ window.AriDeliberationPipeline = {
           null
       },
 
-      // -----------------------------------------------
-      // Quality
-      // -----------------------------------------------
+      /* -----------------------------------------------
+         Quality
+      ----------------------------------------------- */
+
+      diagnostics,
 
       quality: {
-        allStagesLoaded:
-          !(
-            summary.deliberationStageErrors
-              ?.length
-          ),
+        allRequiredStagesHealthy:
+          diagnostics
+            ?.healthy === true,
 
         stageErrors:
-          summary.deliberationStageErrors ||
+          diagnostics
+            ?.errors ||
           [],
 
-        hasResolvedRequest:
+        warnings:
+          diagnostics
+            ?.warnings ||
+          [],
+
+        hasEvidencePacket:
           Boolean(
-            String(
-              summary.resolvedUserQuestion ||
-              summary.userMessage ||
-              ""
-            ).trim()
+            evidencePacket
           ),
 
-        hasRoutingContract:
+        hasCognitiveReasoningResult:
           Boolean(
-            summary.routingContract
+            reasoningResult
           ),
 
-        hasSituationContract:
+        hasSemanticFrame:
           Boolean(
-            summary.situationContract
+            summary.semanticFrame ||
+            reasoningResult
+              ?.semanticFrame
           ),
 
-        hasResponseStrategy:
+        hasValidatedSemanticFrame:
           Boolean(
-            summary.responseStrategy
+            validatedSemanticFrame
           ),
 
-        developerResponseLocked:
+        semanticValidationAccepted:
           summary
-            .developerResponseLocked === true
+            .semanticValidationAccepted ===
+          true,
+
+        hasResponsePlan:
+          Boolean(
+            responsePlan
+          )
       },
 
-      // -----------------------------------------------
-      // Authority boundary
-      // -----------------------------------------------
+      /* -----------------------------------------------
+         Authority boundary
+      ----------------------------------------------- */
 
       authority: {
-        canRetrieveContext:
+        canCoordinateDeterministicContext:
           true,
 
-        canAdjudicateSafety:
+        canRunOpenAIReasoningStage:
           true,
 
-        canModelSituation:
+        canRunSemanticValidation:
           true,
 
-        canPerformReasoning:
+        canRunResponsePlanning:
           true,
 
-        canRetrieveMemory:
+        canPreserveEvidencePacket:
           true,
 
-        canInterpretMeaning:
+        canPreserveCognitiveReasoningResult:
           true,
 
-        canDefineResponseStrategy:
+        canPreserveValidatedSemanticFrame:
           true,
+
+        canInterpretMeaningLocally:
+          false,
+
+        canConstructSemanticFrameLocally:
+          false,
+
+        canRepairSemanticFrame:
+          false,
+
+        canInventIntent:
+          false,
+
+        canInventUserGoal:
+          false,
+
+        canSelectOperationLocally:
+          false,
+
+        canBypassSemanticValidation:
+          false,
+
+        canPlanFromUnvalidatedMeaning:
+          false,
 
         canChooseFinalRoute:
-          false,
-
-        canChangeOfficialMode:
-          false,
-
-        canChangeOfficialIntent:
           false,
 
         canWriteFinalLanguage:
@@ -742,16 +1395,18 @@ window.AriDeliberationPipeline = {
           false,
 
         role:
-          "deliberation_stage_orchestration_and_strategy_handoff"
+          "deliberation_orchestration_openai_reasoning_validation_and_planning_handoff"
       }
     };
   },
 
-  // ===================================================
-  // Executive fallback
-  // ===================================================
+  /* =====================================================
+     EXECUTIVE FALLBACK
+  ===================================================== */
 
-  buildFallbackExecutivePacket(summary = {}) {
+  buildFallbackExecutivePacket(
+    summary = {}
+  ) {
     return {
       ready:
         false,
@@ -772,8 +1427,7 @@ window.AriDeliberationPipeline = {
           "unknown",
 
         primaryIntent:
-          summary.primaryIntent ||
-          "unknown",
+          "unresolved",
 
         domain:
           summary.conversationDomain ||
@@ -799,54 +1453,56 @@ window.AriDeliberationPipeline = {
 
       runInstructions: {
         continuity:
-          Boolean(
-            summary.laneSplit
-              ?.routing?.useThread ||
-            summary.laneSplit
-              ?.routing?.useMemory ||
-            summary.laneSplit
-              ?.routing?.useRelationship
-          ),
+          true,
 
         thread:
           summary.laneSplit
-            ?.routing?.useThread === true,
+            ?.routing
+            ?.useThread ===
+          true,
 
         memory:
           summary.laneSplit
-            ?.routing?.useMemory === true,
+            ?.routing
+            ?.useMemory ===
+          true,
 
         relationship:
           summary.laneSplit
-            ?.routing?.useRelationship === true,
+            ?.routing
+            ?.useRelationship ===
+          true,
 
         deepSafety:
-          false,
+          true,
 
         situationMap:
           true,
 
-        triage:
+        memoryRetrieval:
           true,
 
-        developer:
-          summary.shouldRunDeveloperLayer === true,
-
-        heavyReasoning:
+        openAIReasoning:
           true,
 
-        fastPath:
-          false
+        semanticValidation:
+          true,
+
+        responsePlanning:
+          true
       },
 
       authority: {
         canChooseRoute:
           false,
 
-        canChooseApplicability:
+        canChooseSemanticIntent:
           false,
 
-        canPerformReasoning:
+        canPerformSemanticReasoning:
+          false,
+
+        canConstructSemanticFrame:
           false,
 
         canWriteFinalLanguage:
@@ -856,10 +1512,164 @@ window.AriDeliberationPipeline = {
           "compatibility_executive_fallback"
       }
     };
+  },
+
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
+
+  validate() {
+    const required = {
+      operationRegistry:
+        Boolean(
+          window.AriOperationRegistry ||
+          window.Ari?.operationRegistry
+        ),
+
+      semanticFrameValidator:
+        Boolean(
+          window.AriSemanticFrameValidator ||
+          window.Ari?.semanticFrameValidator
+        ),
+
+      reasoningStage:
+        Boolean(
+          window.AriReasoningStage ||
+          window.AriOpenAIReasoningStage ||
+          window.Ari?.reasoningStage ||
+          window.Ari?.openAIReasoningStage
+        ),
+
+      responsePlanningStage:
+        Boolean(
+          window.AriResponsePlanningStage ||
+          window.Ari?.responsePlanningStage
+        )
+    };
+
+    const errors = [];
+
+    if (
+      !required.semanticFrameValidator
+    ) {
+      errors.push(
+        "semantic_frame_validator_not_loaded"
+      );
+    }
+
+    const warnings = [];
+
+    if (
+      !required.operationRegistry
+    ) {
+      warnings.push(
+        "operation_registry_not_loaded"
+      );
+    }
+
+    if (
+      !required.reasoningStage
+    ) {
+      warnings.push(
+        "reasoning_stage_not_loaded"
+      );
+    }
+
+    if (
+      !required.responsePlanningStage
+    ) {
+      warnings.push(
+        "response_planning_stage_not_loaded"
+      );
+    }
+
+    return {
+      valid:
+        errors.length ===
+        0,
+
+      ready:
+        errors.length ===
+          0 &&
+        warnings.length ===
+          0,
+
+      source:
+        "ari-deliberation-pipeline-validation",
+
+      version:
+        this.version,
+
+      errors,
+      warnings,
+
+      required,
+
+      checks: {
+        localUnderstandingStageRemoved:
+          true,
+
+        openAIReasoningIsSemanticAuthority:
+          true,
+
+        validatorCannotInventMeaning:
+          true,
+
+        responsePlanningRequiresValidatedFrame:
+          true
+      }
+    };
+  },
+
+  /* =====================================================
+     UTILITIES
+  ===================================================== */
+
+  toArray(
+    value
+  ) {
+    if (Array.isArray(value)) {
+      return value.filter(
+        item =>
+          item !==
+            undefined &&
+          item !==
+            null
+      );
+    }
+
+    if (
+      value === undefined ||
+      value === null
+    ) {
+      return [];
+    }
+
+    return [value];
   }
 };
 
+window.Ari.deliberationPipeline =
+  window.AriDeliberationPipeline;
+
+const ariDeliberationPipelineValidation =
+  window.AriDeliberationPipeline
+    ?.validate?.();
+
 console.log(
   "ARI DELIBERATION PIPELINE LOADED:",
-  window.AriDeliberationPipeline?.version
+  window.AriDeliberationPipeline
+    ?.version,
+
+  ariDeliberationPipelineValidation
+    ?.ready ===
+    true
+    ? "READY"
+    : ariDeliberationPipelineValidation
+        ?.valid ===
+        true
+      ? "VALID_BUT_DEPENDENCIES_MISSING"
+      : "INVALID",
+
+  ariDeliberationPipelineValidation
 );
