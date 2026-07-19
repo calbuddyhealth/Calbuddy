@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.0.0 — OpenAI Cognitive Reasoning Orchestration
+// V2.1.0 — OpenAI Cognitive Reasoning Orchestration
 //
 // Authority model:
 //
@@ -40,7 +40,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "2.0.0",
+  version: "2.1.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -503,6 +503,10 @@ window.AriReasoningStage = {
 
     state = {
       ...state,
+
+reasoningEngineResult:
+  reasoningResult ||
+  null,
 
       cognitiveReasoningResult,
 
@@ -1222,78 +1226,119 @@ window.AriReasoningStage = {
   // ===================================================
 
   resolveReasoningRequirements(
-    summary = {}
-  ) {
-    const executive =
-      summary.cognitiveExecutive ||
-      {};
+  summary = {}
+) {
+  const executive =
+    summary.cognitiveExecutive ||
+    {};
 
-    const reasoning =
-      summary.reasoning ||
-      {};
+  const reasoning =
+    summary.reasoning ||
+    {};
 
-    const responseStrategy =
+  const responseRequirements =
+    this.objectOrEmpty(
+      summary.responseRequirements ||
+      summary.cognitiveReasoningResult
+        ?.responseRequirements
+    );
+
+  const compatibilityStrategy =
+    this.objectOrEmpty(
       summary.cognitiveReasoningResult
         ?.responseStrategy ||
-      reasoning.responseStrategy ||
-      {};
+      reasoning.responseStrategy
+    );
 
-    return {
-      capabilities:
-        this.mergeUnique(
-          executive.activate,
+  return {
+    capabilities:
+      this.mergeUnique(
+        executive.activate,
 
-          reasoning.capabilities,
+        reasoning.capabilities,
 
-          reasoning
-            .requiredCapabilities
-        ),
+        reasoning
+          .requiredCapabilities
+      ),
 
-      requiredBehaviors:
-        this.mergeUnique(
-          executive
-            .requiredBehaviors,
+    requiredBehaviors:
+      this.mergeUnique(
+        executive
+          .requiredBehaviors,
 
-          reasoning
-            .requiredBehaviors,
+        reasoning
+          .requiredBehaviors,
 
-          responseStrategy
-            .requiredBehaviors
-        ),
+        responseRequirements
+          .requiredMoves,
 
-      forbiddenBehaviors:
-        this.mergeUnique(
-          executive
-            .forbiddenBehaviors,
+        responseRequirements
+          .requiredBehaviors,
 
-          reasoning
-            .forbiddenBehaviors,
+        compatibilityStrategy
+          .requiredBehaviors
+      ),
 
-          responseStrategy
-            .forbiddenBehaviors
-        ),
+    forbiddenBehaviors:
+      this.mergeUnique(
+        executive
+          .forbiddenBehaviors,
 
-      constraints:
-        this.mergeUnique(
-          executive.constraints,
+        reasoning
+          .forbiddenBehaviors,
 
-          reasoning.constraints,
+        responseRequirements
+          .prohibitedMoves,
 
-          responseStrategy.constraints
-        ),
+        responseRequirements
+          .forbiddenBehaviors,
 
-      requires:
-        this.objectOrEmpty(
-          executive.requires
-        ),
+        compatibilityStrategy
+          .forbiddenBehaviors
+      ),
 
-      authority:
-        summary.cognitiveReasoningResult
-          ?.authority ||
-        executive.authority ||
-        "advisory"
-    };
-  },
+    constraints:
+      this.mergeUnique(
+        executive.constraints,
+
+        reasoning.constraints,
+
+        responseRequirements
+          .safetyRequirements,
+
+        responseRequirements
+          .continuityRequirements,
+
+        responseRequirements
+          .toneRequirements,
+
+        compatibilityStrategy
+          .constraints
+      ),
+
+    requires: {
+      ...this.objectOrEmpty(
+        executive.requires
+      ),
+
+      clarification:
+        responseRequirements
+          .clarificationRequired ===
+        true,
+
+      action:
+        responseRequirements
+          .actionRequired ===
+        true
+    },
+
+    authority:
+      summary.cognitiveReasoningResult
+        ?.authority ||
+      executive.authority ||
+      "advisory"
+  };
+},
 
   // ===================================================
   // Stage packet
@@ -1307,8 +1352,16 @@ window.AriReasoningStage = {
       true;
 
     const cognitiveReady =
-      summary.cognitiveReasoningResult
-        ?.ready === true;
+  summary.cognitiveReasoningResult
+    ?.ready === true &&
+  Boolean(
+    summary.semanticFrame
+  ) &&
+  Boolean(
+    summary.responseRequirements
+  ) &&
+  summary.modelInvocation
+    ?.succeeded !== false;
 
     const ready =
       developerReady ||
