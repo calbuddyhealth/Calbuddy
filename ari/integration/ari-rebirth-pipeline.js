@@ -1885,40 +1885,86 @@ window.AriRebirthPipeline = {
   },
 
   async runEngine({
-    engine = null,
-    methods = [],
-    fallback = {},
-    inputState = {}
-  } = {}) {
-    if (!engine) {
-      return fallback;
+  engine = null,
+  methods = [],
+  fallback = {},
+  inputState = {}
+} = {}) {
+  const diagnostic = {
+    engineAvailable:
+      Boolean(engine),
+
+    engineVersion:
+      engine?.version ||
+      null,
+
+    requestedMethods:
+      this.toArray(methods),
+
+    selectedMethod:
+      null,
+
+    attempted:
+      false,
+
+    succeeded:
+      false,
+
+    failureType:
+      null,
+
+    error:
+      null
+  };
+
+  if (!engine) {
+    return {
+      ...(
+        fallback &&
+        typeof fallback ===
+          "object"
+          ? fallback
+          : {}
+      ),
+
+      engineInvocationDiagnostic: {
+        ...diagnostic,
+
+        failureType:
+          "engine_not_loaded"
+      }
+    };
+  }
+
+  for (
+    const method
+    of this.toArray(methods)
+  ) {
+    if (
+      typeof engine[method] !==
+      "function"
+    ) {
+      continue;
     }
 
-    for (
-      const method
-      of this.toArray(methods)
-    ) {
-      if (
-        typeof engine[method] !==
-        "function"
-      ) {
-        continue;
-      }
+    diagnostic.selectedMethod =
+      method;
 
-      try {
-        const result =
-          await engine[method](
-            inputState
-          );
+    diagnostic.attempted =
+      true;
 
-        return (
-          result &&
-          typeof result ===
-            "object"
-            ? result
-            : fallback
+    try {
+      const result =
+        await engine[method](
+          inputState
         );
-      } catch (error) {
+
+      if (
+        !result ||
+        typeof result !==
+          "object" ||
+        Array.isArray(result)
+      ) {
         return {
           ...(
             fallback &&
@@ -1928,22 +1974,123 @@ window.AriRebirthPipeline = {
               : {}
           ),
 
-          error:
+          engineInvocationDiagnostic: {
+            ...diagnostic,
+
+            failureType:
+              "invalid_engine_result",
+
+            returnedType:
+              Array.isArray(result)
+                ? "array"
+                : typeof result,
+
+            returnedValue:
+              result ??
+              null
+          }
+        };
+      }
+
+      return {
+        ...result,
+
+        engineInvocationDiagnostic: {
+          ...diagnostic,
+
+          succeeded:
+            true
+        }
+      };
+    } catch (error) {
+      console.error(
+        "ARI ENGINE INVOCATION FAILED:",
+        {
+          engineVersion:
+            engine?.version ||
+            null,
+
+          method,
+
+          message:
             error?.message ||
             String(error),
 
-          failedMethod:
-            method,
-
-          engineVersion:
-            engine?.version ||
+          stack:
+            error?.stack ||
             null
-        };
-      }
-    }
+        }
+      );
 
-    return fallback;
-  },
+      return {
+        ...(
+          fallback &&
+          typeof fallback ===
+            "object"
+            ? fallback
+            : {}
+        ),
+
+        error:
+          error?.message ||
+          String(error),
+
+        failedMethod:
+          method,
+
+        engineVersion:
+          engine?.version ||
+          null,
+
+        engineInvocationDiagnostic: {
+          ...diagnostic,
+
+          failureType:
+            "engine_method_threw",
+
+          error: {
+            name:
+              error?.name ||
+              "Error",
+
+            message:
+              error?.message ||
+              String(error),
+
+            stack:
+              error?.stack ||
+              null
+          }
+        }
+      };
+    }
+  }
+
+  return {
+    ...(
+      fallback &&
+      typeof fallback ===
+        "object"
+        ? fallback
+        : {}
+    ),
+
+    engineInvocationDiagnostic: {
+      ...diagnostic,
+
+      failureType:
+        "compatible_engine_method_not_found",
+
+      availableMethods:
+        Object.keys(engine)
+          .filter(
+            key =>
+              typeof engine[key] ===
+              "function"
+          )
+    }
+  };
+},
 
   /* =====================================================
      INPUT NORMALIZATION
