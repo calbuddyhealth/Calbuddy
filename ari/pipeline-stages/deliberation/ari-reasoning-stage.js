@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.1.1 — OpenAI Cognitive Reasoning Orchestration
+// V2.1.1 — Reasoning Invocation Diagnostics
 //
 // Authority model:
 //
