@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.4.0 — Evidence and Semantic Validation Registration
+// V2.4.1 — Cognitive Reasoning Dependency Diagnostics
 //
 // Architectural flow:
 //
@@ -64,8 +64,8 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.4.0",
-  schemaVersion: "2.4.0",
+  version: "2.4.1",
+  schemaVersion: "2.4.1",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
@@ -813,6 +813,50 @@ window.AriRebirthAppBridge = {
     );
   },
 
+  getOpenAIReasoningClient() {
+    return (
+      window.AriOpenAIReasoningClient ||
+      window.Ari
+        ?.openAIReasoningClient ||
+      null
+    );
+  },
+
+  getReasoningEngine() {
+    return (
+      window.AriReasoningEngine ||
+      window.Ari
+        ?.reasoningEngine ||
+      null
+    );
+  },
+
+  getReasoningStage() {
+    return (
+      window.AriReasoningStage ||
+      window.Ari
+        ?.reasoningStage ||
+      null
+    );
+  },
+
+  getResponsePlanningStage() {
+    return (
+      window.AriResponsePlanningStage ||
+      window.Ari
+        ?.responsePlanningStage ||
+      null
+    );
+  },
+
+  getDeliberationPipeline() {
+    return (
+      window.AriDeliberationPipeline ||
+      window.Ari
+        ?.deliberationPipeline ||
+      null
+    );
+  },
   /* =====================================================
      RUNTIME READINESS DELEGATION
   ===================================================== */
@@ -1277,10 +1321,65 @@ window.AriRebirthAppBridge = {
               ?.version ||
             null,
 
-          semanticFrameValidator:
+                    semanticFrameValidator:
             this.getSemanticFrameValidator()
               ?.version ||
-            null
+            null,
+
+          openAIReasoningClient:
+            this.getOpenAIReasoningClient()
+              ?.version ||
+            null,
+
+          reasoningEngine:
+            this.getReasoningEngine()
+              ?.version ||
+            null,
+
+          reasoningStage:
+            this.getReasoningStage()
+              ?.version ||
+            null,
+
+          responsePlanningStage:
+            this.getResponsePlanningStage()
+              ?.version ||
+            null,
+
+          deliberationPipeline:
+            this.getDeliberationPipeline()
+              ?.version ||
+            null,
+
+          reasoningInvokerAvailable:
+            typeof this
+              .getOpenAIReasoningClient()
+              ?.reason ===
+            "function",
+
+          reasoningEngineAvailable:
+            typeof this
+              .getReasoningEngine()
+              ?.reason ===
+            "function",
+
+          reasoningStageAvailable:
+            typeof this
+              .getReasoningStage()
+              ?.run ===
+            "function",
+
+          responsePlanningStageAvailable:
+            typeof this
+              .getResponsePlanningStage()
+              ?.run ===
+            "function",
+
+          deliberationPipelineAvailable:
+            typeof this
+              .getDeliberationPipeline()
+              ?.run ===
+            "function"
         },
 
         turn: {
@@ -1922,7 +2021,7 @@ window.AriRebirthAppBridge = {
     );
   },
 
-  areRequiredServicesReady() {
+    areRequiredServicesReady() {
     const requestService =
       window.AriRuntimeRequest ||
       window.Ari
@@ -1941,6 +2040,21 @@ window.AriRebirthAppBridge = {
         ?.runtimeDelivery ||
       null;
 
+    const openAIReasoningClient =
+      this.getOpenAIReasoningClient();
+
+    const reasoningEngine =
+      this.getReasoningEngine();
+
+    const reasoningStage =
+      this.getReasoningStage();
+
+    const responsePlanningStage =
+      this.getResponsePlanningStage();
+
+    const deliberationPipeline =
+      this.getDeliberationPipeline();
+
     return Boolean(
       requestService &&
       typeof requestService.build ===
@@ -1954,6 +2068,26 @@ window.AriRebirthAppBridge = {
       typeof deliveryService.read ===
         "function" &&
       typeof deliveryService.adapt ===
+        "function" &&
+
+      openAIReasoningClient &&
+      typeof openAIReasoningClient.reason ===
+        "function" &&
+
+      reasoningEngine &&
+      typeof reasoningEngine.reason ===
+        "function" &&
+
+      reasoningStage &&
+      typeof reasoningStage.run ===
+        "function" &&
+
+      responsePlanningStage &&
+      typeof responsePlanningStage.run ===
+        "function" &&
+
+      deliberationPipeline &&
+      typeof deliberationPipeline.run ===
         "function"
     );
   },
@@ -2288,6 +2422,21 @@ window.AriRebirthAppBridge = {
     const semanticFrameValidator =
       this.getSemanticFrameValidator();
 
+    const openAIReasoningClient =
+      this.getOpenAIReasoningClient();
+
+    const reasoningEngine =
+      this.getReasoningEngine();
+
+    const reasoningStage =
+      this.getReasoningStage();
+
+    const responsePlanningStage =
+      this.getResponsePlanningStage();
+
+    const deliberationPipeline =
+      this.getDeliberationPipeline();
+
     if (
       !requestService ||
       typeof requestService.build !==
@@ -2357,6 +2506,56 @@ window.AriRebirthAppBridge = {
     ) {
       warnings.push(
         "AriSemanticFrameValidator_not_ready"
+      );
+    }
+
+    if (
+      !openAIReasoningClient ||
+      typeof openAIReasoningClient.reason !==
+        "function"
+    ) {
+      warnings.push(
+        "AriOpenAIReasoningClient_not_ready"
+      );
+    }
+
+    if (
+      !reasoningEngine ||
+      typeof reasoningEngine.reason !==
+        "function"
+    ) {
+      warnings.push(
+        "AriReasoningEngine_not_ready"
+      );
+    }
+
+    if (
+      !reasoningStage ||
+      typeof reasoningStage.run !==
+        "function"
+    ) {
+      warnings.push(
+        "AriReasoningStage_not_ready"
+      );
+    }
+
+    if (
+      !responsePlanningStage ||
+      typeof responsePlanningStage.run !==
+        "function"
+    ) {
+      warnings.push(
+        "AriResponsePlanningStage_not_ready"
+      );
+    }
+
+    if (
+      !deliberationPipeline ||
+      typeof deliberationPipeline.run !==
+        "function"
+    ) {
+      warnings.push(
+        "AriDeliberationPipeline_not_ready"
       );
     }
 
@@ -2431,6 +2630,64 @@ window.AriRebirthAppBridge = {
           Boolean(
             semanticFrameValidator &&
             typeof semanticFrameValidator.validate ===
+              "function"
+          ),
+
+        openAIReasoningClientRegistered:
+          Boolean(
+            openAIReasoningClient &&
+            typeof openAIReasoningClient.reason ===
+              "function"
+          ),
+
+        reasoningEngineRegistered:
+          Boolean(
+            reasoningEngine &&
+            typeof reasoningEngine.reason ===
+              "function"
+          ),
+
+        reasoningStageRegistered:
+          Boolean(
+            reasoningStage &&
+            typeof reasoningStage.run ===
+              "function"
+          ),
+
+        responsePlanningStageRegistered:
+          Boolean(
+            responsePlanningStage &&
+            typeof responsePlanningStage.run ===
+              "function"
+          ),
+
+        deliberationPipelineRegistered:
+          Boolean(
+            deliberationPipeline &&
+            typeof deliberationPipeline.run ===
+              "function"
+          ),
+
+        cognitiveReasoningChainRegistered:
+          Boolean(
+            openAIReasoningClient &&
+            typeof openAIReasoningClient.reason ===
+              "function" &&
+
+            reasoningEngine &&
+            typeof reasoningEngine.reason ===
+              "function" &&
+
+            reasoningStage &&
+            typeof reasoningStage.run ===
+              "function" &&
+
+            responsePlanningStage &&
+            typeof responsePlanningStage.run ===
+              "function" &&
+
+            deliberationPipeline &&
+            typeof deliberationPipeline.run ===
               "function"
           ),
 
