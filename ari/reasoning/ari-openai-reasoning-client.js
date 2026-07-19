@@ -5,7 +5,7 @@
 // Send one canonical cognitive reasoning request to the server-side
 // OpenAI transport and return structured model output.
 //
-// V1.1.1 — Client Registration Closure Repair
+// V1.1.2 — Transparent Client Diagnostics
 //
 // Responsibilities:
 // - Accept the canonical reasoning-engine payload.
@@ -13,6 +13,7 @@
 // - Preserve response-schema and instruction contracts.
 // - Parse structured JSON returned by the server.
 // - Return model output to AriReasoningEngine.
+// - Expose request, transport, and extraction diagnostics.
 //
 // Non-responsibilities:
 // - Does not interpret user meaning locally.
@@ -26,7 +27,7 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.1.1",
+    "1.1.2",
 
   source:
     "ari-openai-reasoning-client",
@@ -50,10 +51,63 @@ window.AriOpenAIReasoningClient = {
         payload
       );
 
+    console.log(
+      "ARI OPENAI REASONING CLIENT PAYLOAD DIAGNOSTIC:",
+      {
+        valid:
+          validation.valid ===
+          true,
+
+        errors:
+          validation.errors,
+
+        task:
+          payload.task ||
+          null,
+
+        action:
+          payload.action ||
+          payload.request
+            ?.action ||
+          null,
+
+        effectiveText:
+          payload.request
+            ?.request
+            ?.effective ||
+          payload.request
+            ?.resolvedUserQuestion ||
+          payload.request
+            ?.currentTurn
+            ?.effectiveText ||
+          null,
+
+        responseSchema:
+          payload.responseSchema
+            ?.schema ||
+          null,
+
+        responseSchemaVersion:
+          payload.responseSchema
+            ?.schemaVersion ||
+          null
+      }
+    );
+
     if (
       validation.valid !==
       true
     ) {
+      console.error(
+        "ARI OPENAI REASONING CLIENT PAYLOAD REJECTED:",
+        {
+          errors:
+            validation.errors,
+
+          payload
+        }
+      );
+
       throw new Error(
         validation.errors.join(
           ","
@@ -66,6 +120,35 @@ window.AriOpenAIReasoningClient = {
       this.buildRequestBody(
         payload
       );
+
+    console.log(
+      "ARI OPENAI REASONING CLIENT REQUEST DIAGNOSTIC:",
+      {
+        endpoint:
+          this.endpoint,
+
+        action:
+          requestBody.action ||
+          null,
+
+        task:
+          requestBody.task ||
+          null,
+
+        effectiveText:
+          requestBody.request
+            ?.effective ||
+          requestBody
+            .resolvedUserQuestion ||
+          requestBody.currentTurn
+            ?.effectiveText ||
+          null,
+
+        responseContract:
+          requestBody.responseContract ||
+          null
+      }
+    );
 
     let response;
 
@@ -89,6 +172,24 @@ window.AriOpenAIReasoningClient = {
           }
         );
     } catch (error) {
+      console.error(
+        "ARI OPENAI REASONING CLIENT NETWORK FAILURE:",
+        {
+          endpoint:
+            this.endpoint,
+
+          message:
+            error?.message ||
+            String(
+              error
+            ),
+
+          stack:
+            error?.stack ||
+            null
+        }
+      );
+
       throw new Error(
         error?.message ||
         "openai_reasoning_network_request_failed"
@@ -97,6 +198,34 @@ window.AriOpenAIReasoningClient = {
 
     const rawText =
       await response.text();
+
+    console.log(
+      "ARI OPENAI REASONING CLIENT RESPONSE DIAGNOSTIC:",
+      {
+        ok:
+          response.ok ===
+          true,
+
+        status:
+          response.status,
+
+        contentType:
+          response.headers
+            ?.get?.(
+              "content-type"
+            ) ||
+          null,
+
+        rawTextPreview:
+          typeof rawText ===
+            "string"
+            ? rawText.slice(
+                0,
+                1000
+              )
+            : null
+      }
+    );
 
     const data =
       this.parseJSON(
@@ -107,13 +236,32 @@ window.AriOpenAIReasoningClient = {
       response.ok !==
       true
     ) {
-      throw new Error(
+      const extractedError =
         this.extractError({
           data,
           rawText,
           status:
             response.status
-        })
+        });
+
+      console.error(
+        "ARI OPENAI REASONING CLIENT SERVER FAILURE:",
+        {
+          endpoint:
+            this.endpoint,
+
+          status:
+            response.status,
+
+          error:
+            extractedError,
+
+          data
+        }
+      );
+
+      throw new Error(
+        extractedError
       );
     }
 
@@ -121,6 +269,61 @@ window.AriOpenAIReasoningClient = {
       this.extractStructuredResult(
         data
       );
+
+    console.log(
+      "ARI OPENAI REASONING CLIENT RESULT DIAGNOSTIC:",
+      {
+        extracted:
+          Boolean(
+            result
+          ),
+
+        resultType:
+          Array.isArray(
+            result
+          )
+            ? "array"
+            : typeof result,
+
+        resultKeys:
+          result &&
+          typeof result ===
+            "object" &&
+          !Array.isArray(
+            result
+          )
+            ? Object.keys(
+                result
+              )
+            : [],
+
+        hasInterpretation:
+          Boolean(
+            result?.interpretation
+          ),
+
+        hasReasoningDecision:
+          Boolean(
+            result
+              ?.reasoningDecision ||
+            result?.decision
+          ),
+
+        hasSemanticFrame:
+          Boolean(
+            result
+              ?.semanticFrame
+          ),
+
+        hasResponseRequirements:
+          Boolean(
+            result
+              ?.responseRequirements ||
+            result
+              ?.responseStrategy
+          )
+      }
+    );
 
     if (
       !result ||
@@ -130,6 +333,29 @@ window.AriOpenAIReasoningClient = {
         result
       )
     ) {
+      console.error(
+        "ARI OPENAI REASONING CLIENT INVALID STRUCTURED RESULT:",
+        {
+          endpoint:
+            this.endpoint,
+
+          status:
+            response.status,
+
+          parsedData:
+            data,
+
+          rawTextPreview:
+            typeof rawText ===
+              "string"
+              ? rawText.slice(
+                  0,
+                  1000
+                )
+              : null
+        }
+      );
+
       throw new Error(
         "openai_reasoning_server_returned_invalid_structured_result"
       );
@@ -214,7 +440,7 @@ window.AriOpenAIReasoningClient = {
         schemaVersion:
           payload.responseSchema
             ?.schemaVersion ||
-          "1.1.0",
+          "1.1.1",
 
         requireValidJSON:
           true,
