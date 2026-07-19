@@ -5,7 +5,7 @@
 // Send one canonical cognitive reasoning request to the server-side
 // OpenAI transport and return structured model output.
 //
-// V1.0.0 — Structured Cognitive Reasoning Transport
+// V1.1.0 — Canonical Flattened Reasoning Transport
 //
 // Responsibilities:
 // - Accept the canonical reasoning-engine payload.
@@ -26,13 +26,21 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.0.0",
+    "1.1.0",
 
   source:
     "ari-openai-reasoning-client",
 
   endpoint:
     "/api/knowledge",
+
+async invoke(
+  payload = {}
+) {
+  return this.reason(
+    payload
+  );
+},
 
   async reason(
     payload = {}
@@ -150,56 +158,70 @@ window.AriOpenAIReasoningClient = {
   },
 
   buildRequestBody(
-    payload = {}
-  ) {
-    return {
-      action:
-        "ari_cognitive_reasoning",
+  payload = {}
+) {
+  const reasoningRequest =
+    payload.request &&
+    typeof payload.request ===
+      "object" &&
+    !Array.isArray(
+      payload.request
+    )
+      ? payload.request
+      : {};
 
-      task:
-        payload.task ||
-        "ari_cognitive_reasoning",
+  return {
+    /*
+     * Flatten the canonical reasoning request so
+     * /api/knowledge can read currentTurn,
+     * evidencePacket, routingContract, and other
+     * canonical fields directly from body.
+     */
+    ...reasoningRequest,
 
-      version:
-        this.version,
+    action:
+      "openai_reasoning",
 
-      request:
-        payload.request ||
-        {},
+    task:
+      payload.task ||
+      "ari_cognitive_reasoning",
 
-      responseSchema:
-        payload.responseSchema ||
-        {},
+    clientVersion:
+      this.version,
 
-      instructions:
-        Array.isArray(
-          payload.instructions
-        )
-          ? payload.instructions
-          : [],
+    responseSchema:
+      payload.responseSchema ||
+      {},
 
-      outputMode:
-        "structured_json",
+    instructions:
+      Array.isArray(
+        payload.instructions
+      )
+        ? payload.instructions
+        : [],
 
-      responseContract: {
-        schema:
-          payload.responseSchema
-            ?.schema ||
-          "ari_cognitive_reasoning_result",
+    outputMode:
+      "structured_json",
 
-        schemaVersion:
-          payload.responseSchema
-            ?.schemaVersion ||
-          "1.0.0",
+    responseContract: {
+      schema:
+        payload.responseSchema
+          ?.schema ||
+        "ari_cognitive_reasoning_result",
 
-        requireValidJSON:
-          true,
+      schemaVersion:
+        payload.responseSchema
+          ?.schemaVersion ||
+        "1.1.0",
 
-        allowPlainText:
-          false
-      }
-    };
-  },
+      requireValidJSON:
+        true,
+
+      allowPlainText:
+        false
+    }
+  };
+},
 
   validatePayload(
     payload = {}
@@ -296,20 +318,36 @@ window.AriOpenAIReasoningClient = {
     }
 
     const candidates = [
-      data.cognitiveReasoningResult,
-      data.result,
-      data.output,
-      data.structuredOutput,
-      data.parsed,
-      data.response,
-      data.data,
-      data.rawContent,
-      data.output_text,
-      data.outputText,
-      data.responseText,
-      data.content,
-      data.text
-    ];
+  data.cognitiveReasoningResult,
+  data.reasoningResult,
+
+  data.result
+    ?.cognitiveReasoningResult,
+
+  data.result
+    ?.reasoningResult,
+
+  data.result,
+
+  data.output
+    ?.cognitiveReasoningResult,
+
+  data.output
+    ?.reasoningResult,
+
+  data.output,
+
+  data.structuredOutput,
+  data.parsed,
+  data.response,
+  data.data,
+  data.rawContent,
+  data.output_text,
+  data.outputText,
+  data.responseText,
+  data.content,
+  data.text
+];
 
     for (
       const candidate
@@ -410,61 +448,106 @@ window.AriOpenAIReasoningClient = {
   },
 
   extractError({
-    data = null,
-    rawText = "",
-    status = 0
-  } = {}) {
-    const candidates = [
-      data?.error,
-      data?.message,
-      data?.reason,
-      data?.details,
-      rawText
-    ];
+  data = null,
+  rawText = "",
+  status = 0
+} = {}) {
+  const structuredError =
+    data?.error &&
+    typeof data.error ===
+      "object" &&
+    !Array.isArray(
+      data.error
+    )
+      ? (
+          data.error.message ||
+          data.error.error ||
+          data.error.code ||
+          null
+        )
+      : null;
 
-    for (
-      const candidate
-      of candidates
+  const structuredDetails =
+    data?.details &&
+    typeof data.details ===
+      "object" &&
+    !Array.isArray(
+      data.details
+    )
+      ? (
+          data.details.message ||
+          data.details.error ||
+          null
+        )
+      : null;
+
+  const candidates = [
+    structuredError,
+
+    typeof data?.error ===
+      "string"
+      ? data.error
+      : null,
+
+    data?.message,
+    data?.reason,
+
+    structuredDetails,
+
+    typeof data?.details ===
+      "string"
+      ? data.details
+      : null,
+
+    rawText
+  ];
+
+  for (
+    const candidate
+    of candidates
+  ) {
+    if (
+      typeof candidate ===
+        "string" &&
+      candidate.trim()
     ) {
-      if (
-        typeof candidate ===
-          "string" &&
-        candidate.trim()
-      ) {
-        return candidate.trim();
-      }
+      return candidate.trim();
     }
+  }
 
-    return (
-      `OpenAI reasoning request failed with status ${status}.`
-    );
-  },
+  return (
+    `OpenAI reasoning request failed with status ${status}.`
+  );
+},
 
   validate() {
-    return {
-      valid:
-        typeof this.reason ===
-          "function" &&
-        typeof this.buildRequestBody ===
-          "function" &&
-        typeof this.extractStructuredResult ===
-          "function",
+  return {
+    valid:
+      typeof this.invoke ===
+        "function" &&
+      typeof this.reason ===
+        "function" &&
+      typeof this.buildRequestBody ===
+        "function" &&
+      typeof this.extractStructuredResult ===
+        "function",
 
-      ready:
-        typeof this.reason ===
-          "function",
+    ready:
+      typeof this.invoke ===
+        "function" &&
+      typeof this.reason ===
+        "function",
 
-      source:
-        this.source,
+    source:
+      this.source,
 
-      version:
-        this.version,
+    version:
+      this.version,
 
-      endpoint:
-        this.endpoint
-    };
-  }
-};
+    endpoint:
+      this.endpoint
+  };
+},
 
 window.Ari.openAIReasoningClient =
   window.AriOpenAIReasoningClient;
