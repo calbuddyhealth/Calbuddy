@@ -7,7 +7,7 @@
 // validate the structured result,
 // and expose a safe compatibility contract.
 //
-// V9.2.0 — Canonical Semantic Requirements Contract
+// V9.2.1 — Canonical Semantic Requirements Contract
 //
 // Authority model:
 //
@@ -55,7 +55,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "9.2.0",
+  version: "9.2.1",
 
   source: "ari-reasoning-engine",
 
@@ -63,13 +63,13 @@ window.AriReasoningEngine = {
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "1.1.0",
+    "1.1.1",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
 
   resultSchemaVersion:
-    "1.1.0",
+    "1.1.1",
 
   /* =====================================================
      PUBLIC ENTRY POINTS
