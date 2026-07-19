@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.2.0 — Reliable Engine Invocation
+// V2.2.1 — Reliable Engine Invocation
 //
 // Authority model:
 //
@@ -40,7 +40,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "2.2.0",
+  version: "2.2.1",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -162,7 +162,9 @@ window.AriReasoningStage = {
             reason:
               "cognitive_executive_not_loaded"
           }
-        }
+        },
+        expectedResult:
+  "cognitive_executive"
       })
     : {
         ariExecutiveRan:
@@ -392,7 +394,10 @@ if (
     runtime,
 
     runtimeInvoker:
-      runEngine
+      runEngine,
+      
+      expectedResult:
+  "reasoning"
   });
   
   } catch (error) {
@@ -770,35 +775,54 @@ async invokeEngine({
   input = {},
   runtime = {},
   runtimeInvoker = null,
-  fallback = null
+  fallback = null,
+  expectedResult = null
 } = {}) {
+  let runtimeResult = null;
+  let runtimeError = null;
+
   if (
     typeof runtimeInvoker ===
     "function"
   ) {
-    const runtimeResult =
-      await runtimeInvoker(
-        engine,
-        methods,
-        fallback,
-        input
-      );
+    try {
+      runtimeResult =
+        await runtimeInvoker(
+          engine,
+          methods,
+          fallback,
+          input
+        );
+    } catch (error) {
+      runtimeError =
+        error;
+    }
 
-    const runtimeReturnedFallback =
-      fallback !== null &&
-      runtimeResult === fallback;
+    const runtimeResultValid =
+      this.isValidEngineInvocationResult({
+        result:
+          runtimeResult,
 
-    if (
-      runtimeResult &&
-      typeof runtimeResult ===
-        "object" &&
-      !Array.isArray(
-        runtimeResult
-      ) &&
-      !runtimeReturnedFallback
-    ) {
+        expectedResult
+      });
+
+    if (runtimeResultValid) {
       return runtimeResult;
     }
+
+    console.warn(
+      "ARI ENGINE RUNTIME INVOKER DID NOT PRODUCE A VALID RESULT:",
+      {
+        expectedResult,
+
+        result:
+          runtimeResult,
+
+        error:
+          runtimeError?.message ||
+          null
+      }
+    );
   }
 
   if (
@@ -810,7 +834,7 @@ async invokeEngine({
         "function"
     )
   ) {
-    if (fallback) {
+    if (fallback !== null) {
       return fallback;
     }
 
@@ -827,7 +851,7 @@ async invokeEngine({
     );
 
   if (!methodName) {
-    if (fallback) {
+    if (fallback !== null) {
       return fallback;
     }
 
@@ -836,7 +860,28 @@ async invokeEngine({
     );
   }
 
-  const result =
+
+console.log(
+  "ARI ENGINE DIRECT INVOCATION:",
+  {
+    expectedResult,
+
+    engineVersion:
+      engine?.version ||
+      null,
+
+    methodName,
+
+    effectiveText:
+      input
+        ?.reasoningStageInput
+        ?.request
+        ?.effective ||
+      null
+  }
+);
+
+  const directResult =
     await engine[
       methodName
     ].call(
@@ -846,21 +891,120 @@ async invokeEngine({
     );
 
   if (
-    !result ||
-    typeof result !==
-      "object" ||
-    Array.isArray(
-      result
-    )
+    !this.isValidEngineInvocationResult({
+      result:
+        directResult,
+
+      expectedResult
+    })
   ) {
     throw new Error(
-      "engine_returned_invalid_result"
+      expectedResult ===
+        "reasoning"
+        ? "reasoning_engine_returned_invalid_result"
+        : expectedResult ===
+            "cognitive_executive"
+          ? "cognitive_executive_returned_invalid_result"
+          : "engine_returned_invalid_result"
     );
   }
 
-  return result;
+  return directResult;
 },
 
+isValidEngineInvocationResult({
+  result = null,
+  expectedResult = null
+} = {}) {
+  if (
+    !result ||
+    typeof result !== "object" ||
+    Array.isArray(result)
+  ) {
+    return false;
+  }
+
+  if (
+    expectedResult ===
+    "reasoning"
+  ) {
+    const cognitiveResult =
+      this.objectOrNull(
+        result.cognitiveReasoningResult
+      ) ||
+      this.objectOrNull(
+        result.reasoningResult
+      ) ||
+      this.objectOrNull(
+        result.result
+          ?.cognitiveReasoningResult
+      ) ||
+      this.objectOrNull(
+        result.result
+          ?.reasoningResult
+      ) ||
+      null;
+
+    const semanticFrame =
+      this.objectOrNull(
+        cognitiveResult
+          ?.semanticFrame
+      ) ||
+      this.objectOrNull(
+        result.semanticFrame
+      );
+
+    const responseRequirements =
+      this.objectOrNull(
+        cognitiveResult
+          ?.responseRequirements
+      ) ||
+      this.objectOrNull(
+        result.responseRequirements
+      );
+
+    const modelInvocation =
+      this.objectOrNull(
+        cognitiveResult
+          ?.modelInvocation
+      ) ||
+      this.objectOrNull(
+        result.modelInvocation
+      );
+
+    const engineActuallyRan =
+      result.reasoningEngineRan ===
+        true ||
+      cognitiveResult?.success ===
+        true ||
+      modelInvocation?.succeeded ===
+        true;
+
+    return Boolean(
+      engineActuallyRan &&
+      semanticFrame &&
+      responseRequirements
+    );
+  }
+
+  if (
+    expectedResult ===
+    "cognitive_executive"
+  ) {
+    return Boolean(
+      result.ariExecutiveRan ===
+        true ||
+      (
+        result.ariExecutiveVersion &&
+        result.cognitiveExecutive &&
+        result.cognitiveExecutive
+          .source !== "not-loaded"
+      )
+    );
+  }
+
+  return true;
+},
   // ===================================================
   // Eligibility
   // ===================================================
@@ -1085,7 +1229,7 @@ async invokeEngine({
         "ari_cognitive_reasoning_request",
 
       schemaVersion:
-        "1.1.1",
+        "1.1.2",
 
       action:
         "openai_reasoning",
@@ -1854,7 +1998,7 @@ engineInvocation:
           "ari_cognitive_reasoning_result",
 
         schemaVersion:
-          "1.1.1",
+          "1.1.2",
 
         ready:
           false,
