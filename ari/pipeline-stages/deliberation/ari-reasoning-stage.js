@@ -27,8 +27,8 @@
 //   - builds the semantic frame
 //   - analyzes evidence
 //   - proposes actions
-//   - defines response strategy
-//   - may draft response language
+//   - defines semantic response requirements
+//   - does not draft final response language
 //
 //   AriReasoningStage:
 //   - coordinates these systems
@@ -412,38 +412,134 @@ window.AriReasoningStage = {
     // =================================================
 
     const cognitiveReasoningResult =
-      reasoningResult
-        .cognitiveReasoningResult ||
+      this.objectOrNull(
+        reasoningResult
+          ?.cognitiveReasoningResult
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.reasoningResult
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.result
+          ?.cognitiveReasoningResult
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.result
+          ?.reasoningResult
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.result
+      ) ||
+      null;
+
+    const semanticFrame =
+      this.objectOrNull(
+        cognitiveReasoningResult
+          ?.semanticFrame
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.semanticFrame
+      ) ||
+      null;
+
+    const responseRequirements =
+      this.objectOrNull(
+        cognitiveReasoningResult
+          ?.responseRequirements
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.responseRequirements
+      ) ||
+      null;
+
+    const executionMetadata =
+      this.objectOrNull(
+        cognitiveReasoningResult
+          ?.executionMetadata
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.executionMetadata
+      ) ||
+      null;
+
+    const evidenceReferences =
+      this.firstArray(
+        cognitiveReasoningResult
+          ?.evidenceReferences,
+
+        reasoningResult
+          ?.evidenceReferences
+      );
+
+    const modelInvocation =
+      this.objectOrNull(
+        cognitiveReasoningResult
+          ?.modelInvocation
+      ) ||
+      this.objectOrNull(
+        reasoningResult
+          ?.modelInvocation
+      ) ||
       null;
 
     const reasoningEngineReady =
       cognitiveReasoningResult
-        ?.ready === true;
+        ?.ready === true &&
+      Boolean(
+        semanticFrame
+      ) &&
+      Boolean(
+        responseRequirements
+      ) &&
+      modelInvocation
+        ?.succeeded !== false;
 
     state = {
       ...state,
 
       cognitiveReasoningResult,
 
+      reasoningResult:
+        cognitiveReasoningResult,
+
       reasoning:
-        reasoningResult.reasoning ||
+        reasoningResult
+          ?.reasoning ||
         {},
 
-      semanticFrame:
-        cognitiveReasoningResult
-          ?.semanticFrame ||
-        state.semanticFrame ||
-        null,
+      semanticFrame,
+
+      aiSemanticFrame:
+        semanticFrame,
+
+      responseRequirements,
+
+      executionMetadata,
+
+      evidenceReferences,
+
+      modelInvocation,
 
       responseStrategy:
-        cognitiveReasoningResult
-          ?.responseStrategy ||
+        this.objectOrNull(
+          cognitiveReasoningResult
+            ?.responseStrategy
+        ) ||
+        this.objectOrNull(
+          reasoningResult
+            ?.responseStrategy
+        ) ||
         state.responseStrategy ||
         null,
 
       modelDraftResponse:
-        cognitiveReasoningResult
-          ?.draftResponse ||
         "",
 
       reasoningAnswer:
@@ -454,34 +550,45 @@ window.AriReasoningStage = {
 
       reasoningEngineRan:
         reasoningResult
-          .reasoningEngineRan === true,
+          ?.reasoningEngineRan ===
+          true ||
+        cognitiveReasoningResult
+          ?.success === true ||
+        modelInvocation
+          ?.succeeded === true,
 
       reasoningEngineReady,
 
       reasoningEngineVersion:
         reasoningResult
-          .reasoningEngineVersion ||
+          ?.reasoningEngineVersion ||
         null,
 
       reasoningSource:
+        cognitiveReasoningResult
+          ?.source ||
         reasoningResult
-          .reasoningSource ||
-        reasoningResult.source ||
+          ?.reasoningSource ||
+        reasoningResult
+          ?.source ||
         "unknown",
 
       reasoningConfidence:
+        executionMetadata
+          ?.confidence ??
         cognitiveReasoningResult
           ?.confidence ??
         reasoningResult
-          .reasoningConfidence ??
+          ?.reasoningConfidence ??
         null,
 
       reasoningPrimary:
-        cognitiveReasoningResult
-          ?.semanticFrame
+        semanticFrame
           ?.primaryLane ||
+        semanticFrame
+          ?.primaryIntent ||
         reasoningResult
-          .reasoningPrimary ||
+          ?.reasoningPrimary ||
         state.primaryLane ||
         null,
 
@@ -490,18 +597,31 @@ window.AriReasoningStage = {
           ? null
           : {
               reason:
-                reasoningResult.reason ||
+                reasoningResult
+                  ?.reason ||
                 cognitiveReasoningResult
                   ?.validation
                   ?.errors
                   ?.[0] ||
-                "reasoning_result_not_ready",
+                (
+                  !cognitiveReasoningResult
+                    ? "cognitive_reasoning_result_missing"
+                    : !semanticFrame
+                      ? "semantic_frame_missing"
+                      : !responseRequirements
+                        ? "response_requirements_missing"
+                        : modelInvocation
+                            ?.succeeded === false
+                          ? "model_invocation_failed"
+                          : "reasoning_result_not_ready"
+                ),
 
               errors:
                 cognitiveReasoningResult
                   ?.validation
                   ?.errors ||
-                reasoningResult.errors ||
+                reasoningResult
+                  ?.errors ||
                 []
             }
     };
@@ -732,27 +852,140 @@ window.AriReasoningStage = {
   // Stage input
   // ===================================================
 
-  buildReasoningStageInput(summary = {}) {
+    buildReasoningStageInput(
+    summary = {}
+  ) {
+    const evidencePacket =
+      this.objectOrNull(
+        summary.evidencePacket
+      ) ||
+      this.objectOrNull(
+        summary.perceptionPacket
+          ?.evidencePacket
+      ) ||
+      null;
+
     const original =
-      summary.turn
-        ?.originalText ||
-      summary.userMessage ||
-      summary.message ||
-      summary.input ||
-      "";
+      this.firstNonEmptyString([
+        summary.currentTurn
+          ?.originalText,
+
+        summary.turn
+          ?.originalText,
+
+        summary.originalUserMessage,
+
+        summary.userMessage,
+
+        summary.message,
+
+        summary.input
+      ]);
 
     const effective =
+      this.firstNonEmptyString([
+        summary.currentTurn
+          ?.effectiveText,
+
+        summary.turn
+          ?.effectiveText,
+
+        summary.effectiveUserMessage,
+
+        summary.resolvedUserQuestion,
+
+        summary.resolvedQuestion,
+
+        original
+      ]);
+
+    const turnId =
+      summary.currentTurn
+        ?.turnId ||
       summary.turn
-        ?.effectiveText ||
-      summary.resolvedUserQuestion ||
-      original;
+        ?.turnId ||
+      summary.turnId ||
+      null;
+
+    const routingContract =
+      this.objectOrNull(
+        summary.routingContract
+      ) ||
+      this.objectOrNull(
+        summary.executivePacket
+          ?.routingContract
+      ) ||
+      null;
 
     return {
       schema:
         "ari_cognitive_reasoning_request",
 
       schemaVersion:
-        "1.0.0",
+        "1.1.0",
+
+      action:
+        "openai_reasoning",
+
+      /*
+       * Canonical direct fields.
+       * These are intentionally duplicated outside request
+       * so the reasoning client and API do not need to
+       * reinterpret the request envelope.
+       */
+
+      currentTurn: {
+        originalText:
+          original,
+
+        effectiveText:
+          effective,
+
+        turnId
+      },
+
+      originalUserMessage:
+        original,
+
+      effectiveUserMessage:
+        effective,
+
+      resolvedUserQuestion:
+        effective,
+
+      currentTurnWasResolved:
+        summary.currentTurnWasResolved ===
+          true,
+
+      turnId,
+
+      evidencePacket,
+
+      perceptionPacket:
+        summary.perceptionPacket ||
+        null,
+
+      executivePacket:
+        summary.executivePacket ||
+        null,
+
+      routingContract,
+
+      continuityStagePacket:
+        summary.continuityStagePacket ||
+        null,
+
+      safetyStagePacket:
+        summary.safetyStagePacket ||
+        null,
+
+      situationStagePacket:
+        summary.situationStagePacket ||
+        null,
+
+      memoryStagePacket:
+        summary.memoryStagePacket ||
+        null,
 
       request: {
         original,
@@ -763,15 +996,11 @@ window.AriReasoningStage = {
         resolved:
           effective,
 
-        turnId:
-          summary.turn
-            ?.turnId ||
-          summary.turnId ||
-          null,
+        turnId,
 
         currentTurnWasResolved:
           summary.currentTurnWasResolved ===
-          true,
+            true,
 
         language:
           summary.language ||
@@ -813,8 +1042,7 @@ window.AriReasoningStage = {
         null,
 
       routing:
-        summary.routingContract ||
-        null,
+        routingContract,
 
       executive:
         summary.executivePacket ||
@@ -836,24 +1064,28 @@ window.AriReasoningStage = {
         summary.memoryStagePacket ||
         null,
 
-      understanding:
-        summary.understandingStagePacket ||
-        null,
-
       responseControl: {
         contextLane:
           summary.contextLane ||
+          routingContract
+            ?.contextLane ||
+          routingContract
+            ?.selectedRoute
+            ?.contextLane ||
           null,
 
         primaryLane:
           summary.primaryLane ||
-          summary.routingContract
+          routingContract
+            ?.primaryLane ||
+          routingContract
+            ?.selectedRoute
             ?.primaryLane ||
           null,
 
         responseShape:
           summary.responseShape ||
-          summary.routingContract
+          routingContract
             ?.responseShape ||
           null,
 
@@ -952,11 +1184,14 @@ window.AriReasoningStage = {
         mayAnalyzeEvidence:
           true,
 
-        mayPlanResponse:
+        mayDefineResponseRequirements:
           true,
 
+        mayPlanResponse:
+          false,
+
         mayDraftResponse:
-          true,
+          false,
 
         mayProposeActions:
           true,
@@ -977,13 +1212,11 @@ window.AriReasoningStage = {
           false
       },
 
-      // Optional injected client.
       openAIReasoningInvoker:
         summary.openAIReasoningInvoker ||
         null
     };
   },
-
   // ===================================================
   // Reasoning requirements
   // ===================================================
@@ -1093,6 +1326,40 @@ window.AriReasoningStage = {
 
       version:
         this.version,
+
+      cognitiveReasoningResult:
+        summary.cognitiveReasoningResult ||
+        null,
+
+      reasoningResult:
+        summary.cognitiveReasoningResult ||
+        null,
+
+      semanticFrame:
+        summary.semanticFrame ||
+        null,
+
+      responseRequirements:
+        summary.responseRequirements ||
+        null,
+
+      executionMetadata:
+        summary.executionMetadata ||
+        null,
+
+      evidenceReferences:
+        this.toArray(
+          summary.evidenceReferences
+        ),
+
+      modelInvocation:
+        summary.modelInvocation ||
+        null,
+
+      error:
+        summary.reasoningFailure
+          ?.reason ||
+        null,
 
       eligibility:
         summary.reasoningEligibility ||
@@ -1252,11 +1519,14 @@ window.AriReasoningStage = {
         canBuildSemanticFrame:
           true,
 
-        canDefineResponseStrategy:
+                canDefineResponseRequirements:
           true,
 
+        canDefineResponseStrategy:
+          false,
+
         canDraftResponse:
-          true,
+          false,
 
         canProposeActions:
           true,
@@ -1342,8 +1612,31 @@ window.AriReasoningStage = {
             []
         },
 
-        semanticFrame:
-          {},
+                semanticFrame:
+          null,
+
+        responseRequirements:
+          null,
+
+        executionMetadata:
+          null,
+
+        evidenceReferences:
+          [],
+
+        modelInvocation: {
+          succeeded:
+            false,
+
+          model:
+            null,
+
+          finishReason:
+            null,
+
+          usage:
+            null
+        },
 
         caseModel:
           {},
@@ -1357,8 +1650,8 @@ window.AriReasoningStage = {
         uncertainties:
           [],
 
-        responseStrategy:
-          {},
+                responseStrategy:
+          null,
 
         draftResponse:
           "",
@@ -1458,6 +1751,59 @@ window.AriReasoningStage = {
   // ===================================================
   // Utilities
   // ===================================================
+
+  objectOrNull(
+    value
+  ) {
+    return (
+      value &&
+      typeof value ===
+        "object" &&
+      !Array.isArray(
+        value
+      )
+    )
+      ? value
+      : null;
+  },
+
+  firstArray(
+    ...values
+  ) {
+    for (
+      const value of values
+    ) {
+      if (
+        Array.isArray(
+          value
+        )
+      ) {
+        return [
+          ...value
+        ];
+      }
+    }
+
+    return [];
+  },
+
+  firstNonEmptyString(
+    values = []
+  ) {
+    for (
+      const value of values
+    ) {
+      if (
+        typeof value ===
+          "string" &&
+        value.trim()
+      ) {
+        return value.trim();
+      }
+    }
+
+    return "";
+  },
 
   objectOrEmpty(value) {
     return (
