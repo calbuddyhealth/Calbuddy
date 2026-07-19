@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.1.1 — Reasoning Invocation Diagnostics
+// V2.2.0 — Reliable Engine Invocation
 //
 // Authority model:
 //
@@ -40,27 +40,23 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "2.1.1",
+  version: "2.2.0",
 
   async run(summary = {}, runtime = {}) {
     const {
-      mark = () => {},
+  mark = () => {},
 
-      runEngine = async (
-        _engine,
-        _methods,
-        fallback = {}
-      ) => fallback,
+  runEngine = null,
 
-      preserveDeveloperEvidence =
-        state => state,
+  preserveDeveloperEvidence =
+    state => state,
 
-      runDeveloperLayer =
-        async state => state,
+  runDeveloperLayer =
+    async state => state,
 
-      applyContractBridge =
-        state => state
-    } = runtime;
+  applyContractBridge =
+    state => state
+} = runtime;
 
     let state = {
       ...summary,
@@ -111,89 +107,96 @@ window.AriReasoningStage = {
     );
 
     const cognitiveExecutiveResult =
-      reasoningEligibility
-        .runCognitiveExecutive
-        ? await runEngine(
-            window.AriCognitiveExecutive,
+  reasoningEligibility.runCognitiveExecutive
+    ? await this.invokeEngine({
+        engine:
+          window.AriCognitiveExecutive,
 
-            ["plan"],
+        methods: [
+          "plan"
+        ],
 
-            {
-              ariExecutiveRan:
-                false,
+        input: {
+          ...state,
 
-              ariExecutiveVersion:
-                null,
+          reasoningStageInput:
+            this.buildReasoningStageInput(
+              state
+            )
+        },
 
-              cognitiveExecutive: {
-                source:
-                  "not-loaded",
+        runtime,
 
-                authority:
-                  "none",
+        runtimeInvoker:
+          runEngine,
 
-                activate:
-                  [],
+        fallback: {
+          ariExecutiveRan:
+            false,
 
-                requires:
-                  {},
+          ariExecutiveVersion:
+            null,
 
-                requiredBehaviors:
-                  [],
+          cognitiveExecutive: {
+            source:
+              "not-loaded",
 
-                forbiddenBehaviors:
-                  [],
+            authority:
+              "none",
 
-                constraints:
-                  [],
+            activate:
+              [],
 
-                reason:
-                  "cognitive_executive_not_loaded"
-              }
-            },
+            requires:
+              {},
 
-            {
-              ...state,
+            requiredBehaviors:
+              [],
 
-              reasoningStageInput:
-                this.buildReasoningStageInput(
-                  state
-                )
-            }
-          )
-        : {
-            ariExecutiveRan:
-              false,
+            forbiddenBehaviors:
+              [],
 
-            ariExecutiveVersion:
-              null,
+            constraints:
+              [],
 
-            cognitiveExecutive: {
-              source:
-                "skipped-by-executive-routing",
+            reason:
+              "cognitive_executive_not_loaded"
+          }
+        }
+      })
+    : {
+        ariExecutiveRan:
+          false,
 
-              authority:
-                "none",
+        ariExecutiveVersion:
+          null,
 
-              activate:
-                [],
+        cognitiveExecutive: {
+          source:
+            "skipped-by-executive-routing",
 
-              requires:
-                {},
+          authority:
+            "none",
 
-              requiredBehaviors:
-                [],
+          activate:
+            [],
 
-              forbiddenBehaviors:
-                [],
+          requires:
+            {},
 
-              constraints:
-                [],
+          requiredBehaviors:
+            [],
 
-              reason:
-                "cognitive_executive_not_required"
-            }
-          };
+          forbiddenBehaviors:
+            [],
+
+          constraints:
+            [],
+
+          reason:
+            "cognitive_executive_not_required"
+        }
+      };
 
     state = {
       ...state,
@@ -368,31 +371,30 @@ if (
 ) {
   try {
     reasoningResult =
-      await runEngine(
-        window.AriReasoningEngine,
+  await this.invokeEngine({
+    engine:
+      window.AriReasoningEngine,
 
-        [
-          "reason",
-          "create"
-        ],
+    methods: [
+      "reason",
+      "create"
+    ],
 
-        this.buildReasoningFallback({
-          reason:
-            "reasoning_engine_not_loaded",
+    input: {
+      ...state,
 
-          source:
-            "not-loaded",
+      reasoningStageInput,
 
-          engineRan:
-            false
-        }),
+      request:
+        reasoningStageInput
+    },
 
-        {
-          ...state,
+    runtime,
 
-          reasoningStageInput
-        }
-      );
+    runtimeInvoker:
+      runEngine
+  });
+  
   } catch (error) {
     console.error(
       "Ari Reasoning Engine invocation failed:",
@@ -762,6 +764,103 @@ console.log(
     return state;
   },
 
+async invokeEngine({
+  engine = null,
+  methods = [],
+  input = {},
+  runtime = {},
+  runtimeInvoker = null,
+  fallback = null
+} = {}) {
+  if (
+    typeof runtimeInvoker ===
+    "function"
+  ) {
+    const runtimeResult =
+      await runtimeInvoker(
+        engine,
+        methods,
+        fallback,
+        input
+      );
+
+    const runtimeReturnedFallback =
+      fallback !== null &&
+      runtimeResult === fallback;
+
+    if (
+      runtimeResult &&
+      typeof runtimeResult ===
+        "object" &&
+      !Array.isArray(
+        runtimeResult
+      ) &&
+      !runtimeReturnedFallback
+    ) {
+      return runtimeResult;
+    }
+  }
+
+  if (
+    !engine ||
+    (
+      typeof engine !==
+        "object" &&
+      typeof engine !==
+        "function"
+    )
+  ) {
+    if (fallback) {
+      return fallback;
+    }
+
+    throw new Error(
+      "engine_not_loaded"
+    );
+  }
+
+  const methodName =
+    methods.find(
+      method =>
+        typeof engine[method] ===
+          "function"
+    );
+
+  if (!methodName) {
+    if (fallback) {
+      return fallback;
+    }
+
+    throw new Error(
+      "engine_method_not_available"
+    );
+  }
+
+  const result =
+    await engine[
+      methodName
+    ].call(
+      engine,
+      input,
+      runtime
+    );
+
+  if (
+    !result ||
+    typeof result !==
+      "object" ||
+    Array.isArray(
+      result
+    )
+  ) {
+    throw new Error(
+      "engine_returned_invalid_result"
+    );
+  }
+
+  return result;
+},
+
   // ===================================================
   // Eligibility
   // ===================================================
@@ -986,7 +1085,7 @@ console.log(
         "ari_cognitive_reasoning_request",
 
       schemaVersion:
-        "1.1.0",
+        "1.1.1",
 
       action:
         "openai_reasoning",
@@ -1755,7 +1854,7 @@ engineInvocation:
           "ari_cognitive_reasoning_result",
 
         schemaVersion:
-          "1.0.0",
+          "1.1.1",
 
         ready:
           false,
