@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.4.1 — Cognitive Reasoning Dependency Diagnostics
+// V2.4.2 — Explicit Runtime Availability Diagnostics
 //
 // Architectural flow:
 //
@@ -64,8 +64,8 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.4.1",
-  schemaVersion: "2.4.1",
+  version: "2.4.2",
+  schemaVersion: "2.4.2",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
@@ -627,12 +627,26 @@ window.AriRebirthAppBridge = {
         "before_master_pipeline"
       );
 
-      runtimeResult =
-        await window
-          .AriRebirthPipeline
-          .run(
-            requestEnvelope
-          );
+      const masterPipeline =
+  window.AriRebirthPipeline ||
+  window.Ari
+    ?.rebirthPipeline ||
+  null;
+
+if (
+  !masterPipeline ||
+  typeof masterPipeline.run !==
+    "function"
+) {
+  throw new Error(
+    "ari_rebirth_pipeline_unavailable_at_execution"
+  );
+}
+
+runtimeResult =
+  await masterPipeline.run(
+    requestEnvelope
+  );
 
       timing.mark(
         "after_master_pipeline"
@@ -1054,6 +1068,10 @@ window.AriRebirthAppBridge = {
           : null
       );
 
+const runtimeAvailability =
+  error?.runtimeAvailability ||
+  null;
+
     const exposeInternalError =
       options.debug ===
         true ||
@@ -1101,6 +1119,8 @@ window.AriRebirthAppBridge = {
 
         detail:
           diagnostics,
+
+runtimeAvailability,
 
         internalErrorExposed:
           exposeInternalError,
@@ -1521,19 +1541,39 @@ window.AriRebirthAppBridge = {
       this.loadRequiredScripts()
         .then(
           result => {
-            this.loaded =
-              result ===
-                true &&
-              this.areRequiredServicesReady() &&
-              this.isMasterPipelineReady();
+            const availability =
+  this.getRuntimeAvailability();
 
-            if (
-              !this.loaded
-            ) {
-              throw new Error(
-                "ari_runtime_unavailable_after_script_loading"
-              );
-            }
+this.loaded =
+  result === true &&
+  availability.ready ===
+    true;
+
+if (!this.loaded) {
+  console.error(
+    "[ARI RUNTIME AVAILABILITY FAILURE]",
+    availability
+  );
+
+  const missing =
+    availability.missing
+      .join(",");
+
+  const error =
+    new Error(
+      missing
+        ? `ari_runtime_unavailable_after_script_loading:${missing}`
+        : "ari_runtime_unavailable_after_script_loading"
+    );
+
+  error.code =
+    "ari_runtime_unavailable_after_script_loading";
+
+  error.runtimeAvailability =
+    availability;
+
+  throw error;
+}
 
             this.setLoaderDiagnostic(
               "ariLoadingCompleted",
@@ -2022,75 +2062,197 @@ window.AriRebirthAppBridge = {
   },
 
     areRequiredServicesReady() {
-    const requestService =
-      window.AriRuntimeRequest ||
-      window.Ari
-        ?.runtimeRequest ||
-      null;
+  const availability =
+    this.getRuntimeAvailability();
 
-    const readinessService =
-      window.AriRuntimeReadiness ||
-      window.Ari
-        ?.runtimeReadiness ||
-      null;
+  return availability.ready ===
+    true;
+},
 
-    const deliveryService =
-      window.AriRuntimeDelivery ||
-      window.Ari
-        ?.runtimeDelivery ||
-      null;
+getRuntimeAvailability() {
+  const requestService =
+    window.AriRuntimeRequest ||
+    window.Ari
+      ?.runtimeRequest ||
+    null;
 
-    const openAIReasoningClient =
-      this.getOpenAIReasoningClient();
+  const readinessService =
+    window.AriRuntimeReadiness ||
+    window.Ari
+      ?.runtimeReadiness ||
+    null;
 
-    const reasoningEngine =
-      this.getReasoningEngine();
+  const deliveryService =
+    window.AriRuntimeDelivery ||
+    window.Ari
+      ?.runtimeDelivery ||
+    null;
 
-    const reasoningStage =
-      this.getReasoningStage();
+  const openAIReasoningClient =
+    this.getOpenAIReasoningClient();
 
-    const responsePlanningStage =
-      this.getResponsePlanningStage();
+  const reasoningEngine =
+    this.getReasoningEngine();
 
-    const deliberationPipeline =
-      this.getDeliberationPipeline();
+  const reasoningStage =
+    this.getReasoningStage();
 
-    return Boolean(
-      requestService &&
-      typeof requestService.build ===
-        "function" &&
+  const responsePlanningStage =
+    this.getResponsePlanningStage();
 
-      readinessService &&
-      typeof readinessService.check ===
-        "function" &&
+  const deliberationPipeline =
+    this.getDeliberationPipeline();
 
-      deliveryService &&
-      typeof deliveryService.read ===
-        "function" &&
-      typeof deliveryService.adapt ===
-        "function" &&
+  const masterPipeline =
+    window.AriRebirthPipeline ||
+    window.Ari
+      ?.rebirthPipeline ||
+    null;
 
-      openAIReasoningClient &&
-      typeof openAIReasoningClient.reason ===
-        "function" &&
+  const checks = {
+    runtimeRequestBuild:
+      typeof requestService
+        ?.build ===
+      "function",
 
-      reasoningEngine &&
-      typeof reasoningEngine.reason ===
-        "function" &&
+    runtimeReadinessCheck:
+      typeof readinessService
+        ?.check ===
+      "function",
 
-      reasoningStage &&
-      typeof reasoningStage.run ===
-        "function" &&
+    runtimeDeliveryRead:
+      typeof deliveryService
+        ?.read ===
+      "function",
 
-      responsePlanningStage &&
-      typeof responsePlanningStage.run ===
-        "function" &&
+    runtimeDeliveryAdapt:
+      typeof deliveryService
+        ?.adapt ===
+      "function",
 
-      deliberationPipeline &&
-      typeof deliberationPipeline.run ===
-        "function"
-    );
-  },
+    openAIReasoningClientReason:
+      typeof openAIReasoningClient
+        ?.reason ===
+      "function",
+
+    reasoningEngineReason:
+      typeof reasoningEngine
+        ?.reason ===
+      "function",
+
+    reasoningStageRun:
+      typeof reasoningStage
+        ?.run ===
+      "function",
+
+    responsePlanningStageRun:
+      typeof responsePlanningStage
+        ?.run ===
+      "function",
+
+    deliberationPipelineRun:
+      typeof deliberationPipeline
+        ?.run ===
+      "function",
+
+    masterPipelineRun:
+      typeof masterPipeline
+        ?.run ===
+      "function"
+  };
+
+  const missing =
+    Object.entries(
+      checks
+    )
+      .filter(
+        ([
+          _name,
+          available
+        ]) =>
+          available !==
+          true
+      )
+      .map(
+        ([name]) =>
+          name
+      );
+
+  return {
+    ready:
+      missing.length ===
+      0,
+
+    checks,
+
+    missing,
+
+    registrations: {
+      runtimeRequest:
+        requestService
+          ? Object.keys(
+              requestService
+            )
+          : [],
+
+      runtimeReadiness:
+        readinessService
+          ? Object.keys(
+              readinessService
+            )
+          : [],
+
+      runtimeDelivery:
+        deliveryService
+          ? Object.keys(
+              deliveryService
+            )
+          : [],
+
+      openAIReasoningClient:
+        openAIReasoningClient
+          ? Object.keys(
+              openAIReasoningClient
+            )
+          : [],
+
+      reasoningEngine:
+        reasoningEngine
+          ? Object.keys(
+              reasoningEngine
+            )
+          : [],
+
+      reasoningStage:
+        reasoningStage
+          ? Object.keys(
+              reasoningStage
+            )
+          : [],
+
+      responsePlanningStage:
+        responsePlanningStage
+          ? Object.keys(
+              responsePlanningStage
+            )
+          : [],
+
+      deliberationPipeline:
+        deliberationPipeline
+          ? Object.keys(
+              deliberationPipeline
+            )
+          : [],
+
+      masterPipeline:
+        masterPipeline
+          ? Object.keys(
+              masterPipeline
+            )
+          : []
+    }
+  };
+},
 
   isMasterPipelineReady() {
     const pipeline =
