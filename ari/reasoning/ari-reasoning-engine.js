@@ -1948,43 +1948,49 @@ window.AriReasoningEngine = {
     }
 
     const candidates = [
-      rawResult
-        .cognitiveReasoningResult,
+  rawResult
+    .cognitiveReasoningResult,
 
-      rawResult
-        .reasoningResult,
+  rawResult
+    .reasoningResult,
 
-      rawResult.result
-        ?.cognitiveReasoningResult,
+  rawResult.result
+    ?.cognitiveReasoningResult,
 
-      rawResult.result
-        ?.reasoningResult,
+  rawResult.result
+    ?.reasoningResult,
 
-      rawResult.result,
+  rawResult.result,
 
-      rawResult.output,
+  rawResult.output
+    ?.cognitiveReasoningResult,
 
-      rawResult
-        .structuredOutput,
+  rawResult.output
+    ?.reasoningResult,
 
-      rawResult.parsed,
+  rawResult.output,
 
-      rawResult.response,
+  rawResult
+    .structuredOutput,
 
-      rawResult.data,
+  rawResult.parsed,
 
-      rawResult.rawContent,
+  rawResult.response,
 
-      rawResult.output_text,
+  rawResult.data,
 
-      rawResult.outputText,
+  rawResult.rawContent,
 
-      rawResult.responseText,
+  rawResult.output_text,
 
-      rawResult.content,
+  rawResult.outputText,
 
-      rawResult.text
-    ];
+  rawResult.responseText,
+
+  rawResult.content,
+
+  rawResult.text
+];
 
     for (
       const candidate
@@ -2059,38 +2065,50 @@ window.AriReasoningEngine = {
   },
 
   isUsableSemanticFrame(
-    semanticFrame = {}
+  semanticFrame = {}
+) {
+  if (
+    !semanticFrame ||
+    typeof semanticFrame !==
+      "object" ||
+    Array.isArray(
+      semanticFrame
+    )
   ) {
-    if (
-      !semanticFrame ||
-      typeof semanticFrame !==
-        "object" ||
-      Array.isArray(
-        semanticFrame
-      )
-    ) {
-      return false;
-    }
+    return false;
+  }
 
-    return Boolean(
-      this.nullableString(
-        semanticFrame.operation
-      ) ||
-      semanticFrame.target != null ||
-      this.nullableString(
-        semanticFrame.domain
-      ) ||
-      this.nullableString(
-        semanticFrame.primaryLane
-      ) ||
-      this.nullableString(
-        semanticFrame.requestedOutput
-      ) ||
-      this.arrayOrEmpty(
-        semanticFrame.constraints
-      ).length
-    );
-  },
+  return Boolean(
+    this.nullableString(
+      semanticFrame.operation
+    ) ||
+    semanticFrame.target != null ||
+    this.nullableString(
+      semanticFrame.domain
+    ) ||
+    this.nullableString(
+      semanticFrame.primaryLane
+    ) ||
+    this.nullableString(
+      semanticFrame.requestedOutput
+    ) ||
+    this.nullableString(
+      semanticFrame.semanticSummary
+    ) ||
+    this.nullableString(
+      semanticFrame.primaryIntent
+    ) ||
+    this.nullableString(
+      semanticFrame.userGoal
+    ) ||
+    this.nullableString(
+      semanticFrame.currentTurnMeaning
+    ) ||
+    this.arrayOrEmpty(
+      semanticFrame.constraints
+    ).length
+  );
+},
 
   isUsableResponseRequirements(
     requirements = {}
@@ -2108,8 +2126,9 @@ window.AriReasoningEngine = {
 
     return Boolean(
       this.nullableString(
-        requirements.goal
-      ) ||
+  requirements.goal ||
+  requirements.responseGoal
+) ||
       this.nullableString(
         requirements.shape
       ) ||
@@ -2373,9 +2392,10 @@ window.AriReasoningEngine = {
   ) {
     return {
       goal:
-        this.nullableString(
-          requirements.goal
-        ),
+  this.nullableString(
+    requirements.goal ||
+    requirements.responseGoal
+  ),
 
       shape:
         this.nullableString(
