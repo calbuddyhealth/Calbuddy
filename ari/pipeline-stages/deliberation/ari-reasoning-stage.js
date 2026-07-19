@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.1.0 — OpenAI Cognitive Reasoning Orchestration
+// V2.1.1 — OpenAI Cognitive Reasoning Orchestration
 //
 // Authority model:
 //
@@ -40,7 +40,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "2.1.0",
+  version: "2.1.1",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -361,47 +361,88 @@ window.AriReasoningStage = {
       "before AriReasoningEngine"
     );
 
-    const reasoningResult =
-      shouldRunGeneralReasoning
-        ? await runEngine(
-            window.AriReasoningEngine,
+    let reasoningResult;
 
-            [
-              "reason",
-              "create"
-            ],
+if (
+  shouldRunGeneralReasoning
+) {
+  try {
+    reasoningResult =
+      await runEngine(
+        window.AriReasoningEngine,
 
-            this.buildReasoningFallback({
-              reason:
-                "reasoning_engine_not_loaded",
+        [
+          "reason",
+          "create"
+        ],
 
-              source:
-                "not-loaded",
+        this.buildReasoningFallback({
+          reason:
+            "reasoning_engine_not_loaded",
 
-              engineRan:
-                false
-            }),
+          source:
+            "not-loaded",
 
-            {
-              ...state,
+          engineRan:
+            false
+        }),
 
-              reasoningStageInput
-            }
-          )
-        : this.buildReasoningFallback({
-            reason:
-              developerResponseLocked
-                ? "developer_response_already_locked"
-                : "general_reasoning_not_required",
+        {
+          ...state,
 
-            source:
-              developerResponseLocked
-                ? "skipped-developer-response-locked"
-                : "skipped-by-executive-routing",
+          reasoningStageInput
+        }
+      );
+  } catch (error) {
+    console.error(
+      "Ari Reasoning Engine invocation failed:",
+      error
+    );
 
-            engineRan:
-              false
-          });
+    reasoningResult =
+      this.buildReasoningFallback({
+        reason:
+          error?.message ||
+          "reasoning_engine_invocation_failed",
+
+        source:
+          "reasoning-engine-error",
+
+        engineRan:
+          false
+      });
+
+    reasoningResult.invocationError = {
+      message:
+        error?.message ||
+        String(error),
+
+      name:
+        error?.name ||
+        "Error",
+
+      stack:
+        error?.stack ||
+        null
+    };
+  }
+} else {
+  reasoningResult =
+    this.buildReasoningFallback({
+      reason:
+        developerResponseLocked
+          ? "developer_response_already_locked"
+          : "general_reasoning_not_required",
+
+      source:
+        developerResponseLocked
+          ? "skipped-developer-response-locked"
+          : "skipped-by-executive-routing",
+
+      engineRan:
+        false
+    });
+}
 
     mark(
       "after AriReasoningEngine"
@@ -1379,6 +1420,56 @@ reasoningEngineResult:
 
       version:
         this.version,
+
+executionDiagnostic: {
+  shouldRunGeneralReasoning:
+    summary.shouldRunHeavyReasoning ===
+    true,
+
+  developerResponseLocked:
+    summary.developerResponseLocked ===
+    true,
+
+  engineAvailable:
+    Boolean(
+      window.AriReasoningEngine
+    ),
+
+  engineMethods: {
+    reason:
+      typeof window
+        .AriReasoningEngine
+        ?.reason ===
+      "function",
+
+    create:
+      typeof window
+        .AriReasoningEngine
+        ?.create ===
+      "function"
+  },
+
+  resultAvailable:
+    Boolean(
+      summary.reasoningEngineResult
+    ),
+
+  resultSource:
+    summary.reasoningEngineResult
+      ?.source ||
+    summary.reasoningSource ||
+    null,
+
+  fallbackReason:
+    summary.reasoningFailure
+      ?.reason ||
+    null,
+
+  invocationError:
+    summary.reasoningEngineResult
+      ?.invocationError ||
+    null
+},
 
       cognitiveReasoningResult:
         summary.cognitiveReasoningResult ||
