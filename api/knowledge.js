@@ -5,22 +5,24 @@
 // Provide explicit server-side endpoints for:
 // - Ari preference lookup
 // - Six-core Supabase semantic retrieval
+// - OpenAI cognitive reasoning
 // - OpenAI response realization
 //
-// V4.0.0 — Explicit Action Routing / Realization-Native Response Contract
+// V4.1.0 — Separate Cognitive Reasoning and Response Realization Contracts
 //
 // Responsibilities:
 // - Validate all API actions explicitly.
 // - Retrieve Ari knowledge nodes from Supabase.
 // - Generate query embeddings with short-term caching.
+// - Return canonical cognitive reasoning fields for Deliberation.
 // - Send Ari Rebirth realization instructions to OpenAI.
 // - Return realization-native response fields.
 // - Preserve legacy response fields for temporary compatibility.
 // - Report empty or malformed model responses as honest failures.
 //
 // Non-responsibilities:
-// - Does not choose conversation intent.
-// - Does not reinterpret semantic meaning.
+// - Does not choose conversation intent outside the OpenAI reasoning contract.
+// - Does not reinterpret semantic meaning outside the OpenAI reasoning contract.
 // - Does not determine safety severity.
 // - Does not create hidden fallback answers.
 // - Does not claim success when OpenAI returns no usable response.
@@ -117,6 +119,13 @@ export default async function handler(
           body
         );
 
+      case "openai_reasoning":
+        return await handleOpenAIReasoning(
+          req,
+          res,
+          body
+        );
+
       case "openai_knowledge":
       case "openai_realization":
         return await handleOpenAIKnowledge(
@@ -138,6 +147,7 @@ export default async function handler(
             supportedActions: [
               "preference_lookup",
               "semantic_search_ari_nodes",
+              "openai_reasoning",
               "openai_knowledge",
               "openai_realization"
             ]
@@ -946,6 +956,538 @@ function pruneEmbeddingCache() {
 }
 
 /* =====================================================
+   OPENAI COGNITIVE REASONING
+===================================================== */
+
+async function handleOpenAIReasoning(
+  req,
+  res,
+  suppliedBody = {}
+) {
+  const totalStart =
+    Date.now();
+
+  const timing = {};
+
+  const body =
+    isPlainObject(
+      suppliedBody
+    )
+      ? suppliedBody
+      : isPlainObject(
+          req.body
+        )
+        ? req.body
+        : {};
+
+  if (
+    !process.env
+      .OPENAI_API_KEY
+  ) {
+    return res
+      .status(500)
+      .json({
+        success: false,
+        ready: false,
+        error:
+          "Missing OPENAI_API_KEY.",
+        failureType:
+          "missing_environment_configuration",
+        source:
+          "openai_reasoning"
+      });
+  }
+
+  const evidencePacket =
+    normalizeObjectOrNull(
+      body.evidencePacket ||
+      body.perceptionPacket
+        ?.evidencePacket
+    );
+
+  const executivePacket =
+    normalizeObjectOrNull(
+      body.executivePacket
+    );
+
+  const routingContract =
+    normalizeObjectOrNull(
+      body.routingContract ||
+      executivePacket
+        ?.routingContract
+    );
+
+  const continuity =
+    normalizeObject(
+      body.continuity ||
+      body.continuityStagePacket ||
+      body.continuityResolution
+    );
+
+  const safety =
+    normalizeObject(
+      body.safety ||
+      body.safetyStagePacket ||
+      body.safetyDisposition
+    );
+
+  const situation =
+    normalizeObject(
+      body.situation ||
+      body.situationStagePacket ||
+      body.situationContract ||
+      body.situationMap
+    );
+
+  const memory =
+    normalizeObject(
+      body.memory ||
+      body.memoryStagePacket ||
+      body.memoryContext ||
+      body.memoryHandoff
+    );
+
+  const originalQuestion =
+    firstNonEmptyString([
+      body.currentTurn
+        ?.originalText,
+      body.originalUserMessage,
+      body.rawQuestion,
+      body.userMessage,
+      body.message,
+      body.input
+    ]);
+
+  const effectiveQuestion =
+    firstNonEmptyString([
+      body.currentTurn
+        ?.effectiveText,
+      body.effectiveUserMessage,
+      body.resolvedUserQuestion,
+      body.resolvedQuestion,
+      body.question,
+      originalQuestion
+    ]);
+
+  if (
+    !effectiveQuestion
+  ) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        ready: false,
+        error:
+          "No effective question was provided for cognitive reasoning.",
+        failureType:
+          "invalid_request",
+        source:
+          "openai_reasoning"
+      });
+  }
+
+  if (
+    !evidencePacket
+  ) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        ready: false,
+        error:
+          "No evidencePacket was provided for cognitive reasoning.",
+        failureType:
+          "evidence_packet_missing",
+        source:
+          "openai_reasoning"
+      });
+  }
+
+  const reasoningInput = {
+    request: {
+      original:
+        originalQuestion,
+
+      effective:
+        effectiveQuestion,
+
+      currentTurnWasResolved:
+        body.currentTurnWasResolved ===
+          true
+    },
+
+    evidencePacket,
+    executivePacket,
+    routingContract,
+
+    deterministicContext: {
+      continuity,
+      safety,
+      situation,
+      memory
+    }
+  };
+
+  const systemPrompt =
+    buildOpenAIReasoningSystemPrompt();
+
+  const userPrompt =
+    buildOpenAIReasoningUserPrompt(
+      reasoningInput
+    );
+
+  const openAIStart =
+    Date.now();
+
+  const response =
+    await fetch(
+      OPENAI_CHAT_COMPLETIONS_URL,
+      {
+        method: "POST",
+        headers:
+          getOpenAIHeaders(),
+        body:
+          JSON.stringify({
+            model:
+              DEFAULT_OPENAI_MODEL,
+
+            messages: [
+              {
+                role:
+                  "system",
+                content:
+                  systemPrompt
+              },
+              {
+                role:
+                  "user",
+                content:
+                  userPrompt
+              }
+            ],
+
+            temperature:
+              0.15,
+
+            max_tokens:
+              1800,
+
+            response_format: {
+              type:
+                "json_object"
+            }
+          })
+      }
+    );
+
+  const data =
+    await readJsonResponse(
+      response
+    );
+
+  timing.openAIMs =
+    Date.now() -
+    openAIStart;
+
+  if (
+    !response.ok
+  ) {
+    return res
+      .status(
+        response.status
+      )
+      .json({
+        success: false,
+        ready: false,
+
+        error:
+          data?.error
+            ?.message ||
+          data?.message ||
+          "OpenAI reasoning request failed.",
+
+        failureType:
+          "openai_reasoning_request_failed",
+
+        status:
+          response.status,
+
+        model:
+          data?.model ||
+          DEFAULT_OPENAI_MODEL,
+
+        source:
+          "openai_reasoning",
+
+        timing: {
+          ...timing,
+          totalMs:
+            Date.now() -
+            totalStart
+        }
+      });
+  }
+
+  const rawModelOutput =
+    extractRawModelOutput(
+      data
+    );
+
+  const parsedResult =
+    parseModelResult(
+      rawModelOutput
+    );
+
+  const parsed =
+    parsedResult.value;
+
+  if (
+    !parsedResult.wasJson ||
+    !isPlainObject(
+      parsed
+    )
+  ) {
+    return res
+      .status(502)
+      .json({
+        success: false,
+        ready: false,
+
+        error:
+          "OpenAI reasoning returned a malformed cognitive result.",
+
+        failureType:
+          "invalid_reasoning_model_output",
+
+        rawModelOutput:
+          rawModelOutput ||
+          null,
+
+        parsedModelOutput:
+          parsed ||
+          null,
+
+        model:
+          data?.model ||
+          DEFAULT_OPENAI_MODEL,
+
+        source:
+          "openai_reasoning",
+
+        timing: {
+          ...timing,
+          totalMs:
+            Date.now() -
+            totalStart
+        }
+      });
+  }
+
+  const semanticFrame =
+    normalizeObjectOrNull(
+      parsed.semanticFrame ||
+      parsed.semantic_frame
+    );
+
+  const responseRequirements =
+    normalizeObjectOrNull(
+      parsed.responseRequirements ||
+      parsed.response_requirements
+    );
+
+  const executionMetadata =
+    normalizeObjectOrNull(
+      parsed.executionMetadata ||
+      parsed.execution_metadata
+    );
+
+  const evidenceReferences =
+    normalizeArray(
+      parsed.evidenceReferences ||
+      parsed.evidence_references
+    );
+
+  if (
+    !semanticFrame
+  ) {
+    return res
+      .status(502)
+      .json({
+        success: false,
+        ready: false,
+
+        error:
+          "OpenAI reasoning returned no semanticFrame.",
+
+        failureType:
+          "semantic_frame_missing",
+
+        rawModelOutput:
+          rawModelOutput ||
+          null,
+
+        parsedModelOutput:
+          parsed,
+
+        model:
+          data?.model ||
+          DEFAULT_OPENAI_MODEL,
+
+        source:
+          "openai_reasoning",
+
+        timing: {
+          ...timing,
+          totalMs:
+            Date.now() -
+            totalStart
+        }
+      });
+  }
+
+  if (
+    !responseRequirements
+  ) {
+    return res
+      .status(502)
+      .json({
+        success: false,
+        ready: false,
+
+        error:
+          "OpenAI reasoning returned no responseRequirements.",
+
+        failureType:
+          "response_requirements_missing",
+
+        semanticFrame,
+
+        parsedModelOutput:
+          parsed,
+
+        model:
+          data?.model ||
+          DEFAULT_OPENAI_MODEL,
+
+        source:
+          "openai_reasoning",
+
+        timing: {
+          ...timing,
+          totalMs:
+            Date.now() -
+            totalStart
+        }
+      });
+  }
+
+  timing.totalMs =
+    Date.now() -
+    totalStart;
+
+  const cognitiveReasoningResult = {
+    schema:
+      "ari_cognitive_reasoning_result",
+
+    schemaVersion:
+      "1.0.0",
+
+    ready:
+      true,
+
+    success:
+      true,
+
+    source:
+      "openai_reasoning",
+
+    model:
+      data?.model ||
+      DEFAULT_OPENAI_MODEL,
+
+    semanticFrame,
+    responseRequirements,
+
+    executionMetadata:
+      executionMetadata ||
+      {},
+
+    evidenceReferences,
+
+    reasoningNotes:
+      normalizeArray(
+        parsed.reasoningNotes ||
+        parsed.reasoning_notes
+      ),
+
+    uncertainty:
+      normalizeObjectOrNull(
+        parsed.uncertainty
+      ),
+
+    modelInvocation: {
+      succeeded:
+        true,
+
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+
+      finishReason:
+        data?.choices?.[0]
+          ?.finish_reason ||
+        null,
+
+      usage:
+        data?.usage ||
+        null,
+
+      durationMs:
+        timing.openAIMs
+    },
+
+    timing
+  };
+
+  return res
+    .status(200)
+    .json({
+      success:
+        true,
+
+      ready:
+        true,
+
+      cognitiveReasoningResult,
+
+      reasoningResult:
+        cognitiveReasoningResult,
+
+      semanticFrame,
+      responseRequirements,
+
+      executionMetadata:
+        cognitiveReasoningResult
+          .executionMetadata,
+
+      evidenceReferences,
+
+      modelInvocation:
+        cognitiveReasoningResult
+          .modelInvocation,
+
+      model:
+        cognitiveReasoningResult
+          .model,
+
+      source:
+        "openai_reasoning",
+
+      timing
+    });
+}
+
+/* =====================================================
    OPENAI REALIZATION
 ===================================================== */
 
@@ -1357,15 +1899,10 @@ async function handleOpenAIKnowledge(
           answer,
 
         confidence,
-
         sources,
-
         mealEstimate,
-
         foodAnalysis,
-
         nutritionEstimate,
-
         pendingAction
       },
 
@@ -1417,6 +1954,97 @@ async function handleOpenAIKnowledge(
 /* =====================================================
    OPENAI PROMPTS
 ===================================================== */
+
+function buildOpenAIReasoningSystemPrompt() {
+  return `
+You are the sole semantic reasoning authority for Ari Rebirth.
+
+Your job is to interpret the current user request using only the supplied current request, evidence, routing constraints, and deterministic context.
+
+You do not write the final response to the user.
+
+You must produce a structured cognitive reasoning result that downstream semantic validation and response planning can consume.
+
+Authority rules:
+- You may interpret the user's meaning, goal, conversational function, and required response behavior.
+- You may resolve ambiguity only when supported by the supplied evidence and continuity.
+- You must distinguish direct evidence from inference.
+- You must not fabricate user facts, memories, external facts, citations, actions, or tool results.
+- You must not treat deterministic routing labels as semantic truth.
+- You must respect supplied safety constraints.
+- You must preserve the effective current-turn request.
+- You must not write polished final-response prose.
+- You must not return a candidate answer.
+- You must not claim an action was executed.
+- semanticFrame must represent the meaning of the current request.
+- responseRequirements must describe what the later response must accomplish.
+- evidenceReferences must identify the supplied evidence supporting material conclusions.
+- Output must be one valid JSON object.
+
+Return JSON only.
+`.trim();
+}
+
+function buildOpenAIReasoningUserPrompt(
+  reasoningInput = {}
+) {
+  return `
+CURRENT REASONING INPUT:
+${safeJsonStringify(
+  reasoningInput
+)}
+
+Return one JSON object using this shape:
+
+{
+  "semanticFrame": {
+    "semanticSummary": "Concise interpretation of the current request.",
+    "conversationFunction": "The conversational function of this turn.",
+    "primaryIntent": "The user's primary semantic intent.",
+    "userGoal": "What the user wants accomplished.",
+    "domain": "The relevant subject domain.",
+    "currentTurnMeaning": "The resolved meaning of this turn.",
+    "referencesResolved": [],
+    "constraints": [],
+    "stakes": "low | moderate | high | critical",
+    "uncertainties": [],
+    "slots": {}
+  },
+  "responseRequirements": {
+    "responseGoal": "What the final response must accomplish.",
+    "requiredMoves": [],
+    "prohibitedMoves": [],
+    "requiredFacts": [],
+    "safetyRequirements": [],
+    "continuityRequirements": [],
+    "toneRequirements": [],
+    "clarificationRequired": false,
+    "actionRequired": false
+  },
+  "executionMetadata": {
+    "reasoningMode": "direct | continuity_assisted | safety_constrained | evidence_constrained",
+    "requiresExternalKnowledge": false,
+    "requiresToolExecution": false,
+    "confidence": "low | medium | high"
+  },
+  "evidenceReferences": [],
+  "reasoningNotes": [],
+  "uncertainty": null
+}
+
+Output requirements:
+- semanticFrame must be a non-empty object.
+- semanticFrame.semanticSummary must be a non-empty string.
+- semanticFrame.primaryIntent must be a non-empty string.
+- semanticFrame.userGoal must be a non-empty string.
+- responseRequirements must be a non-empty object.
+- responseRequirements.responseGoal must be a non-empty string.
+- requiredMoves and prohibitedMoves must be arrays.
+- evidenceReferences must be an array.
+- Do not include final user-facing prose.
+- Do not put the result inside an unexpected wrapper.
+`.trim();
+}
 
 function buildOpenAISystemPrompt() {
   return `
