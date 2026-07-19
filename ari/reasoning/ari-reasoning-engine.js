@@ -1,36 +1,59 @@
 // ari/reasoning/ari-reasoning-engine.js
 // Ari Reasoning Engine
-// Purpose:
-//   Build the canonical cognitive evidence packet,
-//   invoke OpenAI as ARI's authoritative reasoning engine,
-//   validate the structured result,
-//   and expose a safe compatibility contract.
 //
-// V9.0.0 — OpenAI Cognitive Reasoning Adapter
+// Purpose:
+// Build the canonical cognitive evidence packet,
+// invoke OpenAI as ARI's authoritative reasoning engine,
+// validate the structured result,
+// and expose a safe compatibility contract.
+//
+// V9.1.0 — Structured Reasoning Transport / Evidence-Aware Validation
 //
 // Authority model:
 //
-//   ARI:
-//   - gathers evidence
-//   - defines binding safety and execution constraints
-//   - validates model output
-//   - controls tools, persistence, and delivery
+// ARI:
+// - gathers evidence
+// - defines binding safety and execution constraints
+// - validates model output
+// - controls tools, persistence, and delivery
 //
-//   OpenAI:
-//   - interprets user meaning
-//   - builds the semantic frame
-//   - analyzes the situation
-//   - proposes decisions and actions
-//   - defines response strategy
-//   - drafts response language
+// OpenAI:
+// - interprets user meaning
+// - builds the semantic frame
+// - analyzes the situation
+// - proposes decisions and actions
+// - defines response strategy
+// - may draft provisional response language
 //
-//   OpenAI may propose actions.
-//   OpenAI may not execute actions or override safety.
+// OpenAI may propose actions.
+// OpenAI may not execute actions, persist state,
+// claim tool success, or override safety.
+//
+// Responsibilities:
+// - Build one canonical reasoning request.
+// - Preserve current-turn and conversation context.
+// - Preserve routing, safety, continuity, memory, and knowledge evidence.
+// - Resolve an approved OpenAI reasoning invoker.
+// - Invoke OpenAI exactly once per reasoning execution.
+// - Validate and normalize structured cognitive output.
+// - Reject unsafe or falsely executed action claims.
+// - Return transparent invocation and validation diagnostics.
+//
+// Non-responsibilities:
+// - Does not execute actions.
+// - Does not call tools directly.
+// - Does not persist memory or runtime state.
+// - Does not authorize delivery.
+// - Does not produce the final delivered response.
+// - Does not replace the Response Realization Engine.
+// - Does not expose private chain-of-thought.
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "9.0.0",
+  version: "9.1.0",
+
+  source: "ari-reasoning-engine",
 
   requestSchema:
     "ari_cognitive_reasoning_request",
@@ -44,9 +67,9 @@ window.AriReasoningEngine = {
   resultSchemaVersion:
     "1.0.0",
 
-  // ===================================================
-  // Public entry points
-  // ===================================================
+  /* =====================================================
+     PUBLIC ENTRY POINTS
+  ===================================================== */
 
   async create(input = {}) {
     return this.reason(input);
@@ -59,14 +82,19 @@ window.AriReasoningEngine = {
       {};
 
     const reasoningRequest =
-      this.resolveReasoningRequest(summary);
+      this.resolveReasoningRequest(
+        summary
+      );
 
     const requestValidation =
       this.validateReasoningRequest(
         reasoningRequest
       );
 
-    if (!requestValidation.valid) {
+    if (
+      requestValidation.valid !==
+      true
+    ) {
       return this.buildFailureResult({
         reason:
           "invalid_reasoning_request",
@@ -78,12 +106,32 @@ window.AriReasoningEngine = {
           reasoningRequest,
 
         engineRan:
-          false
+          false,
+
+        modelInvocation:
+          this.buildModelInvocationDiagnostic({
+            available:
+              false,
+
+            attempted:
+              false,
+
+            succeeded:
+              false,
+
+            source:
+              null,
+
+            error:
+              "Reasoning request validation failed before model invocation."
+          })
       });
     }
 
     const modelInvoker =
-      this.resolveModelInvoker(summary);
+      this.resolveModelInvoker(
+        summary
+      );
 
     if (!modelInvoker) {
       return this.buildFailureResult({
@@ -98,15 +146,36 @@ window.AriReasoningEngine = {
           reasoningRequest,
 
         engineRan:
-          false
+          false,
+
+        modelInvocation:
+          this.buildModelInvocationDiagnostic({
+            available:
+              false,
+
+            attempted:
+              false,
+
+            succeeded:
+              false,
+
+            source:
+              null,
+
+            error:
+              "No supported OpenAI reasoning invoker was available."
+          })
       });
     }
+
+    const invocationStartedAt =
+      Date.now();
 
     let rawModelResult;
 
     try {
       rawModelResult =
-        await modelInvoker({
+        await modelInvoker.invoke({
           task:
             "ari_cognitive_reasoning",
 
@@ -133,7 +202,30 @@ window.AriReasoningEngine = {
           reasoningRequest,
 
         engineRan:
-          true
+          true,
+
+        modelInvocation:
+          this.buildModelInvocationDiagnostic({
+            available:
+              true,
+
+            attempted:
+              true,
+
+            succeeded:
+              false,
+
+            source:
+              modelInvoker.source,
+
+            durationMs:
+              Date.now() -
+              invocationStartedAt,
+
+            error:
+              error?.message ||
+              "The OpenAI reasoning invocation failed."
+          })
       });
     }
 
@@ -153,13 +245,43 @@ window.AriReasoningEngine = {
         reasoningRequest,
 
       engineRan:
-        true
+        true,
+
+      modelInvocation:
+        this.buildModelInvocationDiagnostic({
+          available:
+            true,
+
+          attempted:
+            true,
+
+          succeeded:
+            cognitiveReasoningResult
+              .ready === true,
+
+          source:
+            modelInvoker.source,
+
+          durationMs:
+            Date.now() -
+            invocationStartedAt,
+
+          error:
+            cognitiveReasoningResult
+              .ready === true
+              ? null
+              : this.firstString(
+                  cognitiveReasoningResult
+                    .validation
+                    ?.errors
+                )
+        })
     });
   },
 
-  // ===================================================
-  // Request construction
-  // ===================================================
+  /* =====================================================
+     REQUEST CONSTRUCTION
+  ===================================================== */
 
   resolveReasoningRequest(summary = {}) {
     const suppliedRequest =
@@ -167,7 +289,11 @@ window.AriReasoningEngine = {
 
     if (
       suppliedRequest &&
-      typeof suppliedRequest === "object"
+      typeof suppliedRequest ===
+        "object" &&
+      !Array.isArray(
+        suppliedRequest
+      )
     ) {
       return this.normalizeReasoningRequest(
         suppliedRequest,
@@ -189,10 +315,14 @@ window.AriReasoningEngine = {
         this.requestSchemaVersion,
 
       request:
-        this.buildUserRequest(summary),
+        this.buildUserRequest(
+          summary
+        ),
 
       conversation:
-        this.buildConversationContext(summary),
+        this.buildConversationContext(
+          summary
+        ),
 
       perception:
         summary.perceptionPacket ||
@@ -222,18 +352,29 @@ window.AriReasoningEngine = {
         summary.memoryStagePacket ||
         null,
 
+      knowledge:
+        this.buildKnowledgeEvidence(
+          summary
+        ),
+
       understanding:
         summary.understandingStagePacket ||
         null,
 
       developerEvidence:
-        this.buildDeveloperEvidence(summary),
+        this.buildDeveloperEvidence(
+          summary
+        ),
 
       responseControl:
-        this.buildResponseControl(summary),
+        this.buildResponseControl(
+          summary
+        ),
 
       capabilities:
-        this.buildCapabilityContext(summary),
+        this.buildCapabilityContext(
+          summary
+        ),
 
       authority:
         this.buildAuthorityContract(),
@@ -257,7 +398,10 @@ window.AriReasoningEngine = {
         this.requestSchemaVersion,
 
       request: {
-        ...this.buildUserRequest(summary),
+        ...this.buildUserRequest(
+          summary
+        ),
+
         ...this.objectOrEmpty(
           request.request
         )
@@ -307,6 +451,16 @@ window.AriReasoningEngine = {
         request.memory ??
         summary.memoryStagePacket ??
         null,
+
+      knowledge: {
+        ...this.buildKnowledgeEvidence(
+          summary
+        ),
+
+        ...this.objectOrEmpty(
+          request.knowledge
+        )
+      },
 
       understanding:
         request.understanding ??
@@ -361,6 +515,12 @@ window.AriReasoningEngine = {
           false,
 
         mayOverrideSafety:
+          false,
+
+        mayClaimToolSuccess:
+          false,
+
+        mayExposePrivateChainOfThought:
           false
       },
 
@@ -381,12 +541,24 @@ window.AriReasoningEngine = {
     const effective =
       summary.turn?.effectiveText ||
       summary.resolvedUserQuestion ||
+      summary.threadQuestion
+        ?.resolvedUserQuestion ||
+      summary.resolvedCurrentTurn
+        ?.resolvedText ||
       original;
 
     return {
-      original,
+      original:
+        String(
+          original ||
+          ""
+        ).trim(),
 
-      effective,
+      effective:
+        String(
+          effective ||
+          ""
+        ).trim(),
 
       turnId:
         summary.turn?.turnId ||
@@ -434,6 +606,133 @@ window.AriReasoningEngine = {
     };
   },
 
+  buildKnowledgeEvidence(summary = {}) {
+    const routerPacket =
+      summary.knowledgeRouterPacket ||
+      summary.knowledgeStagePacket ||
+      null;
+
+    const routerResult =
+      this.objectOrEmpty(
+        routerPacket
+      );
+
+    return {
+      routerRan:
+        summary.knowledgeRouterRan ===
+          true ||
+        routerResult
+          .knowledgeRouterRan ===
+          true,
+
+      shouldUseKnowledge:
+        summary.shouldUseKnowledge ===
+          true ||
+        routerResult
+          .shouldUseKnowledge ===
+          true,
+
+      routerPacket:
+        routerPacket ||
+        null,
+
+      plan:
+        summary.knowledgeRetrievalPlan ||
+        routerResult
+          .knowledgeRetrievalPlan ||
+        null,
+
+      evidence:
+        summary.knowledgeEvidence ||
+        summary
+          .knowledgeRetrievalEvidence ||
+        routerResult
+          .knowledgeEvidence ||
+        routerResult
+          .knowledgeRetrievalEvidence ||
+        null,
+
+      results:
+        this.arrayOrEmpty(
+          summary
+            .knowledgeRetrievalResults ||
+          routerResult
+            .knowledgeRetrievalResults
+        ),
+
+      answer:
+        summary.knowledgeAnswer ||
+        routerResult
+          .knowledgeAnswer ||
+        null,
+
+      provider:
+        summary.knowledgeProvider ||
+        routerResult
+          .knowledgeProvider ||
+        null,
+
+      confidence:
+        summary.knowledgeConfidence ||
+        routerResult
+          .knowledgeConfidence ||
+        null,
+
+      sources:
+        this.arrayOrEmpty(
+          summary.knowledgeSources ||
+          routerResult
+            .knowledgeSources
+        ),
+
+      nodes:
+        this.arrayOrEmpty(
+          summary.knowledgeNodes ||
+          routerResult
+            .knowledgeNodes
+        ),
+
+      searchedCores:
+        this.arrayOrEmpty(
+          summary.searchedCores ||
+          routerResult
+            .searchedCores
+        ),
+
+      primaryCore:
+        summary.primaryCore ||
+        routerResult.primaryCore ||
+        null,
+
+      secondaryCores:
+        this.arrayOrEmpty(
+          summary.secondaryCores ||
+          routerResult
+            .secondaryCores
+        ),
+
+      error:
+        summary.knowledgeError ||
+        routerResult
+          .knowledgeError ||
+        null,
+
+      authority: {
+        mayInformReasoning:
+          true,
+
+        mayInformResponsePlanning:
+          true,
+
+        mayWriteFinalResponse:
+          false,
+
+        mayAuthorizeDelivery:
+          false
+      }
+    };
+  },
+
   buildDeveloperEvidence(summary = {}) {
     return {
       github:
@@ -467,6 +766,8 @@ window.AriReasoningEngine = {
     return {
       contextLane:
         summary.contextLane ||
+        summary.routingContract
+          ?.contextLane ||
         null,
 
       primaryLane:
@@ -541,6 +842,9 @@ window.AriReasoningEngine = {
       upstreamSemanticSignalsAreAdvisory:
         true,
 
+      knowledgeEvidenceIsAdvisory:
+        true,
+
       mayInterpretMeaning:
         true,
 
@@ -580,67 +884,180 @@ window.AriReasoningEngine = {
       mayClaimToolSuccess:
         false,
 
+      mayAuthorizeDelivery:
+        false,
+
       mayExposePrivateChainOfThought:
         false
     };
   },
 
-  // ===================================================
-  // Model invocation
-  // ===================================================
+  /* =====================================================
+     MODEL INVOCATION
+  ===================================================== */
 
   resolveModelInvoker(summary = {}) {
-    if (
-      typeof summary.openAIReasoningInvoker ===
-      "function"
-    ) {
-      return summary.openAIReasoningInvoker;
+    const candidates = [
+      {
+        source:
+          "summary.openAIReasoningInvoker",
+
+        fn:
+          summary.openAIReasoningInvoker,
+
+        context:
+          null
+      },
+
+      {
+        source:
+          "summary.modelInvoker",
+
+        fn:
+          summary.modelInvoker,
+
+        context:
+          null
+      },
+
+      {
+        source:
+          "AriOpenAIReasoningClient.reason",
+
+        fn:
+          window
+            .AriOpenAIReasoningClient
+            ?.reason,
+
+        context:
+          window
+            .AriOpenAIReasoningClient ||
+          null
+      },
+
+      {
+        source:
+          "Ari.openAIReasoningClient.reason",
+
+        fn:
+          window.Ari
+            ?.openAIReasoningClient
+            ?.reason,
+
+        context:
+          window.Ari
+            ?.openAIReasoningClient ||
+          null
+      },
+
+      {
+        source:
+          "AriOpenAIClient.generateStructured",
+
+        fn:
+          window
+            .AriOpenAIClient
+            ?.generateStructured,
+
+        context:
+          window
+            .AriOpenAIClient ||
+          null
+      },
+
+      {
+        source:
+          "AriOpenAIClient.reason",
+
+        fn:
+          window
+            .AriOpenAIClient
+            ?.reason,
+
+        context:
+          window
+            .AriOpenAIClient ||
+          null
+      },
+
+      {
+        source:
+          "AriOpenAIClient.createResponse",
+
+        fn:
+          window
+            .AriOpenAIClient
+            ?.createResponse,
+
+        context:
+          window
+            .AriOpenAIClient ||
+          null
+      }
+    ];
+
+    const selected =
+      candidates.find(
+        candidate =>
+          typeof candidate.fn ===
+          "function"
+      ) ||
+      null;
+
+    if (!selected) {
+      return null;
     }
 
-    if (
-      typeof summary.modelInvoker ===
-      "function"
-    ) {
-      return summary.modelInvoker;
-    }
+    return {
+      source:
+        selected.source,
 
-    if (
-      typeof window.AriOpenAIReasoningClient
-        ?.reason === "function"
-    ) {
-      return payload =>
-        window.AriOpenAIReasoningClient
-          .reason(payload);
-    }
+      invoke:
+        payload =>
+          selected.fn.call(
+            selected.context,
+            payload
+          )
+    };
+  },
 
-    if (
-      typeof window.AriOpenAIClient
-        ?.generateStructured === "function"
-    ) {
-      return payload =>
-        window.AriOpenAIClient
-          .generateStructured(payload);
-    }
+  buildModelInvocationDiagnostic({
+    available = false,
+    attempted = false,
+    succeeded = false,
+    source = null,
+    durationMs = null,
+    error = null
+  } = {}) {
+    return {
+      invokerAvailable:
+        available === true,
 
-    if (
-      typeof window.AriOpenAIClient
-        ?.reason === "function"
-    ) {
-      return payload =>
-        window.AriOpenAIClient
-          .reason(payload);
-    }
+      invokerSource:
+        source ||
+        null,
 
-    if (
-      typeof window.AriOpenAIClient
-        ?.createResponse === "function"
-    ) {
-      return payload =>
-        window.AriOpenAIClient
-          .createResponse(payload);
-    }
+      attempted:
+        attempted === true,
 
-    return null;
+      succeeded:
+        succeeded === true,
+
+      durationMs:
+        Number.isFinite(
+          Number(
+            durationMs
+          )
+        )
+          ? Number(
+              durationMs
+            )
+          : null,
+
+      error:
+        error ||
+        null
+    };
   },
 
   getReasoningInstructions() {
@@ -651,7 +1068,13 @@ window.AriReasoningEngine = {
 
       "Treat upstream semantic labels as evidence, not as unquestionable conclusions.",
 
-      "Resolve meaning by considering the current turn, recent conversation, continuity evidence, memory, situation, understanding signals, and external evidence together.",
+      "Treat knowledge-router output as supporting evidence, not as final response language.",
+
+      "Distinguish stored memory, stored system knowledge, live-verified evidence, developer evidence, and general model knowledge.",
+
+      "Do not assume retrieved or model-generated knowledge is verified unless the evidence packet identifies it as verified.",
+
+      "Resolve meaning by considering the current turn, recent conversation, continuity evidence, memory, knowledge evidence, situation, understanding signals, and developer evidence together.",
 
       "Do not provide private chain-of-thought or hidden reasoning. Return concise conclusions, evidence references, assumptions, uncertainties, and decision rationale only.",
 
@@ -659,24 +1082,26 @@ window.AriReasoningEngine = {
 
       "Any action must be returned only as a proposed action.",
 
-      "Build one coherent interpretation, semantic frame, response strategy, and optional draft response.",
+      "Build one coherent interpretation, semantic frame, response strategy, and optional provisional draft response.",
 
-      "Use an empty array or empty object when a field is not applicable.",
+      "Use an empty array or empty object only for optional collection fields when no value applies.",
 
       "Return only data conforming to the supplied response schema."
     ];
   },
 
-  // ===================================================
-  // Request validation
-  // ===================================================
+  /* =====================================================
+     REQUEST VALIDATION
+  ===================================================== */
 
   validateReasoningRequest(request = {}) {
     const errors = [];
 
     if (
       !request ||
-      typeof request !== "object"
+      typeof request !==
+        "object" ||
+      Array.isArray(request)
     ) {
       return {
         valid:
@@ -701,7 +1126,8 @@ window.AriReasoningEngine = {
       request.request?.effective;
 
     if (
-      typeof effectiveText !== "string" ||
+      typeof effectiveText !==
+        "string" ||
       !effectiveText.trim()
     ) {
       errors.push(
@@ -711,7 +1137,8 @@ window.AriReasoningEngine = {
 
     if (
       request.authority
-        ?.safetyIsBinding !== true
+        ?.safetyIsBinding !==
+        true
     ) {
       errors.push(
         "safety_authority_must_be_binding"
@@ -720,7 +1147,8 @@ window.AriReasoningEngine = {
 
     if (
       request.authority
-        ?.mayExecuteActions === true
+        ?.mayExecuteActions ===
+        true
     ) {
       errors.push(
         "model_may_not_execute_actions"
@@ -729,24 +1157,56 @@ window.AriReasoningEngine = {
 
     if (
       request.authority
-        ?.mayOverrideSafety === true
+        ?.mayPersistState ===
+        true
+    ) {
+      errors.push(
+        "model_may_not_persist_state"
+      );
+    }
+
+    if (
+      request.authority
+        ?.mayOverrideSafety ===
+        true
     ) {
       errors.push(
         "model_may_not_override_safety"
       );
     }
 
+    if (
+      request.authority
+        ?.mayClaimToolSuccess ===
+        true
+    ) {
+      errors.push(
+        "model_may_not_claim_tool_success"
+      );
+    }
+
+    if (
+      request.authority
+        ?.mayExposePrivateChainOfThought ===
+        true
+    ) {
+      errors.push(
+        "model_may_not_expose_private_chain_of_thought"
+      );
+    }
+
     return {
       valid:
-        errors.length === 0,
+        errors.length ===
+        0,
 
       errors
     };
   },
 
-  // ===================================================
-  // Response contract
-  // ===================================================
+  /* =====================================================
+     RESPONSE CONTRACT
+  ===================================================== */
 
   getResponseSchema() {
     return {
@@ -890,15 +1350,18 @@ window.AriReasoningEngine = {
         neverPersistState:
           true,
 
+        neverAuthorizeDelivery:
+          true,
+
         neverReturnPrivateChainOfThought:
           true
       }
     };
   },
 
-  // ===================================================
-  // Result validation and normalization
-  // ===================================================
+  /* =====================================================
+     RESULT VALIDATION AND NORMALIZATION
+  ===================================================== */
 
   validateAndNormalizeResult({
     rawResult = {},
@@ -963,9 +1426,9 @@ window.AriReasoningEngine = {
     }
 
     if (
-      !Object.keys(
+      !this.isUsableSemanticFrame(
         semanticFrame
-      ).length
+      )
     ) {
       validationErrors.push(
         "missing_semantic_frame"
@@ -973,9 +1436,9 @@ window.AriReasoningEngine = {
     }
 
     if (
-      !Object.keys(
+      !this.isUsableResponseStrategy(
         responseStrategy
-      ).length
+      )
     ) {
       validationErrors.push(
         "missing_response_strategy"
@@ -984,7 +1447,8 @@ window.AriReasoningEngine = {
 
     const proposedActions =
       this.normalizeProposedActions(
-        reasoningDecision.proposedActions ||
+        reasoningDecision
+          .proposedActions ||
         value.proposedActions
       );
 
@@ -1002,16 +1466,15 @@ window.AriReasoningEngine = {
     }
 
     const executionConflict =
-      proposedActions.some(
-        action =>
-          action.executed === true ||
-          action.status === "completed" ||
-          action.status === "executed"
-      );
+      this.detectExecutionConflict({
+        reasoningDecision,
+        proposedActions,
+        value
+      });
 
     if (executionConflict) {
       validationErrors.push(
-        "model_claimed_action_execution"
+        executionConflict
       );
     }
 
@@ -1022,7 +1485,8 @@ window.AriReasoningEngine = {
 
     const ready =
       value.ready !== false &&
-      validationErrors.length === 0;
+      validationErrors.length ===
+        0;
 
     return {
       schema:
@@ -1089,51 +1553,221 @@ window.AriReasoningEngine = {
 
       validation: {
         passed:
-          validationErrors.length === 0,
+          validationErrors.length ===
+          0,
 
         errors:
-          validationErrors
+          this.cleanStringList(
+            validationErrors
+          )
       },
 
       source:
         value.source ||
-        rawResult.source ||
+        rawResult?.source ||
         "openai-cognitive-reasoning",
 
       authority:
-        "semantic_interpretation_and_response_planning"
+        ready
+          ? "semantic_interpretation_and_response_planning"
+          : "none"
     };
   },
 
   extractModelValue(rawResult = {}) {
     if (
-      rawResult.cognitiveReasoningResult &&
-      typeof rawResult
-        .cognitiveReasoningResult ===
-        "object"
+      typeof rawResult ===
+      "string"
     ) {
-      return rawResult
-        .cognitiveReasoningResult;
+      return this.parseStructuredValue(
+        rawResult
+      );
     }
 
     if (
-      rawResult.result &&
-      typeof rawResult.result ===
-        "object"
+      !rawResult ||
+      typeof rawResult !==
+        "object" ||
+      Array.isArray(rawResult)
     ) {
-      return rawResult.result;
+      return {};
     }
 
-    if (
-      rawResult.output &&
-      typeof rawResult.output ===
-        "object"
+    const candidates = [
+      rawResult
+        .cognitiveReasoningResult,
+
+      rawResult.result,
+
+      rawResult.output,
+
+      rawResult
+        .structuredOutput,
+
+      rawResult.parsed,
+
+      rawResult.response,
+
+      rawResult.data,
+
+      rawResult.rawContent,
+
+      rawResult.output_text,
+
+      rawResult.outputText,
+
+      rawResult.responseText,
+
+      rawResult.content,
+
+      rawResult.text
+    ];
+
+    for (
+      const candidate
+      of candidates
     ) {
-      return rawResult.output;
+      if (
+        candidate &&
+        typeof candidate ===
+          "object" &&
+        !Array.isArray(
+          candidate
+        )
+      ) {
+        return candidate;
+      }
+
+      if (
+        typeof candidate ===
+          "string"
+      ) {
+        const parsed =
+          this.parseStructuredValue(
+            candidate
+          );
+
+        if (
+          Object.keys(
+            parsed
+          ).length
+        ) {
+          return parsed;
+        }
+      }
     }
 
     return this.objectOrEmpty(
       rawResult
+    );
+  },
+
+  parseStructuredValue(value = "") {
+    if (
+      typeof value !==
+        "string" ||
+      !value.trim()
+    ) {
+      return {};
+    }
+
+    const clean =
+      value
+        .trim()
+        .replace(
+          /^```(?:json)?\s*/i,
+          ""
+        )
+        .replace(
+          /\s*```$/,
+          ""
+        )
+        .trim();
+
+    try {
+      return this.objectOrEmpty(
+        JSON.parse(
+          clean
+        )
+      );
+    } catch {
+      return {};
+    }
+  },
+
+  isUsableSemanticFrame(
+    semanticFrame = {}
+  ) {
+    if (
+      !semanticFrame ||
+      typeof semanticFrame !==
+        "object" ||
+      Array.isArray(
+        semanticFrame
+      )
+    ) {
+      return false;
+    }
+
+    return Boolean(
+      this.nullableString(
+        semanticFrame.operation
+      ) ||
+      semanticFrame.target != null ||
+      this.nullableString(
+        semanticFrame.domain
+      ) ||
+      this.nullableString(
+        semanticFrame.primaryLane
+      ) ||
+      this.nullableString(
+        semanticFrame.requestedOutput
+      ) ||
+      this.arrayOrEmpty(
+        semanticFrame.constraints
+      ).length
+    );
+  },
+
+  isUsableResponseStrategy(
+    responseStrategy = {}
+  ) {
+    if (
+      !responseStrategy ||
+      typeof responseStrategy !==
+        "object" ||
+      Array.isArray(
+        responseStrategy
+      )
+    ) {
+      return false;
+    }
+
+    return Boolean(
+      this.nullableString(
+        responseStrategy.goal
+      ) ||
+      this.nullableString(
+        responseStrategy.shape
+      ) ||
+      this.nullableString(
+        responseStrategy.tone
+      ) ||
+      this.arrayOrEmpty(
+        responseStrategy
+          .orderedPoints
+      ).length ||
+      this.arrayOrEmpty(
+        responseStrategy
+          .requiredBehaviors
+      ).length ||
+      this.arrayOrEmpty(
+        responseStrategy
+          .forbiddenBehaviors
+      ).length ||
+      this.arrayOrEmpty(
+        responseStrategy.constraints
+      ).length
     );
   },
 
@@ -1149,10 +1783,12 @@ window.AriReasoningEngine = {
     const shouldStop =
       safety.shouldStopNormalResponse ===
         true ||
-      safety.safetyShouldStopNormalResponse ===
+      safety
+        .safetyShouldStopNormalResponse ===
         true ||
       safety.disposition
-        ?.shouldStopNormalResponse === true;
+        ?.shouldStopNormalResponse ===
+        true;
 
     if (!shouldStop) {
       return null;
@@ -1173,6 +1809,58 @@ window.AriReasoningEngine = {
     }
 
     return null;
+  },
+
+  detectExecutionConflict({
+    reasoningDecision = {},
+    proposedActions = [],
+    value = {}
+  } = {}) {
+    const rawActions =
+      this.arrayOrEmpty(
+        reasoningDecision
+          .proposedActions ||
+        value.proposedActions
+      );
+
+    const claimedExecution =
+      rawActions.some(
+        action =>
+          action &&
+          typeof action ===
+            "object" &&
+          (
+            action.executed ===
+              true ||
+            action.completed ===
+              true ||
+            action.status ===
+              "completed" ||
+            action.status ===
+              "executed" ||
+            action.status ===
+              "success"
+          )
+      );
+
+    if (claimedExecution) {
+      return "model_claimed_action_execution";
+    }
+
+    const normalizedConflict =
+      proposedActions.some(
+        action =>
+          action.executed ===
+            true ||
+          action.status ===
+            "completed" ||
+          action.status ===
+            "executed"
+      );
+
+    return normalizedConflict
+      ? "model_claimed_action_execution"
+      : null;
   },
 
   normalizeInterpretation(
@@ -1213,7 +1901,8 @@ window.AriReasoningEngine = {
 
       clarificationRequired:
         interpretation
-          .clarificationRequired === true,
+          .clarificationRequired ===
+        true,
 
       clarificationQuestion:
         this.nullableString(
@@ -1235,7 +1924,8 @@ window.AriReasoningEngine = {
     return {
       answerDirectly:
         reasoningDecision
-          .answerDirectly !== false,
+          .answerDirectly !==
+        false,
 
       reasoningMode:
         this.nullableString(
@@ -1376,7 +2066,8 @@ window.AriReasoningEngine = {
       options
     ).map(option => {
       if (
-        typeof option === "string"
+        typeof option ===
+        "string"
       ) {
         return {
           label:
@@ -1394,7 +2085,9 @@ window.AriReasoningEngine = {
       }
 
       const value =
-        this.objectOrEmpty(option);
+        this.objectOrEmpty(
+          option
+        );
 
       return {
         ...value,
@@ -1429,7 +2122,8 @@ window.AriReasoningEngine = {
       tradeoffs
     ).map(tradeoff => {
       if (
-        typeof tradeoff === "string"
+        typeof tradeoff ===
+        "string"
       ) {
         return {
           description:
@@ -1506,7 +2200,8 @@ window.AriReasoningEngine = {
           ),
 
         material:
-          value.material !== false,
+          value.material !==
+          false,
 
         resolution:
           this.nullableString(
@@ -1520,15 +2215,21 @@ window.AriReasoningEngine = {
     return this.arrayOrEmpty(
       actions
     )
-      .filter(action =>
-        action &&
-        typeof action === "object" &&
-        typeof action.type ===
-          "string"
+      .filter(
+        action =>
+          action &&
+          typeof action ===
+            "object" &&
+          !Array.isArray(
+            action
+          ) &&
+          typeof action.type ===
+            "string" &&
+          action.type.trim()
       )
       .map(action => ({
         type:
-          action.type,
+          action.type.trim(),
 
         arguments:
           this.objectOrEmpty(
@@ -1555,15 +2256,17 @@ window.AriReasoningEngine = {
   },
 
   normalizeDraftResponse(value) {
-    return typeof value === "string"
-      ? value
+    return typeof value ===
+      "string"
+      ? value.trim()
       : "";
   },
 
   normalizeConfidence(value) {
     if (
       value &&
-      typeof value === "object"
+      typeof value ===
+        "object"
     ) {
       return this.clampConfidence(
         value.score
@@ -1575,122 +2278,136 @@ window.AriReasoningEngine = {
     );
   },
 
-  // ===================================================
-  // Engine response construction
-  // ===================================================
+  /* =====================================================
+     ENGINE RESPONSE CONSTRUCTION
+  ===================================================== */
 
   buildEngineResult({
     cognitiveReasoningResult = {},
     request = {},
-    engineRan = false
+    engineRan = false,
+    modelInvocation = {}
   } = {}) {
+    const ready =
+      cognitiveReasoningResult
+        .ready === true;
+
     return {
       reasoningEngineRan:
-        engineRan,
+        engineRan === true,
 
       reasoningEngineReady:
-        cognitiveReasoningResult
-          .ready === true,
+        ready,
 
       reasoningEngineVersion:
         this.version,
+
+      reasoningEngineSource:
+        this.source,
 
       reasoningSource:
         cognitiveReasoningResult
           .source ||
         "openai-cognitive-reasoning",
 
+      modelInvocation:
+        this.objectOrEmpty(
+          modelInvocation
+        ),
+
       cognitiveReasoningResult,
 
       // Compatibility contract for modules that
       // still consume summary.reasoning.
-      reasoning: {
-        interpretation:
-          cognitiveReasoningResult
-            .interpretation ||
-          {},
+      reasoning: ready
+        ? {
+            interpretation:
+              cognitiveReasoningResult
+                .interpretation ||
+              null,
 
-        decision:
-          cognitiveReasoningResult
-            .reasoningDecision ||
-          {},
+            decision:
+              cognitiveReasoningResult
+                .reasoningDecision ||
+              null,
 
-        semanticFrame:
-          cognitiveReasoningResult
-            .semanticFrame ||
-          {},
+            semanticFrame:
+              cognitiveReasoningResult
+                .semanticFrame ||
+              null,
 
-        caseModel:
-          cognitiveReasoningResult
-            .caseModel ||
-          {},
+            caseModel:
+              cognitiveReasoningResult
+                .caseModel ||
+              null,
 
-        options:
-          cognitiveReasoningResult
-            .options ||
-          [],
+            options:
+              cognitiveReasoningResult
+                .options ||
+              [],
 
-        tradeoffs:
-          cognitiveReasoningResult
-            .tradeoffs ||
-          [],
+            tradeoffs:
+              cognitiveReasoningResult
+                .tradeoffs ||
+              [],
 
-        uncertainties:
-          cognitiveReasoningResult
-            .uncertainties ||
-          [],
+            uncertainties:
+              cognitiveReasoningResult
+                .uncertainties ||
+              [],
 
-        responseStrategy:
-          cognitiveReasoningResult
-            .responseStrategy ||
-          {},
+            responseStrategy:
+              cognitiveReasoningResult
+                .responseStrategy ||
+              null,
 
-        grounding:
-          cognitiveReasoningResult
-            .grounding ||
-          {},
+            grounding:
+              cognitiveReasoningResult
+                .grounding ||
+              null,
 
-        capabilities:
-          this.arrayOrEmpty(
-            request.capabilities
-              ?.required
-          ),
+            capabilities:
+              this.arrayOrEmpty(
+                request.capabilities
+                  ?.required
+              ),
 
-        requiredCapabilities:
-          this.arrayOrEmpty(
-            request.capabilities
-              ?.required
-          ),
+            requiredCapabilities:
+              this.arrayOrEmpty(
+                request.capabilities
+                  ?.required
+              ),
 
-        requiredBehaviors:
-          this.arrayOrEmpty(
-            cognitiveReasoningResult
-              .responseStrategy
-              ?.requiredBehaviors
-          ),
+            requiredBehaviors:
+              this.arrayOrEmpty(
+                cognitiveReasoningResult
+                  .responseStrategy
+                  ?.requiredBehaviors
+              ),
 
-        forbiddenBehaviors:
-          this.arrayOrEmpty(
-            cognitiveReasoningResult
-              .responseStrategy
-              ?.forbiddenBehaviors
-          ),
+            forbiddenBehaviors:
+              this.arrayOrEmpty(
+                cognitiveReasoningResult
+                  .responseStrategy
+                  ?.forbiddenBehaviors
+              ),
 
-        constraints:
-          this.arrayOrEmpty(
-            cognitiveReasoningResult
-              .responseStrategy
-              ?.constraints
-          ),
+            constraints:
+              this.arrayOrEmpty(
+                cognitiveReasoningResult
+                  .responseStrategy
+                  ?.constraints
+              ),
 
-        confidence:
-          cognitiveReasoningResult
-            .confidence ??
-          0
-      },
+            confidence:
+              cognitiveReasoningResult
+                .confidence ??
+              0
+          }
+        : null,
 
-      // These stay null because downstream
-      // Expression owns final language delivery.
+      // These stay null because Expression owns
+      // final language realization and delivery.
       reasoningAnswer:
         null,
 
@@ -1713,7 +2430,9 @@ window.AriReasoningEngine = {
         null,
 
       authority:
-        "openai_cognitive_reasoning"
+        ready
+          ? "openai_cognitive_reasoning"
+          : "none"
     };
   },
 
@@ -1725,8 +2444,16 @@ window.AriReasoningEngine = {
 
     request = {},
 
-    engineRan = false
+    engineRan = false,
+
+    modelInvocation = {}
   } = {}) {
+    const validationErrors =
+      this.cleanStringList([
+        reason,
+        ...errors
+      ]);
+
     const cognitiveReasoningResult = {
       schema:
         this.resultSchema,
@@ -1740,77 +2467,17 @@ window.AriReasoningEngine = {
       authoritative:
         false,
 
-      interpretation: {
-        conversationFunction:
-          null,
+      interpretation:
+        null,
 
-        userGoal:
-          null,
+      reasoningDecision:
+        null,
 
-        operation:
-          null,
-
-        meaning:
-          null,
-
-        subjects:
-          [],
-
-        contextUsed:
-          false,
-
-        clarificationRequired:
-          false,
-
-        clarificationQuestion:
-          null,
-
-        ambiguity:
-          []
-      },
-
-      reasoningDecision: {
-        answerDirectly:
-          false,
-
-        reasoningMode:
-          "clarification",
-
-        toolsNeeded:
-          [],
-
-        proposedActions:
-          [],
-
-        decisionRationale:
-          null,
-
-        shouldAskClarifyingQuestion:
-          false
-      },
-
-      semanticFrame: {
-        operation:
-          null,
-
-        target:
-          null,
-
-        domain:
-          null,
-
-        primaryLane:
-          null,
-
-        requestedOutput:
-          null,
-
-        constraints:
-          []
-      },
+      semanticFrame:
+        null,
 
       caseModel:
-        {},
+        null,
 
       options:
         [],
@@ -1821,42 +2488,14 @@ window.AriReasoningEngine = {
       uncertainties:
         [],
 
-      responseStrategy: {
-        goal:
-          null,
-
-        shape:
-          null,
-
-        tone:
-          null,
-
-        orderedPoints:
-          [],
-
-        requiredBehaviors:
-          [],
-
-        forbiddenBehaviors:
-          [],
-
-        constraints:
-          []
-      },
+      responseStrategy:
+        null,
 
       draftResponse:
         "",
 
-      grounding: {
-        evidenceUsed:
-          [],
-
-        assumptions:
-          [],
-
-        unresolvedConflicts:
-          []
-      },
+      grounding:
+        null,
 
       confidence:
         0,
@@ -1866,10 +2505,7 @@ window.AriReasoningEngine = {
           false,
 
         errors:
-          this.cleanStringList([
-            reason,
-            ...errors
-          ])
+          validationErrors
       },
 
       source:
@@ -1881,7 +2517,7 @@ window.AriReasoningEngine = {
 
     return {
       reasoningEngineRan:
-        engineRan,
+        engineRan === true,
 
       reasoningEngineReady:
         false,
@@ -1889,13 +2525,21 @@ window.AriReasoningEngine = {
       reasoningEngineVersion:
         this.version,
 
+      reasoningEngineSource:
+        this.source,
+
       reasoningSource:
         "ari-reasoning-engine-failure",
+
+      modelInvocation:
+        this.objectOrEmpty(
+          modelInvocation
+        ),
 
       cognitiveReasoningResult,
 
       reasoning:
-        {},
+        null,
 
       reasoningAnswer:
         null,
@@ -1909,6 +2553,8 @@ window.AriReasoningEngine = {
       reasoningPrimary:
         request.responseControl
           ?.primaryLane ||
+        request.routing
+          ?.primaryLane ||
         null,
 
       authority:
@@ -1917,19 +2563,68 @@ window.AriReasoningEngine = {
       reason,
 
       errors:
-        cognitiveReasoningResult
-          .validation.errors
+        validationErrors
     };
   },
 
-  // ===================================================
-  // Utilities
-  // ===================================================
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
+
+  validate() {
+    const resolvedClient =
+      this.resolveModelInvoker(
+        {}
+      );
+
+    return {
+      valid:
+        typeof this.reason ===
+          "function" &&
+        typeof this.create ===
+          "function" &&
+        typeof this.resolveModelInvoker ===
+          "function" &&
+        typeof this.validateAndNormalizeResult ===
+          "function",
+
+      ready:
+        typeof this.reason ===
+          "function",
+
+      modelInvokerAvailable:
+        Boolean(
+          resolvedClient
+        ),
+
+      modelInvokerSource:
+        resolvedClient
+          ?.source ||
+        null,
+
+      source:
+        this.source,
+
+      version:
+        this.version,
+
+      requestSchema:
+        this.requestSchema,
+
+      resultSchema:
+        this.resultSchema
+    };
+  },
+
+  /* =====================================================
+     UTILITIES
+  ===================================================== */
 
   objectOrEmpty(value) {
     return (
       value &&
-      typeof value === "object" &&
+      typeof value ===
+        "object" &&
       !Array.isArray(value)
     )
       ? value
@@ -1940,8 +2635,10 @@ window.AriReasoningEngine = {
     return Array.isArray(value)
       ? value.filter(
           item =>
-            item !== undefined &&
-            item !== null
+            item !==
+              undefined &&
+            item !==
+              null
         )
       : [];
   },
@@ -1949,9 +2646,12 @@ window.AriReasoningEngine = {
   stringArray(value) {
     return [
       ...new Set(
-        this.arrayOrEmpty(value)
+        this.arrayOrEmpty(
+          value
+        )
           .map(item =>
-            typeof item === "string"
+            typeof item ===
+              "string"
               ? item.trim()
               : ""
           )
@@ -1963,19 +2663,50 @@ window.AriReasoningEngine = {
   cleanStringList(value) {
     return [
       ...new Set(
-        this.arrayOrEmpty(value)
+        this.arrayOrEmpty(
+          value
+        )
           .map(item =>
-            String(item || "")
-              .trim()
+            String(
+              item ||
+              ""
+            ).trim()
           )
           .filter(Boolean)
       )
     ];
   },
 
+  firstString(value) {
+    if (
+      typeof value ===
+      "string"
+    ) {
+      return value.trim();
+    }
+
+    for (
+      const item
+      of this.arrayOrEmpty(
+        value
+      )
+    ) {
+      if (
+        typeof item ===
+          "string" &&
+        item.trim()
+      ) {
+        return item.trim();
+      }
+    }
+
+    return "";
+  },
+
   nullableString(value) {
     if (
-      typeof value !== "string"
+      typeof value !==
+      "string"
     ) {
       return null;
     }
@@ -1983,27 +2714,42 @@ window.AriReasoningEngine = {
     const clean =
       value.trim();
 
-    return clean || null;
+    return clean ||
+      null;
   },
 
   clampConfidence(value) {
     const number =
-      Number(value);
+      Number(
+        value
+      );
 
     if (
-      !Number.isFinite(number)
+      !Number.isFinite(
+        number
+      )
     ) {
       return 0;
     }
 
     return Math.max(
       0,
-      Math.min(1, number)
+      Math.min(
+        1,
+        number
+      )
     );
   }
 };
 
+window.Ari.reasoningEngine =
+  window.AriReasoningEngine;
+
 console.log(
   "ARI REASONING ENGINE LOADED:",
-  window.AriReasoningEngine?.version
+  window.AriReasoningEngine
+    ?.version,
+
+  window.AriReasoningEngine
+    ?.validate?.()
 );
