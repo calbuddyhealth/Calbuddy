@@ -5,7 +5,7 @@
 // Coordinate deterministic context preparation, OpenAI reasoning,
 // semantic validation, and response planning.
 //
-// V2.0.0 — OpenAI Cognitive Authority + Semantic Validation
+// V2.1.0 — Canonical Reasoning Result Resolution and Readiness
 //
 // Canonical order:
 // 1. Continuity
@@ -26,8 +26,8 @@
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "2.0.0",
-  schemaVersion: "2.0.0",
+  version: "2.1.0",
+  schemaVersion: "2.1.0",
   source: "ari-deliberation-pipeline",
   architecture:
     "openai-semantic-authority-with-deterministic-validation",
@@ -421,48 +421,180 @@ window.AriDeliberationPipeline = {
      REASONING NORMALIZATION
   ===================================================== */
 
-  normalizeReasoningOutputs(
+    normalizeReasoningOutputs(
     summary = {}
   ) {
-    const reasoningPacket =
-      summary.cognitiveReasoningResult ||
-      summary.reasoningResult ||
-      summary.reasoningStagePacket ||
-      summary.openAIReasoningResult ||
+    const reasoningStagePacket =
+      this.readObject(
+        summary.reasoningStagePacket
+      );
+
+    const directReasoningResult =
+      this.readObject(
+        summary.cognitiveReasoningResult
+      ) ||
+      this.readObject(
+        summary.reasoningResult
+      ) ||
+      this.readObject(
+        summary.openAIReasoningResult
+      );
+
+    const nestedReasoningResult =
+      this.readObject(
+        reasoningStagePacket
+          ?.cognitiveReasoningResult
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.reasoningResult
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.openAIReasoningResult
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.result
+          ?.cognitiveReasoningResult
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.result
+          ?.reasoningResult
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.result
+      );
+
+    const reasoningResult =
+      directReasoningResult ||
+      nestedReasoningResult ||
       null;
 
     const semanticFrame =
-      reasoningPacket
-        ?.semanticFrame ||
-      summary.semanticFrame ||
+      this.readObject(
+        reasoningResult
+          ?.semanticFrame
+      ) ||
+      this.readObject(
+        reasoningResult
+          ?.result
+          ?.semanticFrame
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.semanticFrame
+      ) ||
+      this.readObject(
+        summary.semanticFrame
+      ) ||
       null;
 
     const responseRequirements =
-      reasoningPacket
-        ?.responseRequirements ||
-      summary.responseRequirements ||
+      this.readObject(
+        reasoningResult
+          ?.responseRequirements
+      ) ||
+      this.readObject(
+        reasoningResult
+          ?.result
+          ?.responseRequirements
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.responseRequirements
+      ) ||
+      this.readObject(
+        summary.responseRequirements
+      ) ||
+      null;
+
+    const responseStrategy =
+      this.readObject(
+        reasoningResult
+          ?.responseStrategy
+      ) ||
+      this.readObject(
+        reasoningResult
+          ?.result
+          ?.responseStrategy
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.responseStrategy
+      ) ||
+      this.readObject(
+        summary.responseStrategy
+      ) ||
       null;
 
     const executionMetadata =
-      reasoningPacket
-        ?.executionMetadata ||
-      summary.executionMetadata ||
+      this.readObject(
+        reasoningResult
+          ?.executionMetadata
+      ) ||
+      this.readObject(
+        reasoningResult
+          ?.result
+          ?.executionMetadata
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.executionMetadata
+      ) ||
+      this.readObject(
+        summary.executionMetadata
+      ) ||
       null;
 
     const evidenceReferences =
-      reasoningPacket
-        ?.evidenceReferences ||
-      summary.evidenceReferences ||
-      [];
+      this.firstArray(
+        reasoningResult
+          ?.evidenceReferences,
+
+        reasoningResult
+          ?.result
+          ?.evidenceReferences,
+
+        reasoningStagePacket
+          ?.evidenceReferences,
+
+        summary.evidenceReferences
+      );
+
+    const modelInvocation =
+      this.readObject(
+        reasoningResult
+          ?.modelInvocation
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.modelInvocation
+      ) ||
+      this.readObject(
+        summary.modelInvocation
+      ) ||
+      null;
+
+    const reasoningReady =
+      this.resolveReasoningReady({
+        reasoningResult,
+        reasoningStagePacket,
+        semanticFrame,
+        modelInvocation
+      });
 
     return {
       ...summary,
 
-      cognitiveReasoningResult:
-        reasoningPacket,
+      reasoningStagePacket,
 
-      reasoningResult:
-        reasoningPacket,
+      cognitiveReasoningResult:
+        reasoningResult,
+
+      reasoningResult,
 
       semanticFrame,
 
@@ -471,20 +603,116 @@ window.AriDeliberationPipeline = {
 
       responseRequirements,
 
+      responseStrategy,
+
       executionMetadata,
 
       evidenceReferences,
 
+      modelInvocation,
+
       reasoningPacketAvailable:
         Boolean(
-          reasoningPacket
+          reasoningResult
+        ),
+
+      reasoningResultAvailable:
+        Boolean(
+          reasoningResult
         ),
 
       semanticFrameAvailable:
         Boolean(
           semanticFrame
-        )
+        ),
+
+      reasoningStageReady:
+        reasoningReady,
+
+      reasoningReady
     };
+  },
+
+  resolveReasoningReady({
+    reasoningResult = null,
+    reasoningStagePacket = null,
+    semanticFrame = null,
+    modelInvocation = null
+  } = {}) {
+    const explicitlyFailed =
+      reasoningResult
+        ?.ready === false ||
+      reasoningResult
+        ?.reasoningEngineReady === false ||
+      reasoningStagePacket
+        ?.ready === false ||
+      reasoningStagePacket
+        ?.reasoningStageReady === false ||
+      modelInvocation
+        ?.succeeded === false;
+
+    if (explicitlyFailed) {
+      return false;
+    }
+
+    const explicitlyReady =
+      reasoningResult
+        ?.ready === true ||
+      reasoningResult
+        ?.reasoningEngineReady === true ||
+      reasoningStagePacket
+        ?.ready === true ||
+      reasoningStagePacket
+        ?.reasoningStageReady === true;
+
+    if (
+      explicitlyReady &&
+      Boolean(
+        semanticFrame
+      )
+    ) {
+      return true;
+    }
+
+    return Boolean(
+      reasoningResult &&
+      semanticFrame
+    );
+  },
+
+  readObject(
+    value
+  ) {
+    return (
+      value &&
+      typeof value ===
+        "object" &&
+      !Array.isArray(
+        value
+      )
+    )
+      ? value
+      : null;
+  },
+
+  firstArray(
+    ...values
+  ) {
+    for (
+      const value of values
+    ) {
+      if (
+        Array.isArray(
+          value
+        )
+      ) {
+        return [
+          ...value
+        ];
+      }
+    }
+
+    return [];
   },
 
   /* =====================================================
@@ -543,11 +771,45 @@ window.AriDeliberationPipeline = {
 
     try {
       const validationInput = {
-        semanticFrame:
-          summary.semanticFrame ||
-          summary
-            .cognitiveReasoningResult
-            ?.semanticFrame ||
+                semanticFrame:
+          this.readObject(
+            summary.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .cognitiveReasoningResult
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.cognitiveReasoningResult
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.reasoningResult
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.result
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.result
+              ?.cognitiveReasoningResult
+              ?.semanticFrame
+          ) ||
           null,
 
         cognitiveReasoningResult:
@@ -766,7 +1028,7 @@ window.AriDeliberationPipeline = {
      DELIBERATION DIAGNOSTICS
   ===================================================== */
 
-  buildDeliberationDiagnostics(
+    buildDeliberationDiagnostics(
     summary = {}
   ) {
     const errors = [
@@ -778,19 +1040,34 @@ window.AriDeliberationPipeline = {
     const warnings = [];
 
     const evidencePacket =
-      summary.evidencePacket ||
-      summary.perceptionPacket
-        ?.evidencePacket ||
+      this.readObject(
+        summary.evidencePacket
+      ) ||
+      this.readObject(
+        summary.perceptionPacket
+          ?.evidencePacket
+      ) ||
       null;
 
-    const reasoningAvailable =
-      Boolean(
-        summary.cognitiveReasoningResult
+    const reasoningResult =
+      this.readObject(
+        summary
+          .cognitiveReasoningResult
       );
 
-    const semanticFrameAvailable =
-      Boolean(
+    const semanticFrame =
+      this.readObject(
         summary.semanticFrame
+      );
+
+    const reasoningReady =
+      summary.reasoningReady ===
+        true &&
+      Boolean(
+        reasoningResult
+      ) &&
+      Boolean(
+        semanticFrame
       );
 
     const validationAccepted =
@@ -798,12 +1075,14 @@ window.AriDeliberationPipeline = {
         summary
       );
 
-    const responsePlanAvailable =
-      Boolean(
-        summary.responsePlan ||
-        summary.responseStrategy ||
+    const responsePlan =
+      this.resolveResponsePlan(
         summary
-          .responsePlanningStagePacket
+      );
+
+    const responsePlanAvailable =
+      this.isResponsePlanUsable(
+        responsePlan
       );
 
     if (!evidencePacket) {
@@ -816,7 +1095,7 @@ window.AriDeliberationPipeline = {
       });
     }
 
-    if (!reasoningAvailable) {
+    if (!reasoningResult) {
       errors.push({
         stage:
           "reasoning",
@@ -826,7 +1105,21 @@ window.AriDeliberationPipeline = {
       });
     }
 
-    if (!semanticFrameAvailable) {
+    if (
+      reasoningResult &&
+      summary.reasoningReady !==
+        true
+    ) {
+      errors.push({
+        stage:
+          "reasoning",
+
+        error:
+          "cognitive_reasoning_result_not_ready"
+      });
+    }
+
+    if (!semanticFrame) {
       errors.push({
         stage:
           "reasoning",
@@ -843,6 +1136,19 @@ window.AriDeliberationPipeline = {
 
         error:
           "semantic_validation_not_accepted"
+      });
+    }
+
+    if (
+      validationAccepted &&
+      !responsePlanAvailable
+    ) {
+      errors.push({
+        stage:
+          "response_planning",
+
+        error:
+          "response_plan_missing_or_unusable"
       });
     }
 
@@ -867,6 +1173,13 @@ window.AriDeliberationPipeline = {
       );
     }
 
+    const complete =
+      errors.length ===
+        0 &&
+      reasoningReady &&
+      validationAccepted &&
+      responsePlanAvailable;
+
     return {
       deliberationDiagnosticsRan:
         true,
@@ -878,33 +1191,37 @@ window.AriDeliberationPipeline = {
         errors.length ===
         0,
 
-      complete:
-        errors.length ===
-          0 &&
-        responsePlanAvailable,
+      complete,
+
+      ready:
+        complete,
 
       errors,
       warnings,
 
       stages: {
         continuity:
-          summary.continuityStageRan ===
+          summary
+            .continuityStageRan ===
           true,
 
         safety:
-          summary.safetyStageRan ===
+          summary
+            .safetyStageRan ===
           true,
 
         situation:
-          summary.situationStageRan ===
+          summary
+            .situationStageRan ===
           true,
 
         memory:
-          summary.memoryStageRan ===
+          summary
+            .memoryStageRan ===
           true,
 
         reasoning:
-          reasoningAvailable,
+          reasoningReady,
 
         semanticValidation:
           validationAccepted,
@@ -912,7 +1229,8 @@ window.AriDeliberationPipeline = {
         responsePlanning:
           summary
             .responsePlanningStageRan ===
-          true
+            true &&
+          responsePlanAvailable
       },
 
       contracts: {
@@ -922,9 +1240,17 @@ window.AriDeliberationPipeline = {
           ),
 
         reasoningResultAvailable:
-          reasoningAvailable,
+          Boolean(
+            reasoningResult
+          ),
 
-        semanticFrameAvailable,
+        reasoningResultReady:
+          reasoningReady,
+
+        semanticFrameAvailable:
+          Boolean(
+            semanticFrame
+          ),
 
         validatedSemanticFrameAvailable:
           Boolean(
@@ -942,6 +1268,12 @@ window.AriDeliberationPipeline = {
 
         responsePlanAvailable
       },
+
+      modelInvocation:
+        summary.modelInvocation ||
+        reasoningResult
+          ?.modelInvocation ||
+        null,
 
       invariants: {
         openAIIsSoleSemanticAuthority:
@@ -963,6 +1295,89 @@ window.AriDeliberationPipeline = {
   /* =====================================================
      DELIBERATION PACKET
   ===================================================== */
+
+  resolveResponsePlan(
+    summary = {}
+  ) {
+    const stagePacket =
+      this.readObject(
+        summary
+          .responsePlanningStagePacket
+      );
+
+    return (
+      this.readObject(
+        summary.responsePlan
+      ) ||
+      this.readObject(
+        stagePacket
+          ?.responsePlan
+      ) ||
+      this.readObject(
+        stagePacket
+          ?.plan
+      ) ||
+      this.readObject(
+        stagePacket
+          ?.result
+          ?.responsePlan
+      ) ||
+      this.readObject(
+        stagePacket
+          ?.result
+          ?.plan
+      ) ||
+      null
+    );
+  },
+
+  isResponsePlanUsable(
+    responsePlan = null
+  ) {
+    if (
+      !responsePlan ||
+      typeof responsePlan !==
+        "object" ||
+      Array.isArray(
+        responsePlan
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      responsePlan.ready ===
+      false ||
+      responsePlan.valid ===
+      false
+    ) {
+      return false;
+    }
+
+    const moves =
+      responsePlan.responseMoves ||
+      responsePlan.moves ||
+      responsePlan.sequence ||
+      [];
+
+    return Boolean(
+      responsePlan.ready ===
+        true ||
+      responsePlan.valid ===
+        true ||
+      this.cleanText(
+        responsePlan.responseGoal ||
+        responsePlan.goal
+      ) ||
+      (
+        Array.isArray(
+          moves
+        ) &&
+        moves.length >
+          0
+      )
+    );
+  },
 
   buildDeliberationPacket(
     summary = {}
@@ -992,12 +1407,16 @@ window.AriDeliberationPipeline = {
       summary.validatedSemanticFrame ||
       null;
 
+        const responsePlanningStagePacket =
+      this.readObject(
+        summary
+          .responsePlanningStagePacket
+      );
+
     const responsePlan =
-      summary.responsePlan ||
-      summary.responseStrategy ||
-      summary
-        .responsePlanningStagePacket ||
-      null;
+      this.resolveResponsePlan(
+        summary
+      );
 
     return {
       schema:
@@ -1144,11 +1563,15 @@ window.AriDeliberationPipeline = {
          OpenAI cognitive authority
       ----------------------------------------------- */
 
-      reasoning: {
+            reasoning: {
         available:
           Boolean(
             reasoningResult
           ),
+
+        ready:
+          summary.reasoningReady ===
+          true,
 
         source:
           reasoningResult
@@ -1161,15 +1584,79 @@ window.AriDeliberationPipeline = {
             ?.model ||
           reasoningResult
             ?.modelId ||
+          summary.modelInvocation
+            ?.model ||
+          null,
+
+        stagePacket:
+          summary.reasoningStagePacket ||
           null,
 
         result:
           reasoningResult,
 
-        semanticFrame:
-          summary.semanticFrame ||
+        modelInvocation:
+          summary.modelInvocation ||
           reasoningResult
-            ?.semanticFrame ||
+            ?.modelInvocation ||
+          summary.reasoningStagePacket
+            ?.modelInvocation ||
+          null,
+
+        error:
+          summary.reasoningStageError ||
+          reasoningResult
+            ?.error ||
+          summary.reasoningStagePacket
+            ?.error ||
+          null,
+
+        reason:
+          reasoningResult
+            ?.reason ||
+          summary.reasoningStageReason ||
+          summary.reasoningStagePacket
+            ?.reason ||
+          null,
+
+        semanticFrame:
+          this.readObject(
+            summary.semanticFrame
+          ) ||
+          this.readObject(
+            reasoningResult
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.cognitiveReasoningResult
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.reasoningResult
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.result
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .reasoningStagePacket
+              ?.result
+              ?.cognitiveReasoningResult
+              ?.semanticFrame
+          ) ||
           null,
 
         responseRequirements:
@@ -1262,9 +1749,16 @@ window.AriDeliberationPipeline = {
             .responsePlanningStageRan ===
           true,
 
+                packet:
+          responsePlanningStagePacket,
+
         plan:
           responsePlan,
 
+        ready:
+          this.isResponsePlanUsable(
+            responsePlan
+          ),
         strategy:
           summary.responseStrategy ||
           null,
@@ -1625,6 +2119,28 @@ window.AriDeliberationPipeline = {
      UTILITIES
   ===================================================== */
 
+    cleanText(
+    value = ""
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replace(
+        /[ \t]+/g,
+        " "
+      )
+      .replace(
+        /\n[ \t]+/g,
+        "\n"
+      )
+      .replace(
+        /\n{3,}/g,
+        "\n\n"
+      )
+      .trim();
+  },
+  
   toArray(
     value
   ) {
