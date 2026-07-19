@@ -2,14 +2,18 @@
 // Ari Expression Pipeline
 //
 // Purpose:
-// Coordinate Character guidance, language guidance, primary OpenAI response
-// realization, and final composition.
+// Coordinate character guidance, language guidance, primary OpenAI response
+// realization, final composition, and canonical expression handoff.
 //
-// V2.0.0 — Direct Realization Architecture / No Candidate Pipeline
+// V3.0.0 — Validated Semantic Realization / Immutable Response Plan
 //
-// Architectural flow:
+// Canonical flow:
 //
 // Deliberation Pipeline
+//      ↓
+// Validated Semantic Frame
+//      ↓
+// Approved Response Plan
 //      ↓
 // Character Stage
 //      ↓
@@ -21,36 +25,24 @@
 //      ↓
 // Delivery Pipeline
 //
-// Responsibilities:
-// - Preserve the canonical Deliberation Packet.
-// - Run Character guidance.
-// - Run language guidance.
-// - Run primary OpenAI response realization.
-// - Run final composition.
-// - Preserve each stage packet.
-// - Build the canonical Expression Packet.
-// - Expose the final response to Delivery.
-//
-// Non-responsibilities:
-// - Does not run Draft Generation.
-// - Does not run Blueprint Writer.
-// - Does not run AI Writer.
-// - Does not generate candidate arrays.
-// - Does not arbitrate response candidates.
-// - Does not select a preferred draft.
-// - Does not reinterpret semantic meaning.
-// - Does not change routing.
-// - Does not override safety.
-// - Does not execute actions.
-// - Does not retrieve or persist memory.
-// - Does not persist runtime state.
+// Authority model:
+// - OpenAI Reasoning owns semantic meaning.
+// - AriSemanticFrameValidator approves or rejects semantic meaning.
+// - Response Planning defines the response contract.
+// - Expression realizes language from validated meaning and an approved plan.
+// - Character and language guidance may shape style only.
+// - Final Composition may normalize presentation only.
+// - No Expression stage may reinterpret meaning, change operations,
+//   weaken safety, or add unsupported claims.
 
 window.Ari = window.Ari || {};
 
 window.AriExpressionPipeline = {
-  version: "2.0.0",
-  schemaVersion: "2.0.0",
+  version: "3.0.0",
+  schemaVersion: "3.0.0",
   source: "ari-expression-pipeline",
+  architecture:
+    "validated-semantic-direct-response-realization",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -68,11 +60,20 @@ window.AriExpressionPipeline = {
         "expression",
 
       activeExpressionStage:
-        null
+        null,
+
+      expressionStageErrors:
+        Array.isArray(
+          summary.expressionStageErrors
+        )
+          ? [
+              ...summary.expressionStageErrors
+            ]
+          : []
     };
 
     /* =================================================
-       0. DELIBERATION PACKET
+       0. DELIBERATION CONTRACT
     ================================================= */
 
     const deliberationPacket =
@@ -87,7 +88,7 @@ window.AriExpressionPipeline = {
       deliberationPacket,
 
       expressionArchitecture:
-        "direct-response-realization",
+        this.architecture,
 
       legacyDraftGenerationEnabled:
         false,
@@ -106,7 +107,89 @@ window.AriExpressionPipeline = {
     };
 
     /* =================================================
-       1. CHARACTER STAGE
+       1. EXPRESSION INPUT GOVERNANCE
+    ================================================= */
+
+    mark(
+      "before expressionInputGovernance"
+    );
+
+    const expressionInputGovernance =
+      this.validateExpressionInputs(
+        state
+      );
+
+    state = {
+      ...state,
+
+      expressionInputGovernance,
+
+      expressionInputGovernanceRan:
+        true,
+
+      expressionInputGovernanceSource:
+        this.source,
+
+      expressionInputGovernanceVersion:
+        this.version
+    };
+
+    mark(
+      "after expressionInputGovernance"
+    );
+
+    if (
+      expressionInputGovernance
+        .ready !==
+      true
+    ) {
+      state =
+        this.recordStageFailure({
+          summary:
+            state,
+
+          stageName:
+            "expressionInputGovernance",
+
+          source:
+            "expression-governance",
+
+          error:
+            "expression_inputs_not_ready",
+
+          message:
+            "Expression was blocked because validated semantic meaning and an approved response plan were not available."
+        });
+
+      state.expressionPacket =
+        this.buildExpressionPacket(
+          state
+        );
+
+      state.responseResult =
+        state.expressionPacket;
+
+      state.expressionPipelineRan =
+        true;
+
+      state.expressionPipelineReady =
+        false;
+
+      state.expressionPipelineSource =
+        this.source;
+
+      state.expressionPipelineVersion =
+        this.version;
+
+      state.activeExpressionStage =
+        null;
+
+      return state;
+    }
+
+    /* =================================================
+       2. CHARACTER STAGE
+       Style guidance only.
     ================================================= */
 
     mark(
@@ -115,7 +198,8 @@ window.AriExpressionPipeline = {
 
     state =
       await this.runStage(
-        window.AriCharacterStage,
+        window.AriCharacterStage ||
+        window.Ari?.characterStage,
         state,
         runtime,
         "character"
@@ -126,7 +210,8 @@ window.AriExpressionPipeline = {
     );
 
     /* =================================================
-       2. LANGUAGE GUIDANCE STAGE
+       3. LANGUAGE GUIDANCE STAGE
+       Lexical and presentation guidance only.
     ================================================= */
 
     mark(
@@ -135,7 +220,8 @@ window.AriExpressionPipeline = {
 
     state =
       await this.runStage(
-        window.AriLanguageGuidanceStage,
+        window.AriLanguageGuidanceStage ||
+        window.Ari?.languageGuidanceStage,
         state,
         runtime,
         "languageGuidance"
@@ -146,7 +232,12 @@ window.AriExpressionPipeline = {
     );
 
     /* =================================================
-       3. RESPONSE REALIZATION STAGE
+       4. RESPONSE REALIZATION STAGE
+       Produces final-language content from:
+       - validatedSemanticFrame
+       - validatedResponseRequirements
+       - approved response plan
+       - safety and style constraints
     ================================================= */
 
     mark(
@@ -155,7 +246,8 @@ window.AriExpressionPipeline = {
 
     state =
       await this.runStage(
-        window.AriResponseRealizationStage,
+        window.AriResponseRealizationStage ||
+        window.Ari?.responseRealizationStage,
         state,
         runtime,
         "responseRealization"
@@ -166,7 +258,8 @@ window.AriExpressionPipeline = {
     );
 
     /* =================================================
-       4. FINAL COMPOSITION STAGE
+       5. FINAL COMPOSITION STAGE
+       Presentation normalization only.
     ================================================= */
 
     mark(
@@ -175,7 +268,8 @@ window.AriExpressionPipeline = {
 
     state =
       await this.runStage(
-        window.AriFinalCompositionStage,
+        window.AriFinalCompositionStage ||
+        window.Ari?.finalCompositionStage,
         state,
         runtime,
         "finalComposition"
@@ -186,7 +280,28 @@ window.AriExpressionPipeline = {
     );
 
     /* =================================================
-       5. EXPRESSION PACKET
+       6. EXPRESSION DIAGNOSTICS
+    ================================================= */
+
+    const expressionDiagnostics =
+      this.buildExpressionDiagnostics(
+        state
+      );
+
+    state = {
+      ...state,
+
+      expressionDiagnostics,
+
+      expressionHealthy:
+        expressionDiagnostics.healthy,
+
+      expressionWarnings:
+        expressionDiagnostics.warnings
+    };
+
+    /* =================================================
+       7. EXPRESSION PACKET
     ================================================= */
 
     state.expressionPacket =
@@ -198,6 +313,11 @@ window.AriExpressionPipeline = {
       state.expressionPacket;
 
     state.expressionPipelineRan =
+      true;
+
+    state.expressionPipelineReady =
+      state.expressionPacket
+        ?.ready ===
       true;
 
     state.expressionPipelineSource =
@@ -253,7 +373,8 @@ window.AriExpressionPipeline = {
       if (
         !result ||
         typeof result !==
-          "object"
+          "object" ||
+        Array.isArray(result)
       ) {
         return this.recordStageFailure({
           summary,
@@ -272,9 +393,9 @@ window.AriExpressionPipeline = {
       }
 
       return {
-  ...summary,
-  ...result
-};
+        ...summary,
+        ...result
+      };
     } catch (error) {
       console.error(
         `Ari expression stage error: ${stageName}`,
@@ -349,6 +470,345 @@ window.AriExpressionPipeline = {
   },
 
   /* =====================================================
+     INPUT GOVERNANCE
+  ===================================================== */
+
+  validateExpressionInputs(
+    summary = {}
+  ) {
+    const errors = [];
+    const warnings = [];
+
+    const deliberationPacket =
+      summary.deliberationPacket ||
+      null;
+
+    const semanticValidationAccepted =
+      summary
+        .semanticValidationAccepted ===
+        true ||
+      deliberationPacket
+        ?.semanticValidation
+        ?.accepted ===
+        true;
+
+    const validatedSemanticFrame =
+      summary.validatedSemanticFrame ||
+      deliberationPacket
+        ?.semanticValidation
+        ?.validatedSemanticFrame ||
+      null;
+
+    const responsePlan =
+      summary.responsePlan ||
+      summary.responseStrategy ||
+      deliberationPacket
+        ?.responsePlanning
+        ?.plan ||
+      null;
+
+    const validatedResponseRequirements =
+      summary
+        .validatedResponseRequirements ||
+      deliberationPacket
+        ?.semanticValidation
+        ?.responseRequirements ||
+      null;
+
+    if (
+      !deliberationPacket
+    ) {
+      errors.push(
+        "deliberation_packet_missing"
+      );
+    }
+
+    if (
+      !semanticValidationAccepted
+    ) {
+      errors.push(
+        "semantic_validation_not_accepted"
+      );
+    }
+
+    if (
+      !validatedSemanticFrame
+    ) {
+      errors.push(
+        "validated_semantic_frame_missing"
+      );
+    }
+
+    if (
+      !responsePlan
+    ) {
+      errors.push(
+        "response_plan_missing"
+      );
+    }
+
+    if (
+      !validatedResponseRequirements
+    ) {
+      warnings.push(
+        "validated_response_requirements_missing"
+      );
+    }
+
+    return {
+      valid:
+        errors.length ===
+        0,
+
+      ready:
+        errors.length ===
+        0,
+
+      source:
+        "ari-expression-input-governance",
+
+      version:
+        this.version,
+
+      errors,
+      warnings,
+
+      contracts: {
+        deliberationPacketAvailable:
+          Boolean(
+            deliberationPacket
+          ),
+
+        semanticValidationAccepted,
+
+        validatedSemanticFrameAvailable:
+          Boolean(
+            validatedSemanticFrame
+          ),
+
+        responsePlanAvailable:
+          Boolean(
+            responsePlan
+          ),
+
+        validatedResponseRequirementsAvailable:
+          Boolean(
+            validatedResponseRequirements
+          )
+      },
+
+      authority: {
+        canValidateExpressionInputs:
+          true,
+
+        canInterpretMeaning:
+          false,
+
+        canRepairSemantics:
+          false,
+
+        canCreateResponsePlan:
+          false
+      }
+    };
+  },
+
+  /* =====================================================
+     EXPRESSION DIAGNOSTICS
+  ===================================================== */
+
+  buildExpressionDiagnostics(
+    summary = {}
+  ) {
+    const errors = [
+      ...this.toArray(
+        summary.expressionStageErrors
+      )
+    ];
+
+    const warnings = [
+      ...this.toArray(
+        summary
+          .expressionInputGovernance
+          ?.warnings
+      )
+    ];
+
+    const finalResponse =
+      this.extractText(
+        summary.finalResponse ||
+        summary
+          .finalCompositionHandoff
+          ?.finalResponse ||
+        summary
+          .realizationResponseText ||
+        summary
+          .realizationPacket
+          ?.responseText ||
+        ""
+      );
+
+    const semanticValidationAccepted =
+      summary
+        .semanticValidationAccepted ===
+        true ||
+      summary.deliberationPacket
+        ?.semanticValidation
+        ?.accepted ===
+        true;
+
+    const validatedSemanticFrame =
+      summary.validatedSemanticFrame ||
+      summary.deliberationPacket
+        ?.semanticValidation
+        ?.validatedSemanticFrame ||
+      null;
+
+    const responsePlan =
+      summary.responsePlan ||
+      summary.responseStrategy ||
+      summary.deliberationPacket
+        ?.responsePlanning
+        ?.plan ||
+      null;
+
+    if (
+      !semanticValidationAccepted
+    ) {
+      errors.push({
+        stage:
+          "expression",
+
+        error:
+          "semantic_validation_not_accepted"
+      });
+    }
+
+    if (
+      !validatedSemanticFrame
+    ) {
+      errors.push({
+        stage:
+          "expression",
+
+        error:
+          "validated_semantic_frame_missing"
+      });
+    }
+
+    if (
+      !responsePlan
+    ) {
+      errors.push({
+        stage:
+          "expression",
+
+        error:
+          "response_plan_missing"
+      });
+    }
+
+    if (
+      !finalResponse
+    ) {
+      errors.push({
+        stage:
+          "final_composition",
+
+        error:
+          "final_response_missing"
+      });
+    }
+
+    return {
+      expressionDiagnosticsRan:
+        true,
+
+      expressionDiagnosticsVersion:
+        this.version,
+
+      healthy:
+        errors.length ===
+        0,
+
+      complete:
+        errors.length ===
+          0 &&
+        Boolean(
+          finalResponse
+        ),
+
+      errors,
+      warnings,
+
+      stages: {
+        inputGovernance:
+          summary
+            .expressionInputGovernance
+            ?.valid ===
+          true,
+
+        character:
+          summary.characterStageRan ===
+          true,
+
+        languageGuidance:
+          summary
+            .languageGuidanceStageRan ===
+          true,
+
+        responseRealization:
+          summary
+            .responseRealizationStageRan ===
+          true,
+
+        finalComposition:
+          summary
+            .finalCompositionStageRan ===
+          true
+      },
+
+      contracts: {
+        semanticValidationAccepted,
+
+        validatedSemanticFrameAvailable:
+          Boolean(
+            validatedSemanticFrame
+          ),
+
+        responsePlanAvailable:
+          Boolean(
+            responsePlan
+          ),
+
+        finalResponseAvailable:
+          Boolean(
+            finalResponse
+          )
+      },
+
+      invariants: {
+        realizationUsesValidatedMeaning:
+          semanticValidationAccepted &&
+          Boolean(
+            validatedSemanticFrame
+          ),
+
+        realizationUsesApprovedPlan:
+          Boolean(
+            responsePlan
+          ),
+
+        styleStagesCannotChangeMeaning:
+          true,
+
+        finalCompositionCannotChangeMeaning:
+          true
+      }
+    };
+  },
+
+  /* =====================================================
      EXPRESSION PACKET
   ===================================================== */
 
@@ -357,19 +817,30 @@ window.AriExpressionPipeline = {
   ) {
     const finalResponse =
       this.extractText(
-        summary.finalResponse
+        summary.finalResponse ||
+        summary
+          .finalCompositionHandoff
+          ?.finalResponse ||
+        summary
+          .realizationResponseText ||
+        summary
+          .realizationPacket
+          ?.responseText ||
+        ""
       );
 
     const finalResponseUsable =
       summary
-        .finalResponseUsable ===
-        true &&
+        .finalResponseUsable !==
+        false &&
       Boolean(
         finalResponse
       );
 
     const realizationPacket =
       summary.realizationPacket ||
+      summary
+        .responseRealizationStagePacket ||
       null;
 
     const realizationResponse =
@@ -386,6 +857,42 @@ window.AriExpressionPipeline = {
         summary.expressionStageErrors
       );
 
+    const semanticValidationAccepted =
+      summary
+        .semanticValidationAccepted ===
+        true ||
+      summary.deliberationPacket
+        ?.semanticValidation
+        ?.accepted ===
+        true;
+
+    const validatedSemanticFrame =
+      summary.validatedSemanticFrame ||
+      summary.deliberationPacket
+        ?.semanticValidation
+        ?.validatedSemanticFrame ||
+      null;
+
+    const validatedResponseRequirements =
+      summary
+        .validatedResponseRequirements ||
+      summary.deliberationPacket
+        ?.semanticValidation
+        ?.responseRequirements ||
+      null;
+
+    const responsePlan =
+      summary.responsePlan ||
+      summary.responseStrategy ||
+      summary.deliberationPacket
+        ?.responsePlanning
+        ?.plan ||
+      null;
+
+    const expressionDiagnostics =
+      summary.expressionDiagnostics ||
+      null;
+
     return {
       schema:
         "ari_expression_packet",
@@ -394,18 +901,27 @@ window.AriExpressionPipeline = {
         this.schemaVersion,
 
       ready:
-        finalResponseUsable,
+        finalResponseUsable &&
+        semanticValidationAccepted &&
+        Boolean(
+          validatedSemanticFrame
+        ) &&
+        Boolean(
+          responsePlan
+        ),
 
       complete:
+        expressionDiagnostics
+          ?.complete ===
         true,
 
       healthy:
-        finalResponseUsable &&
-        stageErrors.length ===
-          0,
+        expressionDiagnostics
+          ?.healthy ===
+        true,
 
       architecture:
-        "direct-response-realization",
+        this.architecture,
 
       source:
         this.source,
@@ -422,13 +938,25 @@ window.AriExpressionPipeline = {
           summary.perceptionPacket ||
           null,
 
+        evidencePacket:
+          summary.evidencePacket ||
+          summary.perceptionPacket
+            ?.evidencePacket ||
+          null,
+
         executivePacket:
           summary.executivePacket ||
           null,
 
         deliberationPacket:
           summary.deliberationPacket ||
-          null
+          null,
+
+        validatedSemanticFrame,
+
+        validatedResponseRequirements,
+
+        responsePlan
       },
 
       /* -----------------------------------------------
@@ -436,6 +964,11 @@ window.AriExpressionPipeline = {
       ----------------------------------------------- */
 
       stages: {
+        inputGovernance:
+          summary
+            .expressionInputGovernance ||
+          null,
+
         character:
           summary.characterStagePacket ||
           null,
@@ -492,7 +1025,10 @@ window.AriExpressionPipeline = {
 
         source:
           summary.characterStageSource ||
-          null
+          null,
+
+        authority:
+          "style_guidance_only"
       },
 
       /* -----------------------------------------------
@@ -534,7 +1070,10 @@ window.AriExpressionPipeline = {
         source:
           summary
             .languageGuidanceStageSource ||
-          null
+          null,
+
+        authority:
+          "language_and_presentation_guidance_only"
       },
 
       /* -----------------------------------------------
@@ -566,7 +1105,8 @@ window.AriExpressionPipeline = {
 
         mode:
           summary.realizationMode ||
-          realizationPacket?.mode ||
+          realizationPacket
+            ?.mode ||
           null,
 
         responseText:
@@ -599,7 +1139,7 @@ window.AriExpressionPipeline = {
             .realizationResponseStrategy ||
           realizationPacket
             ?.responseStrategy ||
-          null,
+          responsePlan,
 
         composerInstructions:
           summary
@@ -647,13 +1187,15 @@ window.AriExpressionPipeline = {
         source:
           summary
             .responseRealizationSource ||
-          realizationPacket?.source ||
+          realizationPacket
+            ?.source ||
           null,
 
         reason:
           summary
             .responseRealizationReason ||
-          realizationPacket?.reason ||
+          realizationPacket
+            ?.reason ||
           null,
 
         error:
@@ -709,7 +1251,18 @@ window.AriExpressionPipeline = {
         handoff:
           summary
             .finalCompositionHandoff ||
-          null
+          null,
+
+        derivedFromValidatedMeaning:
+          semanticValidationAccepted &&
+          Boolean(
+            validatedSemanticFrame
+          ),
+
+        derivedFromApprovedPlan:
+          Boolean(
+            responsePlan
+          )
       },
 
       /* -----------------------------------------------
@@ -717,30 +1270,27 @@ window.AriExpressionPipeline = {
       ----------------------------------------------- */
 
       responseControl: {
+        validatedSemanticFrame,
+
+        validatedResponseRequirements,
+
+        responsePlan,
+
         goal:
           summary.responseGoal ||
-          summary
-            .canonicalResponsePlan
-            ?.responseGoal ||
-          summary.responsePlan
+          responsePlan
             ?.responseGoal ||
           null,
 
         shape:
           summary.responseShape ||
-          summary
-            .canonicalResponsePlan
-            ?.responseShape ||
-          summary.responsePlan
+          responsePlan
             ?.responseShape ||
           null,
 
         posture:
           summary.responsePosture ||
-          summary
-            .canonicalResponsePlan
-            ?.responsePosture ||
-          summary.responsePlan
+          responsePlan
             ?.responsePosture ||
           null,
 
@@ -748,42 +1298,51 @@ window.AriExpressionPipeline = {
           this.toArray(
             summary.responseOrder ||
             summary.responseMoves ||
-            summary
-              .canonicalResponsePlan
-              ?.responseMoves ||
-            summary.responsePlan
+            responsePlan
               ?.responseMoves
           ),
 
         rules:
           this.toArray(
-            summary.responseRules
+            summary.responseRules ||
+            responsePlan
+              ?.responseRules
           ),
 
         constraints:
           this.toArray(
             summary
-              .responseConstraints
+              .responseConstraints ||
+            responsePlan
+              ?.responseConstraints
           ),
 
         requiredBehaviors:
           this.toArray(
             summary.responseRequired ||
-            summary.requiredBehaviors
+            summary.requiredBehaviors ||
+            validatedResponseRequirements
+              ?.must
           ),
 
         forbiddenBehaviors:
           this.toArray(
             summary.responseAvoid ||
-            summary.forbiddenBehaviors
+            summary.forbiddenBehaviors ||
+            validatedResponseRequirements
+              ?.mustNot
           ),
 
         communicationPlan:
           summary.communicationPlan ||
+          responsePlan
+            ?.communicationPlan ||
           null,
 
         composerDirective:
           summary.composerDirective ||
+          responsePlan
+            ?.composerDirective ||
           null
       },
 
@@ -796,7 +1355,8 @@ window.AriExpressionPipeline = {
           Boolean(
             summary.continuityHandoff ||
             summary.continuityResult ||
-            summary.semanticSummary
+            summary
+              .validatedSemanticFrame
               ?.continuity
           ),
 
@@ -805,34 +1365,10 @@ window.AriExpressionPipeline = {
           summary.continuityResult ||
           null,
 
-        semantic:
-          summary.semanticSummary
+        validated:
+          validatedSemanticFrame
             ?.continuity ||
           null,
-
-        isContinuation:
-          summary.semanticSummary
-            ?.continuity
-            ?.isContinuation ===
-            true ||
-          summary.continuityHandoff
-            ?.isContinuation ===
-            true ||
-          summary.mode
-            ?.isFollowUp ===
-            true,
-
-        requiresPriorContext:
-          summary.semanticSummary
-            ?.continuity
-            ?.requiresPriorContext ===
-            true ||
-          summary.continuityHandoff
-            ?.requiresPriorContext ===
-            true ||
-          summary.mode
-            ?.mustReusePriorContext ===
-            true,
 
         recentTurnsUsed:
           realizationPacket
@@ -885,7 +1421,28 @@ window.AriExpressionPipeline = {
          QUALITY
       ----------------------------------------------- */
 
+      diagnostics:
+        expressionDiagnostics,
+
       quality: {
+        inputGovernanceValid:
+          summary
+            .expressionInputGovernance
+            ?.valid ===
+          true,
+
+        semanticValidationAccepted,
+
+        validatedSemanticFrameAvailable:
+          Boolean(
+            validatedSemanticFrame
+          ),
+
+        responsePlanAvailable:
+          Boolean(
+            responsePlan
+          ),
+
         allStagesLoaded:
           !stageErrors.some(
             error =>
@@ -934,12 +1491,6 @@ window.AriExpressionPipeline = {
             realizationResponse
           ),
 
-        realizationParseSucceeded:
-          realizationPacket
-            ?.diagnostics
-            ?.parseSucceeded ===
-          true,
-
         finalCompositionStageRan:
           summary
             .finalCompositionStageRan ===
@@ -950,20 +1501,11 @@ window.AriExpressionPipeline = {
             finalResponse
           ),
 
-        finalResponseUsable,
-
-        developerResponseLocked:
-          summary
-            .developerResponseLocked ===
-          true,
-
-        responseLocked:
-          summary.responseLocked ===
-          true
+        finalResponseUsable
       },
 
       /* -----------------------------------------------
-         LEGACY PATH STATUS
+         LEGACY STATUS
       ----------------------------------------------- */
 
       legacy: {
@@ -980,9 +1522,6 @@ window.AriExpressionPipeline = {
           false,
 
         candidateArbiterEnabled:
-          false,
-
-        composerBridgeRequired:
           false,
 
         candidateDraftsUsed:
@@ -1017,10 +1556,10 @@ window.AriExpressionPipeline = {
         ""
       );
 
-    const resolved =
+    const effective =
       this.extractText(
+        summary.effectiveUserMessage ||
         summary.resolvedUserQuestion ||
-        summary.resolvedQuestion ||
         original
       );
 
@@ -1040,91 +1579,52 @@ window.AriExpressionPipeline = {
       version:
         this.version,
 
-      routingContract:
-        summary.routingContract ||
-        null,
-
       request: {
         original,
 
-        resolved:
-          resolved ||
+        effective:
+          effective ||
           original
       },
 
-      responseStrategy:
-        summary.responseStrategy ||
-        null,
+      semanticValidation: {
+        accepted:
+          summary
+            .semanticValidationAccepted ===
+          true,
 
-      responseControl: {
-        goal:
-          summary.responseGoal ||
+        validatedSemanticFrame:
+          summary
+            .validatedSemanticFrame ||
           null,
 
-        shape:
-          summary.responseShape ||
-          null,
-
-        posture:
-          summary.responsePosture ||
-          null,
-
-        order:
-          this.toArray(
-            summary.responseOrder ||
-            summary.responseMoves
-          ),
-
-        rules:
-          this.toArray(
-            summary.responseRules
-          ),
-
-        constraints:
-          this.toArray(
-            summary
-              .responseConstraints
-          ),
-
-        requiredBehaviors:
-          this.toArray(
-            summary.responseRequired ||
-            summary.requiredBehaviors
-          ),
-
-        forbiddenBehaviors:
-          this.toArray(
-            summary.responseAvoid ||
-            summary.forbiddenBehaviors
-          )
+        responseRequirements:
+          summary
+            .validatedResponseRequirements ||
+          null
       },
 
-      continuity:
-        summary.continuityHandoff ||
-        summary.continuityResult ||
-        summary.semanticSummary
-          ?.continuity ||
-        null,
-
-      reasoning:
-        summary.reasoningStagePacket ||
-        summary.reasoningPacket ||
-        null,
-
-      safety:
-        summary.safetyDisposition ||
-        summary.deepSafetyResult ||
-        summary.safetyContextGate ||
-        null,
+      responsePlanning: {
+        plan:
+          summary.responsePlan ||
+          summary.responseStrategy ||
+          null
+      },
 
       authority: {
         canSupplyCompatibilityInput:
           true,
 
+        canInterpretMeaning:
+          false,
+
         canWriteFinalLanguage:
           false,
 
         canChangeSemanticMeaning:
+          false,
+
+        canCreateResponsePlan:
           false,
 
         canChangeRouting:
@@ -1163,6 +1663,15 @@ window.AriExpressionPipeline = {
       canExposeFinalResponse:
         true,
 
+      canRealizeLanguageFromValidatedMeaning:
+        true,
+
+      canApplyStyleGuidance:
+        true,
+
+      canApplyPresentationGuidance:
+        true,
+
       canRunDraftGenerationStage:
         false,
 
@@ -1184,10 +1693,22 @@ window.AriExpressionPipeline = {
       canSelectPreferredDraft:
         false,
 
-      canRequireComposerBridge:
+      canInterpretEvidence:
         false,
 
       canReinterpretMeaning:
+        false,
+
+      canRepairSemanticFrame:
+        false,
+
+      canChangeSemanticFrame:
+        false,
+
+      canChangeValidatedOperation:
+        false,
+
+      canChangeResponseRequirements:
         false,
 
       canChangeOfficialRoute:
@@ -1212,7 +1733,134 @@ window.AriExpressionPipeline = {
         false,
 
       role:
-        "direct_response_realization_expression_orchestration"
+        "validated_semantic_direct_response_realization_orchestration"
+    };
+  },
+
+  /* =====================================================
+     VALIDATION
+  ===================================================== */
+
+  validate() {
+    const errors = [];
+    const warnings = [];
+
+    const required = {
+      characterStage:
+        Boolean(
+          window.AriCharacterStage ||
+          window.Ari?.characterStage
+        ),
+
+      languageGuidanceStage:
+        Boolean(
+          window.AriLanguageGuidanceStage ||
+          window.Ari
+            ?.languageGuidanceStage
+        ),
+
+      responseRealizationStage:
+        Boolean(
+          window.AriResponseRealizationStage ||
+          window.Ari
+            ?.responseRealizationStage
+        ),
+
+      finalCompositionStage:
+        Boolean(
+          window.AriFinalCompositionStage ||
+          window.Ari
+            ?.finalCompositionStage
+        )
+    };
+
+    Object.entries(
+      required
+    )
+      .forEach(
+        ([
+          name,
+          loaded
+        ]) => {
+          if (!loaded) {
+            warnings.push(
+              `${name}_not_loaded`
+            );
+          }
+        }
+      );
+
+    const authority =
+      this.getAuthorityBoundaries();
+
+    const forbiddenTrue = [
+      "canInterpretEvidence",
+      "canReinterpretMeaning",
+      "canRepairSemanticFrame",
+      "canChangeSemanticFrame",
+      "canChangeValidatedOperation",
+      "canChangeResponseRequirements",
+      "canChangeOfficialRoute",
+      "canChangeResponsePlan",
+      "canChangeSafetyDisposition",
+      "canExecuteActions",
+      "canRetrieveMemory",
+      "canPersistMemory",
+      "canPersistState"
+    ];
+
+    forbiddenTrue
+      .filter(
+        key =>
+          authority[key] ===
+          true
+      )
+      .forEach(
+        key => {
+          errors.push(
+            `${key}_must_be_false`
+          );
+        }
+      );
+
+    return {
+      valid:
+        errors.length ===
+        0,
+
+      ready:
+        errors.length ===
+          0 &&
+        warnings.length ===
+          0,
+
+      source:
+        "ari-expression-pipeline-validation",
+
+      version:
+        this.version,
+
+      errors,
+      warnings,
+
+      required,
+
+      checks: {
+        validatedSemanticFrameRequired:
+          true,
+
+        approvedResponsePlanRequired:
+          true,
+
+        styleStagesAreNonSemantic:
+          true,
+
+        finalCompositionIsNonSemantic:
+          true,
+
+        legacyCandidatePipelineDisabled:
+          true
+      }
     };
   },
 
@@ -1254,7 +1902,7 @@ window.AriExpressionPipeline = {
 
     if (
       typeof value ===
-      "object"
+        "object"
     ) {
       return this.extractText(
         value.text ||
@@ -1341,8 +1989,24 @@ window.AriExpressionPipeline = {
 window.Ari.expressionPipeline =
   window.AriExpressionPipeline;
 
+const ariExpressionPipelineValidation =
+  window.AriExpressionPipeline
+    ?.validate?.();
+
 console.log(
   "ARI EXPRESSION PIPELINE LOADED:",
   window.AriExpressionPipeline
-    ?.version
+    ?.version,
+
+  ariExpressionPipelineValidation
+    ?.ready ===
+    true
+    ? "READY"
+    : ariExpressionPipelineValidation
+        ?.valid ===
+        true
+      ? "VALID_BUT_DEPENDENCIES_MISSING"
+      : "INVALID",
+
+  ariExpressionPipelineValidation
 );
