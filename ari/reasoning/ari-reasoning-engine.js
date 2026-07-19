@@ -7,7 +7,7 @@
 // validate the structured result,
 // and expose a safe compatibility contract.
 //
-// V9.1.0 — Structured Reasoning Transport / Evidence-Aware Validation
+// V9.2.0 — Canonical Semantic Requirements Contract
 //
 // Authority model:
 //
@@ -15,28 +15,31 @@
 // - gathers evidence
 // - defines binding safety and execution constraints
 // - validates model output
-// - controls tools, persistence, and delivery
+// - controls tools, persistence, realization, and delivery
 //
 // OpenAI:
 // - interprets user meaning
 // - builds the semantic frame
 // - analyzes the situation
 // - proposes decisions and actions
-// - defines response strategy
-// - may draft provisional response language
+// - defines semantic response requirements
+// - does not draft final response language
 //
 // OpenAI may propose actions.
 // OpenAI may not execute actions, persist state,
-// claim tool success, or override safety.
+// claim tool success, override safety,
+// or authorize final delivery.
 //
 // Responsibilities:
 // - Build one canonical reasoning request.
 // - Preserve current-turn and conversation context.
-// - Preserve routing, safety, continuity, memory, and knowledge evidence.
+// - Preserve routing, safety, continuity, memory, knowledge,
+//   evidence, and developer context.
 // - Resolve an approved OpenAI reasoning invoker.
 // - Invoke OpenAI exactly once per reasoning execution.
 // - Validate and normalize structured cognitive output.
 // - Reject unsafe or falsely executed action claims.
+// - Return semantic response requirements for downstream planning.
 // - Return transparent invocation and validation diagnostics.
 //
 // Non-responsibilities:
@@ -44,14 +47,15 @@
 // - Does not call tools directly.
 // - Does not persist memory or runtime state.
 // - Does not authorize delivery.
-// - Does not produce the final delivered response.
+// - Does not produce final delivered language.
+// - Does not replace the Response Planning Stage.
 // - Does not replace the Response Realization Engine.
 // - Does not expose private chain-of-thought.
 
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "9.1.0",
+  version: "9.2.0",
 
   source: "ari-reasoning-engine",
 
@@ -59,13 +63,13 @@ window.AriReasoningEngine = {
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "1.0.0",
+    "1.1.0",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
 
   resultSchemaVersion:
-    "1.0.0",
+    "1.1.0",
 
   /* =====================================================
      PUBLIC ENTRY POINTS
@@ -129,9 +133,16 @@ window.AriReasoningEngine = {
     }
 
     const modelInvoker =
-      this.resolveModelInvoker(
-        summary
-      );
+      this.resolveModelInvoker({
+        ...summary,
+
+        openAIReasoningInvoker:
+          reasoningRequest
+            .openAIReasoningInvoker ||
+          summary
+            .openAIReasoningInvoker ||
+          null
+      });
 
     if (!modelInvoker) {
       return this.buildFailureResult({
@@ -176,17 +187,27 @@ window.AriReasoningEngine = {
     try {
       rawModelResult =
         await modelInvoker.invoke({
+          ...reasoningRequest,
+
+          action:
+            reasoningRequest.action ||
+            "openai_reasoning",
+
           task:
             "ari_cognitive_reasoning",
-
-          request:
-            reasoningRequest,
 
           responseSchema:
             this.getResponseSchema(),
 
           instructions:
-            this.getReasoningInstructions()
+            this.getReasoningInstructions(),
+
+          /*
+           * Compatibility alias for older clients
+           * that still expect payload.request.
+           */
+          request:
+            reasoningRequest
         });
     } catch (error) {
       return this.buildFailureResult({
@@ -229,7 +250,7 @@ window.AriReasoningEngine = {
       });
     }
 
-    const cognitiveReasoningResult =
+    const normalizedResult =
       this.validateAndNormalizeResult({
         rawResult:
           rawModelResult,
@@ -237,6 +258,42 @@ window.AriReasoningEngine = {
         request:
           reasoningRequest
       });
+
+    const modelInvocation =
+      this.buildModelInvocationDiagnostic({
+        available:
+          true,
+
+        attempted:
+          true,
+
+        succeeded:
+          normalizedResult.ready ===
+          true,
+
+        source:
+          modelInvoker.source,
+
+        durationMs:
+          Date.now() -
+          invocationStartedAt,
+
+        error:
+          normalizedResult.ready ===
+            true
+            ? null
+            : this.firstString(
+                normalizedResult
+                  .validation
+                  ?.errors
+              )
+      });
+
+    const cognitiveReasoningResult = {
+      ...normalizedResult,
+
+      modelInvocation
+    };
 
     return this.buildEngineResult({
       cognitiveReasoningResult,
@@ -247,35 +304,7 @@ window.AriReasoningEngine = {
       engineRan:
         true,
 
-      modelInvocation:
-        this.buildModelInvocationDiagnostic({
-          available:
-            true,
-
-          attempted:
-            true,
-
-          succeeded:
-            cognitiveReasoningResult
-              .ready === true,
-
-          source:
-            modelInvoker.source,
-
-          durationMs:
-            Date.now() -
-            invocationStartedAt,
-
-          error:
-            cognitiveReasoningResult
-              .ready === true
-              ? null
-              : this.firstString(
-                  cognitiveReasoningResult
-                    .validation
-                    ?.errors
-                )
-        })
+      modelInvocation
     });
   },
 
@@ -285,7 +314,10 @@ window.AriReasoningEngine = {
 
   resolveReasoningRequest(summary = {}) {
     const suppliedRequest =
-      summary.reasoningStageInput;
+      summary.reasoningStageInput ||
+      summary.cognitiveReasoningRequest ||
+      summary.requestPacket ||
+      null;
 
     if (
       suppliedRequest &&
@@ -307,6 +339,22 @@ window.AriReasoningEngine = {
   },
 
   buildReasoningRequest(summary = {}) {
+    const request =
+      this.buildUserRequest(
+        summary
+      );
+
+    const currentTurn = {
+      originalText:
+        request.original,
+
+      effectiveText:
+        request.effective,
+
+      turnId:
+        request.turnId
+    };
+
     return {
       schema:
         this.requestSchema,
@@ -314,10 +362,61 @@ window.AriReasoningEngine = {
       schemaVersion:
         this.requestSchemaVersion,
 
-      request:
-        this.buildUserRequest(
-          summary
-        ),
+      action:
+        "openai_reasoning",
+
+      currentTurn,
+
+      originalUserMessage:
+        request.original,
+
+      effectiveUserMessage:
+        request.effective,
+
+      resolvedUserQuestion:
+        request.effective,
+
+      currentTurnWasResolved:
+        request.currentTurnWasResolved,
+
+      turnId:
+        request.turnId,
+
+      evidencePacket:
+        summary.evidencePacket ||
+        summary.perceptionPacket
+          ?.evidencePacket ||
+        null,
+
+      perceptionPacket:
+        summary.perceptionPacket ||
+        null,
+
+      routingContract:
+        summary.routingContract ||
+        null,
+
+      executivePacket:
+        summary.executivePacket ||
+        null,
+
+      continuityStagePacket:
+        summary.continuityStagePacket ||
+        null,
+
+      safetyStagePacket:
+        summary.safetyStagePacket ||
+        null,
+
+      situationStagePacket:
+        summary.situationStagePacket ||
+        null,
+
+      memoryStagePacket:
+        summary.memoryStagePacket ||
+        null,
+
+      request,
 
       conversation:
         this.buildConversationContext(
@@ -380,7 +479,11 @@ window.AriReasoningEngine = {
         this.buildAuthorityContract(),
 
       outputContract:
-        this.getResponseSchema()
+        this.getResponseSchema(),
+
+      openAIReasoningInvoker:
+        summary.openAIReasoningInvoker ||
+        null
     };
   },
 
@@ -388,6 +491,89 @@ window.AriReasoningEngine = {
     request = {},
     summary = {}
   ) {
+    const normalizedUserRequest = {
+      ...this.buildUserRequest(
+        summary
+      ),
+
+      ...this.objectOrEmpty(
+        request.request
+      )
+    };
+
+    const original =
+      this.firstNonEmptyString([
+        request.currentTurn
+          ?.originalText,
+
+        request.originalUserMessage,
+
+        normalizedUserRequest.original
+      ]);
+
+    const effective =
+      this.firstNonEmptyString([
+        request.currentTurn
+          ?.effectiveText,
+
+        request.effectiveUserMessage,
+
+        request.resolvedUserQuestion,
+
+        normalizedUserRequest.effective,
+
+        original
+      ]);
+
+    const turnId =
+      request.currentTurn
+        ?.turnId ||
+      request.turnId ||
+      normalizedUserRequest.turnId ||
+      null;
+
+    const routingContract =
+      request.routingContract ??
+      request.routing ??
+      summary.routingContract ??
+      null;
+
+    const executivePacket =
+      request.executivePacket ??
+      request.executive ??
+      summary.executivePacket ??
+      null;
+
+    const continuityStagePacket =
+      request.continuityStagePacket ??
+      request.continuity ??
+      summary.continuityStagePacket ??
+      null;
+
+    const safetyStagePacket =
+      request.safetyStagePacket ??
+      request.safety ??
+      summary.safetyStagePacket ??
+      null;
+
+    const situationStagePacket =
+      request.situationStagePacket ??
+      request.situation ??
+      summary.situationStagePacket ??
+      null;
+
+    const memoryStagePacket =
+      request.memoryStagePacket ??
+      request.memory ??
+      summary.memoryStagePacket ??
+      null;
+
+    const perceptionPacket =
+      request.perceptionPacket ??
+      request.perception ??
+      summary.perceptionPacket ??
+      null;
+
     return {
       schema:
         request.schema ||
@@ -397,14 +583,72 @@ window.AriReasoningEngine = {
         request.schemaVersion ||
         this.requestSchemaVersion,
 
-      request: {
-        ...this.buildUserRequest(
-          summary
-        ),
+      action:
+        request.action ||
+        "openai_reasoning",
 
-        ...this.objectOrEmpty(
-          request.request
-        )
+      currentTurn: {
+        originalText:
+          original,
+
+        effectiveText:
+          effective,
+
+        turnId
+      },
+
+      originalUserMessage:
+        original,
+
+      effectiveUserMessage:
+        effective,
+
+      resolvedUserQuestion:
+        effective,
+
+      currentTurnWasResolved:
+        request.currentTurnWasResolved ===
+          true ||
+        normalizedUserRequest
+          .currentTurnWasResolved ===
+          true,
+
+      turnId,
+
+      evidencePacket:
+        request.evidencePacket ??
+        perceptionPacket
+          ?.evidencePacket ??
+        summary.evidencePacket ??
+        summary.perceptionPacket
+          ?.evidencePacket ??
+        null,
+
+      perceptionPacket,
+
+      routingContract,
+
+      executivePacket,
+
+      continuityStagePacket,
+
+      safetyStagePacket,
+
+      situationStagePacket,
+
+      memoryStagePacket,
+
+      request: {
+        ...normalizedUserRequest,
+
+        original,
+
+        effective,
+
+        resolved:
+          effective,
+
+        turnId
       },
 
       conversation: {
@@ -418,39 +662,25 @@ window.AriReasoningEngine = {
       },
 
       perception:
-        request.perception ??
-        summary.perceptionPacket ??
-        null,
+        perceptionPacket,
 
       routing:
-        request.routing ??
-        summary.routingContract ??
-        null,
+        routingContract,
 
       executive:
-        request.executive ??
-        summary.executivePacket ??
-        null,
+        executivePacket,
 
       continuity:
-        request.continuity ??
-        summary.continuityStagePacket ??
-        null,
+        continuityStagePacket,
 
       safety:
-        request.safety ??
-        summary.safetyStagePacket ??
-        null,
+        safetyStagePacket,
 
       situation:
-        request.situation ??
-        summary.situationStagePacket ??
-        null,
+        situationStagePacket,
 
       memory:
-        request.memory ??
-        summary.memoryStagePacket ??
-        null,
+        memoryStagePacket,
 
       knowledge: {
         ...this.buildKnowledgeEvidence(
@@ -504,9 +734,14 @@ window.AriReasoningEngine = {
           request.authority
         ),
 
-        // These boundaries are always binding.
         safetyIsBinding:
           true,
+
+        mayPlanResponse:
+          false,
+
+        mayDraftResponse:
+          false,
 
         mayExecuteActions:
           false,
@@ -520,26 +755,42 @@ window.AriReasoningEngine = {
         mayClaimToolSuccess:
           false,
 
+        mayAuthorizeDelivery:
+          false,
+
         mayExposePrivateChainOfThought:
           false
       },
 
       outputContract:
         request.outputContract ||
-        this.getResponseSchema()
+        this.getResponseSchema(),
+
+      openAIReasoningInvoker:
+        request.openAIReasoningInvoker ||
+        summary.openAIReasoningInvoker ||
+        null
     };
   },
 
   buildUserRequest(summary = {}) {
     const original =
-      summary.turn?.originalText ||
+      summary.currentTurn
+        ?.originalText ||
+      summary.turn
+        ?.originalText ||
+      summary.originalUserMessage ||
       summary.userMessage ||
       summary.message ||
       summary.input ||
       "";
 
     const effective =
-      summary.turn?.effectiveText ||
+      summary.currentTurn
+        ?.effectiveText ||
+      summary.turn
+        ?.effectiveText ||
+      summary.effectiveUserMessage ||
       summary.resolvedUserQuestion ||
       summary.threadQuestion
         ?.resolvedUserQuestion ||
@@ -561,7 +812,10 @@ window.AriReasoningEngine = {
         ).trim(),
 
       turnId:
-        summary.turn?.turnId ||
+        summary.currentTurn
+          ?.turnId ||
+        summary.turn
+          ?.turnId ||
         summary.turnId ||
         null,
 
@@ -673,9 +927,9 @@ window.AriReasoningEngine = {
         null,
 
       confidence:
-        summary.knowledgeConfidence ||
+        summary.knowledgeConfidence ??
         routerResult
-          .knowledgeConfidence ||
+          .knowledgeConfidence ??
         null,
 
       sources:
@@ -768,11 +1022,17 @@ window.AriReasoningEngine = {
         summary.contextLane ||
         summary.routingContract
           ?.contextLane ||
+        summary.routingContract
+          ?.selectedRoute
+          ?.contextLane ||
         null,
 
       primaryLane:
         summary.primaryLane ||
         summary.routingContract
+          ?.primaryLane ||
+        summary.routingContract
+          ?.selectedRoute
           ?.primaryLane ||
         null,
 
@@ -821,6 +1081,11 @@ window.AriReasoningEngine = {
           summary.requiredCapabilities
         ),
 
+      tools:
+        summary.toolAvailability ||
+        summary.availableTools ||
+        null,
+
       toolAvailability:
         summary.toolAvailability ||
         summary.availableTools ||
@@ -863,11 +1128,14 @@ window.AriReasoningEngine = {
       mayRecommendStrategy:
         true,
 
-      mayPlanResponse:
+      mayDefineResponseRequirements:
         true,
 
+      mayPlanResponse:
+        false,
+
       mayDraftResponse:
-        true,
+        false,
 
       mayProposeActions:
         true,
@@ -922,6 +1190,21 @@ window.AriReasoningEngine = {
 
       {
         source:
+          "AriOpenAIReasoningClient.invoke",
+
+        fn:
+          window
+            .AriOpenAIReasoningClient
+            ?.invoke,
+
+        context:
+          window
+            .AriOpenAIReasoningClient ||
+          null
+      },
+
+      {
+        source:
           "AriOpenAIReasoningClient.reason",
 
         fn:
@@ -932,6 +1215,21 @@ window.AriReasoningEngine = {
         context:
           window
             .AriOpenAIReasoningClient ||
+          null
+      },
+
+      {
+        source:
+          "Ari.openAIReasoningClient.invoke",
+
+        fn:
+          window.Ari
+            ?.openAIReasoningClient
+            ?.invoke,
+
+        context:
+          window.Ari
+            ?.openAIReasoningClient ||
           null
       },
 
@@ -1082,7 +1380,11 @@ window.AriReasoningEngine = {
 
       "Any action must be returned only as a proposed action.",
 
-      "Build one coherent interpretation, semantic frame, response strategy, and optional provisional draft response.",
+      "Build one coherent interpretation, semantic frame, and set of semantic response requirements.",
+
+      "Response requirements should define the goal, shape, tone, required moves, prohibited moves, required behaviors, forbidden behaviors, constraints, clarification requirements, and action requirements.",
+
+      "Do not write the final response and do not return a provisional response draft.",
 
       "Use an empty array or empty object only for optional collection fields when no value applies.",
 
@@ -1123,7 +1425,10 @@ window.AriReasoningEngine = {
     }
 
     const effectiveText =
-      request.request?.effective;
+      request.request?.effective ||
+      request.resolvedUserQuestion ||
+      request.currentTurn
+        ?.effectiveText;
 
     if (
       typeof effectiveText !==
@@ -1221,7 +1526,7 @@ window.AriReasoningEngine = {
         "interpretation",
         "reasoningDecision",
         "semanticFrame",
-        "responseStrategy",
+        "responseRequirements",
         "grounding",
         "confidence"
       ],
@@ -1274,6 +1579,28 @@ window.AriReasoningEngine = {
           ]
         },
 
+        responseRequirements: {
+          type:
+            "object",
+
+          expectedFields: [
+            "goal",
+            "shape",
+            "tone",
+            "requiredMoves",
+            "prohibitedMoves",
+            "requiredBehaviors",
+            "forbiddenBehaviors",
+            "constraints",
+            "safetyRequirements",
+            "continuityRequirements",
+            "toneRequirements",
+            "clarificationRequired",
+            "clarificationQuestion",
+            "actionRequired"
+          ]
+        },
+
         caseModel: {
           type:
             "object"
@@ -1294,24 +1621,23 @@ window.AriReasoningEngine = {
             "array"
         },
 
-        responseStrategy: {
+        evidenceReferences: {
+          type:
+            "array"
+        },
+
+        executionMetadata: {
           type:
             "object",
 
           expectedFields: [
-            "goal",
-            "shape",
-            "tone",
-            "orderedPoints",
-            "requiredBehaviors",
-            "forbiddenBehaviors",
-            "constraints"
+            "confidence",
+            "reasoningMode",
+            "usedCurrentTurn",
+            "usedPriorContext",
+            "usedEvidence",
+            "evidenceCount"
           ]
-        },
-
-        draftResponse: {
-          type:
-            "string"
         },
 
         grounding: {
@@ -1354,6 +1680,9 @@ window.AriReasoningEngine = {
           true,
 
         neverReturnPrivateChainOfThought:
+          true,
+
+        neverWriteFinalResponse:
           true
       }
     };
@@ -1395,8 +1724,9 @@ window.AriReasoningEngine = {
         value.caseModel
       );
 
-    const responseStrategy =
+    const responseRequirements =
       this.objectOrEmpty(
+        value.responseRequirements ||
         value.responseStrategy
       );
 
@@ -1436,12 +1766,12 @@ window.AriReasoningEngine = {
     }
 
     if (
-      !this.isUsableResponseStrategy(
-        responseStrategy
+      !this.isUsableResponseRequirements(
+        responseRequirements
       )
     ) {
       validationErrors.push(
-        "missing_response_strategy"
+        "missing_response_requirements"
       );
     }
 
@@ -1456,7 +1786,7 @@ window.AriReasoningEngine = {
       this.detectSafetyConflict({
         request,
         reasoningDecision,
-        responseStrategy
+        responseRequirements
       });
 
     if (safetyConflict) {
@@ -1487,6 +1817,11 @@ window.AriReasoningEngine = {
       value.ready !== false &&
       validationErrors.length ===
         0;
+
+    const normalizedResponseRequirements =
+      this.normalizeResponseRequirements(
+        responseRequirements
+      );
 
     return {
       schema:
@@ -1534,15 +1869,34 @@ window.AriReasoningEngine = {
           value.unknowns
         ),
 
+      responseRequirements:
+        normalizedResponseRequirements,
+
+      /*
+       * Compatibility alias for modules that have
+       * not yet migrated from responseStrategy.
+       */
       responseStrategy:
-        this.normalizeResponseStrategy(
-          responseStrategy
+        normalizedResponseRequirements,
+
+      executionMetadata:
+        this.normalizeExecutionMetadata({
+          value:
+            value.executionMetadata,
+
+          request,
+
+          confidence
+        }),
+
+      evidenceReferences:
+        this.normalizeEvidenceReferences(
+          value.evidenceReferences ||
+          grounding.evidenceUsed
         ),
 
       draftResponse:
-        this.normalizeDraftResponse(
-          value.draftResponse
-        ),
+        "",
 
       grounding:
         this.normalizeGrounding(
@@ -1569,7 +1923,7 @@ window.AriReasoningEngine = {
 
       authority:
         ready
-          ? "semantic_interpretation_and_response_planning"
+          ? "semantic_interpretation_and_response_requirements"
           : "none"
     };
   },
@@ -1596,6 +1950,15 @@ window.AriReasoningEngine = {
     const candidates = [
       rawResult
         .cognitiveReasoningResult,
+
+      rawResult
+        .reasoningResult,
+
+      rawResult.result
+        ?.cognitiveReasoningResult,
+
+      rawResult.result
+        ?.reasoningResult,
 
       rawResult.result,
 
@@ -1729,15 +2092,15 @@ window.AriReasoningEngine = {
     );
   },
 
-  isUsableResponseStrategy(
-    responseStrategy = {}
+  isUsableResponseRequirements(
+    requirements = {}
   ) {
     if (
-      !responseStrategy ||
-      typeof responseStrategy !==
+      !requirements ||
+      typeof requirements !==
         "object" ||
       Array.isArray(
-        responseStrategy
+        requirements
       )
     ) {
       return false;
@@ -1745,39 +2108,47 @@ window.AriReasoningEngine = {
 
     return Boolean(
       this.nullableString(
-        responseStrategy.goal
+        requirements.goal
       ) ||
       this.nullableString(
-        responseStrategy.shape
+        requirements.shape
       ) ||
       this.nullableString(
-        responseStrategy.tone
+        requirements.tone
       ) ||
       this.arrayOrEmpty(
-        responseStrategy
-          .orderedPoints
+        requirements.requiredMoves ||
+        requirements.orderedPoints
       ).length ||
       this.arrayOrEmpty(
-        responseStrategy
-          .requiredBehaviors
+        requirements.prohibitedMoves
       ).length ||
       this.arrayOrEmpty(
-        responseStrategy
-          .forbiddenBehaviors
+        requirements.requiredBehaviors
       ).length ||
       this.arrayOrEmpty(
-        responseStrategy.constraints
-      ).length
+        requirements.forbiddenBehaviors
+      ).length ||
+      this.arrayOrEmpty(
+        requirements.constraints
+      ).length ||
+      requirements
+        .clarificationRequired ===
+        true ||
+      requirements
+        .actionRequired ===
+        true
     );
   },
 
   detectSafetyConflict({
     request = {},
     reasoningDecision = {},
-    responseStrategy = {}
+    responseRequirements = {}
   } = {}) {
     const safety =
       request.safety ||
+      request.safetyStagePacket ||
       {};
 
     const shouldStop =
@@ -1797,8 +2168,12 @@ window.AriReasoningEngine = {
     const safetyLimited =
       reasoningDecision.reasoningMode ===
         "safety_limited" ||
-      responseStrategy.mode ===
-        "safety_limited";
+      responseRequirements.mode ===
+        "safety_limited" ||
+      this.arrayOrEmpty(
+        responseRequirements
+          .safetyRequirements
+      ).length > 0;
 
     if (
       reasoningDecision.answerDirectly ===
@@ -1993,50 +2368,159 @@ window.AriReasoningEngine = {
     };
   },
 
-  normalizeResponseStrategy(
-    responseStrategy = {}
+  normalizeResponseRequirements(
+    requirements = {}
   ) {
     return {
-      ...responseStrategy,
-
       goal:
         this.nullableString(
-          responseStrategy.goal
+          requirements.goal
         ),
 
       shape:
         this.nullableString(
-          responseStrategy.shape
-        ),
+          requirements.shape
+        ) ||
+        "single_lane",
 
       tone:
         this.nullableString(
-          responseStrategy.tone
+          requirements.tone
         ),
 
-      orderedPoints:
+      requiredMoves:
         this.arrayOrEmpty(
-          responseStrategy
-            .orderedPoints
+          requirements.requiredMoves ||
+          requirements.orderedPoints
+        ),
+
+      prohibitedMoves:
+        this.stringArray(
+          requirements.prohibitedMoves
         ),
 
       requiredBehaviors:
         this.stringArray(
-          responseStrategy
-            .requiredBehaviors
+          requirements.requiredBehaviors
         ),
 
       forbiddenBehaviors:
         this.stringArray(
-          responseStrategy
-            .forbiddenBehaviors
+          requirements.forbiddenBehaviors
         ),
 
       constraints:
         this.stringArray(
-          responseStrategy.constraints
-        )
+          requirements.constraints
+        ),
+
+      safetyRequirements:
+        this.stringArray(
+          requirements.safetyRequirements
+        ),
+
+      continuityRequirements:
+        this.stringArray(
+          requirements
+            .continuityRequirements
+        ),
+
+      toneRequirements:
+        this.stringArray(
+          requirements.toneRequirements
+        ),
+
+      clarificationRequired:
+        requirements
+          .clarificationRequired ===
+        true,
+
+      clarificationQuestion:
+        this.nullableString(
+          requirements
+            .clarificationQuestion
+        ),
+
+      actionRequired:
+        requirements.actionRequired ===
+        true
     };
+  },
+
+  normalizeExecutionMetadata({
+    value = {},
+    request = {},
+    confidence = 0
+  } = {}) {
+    const metadata =
+      this.objectOrEmpty(
+        value
+      );
+
+    const evidenceReferences =
+      this.arrayOrEmpty(
+        request.evidencePacket
+          ?.evidenceReferences ||
+        request.evidencePacket
+          ?.evidence ||
+        request.evidencePacket
+          ?.items
+      );
+
+    return {
+      confidence:
+        this.normalizeConfidence(
+          metadata.confidence ??
+          confidence
+        ),
+
+      reasoningMode:
+        this.nullableString(
+          metadata.reasoningMode
+        ),
+
+      usedCurrentTurn:
+        metadata.usedCurrentTurn !==
+        false,
+
+      usedPriorContext:
+        metadata.usedPriorContext ===
+        true ||
+        this.arrayOrEmpty(
+          request.conversation
+            ?.recentTurns
+        ).length > 0,
+
+      usedEvidence:
+        metadata.usedEvidence ===
+        true ||
+        evidenceReferences.length > 0,
+
+      evidenceCount:
+        Number.isFinite(
+          Number(
+            metadata.evidenceCount
+          )
+        )
+          ? Number(
+              metadata.evidenceCount
+            )
+          : evidenceReferences.length
+    };
+  },
+
+  normalizeEvidenceReferences(
+    references
+  ) {
+    return this.arrayOrEmpty(
+      references
+    ).filter(
+      reference =>
+        reference !==
+          undefined &&
+      reference !==
+        null
+    );
   },
 
   normalizeGrounding(
@@ -2245,21 +2729,12 @@ window.AriReasoningEngine = {
           action.requiresApproval !==
           false,
 
-        // Model output can never mark an
-        // action as already executed.
         executed:
           false,
 
         status:
           "proposed"
       }));
-  },
-
-  normalizeDraftResponse(value) {
-    return typeof value ===
-      "string"
-      ? value.trim()
-      : "";
   },
 
   normalizeConfidence(value) {
@@ -2288,9 +2763,38 @@ window.AriReasoningEngine = {
     engineRan = false,
     modelInvocation = {}
   } = {}) {
+    const semanticFrame =
+      cognitiveReasoningResult
+        .semanticFrame ||
+      null;
+
+    const responseRequirements =
+      cognitiveReasoningResult
+        .responseRequirements ||
+      null;
+
+    const executionMetadata =
+      cognitiveReasoningResult
+        .executionMetadata ||
+      null;
+
+    const evidenceReferences =
+      this.arrayOrEmpty(
+        cognitiveReasoningResult
+          .evidenceReferences
+      );
+
     const ready =
       cognitiveReasoningResult
-        .ready === true;
+        .ready === true &&
+      Boolean(
+        semanticFrame
+      ) &&
+      Boolean(
+        responseRequirements
+      ) &&
+      modelInvocation
+        ?.succeeded !== false;
 
     return {
       reasoningEngineRan:
@@ -2317,97 +2821,102 @@ window.AriReasoningEngine = {
 
       cognitiveReasoningResult,
 
-      // Compatibility contract for modules that
-      // still consume summary.reasoning.
-      reasoning: ready
-        ? {
-            interpretation:
-              cognitiveReasoningResult
-                .interpretation ||
-              null,
+      reasoningResult:
+        cognitiveReasoningResult,
 
-            decision:
-              cognitiveReasoningResult
-                .reasoningDecision ||
-              null,
+      semanticFrame,
 
-            semanticFrame:
-              cognitiveReasoningResult
-                .semanticFrame ||
-              null,
+      responseRequirements,
 
-            caseModel:
-              cognitiveReasoningResult
-                .caseModel ||
-              null,
+      executionMetadata,
 
-            options:
-              cognitiveReasoningResult
-                .options ||
-              [],
+      evidenceReferences,
 
-            tradeoffs:
-              cognitiveReasoningResult
-                .tradeoffs ||
-              [],
-
-            uncertainties:
-              cognitiveReasoningResult
-                .uncertainties ||
-              [],
-
-            responseStrategy:
-              cognitiveReasoningResult
-                .responseStrategy ||
-              null,
-
-            grounding:
-              cognitiveReasoningResult
-                .grounding ||
-              null,
-
-            capabilities:
-              this.arrayOrEmpty(
-                request.capabilities
-                  ?.required
-              ),
-
-            requiredCapabilities:
-              this.arrayOrEmpty(
-                request.capabilities
-                  ?.required
-              ),
-
-            requiredBehaviors:
-              this.arrayOrEmpty(
+      reasoning:
+        ready
+          ? {
+              interpretation:
                 cognitiveReasoningResult
-                  .responseStrategy
-                  ?.requiredBehaviors
-              ),
+                  .interpretation ||
+                null,
 
-            forbiddenBehaviors:
-              this.arrayOrEmpty(
+              decision:
                 cognitiveReasoningResult
-                  .responseStrategy
-                  ?.forbiddenBehaviors
-              ),
+                  .reasoningDecision ||
+                null,
 
-            constraints:
-              this.arrayOrEmpty(
+              semanticFrame,
+
+              caseModel:
                 cognitiveReasoningResult
-                  .responseStrategy
-                  ?.constraints
-              ),
+                  .caseModel ||
+                null,
 
-            confidence:
-              cognitiveReasoningResult
-                .confidence ??
-              0
-          }
-        : null,
+              options:
+                cognitiveReasoningResult
+                  .options ||
+                [],
 
-      // These stay null because Expression owns
-      // final language realization and delivery.
+              tradeoffs:
+                cognitiveReasoningResult
+                  .tradeoffs ||
+                [],
+
+              uncertainties:
+                cognitiveReasoningResult
+                  .uncertainties ||
+                [],
+
+              responseRequirements,
+
+              responseStrategy:
+                responseRequirements ||
+                cognitiveReasoningResult
+                  .responseStrategy ||
+                null,
+
+              grounding:
+                cognitiveReasoningResult
+                  .grounding ||
+                null,
+
+              capabilities:
+                this.arrayOrEmpty(
+                  request.capabilities
+                    ?.required
+                ),
+
+              requiredCapabilities:
+                this.arrayOrEmpty(
+                  request.capabilities
+                    ?.required
+                ),
+
+              requiredBehaviors:
+                this.arrayOrEmpty(
+                  responseRequirements
+                    ?.requiredBehaviors
+                ),
+
+              forbiddenBehaviors:
+                this.arrayOrEmpty(
+                  responseRequirements
+                    ?.forbiddenBehaviors
+                ),
+
+              constraints:
+                this.arrayOrEmpty(
+                  responseRequirements
+                    ?.constraints
+                ),
+
+              confidence:
+                cognitiveReasoningResult
+                  .confidence ??
+                0
+            }
+          : null,
+
       reasoningAnswer:
         null,
 
@@ -2420,8 +2929,7 @@ window.AriReasoningEngine = {
         0,
 
       reasoningPrimary:
-        cognitiveReasoningResult
-          .semanticFrame
+        semanticFrame
           ?.primaryLane ||
         request.responseControl
           ?.primaryLane ||
@@ -2432,7 +2940,17 @@ window.AriReasoningEngine = {
       authority:
         ready
           ? "openai_cognitive_reasoning"
-          : "none"
+          : "none",
+
+      reason:
+        ready
+          ? null
+          : this.firstString(
+              cognitiveReasoningResult
+                .validation
+                ?.errors
+            ) ||
+            "reasoning_result_not_ready"
     };
   },
 
@@ -2453,6 +2971,11 @@ window.AriReasoningEngine = {
         reason,
         ...errors
       ]);
+
+    const normalizedModelInvocation =
+      this.objectOrEmpty(
+        modelInvocation
+      );
 
     const cognitiveReasoningResult = {
       schema:
@@ -2476,6 +2999,21 @@ window.AriReasoningEngine = {
       semanticFrame:
         null,
 
+      responseRequirements:
+        null,
+
+      responseStrategy:
+        null,
+
+      executionMetadata:
+        null,
+
+      evidenceReferences:
+        [],
+
+      modelInvocation:
+        normalizedModelInvocation,
+
       caseModel:
         null,
 
@@ -2487,9 +3025,6 @@ window.AriReasoningEngine = {
 
       uncertainties:
         [],
-
-      responseStrategy:
-        null,
 
       draftResponse:
         "",
@@ -2532,11 +3067,24 @@ window.AriReasoningEngine = {
         "ari-reasoning-engine-failure",
 
       modelInvocation:
-        this.objectOrEmpty(
-          modelInvocation
-        ),
+        normalizedModelInvocation,
 
       cognitiveReasoningResult,
+
+      reasoningResult:
+        cognitiveReasoningResult,
+
+      semanticFrame:
+        null,
+
+      responseRequirements:
+        null,
+
+      executionMetadata:
+        null,
+
+      evidenceReferences:
+        [],
 
       reasoning:
         null,
@@ -2611,8 +3159,14 @@ window.AriReasoningEngine = {
       requestSchema:
         this.requestSchema,
 
+      requestSchemaVersion:
+        this.requestSchemaVersion,
+
       resultSchema:
-        this.resultSchema
+        this.resultSchema,
+
+      resultSchemaVersion:
+        this.resultSchemaVersion
     };
   },
 
@@ -2680,7 +3234,7 @@ window.AriReasoningEngine = {
   firstString(value) {
     if (
       typeof value ===
-      "string"
+        "string"
     ) {
       return value.trim();
     }
@@ -2697,6 +3251,24 @@ window.AriReasoningEngine = {
         item.trim()
       ) {
         return item.trim();
+      }
+    }
+
+    return "";
+  },
+
+  firstNonEmptyString(
+    values = []
+  ) {
+    for (
+      const value of values
+    ) {
+      if (
+        typeof value ===
+          "string" &&
+        value.trim()
+      ) {
+        return value.trim();
       }
     }
 
