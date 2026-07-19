@@ -5,7 +5,7 @@
 // Send one canonical cognitive reasoning request to the server-side
 // OpenAI transport and return structured model output.
 //
-// V1.1.0 — Canonical Flattened Reasoning Transport
+// V1.1.1 — Client Registration Closure Repair
 //
 // Responsibilities:
 // - Accept the canonical reasoning-engine payload.
@@ -26,7 +26,7 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.1.0",
+    "1.1.1",
 
   source:
     "ari-openai-reasoning-client",
@@ -34,13 +34,13 @@ window.AriOpenAIReasoningClient = {
   endpoint:
     "/api/knowledge",
 
-async invoke(
-  payload = {}
-) {
-  return this.reason(
-    payload
-  );
-},
+  async invoke(
+    payload = {}
+  ) {
+    return this.reason(
+      payload
+    );
+  },
 
   async reason(
     payload = {}
@@ -126,7 +126,9 @@ async invoke(
       !result ||
       typeof result !==
         "object" ||
-      Array.isArray(result)
+      Array.isArray(
+        result
+      )
     ) {
       throw new Error(
         "openai_reasoning_server_returned_invalid_structured_result"
@@ -158,70 +160,70 @@ async invoke(
   },
 
   buildRequestBody(
-  payload = {}
-) {
-  const reasoningRequest =
-    payload.request &&
-    typeof payload.request ===
-      "object" &&
-    !Array.isArray(
-      payload.request
-    )
-      ? payload.request
-      : {};
-
-  return {
-    /*
-     * Flatten the canonical reasoning request so
-     * /api/knowledge can read currentTurn,
-     * evidencePacket, routingContract, and other
-     * canonical fields directly from body.
-     */
-    ...reasoningRequest,
-
-    action:
-      "openai_reasoning",
-
-    task:
-      payload.task ||
-      "ari_cognitive_reasoning",
-
-    clientVersion:
-      this.version,
-
-    responseSchema:
-      payload.responseSchema ||
-      {},
-
-    instructions:
-      Array.isArray(
-        payload.instructions
+    payload = {}
+  ) {
+    const reasoningRequest =
+      payload.request &&
+      typeof payload.request ===
+        "object" &&
+      !Array.isArray(
+        payload.request
       )
-        ? payload.instructions
-        : [],
+        ? payload.request
+        : {};
 
-    outputMode:
-      "structured_json",
+    return {
+      /*
+       * Flatten the canonical reasoning request so
+       * /api/knowledge can read currentTurn,
+       * evidencePacket, routingContract, and other
+       * canonical fields directly from body.
+       */
+      ...reasoningRequest,
 
-    responseContract: {
-      schema:
-        payload.responseSchema
-          ?.schema ||
-        "ari_cognitive_reasoning_result",
+      action:
+        "openai_reasoning",
 
-      schemaVersion:
-        payload.responseSchema
-          ?.schemaVersion ||
-        "1.1.0",
+      task:
+        payload.task ||
+        "ari_cognitive_reasoning",
 
-      requireValidJSON:
-        true,
+      clientVersion:
+        this.version,
 
-      allowPlainText:
-        false
-    }
-  };
-},
+      responseSchema:
+        payload.responseSchema ||
+        {},
+
+      instructions:
+        Array.isArray(
+          payload.instructions
+        )
+          ? payload.instructions
+          : [],
+
+      outputMode:
+        "structured_json",
+
+      responseContract: {
+        schema:
+          payload.responseSchema
+            ?.schema ||
+          "ari_cognitive_reasoning_result",
+
+        schemaVersion:
+          payload.responseSchema
+            ?.schemaVersion ||
+          "1.1.0",
+
+        requireValidJSON:
+          true,
+
+        allowPlainText:
+          false
+      }
+    };
+  },
 
   validatePayload(
     payload = {}
@@ -232,7 +234,9 @@ async invoke(
       !payload ||
       typeof payload !==
         "object" ||
-      Array.isArray(payload)
+      Array.isArray(
+        payload
+      )
     ) {
       return {
         valid:
@@ -275,7 +279,10 @@ async invoke(
     if (
       !payload.responseSchema ||
       typeof payload.responseSchema !==
-        "object"
+        "object" ||
+      Array.isArray(
+        payload.responseSchema
+      )
     ) {
       errors.push(
         "reasoning_response_schema_missing"
@@ -294,9 +301,7 @@ async invoke(
   extractStructuredResult(
     data = null
   ) {
-    if (
-      !data
-    ) {
+    if (!data) {
       return null;
     }
 
@@ -312,42 +317,44 @@ async invoke(
     if (
       typeof data !==
         "object" ||
-      Array.isArray(data)
+      Array.isArray(
+        data
+      )
     ) {
       return null;
     }
 
     const candidates = [
-  data.cognitiveReasoningResult,
-  data.reasoningResult,
+      data.cognitiveReasoningResult,
+      data.reasoningResult,
 
-  data.result
-    ?.cognitiveReasoningResult,
+      data.result
+        ?.cognitiveReasoningResult,
 
-  data.result
-    ?.reasoningResult,
+      data.result
+        ?.reasoningResult,
 
-  data.result,
+      data.result,
 
-  data.output
-    ?.cognitiveReasoningResult,
+      data.output
+        ?.cognitiveReasoningResult,
 
-  data.output
-    ?.reasoningResult,
+      data.output
+        ?.reasoningResult,
 
-  data.output,
+      data.output,
 
-  data.structuredOutput,
-  data.parsed,
-  data.response,
-  data.data,
-  data.rawContent,
-  data.output_text,
-  data.outputText,
-  data.responseText,
-  data.content,
-  data.text
-];
+      data.structuredOutput,
+      data.parsed,
+      data.response,
+      data.data,
+      data.rawContent,
+      data.output_text,
+      data.outputText,
+      data.responseText,
+      data.content,
+      data.text
+    ];
 
     for (
       const candidate
@@ -448,81 +455,80 @@ async invoke(
   },
 
   extractError({
-  data = null,
-  rawText = "",
-  status = 0
-} = {}) {
-  const structuredError =
-    data?.error &&
-    typeof data.error ===
-      "object" &&
-    !Array.isArray(
-      data.error
-    )
-      ? (
-          data.error.message ||
-          data.error.error ||
-          data.error.code ||
-          null
-        )
-      : null;
+    data = null,
+    rawText = "",
+    status = 0
+  } = {}) {
+    const structuredError =
+      data?.error &&
+      typeof data.error ===
+        "object" &&
+      !Array.isArray(
+        data.error
+      )
+        ? (
+            data.error.message ||
+            data.error.error ||
+            data.error.code ||
+            null
+          )
+        : null;
 
-  const structuredDetails =
-    data?.details &&
-    typeof data.details ===
-      "object" &&
-    !Array.isArray(
-      data.details
-    )
-      ? (
-          data.details.message ||
-          data.details.error ||
-          null
-        )
-      : null;
+    const structuredDetails =
+      data?.details &&
+      typeof data.details ===
+        "object" &&
+      !Array.isArray(
+        data.details
+      )
+        ? (
+            data.details.message ||
+            data.details.error ||
+            null
+          )
+        : null;
 
-  const candidates = [
-    structuredError,
+    const candidates = [
+      structuredError,
 
-    typeof data?.error ===
-      "string"
-      ? data.error
-      : null,
+      typeof data?.error ===
+        "string"
+        ? data.error
+        : null,
 
-    data?.message,
-    data?.reason,
+      data?.message,
+      data?.reason,
 
-    structuredDetails,
+      structuredDetails,
 
-    typeof data?.details ===
-      "string"
-      ? data.details
-      : null,
+      typeof data?.details ===
+        "string"
+        ? data.details
+        : null,
 
-    rawText
-  ];
+      rawText
+    ];
 
-  for (
-    const candidate
-    of candidates
-  ) {
-    if (
-      typeof candidate ===
-        "string" &&
-      candidate.trim()
+    for (
+      const candidate
+      of candidates
     ) {
-      return candidate.trim();
+      if (
+        typeof candidate ===
+          "string" &&
+        candidate.trim()
+      ) {
+        return candidate.trim();
+      }
     }
-  }
 
-  return (
-    `OpenAI reasoning request failed with status ${status}.`
-  );
-},
+    return (
+      `OpenAI reasoning request failed with status ${status}.`
+    );
+  },
 
   validate() {
-  return {
-    valid:
+    const valid =
       typeof this.invoke ===
         "function" &&
       typeof this.reason ===
@@ -530,33 +536,43 @@ async invoke(
       typeof this.buildRequestBody ===
         "function" &&
       typeof this.extractStructuredResult ===
-        "function",
+        "function";
 
-    ready:
-      typeof this.invoke ===
-        "function" &&
-      typeof this.reason ===
-        "function",
+    return {
+      valid,
 
-    source:
-      this.source,
+      ready:
+        valid,
 
-    version:
-      this.version,
+      source:
+        this.source,
 
-    endpoint:
-      this.endpoint
-  };
-},
+      version:
+        this.version,
+
+      endpoint:
+        this.endpoint
+    };
+  }
+};
 
 window.Ari.openAIReasoningClient =
   window.AriOpenAIReasoningClient;
+
+const ariOpenAIReasoningClientValidation =
+  window.AriOpenAIReasoningClient
+    ?.validate?.();
 
 console.log(
   "ARI OPENAI REASONING CLIENT LOADED:",
   window.AriOpenAIReasoningClient
     ?.version,
 
-  window.AriOpenAIReasoningClient
-    ?.validate?.()
+  ariOpenAIReasoningClientValidation
+    ?.ready ===
+    true
+    ? "READY"
+    : "NOT_READY",
+
+  ariOpenAIReasoningClientValidation
 );
