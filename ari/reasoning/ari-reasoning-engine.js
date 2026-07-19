@@ -7,7 +7,7 @@
 // validate the structured result,
 // and expose a safe compatibility contract.
 //
-// V9.2.1 — Canonical Semantic Requirements Contract
+// V9.2.2 — Canonical Semantic Requirements Contract / Invocation Diagnostics
 //
 // Authority model:
 //
@@ -55,7 +55,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "9.2.1",
+  version: "9.2.2",
 
   source: "ari-reasoning-engine",
 
@@ -63,13 +63,13 @@ window.AriReasoningEngine = {
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "1.1.1",
+    "1.1.2",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
 
   resultSchemaVersion:
-    "1.1.1",
+    "1.1.2",
 
   /* =====================================================
      PUBLIC ENTRY POINTS
@@ -94,6 +94,36 @@ window.AriReasoningEngine = {
       this.validateReasoningRequest(
         reasoningRequest
       );
+
+console.log(
+  "ARI REASONING ENGINE REQUEST DIAGNOSTIC:",
+  {
+    requestSchema:
+      reasoningRequest?.schema ||
+      null,
+
+    requestSchemaVersion:
+      reasoningRequest?.schemaVersion ||
+      null,
+
+    effectiveText:
+      reasoningRequest
+        ?.request
+        ?.effective ||
+      reasoningRequest
+        ?.resolvedUserQuestion ||
+      reasoningRequest
+        ?.currentTurn
+        ?.effectiveText ||
+      null,
+
+    authority:
+      reasoningRequest?.authority ||
+      null,
+
+    requestValidation
+  }
+);
 
     if (
       requestValidation.valid !==
@@ -143,6 +173,70 @@ window.AriReasoningEngine = {
             .openAIReasoningInvoker ||
           null
       });
+
+console.log(
+  "ARI REASONING ENGINE INVOKER DIAGNOSTIC:",
+  {
+    available:
+      Boolean(
+        modelInvoker
+      ),
+
+    source:
+      modelInvoker?.source ||
+      null,
+
+    injectedInvokerType:
+      typeof summary
+        .openAIReasoningInvoker,
+
+    requestInvokerType:
+      typeof reasoningRequest
+        ?.openAIReasoningInvoker,
+
+    globalClientAvailable:
+      Boolean(
+        window.AriOpenAIReasoningClient
+      ),
+
+    globalClientVersion:
+      window.AriOpenAIReasoningClient
+        ?.version ||
+      null,
+
+    globalClientMethods: {
+      invoke:
+        typeof window
+          .AriOpenAIReasoningClient
+          ?.invoke ===
+        "function",
+
+      reason:
+        typeof window
+          .AriOpenAIReasoningClient
+          ?.reason ===
+        "function",
+
+      run:
+        typeof window
+          .AriOpenAIReasoningClient
+          ?.run ===
+        "function",
+
+      create:
+        typeof window
+          .AriOpenAIReasoningClient
+          ?.create ===
+        "function",
+
+      request:
+        typeof window
+          .AriOpenAIReasoningClient
+          ?.request ===
+        "function"
+    }
+  }
+);
 
     if (!modelInvoker) {
       return this.buildFailureResult({
@@ -3157,8 +3251,11 @@ window.AriReasoningEngine = {
           "function",
 
       ready:
-        typeof this.reason ===
-          "function",
+  typeof this.reason ===
+    "function" &&
+  Boolean(
+    resolvedClient
+  ),
 
       modelInvokerAvailable:
         Boolean(
