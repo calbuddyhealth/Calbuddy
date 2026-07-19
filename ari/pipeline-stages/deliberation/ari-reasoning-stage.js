@@ -742,8 +742,21 @@ reasoningEngineResult:
 
 console.log(
   "ARI REASONING STAGE DIAGNOSTIC:",
-  state.reasoningStagePacket
-    ?.executionDiagnostic
+  {
+    execution:
+      state.reasoningStagePacket
+        ?.executionDiagnostic ||
+      null,
+
+    engineResult:
+      state.reasoningEngineResult ||
+      null,
+
+    engineInvocation:
+      state.reasoningEngineResult
+        ?.engineInvocationDiagnostic ||
+      null
+  }
 );
 
     return state;
@@ -1472,9 +1485,14 @@ executionDiagnostic: {
     null,
 
   invocationError:
-    summary.reasoningEngineResult
-      ?.invocationError ||
-    null
+  summary.reasoningEngineResult
+    ?.invocationError ||
+  null,
+
+engineInvocation:
+  summary.reasoningEngineResult
+    ?.engineInvocationDiagnostic ||
+  null
 },
 
       cognitiveReasoningResult:
