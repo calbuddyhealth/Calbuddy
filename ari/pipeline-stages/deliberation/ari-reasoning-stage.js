@@ -740,6 +740,12 @@ reasoningEngineResult:
         state
       );
 
+console.log(
+  "ARI REASONING STAGE DIAGNOSTIC:",
+  state.reasoningStagePacket
+    ?.executionDiagnostic
+);
+
     return state;
   },
 
