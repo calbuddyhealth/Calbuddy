@@ -8,24 +8,7 @@
 // - OpenAI cognitive reasoning
 // - OpenAI response realization
 //
-// V4.1.0 — Separate Cognitive Reasoning and Response Realization Contracts
-//
-// Responsibilities:
-// - Validate all API actions explicitly.
-// - Retrieve Ari knowledge nodes from Supabase.
-// - Generate query embeddings with short-term caching.
-// - Return canonical cognitive reasoning fields for Deliberation.
-// - Send Ari Rebirth realization instructions to OpenAI.
-// - Return realization-native response fields.
-// - Preserve legacy response fields for temporary compatibility.
-// - Report empty or malformed model responses as honest failures.
-//
-// Non-responsibilities:
-// - Does not choose conversation intent outside the OpenAI reasoning contract.
-// - Does not reinterpret semantic meaning outside the OpenAI reasoning contract.
-// - Does not determine safety severity.
-// - Does not create hidden fallback answers.
-// - Does not claim success when OpenAI returns no usable response.
+// V4.2.0 — Canonical V9.2 Cognitive Reasoning Contract
 
 const VALID_KNOWLEDGE_CORES = [
   "character_core",
@@ -43,13 +26,8 @@ const DEFAULT_SEARCH_ORDER = [
   }
 ];
 
-const QUERY_EMBEDDING_CACHE =
-  new Map();
-
-const QUERY_EMBEDDING_CACHE_TTL_MS =
-  1000 *
-  60 *
-  30;
+const QUERY_EMBEDDING_CACHE = new Map();
+const QUERY_EMBEDDING_CACHE_TTL_MS = 1000 * 60 * 30;
 
 const OPENAI_CHAT_COMPLETIONS_URL =
   "https://api.openai.com/v1/chat/completions";
@@ -69,40 +47,29 @@ const DEFAULT_EMBEDDING_MODEL =
    PUBLIC API HANDLER
 ===================================================== */
 
-export default async function handler(
-  req,
-  res
-) {
+export default async function handler(req, res) {
   if (
     req.method !== "POST" &&
     req.method !== "GET"
   ) {
-    return res
-      .status(405)
-      .json({
-        success: false,
-        error:
-          "Method not allowed.",
-        allowedMethods: [
-          "GET",
-          "POST"
-        ]
-      });
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed.",
+      allowedMethods: [
+        "GET",
+        "POST"
+      ]
+    });
   }
 
   try {
     const body =
-      isPlainObject(
-        req.body
-      )
+      isPlainObject(req.body)
         ? req.body
         : {};
 
     const action =
-      getAction(
-        req,
-        body
-      );
+      getAction(req, body);
 
     switch (action) {
       case "preference_lookup":
@@ -135,23 +102,18 @@ export default async function handler(
         );
 
       default:
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error:
-              "Unknown knowledge action.",
-            action:
-              action ||
-              null,
-            supportedActions: [
-              "preference_lookup",
-              "semantic_search_ari_nodes",
-              "openai_reasoning",
-              "openai_knowledge",
-              "openai_realization"
-            ]
-          });
+        return res.status(400).json({
+          success: false,
+          error: "Unknown knowledge action.",
+          action: action || null,
+          supportedActions: [
+            "preference_lookup",
+            "semantic_search_ari_nodes",
+            "openai_reasoning",
+            "openai_knowledge",
+            "openai_realization"
+          ]
+        });
     }
   } catch (error) {
     console.error(
@@ -159,18 +121,16 @@ export default async function handler(
       error
     );
 
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          error?.message ||
-          "Knowledge API failed.",
-        failureType:
-          "unhandled_server_error",
-        source:
-          "api/knowledge"
-      });
+    return res.status(500).json({
+      success: false,
+      error:
+        error?.message ||
+        "Knowledge API failed.",
+      failureType:
+        "unhandled_server_error",
+      source:
+        "api/knowledge"
+    });
   }
 }
 
@@ -178,18 +138,14 @@ export default async function handler(
    ACTION RESOLUTION
 ===================================================== */
 
-function getAction(
-  req,
-  body = {}
-) {
+function getAction(req, body = {}) {
   const rawAction =
     req.method === "GET"
       ? req.query?.action
       : body.action;
 
   return String(
-    rawAction ||
-    ""
+    rawAction || ""
   )
     .trim()
     .toLowerCase();
@@ -208,46 +164,33 @@ async function handlePreferenceLookup(
     validateSupabaseEnvironment();
 
   if (environmentError) {
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          environmentError,
-        failureType:
-          "missing_environment_configuration",
-        source:
-          "supabase"
-      });
+    return res.status(500).json({
+      success: false,
+      error: environmentError,
+      failureType:
+        "missing_environment_configuration",
+      source: "supabase"
+    });
   }
 
   const preferenceKey =
     req.method === "GET"
       ? String(
-          req.query
-            ?.preference_key ||
-          ""
+          req.query?.preference_key || ""
         )
       : String(
-          body.preference_key ||
-          ""
+          body.preference_key || ""
         );
 
   const normalizedPreferenceKey =
     preferenceKey.trim();
 
-  if (
-    !normalizedPreferenceKey
-  ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        error:
-          "Missing preference_key.",
-        failureType:
-          "invalid_request"
-      });
+  if (!normalizedPreferenceKey) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing preference_key.",
+      failureType: "invalid_request"
+    });
   }
 
   const queryUrl =
@@ -275,61 +218,40 @@ async function handlePreferenceLookup(
       response
     );
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
     return res
-      .status(
-        response.status
-      )
+      .status(response.status)
       .json({
         success: false,
         error:
           data?.message ||
           data?.error ||
           "Preference lookup failed.",
-        details:
-          data,
+        details: data,
         failureType:
           "supabase_preference_lookup_failed",
-        source:
-          "supabase"
+        source: "supabase"
       });
   }
 
   const node =
-    Array.isArray(
-      data
-    )
-      ? data[0] ||
-        null
+    Array.isArray(data)
+      ? data[0] || null
       : null;
 
-  return res
-    .status(200)
-    .json({
-      success: true,
-
-      preferenceKey:
-        normalizedPreferenceKey,
-
-      preference_key:
-        normalizedPreferenceKey,
-
-      node,
-      match:
-        node,
-      primaryNode:
-        node,
-
-      found:
-        Boolean(
-          node
-        ),
-
-      source:
-        "supabase_preference_lookup"
-    });
+  return res.status(200).json({
+    success: true,
+    preferenceKey:
+      normalizedPreferenceKey,
+    preference_key:
+      normalizedPreferenceKey,
+    node,
+    match: node,
+    primaryNode: node,
+    found: Boolean(node),
+    source:
+      "supabase_preference_lookup"
+  });
 }
 
 /* =====================================================
@@ -349,71 +271,52 @@ async function handleSemanticSearchAriNodes(
   const supabaseEnvironmentError =
     validateSupabaseEnvironment();
 
-  if (
-    supabaseEnvironmentError
-  ) {
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          supabaseEnvironmentError,
-        failureType:
-          "missing_environment_configuration",
-        source:
-          "supabase"
-      });
+  if (supabaseEnvironmentError) {
+    return res.status(500).json({
+      success: false,
+      error:
+        supabaseEnvironmentError,
+      failureType:
+        "missing_environment_configuration",
+      source: "supabase"
+    });
   }
 
-  if (
-    !process.env
-      .OPENAI_API_KEY
-  ) {
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          "Missing OPENAI_API_KEY.",
-        failureType:
-          "missing_environment_configuration",
-        source:
-          "openai"
-      });
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      error: "Missing OPENAI_API_KEY.",
+      failureType:
+        "missing_environment_configuration",
+      source: "openai"
+    });
   }
 
   const query =
     req.method === "GET"
       ? String(
-          req.query?.query ||
-          ""
+          req.query?.query || ""
         )
       : String(
-          body.query ||
-          ""
+          body.query || ""
         );
 
   const normalizedQuery =
     query.trim();
 
-  if (
-    !normalizedQuery
-  ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        error:
-          "Missing semantic search query.",
-        failureType:
-          "invalid_request"
-      });
+  if (!normalizedQuery) {
+    return res.status(400).json({
+      success: false,
+      error:
+        "Missing semantic search query.",
+      failureType:
+        "invalid_request"
+    });
   }
 
   const limit =
     clampNumber(
-      req.method ===
-        "GET"
+      req.method === "GET"
         ? req.query?.limit
         : body.limit,
       1,
@@ -423,10 +326,8 @@ async function handleSemanticSearchAriNodes(
 
   const minSimilarity =
     clampNumber(
-      req.method ===
-        "GET"
-        ? req.query
-            ?.minSimilarity
+      req.method === "GET"
+        ? req.query?.minSimilarity
         : body.minSimilarity,
       0,
       1,
@@ -441,8 +342,7 @@ async function handleSemanticSearchAriNodes(
 
   const domains =
     searchOrder.map(
-      item =>
-        item.core
+      item => item.core
     );
 
   const embeddingStart =
@@ -458,8 +358,7 @@ async function handleSemanticSearchAriNodes(
     embeddingStart;
 
   timing.embeddingCacheHit =
-    embeddingResult
-      .cacheHit;
+    embeddingResult.cacheHit;
 
   const rpcStart =
     Date.now();
@@ -474,15 +373,11 @@ async function handleSemanticSearchAriNodes(
         body:
           JSON.stringify({
             query_embedding:
-              embeddingResult
-                .embedding,
-
+              embeddingResult.embedding,
             match_domains:
               domains,
-
             match_count:
               limit,
-
             min_similarity:
               minSimilarity
           })
@@ -498,30 +393,19 @@ async function handleSemanticSearchAriNodes(
     Date.now() -
     rpcStart;
 
-  if (
-    !rpcResponse.ok
-  ) {
+  if (!rpcResponse.ok) {
     return res
-      .status(
-        rpcResponse.status
-      )
+      .status(rpcResponse.status)
       .json({
         success: false,
-
         error:
           rpcData?.message ||
           rpcData?.error ||
           "Supabase vector RPC failed.",
-
-        details:
-          rpcData,
-
+        details: rpcData,
         failureType:
           "supabase_vector_search_failed",
-
-        source:
-          "supabase",
-
+        source: "supabase",
         timing: {
           ...timing,
           totalMs:
@@ -539,58 +423,44 @@ async function handleSemanticSearchAriNodes(
       searchOrder.map(
         item => [
           item.core,
-          Number(
-            item.weight ||
-            1
-          )
+          Number(item.weight || 1)
         ]
       )
     );
 
   const merged =
     (
-      Array.isArray(
-        rpcData
-      )
+      Array.isArray(rpcData)
         ? rpcData
         : []
     )
-      .map(
-        node => {
-          const weight =
-            weightByCore[
-              node.domain
-            ] ||
-            1;
+      .map(node => {
+        const weight =
+          weightByCore[node.domain] ||
+          1;
 
-          const confidence =
-            normalizeConfidenceNumber(
-              node.confidence,
-              1
-            );
+        const confidence =
+          normalizeConfidenceNumber(
+            node.confidence,
+            1
+          );
 
-          const similarity =
-            normalizeConfidenceNumber(
-              node.similarity,
-              0
-            );
+        const similarity =
+          normalizeConfidenceNumber(
+            node.similarity,
+            0
+          );
 
-          return {
-            ...node,
-
-            core:
-              node.domain,
-
-            routerWeight:
-              weight,
-
-            weightedScore:
-              similarity *
-              weight *
-              confidence
-          };
-        }
-      )
+        return {
+          ...node,
+          core: node.domain,
+          routerWeight: weight,
+          weightedScore:
+            similarity *
+            weight *
+            confidence
+        };
+      })
       .sort(
         (a, b) =>
           b.weightedScore -
@@ -602,40 +472,30 @@ async function handleSemanticSearchAriNodes(
       );
 
   const coreResults =
-    searchOrder.map(
-      item => {
-        const coreMatches =
-          merged.filter(
-            node =>
-              node.domain ===
-              item.core
-          );
+    searchOrder.map(item => {
+      const coreMatches =
+        merged.filter(
+          node =>
+            node.domain ===
+            item.core
+        );
 
-        return {
-          core:
-            item.core,
-
-          weight:
-            item.weight,
-
-          success:
-            true,
-
-          count:
-            coreMatches.length,
-
-          bestSimilarity:
-            coreMatches[0]
-              ?.similarity ||
-            0,
-
-          bestWeightedScore:
-            coreMatches[0]
-              ?.weightedScore ||
-            0
-        };
-      }
-    );
+      return {
+        core: item.core,
+        weight: item.weight,
+        success: true,
+        count:
+          coreMatches.length,
+        bestSimilarity:
+          coreMatches[0]
+            ?.similarity ||
+          0,
+        bestWeightedScore:
+          coreMatches[0]
+            ?.weightedScore ||
+          0
+      };
+    });
 
   timing.mergeMs =
     Date.now() -
@@ -645,35 +505,24 @@ async function handleSemanticSearchAriNodes(
     Date.now() -
     totalStart;
 
-  return res
-    .status(200)
-    .json({
-      success: true,
-
-      query:
-        normalizedQuery,
-
-      searchOrder,
-
-      searchedCores:
-        domains,
-
-      count:
-        merged.length,
-
-      matches:
-        merged,
-
-      nodes:
-        merged,
-
-      coreResults,
-
-      timing,
-
-      source:
-        "supabase_semantic_search"
-    });
+  return res.status(200).json({
+    success: true,
+    query:
+      normalizedQuery,
+    searchOrder,
+    searchedCores:
+      domains,
+    count:
+      merged.length,
+    matches:
+      merged,
+    nodes:
+      merged,
+    coreResults,
+    timing,
+    source:
+      "supabase_semantic_search"
+  });
 }
 
 /* =====================================================
@@ -686,12 +535,9 @@ function normalizeSearchOrder(
 ) {
   const raw =
     req.method === "GET"
-      ? req.query
-          ?.searchOrder ||
-        req.query
-          ?.cores ||
-        req.query
-          ?.domain ||
+      ? req.query?.searchOrder ||
+        req.query?.cores ||
+        req.query?.domain ||
         ""
       : body.searchOrder ||
         body.cores ||
@@ -701,28 +547,18 @@ function normalizeSearchOrder(
 
   let parsed = [];
 
-  if (
-    Array.isArray(
-      raw
-    )
-  ) {
-    parsed =
-      raw;
+  if (Array.isArray(raw)) {
+    parsed = raw;
   } else if (
-    typeof raw ===
-      "string" &&
+    typeof raw === "string" &&
     raw.trim()
   ) {
     try {
       const maybeJson =
-        JSON.parse(
-          raw
-        );
+        JSON.parse(raw);
 
       parsed =
-        Array.isArray(
-          maybeJson
-        )
+        Array.isArray(maybeJson)
           ? maybeJson
           : [
               maybeJson
@@ -738,76 +574,60 @@ function normalizeSearchOrder(
     }
   }
 
-  if (
-    !parsed.length
-  ) {
+  if (!parsed.length) {
     parsed =
       DEFAULT_SEARCH_ORDER;
   }
 
   const normalized =
     parsed
-      .map(
-        item => {
-          if (
-            typeof item ===
-            "string"
-          ) {
-            return {
-              core:
-                item,
-              weight:
-                1
-            };
-          }
-
-          if (
-            !isPlainObject(
-              item
-            )
-          ) {
-            return {
-              core: "",
-              weight: 1
-            };
-          }
-
+      .map(item => {
+        if (
+          typeof item ===
+          "string"
+        ) {
           return {
-            core:
-              item.core ||
-              item.domain ||
-              item.id ||
-              "",
-
-            weight:
-              Number(
-                item.weight ??
-                item.score ??
-                1
-              )
+            core: item,
+            weight: 1
           };
         }
-      )
+
+        if (!isPlainObject(item)) {
+          return {
+            core: "",
+            weight: 1
+          };
+        }
+
+        return {
+          core:
+            item.core ||
+            item.domain ||
+            item.id ||
+            "",
+          weight:
+            Number(
+              item.weight ??
+              item.score ??
+              1
+            )
+        };
+      })
       .filter(
         item =>
           VALID_KNOWLEDGE_CORES
-            .includes(
-              item.core
-            )
+            .includes(item.core)
       )
-      .map(
-        item => ({
-          core:
-            item.core,
-
-          weight:
-            Number.isFinite(
-              item.weight
-            )
-              ? item.weight
-              : 1
-        })
-      );
+      .map(item => ({
+        core:
+          item.core,
+        weight:
+          Number.isFinite(
+            item.weight
+          )
+            ? item.weight
+            : 1
+      }));
 
   return normalized.length
     ? normalized
@@ -822,16 +642,11 @@ async function getQueryEmbedding(
   query = ""
 ) {
   const cleanQuery =
-    String(
-      query ||
-      ""
-    )
+    String(query || "")
       .trim()
       .toLowerCase();
 
-  if (
-    !cleanQuery
-  ) {
+  if (!cleanQuery) {
     throw new Error(
       "Cannot create an embedding for an empty query."
     );
@@ -839,9 +654,7 @@ async function getQueryEmbedding(
 
   const cached =
     QUERY_EMBEDDING_CACHE
-      .get(
-        cleanQuery
-      );
+      .get(cleanQuery);
 
   if (
     cached &&
@@ -855,8 +668,7 @@ async function getQueryEmbedding(
     return {
       embedding:
         cached.embedding,
-      cacheHit:
-        true
+      cacheHit: true
     };
   }
 
@@ -871,9 +683,7 @@ async function getQueryEmbedding(
           JSON.stringify({
             model:
               DEFAULT_EMBEDDING_MODEL,
-
-            input:
-              query
+            input: query
           })
       }
     );
@@ -883,9 +693,7 @@ async function getQueryEmbedding(
       embeddingResponse
     );
 
-  if (
-    !embeddingResponse.ok
-  ) {
+  if (!embeddingResponse.ok) {
     throw new Error(
       embeddingData
         ?.error
@@ -901,11 +709,7 @@ async function getQueryEmbedding(
       ?.data?.[0]
       ?.embedding;
 
-  if (
-    !Array.isArray(
-      embedding
-    )
-  ) {
+  if (!Array.isArray(embedding)) {
     throw new Error(
       "OpenAI returned no embedding."
     );
@@ -925,8 +729,7 @@ async function getQueryEmbedding(
 
   return {
     embedding,
-    cacheHit:
-      false
+    cacheHit: false
   };
 }
 
@@ -935,10 +738,7 @@ function pruneEmbeddingCache() {
     Date.now();
 
   for (
-    const [
-      key,
-      value
-    ]
+    const [key, value]
     of QUERY_EMBEDDING_CACHE
   ) {
     if (
@@ -948,9 +748,7 @@ function pruneEmbeddingCache() {
         QUERY_EMBEDDING_CACHE_TTL_MS
     ) {
       QUERY_EMBEDDING_CACHE
-        .delete(
-          key
-        );
+        .delete(key);
     }
   }
 }
@@ -970,32 +768,23 @@ async function handleOpenAIReasoning(
   const timing = {};
 
   const body =
-    isPlainObject(
-      suppliedBody
-    )
+    isPlainObject(suppliedBody)
       ? suppliedBody
-      : isPlainObject(
-          req.body
-        )
+      : isPlainObject(req.body)
         ? req.body
         : {};
 
-  if (
-    !process.env
-      .OPENAI_API_KEY
-  ) {
-    return res
-      .status(500)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "Missing OPENAI_API_KEY.",
-        failureType:
-          "missing_environment_configuration",
-        source:
-          "openai_reasoning"
-      });
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      ready: false,
+      error:
+        "Missing OPENAI_API_KEY.",
+      failureType:
+        "missing_environment_configuration",
+      source:
+        "openai_reasoning"
+    });
   }
 
   const evidencePacket =
@@ -1066,66 +855,141 @@ async function handleOpenAIReasoning(
       body.resolvedUserQuestion,
       body.resolvedQuestion,
       body.question,
+      body.request
+        ?.effective,
       originalQuestion
     ]);
 
-  if (
-    !effectiveQuestion
-  ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "No effective question was provided for cognitive reasoning.",
-        failureType:
-          "invalid_request",
-        source:
-          "openai_reasoning"
-      });
+  if (!effectiveQuestion) {
+    return res.status(400).json({
+      success: false,
+      ready: false,
+      error:
+        "No effective question was provided for cognitive reasoning.",
+      failureType:
+        "invalid_request",
+      source:
+        "openai_reasoning"
+    });
   }
 
-  if (
-    !evidencePacket
-  ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        ready: false,
-        error:
-          "No evidencePacket was provided for cognitive reasoning.",
-        failureType:
-          "evidence_packet_missing",
-        source:
-          "openai_reasoning"
-      });
+  if (!evidencePacket) {
+    return res.status(400).json({
+      success: false,
+      ready: false,
+      error:
+        "No evidencePacket was provided for cognitive reasoning.",
+      failureType:
+        "evidence_packet_missing",
+      source:
+        "openai_reasoning"
+    });
   }
 
   const reasoningInput = {
+    schema:
+      body.schema ||
+      "ari_cognitive_reasoning_request",
+
+    schemaVersion:
+      body.schemaVersion ||
+      "1.1.0",
+
     request: {
       original:
         originalQuestion,
-
       effective:
         effectiveQuestion,
-
       currentTurnWasResolved:
         body.currentTurnWasResolved ===
-          true
+          true,
+      turnId:
+        body.currentTurn
+          ?.turnId ||
+        body.turnId ||
+        null,
+      language:
+        body.request
+          ?.language ||
+        body.language ||
+        null
+    },
+
+    currentTurn: {
+      originalText:
+        originalQuestion,
+      effectiveText:
+        effectiveQuestion,
+      turnId:
+        body.currentTurn
+          ?.turnId ||
+        body.turnId ||
+        null
     },
 
     evidencePacket,
+
+    perceptionPacket:
+      normalizeObjectOrNull(
+        body.perceptionPacket ||
+        body.perception
+      ),
+
     executivePacket,
     routingContract,
+
+    conversation:
+      normalizeObject(
+        body.conversation
+      ),
+
+    knowledge:
+      normalizeObject(
+        body.knowledge
+      ),
+
+    understanding:
+      normalizeObjectOrNull(
+        body.understanding
+      ),
+
+    developerEvidence:
+      normalizeObject(
+        body.developerEvidence
+      ),
+
+    responseControl:
+      normalizeObject(
+        body.responseControl
+      ),
+
+    capabilities:
+      normalizeObject(
+        body.capabilities
+      ),
+
+    authority:
+      normalizeObject(
+        body.authority
+      ),
+
+    outputContract:
+      normalizeObject(
+        body.outputContract ||
+        body.responseSchema
+      ),
 
     deterministicContext: {
       continuity,
       safety,
       situation,
       memory
-    }
+    },
+
+    instructions:
+      normalizeArray(
+        body.instructions
+      )
   };
 
   const systemPrompt =
@@ -1150,28 +1014,22 @@ async function handleOpenAIReasoning(
           JSON.stringify({
             model:
               DEFAULT_OPENAI_MODEL,
-
             messages: [
               {
-                role:
-                  "system",
+                role: "system",
                 content:
                   systemPrompt
               },
               {
-                role:
-                  "user",
+                role: "user",
                 content:
                   userPrompt
               }
             ],
-
             temperature:
               0.15,
-
             max_tokens:
-              1800,
-
+              2200,
             response_format: {
               type:
                 "json_object"
@@ -1189,36 +1047,26 @@ async function handleOpenAIReasoning(
     Date.now() -
     openAIStart;
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
     return res
-      .status(
-        response.status
-      )
+      .status(response.status)
       .json({
         success: false,
         ready: false,
-
         error:
           data?.error
             ?.message ||
           data?.message ||
           "OpenAI reasoning request failed.",
-
         failureType:
           "openai_reasoning_request_failed",
-
         status:
           response.status,
-
         model:
           data?.model ||
           DEFAULT_OPENAI_MODEL,
-
         source:
           "openai_reasoning",
-
         timing: {
           ...timing,
           totalMs:
@@ -1243,45 +1091,44 @@ async function handleOpenAIReasoning(
 
   if (
     !parsedResult.wasJson ||
-    !isPlainObject(
-      parsed
-    )
+    !isPlainObject(parsed)
   ) {
-    return res
-      .status(502)
-      .json({
-        success: false,
-        ready: false,
-
-        error:
-          "OpenAI reasoning returned a malformed cognitive result.",
-
-        failureType:
-          "invalid_reasoning_model_output",
-
-        rawModelOutput:
-          rawModelOutput ||
-          null,
-
-        parsedModelOutput:
-          parsed ||
-          null,
-
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-
-        source:
-          "openai_reasoning",
-
-        timing: {
-          ...timing,
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
+    return res.status(502).json({
+      success: false,
+      ready: false,
+      error:
+        "OpenAI reasoning returned a malformed cognitive result.",
+      failureType:
+        "invalid_reasoning_model_output",
+      rawModelOutput:
+        rawModelOutput || null,
+      parsedModelOutput:
+        parsed || null,
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+      source:
+        "openai_reasoning",
+      timing: {
+        ...timing,
+        totalMs:
+          Date.now() -
+          totalStart
+      }
+    });
   }
+
+  const interpretation =
+    normalizeObjectOrNull(
+      parsed.interpretation
+    );
+
+  const reasoningDecision =
+    normalizeObjectOrNull(
+      parsed.reasoningDecision ||
+      parsed.reasoning_decision ||
+      parsed.decision
+    );
 
   const semanticFrame =
     normalizeObjectOrNull(
@@ -1292,108 +1139,202 @@ async function handleOpenAIReasoning(
   const responseRequirements =
     normalizeObjectOrNull(
       parsed.responseRequirements ||
-      parsed.response_requirements
+      parsed.response_requirements ||
+      parsed.responseStrategy ||
+      parsed.response_strategy
+    );
+
+  const caseModel =
+    normalizeObject(
+      parsed.caseModel ||
+      parsed.case_model
+    );
+
+  const options =
+    normalizeArray(
+      parsed.options
+    );
+
+  const tradeoffs =
+    normalizeArray(
+      parsed.tradeoffs
+    );
+
+  const uncertainties =
+    normalizeArray(
+      parsed.uncertainties ||
+      parsed.unknowns
     );
 
   const executionMetadata =
-    normalizeObjectOrNull(
+    normalizeObject(
       parsed.executionMetadata ||
       parsed.execution_metadata
+    );
+
+  const grounding =
+    normalizeObjectOrNull(
+      parsed.grounding
     );
 
   const evidenceReferences =
     normalizeArray(
       parsed.evidenceReferences ||
-      parsed.evidence_references
+      parsed.evidence_references ||
+      grounding?.evidenceUsed
     );
 
-  if (
-    !semanticFrame
-  ) {
-    return res
-      .status(502)
-      .json({
-        success: false,
-        ready: false,
+  const confidence =
+    normalizeReasoningConfidence(
+      parsed.confidence ??
+      executionMetadata.confidence
+    );
 
-        error:
-          "OpenAI reasoning returned no semanticFrame.",
+  const proposedActions =
+    normalizeArray(
+      reasoningDecision
+        ?.proposedActions ||
+      parsed.proposedActions
+    );
 
-        failureType:
-          "semantic_frame_missing",
-
-        rawModelOutput:
-          rawModelOutput ||
-          null,
-
-        parsedModelOutput:
-          parsed,
-
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-
-        source:
-          "openai_reasoning",
-
-        timing: {
-          ...timing,
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
+  if (!interpretation) {
+    return buildReasoningFieldFailure({
+      res,
+      data,
+      parsed,
+      rawModelOutput,
+      timing,
+      totalStart,
+      field:
+        "interpretation",
+      failureType:
+        "interpretation_missing"
+    });
   }
 
-  if (
-    !responseRequirements
-  ) {
-    return res
-      .status(502)
-      .json({
-        success: false,
-        ready: false,
+  if (!reasoningDecision) {
+    return buildReasoningFieldFailure({
+      res,
+      data,
+      parsed,
+      rawModelOutput,
+      timing,
+      totalStart,
+      field:
+        "reasoningDecision",
+      failureType:
+        "reasoning_decision_missing"
+    });
+  }
 
-        error:
-          "OpenAI reasoning returned no responseRequirements.",
+  if (!semanticFrame) {
+    return buildReasoningFieldFailure({
+      res,
+      data,
+      parsed,
+      rawModelOutput,
+      timing,
+      totalStart,
+      field:
+        "semanticFrame",
+      failureType:
+        "semantic_frame_missing"
+    });
+  }
 
-        failureType:
-          "response_requirements_missing",
+  if (!responseRequirements) {
+    return buildReasoningFieldFailure({
+      res,
+      data,
+      parsed,
+      rawModelOutput,
+      timing,
+      totalStart,
+      field:
+        "responseRequirements",
+      failureType:
+        "response_requirements_missing"
+    });
+  }
 
-        semanticFrame,
+  if (!grounding) {
+    return buildReasoningFieldFailure({
+      res,
+      data,
+      parsed,
+      rawModelOutput,
+      timing,
+      totalStart,
+      field:
+        "grounding",
+      failureType:
+        "grounding_missing"
+    });
+  }
 
-        parsedModelOutput:
-          parsed,
+  const claimedActionExecution =
+    proposedActions.some(action =>
+      isPlainObject(action) &&
+      (
+        action.executed === true ||
+        action.completed === true ||
+        [
+          "executed",
+          "completed",
+          "success",
+          "succeeded"
+        ].includes(
+          String(
+            action.status || ""
+          )
+            .trim()
+            .toLowerCase()
+        )
+      )
+    );
 
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-
-        source:
-          "openai_reasoning",
-
-        timing: {
-          ...timing,
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
+  if (claimedActionExecution) {
+    return res.status(502).json({
+      success: false,
+      ready: false,
+      error:
+        "OpenAI reasoning falsely claimed that a proposed action was executed.",
+      failureType:
+        "model_claimed_action_execution",
+      parsedModelOutput:
+        parsed,
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+      source:
+        "openai_reasoning",
+      timing: {
+        ...timing,
+        totalMs:
+          Date.now() -
+          totalStart
+      }
+    });
   }
 
   timing.totalMs =
     Date.now() -
     totalStart;
 
+  const ready =
+    parsed.ready !== false;
+
   const cognitiveReasoningResult = {
     schema:
       "ari_cognitive_reasoning_result",
 
     schemaVersion:
-      "1.0.0",
+      "1.1.0",
 
-    ready:
-      true,
+    ready,
+
+    authoritative:
+      ready,
 
     success:
       true,
@@ -1405,43 +1346,107 @@ async function handleOpenAIReasoning(
       data?.model ||
       DEFAULT_OPENAI_MODEL,
 
+    interpretation,
+
+    reasoningDecision: {
+      ...reasoningDecision,
+
+      proposedActions:
+        proposedActions.map(
+          action => ({
+            ...action,
+            executed: false,
+            status: "proposed"
+          })
+        )
+    },
+
     semanticFrame,
+
     responseRequirements,
 
-    executionMetadata:
-      executionMetadata ||
-      {},
+    responseStrategy:
+      responseRequirements,
+
+    caseModel,
+    options,
+    tradeoffs,
+    uncertainties,
+
+    executionMetadata: {
+      ...executionMetadata,
+      confidence,
+      usedCurrentTurn:
+        executionMetadata
+          .usedCurrentTurn !==
+        false,
+      usedPriorContext:
+        executionMetadata
+          .usedPriorContext ===
+        true,
+      usedEvidence:
+        executionMetadata
+          .usedEvidence !==
+        false,
+      evidenceCount:
+        Number.isFinite(
+          Number(
+            executionMetadata
+              .evidenceCount
+          )
+        )
+          ? Number(
+              executionMetadata
+                .evidenceCount
+            )
+          : evidenceReferences.length
+    },
 
     evidenceReferences,
 
-    reasoningNotes:
-      normalizeArray(
-        parsed.reasoningNotes ||
-        parsed.reasoning_notes
-      ),
+    grounding: {
+      evidenceUsed:
+        normalizeArray(
+          grounding.evidenceUsed
+        ),
+      assumptions:
+        normalizeArray(
+          grounding.assumptions
+        ),
+      unresolvedConflicts:
+        normalizeArray(
+          grounding
+            .unresolvedConflicts
+        )
+    },
 
-    uncertainty:
-      normalizeObjectOrNull(
-        parsed.uncertainty
-      ),
+    confidence,
+
+    draftResponse:
+      "",
+
+    validation: {
+      passed: true,
+      errors: []
+    },
+
+    authority:
+      ready
+        ? "semantic_interpretation_and_response_requirements"
+        : "none",
 
     modelInvocation: {
-      succeeded:
-        true,
-
+      succeeded: true,
       model:
         data?.model ||
         DEFAULT_OPENAI_MODEL,
-
       finishReason:
         data?.choices?.[0]
           ?.finish_reason ||
         null,
-
       usage:
         data?.usage ||
         null,
-
       durationMs:
         timing.openAIMs
     },
@@ -1449,42 +1454,118 @@ async function handleOpenAIReasoning(
     timing
   };
 
-  return res
-    .status(200)
-    .json({
-      success:
-        true,
+  return res.status(200).json({
+    success: true,
+    ready:
+      cognitiveReasoningResult
+        .ready ===
+      true,
 
-      ready:
-        true,
+    cognitiveReasoningResult,
 
+    reasoningResult:
       cognitiveReasoningResult,
 
-      reasoningResult:
-        cognitiveReasoningResult,
+    interpretation:
+      cognitiveReasoningResult
+        .interpretation,
 
-      semanticFrame,
-      responseRequirements,
+    reasoningDecision:
+      cognitiveReasoningResult
+        .reasoningDecision,
 
-      executionMetadata:
-        cognitiveReasoningResult
-          .executionMetadata,
+    semanticFrame:
+      cognitiveReasoningResult
+        .semanticFrame,
 
-      evidenceReferences,
+    responseRequirements:
+      cognitiveReasoningResult
+        .responseRequirements,
 
-      modelInvocation:
-        cognitiveReasoningResult
-          .modelInvocation,
+    responseStrategy:
+      cognitiveReasoningResult
+        .responseRequirements,
 
-      model:
-        cognitiveReasoningResult
-          .model,
+    caseModel:
+      cognitiveReasoningResult
+        .caseModel,
 
-      source:
-        "openai_reasoning",
+    options:
+      cognitiveReasoningResult
+        .options,
 
-      timing
-    });
+    tradeoffs:
+      cognitiveReasoningResult
+        .tradeoffs,
+
+    uncertainties:
+      cognitiveReasoningResult
+        .uncertainties,
+
+    executionMetadata:
+      cognitiveReasoningResult
+        .executionMetadata,
+
+    evidenceReferences:
+      cognitiveReasoningResult
+        .evidenceReferences,
+
+    grounding:
+      cognitiveReasoningResult
+        .grounding,
+
+    confidence:
+      cognitiveReasoningResult
+        .confidence,
+
+    modelInvocation:
+      cognitiveReasoningResult
+        .modelInvocation,
+
+    model:
+      cognitiveReasoningResult
+        .model,
+
+    source:
+      "openai_reasoning",
+
+    timing
+  });
+}
+
+function buildReasoningFieldFailure({
+  res,
+  data = {},
+  parsed = {},
+  rawModelOutput = "",
+  timing = {},
+  totalStart = Date.now(),
+  field = "required field",
+  failureType =
+    "required_reasoning_field_missing"
+} = {}) {
+  return res.status(502).json({
+    success: false,
+    ready: false,
+    error:
+      `OpenAI reasoning returned no ${field}.`,
+    failureType,
+    rawModelOutput:
+      rawModelOutput || null,
+    parsedModelOutput:
+      parsed,
+    model:
+      data?.model ||
+      DEFAULT_OPENAI_MODEL,
+    source:
+      "openai_reasoning",
+    timing: {
+      ...timing,
+      totalMs:
+        Date.now() -
+        totalStart
+    }
+  });
 }
 
 /* =====================================================
@@ -1502,31 +1583,22 @@ async function handleOpenAIKnowledge(
   const timing = {};
 
   const body =
-    isPlainObject(
-      suppliedBody
-    )
+    isPlainObject(suppliedBody)
       ? suppliedBody
-      : isPlainObject(
-          req.body
-        )
+      : isPlainObject(req.body)
         ? req.body
         : {};
 
-  if (
-    !process.env
-      .OPENAI_API_KEY
-  ) {
-    return res
-      .status(500)
-      .json({
-        success: false,
-        error:
-          "Missing OPENAI_API_KEY.",
-        failureType:
-          "missing_environment_configuration",
-        source:
-          "openai_realization"
-      });
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      error:
+        "Missing OPENAI_API_KEY.",
+      failureType:
+        "missing_environment_configuration",
+      source:
+        "openai_realization"
+    });
   }
 
   const aiInstruction =
@@ -1555,20 +1627,16 @@ async function handleOpenAIKnowledge(
       question
     ]);
 
-  if (
-    !question
-  ) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        error:
-          "No question provided.",
-        failureType:
-          "invalid_request",
-        source:
-          "openai_realization"
-      });
+  if (!question) {
+    return res.status(400).json({
+      success: false,
+      error:
+        "No question provided.",
+      failureType:
+        "invalid_request",
+      source:
+        "openai_realization"
+    });
   }
 
   const character =
@@ -1659,28 +1727,22 @@ async function handleOpenAIKnowledge(
           JSON.stringify({
             model:
               DEFAULT_OPENAI_MODEL,
-
             messages: [
               {
-                role:
-                  "system",
+                role: "system",
                 content:
                   systemPrompt
               },
               {
-                role:
-                  "user",
+                role: "user",
                 content:
                   userPrompt
               }
             ],
-
             temperature:
               0.45,
-
             max_tokens:
               1600,
-
             response_format: {
               type:
                 "json_object"
@@ -1698,35 +1760,25 @@ async function handleOpenAIKnowledge(
     Date.now() -
     openAIStart;
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
     return res
-      .status(
-        response.status
-      )
+      .status(response.status)
       .json({
         success: false,
-
         error:
           data?.error
             ?.message ||
           data?.message ||
           "OpenAI realization request failed.",
-
         failureType:
           "openai_request_failed",
-
         status:
           response.status,
-
         model:
           data?.model ||
           DEFAULT_OPENAI_MODEL,
-
         source:
           "openai_realization",
-
         timing: {
           ...timing,
           totalMs:
@@ -1750,9 +1802,7 @@ async function handleOpenAIKnowledge(
     parsedResult.value;
 
   const answer =
-    extractOpenAIAnswer(
-      parsed
-    ) ||
+    extractOpenAIAnswer(parsed) ||
     (
       parsedResult.wasJson
         ? ""
@@ -1761,16 +1811,13 @@ async function handleOpenAIKnowledge(
           )
     );
 
-  if (
-    !answer
-  ) {
+  if (!answer) {
     console.error(
       "[Ari Knowledge API Empty Model Response]",
       {
         model:
           data?.model ||
           DEFAULT_OPENAI_MODEL,
-
         rawModelOutput,
         parsed,
         finishReason:
@@ -1780,59 +1827,37 @@ async function handleOpenAIKnowledge(
       }
     );
 
-    return res
-      .status(502)
-      .json({
-        success: false,
-
-        error:
-          "OpenAI returned no usable response text.",
-
-        failureType:
-          "empty_model_response",
-
-        responseText:
-          null,
-
-        outputText:
-          null,
-
-        finalResponse:
-          null,
-
-        answer:
-          null,
-
-        knowledgeAnswer:
-          null,
-
-        model:
-          data?.model ||
-          DEFAULT_OPENAI_MODEL,
-
-        finishReason:
-          data?.choices?.[0]
-            ?.finish_reason ||
-          null,
-
-        rawModelOutput:
-          rawModelOutput ||
-          null,
-
-        parsedModelOutput:
-          parsed ||
-          null,
-
-        source:
-          "openai_realization",
-
-        timing: {
-          ...timing,
-          totalMs:
-            Date.now() -
-            totalStart
-        }
-      });
+    return res.status(502).json({
+      success: false,
+      error:
+        "OpenAI returned no usable response text.",
+      failureType:
+        "empty_model_response",
+      responseText: null,
+      outputText: null,
+      finalResponse: null,
+      answer: null,
+      knowledgeAnswer: null,
+      model:
+        data?.model ||
+        DEFAULT_OPENAI_MODEL,
+      finishReason:
+        data?.choices?.[0]
+          ?.finish_reason ||
+        null,
+      rawModelOutput:
+        rawModelOutput || null,
+      parsedModelOutput:
+        parsed || null,
+      source:
+        "openai_realization",
+      timing: {
+        ...timing,
+        totalMs:
+          Date.now() -
+          totalStart
+      }
+    });
   }
 
   const confidence =
@@ -1874,81 +1899,61 @@ async function handleOpenAIKnowledge(
     Date.now() -
     totalStart;
 
-  return res
-    .status(200)
-    .json({
-      success: true,
-
+  return res.status(200).json({
+    success: true,
+    responseText:
+      answer,
+    outputText:
+      answer,
+    finalResponse:
+      answer,
+    response: {
       responseText:
         answer,
-
       outputText:
         answer,
-
       finalResponse:
         answer,
-
-      response: {
-        responseText:
-          answer,
-
-        outputText:
-          answer,
-
-        finalResponse:
-          answer,
-
-        confidence,
-        sources,
-        mealEstimate,
-        foodAnalysis,
-        nutritionEstimate,
-        pendingAction
-      },
-
-      // Temporary compatibility fields.
-      answer,
-      knowledgeAnswer:
-        answer,
-      reply:
-        answer,
-      text:
-        answer,
-
       confidence,
       sources,
-
-      notes:
-        safeTrim(
-          parsed?.notes
-        ) ||
-        null,
-
       mealEstimate,
       foodAnalysis,
       nutritionEstimate,
-      pendingAction,
-
-      model:
-        data?.model ||
-        DEFAULT_OPENAI_MODEL,
-
-      finishReason:
-        data?.choices?.[0]
-          ?.finish_reason ||
-        null,
-
-      usage:
-        data?.usage ||
-        null,
-
-      conversationMode,
-
-      source:
-        "openai_realization",
-
-      timing
-    });
+      pendingAction
+    },
+    answer,
+    knowledgeAnswer:
+      answer,
+    reply:
+      answer,
+    text:
+      answer,
+    confidence,
+    sources,
+    notes:
+      safeTrim(
+        parsed?.notes
+      ) ||
+      null,
+    mealEstimate,
+    foodAnalysis,
+    nutritionEstimate,
+    pendingAction,
+    model:
+      data?.model ||
+      DEFAULT_OPENAI_MODEL,
+    finishReason:
+      data?.choices?.[0]
+        ?.finish_reason ||
+      null,
+    usage:
+      data?.usage ||
+      null,
+    conversationMode,
+    source:
+      "openai_realization",
+    timing
+  });
 }
 
 /* =====================================================
@@ -1959,7 +1964,7 @@ function buildOpenAIReasoningSystemPrompt() {
   return `
 You are the sole semantic reasoning authority for Ari Rebirth.
 
-Your job is to interpret the current user request using only the supplied current request, evidence, routing constraints, and deterministic context.
+Your job is to interpret the current user request using the supplied current request, evidence, routing constraints, deterministic context, knowledge evidence, developer evidence, capability context, response controls, and authority contract.
 
 You do not write the final response to the user.
 
@@ -1967,7 +1972,7 @@ You must produce a structured cognitive reasoning result that downstream semanti
 
 Authority rules:
 - You may interpret the user's meaning, goal, conversational function, and required response behavior.
-- You may resolve ambiguity only when supported by the supplied evidence and continuity.
+- You may resolve ambiguity only when supported by supplied evidence and continuity.
 - You must distinguish direct evidence from inference.
 - You must not fabricate user facts, memories, external facts, citations, actions, or tool results.
 - You must not treat deterministic routing labels as semantic truth.
@@ -1976,9 +1981,12 @@ Authority rules:
 - You must not write polished final-response prose.
 - You must not return a candidate answer.
 - You must not claim an action was executed.
+- Any action must be returned only as a proposal.
 - semanticFrame must represent the meaning of the current request.
 - responseRequirements must describe what the later response must accomplish.
-- evidenceReferences must identify the supplied evidence supporting material conclusions.
+- grounding must identify evidence, assumptions, and unresolved conflicts.
+- evidenceReferences must identify supplied evidence supporting material conclusions.
+- confidence must be numeric from 0 through 1.
 - Output must be one valid JSON object.
 
 Return JSON only.
@@ -1994,55 +2002,126 @@ ${safeJsonStringify(
   reasoningInput
 )}
 
-Return one JSON object using this shape:
+Analyze the current request using the complete supplied evidence.
+
+Return exactly one JSON object using this shape:
 
 {
+  "ready": true,
+
+  "interpretation": {
+    "conversationFunction": "The functional role of the user's turn.",
+    "userGoal": "What the user wants accomplished.",
+    "operation": "The semantic operation requested.",
+    "meaning": "The resolved meaning of the current turn.",
+    "subjects": [],
+    "contextUsed": false,
+    "clarificationRequired": false,
+    "clarificationQuestion": null,
+    "ambiguity": []
+  },
+
+  "reasoningDecision": {
+    "answerDirectly": true,
+    "reasoningMode": "analysis",
+    "toolsNeeded": [],
+    "proposedActions": [],
+    "decisionRationale": "A concise rationale for the response strategy.",
+    "shouldAskClarifyingQuestion": false
+  },
+
   "semanticFrame": {
+    "operation": "The semantic operation requested.",
+    "target": "The subject, object, decision, or outcome being addressed.",
+    "domain": "The relevant subject domain.",
+    "primaryLane": "The primary response lane.",
+    "requestedOutput": "The form of output the user expects.",
+    "constraints": [],
+
     "semanticSummary": "Concise interpretation of the current request.",
     "conversationFunction": "The conversational function of this turn.",
     "primaryIntent": "The user's primary semantic intent.",
     "userGoal": "What the user wants accomplished.",
-    "domain": "The relevant subject domain.",
     "currentTurnMeaning": "The resolved meaning of this turn.",
     "referencesResolved": [],
-    "constraints": [],
-    "stakes": "low | moderate | high | critical",
+    "stakes": "low",
     "uncertainties": [],
     "slots": {}
   },
+
   "responseRequirements": {
-    "responseGoal": "What the final response must accomplish.",
+    "goal": "What the final response must accomplish.",
+    "shape": "single_lane",
+    "tone": "The appropriate response tone.",
     "requiredMoves": [],
     "prohibitedMoves": [],
+    "requiredBehaviors": [],
+    "forbiddenBehaviors": [],
+    "constraints": [],
     "requiredFacts": [],
     "safetyRequirements": [],
     "continuityRequirements": [],
     "toneRequirements": [],
     "clarificationRequired": false,
+    "clarificationQuestion": null,
     "actionRequired": false
   },
-  "executionMetadata": {
-    "reasoningMode": "direct | continuity_assisted | safety_constrained | evidence_constrained",
-    "requiresExternalKnowledge": false,
-    "requiresToolExecution": false,
-    "confidence": "low | medium | high"
-  },
+
+  "caseModel": {},
+
+  "options": [],
+
+  "tradeoffs": [],
+
+  "uncertainties": [],
+
   "evidenceReferences": [],
-  "reasoningNotes": [],
-  "uncertainty": null
+
+  "executionMetadata": {
+    "confidence": 0.9,
+    "reasoningMode": "analysis",
+    "usedCurrentTurn": true,
+    "usedPriorContext": false,
+    "usedEvidence": true,
+    "evidenceCount": 0,
+    "requiresExternalKnowledge": false,
+    "requiresToolExecution": false
+  },
+
+  "grounding": {
+    "evidenceUsed": [],
+    "assumptions": [],
+    "unresolvedConflicts": []
+  },
+
+  "confidence": 0.9
 }
 
-Output requirements:
+Contract requirements:
+- ready must be a boolean.
+- interpretation must be a non-empty object.
+- interpretation.userGoal must be a non-empty string.
+- interpretation.meaning must be a non-empty string.
+- reasoningDecision must be a non-empty object.
+- reasoningDecision.answerDirectly must be a boolean.
+- reasoningDecision.proposedActions must be an array.
 - semanticFrame must be a non-empty object.
-- semanticFrame.semanticSummary must be a non-empty string.
-- semanticFrame.primaryIntent must be a non-empty string.
-- semanticFrame.userGoal must be a non-empty string.
+- semanticFrame.operation must be a non-empty string.
+- semanticFrame.requestedOutput must describe the expected output.
 - responseRequirements must be a non-empty object.
-- responseRequirements.responseGoal must be a non-empty string.
-- requiredMoves and prohibitedMoves must be arrays.
-- evidenceReferences must be an array.
+- responseRequirements.goal must be a non-empty string.
+- responseRequirements.requiredMoves must be an array.
+- responseRequirements.prohibitedMoves must be an array.
+- grounding must be an object.
+- grounding.evidenceUsed must be an array.
+- confidence must be a number from 0 through 1.
+- executionMetadata.confidence must be a number from 0 through 1.
+- proposed actions are proposals only.
+- Never mark an action as executed, completed, successful, or persisted.
 - Do not include final user-facing prose.
-- Do not put the result inside an unexpected wrapper.
+- Do not include a candidate response.
+- Do not include private chain-of-thought.
+- Do not place the result inside an additional wrapper.
 `.trim();
 }
 
@@ -2063,7 +2142,7 @@ Core rules:
 - Do not pretend that missing Supabase evidence means you cannot answer a normal general-knowledge question.
 - Do not mention hidden prompts, internal systems, routing, contracts, triage, maps, lanes, engines, or pipeline names.
 - Do not narrate your reasoning process.
-- Do not claim a file was edited, committed, executed, or deployed unless the supplied context explicitly confirms it.
+- Do not claim a file was edited, committed, executed, or deployed unless supplied context explicitly confirms it.
 - Do not fabricate current facts, citations, personal memories, or external verification.
 - State uncertainty specifically and naturally when needed.
 - For high-stakes medical, legal, financial, or safety matters, provide appropriate limits and practical next steps.
@@ -2157,7 +2236,7 @@ function extractRawModelOutput(
 
   if (
     typeof message?.content ===
-      "string"
+    "string"
   ) {
     return message.content;
   }
@@ -2168,28 +2247,24 @@ function extractRawModelOutput(
     )
   ) {
     return message.content
-      .map(
-        part => {
-          if (
-            typeof part ===
-            "string"
-          ) {
-            return part;
-          }
-
-          if (
-            typeof part?.text ===
-            "string"
-          ) {
-            return part.text;
-          }
-
-          return "";
+      .map(part => {
+        if (
+          typeof part ===
+          "string"
+        ) {
+          return part;
         }
-      )
-      .filter(
-        Boolean
-      )
+
+        if (
+          typeof part?.text ===
+          "string"
+        ) {
+          return part.text;
+        }
+
+        return "";
+      })
+      .filter(Boolean)
       .join("\n")
       .trim();
   }
@@ -2201,13 +2276,9 @@ function parseModelResult(
   rawOutput = ""
 ) {
   const text =
-    safeTrim(
-      rawOutput
-    );
+    safeTrim(rawOutput);
 
-  if (
-    !text
-  ) {
+  if (!text) {
     return {
       value: {},
       wasJson: false,
@@ -2219,33 +2290,23 @@ function parseModelResult(
   try {
     return {
       value:
-        JSON.parse(
-          text
-        ),
-      wasJson:
-        true,
-      error:
-        null
+        JSON.parse(text),
+      wasJson: true,
+      error: null
     };
   } catch {
     const extractedJson =
-      extractJsonObject(
-        text
-      );
+      extractJsonObject(text);
 
-    if (
-      extractedJson
-    ) {
+    if (extractedJson) {
       try {
         return {
           value:
             JSON.parse(
               extractedJson
             ),
-          wasJson:
-            true,
-          error:
-            null
+          wasJson: true,
+          error: null
         };
       } catch {
         // Continue to plain-text normalization.
@@ -2262,8 +2323,7 @@ function parseModelResult(
         notes:
           "Model returned plain text instead of the requested JSON object."
       },
-      wasJson:
-        false,
+      wasJson: false,
       error:
         "Model returned non-JSON content."
     };
@@ -2274,54 +2334,37 @@ function extractJsonObject(
   value = ""
 ) {
   const text =
-    String(
-      value ||
-      ""
-    );
+    String(value || "");
 
   const firstBrace =
-    text.indexOf(
-      "{"
-    );
+    text.indexOf("{");
 
   const lastBrace =
-    text.lastIndexOf(
-      "}"
-    );
+    text.lastIndexOf("}");
 
   if (
     firstBrace === -1 ||
     lastBrace === -1 ||
-    lastBrace <=
-      firstBrace
+    lastBrace <= firstBrace
   ) {
     return "";
   }
 
   return text.slice(
     firstBrace,
-    lastBrace +
-      1
+    lastBrace + 1
   );
 }
 
-function extractOpenAIAnswer(
-  value
-) {
+function extractOpenAIAnswer(value) {
   if (
     typeof value ===
     "string"
   ) {
-    return safeTrim(
-      value
-    );
+    return safeTrim(value);
   }
 
-  if (
-    !isPlainObject(
-      value
-    )
-  ) {
+  if (!isPlainObject(value)) {
     return "";
   }
 
@@ -2391,9 +2434,7 @@ async function readJsonResponse(
   const rawText =
     await response.text();
 
-  if (
-    !rawText
-  ) {
+  if (!rawText) {
     return {};
   }
 
@@ -2415,10 +2456,8 @@ function getSupabaseHeaders() {
     apikey:
       process.env
         .SUPABASE_SERVICE_ROLE_KEY,
-
     Authorization:
       `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-
     "Content-Type":
       "application/json"
   };
@@ -2428,17 +2467,13 @@ function getOpenAIHeaders() {
   return {
     "Content-Type":
       "application/json",
-
     Authorization:
       `Bearer ${process.env.OPENAI_API_KEY}`
   };
 }
 
 function validateSupabaseEnvironment() {
-  if (
-    !process.env
-      .SUPABASE_URL
-  ) {
+  if (!process.env.SUPABASE_URL) {
     return "Missing SUPABASE_URL.";
   }
 
@@ -2463,15 +2498,9 @@ function clampNumber(
   fallback
 ) {
   const number =
-    Number(
-      value
-    );
+    Number(value);
 
-  if (
-    !Number.isFinite(
-      number
-    )
-  ) {
+  if (!Number.isFinite(number)) {
     return fallback;
   }
 
@@ -2489,15 +2518,9 @@ function normalizeConfidenceNumber(
   fallback = 0
 ) {
   const number =
-    Number(
-      value
-    );
+    Number(value);
 
-  if (
-    !Number.isFinite(
-      number
-    )
-  ) {
+  if (!Number.isFinite(number)) {
     return fallback;
   }
 
@@ -2507,14 +2530,57 @@ function normalizeConfidenceNumber(
   );
 }
 
+function normalizeReasoningConfidence(
+  value,
+  fallback = 0.5
+) {
+  if (isPlainObject(value)) {
+    return normalizeReasoningConfidence(
+      value.score,
+      fallback
+    );
+  }
+
+  const label =
+    typeof value === "string"
+      ? value
+          .trim()
+          .toLowerCase()
+      : "";
+
+  if (label === "low") {
+    return 0.35;
+  }
+
+  if (label === "medium") {
+    return 0.65;
+  }
+
+  if (label === "high") {
+    return 0.9;
+  }
+
+  const number =
+    Number(value);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      number
+    )
+  );
+}
+
 function normalizeConfidenceLabel(
   value
 ) {
   const normalized =
-    String(
-      value ||
-      ""
-    )
+    String(value || "")
       .trim()
       .toLowerCase();
 
@@ -2523,9 +2589,7 @@ function normalizeConfidenceLabel(
       "low",
       "medium",
       "high"
-    ].includes(
-      normalized
-    )
+    ].includes(normalized)
   ) {
     return normalized;
   }
@@ -2537,10 +2601,7 @@ function normalizeConversationMode(
   value
 ) {
   const normalized =
-    String(
-      value ||
-      ""
-    )
+    String(value || "")
       .trim()
       .toLowerCase();
 
@@ -2558,32 +2619,20 @@ function normalizeConversationMode(
     : "new_question";
 }
 
-function normalizeArray(
-  value
-) {
-  return Array.isArray(
-    value
-  )
+function normalizeArray(value) {
+  return Array.isArray(value)
     ? value
     : [];
 }
 
-function normalizeObject(
-  value
-) {
-  return isPlainObject(
-    value
-  )
+function normalizeObject(value) {
+  return isPlainObject(value)
     ? value
     : {};
 }
 
-function normalizeObjectOrNull(
-  value
-) {
-  return isPlainObject(
-    value
-  )
+function normalizeObjectOrNull(value) {
+  return isPlainObject(value)
     ? value
     : null;
 }
@@ -2591,10 +2640,7 @@ function normalizeObjectOrNull(
 function firstNonEmptyString(
   values = []
 ) {
-  for (
-    const value
-    of values
-  ) {
+  for (const value of values) {
     if (
       typeof value ===
         "string" &&
@@ -2607,18 +2653,14 @@ function firstNonEmptyString(
   return "";
 }
 
-function safeTrim(
-  value
-) {
+function safeTrim(value) {
   return typeof value ===
     "string"
     ? value.trim()
     : "";
 }
 
-function safeJsonStringify(
-  value
-) {
+function safeJsonStringify(value) {
   try {
     return JSON.stringify(
       value,
@@ -2637,15 +2679,11 @@ function safeJsonStringify(
   }
 }
 
-function isPlainObject(
-  value
-) {
+function isPlainObject(value) {
   return Boolean(
     value &&
     typeof value ===
       "object" &&
-    !Array.isArray(
-      value
-    )
+    !Array.isArray(value)
   );
 }
