@@ -5,12 +5,12 @@
 // Validate and normalize the semantic frame produced by OpenAI cognitive
 // reasoning. This engine does not infer, repair, or replace semantic meaning.
 //
-// V1.1.0 — Canonical Reasoning Frame Resolution
+// V1.1.1 — Canonical Slot Alias Normalization
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameValidator = {
-  version: "1.1.0",
+  version: "1.1.1",
   schemaVersion: "1.1.0",
   source: "ari-semantic-frame-validator",
   authorityLevel: "semantic_frame_validation",
@@ -237,13 +237,14 @@ console.log(
       validatorSource: this.source,
       validatorVersion: this.version,
       transformations: sourceFrame
-        ? [
-            "enum_normalization",
-            "confidence_normalization",
-            "missing_optional_field_defaults",
-            "evidence_reference_validation"
-          ]
-        : [],
+  ? [
+      "enum_normalization",
+      "confidence_normalization",
+      "missing_optional_field_defaults",
+      "canonical_slot_alias_normalization",
+      "evidence_reference_validation"
+    ]
+  : [],
       meaningChanged: false,
       operationChanged:
         Boolean(
@@ -503,101 +504,268 @@ console.log(
   },
 
   normalizeFrame(frame = {}, registry = null) {
-    const operation =
-      registry?.normalizeOperation?.(frame.operation) ||
-      this.normalizeKey(frame.operation) ||
-      null;
-    const definition =
-      registry?.getOperation?.(operation) ||
-      null;
+  const operation =
+    registry?.normalizeOperation?.(
+      frame.operation
+    ) ||
+    this.normalizeKey(
+      frame.operation
+    ) ||
+    null;
 
-    return {
-      ...frame,
-      schema:
-        frame.schema ||
-        "ari.cognitive_semantic_frame",
-      schemaVersion:
-        frame.schemaVersion ||
-        this.schemaVersion,
-      frameId:
-        this.clean(frame.frameId || frame.id || "") ||
-        null,
-      interpretation:
-        this.normalizeInterpretation(frame.interpretation),
-      operation,
-      requestType:
-        this.normalizeKey(
-          frame.requestType ||
-          definition?.requestType ||
-          ""
-        ) || null,
-      frameType:
-        this.normalizeKey(
-          frame.frameType ||
-          definition?.frameType ||
-          ""
-        ) || null,
-      interactionFamily:
-        this.normalizeKey(
-          frame.interactionFamily ||
-          definition?.interactionFamily ||
-          ""
-        ) || null,
-      intentFamily:
-        this.normalizeKey(
-          frame.intentFamily ||
-          definition?.intentFamily ||
-          ""
-        ) || null,
-      requestedOutput:
-        this.normalizeKey(
-          frame.requestedOutput ||
-          definition?.defaultRequestedOutput ||
-          ""
-        ) || null,
-      domain: this.normalizeDomain(
+  const definition =
+    registry?.getOperation?.(
+      operation
+    ) ||
+    null;
+
+  const requiredSlots =
+    this.asArray(
+      definition?.requiredSlots
+    );
+
+  const normalizedSubject =
+    this.normalizeSlot(
+      frame.subject
+    );
+
+  const normalizedTarget =
+    this.normalizeSlot(
+      frame.target
+    );
+
+  const explicitObject =
+    this.normalizeSlot(
+      frame.object
+    );
+
+  /*
+   * Controlled structural alias:
+   *
+   * OpenAI may describe the thing being explained as
+   * `target`, while the operation contract may require
+   * the canonical `object` slot.
+   *
+   * This does not infer or alter meaning. It copies an
+   * already-authoritative slot value into the canonical
+   * contract location only when:
+   *
+   * - the operation requires `object`
+   * - no explicit object was supplied
+   * - an authoritative target was supplied
+   */
+
+  const normalizedObject =
+    requiredSlots.includes(
+      "object"
+    ) &&
+    !this.slotPresent(
+      explicitObject
+    ) &&
+    this.slotPresent(
+      normalizedTarget
+    )
+      ? {
+          ...normalizedTarget
+        }
+      : explicitObject;
+
+  return {
+    ...frame,
+
+    schema:
+      frame.schema ||
+      "ari.cognitive_semantic_frame",
+
+    schemaVersion:
+      frame.schemaVersion ||
+      this.schemaVersion,
+
+    frameId:
+      this.clean(
+        frame.frameId ||
+        frame.id ||
+        ""
+      ) ||
+      null,
+
+    interpretation:
+      this.normalizeInterpretation(
+        frame.interpretation
+      ),
+
+    operation,
+
+    requestType:
+      this.normalizeKey(
+        frame.requestType ||
+        definition?.requestType ||
+        ""
+      ) ||
+      null,
+
+    frameType:
+      this.normalizeKey(
+        frame.frameType ||
+        definition?.frameType ||
+        ""
+      ) ||
+      null,
+
+    interactionFamily:
+      this.normalizeKey(
+        frame.interactionFamily ||
+        definition?.interactionFamily ||
+        ""
+      ) ||
+      null,
+
+    intentFamily:
+      this.normalizeKey(
+        frame.intentFamily ||
+        definition?.intentFamily ||
+        ""
+      ) ||
+      null,
+
+    requestedOutput:
+      this.normalizeKey(
+        frame.requestedOutput ||
+        definition
+          ?.defaultRequestedOutput ||
+        ""
+      ) ||
+      null,
+
+    domain:
+      this.normalizeDomain(
         frame.domain,
         definition?.defaultDomain
       ),
-      participants:
-        this.normalizeObject(frame.participants, {
+
+    participants:
+      this.normalizeObject(
+        frame.participants,
+        {
           speaker: null,
           addressee: null,
           mentioned: []
-        }),
-      subject: this.normalizeSlot(frame.subject),
-      object: this.normalizeSlot(frame.object),
-      target: this.normalizeSlot(frame.target),
-      artifactTarget: this.normalizeSlot(
+        }
+      ),
+
+    subject:
+      normalizedSubject,
+
+    object:
+      normalizedObject,
+
+    target:
+      normalizedTarget,
+
+    artifactTarget:
+      this.normalizeSlot(
         frame.artifactTarget,
         true
       ),
-      referent: this.normalizeObject(frame.referent, null),
-      options: this.asArray(frame.options),
-      criteria: this.asArray(frame.criteria),
-      timeframe: frame.timeframe ?? null,
-      audience: frame.audience ?? null,
-      location: frame.location ?? null,
-      contextModifiers: this.asArray(frame.contextModifiers),
-      constraints: this.asArray(frame.constraints),
-      stakes: this.asArray(frame.stakes),
-      continuity: this.normalizeContinuity(frame.continuity),
-      ambiguity: this.normalizeAmbiguity(frame.ambiguity),
-      execution: this.normalizeExecution(frame.execution),
-      secondaryRequests: this.asArray(frame.secondaryRequests),
-      confidence: this.normalizeConfidenceObject(frame.confidence),
-      evidenceRefs: this.unique(this.asArray(frame.evidenceRefs)),
-      grounding: this.normalizeObject(frame.grounding, {
-        evidencePacketId: null,
-        supportedClaims: [],
-        unsupportedAssumptions: []
-      }),
-      authority: this.normalizeObject(frame.authority, {
-        source: "openai_cognitive_reasoning",
-        authoritativeForMeaning: true
-      })
-    };
-  },
+
+    referent:
+      this.normalizeObject(
+        frame.referent,
+        null
+      ),
+
+    options:
+      this.asArray(
+        frame.options
+      ),
+
+    criteria:
+      this.asArray(
+        frame.criteria
+      ),
+
+    timeframe:
+      frame.timeframe ??
+      null,
+
+    audience:
+      frame.audience ??
+      null,
+
+    location:
+      frame.location ??
+      null,
+
+    contextModifiers:
+      this.asArray(
+        frame.contextModifiers
+      ),
+
+    constraints:
+      this.asArray(
+        frame.constraints
+      ),
+
+    stakes:
+      this.asArray(
+        frame.stakes
+      ),
+
+    continuity:
+      this.normalizeContinuity(
+        frame.continuity
+      ),
+
+    ambiguity:
+      this.normalizeAmbiguity(
+        frame.ambiguity
+      ),
+
+    execution:
+      this.normalizeExecution(
+        frame.execution
+      ),
+
+    secondaryRequests:
+      this.asArray(
+        frame.secondaryRequests
+      ),
+
+    confidence:
+      this.normalizeConfidenceObject(
+        frame.confidence
+      ),
+
+    evidenceRefs:
+      this.unique(
+        this.asArray(
+          frame.evidenceRefs
+        )
+      ),
+
+    grounding:
+      this.normalizeObject(
+        frame.grounding,
+        {
+          evidencePacketId: null,
+          supportedClaims: [],
+          unsupportedAssumptions: []
+        }
+      ),
+
+    authority:
+      this.normalizeObject(
+        frame.authority,
+        {
+          source:
+            "openai_cognitive_reasoning",
+
+          authoritativeForMeaning:
+            true
+        }
+      )
+  };
+},
 
   validateSchema(frame = null) {
     const errors = [];
