@@ -5,7 +5,7 @@
 // Build, maintain, and persist one concise authoritative operating state for
 // the current conversation turn.
 //
-// V1.0.0 — Conversation Operating State / Three-Horizon Continuity Context
+// V1.1.0 — Continuity Signal Projection / Reference Detection Handoff
 //
 // Architectural flow:
 //
@@ -29,7 +29,9 @@
 // - Preserve the active conversation frame.
 // - Build concise active claims, entities, constraints, goals, and open loops.
 // - Rank prior context into reference candidates.
+// - Detect and expose non-authoritative reference signals.
 // - Expose immediate, active, and historical continuity horizons.
+// - Project continuity requirements into compatibility handoffs.
 // - Preserve compatibility aliases for the existing pipeline.
 // - Complete and persist the finished turn after Delivery.
 //
@@ -50,13 +52,14 @@
 // - Does not execute tools.
 //
 // Authority boundary:
-// This file organizes and ranks conversation state. Continuity authorities
-// remain responsible for resolving references and producing a resolved turn.
+// This file organizes and ranks conversation state, detects reference signals,
+// and exposes continuity requirements. Continuity authorities remain responsible
+// for resolving references and producing a resolved turn.
 
 window.Ari = window.Ari || {};
 
 window.AriConversationOperatingState = {
-  version: "1.0.0",
+  version: "1.1.0",
   schemaVersion: "1.0.0",
   source: "ari-conversation-operating-state",
   authorityLevel: "conversation_operating_state_authority",
@@ -128,6 +131,11 @@ window.AriConversationOperatingState = {
         historicalHorizon
       });
 
+    const referenceSignal =
+      this.buildReferenceSignal(
+        input.currentTurn
+      );
+
     const operatingState = {
       schema:
         "ari_conversation_operating_state",
@@ -176,6 +184,8 @@ window.AriConversationOperatingState = {
 
       continuityMode,
 
+      referenceSignal,
+
       priorContextAvailable:
         recentTurns.length >
         0,
@@ -208,7 +218,9 @@ window.AriConversationOperatingState = {
           immediate,
           activeFrame,
           activeHorizon,
-          historicalHorizon
+          historicalHorizon,
+          continuityMode,
+          referenceSignal
         }),
 
       rawStoredState:
@@ -292,6 +304,27 @@ window.AriConversationOperatingState = {
           ).currentTurn
       });
 
+    const currentTurn =
+      existing.currentTurn ||
+      this.normalizeCurrentTurnInput(
+        summary
+      ).currentTurn;
+
+    const continuityMode =
+      this.resolveContinuityMode({
+        currentTurn,
+        immediate:
+          existing.immediateHorizon ||
+          {},
+        activeFrame,
+        historicalHorizon
+      });
+
+    const referenceSignal =
+      this.buildReferenceSignal(
+        currentTurn
+      );
+
     const operatingState = {
       ...existing,
 
@@ -304,6 +337,10 @@ window.AriConversationOperatingState = {
       activeHorizon,
 
       historicalHorizon,
+
+      continuityMode,
+
+      referenceSignal,
 
       referenceCandidates:
         historicalHorizon
@@ -319,13 +356,14 @@ window.AriConversationOperatingState = {
 
       compactContext:
         this.buildCompactContext({
-          currentTurn:
-            existing.currentTurn,
+          currentTurn,
           immediate:
             existing.immediateHorizon,
           activeFrame,
           activeHorizon,
-          historicalHorizon
+          historicalHorizon,
+          continuityMode,
+          referenceSignal
         })
     };
 
@@ -511,7 +549,11 @@ window.AriConversationOperatingState = {
           activeHorizon:
             existing.activeHorizon,
           historicalHorizon:
-            existing.historicalHorizon
+            existing.historicalHorizon,
+          continuityMode:
+            existing.continuityMode,
+          referenceSignal:
+            existing.referenceSignal
         })
     };
 
@@ -2405,6 +2447,72 @@ window.AriConversationOperatingState = {
     return "direct_current_turn";
   },
 
+  buildReferenceSignal(
+    currentTurn = {}
+  ) {
+    const text =
+      this.cleanText(
+        currentTurn.originalText ||
+        currentTurn.effectiveText ||
+        ""
+      );
+
+    const match =
+      text.match(
+        /\b(it|that|this|they|them|he|she|him|her|those|these|one|ones|another|the other one)\b/i
+      );
+
+    if (!match) {
+      return {
+        present:
+          false,
+
+        surface:
+          null,
+
+        normalizedSurface:
+          null,
+
+        kind:
+          null,
+
+        resolutionRequired:
+          false,
+
+        resolved:
+          false,
+
+        authority:
+          "reference_signal_detection_only"
+      };
+    }
+
+    return {
+      present:
+        true,
+
+      surface:
+        match[0],
+
+      normalizedSurface:
+        this.normalizeForComparison(
+          match[0]
+        ),
+
+      kind:
+        "context_dependent_reference",
+
+      resolutionRequired:
+        true,
+
+      resolved:
+        false,
+
+      authority:
+        "reference_signal_detection_only"
+    };
+  },
+
   /* =====================================================
      COMPACT CONTEXT
   ===================================================== */
@@ -2414,7 +2522,9 @@ window.AriConversationOperatingState = {
     immediate = {},
     activeFrame = {},
     activeHorizon = {},
-    historicalHorizon = {}
+    historicalHorizon = {},
+    continuityMode = "direct_current_turn",
+    referenceSignal = null
   } = {}) {
     return {
       currentTurn: {
@@ -2430,6 +2540,12 @@ window.AriConversationOperatingState = {
           currentTurn.role ||
           "user"
       },
+
+      continuityMode,
+
+      referenceSignal:
+        referenceSignal ||
+        null,
 
       previousTurn: {
         user:
@@ -2969,6 +3085,69 @@ window.AriConversationOperatingState = {
     activeFrame = {},
     activeHorizon = {}
   } = {}) {
+    const continuityMode =
+      operatingState.continuityMode ||
+      "direct_current_turn";
+
+    const isFollowUp =
+      [
+        "reference_follow_up",
+        "likely_follow_up",
+        "active_topic_continuation"
+      ].includes(
+        continuityMode
+      );
+
+    const requiresPriorContext =
+      [
+        "reference_follow_up",
+        "likely_follow_up"
+      ].includes(
+        continuityMode
+      );
+
+    const priorContextAvailable =
+      operatingState
+        .priorContextAvailable ===
+      true;
+
+    const referenceSignal =
+      operatingState.referenceSignal ||
+      {
+        present:
+          false,
+
+        surface:
+          null,
+
+        normalizedSurface:
+          null,
+
+        kind:
+          null,
+
+        resolutionRequired:
+          false,
+
+        resolved:
+          false,
+
+        authority:
+          "reference_signal_detection_only"
+      };
+
+    const storedThreadEvidenceAvailable =
+      Boolean(
+        storedState.conversationId ||
+        storedState.lastUpdatedAt ||
+        storedState.recentTurns
+          ?.length ||
+        storedState.lastFinalResponse ||
+        storedState.previousAnswerSummary ||
+        storedState.currentTopic ||
+        storedState.activeSubject
+      );
+
     const threadContext = {
       schema:
         "ari_thread_context",
@@ -2986,9 +3165,17 @@ window.AriConversationOperatingState = {
         true,
 
       available:
-        operatingState
-          .priorContextAvailable ===
-        true,
+        priorContextAvailable,
+
+      continuityMode,
+
+      isFollowUp,
+
+      requiresPriorContext,
+
+      priorContextAvailable,
+
+      referenceSignal,
 
       currentTopic:
         activeFrame.topic ||
@@ -3067,6 +3254,21 @@ window.AriConversationOperatingState = {
           storedState
             .continuitySummary ||
           null,
+
+        continuityMode,
+
+        isFollowUp,
+
+        requiresPriorContext,
+
+        priorContextAvailable,
+
+        referenceSignal,
+
+        referenceCandidates:
+          operatingState
+            .referenceCandidates ||
+          [],
 
         activeTopic:
           activeFrame.topic ||
@@ -3202,6 +3404,12 @@ window.AriConversationOperatingState = {
         canPreserveRecentTurns:
           true,
 
+        canExposeContinuityRequirements:
+          true,
+
+        canDetectReferenceSignal:
+          true,
+
         canChooseCurrentMeaning:
           false,
 
@@ -3240,13 +3448,18 @@ window.AriConversationOperatingState = {
       conversationOperatingStateVersion:
         this.version,
 
+      continuityMode,
+
+      isFollowUp,
+
+      requiresPriorContext,
+
+      priorContextAvailable,
+
+      referenceSignal,
+
       threadStateLoaded:
-        Boolean(
-          storedState &&
-          Object.keys(
-            storedState
-          ).length
-        ),
+        storedThreadEvidenceAvailable,
 
       threadState:
         storedState,
@@ -3450,6 +3663,12 @@ window.AriConversationOperatingState = {
       canRankReferenceCandidates:
         true,
 
+      canDetectReferenceSignal:
+        true,
+
+      canExposeContinuityRequirements:
+        true,
+
       canPreserveCompatibilityAliases:
         true,
 
@@ -3508,7 +3727,7 @@ window.AriConversationOperatingState = {
         false,
 
       role:
-        "conversation_state_organization_ranking_and_persistence"
+        "conversation_state_organization_ranking_signal_detection_and_persistence"
     };
   },
 
@@ -3580,9 +3799,24 @@ window.AriConversationOperatingState = {
         originalTurnPreserved:
           true,
 
+        referenceSignalDetectionEnabled:
+          authority
+            .canDetectReferenceSignal ===
+          true,
+
+        continuityRequirementProjectionEnabled:
+          authority
+            .canExposeContinuityRequirements ===
+          true,
+
         referenceResolutionSeparated:
           authority
             .canResolveEllipticalFollowUp ===
+          false,
+
+        entityBindingSeparated:
+          authority
+            .canBindEntityReference ===
           false,
 
         semanticInterpretationSeparated:
