@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.2.1 — Reliable Engine Invocation
+// V2.3.0 — Required Semantic Reasoning
 //
 // Authority model:
 //
@@ -40,7 +40,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "2.2.1",
+  version: "2.3.0",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -69,10 +69,15 @@ window.AriReasoningStage = {
       state.executivePacket ||
       {};
 
-    const runInstructions =
-      executivePacket.runInstructions ||
-      state.routingContract?.run ||
-      {};
+    const runInstructions = {
+  ...this.objectOrEmpty(
+    state.routingContract?.run
+  ),
+
+  ...this.objectOrEmpty(
+    executivePacket.runInstructions
+  )
+};
 
     const reasoningEligibility =
       this.resolveReasoningEligibility({
@@ -1216,95 +1221,113 @@ isValidEngineInvocationResult({
   // ===================================================
 
   resolveReasoningEligibility({
-    state = {},
-    runInstructions = {}
-  } = {}) {
-    const developerRequested =
-      runInstructions.developer ===
-        true ||
-      state.shouldRunDeveloperLayer ===
-        true ||
-      state.routingContract
-        ?.run
-        ?.developer === true ||
-      state.routingContract
-        ?.mode === "developer";
+  state = {},
+  runInstructions = {}
+} = {}) {
+  const developerRequested =
+    runInstructions.developer === true ||
+    state.shouldRunDeveloperLayer === true ||
+    state.routingContract
+      ?.run
+      ?.developer === true ||
+    state.routingContract
+      ?.mode === "developer";
 
-    const safetyOverride =
-      state.safetyDisposition
-        ?.shouldStopNormalResponse ===
-        true ||
-      state.safetyStagePacket
-        ?.shouldStopNormalResponse ===
-        true ||
-      state.safetyStagePacket
-        ?.safetyShouldStopNormalResponse ===
+  const safetyOverride =
+    state.safetyDisposition
+      ?.shouldStopNormalResponse === true ||
+    state.safetyStagePacket
+      ?.shouldStopNormalResponse === true ||
+    state.safetyStagePacket
+      ?.safetyShouldStopNormalResponse ===
         true;
 
-    const fastPath =
-      runInstructions.fastPath ===
-        true ||
-      state.routingApplicability
-        ?.fastPathEligible === true;
+  const fastPath =
+    runInstructions.fastPath === true ||
+    state.routingApplicability
+      ?.fastPathEligible === true;
 
-    const heavyReasoningRequested =
-      runInstructions
-        .heavyReasoning !== false &&
-      state.shouldRunHeavyReasoning !==
-        false;
+  const routeNeedsReasoning =
+    this.routeNeedsReasoning(
+      state
+    );
 
-    const routeNeedsReasoning =
-      this.routeNeedsReasoning(
-        state
-      );
+  const generalReasoningExplicitlyDisabled =
+    runInstructions
+      .generalReasoning === false ||
+    runInstructions
+      .reasoning === false;
 
-    const runCognitiveExecutive =
-      developerRequested ||
-      safetyOverride ||
-      heavyReasoningRequested ||
-      routeNeedsReasoning;
+  const heavyReasoningRequested =
+    runInstructions
+      .heavyReasoning === true ||
+    state.shouldRunHeavyReasoning ===
+      true ||
+    routeNeedsReasoning;
 
-    const runGeneralReasoning =
-      !safetyOverride &&
-      (
-        developerRequested ===
-          false ||
-        state.developerResponseLocked !==
-          true
-      ) &&
-      (
-        heavyReasoningRequested ||
-        routeNeedsReasoning ||
-        !fastPath
-      );
+  const authoritativeResponseAlreadyAvailable =
+    this.resolveDeveloperResponseLock(
+      state
+    );
 
-    return {
-      runCognitiveExecutive,
+  /*
+   * The cognitive reasoning engine is the authority that
+   * creates the semantic frame and response requirements.
+   *
+   * Fast path may reduce reasoning depth, but it must not
+   * skip semantic reasoning when downstream deliberation
+   * still requires those artifacts.
+   */
 
-      runDeveloper:
-        developerRequested,
+  const semanticReasoningRequired =
+    !safetyOverride &&
+    !authoritativeResponseAlreadyAvailable &&
+    !generalReasoningExplicitlyDisabled;
 
-      runGeneralReasoning,
+  const runGeneralReasoning =
+    semanticReasoningRequired;
 
+  const runCognitiveExecutive =
+    developerRequested ||
+    safetyOverride ||
+    heavyReasoningRequested ||
+    routeNeedsReasoning ||
+    runGeneralReasoning;
+
+  return {
+    runCognitiveExecutive,
+
+    runDeveloper:
       developerRequested,
-      safetyOverride,
-      fastPath,
-      heavyReasoningRequested,
-      routeNeedsReasoning,
 
-      source:
-        "ari-reasoning-stage-eligibility",
+    runGeneralReasoning,
 
-      reason:
-        safetyOverride
-          ? "safety_override_limits_general_reasoning"
-          : developerRequested
-            ? "developer_reasoning_requested"
-            : runGeneralReasoning
-              ? "general_reasoning_required"
-              : "reasoning_fast_path"
-    };
-  },
+    developerRequested,
+    safetyOverride,
+    fastPath,
+    heavyReasoningRequested,
+    routeNeedsReasoning,
+    semanticReasoningRequired,
+    generalReasoningExplicitlyDisabled,
+    authoritativeResponseAlreadyAvailable,
+
+    source:
+      "ari-reasoning-stage-eligibility",
+
+    reason:
+      safetyOverride
+        ? "safety_override_limits_general_reasoning"
+        : authoritativeResponseAlreadyAvailable
+          ? "authoritative_response_already_available"
+          : generalReasoningExplicitlyDisabled
+            ? "general_reasoning_explicitly_disabled"
+            : fastPath
+              ? "fast_path_requires_semantic_reasoning"
+              : developerRequested
+                ? "developer_path_requires_semantic_reasoning"
+                : "general_reasoning_required"
+  };
+},
 
   routeNeedsReasoning(summary = {}) {
     const capabilities =
