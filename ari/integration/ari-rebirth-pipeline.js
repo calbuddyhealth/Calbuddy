@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.3.0 — Evidence / Cognitive Validation Contract Migration
+// V7.4.0 — Deliberation Failure Boundary Diagnostics
 //
 // Architectural flow:
 //
@@ -62,8 +62,8 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.3.0",
-  schemaVersion: "7.3.0",
+  version: "7.4.0",
+  schemaVersion: "7.4.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
     "canonical_five_layer_openai_cognitive_contract_authority",
@@ -250,9 +250,14 @@ window.AriRebirthPipeline = {
     ================================================= */
 
     const layerRuntime = {
-      mark,
+  mark,
+  runEngine,
 
-      runEngine,
+  deliberationDebug:
+    normalizedInput.deliberationDebug === true ||
+    normalizedInput.debugTiming === true ||
+    normalizedInput.appContext
+      ?.deliberationDebug === true,
 
       preserveExternalEvidence:
         state =>
@@ -744,6 +749,36 @@ window.AriRebirthPipeline = {
 
       deliberationPacket:
         null,
+
+deliberationDebugTrace:
+  null,
+
+deliberationDiagnostics:
+  null,
+
+deliberationHealthy:
+  false,
+
+deliberationWarnings:
+  [],
+
+deliberationStageErrors:
+  [],
+
+deliberationPipelineRan:
+  false,
+
+deliberationPipelineReady:
+  false,
+
+deliberationPipelineError:
+  null,
+
+deliberationPipelineSource:
+  null,
+
+deliberationPipelineVersion:
+  null,
 
       expressionPacket:
         null,
@@ -1571,37 +1606,76 @@ window.AriRebirthPipeline = {
           ran
         });
 
-      const layerResult = {
-        ran,
-        ready,
-        source,
+      const debugTrace =
+  name === "deliberation"
+    ? (
+        result.deliberationDebugTrace ||
+        result.deliberationPacket
+          ?.debug
+          ?.trace ||
+        null
+      )
+    : null;
 
-        version:
-          result[
-            `${name}PipelineVersion`
-          ] ||
-          pipeline.version ||
-          null,
+const failureBoundary =
+  debugTrace
+    ?.failureBoundary ||
+  null;
 
-        required:
-          layer.required ===
-          true,
+const layerResult = {
+  ran,
+  ready,
+  source,
 
-        packetAvailable:
-          Boolean(
-            result[layer.packetKey]
-          ),
+  version:
+    result[
+      `${name}PipelineVersion`
+    ] ||
+    pipeline.version ||
+    null,
 
-        durationMs:
-          Math.round(
-            performance.now() -
-            startedAt
-          ),
+  required:
+    layer.required ===
+    true,
 
-        error:
-          result[layer.errorKey] ||
+  packetAvailable:
+    Boolean(
+      result[layer.packetKey]
+    ),
+
+  durationMs:
+    Math.round(
+      performance.now() -
+      startedAt
+    ),
+
+  error:
+    result[layer.errorKey] ||
+    null,
+
+  debugTraceAvailable:
+    Boolean(
+      debugTrace
+    ),
+
+  failureBoundary,
+
+  firstFailedStage:
+    debugTrace
+      ?.firstFailedStage ||
+    null,
+
+  debugTrace,
+
+  deliberationDiagnostics:
+    name === "deliberation"
+      ? (
+          result
+            .deliberationDiagnostics ||
           null
-      };
+        )
+      : null
+};
 
       let nextState = {
         ...summary,
@@ -1638,24 +1712,64 @@ window.AriRebirthPipeline = {
           ready !== true
         )
       ) {
-        const error =
-          this.buildLayerError({
-            layer:
-              name,
+        const failureBoundary =
+  name === "deliberation"
+    ? (
+        result
+          .deliberationDebugTrace
+          ?.failureBoundary ||
+        result
+          .deliberationPacket
+          ?.debug
+          ?.trace
+          ?.failureBoundary ||
+        null
+      )
+    : null;
 
-            type:
-              ran !== true
-                ? "required_pipeline_did_not_run"
-                : "required_pipeline_not_ready",
+const firstFailedStage =
+  name === "deliberation"
+    ? (
+        result
+          .deliberationDebugTrace
+          ?.firstFailedStage ||
+        result
+          .deliberationPacket
+          ?.debug
+          ?.trace
+          ?.firstFailedStage ||
+        null
+      )
+    : null;
 
-            message:
-              ran !== true
-                ? `The required ${name} pipeline did not report successful execution.`
-                : `The required ${name} pipeline ran but did not produce a ready result.`,
+const error =
+  this.buildLayerError({
+    layer:
+      name,
 
-            fatal:
-              true
-          });
+    type:
+      ran !== true
+        ? "required_pipeline_did_not_run"
+        : (
+            failureBoundary ||
+            "required_pipeline_not_ready"
+          ),
+
+    message:
+      ran !== true
+        ? `The required ${name} pipeline did not report successful execution.`
+        : failureBoundary
+          ? `The required ${name} pipeline failed at ${failureBoundary}.`
+          : `The required ${name} pipeline ran but did not produce a ready result.`,
+
+    fatal:
+      true,
+
+    details: {
+      failureBoundary,
+      firstFailedStage
+    }
+  });
 
         nextState = {
           ...nextState,
@@ -1798,48 +1912,80 @@ window.AriRebirthPipeline = {
   },
 
   resolvePipelineStopDecision({
-    layer = {},
-    summary = {}
-  } = {}) {
-    const result =
-      summary.pipelineLayerResults
-        ?.[layer.name] ||
-      {};
+  layer = {},
+  summary = {}
+} = {}) {
+  const result =
+    summary.pipelineLayerResults
+      ?.[layer.name] ||
+    {};
 
-    if (
-      layer.required === true &&
-      result.ran !== true
-    ) {
-      return {
-        stop:
-          true,
+  if (
+    layer.required === true &&
+    result.ran !== true
+  ) {
+    return {
+      stop:
+        true,
 
-        reason:
-          `required_${layer.name}_pipeline_did_not_run`
-      };
-    }
+      reason:
+        `required_${layer.name}_pipeline_did_not_run`,
 
-    if (
-      layer.required === true &&
-      result.ready !== true
-    ) {
-      return {
-        stop:
-          true,
+      layer:
+        layer.name,
 
-        reason:
-          `required_${layer.name}_pipeline_not_ready`
-      };
-    }
+      failureBoundary:
+        null
+    };
+  }
+
+  if (
+    layer.required === true &&
+    result.ready !== true
+  ) {
+    const failureBoundary =
+      layer.name ===
+        "deliberation"
+        ? (
+            result.failureBoundary ||
+            result.debugTrace
+              ?.failureBoundary ||
+            summary
+              .deliberationDebugTrace
+              ?.failureBoundary ||
+            null
+          )
+        : null;
 
     return {
       stop:
-        false,
+        true,
 
       reason:
-        null
+        failureBoundary ||
+        `required_${layer.name}_pipeline_not_ready`,
+
+      layer:
+        layer.name,
+
+      failureBoundary
     };
-  },
+  }
+
+  return {
+    stop:
+      false,
+
+    reason:
+      null,
+
+    layer:
+      null,
+
+    failureBoundary:
+      null
+  };
+},
 
   recordSkippedLayer({
     summary = {},
@@ -1878,7 +2024,17 @@ window.AriRebirthPipeline = {
             layer.required ===
             true,
 
-          reason
+          reason,
+          
+          failureBoundary:
+  summary.pipelineLayerResults
+    ?.deliberation
+    ?.failureBoundary ||
+  null,
+
+stoppedByLayer:
+  summary.pipelineStopLayer ||
+  null
         }
       }
     };
@@ -3519,30 +3675,38 @@ window.AriRebirthPipeline = {
   ===================================================== */
 
   buildLayerError({
-    layer = "unknown",
-    type = "pipeline_error",
-    message = "",
-    fatal = false
-  } = {}) {
-    return {
-      layer,
+  layer = "unknown",
+  type = "pipeline_error",
+  message = "",
+  fatal = false,
+  details = null
+} = {}) {
+  return {
+    layer,
+    type,
+
+    error:
       type,
 
-      error:
-        type,
+    message,
 
-      message,
+    fatal:
+      fatal === true,
 
-      fatal:
-        fatal === true,
+    source:
+      this.source,
 
-      source:
-        this.source,
+    details:
+      details &&
+      typeof details ===
+        "object"
+        ? details
+        : null,
 
-      createdAt:
-        new Date().toISOString()
-    };
-  },
+    createdAt:
+      new Date().toISOString()
+  };
+},
 
   appendUniqueError(
     existing = [],
@@ -3621,34 +3785,43 @@ window.AriRebirthPipeline = {
       );
 
     const cognitiveResultAvailable =
-      Boolean(
-        summary.cognitiveReasoningResult ||
-        summary.deliberationPacket
-          ?.cognitiveReasoningResult
-      );
+  Boolean(
+    summary.cognitiveReasoningResult ||
+    summary.deliberationPacket
+      ?.reasoning
+      ?.result ||
+    summary.deliberationPacket
+      ?.stages
+      ?.reasoning
+      ?.cognitiveReasoningResult
+  );
 
-    const semanticValidationAccepted =
-      summary.semanticFrameValidation
-        ?.accepted ===
-        true ||
-      summary.deliberationPacket
-        ?.semanticFrameValidation
-        ?.accepted ===
-        true;
+const semanticValidationAccepted =
+  summary.semanticValidationAccepted ===
+    true ||
+  summary.semanticFrameValidation
+    ?.accepted ===
+    true ||
+  summary.deliberationPacket
+    ?.semanticValidation
+    ?.accepted ===
+    true;
 
-    const validatedFrameAvailable =
-      Boolean(
-        summary.validatedSemanticFrame ||
-        summary.deliberationPacket
-          ?.validatedSemanticFrame
-      );
+const validatedFrameAvailable =
+  Boolean(
+    summary.validatedSemanticFrame ||
+    summary.deliberationPacket
+      ?.semanticValidation
+      ?.validatedSemanticFrame
+  );
 
-    const responsePlanAvailable =
-      Boolean(
-        summary.responsePlan ||
-        summary.deliberationPacket
-          ?.responsePlan
-      );
+const responsePlanAvailable =
+  Boolean(
+    summary.responsePlan ||
+    summary.deliberationPacket
+      ?.responsePlanning
+      ?.plan
+  );
 
     const cognitiveContractsObserved =
       evidenceAvailable ||
@@ -3863,29 +4036,131 @@ window.AriRebirthPipeline = {
       null
     );
 
-    console.log(
-      "===== COGNITIVE REASONING RESULT =====",
-      summary.cognitiveReasoningResult ||
-      summary.deliberationPacket
-        ?.cognitiveReasoningResult ||
+console.log(
+  "===== DELIBERATION DEBUG TRACE =====",
+  summary.deliberationDebugTrace ||
+  summary.deliberationPacket
+    ?.debug
+    ?.trace ||
+  summary.pipelineLayerResults
+    ?.deliberation
+    ?.debugTrace ||
+  null
+);
+
+console.log(
+  "===== DELIBERATION FAILURE BOUNDARY =====",
+  {
+    failureBoundary:
+      summary.deliberationDebugTrace
+        ?.failureBoundary ||
+      summary.pipelineLayerResults
+        ?.deliberation
+        ?.failureBoundary ||
+      null,
+
+    firstFailedStage:
+      summary.deliberationDebugTrace
+        ?.firstFailedStage ||
+      summary.pipelineLayerResults
+        ?.deliberation
+        ?.firstFailedStage ||
+      null,
+
+    durationMs:
+      summary.deliberationDebugTrace
+        ?.durationMs ||
+      summary.pipelineLayerResults
+        ?.deliberation
+        ?.durationMs ||
       null
-    );
+  }
+);
+
+console.log(
+  "===== REASONING STAGE DEBUG =====",
+  {
+    ran:
+      summary.reasoningStageRan ===
+      true,
+
+    ready:
+      summary.reasoningReady ===
+      true,
+
+    stageReady:
+      summary.reasoningStageReady ===
+      true,
+
+    source:
+      summary.reasoningStageSource ||
+      null,
+
+    error:
+      summary.reasoningStageError ||
+      null,
+
+    reason:
+      summary.reasoningStageReason ||
+      null,
+
+    resultAvailable:
+      Boolean(
+        summary
+          .cognitiveReasoningResult
+      ),
+
+    semanticFrameAvailable:
+      Boolean(
+        summary.semanticFrame
+      ),
+
+    modelInvocation:
+      summary.modelInvocation ||
+      null,
+
+    engineInvocationDiagnostic:
+      summary
+        .engineInvocationDiagnostic ||
+      summary
+        .reasoningStagePacket
+        ?.engineInvocationDiagnostic ||
+      summary
+        .cognitiveReasoningResult
+        ?.engineInvocationDiagnostic ||
+      null
+  }
+);
 
     console.log(
-      "===== VALIDATED SEMANTIC FRAME =====",
-      summary.validatedSemanticFrame ||
-      summary.deliberationPacket
-        ?.validatedSemanticFrame ||
-      null
-    );
+  "===== COGNITIVE REASONING RESULT =====",
+  summary.cognitiveReasoningResult ||
+  summary.deliberationPacket
+    ?.reasoning
+    ?.result ||
+  summary.deliberationPacket
+    ?.stages
+    ?.reasoning
+    ?.cognitiveReasoningResult ||
+  null
+);
+    console.log(
+  "===== VALIDATED SEMANTIC FRAME =====",
+  summary.validatedSemanticFrame ||
+  summary.deliberationPacket
+    ?.semanticValidation
+    ?.validatedSemanticFrame ||
+  null
+);
 
     console.log(
-      "===== SEMANTIC FRAME VALIDATION =====",
-      summary.semanticFrameValidation ||
-      summary.deliberationPacket
-        ?.semanticFrameValidation ||
-      null
-    );
+  "===== SEMANTIC FRAME VALIDATION =====",
+  summary.semanticFrameValidation ||
+  summary.deliberationPacket
+    ?.semanticValidation
+    ?.result ||
+  null
+);
 
     console.log(
       "===== COGNITIVE RUNTIME INVARIANTS =====",
