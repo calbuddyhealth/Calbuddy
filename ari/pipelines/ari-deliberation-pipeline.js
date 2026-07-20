@@ -905,111 +905,183 @@ window.AriDeliberationPipeline = {
   },
 
   normalizeSemanticValidationOutputs(
-    summary = {}
-  ) {
-    const validation =
-      summary
-        .semanticFrameValidatorResult ||
-      summary
-        .semanticValidationStagePacket ||
-      summary
-        .semanticFrameValidation ||
-      null;
+  summary = {}
+) {
+  const validation =
+    this.readObject(
+      summary.semanticFrameValidatorResult
+    ) ||
+    this.readObject(
+      summary.semanticValidationStagePacket
+    ) ||
+    this.readObject(
+      summary.semanticFrameValidation
+    ) ||
+    null;
 
-    const accepted =
+  const nestedValidation =
+    this.readObject(
       validation
-        ?.accepted === true ||
-      validation
-        ?.valid === true ||
-      validation
-        ?.status ===
-        "accepted";
+        ?.semanticFrameValidation
+    );
 
-    const validatedSemanticFrame =
-      accepted
-        ? (
+  const accepted =
+    validation
+      ?.semanticFrameValidatorReady ===
+      true ||
+    validation
+      ?.accepted ===
+      true ||
+    validation
+      ?.valid ===
+      true ||
+    validation
+      ?.status ===
+      "accepted" ||
+    nestedValidation
+      ?.accepted ===
+      true ||
+    nestedValidation
+      ?.valid ===
+      true;
+
+  const validatedSemanticFrame =
+    accepted
+      ? (
+          this.readObject(
             validation
-              ?.validatedSemanticFrame ||
+              ?.validatedSemanticFrame
+          ) ||
+          this.readObject(
             validation
-              ?.semanticFrame ||
-            summary.semanticFrame ||
-            null
-          )
-        : null;
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary
+              .validatedSemanticFrame
+          ) ||
+          this.readObject(
+            summary.semanticFrame
+          ) ||
+          null
+        )
+      : null;
 
-    const compatibility =
+  const compatibility =
+    this.readObject(
       validation
-        ?.compatibility ||
+        ?.semanticCompatibility
+    ) ||
+    this.readObject(
       validation
-        ?.compatibilityProjections ||
+        ?.compatibility
+    ) ||
+    this.readObject(
       validation
-        ?.projections ||
-      null;
+        ?.compatibilityProjections
+    ) ||
+    this.readObject(
+      validation
+        ?.projections
+    ) ||
+    null;
 
-    return {
-      ...summary,
+  const rejectedSemanticFrame =
+    accepted
+      ? null
+      : (
+          this.readObject(
+            validation
+              ?.rejectedSemanticFrame
+          ) ||
+          this.readObject(
+            summary.semanticFrame
+          ) ||
+          null
+        );
 
-      semanticFrameValidatorResult:
-        validation,
+  const validationErrors =
+    this.firstArray(
+      nestedValidation
+        ?.errors,
 
-      semanticFrameValidation:
-        validation,
+      validation
+        ?.errors
+    );
 
-      semanticValidationAccepted:
-        accepted,
+  const validationWarnings =
+    this.firstArray(
+      nestedValidation
+        ?.warnings,
 
-      semanticValidationRejected:
-        !accepted,
+      validation
+        ?.warnings
+    );
 
-      validatedSemanticFrame,
+  return {
+    ...summary,
 
-      rejectedSemanticFrame:
-        accepted
-          ? null
-          : (
-              validation
-                ?.rejectedSemanticFrame ||
-              summary.semanticFrame ||
-              null
-            ),
+    semanticFrameValidatorResult:
+      validation,
 
-      semanticCompatibility:
-        compatibility,
+    semanticFrameValidation:
+      nestedValidation ||
+      validation,
 
-      canonicalMeaning:
-        compatibility
-          ?.canonicalMeaning ||
-        null,
+    semanticValidationAccepted:
+      accepted,
 
-      primaryFrame:
-        compatibility
-          ?.primaryFrame ||
-        validatedSemanticFrame ||
-        null,
+    semanticValidationRejected:
+      !accepted,
 
-      semanticSummary:
-        compatibility
-          ?.semanticSummary ||
-        validatedSemanticFrame
-          ?.semanticSummary ||
-        null,
+    semanticValidationErrors:
+      validationErrors,
 
-      semanticSlots:
-        compatibility
-          ?.semanticSlots ||
-        validatedSemanticFrame
-          ?.slots ||
-        null,
+    semanticValidationWarnings:
+      validationWarnings,
 
-      validatedResponseRequirements:
-        compatibility
-          ?.responseRequirements ||
-        validation
-          ?.responseRequirements ||
-        summary.responseRequirements ||
-        null
-    };
-  },
+    validatedSemanticFrame,
+
+    rejectedSemanticFrame,
+
+    semanticCompatibility:
+      compatibility,
+
+    canonicalMeaning:
+      compatibility
+        ?.canonicalMeaning ||
+      null,
+
+    primaryFrame:
+      compatibility
+        ?.primaryFrame ||
+      validatedSemanticFrame ||
+      null,
+
+    semanticSummary:
+      compatibility
+        ?.semanticSummary ||
+      validatedSemanticFrame
+        ?.semanticSummary ||
+      null,
+
+    semanticSlots:
+      compatibility
+        ?.semanticSlots ||
+      validatedSemanticFrame
+        ?.slots ||
+      null,
+
+    validatedResponseRequirements:
+      compatibility
+        ?.responseRequirements ||
+      validation
+        ?.responseRequirements ||
+      summary
+        .responseRequirements ||
+      null
+  };
+},
 
   isSemanticValidationAccepted(
     summary = {}
