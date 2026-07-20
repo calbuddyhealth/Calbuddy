@@ -1,13 +1,45 @@
 // ari/continuity/ari-conversation-continuity-engine.js
 // Ari Conversation Continuity Engine
-// Purpose: Produce canonical, branch-aware thread context for semantic understanding.
-// V3.0.0 — Canonical Thread Context Schema / No Intent / No Planning / No Frame Authority
+//
+// Purpose:
+// Produce canonical, branch-aware, reference-aware thread context for the
+// current conversation turn.
+//
+// V4.0.0 — Canonical Continuity Evidence / Reliable Thread State /
+// Context-Dependency Preservation
+//
+// Architectural responsibilities:
+// - Load the best available prior thread state.
+// - Preserve recent user and assistant turns.
+// - Detect current-turn continuity evidence.
+// - Distinguish follow-up detection from context availability.
+// - Detect contextual references without resolving them.
+// - Maintain stable thread and branch identity.
+// - Rank structured reference candidates.
+// - Suppress stale or branch-incompatible context.
+// - Produce canonical thread context for downstream reference resolution.
+// - Persist provisional continuity state for the current turn.
+//
+// Non-responsibilities:
+// - Does not determine the user's canonical semantic meaning.
+// - Does not resolve references to final targets.
+// - Does not interpret the requested operation.
+// - Does not choose intent, conversation function, planner, or response shape.
+// - Does not create a semantic frame.
+// - Does not answer the user.
+// - Does not commit authoritative assistant delivery state.
 
 window.Ari = window.Ari || {};
 
 window.AriConversationContinuityEngine = {
-  version: "3.0.0",
-  schemaVersion: "1.0.0",
+  version: "4.0.0",
+  schemaVersion: "2.0.0",
+
+  maxPriorTurns: 20,
+  maxRecentTurns: 12,
+  maxReferenceCandidates: 40,
+  maxStaleContextItems: 20,
+  maxUnresolvedItems: 12,
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -35,6 +67,7 @@ window.AriConversationContinuityEngine = {
       this.collectPriorTurns({
         summary,
         priorState,
+        storedThread,
         currentTurn
       });
 
@@ -53,7 +86,6 @@ window.AriConversationContinuityEngine = {
 
     const branch =
       this.resolveBranch({
-        currentTurn,
         priorState,
         continuitySignals
       });
@@ -62,6 +94,7 @@ window.AriConversationContinuityEngine = {
       this.buildRecentTurns({
         previousTurns,
         currentTurn,
+        continuitySignals,
         branch
       });
 
@@ -76,17 +109,15 @@ window.AriConversationContinuityEngine = {
 
     const collections =
       this.collectRecentSemanticItems({
+        priorState,
         immediateContext,
         recentTurns,
-        priorState,
         branch
       });
 
     const referenceCandidates =
       this.buildReferenceCandidates({
-        currentTurn,
         immediateContext,
-        recentTurns,
         activeContext,
         collections,
         branch
@@ -109,6 +140,7 @@ window.AriConversationContinuityEngine = {
 
     const threadContext =
       this.buildThreadContext({
+        priorState,
         currentTurn,
         immediateContext,
         recentTurns,
@@ -127,11 +159,11 @@ window.AriConversationContinuityEngine = {
         threadContext
       });
 
-    window.Ari.conversationState =
-      persistedState;
-
     window.Ari.threadContext =
       threadContext;
+
+    window.Ari.conversationState =
+      persistedState;
 
     await this.saveStoredThread(
       summary,
@@ -176,13 +208,17 @@ window.AriConversationContinuityEngine = {
 
       createdAt:
         summary.currentTurnCreatedAt ||
+        summary.createdAt ||
         new Date().toISOString(),
 
       wordCount:
         normalizedText
           .split(/\s+/)
           .filter(Boolean)
-          .length
+          .length,
+
+      authority:
+        "current_turn_record_only"
     };
   },
 
@@ -198,19 +234,33 @@ window.AriConversationContinuityEngine = {
       !store ||
       typeof store.load !== "function"
     ) {
-      return {};
+      return {
+        available:
+          false,
+
+        reason:
+          "thread_store_not_available"
+      };
     }
 
     try {
       const loaded =
         await store.load(summary);
 
-      return (
+      if (
         loaded &&
         typeof loaded === "object"
-          ? loaded
-          : {}
-      );
+      ) {
+        return loaded;
+      }
+
+      return {
+        available:
+          false,
+
+        reason:
+          "thread_store_returned_no_state"
+      };
     } catch (error) {
       console.warn(
         "ARI THREAD CONTEXT LOAD FAILED:",
@@ -218,6 +268,9 @@ window.AriConversationContinuityEngine = {
       );
 
       return {
+        available:
+          false,
+
         loadError:
           error?.message ||
           String(error)
@@ -236,7 +289,13 @@ window.AriConversationContinuityEngine = {
       !store ||
       typeof store.save !== "function"
     ) {
-      return false;
+      return {
+        saved:
+          false,
+
+        reason:
+          "thread_store_not_available"
+      };
     }
 
     try {
@@ -245,95 +304,333 @@ window.AriConversationContinuityEngine = {
         summary
       );
 
-      return true;
+      return {
+        saved:
+          true,
+
+        reason:
+          "provisional_continuity_state_saved"
+      };
     } catch (error) {
       console.warn(
         "ARI THREAD CONTEXT SAVE FAILED:",
         error
       );
 
-      return false;
+      return {
+        saved:
+          false,
+
+        reason:
+          "thread_store_save_failed",
+
+        error:
+          error?.message ||
+          String(error)
+      };
     }
   },
+
+  /* =====================================================
+     PRIOR STATE
+  ===================================================== */
 
   readPriorState({
     summary = {},
     storedThread = {}
   } = {}) {
     const candidates = [
-      summary.threadContext,
-      summary.conversationState,
-      summary.threadState,
-      storedThread.threadContext,
-      storedThread.threadState,
-      storedThread.conversationState,
-      window.Ari.threadContext,
-      window.Ari.conversationState
+      {
+        source:
+          "summary.threadContext",
+
+        value:
+          summary.threadContext
+      },
+
+      {
+        source:
+          "summary.conversationState",
+
+        value:
+          summary.conversationState
+      },
+
+      {
+        source:
+          "summary.threadState",
+
+        value:
+          summary.threadState
+      },
+
+      {
+        source:
+          "storedThread.threadContext",
+
+        value:
+          storedThread.threadContext
+      },
+
+      {
+        source:
+          "storedThread.threadState",
+
+        value:
+          storedThread.threadState
+      },
+
+      {
+        source:
+          "storedThread.conversationState",
+
+        value:
+          storedThread.conversationState
+      },
+
+      {
+        source:
+          "storedThread",
+
+        value:
+          storedThread
+      },
+
+      {
+        source:
+          "window.Ari.threadContext",
+
+        value:
+          window.Ari.threadContext
+      },
+
+      {
+        source:
+          "window.Ari.conversationState",
+
+        value:
+          window.Ari.conversationState
+      }
     ];
 
-    const found =
+    const selected =
       candidates.find(candidate =>
-        candidate &&
-        typeof candidate === "object"
+        this.hasUsableThreadState(
+          candidate.value
+        )
       ) ||
+      {
+        source:
+          "not_available",
+
+        value:
+          {}
+      };
+
+    const found =
+      selected.value ||
       {};
 
+    const storedRoot =
+      storedThread &&
+      typeof storedThread === "object"
+        ? storedThread
+        : {};
+
+    const thread =
+      this.firstObject([
+        found.thread,
+        storedRoot.thread
+      ]);
+
     return {
-      ...found,
+      schema:
+        found.schema ||
+        storedRoot.schema ||
+        "ari_thread_state",
+
+      schemaVersion:
+        found.schemaVersion ||
+        found.version ||
+        storedRoot.schemaVersion ||
+        storedRoot.version ||
+        null,
+
+      source:
+        found.source ||
+        storedRoot.source ||
+        selected.source,
+
+      selectedStateSource:
+        selected.source,
 
       threadId:
-        found.thread?.threadId ||
+        thread.threadId ||
         found.threadId ||
-        storedThread.threadId ||
+        storedRoot.threadId ||
         summary.threadId ||
         null,
 
       branchId:
-        found.thread?.branchId ||
+        thread.branchId ||
         found.branchId ||
+        storedRoot.branchId ||
         null,
 
+      thread,
+
+      currentTurn:
+        this.firstObject([
+          found.currentTurn,
+          storedRoot.currentTurn
+        ]),
+
       lastMessages:
-        this.readMessageArray(
-          found.lastMessages ||
-          found.recentTurns ||
-          storedThread.lastMessages ||
-          summary.lastMessages ||
-          []
-        ),
+  this.firstPopulatedArray([
+    found.lastMessages,
+    found.recentTurns,
+    storedRoot.lastMessages,
+    storedRoot.recentTurns,
+    summary.lastMessages,
+    summary.recentTurns
+  ]),
+
+recentTurns:
+  this.firstPopulatedArray([
+    found.recentTurns,
+    found.lastMessages,
+    storedRoot.recentTurns,
+    storedRoot.lastMessages,
+    summary.recentTurns,
+    summary.lastMessages
+  ]),
 
       activeTopic:
         this.normalizeContextNode(
-          found.activeTopic ||
-          found.currentTopic ||
-          null
+          this.firstDefined([
+            found.activeTopic,
+            found.currentTopic,
+            storedRoot.activeTopic,
+            storedRoot.currentTopic
+          ])
         ),
 
       activeSubject:
         this.normalizeContextNode(
-          found.activeSubject ||
-          null
+          this.firstDefined([
+            found.activeSubject,
+            storedRoot.activeSubject
+          ])
         ),
 
       unresolvedThreadItems:
         this.asArray(
-          found.unresolvedThreadItems ||
-          found.unresolvedItems ||
-          []
+          this.firstDefined([
+            found.unresolvedThreadItems,
+            found.unresolvedItems,
+            storedRoot.unresolvedThreadItems,
+            storedRoot.unresolvedItems
+          ])
         ),
 
       referenceCandidates:
         this.asArray(
-          found.referenceCandidates ||
-          []
+          this.firstDefined([
+            found.referenceCandidates,
+            storedRoot.referenceCandidates
+          ])
         ),
 
       staleContext:
         this.asArray(
-          found.staleContext ||
-          []
+          this.firstDefined([
+            found.staleContext,
+            storedRoot.staleContext
+          ])
+        ),
+
+      continuitySignals:
+        this.firstObject([
+          found.continuitySignals,
+          storedRoot.continuitySignals
+        ]),
+
+      previousTopic:
+        this.normalizeContextNode(
+          this.firstDefined([
+            found.previousTopic,
+            storedRoot.previousTopic
+          ])
+        ),
+
+      provisional:
+        found.provisional ===
+          true ||
+        storedRoot.provisional ===
+          true,
+
+      deliveryCommitted:
+        found.deliveryCommitted ===
+          true ||
+        storedRoot.deliveryCommitted ===
+          true,
+
+      available:
+        this.hasUsableThreadState(
+          found
         )
     };
+  },
+
+  hasUsableThreadState(
+    candidate = null
+  ) {
+    if (
+      !candidate ||
+      typeof candidate !== "object" ||
+      Array.isArray(candidate)
+    ) {
+      return false;
+    }
+
+    const thread =
+      this.firstObject([
+        candidate.thread
+      ]);
+
+    const currentTurn =
+      this.firstObject([
+        candidate.currentTurn
+      ]);
+
+    return Boolean(
+      candidate.threadId ||
+      candidate.branchId ||
+      thread.threadId ||
+      thread.branchId ||
+      this.clean(
+        currentTurn.rawText ||
+        currentTurn.text ||
+        currentTurn.normalizedText ||
+        ""
+      ) ||
+      this.asArray(
+        candidate.lastMessages
+      ).length ||
+      this.asArray(
+        candidate.recentTurns
+      ).length ||
+      candidate.activeTopic ||
+      candidate.currentTopic ||
+      candidate.activeSubject ||
+      this.asArray(
+        candidate.referenceCandidates
+      ).length ||
+      this.asArray(
+        candidate.unresolvedThreadItems ||
+        candidate.unresolvedItems
+      ).length
+    );
   },
 
   /* =====================================================
@@ -343,17 +640,28 @@ window.AriConversationContinuityEngine = {
   collectPriorTurns({
     summary = {},
     priorState = {},
+    storedThread = {},
     currentTurn = {}
   } = {}) {
     const sources = [
       priorState.lastMessages,
       priorState.recentTurns,
+
       summary.recentTurns,
       summary.recentMessages,
       summary.lastMessages,
-      summary.threadState?.lastMessages,
-      summary.continuityState?.lastMessages,
-      summary.conversationHistoryTurns
+
+      summary.threadState
+        ?.lastMessages,
+
+      summary.continuityState
+        ?.lastMessages,
+
+      summary
+        .conversationHistoryTurns,
+
+      storedThread.lastMessages,
+      storedThread.recentTurns
     ];
 
     const turns = [];
@@ -368,11 +676,14 @@ window.AriConversationContinuityEngine = {
             return;
           }
 
-          if (
+          const duplicateOfCurrentTurn =
             currentTurn.rawText &&
             turn.speaker === "user" &&
             this.normalize(turn.text) ===
-              currentTurn.normalizedText
+              currentTurn.normalizedText;
+
+          if (
+            duplicateOfCurrentTurn
           ) {
             return;
           }
@@ -392,25 +703,35 @@ window.AriConversationContinuityEngine = {
             second
           )
       )
-      .slice(-20);
+      .slice(
+        -this.maxPriorTurns
+      );
   },
 
   normalizeTurn(value = {}) {
     if (
       typeof value === "string"
     ) {
+      const text =
+        this.clean(value);
+
       return {
         turnId:
           this.createStableTurnId(
-            value,
+            text,
             "unknown"
           ),
+
+        threadId:
+          null,
+
+        branchId:
+          null,
 
         speaker:
           "unknown",
 
-        text:
-          this.clean(value),
+        text,
 
         createdAt:
           null,
@@ -421,16 +742,18 @@ window.AriConversationContinuityEngine = {
         quantities: [],
         references: [],
         options: [],
-
         topicRefs: [],
+
         meaningRef:
           null,
 
         frameRef:
           null,
 
-        branchId:
-          null
+        answerFocus:
+          null,
+
+        artifacts: []
       };
     }
 
@@ -461,6 +784,17 @@ window.AriConversationContinuityEngine = {
           speaker
         ),
 
+      threadId:
+        value.threadId ||
+        value.thread?.threadId ||
+        null,
+
+      branchId:
+        value.branchId ||
+        value.threadBranchId ||
+        value.thread?.branchId ||
+        null,
+
       speaker,
 
       text,
@@ -474,67 +808,73 @@ window.AriConversationContinuityEngine = {
       entities:
         this.readStructuredItems(
           value.entities ||
-          value.semanticFrame?.entities ||
-          value.canonicalMeaning?.entities ||
-          []
+          value.semanticFrame
+            ?.entities ||
+          value.canonicalMeaning
+            ?.entities
         ),
 
       events:
         this.readStructuredItems(
           value.events ||
-          value.semanticFrame?.events ||
-          value.canonicalMeaning?.events ||
-          []
+          value.semanticFrame
+            ?.events ||
+          value.canonicalMeaning
+            ?.events
         ),
 
       claims:
         this.readStructuredItems(
           value.claims ||
-          value.semanticFrame?.claims ||
-          value.canonicalMeaning?.claims ||
-          []
+          value.semanticFrame
+            ?.claims ||
+          value.canonicalMeaning
+            ?.claims
         ),
 
       quantities:
         this.readStructuredItems(
           value.quantities ||
-          value.semanticFrame?.quantities ||
-          value.canonicalMeaning?.quantities ||
-          []
+          value.semanticFrame
+            ?.quantities ||
+          value.canonicalMeaning
+            ?.quantities
         ),
 
       references:
         this.readStructuredItems(
           value.references ||
-          value.referenceResolution?.references ||
-          []
+          value.referenceResolution
+            ?.references
         ),
 
       options:
         this.readStructuredItems(
           value.options ||
-          value.semanticFrame?.options ||
-          value.canonicalMeaning?.options ||
-          []
+          value.semanticFrame
+            ?.options ||
+          value.canonicalMeaning
+            ?.options
         ),
 
       topicRefs:
         this.readStructuredItems(
           value.topicRefs ||
-          value.topics ||
-          []
+          value.topics
         ),
 
       meaningRef:
         value.meaningRef ||
         value.canonicalMeaningRef ||
-        value.canonicalMeaning?.id ||
+        value.canonicalMeaning
+          ?.id ||
         null,
 
       frameRef:
         value.frameRef ||
         value.semanticFrameRef ||
-        value.semanticFrame?.frameId ||
+        value.semanticFrame
+          ?.frameId ||
         null,
 
       answerFocus:
@@ -545,10 +885,12 @@ window.AriConversationContinuityEngine = {
           ?.requestedOutput ||
         null,
 
-      branchId:
-        value.branchId ||
-        value.threadBranchId ||
-        null
+      artifacts:
+        this.readStructuredItems(
+          value.artifacts ||
+          value.generatedArtifacts ||
+          value.attachments
+        )
     };
   },
 
@@ -558,31 +900,27 @@ window.AriConversationContinuityEngine = {
     const ordered =
       [...previousTurns];
 
-    const immediatePreviousTurn =
-      ordered.at(-1) ||
-      null;
-
-    const immediatePreviousUserTurn =
-      [...ordered]
-        .reverse()
-        .find(turn =>
-          turn.speaker === "user"
-        ) ||
-      null;
-
-    const immediatePreviousAssistantTurn =
-      [...ordered]
-        .reverse()
-        .find(turn =>
-          turn.speaker ===
-          "assistant"
-        ) ||
-      null;
-
     return {
-      immediatePreviousTurn,
-      immediatePreviousUserTurn,
-      immediatePreviousAssistantTurn
+      immediatePreviousTurn:
+        ordered.at(-1) ||
+        null,
+
+      immediatePreviousUserTurn:
+        [...ordered]
+          .reverse()
+          .find(turn =>
+            turn.speaker === "user"
+          ) ||
+        null,
+
+      immediatePreviousAssistantTurn:
+        [...ordered]
+          .reverse()
+          .find(turn =>
+            turn.speaker ===
+            "assistant"
+          ) ||
+        null
     };
   },
 
@@ -607,20 +945,44 @@ window.AriConversationContinuityEngine = {
     const explicitReset =
       this.hasExplicitReset(text);
 
-    const references =
-      this.extractReferenceExpressions(
-        text
-      );
-
     const correctionPresent =
       this.hasCorrectionSignal(text);
 
     const continuationCue =
       this.hasContinuationCue(text);
 
+    const bareFollowUp =
+      this.isBareFollowUp(text);
+
+    const questionForm =
+      this.hasQuestionForm(text);
+
     const shortContextualTurn =
       wordCount > 0 &&
       wordCount <= 10;
+
+    const shortQuestionFollowUp =
+      shortContextualTurn &&
+      questionForm;
+
+    const referenceExpressions =
+      this.extractReferenceExpressions(
+        text
+      );
+
+    const referenceExpressionPresent =
+      referenceExpressions.length > 0;
+
+    const contextDependentReferences =
+      referenceExpressions.filter(
+        reference =>
+          reference.contextDependent ===
+          true
+      );
+
+    const contextDependentReferencePresent =
+      contextDependentReferences.length >
+      0;
 
     const priorContextAvailable =
       previousTurns.length > 0 ||
@@ -631,29 +993,39 @@ window.AriConversationContinuityEngine = {
       Boolean(
         priorState.activeTopic ||
         priorState.activeSubject
-      );
-
-    const contextDependentReferencePresent =
-      references.length > 0;
-
-    const likelyFollowUp =
-      !explicitReset &&
-      priorContextAvailable &&
-      (
-        contextDependentReferencePresent ||
-        continuationCue ||
-        correctionPresent ||
-        this.isBareFollowUp(text) ||
-        (
-          shortContextualTurn &&
-          this.hasQuestionForm(text)
-        )
-      );
+      ) ||
+      this.asArray(
+        priorState.referenceCandidates
+      ).length > 0;
 
     const concreteNewSubjectPresent =
       this.hasConcreteNewSubjectSignal(
         text
       );
+
+    const linguisticFollowUpSignal =
+      contextDependentReferencePresent ||
+      continuationCue ||
+      correctionPresent ||
+      bareFollowUp ||
+      shortQuestionFollowUp;
+
+    const likelyFollowUp =
+      !explicitReset &&
+      linguisticFollowUpSignal;
+
+    const contextRequired =
+      !explicitReset &&
+      (
+        contextDependentReferencePresent ||
+        continuationCue ||
+        bareFollowUp ||
+        correctionPresent
+      );
+
+    const contextRequiredButUnavailable =
+      contextRequired &&
+      !priorContextAvailable;
 
     const likelyTopicShift =
       explicitReset ||
@@ -665,34 +1037,94 @@ window.AriConversationContinuityEngine = {
         wordCount >= 6
       );
 
+    const selfContained =
+      !contextRequired &&
+      !likelyFollowUp;
+
     return {
       explicitReset,
-      likelyFollowUp,
-      contextDependentReferencePresent,
-      likelyTopicShift,
       correctionPresent,
-      shortContextualTurn,
       continuationCue,
-      priorContextAvailable,
+      bareFollowUp,
+      questionForm,
+      shortContextualTurn,
+      shortQuestionFollowUp,
 
-      referenceExpressions:
-        references,
+      referenceExpressionPresent,
+      contextDependentReferencePresent,
+
+      referenceExpressions,
+      contextDependentReferences,
+
+      priorContextAvailable,
+      linguisticFollowUpSignal,
+      likelyFollowUp,
+      contextRequired,
+      contextRequiredButUnavailable,
+      likelyTopicShift,
+      selfContained,
 
       evidence: {
         wordCount,
-        concreteNewSubjectPresent
-      }
+
+        previousTurnCount:
+          previousTurns.length,
+
+        immediatePreviousTurnAvailable:
+          Boolean(
+            immediateContext
+              .immediatePreviousTurn
+          ),
+
+        immediateAssistantTurnAvailable:
+          Boolean(
+            immediateContext
+              .immediatePreviousAssistantTurn
+          ),
+
+        immediateUserTurnAvailable:
+          Boolean(
+            immediateContext
+              .immediatePreviousUserTurn
+          ),
+
+        priorActiveTopicAvailable:
+          Boolean(
+            priorState.activeTopic
+          ),
+
+        priorActiveSubjectAvailable:
+          Boolean(
+            priorState.activeSubject
+          ),
+
+        priorReferenceCandidateCount:
+          this.asArray(
+            priorState.referenceCandidates
+          ).length,
+
+        concreteNewSubjectPresent,
+
+        referenceExpressionCount:
+          referenceExpressions.length,
+
+        contextDependentReferenceCount:
+          contextDependentReferences.length
+      },
+
+      authority:
+        "continuity_evidence_only"
     };
   },
 
   hasExplicitReset(text = "") {
-    return /\b(?:new topic|separate question|different question|different topic|switch topics|start over|unrelated question|forget that|never mind that|nevermind that)\b/.test(
+    return /\b(?:new topic|separate question|different question|different topic|switch topics|start over|unrelated question|forget that|never mind that|nevermind that|ignore that)\b/.test(
       text
     );
   },
 
   hasCorrectionSignal(text = "") {
-    return /\b(?:no i mean|no,? i mean|i meant|actually|rather|instead|not that|correction)\b/.test(
+    return /\b(?:no,?\s+i mean|i meant|actually|rather|instead|not that|correction|let me correct that)\b/.test(
       text
     );
   },
@@ -702,14 +1134,14 @@ window.AriConversationContinuityEngine = {
       /^(?:and|also|but|so|then|next|continue|go on|keep going|what about|based on that)\b/.test(
         text
       ) ||
-      /\b(?:same one|other one|the latter|the former|that option|that idea|that plan|as before)\b/.test(
+      /\b(?:same one|other one|the latter|the former|that option|that idea|that plan|as before|like before|do the same)\b/.test(
         text
       )
     );
   },
 
   isBareFollowUp(text = "") {
-    return /^(?:why|how|how so|really|then what|what next|what else|what about that|and then|so what)\??$/.test(
+    return /^(?:why|how|how so|really|then what|what next|what else|what about that|and then|so what|what happened|are you sure)\??$/.test(
       text
     );
   },
@@ -717,7 +1149,7 @@ window.AriConversationContinuityEngine = {
   hasQuestionForm(text = "") {
     return (
       text.includes("?") ||
-      /^(?:what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will)\b/.test(
+      /^(?:what|why|how|when|where|who|which|is|are|do|does|did|can|could|should|would|will|was|were|has|have|had)\b/.test(
         text
       )
     );
@@ -726,7 +1158,7 @@ window.AriConversationContinuityEngine = {
   hasConcreteNewSubjectSignal(
     text = ""
   ) {
-    return /\b(?:my wife|my husband|my spouse|my partner|my father|my dad|my mother|my mom|my child|my son|my daughter|my friend|my coworker|my boss|the car|my car|this file|the file|the engine|the pipeline|the patient|the baby)\b/.test(
+    return /\b(?:my wife|my husband|my spouse|my partner|my father|my dad|my mother|my mom|my child|my son|my daughter|my brother|my sister|my friend|my coworker|my boss|the car|my car|this file|the file|the engine|the pipeline|the patient|the baby|my account|my job|my application)\b/.test(
       text
     );
   },
@@ -737,35 +1169,72 @@ window.AriConversationContinuityEngine = {
     const matches = [];
 
     const pattern =
-      /\b(?:it|its|this|that|these|those|they|them|their|he|him|his|she|her|hers|same one|other one|the former|the latter|that amount|that option|that idea|that plan|there|then)\b/g;
+      /\b(?:it|its|this|that|these|those|they|them|their|he|him|his|she|her|hers|same one|other one|the former|the latter|that amount|that option|that idea|that plan|there|then|the previous one|the last one)\b/g;
 
     for (
       const match
       of String(text).matchAll(pattern)
     ) {
+      const surface =
+        match[0];
+
+      const startIndex =
+        match.index ??
+        0;
+
+      const referenceType =
+        this.classifyReference(
+          surface
+        );
+
       matches.push({
-        surface:
-          match[0],
+        id:
+          this.createStableReferenceId({
+            surface,
+            startIndex,
+            text
+          }),
 
-        referenceType:
-          this.classifyReference(
-            match[0]
-          ),
+        surface,
 
-        startIndex:
-          match.index ?? null,
+        normalizedSurface:
+          this.normalize(surface),
+
+        referenceType,
+
+        startIndex,
+
+        endIndex:
+          startIndex +
+          surface.length,
+
+        contextDependent:
+          this.isLikelyContextDependentReference({
+            text,
+            surface,
+            startIndex,
+            referenceType
+          }),
+
+        requiredForMeaning:
+          this.isReferenceRequiredForMeaning({
+            text,
+            surface,
+            referenceType
+          }),
 
         confidence:
-          0.9
+          0.9,
+
+        source:
+          "ari-conversation-continuity-engine"
       });
     }
 
     return matches;
   },
 
-  classifyReference(
-    value = ""
-  ) {
+  classifyReference(value = "") {
     const text =
       this.normalize(value);
 
@@ -801,7 +1270,9 @@ window.AriConversationContinuityEngine = {
         "same one",
         "other one",
         "the former",
-        "the latter"
+        "the latter",
+        "the previous one",
+        "the last one"
       ].includes(text)
     ) {
       return "selection_reference";
@@ -825,12 +1296,144 @@ window.AriConversationContinuityEngine = {
     return "reference";
   },
 
+  isLikelyContextDependentReference({
+    text = "",
+    surface = "",
+    startIndex = 0,
+    referenceType = ""
+  } = {}) {
+    const normalizedText =
+      this.normalize(text);
+
+    const normalizedSurface =
+      this.normalize(surface);
+
+    if (
+      [
+        "demonstrative",
+        "selection_reference",
+        "typed_demonstrative",
+        "pronoun",
+        "situational_reference"
+      ].includes(
+        referenceType
+      )
+    ) {
+      return true;
+    }
+
+    const modificationPattern =
+      /\b(?:make|change|edit|modify|fix|update|rewrite|redo|remove|add|turn|adjust|improve|enhance|replace|move|resize|darken|lighten|shorten|expand|continue|finish|send|delete|open|close)\b/;
+
+    if (
+      modificationPattern.test(
+        normalizedText
+      ) &&
+      [
+        "it",
+        "its",
+        "them",
+        "him",
+        "her",
+        "this",
+        "that",
+        "these",
+        "those"
+      ].includes(
+        normalizedSurface
+      )
+    ) {
+      return true;
+    }
+
+    const impersonalItPatterns = [
+      /^it is (?:raining|snowing|hot|cold|late|early)\b/,
+      /^it seems\b/,
+      /^it appears\b/,
+      /^is it possible\b/,
+      /^would it be possible\b/,
+      /^can it be\b/,
+      /^it depends\b/,
+      /^it looks like\b/
+    ];
+
+    if (
+      normalizedSurface === "it" &&
+      impersonalItPatterns.some(
+        pattern =>
+          pattern.test(
+            normalizedText
+          )
+      )
+    ) {
+      return false;
+    }
+
+    const wordCount =
+      normalizedText
+        .split(/\s+/)
+        .filter(Boolean)
+        .length;
+
+    if (
+      normalizedSurface === "it" &&
+      wordCount <= 12
+    ) {
+      return true;
+    }
+
+    return startIndex > 0;
+  },
+
+  isReferenceRequiredForMeaning({
+    text = "",
+    surface = "",
+    referenceType = ""
+  } = {}) {
+    const normalizedText =
+      this.normalize(text);
+
+    const normalizedSurface =
+      this.normalize(surface);
+
+    if (
+      [
+        "selection_reference",
+        "typed_demonstrative",
+        "pronoun"
+      ].includes(
+        referenceType
+      )
+    ) {
+      return true;
+    }
+
+    if (
+      /\b(?:make|change|edit|modify|fix|update|rewrite|redo|remove|add|adjust|improve|enhance|replace|continue|finish)\b/.test(
+        normalizedText
+      ) &&
+      [
+        "it",
+        "this",
+        "that",
+        "them",
+        "him",
+        "her"
+      ].includes(
+        normalizedSurface
+      )
+    ) {
+      return true;
+    }
+
+    return false;
+  },
+
   /* =====================================================
-     BRANCH
+     BRANCH RESOLUTION
   ===================================================== */
 
   resolveBranch({
-    currentTurn = {},
     priorState = {},
     continuitySignals = {}
   } = {}) {
@@ -894,11 +1497,18 @@ window.AriConversationContinuityEngine = {
   buildRecentTurns({
     previousTurns = [],
     currentTurn = {},
+    continuitySignals = {},
     branch = {}
   } = {}) {
     const current = {
       turnId:
         currentTurn.turnId,
+
+      threadId:
+        null,
+
+      branchId:
+        branch.id,
 
       speaker:
         "user",
@@ -913,18 +1523,48 @@ window.AriConversationContinuityEngine = {
       events: [],
       claims: [],
       quantities: [],
-      references: [],
-      options: [],
 
+      references:
+        this.asArray(
+          continuitySignals
+            .referenceExpressions
+        ),
+
+      options: [],
       topicRefs: [],
+
       meaningRef:
         null,
 
       frameRef:
         null,
 
-      branchId:
-        branch.id
+      answerFocus:
+        null,
+
+      artifacts: [],
+
+      continuityMetadata: {
+        likelyFollowUp:
+          continuitySignals
+            .likelyFollowUp ===
+          true,
+
+        contextRequired:
+          continuitySignals
+            .contextRequired ===
+          true,
+
+        priorContextAvailable:
+          continuitySignals
+            .priorContextAvailable ===
+          true,
+
+        contextRequiredButUnavailable:
+          continuitySignals
+            .contextRequiredButUnavailable ===
+          true
+      }
     };
 
     const combined = [
@@ -933,7 +1573,9 @@ window.AriConversationContinuityEngine = {
     ];
 
     return combined
-      .slice(-12)
+      .slice(
+        -this.maxRecentTurns
+      )
       .map(
         (
           turn,
@@ -982,7 +1624,13 @@ window.AriConversationContinuityEngine = {
           null,
 
         inherited:
-          false
+          false,
+
+        branchId:
+          branch.id,
+
+        recentTurnCount:
+          recentTurns.length
       };
     }
 
@@ -1030,7 +1678,7 @@ window.AriConversationContinuityEngine = {
 
               sourceTurnId:
                 topicCandidate
-                  .sourceTurnId ||
+                  ?.sourceTurnId ||
                 immediateAssistant
                   ?.turnId ||
                 immediateUser
@@ -1048,7 +1696,7 @@ window.AriConversationContinuityEngine = {
 
               sourceTurnId:
                 subjectCandidate
-                  .sourceTurnId ||
+                  ?.sourceTurnId ||
                 immediateAssistant
                   ?.turnId ||
                 immediateUser
@@ -1063,7 +1711,8 @@ window.AriConversationContinuityEngine = {
 
       inherited:
         continuitySignals
-          .likelyFollowUp === true,
+          .likelyFollowUp ===
+        true,
 
       branchId:
         branch.id,
@@ -1078,9 +1727,9 @@ window.AriConversationContinuityEngine = {
   ===================================================== */
 
   collectRecentSemanticItems({
+    priorState = {},
     immediateContext = {},
     recentTurns = [],
-    priorState = {},
     branch = {}
   } = {}) {
     const compatibleTurns =
@@ -1120,6 +1769,12 @@ window.AriConversationContinuityEngine = {
           "options"
         ),
 
+      recentArtifacts:
+        this.collectItemsFromTurns(
+          compatibleTurns,
+          "artifacts"
+        ),
+
       immediateEntities:
         this.mergeStructuredItems([
           ...this.asArray(
@@ -1157,30 +1812,35 @@ window.AriConversationContinuityEngine = {
       this.asArray(
         turn[field]
       ).forEach(item => {
+        const normalizedItem =
+          typeof item === "object"
+            ? item
+            : {
+                value:
+                  item
+              };
+
         items.push({
-          ...(
-            typeof item === "object"
-              ? item
-              : {
-                  value:
-                    item
-                }
-          ),
+          ...normalizedItem,
 
           sourceTurnId:
-            item?.sourceTurnId ||
+            normalizedItem
+              .sourceTurnId ||
             turn.turnId,
 
           sourceSpeaker:
-            item?.sourceSpeaker ||
+            normalizedItem
+              .sourceSpeaker ||
             turn.speaker,
 
           turnDistance:
-            item?.turnDistance ??
+            normalizedItem
+              .turnDistance ??
             turn.distance,
 
           branchId:
-            item?.branchId ||
+            normalizedItem
+              .branchId ||
             turn.branchId,
 
           branchCompatible:
@@ -1200,129 +1860,144 @@ window.AriConversationContinuityEngine = {
   ===================================================== */
 
   buildReferenceCandidates({
-    currentTurn = {},
     immediateContext = {},
-    recentTurns = [],
     activeContext = {},
     collections = {},
     branch = {}
   } = {}) {
     const candidates = [];
 
-    const addCandidate =
-      (
-        item,
-        semanticType,
-        defaults = {}
-      ) => {
-        if (
-          item === null ||
-          item === undefined
-        ) {
-          return;
-        }
+    const addCandidate = (
+      item,
+      semanticType,
+      defaults = {}
+    ) => {
+      if (
+        item === null ||
+        item === undefined
+      ) {
+        return;
+      }
 
-        const value =
-          this.extractSemanticValue(
-            item
-          );
+      const object =
+        typeof item === "object"
+          ? item
+          : {
+              value:
+                item
+            };
 
-        if (!value) {
-          return;
-        }
+      const value =
+        this.extractSemanticValue(
+          object
+        );
 
-        const sourceTurnId =
-          item.sourceTurnId ||
-          defaults.sourceTurnId ||
-          null;
+      if (!value) {
+        return;
+      }
 
-        const sourceSpeaker =
-          item.sourceSpeaker ||
-          defaults.sourceSpeaker ||
-          null;
+      const sourceTurnId =
+        object.sourceTurnId ||
+        defaults.sourceTurnId ||
+        null;
 
-        const turnDistance =
-          Number(
-            item.turnDistance ??
-            defaults.turnDistance ??
-            99
-          );
+      const sourceSpeaker =
+        object.sourceSpeaker ||
+        defaults.sourceSpeaker ||
+        null;
 
-        const branchCompatible =
-          item.branchCompatible !==
+      const turnDistance =
+        Number(
+          object.turnDistance ??
+          defaults.turnDistance ??
+          99
+        );
+
+      const branchCompatible =
+        object.branchCompatible !==
           false &&
-          (
-            !item.branchId ||
-            item.branchId ===
-              branch.id
-          );
+        (
+          !object.branchId ||
+          object.branchId ===
+            branch.id
+        );
 
-        const recencyScore =
-          this.calculateRecencyScore(
-            turnDistance
-          );
+      const recencyScore =
+        this.calculateRecencyScore(
+          turnDistance
+        );
 
-        const salienceScore =
-          this.calculateSalienceScore(
-            item,
-            semanticType
-          );
+      const salienceScore =
+        this.calculateSalienceScore(
+          object,
+          semanticType
+        );
 
-        const stale =
-          turnDistance >= 4 ||
-          !branchCompatible;
+      const stale =
+        turnDistance >= 4 ||
+        !branchCompatible;
 
-        candidates.push({
-          id:
-            item.id ||
-            this.createStableCandidateId({
-              semanticType,
-              value,
-              sourceTurnId
-            }),
+      candidates.push({
+        id:
+          object.id ||
+          this.createStableCandidateId({
+            semanticType,
+            value,
+            sourceTurnId
+          }),
 
-          semanticRef:
-            item.semanticRef ||
-            item.id ||
-            null,
+        semanticRef:
+          object.semanticRef ||
+          object.entityRef ||
+          object.id ||
+          null,
 
-          semanticType,
+        semanticType,
 
-          value,
+        value,
 
-          sourceTurnId,
-          sourceSpeaker,
-          turnDistance,
+        sourceTurnId,
+        sourceSpeaker,
+        turnDistance,
 
-          recencyScore,
-          topicScore:
-            0,
+        branchId:
+          object.branchId ||
+          branch.id,
 
-          salienceScore,
+        branchCompatible,
 
-          stale,
-          branchCompatible,
+        recencyScore,
 
-          confidence:
-            this.clampConfidence(
-              item.confidence ??
-              (
-                recencyScore *
-                0.7 +
-                salienceScore *
-                0.3
-              )
-            ),
+        topicScore:
+          this.clampConfidence(
+            object.topicScore ??
+            0
+          ),
 
-          evidenceRefs:
-            this.asArray(
-              item.evidenceRefs
-            ),
+        salienceScore,
 
-          raw:
-            item
-        });
-      };
+        stale,
+
+        confidence:
+          this.clampConfidence(
+            object.confidence ??
+            (
+              recencyScore *
+              0.7 +
+              salienceScore *
+              0.3
+            )
+          ),
+
+        evidenceRefs:
+          this.asArray(
+            object.evidenceRefs
+          ),
+
+        raw:
+          object
+      });
+    };
 
     const immediateAssistant =
       immediateContext
@@ -1332,189 +2007,95 @@ window.AriConversationContinuityEngine = {
       immediateContext
         .immediatePreviousUserTurn;
 
-    this.asArray(
-      immediateAssistant?.quantities
-    ).forEach(item =>
-      addCandidate(
-        item,
-        "quantity",
-        {
-          sourceTurnId:
-            immediateAssistant
-              .turnId,
+    const addTurnItems = (
+      turn,
+      distance
+    ) => {
+      if (!turn) {
+        return;
+      }
 
-          sourceSpeaker:
-            "assistant",
+      [
+        ["artifacts", "artifact"],
+        ["quantities", "quantity"],
+        ["options", "option"],
+        ["claims", "claim"],
+        ["entities", "entity"],
+        ["events", "event"]
+      ].forEach(
+        ([field, type]) => {
+          this.asArray(
+            turn[field]
+          ).forEach(item =>
+            addCandidate(
+              item,
+              type,
+              {
+                sourceTurnId:
+                  turn.turnId,
 
-          turnDistance:
-            1
+                sourceSpeaker:
+                  turn.speaker,
+
+                turnDistance:
+                  distance
+              }
+            )
+          );
         }
-      )
+      );
+    };
+
+    addTurnItems(
+      immediateAssistant,
+      1
     );
 
-    this.asArray(
-      immediateAssistant?.claims
-    ).forEach(item =>
-      addCandidate(
-        item,
-        "claim",
-        {
-          sourceTurnId:
-            immediateAssistant
-              .turnId,
-
-          sourceSpeaker:
-            "assistant",
-
-          turnDistance:
-            1
-        }
-      )
+    addTurnItems(
+      immediateUser,
+      2
     );
 
-    this.asArray(
-      immediateAssistant?.entities
-    ).forEach(item =>
-      addCandidate(
-        item,
-        "entity",
-        {
-          sourceTurnId:
-            immediateAssistant
-              .turnId,
+    [
+      [
+        collections.recentArtifacts,
+        "artifact"
+      ],
 
-          sourceSpeaker:
-            "assistant",
-
-          turnDistance:
-            1
-        }
-      )
-    );
-
-    this.asArray(
-      immediateAssistant?.events
-    ).forEach(item =>
-      addCandidate(
-        item,
-        "event",
-        {
-          sourceTurnId:
-            immediateAssistant
-              .turnId,
-
-          sourceSpeaker:
-            "assistant",
-
-          turnDistance:
-            1
-        }
-      )
-    );
-
-    this.asArray(
-      immediateUser?.quantities
-    ).forEach(item =>
-      addCandidate(
-        item,
-        "quantity",
-        {
-          sourceTurnId:
-            immediateUser
-              .turnId,
-
-          sourceSpeaker:
-            "user",
-
-          turnDistance:
-            2
-        }
-      )
-    );
-
-    this.asArray(
-      immediateUser?.claims
-    ).forEach(item =>
-      addCandidate(
-        item,
-        "claim",
-        {
-          sourceTurnId:
-            immediateUser
-              .turnId,
-
-          sourceSpeaker:
-            "user",
-
-          turnDistance:
-            2
-        }
-      )
-    );
-
-    this.asArray(
-      immediateUser?.entities
-    ).forEach(item =>
-      addCandidate(
-        item,
-        "entity",
-        {
-          sourceTurnId:
-            immediateUser
-              .turnId,
-
-          sourceSpeaker:
-            "user",
-
-          turnDistance:
-            2
-        }
-      )
-    );
-
-    this.asArray(
-      collections.recentOptions
-    ).forEach(item =>
-      addCandidate(
-        item,
+      [
+        collections.recentOptions,
         "option"
-      )
-    );
+      ],
 
-    this.asArray(
-      collections.recentQuantities
-    ).forEach(item =>
-      addCandidate(
-        item,
+      [
+        collections.recentQuantities,
         "quantity"
-      )
-    );
+      ],
 
-    this.asArray(
-      collections.recentClaims
-    ).forEach(item =>
-      addCandidate(
-        item,
+      [
+        collections.recentClaims,
         "claim"
-      )
-    );
+      ],
 
-    this.asArray(
-      collections.recentEvents
-    ).forEach(item =>
-      addCandidate(
-        item,
+      [
+        collections.recentEvents,
         "event"
-      )
-    );
+      ],
 
-    this.asArray(
-      collections.recentEntities
-    ).forEach(item =>
-      addCandidate(
-        item,
+      [
+        collections.recentEntities,
         "entity"
-      )
+      ]
+    ].forEach(
+      ([items, type]) => {
+        this.asArray(items)
+          .forEach(item =>
+            addCandidate(
+              item,
+              type
+            )
+          );
+      }
     );
 
     if (activeContext.activeTopic) {
@@ -1577,13 +2158,26 @@ window.AriConversationContinuityEngine = {
             );
           }
 
-          return (
-            second.salienceScore -
+          if (
+            second.salienceScore !==
             first.salienceScore
+          ) {
+            return (
+              second.salienceScore -
+              first.salienceScore
+            );
+          }
+
+          return (
+            second.confidence -
+            first.confidence
           );
         }
       )
-      .slice(0, 40);
+      .slice(
+        0,
+        this.maxReferenceCandidates
+      );
   },
 
   calculateRecencyScore(
@@ -1592,7 +2186,10 @@ window.AriConversationContinuityEngine = {
     const distance =
       Math.max(
         0,
-        Number(turnDistance || 0)
+        Number(
+          turnDistance ??
+          99
+        )
       );
 
     if (distance <= 1) {
@@ -1629,19 +2226,28 @@ window.AriConversationContinuityEngine = {
         0.5
       );
 
-    if (
-      semanticType ===
-      "quantity"
-    ) {
-      score += 0.08;
-    }
+    const typeBonuses = {
+      artifact:
+        0.12,
 
-    if (
-      semanticType ===
-      "option"
-    ) {
-      score += 0.06;
-    }
+      quantity:
+        0.08,
+
+      option:
+        0.06,
+
+      subject:
+        0.06,
+
+      topic:
+        0.04
+    };
+
+    score +=
+      typeBonuses[
+        semanticType
+      ] ||
+      0;
 
     if (
       item.answerFocus === true ||
@@ -1735,7 +2341,10 @@ window.AriConversationContinuityEngine = {
         semanticRef:
           activeContext
             .previousTopic
-            .semanticRef ||
+            ?.semanticRef ||
+          activeContext
+            .previousTopic
+            ?.entityRef ||
           null,
 
         value:
@@ -1752,7 +2361,7 @@ window.AriConversationContinuityEngine = {
         sourceTurnId:
           activeContext
             .previousTopic
-            .sourceTurnId ||
+            ?.sourceTurnId ||
           null,
 
         confidence:
@@ -1762,7 +2371,10 @@ window.AriConversationContinuityEngine = {
 
     return this.dedupeStaleContext(
       stale
-    ).slice(0, 20);
+    ).slice(
+      0,
+      this.maxStaleContextItems
+    );
   },
 
   /* =====================================================
@@ -1799,7 +2411,9 @@ window.AriConversationContinuityEngine = {
             branch.id
         );
       })
-      .slice(-12);
+      .slice(
+        -this.maxUnresolvedItems
+      );
   },
 
   /* =====================================================
@@ -1807,6 +2421,7 @@ window.AriConversationContinuityEngine = {
   ===================================================== */
 
   buildThreadContext({
+    priorState = {},
     currentTurn = {},
     immediateContext = {},
     recentTurns = [],
@@ -1827,70 +2442,129 @@ window.AriConversationContinuityEngine = {
         branch
       });
 
-    const warnings = [];
-
-    if (
-      continuitySignals
-        .contextDependentReferencePresent &&
-      !referenceCandidates.length
-    ) {
-      warnings.push({
-        type:
-          "reference_candidates_missing",
-
-        message:
-          "The current turn contains a contextual reference, but no structured prior candidate is available."
+    const warnings =
+      this.buildWarnings({
+        continuitySignals,
+        referenceCandidates,
+        branch
       });
-    }
 
-    if (
-      !branch.consistent
-    ) {
-      warnings.push({
-        type:
-          "branch_inconsistency",
-
-        message:
-          "The current thread branch is not consistent with prior context."
-      });
-    }
+const threadId =
+  priorState.threadId ||
+  priorState.thread?.threadId ||
+  this.resolveThreadId(
+    recentTurns
+  );
 
     return {
       schema:
-        "ari_thread_context",
+  "ari_thread_context",
 
-      version:
-        this.schemaVersion,
+schemaVersion:
+  this.schemaVersion,
+
+version:
+  this.schemaVersion,
+
+engineVersion:
+  this.version,
 
       source:
         "ari-conversation-continuity-engine",
 
+      createdAt:
+        new Date().toISOString(),
+
       ran:
         true,
 
+      ready:
+        true,
+
       thread: {
-        threadId:
-          this.resolveThreadId(
-            recentTurns
-          ),
+        threadId,
 
         branchId:
           branch.id,
 
+        previousBranchId:
+          branch.previousId ||
+          priorState.branchId ||
+          null,
+
         branchConsistent:
-          branch.consistent
+          branch.consistent ===
+          true,
+
+        branchCreated:
+          branch.createdNew ===
+          true,
+
+        branchReason:
+          branch.reason ||
+          null
       },
 
       currentTurn: {
-        turnId:
-          currentTurn.turnId,
+  turnId:
+    currentTurn.turnId,
 
-        rawText:
-          currentTurn.rawText,
+  threadId,
+
+  branchId:
+    branch.id,
+
+  rawText:
+    currentTurn.rawText,
 
         normalizedText:
-          currentTurn.normalizedText
+          currentTurn.normalizedText,
+
+        wordCount:
+          currentTurn.wordCount,
+
+        references:
+          this.asArray(
+            continuitySignals
+              .referenceExpressions
+          ),
+
+        referenceExpressionPresent:
+          continuitySignals
+            .referenceExpressionPresent ===
+          true,
+
+        contextDependentReferencePresent:
+          continuitySignals
+            .contextDependentReferencePresent ===
+          true,
+
+        likelyFollowUp:
+          continuitySignals
+            .likelyFollowUp ===
+          true,
+
+        contextRequired:
+          continuitySignals
+            .contextRequired ===
+          true,
+
+        priorContextAvailable:
+          continuitySignals
+            .priorContextAvailable ===
+          true,
+
+        contextRequiredButUnavailable:
+          continuitySignals
+            .contextRequiredButUnavailable ===
+          true
       },
+
+      immediatePreviousTurn:
+        this.toCanonicalTurnSnapshot(
+          immediateContext
+            .immediatePreviousTurn
+        ),
 
       immediatePreviousUserTurn:
         this.toCanonicalTurnSnapshot(
@@ -1904,22 +2578,36 @@ window.AriConversationContinuityEngine = {
             .immediatePreviousAssistantTurn,
           {
             includeAnswerFocus:
+              true,
+
+            includeArtifacts:
               true
           }
         ),
 
       recentTurns:
-        recentTurns.map(turn =>
-          this.toCanonicalRecentTurn(
-            turn
-          )
-        ),
+  recentTurns.map(turn =>
+    this.toCanonicalRecentTurn({
+      ...turn,
+
+      threadId:
+        turn.threadId ||
+        threadId
+    })
+  ),
 
       activeTopic:
         activeContext.activeTopic,
 
       activeSubject:
         activeContext.activeSubject,
+
+      previousTopic:
+        activeContext.previousTopic,
+
+      inheritedActiveContext:
+        activeContext.inherited ===
+        true,
 
       recentEntities:
         collections.recentEntities,
@@ -1936,32 +2624,141 @@ window.AriConversationContinuityEngine = {
       recentOptions:
         collections.recentOptions,
 
+      recentArtifacts:
+        collections.recentArtifacts,
+
       referenceCandidates,
 
       continuitySignals: {
         explicitReset:
           continuitySignals
-            .explicitReset,
+            .explicitReset ===
+          true,
 
         likelyFollowUp:
           continuitySignals
-            .likelyFollowUp,
+            .likelyFollowUp ===
+          true,
+
+        linguisticFollowUpSignal:
+          continuitySignals
+            .linguisticFollowUpSignal ===
+          true,
+
+        contextRequired:
+          continuitySignals
+            .contextRequired ===
+          true,
+
+        selfContained:
+          continuitySignals
+            .selfContained ===
+          true,
+
+        referenceExpressionPresent:
+          continuitySignals
+            .referenceExpressionPresent ===
+          true,
 
         contextDependentReferencePresent:
           continuitySignals
-            .contextDependentReferencePresent,
+            .contextDependentReferencePresent ===
+          true,
+
+        priorContextAvailable:
+          continuitySignals
+            .priorContextAvailable ===
+          true,
+
+        contextRequiredButUnavailable:
+          continuitySignals
+            .contextRequiredButUnavailable ===
+          true,
 
         likelyTopicShift:
           continuitySignals
-            .likelyTopicShift,
+            .likelyTopicShift ===
+          true,
 
         correctionPresent:
           continuitySignals
-            .correctionPresent,
+            .correctionPresent ===
+          true,
+
+        continuationCue:
+          continuitySignals
+            .continuationCue ===
+          true,
+
+        bareFollowUp:
+          continuitySignals
+            .bareFollowUp ===
+          true,
+
+        shortQuestionFollowUp:
+          continuitySignals
+            .shortQuestionFollowUp ===
+          true,
 
         shortContextualTurn:
           continuitySignals
-            .shortContextualTurn
+            .shortContextualTurn ===
+          true,
+
+        referenceExpressions:
+          this.asArray(
+            continuitySignals
+              .referenceExpressions
+          ),
+
+        evidence:
+          continuitySignals.evidence ||
+          {}
+      },
+
+      contextDependency: {
+        selfContained:
+          continuitySignals
+            .selfContained ===
+          true,
+
+        requiresPriorContext:
+          continuitySignals
+            .contextRequired ===
+          true,
+
+        priorContextAvailable:
+          continuitySignals
+            .priorContextAvailable ===
+          true,
+
+        missingRequiredContext:
+          continuitySignals
+            .contextRequiredButUnavailable ===
+          true,
+
+        dependencyType:
+          this.resolveDependencyType(
+            continuitySignals
+          ),
+
+        requiredContextSources:
+          this.resolveRequiredContextSources(
+            continuitySignals
+          ),
+
+        confidence:
+          this.scoreDependencyConfidence(
+            continuitySignals
+          ),
+
+        evidence:
+          this.buildDependencyEvidence(
+            continuitySignals
+          ),
+
+        authority:
+          "context_dependency_evidence_only"
       },
 
       staleContext,
@@ -1978,6 +2775,15 @@ window.AriConversationContinuityEngine = {
           referenceCandidates
         }),
 
+      statePhase:
+        "continuity_analysis",
+
+      provisional:
+        true,
+
+      deliveryCommitted:
+        false,
+
       authority: {
         canLoadThreadState:
           true,
@@ -1985,10 +2791,22 @@ window.AriConversationContinuityEngine = {
         canPreserveRecentTurns:
           true,
 
+        canDetectContinuityEvidence:
+          true,
+
+        canDetectContextDependency:
+          true,
+
         canRankContextRecency:
           true,
 
         canProvideReferenceCandidates:
+          true,
+
+        canMaintainThreadIdentity:
+          true,
+
+        canMaintainBranchIdentity:
           true,
 
         canResolveReferences:
@@ -1998,6 +2816,9 @@ window.AriConversationContinuityEngine = {
           false,
 
         canChooseMeaning:
+          false,
+
+        canChooseIntent:
           false,
 
         canChooseFrame:
@@ -2012,10 +2833,275 @@ window.AriConversationContinuityEngine = {
         canAnswerUser:
           false,
 
+        canCommitAuthoritativeDelivery:
+          false,
+
         role:
-          "thread_context_only"
+          "canonical_thread_context_and_continuity_evidence_only"
       }
     };
+  },
+
+  buildWarnings({
+    continuitySignals = {},
+    referenceCandidates = [],
+    branch = {}
+  } = {}) {
+    const warnings = [];
+
+    if (
+      continuitySignals
+        .contextDependentReferencePresent &&
+      !referenceCandidates.length
+    ) {
+      warnings.push({
+        type:
+          "reference_candidates_missing",
+
+        message:
+          "The current turn contains a contextual reference, but no structured prior candidate is available.",
+
+        recoverable:
+          true,
+
+        recommendedDisposition:
+          "clarification_or_context_recovery"
+      });
+    }
+
+    if (
+      continuitySignals
+        .contextRequiredButUnavailable
+    ) {
+      warnings.push({
+        type:
+          "context_required_but_unavailable",
+
+        message:
+          "The current turn appears to require prior context, but no usable prior thread context was available.",
+
+        referenceExpressions:
+          this.asArray(
+            continuitySignals
+              .referenceExpressions
+          ),
+
+        recoverable:
+          true,
+
+        recommendedDisposition:
+          "clarification"
+      });
+    }
+
+    if (
+      !branch.consistent
+    ) {
+      warnings.push({
+        type:
+          "branch_inconsistency",
+
+        message:
+          "The current thread branch is inconsistent with prior context.",
+
+        recoverable:
+          true,
+
+        recommendedDisposition:
+          "suppress_incompatible_context"
+      });
+    }
+
+    return warnings;
+  },
+
+  resolveDependencyType(
+    signals = {}
+  ) {
+    if (
+      signals.explicitReset
+    ) {
+      return "none";
+    }
+
+    if (
+      signals
+        .contextDependentReferencePresent
+    ) {
+      return "reference_dependency";
+    }
+
+    if (
+      signals.correctionPresent
+    ) {
+      return "correction_dependency";
+    }
+
+    if (
+      signals.continuationCue
+    ) {
+      return "continuation_dependency";
+    }
+
+    if (
+      signals.bareFollowUp
+    ) {
+      return "elliptical_dependency";
+    }
+
+    if (
+      signals.shortQuestionFollowUp
+    ) {
+      return "short_contextual_dependency";
+    }
+
+    return "none";
+  },
+
+  resolveRequiredContextSources(
+    signals = {}
+  ) {
+    if (
+      !signals.contextRequired
+    ) {
+      return [];
+    }
+
+    const sources =
+      new Set();
+
+    if (
+      signals
+        .contextDependentReferencePresent
+    ) {
+      sources.add(
+        "reference_resolution"
+      );
+
+      sources.add(
+        "thread"
+      );
+    }
+
+    if (
+      signals.continuationCue ||
+      signals.bareFollowUp ||
+      signals.correctionPresent
+    ) {
+      sources.add(
+        "thread"
+      );
+    }
+
+    return [...sources];
+  },
+
+  scoreDependencyConfidence(
+    signals = {}
+  ) {
+    let score = 0;
+
+    if (
+      signals
+        .contextDependentReferencePresent
+    ) {
+      score += 0.55;
+    }
+
+    if (
+      signals.continuationCue
+    ) {
+      score += 0.2;
+    }
+
+    if (
+      signals.correctionPresent
+    ) {
+      score += 0.2;
+    }
+
+    if (
+      signals.bareFollowUp
+    ) {
+      score += 0.3;
+    }
+
+    if (
+      signals.shortQuestionFollowUp
+    ) {
+      score += 0.1;
+    }
+
+    if (
+      signals.explicitReset
+    ) {
+      score = 0;
+    }
+
+    return this.clampConfidence(
+      score
+    );
+  },
+
+  buildDependencyEvidence(
+    signals = {}
+  ) {
+    const evidence = [];
+
+    if (
+      signals
+        .contextDependentReferencePresent
+    ) {
+      evidence.push({
+        type:
+          "contextual_reference",
+
+        references:
+          this.asArray(
+            signals
+              .contextDependentReferences
+          )
+      });
+    }
+
+    if (
+      signals.continuationCue
+    ) {
+      evidence.push({
+        type:
+          "continuation_cue"
+      });
+    }
+
+    if (
+      signals.correctionPresent
+    ) {
+      evidence.push({
+        type:
+          "correction_signal"
+      });
+    }
+
+    if (
+      signals.bareFollowUp
+    ) {
+      evidence.push({
+        type:
+          "bare_follow_up"
+      });
+    }
+
+    if (
+      signals
+        .contextRequiredButUnavailable
+    ) {
+      evidence.push({
+        type:
+          "required_context_missing"
+      });
+    }
+
+    return evidence;
   },
 
   scoreThreadContextConfidence({
@@ -2026,7 +3112,7 @@ window.AriConversationContinuityEngine = {
     branch = {}
   } = {}) {
     let score =
-      0.35;
+      0.3;
 
     if (
       immediateContext
@@ -2058,7 +3144,7 @@ window.AriConversationContinuityEngine = {
     if (
       referenceCandidates.length
     ) {
-      score += 0.08;
+      score += 0.1;
     }
 
     if (
@@ -2069,8 +3155,24 @@ window.AriConversationContinuityEngine = {
 
     if (
       continuitySignals
+        .likelyFollowUp &&
+      continuitySignals
+        .priorContextAvailable
+    ) {
+      score += 0.05;
+    }
+
+    if (
+      continuitySignals
         .contextDependentReferencePresent &&
       !referenceCandidates.length
+    ) {
+      score -= 0.15;
+    }
+
+    if (
+      continuitySignals
+        .contextRequiredButUnavailable
     ) {
       score -= 0.2;
     }
@@ -2081,7 +3183,7 @@ window.AriConversationContinuityEngine = {
   },
 
   /* =====================================================
-     PERSISTENCE STATE
+     PERSISTED STATE
   ===================================================== */
 
   buildPersistedState({
@@ -2092,13 +3194,28 @@ window.AriConversationContinuityEngine = {
       ...priorState,
 
       schema:
-        threadContext.schema,
+  "ari_conversation_state",
 
-      version:
-        threadContext.version,
+stateSchema:
+  "ari_conversation_state",
+
+threadContextSchema:
+  threadContext.schema,
+
+legacySchema:
+  threadContext.schema,
+
+schemaVersion:
+  this.schemaVersion,
+
+version:
+  this.schemaVersion,
+
+engineVersion:
+  this.version,
 
       source:
-        threadContext.source,
+        "ari-conversation-continuity-engine",
 
       threadId:
         threadContext.thread
@@ -2117,6 +3234,10 @@ window.AriConversationContinuityEngine = {
       currentTurn:
         threadContext.currentTurn,
 
+      immediatePreviousTurn:
+        threadContext
+          .immediatePreviousTurn,
+
       immediatePreviousUserTurn:
         threadContext
           .immediatePreviousUserTurn,
@@ -2133,6 +3254,9 @@ window.AriConversationContinuityEngine = {
           turn => ({
             turnId:
               turn.turnId,
+
+            threadId:
+              turn.threadId,
 
             role:
               turn.speaker,
@@ -2171,12 +3295,21 @@ window.AriConversationContinuityEngine = {
               turn.meaningRef,
 
             frameRef:
-              turn.frameRef
+              turn.frameRef,
+
+            answerFocus:
+              turn.answerFocus,
+
+            artifacts:
+              turn.artifacts
           })
         ),
 
       activeTopic:
         threadContext.activeTopic,
+
+      previousTopic:
+        threadContext.previousTopic,
 
       activeSubject:
         threadContext.activeSubject,
@@ -2195,11 +3328,24 @@ window.AriConversationContinuityEngine = {
         threadContext
           .continuitySignals,
 
+      contextDependency:
+        threadContext
+          .contextDependency,
+
       confidence:
         threadContext.confidence,
 
       warnings:
         threadContext.warnings,
+
+      statePhase:
+        "continuity_analysis",
+
+      provisional:
+        true,
+
+      deliveryCommitted:
+        false,
 
       updatedAt:
         new Date().toISOString(),
@@ -2210,7 +3356,7 @@ window.AriConversationContinuityEngine = {
   },
 
   /* =====================================================
-     RETURN PAYLOAD + COMPATIBILITY
+     RETURN PAYLOAD
   ===================================================== */
 
   buildReturnPayload({
@@ -2220,6 +3366,11 @@ window.AriConversationContinuityEngine = {
     const signals =
       threadContext
         .continuitySignals ||
+      {};
+
+    const contextDependency =
+      threadContext
+        .contextDependency ||
       {};
 
     return {
@@ -2233,6 +3384,9 @@ window.AriConversationContinuityEngine = {
 
       threadState:
         persistedState,
+
+      currentThreadContext:
+        threadContext,
 
       conversationContinuityEngineRan:
         true,
@@ -2252,9 +3406,9 @@ window.AriConversationContinuityEngine = {
       continuityEngineSource:
         "ari-conversation-continuity-engine",
 
-      // Canonical aliases.
-      currentThreadContext:
-        threadContext,
+      immediatePreviousTurn:
+        threadContext
+          .immediatePreviousTurn,
 
       immediatePreviousUserTurn:
         threadContext
@@ -2272,7 +3426,6 @@ window.AriConversationContinuityEngine = {
         threadContext
           .staleContext,
 
-      // Temporary legacy compatibility aliases.
       currentTopic:
         this.extractSemanticValue(
           threadContext.activeTopic
@@ -2280,8 +3433,7 @@ window.AriConversationContinuityEngine = {
 
       previousTopic:
         this.extractSemanticValue(
-          persistedState
-            .previousTopic
+          threadContext.previousTopic
         ),
 
       activeSubject:
@@ -2302,11 +3454,37 @@ window.AriConversationContinuityEngine = {
           : 0,
 
       shouldReusePriorContext:
-        signals.likelyFollowUp ===
-          true ||
-        signals
-          .contextDependentReferencePresent ===
+        contextDependency
+          .requiresPriorContext ===
           true,
+
+      mustReusePriorContext:
+        contextDependency
+          .requiresPriorContext ===
+          true &&
+        contextDependency
+          .selfContained !==
+          true,
+
+      priorContextAvailable:
+        contextDependency
+          .priorContextAvailable ===
+        true,
+
+      contextRequiredButUnavailable:
+        contextDependency
+          .missingRequiredContext ===
+        true,
+
+      referenceExpressionPresent:
+        signals
+          .referenceExpressionPresent ===
+        true,
+
+      referenceExpressions:
+        this.asArray(
+          signals.referenceExpressions
+        ),
 
       lastMessages:
         persistedState.lastMessages ||
@@ -2317,7 +3495,6 @@ window.AriConversationContinuityEngine = {
           .unresolvedThreadItems ||
         [],
 
-      // Explicitly retired semantic-authority fields.
       lastUserIntent:
         null,
 
@@ -2335,6 +3512,11 @@ window.AriConversationContinuityEngine = {
             ?.branchId ||
           null,
 
+        branchCreated:
+          threadContext.thread
+            ?.branchCreated ===
+          true,
+
         activeTopic:
           threadContext.activeTopic,
 
@@ -2343,6 +3525,8 @@ window.AriConversationContinuityEngine = {
 
         continuitySignals:
           signals,
+
+        contextDependency,
 
         recentTurnCount:
           threadContext.recentTurns
@@ -2371,6 +3555,12 @@ window.AriConversationContinuityEngine = {
       warnings:
         threadContext.warnings,
 
+      provisional:
+        true,
+
+      deliveryCommitted:
+        false,
+
       authority:
         "thread_context_only"
     };
@@ -2393,9 +3583,34 @@ window.AriConversationContinuityEngine = {
 
     if (
       signals
+        .contextRequiredButUnavailable
+    ) {
+      return "context_required_but_unavailable";
+    }
+
+    if (
+      signals
         .contextDependentReferencePresent
     ) {
       return "reference_follow_up";
+    }
+
+    if (
+      signals.bareFollowUp
+    ) {
+      return "bare_follow_up";
+    }
+
+    if (
+      signals.continuationCue
+    ) {
+      return "continuation";
+    }
+
+    if (
+      signals.shortQuestionFollowUp
+    ) {
+      return "short_contextual_question";
     }
 
     if (
@@ -2407,7 +3622,7 @@ window.AriConversationContinuityEngine = {
     if (
       signals.likelyFollowUp
     ) {
-      return "continuation";
+      return "follow_up";
     }
 
     return "none";
@@ -2421,89 +3636,88 @@ window.AriConversationContinuityEngine = {
     turn = null,
     options = {}
   ) {
-    if (!turn) {
-      return {
-        turnId:
-          null,
-
-        text:
-          "",
-
-        entities: [],
-        events: [],
-        claims: [],
-        quantities: [],
-        references: [],
-
-        canonicalMeaningRef:
-          null,
-
-        semanticFrameRef:
-          null,
-
-        ...(
-          options.includeAnswerFocus
-            ? {
-                answerFocus:
-                  null
-              }
-            : {}
-        )
-      };
-    }
-
-    return {
+    const base = {
       turnId:
-        turn.turnId ||
+        turn?.turnId ||
         null,
 
+      threadId:
+        turn?.threadId ||
+        null,
+
+      branchId:
+        turn?.branchId ||
+        null,
+
+      speaker:
+        turn?.speaker ||
+        "unknown",
+
       text:
-        turn.text ||
+        turn?.text ||
         "",
+
+      createdAt:
+        turn?.createdAt ||
+        null,
 
       entities:
         this.asArray(
-          turn.entities
+          turn?.entities
         ),
 
       events:
         this.asArray(
-          turn.events
+          turn?.events
         ),
 
       claims:
         this.asArray(
-          turn.claims
+          turn?.claims
         ),
 
       quantities:
         this.asArray(
-          turn.quantities
+          turn?.quantities
         ),
 
       references:
         this.asArray(
-          turn.references
+          turn?.references
+        ),
+
+      options:
+        this.asArray(
+          turn?.options
         ),
 
       canonicalMeaningRef:
-        turn.meaningRef ||
+        turn?.meaningRef ||
         null,
 
       semanticFrameRef:
-        turn.frameRef ||
-        null,
-
-      ...(
-        options.includeAnswerFocus
-          ? {
-              answerFocus:
-                turn.answerFocus ||
-                null
-            }
-          : {}
-      )
+        turn?.frameRef ||
+        null
     };
+
+    if (
+      options.includeAnswerFocus
+    ) {
+      base.answerFocus =
+        turn?.answerFocus ||
+        null;
+    }
+
+    if (
+      options.includeArtifacts
+    ) {
+      base.artifacts =
+        this.asArray(
+          turn?.artifacts
+        );
+    }
+
+    return base;
   },
 
   toCanonicalRecentTurn(
@@ -2512,6 +3726,14 @@ window.AriConversationContinuityEngine = {
     return {
       turnId:
         turn.turnId ||
+        null,
+
+      threadId:
+        turn.threadId ||
+        null,
+
+      branchId:
+        turn.branchId ||
         null,
 
       speaker:
@@ -2524,7 +3746,8 @@ window.AriConversationContinuityEngine = {
 
       distance:
         Number(
-          turn.distance || 0
+          turn.distance ??
+          0
         ),
 
       createdAt:
@@ -2574,37 +3797,34 @@ window.AriConversationContinuityEngine = {
         turn.frameRef ||
         null,
 
-      branchId:
-        turn.branchId ||
+      answerFocus:
+        turn.answerFocus ||
         null,
+
+      artifacts:
+        this.asArray(
+          turn.artifacts
+        ),
 
       branchCompatible:
         turn.branchCompatible !==
-        false
+        false,
+
+      continuityMetadata:
+        turn.continuityMetadata ||
+        null
     };
   },
 
   /* =====================================================
-     HELPERS
+     GENERAL HELPERS
   ===================================================== */
 
   readMessageArray(value = []) {
-    if (
-      Array.isArray(value)
-    ) {
-      return value;
-    }
-
-    if (!value) {
-      return [];
-    }
-
-    return [value];
+    return this.asArray(value);
   },
 
-  readStructuredItems(
-    value = []
-  ) {
+  readStructuredItems(value = []) {
     return this.asArray(value)
       .filter(item =>
         item !== null &&
@@ -2655,6 +3875,9 @@ window.AriConversationContinuityEngine = {
         type:
           null,
 
+        entityRef:
+          null,
+
         sourceTurnId:
           null,
 
@@ -2666,11 +3889,18 @@ window.AriConversationContinuityEngine = {
       };
     }
 
+    const semanticValue =
+      this.extractSemanticValue(
+        value
+      );
+
+    if (!semanticValue) {
+      return null;
+    }
+
     return {
       value:
-        this.extractSemanticValue(
-          value
-        ),
+        semanticValue,
 
       type:
         value.type ||
@@ -2713,9 +3943,9 @@ window.AriConversationContinuityEngine = {
 
     return (
       usable.find(item =>
-        item.primary === true ||
-        item.focus === true ||
-        item.grammaticalRole ===
+        item?.primary === true ||
+        item?.focus === true ||
+        item?.grammaticalRole ===
           "subject"
       ) ||
       usable[0]
@@ -2728,11 +3958,48 @@ window.AriConversationContinuityEngine = {
     return values.find(value =>
       value !== null &&
       value !== undefined &&
-      this.extractSemanticValue(
-        value
+      Boolean(
+        this.extractSemanticValue(
+          value
+        )
       )
     ) ||
     null;
+  },
+
+  firstDefined(
+    values = []
+  ) {
+    return values.find(value =>
+      value !== undefined &&
+      value !== null
+    );
+  },
+
+firstPopulatedArray(
+  values = []
+) {
+  for (const value of values) {
+    const items =
+      this.asArray(value);
+
+    if (items.length > 0) {
+      return items;
+    }
+  }
+
+  return [];
+},
+
+  firstObject(
+    values = []
+  ) {
+    return values.find(value =>
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) ||
+    {};
   },
 
   collectThreadEvidenceRefs({
@@ -2799,6 +4066,8 @@ window.AriConversationContinuityEngine = {
       value.text ||
       value.evidence ||
       value.numericValue ||
+      value.filename ||
+      value.url ||
       ""
     );
   },
@@ -2809,88 +4078,89 @@ window.AriConversationContinuityEngine = {
     const seen =
       new Map();
 
-    items.forEach(item => {
-      const value =
-        this.extractSemanticValue(
-          item
-        );
+    this.asArray(items)
+      .forEach(item => {
+        const object =
+          typeof item === "object"
+            ? item
+            : {
+                value:
+                  item
+              };
 
-      if (!value) {
-        return;
-      }
+        const value =
+          this.extractSemanticValue(
+            object
+          );
 
-      const type =
-        this.normalize(
-          item.semanticType ||
-          item.entityType ||
-          item.type ||
-          item.kind ||
-          "unknown"
-        );
+        if (!value) {
+          return;
+        }
 
-      const key =
-        `${type}|${this.normalize(
-          value
-        )}`;
+        const type =
+          this.normalize(
+            object.semanticType ||
+            object.entityType ||
+            object.type ||
+            object.kind ||
+            "unknown"
+          );
 
-      if (!seen.has(key)) {
-        seen.set(
-          key,
-          {
-            ...(
-              typeof item ===
-              "object"
-                ? item
-                : {
-                    value:
-                      item
-                  }
+        const key =
+          `${type}|${this.normalize(
+            value
+          )}`;
+
+        if (!seen.has(key)) {
+          seen.set(
+            key,
+            {
+              ...object
+            }
+          );
+
+          return;
+        }
+
+        const existing =
+          seen.get(key);
+
+        existing.confidence =
+          Math.max(
+            Number(
+              existing.confidence ||
+              0
+            ),
+
+            Number(
+              object.confidence ||
+              0
             )
-          }
-        );
+          );
 
-        return;
-      }
+        existing.evidenceRefs = [
+          ...new Set([
+            ...this.asArray(
+              existing.evidenceRefs
+            ),
 
-      const existing =
-        seen.get(key);
+            ...this.asArray(
+              object.evidenceRefs
+            )
+          ])
+        ];
 
-      existing.confidence =
-        Math.max(
-          Number(
-            existing.confidence ||
-            0
-          ),
+        existing.sourceTurnIds = [
+          ...new Set([
+            ...this.asArray(
+              existing.sourceTurnIds
+            ),
 
-          Number(
-            item.confidence ||
-            0
-          )
-        );
-
-      existing.evidenceRefs = [
-        ...new Set([
-          ...this.asArray(
-            existing.evidenceRefs
-          ),
-
-          ...this.asArray(
-            item.evidenceRefs
-          )
-        ])
-      ];
-
-      existing.sourceTurnIds = [
-        ...new Set([
-          ...this.asArray(
-            existing.sourceTurnIds
-          ),
-
-          existing.sourceTurnId,
-          item.sourceTurnId
-        ].filter(Boolean))
-      ];
-    });
+            existing.sourceTurnId,
+            object.sourceTurnId
+          ].filter(Boolean))
+        ];
+      });
 
     return [...seen.values()];
   },
@@ -2907,7 +4177,8 @@ window.AriConversationContinuityEngine = {
         [
           turn.speaker,
           this.normalize(turn.text),
-          turn.createdAt || ""
+          turn.createdAt ||
+          ""
         ].join("|");
 
       if (!key) {
@@ -3082,6 +4353,23 @@ window.AriConversationContinuityEngine = {
     ].join("_");
   },
 
+  createStableReferenceId({
+    surface = "",
+    startIndex = 0,
+    text = ""
+  } = {}) {
+    return [
+      "reference",
+      this.hashString(
+        [
+          surface,
+          startIndex,
+          text
+        ].join("|")
+      )
+    ].join("_");
+  },
+
   createStableCandidateId({
     semanticType = "unknown",
     value = "",
@@ -3184,7 +4472,8 @@ window.AriConversationContinuityEngine = {
         0,
         Math.min(
           1,
-          number / 100
+          number /
+          100
         )
       );
     }
