@@ -254,10 +254,7 @@ window.AriRebirthPipeline = {
   runEngine,
 
   deliberationDebug:
-    normalizedInput.deliberationDebug === true ||
-    normalizedInput.debugTiming === true ||
-    normalizedInput.appContext
-      ?.deliberationDebug === true,
+  true,
 
       preserveExternalEvidence:
         state =>
@@ -1916,9 +1913,8 @@ const error =
   summary = {}
 } = {}) {
   const result =
-    summary.pipelineLayerResults
-      ?.[layer.name] ||
-    {};
+  summary.pipelineLayerResults?.[layer.name] ||
+  {};
 
   if (
     layer.required === true &&
