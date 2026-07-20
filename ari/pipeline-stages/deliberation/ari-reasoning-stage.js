@@ -750,7 +750,58 @@ reasoningEngineResult:
 console.log(
   "ARI REASONING STAGE DIAGNOSTIC:",
   {
-    execution:
+    eligibility:
+      state.reasoningEligibility ||
+      null,
+
+    shouldRunGeneralReasoning:
+      shouldRunGeneralReasoning ===
+      true,
+
+    developerResponseLocked:
+      developerResponseLocked ===
+      true,
+
+    reasoningStageReady:
+      state.reasoningStageReady ===
+      true,
+
+    reasoningEngineRan:
+      state.reasoningEngineRan ===
+      true,
+
+    reasoningEngineReady:
+      state.reasoningEngineReady ===
+      true,
+
+    reasoningFailure:
+      state.reasoningFailure ||
+      null,
+
+    cognitiveReasoningResultAvailable:
+      Boolean(
+        state.cognitiveReasoningResult
+      ),
+
+    cognitiveReasoningReady:
+      state.cognitiveReasoningResult
+        ?.ready === true,
+
+    semanticFrameAvailable:
+      Boolean(
+        state.semanticFrame
+      ),
+
+    responseRequirementsAvailable:
+      Boolean(
+        state.responseRequirements
+      ),
+
+    modelInvocation:
+      state.modelInvocation ||
+      null,
+
+    executionDiagnostic:
       state.reasoningStagePacket
         ?.executionDiagnostic ||
       null,
@@ -759,7 +810,16 @@ console.log(
       state.reasoningEngineResult ||
       null,
 
-    engineInvocation:
+    engineResultKeys:
+      state.reasoningEngineResult &&
+      typeof state.reasoningEngineResult ===
+        "object"
+        ? Object.keys(
+            state.reasoningEngineResult
+          )
+        : [],
+
+    engineInvocationDiagnostic:
       state.reasoningEngineResult
         ?.engineInvocationDiagnostic ||
       null
@@ -783,7 +843,7 @@ async invokeEngine({
 
   if (
     typeof runtimeInvoker ===
-    "function"
+      "function"
   ) {
     try {
       runtimeResult =
@@ -815,12 +875,47 @@ async invokeEngine({
       {
         expectedResult,
 
-        result:
-          runtimeResult,
+        engineAvailable:
+          Boolean(engine),
 
-        error:
-          runtimeError?.message ||
-          null
+        engineVersion:
+          engine?.version ||
+          null,
+
+        requestedMethods:
+          methods,
+
+        runtimeInvokerAvailable:
+          typeof runtimeInvoker ===
+          "function",
+
+        runtimeResult,
+
+        runtimeResultKeys:
+          runtimeResult &&
+          typeof runtimeResult ===
+            "object"
+            ? Object.keys(runtimeResult)
+            : [],
+
+        engineInvocationDiagnostic:
+          runtimeResult
+            ?.engineInvocationDiagnostic ||
+          null,
+
+        runtimeError: {
+          name:
+            runtimeError?.name ||
+            null,
+
+          message:
+            runtimeError?.message ||
+            null,
+
+          stack:
+            runtimeError?.stack ||
+            null
+        }
       }
     );
   }
@@ -860,11 +955,13 @@ async invokeEngine({
     );
   }
 
-
 console.log(
   "ARI ENGINE DIRECT INVOCATION:",
   {
     expectedResult,
+
+    engineAvailable:
+      Boolean(engine),
 
     engineVersion:
       engine?.version ||
@@ -872,11 +969,41 @@ console.log(
 
     methodName,
 
+    requestedMethods:
+      methods,
+
+    inputKeys:
+      input &&
+      typeof input ===
+        "object"
+        ? Object.keys(input)
+        : [],
+
+    reasoningStageInputAvailable:
+      Boolean(
+        input?.reasoningStageInput
+      ),
+
     effectiveText:
       input
         ?.reasoningStageInput
         ?.request
         ?.effective ||
+      input
+        ?.request
+        ?.request
+        ?.effective ||
+      null,
+
+    originalText:
+      input
+        ?.reasoningStageInput
+        ?.request
+        ?.original ||
+      input
+        ?.request
+        ?.request
+        ?.original ||
       null
   }
 );
@@ -889,6 +1016,85 @@ console.log(
       input,
       runtime
     );
+
+console.log(
+  "ARI ENGINE DIRECT RESULT:",
+  {
+    expectedResult,
+
+    methodName,
+
+    resultType:
+      Array.isArray(directResult)
+        ? "array"
+        : typeof directResult,
+
+    resultKeys:
+      directResult &&
+      typeof directResult ===
+        "object"
+        ? Object.keys(directResult)
+        : [],
+
+    result:
+      directResult,
+
+    cognitiveReasoningResult:
+      directResult
+        ?.cognitiveReasoningResult ||
+      directResult
+        ?.reasoningResult ||
+      directResult
+        ?.result
+        ?.cognitiveReasoningResult ||
+      directResult
+        ?.result
+        ?.reasoningResult ||
+      null,
+
+    semanticFrame:
+      directResult
+        ?.cognitiveReasoningResult
+        ?.semanticFrame ||
+      directResult
+        ?.reasoningResult
+        ?.semanticFrame ||
+      directResult
+        ?.result
+        ?.semanticFrame ||
+      directResult
+        ?.semanticFrame ||
+      null,
+
+    responseRequirements:
+      directResult
+        ?.cognitiveReasoningResult
+        ?.responseRequirements ||
+      directResult
+        ?.reasoningResult
+        ?.responseRequirements ||
+      directResult
+        ?.result
+        ?.responseRequirements ||
+      directResult
+        ?.responseRequirements ||
+      null,
+
+    modelInvocation:
+      directResult
+        ?.cognitiveReasoningResult
+        ?.modelInvocation ||
+      directResult
+        ?.reasoningResult
+        ?.modelInvocation ||
+      directResult
+        ?.result
+        ?.modelInvocation ||
+      directResult
+        ?.modelInvocation ||
+      null
+  }
+);
 
   if (
     !this.isValidEngineInvocationResult({
