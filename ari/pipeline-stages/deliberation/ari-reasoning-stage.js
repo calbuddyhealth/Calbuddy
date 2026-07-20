@@ -42,7 +42,12 @@ window.Ari = window.Ari || {};
 window.AriReasoningStage = {
   version: "2.3.1",
 
-  async run(summary = {}, runtime = {}) {
+async run(summary = {}, runtime = {}) {
+  try {
+
+    console.log("REASONING STAGE START", {
+      summaryKeys: Object.keys(summary || {})
+    });
     const {
   mark = () => {},
 
@@ -459,7 +464,7 @@ if (
     mark(
       "after AriReasoningEngine"
     );
-
+console.log("REACHED: after AriReasoningEngine");
     // =================================================
     // 5. Controlled reasoning-result integration
     // =================================================
@@ -679,6 +684,8 @@ reasoningEngineResult:
             }
     };
 
+console.log("REACHED: reasoning integration complete");
+
     // =================================================
     // 6. Normalize reasoning requirements
     // =================================================
@@ -747,7 +754,7 @@ reasoningEngineResult:
       this.buildReasoningStagePacket(
         state
       );
-
+console.log("REACHED: reasoning stage packet built");
 console.log(
   "ARI REASONING STAGE DIAGNOSTIC:",
   {
@@ -828,7 +835,32 @@ console.log(
 );
 
     return state;
-  },
+    
+  } catch (error) {
+
+  console.error(
+
+    "REASONING STAGE CRASH",
+
+    {
+
+      message: error?.message,
+
+      name: error?.name,
+
+      stack: error?.stack,
+
+      error
+
+    }
+
+  );
+
+  throw error;
+
+}
+
+},
 
 async invokeEngine({
   engine = null,
@@ -887,6 +919,20 @@ async invokeEngine({
 
         expectedResult
       });
+
+console.log(
+  "RUNTIME INVOKER VALIDATION",
+  {
+    expectedResult,
+    runtimeResult,
+    runtimeResultKeys:
+      runtimeResult &&
+      typeof runtimeResult === "object"
+        ? Object.keys(runtimeResult)
+        : [],
+    runtimeResultValid
+  }
+);
 
     if (!runtimeResultValid) {
       const error =
