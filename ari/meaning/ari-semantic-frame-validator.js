@@ -5,13 +5,13 @@
 // Validate and normalize the semantic frame produced by OpenAI cognitive
 // reasoning. This engine does not infer, repair, or replace semantic meaning.
 //
-// V1.0.0 — Post-Reasoning Semantic Governance Contract
+// V1.1.0 — Canonical Reasoning Frame Resolution
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameValidator = {
-  version: "1.0.0",
-  schemaVersion: "1.0.0",
+  version: "1.1.0",
+  schemaVersion: "1.1.0",
   source: "ari-semantic-frame-validator",
   authorityLevel: "semantic_frame_validation",
 
@@ -269,24 +269,125 @@ window.AriSemanticFrameValidator = {
   },
 
   readCognitiveReasoningResult(summary = {}) {
-    return (
-      summary.cognitiveReasoningResult ||
-      summary.reasoningStagePacket?.generalReasoning
-        ?.cognitiveReasoningResult ||
-      summary.reasoning?.cognitiveReasoningResult ||
-      null
-    );
-  },
+  return (
+    summary.cognitiveReasoningResult ||
 
-  readSemanticFrame(summary = {}, cognitiveResult = null) {
-    return (
-      cognitiveResult?.semanticFrame ||
-      summary.reasoningStagePacket?.generalReasoning
-        ?.cognitiveReasoningResult?.semanticFrame ||
-      summary.reasoning?.semanticFrame ||
-      null
-    );
-  },
+    summary.reasoningResult ||
+
+    summary.reasoningStagePacket
+      ?.cognitiveReasoningResult ||
+
+    summary.reasoningStagePacket
+      ?.reasoningResult ||
+
+    summary.reasoningStagePacket
+      ?.generalReasoning
+      ?.cognitiveReasoningResult ||
+
+    summary.reasoningEngineResult
+      ?.cognitiveReasoningResult ||
+
+    summary.reasoningEngineResult
+      ?.reasoningResult ||
+
+    summary.reasoningEngineResult
+      ?.result
+      ?.cognitiveReasoningResult ||
+
+    summary.reasoningEngineResult
+      ?.result
+      ?.reasoningResult ||
+
+    summary.reasoning
+      ?.cognitiveReasoningResult ||
+
+    null
+  );
+},
+
+  readSemanticFrame(
+  summary = {},
+  cognitiveResult = null
+) {
+  return (
+    /*
+     * Canonical reasoning-result location.
+     */
+
+    cognitiveResult
+      ?.semanticFrame ||
+
+    /*
+     * Canonical top-level stage integration fields.
+     */
+
+    summary.semanticFrame ||
+
+    summary.aiSemanticFrame ||
+
+    /*
+     * Canonical reasoning-stage packet fields.
+     */
+
+    summary.reasoningStagePacket
+      ?.semanticFrame ||
+
+    summary.reasoningStagePacket
+      ?.cognitiveReasoningResult
+      ?.semanticFrame ||
+
+    summary.reasoningStagePacket
+      ?.reasoningResult
+      ?.semanticFrame ||
+
+    summary.reasoningStagePacket
+      ?.generalReasoning
+      ?.semanticFrame ||
+
+    summary.reasoningStagePacket
+      ?.generalReasoning
+      ?.cognitiveReasoningResult
+      ?.semanticFrame ||
+
+    /*
+     * Raw engine compatibility fields.
+     */
+
+    summary.reasoningEngineResult
+      ?.semanticFrame ||
+
+    summary.reasoningEngineResult
+      ?.cognitiveReasoningResult
+      ?.semanticFrame ||
+
+    summary.reasoningEngineResult
+      ?.reasoningResult
+      ?.semanticFrame ||
+
+    summary.reasoningEngineResult
+      ?.result
+      ?.semanticFrame ||
+
+    summary.reasoningEngineResult
+      ?.result
+      ?.cognitiveReasoningResult
+      ?.semanticFrame ||
+
+    summary.reasoningEngineResult
+      ?.result
+      ?.reasoningResult
+      ?.semanticFrame ||
+
+    /*
+     * Legacy compatibility location.
+     */
+
+    summary.reasoning
+      ?.semanticFrame ||
+
+    null
+  );
+},
 
   readEvidencePacket(summary = {}) {
     return (
