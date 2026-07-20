@@ -7,7 +7,7 @@
 // validate the structured result,
 // and expose a safe compatibility contract.
 //
-// V9.2.2 — Canonical Semantic Requirements Contract / Invocation Diagnostics
+// V9.3.0 — Registry-Bound Semantic Operations
 //
 // Authority model:
 //
@@ -55,7 +55,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningEngine = {
-  version: "9.2.2",
+  version: "9.3.0",
 
   source: "ari-reasoning-engine",
 
@@ -63,13 +63,13 @@ window.AriReasoningEngine = {
     "ari_cognitive_reasoning_request",
 
   requestSchemaVersion:
-    "1.1.2",
+    "1.1.3",
 
   resultSchema:
     "ari_cognitive_reasoning_result",
 
   resultSchemaVersion:
-    "1.1.2",
+    "1.1.3",
 
   /* =====================================================
      PUBLIC ENTRY POINTS
@@ -279,23 +279,31 @@ console.log(
     let rawModelResult;
 
     try {
-      rawModelResult =
-        await modelInvoker.invoke({
-          ...reasoningRequest,
+      const operationContract =
+  this.getOperationContract();
 
-          action:
-            reasoningRequest.action ||
-            "openai_reasoning",
+rawModelResult =
+  await modelInvoker.invoke({
+    ...reasoningRequest,
 
-          task:
-            "ari_cognitive_reasoning",
+    action:
+      reasoningRequest.action ||
+      "openai_reasoning",
 
-          responseSchema:
-            this.getResponseSchema(),
+    task:
+      "ari_cognitive_reasoning",
 
-          instructions:
-            this.getReasoningInstructions(),
+    operationContract,
 
+    responseSchema:
+      this.getResponseSchema(
+        operationContract
+      ),
+
+    instructions:
+      this.getReasoningInstructions(
+        operationContract
+      ),
           /*
            * Compatibility alias for older clients
            * that still expect payload.request.
@@ -570,10 +578,15 @@ console.log(
         ),
 
       authority:
-        this.buildAuthorityContract(),
+  this.buildAuthorityContract(),
 
-      outputContract:
-        this.getResponseSchema(),
+operationContract:
+  this.getOperationContract(),
+
+outputContract:
+  this.getResponseSchema(
+    this.getOperationContract()
+  ),
 
       openAIReasoningInvoker:
         summary.openAIReasoningInvoker ||
@@ -856,9 +869,16 @@ console.log(
           false
       },
 
-      outputContract:
-        request.outputContract ||
-        this.getResponseSchema(),
+      operationContract:
+  request.operationContract ||
+  this.getOperationContract(),
+
+outputContract:
+  request.outputContract ||
+  this.getResponseSchema(
+    request.operationContract ||
+    this.getOperationContract()
+  ),
 
       openAIReasoningInvoker:
         request.openAIReasoningInvoker ||
@@ -1255,6 +1275,126 @@ console.log(
   },
 
   /* =====================================================
+     OPERATION CONTRACT
+  ===================================================== */
+
+  getOperationRegistry() {
+    return (
+      window.AriOperationRegistry ||
+      window.Ari
+        ?.operationRegistry ||
+      null
+    );
+  },
+
+  getOperationContract() {
+    const registry =
+      this.getOperationRegistry();
+
+    if (
+      !registry ||
+      typeof registry
+        .getPromptContract !==
+        "function"
+    ) {
+      return {
+        schema:
+          "ari.operation_prompt_contract",
+
+        schemaVersion:
+          "1.0.0",
+
+        registryAvailable:
+          false,
+
+        allowedOperations:
+          [],
+
+        operationDefinitions:
+          {},
+
+        rules: [
+          "Use a stable cognitive operation name.",
+          "Do not place the domain or target inside the operation name."
+        ],
+
+        source:
+          "ari-reasoning-engine-fallback-operation-contract"
+      };
+    }
+
+    return {
+      ...registry.getPromptContract(),
+
+      registryAvailable:
+        true
+    };
+  },
+
+  normalizeOperation(
+    value = ""
+  ) {
+    const registry =
+      this.getOperationRegistry();
+
+    if (
+      registry &&
+      typeof registry
+        .normalizeOperation ===
+        "function"
+    ) {
+      return registry
+        .normalizeOperation(
+          value
+        );
+    }
+
+    return this.nullableString(
+      value
+    );
+  },
+
+  resolveOperationDefinition(
+    value = ""
+  ) {
+    const registry =
+      this.getOperationRegistry();
+
+    const canonicalOperation =
+      this.normalizeOperation(
+        value
+      );
+
+    const definition =
+      canonicalOperation &&
+      registry &&
+      typeof registry
+        .getOperation ===
+        "function"
+        ? registry.getOperation(
+            canonicalOperation
+          )
+        : null;
+
+    return {
+      rawOperation:
+        this.nullableString(
+          value
+        ),
+
+      canonicalOperation,
+
+      definition,
+
+      recognized:
+        Boolean(
+          canonicalOperation &&
+          definition
+        )
+    };
+  },
+
+  /* =====================================================
      MODEL INVOCATION
   ===================================================== */
 
@@ -1452,7 +1592,24 @@ console.log(
     };
   },
 
-  getReasoningInstructions() {
+    getReasoningInstructions(
+    operationContract = null
+  ) {
+    const contract =
+      operationContract ||
+      this.getOperationContract();
+
+    const allowedOperations =
+      this.arrayOrEmpty(
+        contract
+          ?.allowedOperations
+      );
+
+    const allowedOperationText =
+      allowedOperations.length
+        ? allowedOperations.join(", ")
+        : "Use only an operation explicitly provided by the operation contract.";
+
     return [
       "Use the complete evidence packet to interpret the user's current request.",
 
@@ -1467,6 +1624,28 @@ console.log(
       "Do not assume retrieved or model-generated knowledge is verified unless the evidence packet identifies it as verified.",
 
       "Resolve meaning by considering the current turn, recent conversation, continuity evidence, memory, knowledge evidence, situation, understanding signals, and developer evidence together.",
+
+      "The semanticFrame.operation field is a closed canonical vocabulary.",
+
+      `semanticFrame.operation must be exactly one of: ${allowedOperationText}`,
+
+      "Do not invent operation names.",
+
+      "Do not emit natural-language synonyms such as define, describe, answer_question, diagnose_issue, summarize, or medical_explanation when a canonical operation is available.",
+
+      "Do not include the subject, target, domain, medical condition, file name, or artifact name inside semanticFrame.operation.",
+
+      "Place the domain in semanticFrame.domain.",
+
+      "Place the subject or concept in semanticFrame.object, semanticFrame.target, or another appropriate semantic slot.",
+
+      "Populate semanticFrame.requestType, semanticFrame.frameType, semanticFrame.interactionFamily, semanticFrame.intentFamily, semanticFrame.requestedOutput, semanticFrame.domain, semanticFrame.ambiguity, and semanticFrame.execution.",
+
+      "For a definition or conceptual explanation request such as 'What is heart failure?', use explain_or_teach.",
+
+      "For a direct factual value such as 'What is a normal ejection fraction?', use provide_information.",
+
+      "For a meaning question such as 'What does ejection fraction mean?', use interpret_meaning.",
 
       "Do not provide private chain-of-thought or hidden reasoning. Return concise conclusions, evidence references, assumptions, uncertainties, and decision rationale only.",
 
@@ -1594,6 +1773,33 @@ console.log(
       );
     }
 
+const operationRegistry =
+  this.getOperationRegistry();
+
+const operationContract =
+  this.getOperationContract();
+
+if (
+  !operationRegistry ||
+  typeof operationRegistry
+    .normalizeOperation !==
+    "function" ||
+  typeof operationRegistry
+    .getOperation !==
+    "function" ||
+  operationContract
+    ?.registryAvailable !==
+    true ||
+  !this.arrayOrEmpty(
+    operationContract
+      ?.allowedOperations
+  ).length
+) {
+  errors.push(
+    "operation_registry_not_ready"
+  );
+}
+
     return {
       valid:
         errors.length ===
@@ -1607,7 +1813,20 @@ console.log(
      RESPONSE CONTRACT
   ===================================================== */
 
-  getResponseSchema() {
+  getResponseSchema(
+  operationContract = null
+) {
+  
+  const contract =
+  operationContract ||
+  this.getOperationContract();
+
+const allowedOperations =
+  this.arrayOrEmpty(
+    contract
+      ?.allowedOperations
+  );
+  
     return {
       schema:
         this.resultSchema,
@@ -1660,18 +1879,108 @@ console.log(
         },
 
         semanticFrame: {
-          type:
-            "object",
+  type:
+    "object",
 
-          expectedFields: [
-            "operation",
-            "target",
-            "domain",
-            "primaryLane",
-            "requestedOutput",
-            "constraints"
-          ]
-        },
+  required: [
+    "operation",
+    "requestType",
+    "frameType",
+    "interactionFamily",
+    "intentFamily",
+    "requestedOutput",
+    "domain",
+    "ambiguity",
+    "execution"
+  ],
+
+  expectedFields: [
+    "operation",
+    "requestType",
+    "frameType",
+    "interactionFamily",
+    "intentFamily",
+    "requestedOutput",
+    "domain",
+    "participants",
+    "subject",
+    "object",
+    "target",
+    "artifactTarget",
+    "referent",
+    "options",
+    "criteria",
+    "timeframe",
+    "audience",
+    "location",
+    "contextModifiers",
+    "constraints",
+    "stakes",
+    "continuity",
+    "ambiguity",
+    "execution",
+    "secondaryRequests",
+    "confidence",
+    "evidenceRefs",
+    "grounding",
+    "authority"
+  ],
+
+  properties: {
+    operation: {
+  type:
+    "string",
+
+  ...(allowedOperations.length
+    ? {
+        enum:
+          allowedOperations
+      }
+    : {})
+},
+    requestType: {
+      type:
+        "string"
+    },
+
+    frameType: {
+      type:
+        "string"
+    },
+
+    interactionFamily: {
+      type:
+        "string"
+    },
+
+    intentFamily: {
+      type:
+        "string"
+    },
+
+    requestedOutput: {
+      type:
+        "string"
+    },
+
+    domain: {
+      type: [
+        "string",
+        "object"
+      ]
+    },
+
+    ambiguity: {
+      type:
+        "object"
+    },
+
+    execution: {
+      type:
+        "object"
+    }
+  }
+},
 
         responseRequirements: {
           type:
@@ -1808,10 +2117,15 @@ console.log(
         value.decision
       );
 
-    const semanticFrame =
-      this.objectOrEmpty(
-        value.semanticFrame
-      );
+    const rawSemanticFrame =
+  this.objectOrEmpty(
+    value.semanticFrame
+  );
+
+const semanticFrame =
+  this.normalizeSemanticFrame(
+    rawSemanticFrame
+  );
 
     const caseModel =
       this.objectOrEmpty(
@@ -1858,6 +2172,17 @@ console.log(
         "missing_semantic_frame"
       );
     }
+
+const operationResolution =
+  this.resolveOperationDefinition(
+    semanticFrame.operation
+  );
+
+if (!operationResolution.recognized) {
+  validationErrors.push(
+    "semantic_operation_not_registered"
+  );
+}
 
     if (
       !this.isUsableResponseRequirements(
@@ -1930,9 +2255,10 @@ console.log(
         ready,
 
       interpretation:
-        this.normalizeInterpretation(
-          interpretation
-        ),
+  this.normalizeInterpretation(
+    interpretation,
+    semanticFrame.operation
+  ),
 
       reasoningDecision:
         this.normalizeReasoningDecision({
@@ -1940,10 +2266,7 @@ console.log(
           proposedActions
         }),
 
-      semanticFrame:
-        this.normalizeSemanticFrame(
-          semanticFrame
-        ),
+      semanticFrame,
 
       caseModel,
 
@@ -2352,58 +2675,63 @@ console.log(
   },
 
   normalizeInterpretation(
-    interpretation = {}
-  ) {
-    return {
-      conversationFunction:
-        this.nullableString(
-          interpretation
-            .conversationFunction
-        ),
+  interpretation = {},
+  semanticOperation = null
+) {
+  const canonicalOperation =
+    this.normalizeOperation(
+      semanticOperation ||
+      interpretation.operation
+    );
 
-      userGoal:
-        this.nullableString(
-          interpretation.userGoal
-        ),
-
-      operation:
-        this.nullableString(
-          interpretation.operation
-        ),
-
-      meaning:
-        this.nullableString(
-          interpretation.meaning ||
-          interpretation
-            .primaryMeaning
-        ),
-
-      subjects:
-        this.stringArray(
-          interpretation.subjects
-        ),
-
-      contextUsed:
-        interpretation.contextUsed ===
-        true,
-
-      clarificationRequired:
+  return {
+    conversationFunction:
+      this.nullableString(
         interpretation
-          .clarificationRequired ===
-        true,
+          .conversationFunction
+      ),
 
-      clarificationQuestion:
-        this.nullableString(
-          interpretation
-            .clarificationQuestion
-        ),
+    userGoal:
+      this.nullableString(
+        interpretation.userGoal
+      ),
 
-      ambiguity:
-        this.stringArray(
-          interpretation.ambiguity
-        )
-    };
-  },
+    operation:
+      canonicalOperation,
+
+    meaning:
+      this.nullableString(
+        interpretation.meaning ||
+        interpretation
+          .primaryMeaning
+      ),
+
+    subjects:
+      this.stringArray(
+        interpretation.subjects
+      ),
+
+    contextUsed:
+      interpretation.contextUsed ===
+      true,
+
+    clarificationRequired:
+      interpretation
+        .clarificationRequired ===
+      true,
+
+    clarificationQuestion:
+      this.nullableString(
+        interpretation
+          .clarificationQuestion
+      ),
+
+    ambiguity:
+      this.stringArray(
+        interpretation.ambiguity
+      )
+  };
+},
 
   normalizeReasoningDecision({
     reasoningDecision = {},
@@ -2443,41 +2771,204 @@ console.log(
     };
   },
 
-  normalizeSemanticFrame(
+    normalizeSemanticFrame(
     semanticFrame = {}
   ) {
+    const operationResolution =
+      this.resolveOperationDefinition(
+        semanticFrame.operation
+      );
+
+    const canonicalOperation =
+      operationResolution
+        .canonicalOperation;
+
+    const definition =
+      operationResolution
+        .definition ||
+      {};
+
+const modelExecution =
+  this.objectOrEmpty(
+    semanticFrame.execution
+  );
+
     return {
       ...semanticFrame,
 
       operation:
+        canonicalOperation ||
         this.nullableString(
           semanticFrame.operation
         ),
+
+      requestType:
+        this.nullableString(
+          semanticFrame.requestType ||
+          definition.requestType
+        ),
+
+      frameType:
+        this.nullableString(
+          semanticFrame.frameType ||
+          definition.frameType
+        ),
+
+      interactionFamily:
+        this.nullableString(
+          semanticFrame
+            .interactionFamily ||
+          definition
+            .interactionFamily
+        ),
+
+      intentFamily:
+        this.nullableString(
+          semanticFrame
+            .intentFamily ||
+          definition.intentFamily
+        ),
+
+      requestedOutput:
+        this.nullableString(
+          semanticFrame
+            .requestedOutput ||
+          definition
+            .defaultRequestedOutput
+        ),
+
+      domain:
+        semanticFrame.domain ??
+        definition.defaultDomain ??
+        null,
 
       target:
         semanticFrame.target ??
         null,
 
-      domain:
-        this.nullableString(
-          semanticFrame.domain
-        ),
+      object:
+        semanticFrame.object ??
+        null,
+
+      subject:
+        semanticFrame.subject ??
+        null,
 
       primaryLane:
         this.nullableString(
           semanticFrame.primaryLane
         ),
 
-      requestedOutput:
-        this.nullableString(
-          semanticFrame
-            .requestedOutput
+      constraints:
+        this.arrayOrEmpty(
+          semanticFrame.constraints
         ),
 
-      constraints:
-        this.stringArray(
-          semanticFrame.constraints
-        )
+      continuity:
+        this.objectOrDefault(
+          semanticFrame.continuity,
+          {
+            requiresPriorContext:
+              false,
+
+            referencePresent:
+              false,
+
+            referenceResolved:
+              false,
+
+            missingAnchor:
+              false
+          }
+        ),
+
+      ambiguity:
+        this.objectOrDefault(
+          semanticFrame.ambiguity,
+          {
+            present:
+              false,
+
+            requiresClarification:
+              false,
+
+            reason:
+              null,
+
+            unresolvedSlots:
+              [],
+
+            competingInterpretations:
+              [],
+
+            clarificationQuestion:
+              null
+          }
+        ),
+
+      execution: {
+  ...modelExecution,
+
+  executionRequested:
+    modelExecution
+      .executionRequested ===
+    true,
+
+  executionKind:
+    this.nullableString(
+      modelExecution
+        .executionKind
+    ) ||
+    definition.executionKind ||
+    null,
+
+  executionAllowed:
+    false,
+
+  analysisOnly:
+    true,
+
+  prohibitedOperations:
+    this.stringArray(
+      modelExecution
+        .prohibitedOperations
+    ),
+
+  deferredOperations:
+    this.stringArray(
+      modelExecution
+        .deferredOperations
+    )
+},
+
+      operationResolution: {
+        rawOperation:
+          operationResolution
+            .rawOperation,
+
+        canonicalOperation:
+          operationResolution
+            .canonicalOperation,
+
+        recognized:
+          operationResolution
+            .recognized,
+
+        normalizedByRegistry:
+          Boolean(
+            operationResolution
+              .recognized &&
+            operationResolution
+              .rawOperation !==
+              operationResolution
+                .canonicalOperation
+          ),
+
+        registryVersion:
+          this.getOperationRegistry()
+            ?.version ||
+          null
+      }
     };
   },
 
@@ -3234,58 +3725,110 @@ console.log(
   ===================================================== */
 
   validate() {
-    const resolvedClient =
-      this.resolveModelInvoker(
-        {}
-      );
+  const resolvedClient =
+    this.resolveModelInvoker(
+      {}
+    );
 
-    return {
-      valid:
-        typeof this.reason ===
-          "function" &&
-        typeof this.create ===
-          "function" &&
-        typeof this.resolveModelInvoker ===
-          "function" &&
-        typeof this.validateAndNormalizeResult ===
-          "function",
+  const operationRegistry =
+    this.getOperationRegistry();
 
-      ready:
-  typeof this.reason ===
-    "function" &&
-  Boolean(
-    resolvedClient
-  ),
+  const operationContract =
+    this.getOperationContract();
 
-      modelInvokerAvailable:
-        Boolean(
-          resolvedClient
-        ),
+  const allowedOperations =
+    this.arrayOrEmpty(
+      operationContract
+        ?.allowedOperations
+    );
 
-      modelInvokerSource:
+  const operationRegistryReady =
+    Boolean(
+      operationRegistry &&
+      typeof operationRegistry
+        .normalizeOperation ===
+        "function" &&
+      typeof operationRegistry
+        .getOperation ===
+        "function" &&
+      operationContract
+        ?.registryAvailable ===
+        true &&
+      allowedOperations.length > 0
+    );
+
+  const structurallyValid =
+    typeof this.reason ===
+      "function" &&
+    typeof this.create ===
+      "function" &&
+    typeof this.resolveModelInvoker ===
+      "function" &&
+    typeof this.validateAndNormalizeResult ===
+      "function" &&
+    typeof this.normalizeSemanticFrame ===
+      "function";
+
+  return {
+    valid:
+      structurallyValid,
+
+    ready:
+      structurallyValid &&
+      Boolean(
         resolvedClient
-          ?.source ||
-        null,
+      ) &&
+      operationRegistryReady,
 
-      source:
-        this.source,
+    modelInvokerAvailable:
+      Boolean(
+        resolvedClient
+      ),
 
-      version:
-        this.version,
+    modelInvokerSource:
+      resolvedClient
+        ?.source ||
+      null,
 
-      requestSchema:
-        this.requestSchema,
+    operationRegistryAvailable:
+      Boolean(
+        operationRegistry
+      ),
 
-      requestSchemaVersion:
-        this.requestSchemaVersion,
+    operationRegistryReady,
 
-      resultSchema:
-        this.resultSchema,
+    operationRegistryVersion:
+      operationRegistry
+        ?.version ||
+      null,
 
-      resultSchemaVersion:
-        this.resultSchemaVersion
-    };
-  },
+    operationContractAvailable:
+      operationContract
+        ?.registryAvailable ===
+      true,
+
+    allowedOperationCount:
+      allowedOperations.length,
+
+    source:
+      this.source,
+
+    version:
+      this.version,
+
+    requestSchema:
+      this.requestSchema,
+
+    requestSchemaVersion:
+      this.requestSchemaVersion,
+
+    resultSchema:
+      this.resultSchema,
+
+    resultSchemaVersion:
+      this.resultSchemaVersion
+  };
+},
 
   /* =====================================================
      UTILITIES
@@ -3300,6 +3843,21 @@ console.log(
     )
       ? value
       : {};
+  },
+
+  objectOrDefault(
+    value,
+    defaults = {}
+  ) {
+    return {
+      ...this.objectOrEmpty(
+        defaults
+      ),
+
+      ...this.objectOrEmpty(
+        value
+      )
+    };
   },
 
   arrayOrEmpty(value) {
