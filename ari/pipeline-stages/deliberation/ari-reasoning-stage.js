@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.3.0 — Required Semantic Reasoning
+// V2.3.1 — Required Semantic Reasoning
 //
 // Authority model:
 //
@@ -40,7 +40,7 @@
 window.Ari = window.Ari || {};
 
 window.AriReasoningStage = {
-  version: "2.3.0",
+  version: "2.3.1",
 
   async run(summary = {}, runtime = {}) {
     const {
@@ -1136,67 +1136,60 @@ isValidEngineInvocationResult({
   }
 
   if (
-    expectedResult ===
-    "reasoning"
-  ) {
-    const cognitiveResult =
-      this.objectOrNull(
-        result.cognitiveReasoningResult
-      ) ||
-      this.objectOrNull(
-        result.reasoningResult
-      ) ||
-      this.objectOrNull(
-        result.result
-          ?.cognitiveReasoningResult
-      ) ||
-      this.objectOrNull(
-        result.result
-          ?.reasoningResult
-      ) ||
-      null;
+  expectedResult ===
+  "reasoning"
+) {
+  const cognitiveResult =
+    this.objectOrNull(
+      result.cognitiveReasoningResult
+    ) ||
+    this.objectOrNull(
+      result.reasoningResult
+    ) ||
+    this.objectOrNull(
+      result.result
+        ?.cognitiveReasoningResult
+    ) ||
+    this.objectOrNull(
+      result.result
+        ?.reasoningResult
+    ) ||
+    null;
 
-    const semanticFrame =
-      this.objectOrNull(
-        cognitiveResult
-          ?.semanticFrame
-      ) ||
-      this.objectOrNull(
-        result.semanticFrame
-      );
-
-    const responseRequirements =
-      this.objectOrNull(
-        cognitiveResult
-          ?.responseRequirements
-      ) ||
-      this.objectOrNull(
-        result.responseRequirements
-      );
-
-    const modelInvocation =
-      this.objectOrNull(
-        cognitiveResult
-          ?.modelInvocation
-      ) ||
-      this.objectOrNull(
-        result.modelInvocation
-      );
-
-    const engineActuallyRan =
-      result.reasoningEngineRan ===
-        true ||
-      cognitiveResult?.success ===
-        true ||
-      modelInvocation?.succeeded ===
-        true;
-
-    return Boolean(
-      engineActuallyRan &&
-      semanticFrame &&
-      responseRequirements
+  /*
+   * A reasoning-engine failure result is still a valid
+   * invocation result. It must be preserved rather than
+   * causing a second direct invocation.
+   */
+  const recognizedEngineEnvelope =
+    typeof result.reasoningEngineRan ===
+      "boolean" ||
+    typeof result.reasoningEngineReady ===
+      "boolean" ||
+    Boolean(
+      result.reasoningEngineVersion
+    ) ||
+    Boolean(
+      cognitiveResult
     );
-  }
+
+  const recognizedCognitiveResult =
+    Boolean(
+      cognitiveResult &&
+      (
+        typeof cognitiveResult.ready ===
+          "boolean" ||
+        cognitiveResult.validation ||
+        cognitiveResult.schema ===
+          "ari_cognitive_reasoning_result"
+      )
+    );
+
+  return Boolean(
+    recognizedEngineEnvelope &&
+    recognizedCognitiveResult
+  );
+}
 
   if (
     expectedResult ===
@@ -1458,7 +1451,7 @@ isValidEngineInvocationResult({
         "ari_cognitive_reasoning_request",
 
       schemaVersion:
-        "1.1.2",
+        "1.1.3",
 
       action:
         "openai_reasoning",
@@ -2154,13 +2147,13 @@ engineInvocation:
           true,
 
         canInterpretMeaning:
-          true,
+  false,
 
-        canBuildSemanticFrame:
-          true,
+canBuildSemanticFrame:
+  false,
 
-                canDefineResponseRequirements:
-          true,
+canDefineResponseRequirements:
+  false,
 
         canDefineResponseStrategy:
           false,
@@ -2227,7 +2220,7 @@ engineInvocation:
           "ari_cognitive_reasoning_result",
 
         schemaVersion:
-          "1.1.2",
+          "1.1.3",
 
         ready:
           false,
