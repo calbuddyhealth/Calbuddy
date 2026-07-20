@@ -16,6 +16,18 @@ window.AriSemanticFrameValidator = {
   authorityLevel: "semantic_frame_validation",
 
   validate(input = {}) {
+  try {
+    console.log(
+  "SEMANTIC VALIDATOR START",
+  {
+    summaryKeys:
+      input &&
+      typeof input === "object"
+        ? Object.keys(input.summary || input)
+        : []
+  }
+);
+    
     const summary = input.summary || input || {};
     const cognitiveResult = this.readCognitiveReasoningResult(summary);
     const sourceFrame = this.readSemanticFrame(summary, cognitiveResult);
@@ -44,6 +56,23 @@ window.AriSemanticFrameValidator = {
     const normalizedFrame = sourceFrame
       ? this.normalizeFrame(sourceFrame, registry)
       : null;
+
+console.log(
+  "NORMALIZED SEMANTIC FRAME",
+  JSON.parse(JSON.stringify(normalizedFrame))
+);
+
+console.log(
+  "OPERATION REGISTRY LOOKUP",
+  {
+    originalOperation: sourceFrame?.operation,
+    normalizedOperation: normalizedFrame?.operation,
+    definition:
+      registry?.getOperation?.(
+        normalizedFrame?.operation
+      )
+  }
+);
 
     const schemaValidation = this.validateSchema(normalizedFrame);
     const registryValidation = this.validateRegistry(
@@ -132,6 +161,29 @@ window.AriSemanticFrameValidator = {
       warnings,
       conflicts
     );
+
+console.log(
+  "SEMANTIC VALIDATOR SUMMARY",
+  {
+    sourceFrame,
+    normalizedFrame,
+    cognitiveResult,
+
+    schemaValidation,
+    registryValidation,
+    slotValidation,
+    evidenceValidation,
+    continuityValidation,
+    safetyValidation,
+    executionValidation,
+    routingValidation,
+    authorityValidation,
+
+    errors,
+    warnings,
+    conflicts
+  }
+);
 
     const accepted = errors.length === 0;
     const validatedSemanticFrame = accepted
@@ -258,6 +310,21 @@ window.AriSemanticFrameValidator = {
         role: "semantic_frame_validation"
       }
     };
+  
+    } catch (error) {
+
+    console.error(
+      "SEMANTIC VALIDATOR CRASH",
+      {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack,
+        error
+      }
+    );
+
+    throw error;
+  }
   },
 
   build(input = {}) {
