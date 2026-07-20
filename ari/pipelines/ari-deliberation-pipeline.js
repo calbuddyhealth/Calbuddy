@@ -5,7 +5,7 @@
 // Coordinate deterministic context preparation, OpenAI reasoning,
 // semantic validation, and response planning.
 //
-// V2.1.0 — Canonical Reasoning Result Resolution and Readiness
+// V2.1.1 — Canonical Reasoning Result Resolution and Readiness
 //
 // Canonical order:
 // 1. Continuity
@@ -26,8 +26,8 @@
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "2.1.0",
-  schemaVersion: "2.1.0",
+  version: "2.1.1",
+  schemaVersion: "2.1.1",
   source: "ari-deliberation-pipeline",
   architecture:
     "openai-semantic-authority-with-deterministic-validation",
