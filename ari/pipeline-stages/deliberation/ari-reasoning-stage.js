@@ -8,7 +8,7 @@
 //   reasoning-result validation,
 //   and downstream response-control requirements.
 //
-// V2.3.1 — Required Semantic Reasoning
+// V2.3.2 — Required Semantic Reasoning / Controlled Invocation Results
 //
 // Authority model:
 //
@@ -606,13 +606,9 @@ reasoningEngineResult:
         null,
 
       reasoningEngineRan:
-        reasoningResult
-          ?.reasoningEngineRan ===
-          true ||
-        cognitiveReasoningResult
-          ?.success === true ||
-        modelInvocation
-          ?.succeeded === true,
+  reasoningResult
+    ?.reasoningEngineRan ===
+    true,
 
       reasoningEngineReady,
 
@@ -843,13 +839,12 @@ async invokeEngine({
   fallback = null,
   expectedResult = null
 } = {}) {
-  let runtimeResult = null;
-  let runtimeError = null;
-
   if (
     typeof runtimeInvoker ===
       "function"
   ) {
+    let runtimeResult;
+
     try {
       runtimeResult =
         await runtimeInvoker(
@@ -859,8 +854,30 @@ async invokeEngine({
           input
         );
     } catch (error) {
-      runtimeError =
+      const wrappedError =
+        new Error(
+          error?.message ||
+          "runtime_engine_invocation_failed"
+        );
+
+      wrappedError.name =
+        error?.name ||
+        "AriRuntimeInvocationError";
+
+      wrappedError.code =
+        "runtime_engine_invocation_failed";
+
+      wrappedError.cause =
         error;
+
+      wrappedError.engineVersion =
+        engine?.version ||
+        null;
+
+      wrappedError.expectedResult =
+        expectedResult;
+
+      throw wrappedError;
     }
 
     const runtimeResultValid =
@@ -871,58 +888,35 @@ async invokeEngine({
         expectedResult
       });
 
-    if (runtimeResultValid) {
-      return runtimeResult;
+    if (!runtimeResultValid) {
+      const error =
+        new Error(
+          expectedResult ===
+            "reasoning"
+            ? "runtime_invoker_returned_invalid_reasoning_result"
+            : expectedResult ===
+                "cognitive_executive"
+              ? "runtime_invoker_returned_invalid_cognitive_executive_result"
+              : "runtime_invoker_returned_invalid_engine_result"
+        );
+
+      error.code =
+        "runtime_invoker_returned_invalid_result";
+
+      error.expectedResult =
+        expectedResult;
+
+      error.engineVersion =
+        engine?.version ||
+        null;
+
+      error.runtimeResult =
+        runtimeResult;
+
+      throw error;
     }
 
-    console.warn(
-      "ARI ENGINE RUNTIME INVOKER DID NOT PRODUCE A VALID RESULT:",
-      {
-        expectedResult,
-
-        engineAvailable:
-          Boolean(engine),
-
-        engineVersion:
-          engine?.version ||
-          null,
-
-        requestedMethods:
-          methods,
-
-        runtimeInvokerAvailable:
-          typeof runtimeInvoker ===
-          "function",
-
-        runtimeResult,
-
-        runtimeResultKeys:
-          runtimeResult &&
-          typeof runtimeResult ===
-            "object"
-            ? Object.keys(runtimeResult)
-            : [],
-
-        engineInvocationDiagnostic:
-          runtimeResult
-            ?.engineInvocationDiagnostic ||
-          null,
-
-        runtimeError: {
-          name:
-            runtimeError?.name ||
-            null,
-
-          message:
-            runtimeError?.message ||
-            null,
-
-          stack:
-            runtimeError?.stack ||
-            null
-        }
-      }
-    );
+    return runtimeResult;
   }
 
   if (
@@ -1192,20 +1186,40 @@ isValidEngineInvocationResult({
 }
 
   if (
-    expectedResult ===
+  expectedResult ===
     "cognitive_executive"
-  ) {
-    return Boolean(
-      result.ariExecutiveRan ===
-        true ||
+) {
+  const executiveResult =
+    this.objectOrNull(
+      result.cognitiveExecutive
+    );
+
+  const recognizedEnvelope =
+    typeof result.ariExecutiveRan ===
+      "boolean" &&
+    Boolean(
+      executiveResult
+    );
+
+  const recognizedExecutiveResult =
+    Boolean(
+      executiveResult &&
       (
-        result.ariExecutiveVersion &&
-        result.cognitiveExecutive &&
-        result.cognitiveExecutive
-          .source !== "not-loaded"
+        typeof executiveResult.source ===
+          "string" ||
+        typeof executiveResult.reason ===
+          "string" ||
+        Array.isArray(
+          executiveResult.activate
+        )
       )
     );
-  }
+
+  return Boolean(
+    recognizedEnvelope &&
+    recognizedExecutiveResult
+  );
+}
 
   return true;
 },
@@ -1451,7 +1465,7 @@ isValidEngineInvocationResult({
         "ari_cognitive_reasoning_request",
 
       schemaVersion:
-        "1.1.3",
+        "1.1.4",
 
       action:
         "openai_reasoning",
@@ -2220,7 +2234,7 @@ canDefineResponseRequirements:
           "ari_cognitive_reasoning_result",
 
         schemaVersion:
-          "1.1.3",
+          "1.1.4",
 
         ready:
           false,
