@@ -5,7 +5,7 @@
 // Send one canonical cognitive reasoning request to the server-side
 // OpenAI transport and return structured model output.
 //
-// V1.1.2 — Transparent Client Diagnostics
+// V1.1.3 — Canonical Effective-Request Validation
 //
 // Responsibilities:
 // - Accept the canonical reasoning-engine payload.
@@ -27,7 +27,7 @@ window.Ari = window.Ari || {};
 
 window.AriOpenAIReasoningClient = {
   version:
-    "1.1.2",
+    "1.1.3",
 
   source:
     "ari-openai-reasoning-client",
@@ -51,6 +51,11 @@ window.AriOpenAIReasoningClient = {
         payload
       );
 
+    const effectiveText =
+      this.resolveEffectiveText(
+        payload.request
+      );
+
     console.log(
       "ARI OPENAI REASONING CLIENT PAYLOAD DIAGNOSTIC:",
       {
@@ -72,15 +77,13 @@ window.AriOpenAIReasoningClient = {
           null,
 
         effectiveText:
-          payload.request
-            ?.request
-            ?.effective ||
-          payload.request
-            ?.resolvedUserQuestion ||
-          payload.request
-            ?.currentTurn
-            ?.effectiveText ||
+          effectiveText ||
           null,
+
+        effectiveTextSource:
+          this.resolveEffectiveTextSource(
+            payload.request
+          ),
 
         responseSchema:
           payload.responseSchema
@@ -103,6 +106,15 @@ window.AriOpenAIReasoningClient = {
         {
           errors:
             validation.errors,
+
+          effectiveText:
+            effectiveText ||
+            null,
+
+          effectiveTextSource:
+            this.resolveEffectiveTextSource(
+              payload.request
+            ),
 
           payload
         }
@@ -136,13 +148,15 @@ window.AriOpenAIReasoningClient = {
           null,
 
         effectiveText:
-          requestBody.request
-            ?.effective ||
-          requestBody
-            .resolvedUserQuestion ||
-          requestBody.currentTurn
-            ?.effectiveText ||
+          this.resolveEffectiveText(
+            requestBody
+          ) ||
           null,
+
+        effectiveTextSource:
+          this.resolveEffectiveTextSource(
+            requestBody
+          ),
 
         responseContract:
           requestBody.responseContract ||
@@ -389,14 +403,9 @@ window.AriOpenAIReasoningClient = {
     payload = {}
   ) {
     const reasoningRequest =
-      payload.request &&
-      typeof payload.request ===
-        "object" &&
-      !Array.isArray(
+      this.normalizeObject(
         payload.request
-      )
-        ? payload.request
-        : {};
+      );
 
     return {
       /*
@@ -418,8 +427,9 @@ window.AriOpenAIReasoningClient = {
         this.version,
 
       responseSchema:
-        payload.responseSchema ||
-        {},
+        this.normalizeObject(
+          payload.responseSchema
+        ),
 
       instructions:
         Array.isArray(
@@ -457,10 +467,7 @@ window.AriOpenAIReasoningClient = {
     const errors = [];
 
     if (
-      !payload ||
-      typeof payload !==
-        "object" ||
-      Array.isArray(
+      !this.isPlainObject(
         payload
       )
     ) {
@@ -474,39 +481,32 @@ window.AriOpenAIReasoningClient = {
       };
     }
 
-    if (
-      !payload.request ||
-      typeof payload.request !==
-        "object" ||
-      Array.isArray(
+    const reasoningRequest =
+      this.isPlainObject(
         payload.request
       )
-    ) {
+        ? payload.request
+        : null;
+
+    if (!reasoningRequest) {
       errors.push(
         "reasoning_request_missing"
       );
     }
 
     const effectiveText =
-      payload.request
-        ?.request
-        ?.effective;
+      this.resolveEffectiveText(
+        reasoningRequest
+      );
 
-    if (
-      typeof effectiveText !==
-        "string" ||
-      !effectiveText.trim()
-    ) {
+    if (!effectiveText) {
       errors.push(
         "effective_user_request_missing"
       );
     }
 
     if (
-      !payload.responseSchema ||
-      typeof payload.responseSchema !==
-        "object" ||
-      Array.isArray(
+      !this.isPlainObject(
         payload.responseSchema
       )
     ) {
@@ -522,6 +522,169 @@ window.AriOpenAIReasoningClient = {
 
       errors
     };
+  },
+
+  resolveEffectiveText(
+    request = {}
+  ) {
+    if (
+      !request ||
+      typeof request !==
+        "object" ||
+      Array.isArray(
+        request
+      )
+    ) {
+      return "";
+    }
+
+    const candidates = [
+      request.request
+        ?.effective,
+
+      request.currentTurn
+        ?.effectiveText,
+
+      request.effectiveUserMessage,
+
+      request.resolvedUserQuestion,
+
+      request.resolvedQuestion,
+
+      request.question,
+
+      request.request
+        ?.original,
+
+      request.currentTurn
+        ?.originalText,
+
+      request.originalUserMessage,
+
+      request.rawQuestion,
+
+      request.userMessage,
+
+      request.message,
+
+      request.input
+    ];
+
+    for (
+      const candidate
+      of candidates
+    ) {
+      if (
+        typeof candidate ===
+          "string" &&
+        candidate.trim()
+      ) {
+        return candidate.trim();
+      }
+    }
+
+    return "";
+  },
+
+  resolveEffectiveTextSource(
+    request = {}
+  ) {
+    if (
+      !request ||
+      typeof request !==
+        "object" ||
+      Array.isArray(
+        request
+      )
+    ) {
+      return null;
+    }
+
+    const candidates = [
+      [
+        "request.effective",
+        request.request
+          ?.effective
+      ],
+
+      [
+        "currentTurn.effectiveText",
+        request.currentTurn
+          ?.effectiveText
+      ],
+
+      [
+        "effectiveUserMessage",
+        request.effectiveUserMessage
+      ],
+
+      [
+        "resolvedUserQuestion",
+        request.resolvedUserQuestion
+      ],
+
+      [
+        "resolvedQuestion",
+        request.resolvedQuestion
+      ],
+
+      [
+        "question",
+        request.question
+      ],
+
+      [
+        "request.original",
+        request.request
+          ?.original
+      ],
+
+      [
+        "currentTurn.originalText",
+        request.currentTurn
+          ?.originalText
+      ],
+
+      [
+        "originalUserMessage",
+        request.originalUserMessage
+      ],
+
+      [
+        "rawQuestion",
+        request.rawQuestion
+      ],
+
+      [
+        "userMessage",
+        request.userMessage
+      ],
+
+      [
+        "message",
+        request.message
+      ],
+
+      [
+        "input",
+        request.input
+      ]
+    ];
+
+    for (
+      const [source, value]
+      of candidates
+    ) {
+      if (
+        typeof value ===
+          "string" &&
+        value.trim()
+      ) {
+        return source;
+      }
+    }
+
+    return null;
   },
 
   extractStructuredResult(
@@ -753,6 +916,29 @@ window.AriOpenAIReasoningClient = {
     );
   },
 
+  normalizeObject(
+    value
+  ) {
+    return this.isPlainObject(
+      value
+    )
+      ? value
+      : {};
+  },
+
+  isPlainObject(
+    value
+  ) {
+    return Boolean(
+      value &&
+      typeof value ===
+        "object" &&
+      !Array.isArray(
+        value
+      )
+    );
+  },
+
   validate() {
     const valid =
       typeof this.invoke ===
@@ -760,6 +946,12 @@ window.AriOpenAIReasoningClient = {
       typeof this.reason ===
         "function" &&
       typeof this.buildRequestBody ===
+        "function" &&
+      typeof this.validatePayload ===
+        "function" &&
+      typeof this.resolveEffectiveText ===
+        "function" &&
+      typeof this.resolveEffectiveTextSource ===
         "function" &&
       typeof this.extractStructuredResult ===
         "function";
