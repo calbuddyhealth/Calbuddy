@@ -23,12 +23,12 @@
 //   - Does not determine safety severity.
 //   - Does not compose or answer the user.
 //
-// V3.0.0 — Canonical Intent Packet Routing / Context Source Arbitration
+// V3.0.1 — Structured Reference Continuity Guard
 
 window.Ari = window.Ari || {};
 
 window.Ari.laneSplitterEngine = {
-  version: "3.0.0",
+  version: "3.0.1",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -504,12 +504,39 @@ window.Ari.laneSplitterEngine = {
         )
         .filter(Boolean);
 
+    /*
+     * Structured continuity guard.
+     *
+     * The lane splitter still does not inspect or reinterpret raw text.
+     * It only honors structured reference evidence already supplied by
+     * the canonical Conversation Intent Packet.
+     */
+
+    const referencePresent =
+      continuity.referencePresent ===
+        true;
+
+    const referenceResolved =
+      continuity.referenceResolved ===
+        true;
+
+    const unresolvedReference =
+      referencePresent &&
+      !referenceResolved;
+
+    const missingAnchor =
+      ambiguity.missingAnchor ===
+        true ||
+      continuity.missingAnchor ===
+        true;
+
     const requiresPriorContext =
       continuity.requiresPriorContext ===
         true ||
       responseRequirements
         .priorContextRequired ===
-        true;
+        true ||
+      unresolvedReference;
 
     const packetPriorContextAvailable =
       continuity.priorContextAvailable ===
@@ -540,10 +567,6 @@ window.Ari.laneSplitterEngine = {
       ambiguity.requiresClarification ===
         true ||
       readiness.clarificationRequired ===
-        true;
-
-    const missingAnchor =
-      ambiguity.missingAnchor ===
         true;
 
     const recallRequested =
@@ -615,6 +638,8 @@ window.Ari.laneSplitterEngine = {
       packetUsable &&
       !requiresPriorContext &&
       !isContinuation &&
+      !unresolvedReference &&
+      !missingAnchor &&
       !recallRequested &&
       !correctionRequested &&
       !relationshipContinuityRequested;
@@ -658,6 +683,12 @@ window.Ari.laneSplitterEngine = {
         supportingNames,
 
       currentTurnMeaningAvailable,
+
+      referencePresent,
+
+      referenceResolved,
+
+      unresolvedReference,
 
       requiresPriorContext,
 
@@ -772,12 +803,31 @@ window.Ari.laneSplitterEngine = {
           .primaryFunction
       );
 
+    const referencePresent =
+      continuity.referencePresent ===
+        true;
+
+    const referenceResolved =
+      continuity.referenceResolved ===
+        true;
+
+    const unresolvedReference =
+      referencePresent &&
+      !referenceResolved;
+
+    const missingAnchor =
+      ambiguity.missingAnchor ===
+        true ||
+      continuity.missingAnchor ===
+        true;
+
     const requiresPriorContext =
       continuity.requiresPriorContext ===
         true ||
       responseRequirements
         .priorContextRequired ===
-        true;
+        true ||
+      unresolvedReference;
 
     const priorContextAvailable =
       continuity.priorContextAvailable ===
@@ -898,6 +948,12 @@ window.Ari.laneSplitterEngine = {
 
       currentTurnMeaningAvailable,
 
+      referencePresent,
+
+      referenceResolved,
+
+      unresolvedReference,
+
       requiresPriorContext,
 
       priorContextAvailable,
@@ -918,9 +974,7 @@ window.Ari.laneSplitterEngine = {
         ambiguity.requiresClarification ===
         true,
 
-      missingAnchor:
-        ambiguity.missingAnchor ===
-        true,
+      missingAnchor,
 
       recallRequested,
 
@@ -932,6 +986,8 @@ window.Ari.laneSplitterEngine = {
         currentTurnMeaningAvailable &&
         !requiresPriorContext &&
         !isContinuation &&
+        !unresolvedReference &&
+        !missingAnchor &&
         !recallRequested &&
         !correctionRequested &&
         !relationshipContinuityRequested,
@@ -994,6 +1050,13 @@ window.Ari.laneSplitterEngine = {
     ) {
       continuity += 40;
       direct -= 25;
+    }
+
+    if (
+      context.unresolvedReference
+    ) {
+      continuity += 35;
+      direct -= 35;
     }
 
     if (
@@ -1114,13 +1177,14 @@ window.Ari.laneSplitterEngine = {
 
     if (
       context.requiresPriorContext ||
-      context.isContinuation
+      context.isContinuation ||
+      context.unresolvedReference
     ) {
       return "continuity_follow_up";
     }
 
     if (
-      context.currentTurnMeaningAvailable
+      context.directCurrentTurnEligible
     ) {
       return "direct_current_turn";
     }
@@ -1261,6 +1325,7 @@ window.Ari.laneSplitterEngine = {
         context
           .relationshipContinuityRequested ||
         context.requiresPriorContext ||
+        context.unresolvedReference ||
         context.directCurrentTurnEligible
       )
         ? 0.2
@@ -1390,6 +1455,12 @@ window.Ari.laneSplitterEngine = {
       lane ===
       "continuity_follow_up"
     ) {
+      if (
+        context.unresolvedReference
+      ) {
+        return "The canonical intent packet reports a current-turn reference that is not yet resolved, so prior thread context is required.";
+      }
+
       return "The canonical intent packet states that the current request requires prior thread context.";
     }
 
@@ -1397,10 +1468,10 @@ window.Ari.laneSplitterEngine = {
       lane ===
       "direct_current_turn"
     ) {
-      return "The canonical intent packet contains sufficient current-turn meaning and does not require prior context.";
+      return "The canonical intent packet contains sufficient self-contained current-turn meaning and does not require prior context.";
     }
 
-    return "No stronger context dependency was established, so the current turn may proceed directly.";
+    return "No stronger context dependency was established, so the highest-ranked context lane was selected.";
   },
 
   /* =====================================================
@@ -1475,6 +1546,11 @@ window.Ari.laneSplitterEngine = {
         missingContext:
           routing
             .contextRecoveryRequired ===
+          true,
+
+        unresolvedReference:
+          routingContext
+            .unresolvedReference ===
           true
       },
 
