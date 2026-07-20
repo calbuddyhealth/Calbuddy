@@ -3,9 +3,9 @@
 //
 // Purpose:
 // Coordinate deterministic context preparation, OpenAI reasoning,
-// semantic validation, and response planning.
+// semantic validation, response planning, and stage-level diagnostics.
 //
-// V2.1.1 — Canonical Reasoning Result Resolution and Readiness
+// V2.2.0 — Deliberation Boundary Trace / Failure Isolation
 //
 // Canonical order:
 // 1. Continuity
@@ -21,13 +21,20 @@
 // - OpenAI Reasoning is the sole semantic authority.
 // - AriSemanticFrameValidator validates but never invents meaning.
 // - Response Planning may consume only validated AI output.
-// - This pipeline orchestrates stages but does not itself interpret meaning.
+// - This pipeline orchestrates stages but does not interpret meaning.
+//
+// Debug model:
+// - Proves the deliberation pipeline was entered.
+// - Records every stage start, completion, duration, readiness, and error.
+// - Identifies the first internal failure boundary.
+// - Preserves compact snapshots without duplicating full runtime packets.
 
 window.Ari = window.Ari || {};
 
 window.AriDeliberationPipeline = {
-  version: "2.1.1",
-  schemaVersion: "2.1.1",
+  version: "2.2.0",
+  schemaVersion: "2.2.0",
+  debugSchemaVersion: "1.0.0",
   source: "ari-deliberation-pipeline",
   architecture:
     "openai-semantic-authority-with-deterministic-validation",
@@ -37,6 +44,9 @@ window.AriDeliberationPipeline = {
       mark = () => {}
     } = runtime;
 
+    const pipelineStartedAtMs =
+      this.nowMs();
+
     let state = {
       ...summary,
 
@@ -44,14 +54,33 @@ window.AriDeliberationPipeline = {
         "deliberation",
 
       deliberationStageErrors:
-        Array.isArray(
+        this.toArray(
           summary.deliberationStageErrors
         )
-          ? [
-              ...summary.deliberationStageErrors
-            ]
-          : []
     };
+
+    state =
+      this.initializeDeliberationDebugTrace(
+        state,
+        pipelineStartedAtMs
+      );
+
+    this.emitDebugLog(
+      runtime,
+      "pipeline_entered",
+      {
+        source:
+          this.source,
+
+        version:
+          this.version,
+
+        inputSnapshot:
+          state.deliberationDebugTrace
+            ?.inputSnapshot ||
+          null
+      }
+    );
 
     const executivePacket =
       state.executivePacket ||
@@ -65,104 +94,202 @@ window.AriDeliberationPipeline = {
     };
 
     /* =====================================================
-       1. CONTINUITY STAGE
-       Retrieves and preserves continuity context.
-
-       It may resolve references and gather prior-turn facts.
-       It must not infer current-turn semantic meaning.
+       1. CONTINUITY
     ===================================================== */
-
-    mark("before continuityStage");
 
     state =
-      await this.runStage(
-        window.AriContinuityStage ||
-        window.Ari?.continuityStage,
+      await this.runTracedStage({
         state,
         runtime,
-        "continuity"
-      );
-
-    mark("after continuityStage");
+        mark,
+        stageName:
+          "continuity",
+        markName:
+          "continuityStage",
+        stage:
+          window.AriContinuityStage ||
+          window.Ari?.continuityStage,
+        inspect:
+          nextState => ({
+            ready:
+              this.resolveStageReady(
+                nextState,
+                "continuity"
+              ),
+            outputAvailable:
+              Boolean(
+                nextState.continuityStagePacket ||
+                nextState.continuityResolution
+              ),
+            diagnostics: {
+              packetAvailable:
+                Boolean(
+                  nextState.continuityStagePacket
+                ),
+              resolutionAvailable:
+                Boolean(
+                  nextState.continuityResolution
+                ),
+              currentTurnWasResolved:
+                nextState.currentTurnWasResolved ===
+                true
+            }
+          })
+      });
 
     /* =====================================================
-       2. SAFETY STAGE
-       Establishes deterministic response-governance
-       requirements before OpenAI reasoning.
+       2. SAFETY
     ===================================================== */
-
-    mark("before safetyStage");
 
     state =
-      await this.runStage(
-        window.AriSafetyDeliberationStage ||
-        window.Ari?.safetyDeliberationStage,
+      await this.runTracedStage({
         state,
         runtime,
-        "safety"
-      );
-
-    mark("after safetyStage");
+        mark,
+        stageName:
+          "safety",
+        markName:
+          "safetyStage",
+        stage:
+          window.AriSafetyDeliberationStage ||
+          window.Ari?.safetyDeliberationStage,
+        inspect:
+          nextState => ({
+            ready:
+              this.resolveStageReady(
+                nextState,
+                "safety"
+              ),
+            outputAvailable:
+              Boolean(
+                nextState.safetyStagePacket ||
+                nextState.safetyDisposition
+              ),
+            diagnostics: {
+              packetAvailable:
+                Boolean(
+                  nextState.safetyStagePacket
+                ),
+              dispositionAvailable:
+                Boolean(
+                  nextState.safetyDisposition
+                )
+            }
+          })
+      });
 
     /* =====================================================
-       3. SITUATION STAGE
-       Models situational facts, lanes, stakes, and
-       constraints without selecting semantic intent.
+       3. SITUATION
     ===================================================== */
-
-    mark("before situationStage");
 
     state =
-      await this.runStage(
-        window.AriSituationStage ||
-        window.Ari?.situationStage,
+      await this.runTracedStage({
         state,
         runtime,
-        "situation"
-      );
-
-    mark("after situationStage");
+        mark,
+        stageName:
+          "situation",
+        markName:
+          "situationStage",
+        stage:
+          window.AriSituationStage ||
+          window.Ari?.situationStage,
+        inspect:
+          nextState => ({
+            ready:
+              this.resolveStageReady(
+                nextState,
+                "situation"
+              ),
+            outputAvailable:
+              Boolean(
+                nextState.situationStagePacket ||
+                nextState.situationContract ||
+                nextState.situationMap
+              ),
+            diagnostics: {
+              packetAvailable:
+                Boolean(
+                  nextState.situationStagePacket
+                ),
+              contractAvailable:
+                Boolean(
+                  nextState.situationContract
+                ),
+              situationMapAvailable:
+                Boolean(
+                  nextState.situationMap
+                )
+            }
+          })
+      });
 
     /* =====================================================
-       4. MEMORY STAGE
-       Retrieves controlled memory context when allowed by
-       routing and continuity requirements.
+       4. MEMORY
     ===================================================== */
-
-    mark("before memoryStage");
 
     state =
-      await this.runStage(
-        window.AriMemoryStage ||
-        window.Ari?.memoryStage,
+      await this.runTracedStage({
         state,
         runtime,
-        "memory"
-      );
-
-    mark("after memoryStage");
+        mark,
+        stageName:
+          "memory",
+        markName:
+          "memoryStage",
+        stage:
+          window.AriMemoryStage ||
+          window.Ari?.memoryStage,
+        inspect:
+          nextState => ({
+            ready:
+              this.resolveStageReady(
+                nextState,
+                "memory"
+              ),
+            outputAvailable:
+              Boolean(
+                nextState.memoryStagePacket ||
+                nextState.memoryHandoff ||
+                nextState.memoryContext
+              ),
+            diagnostics: {
+              packetAvailable:
+                Boolean(
+                  nextState.memoryStagePacket
+                ),
+              handoffAvailable:
+                Boolean(
+                  nextState.memoryHandoff
+                ),
+              memoryContextAvailable:
+                Boolean(
+                  nextState.memoryContext
+                )
+            }
+          })
+      });
 
     /* =====================================================
-       5. OPENAI REASONING STAGE
-       Sole semantic authority.
-
-       Required input:
-       - evidencePacket
-       - executivePacket / routing contract
-       - continuity context
-       - safety constraints
-       - situation facts
-       - memory facts
-
-       Expected output:
-       - cognitiveReasoningResult
-       - semanticFrame
-       - responseRequirements
-       - executionMetadata
-       - evidenceReferences
+       5. OPENAI REASONING
     ===================================================== */
+
+    state =
+      this.beginDebugStage(
+        state,
+        "reasoning"
+      );
 
     mark("before reasoningStage");
+
+    this.emitDebugLog(
+      runtime,
+      "stage_started",
+      {
+        stage:
+          "reasoning"
+      }
+    );
 
     state =
       await this.runStage(
@@ -180,19 +307,103 @@ window.AriDeliberationPipeline = {
         state
       );
 
+    state =
+      this.completeDebugStage(
+        state,
+        "reasoning",
+        {
+          ready:
+            state.reasoningReady ===
+            true,
+
+          source:
+            state.reasoningStageSource ||
+            state.cognitiveReasoningResult
+              ?.source ||
+            null,
+
+          outputAvailable:
+            Boolean(
+              state.cognitiveReasoningResult
+            ),
+
+          error:
+            state.reasoningStageError ||
+            state.cognitiveReasoningResult
+              ?.error ||
+            null,
+
+          diagnostics: {
+            stageRan:
+              state.reasoningStageRan ===
+              true,
+            stagePacketAvailable:
+              Boolean(
+                state.reasoningStagePacket
+              ),
+            reasoningResultAvailable:
+              Boolean(
+                state.cognitiveReasoningResult
+              ),
+            semanticFrameAvailable:
+              Boolean(
+                state.semanticFrame
+              ),
+            responseRequirementsAvailable:
+              Boolean(
+                state.responseRequirements
+              ),
+            modelInvocationAvailable:
+              Boolean(
+                state.modelInvocation
+              ),
+            modelInvocationSucceeded:
+              state.modelInvocation
+                ?.succeeded ??
+              null,
+            model:
+              state.modelInvocation
+                ?.model ||
+              state.cognitiveReasoningResult
+                ?.model ||
+              state.cognitiveReasoningResult
+                ?.modelId ||
+              null
+          }
+        }
+      );
+
+    this.emitDebugLog(
+      runtime,
+      "stage_completed",
+      this.readLatestDebugStage(
+        state,
+        "reasoning"
+      )
+    );
+
     mark("after reasoningStage");
 
     /* =====================================================
-       6. SEMANTIC VALIDATION STAGE
-       Validates AI-produced meaning.
-
-       It may reject invalid output.
-       It may generate compatibility projections strictly
-       from validated AI output.
-       It must never repair or invent meaning.
+       6. SEMANTIC VALIDATION
     ===================================================== */
 
+    state =
+      this.beginDebugStage(
+        state,
+        "semantic_validation"
+      );
+
     mark("before semanticValidationStage");
+
+    this.emitDebugLog(
+      runtime,
+      "stage_started",
+      {
+        stage:
+          "semantic_validation"
+      }
+    );
 
     state =
       await this.runSemanticValidationStage(
@@ -200,15 +411,109 @@ window.AriDeliberationPipeline = {
         runtime
       );
 
+    state =
+      this.normalizeSemanticValidationOutputs(
+        state
+      );
+
+    state =
+      this.completeDebugStage(
+        state,
+        "semantic_validation",
+        {
+          ready:
+            this.isSemanticValidationAccepted(
+              state
+            ),
+
+          source:
+            state.semanticValidationStageSource ||
+            state.semanticFrameValidatorResult
+              ?.source ||
+            null,
+
+          outputAvailable:
+            Boolean(
+              state.semanticFrameValidatorResult ||
+              state.semanticFrameValidation
+            ),
+
+          error:
+            state.semanticValidationErrors
+              ?.length
+              ? state.semanticValidationErrors
+              : state.semanticValidationStageError ||
+                null,
+
+          diagnostics: {
+            stageRan:
+              state.semanticValidationStageRan ===
+              true,
+            validatorResultAvailable:
+              Boolean(
+                state.semanticFrameValidatorResult
+              ),
+            accepted:
+              state.semanticValidationAccepted ===
+              true,
+            rejected:
+              state.semanticValidationRejected ===
+              true,
+            validatedFrameAvailable:
+              Boolean(
+                state.validatedSemanticFrame
+              ),
+            rejectedFrameAvailable:
+              Boolean(
+                state.rejectedSemanticFrame
+              ),
+            compatibilityAvailable:
+              Boolean(
+                state.semanticCompatibility
+              ),
+            errors:
+              this.toArray(
+                state.semanticValidationErrors
+              ),
+            warnings:
+              this.toArray(
+                state.semanticValidationWarnings
+              )
+          }
+        }
+      );
+
+    this.emitDebugLog(
+      runtime,
+      "stage_completed",
+      this.readLatestDebugStage(
+        state,
+        "semantic_validation"
+      )
+    );
+
     mark("after semanticValidationStage");
 
     /* =====================================================
-       7. RESPONSE PLANNING STAGE
-       May run only after semantic validation accepts the
-       AI-produced semantic frame.
+       7. RESPONSE PLANNING
     ===================================================== */
 
+    state =
+      this.beginDebugStage(
+        state,
+        "response_planning"
+      );
+
     mark("before responsePlanningStage");
+
+    this.emitDebugLog(
+      runtime,
+      "stage_started",
+      {
+        stage:
+          "response_planning"
+      }
+    );
 
     if (
       this.isSemanticValidationAccepted(
@@ -242,26 +547,84 @@ window.AriDeliberationPipeline = {
         responseStrategy:
           null,
 
-        deliberationStageErrors: [
-          ...this.toArray(
-            state.deliberationStageErrors
-          ),
-
-          {
-            stage:
-              "response_planning",
-
-            error:
-              "semantic_validation_not_accepted"
-          }
-        ]
+        deliberationStageErrors:
+          this.appendUniqueError(
+            state.deliberationStageErrors,
+            {
+              stage:
+                "response_planning",
+              error:
+                "semantic_validation_not_accepted",
+              message:
+                "Response planning was blocked because semantic validation did not accept the AI semantic frame."
+            }
+          )
       };
     }
+
+    const responsePlan =
+      this.resolveResponsePlan(
+        state
+      );
+
+    state =
+      this.completeDebugStage(
+        state,
+        "response_planning",
+        {
+          ready:
+            state.responsePlanningStageRan ===
+              true &&
+            this.isResponsePlanUsable(
+              responsePlan
+            ),
+
+          source:
+            state.responsePlanningStageSource ||
+            null,
+
+          outputAvailable:
+            Boolean(
+              responsePlan
+            ),
+
+          error:
+            state.responsePlanningStageError ||
+            null,
+
+          diagnostics: {
+            semanticValidationAccepted:
+              this.isSemanticValidationAccepted(
+                state
+              ),
+            stageRan:
+              state.responsePlanningStageRan ===
+              true,
+            responsePlanAvailable:
+              Boolean(
+                responsePlan
+              ),
+            responsePlanUsable:
+              this.isResponsePlanUsable(
+                responsePlan
+              )
+          }
+        }
+      );
+
+    this.emitDebugLog(
+      runtime,
+      "stage_completed",
+      this.readLatestDebugStage(
+        state,
+        "response_planning"
+      )
+    );
 
     mark("after responsePlanningStage");
 
     /* =====================================================
-       8. DELIBERATION DIAGNOSTICS
+       8. DIAGNOSTICS
     ===================================================== */
 
     const deliberationDiagnostics =
@@ -282,7 +645,7 @@ window.AriDeliberationPipeline = {
     };
 
     /* =====================================================
-       9. FINAL DELIBERATION PACKET
+       9. FINAL PACKET
     ===================================================== */
 
     state.deliberationPacket =
@@ -290,7 +653,6 @@ window.AriDeliberationPipeline = {
         state
       );
 
-    // Temporary compatibility alias.
     state.deliberationContract =
       state.deliberationPacket;
 
@@ -307,7 +669,145 @@ window.AriDeliberationPipeline = {
     state.deliberationPipelineVersion =
       this.version;
 
+    state =
+      this.finalizeDeliberationDebugTrace(
+        state,
+        pipelineStartedAtMs
+      );
+
+    // Keep the finalized trace available in the final packet.
+    state.deliberationPacket = {
+      ...state.deliberationPacket,
+
+      debug: {
+        available:
+          true,
+
+        trace:
+          state.deliberationDebugTrace
+      }
+    };
+
+    state.deliberationContract =
+      state.deliberationPacket;
+
+    this.emitDebugLog(
+      runtime,
+      "pipeline_completed",
+      {
+        ready:
+          state.deliberationPipelineReady ===
+          true,
+        failureBoundary:
+          state.deliberationDebugTrace
+            ?.failureBoundary ||
+          null,
+        durationMs:
+          state.deliberationDebugTrace
+            ?.durationMs ||
+          null,
+        finalSnapshot:
+          state.deliberationDebugTrace
+            ?.finalSnapshot ||
+          null
+      }
+    );
+
     return state;
+  },
+
+  /* =====================================================
+     TRACED STAGE ORCHESTRATION
+  ===================================================== */
+
+  async runTracedStage({
+    state = {},
+    runtime = {},
+    mark = () => {},
+    stageName = "unknown",
+    markName = "unknownStage",
+    stage = null,
+    inspect = null
+  } = {}) {
+    let nextState =
+      this.beginDebugStage(
+        state,
+        stageName
+      );
+
+    mark(
+      `before ${markName}`
+    );
+
+    this.emitDebugLog(
+      runtime,
+      "stage_started",
+      {
+        stage:
+          stageName
+      }
+    );
+
+    nextState =
+      await this.runStage(
+        stage,
+        nextState,
+        runtime,
+        stageName
+      );
+
+    const inspection =
+      typeof inspect ===
+        "function"
+        ? inspect(nextState) || {}
+        : {};
+
+    nextState =
+      this.completeDebugStage(
+        nextState,
+        stageName,
+        {
+          ready:
+            inspection.ready ??
+            this.resolveStageReady(
+              nextState,
+              stageName
+            ),
+          source:
+            inspection.source ||
+            nextState[
+              `${stageName}StageSource`
+            ] ||
+            null,
+          outputAvailable:
+            inspection.outputAvailable ===
+            true,
+          error:
+            inspection.error ||
+            nextState[
+              `${stageName}StageError`
+            ] ||
+            null,
+          diagnostics:
+            inspection.diagnostics ||
+            null
+        }
+      );
+
+    this.emitDebugLog(
+      runtime,
+      "stage_completed",
+      this.readLatestDebugStage(
+        nextState,
+        stageName
+      )
+    );
+
+    mark(
+      `after ${markName}`
+    );
+
+    return nextState;
   },
 
   /* =====================================================
@@ -356,8 +856,6 @@ window.AriDeliberationPipeline = {
         );
       }
 
-      // The pipeline owns accumulated state. A stage may
-      // return either a full state or only fields it produced.
       return {
         ...summary,
         ...result
@@ -399,29 +897,581 @@ window.AriDeliberationPipeline = {
       [`${stageName}StageError`]:
         message,
 
-      deliberationStageErrors: [
-        ...this.toArray(
-          summary.deliberationStageErrors
-        ),
-
-        {
-          stage:
-            stageName,
-
-          error:
-            code,
-
-          message
-        }
-      ]
+      deliberationStageErrors:
+        this.appendUniqueError(
+          summary.deliberationStageErrors,
+          {
+            stage:
+              stageName,
+            error:
+              code,
+            message
+          }
+        )
     };
+  },
+
+  /* =====================================================
+     DEBUG TRACE
+  ===================================================== */
+
+  initializeDeliberationDebugTrace(
+    summary = {},
+    startedAtMs = null
+  ) {
+    return {
+      ...summary,
+
+      deliberationDebugTrace: {
+        schema:
+          "ari.deliberation_debug_trace",
+        schemaVersion:
+          this.debugSchemaVersion,
+        pipelineEntered:
+          true,
+        pipelineSource:
+          this.source,
+        pipelineVersion:
+          this.version,
+        architecture:
+          this.architecture,
+        enteredAt:
+          new Date().toISOString(),
+        startedAtMs:
+          Number.isFinite(startedAtMs)
+            ? startedAtMs
+            : this.nowMs(),
+        currentStage:
+          "pipeline_entry",
+        stages:
+          [],
+        failureBoundary:
+          null,
+        firstFailedStage:
+          null,
+        completed:
+          false,
+        ready:
+          false,
+        durationMs:
+          null,
+        inputSnapshot:
+          this.buildDebugInputSnapshot(
+            summary
+          ),
+        finalSnapshot:
+          null
+      }
+    };
+  },
+
+  buildDebugInputSnapshot(
+    summary = {}
+  ) {
+    const originalText =
+      summary.currentTurn
+        ?.originalText ||
+      summary.originalUserMessage ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      "";
+
+    const effectiveText =
+      summary.currentTurn
+        ?.effectiveText ||
+      summary.effectiveUserMessage ||
+      summary.resolvedUserQuestion ||
+      summary.userMessage ||
+      summary.message ||
+      summary.input ||
+      "";
+
+    return {
+      turnId:
+        summary.currentTurn
+          ?.turnId ||
+        summary.turnId ||
+        summary.requestId ||
+        null,
+      originalTextAvailable:
+        Boolean(
+          this.cleanText(
+            originalText
+          )
+        ),
+      effectiveTextAvailable:
+        Boolean(
+          this.cleanText(
+            effectiveText
+          )
+        ),
+      originalTextLength:
+        this.cleanText(
+          originalText
+        ).length,
+      effectiveTextLength:
+        this.cleanText(
+          effectiveText
+        ).length,
+      currentTurnWasResolved:
+        summary.currentTurnWasResolved ===
+        true,
+      perceptionPipelineRan:
+        summary.perceptionPipelineRan ===
+        true,
+      perceptionPipelineReady:
+        summary.perceptionPipelineReady ===
+        true,
+      executiveRoutingPipelineRan:
+        summary.executiveRoutingPipelineRan ===
+        true,
+      executiveRoutingPipelineReady:
+        summary.executiveRoutingPipelineReady ===
+          true ||
+        summary.executivePacket
+          ?.ready === true,
+      evidencePacketAvailable:
+        Boolean(
+          summary.evidencePacket ||
+          summary.perceptionPacket
+            ?.evidencePacket
+        ),
+      perceptionPacketAvailable:
+        Boolean(
+          summary.perceptionPacket
+        ),
+      executivePacketAvailable:
+        Boolean(
+          summary.executivePacket
+        ),
+      routingContractAvailable:
+        Boolean(
+          summary.routingContract ||
+          summary.executivePacket
+            ?.routingContract
+        ),
+      priorDeliberationErrorCount:
+        this.toArray(
+          summary.deliberationStageErrors
+        ).length
+    };
+  },
+
+  beginDebugStage(
+    summary = {},
+    stageName = "unknown"
+  ) {
+    const trace =
+      this.readObject(
+        summary.deliberationDebugTrace
+      ) || {
+        stages: []
+      };
+
+    const startedAtMs =
+      this.nowMs();
+
+    const stageEntry = {
+      stage:
+        stageName,
+      sequence:
+        this.toArray(
+          trace.stages
+        ).length +
+        1,
+      started:
+        true,
+      completed:
+        false,
+      ready:
+        null,
+      startedAt:
+        new Date().toISOString(),
+      startedAtMs,
+      completedAt:
+        null,
+      completedAtMs:
+        null,
+      durationMs:
+        null,
+      source:
+        null,
+      outputAvailable:
+        false,
+      error:
+        null,
+      diagnostics:
+        null
+    };
+
+    return {
+      ...summary,
+
+      deliberationDebugTrace: {
+        ...trace,
+        currentStage:
+          stageName,
+        stages: [
+          ...this.toArray(
+            trace.stages
+          ),
+          stageEntry
+        ]
+      }
+    };
+  },
+
+  completeDebugStage(
+    summary = {},
+    stageName = "unknown",
+    details = {}
+  ) {
+    const trace =
+      this.readObject(
+        summary.deliberationDebugTrace
+      ) || {
+        stages: []
+      };
+
+    const stages =
+      this.toArray(
+        trace.stages
+      );
+
+    const index =
+      [...stages]
+        .map(
+          item =>
+            item?.stage
+        )
+        .lastIndexOf(
+          stageName
+        );
+
+    const completedAtMs =
+      this.nowMs();
+
+    const nextStages =
+      stages.map(
+        (item, itemIndex) => {
+          if (
+            itemIndex !==
+            index
+          ) {
+            return item;
+          }
+
+          return {
+            ...item,
+            completed:
+              true,
+            ready:
+              details.ready ??
+              null,
+            completedAt:
+              new Date().toISOString(),
+            completedAtMs,
+            durationMs:
+              Number.isFinite(
+                item.startedAtMs
+              )
+                ? Math.max(
+                    0,
+                    Math.round(
+                      completedAtMs -
+                      item.startedAtMs
+                    )
+                  )
+                : null,
+            source:
+              details.source ||
+              null,
+            outputAvailable:
+              details.outputAvailable ===
+              true,
+            error:
+              details.error ||
+              null,
+            diagnostics:
+              details.diagnostics ||
+              null
+          };
+        }
+      );
+
+    return {
+      ...summary,
+
+      deliberationDebugTrace: {
+        ...trace,
+        currentStage:
+          `${stageName}_complete`,
+        stages:
+          nextStages
+      }
+    };
+  },
+
+  readLatestDebugStage(
+    summary = {},
+    stageName = "unknown"
+  ) {
+    const stages =
+      this.toArray(
+        summary.deliberationDebugTrace
+          ?.stages
+      );
+
+    for (
+      let index =
+        stages.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      if (
+        stages[index]
+          ?.stage ===
+        stageName
+      ) {
+        return stages[index];
+      }
+    }
+
+    return null;
+  },
+
+  finalizeDeliberationDebugTrace(
+    summary = {},
+    pipelineStartedAtMs = null
+  ) {
+    const trace =
+      this.readObject(
+        summary.deliberationDebugTrace
+      ) || {
+        stages: []
+      };
+
+    const stages =
+      this.toArray(
+        trace.stages
+      );
+
+    const failedStage =
+      stages.find(
+        stage =>
+          stage?.ready === false ||
+          Boolean(stage?.error)
+      ) ||
+      null;
+
+    const incompleteStage =
+      stages.find(
+        stage =>
+          stage?.completed !== true
+      ) ||
+      null;
+
+    const pipelineReady =
+      summary.deliberationPipelineReady ===
+      true;
+
+    const startMs =
+      Number.isFinite(
+        pipelineStartedAtMs
+      )
+        ? pipelineStartedAtMs
+        : trace.startedAtMs;
+
+    let failureBoundary =
+      null;
+
+    if (!pipelineReady) {
+      if (incompleteStage) {
+        failureBoundary =
+          `inside_deliberation:${incompleteStage.stage}:incomplete`;
+      } else if (failedStage) {
+        failureBoundary =
+          `inside_deliberation:${failedStage.stage}`;
+      } else {
+        failureBoundary =
+          "inside_deliberation:final_readiness";
+      }
+    }
+
+    return {
+      ...summary,
+
+      deliberationDebugTrace: {
+        ...trace,
+        currentStage:
+          "pipeline_complete",
+        completed:
+          true,
+        ready:
+          pipelineReady,
+        completedAt:
+          new Date().toISOString(),
+        durationMs:
+          Number.isFinite(startMs)
+            ? Math.max(
+                0,
+                Math.round(
+                  this.nowMs() -
+                  startMs
+                )
+              )
+            : null,
+        failureBoundary,
+        firstFailedStage:
+          failedStage?.stage ||
+          incompleteStage?.stage ||
+          null,
+        stages,
+        finalSnapshot: {
+          evidencePacketAvailable:
+            Boolean(
+              summary.evidencePacket ||
+              summary.perceptionPacket
+                ?.evidencePacket
+            ),
+          reasoningStageRan:
+            summary.reasoningStageRan ===
+            true,
+          reasoningReady:
+            summary.reasoningReady ===
+            true,
+          reasoningResultAvailable:
+            Boolean(
+              summary.cognitiveReasoningResult
+            ),
+          semanticFrameAvailable:
+            Boolean(
+              summary.semanticFrame
+            ),
+          semanticValidationStageRan:
+            summary.semanticValidationStageRan ===
+            true,
+          semanticValidationAccepted:
+            summary.semanticValidationAccepted ===
+            true,
+          validatedSemanticFrameAvailable:
+            Boolean(
+              summary.validatedSemanticFrame
+            ),
+          responsePlanningStageRan:
+            summary.responsePlanningStageRan ===
+            true,
+          responsePlanAvailable:
+            Boolean(
+              this.resolveResponsePlan(
+                summary
+              )
+            ),
+          responsePlanUsable:
+            this.isResponsePlanUsable(
+              this.resolveResponsePlan(
+                summary
+              )
+            ),
+          deliberationPipelineRan:
+            summary.deliberationPipelineRan ===
+            true,
+          deliberationPipelineReady:
+            pipelineReady,
+          stageErrorCount:
+            this.toArray(
+              summary.deliberationStageErrors
+            ).length,
+          diagnosticErrorCount:
+            this.toArray(
+              summary.deliberationDiagnostics
+                ?.errors
+            ).length
+        }
+      }
+    };
+  },
+
+  emitDebugLog(
+    runtime = {},
+    event = "debug",
+    payload = null
+  ) {
+    try {
+      if (
+        typeof runtime?.debug ===
+        "function"
+      ) {
+        runtime.debug(
+          "deliberation",
+          event,
+          payload
+        );
+      }
+
+      if (
+        runtime?.deliberationDebug ===
+        true
+      ) {
+        console.log(
+          `[ARI DELIBERATION DEBUG] ${event}`,
+          payload
+        );
+      }
+    } catch (error) {
+      console.warn(
+        "Ari deliberation debug logging failed:",
+        error
+      );
+    }
+  },
+
+  resolveStageReady(
+    summary = {},
+    stageName = "unknown"
+  ) {
+    const explicitReady =
+      summary[
+        `${stageName}StageReady`
+      ];
+
+    if (
+      explicitReady === true ||
+      explicitReady === false
+    ) {
+      return explicitReady;
+    }
+
+    const ran =
+      summary[
+        `${stageName}StageRan`
+      ];
+
+    const error =
+      summary[
+        `${stageName}StageError`
+      ];
+
+    if (
+      ran === false ||
+      Boolean(error)
+    ) {
+      return false;
+    }
+
+    if (ran === true) {
+      return true;
+    }
+
+    return null;
   },
 
   /* =====================================================
      REASONING NORMALIZATION
   ===================================================== */
 
-    normalizeReasoningOutputs(
+  normalizeReasoningOutputs(
     summary = {}
   ) {
     const reasoningStagePacket =
@@ -485,6 +1535,11 @@ window.AriDeliberationPipeline = {
       ) ||
       this.readObject(
         reasoningStagePacket
+          ?.semanticFrame
+      ) ||
+      this.readObject(
+        reasoningStagePacket
+          ?.result
           ?.semanticFrame
       ) ||
       this.readObject(
@@ -553,14 +1608,11 @@ window.AriDeliberationPipeline = {
       this.firstArray(
         reasoningResult
           ?.evidenceReferences,
-
         reasoningResult
           ?.result
           ?.evidenceReferences,
-
         reasoningStagePacket
           ?.evidenceReferences,
-
         summary.evidenceReferences
       );
 
@@ -588,47 +1640,32 @@ window.AriDeliberationPipeline = {
 
     return {
       ...summary,
-
       reasoningStagePacket,
-
       cognitiveReasoningResult:
         reasoningResult,
-
       reasoningResult,
-
       semanticFrame,
-
       aiSemanticFrame:
         semanticFrame,
-
       responseRequirements,
-
       responseStrategy,
-
       executionMetadata,
-
       evidenceReferences,
-
       modelInvocation,
-
       reasoningPacketAvailable:
         Boolean(
           reasoningResult
         ),
-
       reasoningResultAvailable:
         Boolean(
           reasoningResult
         ),
-
       semanticFrameAvailable:
         Boolean(
           semanticFrame
         ),
-
       reasoningStageReady:
         reasoningReady,
-
       reasoningReady
     };
   },
@@ -667,9 +1704,7 @@ window.AriDeliberationPipeline = {
 
     if (
       explicitlyReady &&
-      Boolean(
-        semanticFrame
-      )
+      Boolean(semanticFrame)
     ) {
       return true;
     }
@@ -678,41 +1713,6 @@ window.AriDeliberationPipeline = {
       reasoningResult &&
       semanticFrame
     );
-  },
-
-  readObject(
-    value
-  ) {
-    return (
-      value &&
-      typeof value ===
-        "object" &&
-      !Array.isArray(
-        value
-      )
-    )
-      ? value
-      : null;
-  },
-
-  firstArray(
-    ...values
-  ) {
-    for (
-      const value of values
-    ) {
-      if (
-        Array.isArray(
-          value
-        )
-      ) {
-        return [
-          ...value
-        ];
-      }
-    }
-
-    return [];
   },
 
   /* =====================================================
@@ -771,41 +1771,35 @@ window.AriDeliberationPipeline = {
 
     try {
       const validationInput = {
-                semanticFrame:
+        semanticFrame:
           this.readObject(
             summary.semanticFrame
           ) ||
           this.readObject(
-            summary
-              .cognitiveReasoningResult
+            summary.cognitiveReasoningResult
               ?.semanticFrame
           ) ||
           this.readObject(
-            summary
-              .reasoningStagePacket
+            summary.reasoningStagePacket
               ?.semanticFrame
           ) ||
           this.readObject(
-            summary
-              .reasoningStagePacket
+            summary.reasoningStagePacket
               ?.cognitiveReasoningResult
               ?.semanticFrame
           ) ||
           this.readObject(
-            summary
-              .reasoningStagePacket
+            summary.reasoningStagePacket
               ?.reasoningResult
               ?.semanticFrame
           ) ||
           this.readObject(
-            summary
-              .reasoningStagePacket
+            summary.reasoningStagePacket
               ?.result
               ?.semanticFrame
           ) ||
           this.readObject(
-            summary
-              .reasoningStagePacket
+            summary.reasoningStagePacket
               ?.result
               ?.cognitiveReasoningResult
               ?.semanticFrame
@@ -813,8 +1807,7 @@ window.AriDeliberationPipeline = {
           null,
 
         cognitiveReasoningResult:
-          summary
-            .cognitiveReasoningResult ||
+          summary.cognitiveReasoningResult ||
           null,
 
         evidencePacket:
@@ -872,17 +1865,13 @@ window.AriDeliberationPipeline = {
 
       return this.normalizeSemanticValidationOutputs({
         ...summary,
-
         semanticValidationStageRan:
           true,
-
         semanticValidationStageSource:
           result.source ||
           "ari-semantic-frame-validator",
-
         semanticValidationStagePacket:
           result,
-
         semanticFrameValidatorResult:
           result
       });
@@ -905,51 +1894,50 @@ window.AriDeliberationPipeline = {
   },
 
   normalizeSemanticValidationOutputs(
-  summary = {}
-) {
-  const validation =
-    this.readObject(
-      summary.semanticFrameValidatorResult
-    ) ||
-    this.readObject(
-      summary.semanticValidationStagePacket
-    ) ||
-    this.readObject(
-      summary.semanticFrameValidation
-    ) ||
-    null;
+    summary = {}
+  ) {
+    const validation =
+      this.readObject(
+        summary.semanticFrameValidatorResult
+      ) ||
+      this.readObject(
+        summary.semanticValidationStagePacket
+      ) ||
+      this.readObject(
+        summary.semanticFrameValidation
+      ) ||
+      null;
 
-  const nestedValidation =
-    this.readObject(
+    const nestedValidation =
+      this.readObject(
+        validation
+          ?.semanticFrameValidation
+      );
+
+    const accepted =
       validation
-        ?.semanticFrameValidation
-    );
+        ?.semanticFrameValidatorReady === true ||
+      validation
+        ?.accepted === true ||
+      validation
+        ?.valid === true ||
+      validation
+        ?.status === "accepted" ||
+      nestedValidation
+        ?.accepted === true ||
+      nestedValidation
+        ?.valid === true ||
+      nestedValidation
+        ?.status === "accepted";
 
-  const accepted =
-    validation
-      ?.semanticFrameValidatorReady ===
-      true ||
-    validation
-      ?.accepted ===
-      true ||
-    validation
-      ?.valid ===
-      true ||
-    validation
-      ?.status ===
-      "accepted" ||
-    nestedValidation
-      ?.accepted ===
-      true ||
-    nestedValidation
-      ?.valid ===
-      true;
-
-  const validatedSemanticFrame =
-    accepted
-      ? (
-          this.readObject(
+    const validatedSemanticFrame =
+      accepted
+        ? this.readObject(
             validation
+              ?.validatedSemanticFrame
+          ) ||
+          this.readObject(
+            nestedValidation
               ?.validatedSemanticFrame
           ) ||
           this.readObject(
@@ -957,138 +1945,132 @@ window.AriDeliberationPipeline = {
               ?.semanticFrame
           ) ||
           this.readObject(
-            summary
-              .validatedSemanticFrame
+            nestedValidation
+              ?.semanticFrame
+          ) ||
+          this.readObject(
+            summary.validatedSemanticFrame
           ) ||
           this.readObject(
             summary.semanticFrame
           ) ||
           null
-        )
-      : null;
+        : null;
 
-  const compatibility =
-    this.readObject(
-      validation
-        ?.semanticCompatibility
-    ) ||
-    this.readObject(
-      validation
-        ?.compatibility
-    ) ||
-    this.readObject(
-      validation
-        ?.compatibilityProjections
-    ) ||
-    this.readObject(
-      validation
-        ?.projections
-    ) ||
-    null;
+    const compatibility =
+      this.readObject(
+        validation
+          ?.semanticCompatibility
+      ) ||
+      this.readObject(
+        nestedValidation
+          ?.semanticCompatibility
+      ) ||
+      this.readObject(
+        validation
+          ?.compatibility
+      ) ||
+      this.readObject(
+        validation
+          ?.compatibilityProjections
+      ) ||
+      this.readObject(
+        validation
+          ?.projections
+      ) ||
+      null;
 
-  const rejectedSemanticFrame =
-    accepted
-      ? null
-      : (
-          this.readObject(
+    const rejectedSemanticFrame =
+      accepted
+        ? null
+        : this.readObject(
             validation
+              ?.rejectedSemanticFrame
+          ) ||
+          this.readObject(
+            nestedValidation
               ?.rejectedSemanticFrame
           ) ||
           this.readObject(
             summary.semanticFrame
           ) ||
-          null
-        );
+          null;
 
-  const validationErrors =
-    this.firstArray(
-      nestedValidation
-        ?.errors,
+    const validationErrors =
+      this.firstArray(
+        nestedValidation
+          ?.errors,
+        validation
+          ?.errors,
+        summary.semanticValidationErrors
+      );
 
-      validation
-        ?.errors
-    );
+    const validationWarnings =
+      this.firstArray(
+        nestedValidation
+          ?.warnings,
+        validation
+          ?.warnings,
+        summary.semanticValidationWarnings
+      );
 
-  const validationWarnings =
-    this.firstArray(
-      nestedValidation
-        ?.warnings,
-
-      validation
-        ?.warnings
-    );
-
-  return {
-    ...summary,
-
-    semanticFrameValidatorResult:
-      validation,
-
-    semanticFrameValidation:
-      nestedValidation ||
-      validation,
-
-    semanticValidationAccepted:
-      accepted,
-
-    semanticValidationRejected:
-      !accepted,
-
-    semanticValidationErrors:
-      validationErrors,
-
-    semanticValidationWarnings:
-      validationWarnings,
-
-    validatedSemanticFrame,
-
-    rejectedSemanticFrame,
-
-    semanticCompatibility:
-      compatibility,
-
-    canonicalMeaning:
-      compatibility
-        ?.canonicalMeaning ||
-      null,
-
-    primaryFrame:
-      compatibility
-        ?.primaryFrame ||
-      validatedSemanticFrame ||
-      null,
-
-    semanticSummary:
-      compatibility
-        ?.semanticSummary ||
-      validatedSemanticFrame
-        ?.semanticSummary ||
-      null,
-
-    semanticSlots:
-      compatibility
-        ?.semanticSlots ||
-      validatedSemanticFrame
-        ?.slots ||
-      null,
-
-    validatedResponseRequirements:
-      compatibility
-        ?.responseRequirements ||
-      validation
-        ?.responseRequirements ||
-      summary
-        .responseRequirements ||
-      null
-  };
-},
+    return {
+      ...summary,
+      semanticFrameValidatorResult:
+        validation,
+      semanticFrameValidation:
+        nestedValidation ||
+        validation,
+      semanticValidationAccepted:
+        accepted,
+      semanticValidationRejected:
+        !accepted,
+      semanticValidationErrors:
+        validationErrors,
+      semanticValidationWarnings:
+        validationWarnings,
+      validatedSemanticFrame,
+      rejectedSemanticFrame,
+      semanticCompatibility:
+        compatibility,
+      canonicalMeaning:
+        compatibility
+          ?.canonicalMeaning ||
+        null,
+      primaryFrame:
+        compatibility
+          ?.primaryFrame ||
+        validatedSemanticFrame ||
+        null,
+      semanticSummary:
+        compatibility
+          ?.semanticSummary ||
+        validatedSemanticFrame
+          ?.semanticSummary ||
+        null,
+      semanticSlots:
+        compatibility
+          ?.semanticSlots ||
+        validatedSemanticFrame
+          ?.slots ||
+        null,
+      validatedResponseRequirements:
+        compatibility
+          ?.responseRequirements ||
+        validation
+          ?.responseRequirements ||
+        nestedValidation
+          ?.responseRequirements ||
+        summary.responseRequirements ||
+        null
+    };
+  },
 
   isSemanticValidationAccepted(
     summary = {}
   ) {
     return (
-      summary
-        .semanticValidationAccepted ===
+      summary.semanticValidationAccepted ===
         true &&
       Boolean(
         summary.validatedSemanticFrame
@@ -1097,17 +2079,16 @@ window.AriDeliberationPipeline = {
   },
 
   /* =====================================================
-     DELIBERATION DIAGNOSTICS
+     DIAGNOSTICS
   ===================================================== */
 
-    buildDeliberationDiagnostics(
+  buildDeliberationDiagnostics(
     summary = {}
   ) {
-    const errors = [
-      ...this.toArray(
+    const errors =
+      this.dedupeErrors(
         summary.deliberationStageErrors
-      )
-    ];
+      );
 
     const warnings = [];
 
@@ -1123,8 +2104,7 @@ window.AriDeliberationPipeline = {
 
     const reasoningResult =
       this.readObject(
-        summary
-          .cognitiveReasoningResult
+        summary.cognitiveReasoningResult
       );
 
     const semanticFrame =
@@ -1135,12 +2115,8 @@ window.AriDeliberationPipeline = {
     const reasoningReady =
       summary.reasoningReady ===
         true &&
-      Boolean(
-        reasoningResult
-      ) &&
-      Boolean(
-        semanticFrame
-      );
+      Boolean(reasoningResult) &&
+      Boolean(semanticFrame);
 
     const validationAccepted =
       this.isSemanticValidationAccepted(
@@ -1161,7 +2137,6 @@ window.AriDeliberationPipeline = {
       errors.push({
         stage:
           "deliberation",
-
         error:
           "evidence_packet_missing"
       });
@@ -1171,7 +2146,6 @@ window.AriDeliberationPipeline = {
       errors.push({
         stage:
           "reasoning",
-
         error:
           "cognitive_reasoning_result_missing"
       });
@@ -1185,7 +2159,6 @@ window.AriDeliberationPipeline = {
       errors.push({
         stage:
           "reasoning",
-
         error:
           "cognitive_reasoning_result_not_ready"
       });
@@ -1195,7 +2168,6 @@ window.AriDeliberationPipeline = {
       errors.push({
         stage:
           "reasoning",
-
         error:
           "semantic_frame_missing"
       });
@@ -1205,7 +2177,6 @@ window.AriDeliberationPipeline = {
       errors.push({
         stage:
           "semantic_validation",
-
         error:
           "semantic_validation_not_accepted"
       });
@@ -1218,36 +2189,18 @@ window.AriDeliberationPipeline = {
       errors.push({
         stage:
           "response_planning",
-
         error:
           "response_plan_missing_or_unusable"
       });
     }
 
-    if (
-      responsePlanAvailable &&
-      !validationAccepted
-    ) {
-      errors.push({
-        stage:
-          "response_planning",
-
-        error:
-          "response_plan_exists_without_validated_semantic_frame"
-      });
-    }
-
-    if (
-      !summary.executivePacket
-    ) {
-      warnings.push(
-        "executive_packet_missing_or_fallback_used"
+    const uniqueErrors =
+      this.dedupeErrors(
+        errors
       );
-    }
 
     const complete =
-      errors.length ===
-        0 &&
+      uniqueErrors.length === 0 &&
       reasoningReady &&
       validationAccepted &&
       responsePlanAvailable;
@@ -1255,109 +2208,75 @@ window.AriDeliberationPipeline = {
     return {
       deliberationDiagnosticsRan:
         true,
-
       deliberationDiagnosticsVersion:
         this.version,
-
       healthy:
-        errors.length ===
-        0,
-
+        uniqueErrors.length === 0,
       complete,
-
       ready:
         complete,
-
-      errors,
+      errors:
+        uniqueErrors,
       warnings,
-
       stages: {
         continuity:
-          summary
-            .continuityStageRan ===
+          summary.continuityStageRan ===
           true,
-
         safety:
-          summary
-            .safetyStageRan ===
+          summary.safetyStageRan ===
           true,
-
         situation:
-          summary
-            .situationStageRan ===
+          summary.situationStageRan ===
           true,
-
         memory:
-          summary
-            .memoryStageRan ===
+          summary.memoryStageRan ===
           true,
-
         reasoning:
           reasoningReady,
-
         semanticValidation:
           validationAccepted,
-
         responsePlanning:
-          summary
-            .responsePlanningStageRan ===
+          summary.responsePlanningStageRan ===
             true &&
           responsePlanAvailable
       },
-
       contracts: {
         evidencePacketAvailable:
-          Boolean(
-            evidencePacket
-          ),
-
+          Boolean(evidencePacket),
         reasoningResultAvailable:
-          Boolean(
-            reasoningResult
-          ),
-
+          Boolean(reasoningResult),
         reasoningResultReady:
           reasoningReady,
-
         semanticFrameAvailable:
-          Boolean(
-            semanticFrame
-          ),
-
+          Boolean(semanticFrame),
         validatedSemanticFrameAvailable:
           Boolean(
-            summary
-              .validatedSemanticFrame
+            summary.validatedSemanticFrame
           ),
-
         responseRequirementsAvailable:
           Boolean(
-            summary
-              .validatedResponseRequirements ||
-            summary
-              .responseRequirements
+            summary.validatedResponseRequirements ||
+            summary.responseRequirements
           ),
-
         responsePlanAvailable
       },
-
       modelInvocation:
         summary.modelInvocation ||
         reasoningResult
           ?.modelInvocation ||
         null,
-
+      debugTraceAvailable:
+        Boolean(
+          summary.deliberationDebugTrace
+        ),
       invariants: {
         openAIIsSoleSemanticAuthority:
           true,
-
         semanticFrameValidatedBeforePlanning:
           validationAccepted,
-
         responsePlanningBlockedOnValidationFailure:
           !responsePlanAvailable ||
           validationAccepted,
-
         localUnderstandingStageRemoved:
           true
       }
@@ -1365,7 +2284,7 @@ window.AriDeliberationPipeline = {
   },
 
   /* =====================================================
-     DELIBERATION PACKET
+     RESPONSE PLAN
   ===================================================== */
 
   resolveResponsePlan(
@@ -1373,8 +2292,7 @@ window.AriDeliberationPipeline = {
   ) {
     const stagePacket =
       this.readObject(
-        summary
-          .responsePlanningStagePacket
+        summary.responsePlanningStagePacket
       );
 
     return (
@@ -1410,18 +2328,16 @@ window.AriDeliberationPipeline = {
       !responsePlan ||
       typeof responsePlan !==
         "object" ||
-      Array.isArray(
-        responsePlan
-      )
+      Array.isArray(responsePlan)
     ) {
       return false;
     }
 
     if (
       responsePlan.ready ===
-      false ||
+        false ||
       responsePlan.valid ===
-      false
+        false
     ) {
       return false;
     }
@@ -1442,14 +2358,15 @@ window.AriDeliberationPipeline = {
         responsePlan.goal
       ) ||
       (
-        Array.isArray(
-          moves
-        ) &&
-        moves.length >
-          0
+        Array.isArray(moves) &&
+        moves.length > 0
       )
     );
   },
+
+  /* =====================================================
+     DELIBERATION PACKET
+  ===================================================== */
 
   buildDeliberationPacket(
     summary = {}
@@ -1469,21 +2386,13 @@ window.AriDeliberationPipeline = {
       null;
 
     const validation =
-      summary
-        .semanticFrameValidatorResult ||
-      summary
-        .semanticFrameValidation ||
+      summary.semanticFrameValidatorResult ||
+      summary.semanticFrameValidation ||
       null;
 
     const validatedSemanticFrame =
       summary.validatedSemanticFrame ||
       null;
-
-        const responsePlanningStagePacket =
-      this.readObject(
-        summary
-          .responsePlanningStagePacket
-      );
 
     const responsePlan =
       this.resolveResponsePlan(
@@ -1493,90 +2402,54 @@ window.AriDeliberationPipeline = {
     return {
       schema:
         "ari_deliberation_packet",
-
       schemaVersion:
         this.schemaVersion,
-
       ready:
         diagnostics
           ?.complete === true,
-
       source:
         this.source,
-
       version:
         this.version,
-
       architecture:
         this.architecture,
-
-      /* -----------------------------------------------
-         Input contracts
-      ----------------------------------------------- */
-
       inputs: {
         perceptionPacket:
           summary.perceptionPacket ||
           null,
-
         evidencePacket,
-
         executivePacket:
           summary.executivePacket ||
           null,
-
         routingContract:
           summary.routingContract ||
           summary.executivePacket
             ?.routingContract ||
           null
       },
-
-      /* -----------------------------------------------
-         Deterministic context stages
-      ----------------------------------------------- */
-
       stages: {
         continuity:
-          summary
-            .continuityStagePacket ||
+          summary.continuityStagePacket ||
           null,
-
         safety:
-          summary
-            .safetyStagePacket ||
+          summary.safetyStagePacket ||
           null,
-
         situation:
-          summary
-            .situationStagePacket ||
+          summary.situationStagePacket ||
           null,
-
         memory:
-          summary
-            .memoryStagePacket ||
+          summary.memoryStagePacket ||
           null,
-
         reasoning:
-          summary
-            .reasoningStagePacket ||
+          summary.reasoningStagePacket ||
           reasoningResult,
-
         semanticValidation:
-          summary
-            .semanticValidationStagePacket ||
+          summary.semanticValidationStagePacket ||
           validation,
-
         responsePlanning:
-          summary
-            .responsePlanningStagePacket ||
+          summary.responsePlanningStagePacket ||
           null
       },
-
-      /* -----------------------------------------------
-         Current request
-      ----------------------------------------------- */
-
       request: {
         original:
           summary.currentTurn
@@ -1586,7 +2459,6 @@ window.AriDeliberationPipeline = {
           summary.message ||
           summary.input ||
           "",
-
         effective:
           summary.currentTurn
             ?.effectiveText ||
@@ -1596,61 +2468,21 @@ window.AriDeliberationPipeline = {
           summary.message ||
           summary.input ||
           "",
-
         currentTurnWasResolved:
-          summary
-            .currentTurnWasResolved ===
+          summary.currentTurnWasResolved ===
           true
       },
-
-      /* -----------------------------------------------
-         Context and governance
-      ----------------------------------------------- */
-
-      context: {
-        continuity:
-          summary
-            .continuityStagePacket ||
-          summary.continuityResolution ||
-          null,
-
-        safety:
-          summary.safetyDisposition ||
-          summary
-            .safetyStagePacket ||
-          null,
-
-        situation:
-          summary.situationContract ||
-          summary.situationMap ||
-          null,
-
-        memory:
-          summary.memoryHandoff ||
-          summary.memoryContext ||
-          null
-      },
-
-      /* -----------------------------------------------
-         OpenAI cognitive authority
-      ----------------------------------------------- */
-
-            reasoning: {
+      reasoning: {
         available:
-          Boolean(
-            reasoningResult
-          ),
-
+          Boolean(reasoningResult),
         ready:
           summary.reasoningReady ===
           true,
-
         source:
           reasoningResult
             ?.source ||
           summary.reasoningStageSource ||
           null,
-
         model:
           reasoningResult
             ?.model ||
@@ -1659,174 +2491,87 @@ window.AriDeliberationPipeline = {
           summary.modelInvocation
             ?.model ||
           null,
-
-        stagePacket:
-          summary.reasoningStagePacket ||
-          null,
-
         result:
           reasoningResult,
-
         modelInvocation:
           summary.modelInvocation ||
           reasoningResult
             ?.modelInvocation ||
-          summary.reasoningStagePacket
-            ?.modelInvocation ||
           null,
-
         error:
           summary.reasoningStageError ||
           reasoningResult
             ?.error ||
-          summary.reasoningStagePacket
-            ?.error ||
           null,
-
-        reason:
-          reasoningResult
-            ?.reason ||
-          summary.reasoningStageReason ||
-          summary.reasoningStagePacket
-            ?.reason ||
-          null,
-
         semanticFrame:
-          this.readObject(
-            summary.semanticFrame
-          ) ||
-          this.readObject(
-            reasoningResult
-              ?.semanticFrame
-          ) ||
-          this.readObject(
-            summary
-              .reasoningStagePacket
-              ?.semanticFrame
-          ) ||
-          this.readObject(
-            summary
-              .reasoningStagePacket
-              ?.cognitiveReasoningResult
-              ?.semanticFrame
-          ) ||
-          this.readObject(
-            summary
-              .reasoningStagePacket
-              ?.reasoningResult
-              ?.semanticFrame
-          ) ||
-          this.readObject(
-            summary
-              .reasoningStagePacket
-              ?.result
-              ?.semanticFrame
-          ) ||
-          this.readObject(
-            summary
-              .reasoningStagePacket
-              ?.result
-              ?.cognitiveReasoningResult
-              ?.semanticFrame
-          ) ||
+          summary.semanticFrame ||
+          reasoningResult
+            ?.semanticFrame ||
           null,
-
         responseRequirements:
           summary.responseRequirements ||
           reasoningResult
             ?.responseRequirements ||
           null,
-
         executionMetadata:
           summary.executionMetadata ||
           reasoningResult
             ?.executionMetadata ||
           null,
-
         evidenceReferences:
           summary.evidenceReferences ||
           reasoningResult
             ?.evidenceReferences ||
           []
       },
-
-      /* -----------------------------------------------
-         Semantic validation
-      ----------------------------------------------- */
-
       semanticValidation: {
         available:
-          Boolean(
-            validation
-          ),
-
+          Boolean(validation),
         accepted:
-          summary
-            .semanticValidationAccepted ===
+          summary.semanticValidationAccepted ===
           true,
-
         rejected:
-          summary
-            .semanticValidationRejected ===
+          summary.semanticValidationRejected ===
           true,
-
         result:
           validation,
-
         validatedSemanticFrame,
-
         rejectedSemanticFrame:
           summary.rejectedSemanticFrame ||
           null,
-
         compatibility:
           summary.semanticCompatibility ||
           null,
-
         canonicalMeaning:
           summary.canonicalMeaning ||
           null,
-
         primaryFrame:
           summary.primaryFrame ||
           validatedSemanticFrame ||
           null,
-
         semanticSummary:
           summary.semanticSummary ||
           null,
-
         semanticSlots:
           summary.semanticSlots ||
           null,
-
         responseRequirements:
-          summary
-            .validatedResponseRequirements ||
+          summary.validatedResponseRequirements ||
           null
       },
-
-      /* -----------------------------------------------
-         Response planning
-      ----------------------------------------------- */
-
       responsePlanning: {
         allowed:
           this.isSemanticValidationAccepted(
             summary
           ),
-
         ran:
-          summary
-            .responsePlanningStageRan ===
+          summary.responsePlanningStageRan ===
           true,
-
-                packet:
-          responsePlanningStagePacket,
-
+        packet:
+          summary.responsePlanningStagePacket ||
+          null,
         plan:
           responsePlan,
-
         ready:
           this.isResponsePlanUsable(
             responsePlan
@@ -1834,134 +2579,64 @@ window.AriDeliberationPipeline = {
         strategy:
           summary.responseStrategy ||
           null,
-
         communicationPlan:
           summary.communicationPlan ||
           null,
-
         composerDirective:
           summary.composerDirective ||
           null
       },
-
-      /* -----------------------------------------------
-         Quality
-      ----------------------------------------------- */
-
       diagnostics,
-
-      quality: {
-        allRequiredStagesHealthy:
-          diagnostics
-            ?.healthy === true,
-
-        stageErrors:
-          diagnostics
-            ?.errors ||
-          [],
-
-        warnings:
-          diagnostics
-            ?.warnings ||
-          [],
-
-        hasEvidencePacket:
+      debug: {
+        available:
           Boolean(
-            evidencePacket
+            summary.deliberationDebugTrace
           ),
-
-        hasCognitiveReasoningResult:
-          Boolean(
-            reasoningResult
-          ),
-
-        hasSemanticFrame:
-          Boolean(
-            summary.semanticFrame ||
-            reasoningResult
-              ?.semanticFrame
-          ),
-
-        hasValidatedSemanticFrame:
-          Boolean(
-            validatedSemanticFrame
-          ),
-
-        semanticValidationAccepted:
-          summary
-            .semanticValidationAccepted ===
-          true,
-
-        hasResponsePlan:
-          Boolean(
-            responsePlan
-          )
+        trace:
+          summary.deliberationDebugTrace ||
+          null
       },
-
-      /* -----------------------------------------------
-         Authority boundary
-      ----------------------------------------------- */
-
       authority: {
         canCoordinateDeterministicContext:
           true,
-
         canRunOpenAIReasoningStage:
           true,
-
         canRunSemanticValidation:
           true,
-
         canRunResponsePlanning:
           true,
-
         canPreserveEvidencePacket:
           true,
-
         canPreserveCognitiveReasoningResult:
           true,
-
         canPreserveValidatedSemanticFrame:
           true,
-
         canInterpretMeaningLocally:
           false,
-
         canConstructSemanticFrameLocally:
           false,
-
         canRepairSemanticFrame:
           false,
-
         canInventIntent:
           false,
-
         canInventUserGoal:
           false,
-
         canSelectOperationLocally:
           false,
-
         canBypassSemanticValidation:
           false,
-
         canPlanFromUnvalidatedMeaning:
           false,
-
         canChooseFinalRoute:
           false,
-
         canWriteFinalLanguage:
           false,
-
         canSelectFinalDraft:
           false,
-
         canPersistState:
           false,
-
         role:
-          "deliberation_orchestration_openai_reasoning_validation_and_planning_handoff"
+          "deliberation_orchestration_openai_reasoning_validation_planning_and_debug_handoff"
       }
     };
   },
@@ -1976,104 +2651,75 @@ window.AriDeliberationPipeline = {
     return {
       ready:
         false,
-
       source:
         "ari-deliberation-pipeline-fallback",
-
       version:
         this.version,
-
       routingContract:
         summary.routingContract ||
         null,
-
       selectedRoute: {
         mode:
           summary.conversationMode ||
           "unknown",
-
         primaryIntent:
           "unresolved",
-
         domain:
           summary.conversationDomain ||
           "general",
-
         contextLane:
           summary.contextLane ||
           summary.lane ||
           "direct_current_turn",
-
         primaryLane:
           summary.primaryLane ||
           null,
-
         capabilities:
           summary.requiredCapabilities ||
           [],
-
         planner:
           summary.selectedPlanner ||
           null
       },
-
       runInstructions: {
         continuity:
           true,
-
         thread:
           summary.laneSplit
             ?.routing
-            ?.useThread ===
-          true,
-
+            ?.useThread === true,
         memory:
           summary.laneSplit
             ?.routing
-            ?.useMemory ===
-          true,
-
+            ?.useMemory === true,
         relationship:
           summary.laneSplit
             ?.routing
-            ?.useRelationship ===
-          true,
-
+            ?.useRelationship === true,
         deepSafety:
           true,
-
         situationMap:
           true,
-
         memoryRetrieval:
           true,
-
         openAIReasoning:
           true,
-
         semanticValidation:
           true,
-
         responsePlanning:
           true
       },
-
       authority: {
         canChooseRoute:
           false,
-
         canChooseSemanticIntent:
           false,
-
         canPerformSemanticReasoning:
           false,
-
         canConstructSemanticFrame:
           false,
-
         canWriteFinalLanguage:
           false,
-
         role:
           "compatibility_executive_fallback"
       }
@@ -2091,13 +2737,11 @@ window.AriDeliberationPipeline = {
           window.AriOperationRegistry ||
           window.Ari?.operationRegistry
         ),
-
       semanticFrameValidator:
         Boolean(
           window.AriSemanticFrameValidator ||
           window.Ari?.semanticFrameValidator
         ),
-
       reasoningStage:
         Boolean(
           window.AriReasoningStage ||
@@ -2105,7 +2749,6 @@ window.AriDeliberationPipeline = {
           window.Ari?.reasoningStage ||
           window.Ari?.openAIReasoningStage
         ),
-
       responsePlanningStage:
         Boolean(
           window.AriResponsePlanningStage ||
@@ -2114,36 +2757,27 @@ window.AriDeliberationPipeline = {
     };
 
     const errors = [];
+    const warnings = [];
 
-    if (
-      !required.semanticFrameValidator
-    ) {
+    if (!required.semanticFrameValidator) {
       errors.push(
         "semantic_frame_validator_not_loaded"
       );
     }
 
-    const warnings = [];
-
-    if (
-      !required.operationRegistry
-    ) {
+    if (!required.operationRegistry) {
       warnings.push(
         "operation_registry_not_loaded"
       );
     }
 
-    if (
-      !required.reasoningStage
-    ) {
+    if (!required.reasoningStage) {
       warnings.push(
         "reasoning_stage_not_loaded"
       );
     }
 
-    if (
-      !required.responsePlanningStage
-    ) {
+    if (!required.responsePlanningStage) {
       warnings.push(
         "response_planning_stage_not_loaded"
       );
@@ -2151,38 +2785,32 @@ window.AriDeliberationPipeline = {
 
     return {
       valid:
-        errors.length ===
-        0,
-
+        errors.length === 0,
       ready:
-        errors.length ===
-          0 &&
-        warnings.length ===
-          0,
-
+        errors.length === 0 &&
+        warnings.length === 0,
       source:
         "ari-deliberation-pipeline-validation",
-
       version:
         this.version,
-
       errors,
       warnings,
-
       required,
-
       checks: {
         localUnderstandingStageRemoved:
           true,
-
         openAIReasoningIsSemanticAuthority:
           true,
-
         validatorCannotInventMeaning:
           true,
-
         responsePlanningRequiresValidatedFrame:
-          true
+          true,
+        deliberationDebugTraceAvailable:
+          typeof this.initializeDeliberationDebugTrace ===
+          "function",
+        stageBoundaryTracingAvailable:
+          typeof this.runTracedStage ===
+          "function"
       }
     };
   },
@@ -2191,9 +2819,101 @@ window.AriDeliberationPipeline = {
      UTILITIES
   ===================================================== */
 
-    cleanText(
-    value = ""
+  readObject(value) {
+    return (
+      value &&
+      typeof value ===
+        "object" &&
+      !Array.isArray(value)
+    )
+      ? value
+      : null;
+  },
+
+  firstArray(...values) {
+    for (const value of values) {
+      if (Array.isArray(value)) {
+        return [...value];
+      }
+    }
+
+    return [];
+  },
+
+  appendUniqueError(
+    existing = [],
+    nextError = null
   ) {
+    const errors =
+      this.toArray(existing);
+
+    if (
+      !nextError ||
+      typeof nextError !==
+        "object"
+    ) {
+      return errors;
+    }
+
+    const duplicate =
+      errors.some(
+        item =>
+          item?.stage ===
+            nextError.stage &&
+          item?.error ===
+            nextError.error &&
+          (item?.message || null) ===
+            (nextError.message || null)
+      );
+
+    return duplicate
+      ? errors
+      : [
+          ...errors,
+          nextError
+        ];
+  },
+
+  dedupeErrors(value = []) {
+    const output = [];
+    const seen =
+      new Set();
+
+    for (
+      const item of this.toArray(
+        value
+      )
+    ) {
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        continue;
+      }
+
+      const key =
+        [
+          item.stage ||
+            "unknown",
+          item.error ||
+            "unknown",
+          item.message ||
+            ""
+        ].join("::");
+
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      output.push(item);
+    }
+
+    return output;
+  },
+
+  cleanText(value = "") {
     return String(
       value ??
       ""
@@ -2212,17 +2932,13 @@ window.AriDeliberationPipeline = {
       )
       .trim();
   },
-  
-  toArray(
-    value
-  ) {
+
+  toArray(value) {
     if (Array.isArray(value)) {
       return value.filter(
         item =>
-          item !==
-            undefined &&
-          item !==
-            null
+          item !== undefined &&
+          item !== null
       );
     }
 
@@ -2234,6 +2950,19 @@ window.AriDeliberationPipeline = {
     }
 
     return [value];
+  },
+
+  nowMs() {
+    if (
+      typeof performance !==
+        "undefined" &&
+      typeof performance.now ===
+        "function"
+    ) {
+      return performance.now();
+    }
+
+    return Date.now();
   }
 };
 
@@ -2248,16 +2977,12 @@ console.log(
   "ARI DELIBERATION PIPELINE LOADED:",
   window.AriDeliberationPipeline
     ?.version,
-
   ariDeliberationPipelineValidation
-    ?.ready ===
-    true
+    ?.ready === true
     ? "READY"
     : ariDeliberationPipelineValidation
-        ?.valid ===
-        true
+        ?.valid === true
       ? "VALID_BUT_DEPENDENCIES_MISSING"
       : "INVALID",
-
   ariDeliberationPipelineValidation
 );
