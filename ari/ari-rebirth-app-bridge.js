@@ -147,8 +147,9 @@ window.AriRebirthAppBridge = {
 
     "ari/storage/ari-thread-store.js",
     "ari/storage/ari-memory-store.js",
-    "ari/conversation/ari-turn-packet.js",
-"ari/conversation/ari-turn-intake-engine.js",
+        "ari/conversation/ari-turn-packet.js",
+    "ari/conversation/ari-turn-classification-packet.js",
+    "ari/conversation/ari-turn-intake-engine.js",
     "ari/continuity/ari-conversation-operating-state.js",
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
@@ -157,10 +158,12 @@ window.AriRebirthAppBridge = {
     // CONTINUITY CAPABILITY ENGINES
     // ===================================================
 
-    "ari/context/ari-thread-understanding-engine.js",
+        "ari/context/ari-thread-understanding-engine.js",
     "ari/continuity/ari-elliptical-follow-up-resolver.js",
-    "ari/context/ari-entity-reference-resolver.js",
 
+    "ari/conversation/ari-conversation-relationship-engine.js",
+    "ari/context/ari-reference-packet.js",
+    "ari/context/ari-entity-reference-resolver.js",
     "ari/memory/ari-memory-ranking-engine.js",
     "ari/memory/ari-memory-retrieval-engine.js",
     "ari/memory/ari-memory-context-builder.js",
