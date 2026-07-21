@@ -147,6 +147,8 @@ window.AriRebirthAppBridge = {
 
     "ari/storage/ari-thread-store.js",
     "ari/storage/ari-memory-store.js",
+    "ari/conversation/ari-turn-packet.js",
+"ari/conversation/ari-turn-intake-engine.js",
     "ari/continuity/ari-conversation-operating-state.js",
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
