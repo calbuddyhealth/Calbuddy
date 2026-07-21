@@ -154,23 +154,29 @@ window.AriRebirthAppBridge = {
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
 
-    // ===================================================
+        // ===================================================
     // CONTINUITY CAPABILITY ENGINES
     // ===================================================
 
-        "ari/context/ari-thread-understanding-engine.js",
+    "ari/context/ari-thread-understanding-engine.js",
     "ari/continuity/ari-elliptical-follow-up-resolver.js",
 
+    // Conversation relationship classification dependencies.
+    "ari/conversation/ari-conversation-relationship-rules.js",
     "ari/conversation/ari-conversation-relationship-engine.js",
+
     "ari/context/ari-reference-packet.js",
     "ari/context/ari-entity-reference-resolver.js",
+
     "ari/memory/ari-memory-ranking-engine.js",
     "ari/memory/ari-memory-retrieval-engine.js",
     "ari/memory/ari-memory-context-builder.js",
     "ari/memory/ari-memory-candidate-engine.js",
-"ari/relationship/ari-relationship-engine.js",
-    "ari/context/ari-context-assembler.js",
 
+    // Separate interpersonal relationship engine.
+    "ari/relationship/ari-relationship-engine.js",
+
+    "ari/context/ari-context-assembler.js",
     // ===================================================
     // CONTINUITY ORCHESTRATION
     // ===================================================
