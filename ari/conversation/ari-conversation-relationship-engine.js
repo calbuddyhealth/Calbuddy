@@ -3,48 +3,43 @@
 //
 // Purpose:
 // Determine how the current user turn relates to the surrounding
-// conversation using deterministic conversational evidence.
+// conversation and produce the canonical Turn Classification Packet.
 //
-// V1.0.0 — Canonical Conversation Relationship Authority
+// V1.1.0 — Canonical Conversation Relationship Authority
 //
 // Architectural Flow:
 //
 // Turn Packet
 //      ↓
-// Perception Evidence
+// Perception Packet
 //      ↓
-// Conversation Relationship Engine
+// Conversation Relationship Rules
 //      ↓
 // Turn Classification Packet
 //      ↓
 // Executive Routing
 //
 // Responsibilities:
-// - Determine conversation relationship.
-// - Detect first-turn conversations.
-// - Detect follow-up turns.
-// - Detect elliptical follow-ups.
-// - Detect topic shifts.
-// - Detect clarifications.
-// - Detect corrections.
-// - Detect thread resumes.
+// - Read the Turn Packet.
+// - Read Perception evidence.
+// - Execute deterministic relationship rules.
 // - Produce the canonical Turn Classification Packet.
+// - Validate the produced packet.
 //
 // Non-responsibilities:
 // - Does not interpret semantic meaning.
 // - Does not determine user intent.
-// - Does not answer the user.
 // - Does not retrieve memory.
 // - Does not resolve references.
-// - Does not execute routing.
-// - Does not execute continuity.
+// - Does not perform routing.
 // - Does not deliberate.
-// - Does not modify Turn Packets.
+// - Does not answer the user.
+// - Does not modify previous packets.
 
 window.Ari = window.Ari || {};
 
 window.AriConversationRelationshipEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
   schemaVersion: "1.0.0",
 
   run(runtime = {}) {
@@ -52,42 +47,55 @@ window.AriConversationRelationshipEngine = {
     const turnPacket =
       runtime.turnPacket || {};
 
-    const perception =
+    const perceptionPacket =
       runtime.perceptionPacket || {};
 
-    const previousTurn =
-      turnPacket.previousTurnAvailable === true;
+    const relationshipResult =
+      window.AriConversationRelationshipRules.evaluate({
 
-    const text =
-      (
-        turnPacket.normalizedMessage ||
-        turnPacket.originalMessage ||
-        ""
-      ).trim();
+        text:
+          turnPacket.normalizedMessage ||
+          turnPacket.originalMessage,
 
-    const relationship =
-      window.AriRelationshipRules.evaluate({
-        text,
-        previousTurn,
-        perception
+        previousTurn:
+          turnPacket.previousTurnAvailable,
+
+        perception:
+          perceptionPacket
+
       });
 
-    const classification =
+    const turnClassificationPacket =
       window.AriTurnClassificationPacket.create({
-        relationship,
-        evidence:
-          relationship.evidence || [],
+
+        relationship:
+          relationshipResult.relationship,
+
         confidence:
-          relationship.confidence,
+          relationshipResult.confidence,
+
+        evidence:
+          relationshipResult.evidence,
+
+        matchedRule:
+          relationshipResult.matchedRule,
+
+        diagnostics:
+          relationshipResult.diagnostics,
+
         previousTurnAvailable:
-          previousTurn
+          turnPacket.previousTurnAvailable
+
       });
 
     return {
+
       ...runtime,
-      turnClassificationPacket:
-        classification
+
+      turnClassificationPacket
+
     };
+
   },
 
   validate(runtime = {}) {
@@ -95,19 +103,25 @@ window.AriConversationRelationshipEngine = {
     if (
       !runtime.turnClassificationPacket
     ) {
+
       return {
+
         valid: false,
+
         errors: [
           "missing_turn_classification_packet"
         ]
+
       };
+
     }
 
-    return {
-      valid: true,
-      errors: []
-    };
+    return window.AriTurnClassificationPacket.validate(
+      runtime.turnClassificationPacket
+    );
+
   }
+
 };
 
 window.Ari.conversationRelationshipEngine =
