@@ -169,7 +169,6 @@ window.AriRebirthAppBridge = {
     "ari/memory/ari-memory-context-builder.js",
     "ari/memory/ari-memory-candidate-engine.js",
 
-    "ari/relationship/ari-relationship-engine.js",
     "ari/context/ari-context-assembler.js",
 
     // ===================================================
