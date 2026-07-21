@@ -5,7 +5,7 @@
 // Execute Ari's canonical five-layer runtime exactly once and produce one
 // authoritative Delivery result for the application boundary.
 //
-// V7.4.0 — Deliberation Failure Boundary Diagnostics
+// V7.5.0 — Authoritative Conversation Context Integration
 //
 // Architectural flow:
 //
