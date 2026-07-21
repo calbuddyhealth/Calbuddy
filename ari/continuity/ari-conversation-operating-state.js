@@ -5,7 +5,7 @@
 // Build, maintain, and persist one concise authoritative operating state for
 // the current conversation turn.
 //
-// V1.2.0 — Canonical Turn Intake Integration
+// V1.3.0 — Progressive Conversation Context Integration
 //
 // Architectural flow:
 //
@@ -13,9 +13,15 @@
 //      ↓
 // Ari Conversation Operating State.beginTurn()
 //      ↓
-// Main Rebirth Pipeline
+// Perception Pipeline
 //      ↓
-// Continuity Stage / Reference Resolvers
+// Conversation Relationship Engine
+//      ↓
+// Reference Resolution Engine
+//      ↓
+// Ari Conversation Operating State.attachConversationContext()
+//      ↓
+// Routing / Deliberation / Expression / Delivery
 //      ↓
 // Ari Conversation Operating State.completeTurn()
 //      ↓
@@ -31,6 +37,11 @@
 // - Rank prior context into reference candidates.
 // - Detect and expose non-authoritative reference signals.
 // - Expose immediate, active, and historical continuity horizons.
+// - Attach the authoritative Turn Classification Packet.
+// - Attach the authoritative Reference Packet.
+// - Preserve the canonical reference-resolution result.
+// - Attach the resolved semantic structure.
+// - Rebuild compact context after conversation authorities run.
 // - Project continuity requirements into compatibility handoffs.
 // - Preserve compatibility aliases for the existing pipeline.
 // - Complete and persist the finished turn after Delivery.
@@ -50,16 +61,11 @@
 // - Does not retrieve long-term user memory.
 // - Does not access Supabase.
 // - Does not execute tools.
-//
-// Authority boundary:
-// This file organizes and ranks conversation state, detects reference signals,
-// and exposes continuity requirements. Continuity authorities remain responsible
-// for resolving references and producing a resolved turn.
 
 window.Ari = window.Ari || {};
 
 window.AriConversationOperatingState = {
-  version: "1.2.0",
+version: "1.3.0",
   schemaVersion: "1.0.0",
   source: "ari-conversation-operating-state",
   authorityLevel: "conversation_operating_state_authority",
@@ -419,20 +425,97 @@ const historicalHorizon =
     currentTurn
   });
 
+        const turnClassificationPacket =
+      this.readObject(
+        summary
+          .turnClassificationPacket
+      ) ||
+      this.readObject(
+        existing
+          .turnClassificationPacket
+      );
+
+    const referencePacket =
+      this.readObject(
+        summary.referencePacket
+      ) ||
+      this.readObject(
+        existing.referencePacket
+      );
+
+    const referenceResolution =
+      this.readObject(
+        summary
+          .referenceResolution
+      ) ||
+      this.readObject(
+        existing
+          .referenceResolution
+      );
+
+    const resolvedSemanticStructure =
+      this.readObject(
+        summary
+          .resolvedSemanticStructure
+      ) ||
+      this.readObject(
+        summary
+          .currentSemanticStructure
+      ) ||
+      this.readObject(
+        existing
+          .resolvedSemanticStructure
+      );
+
+    const authoritativeContextAvailable =
+      Boolean(
+        turnClassificationPacket &&
+        referencePacket
+      );
+
     const continuityMode =
-      this.resolveContinuityMode({
-        currentTurn,
-        immediate:
-          existing.immediateHorizon ||
-          {},
-        activeFrame,
-        historicalHorizon
-      });
+      authoritativeContextAvailable
+        ? this.resolveAuthoritativeContinuityMode({
+            existingMode:
+              existing.continuityMode,
+
+            turnClassificationPacket,
+
+            referencePacket,
+
+            immediate:
+              existing.immediateHorizon ||
+              {},
+
+            activeFrame,
+
+            currentTurn,
+
+            historicalHorizon
+          })
+        : this.resolveContinuityMode({
+            currentTurn,
+
+            immediate:
+              existing.immediateHorizon ||
+              {},
+
+            activeFrame,
+
+            historicalHorizon
+          });
 
     const referenceSignal =
-      this.buildReferenceSignal(
-        currentTurn
-      );
+      authoritativeContextAvailable
+        ? this.buildAttachedReferenceSignal({
+            existingSignal:
+              existing.referenceSignal,
+
+            referencePacket
+          })
+        : this.buildReferenceSignal(
+            currentTurn
+          );
 
     const operatingState = {
       ...existing,
@@ -449,7 +532,23 @@ const historicalHorizon =
 
       continuityMode,
 
-      referenceSignal,
+            referenceSignal,
+
+      turnClassificationPacket:
+        turnClassificationPacket ||
+        null,
+
+      referencePacket:
+        referencePacket ||
+        null,
+
+      referenceResolution:
+        referenceResolution ||
+        null,
+
+      resolvedSemanticStructure:
+        resolvedSemanticStructure ||
+        null,
 
       referenceCandidates:
         historicalHorizon
@@ -463,16 +562,51 @@ const historicalHorizon =
         activeHorizon
           .unresolvedItems,
 
-      compactContext:
+            compactContext:
         this.buildCompactContext({
           currentTurn,
+
           immediate:
-            existing.immediateHorizon,
+            existing.immediateHorizon ||
+            {},
+
           activeFrame,
+
           activeHorizon,
+
           historicalHorizon,
+
           continuityMode,
-          referenceSignal
+
+          referenceSignal,
+
+          turnClassificationPacket:
+            existing
+              .turnClassificationPacket ||
+            summary
+              .turnClassificationPacket ||
+            null,
+
+          referencePacket:
+            existing.referencePacket ||
+            summary.referencePacket ||
+            null,
+
+          referenceResolution:
+            existing
+              .referenceResolution ||
+            summary
+              .referenceResolution ||
+            null,
+
+          resolvedSemanticStructure:
+            existing
+              .resolvedSemanticStructure ||
+            summary
+              .resolvedSemanticStructure ||
+            summary
+              .currentSemanticStructure ||
+            null
         })
     };
 
@@ -492,6 +626,990 @@ const historicalHorizon =
       activeFrame,
       activeHorizon
     });
+  },
+
+  attachConversationContext(
+    summary = {}
+  ) {
+    const existing =
+      this.readObject(
+        summary
+          .conversationOperatingState
+      );
+
+    if (!existing) {
+      return {
+        ...summary,
+
+        conversationOperatingState:
+          null,
+
+        conversationOperatingStateRan:
+          false,
+
+        conversationOperatingStateReady:
+          false,
+
+        conversationContextAttachmentRan:
+          false,
+
+        conversationContextAttachmentReady:
+          false,
+
+        conversationContextAttachmentError:
+          "conversation_operating_state_not_available"
+      };
+    }
+
+    const turnClassificationPacket =
+      this.readObject(
+        summary
+          .turnClassificationPacket
+      ) ||
+      this.readObject(
+        existing
+          .turnClassificationPacket
+      );
+
+    const referencePacket =
+      this.readObject(
+        summary.referencePacket
+      ) ||
+      this.readObject(
+        existing.referencePacket
+      );
+
+    const referenceResolution =
+      this.readObject(
+        summary.referenceResolution
+      ) ||
+      this.readObject(
+        existing.referenceResolution
+      );
+
+    const resolvedSemanticStructure =
+      this.readObject(
+        summary
+          .resolvedSemanticStructure
+      ) ||
+      this.readObject(
+        summary
+          .currentSemanticStructure
+      ) ||
+      this.readObject(
+        existing
+          .resolvedSemanticStructure
+      );
+
+    const classificationValidation =
+      this.validateAttachedPacket({
+        packet:
+          turnClassificationPacket,
+
+        validator:
+  window
+    .AriTurnClassificationPacket
+    ?.validate
+    ?.bind(
+      window
+        .AriTurnClassificationPacket
+    ),
+
+        packetName:
+          "turn_classification_packet",
+
+        required:
+          true
+      });
+
+    const referenceValidation =
+      this.validateAttachedPacket({
+        packet:
+          referencePacket,
+
+        validator:
+  window
+    .AriReferencePacket
+    ?.validate
+    ?.bind(
+      window.AriReferencePacket
+    ),
+
+        packetName:
+          "reference_packet",
+
+        required:
+          true
+      });
+
+    const attachmentErrors = [
+      ...classificationValidation
+        .errors,
+
+      ...referenceValidation
+        .errors
+    ];
+
+    if (
+      attachmentErrors.length >
+      0
+    ) {
+      return {
+        ...summary,
+
+        conversationOperatingState:
+          existing,
+
+        conversationOperatingStateRan:
+          true,
+
+        conversationOperatingStateReady:
+          false,
+
+        conversationContextAttachmentRan:
+          true,
+
+        conversationContextAttachmentReady:
+          false,
+
+        conversationContextAttachmentError:
+          "canonical_conversation_packets_invalid",
+
+        conversationContextAttachmentErrors:
+          attachmentErrors,
+
+        conversationContextAttachmentWarnings: [
+          ...classificationValidation
+            .warnings,
+
+          ...referenceValidation
+            .warnings
+        ]
+      };
+    }
+
+    const attachedReferenceSignal =
+      this.buildAttachedReferenceSignal({
+        existingSignal:
+          existing.referenceSignal,
+
+        referencePacket
+      });
+
+    const attachedCurrentTurn =
+      this.buildAttachedCurrentTurn({
+        currentTurn:
+          existing.currentTurn,
+
+        summary,
+
+        turnClassificationPacket,
+
+        referencePacket
+      });
+
+    const activeFrame =
+      this.buildActiveFrame({
+        summary: {
+          ...summary,
+
+          currentSemanticStructure:
+            resolvedSemanticStructure ||
+            summary
+              .currentSemanticStructure,
+
+          semanticStructure:
+            resolvedSemanticStructure ||
+            summary.semanticStructure
+        },
+
+        storedState:
+          existing.rawStoredState ||
+          {},
+
+        immediate:
+          existing.immediateHorizon ||
+          {}
+      });
+
+    const activeHorizon =
+      this.buildActiveHorizon({
+        summary: {
+          ...summary,
+
+          currentSemanticStructure:
+            resolvedSemanticStructure ||
+            summary
+              .currentSemanticStructure,
+
+          semanticStructure:
+            resolvedSemanticStructure ||
+            summary.semanticStructure,
+
+          semanticUnresolved:
+            this.mergeUnique(
+              summary
+                .semanticUnresolved,
+
+              referencePacket
+                ?.unresolvedReferences
+            )
+        },
+
+        storedState:
+          existing.rawStoredState ||
+          {},
+
+        activeFrame
+      });
+
+    const historicalHorizon =
+      this.buildHistoricalHorizon({
+        summary: {
+          ...summary,
+
+          referencePacket,
+
+          referenceResolution,
+
+          resolvedSemanticStructure
+        },
+
+        storedState:
+          existing.rawStoredState ||
+          {},
+
+        recentTurns:
+          existing
+            .immediateHorizon
+            ?.recentTurns ||
+          [],
+
+        activeFrame,
+
+        activeHorizon,
+
+        currentTurn:
+          attachedCurrentTurn
+      });
+
+    const continuityMode =
+      this.resolveAuthoritativeContinuityMode({
+        existingMode:
+          existing.continuityMode,
+
+        turnClassificationPacket,
+
+        referencePacket,
+
+        immediate:
+          existing.immediateHorizon,
+
+        activeFrame,
+
+        currentTurn:
+          attachedCurrentTurn,
+
+        historicalHorizon
+      });
+
+    const operatingState = {
+      ...existing,
+
+      updatedAt:
+        new Date()
+          .toISOString(),
+
+      currentTurn:
+        attachedCurrentTurn,
+
+      activeFrame,
+
+      activeHorizon,
+
+      historicalHorizon,
+
+      continuityMode,
+
+      referenceSignal:
+        attachedReferenceSignal,
+
+      turnClassificationPacket,
+
+      referencePacket,
+
+      referenceResolution,
+
+      resolvedSemanticStructure:
+        resolvedSemanticStructure ||
+        null,
+
+      resolvedReferences:
+        this.toArray(
+          referencePacket
+            ?.references
+        ),
+
+      unresolvedReferences:
+        this.toArray(
+          referencePacket
+            ?.unresolvedReferences
+        ),
+
+      activeReference:
+        referencePacket
+          ?.primaryReference ||
+        null,
+
+      referenceCandidates:
+        historicalHorizon
+          .referenceCandidates,
+
+      openLoops:
+        activeHorizon.openLoops,
+
+      unresolvedItems:
+        this.mergeUnique(
+          activeHorizon
+            .unresolvedItems,
+
+          referencePacket
+            ?.unresolvedReferences
+        ).slice(-12),
+
+      conversationContext: {
+        schema:
+          "ari_conversation_context_attachment",
+
+        schemaVersion:
+          this.schemaVersion,
+
+        source:
+          this.source,
+
+        version:
+          this.version,
+
+        attachedAt:
+          new Date()
+            .toISOString(),
+
+        classificationAttached:
+          Boolean(
+            turnClassificationPacket
+          ),
+
+        referencePacketAttached:
+          Boolean(
+            referencePacket
+          ),
+
+        referenceResolutionAttached:
+          Boolean(
+            referenceResolution
+          ),
+
+        resolvedSemanticStructureAttached:
+          Boolean(
+            resolvedSemanticStructure
+          ),
+
+        relationship:
+          this.readClassificationRelationship(
+            turnClassificationPacket
+          ),
+
+        resolvedReferenceCount:
+          this.toArray(
+            referencePacket
+              ?.references
+          ).length,
+
+        unresolvedReferenceCount:
+          this.toArray(
+            referencePacket
+              ?.unresolvedReferences
+          ).length,
+
+        confidence:
+          this.calculateAttachedContextConfidence({
+            operatingState:
+              existing,
+
+            turnClassificationPacket,
+
+            referencePacket
+          }),
+
+        authority:
+          "authoritative_packet_attachment_only"
+      },
+
+                  compactContext:
+        this.buildCompactContext({
+          currentTurn:
+            attachedCurrentTurn,
+
+          immediate:
+            existing.immediateHorizon ||
+            {},
+
+          activeFrame,
+
+          activeHorizon,
+
+          historicalHorizon,
+
+          continuityMode,
+
+          referenceSignal:
+            attachedReferenceSignal,
+
+          turnClassificationPacket,
+
+          referencePacket,
+
+          referenceResolution,
+
+          resolvedSemanticStructure
+        })
+    };
+
+    return this.attachCompatibilityAliases({
+      summary: {
+        ...summary,
+
+        turnClassificationPacket,
+
+        referencePacket,
+
+        referenceResolution,
+
+        resolvedSemanticStructure,
+
+        currentSemanticStructure:
+          resolvedSemanticStructure ||
+          summary
+            .currentSemanticStructure
+      },
+
+      operatingState,
+
+      storedState:
+        existing.rawStoredState ||
+        {},
+
+      recentTurns:
+        existing
+          .immediateHorizon
+          ?.recentTurns ||
+        [],
+
+      immediate:
+        existing.immediateHorizon ||
+        {},
+
+      activeFrame,
+
+      activeHorizon
+    });
+  },
+
+  validateAttachedPacket({
+    packet = null,
+    validator = null,
+    packetName = "packet",
+    required = false
+  } = {}) {
+    const errors = [];
+    const warnings = [];
+
+    if (!packet) {
+      if (required) {
+        errors.push(
+          `${packetName}_missing`
+        );
+      }
+
+      return {
+        valid:
+          required !== true,
+
+        errors,
+
+        warnings
+      };
+    }
+
+    if (
+      typeof validator !==
+      "function"
+    ) {
+      warnings.push(
+        `${packetName}_validator_not_loaded`
+      );
+
+      return {
+        valid: true,
+        errors,
+        warnings
+      };
+    }
+
+    let validation = null;
+
+    try {
+      validation =
+        validator.call(
+          null,
+          packet
+        );
+    } catch (error) {
+      errors.push(
+        `${packetName}_validation_failed:${
+          error?.message ||
+          String(error)
+        }`
+      );
+
+      return {
+        valid: false,
+        errors,
+        warnings
+      };
+    }
+
+    if (
+      validation?.valid !==
+      true
+    ) {
+      errors.push(
+        ...this.toArray(
+          validation?.errors
+        ).map(
+          error =>
+            `${packetName}:${error}`
+        )
+      );
+    }
+
+    warnings.push(
+      ...this.toArray(
+        validation?.warnings
+      ).map(
+        warning =>
+          `${packetName}:${warning}`
+      )
+    );
+
+    return {
+      valid:
+        errors.length === 0,
+
+      errors,
+
+      warnings
+    };
+  },
+
+  buildAttachedCurrentTurn({
+    currentTurn = {},
+    summary = {},
+    turnClassificationPacket = null,
+    referencePacket = null
+  } = {}) {
+    const existing =
+      this.readObject(
+        currentTurn
+      ) ||
+      {};
+
+    const externallyResolvedText =
+      this.cleanText(
+        summary
+          .resolvedUserMessage ||
+        summary
+          .resolvedTurn
+          ?.resolvedText ||
+        summary
+          .ellipticalResolution
+          ?.resolvedText ||
+        summary
+          .ellipsisResolution
+          ?.resolvedText ||
+        ""
+      );
+
+    const referenceCount =
+      this.toArray(
+        referencePacket
+          ?.references
+      ).length;
+
+    const unresolvedCount =
+      this.toArray(
+        referencePacket
+          ?.unresolvedReferences
+      ).length;
+
+    const hasResolvedText =
+      Boolean(
+        externallyResolvedText
+      );
+
+    return {
+      ...existing,
+
+      resolvedText:
+        hasResolvedText
+          ? externallyResolvedText
+          : existing.resolvedText ||
+            null,
+
+      effectiveText:
+        hasResolvedText
+          ? externallyResolvedText
+          : existing.effectiveText ||
+            existing.originalText ||
+            "",
+
+            resolutionStatus:
+        hasResolvedText
+          ? "resolved_text_available"
+          : referenceCount > 0 &&
+            unresolvedCount === 0
+            ? "references_resolved"
+            : referenceCount > 0 &&
+              unresolvedCount > 0
+              ? "references_partially_resolved"
+              : unresolvedCount > 0
+                ? "references_unresolved"
+                : "no_reference_resolution_required",
+      textWasRewritten:
+        hasResolvedText &&
+        this.normalizeForComparison(
+          externallyResolvedText
+        ) !==
+        this.normalizeForComparison(
+          existing.originalText ||
+          ""
+        ),
+
+      relationship:
+        this.readClassificationRelationship(
+          turnClassificationPacket
+        ),
+
+      relationshipConfidence:
+        this.readClassificationConfidence(
+          turnClassificationPacket
+        ),
+
+      referenceResolution: {
+        resolvedCount:
+          referenceCount,
+
+        unresolvedCount,
+
+        primaryReference:
+          referencePacket
+            ?.primaryReference ||
+          null,
+
+        confidence:
+          this.clamp(
+            referencePacket
+              ?.confidence ??
+            0
+          )
+      },
+
+      originalTextPreserved:
+        true
+    };
+  },
+
+  buildAttachedReferenceSignal({
+    existingSignal = null,
+    referencePacket = null
+  } = {}) {
+    const prior =
+      this.readObject(
+        existingSignal
+      ) ||
+      {
+        present: false,
+        surface: null,
+        normalizedSurface: null,
+        kind: null,
+        resolutionRequired: false,
+        resolved: false,
+        authority:
+          "reference_signal_detection_only"
+      };
+
+    const resolvedReferences =
+      this.toArray(
+        referencePacket
+          ?.references
+      );
+
+    const unresolvedReferences =
+      this.toArray(
+        referencePacket
+          ?.unresolvedReferences
+      );
+
+    const referenceWasProcessed =
+      resolvedReferences.length >
+        0 ||
+      unresolvedReferences.length >
+        0;
+
+    return {
+      ...prior,
+
+      resolutionAttempted:
+        referenceWasProcessed,
+
+      resolved:
+        referenceWasProcessed &&
+        resolvedReferences.length >
+          0 &&
+        unresolvedReferences.length ===
+          0,
+
+      partiallyResolved:
+        resolvedReferences.length >
+          0 &&
+        unresolvedReferences.length >
+          0,
+
+      unresolved:
+        unresolvedReferences.length >
+        0,
+
+      resolvedCount:
+        resolvedReferences.length,
+
+      unresolvedCount:
+        unresolvedReferences.length,
+
+      primaryReference:
+        referencePacket
+          ?.primaryReference ||
+        null,
+
+      resolutionConfidence:
+        this.clamp(
+          referencePacket
+            ?.confidence ??
+          0
+        ),
+
+      resolutionAuthority:
+        referenceWasProcessed
+          ? "ari-reference-packet"
+          : null,
+
+      authority:
+        "reference_signal_with_authoritative_resolution_status"
+    };
+  },
+
+  resolveAuthoritativeContinuityMode({
+    existingMode =
+      "direct_current_turn",
+
+    turnClassificationPacket = null,
+
+    referencePacket = null,
+
+    immediate = {},
+
+    activeFrame = {},
+
+    currentTurn = {},
+
+    historicalHorizon = {}
+  } = {}) {
+    const relationship =
+      this.readClassificationRelationship(
+        turnClassificationPacket
+      );
+
+    const normalizedRelationship =
+      this.normalizeForComparison(
+        relationship
+      )
+        .replace(
+          /\s+/g,
+          "_"
+        )
+        .toUpperCase();
+
+    const resolvedCount =
+      this.toArray(
+        referencePacket
+          ?.references
+      ).length;
+
+    const unresolvedCount =
+      this.toArray(
+        referencePacket
+          ?.unresolvedReferences
+      ).length;
+
+    const followUpRelationships =
+      new Set([
+        "FOLLOW_UP",
+        "ELLIPTICAL_FOLLOW_UP",
+        "REFERENCE_FOLLOW_UP",
+        "TASK_CONTINUATION",
+        "ANSWER_CONTINUATION",
+        "CLARIFICATION",
+        "CORRECTION",
+        "CONFIRMATION",
+        "THREAD_RESUME"
+      ]);
+
+    if (
+      followUpRelationships.has(
+        normalizedRelationship
+      )
+    ) {
+      if (
+        resolvedCount >
+          0 &&
+        unresolvedCount ===
+          0
+      ) {
+        return "resolved_follow_up";
+      }
+
+      if (
+        unresolvedCount >
+        0
+      ) {
+        return "unresolved_follow_up";
+      }
+
+      return "classified_follow_up";
+    }
+
+    if (
+      normalizedRelationship ===
+      "TOPIC_SHIFT" ||
+      normalizedRelationship ===
+      "NEW_TOPIC"
+    ) {
+      return "topic_shift";
+    }
+
+    if (
+      normalizedRelationship ===
+      "DIRECT" ||
+      normalizedRelationship ===
+      "INDEPENDENT_TURN"
+    ) {
+      return "direct_current_turn";
+    }
+
+    return (
+      existingMode ||
+      this.resolveContinuityMode({
+        currentTurn,
+        immediate,
+        activeFrame,
+        historicalHorizon
+      })
+    );
+  },
+
+  readClassificationRelationship(
+    packet = null
+  ) {
+    if (
+      !packet ||
+      typeof packet !==
+        "object"
+    ) {
+      return null;
+    }
+
+    return (
+      packet.relationship ||
+      packet.relationshipType ||
+      packet.classification ||
+      packet.primaryRelationship ||
+      packet.result
+        ?.relationship ||
+      null
+    );
+  },
+
+  readClassificationConfidence(
+    packet = null
+  ) {
+    if (
+      !packet ||
+      typeof packet !==
+        "object"
+    ) {
+      return 0;
+    }
+
+    return this.clamp(
+      packet.confidence ??
+      packet.relationshipConfidence ??
+      packet.result
+        ?.confidence ??
+      0
+    );
+  },
+
+  calculateAttachedContextConfidence({
+    operatingState = {},
+    turnClassificationPacket = null,
+    referencePacket = null
+  } = {}) {
+    const operatingConfidence =
+      this.clamp(
+        operatingState.confidence ??
+        0
+      );
+
+    const classificationConfidence =
+      this.readClassificationConfidence(
+        turnClassificationPacket
+      );
+
+    const referenceConfidence =
+      this.clamp(
+        referencePacket
+          ?.confidence ??
+        (
+          this.toArray(
+            referencePacket
+              ?.references
+          ).length ||
+          this.toArray(
+            referencePacket
+              ?.unresolvedReferences
+          ).length
+            ? 0
+            : 1
+        )
+      );
+
+    return this.roundScore(
+      operatingConfidence *
+        0.4 +
+      classificationConfidence *
+        0.3 +
+      referenceConfidence *
+        0.3
+    );
   },
 
   async completeTurn(summary = {}) {
@@ -675,21 +1793,83 @@ const historicalHorizon =
       rawStoredState:
         persistedState,
 
-      compactContext:
+            compactContext:
         this.buildCompactContext({
           currentTurn:
             existing.currentTurn,
+
           immediate,
+
           activeFrame:
             completedFrame,
-          activeHorizon:
-            existing.activeHorizon,
+
+          activeHorizon: {
+            ...existing.activeHorizon,
+
+            topic:
+              completedFrame.topic,
+
+            subject:
+              completedFrame.subject,
+
+            issue:
+              completedFrame.issue,
+
+            goal:
+              completedFrame.goal,
+
+            claims:
+              persistedState
+                .activeClaims,
+
+            entities:
+              persistedState
+                .activeEntities,
+
+            events:
+              persistedState
+                .activeEvents,
+
+            relations:
+              persistedState
+                .activeRelations,
+
+            constraints:
+              persistedState
+                .activeConstraints,
+
+            openLoops:
+              persistedState
+                .openLoops,
+
+            unresolvedItems:
+              persistedState
+                .unresolvedItems
+          },
+
           historicalHorizon:
             existing.historicalHorizon,
+
           continuityMode:
             existing.continuityMode,
+
           referenceSignal:
-            existing.referenceSignal
+            existing.referenceSignal,
+
+          turnClassificationPacket:
+            existing
+              .turnClassificationPacket,
+
+          referencePacket:
+            existing.referencePacket,
+
+          referenceResolution:
+            existing
+              .referenceResolution,
+
+          resolvedSemanticStructure:
+            existing
+              .resolvedSemanticStructure
         })
     };
 
@@ -3004,18 +4184,59 @@ async runTurnIntake({
      COMPACT CONTEXT
   ===================================================== */
 
-  buildCompactContext({
+    buildCompactContext({
     currentTurn = {},
     immediate = {},
     activeFrame = {},
     activeHorizon = {},
     historicalHorizon = {},
-    continuityMode = "direct_current_turn",
-    referenceSignal = null
+    continuityMode =
+      "direct_current_turn",
+    referenceSignal = null,
+    turnClassificationPacket = null,
+    referencePacket = null,
+    referenceResolution = null,
+    resolvedSemanticStructure = null
   } = {}) {
+    const relationship =
+      this.readClassificationRelationship(
+        turnClassificationPacket
+      );
+
+    const relationshipConfidence =
+      this.readClassificationConfidence(
+        turnClassificationPacket
+      );
+
+    const resolvedReferences =
+      this.toArray(
+        referencePacket
+          ?.references
+      );
+
+    const unresolvedReferences =
+      this.toArray(
+        referencePacket
+          ?.unresolvedReferences
+      );
+
     return {
+      schema:
+        "ari_compact_conversation_context",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      source:
+        this.source,
+
       currentTurn: {
         id:
+          currentTurn.id ||
+          null,
+
+        turnId:
+          currentTurn.turnId ||
           currentTurn.id ||
           null,
 
@@ -3023,16 +4244,91 @@ async runTurnIntake({
           currentTurn.originalText ||
           "",
 
+        resolvedText:
+          currentTurn.resolvedText ||
+          null,
+
+        effectiveText:
+          currentTurn.effectiveText ||
+          currentTurn.originalText ||
+          "",
+
         role:
           currentTurn.role ||
-          "user"
+          "user",
+
+        relationship,
+
+        relationshipConfidence,
+
+        resolutionStatus:
+          currentTurn
+            .resolutionStatus ||
+          null
       },
 
-      continuityMode,
+      continuity: {
+        mode:
+          continuityMode,
+
+        relationship,
+
+        relationshipConfidence,
+
+        priorContextAvailable:
+          immediate.available ===
+          true,
+
+        requiresPriorContext: [
+          "reference_follow_up",
+          "likely_follow_up",
+          "classified_follow_up",
+          "resolved_follow_up",
+          "unresolved_follow_up"
+        ].includes(
+          continuityMode
+        )
+      },
 
       referenceSignal:
         referenceSignal ||
         null,
+
+      referenceResolution: {
+        ran:
+          Boolean(
+            referencePacket ||
+            referenceResolution
+          ),
+
+        confidence:
+          this.clamp(
+            referencePacket
+              ?.confidence ??
+            referenceResolution
+              ?.confidence ??
+            0
+          ),
+
+        primaryReference:
+          referencePacket
+            ?.primaryReference ||
+          null,
+
+        resolvedReferences:
+          resolvedReferences
+            .slice(0, 8),
+
+        unresolvedReferences:
+          unresolvedReferences
+            .slice(0, 8),
+
+        resolvedCount:
+          resolvedReferences.length,
+
+        unresolvedCount:
+          unresolvedReferences.length
+      },
 
       previousTurn: {
         user:
@@ -3070,6 +4366,31 @@ async runTurnIntake({
             : null
       },
 
+      recentTurns:
+        this.toArray(
+          immediate.recentTurns
+        )
+          .slice(-6)
+          .map(
+            turn => ({
+              id:
+                turn.id ||
+                null,
+
+              role:
+                turn.role ||
+                "unknown",
+
+              text:
+                turn.text ||
+                "",
+
+              topic:
+                turn.topic ||
+                null
+            })
+          ),
+
       activeFrame: {
         topic:
           activeFrame.topic ||
@@ -3091,64 +4412,115 @@ async runTurnIntake({
       openLoops:
         this.toArray(
           activeHorizon.openLoops
-        ).slice(
-          0,
-          5
-        ),
+        ).slice(0, 5),
 
       unresolvedItems:
-        this.toArray(
+        this.mergeUnique(
           activeHorizon
-            .unresolvedItems
-        ).slice(
-          0,
-          5
-        ),
+            .unresolvedItems,
+
+          unresolvedReferences
+        ).slice(0, 8),
 
       activeEntities:
         this.toArray(
           activeHorizon.entities
-        ).slice(
-          0,
-          8
-        ),
+        ).slice(0, 8),
 
       activeClaims:
         this.toArray(
           activeHorizon.claims
-        ).slice(
-          0,
-          8
-        ),
+        ).slice(0, 8),
 
       referenceCandidates:
         this.toArray(
           historicalHorizon
             .topCandidates
-        ).map(
-          candidate => ({
-            id:
-              candidate.id,
-
-            semanticRef:
-              candidate.semanticRef,
-
-            semanticType:
-              candidate.semanticType,
-
-            label:
-              candidate.label,
-
-            salience:
-              candidate.salience,
-
-            confidence:
-              candidate.confidence,
-
-            source:
-              candidate.source
-          })
         )
+          .slice(0, 8)
+          .map(
+            candidate => ({
+              id:
+                candidate.id,
+
+              semanticRef:
+                candidate.semanticRef,
+
+              semanticType:
+                candidate.semanticType,
+
+              label:
+                candidate.label,
+
+              salience:
+                candidate.salience,
+
+              confidence:
+                candidate.confidence,
+
+              source:
+                candidate.source
+            })
+          ),
+
+      semanticResolution: {
+        available:
+          Boolean(
+            resolvedSemanticStructure
+          ),
+
+        schema:
+          resolvedSemanticStructure
+            ?.schema ||
+          null,
+
+        version:
+          resolvedSemanticStructure
+            ?.version ||
+          null,
+
+        inheritedNodes:
+          this.toArray(
+            resolvedSemanticStructure
+              ?.inheritedNodes
+          ).slice(0, 8),
+
+        unresolved:
+          this.toArray(
+            resolvedSemanticStructure
+              ?.unresolved
+          ).slice(0, 8)
+      },
+
+      authority: {
+        stateOwner:
+          "ari-conversation-operating-state",
+
+        relationshipAuthority:
+          turnClassificationPacket
+            ? "ari-turn-classification-packet"
+            : null,
+
+        referenceAuthority:
+          referencePacket
+            ? "ari-reference-packet"
+            : null,
+
+        canProvideReasoningContext:
+          true,
+
+        canReclassifyRelationship:
+          false,
+
+        canResolveReferences:
+          false,
+
+        canRewriteCurrentTurn:
+          false,
+
+        role:
+          "bounded_authoritative_context_projection"
+      }
     };
   },
 
@@ -3576,11 +4948,14 @@ async runTurnIntake({
       operatingState.continuityMode ||
       "direct_current_turn";
 
-    const isFollowUp =
+     const isFollowUp =
       [
         "reference_follow_up",
         "likely_follow_up",
-        "active_topic_continuation"
+        "active_topic_continuation",
+        "classified_follow_up",
+        "resolved_follow_up",
+        "unresolved_follow_up"
       ].includes(
         continuityMode
       );
@@ -3588,7 +4963,10 @@ async runTurnIntake({
     const requiresPriorContext =
       [
         "reference_follow_up",
-        "likely_follow_up"
+        "likely_follow_up",
+        "classified_follow_up",
+        "resolved_follow_up",
+        "unresolved_follow_up"
       ].includes(
         continuityMode
       );
@@ -4097,6 +5475,82 @@ turnIntakeValidation:
           .latestConversationMeaning ||
         null,
 
+      turnClassificationPacket:
+        operatingState
+          .turnClassificationPacket ||
+        summary
+          .turnClassificationPacket ||
+        null,
+
+      conversationRelationship:
+        this.readClassificationRelationship(
+          operatingState
+            .turnClassificationPacket ||
+          summary
+            .turnClassificationPacket
+        ),
+
+      conversationRelationshipConfidence:
+        this.readClassificationConfidence(
+          operatingState
+            .turnClassificationPacket ||
+          summary
+            .turnClassificationPacket
+        ),
+
+      referencePacket:
+        operatingState
+          .referencePacket ||
+        summary.referencePacket ||
+        null,
+
+      referenceResolution:
+        operatingState
+          .referenceResolution ||
+        summary
+          .referenceResolution ||
+        null,
+
+      resolvedSemanticStructure:
+        operatingState
+          .resolvedSemanticStructure ||
+        summary
+          .resolvedSemanticStructure ||
+        null,
+
+      currentSemanticStructure:
+        operatingState
+          .resolvedSemanticStructure ||
+        summary
+          .currentSemanticStructure ||
+        summary.semanticStructure ||
+        null,
+
+      resolvedReferences:
+        operatingState
+          .resolvedReferences ||
+        summary
+          .resolvedReferences ||
+        [],
+
+      unresolvedReferences:
+        operatingState
+          .unresolvedReferences ||
+        summary
+          .unresolvedReferences ||
+        [],
+
+      activeReference:
+        operatingState
+          .activeReference ||
+        summary.activeReference ||
+        null,
+
+      compactConversationContext:
+        operatingState
+          .compactContext ||
+        null,
+
       referenceCandidates:
         operatingState
           .referenceCandidates ||
@@ -4198,24 +5652,23 @@ turnIntakeValidation:
      AUTHORITY
   ===================================================== */
 
-  getAuthorityBoundaries() {
+    getAuthorityBoundaries() {
     return {
-      
       canCoordinateTurnIntake:
-  true,
+        true,
 
-canConsumeCanonicalTurnPacket:
-  true,
+      canConsumeCanonicalTurnPacket:
+        true,
 
-canProjectTurnForContinuity:
-  true,
+      canProjectTurnForContinuity:
+        true,
 
-canCreateCanonicalTurnPacket:
-  false,
+      canCreateCanonicalTurnPacket:
+        false,
 
-canGenerateCanonicalTurnId:
-  false,
-  
+      canGenerateCanonicalTurnId:
+        false,
+
       canLoadThreadState:
         true,
 
@@ -4244,6 +5697,21 @@ canGenerateCanonicalTurnId:
         true,
 
       canPersistCompletedTurn:
+        true,
+
+      canAttachTurnClassificationPacket:
+        true,
+
+      canAttachReferencePacket:
+        true,
+
+      canAttachReferenceResolution:
+        true,
+
+      canAttachResolvedSemanticStructure:
+        true,
+
+      canBuildCompactReasoningContext:
         true,
 
       canRewriteCurrentTurn:
@@ -4298,7 +5766,7 @@ canGenerateCanonicalTurnId:
         false,
 
       role:
-        "conversation_state_organization_ranking_signal_detection_and_persistence"
+        "conversation_state_organization_packet_attachment_context_projection_and_persistence"
     };
   },
 
@@ -4340,6 +5808,41 @@ canGenerateCanonicalTurnId:
             `${key}_must_be_false`
         );
 
+    const requiredTrue = [
+      "canCoordinateTurnIntake",
+      "canConsumeCanonicalTurnPacket",
+      "canProjectTurnForContinuity",
+      "canLoadThreadState",
+      "canNormalizeStoredTurns",
+      "canBuildImmediateHorizon",
+      "canBuildActiveHorizon",
+      "canBuildHistoricalHorizon",
+      "canRankReferenceCandidates",
+      "canDetectReferenceSignal",
+      "canExposeContinuityRequirements",
+      "canPreserveCompatibilityAliases",
+      "canPersistCompletedTurn",
+      "canAttachTurnClassificationPacket",
+      "canAttachReferencePacket",
+      "canAttachReferenceResolution",
+      "canAttachResolvedSemanticStructure",
+      "canBuildCompactReasoningContext"
+    ];
+
+    requiredTrue
+      .filter(
+        key =>
+          authority[key] !==
+          true
+      )
+      .forEach(
+        key => {
+          errors.push(
+            `${key}_must_be_true`
+          );
+        }
+      );
+
     const warnings = [];
 
     if (
@@ -4370,6 +5873,31 @@ canGenerateCanonicalTurnId:
           true,
 
         originalTurnPreserved:
+          true,
+
+        turnClassificationPacketAttachmentEnabled:
+          authority
+            .canAttachTurnClassificationPacket ===
+          true,
+
+        referencePacketAttachmentEnabled:
+          authority
+            .canAttachReferencePacket ===
+          true,
+
+        referenceResolutionAttachmentEnabled:
+          authority
+            .canAttachReferenceResolution ===
+          true,
+
+        resolvedSemanticStructureAttachmentEnabled:
+          authority
+            .canAttachResolvedSemanticStructure ===
+          true,
+
+        compactReasoningContextEnabled:
+          authority
+            .canBuildCompactReasoningContext ===
           true,
 
  turnIntakeCoordinationEnabled:
