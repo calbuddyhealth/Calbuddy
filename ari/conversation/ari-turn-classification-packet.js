@@ -5,7 +5,7 @@
 // Define the canonical packet produced by the Conversation
 // Relationship Engine.
 //
-// V1.1.0 — Canonical Turn Classification Contract
+// V1.2.0 — Defensive Relationship Registry Handling
 //
 // Architectural Flow:
 //
@@ -23,6 +23,7 @@
 // - Validate packet completeness.
 // - Preserve packet immutability.
 // - Preserve authority ownership.
+// - Safely handle an unavailable relationship-type registry.
 //
 // Non-responsibilities:
 // - Does not classify conversations.
@@ -35,11 +36,14 @@ window.Ari = window.Ari || {};
 
 window.AriTurnClassificationPacket = {
 
-  version: "1.1.0",
+  version: "1.2.0",
   schema: "ari_turn_classification_packet",
   schemaVersion: "1.0.0",
 
   create(input = {}) {
+
+    const relationshipTypes =
+      this.getRelationshipTypes();
 
     const packet = {
 
@@ -51,7 +55,8 @@ window.AriTurnClassificationPacket = {
 
       relationship:
         input.relationship ||
-        window.AriConversationRelationshipTypes.UNKNOWN,
+        relationshipTypes?.UNKNOWN ||
+        "unknown",
 
       confidence:
         this.normalizeConfidence(
@@ -111,6 +116,9 @@ window.AriTurnClassificationPacket = {
     const errors = [];
     const warnings = [];
 
+    const relationshipTypes =
+      this.getRelationshipTypes();
+
     if (!packet.schema) {
 
       errors.push(
@@ -127,20 +135,35 @@ window.AriTurnClassificationPacket = {
 
     }
 
-    if (
-      !window.AriConversationRelationshipTypes ||
-      typeof window.AriConversationRelationshipTypes.isValid !==
-      "function"
-    ) {
+    if (!packet.relationship) {
 
       errors.push(
+        "missing_relationship"
+      );
+
+    }
+
+    if (!relationshipTypes) {
+
+      warnings.push(
         "relationship_registry_unavailable"
       );
 
     }
 
     else if (
-      !window.AriConversationRelationshipTypes.isValid(
+      typeof relationshipTypes.isValid !==
+      "function"
+    ) {
+
+      warnings.push(
+        "relationship_registry_validator_unavailable"
+      );
+
+    }
+
+    else if (
+      !relationshipTypes.isValid(
         packet.relationship
       )
     ) {
@@ -153,7 +176,10 @@ window.AriTurnClassificationPacket = {
 
     if (
       typeof packet.confidence !==
-      "number"
+      "number" ||
+      !Number.isFinite(
+        packet.confidence
+      )
     ) {
 
       errors.push(
@@ -177,13 +203,25 @@ window.AriTurnClassificationPacket = {
 
   },
 
+  getRelationshipTypes() {
+
+    return (
+      window.AriConversationRelationshipTypes ||
+      window.Ari?.conversationRelationshipTypes ||
+      null
+    );
+
+  },
+
   normalizeConfidence(value) {
 
     const confidence =
       Number(value);
 
     if (
-      Number.isNaN(confidence)
+      !Number.isFinite(
+        confidence
+      )
     ) {
 
       return 0;
