@@ -5,7 +5,7 @@
 // Build, maintain, and persist one concise authoritative operating state for
 // the current conversation turn.
 //
-// V1.1.0 — Continuity Signal Projection / Reference Detection Handoff
+// V1.2.0 — Canonical Turn Intake Integration
 //
 // Architectural flow:
 //
@@ -59,7 +59,7 @@
 window.Ari = window.Ari || {};
 
 window.AriConversationOperatingState = {
-  version: "1.1.0",
+  version: "1.2.0",
   schemaVersion: "1.0.0",
   source: "ari-conversation-operating-state",
   authorityLevel: "conversation_operating_state_authority",
@@ -69,178 +69,268 @@ window.AriConversationOperatingState = {
   ===================================================== */
 
   async beginTurn(summary = {}) {
-    const input =
-      this.normalizeCurrentTurnInput(
-        summary
-      );
+  const storedState =
+    await this.loadStoredState();
 
-    const storedState =
-      await this.loadStoredState();
+  const normalizedStored =
+    this.normalizeStoredState(
+      storedState
+    );
 
-    const normalizedStored =
-      this.normalizeStoredState(
-        storedState
-      );
+  const recentTurns =
+    this.buildRecentTurns({
+      summary,
+      storedState:
+        normalizedStored
+    });
 
-    const recentTurns =
-      this.buildRecentTurns({
-        summary,
+  /*
+   * The Turn Intake Engine is the sole authority
+   * responsible for creating the canonical Turn Packet.
+   */
+  const intakeState =
+    await this.runTurnIntake({
+      summary,
+      storedState:
+        normalizedStored,
+      recentTurns
+    });
+
+  if (
+    intakeState.turnIntakeEngineReady !==
+      true ||
+    !intakeState.turnPacket
+  ) {
+    return {
+      ...intakeState,
+
+      conversationOperatingState:
+        null,
+
+      conversationOperatingStateRan:
+        false,
+
+      conversationOperatingStateReady:
+        false,
+
+      conversationOperatingStateSource:
+        this.source,
+
+      conversationOperatingStateVersion:
+        this.version,
+
+      conversationOperatingStateError:
+        intakeState.turnIntakeEngineError ||
+        "canonical_turn_packet_not_ready"
+    };
+  }
+
+  /*
+   * COS does not create the turn.
+   * It projects the immutable Turn Packet into the
+   * continuity-facing currentTurn representation.
+   */
+  const input =
+    this.normalizeCurrentTurnInput(
+      intakeState
+    );
+
+if (
+  !input.turnPacket ||
+  !input.currentTurn
+) {
+  return {
+    ...intakeState,
+
+    conversationOperatingState:
+      null,
+
+    conversationOperatingStateRan:
+      false,
+
+    conversationOperatingStateReady:
+      false,
+
+    conversationOperatingStateSource:
+      this.source,
+
+    conversationOperatingStateVersion:
+      this.version,
+
+    conversationOperatingStateError:
+      "canonical_turn_projection_failed"
+  };
+}
+
+  const immediate =
+    this.resolveImmediateHorizon(
+      recentTurns
+    );
+
+  const activeFrame =
+    this.buildActiveFrame({
+      summary:
+        intakeState,
+      storedState:
+        normalizedStored,
+      immediate
+    });
+
+  const activeHorizon =
+    this.buildActiveHorizon({
+      summary:
+        intakeState,
+      storedState:
+        normalizedStored,
+      activeFrame
+    });
+
+  const historicalHorizon =
+    this.buildHistoricalHorizon({
+      summary:
+        intakeState,
+      storedState:
+        normalizedStored,
+      recentTurns,
+      activeFrame,
+      activeHorizon,
+      currentTurn:
+        input.currentTurn
+    });
+
+  const continuityMode =
+    this.resolveContinuityMode({
+      currentTurn:
+        input.currentTurn,
+      immediate,
+      activeFrame,
+      historicalHorizon
+    });
+
+  const referenceSignal =
+    this.buildReferenceSignal(
+      input.currentTurn
+    );
+
+  const operatingState = {
+    schema:
+      "ari_conversation_operating_state",
+
+    schemaVersion:
+      this.schemaVersion,
+
+    source:
+      this.source,
+
+    version:
+      this.version,
+
+    authorityLevel:
+      this.authorityLevel,
+
+    createdAt:
+      new Date()
+        .toISOString(),
+
+    conversationId:
+      input.turnPacket
+        ?.conversationId ||
+      normalizedStored
+        .conversationId ||
+      intakeState.conversationId ||
+      this.createConversationId(),
+
+    turnIndex:
+      this.resolveTurnIndex({
+        summary:
+          intakeState,
         storedState:
-          normalizedStored
-      });
-
-    const immediate =
-      this.resolveImmediateHorizon(
+          normalizedStored,
         recentTurns
-      );
+      }),
 
-    const activeFrame =
-      this.buildActiveFrame({
-        summary,
-        storedState:
-          normalizedStored,
-        immediate
-      });
+    /*
+     * Immutable canonical intake authority.
+     */
+    turnPacket:
+      input.turnPacket,
 
-    const activeHorizon =
-      this.buildActiveHorizon({
-        summary,
-        storedState:
-          normalizedStored,
-        activeFrame
-      });
+    /*
+     * Continuity-facing projection.
+     * This is not a second canonical turn contract.
+     */
+    currentTurn:
+      input.currentTurn,
 
-    const historicalHorizon =
-      this.buildHistoricalHorizon({
-        summary,
-        storedState:
-          normalizedStored,
-        recentTurns,
-        activeFrame,
-        activeHorizon,
-        currentTurn:
-          input.currentTurn
-      });
+    immediateHorizon:
+      immediate,
 
-    const continuityMode =
-      this.resolveContinuityMode({
+    activeHorizon,
+
+    historicalHorizon,
+
+    activeFrame,
+
+    continuityMode,
+
+    referenceSignal,
+
+    priorContextAvailable:
+      recentTurns.length >
+      0,
+
+    referenceCandidates:
+      historicalHorizon
+        .referenceCandidates,
+
+    openLoops:
+      activeHorizon
+        .openLoops,
+
+    unresolvedItems:
+      activeHorizon
+        .unresolvedItems,
+
+    confidence:
+      this.calculateOperatingStateConfidence({
         currentTurn:
           input.currentTurn,
         immediate,
         activeFrame,
-        historicalHorizon
-      });
+        recentTurns
+      }),
 
-    const referenceSignal =
-      this.buildReferenceSignal(
-        input.currentTurn
-      );
-
-    const operatingState = {
-      schema:
-        "ari_conversation_operating_state",
-
-      schemaVersion:
-        this.schemaVersion,
-
-      source:
-        this.source,
-
-      version:
-        this.version,
-
-      authorityLevel:
-        this.authorityLevel,
-
-      createdAt:
-        new Date()
-          .toISOString(),
-
-      conversationId:
-        normalizedStored
-          .conversationId ||
-        summary.conversationId ||
-        this.createConversationId(),
-
-      turnIndex:
-        this.resolveTurnIndex({
-          summary,
-          storedState:
-            normalizedStored,
-          recentTurns
-        }),
-
-      currentTurn:
-        input.currentTurn,
-
-      immediateHorizon:
+    compactContext:
+      this.buildCompactContext({
+        currentTurn:
+          input.currentTurn,
         immediate,
+        activeFrame,
+        activeHorizon,
+        historicalHorizon,
+        continuityMode,
+        referenceSignal
+      }),
 
-      activeHorizon,
+    rawStoredState:
+      normalizedStored,
 
-      historicalHorizon,
+    authority:
+      this.getAuthorityBoundaries()
+  };
 
-      activeFrame,
-
-      continuityMode,
-
-      referenceSignal,
-
-      priorContextAvailable:
-        recentTurns.length >
-        0,
-
-      referenceCandidates:
-        historicalHorizon
-          .referenceCandidates,
-
-      openLoops:
-        activeHorizon
-          .openLoops,
-
-      unresolvedItems:
-        activeHorizon
-          .unresolvedItems,
-
-      confidence:
-        this.calculateOperatingStateConfidence({
-          currentTurn:
-            input.currentTurn,
-          immediate,
-          activeFrame,
-          recentTurns
-        }),
-
-      compactContext:
-        this.buildCompactContext({
-          currentTurn:
-            input.currentTurn,
-          immediate,
-          activeFrame,
-          activeHorizon,
-          historicalHorizon,
-          continuityMode,
-          referenceSignal
-        }),
-
-      rawStoredState:
-        normalizedStored,
-
-      authority:
-        this.getAuthorityBoundaries()
-    };
-
-    return this.attachCompatibilityAliases({
-      summary,
-      operatingState,
-      storedState:
-        normalizedStored,
-      recentTurns,
-      immediate,
-      activeFrame,
-      activeHorizon
-    });
-  },
+  return this.attachCompatibilityAliases({
+    summary:
+      intakeState,
+    operatingState,
+    storedState:
+      normalizedStored,
+    recentTurns,
+    immediate,
+    activeFrame,
+    activeHorizon
+  });
+},
 
   build(summary = {}) {
     return this.beginTurn(
@@ -283,32 +373,51 @@ window.AriConversationOperatingState = {
         activeFrame
       });
 
-    const historicalHorizon =
-      this.buildHistoricalHorizon({
-        summary,
-        storedState:
-          existing.rawStoredState ||
-          {},
-        recentTurns:
-          this.toArray(
-            existing
-              .immediateHorizon
-              ?.recentTurns
-          ),
-        activeFrame,
-        activeHorizon,
-        currentTurn:
-          existing.currentTurn ||
-          this.normalizeCurrentTurnInput(
-            summary
-          ).currentTurn
-      });
-
     const currentTurn =
-      existing.currentTurn ||
-      this.normalizeCurrentTurnInput(
-        summary
-      ).currentTurn;
+  existing.currentTurn ||
+  this.normalizeCurrentTurnInput({
+    ...summary,
+
+    turnPacket:
+      summary.turnPacket ||
+      existing.turnPacket ||
+      null
+  }).currentTurn;
+
+if (!currentTurn) {
+  return {
+    ...summary,
+
+    conversationOperatingState:
+      existing,
+
+    conversationOperatingStateRan:
+      false,
+
+    conversationOperatingStateReady:
+      false,
+
+    conversationOperatingStateError:
+      "current_turn_projection_not_available"
+  };
+}
+
+const historicalHorizon =
+  this.buildHistoricalHorizon({
+    summary,
+    storedState:
+      existing.rawStoredState ||
+      {},
+    recentTurns:
+      this.toArray(
+        existing
+          .immediateHorizon
+          ?.recentTurns
+      ),
+    activeFrame,
+    activeHorizon,
+    currentTurn
+  });
 
     const continuityMode =
       this.resolveContinuityMode({
@@ -386,19 +495,46 @@ window.AriConversationOperatingState = {
   },
 
   async completeTurn(summary = {}) {
-    const existing =
-      summary
-        .conversationOperatingState ||
-      (
-        await this.beginTurn(
-          summary
-        )
-      ).conversationOperatingState;
+  let existing =
+    summary.conversationOperatingState ||
+    null;
 
-    const finalResponse =
-      this.extractFinalResponse(
+  if (!existing) {
+    const initialized =
+      await this.beginTurn(
         summary
       );
+
+    existing =
+      initialized
+        .conversationOperatingState ||
+      null;
+
+    if (!existing) {
+      return {
+        ...initialized,
+
+        conversationOperatingStateRan:
+          false,
+
+        conversationOperatingStateReady:
+          false,
+
+        conversationOperatingStateCompletionRan:
+          false,
+
+        conversationOperatingStateCompletionError:
+          initialized
+            .conversationOperatingStateError ||
+          "conversation_operating_state_not_available"
+      };
+    }
+  }
+
+  const finalResponse =
+    this.extractFinalResponse(
+      summary
+    );
 
     const now =
       new Date()
@@ -589,72 +725,423 @@ window.AriConversationOperatingState = {
     });
   },
 
+/* =====================================================
+   TURN INTAKE
+===================================================== */
+
+async runTurnIntake({
+  summary = {},
+  storedState = {},
+  recentTurns = []
+} = {}) {
+  const intakeEngine =
+    window.AriTurnIntakeEngine ||
+    window.Ari?.turnIntakeEngine ||
+    null;
+
+  if (
+    !intakeEngine ||
+    typeof intakeEngine.run !==
+      "function"
+  ) {
+    return {
+      ...summary,
+
+      turnPacket:
+        null,
+
+      turnIntakeEngineRan:
+        false,
+
+      turnIntakeEngineReady:
+        false,
+
+      turnIntakeEngineSource:
+        "not-loaded",
+
+      turnIntakeEngineError:
+        "ari_turn_intake_engine_not_loaded"
+    };
+  }
+
+  const existingRequest =
+    this.readObject(
+      summary.request
+    ) ||
+    {};
+
+  const suppliedTurn =
+    this.readObject(
+      existingRequest.turn
+    ) ||
+    this.readObject(
+      summary.turn
+    ) ||
+    {};
+
+  const suppliedConversation =
+    this.readObject(
+      existingRequest.conversation
+    ) ||
+    this.readObject(
+      summary.conversation
+    ) ||
+    {};
+
+  const suppliedThread =
+    this.readObject(
+      existingRequest.thread
+    ) ||
+    this.readObject(
+      summary.thread
+    ) ||
+    {};
+
+  const originalMessage =
+    this.cleanText(
+      suppliedTurn.originalMessage ??
+      suppliedTurn.originalText ??
+      suppliedTurn.message ??
+      existingRequest.message ??
+      summary.originalUserMessage ??
+      summary.userMessage ??
+      summary.message ??
+      summary.input ??
+      ""
+    );
+
+  const lastTurn =
+    recentTurns.length
+      ? recentTurns[
+          recentTurns.length -
+          1
+        ]
+      : null;
+
+  const request = {
+    ...existingRequest,
+
+    turn: {
+      ...suppliedTurn,
+
+      /*
+       * Preserve externally supplied identifiers.
+       * AriTurnPacket creates a fallback ID only when
+       * none was supplied.
+       */
+      turnId:
+        suppliedTurn.turnId ||
+        summary.currentTurnId ||
+        summary.turnId ||
+        null,
+
+      timestamp:
+        suppliedTurn.timestamp ||
+        suppliedTurn.createdAt ||
+        summary.timestamp ||
+        summary.createdAt ||
+        null,
+
+      source:
+  suppliedTurn.source ||
+  existingRequest.turnSource ||
+  summary.turnSource ||
+  "user",
+
+      originalMessage
+    },
+
+    conversation: {
+      ...suppliedConversation,
+
+      conversationId:
+        suppliedConversation
+          .conversationId ||
+        storedState.conversationId ||
+        summary.conversationId ||
+        null
+    },
+
+    thread: {
+      ...suppliedThread,
+
+      threadId:
+        suppliedThread.threadId ||
+        storedState.threadId ||
+        summary.threadId ||
+        null,
+
+      previousTurn:
+        suppliedThread.previousTurn ||
+        lastTurn ||
+        null,
+
+      lastTurn:
+        suppliedThread.lastTurn ||
+        lastTurn ||
+        null,
+
+      history:
+        Array.isArray(
+          suppliedThread.history
+        )
+          ? suppliedThread.history
+          : recentTurns
+    },
+
+    metadata: {
+      ...(
+        this.readObject(
+          summary.metadata
+        ) ||
+        {}
+      ),
+
+      ...(
+        this.readObject(
+          existingRequest.metadata
+        ) ||
+        {}
+      )
+    },
+
+    message:
+      existingRequest.message ||
+      originalMessage
+  };
+
+  try {
+    const result =
+      await intakeEngine.run({
+        ...summary,
+        request
+      });
+
+    if (
+      !result ||
+      typeof result !==
+        "object" ||
+      Array.isArray(result)
+    ) {
+      return {
+        ...summary,
+
+        request,
+
+        turnPacket:
+          null,
+
+        turnIntakeEngineRan:
+          false,
+
+        turnIntakeEngineReady:
+          false,
+
+        turnIntakeEngineSource:
+          "invalid-result",
+
+        turnIntakeEngineError:
+          "ari_turn_intake_engine_invalid_result"
+      };
+    }
+
+    const validation =
+      typeof intakeEngine.validate ===
+        "function"
+        ? intakeEngine.validate(
+            result
+          )
+        : result.turnPacket
+            ?.validation ||
+          null;
+
+    const ready =
+      Boolean(
+        result.turnPacket &&
+        validation?.valid === true
+      );
+
+    return {
+      ...result,
+
+      request,
+
+      turnPacket:
+        result.turnPacket ||
+        null,
+
+      turnIntakeValidation:
+        validation,
+
+      turnIntakeEngineRan:
+        true,
+
+      turnIntakeEngineReady:
+        ready,
+
+      turnIntakeEngineSource:
+        "ari-turn-intake-engine",
+
+      turnIntakeEngineVersion:
+        intakeEngine.version ||
+        null,
+
+      turnIntakeEngineError:
+        ready
+          ? null
+          : "canonical_turn_packet_invalid"
+    };
+  } catch (error) {
+    console.error(
+      "Ari COS turn intake failed:",
+      error
+    );
+
+    return {
+      ...summary,
+
+      request,
+
+      turnPacket:
+        null,
+
+      turnIntakeEngineRan:
+        false,
+
+      turnIntakeEngineReady:
+        false,
+
+      turnIntakeEngineSource:
+        "execution-error",
+
+      turnIntakeEngineError:
+        error?.message ||
+        String(error)
+    };
+  }
+},
+
   /* =====================================================
      CURRENT TURN
   ===================================================== */
 
   normalizeCurrentTurnInput(
-    summary = {}
-  ) {
-    const originalText =
-      this.cleanText(
-        summary.originalUserMessage ||
-        summary.userMessage ||
-        summary.message ||
-        summary.input ||
-        ""
-      );
+  summary = {}
+) {
+  const turnPacket =
+    this.readObject(
+      summary.turnPacket
+    );
 
-    const turnId =
-      summary.currentTurnId ||
-      summary.turnId ||
-      this.createTurnId();
-
+  if (!turnPacket) {
     return {
-      currentTurn: {
-        schema:
-          "ari_conversation_turn",
+      turnPacket:
+        null,
 
-        schemaVersion:
-          this.schemaVersion,
+      currentTurn:
+        null
+    };
+  }
 
-        id:
-          turnId,
+  return {
+    turnPacket,
 
-        role:
-          "user",
+    currentTurn: {
+      schema:
+        "ari_conversation_turn_projection",
 
-        originalText,
+      schemaVersion:
+        this.schemaVersion,
 
-        resolvedText:
-          null,
+      /*
+       * Identity is inherited from the canonical packet.
+       * COS does not generate a separate ID.
+       */
+      id:
+        turnPacket.turnId,
 
-        effectiveText:
-          originalText,
+      turnId:
+        turnPacket.turnId,
 
-        normalizedText:
-          this.normalizeForComparison(
-            originalText
-          ),
+      role:
+        "user",
 
-        createdAt:
-          new Date()
-            .toISOString(),
+      source:
+        turnPacket.source ||
+        "user",
 
-        resolutionStatus:
-          "unresolved",
+      conversationId:
+        turnPacket.conversationId ||
+        null,
 
-        textWasRewritten:
-          false,
+      threadId:
+        turnPacket.threadId ||
+        null,
 
-        originalTextPreserved:
+      originalText:
+        turnPacket.originalMessage ||
+        "",
+
+      resolvedText:
+        null,
+
+      effectiveText:
+        turnPacket.originalMessage ||
+        "",
+
+      normalizedText:
+        turnPacket.normalizedMessage ||
+        this.normalizeForComparison(
+          turnPacket.originalMessage ||
+          ""
+        ),
+
+      createdAt:
+        turnPacket.timestamp ||
+        null,
+
+      previousTurnAvailable:
+        turnPacket
+          .previousTurnAvailable ===
+        true,
+
+      resolutionStatus:
+        "unresolved",
+
+      textWasRewritten:
+        false,
+
+      originalTextPreserved:
+        true,
+
+      authority: {
+        owner:
+          "ari-conversation-operating-state",
+
+        sourceAuthority:
+          "ari-turn-packet",
+
+        projection:
           true,
 
-        authority:
-          "current_turn_input_only"
+        canonical:
+          false,
+
+        canPreserveOriginalText:
+          true,
+
+        canReceiveResolvedText:
+          true,
+
+        canReplaceTurnPacket:
+          false,
+
+        role:
+          "continuity_facing_projection_of_canonical_turn_packet"
       }
-    };
-  },
+    }
+  };
+},
 
   resolveTurnIndex({
     summary = {},
@@ -3433,6 +3920,74 @@ window.AriConversationOperatingState = {
     return {
       ...summary,
 
+turnPacket:
+  operatingState.turnPacket ||
+  summary.turnPacket ||
+  null,
+
+currentTurn:
+  operatingState.currentTurn ||
+  null,
+
+currentTurnId:
+  operatingState.currentTurn
+    ?.turnId ||
+  operatingState.turnPacket
+    ?.turnId ||
+  null,
+
+originalUserMessage:
+  operatingState.turnPacket
+    ?.originalMessage ||
+  summary.originalUserMessage ||
+  summary.userMessage ||
+  summary.message ||
+  summary.input ||
+  "",
+
+userMessage:
+  operatingState.currentTurn
+    ?.effectiveText ||
+  operatingState.turnPacket
+    ?.originalMessage ||
+  summary.userMessage ||
+  summary.message ||
+  summary.input ||
+  "",
+
+effectiveUserMessage:
+  operatingState.currentTurn
+    ?.effectiveText ||
+  operatingState.turnPacket
+    ?.originalMessage ||
+  "",
+
+turnIntakeEngineRan:
+  summary.turnIntakeEngineRan ===
+  true,
+
+turnIntakeEngineReady:
+  summary.turnIntakeEngineReady ===
+  true,
+
+turnIntakeEngineSource:
+  summary.turnIntakeEngineSource ||
+  null,
+
+turnIntakeEngineVersion:
+  summary.turnIntakeEngineVersion ||
+  null,
+
+turnIntakeEngineError:
+  summary.turnIntakeEngineError ||
+  null,
+
+turnIntakeValidation:
+  summary.turnIntakeValidation ||
+  operatingState.turnPacket
+    ?.validation ||
+  null,
+
       conversationOperatingState:
         operatingState,
 
@@ -3645,6 +4200,22 @@ window.AriConversationOperatingState = {
 
   getAuthorityBoundaries() {
     return {
+      
+      canCoordinateTurnIntake:
+  true,
+
+canConsumeCanonicalTurnPacket:
+  true,
+
+canProjectTurnForContinuity:
+  true,
+
+canCreateCanonicalTurnPacket:
+  false,
+
+canGenerateCanonicalTurnId:
+  false,
+  
       canLoadThreadState:
         true,
 
@@ -3736,6 +4307,8 @@ window.AriConversationOperatingState = {
       this.getAuthorityBoundaries();
 
     const forbiddenTrue = [
+      "canCreateCanonicalTurnPacket",
+"canGenerateCanonicalTurnId",
       "canRewriteCurrentTurn",
       "canResolveEllipticalFollowUp",
       "canBindEntityReference",
@@ -3799,6 +4372,31 @@ window.AriConversationOperatingState = {
         originalTurnPreserved:
           true,
 
+ turnIntakeCoordinationEnabled:
+  authority
+    .canCoordinateTurnIntake ===
+  true,
+
+canonicalTurnPacketConsumptionEnabled:
+  authority
+    .canConsumeCanonicalTurnPacket ===
+  true,
+
+continuityTurnProjectionEnabled:
+  authority
+    .canProjectTurnForContinuity ===
+  true,
+
+canonicalTurnCreationSeparated:
+  authority
+    .canCreateCanonicalTurnPacket ===
+  false,
+
+canonicalTurnIdGenerationSeparated:
+  authority
+    .canGenerateCanonicalTurnId ===
+  false,
+
         referenceSignalDetectionEnabled:
           authority
             .canDetectReferenceSignal ===
@@ -3850,21 +4448,10 @@ window.AriConversationOperatingState = {
   /* =====================================================
      UTILITIES
   ===================================================== */
-
+  
   createConversationId() {
     return [
       "conversation",
-      Date.now()
-        .toString(36),
-      Math.random()
-        .toString(36)
-        .slice(2, 8)
-    ].join("_");
-  },
-
-  createTurnId() {
-    return [
-      "turn",
       Date.now()
         .toString(36),
       Math.random()
@@ -4104,6 +4691,17 @@ window.AriConversationOperatingState = {
     ) /
     1000;
   },
+
+readObject(value) {
+  return (
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(value)
+  )
+    ? value
+    : null;
+},
 
   toArray(
     value
