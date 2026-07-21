@@ -359,7 +359,7 @@ window.AriRebirthPipeline = {
           summary
         });
 
-      if (
+            if (
         stopDecision.stop ===
         true
       ) {
@@ -375,6 +375,51 @@ window.AriRebirthPipeline = {
           pipelineStopLayer:
             layer.name
         };
+
+        continue;
+      }
+
+      /*
+       * The authoritative conversation relationship and
+       * reference-resolution engines run after Perception
+       * and before Executive Routing.
+       */
+      if (
+        layer.name ===
+        "perception"
+      ) {
+        mark(
+          "before conversation context authorities"
+        );
+
+        summary =
+          await this.runConversationContextAuthorities(
+            summary
+          );
+
+        mark(
+          "after conversation context authorities"
+        );
+
+        if (
+          summary.conversationContextAuthoritiesReady !==
+          true
+        ) {
+          summary = {
+            ...summary,
+
+            pipelineStopped:
+              true,
+
+            pipelineStopReason:
+              summary
+                .conversationContextAuthoritiesError ||
+              "conversation_context_authorities_not_ready",
+
+            pipelineStopLayer:
+              "conversationContext"
+          };
+        }
       }
     }
 
@@ -745,6 +790,81 @@ window.AriRebirthPipeline = {
         null,
 
       deliberationPacket:
+        null,
+
+      turnClassificationPacket:
+        null,
+
+      conversationRelationship:
+        null,
+
+      conversationRelationshipConfidence:
+        0,
+
+      conversationRelationshipEngineRan:
+        false,
+
+      conversationRelationshipEngineReady:
+        false,
+
+      conversationRelationshipEngineSource:
+        null,
+
+      conversationRelationshipEngineVersion:
+        null,
+
+      referencePacket:
+        null,
+
+      referenceResolution:
+        null,
+
+      resolvedReferences:
+        [],
+
+      unresolvedReferences:
+        [],
+
+      activeReference:
+        null,
+
+      resolvedSemanticStructure:
+        null,
+
+      conversationContext:
+        null,
+
+      compactConversationContext:
+        null,
+
+      referenceResolutionEngineRan:
+        false,
+
+      referenceResolutionEngineReady:
+        false,
+
+      referenceResolutionEngineSource:
+        null,
+
+      referenceResolutionEngineVersion:
+        null,
+
+      conversationContextAttachmentRan:
+        false,
+
+      conversationContextAttachmentReady:
+        false,
+
+      conversationContextAttachmentError:
+        null,
+
+      conversationContextAuthoritiesRan:
+        false,
+
+      conversationContextAuthoritiesReady:
+        false,
+
+      conversationContextAuthoritiesError:
         null,
 
 deliberationDebugTrace:
@@ -1282,6 +1402,350 @@ deliberationPipelineVersion:
           )
       };
     }
+  },
+
+  /* =====================================================
+     CONVERSATION CONTEXT AUTHORITIES
+  ===================================================== */
+
+  getConversationRelationshipEngine() {
+    return (
+      window.AriConversationRelationshipEngine ||
+      window.Ari?.conversationRelationshipEngine ||
+      null
+    );
+  },
+
+  getReferenceResolutionEngine() {
+    return (
+      window.AriEntityReferenceResolver ||
+      window.AriReferenceResolutionEngine ||
+      window.Ari?.entityReferenceResolver ||
+      window.Ari?.referenceResolutionEngine ||
+      null
+    );
+  },
+
+  async runConversationContextAuthorities(
+    summary = {}
+  ) {
+    const relationshipEngine =
+      this.getConversationRelationshipEngine();
+
+    if (!relationshipEngine) {
+      return {
+        ...summary,
+
+        conversationRelationshipEngineRan:
+          false,
+
+        conversationRelationshipEngineReady:
+          false,
+
+        conversationContextAuthoritiesRan:
+          false,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+        conversationContextAuthoritiesError:
+          "conversation_relationship_engine_not_loaded"
+      };
+    }
+
+    const relationshipResult =
+      await this.runEngine({
+        engine:
+          relationshipEngine,
+
+        methods: [
+          "run",
+          "classify",
+          "build"
+        ],
+
+        fallback: {
+          conversationRelationshipEngineRan:
+            false,
+
+          conversationRelationshipEngineReady:
+            false
+        },
+
+        inputState:
+          summary
+      });
+
+    let state = {
+      ...summary,
+      ...relationshipResult
+    };
+
+        const relationshipInvocationSucceeded =
+      relationshipResult
+        .engineInvocationDiagnostic
+        ?.succeeded ===
+      true;
+
+    const turnClassificationPacket =
+      relationshipResult
+        .turnClassificationPacket ||
+      relationshipResult.packet ||
+      null;
+
+    if (
+      !relationshipInvocationSucceeded ||
+      !turnClassificationPacket
+    ) {
+      return {
+        ...state,
+
+        conversationRelationshipEngineRan:
+          true,
+
+        conversationRelationshipEngineReady:
+          false,
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+                conversationContextAuthoritiesError:
+          relationshipInvocationSucceeded
+            ? "turn_classification_packet_missing"
+            : relationshipResult
+                .engineInvocationDiagnostic
+                ?.failureType ||
+              "conversation_relationship_engine_failed"
+      };
+    }
+
+    state = {
+      ...state,
+
+      turnClassificationPacket,
+
+      conversationRelationshipEngineRan:
+        true,
+
+      conversationRelationshipEngineReady:
+        true,
+
+      conversationRelationshipEngineSource:
+        relationshipEngine.source ||
+        "ari-conversation-relationship-engine",
+
+      conversationRelationshipEngineVersion:
+        relationshipEngine.version ||
+        null
+    };
+
+    const referenceEngine =
+      this.getReferenceResolutionEngine();
+
+    if (!referenceEngine) {
+      return {
+        ...state,
+
+        referenceResolutionEngineRan:
+          false,
+
+        referenceResolutionEngineReady:
+          false,
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+        conversationContextAuthoritiesError:
+          "reference_resolution_engine_not_loaded"
+      };
+    }
+
+    const referenceResult =
+      await this.runEngine({
+        engine:
+          referenceEngine,
+
+        methods: [
+          "run",
+          "resolve",
+          "build"
+        ],
+
+        fallback: {
+          referenceResolutionEngineRan:
+            false,
+
+          referenceResolutionEngineReady:
+            false
+        },
+
+        inputState:
+          state
+      });
+
+    state = {
+      ...state,
+      ...referenceResult
+    };
+
+        const referenceInvocationSucceeded =
+      referenceResult
+        .engineInvocationDiagnostic
+        ?.succeeded ===
+      true;
+
+    const referencePacket =
+      referenceResult.referencePacket ||
+      referenceResult.packet ||
+      null;
+
+    if (
+      !referenceInvocationSucceeded ||
+      !referencePacket
+    ) {
+      return {
+        ...state,
+
+        referenceResolutionEngineRan:
+          true,
+
+        referenceResolutionEngineReady:
+          false,
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+                conversationContextAuthoritiesError:
+          referenceInvocationSucceeded
+            ? "reference_packet_missing"
+            : referenceResult
+                .engineInvocationDiagnostic
+                ?.failureType ||
+              "reference_resolution_engine_failed"
+      };
+    }
+
+    state = {
+      ...state,
+
+      referencePacket,
+
+      referenceResolution:
+        state.referenceResolution ||
+        referenceResult
+          .referenceResolution ||
+        referenceResult.result ||
+        null,
+
+      resolvedSemanticStructure:
+        state.resolvedSemanticStructure ||
+        referenceResult
+          .resolvedSemanticStructure ||
+        state.currentSemanticStructure ||
+        null,
+
+      referenceResolutionEngineRan:
+        true,
+
+      referenceResolutionEngineReady:
+        true,
+
+      referenceResolutionEngineSource:
+        referenceEngine.source ||
+        "ari-reference-resolution-engine",
+
+      referenceResolutionEngineVersion:
+        referenceEngine.version ||
+        null
+    };
+
+    const operatingState =
+      this.getConversationOperatingState();
+
+    if (
+      !operatingState ||
+      typeof operatingState
+        .attachConversationContext !==
+        "function"
+    ) {
+      return {
+        ...state,
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+        conversationContextAuthoritiesError:
+          "conversation_context_attachment_not_available"
+      };
+    }
+
+    const attached =
+      operatingState.attachConversationContext(
+        state
+      );
+
+    if (
+      !attached ||
+      typeof attached !==
+        "object" ||
+      attached
+        .conversationContextAttachmentReady !==
+        true
+    ) {
+      return {
+        ...state,
+        ...(
+          attached &&
+          typeof attached ===
+            "object"
+            ? attached
+            : {}
+        ),
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+        conversationContextAuthoritiesError:
+          attached
+            ?.conversationContextAttachmentError ||
+          "conversation_context_attachment_failed"
+      };
+    }
+
+    return {
+      ...state,
+      ...attached,
+
+      conversationContextAuthoritiesRan:
+        true,
+
+      conversationContextAuthoritiesReady:
+        true,
+
+      conversationContextAuthoritiesSource:
+        this.source,
+
+      conversationContextAuthoritiesVersion:
+        this.version,
+
+      conversationContextAuthoritiesError:
+        null
+    };
   },
 
   /* =====================================================
@@ -4522,10 +4986,69 @@ console.log(
 
         this.getConversationOperatingState(),
 
-        component =>
+                component =>
           typeof component?.beginTurn ===
             "function" &&
+          typeof component
+            ?.attachConversationContext ===
+            "function" &&
           typeof component?.completeTurn ===
+            "function"
+      ],
+
+      [
+        "AriTurnClassificationPacket",
+
+        (
+          window.AriTurnClassificationPacket ||
+          window.Ari?.turnClassificationPacket ||
+          null
+        ),
+
+        component =>
+          typeof component?.validate ===
+            "function"
+      ],
+
+      [
+        "AriConversationRelationshipEngine",
+
+        this.getConversationRelationshipEngine(),
+
+        component =>
+          typeof component?.run ===
+            "function" ||
+          typeof component?.classify ===
+            "function" ||
+          typeof component?.build ===
+            "function"
+      ],
+
+      [
+        "AriReferencePacket",
+
+        (
+          window.AriReferencePacket ||
+          window.Ari?.referencePacket ||
+          null
+        ),
+
+        component =>
+          typeof component?.validate ===
+            "function"
+      ],
+
+      [
+        "AriEntityReferenceResolver",
+
+        this.getReferenceResolutionEngine(),
+
+        component =>
+          typeof component?.run ===
+            "function" ||
+          typeof component?.resolve ===
+            "function" ||
+          typeof component?.build ===
             "function"
       ],
 
