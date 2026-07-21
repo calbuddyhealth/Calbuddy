@@ -4,7 +4,7 @@
 // Purpose:
 // Build the canonical Turn Packet from the Runtime Request.
 //
-// V1.1.0 — Canonical Turn Intake Delegation
+// V1.2.0 — Canonical Turn Intake Authority
 //
 // Architectural Flow:
 //
@@ -21,59 +21,69 @@
 // Responsibilities:
 // - Read the canonical Runtime Request.
 // - Extract current-turn information.
-// - Preserve request metadata.
 // - Detect previous-thread availability.
+// - Preserve request metadata.
 // - Delegate Turn Packet creation.
-// - Attach the Turn Packet to the runtime envelope.
+// - Attach the Turn Packet to the runtime.
+// - Validate the produced packet.
 //
 // Non-responsibilities:
-// - Does not define the Turn Packet schema.
-// - Does not generate Turn IDs.
+// - Does not define Turn Packet schema.
 // - Does not normalize text.
-// - Does not validate Turn Packets.
+// - Does not generate Turn IDs.
 // - Does not interpret semantic meaning.
 // - Does not classify conversation.
-// - Does not determine routing.
-// - Does not resolve continuity.
 // - Does not retrieve memory.
+// - Does not resolve references.
+// - Does not perform routing.
 // - Does not answer users.
-// - Does not execute downstream pipelines.
 
 window.Ari = window.Ari || {};
 
 window.AriTurnIntakeEngine = {
-  version: "1.1.0",
+  version: "1.2.0",
   schemaVersion: "1.0.0",
 
-  run(runtimeRequest = {}) {
+  run(runtime = {}) {
+
+    if (
+      !window.AriTurnPacket ||
+      typeof window.AriTurnPacket.create !== "function"
+    ) {
+
+      return {
+        ...runtime,
+
+        errors: [
+          "ari_turn_packet_unavailable"
+        ]
+      };
+
+    }
+
     const request =
-      runtimeRequest?.request ||
-      runtimeRequest;
+      runtime.request ||
+      runtime;
 
     const turn =
-      request?.turn ||
+      request.turn ||
       {};
 
     const conversation =
-      request?.conversation ||
+      request.conversation ||
       {};
 
     const thread =
-      request?.thread ||
+      request.thread ||
       {};
 
     const metadata =
-      request?.metadata ||
+      request.metadata ||
       {};
-
-    const originalMessage =
-      turn.originalMessage ??
-      turn.message ??
-      request.message ??
-      "";
 
     const turnPacket =
       window.AriTurnPacket.create({
+
         turnId:
           turn.turnId,
 
@@ -89,45 +99,82 @@ window.AriTurnIntakeEngine = {
         threadId:
           thread.threadId,
 
-        originalMessage,
+        originalMessage:
+          turn.originalMessage ??
+          turn.message ??
+          request.message ??
+          "",
 
         previousTurnAvailable:
           Boolean(
+
             thread.previousTurn ||
+
             thread.lastTurn ||
+
             thread.history?.length
+
           ),
 
         metadata
+
       });
 
     return {
-      ...runtimeRequest,
 
-      turnPacket
+      ...runtime,
+
+      turnPacket,
+
+      diagnostics: {
+
+        ...(runtime.diagnostics || {}),
+
+        turnIntake: {
+
+          complete: true,
+
+          valid:
+            turnPacket.validation.valid,
+
+          turnId:
+            turnPacket.turnId
+
+        }
+
+      }
+
     };
+
   },
 
-  validate(runtimeResult = {}) {
-    const turnPacket =
-      runtimeResult?.turnPacket;
+  validate(runtime = {}) {
 
     if (
       !window.AriTurnPacket ||
       typeof window.AriTurnPacket.validate !== "function"
     ) {
+
       return {
+
         valid: false,
+
         errors: [
           "ari_turn_packet_unavailable"
-        ]
+        ],
+
+        warnings: []
+
       };
+
     }
 
     return window.AriTurnPacket.validate(
-      turnPacket
+      runtime.turnPacket
     );
+
   }
+
 };
 
 window.Ari.turnIntakeEngine =
