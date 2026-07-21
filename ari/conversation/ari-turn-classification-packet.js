@@ -5,7 +5,7 @@
 // Define the canonical packet produced by the Conversation
 // Relationship Engine.
 //
-// V1.0.0 — Canonical Turn Classification Contract
+// V1.1.0 — Canonical Turn Classification Contract
 //
 // Architectural Flow:
 //
@@ -21,6 +21,7 @@
 // - Define the canonical Turn Classification Packet.
 // - Normalize classification results.
 // - Validate packet completeness.
+// - Preserve packet immutability.
 // - Preserve authority ownership.
 //
 // Non-responsibilities:
@@ -33,7 +34,9 @@
 window.Ari = window.Ari || {};
 
 window.AriTurnClassificationPacket = {
-  version: "1.0.0",
+
+  version: "1.1.0",
+  schema: "ari_turn_classification_packet",
   schemaVersion: "1.0.0",
 
   create(input = {}) {
@@ -41,7 +44,7 @@ window.AriTurnClassificationPacket = {
     const packet = {
 
       schema:
-        "ari_turn_classification_packet",
+        this.schema,
 
       schemaVersion:
         this.schemaVersion,
@@ -56,8 +59,10 @@ window.AriTurnClassificationPacket = {
         ),
 
       evidence:
-        this.normalizeArray(
-          input.evidence
+        Object.freeze(
+          this.normalizeArray(
+            input.evidence
+          )
         ),
 
       matchedRule:
@@ -65,8 +70,10 @@ window.AriTurnClassificationPacket = {
         null,
 
       diagnostics:
-        this.normalizeArray(
-          input.diagnostics
+        Object.freeze(
+          this.normalizeArray(
+            input.diagnostics
+          )
         ),
 
       previousTurnAvailable:
@@ -74,19 +81,26 @@ window.AriTurnClassificationPacket = {
           input.previousTurnAvailable
         ),
 
-      authority: {
+      authority:
+        Object.freeze({
 
-        owner:
-          "ari-conversation-relationship-engine",
+          owner:
+            "ari-conversation-relationship-engine",
 
-        canonical: true
+          canonical: true,
 
-      }
+          createdBy:
+            "AriTurnClassificationPacket"
+
+        })
 
     };
 
-    packet.validation =
+    const validation =
       this.validate(packet);
+
+    packet.validation =
+      Object.freeze(validation);
 
     return Object.freeze(packet);
 
@@ -97,19 +111,38 @@ window.AriTurnClassificationPacket = {
     const errors = [];
     const warnings = [];
 
-    if (!packet.schema)
+    if (!packet.schema) {
+
       errors.push(
         "missing_schema"
       );
 
-    if (!packet.schemaVersion)
+    }
+
+    if (!packet.schemaVersion) {
+
       errors.push(
         "missing_schema_version"
       );
 
+    }
+
     if (
-      !window.AriConversationRelationshipTypes
-        .isValid(packet.relationship)
+      !window.AriConversationRelationshipTypes ||
+      typeof window.AriConversationRelationshipTypes.isValid !==
+      "function"
+    ) {
+
+      errors.push(
+        "relationship_registry_unavailable"
+      );
+
+    }
+
+    else if (
+      !window.AriConversationRelationshipTypes.isValid(
+        packet.relationship
+      )
     ) {
 
       errors.push(
@@ -134,17 +167,17 @@ window.AriTurnClassificationPacket = {
       valid:
         errors.length === 0,
 
-      errors,
+      errors:
+        Object.freeze(errors),
 
-      warnings
+      warnings:
+        Object.freeze(warnings)
 
     };
 
   },
 
-  normalizeConfidence(
-    value
-  ) {
+  normalizeConfidence(value) {
 
     const confidence =
       Number(value);
@@ -152,24 +185,29 @@ window.AriTurnClassificationPacket = {
     if (
       Number.isNaN(confidence)
     ) {
+
       return 0;
+
     }
 
     return Math.max(
       0,
-      Math.min(1, confidence)
+      Math.min(
+        1,
+        confidence
+      )
     );
 
   },
 
-  normalizeArray(
-    value
-  ) {
+  normalizeArray(value) {
 
     if (
       !Array.isArray(value)
     ) {
+
       return [];
+
     }
 
     return [...value];
