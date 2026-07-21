@@ -4,7 +4,7 @@
 // Purpose:
 // Execute the canonical conversation relationship rule set.
 //
-// V2.0.0 — Rule Registry Architecture
+// V3.0.0 — Registry-Driven Rule Evaluator
 //
 // Architectural Flow:
 //
@@ -12,7 +12,9 @@
 //        ↓
 // Conversation Relationship Rules
 //        ↓
-// Registered Rule Set
+// Conversation Rule Registry
+//        ↓
+// Registered Rules
 //        ↓
 // Relationship Result
 //        ↓
@@ -20,12 +22,13 @@
 //
 // Responsibilities:
 // - Execute registered relationship rules.
-// - Preserve deterministic evaluation.
-// - Return the first authoritative match.
+// - Preserve deterministic evaluation order.
+// - Return the highest-priority authoritative match.
 // - Produce canonical relationship results.
 // - Preserve evaluation diagnostics.
 //
 // Non-responsibilities:
+// - Does not own the rule registry.
 // - Does not interpret semantic meaning.
 // - Does not retrieve memory.
 // - Does not perform routing.
@@ -35,44 +38,134 @@
 window.Ari = window.Ari || {};
 
 window.AriConversationRelationshipRules = {
-  version: "2.0.0",
+
+  version: "3.0.0",
 
   evaluate(input = {}) {
 
     const context =
       this.buildContext(input);
 
+    const registry =
+      window.AriConversationRuleRegistry;
+
+    if (
+      !registry ||
+      typeof registry.getRules !== "function"
+    ) {
+
+      return this.errorResult(
+        "conversation_rule_registry_missing"
+      );
+
+    }
+
     const rules =
-      this.getRules();
+      registry.getRules();
 
     const diagnostics = [];
 
     for (const rule of rules) {
 
-      const result =
-        rule.evaluate(context);
+      const started =
+        performance.now();
+
+      let result = null;
+
+      try {
+
+        result =
+          rule.evaluate(context);
+
+      }
+
+      catch (error) {
+
+        diagnostics.push({
+
+          id:
+            rule.id,
+
+          priority:
+            rule.priority,
+
+          matched: false,
+
+          confidence: 0,
+
+          elapsedMs:
+            performance.now() - started,
+
+          error:
+            error?.message ||
+            "rule_execution_failed"
+
+        });
+
+        continue;
+
+      }
 
       diagnostics.push({
-        id: rule.id,
-        matched: Boolean(result)
+
+        id:
+          rule.id,
+
+        priority:
+          rule.priority,
+
+        matched:
+          Boolean(result?.matched),
+
+        confidence:
+          result?.confidence ?? 0,
+
+        elapsedMs:
+          performance.now() - started
+
       });
 
-      if (result) {
+      if (
+        result?.matched === true
+      ) {
 
         return {
-          ...result,
 
-          diagnostics,
+          relationship:
+            result.relationship,
+
+          confidence:
+            result.confidence ?? 1,
+
+          evidence:
+            result.evidence || [],
 
           matchedRule:
-            rule.id
+            rule.id,
+
+          diagnostics
+
         };
 
       }
 
     }
 
-    return this.defaultResult(diagnostics);
+    if (
+      typeof registry.defaultResult ===
+      "function"
+    ) {
+
+      return registry.defaultResult(
+        diagnostics
+      );
+
+    }
+
+    return this.errorResult(
+      "registry_default_result_missing",
+      diagnostics
+    );
 
   },
 
@@ -102,31 +195,8 @@ window.AriConversationRelationshipRules = {
 
   },
 
-  getRules() {
-
-    return [
-
-      window.AriConversationRelationshipRule_FirstTurn,
-
-      window.AriConversationRelationshipRule_Elliptical,
-
-      window.AriConversationRelationshipRule_Correction,
-
-      window.AriConversationRelationshipRule_Clarification,
-
-      window.AriConversationRelationshipRule_Confirmation,
-
-      window.AriConversationRelationshipRule_Negation,
-
-      window.AriConversationRelationshipRule_Acknowledgement,
-
-      window.AriConversationRelationshipRule_Default
-
-    ].filter(Boolean);
-
-  },
-
-  defaultResult(
+  errorResult(
+    code,
     diagnostics = []
   ) {
 
@@ -139,9 +209,11 @@ window.AriConversationRelationshipRules = {
 
       evidence: [],
 
+      matchedRule: null,
+
       diagnostics,
 
-      matchedRule: null
+      error: code
 
     };
 
