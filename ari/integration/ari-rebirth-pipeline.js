@@ -62,8 +62,8 @@
 window.Ari = window.Ari || {};
 
 window.AriRebirthPipeline = {
-  version: "7.4.0",
-  schemaVersion: "7.4.0",
+  version: "7.5.0",
+  schemaVersion: "7.5.0",
   source: "ari-rebirth-pipeline",
   authorityLevel:
     "canonical_five_layer_openai_cognitive_contract_authority",
@@ -1426,7 +1426,7 @@ deliberationPipelineVersion:
     );
   },
 
-  async runConversationContextAuthorities(
+    async runConversationContextAuthorities(
     summary = {}
   ) {
     const relationshipEngine =
@@ -1453,6 +1453,93 @@ deliberationPipelineVersion:
       };
     }
 
+    /*
+     * Compatibility projection:
+     * The canonical runtime stores the current turn as `turn`.
+     * The Conversation Relationship Engine currently reads
+     * `turnPacket`.
+     */
+        const canonicalTurn =
+      summary.turn &&
+      typeof summary.turn ===
+        "object"
+        ? summary.turn
+        : {};
+
+    const existingTurnPacket =
+      summary.turnPacket &&
+      typeof summary.turnPacket ===
+        "object"
+        ? summary.turnPacket
+        : {};
+
+    const relationshipInputState = {
+      ...summary,
+
+      turnPacket: {
+        ...canonicalTurn,
+        ...existingTurnPacket,
+
+        turnId:
+          existingTurnPacket.turnId ||
+          canonicalTurn.turnId ||
+          summary.currentTurnId ||
+          summary.turnId ||
+          null,
+
+        normalizedMessage:
+          existingTurnPacket.normalizedMessage ||
+          existingTurnPacket.normalizedText ||
+          canonicalTurn.normalizedMessage ||
+          canonicalTurn.normalizedText ||
+          summary.normalizedMessage ||
+          "",
+
+        originalMessage:
+          existingTurnPacket.originalMessage ||
+          existingTurnPacket.originalText ||
+          canonicalTurn.originalMessage ||
+          canonicalTurn.originalText ||
+          summary.originalUserMessage ||
+          summary.userMessage ||
+          "",
+
+        currentMessage:
+          existingTurnPacket.currentMessage ||
+          existingTurnPacket.currentText ||
+          canonicalTurn.currentMessage ||
+          canonicalTurn.currentText ||
+          summary.currentTurnText ||
+          summary.userMessage ||
+          "",
+
+        effectiveMessage:
+          existingTurnPacket.effectiveMessage ||
+          existingTurnPacket.effectiveText ||
+          canonicalTurn.effectiveMessage ||
+          canonicalTurn.effectiveText ||
+          summary.semanticInputText ||
+          summary.currentTurnText ||
+          summary.userMessage ||
+          "",
+
+        previousTurnAvailable:
+          existingTurnPacket.previousTurnAvailable ===
+            true ||
+          canonicalTurn.previousTurnAvailable ===
+            true ||
+          summary.previousTurnAvailable ===
+            true ||
+          summary.threadContext
+            ?.previousTurnAvailable ===
+            true ||
+          Boolean(
+            summary.threadContext
+              ?.previousTurn
+          )
+      }
+    };
+
     const relationshipResult =
       await this.runEngine({
         engine:
@@ -1473,7 +1560,7 @@ deliberationPipelineVersion:
         },
 
         inputState:
-          summary
+          relationshipInputState
       });
 
     let state = {
@@ -1481,11 +1568,55 @@ deliberationPipelineVersion:
       ...relationshipResult
     };
 
-        const relationshipInvocationSucceeded =
+    const relationshipInvocationDiagnostic =
       relationshipResult
-        .engineInvocationDiagnostic
+        .engineInvocationDiagnostic ||
+      null;
+
+    const relationshipInvocationSucceeded =
+      relationshipInvocationDiagnostic
         ?.succeeded ===
       true;
+
+    const relationshipStageDiagnostic =
+      relationshipResult
+        .diagnostics
+        ?.conversationRelationship ||
+      null;
+
+        const relationshipErrors =
+      this.toArray(
+        relationshipResult.errors
+      ).filter(
+        error => {
+          const value =
+            typeof error ===
+              "string"
+              ? error
+              : (
+                  error?.type ||
+                  error?.error ||
+                  error?.message ||
+                  ""
+                );
+
+          return (
+            value.startsWith(
+              "conversation_relationship_"
+            ) ||
+            value.startsWith(
+              "turn_classification_packet_"
+            )
+          );
+        }
+      );
+
+        const relationshipExecutionFailed =
+      relationshipStageDiagnostic
+        ?.complete ===
+        false ||
+      relationshipErrors.length >
+        0;
 
     const turnClassificationPacket =
       relationshipResult
@@ -1495,16 +1626,61 @@ deliberationPipelineVersion:
 
     if (
       !relationshipInvocationSucceeded ||
+            relationshipExecutionFailed ||
       !turnClassificationPacket
     ) {
+      const relationshipFailureReason =
+        relationshipInvocationSucceeded !==
+        true
+          ? (
+              relationshipInvocationDiagnostic
+                ?.failureType ||
+              "conversation_relationship_engine_failed"
+            )
+          : (
+              relationshipStageDiagnostic
+                ?.error ||
+              relationshipErrors[0] ||
+              (
+                !turnClassificationPacket
+                  ? "turn_classification_packet_missing"
+                  : "conversation_relationship_engine_not_ready"
+              )
+            );
+
       return {
         ...state,
 
         conversationRelationshipEngineRan:
+          relationshipInvocationDiagnostic
+            ?.attempted ===
           true,
 
         conversationRelationshipEngineReady:
           false,
+
+        conversationRelationshipEngineSource:
+          relationshipEngine.source ||
+          "ari-conversation-relationship-engine",
+
+        conversationRelationshipEngineVersion:
+          relationshipEngine.version ||
+          null,
+
+        conversationRelationshipEngineError:
+          relationshipFailureReason,
+
+        conversationRelationshipEngineDiagnostic:
+          {
+            invocation:
+              relationshipInvocationDiagnostic,
+
+            stage:
+              relationshipStageDiagnostic,
+
+            errors:
+              relationshipErrors
+          },
 
         conversationContextAuthoritiesRan:
           true,
@@ -1512,13 +1688,8 @@ deliberationPipelineVersion:
         conversationContextAuthoritiesReady:
           false,
 
-                conversationContextAuthoritiesError:
-          relationshipInvocationSucceeded
-            ? "turn_classification_packet_missing"
-            : relationshipResult
-                .engineInvocationDiagnostic
-                ?.failureType ||
-              "conversation_relationship_engine_failed"
+        conversationContextAuthoritiesError:
+          relationshipFailureReason
       };
     }
 
@@ -1527,11 +1698,24 @@ deliberationPipelineVersion:
 
       turnClassificationPacket,
 
+      conversationRelationship:
+        turnClassificationPacket.relationship ||
+        null,
+
+      conversationRelationshipConfidence:
+        Number(
+          turnClassificationPacket.confidence ||
+          0
+        ),
+
       conversationRelationshipEngineRan:
         true,
 
       conversationRelationshipEngineReady:
-        true,
+        turnClassificationPacket
+          ?.validation
+          ?.valid !==
+        false,
 
       conversationRelationshipEngineSource:
         relationshipEngine.source ||
@@ -1539,8 +1723,50 @@ deliberationPipelineVersion:
 
       conversationRelationshipEngineVersion:
         relationshipEngine.version ||
-        null
+        null,
+
+      conversationRelationshipEngineError:
+        null,
+
+      conversationRelationshipEngineDiagnostic:
+        {
+          invocation:
+            relationshipInvocationDiagnostic,
+
+          stage:
+            relationshipStageDiagnostic,
+
+          validation:
+            turnClassificationPacket
+              ?.validation ||
+            null
+        }
     };
+
+    if (
+      state
+        .conversationRelationshipEngineReady !==
+      true
+    ) {
+      const packetValidationError =
+        turnClassificationPacket
+          ?.validation
+          ?.errors?.[0] ||
+        "turn_classification_packet_invalid";
+
+      return {
+        ...state,
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+        conversationContextAuthoritiesError:
+          packetValidationError
+      };
+    }
 
     const referenceEngine =
       this.getReferenceResolutionEngine();
@@ -1594,11 +1820,20 @@ deliberationPipelineVersion:
       ...referenceResult
     };
 
-        const referenceInvocationSucceeded =
+    const referenceInvocationDiagnostic =
       referenceResult
-        .engineInvocationDiagnostic
+        .engineInvocationDiagnostic ||
+      null;
+
+    const referenceInvocationSucceeded =
+      referenceInvocationDiagnostic
         ?.succeeded ===
       true;
+
+    const referenceErrors =
+      this.toArray(
+        referenceResult.errors
+      );
 
     const referencePacket =
       referenceResult.referencePacket ||
@@ -1607,16 +1842,45 @@ deliberationPipelineVersion:
 
     if (
       !referenceInvocationSucceeded ||
+      referenceErrors.length >
+        0 ||
       !referencePacket
     ) {
+      const referenceFailureReason =
+        referenceInvocationSucceeded !==
+        true
+          ? (
+              referenceInvocationDiagnostic
+                ?.failureType ||
+              "reference_resolution_engine_failed"
+            )
+          : (
+              referenceErrors[0] ||
+              "reference_packet_missing"
+            );
+
       return {
         ...state,
 
         referenceResolutionEngineRan:
+          referenceInvocationDiagnostic
+            ?.attempted ===
           true,
 
         referenceResolutionEngineReady:
           false,
+
+        referenceResolutionEngineError:
+          referenceFailureReason,
+
+        referenceResolutionEngineDiagnostic:
+          {
+            invocation:
+              referenceInvocationDiagnostic,
+
+            errors:
+              referenceErrors
+          },
 
         conversationContextAuthoritiesRan:
           true,
@@ -1624,13 +1888,8 @@ deliberationPipelineVersion:
         conversationContextAuthoritiesReady:
           false,
 
-                conversationContextAuthoritiesError:
-          referenceInvocationSucceeded
-            ? "reference_packet_missing"
-            : referenceResult
-                .engineInvocationDiagnostic
-                ?.failureType ||
-              "reference_resolution_engine_failed"
+        conversationContextAuthoritiesError:
+          referenceFailureReason
       };
     }
 
@@ -1657,7 +1916,10 @@ deliberationPipelineVersion:
         true,
 
       referenceResolutionEngineReady:
-        true,
+        referencePacket
+          ?.validation
+          ?.valid !==
+        false,
 
       referenceResolutionEngineSource:
         referenceEngine.source ||
@@ -1665,8 +1927,46 @@ deliberationPipelineVersion:
 
       referenceResolutionEngineVersion:
         referenceEngine.version ||
-        null
+        null,
+
+      referenceResolutionEngineError:
+        null,
+
+      referenceResolutionEngineDiagnostic:
+        {
+          invocation:
+            referenceInvocationDiagnostic,
+
+          validation:
+            referencePacket
+              ?.validation ||
+            null
+        }
     };
+
+    if (
+      state.referenceResolutionEngineReady !==
+      true
+    ) {
+      const referenceValidationError =
+        referencePacket
+          ?.validation
+          ?.errors?.[0] ||
+        "reference_packet_invalid";
+
+      return {
+        ...state,
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+        conversationContextAuthoritiesError:
+          referenceValidationError
+      };
+    }
 
     const operatingState =
       this.getConversationOperatingState();
@@ -1691,25 +1991,56 @@ deliberationPipelineVersion:
       };
     }
 
-    const attached =
-      operatingState.attachConversationContext(
-        state
-      );
+    let attached;
+
+    try {
+      attached =
+        await operatingState
+          .attachConversationContext(
+            state
+          );
+    } catch (error) {
+      return {
+        ...state,
+
+        conversationContextAttachmentRan:
+          true,
+
+        conversationContextAttachmentReady:
+          false,
+
+        conversationContextAttachmentError:
+          error?.message ||
+          String(error),
+
+        conversationContextAuthoritiesRan:
+          true,
+
+        conversationContextAuthoritiesReady:
+          false,
+
+        conversationContextAuthoritiesError:
+          "conversation_context_attachment_threw"
+      };
+    }
 
     if (
       !attached ||
       typeof attached !==
         "object" ||
+      Array.isArray(attached) ||
       attached
         .conversationContextAttachmentReady !==
         true
     ) {
       return {
         ...state,
+
         ...(
           attached &&
           typeof attached ===
-            "object"
+            "object" &&
+          !Array.isArray(attached)
             ? attached
             : {}
         ),
@@ -1747,7 +2078,6 @@ deliberationPipelineVersion:
         null
     };
   },
-
   /* =====================================================
      LAYER DEFINITIONS
   ===================================================== */
