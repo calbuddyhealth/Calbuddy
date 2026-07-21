@@ -5,7 +5,7 @@
 // Connect the production CalBuddy interface to the canonical Ari Rebirth
 // runtime through one controlled request and delivery boundary.
 //
-// V2.4.2 — Explicit Runtime Availability Diagnostics
+// V2.4.3 — Conversation Relationship Dependency Registration
 //
 // Architectural flow:
 //
@@ -64,8 +64,8 @@ window.Ari = window.Ari || {};
 window.CalBuddy = window.CalBuddy || {};
 
 window.AriRebirthAppBridge = {
-  version: "2.4.2",
-  schemaVersion: "2.4.2",
+  version: "2.4.3",
+  schemaVersion: "2.4.3",
   source: "ari-rebirth-app-bridge",
   authorityLevel:
     "application_runtime_boundary_and_service_coordination",
@@ -141,20 +141,27 @@ window.AriRebirthAppBridge = {
     "ari/observer-system/ari-observer-routing-evidence.js",
     "ari/routing/ari-lane-splitter-engine.js",
 
-    // ===================================================
+        // ===================================================
     // CONTINUITY FOUNDATION
     // ===================================================
 
     "ari/storage/ari-thread-store.js",
     "ari/storage/ari-memory-store.js",
-        "ari/conversation/ari-turn-packet.js",
+
+    "ari/conversation/ari-turn-packet.js",
+
+    // Canonical conversation relationship enumeration.
+    // Must load before classification packets, rules, and engines.
+    "ari/conversation/ari-conversation-relationship-types.js",
+
     "ari/conversation/ari-turn-classification-packet.js",
     "ari/conversation/ari-turn-intake-engine.js",
+
     "ari/continuity/ari-conversation-operating-state.js",
     "ari/conversation/ari-conversation-meaning-history.js",
     "ari/continuity/ari-conversation-continuity-engine.js",
 
-        // ===================================================
+    // ===================================================
     // CONTINUITY CAPABILITY ENGINES
     // ===================================================
 
@@ -2098,6 +2105,12 @@ getRuntimeAvailability() {
       ?.runtimeDelivery ||
     null;
 
+  const conversationRelationshipTypes =
+    window.AriConversationRelationshipTypes ||
+    window.Ari
+      ?.conversationRelationshipTypes ||
+    null;
+
   const openAIReasoningClient =
     this.getOpenAIReasoningClient();
 
@@ -2139,6 +2152,15 @@ getRuntimeAvailability() {
       typeof deliveryService
         ?.adapt ===
       "function",
+
+    conversationRelationshipTypesAvailable:
+      Boolean(
+        conversationRelationshipTypes &&
+        typeof conversationRelationshipTypes.UNKNOWN ===
+          "string" &&
+        typeof conversationRelationshipTypes.isValid ===
+          "function"
+      ),
 
     openAIReasoningClientReason:
       typeof openAIReasoningClient
@@ -2216,6 +2238,13 @@ getRuntimeAvailability() {
         deliveryService
           ? Object.keys(
               deliveryService
+            )
+          : [],
+
+      conversationRelationshipTypes:
+        conversationRelationshipTypes
+          ? Object.keys(
+              conversationRelationshipTypes
             )
           : [],
 
@@ -2585,6 +2614,12 @@ getRuntimeAvailability() {
         ?.rebirthPipeline ||
       null;
 
+    const conversationRelationshipTypes =
+      window.AriConversationRelationshipTypes ||
+      window.Ari
+        ?.conversationRelationshipTypes ||
+      null;
+
     const operationRegistry =
       this.getOperationRegistry();
 
@@ -2648,6 +2683,18 @@ getRuntimeAvailability() {
     ) {
       warnings.push(
         "AriRebirthPipeline_not_ready"
+      );
+    }
+
+    if (
+      !conversationRelationshipTypes ||
+      typeof conversationRelationshipTypes.UNKNOWN !==
+        "string" ||
+      typeof conversationRelationshipTypes.isValid !==
+        "function"
+    ) {
+      warnings.push(
+        "AriConversationRelationshipTypes_not_ready"
       );
     }
 
@@ -2763,6 +2810,15 @@ getRuntimeAvailability() {
         runtimeLoadingRetained:
           typeof this.ensureLoaded ===
           "function",
+
+    conversationRelationshipTypesAvailable:
+      Boolean(
+        conversationRelationshipTypes &&
+        typeof conversationRelationshipTypes.UNKNOWN ===
+          "string" &&
+        typeof conversationRelationshipTypes.isValid ===
+          "function"
+      ),
 
         requestConstructionDelegated:
           authority
