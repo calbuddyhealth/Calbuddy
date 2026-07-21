@@ -1,11 +1,11 @@
 // ari/conversation/ari-conversation-relationship-types.js
-// Ari Relationship Types
+// Ari Conversation Relationship Types
 //
 // Purpose:
-// Define the canonical conversation relationship types used throughout
-// the Ari runtime.
+// Define the canonical conversation relationship types used
+// throughout the Ari runtime.
 //
-// V1.1.0 — Canonical Conversation Relationship Registry
+// V1.2.0 — Canonical Conversation Relationship Registry
 //
 // Architectural Flow:
 //
@@ -19,9 +19,9 @@
 //
 // Responsibilities:
 // - Define the canonical relationship enumeration.
-// - Provide relationship validation.
-// - Expose helper utilities.
-// - Prevent duplicate relationship definitions.
+// - Provide validation utilities.
+// - Provide registry helpers.
+// - Preserve canonical relationship definitions.
 //
 // Non-responsibilities:
 // - Does not classify conversations.
@@ -33,7 +33,7 @@
 
 window.Ari = window.Ari || {};
 
-window.AriRelationshipTypes = Object.freeze({
+const RELATIONSHIP_TYPES = Object.freeze({
 
   /* ============================================
      Conversation Start
@@ -116,31 +116,56 @@ window.AriRelationshipTypes = Object.freeze({
 
 });
 
-window.AriRelationshipTypes.values =
-function () {
+window.AriConversationRelationshipTypes = {
 
-  return Object.values(
-    window.AriRelationshipTypes
-  );
+  version: "1.2.0",
+
+  schemaVersion: "1.0.0",
+
+  types: RELATIONSHIP_TYPES,
+
+  values() {
+
+    return Object.freeze(
+      Object.values(this.types)
+    );
+
+  },
+
+  list() {
+
+    return [...this.values()];
+
+  },
+
+  count() {
+
+    return this.values().length;
+
+  },
+
+  has(type) {
+
+    return this.values().includes(type);
+
+  },
+
+  isValid(type) {
+
+    return this.has(type);
+
+  }
 
 };
 
-window.AriRelationshipTypes.isValid =
-function (type) {
+Object.assign(
+  window.AriConversationRelationshipTypes,
+  RELATIONSHIP_TYPES
+);
 
-  return this.values().includes(type);
+Object.freeze(
+  window.AriConversationRelationshipTypes
+);
 
-};
-
-window.AriRelationshipTypes.exists =
-window.AriRelationshipTypes.isValid;
-
-window.AriRelationshipTypes.count =
-function () {
-
-  return this.values().length;
-
-};
-
-window.Ari.relationshipTypes =
-  window.AriRelationshipTypes;
+window.Ari.conversationRelationshipTypes =
+  window.AriConversationRelationshipTypes;
