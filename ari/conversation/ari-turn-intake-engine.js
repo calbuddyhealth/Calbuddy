@@ -2,9 +2,9 @@
 // Ari Turn Intake Engine
 //
 // Purpose:
-// Create the canonical Turn Packet from the Runtime Request.
+// Build the canonical Turn Packet from the Runtime Request.
 //
-// V1.0.0 — Canonical Turn Authority
+// V1.1.0 — Canonical Turn Intake Delegation
 //
 // Architectural Flow:
 //
@@ -12,37 +12,37 @@
 //      ↓
 // Turn Intake Engine
 //      ↓
+// Ari Turn Packet
+//      ↓
 // Canonical Turn Packet
 //      ↓
 // Perception Pipeline
 //
 // Responsibilities:
-// - Create the canonical Turn Packet.
-// - Preserve the original user message.
-// - Preserve normalized user text.
-// - Generate the Turn ID if missing.
-// - Generate timestamp if missing.
-// - Preserve conversation identifiers.
-// - Preserve thread identifiers.
+// - Read the canonical Runtime Request.
+// - Extract current-turn information.
 // - Preserve request metadata.
-// - Detect whether previous thread context exists.
-// - Validate required turn fields.
+// - Detect previous-thread availability.
+// - Delegate Turn Packet creation.
+// - Attach the Turn Packet to the runtime envelope.
 //
 // Non-responsibilities:
+// - Does not define the Turn Packet schema.
+// - Does not generate Turn IDs.
+// - Does not normalize text.
+// - Does not validate Turn Packets.
 // - Does not interpret semantic meaning.
 // - Does not classify conversation.
-// - Does not determine follow-ups.
 // - Does not determine routing.
-// - Does not retrieve memory.
 // - Does not resolve continuity.
-// - Does not answer the user.
-// - Does not modify semantic meaning.
-// - Does not execute any pipeline.
+// - Does not retrieve memory.
+// - Does not answer users.
+// - Does not execute downstream pipelines.
 
 window.Ari = window.Ari || {};
 
 window.AriTurnIntakeEngine = {
-  version: "1.0.0",
+  version: "1.1.0",
   schemaVersion: "1.0.0",
 
   run(runtimeRequest = {}) {
@@ -67,115 +67,66 @@ window.AriTurnIntakeEngine = {
       {};
 
     const originalMessage =
-      this.cleanText(
-        turn.originalMessage ??
-        turn.message ??
-        request.message ??
-        ""
-      );
+      turn.originalMessage ??
+      turn.message ??
+      request.message ??
+      "";
 
-    const normalizedMessage =
-      this.normalizeMessage(
-        originalMessage
-      );
+    const turnPacket =
+      window.AriTurnPacket.create({
+        turnId:
+          turn.turnId,
 
-    const turnPacket = {
-      schema: "ari_turn_packet",
-      schemaVersion: this.schemaVersion,
+        timestamp:
+          turn.timestamp,
 
-      turnId:
-        turn.turnId ||
-        this.generateTurnId(),
+        source:
+          turn.source,
 
-      timestamp:
-        turn.timestamp ||
-        new Date().toISOString(),
+        conversationId:
+          conversation.conversationId,
 
-      source:
-        turn.source ||
-        "user",
+        threadId:
+          thread.threadId,
 
-      conversationId:
-        conversation.conversationId ||
-        null,
+        originalMessage,
 
-      threadId:
-        thread.threadId ||
-        null,
+        previousTurnAvailable:
+          Boolean(
+            thread.previousTurn ||
+            thread.lastTurn ||
+            thread.history?.length
+          ),
 
-      originalMessage,
-
-      normalizedMessage,
-
-      previousTurnAvailable:
-        Boolean(
-          thread.previousTurn ||
-          thread.lastTurn ||
-          thread.history?.length
-        ),
-
-      metadata: {
-        ...metadata
-      },
-
-      authority: {
-        owner:
-          "ari-turn-intake-engine",
-
-        canonical:
-          true
-      }
-    };
+        metadata
+      });
 
     return {
       ...runtimeRequest,
+
       turnPacket
     };
   },
 
-  generateTurnId() {
-    return (
-      "turn_" +
-      Date.now().toString(36) +
-      "_" +
-      Math.random()
-        .toString(36)
-        .slice(2, 10)
+  validate(runtimeResult = {}) {
+    const turnPacket =
+      runtimeResult?.turnPacket;
+
+    if (
+      !window.AriTurnPacket ||
+      typeof window.AriTurnPacket.validate !== "function"
+    ) {
+      return {
+        valid: false,
+        errors: [
+          "ari_turn_packet_unavailable"
+        ]
+      };
+    }
+
+    return window.AriTurnPacket.validate(
+      turnPacket
     );
-  },
-
-  normalizeMessage(text = "") {
-    return this.cleanText(text)
-      .replace(/\s+/g, " ")
-      .trim();
-  },
-
-  cleanText(value = "") {
-    return String(value ?? "")
-      .replace(/[’‘]/g, "'")
-      .replace(/[“”]/g, "\"")
-      .replace(/\r\n/g, "\n")
-      .replace(/[ \t]+/g, " ")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  },
-
-  validate(turnPacket = {}) {
-    const errors = [];
-
-    if (!turnPacket.turnId)
-      errors.push("missing_turn_id");
-
-    if (!turnPacket.timestamp)
-      errors.push("missing_timestamp");
-
-    if (!turnPacket.originalMessage)
-      errors.push("missing_original_message");
-
-    return {
-      valid: errors.length === 0,
-      errors
-    };
   }
 };
 
