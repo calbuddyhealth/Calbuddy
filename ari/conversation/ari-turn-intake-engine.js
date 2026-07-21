@@ -62,8 +62,14 @@ window.AriTurnIntakeEngine = {
     }
 
     const request =
-      runtime.request ||
-      runtime;
+  runtime.request &&
+  typeof runtime.request ===
+    "object" &&
+  !Array.isArray(
+    runtime.request
+  )
+    ? runtime.request
+    : runtime;
 
     const turn =
       request.turn ||
