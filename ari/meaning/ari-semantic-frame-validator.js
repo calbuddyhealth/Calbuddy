@@ -5,12 +5,12 @@
 // Validate and normalize the semantic frame produced by OpenAI cognitive
 // reasoning. This engine does not infer, repair, or replace semantic meaning.
 //
-// V1.1.1 — Canonical Slot Alias Normalization
+// V1.2.0 — Registry-Authoritative Contract Normalization
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameValidator = {
-  version: "1.1.1",
+  version: "1.2.0",
   schemaVersion: "1.1.0",
   source: "ari-semantic-frame-validator",
   authorityLevel: "semantic_frame_validation",
@@ -540,20 +540,32 @@ console.log(
     );
 
   /*
-   * Controlled structural alias:
+   * Controlled structural slot normalization:
    *
-   * OpenAI may describe the thing being explained as
-   * `target`, while the operation contract may require
-   * the canonical `object` slot.
+   * Some authoritative reasoning outputs may place the
+   * semantic topic in `target` or `subject`, while the
+   * selected operation contract requires `object`.
    *
-   * This does not infer or alter meaning. It copies an
-   * already-authoritative slot value into the canonical
-   * contract location only when:
+   * This copies an existing authoritative value into the
+   * canonical object slot only when:
    *
    * - the operation requires `object`
    * - no explicit object was supplied
-   * - an authoritative target was supplied
+   * - target or subject already contains the topic
+   *
+   * No new meaning is inferred or invented.
    */
+
+  const objectAliasSource =
+    this.slotPresent(
+      normalizedTarget
+    )
+      ? normalizedTarget
+      : this.slotPresent(
+          normalizedSubject
+        )
+        ? normalizedSubject
+        : null;
 
   const normalizedObject =
     requiredSlots.includes(
@@ -563,10 +575,10 @@ console.log(
       explicitObject
     ) &&
     this.slotPresent(
-      normalizedTarget
+      objectAliasSource
     )
       ? {
-          ...normalizedTarget
+          ...objectAliasSource
         }
       : explicitObject;
 
@@ -596,37 +608,51 @@ console.log(
 
     operation,
 
+    /*
+     * Once the operation is recognized, its structural
+     * vocabulary comes from the canonical registry.
+     *
+     * OpenAI remains authoritative for selecting the
+     * operation and semantic slot content. The registry
+     * is authoritative for the operation contract.
+     */
+
     requestType:
       this.normalizeKey(
-        frame.requestType ||
         definition?.requestType ||
+        frame.requestType ||
         ""
       ) ||
       null,
 
     frameType:
       this.normalizeKey(
-        frame.frameType ||
         definition?.frameType ||
+        frame.frameType ||
         ""
       ) ||
       null,
 
     interactionFamily:
       this.normalizeKey(
-        frame.interactionFamily ||
         definition?.interactionFamily ||
+        frame.interactionFamily ||
         ""
       ) ||
       null,
 
     intentFamily:
       this.normalizeKey(
-        frame.intentFamily ||
         definition?.intentFamily ||
+        frame.intentFamily ||
         ""
       ) ||
       null,
+
+    /*
+     * Keep model-authored output specificity when present.
+     * The registry supplies only the default fallback.
+     */
 
     requestedOutput:
       this.normalizeKey(
@@ -766,7 +792,6 @@ console.log(
       )
   };
 },
-
   validateSchema(frame = null) {
     const errors = [];
     const warnings = [];
