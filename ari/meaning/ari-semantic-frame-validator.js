@@ -2,331 +2,76 @@
 // Ari Semantic Frame Validator
 //
 // Purpose:
-// Validate and normalize the semantic frame produced by OpenAI cognitive
-// reasoning. This engine does not infer, repair, or replace semantic meaning.
+// Normalize and audit the semantic frame produced by OpenAI cognitive
+// reasoning without overriding, rejecting, repairing, or replacing
+// authoritative semantic meaning.
 //
-// V1.2.0 — Registry-Authoritative Contract Normalization
+// V2.0.0 — Canonical Semantic Normalization / Advisory Audit
 
 window.Ari = window.Ari || {};
 
 window.AriSemanticFrameValidator = {
-  version: "1.2.0",
-  schemaVersion: "1.1.0",
+  version: "2.0.0",
+  schemaVersion: "2.0.0",
   source: "ari-semantic-frame-validator",
-  authorityLevel: "semantic_frame_validation",
+  authorityLevel: "advisory_semantic_audit",
 
   validate(input = {}) {
-  try {
-    console.log(
-  "SEMANTIC VALIDATOR START",
-  {
-    summaryKeys:
-      input &&
-      typeof input === "object"
-        ? Object.keys(input.summary || input)
-        : []
-  }
-);
-    
-    const summary = input.summary || input || {};
-    const cognitiveResult = this.readCognitiveReasoningResult(summary);
-    const sourceFrame = this.readSemanticFrame(summary, cognitiveResult);
-    const evidencePacket = this.readEvidencePacket(summary);
-    const contracts = this.readBindingContracts(summary);
-    const registry = this.getOperationRegistry();
+    try {
+      const context = this.readInputContext(input);
+      const runtime = this.evaluateRuntime(context);
 
-    const errors = [];
-    const warnings = [];
-    const conflicts = [];
-
-    if (!cognitiveResult) {
-      errors.push("cognitive_reasoning_result_missing");
-    } else if (cognitiveResult.ready === false) {
-      errors.push("cognitive_reasoning_result_not_ready");
-    }
-
-    if (!sourceFrame) {
-      errors.push("authoritative_semantic_frame_missing");
-    }
-
-    if (!registry) {
-      errors.push("operation_registry_not_loaded");
-    }
-
-    const normalizedFrame = sourceFrame
-      ? this.normalizeFrame(sourceFrame, registry)
-      : null;
-
-console.log(
-  "NORMALIZED SEMANTIC FRAME",
-  JSON.parse(JSON.stringify(normalizedFrame))
-);
-
-console.log(
-  "OPERATION REGISTRY LOOKUP",
-  {
-    originalOperation: sourceFrame?.operation,
-    normalizedOperation: normalizedFrame?.operation,
-    definition:
-      registry?.getOperation?.(
-        normalizedFrame?.operation
-      )
-  }
-);
-
-    const schemaValidation = this.validateSchema(normalizedFrame);
-    const registryValidation = this.validateRegistry(
-      normalizedFrame,
-      registry
-    );
-    const slotValidation = this.validateRequiredSlots(
-      normalizedFrame,
-      registryValidation.definition
-    );
-    const evidenceValidation = this.validateEvidenceReferences(
-      normalizedFrame,
-      evidencePacket
-    );
-    const continuityValidation =
-      this.validateContinuity(normalizedFrame);
-    const safetyValidation = this.validateSafety(
-      normalizedFrame,
-      contracts.safety
-    );
-    const executionValidation = this.validateExecution(
-      normalizedFrame,
-      contracts.execution
-    );
-    const routingValidation = this.validateRouting(
-      normalizedFrame,
-      contracts.routing
-    );
-    const authorityValidation = this.validateAuthority(
-      sourceFrame,
-      normalizedFrame,
-      cognitiveResult
-    );
-
-    this.collectValidationMessages(
-      schemaValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      registryValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      slotValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      evidenceValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      continuityValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      safetyValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      executionValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      routingValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-    this.collectValidationMessages(
-      authorityValidation,
-      errors,
-      warnings,
-      conflicts
-    );
-
-console.log(
-  "SEMANTIC VALIDATOR SUMMARY",
-  {
-    sourceFrame,
-    normalizedFrame,
-    cognitiveResult,
-
-    schemaValidation,
-    registryValidation,
-    slotValidation,
-    evidenceValidation,
-    continuityValidation,
-    safetyValidation,
-    executionValidation,
-    routingValidation,
-    authorityValidation,
-
-    errors,
-    warnings,
-    conflicts
-  }
-);
-
-    const accepted = errors.length === 0;
-    const validatedSemanticFrame = accepted
-      ? {
-          ...normalizedFrame,
-          schema: "ari.validated_semantic_frame",
-          schemaVersion: this.schemaVersion,
-          validationStatus: "accepted",
-          authority: {
-            ...(normalizedFrame.authority || {}),
-            meaningSource: "openai_cognitive_reasoning",
-            validatedBy: this.source,
-            authoritativeForMeaning: true,
-            mayBeUsedByResponsePlanning: true
-          }
-        }
-      : null;
-
-    const semanticFrameValidation = {
-      valid: accepted,
-      complete:
-        accepted &&
-        slotValidation.valid === true &&
-        schemaValidation.valid === true,
-      accepted,
-      errors: this.unique(errors),
-      warnings: this.unique(warnings),
-      conflicts: this.dedupeObjects(conflicts),
-      schemaValidation,
-      registryValidation,
-      slotValidation,
-      evidenceValidation,
-      continuityValidation,
-      safetyValidation,
-      executionValidation,
-      routingValidation,
-      authorityValidation
-    };
-
-    const semanticFrameProvenance = {
-      cognitiveSource:
-        cognitiveResult?.source ||
-        cognitiveResult?.provider ||
-        "openai_cognitive_reasoning",
-      cognitiveResultId:
-        cognitiveResult?.reasoningResultId ||
-        cognitiveResult?.resultId ||
-        cognitiveResult?.id ||
-        null,
-      evidencePacketId: evidencePacket?.packetId || null,
-      validatorSource: this.source,
-      validatorVersion: this.version,
-      transformations: sourceFrame
-  ? [
-      "operation_alias_normalization",
-      "registry_contract_normalization",
-      "confidence_normalization",
-      "missing_optional_field_defaults",
-      "canonical_slot_alias_normalization",
-      "evidence_reference_validation"
-    ]
-  : [],
-      meaningChanged: false,
-      operationChanged:
-        Boolean(
-          sourceFrame &&
-          normalizedFrame &&
-          this.normalizeKey(sourceFrame.operation) !==
-            normalizedFrame.operation
-        ),
-      requestedOutputChanged: false,
-      ambiguityChanged: false,
-      frameRejected: !accepted,
-      rejectionReason:
-        accepted ? null : this.unique(errors)[0] || "semantic_frame_rejected",
-      validatedAt: new Date().toISOString()
-    };
-
-    return {
-      schema: "ari.semantic_frame_validation_result",
-      schemaVersion: this.schemaVersion,
-      semanticFrameValidatorRan: true,
-      semanticFrameValidatorReady: accepted,
-      semanticFrameValidatorSource: this.source,
-      semanticFrameValidatorVersion: this.version,
-
-      input: {
-        frameAvailable: Boolean(sourceFrame),
-        cognitiveReasoningReady:
-          Boolean(cognitiveResult) &&
-          cognitiveResult.ready !== false,
-        evidencePacketAvailable: Boolean(evidencePacket),
-        safetyContractAvailable: Boolean(contracts.safety),
-        routingContractAvailable: Boolean(contracts.routing),
-        executionContractAvailable: Boolean(contracts.execution)
-      },
-
-      validatedSemanticFrame,
-      rejectedSemanticFrame: accepted ? null : normalizedFrame,
-      semanticFrameValidation,
-      semanticFrameProvenance,
-      semanticCompatibility: accepted
-        ? this.buildCompatibilityProjection(
-            validatedSemanticFrame,
-            cognitiveResult
+      const normalizedSemanticFrame = runtime.canNormalize
+        ? this.normalizeFrame(
+            context.sourceSemanticFrame,
+            context.registry
           )
-        : this.emptyCompatibilityProjection(),
+        : null;
 
-      authority: {
-        canValidateSchema: true,
-        canNormalizeEnums: true,
-        canValidateEvidenceRefs: true,
-        canRejectUnsupportedFrame: true,
-        canRejectSafetyConflict: true,
-        canRejectExecutionConflict: true,
-        canEmitCompatibilityProjections: true,
-        canInferMeaning: false,
-        canChangeUserGoal: false,
-        canSelectOperation: false,
-        canResolveSemanticAmbiguity: false,
-        canInventMissingSlots: false,
-        canChooseResponseStrategy: false,
-        canOverrideSafety: false,
-        canExecuteActions: false,
-        canAnswerUser: false,
-        role: "semantic_frame_validation"
-      }
-    };
-  
+      const usable = Boolean(
+        runtime.cognitiveReasoningUsable &&
+        normalizedSemanticFrame
+      );
+
+      const audit = this.runAudit({
+        ...context,
+        normalizedSemanticFrame
+      });
+
+      const compatibilityProjection = usable
+        ? this.buildCompatibilityProjection(
+            normalizedSemanticFrame,
+            context.cognitiveReasoningResult
+          )
+        : this.emptyCompatibilityProjection();
+
+      const provenance = this.buildProvenance({
+        context,
+        runtime,
+        normalizedSemanticFrame,
+        audit,
+        usable
+      });
+
+      return this.buildResult({
+        context,
+        runtime,
+        normalizedSemanticFrame,
+        audit,
+        compatibilityProjection,
+        provenance,
+        usable
+      });
     } catch (error) {
-
-    console.error(
-      "SEMANTIC VALIDATOR CRASH",
-      {
+      console.error("SEMANTIC FRAME AUDIT CRASH", {
         message: error?.message,
         name: error?.name,
         stack: error?.stack,
         error
-      }
-    );
+      });
 
-    throw error;
-  }
+      throw error;
+    }
   },
 
   build(input = {}) {
@@ -337,126 +82,71 @@ console.log(
     return this.validate(input);
   },
 
+  readInputContext(input = {}) {
+    const summary = input?.summary || input || {};
+    const cognitiveReasoningResult =
+      this.readCognitiveReasoningResult(summary);
+    const sourceSemanticFrame = this.readSemanticFrame(
+      summary,
+      cognitiveReasoningResult
+    );
+
+    return {
+      summary,
+      cognitiveReasoningResult,
+      sourceSemanticFrame,
+      evidencePacket: this.readEvidencePacket(summary),
+      contracts: this.readBindingContracts(summary),
+      registry: this.getOperationRegistry()
+    };
+  },
+
   readCognitiveReasoningResult(summary = {}) {
-  return (
-    summary.cognitiveReasoningResult ||
+    return (
+      summary.cognitiveReasoningResult ||
+      summary.reasoningResult ||
+      summary.reasoningStagePacket?.cognitiveReasoningResult ||
+      summary.reasoningStagePacket?.reasoningResult ||
+      summary.reasoningStagePacket?.generalReasoning
+        ?.cognitiveReasoningResult ||
+      summary.reasoningEngineResult?.cognitiveReasoningResult ||
+      summary.reasoningEngineResult?.reasoningResult ||
+      summary.reasoningEngineResult?.result
+        ?.cognitiveReasoningResult ||
+      summary.reasoningEngineResult?.result?.reasoningResult ||
+      summary.reasoning?.cognitiveReasoningResult ||
+      null
+    );
+  },
 
-    summary.reasoningResult ||
-
-    summary.reasoningStagePacket
-      ?.cognitiveReasoningResult ||
-
-    summary.reasoningStagePacket
-      ?.reasoningResult ||
-
-    summary.reasoningStagePacket
-      ?.generalReasoning
-      ?.cognitiveReasoningResult ||
-
-    summary.reasoningEngineResult
-      ?.cognitiveReasoningResult ||
-
-    summary.reasoningEngineResult
-      ?.reasoningResult ||
-
-    summary.reasoningEngineResult
-      ?.result
-      ?.cognitiveReasoningResult ||
-
-    summary.reasoningEngineResult
-      ?.result
-      ?.reasoningResult ||
-
-    summary.reasoning
-      ?.cognitiveReasoningResult ||
-
-    null
-  );
-},
-
-  readSemanticFrame(
-  summary = {},
-  cognitiveResult = null
-) {
-  return (
-    /*
-     * Canonical reasoning-result location.
-     */
-
-    cognitiveResult
-      ?.semanticFrame ||
-
-    /*
-     * Canonical top-level stage integration fields.
-     */
-
-    summary.semanticFrame ||
-
-    summary.aiSemanticFrame ||
-
-    /*
-     * Canonical reasoning-stage packet fields.
-     */
-
-    summary.reasoningStagePacket
-      ?.semanticFrame ||
-
-    summary.reasoningStagePacket
-      ?.cognitiveReasoningResult
-      ?.semanticFrame ||
-
-    summary.reasoningStagePacket
-      ?.reasoningResult
-      ?.semanticFrame ||
-
-    summary.reasoningStagePacket
-      ?.generalReasoning
-      ?.semanticFrame ||
-
-    summary.reasoningStagePacket
-      ?.generalReasoning
-      ?.cognitiveReasoningResult
-      ?.semanticFrame ||
-
-    /*
-     * Raw engine compatibility fields.
-     */
-
-    summary.reasoningEngineResult
-      ?.semanticFrame ||
-
-    summary.reasoningEngineResult
-      ?.cognitiveReasoningResult
-      ?.semanticFrame ||
-
-    summary.reasoningEngineResult
-      ?.reasoningResult
-      ?.semanticFrame ||
-
-    summary.reasoningEngineResult
-      ?.result
-      ?.semanticFrame ||
-
-    summary.reasoningEngineResult
-      ?.result
-      ?.cognitiveReasoningResult
-      ?.semanticFrame ||
-
-    summary.reasoningEngineResult
-      ?.result
-      ?.reasoningResult
-      ?.semanticFrame ||
-
-    /*
-     * Legacy compatibility location.
-     */
-
-    summary.reasoning
-      ?.semanticFrame ||
-
-    null
-  );
-},
+  readSemanticFrame(summary = {}, cognitiveReasoningResult = null) {
+    return (
+      cognitiveReasoningResult?.semanticFrame ||
+      summary.semanticFrame ||
+      summary.aiSemanticFrame ||
+      summary.reasoningStagePacket?.semanticFrame ||
+      summary.reasoningStagePacket?.cognitiveReasoningResult
+        ?.semanticFrame ||
+      summary.reasoningStagePacket?.reasoningResult
+        ?.semanticFrame ||
+      summary.reasoningStagePacket?.generalReasoning
+        ?.semanticFrame ||
+      summary.reasoningStagePacket?.generalReasoning
+        ?.cognitiveReasoningResult?.semanticFrame ||
+      summary.reasoningEngineResult?.semanticFrame ||
+      summary.reasoningEngineResult?.cognitiveReasoningResult
+        ?.semanticFrame ||
+      summary.reasoningEngineResult?.reasoningResult
+        ?.semanticFrame ||
+      summary.reasoningEngineResult?.result?.semanticFrame ||
+      summary.reasoningEngineResult?.result
+        ?.cognitiveReasoningResult?.semanticFrame ||
+      summary.reasoningEngineResult?.result?.reasoningResult
+        ?.semanticFrame ||
+      summary.reasoning?.semanticFrame ||
+      null
+    );
+  },
 
   readEvidencePacket(summary = {}) {
     return (
@@ -475,24 +165,24 @@ console.log(
         summary.safetyDisposition ||
         summary.safetyContextGate ||
         null,
+
       routing:
         summary.routingContract ||
         summary.executiveRoutingContract ||
         summary.routingStagePacket ||
         null,
+
       execution:
         summary.executionContract ||
         summary.actionContract ||
-        (
-          summary.executionAllowed !== undefined ||
-          summary.prohibitedOperations
-            ? {
-                executionAllowed: summary.executionAllowed,
-                prohibitedOperations:
-                  summary.prohibitedOperations || []
-              }
-            : null
-        )
+        (summary.executionAllowed !== undefined ||
+        summary.prohibitedOperations
+          ? {
+              executionAllowed: summary.executionAllowed,
+              prohibitedOperations:
+                summary.prohibitedOperations || []
+            }
+          : null)
     };
   },
 
@@ -504,174 +194,153 @@ console.log(
     );
   },
 
+  evaluateRuntime(context = {}) {
+    const errors = [];
+    const warnings = [];
+
+    const cognitiveReasoningAvailable = Boolean(
+      context.cognitiveReasoningResult
+    );
+
+    const cognitiveReasoningUsable = Boolean(
+      context.cognitiveReasoningResult &&
+      context.cognitiveReasoningResult.ready !== false
+    );
+
+    const sourceFrameAvailable = Boolean(
+      context.sourceSemanticFrame
+    );
+
+    const registryAvailable = Boolean(context.registry);
+
+    if (!cognitiveReasoningAvailable) {
+      errors.push("cognitive_reasoning_result_missing");
+    } else if (!cognitiveReasoningUsable) {
+      errors.push("cognitive_reasoning_result_not_ready");
+    }
+
+    if (!sourceFrameAvailable) {
+      errors.push("authoritative_semantic_frame_missing");
+    }
+
+    if (!registryAvailable) {
+      warnings.push(
+        "operation_registry_unavailable_degraded_normalization"
+      );
+    }
+
+    return {
+      ready:
+        cognitiveReasoningUsable &&
+        sourceFrameAvailable,
+
+      canNormalize: sourceFrameAvailable,
+      cognitiveReasoningAvailable,
+      cognitiveReasoningUsable,
+      sourceFrameAvailable,
+      registryAvailable,
+      errors: this.unique(errors),
+      warnings: this.unique(warnings)
+    };
+  },
+
   normalizeFrame(frame = {}, registry = null) {
-  const operation =
-    registry?.normalizeOperation?.(
-      frame.operation
-    ) ||
-    this.normalizeKey(
-      frame.operation
-    ) ||
-    null;
+    const operation =
+      registry?.normalizeOperation?.(frame.operation) ||
+      this.normalizeKey(frame.operation) ||
+      null;
 
-  const definition =
-    registry?.getOperation?.(
-      operation
-    ) ||
-    null;
+    const definition =
+      registry?.getOperation?.(operation) ||
+      null;
 
-  const requiredSlots =
-    this.asArray(
+    const requiredSlots = this.asArray(
       definition?.requiredSlots
     );
 
-  const normalizedSubject =
-    this.normalizeSlot(
+    const normalizedSubject = this.normalizeSlot(
       frame.subject
     );
 
-  const normalizedTarget =
-    this.normalizeSlot(
+    const normalizedTarget = this.normalizeSlot(
       frame.target
     );
 
-  const explicitObject =
-    this.normalizeSlot(
+    const explicitObject = this.normalizeSlot(
       frame.object
     );
 
-  /*
-   * Controlled structural slot normalization:
-   *
-   * Some authoritative reasoning outputs may place the
-   * semantic topic in `target` or `subject`, while the
-   * selected operation contract requires `object`.
-   *
-   * This copies an existing authoritative value into the
-   * canonical object slot only when:
-   *
-   * - the operation requires `object`
-   * - no explicit object was supplied
-   * - target or subject already contains the topic
-   *
-   * No new meaning is inferred or invented.
-   */
-
-  const objectAliasSource =
-    this.slotPresent(
+    const objectAliasSource = this.slotPresent(
       normalizedTarget
     )
       ? normalizedTarget
-      : this.slotPresent(
-          normalizedSubject
-        )
+      : this.slotPresent(normalizedSubject)
         ? normalizedSubject
         : null;
 
-  const normalizedObject =
-    requiredSlots.includes(
-      "object"
-    ) &&
-    !this.slotPresent(
-      explicitObject
-    ) &&
-    this.slotPresent(
-      objectAliasSource
-    )
-      ? {
-          ...objectAliasSource
-        }
-      : explicitObject;
+    const normalizedObject =
+      requiredSlots.includes("object") &&
+      !this.slotPresent(explicitObject) &&
+      this.slotPresent(objectAliasSource)
+        ? { ...objectAliasSource }
+        : explicitObject;
 
-  return {
-    ...frame,
+    return {
+      ...frame,
+      schema: "ari.normalized_semantic_frame",
+      schemaVersion: this.schemaVersion,
 
-    schema:
-      frame.schema ||
-      "ari.cognitive_semantic_frame",
+      frameId:
+        this.clean(frame.frameId || frame.id || "") ||
+        null,
 
-    schemaVersion:
-      frame.schemaVersion ||
-      this.schemaVersion,
-
-    frameId:
-      this.clean(
-        frame.frameId ||
-        frame.id ||
-        ""
-      ) ||
-      null,
-
-    interpretation:
-      this.normalizeInterpretation(
+      interpretation: this.normalizeInterpretation(
         frame.interpretation
       ),
 
-    operation,
+      operation,
 
-    /*
-     * Once the operation is recognized, its structural
-     * vocabulary comes from the canonical registry.
-     *
-     * OpenAI remains authoritative for selecting the
-     * operation and semantic slot content. The registry
-     * is authoritative for the operation contract.
-     */
+      requestType:
+        this.normalizeKey(
+          definition?.requestType ||
+          frame.requestType ||
+          ""
+        ) || null,
 
-    requestType:
-      this.normalizeKey(
-        definition?.requestType ||
-        frame.requestType ||
-        ""
-      ) ||
-      null,
+      frameType:
+        this.normalizeKey(
+          definition?.frameType ||
+          frame.frameType ||
+          ""
+        ) || null,
 
-    frameType:
-      this.normalizeKey(
-        definition?.frameType ||
-        frame.frameType ||
-        ""
-      ) ||
-      null,
+      interactionFamily:
+        this.normalizeKey(
+          definition?.interactionFamily ||
+          frame.interactionFamily ||
+          ""
+        ) || null,
 
-    interactionFamily:
-      this.normalizeKey(
-        definition?.interactionFamily ||
-        frame.interactionFamily ||
-        ""
-      ) ||
-      null,
+      intentFamily:
+        this.normalizeKey(
+          definition?.intentFamily ||
+          frame.intentFamily ||
+          ""
+        ) || null,
 
-    intentFamily:
-      this.normalizeKey(
-        definition?.intentFamily ||
-        frame.intentFamily ||
-        ""
-      ) ||
-      null,
+      requestedOutput:
+        this.normalizeKey(
+          frame.requestedOutput ||
+          definition?.defaultRequestedOutput ||
+          ""
+        ) || null,
 
-    /*
-     * Keep model-authored output specificity when present.
-     * The registry supplies only the default fallback.
-     */
-
-    requestedOutput:
-      this.normalizeKey(
-        frame.requestedOutput ||
-        definition
-          ?.defaultRequestedOutput ||
-        ""
-      ) ||
-      null,
-
-    domain:
-      this.normalizeDomain(
+      domain: this.normalizeDomain(
         frame.domain,
         definition?.defaultDomain
       ),
 
-    participants:
-      this.normalizeObject(
+      participants: this.normalizeObject(
         frame.participants,
         {
           speaker: null,
@@ -680,98 +349,36 @@ console.log(
         }
       ),
 
-    subject:
-      normalizedSubject,
+      subject: normalizedSubject,
+      object: normalizedObject,
+      target: normalizedTarget,
 
-    object:
-      normalizedObject,
-
-    target:
-      normalizedTarget,
-
-    artifactTarget:
-      this.normalizeSlot(
+      artifactTarget: this.normalizeSlot(
         frame.artifactTarget,
         true
       ),
 
-    referent:
-      this.normalizeObject(
+      referent: this.normalizeObject(
         frame.referent,
         null
       ),
 
-    options:
-      this.asArray(
-        frame.options
-      ),
+      options: this.asArray(frame.options),
+      criteria: this.asArray(frame.criteria),
+      timeframe: frame.timeframe ?? null,
+      audience: frame.audience ?? null,
+      location: frame.location ?? null,
+      contextModifiers: this.asArray(frame.contextModifiers),
+      constraints: this.asArray(frame.constraints),
+      stakes: this.asArray(frame.stakes),
+      continuity: this.normalizeContinuity(frame.continuity),
+      ambiguity: this.normalizeAmbiguity(frame.ambiguity),
+      execution: this.normalizeExecution(frame.execution),
+      secondaryRequests: this.asArray(frame.secondaryRequests),
+      confidence: this.normalizeConfidenceObject(frame.confidence),
+      evidenceRefs: this.unique(this.asArray(frame.evidenceRefs)),
 
-    criteria:
-      this.asArray(
-        frame.criteria
-      ),
-
-    timeframe:
-      frame.timeframe ??
-      null,
-
-    audience:
-      frame.audience ??
-      null,
-
-    location:
-      frame.location ??
-      null,
-
-    contextModifiers:
-      this.asArray(
-        frame.contextModifiers
-      ),
-
-    constraints:
-      this.asArray(
-        frame.constraints
-      ),
-
-    stakes:
-      this.asArray(
-        frame.stakes
-      ),
-
-    continuity:
-      this.normalizeContinuity(
-        frame.continuity
-      ),
-
-    ambiguity:
-      this.normalizeAmbiguity(
-        frame.ambiguity
-      ),
-
-    execution:
-      this.normalizeExecution(
-        frame.execution
-      ),
-
-    secondaryRequests:
-      this.asArray(
-        frame.secondaryRequests
-      ),
-
-    confidence:
-      this.normalizeConfidenceObject(
-        frame.confidence
-      ),
-
-    evidenceRefs:
-      this.unique(
-        this.asArray(
-          frame.evidenceRefs
-        )
-      ),
-
-    grounding:
-      this.normalizeObject(
+      grounding: this.normalizeObject(
         frame.grounding,
         {
           evidencePacketId: null,
@@ -780,20 +387,94 @@ console.log(
         }
       ),
 
-    authority:
-      this.normalizeObject(
-        frame.authority,
-        {
-          source:
-            "openai_cognitive_reasoning",
+      authority: {
+        ...this.normalizeObject(frame.authority, {}),
+        meaningSource: "openai_cognitive_reasoning",
+        authoritativeForMeaning: true,
+        normalizedBy: this.source,
+        validatorMayBlockPlanning: false,
+        validatorMayOverrideMeaning: false
+      }
+    };
+  },
 
-          authoritativeForMeaning:
-            true
-        }
+  runAudit(context = {}) {
+    const checks = {
+      schema: this.auditSchema(
+        context.normalizedSemanticFrame
+      ),
+
+      registry: this.auditRegistry(
+        context.normalizedSemanticFrame,
+        context.registry
+      ),
+
+      slots: null,
+
+      evidence: this.auditEvidence(
+        context.normalizedSemanticFrame,
+        context.evidencePacket
+      ),
+
+      continuity: this.auditContinuity(
+        context.normalizedSemanticFrame
+      ),
+
+      safety: this.auditSafety(
+        context.normalizedSemanticFrame,
+        context.contracts?.safety
+      ),
+
+      execution: this.auditExecution(
+        context.normalizedSemanticFrame,
+        context.contracts?.execution
+      ),
+
+      routing: this.auditRouting(
+        context.normalizedSemanticFrame,
+        context.contracts?.routing
+      ),
+
+      authority: this.auditAuthority(
+        context.sourceSemanticFrame,
+        context.normalizedSemanticFrame,
+        context.cognitiveReasoningResult
       )
-  };
-},
-  validateSchema(frame = null) {
+    };
+
+    checks.slots = this.auditRequiredSlots(
+      context.normalizedSemanticFrame,
+      checks.registry.definition
+    );
+
+    const errors = [];
+    const warnings = [];
+    const conflicts = [];
+
+    Object.values(checks).forEach(check => {
+      errors.push(...this.asArray(check?.errors));
+      warnings.push(...this.asArray(check?.warnings));
+      conflicts.push(...this.asArray(check?.conflicts));
+    });
+
+    const uniqueErrors = this.unique(errors);
+    const uniqueWarnings = this.unique(warnings);
+    const uniqueConflicts = this.dedupeObjects(conflicts);
+
+    return {
+      completed: true,
+      passed: uniqueErrors.length === 0,
+      accepted: uniqueErrors.length === 0,
+      advisory: true,
+      blocking: false,
+      errors: uniqueErrors,
+      warnings: uniqueWarnings,
+      conflicts: uniqueConflicts,
+      checks
+    };
+  },
+
+  auditSchema(frame = null) {
     const errors = [];
     const warnings = [];
     const requiredFields = [
@@ -808,11 +489,11 @@ console.log(
 
     if (!frame || typeof frame !== "object") {
       return {
-        valid: false,
+        passed: false,
         errors: ["semantic_frame_must_be_object"],
         warnings,
         conflicts: [],
-        requiredFieldsPresent: [],
+        requiredFields,
         missingFields: requiredFields,
         invalidTypes: []
       };
@@ -825,13 +506,11 @@ console.log(
         frame[field] === ""
     );
 
-    if (missingFields.length) {
-      errors.push(
-        ...missingFields.map(
-          field => `missing_required_field:${field}`
-        )
-      );
-    }
+    errors.push(
+      ...missingFields.map(
+        field => `missing_required_field:${field}`
+      )
+    );
 
     const invalidTypes = [];
 
@@ -849,60 +528,57 @@ console.log(
       invalidTypes.push("execution");
     }
 
-    if (invalidTypes.length) {
-      errors.push(
-        ...invalidTypes.map(
-          field => `invalid_field_type:${field}`
-        )
-      );
-    }
+    errors.push(
+      ...invalidTypes.map(
+        field => `invalid_field_type:${field}`
+      )
+    );
 
     return {
-      valid: errors.length === 0,
+      passed: errors.length === 0,
       errors,
       warnings,
       conflicts: [],
-      requiredFieldsPresent:
-        requiredFields.filter(
-          field => !missingFields.includes(field)
-        ),
+      requiredFields,
       missingFields,
       invalidTypes
     };
   },
 
-  validateRegistry(frame = null, registry = null) {
+  auditRegistry(frame = null, registry = null) {
     const errors = [];
     const warnings = [];
-    const mismatches = [];
+    const conflicts = [];
 
     if (!frame) {
       return {
-        valid: false,
+        passed: false,
         errors: ["semantic_frame_missing"],
         warnings,
-        conflicts: [],
+        conflicts,
         operationRegistered: false,
         operation: null,
-        definition: null,
-        mismatches
+        definition: null
       };
     }
 
     if (!registry) {
+      warnings.push("operation_registry_unavailable");
+
       return {
-        valid: false,
-        errors: ["operation_registry_not_loaded"],
+        passed: true,
+        errors,
         warnings,
-        conflicts: [],
-        operationRegistered: false,
+        conflicts,
+        operationRegistered: null,
         operation: frame.operation,
-        definition: null,
-        mismatches
+        definition: null
       };
     }
 
-    const definition = registry.getOperation(frame.operation);
+    const definition =
+      registry.getOperation?.(frame.operation) || null;
+
     const operationRegistered = Boolean(definition);
 
     if (!operationRegistered) {
@@ -915,13 +591,13 @@ console.log(
         ["intentFamily", definition.intentFamily]
       ];
 
-      for (const [field, expected] of checks) {
+      checks.forEach(([field, expected]) => {
         if (
           frame[field] &&
           expected &&
           frame[field] !== expected
         ) {
-          mismatches.push({
+          conflicts.push({
             code: "operation_contract_mismatch",
             path: field,
             frameValue: frame[field],
@@ -929,38 +605,39 @@ console.log(
             severity: "error"
           });
         }
+      });
+
+      if (conflicts.length) {
+        errors.push("operation_contract_mismatch");
       }
     }
 
-    if (mismatches.length) {
-      errors.push("operation_contract_mismatch");
-    }
-
     return {
-      valid: errors.length === 0,
+      passed: errors.length === 0,
       errors,
       warnings,
-      conflicts: mismatches,
+      conflicts,
       operationRegistered,
       operation: frame.operation,
-      definition,
-      mismatches
+      definition
     };
   },
 
-  validateRequiredSlots(frame = null, definition = null) {
+  auditRequiredSlots(frame = null, definition = null) {
     const requiredSlots = this.asArray(
       definition?.requiredSlots
     );
+
     const presentSlots = requiredSlots.filter(
       slot => this.slotPresent(frame?.[slot])
     );
+
     const missingSlots = requiredSlots.filter(
       slot => !presentSlots.includes(slot)
     );
 
     return {
-      valid: missingSlots.length === 0,
+      passed: missingSlots.length === 0,
       errors: missingSlots.map(
         slot => `missing_required_slot:${slot}`
       ),
@@ -976,39 +653,46 @@ console.log(
     };
   },
 
-  validateEvidenceReferences(frame = null, packet = null) {
+  auditEvidence(frame = null, packet = null) {
     const warnings = [];
-    const errors = [];
 
     if (!packet) {
       warnings.push("evidence_packet_unavailable");
+
       return {
-        valid: true,
-        errors,
+        passed: true,
+        errors: [],
         warnings,
         conflicts: [],
         evidencePacketId: null,
-        referencedEvidenceCount:
-          this.asArray(frame?.evidenceRefs).length,
+        referencedEvidenceCount: this.asArray(
+          frame?.evidenceRefs
+        ).length,
         validEvidenceRefs: [],
-        unknownEvidenceRefs:
-          this.asArray(frame?.evidenceRefs),
+        unknownEvidenceRefs: this.asArray(
+          frame?.evidenceRefs
+        ),
         unsupportedClaims: []
       };
     }
 
     const known = new Set(
-      this.asArray(packet.observations).map(item => item.id)
+      this.asArray(packet.observations)
+        .map(observation => observation?.id)
+        .filter(Boolean)
     );
-    const refs = this.unique([
+
+    const references = this.unique([
       ...this.asArray(frame?.evidenceRefs),
       ...this.asArray(frame?.interpretation?.evidenceRefs)
     ]);
-    const unknownEvidenceRefs = refs.filter(
-      ref => !known.has(ref)
+
+    const unknownEvidenceRefs = references.filter(
+      reference => !known.has(reference)
     );
-    const validEvidenceRefs = refs.filter(
-      ref => known.has(ref)
+
+    const validEvidenceRefs = references.filter(
+      reference => known.has(reference)
     );
 
     if (unknownEvidenceRefs.length) {
@@ -1024,35 +708,36 @@ console.log(
     }
 
     return {
-      valid: true,
-      errors,
+      passed: true,
+      errors: [],
       warnings,
       conflicts: [],
       evidencePacketId: packet.packetId || null,
-      referencedEvidenceCount: refs.length,
+      referencedEvidenceCount: references.length,
       validEvidenceRefs,
       unknownEvidenceRefs,
       unsupportedClaims
     };
   },
 
-  validateContinuity(frame = null) {
-    const continuity = frame?.continuity || {};
+  auditContinuity(frame = null) {
     const errors = [];
+    const continuity = frame?.continuity || {};
 
     const priorContextRequired =
       continuity.requiresPriorContext === true;
+
     const referencePresent =
       continuity.referencePresent === true;
+
     const referenceResolved =
       continuity.referenceResolved === true;
+
     const missingAnchor =
       continuity.missingAnchor === true ||
-      (
-        priorContextRequired &&
+      (priorContextRequired &&
         referencePresent &&
-        !referenceResolved
-      );
+        !referenceResolved);
 
     if (
       missingAnchor &&
@@ -1064,7 +749,7 @@ console.log(
     }
 
     return {
-      valid: errors.length === 0,
+      passed: errors.length === 0,
       errors,
       warnings: [],
       conflicts: [],
@@ -1075,15 +760,17 @@ console.log(
     };
   },
 
-  validateSafety(frame = null, contract = null) {
+  auditSafety(frame = null, contract = null) {
+    const warnings = [];
     const conflicts = [];
-    const errors = [];
 
     if (!contract) {
+      warnings.push("safety_contract_unavailable");
+
       return {
-        valid: true,
-        errors,
-        warnings: ["safety_contract_unavailable"],
+        passed: true,
+        errors: [],
+        warnings,
         conflicts,
         safetyStopRequired: false,
         semanticFrameSafetyCompatible: true
@@ -1101,70 +788,77 @@ console.log(
       frame?.execution?.executionRequested !== true;
 
     if (!semanticFrameSafetyCompatible) {
+      warnings.push(
+        "semantic_frame_conflicts_with_safety_contract"
+      );
+
       conflicts.push({
         code: "safety_contract_conflict",
         path: "execution.executionRequested",
         frameValue: frame?.execution?.executionRequested,
         contractValue: false,
-        severity: "error"
+        severity: "warning"
       });
-      errors.push("semantic_frame_conflicts_with_safety_contract");
     }
 
     return {
-      valid: errors.length === 0,
-      errors,
-      warnings: [],
+      passed: true,
+      errors: [],
+      warnings,
       conflicts,
       safetyStopRequired,
       semanticFrameSafetyCompatible
     };
   },
 
-  validateExecution(frame = null, contract = null) {
-    const execution = frame?.execution || {};
+  auditExecution(frame = null, contract = null) {
+    const warnings = [];
     const conflicts = [];
-    const errors = [];
+    const execution = frame?.execution || {};
 
     const executionRequested =
       execution.executionRequested === true;
+
     const contractAllows =
       contract?.executionAllowed !== false &&
       contract?.allowed !== false;
+
     const prohibitedOperations = this.unique([
       ...this.asArray(contract?.prohibitedOperations),
       ...this.asArray(execution.prohibitedOperations)
     ]);
+
     const prohibitedOperationRequested =
       executionRequested &&
       prohibitedOperations.includes(frame?.operation);
 
     if (
       executionRequested &&
-      (
-        !contractAllows ||
+      (!contractAllows ||
         execution.executionAllowed === false ||
-        prohibitedOperationRequested
-      )
+        prohibitedOperationRequested)
     ) {
+      warnings.push(
+        "semantic_frame_requests_prohibited_execution"
+      );
+
       conflicts.push({
         code: "execution_contract_conflict",
         path: "execution.executionAllowed",
         frameValue: execution.executionAllowed,
         contractValue: contractAllows,
-        severity: "error"
+        severity: "warning"
       });
-      errors.push(
-        "semantic_frame_requests_prohibited_execution"
-      );
+    }
+
+    if (!contract) {
+      warnings.push("execution_contract_unavailable");
     }
 
     return {
-      valid: errors.length === 0,
-      errors,
-      warnings: contract
-        ? []
-        : ["execution_contract_unavailable"],
+      passed: true,
+      errors: [],
+      warnings,
       conflicts,
       executionRequested,
       executionAllowed:
@@ -1176,12 +870,16 @@ console.log(
     };
   },
 
-  validateRouting(frame = null, contract = null) {
+  auditRouting(frame = null, contract = null) {
+    const warnings = [];
+
     if (!contract) {
+      warnings.push("routing_contract_unavailable");
+
       return {
-        valid: true,
+        passed: true,
         errors: [],
-        warnings: ["routing_contract_unavailable"],
+        warnings,
         conflicts: [],
         laneCompatible: true,
         domainCompatible: true
@@ -1194,6 +892,7 @@ console.log(
         contract.domain ||
         ""
       ) || null;
+
     const frameDomain =
       this.normalizeKey(
         frame?.domain?.primary ||
@@ -1208,64 +907,240 @@ console.log(
       expectedDomain === "general" ||
       expectedDomain === "general_understanding";
 
+    if (!domainCompatible) {
+      warnings.push(
+        "semantic_domain_differs_from_routing_domain"
+      );
+    }
+
     return {
-      valid: true,
+      passed: true,
       errors: [],
-      warnings: domainCompatible
-        ? []
-        : ["semantic_domain_differs_from_routing_domain"],
+      warnings,
       conflicts: [],
       laneCompatible: true,
       domainCompatible
     };
   },
 
-  validateAuthority(
+  auditAuthority(
     sourceFrame = null,
     normalizedFrame = null,
-    cognitiveResult = null
+    cognitiveReasoningResult = null
   ) {
-    const cognitiveSourceAuthoritative =
-      Boolean(cognitiveResult) &&
-      (
-        sourceFrame?.authority
-          ?.authoritativeForMeaning === true ||
-        cognitiveResult.authoritativeForMeaning === true ||
-        cognitiveResult.source?.includes?.("openai") ||
-        cognitiveResult.provider?.includes?.("openai")
-      );
+    const warnings = [];
 
-    const errors = [];
+    const source = String(
+      cognitiveReasoningResult?.source ||
+      cognitiveReasoningResult?.provider ||
+      sourceFrame?.authority?.source ||
+      ""
+    ).toLowerCase();
+
+    const cognitiveSourceAuthoritative = Boolean(
+      cognitiveReasoningResult &&
+      (sourceFrame?.authority?.authoritativeForMeaning === true ||
+        cognitiveReasoningResult.authoritativeForMeaning === true ||
+        source.includes("openai"))
+    );
 
     if (!cognitiveSourceAuthoritative) {
-      errors.push("semantic_frame_source_not_authoritative");
+      warnings.push(
+        "semantic_frame_source_not_marked_authoritative"
+      );
     }
 
     return {
-      valid: errors.length === 0,
-      errors,
-      warnings: [],
+      passed: true,
+      errors: [],
+      warnings,
       conflicts: [],
       cognitiveSourceAuthoritative,
       localSemanticInferenceDetected: false,
       validatorChangedMeaning: false,
-      validatorChangedOperation:
-        Boolean(
-          sourceFrame &&
-          normalizedFrame &&
-          this.normalizeKey(sourceFrame.operation) !==
-            normalizedFrame.operation
-        )
+      validatorChangedOperation: Boolean(
+        sourceFrame &&
+        normalizedFrame &&
+        this.normalizeKey(sourceFrame.operation) !==
+          normalizedFrame.operation
+      )
+    };
+  },
+
+  buildResult({
+    context = {},
+    runtime = {},
+    normalizedSemanticFrame = null,
+    audit = {},
+    compatibilityProjection = {},
+    provenance = {},
+    usable = false
+  } = {}) {
+    const usableSemanticFrame = usable
+      ? {
+          ...normalizedSemanticFrame,
+          auditStatus:
+            audit.passed
+              ? "passed"
+              : "findings_present",
+          auditAdvisory: true,
+          authority: {
+            ...normalizedSemanticFrame?.authority,
+            auditedBy: this.source,
+            mayBeUsedByResponsePlanning: true
+          }
+        }
+      : null;
+
+    return {
+      schema: "ari.semantic_frame_audit_result",
+      schemaVersion: this.schemaVersion,
+      ran: true,
+      ready: usable,
+      usable,
+      source: this.source,
+      version: this.version,
+      sourceSemanticFrame: context.sourceSemanticFrame || null,
+      normalizedSemanticFrame: usableSemanticFrame,
+      usableSemanticFrame,
+      audit,
+      runtime,
+      semanticCompatibility: compatibilityProjection,
+      provenance,
+
+      authority: {
+        canNormalizeStructure: true,
+        canNormalizeEnums: true,
+        canNormalizeSlotAliases: true,
+        canAuditSchema: true,
+        canAuditRegistry: true,
+        canAuditRequiredSlots: true,
+        canAuditEvidence: true,
+        canAuditContinuity: true,
+        canAuditSafety: true,
+        canAuditExecution: true,
+        canAuditRouting: true,
+        canAuditAuthority: true,
+        canEmitCompatibilityProjection: true,
+        canPreserveUsableSemanticFrame: true,
+        canInferMeaning: false,
+        canChangeUserGoal: false,
+        canSelectOperation: false,
+        canResolveSemanticAmbiguity: false,
+        canInventMissingSlots: false,
+        canRejectSemanticMeaning: false,
+        canBlockResponsePlanning: false,
+        canOverrideSafety: false,
+        canExecuteActions: false,
+        canAnswerUser: false,
+        role: "semantic_normalization_and_advisory_audit"
+      },
+
+      compatibility: {
+        semanticFrameValidatorRan: true,
+        semanticFrameValidatorReady: usable,
+        semanticFrameValidatorSource: this.source,
+        semanticFrameValidatorVersion: this.version,
+        semanticAuditRan: true,
+        semanticAuditReady: Boolean(normalizedSemanticFrame),
+        semanticAuditAccepted: audit.passed === true,
+        semanticAuditAdvisory: true,
+        semanticAuditBlocking: false,
+        validatedSemanticFrame: usableSemanticFrame,
+        rejectedSemanticFrame: null,
+        auditFlaggedSemanticFrame:
+          audit.passed
+            ? null
+            : usableSemanticFrame,
+
+        semanticFrameValidation: {
+          valid: audit.passed === true,
+          accepted: audit.passed === true,
+          auditAccepted: audit.passed === true,
+          advisory: true,
+          blocking: false,
+          usable,
+          planningAllowed: usable,
+          complete: audit.completed === true,
+          errors: audit.errors || [],
+          warnings: audit.warnings || [],
+          conflicts: audit.conflicts || [],
+          checks: audit.checks || {}
+        }
+      }
+    };
+  },
+
+  buildProvenance({
+    context = {},
+    runtime = {},
+    normalizedSemanticFrame = null,
+    audit = {},
+    usable = false
+  } = {}) {
+    const sourceFrame = context.sourceSemanticFrame;
+
+    return {
+      cognitiveSource:
+        context.cognitiveReasoningResult?.source ||
+        context.cognitiveReasoningResult?.provider ||
+        "openai_cognitive_reasoning",
+
+      cognitiveResultId:
+        context.cognitiveReasoningResult?.reasoningResultId ||
+        context.cognitiveReasoningResult?.resultId ||
+        context.cognitiveReasoningResult?.id ||
+        null,
+
+      evidencePacketId:
+        context.evidencePacket?.packetId ||
+        null,
+
+      normalizerSource: this.source,
+      normalizerVersion: this.version,
+
+      transformations: sourceFrame
+        ? [
+            "operation_alias_normalization",
+            "registry_contract_normalization",
+            "confidence_normalization",
+            "missing_optional_field_defaults",
+            "canonical_slot_alias_normalization",
+            "evidence_reference_validation"
+          ]
+        : [],
+
+      meaningChanged: false,
+
+      operationChanged: Boolean(
+        sourceFrame &&
+        normalizedSemanticFrame &&
+        this.normalizeKey(sourceFrame.operation) !==
+          normalizedSemanticFrame.operation
+      ),
+
+      requestedOutputChanged: false,
+      ambiguityChanged: false,
+      frameRejected: false,
+      rejectionReason: null,
+      auditPassed: audit.passed === true,
+      auditFindingsPresent: audit.passed !== true,
+      auditErrors: audit.errors || [],
+      auditWarnings: audit.warnings || [],
+      auditConflicts: audit.conflicts || [],
+      runtimeErrors: runtime.errors || [],
+      runtimeWarnings: runtime.warnings || [],
+      usableForPlanning: usable,
+      completedAt: new Date().toISOString()
     };
   },
 
   buildCompatibilityProjection(
     frame = {},
-    cognitiveResult = {}
+    cognitiveReasoningResult = {}
   ) {
     const responseStrategy =
-      cognitiveResult.responseStrategy ||
-      {};
+      cognitiveReasoningResult?.responseStrategy || {};
 
     const canonicalMeaning = {
       requestedOperation: frame.operation,
@@ -1280,7 +1155,7 @@ console.log(
       ambiguity: frame.ambiguity,
       execution: frame.execution,
       confidence: frame.confidence,
-      source: "validated_semantic_frame_projection"
+      source: "normalized_semantic_frame_projection"
     };
 
     const primaryFrame = {
@@ -1302,7 +1177,7 @@ console.log(
       continuity: frame.continuity,
       ambiguity: frame.ambiguity,
       confidence: frame.confidence,
-      source: "validated_semantic_frame_projection"
+      source: "normalized_semantic_frame_projection"
     };
 
     const semanticSlots = {
@@ -1322,6 +1197,7 @@ console.log(
     return {
       canonicalMeaning,
       primaryFrame,
+
       semanticSummary: {
         primaryMeaning:
           frame.interpretation?.primaryMeaning ||
@@ -1336,28 +1212,33 @@ console.log(
         continuity: frame.continuity,
         ambiguity: frame.ambiguity,
         canonicalMeaning,
-        source: "validated_semantic_frame_projection"
+        source: "normalized_semantic_frame_projection"
       },
+
       semanticSlots,
+
       requestModel: {
         operation: frame.operation,
         requestType: frame.requestType,
         requestedOutput: frame.requestedOutput,
         interactionFamily: frame.interactionFamily,
         intentFamily: frame.intentFamily,
-        source: "validated_semantic_frame_projection"
+        source: "normalized_semantic_frame_projection"
       },
+
       responseRequirements: {
-        requiredBehaviors:
-          this.asArray(responseStrategy.requiredBehaviors),
-        forbiddenBehaviors:
-          this.asArray(responseStrategy.forbiddenBehaviors),
-        constraints:
-          this.asArray(responseStrategy.constraints),
+        requiredBehaviors: this.asArray(
+          responseStrategy.requiredBehaviors
+        ),
+        forbiddenBehaviors: this.asArray(
+          responseStrategy.forbiddenBehaviors
+        ),
+        constraints: this.asArray(
+          responseStrategy.constraints
+        ),
         responseShape:
           responseStrategy.responseShape || null,
-        source:
-          "cognitive_response_strategy_projection"
+        source: "cognitive_response_strategy_projection"
       }
     };
   },
@@ -1406,6 +1287,7 @@ console.log(
           fallback ||
           ""
         ) || null,
+
       secondary: this.unique(
         this.asArray(value.secondary)
           .map(item => this.normalizeKey(item))
@@ -1420,11 +1302,13 @@ console.log(
       value === undefined ||
       value === ""
     ) {
-      return allowNull ? null : {
-        type: null,
-        value: null,
-        evidenceRefs: []
-      };
+      return allowNull
+        ? null
+        : {
+            type: null,
+            value: null,
+            evidenceRefs: []
+          };
     }
 
     if (typeof value === "string") {
@@ -1491,6 +1375,7 @@ console.log(
       typeof value === "string"
     ) {
       const overall = this.normalizeConfidence(value);
+
       return {
         overall,
         interpretation: overall,
@@ -1535,6 +1420,28 @@ console.log(
     };
   },
 
+  normalizeConfidence(value, fallback = 0.5) {
+    const number = Number(value);
+
+    if (!Number.isFinite(number)) {
+      return fallback;
+    }
+
+    if (number > 1 && number <= 100) {
+      return number / 100;
+    }
+
+    return Math.max(0, Math.min(1, number));
+  },
+
+  normalizeKey(value = "") {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  },
+
   slotPresent(value) {
     if (
       value === null ||
@@ -1554,54 +1461,33 @@ console.log(
         value.name ??
         value.text ??
         value.resolvedValue ??
-        (
-          Object.keys(value).length > 0 &&
+        (Object.keys(value).length > 0 &&
           !Object.values(value).every(
             item =>
               item === null ||
               item === undefined ||
               item === "" ||
-              (
-                Array.isArray(item) &&
-                item.length === 0
-              )
-          )
-        )
+              (Array.isArray(item) && item.length === 0)
+          ))
       );
     }
 
     return true;
   },
 
-  collectValidationMessages(
-    result = {},
-    errors = [],
-    warnings = [],
-    conflicts = []
-  ) {
-    errors.push(...this.asArray(result.errors));
-    warnings.push(...this.asArray(result.warnings));
-    conflicts.push(...this.asArray(result.conflicts));
-  },
-
-  normalizeConfidence(value, fallback = 0.5) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return fallback;
-    if (number > 1 && number <= 100) return number / 100;
-    return Math.max(0, Math.min(1, number));
-  },
-
-  normalizeKey(value = "") {
-    return String(value || "")
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-  },
-
   asArray(value) {
-    if (Array.isArray(value)) return value;
-    if (value === null || value === undefined || value === "") return [];
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return [];
+    }
+
     return [value];
   },
 
@@ -1613,9 +1499,16 @@ console.log(
     const seen = new Set();
 
     return values.filter(item => {
-      if (!item) return false;
+      if (!item) {
+        return false;
+      }
+
       const key = JSON.stringify(item);
-      if (seen.has(key)) return false;
+
+      if (seen.has(key)) {
+        return false;
+      }
+
       seen.add(key);
       return true;
     });
