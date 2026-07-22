@@ -1153,7 +1153,7 @@ return {
   conversationContextAttachmentVersion:
     this.version
 };
-
+  },
   validateAttachedPacket({
     packet = null,
     validator = null,
