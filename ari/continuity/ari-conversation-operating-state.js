@@ -1075,45 +1075,84 @@ const historicalHorizon =
         })
     };
 
-    return this.attachCompatibilityAliases({
-      summary: {
-        ...summary,
+    const attachedState =
+  this.attachCompatibilityAliases({
+    summary: {
+      ...summary,
 
-        turnClassificationPacket,
+      turnClassificationPacket,
 
-        referencePacket,
+      referencePacket,
 
-        referenceResolution,
+      referenceResolution,
 
-        resolvedSemanticStructure,
+      resolvedSemanticStructure,
 
-        currentSemanticStructure:
-          resolvedSemanticStructure ||
-          summary
-            .currentSemanticStructure
-      },
+      currentSemanticStructure:
+        resolvedSemanticStructure ||
+        summary.currentSemanticStructure
+    },
 
-      operatingState,
+    operatingState,
 
-      storedState:
-        existing.rawStoredState ||
-        {},
+    storedState:
+      existing.rawStoredState ||
+      {},
 
-      recentTurns:
-        existing
-          .immediateHorizon
-          ?.recentTurns ||
-        [],
+    recentTurns:
+      existing
+        .immediateHorizon
+        ?.recentTurns ||
+      [],
 
-      immediate:
-        existing.immediateHorizon ||
-        {},
+    immediate:
+      existing.immediateHorizon ||
+      {},
 
-      activeFrame,
+    activeFrame,
 
-      activeHorizon
-    });
-  },
+    activeHorizon
+  });
+
+return {
+  ...attachedState,
+
+  conversationContext:
+    operatingState
+      .conversationContext ||
+    null,
+
+  compactConversationContext:
+    operatingState
+      .compactContext ||
+    null,
+
+  conversationContextAttachmentRan:
+    true,
+
+  conversationContextAttachmentReady:
+    true,
+
+  conversationContextAttachmentError:
+    null,
+
+  conversationContextAttachmentErrors:
+    [],
+
+  conversationContextAttachmentWarnings: [
+    ...classificationValidation
+      .warnings,
+
+    ...referenceValidation
+      .warnings
+  ],
+
+  conversationContextAttachmentSource:
+    this.source,
+
+  conversationContextAttachmentVersion:
+    this.version
+};
 
   validateAttachedPacket({
     packet = null,
