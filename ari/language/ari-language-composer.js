@@ -2,33 +2,40 @@
 // Ari Language Composer
 //
 // Purpose:
-// Render the canonical Response Realization Packet into Ari's final
-// user-facing language without changing its authorized meaning.
+// Preserve and deterministically normalize the authoritative OpenAI draft
+// into Ari's final user-facing response without changing semantic meaning.
 //
-// V10.0.0 — Realization-Native Final Renderer / Single Composer Authority
+// V11.0.0 — Authoritative Draft Final Renderer / No Realization Dependency
 //
-// Architectural flow:
+// Canonical flow:
 //
-// Response Realization Engine
+// Deliberation Pipeline
 //      ↓
-// Response Realization Stage
+// Authoritative Draft
+//      ↓
+// Character Guidance Metadata
+//      ↓
+// Language Guidance Metadata
 //      ↓
 // Ari Language Composer
 //      ↓
 // Final Composition Stage
 //      ↓
+// Expression Packet
+//      ↓
 // Delivery Pipeline
 //
 // Responsibilities:
-// - Read one authorized Response Realization Packet.
-// - Preserve the complete realized response.
-// - Apply bounded natural-language polishing.
+// - Read one authoritative draft.
+// - Preserve the complete authorized response.
+// - Apply bounded presentation normalization only.
 // - Apply approved Character and language presentation guidance.
-// - Apply the realization's optional emoji recommendation.
-// - Preserve Markdown, lists, and fenced code.
-// - Enforce safe length budgets without corrupting structured content.
+// - Optionally apply an approved emoji recommendation.
+// - Preserve Markdown, lists, tables, blockquotes, and fenced code.
 // - Validate the final rendered response.
 // - Return one explicit final-composition result.
+// - Fall back to the untouched authoritative draft when optional rendering
+//   is unavailable or unsafe.
 //
 // Non-responsibilities:
 // - Does not call OpenAI.
@@ -37,6 +44,7 @@
 // - Does not reinterpret semantic meaning.
 // - Does not choose a response strategy.
 // - Does not create response moves.
+// - Does not run Response Realization.
 // - Does not run Blueprint Writer.
 // - Does not run AI Writer.
 // - Does not create or compare candidates.
@@ -51,9 +59,10 @@
 window.Ari = window.Ari || {};
 
 window.AriLanguageComposer = {
-  version: "10.0.0",
-  schemaVersion: "10.0.0",
+  version: "11.0.0",
+  schemaVersion: "11.0.0",
   source: "ari-language-composer",
+  architecture: "authoritative-draft-final-renderer",
 
   /* =====================================================
      PUBLIC ENTRY POINT
@@ -65,71 +74,53 @@ window.AriLanguageComposer = {
         input
       );
 
-    const eligibility =
-      this.resolveEligibility(
+    if (
+      context.lockedResponse
+    ) {
+      return this.composeLockedResponse(
         context
       );
-
-    if (
-      eligibility
-        .preserveLockedResponse ===
-      true
-    ) {
-      return this.composeLockedResponse({
-        context,
-        eligibility
-      });
     }
 
     if (
-      eligibility.compose !==
-      true
+      !context.authoritativeDraft
     ) {
       return this.returnFailure({
         reason:
-          eligibility.reason,
+          "authoritative_draft_missing",
 
-        context,
-
-        eligibility
+        context
       });
     }
 
     const rendering =
-      this.renderRealization({
-        context,
-        eligibility
-      });
+      this.renderAuthoritativeDraft(
+        context
+      );
 
     const validation =
       this.validateRenderedResponse({
         rendering,
-        context,
-        eligibility
+        context
       });
 
     if (
       validation.valid !==
       true
     ) {
-      return this.returnFailure({
+      return this.returnDraftFallback({
         reason:
           validation.reason ||
           "rendered_response_failed_validation",
 
         context,
-
-        eligibility,
-
         rendering,
-
         validation
       });
     }
 
     return this.returnSuccess({
       context,
-      eligibility,
       rendering,
       validation
     });
@@ -143,528 +134,425 @@ window.AriLanguageComposer = {
     input = {}
   ) {
     const summary =
-      input.summary &&
-      typeof input.summary ===
-        "object"
-        ? input.summary
-        : {};
+      this.readObject(
+        input.summary
+      ) ||
+      {};
 
-    const finalComposerPacket =
-      this.firstObject(
-        input.finalComposerPacket,
-        input.composerPacket,
-        summary.finalComposerPacket
-      );
-
-    const directRealization =
-      this.firstObject(
-        input.realizationPacket,
-        input.responseRealization
-          ?.packet,
-        input.responseRealization,
-        finalComposerPacket
-          ?.realization,
-        summary.realizationPacket,
+    const authoritativeDraft =
+      this.resolveAuthoritativeDraft({
+        input,
         summary
-          .responseRealizationHandoff
-          ?.realizationPacket
-      );
+      });
 
-    const realization =
-      this.normalizeRealization({
-        realization:
-          directRealization,
-
-        finalComposerPacket,
-
+    const authoritativeDraftSource =
+      this.resolveAuthoritativeDraftSource({
+        input,
         summary
       });
 
     const lockedResponse =
       this.readLockedResponse({
         input,
-        finalComposerPacket,
         summary
+      });
+
+    const character =
+      this.readCharacterGuidance({
+        input,
+        summary
+      });
+
+    const languageGuidance =
+      this.readLanguageGuidance({
+        input,
+        summary
+      });
+
+    const responseControl =
+      this.readResponseControl({
+        input,
+        summary
+      });
+
+    const safety =
+      this.readSafety({
+        input,
+        summary
+      });
+
+    const request =
+      this.readRequest({
+        input,
+        summary
+      });
+
+    const presentation =
+      this.readPresentationPolicy({
+        input,
+        summary,
+        character,
+        languageGuidance,
+        responseControl,
+        safety
       });
 
     return {
       input,
-
       summary,
 
-      finalComposerPacket,
-
-      realization,
+      authoritativeDraft,
+      authoritativeDraftSource,
 
       lockedResponse,
 
-      character:
-        this.readCharacterGuidance({
-          finalComposerPacket,
-          summary
-        }),
-
-      languageGuidance:
-        this.readLanguageGuidance({
-          finalComposerPacket,
-          summary
-        }),
-
-      responseControl:
-        this.readResponseControl({
-          finalComposerPacket,
-          summary,
-          realization
-        }),
-
-      safety:
-        this.readSafety({
-          finalComposerPacket,
-          summary
-        }),
-
-      request:
-        this.readRequest({
-          finalComposerPacket,
-          summary,
-          realization
-        })
+      character,
+      languageGuidance,
+      responseControl,
+      safety,
+      request,
+      presentation
     };
   },
 
-  normalizeRealization({
-    realization = null,
-    finalComposerPacket = {},
+  resolveAuthoritativeDraft({
+    input = {},
     summary = {}
   } = {}) {
-    const value =
-      realization &&
-      typeof realization ===
-        "object"
-        ? realization
-        : {};
+    return this.firstText(
+      input.authoritativeDraft,
 
-    const nested =
-      value.realization &&
-      typeof value.realization ===
-        "object"
-        ? value.realization
-        : {};
+      input.compositionInputText,
 
-    const responseText =
-      this.extractText(
-        value.responseText ||
-        nested.responseText ||
-        finalComposerPacket
-          ?.responseText ||
-        finalComposerPacket
-          ?.realization
-          ?.responseText ||
-        summary
-          .realizationResponseText ||
-        ""
+      input.draftResponse,
+
+      input.responseText,
+
+      input.selectedDraft,
+
+      input.finalResponse,
+
+      summary.authoritativeDraft,
+
+      summary.compositionInputText,
+
+      summary.draftResponse,
+
+      summary.responseText,
+
+      summary.selectedDraft,
+
+      summary.cognitiveReasoningResult
+        ?.authoritativeDraft,
+
+      summary.cognitiveReasoningResult
+        ?.draftResponse,
+
+      summary.cognitiveReasoningResult
+        ?.responseText,
+
+      summary.deliberationPacket
+        ?.authoritativeDraft,
+
+      summary.deliberationPacket
+        ?.selectedDraft,
+
+      summary.deliberationPacket
+        ?.draftResponse,
+
+      summary.deliberationPacket
+        ?.responseText,
+
+      summary.deliberationPacket
+        ?.reasoning
+        ?.authoritativeDraft,
+
+      summary.deliberationPacket
+        ?.reasoning
+        ?.draftResponse,
+
+      summary.deliberationPacket
+        ?.reasoning
+        ?.responseText,
+
+      summary.deliberationPacket
+        ?.reasoning
+        ?.result
+        ?.authoritativeDraft,
+
+      summary.deliberationPacket
+        ?.reasoning
+        ?.result
+        ?.draftResponse,
+
+      summary.deliberationPacket
+        ?.reasoning
+        ?.result
+        ?.responseText
+    );
+  },
+
+  resolveAuthoritativeDraftSource({
+    input = {},
+    summary = {}
+  } = {}) {
+    const candidates = [
+      [
+        "input.authoritativeDraft",
+        input.authoritativeDraft
+      ],
+
+      [
+        "input.compositionInputText",
+        input.compositionInputText
+      ],
+
+      [
+        "input.draftResponse",
+        input.draftResponse
+      ],
+
+      [
+        "summary.authoritativeDraft",
+        summary.authoritativeDraft
+      ],
+
+      [
+        "summary.compositionInputText",
+        summary.compositionInputText
+      ],
+
+      [
+        "summary.draftResponse",
+        summary.draftResponse
+      ],
+
+      [
+        "summary.cognitiveReasoningResult.authoritativeDraft",
+        summary.cognitiveReasoningResult
+          ?.authoritativeDraft
+      ],
+
+      [
+        "summary.cognitiveReasoningResult.draftResponse",
+        summary.cognitiveReasoningResult
+          ?.draftResponse
+      ],
+
+      [
+        "summary.deliberationPacket.authoritativeDraft",
+        summary.deliberationPacket
+          ?.authoritativeDraft
+      ],
+
+      [
+        "summary.deliberationPacket.reasoning.authoritativeDraft",
+        summary.deliberationPacket
+          ?.reasoning
+          ?.authoritativeDraft
+      ]
+    ];
+
+    for (
+      const [
+        source,
+        value
+      ] of candidates
+    ) {
+      if (
+        this.extractText(
+          value
+        )
+      ) {
+        return source;
+      }
+    }
+
+    return null;
+  },
+
+  /* =====================================================
+     PRESENTATION POLICY
+  ===================================================== */
+
+  readPresentationPolicy({
+    input = {},
+    summary = {},
+    character = {},
+    languageGuidance = {},
+    responseControl = {},
+    safety = {}
+  } = {}) {
+    const directPolicy =
+      this.firstObject(
+        input.presentationPolicy,
+        summary.presentationPolicy,
+        languageGuidance
+          .presentationPolicy,
+        languageGuidance.handoff
+          ?.presentationPolicy
       );
 
     const suggestedEmoji =
       this.normalizeSuggestedEmoji(
-        value.suggestedEmoji ||
-        nested.suggestedEmoji ||
-        finalComposerPacket
+        directPolicy.suggestedEmoji ||
+        languageGuidance
+          .suggestedEmoji ||
+        languageGuidance.handoff
           ?.suggestedEmoji ||
-        finalComposerPacket
-          ?.realization
+        character.suggestedEmoji ||
+        character.handoff
           ?.suggestedEmoji ||
-        summary
-          .realizationSuggestedEmoji ||
+        summary.suggestedEmoji ||
         ""
       );
 
     const emojiPlacement =
       this.normalizeEmojiPlacement({
         placement:
-          value.emojiPlacement ||
-          nested.emojiPlacement ||
-          finalComposerPacket
+          directPolicy.emojiPlacement ||
+          languageGuidance
+            .emojiPlacement ||
+          languageGuidance.handoff
             ?.emojiPlacement ||
-          finalComposerPacket
-            ?.realization
+          character.emojiPlacement ||
+          character.handoff
             ?.emojiPlacement ||
-          summary
-            .realizationEmojiPlacement ||
+          summary.emojiPlacement ||
           "none",
 
         emoji:
           suggestedEmoji
       });
 
-    const composerInstructions =
-      this.firstObject(
-        value.composerInstructions,
-        nested.composerInstructions,
-        finalComposerPacket
-          ?.composerInstructions,
-        finalComposerPacket
-          ?.realization
-          ?.composerInstructions,
-        summary
-          .realizationComposerInstructions
-      );
+    const maySmoothLanguage =
+      directPolicy
+        .maySmoothLanguage ===
+        true ||
+      languageGuidance
+        .maySmoothLanguage ===
+        true ||
+      languageGuidance.handoff
+        ?.maySmoothLanguage ===
+        true;
 
-    const validation =
-      this.firstObject(
-        value.validation,
-        nested.validation,
-        summary.realizationValidation
-      );
+    const mayNormalizeWhitespace =
+      directPolicy
+        .mayNormalizeWhitespace !==
+        false;
 
-    const ready =
-      (
-        value.ready ===
-          true ||
-        nested.ready ===
-          true ||
-        finalComposerPacket
-          ?.realization
-          ?.ready ===
-          true ||
-        summary.realizationReady ===
-          true
-      ) &&
+    const useSuggestedEmoji =
       Boolean(
-        responseText
-      );
-
-    const usable =
-      ready &&
-      (
-        value.usable ===
-          true ||
-        nested.usable ===
-          true ||
-        finalComposerPacket
-          ?.realization
-          ?.usable ===
-          true ||
-        summary.realizationUsable ===
-          true ||
-        validation.usable ===
-          true ||
-        validation.valid ===
-          true
-      );
-
-    const complete =
-      usable &&
-      (
-        value.complete ===
-          true ||
-        nested.complete ===
-          true ||
-        finalComposerPacket
-          ?.realization
-          ?.complete ===
-          true ||
-        summary.realizationComplete ===
-          true ||
-        validation.complete ===
-          true
-      );
+        suggestedEmoji
+      ) &&
+      directPolicy
+        .useSuggestedEmoji !==
+        false &&
+      languageGuidance
+        .useSuggestedEmoji !==
+        false &&
+      languageGuidance.handoff
+        ?.useSuggestedEmoji !==
+        false;
 
     return {
-      available:
-        Boolean(
-          Object.keys(
-            value
-          ).length ||
-          responseText
-        ),
+      maySmoothLanguage,
 
-      ready,
+      mayNormalizeWhitespace,
 
-      usable,
+      preserveMeaning:
+        true,
 
-      complete,
+      preserveResponseText:
+        true,
 
-      responseText,
+      preserveMarkdown:
+        true,
+
+      preserveCode:
+        true,
+
+      preserveTables:
+        true,
+
+      preserveLists:
+        true,
+
+      preserveBlockquotes:
+        true,
+
+      useSuggestedEmoji,
 
       suggestedEmoji,
 
       emojiPlacement,
 
       emojiPurpose:
-        suggestedEmoji
-          ? this.cleanInlineText(
-              value.emojiPurpose ||
-              nested.emojiPurpose ||
-              finalComposerPacket
-                ?.emojiPurpose ||
-              finalComposerPacket
-                ?.realization
-                ?.emojiPurpose ||
+        this.cleanInlineText(
+          directPolicy.emojiPurpose ||
+          languageGuidance
+            .emojiPurpose ||
+          languageGuidance.handoff
+            ?.emojiPurpose ||
+          character.emojiPurpose ||
+          ""
+        ) ||
+        null,
+
+      maximumWords:
+        this.firstFiniteNumber([
+          directPolicy.maximumWords,
+          directPolicy.maxWords,
+          responseControl
+            .maximumWords,
+          null
+        ]),
+
+      maximumSentences:
+        this.firstFiniteNumber([
+          directPolicy.maximumSentences,
+          directPolicy.maxSentences,
+          responseControl
+            .maximumSentences,
+          null
+        ]),
+
+      maximumParagraphs:
+        this.firstFiniteNumber([
+          directPolicy.maximumParagraphs,
+          directPolicy.maxParagraphs,
+          responseControl
+            .maximumParagraphs,
+          null
+        ]),
+
+      safetyRestricted:
+        this.emojiBlockedByContext({
+          safety,
+          authoritativeDraft:
+            this.resolveAuthoritativeDraft({
+              input,
               summary
-                .realizationEmojiPurpose ||
-              ""
-            ) ||
-            null
-          : null,
-
-      responseStrategy:
-        this.firstObject(
-          value.responseStrategy,
-          nested.responseStrategy,
-          finalComposerPacket
-            ?.responseStrategy,
-          finalComposerPacket
-            ?.realization
-            ?.responseStrategy,
-          summary
-            .realizationResponseStrategy
-        ),
-
-      composerInstructions: {
-        preserveMeaning:
-          composerInstructions
-            .preserveMeaning !==
-          false,
-
-        preserveResponseText:
-          composerInstructions
-            .preserveResponseText !==
-          false,
-
-        maySmoothLanguage:
-          composerInstructions
-            .maySmoothLanguage !==
-          false,
-
-        useSuggestedEmoji:
-          Boolean(
-            suggestedEmoji
-          ) &&
-          composerInstructions
-            .useSuggestedEmoji !==
-            false,
-
-        maximumSentences:
-          this.firstFiniteNumber([
-            composerInstructions
-              .maximumSentences,
-            composerInstructions
-              .maxSentences,
-            null
-          ]),
-
-        maximumWords:
-          this.firstFiniteNumber([
-            composerInstructions
-              .maximumWords,
-            composerInstructions
-              .maxWords,
-            null
-          ]),
-
-        maximumParagraphs:
-          this.firstFiniteNumber([
-            composerInstructions
-              .maximumParagraphs,
-            composerInstructions
-              .maxParagraphs,
-            null
-          ])
-      },
-
-      fulfillment:
-        this.firstObject(
-          value.fulfillment,
-          nested.fulfillment,
-          finalComposerPacket
-            ?.realization
-            ?.fulfillment,
-          summary
-            .realizationFulfillment
-        ),
-
-      grounding:
-        this.firstObject(
-          value.grounding,
-          nested.grounding,
-          finalComposerPacket
-            ?.realization
-            ?.grounding,
-          summary
-            .realizationGrounding
-        ),
-
-      validation,
+            })
+        }),
 
       source:
-        value.source ||
-        nested.source ||
-        summary
-          .responseRealizationSource ||
-        "ari-response-realization-engine",
-
-      mode:
-        value.mode ||
-        nested.mode ||
-        summary.realizationMode ||
-        null,
-
-      reason:
-        value.reason ||
-        nested.reason ||
-        summary
-          .responseRealizationReason ||
-        null,
-
-      raw:
-        value
+        directPolicy.source ||
+        languageGuidance.source ||
+        "ari-language-composer-default-presentation-policy"
     };
   },
 
   /* =====================================================
-     ELIGIBILITY
+     RENDERING
   ===================================================== */
 
-  resolveEligibility(
+  renderAuthoritativeDraft(
     context = {}
   ) {
-    const lockedResponse =
-      this.extractText(
-        context.lockedResponse
-      );
-
-    if (
-      lockedResponse
-    ) {
-      return {
-        compose:
-          false,
-
-        preserveLockedResponse:
-          true,
-
-        realizationAuthorized:
-          false,
-
-        reason:
-          "locked_authoritative_response_available"
-      };
-    }
-
-    const realization =
-      context.realization ||
-      {};
-
-    if (
-      realization.available !==
-      true
-    ) {
-      return {
-        compose:
-          false,
-
-        preserveLockedResponse:
-          false,
-
-        realizationAuthorized:
-          false,
-
-        reason:
-          "response_realization_missing"
-      };
-    }
-
-    if (
-      realization.ready !==
-      true
-    ) {
-      return {
-        compose:
-          false,
-
-        preserveLockedResponse:
-          false,
-
-        realizationAuthorized:
-          false,
-
-        reason:
-          "response_realization_not_ready"
-      };
-    }
-
-    if (
-      realization.usable !==
-      true
-    ) {
-      return {
-        compose:
-          false,
-
-        preserveLockedResponse:
-          false,
-
-        realizationAuthorized:
-          false,
-
-        reason:
-          "response_realization_not_usable"
-      };
-    }
-
-    if (
-      !realization.responseText
-    ) {
-      return {
-        compose:
-          false,
-
-        preserveLockedResponse:
-          false,
-
-        realizationAuthorized:
-          false,
-
-        reason:
-          "realization_response_text_missing"
-      };
-    }
-
-    return {
-      compose:
-        true,
-
-      preserveLockedResponse:
-        false,
-
-      realizationAuthorized:
-        true,
-
-      reason:
-        "response_realization_authorized_for_rendering"
-    };
-  },
-
-  /* =====================================================
-     REALIZATION RENDERING
-  ===================================================== */
-
-  renderRealization({
-    context = {}
-  } = {}) {
-    const realization =
-      context.realization ||
-      {};
-
-    const instructions =
-      realization
-        .composerInstructions ||
-      {};
-
     const originalText =
       this.extractText(
-        realization.responseText
+        context.authoritativeDraft
       );
 
     const structure =
@@ -675,19 +563,13 @@ window.AriLanguageComposer = {
     let renderedText =
       originalText;
 
-    /*
-     * Code, tables, and structured Markdown must not be
-     * rewritten with sentence-oriented text utilities.
-     */
     if (
-      instructions
-        .maySmoothLanguage ===
+      context.presentation
+        ?.maySmoothLanguage ===
         true &&
-      structure
-        .containsFencedCode !==
+      structure.containsFencedCode !==
         true &&
-      structure
-        .containsMarkdownTable !==
+      structure.containsMarkdownTable !==
         true
     ) {
       renderedText =
@@ -701,18 +583,24 @@ window.AriLanguageComposer = {
         });
     }
 
-    renderedText =
-      this.normalizeWhitespace({
-        text:
-          renderedText,
+    if (
+      context.presentation
+        ?.mayNormalizeWhitespace !==
+        false
+    ) {
+      renderedText =
+        this.normalizeWhitespace({
+          text:
+            renderedText,
 
-        preserveLineStructure:
-          structure
-            .preserveLineStructure
-      });
+          preserveLineStructure:
+            structure
+              .preserveLineStructure
+        });
+    }
 
-    renderedText =
-      this.enforcePresentationBudget({
+    const budgetReview =
+      this.reviewPresentationBudget({
         text:
           renderedText,
 
@@ -728,8 +616,6 @@ window.AriLanguageComposer = {
       this.applySuggestedEmoji({
         text:
           renderedText,
-
-        realization,
 
         context
       });
@@ -758,6 +644,11 @@ window.AriLanguageComposer = {
         renderedText !==
         originalText,
 
+      authoritativeDraftPreserved:
+        Boolean(
+          originalText
+        ),
+
       emojiApplied:
         emojiResult.applied,
 
@@ -775,6 +666,8 @@ window.AriLanguageComposer = {
           renderedText
         ),
 
+      budgetReview,
+
       source:
         this.source
     };
@@ -791,16 +684,10 @@ window.AriLanguageComposer = {
         ""
       );
 
-    if (
-      !value
-    ) {
+    if (!value) {
       return "";
     }
 
-    /*
-     * Preserve Markdown list structure. Smooth each line
-     * without collapsing the document into one paragraph.
-     */
     if (
       structure.containsList ===
         true ||
@@ -860,74 +747,6 @@ window.AriLanguageComposer = {
     text =
       text
         .replace(
-          /\bdo not\b/gi,
-          "don’t"
-        )
-        .replace(
-          /\bdoes not\b/gi,
-          "doesn’t"
-        )
-        .replace(
-          /\bdid not\b/gi,
-          "didn’t"
-        )
-        .replace(
-          /\bcan not\b/gi,
-          "can’t"
-        )
-        .replace(
-          /\bcannot\b/gi,
-          "can’t"
-        )
-        .replace(
-          /\bwill not\b/gi,
-          "won’t"
-        )
-        .replace(
-          /\bwould not\b/gi,
-          "wouldn’t"
-        )
-        .replace(
-          /\bI am\b/g,
-          "I’m"
-        )
-        .replace(
-          /\bI have\b/g,
-          "I’ve"
-        )
-        .replace(
-          /\bI will\b/g,
-          "I’ll"
-        )
-        .replace(
-          /\bI would\b/g,
-          "I’d"
-        )
-        .replace(
-          /\bit is\b/gi,
-          "it’s"
-        )
-        .replace(
-          /\bthat is\b/gi,
-          "that’s"
-        )
-        .replace(
-          /\bthere is\b/gi,
-          "there’s"
-        )
-        .replace(
-          /\bthey are\b/gi,
-          "they’re"
-        )
-        .replace(
-          /\byou are\b/gi,
-          "you’re"
-        )
-        .replace(
-          /\bwe are\b/gi,
-          "we’re"
-        )
-        .replace(
           /[ \t]{2,}/g,
           " "
         )
@@ -941,31 +760,135 @@ window.AriLanguageComposer = {
   },
 
   /* =====================================================
+     PRESENTATION BUDGET REVIEW
+  ===================================================== */
+
+  reviewPresentationBudget({
+    text = "",
+    context = {},
+    structure = {}
+  } = {}) {
+    const policy =
+      context.presentation ||
+      {};
+
+    const warnings = [];
+
+    const wordCount =
+      this.countWords(
+        text
+      );
+
+    const sentenceCount =
+      this.splitSentences(
+        text
+      ).length;
+
+    const paragraphCount =
+      this.countParagraphs(
+        text
+      );
+
+    if (
+      policy.maximumWords &&
+      wordCount >
+        policy.maximumWords
+    ) {
+      warnings.push({
+        type:
+          "maximum_words_exceeded_preserved",
+
+        maximum:
+          policy.maximumWords,
+
+        actual:
+          wordCount
+      });
+    }
+
+    if (
+      policy.maximumSentences &&
+      sentenceCount >
+        policy.maximumSentences
+    ) {
+      warnings.push({
+        type:
+          "maximum_sentences_exceeded_preserved",
+
+        maximum:
+          policy.maximumSentences,
+
+        actual:
+          sentenceCount
+      });
+    }
+
+    if (
+      policy.maximumParagraphs &&
+      paragraphCount >
+        policy.maximumParagraphs
+    ) {
+      warnings.push({
+        type:
+          "maximum_paragraphs_exceeded_preserved",
+
+        maximum:
+          policy.maximumParagraphs,
+
+        actual:
+          paragraphCount
+      });
+    }
+
+    return {
+      reviewed:
+        true,
+
+      textPreserved:
+        true,
+
+      truncationApplied:
+        false,
+
+      structuredContentPreserved:
+        structure
+          .preserveLineStructure ===
+        true,
+
+      wordCount,
+
+      sentenceCount,
+
+      paragraphCount,
+
+      warnings
+    };
+  },
+
+  /* =====================================================
      EMOJI
   ===================================================== */
 
   applySuggestedEmoji({
     text = "",
-    realization = {},
     context = {}
   } = {}) {
+    const presentation =
+      context.presentation ||
+      {};
+
     const emoji =
       this.normalizeSuggestedEmoji(
-        realization.suggestedEmoji
+        presentation.suggestedEmoji
       );
 
     const placement =
       this.normalizeEmojiPlacement({
         placement:
-          realization.emojiPlacement,
+          presentation.emojiPlacement,
 
         emoji
       });
-
-    const instructions =
-      realization
-        .composerInstructions ||
-      {};
 
     if (
       !text ||
@@ -991,7 +914,7 @@ window.AriLanguageComposer = {
     }
 
     if (
-      instructions
+      presentation
         .useSuggestedEmoji !==
       true
     ) {
@@ -1007,14 +930,14 @@ window.AriLanguageComposer = {
           "none",
 
         reason:
-          "emoji_not_authorized_by_realization"
+          "emoji_not_authorized"
       };
     }
 
     if (
-      this.emojiBlockedByContext(
-        context
-      )
+      presentation
+        .safetyRestricted ===
+      true
     ) {
       return {
         text,
@@ -1028,7 +951,7 @@ window.AriLanguageComposer = {
           "none",
 
         reason:
-          "emoji_blocked_by_context"
+          "emoji_blocked_by_safety_context"
       };
     }
 
@@ -1069,7 +992,8 @@ window.AriLanguageComposer = {
 
         emoji,
 
-        placement,
+        placement:
+          "start",
 
         reason:
           "emoji_applied_at_start"
@@ -1093,13 +1017,10 @@ window.AriLanguageComposer = {
     };
   },
 
-  emojiBlockedByContext(
-    context = {}
-  ) {
-    const safety =
-      context.safety ||
-      {};
-
+  emojiBlockedByContext({
+    safety = {},
+    authoritativeDraft = ""
+  } = {}) {
     const severity =
       this.normalizeIdentifier(
         safety.severity ||
@@ -1112,7 +1033,7 @@ window.AriLanguageComposer = {
 
     if (
       safety.shouldStopNormalResponse ===
-      true ||
+        true ||
       [
         "critical",
         "high",
@@ -1125,29 +1046,9 @@ window.AriLanguageComposer = {
       return true;
     }
 
-    const mode =
-      this.normalizeIdentifier(
-        context.realization
-          ?.mode ||
-        ""
-      );
-
-    if (
-      [
-        "fixed_safety_response",
-        "safety_governed_realization"
-      ].includes(
-        mode
-      )
-    ) {
-      return true;
-    }
-
     const responseText =
       this.normalizeText(
-        context.realization
-          ?.responseText ||
-        ""
+        authoritativeDraft
       );
 
     const graveSignals = [
@@ -1174,439 +1075,12 @@ window.AriLanguageComposer = {
   },
 
   /* =====================================================
-     BUDGET
-  ===================================================== */
-
-  enforcePresentationBudget({
-    text = "",
-    context = {},
-    structure = {}
-  } = {}) {
-    const budget =
-      this.resolveBudget(
-        context
-      );
-
-    let result =
-      String(
-        text ||
-        ""
-      ).trim();
-
-    /*
-     * Never slice structured code, tables, or long-form artifacts
-     * with generic word or sentence limits. The realization layer
-     * is responsible for satisfying those output contracts.
-     */
-    if (
-      structure.containsFencedCode ===
-        true ||
-      structure.containsMarkdownTable ===
-        true
-    ) {
-      return result;
-    }
-
-    if (
-      budget.maximumParagraphs
-    ) {
-      result =
-        this.limitParagraphs(
-          result,
-          budget.maximumParagraphs
-        );
-    }
-
-    const afterParagraphs =
-      this.inspectTextStructure(
-        result
-      );
-
-    if (
-      budget.maximumSentences &&
-      afterParagraphs
-        .containsList !==
-        true &&
-      afterParagraphs
-        .containsHeading !==
-        true
-    ) {
-      result =
-        this.limitSentences(
-          result,
-          budget.maximumSentences
-        );
-    }
-
-    if (
-      budget.maximumWords
-    ) {
-      result =
-        this.limitWordsSafely({
-          text:
-            result,
-
-          maximumWords:
-            budget.maximumWords,
-
-          structure:
-            this.inspectTextStructure(
-              result
-            )
-        });
-    }
-
-    return result.trim();
-  },
-
-  resolveBudget(
-    context = {}
-  ) {
-    const instructions =
-      context.realization
-        ?.composerInstructions ||
-      {};
-
-    const communicationPlan =
-      context.languageGuidance
-        ?.communicationPlan ||
-      {};
-
-    const languageBudget =
-      communicationPlan
-        .languageBudget ||
-      {};
-
-    const sentenceRules =
-      communicationPlan
-        .sentenceRules ||
-      {};
-
-    return {
-      maximumSentences:
-        this.firstFiniteNumber([
-          instructions
-            .maximumSentences,
-          sentenceRules
-            .maxSentences,
-          languageBudget
-            .maxSentences,
-          null
-        ]),
-
-      maximumWords:
-        this.firstFiniteNumber([
-          instructions
-            .maximumWords,
-          sentenceRules
-            .maxWords,
-          languageBudget
-            .maxWords,
-          null
-        ]),
-
-      maximumParagraphs:
-        this.firstFiniteNumber([
-          instructions
-            .maximumParagraphs,
-          languageBudget
-            .maxParagraphs,
-          null
-        ])
-    };
-  },
-
-  limitParagraphs(
-    text = "",
-    maximum = null
-  ) {
-    const max =
-      Number(
-        maximum
-      );
-
-    if (
-      !Number.isFinite(
-        max
-      ) ||
-      max <=
-        0
-    ) {
-      return text;
-    }
-
-    const paragraphs =
-      String(
-        text ||
-        ""
-      )
-        .split(
-          /\n{2,}/
-        )
-        .map(
-          paragraph =>
-            paragraph.trim()
-        )
-        .filter(Boolean);
-
-    if (
-      paragraphs.length <=
-      max
-    ) {
-      return text;
-    }
-
-    return paragraphs
-      .slice(
-        0,
-        max
-      )
-      .join(
-        "\n\n"
-      )
-      .trim();
-  },
-
-  limitSentences(
-    text = "",
-    maximum = null
-  ) {
-    const max =
-      Number(
-        maximum
-      );
-
-    if (
-      !Number.isFinite(
-        max
-      ) ||
-      max <=
-        0
-    ) {
-      return text;
-    }
-
-    const sentences =
-      this.splitSentences(
-        text
-      );
-
-    if (
-      sentences.length <=
-      max
-    ) {
-      return text;
-    }
-
-    return sentences
-      .slice(
-        0,
-        max
-      )
-      .join(
-        " "
-      )
-      .trim();
-  },
-
-  limitWordsSafely({
-    text = "",
-    maximumWords = null,
-    structure = {}
-  } = {}) {
-    const max =
-      Number(
-        maximumWords
-      );
-
-    if (
-      !Number.isFinite(
-        max
-      ) ||
-      max <=
-        0
-    ) {
-      return text;
-    }
-
-    const words =
-      this.countWords(
-        text
-      );
-
-    if (
-      words <=
-      max
-    ) {
-      return text;
-    }
-
-    if (
-      structure.containsList ===
-        true ||
-      structure.containsHeading ===
-        true ||
-      structure.containsBlockquote ===
-        true
-    ) {
-      return this.limitStructuredWords(
-        text,
-        max
-      );
-    }
-
-    return this.limitPlainWords(
-      text,
-      max
-    );
-  },
-
-  limitStructuredWords(
-    text = "",
-    maximumWords = 120
-  ) {
-    const lines =
-      String(
-        text ||
-        ""
-      ).split(
-        "\n"
-      );
-
-    const output = [];
-    let used =
-      0;
-
-    for (
-      const line
-      of lines
-    ) {
-      const lineWords =
-        this.countWords(
-          line
-        );
-
-      if (
-        used +
-        lineWords <=
-        maximumWords
-      ) {
-        output.push(
-          line
-        );
-
-        used +=
-          lineWords;
-
-        continue;
-      }
-
-      const remaining =
-        maximumWords -
-        used;
-
-      if (
-        remaining >
-        0
-      ) {
-        const prefixMatch =
-          line.match(
-            /^(\s*(?:[-*+]|\d+[.)]|#{1,6}|>)\s+)/
-          );
-
-        const prefix =
-          prefixMatch?.[1] ||
-          "";
-
-        const body =
-          prefix
-            ? line.slice(
-                prefix.length
-              )
-            : line;
-
-        const limitedBody =
-          this.limitPlainWords(
-            body,
-            remaining
-          );
-
-        if (
-          limitedBody
-        ) {
-          output.push(
-            `${prefix}${limitedBody}`
-          );
-        }
-      }
-
-      break;
-    }
-
-    return output
-      .join(
-        "\n"
-      )
-      .trim();
-  },
-
-  limitPlainWords(
-    text = "",
-    maximumWords = 120
-  ) {
-    const words =
-      String(
-        text ||
-        ""
-      )
-        .trim()
-        .split(
-          /\s+/
-        )
-        .filter(Boolean);
-
-    if (
-      words.length <=
-      maximumWords
-    ) {
-      return text;
-    }
-
-    let limited =
-      words
-        .slice(
-          0,
-          maximumWords
-        )
-        .join(
-          " "
-        )
-        .replace(
-          /[,;:–—-]+$/,
-          ""
-        )
-        .trim();
-
-    if (
-      !/[.!?]$/.test(
-        limited
-      )
-    ) {
-      limited =
-        `${limited}.`;
-    }
-
-    return limited;
-  },
-
-  /* =====================================================
      VALIDATION
   ===================================================== */
 
   validateRenderedResponse({
     rendering = {},
-    context = {},
-    eligibility = {}
+    context = {}
   } = {}) {
     const text =
       this.extractText(
@@ -1614,21 +1088,23 @@ window.AriLanguageComposer = {
       );
 
     const errors = [];
-    const warnings = [];
+    const warnings = [
+      ...this.toArray(
+        rendering
+          .budgetReview
+          ?.warnings
+      )
+    ];
 
     if (
-      eligibility
-        .realizationAuthorized !==
-      true
+      !context.authoritativeDraft
     ) {
       errors.push(
-        "response_realization_not_authorized"
+        "authoritative_draft_missing"
       );
     }
 
-    if (
-      !text
-    ) {
+    if (!text) {
       errors.push(
         "rendered_response_empty"
       );
@@ -1637,7 +1113,7 @@ window.AriLanguageComposer = {
     if (
       text &&
       text.length <
-        3
+        2
     ) {
       errors.push(
         "rendered_response_too_short"
@@ -1655,26 +1131,6 @@ window.AriLanguageComposer = {
     }
 
     if (
-      this.containsInternalLanguage(
-        text
-      )
-    ) {
-      errors.push(
-        "rendered_response_contains_internal_language"
-      );
-    }
-
-    if (
-      this.containsWriterFailureMessage(
-        text
-      )
-    ) {
-      errors.push(
-        "rendered_response_contains_writer_failure_message"
-      );
-    }
-
-    if (
       this.hasUnbalancedCodeFence(
         text
       )
@@ -1684,25 +1140,24 @@ window.AriLanguageComposer = {
       );
     }
 
-    const realizationText =
+    const authoritativeDraft =
       this.extractText(
-        context.realization
-          ?.responseText
+        context.authoritativeDraft
       );
 
     if (
-      realizationText &&
+      authoritativeDraft &&
       text &&
       !this.meaningPreservationCheck({
         sourceText:
-          realizationText,
+          authoritativeDraft,
 
         renderedText:
           text
       })
     ) {
-      warnings.push(
-        "rendered_response_changed_substantially"
+      errors.push(
+        "rendered_response_changed_meaning"
       );
     }
 
@@ -1720,9 +1175,9 @@ window.AriLanguageComposer = {
         valid,
 
       authorized:
-        eligibility
-          .realizationAuthorized ===
-        true,
+        Boolean(
+          context.authoritativeDraft
+        ),
 
       complete:
         valid,
@@ -1765,7 +1220,7 @@ window.AriLanguageComposer = {
 
       emojiApplied:
         rendering.emojiApplied ===
-          true,
+        true,
 
       source:
         this.source
@@ -1852,108 +1307,56 @@ window.AriLanguageComposer = {
       overlap /
       sourceTerms.size
     ) >=
-      0.55;
+      0.8;
   },
 
   /* =====================================================
-     SUCCESS / FAILURE
+     SUCCESS / FALLBACK / FAILURE
   ===================================================== */
 
-  composeLockedResponse({
-    context = {},
-    eligibility = {}
-  } = {}) {
+  composeLockedResponse(
+    context = {}
+  ) {
     const finalResponse =
       this.extractText(
         context.lockedResponse
       );
 
-    const validation = {
-      valid:
-        Boolean(
-          finalResponse
-        ),
-
-      usable:
-        Boolean(
-          finalResponse
-        ),
-
-      authorized:
-        true,
-
-      complete:
-        Boolean(
-          finalResponse
-        ),
-
-      reason:
+    const valid =
+      Boolean(
         finalResponse
-          ? "locked_response_preserved"
-          : "locked_response_empty",
+      );
 
-      errors:
-        finalResponse
-          ? []
-          : [
-              "locked_response_empty"
-            ],
-
-      warnings:
-        [],
-
-      length:
-        finalResponse.length,
-
-      wordCount:
-        this.countWords(
-          finalResponse
-        ),
-
-      sentenceCount:
-        this.splitSentences(
-          finalResponse
-        ).length,
-
-      paragraphCount:
-        this.countParagraphs(
-          finalResponse
-        ),
-
-      emojiApplied:
-        false,
-
-      source:
-        "locked-authoritative-response"
-    };
-
-    return {
+    const result = {
       schema:
         "ari_language_composer_result",
 
       schemaVersion:
         this.schemaVersion,
 
+      ready:
+        valid,
+
+      usable:
+        valid,
+
+      complete:
+        valid,
+
       languageComposerRan:
-        false,
+        true,
 
       languageComposerInvoked:
-        false,
+        true,
 
       languageComposerProducedResponse:
-        Boolean(
-          finalResponse
-        ),
+        valid,
 
       languageComposerUsable:
-        Boolean(
-          finalResponse
-        ),
+        valid,
 
       languageComposerAuthorized:
-        Boolean(
-          finalResponse
-        ),
+        valid,
 
       languageComposerDegraded:
         false,
@@ -1971,53 +1374,104 @@ window.AriLanguageComposer = {
         finalResponse,
 
       languageSections:
-        finalResponse
-          ? [
-              finalResponse
-            ]
-          : [],
+        this.toLanguageSections(
+          finalResponse
+        ),
 
       finalResponse,
+
+      responseText:
+        finalResponse,
+
+      reply:
+        finalResponse,
 
       source:
         "locked-authoritative-response",
 
       reason:
-        eligibility.reason,
+        valid
+          ? "locked_response_preserved"
+          : "locked_response_empty",
 
-      realizationAuthorized:
-        false,
+      authoritativeDraftAvailable:
+        Boolean(
+          context.authoritativeDraft
+        ),
+
+      authoritativeDraftSource:
+        context.authoritativeDraftSource ||
+        null,
 
       lockedResponseAuthorized:
-        true,
+        valid,
 
       composerUsedAI:
         false,
 
-      composerValidation:
-        validation,
+      composerValidation: {
+        valid,
+
+        usable:
+          valid,
+
+        authorized:
+          valid,
+
+        complete:
+          valid,
+
+        reason:
+          valid
+            ? "locked_response_preserved"
+            : "locked_response_empty",
+
+        errors:
+          valid
+            ? []
+            : [
+                "locked_response_empty"
+              ],
+
+        warnings:
+          []
+      },
 
       diagnostics: {
         mode:
           "locked_response",
 
-        realizationAvailable:
-          context.realization
-            ?.available ===
-          true,
+        finalLength:
+          finalResponse.length,
 
-        emojiApplied:
-          false
+        wordCount:
+          this.countWords(
+            finalResponse
+          ),
+
+        sentenceCount:
+          this.splitSentences(
+            finalResponse
+          ).length,
+
+        paragraphCount:
+          this.countParagraphs(
+            finalResponse
+          )
       },
 
       authority:
         this.getAuthorityBoundaries()
     };
+
+    window.Ari.languageComposerState =
+      result;
+
+    return result;
   },
 
   returnSuccess({
     context = {},
-    eligibility = {},
     rendering = {},
     validation = {}
   } = {}) {
@@ -2030,6 +1484,15 @@ window.AriLanguageComposer = {
 
       schemaVersion:
         this.schemaVersion,
+
+      ready:
+        true,
+
+      usable:
+        true,
+
+      complete:
+        true,
 
       languageComposerRan:
         true,
@@ -2056,9 +1519,7 @@ window.AriLanguageComposer = {
         this.version,
 
       languageMode:
-        context.realization
-          ?.mode ||
-        "response_realization",
+        "authoritative_draft",
 
       languageBody:
         finalResponse,
@@ -2070,14 +1531,30 @@ window.AriLanguageComposer = {
 
       finalResponse,
 
+      responseText:
+        finalResponse,
+
+      reply:
+        finalResponse,
+
       source:
         this.source,
 
       reason:
         validation.reason,
 
-      realizationAuthorized:
+      authoritativeDraft:
+        context.authoritativeDraft,
+
+      authoritativeDraftAvailable:
         true,
+
+      authoritativeDraftSource:
+        context.authoritativeDraftSource ||
+        null,
+
+      authoritativeDraftFallbackUsed:
+        false,
 
       lockedResponseAuthorized:
         false,
@@ -2093,6 +1570,10 @@ window.AriLanguageComposer = {
           rendering.changed ===
           true,
 
+        authoritativeDraftPreserved:
+          rendering.authoritativeDraftPreserved ===
+          true,
+
         emojiApplied:
           rendering.emojiApplied ===
           true,
@@ -2102,8 +1583,7 @@ window.AriLanguageComposer = {
           "",
 
         emojiPlacement:
-          rendering
-            .emojiPlacement ||
+          rendering.emojiPlacement ||
           "none",
 
         emojiReason:
@@ -2112,23 +1592,16 @@ window.AriLanguageComposer = {
 
         structure:
           rendering.structure ||
+          null,
+
+        budgetReview:
+          rendering.budgetReview ||
           null
       },
 
       diagnostics: {
-        realizationSource:
-          context.realization
-            ?.source ||
-          null,
-
-        realizationMode:
-          context.realization
-            ?.mode ||
-          null,
-
         originalLength:
-          rendering
-            .originalText
+          rendering.originalText
             ?.length ||
           0,
 
@@ -2144,10 +1617,6 @@ window.AriLanguageComposer = {
         paragraphCount:
           validation.paragraphCount,
 
-        emojiApplied:
-          rendering.emojiApplied ===
-          true,
-
         warnings:
           validation.warnings ||
           [],
@@ -2161,8 +1630,168 @@ window.AriLanguageComposer = {
         this.getAuthorityBoundaries()
     };
 
-    window.Ari
-      .languageComposerState =
+    window.Ari.languageComposerState =
+      result;
+
+    return result;
+  },
+
+  returnDraftFallback({
+    reason =
+      "rendering_failed_authoritative_draft_preserved",
+
+    context = {},
+
+    rendering = null,
+
+    validation = null
+  } = {}) {
+    const finalResponse =
+      this.extractText(
+        context.authoritativeDraft
+      );
+
+    if (
+      !finalResponse
+    ) {
+      return this.returnFailure({
+        reason:
+          "authoritative_draft_fallback_missing",
+
+        context,
+        rendering,
+        validation
+      });
+    }
+
+    const result = {
+      schema:
+        "ari_language_composer_result",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      ready:
+        true,
+
+      usable:
+        true,
+
+      complete:
+        true,
+
+      languageComposerRan:
+        true,
+
+      languageComposerInvoked:
+        true,
+
+      languageComposerProducedResponse:
+        true,
+
+      languageComposerUsable:
+        true,
+
+      languageComposerAuthorized:
+        true,
+
+      languageComposerDegraded:
+        true,
+
+      languageComposerSource:
+        "authoritative-draft-fallback",
+
+      languageComposerVersion:
+        this.version,
+
+      languageMode:
+        "authoritative_draft_fallback",
+
+      languageBody:
+        finalResponse,
+
+      languageSections:
+        this.toLanguageSections(
+          finalResponse
+        ),
+
+      finalResponse,
+
+      responseText:
+        finalResponse,
+
+      reply:
+        finalResponse,
+
+      source:
+        "authoritative-draft-fallback",
+
+      reason,
+
+      authoritativeDraft:
+        finalResponse,
+
+      authoritativeDraftAvailable:
+        true,
+
+      authoritativeDraftSource:
+        context.authoritativeDraftSource ||
+        null,
+
+      authoritativeDraftFallbackUsed:
+        true,
+
+      lockedResponseAuthorized:
+        false,
+
+      composerUsedAI:
+        false,
+
+      composerValidation:
+        validation ||
+        {
+          valid:
+            false,
+
+          usable:
+            false,
+
+          authorized:
+            true,
+
+          complete:
+            false,
+
+          reason,
+
+          errors: [
+            reason
+          ],
+
+          warnings:
+            []
+        },
+
+      rendering,
+
+      diagnostics: {
+        fallbackUsed:
+          true,
+
+        originalLength:
+          finalResponse.length,
+
+        finalLength:
+          finalResponse.length,
+
+        reason
+      },
+
+      authority:
+        this.getAuthorityBoundaries()
+    };
+
+    window.Ari.languageComposerState =
       result;
 
     return result;
@@ -2172,17 +1801,11 @@ window.AriLanguageComposer = {
     reason =
       "language_composition_failed",
 
-    context =
-      {},
+    context = {},
 
-    eligibility =
-      {},
+    rendering = null,
 
-    rendering =
-      null,
-
-    validation =
-      null
+    validation = null
   } = {}) {
     const result = {
       schema:
@@ -2191,11 +1814,19 @@ window.AriLanguageComposer = {
       schemaVersion:
         this.schemaVersion,
 
-      languageComposerRan:
+      ready:
         false,
 
+      usable:
+        false,
+
+      complete:
+        false,
+
+      languageComposerRan:
+        true,
+
       languageComposerInvoked:
-        eligibility.compose ===
         true,
 
       languageComposerProducedResponse:
@@ -2217,9 +1848,7 @@ window.AriLanguageComposer = {
         this.version,
 
       languageMode:
-        context.realization
-          ?.mode ||
-        null,
+        "failed",
 
       languageBody:
         "",
@@ -2230,15 +1859,28 @@ window.AriLanguageComposer = {
       finalResponse:
         "",
 
+      responseText:
+        "",
+
+      reply:
+        "",
+
       source:
         this.source,
 
       reason,
 
-      realizationAuthorized:
-        eligibility
-          .realizationAuthorized ===
-        true,
+      authoritativeDraftAvailable:
+        Boolean(
+          context.authoritativeDraft
+        ),
+
+      authoritativeDraftSource:
+        context.authoritativeDraftSource ||
+        null,
+
+      authoritativeDraftFallbackUsed:
+        false,
 
       lockedResponseAuthorized:
         false,
@@ -2274,27 +1916,6 @@ window.AriLanguageComposer = {
       rendering,
 
       diagnostics: {
-        realizationAvailable:
-          context.realization
-            ?.available ===
-          true,
-
-        realizationReady:
-          context.realization
-            ?.ready ===
-          true,
-
-        realizationUsable:
-          context.realization
-            ?.usable ===
-          true,
-
-        realizationResponseAvailable:
-          Boolean(
-            context.realization
-              ?.responseText
-          ),
-
         reason
       },
 
@@ -2302,8 +1923,7 @@ window.AriLanguageComposer = {
         this.getAuthorityBoundaries()
     };
 
-    window.Ari
-      .languageComposerState =
+    window.Ari.languageComposerState =
       result;
 
     return result;
@@ -2314,194 +1934,284 @@ window.AriLanguageComposer = {
   ===================================================== */
 
   readCharacterGuidance({
-    finalComposerPacket = {},
+    input = {},
     summary = {}
   } = {}) {
-    const packetCharacter =
-      finalComposerPacket
-        ?.character ||
-      {};
-
     const handoff =
-      packetCharacter.handoff ||
-      summary.characterHandoff ||
-      {};
+      this.firstObject(
+        input.characterHandoff,
+        input.character,
+        summary.characterHandoff,
+        summary.characterStagePacket
+          ?.handoff
+      );
 
     return {
       available:
-        Boolean(
-          Object.keys(
-            packetCharacter
-          ).length ||
-          Object.keys(
-            handoff
-          ).length
-        ),
+        Object.keys(
+          handoff
+        ).length >
+        0,
+
+      handoff,
 
       emotion:
-        packetCharacter.emotion ||
         handoff.emotion ||
         summary.emotion ||
         null,
 
       tone:
-        packetCharacter.tone ||
         handoff.tone ||
         null,
 
       warmth:
-        packetCharacter.warmth ||
         handoff.warmth ||
         null,
 
       directness:
-        packetCharacter
-          .directness ||
         handoff.directness ||
         null,
 
       expression:
-        packetCharacter.expression ||
         handoff.expression ||
+        null,
+
+      suggestedEmoji:
+        handoff.suggestedEmoji ||
+        null,
+
+      emojiPlacement:
+        handoff.emojiPlacement ||
+        null,
+
+      emojiPurpose:
+        handoff.emojiPurpose ||
         null
     };
   },
 
   readLanguageGuidance({
-    finalComposerPacket = {},
+    input = {},
     summary = {}
   } = {}) {
-    const packet =
-      finalComposerPacket
-        ?.languageGuidance ||
-      {};
+    const handoff =
+      this.firstObject(
+        input.languageGuidanceHandoff,
+        input.languageGuidance,
+        summary.languageGuidanceHandoff,
+        summary.languageGuidanceStagePacket
+          ?.handoff
+      );
+
+    const communicationPlan =
+      this.firstObject(
+        input.communicationPlan,
+        handoff.communicationPlan,
+        summary.communicationPlan
+      );
 
     return {
-      handoff:
-        packet.handoff ||
-        summary
-          .languageGuidanceHandoff ||
-        null,
+      available:
+        Object.keys(
+          handoff
+        ).length >
+        0,
+
+      handoff,
+
+      communicationPlan,
 
       lexicalGrounding:
-        packet.lexicalGrounding ||
+        input.lexicalGrounding ||
+        handoff.lexicalGrounding ||
         summary.lexicalGrounding ||
         null,
 
       humanLanguageProfile:
-        packet
-          .humanLanguageProfile ||
-        summary
-          .humanLanguageProfile ||
+        input.humanLanguageProfile ||
+        handoff.humanLanguageProfile ||
+        summary.humanLanguageProfile ||
         null,
 
       expressionPlan:
-        packet.expressionPlan ||
+        input.expressionPlan ||
+        handoff.expressionPlan ||
         summary.expressionPlan ||
         null,
 
-      communicationPlan:
-        packet
-          .communicationPlan ||
-        summary.communicationPlan ||
+      mouthDirective:
+        input.mouthDirective ||
+        handoff.mouthDirective ||
+        summary.mouthDirective ||
         null,
 
-      mouthDirective:
-        packet.mouthDirective ||
-        summary.mouthDirective ||
+      presentationPolicy:
+        handoff.presentationPolicy ||
+        null,
+
+      maySmoothLanguage:
+        handoff.maySmoothLanguage ===
+        true,
+
+      useSuggestedEmoji:
+        handoff.useSuggestedEmoji !==
+        false,
+
+      suggestedEmoji:
+        handoff.suggestedEmoji ||
+        null,
+
+      emojiPlacement:
+        handoff.emojiPlacement ||
+        null,
+
+      emojiPurpose:
+        handoff.emojiPurpose ||
+        null,
+
+      source:
+        handoff.source ||
+        summary.languageGuidanceStageSource ||
         null
     };
   },
 
   readResponseControl({
-    finalComposerPacket = {},
-    summary = {},
-    realization = {}
+    input = {},
+    summary = {}
   } = {}) {
-    const packet =
-      finalComposerPacket
-        ?.responseControl ||
-      {};
+    const responsePlan =
+      this.firstObject(
+        input.responsePlan,
+        summary.responsePlan,
+        summary.responseStrategy,
+        summary.deliberationPacket
+          ?.responsePlanning
+          ?.plan
+      );
+
+    const communicationPlan =
+      this.firstObject(
+        input.communicationPlan,
+        summary.communicationPlan,
+        responsePlan.communicationPlan
+      );
+
+    const languageBudget =
+      this.firstObject(
+        communicationPlan.languageBudget
+      );
+
+    const sentenceRules =
+      this.firstObject(
+        communicationPlan.sentenceRules
+      );
 
     return {
+      responsePlan,
+
       goal:
-        packet.goal ||
+        input.responseGoal ||
         summary.responseGoal ||
+        responsePlan.responseGoal ||
+        responsePlan.goal ||
         null,
 
       shape:
-        packet.shape ||
+        input.responseShape ||
         summary.responseShape ||
+        responsePlan.responseShape ||
         null,
 
       posture:
-        packet.posture ||
+        input.responsePosture ||
         summary.responsePosture ||
+        responsePlan.responsePosture ||
         null,
 
       order:
         this.toArray(
-          packet.order ||
-          summary.responseOrder
+          input.responseOrder ||
+          summary.responseOrder ||
+          summary.responseMoves ||
+          responsePlan.responseMoves
         ),
 
       rules:
         this.toArray(
-          packet.rules ||
-          summary.responseRules
+          input.responseRules ||
+          summary.responseRules ||
+          responsePlan.responseRules
         ),
 
       constraints:
         this.toArray(
-          packet.constraints ||
-          summary
-            .responseConstraints
+          input.responseConstraints ||
+          summary.responseConstraints ||
+          responsePlan.responseConstraints
         ),
 
       requiredBehaviors:
         this.toArray(
-          packet
-            .requiredBehaviors ||
-          summary.responseRequired
+          input.requiredBehaviors ||
+          summary.responseRequired ||
+          summary.requiredBehaviors ||
+          responsePlan.requiredBehaviors
         ),
 
       forbiddenBehaviors:
         this.toArray(
-          packet
-            .forbiddenBehaviors ||
-          summary.responseAvoid
+          input.forbiddenBehaviors ||
+          summary.responseAvoid ||
+          summary.forbiddenBehaviors ||
+          responsePlan.forbiddenBehaviors
         ),
 
-      composerInstructions:
-        realization
-          .composerInstructions ||
-        null
+      maximumWords:
+        this.firstFiniteNumber([
+          input.maximumWords,
+          languageBudget.maxWords,
+          sentenceRules.maxWords,
+          null
+        ]),
+
+      maximumSentences:
+        this.firstFiniteNumber([
+          input.maximumSentences,
+          languageBudget.maxSentences,
+          sentenceRules.maxSentences,
+          null
+        ]),
+
+      maximumParagraphs:
+        this.firstFiniteNumber([
+          input.maximumParagraphs,
+          languageBudget.maxParagraphs,
+          null
+        ])
     };
   },
 
   readSafety({
-    finalComposerPacket = {},
+    input = {},
     summary = {}
   } = {}) {
-    const packet =
-      finalComposerPacket
-        ?.safety ||
-      {};
-
     const disposition =
-      packet.disposition ||
-      summary.safetyDisposition ||
-      {};
+      this.firstObject(
+        input.safetyDisposition,
+        summary.safetyDisposition
+      );
 
     const deepReview =
-      packet.deepReview ||
-      summary.deepSafetyResult ||
-      {};
+      this.firstObject(
+        input.deepSafetyResult,
+        summary.deepSafetyResult
+      );
 
     return {
       shouldStopNormalResponse:
-        packet
-          .shouldStopNormalResponse ===
+        input
+          .safetyShouldStopNormalResponse ===
           true ||
         summary
           .safetyShouldStopNormalResponse ===
@@ -2516,7 +2226,7 @@ window.AriLanguageComposer = {
       severity:
         disposition.severity ||
         deepReview.severity ||
-        packet.earlyGate
+        summary.safetyContextGate
           ?.severity ||
         null,
 
@@ -2527,88 +2237,84 @@ window.AriLanguageComposer = {
   },
 
   readRequest({
-    finalComposerPacket = {},
-    summary = {},
-    realization = {}
+    input = {},
+    summary = {}
   } = {}) {
     return {
       turnId:
-        finalComposerPacket
-          ?.request
-          ?.turnId ||
-        realization.raw
-          ?.request
-          ?.turnId ||
+        input.turnId ||
         summary.turnId ||
+        summary.currentTurnId ||
         null,
 
       originalText:
-        this.extractText(
-          finalComposerPacket
-            ?.request
-            ?.originalText ||
-          realization.raw
-            ?.request
-            ?.originalText ||
-          summary.originalUserMessage ||
-          summary.userMessage ||
-          ""
+        this.firstText(
+          input.originalUserMessage,
+
+          input.userMessage,
+
+          summary.originalUserMessage,
+
+          summary.userMessage,
+
+          summary.message,
+
+          summary.input
         ),
 
       resolvedText:
-        this.extractText(
-          finalComposerPacket
-            ?.request
-            ?.resolvedText ||
-          realization.raw
-            ?.request
-            ?.resolvedText ||
-          summary
-            .resolvedUserQuestion ||
-          summary.userMessage ||
-          ""
+        this.firstText(
+          input.resolvedUserQuestion,
+
+          input.effectiveUserMessage,
+
+          summary.resolvedUserQuestion,
+
+          summary.effectiveUserMessage,
+
+          summary.userMessage
         )
     };
   },
 
   readLockedResponse({
     input = {},
-    finalComposerPacket = {},
     summary = {}
   } = {}) {
     const locked =
-      summary
-        .developerResponseLocked ===
+      input.responseLocked ===
+        true ||
+      input.developerResponseLocked ===
         true ||
       summary.responseLocked ===
         true ||
-      finalComposerPacket
-        ?.developer
-        ?.locked ===
+      summary.developerResponseLocked ===
         true;
 
-    if (
-      !locked
-    ) {
+    if (!locked) {
       return "";
     }
 
-    return this.extractText(
-      input.lockedResponse ||
-      finalComposerPacket
-        ?.developer
-        ?.lockedReply ||
-      finalComposerPacket
-        ?.lockedDeveloperReply ||
-      summary.lockedDeveloperReply ||
-      summary.finalResponse ||
+    return this.firstText(
+      input.lockedResponse,
+
+      input.lockedDeveloperReply,
+
+      input.finalResponse,
+
+      summary.lockedDeveloperReply,
+
+      summary.finalResponse,
+
       summary.developerHandoff
-        ?.reply ||
+        ?.reply,
+
       summary.developerHandoff
-        ?.finalResponse ||
-      summary.developerReply ||
-      summary.developerResponse ||
-      ""
+        ?.finalResponse,
+
+      summary.developerReply,
+
+      summary.developerResponse
     );
   },
 
@@ -2753,8 +2459,7 @@ window.AriLanguageComposer = {
         .trim();
 
     if (
-      structure
-        .containsFencedCode !==
+      structure.containsFencedCode !==
       true
     ) {
       value =
@@ -2781,9 +2486,7 @@ window.AriLanguageComposer = {
         ""
       ).trim();
 
-    if (
-      !value
-    ) {
+    if (!value) {
       return [];
     }
 
@@ -2819,74 +2522,6 @@ window.AriLanguageComposer = {
           ""
         )
       );
-  },
-
-  containsInternalLanguage(
-    text = ""
-  ) {
-    const normalized =
-      this.normalizeText(
-        text
-      );
-
-    const phrases = [
-      "canonical response plan",
-      "response planner",
-      "response move",
-      "response shape",
-      "response contract",
-      "composer packet",
-      "composer bridge",
-      "blueprint writer",
-      "ai writer",
-      "candidate arbiter",
-      "response candidate arbiter",
-      "response realization engine",
-      "realization packet",
-      "pipeline diagnostic",
-      "pipeline stage",
-      "internal planner",
-      "according to the packet",
-      "according to the response plan"
-    ];
-
-    return phrases.some(
-      phrase =>
-        normalized.includes(
-          phrase
-        )
-    );
-  },
-
-  containsWriterFailureMessage(
-    text = ""
-  ) {
-    const normalized =
-      this.normalizeText(
-        text
-      );
-
-    const phrases = [
-      "the ai draft was unavailable",
-      "ai draft unavailable",
-      "the writer was unavailable",
-      "no usable response candidate",
-      "composer packet missing",
-      "ai writer not loaded",
-      "blueprint writer not loaded",
-      "response realization engine failed",
-      "realization packet missing",
-      "the response generator failed",
-      "i cannot generate the response",
-      "composer failed to use it"
-    ];
-
-    return phrases.some(
-      phrase =>
-        normalized.includes(
-          phrase
-        )
-    );
   },
 
   hasUnbalancedCodeFence(
@@ -2938,9 +2573,7 @@ window.AriLanguageComposer = {
           ""
         );
 
-    if (
-      !emoji
-    ) {
+    if (!emoji) {
       return "";
     }
 
@@ -2975,9 +2608,7 @@ window.AriLanguageComposer = {
     placement = "none",
     emoji = ""
   } = {}) {
-    if (
-      !emoji
-    ) {
+    if (!emoji) {
       return "none";
     }
 
@@ -3009,22 +2640,31 @@ window.AriLanguageComposer = {
 
   getAuthorityBoundaries() {
     return {
-      canReadResponseRealization:
+      canReadAuthoritativeDraft:
         true,
 
-      canPreserveRealizationText:
+      canPreserveAuthoritativeDraft:
         true,
 
       canApplyBoundedNaturalization:
         true,
 
-      canApplyPresentationBudget:
+      canNormalizePresentation:
+        true,
+
+      canReviewPresentationBudget:
         true,
 
       canPreserveMarkdown:
         true,
 
       canPreserveCode:
+        true,
+
+      canPreserveTables:
+        true,
+
+      canPreserveLists:
         true,
 
       canApplySuggestedEmoji:
@@ -3034,6 +2674,9 @@ window.AriLanguageComposer = {
         true,
 
       canReturnFinalComposerResult:
+        true,
+
+      canUseAuthoritativeDraftFallback:
         true,
 
       canCallOpenAI:
@@ -3055,6 +2698,9 @@ window.AriLanguageComposer = {
         false,
 
       canInterpretMeaning:
+        false,
+
+      canRunResponseRealization:
         false,
 
       canRunBlueprintWriter:
@@ -3094,13 +2740,116 @@ window.AriLanguageComposer = {
         false,
 
       role:
-        "realization_native_final_language_renderer"
+        "authoritative_draft_final_language_renderer"
+    };
+  },
+
+  validate() {
+    const errors = [];
+
+    const authority =
+      this.getAuthorityBoundaries();
+
+    const forbiddenTrue = [
+      "canCallOpenAI",
+      "canUseGeneralModelKnowledge",
+      "canAnswerUserIndependently",
+      "canChooseResponseStrategy",
+      "canChangeResponseGoal",
+      "canCreateResponseMoves",
+      "canInterpretMeaning",
+      "canRunResponseRealization",
+      "canRunBlueprintWriter",
+      "canRunAIWriter",
+      "canCreateCandidates",
+      "canArbitrateCandidates",
+      "canInspectGithubEvidence",
+      "canCreateArtifactPatch",
+      "canCreateSafetyResponse",
+      "canOverrideSafety",
+      "canRetrieveMemory",
+      "canPersistMemory",
+      "canExecuteActions",
+      "canPersistState"
+    ];
+
+    forbiddenTrue
+      .filter(
+        key =>
+          authority[key] ===
+          true
+      )
+      .forEach(
+        key => {
+          errors.push(
+            `${key}_must_be_false`
+          );
+        }
+      );
+
+    return {
+      valid:
+        errors.length ===
+        0,
+
+      ready:
+        errors.length ===
+        0,
+
+      source:
+        "ari-language-composer-validation",
+
+      version:
+        this.version,
+
+      errors,
+
+      warnings:
+        [],
+
+      checks: {
+        authoritativeDraftRequired:
+          true,
+
+        responseRealizationDetached:
+          true,
+
+        draftGenerationDetached:
+          true,
+
+        candidatePipelineDetached:
+          true,
+
+        authoritativeDraftFallbackEnabled:
+          true,
+
+        presentationBudgetsAreAdvisory:
+          true,
+
+        semanticMeaningProtected:
+          true
+      },
+
+      authority
     };
   },
 
   /* =====================================================
      GENERAL UTILITIES
   ===================================================== */
+
+  readObject(value) {
+    return (
+      value &&
+      typeof value ===
+        "object" &&
+      !Array.isArray(
+        value
+      )
+    )
+      ? value
+      : null;
+  },
 
   firstObject(
     ...values
@@ -3117,6 +2866,26 @@ window.AriLanguageComposer = {
       ) ||
       {}
     );
+  },
+
+  firstText(
+    ...values
+  ) {
+    for (
+      const value
+      of values
+    ) {
+      const text =
+        this.extractText(
+          value
+        );
+
+      if (text) {
+        return text;
+      }
+    }
+
+    return "";
   },
 
   firstFiniteNumber(
@@ -3200,6 +2969,8 @@ window.AriLanguageComposer = {
         value.response ||
         value.reply ||
         value.content ||
+        value.authoritativeDraft ||
+        value.draftResponse ||
         value.draft ||
         ""
       );
@@ -3312,9 +3083,7 @@ window.AriLanguageComposer = {
         )
         .trim();
 
-    if (
-      !text
-    ) {
+    if (!text) {
       return [];
     }
 
@@ -3353,9 +3122,7 @@ window.AriLanguageComposer = {
         ""
       ).trim();
 
-    if (
-      !text
-    ) {
+    if (!text) {
       return 0;
     }
 
@@ -3449,8 +3216,19 @@ window.AriLanguageComposer = {
 window.Ari.languageComposer =
   window.AriLanguageComposer;
 
+const ariLanguageComposerValidation =
+  window.AriLanguageComposer
+    ?.validate?.();
+
 console.log(
   "ARI LANGUAGE COMPOSER LOADED:",
   window.AriLanguageComposer
-    ?.version
+    ?.version,
+
+  ariLanguageComposerValidation
+    ?.ready === true
+    ? "READY"
+    : "INVALID",
+
+  ariLanguageComposerValidation
 );
