@@ -8,7 +8,7 @@
 // - OpenAI cognitive reasoning
 // - OpenAI response realization
 //
-// V4.2.0 — Canonical V9.2 Cognitive Reasoning Contract
+// V4.3.0 — Canonical V9.3 Registry-Bound Cognitive Reasoning Contract
 
 const VALID_KNOWLEDGE_CORES = [
   "character_core",
@@ -893,7 +893,7 @@ async function handleOpenAIReasoning(
 
     schemaVersion:
       body.schemaVersion ||
-      "1.1.0",
+      "1.1.4",
 
     request: {
       original:
@@ -1089,6 +1089,8 @@ async function handleOpenAIReasoning(
   const parsed =
     parsedResult.value;
 
+
+
   if (
     !parsedResult.wasJson ||
     !isPlainObject(parsed)
@@ -1117,6 +1119,27 @@ async function handleOpenAIReasoning(
       }
     });
   }
+
+if (
+  typeof parsed.ready !==
+  "boolean"
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "ready",
+    failureType:
+      "reasoning_ready_invalid"
+  });
+}
+
+const ready =
+  parsed.ready === true;
 
   const interpretation =
     normalizeObjectOrNull(
@@ -1197,80 +1220,415 @@ async function handleOpenAIReasoning(
       parsed.proposedActions
     );
 
-  if (!interpretation) {
-    return buildReasoningFieldFailure({
-      res,
-      data,
-      parsed,
-      rawModelOutput,
-      timing,
-      totalStart,
-      field:
-        "interpretation",
-      failureType:
-        "interpretation_missing"
-    });
-  }
+  if (!isNonEmptyObject(interpretation)) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "interpretation",
+    failureType:
+      "interpretation_missing"
+  });
+}
 
-  if (!reasoningDecision) {
-    return buildReasoningFieldFailure({
-      res,
-      data,
-      parsed,
-      rawModelOutput,
-      timing,
-      totalStart,
-      field:
-        "reasoningDecision",
-      failureType:
-        "reasoning_decision_missing"
-    });
-  }
+if (!isNonEmptyObject(reasoningDecision)) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "reasoningDecision",
+    failureType:
+      "reasoning_decision_missing"
+  });
+}
 
-  if (!semanticFrame) {
-    return buildReasoningFieldFailure({
-      res,
-      data,
-      parsed,
-      rawModelOutput,
-      timing,
-      totalStart,
-      field:
-        "semanticFrame",
-      failureType:
-        "semantic_frame_missing"
-    });
-  }
+if (!isNonEmptyObject(semanticFrame)) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "semanticFrame",
+    failureType:
+      "semantic_frame_missing"
+  });
+}
 
-  if (!responseRequirements) {
-    return buildReasoningFieldFailure({
-      res,
-      data,
-      parsed,
-      rawModelOutput,
-      timing,
-      totalStart,
-      field:
-        "responseRequirements",
-      failureType:
-        "response_requirements_missing"
-    });
-  }
+if (!isNonEmptyObject(responseRequirements)) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "responseRequirements",
+    failureType:
+      "response_requirements_missing"
+  });
+}
 
-  if (!grounding) {
-    return buildReasoningFieldFailure({
-      res,
-      data,
+if (!isPlainObject(grounding)) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "grounding",
+    failureType:
+      "grounding_missing"
+  });
+}
+
+if (
+  !Array.isArray(
+    grounding.evidenceUsed
+  )
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "grounding.evidenceUsed",
+    failureType:
+      "grounding_evidence_used_invalid"
+  });
+}
+
+if (
+  grounding.assumptions != null &&
+  !Array.isArray(
+    grounding.assumptions
+  )
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "grounding.assumptions",
+    failureType:
+      "grounding_assumptions_invalid"
+  });
+}
+
+if (
+  grounding.unresolvedConflicts != null &&
+  !Array.isArray(
+    grounding.unresolvedConflicts
+  )
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "grounding.unresolvedConflicts",
+    failureType:
+      "grounding_conflicts_invalid"
+  });
+}
+
+if (
+  !firstNonEmptyString([
+    interpretation.userGoal
+  ])
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "interpretation.userGoal",
+    failureType:
+      "interpretation_user_goal_missing"
+  });
+}
+
+if (
+  !firstNonEmptyString([
+    interpretation.meaning
+  ])
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "interpretation.meaning",
+    failureType:
+      "interpretation_meaning_missing"
+  });
+}
+
+if (
+  typeof reasoningDecision
+    .answerDirectly !==
+  "boolean"
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "reasoningDecision.answerDirectly",
+    failureType:
+      "reasoning_answer_directly_invalid"
+  });
+}
+
+if (
+  !Array.isArray(
+    reasoningDecision
+      .proposedActions
+  )
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "reasoningDecision.proposedActions",
+    failureType:
+      "reasoning_proposed_actions_invalid"
+  });
+}
+
+if (
+  !firstNonEmptyString([
+    semanticFrame.operation
+  ])
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "semanticFrame.operation",
+    failureType:
+      "semantic_operation_missing"
+  });
+}
+
+if (
+  !firstNonEmptyString([
+    semanticFrame.requestedOutput
+  ])
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "semanticFrame.requestedOutput",
+    failureType:
+      "semantic_requested_output_missing"
+  });
+}
+
+if (
+  !firstNonEmptyString([
+    responseRequirements.goal,
+    responseRequirements
+      .responseGoal
+  ])
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "responseRequirements.goal",
+    failureType:
+      "response_goal_missing"
+  });
+}
+
+if (
+  !Array.isArray(
+    responseRequirements
+      .requiredMoves
+  )
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "responseRequirements.requiredMoves",
+    failureType:
+      "response_required_moves_invalid"
+  });
+}
+
+if (
+  !Array.isArray(
+    responseRequirements
+      .prohibitedMoves
+  )
+) {
+  return buildReasoningFieldFailure({
+    res,
+    data,
+    parsed,
+    rawModelOutput,
+    timing,
+    totalStart,
+    field:
+      "responseRequirements.prohibitedMoves",
+    failureType:
+      "response_prohibited_moves_invalid"
+  });
+}
+
+const canonicalOperationEnum =
+  reasoningInput
+    .outputContract
+    ?.properties
+    ?.semanticFrame
+    ?.properties
+    ?.operation
+    ?.enum;
+
+const fallbackOperationEnum =
+  reasoningInput
+    .outputContract
+    ?.semanticFrame
+    ?.operation
+    ?.enum ||
+  reasoningInput
+    .outputContract
+    ?.operationEnum ||
+  reasoningInput
+    .outputContract
+    ?.allowedOperations;
+
+const allowedOperations =
+  normalizeArray(
+    Array.isArray(
+      canonicalOperationEnum
+    )
+      ? canonicalOperationEnum
+      : fallbackOperationEnum
+  );
+
+if (!allowedOperations.length) {
+  return res.status(500).json({
+    success: false,
+    ready: false,
+
+    error:
+      "No canonical semantic operation registry was supplied to OpenAI reasoning.",
+
+    failureType:
+      "semantic_operation_registry_missing",
+
+    semanticOperation:
+      semanticFrame.operation,
+
+    model:
+      data?.model ||
+      DEFAULT_OPENAI_MODEL,
+
+    source:
+      "openai_reasoning",
+
+    timing: {
+      ...timing,
+      totalMs:
+        Date.now() -
+        totalStart
+    }
+  });
+}
+
+if (
+  !allowedOperations.includes(
+    semanticFrame.operation
+  )
+) {
+  return res.status(502).json({
+    success: false,
+    ready: false,
+
+    error:
+      `OpenAI reasoning returned an unregistered semantic operation: ${semanticFrame.operation}.`,
+
+    failureType:
+      "semantic_operation_not_registered",
+
+    semanticOperation:
+      semanticFrame.operation,
+
+    allowedOperations,
+
+    parsedModelOutput:
       parsed,
-      rawModelOutput,
-      timing,
-      totalStart,
-      field:
-        "grounding",
-      failureType:
-        "grounding_missing"
-    });
-  }
+
+    model:
+      data?.model ||
+      DEFAULT_OPENAI_MODEL,
+
+    source:
+      "openai_reasoning",
+
+    timing: {
+      ...timing,
+      totalMs:
+        Date.now() -
+        totalStart
+    }
+  });
+}
 
   const claimedActionExecution =
     proposedActions.some(action =>
@@ -1321,15 +1679,12 @@ async function handleOpenAIReasoning(
     Date.now() -
     totalStart;
 
-  const ready =
-    parsed.ready !== false;
-
   const cognitiveReasoningResult = {
     schema:
       "ari_cognitive_reasoning_result",
 
     schemaVersion:
-      "1.1.0",
+      "1.1.4",
 
     ready,
 
@@ -2030,42 +2385,79 @@ Return exactly one JSON object using this shape:
     "shouldAskClarifyingQuestion": false
   },
 
-  "semanticFrame": {
-    "operation": "The semantic operation requested.",
-    "target": "The subject, object, decision, or outcome being addressed.",
-    "domain": "The relevant subject domain.",
-    "primaryLane": "The primary response lane.",
-    "requestedOutput": "The form of output the user expects.",
-    "constraints": [],
+ "semanticFrame": {
+  "operation": "One exact operation from the supplied operation contract.",
+  "requestType": "The canonical request type.",
+  "frameType": "The canonical frame type.",
+  "interactionFamily": "The interaction family.",
+  "intentFamily": "The intent family.",
+  "requestedOutput": "The output the user expects.",
+  "domain": "The relevant domain.",
 
-    "semanticSummary": "Concise interpretation of the current request.",
-    "conversationFunction": "The conversational function of this turn.",
-    "primaryIntent": "The user's primary semantic intent.",
-    "userGoal": "What the user wants accomplished.",
-    "currentTurnMeaning": "The resolved meaning of this turn.",
-    "referencesResolved": [],
-    "stakes": "low",
-    "uncertainties": [],
-    "slots": {}
+  "participants": [],
+  "subject": null,
+  "object": null,
+  "target": null,
+  "artifactTarget": null,
+  "referent": null,
+
+  "options": [],
+  "criteria": [],
+  "timeframe": null,
+  "audience": null,
+  "location": null,
+
+  "contextModifiers": [],
+  "constraints": [],
+  "stakes": "low",
+
+  "continuity": {
+    "requiresPriorContext": false,
+    "referencePresent": false,
+    "referenceResolved": false,
+    "missingAnchor": false
   },
 
-  "responseRequirements": {
-    "goal": "What the final response must accomplish.",
-    "shape": "single_lane",
-    "tone": "The appropriate response tone.",
-    "requiredMoves": [],
-    "prohibitedMoves": [],
-    "requiredBehaviors": [],
-    "forbiddenBehaviors": [],
-    "constraints": [],
-    "requiredFacts": [],
-    "safetyRequirements": [],
-    "continuityRequirements": [],
-    "toneRequirements": [],
-    "clarificationRequired": false,
-    "clarificationQuestion": null,
-    "actionRequired": false
+  "ambiguity": {
+    "present": false,
+    "requiresClarification": false,
+    "reason": null,
+    "unresolvedSlots": [],
+    "competingInterpretations": [],
+    "clarificationQuestion": null
   },
+
+  "execution": {
+    "executionRequested": false,
+    "executionKind": null,
+    "executionAllowed": false,
+    "analysisOnly": true,
+    "prohibitedOperations": [],
+    "deferredOperations": []
+  },
+
+  "secondaryRequests": [],
+  "confidence": 0.9,
+  "evidenceRefs": []
+},
+
+"responseRequirements": {
+  "goal": "What the final response must accomplish.",
+  "shape": "single_lane",
+  "tone": "The appropriate response tone.",
+  "requiredMoves": [],
+  "prohibitedMoves": [],
+  "requiredBehaviors": [],
+  "forbiddenBehaviors": [],
+  "constraints": [],
+  "requiredFacts": [],
+  "safetyRequirements": [],
+  "continuityRequirements": [],
+  "toneRequirements": [],
+  "clarificationRequired": false,
+  "clarificationQuestion": null,
+  "actionRequired": false
+},
 
   "caseModel": {},
 
@@ -2096,6 +2488,14 @@ Return exactly one JSON object using this shape:
 
   "confidence": 0.9
 }
+
+Canonical operation requirements:
+- semanticFrame.operation must exactly match one operation listed in:
+  CURRENT REASONING INPUT.outputContract.properties.semanticFrame.properties.operation.enum
+- Do not invent, paraphrase, combine, or expand operation names.
+- Do not place the domain, subject, target, condition, file name, or artifact name inside the operation.
+- For definition or conceptual explanation requests such as "What is heart failure?", use "explain_or_teach".
+- Do not use "define", "explain", "describe", "medical_explanation", "answer_question", or "educate" unless one is explicitly present in the operation enum.
 
 Contract requirements:
 - ready must be a boolean.
@@ -2687,3 +3087,10 @@ function isPlainObject(value) {
     !Array.isArray(value)
   );
 }
+function isNonEmptyObject(value) {
+  return (
+    isPlainObject(value) &&
+    Object.keys(value).length > 0
+  );
+}
+
