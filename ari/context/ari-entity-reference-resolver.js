@@ -3216,7 +3216,7 @@ window.AriEntityReferenceResolver = {
      RETURN PAYLOAD
   ===================================================== */
 
-  buildReturnPayload({
+    buildReturnPayload({
     referenceResolution = {},
     resolvedSemanticStructure = {},
     resolvedReferences = [],
@@ -3224,7 +3224,215 @@ window.AriEntityReferenceResolver = {
     referenceCandidates = {},
     quality = {}
   } = {}) {
+    const referenceDecisions =
+      this.asArray(
+        referenceResolution.decisions
+      );
+
+    const referenceCount =
+      Number(
+        quality.referenceCount ??
+        referenceDecisions.length
+      );
+
+    const resolvedCount =
+      Number(
+        quality.resolvedCount ??
+        resolvedReferences.length
+      );
+
+    const ambiguousCount =
+      Number(
+        quality.ambiguousCount ??
+        referenceDecisions.filter(
+          decision =>
+            decision.status ===
+            "ambiguous"
+        ).length
+      );
+
+    const unresolvedCount =
+      Number(
+        quality.unresolvedCount ??
+        unresolvedReferences.length
+      );
+
+    /*
+     * A zero-reference result is a successful resolution pass.
+     * "Complete" means the resolver completed its work, not that
+     * every detected reference was resolvable.
+     */
+    const referencePacket = {
+      schema:
+        "ari_reference_packet",
+
+      schemaVersion:
+        this.schemaVersion,
+
+      version:
+        this.version,
+
+      source:
+        "ari-entity-reference-resolver",
+
+      packetId:
+        this.createStableId(
+          "reference_packet",
+          [
+            referenceResolution.turnId,
+            referenceCount,
+            resolvedCount,
+            ambiguousCount,
+            unresolvedCount
+          ].join("|")
+        ),
+
+      ready:
+        true,
+
+      complete:
+        true,
+
+      ran:
+        true,
+
+      turnId:
+        referenceResolution.turnId ||
+        null,
+
+      referencesDetected:
+        referenceCount >
+        0,
+
+      referenceCount,
+
+      resolvedCount,
+
+      ambiguousCount,
+
+      unresolvedCount,
+
+      references:
+        referenceDecisions,
+
+      decisions:
+        referenceDecisions,
+
+      resolutions:
+        resolvedReferences,
+
+      resolvedReferences,
+
+      unresolvedReferences,
+
+      candidates:
+        referenceCandidates.items ||
+        [],
+
+      resolutionGraph:
+        referenceResolution
+          .resolutionGraph ||
+        {
+          nodes: [],
+          edges: []
+        },
+
+      confidence:
+        referenceResolution.confidence ??
+        quality.accuracyConfidence ??
+        1,
+
+      quality,
+
+      warnings:
+        quality.warnings ||
+        [],
+
+      errors:
+        [],
+
+      authority: {
+        canPreserveReferenceEvidence:
+          true,
+
+        canReportResolutionStatus:
+          true,
+
+        canResolveReferences:
+          true,
+
+        canChooseIntent:
+          false,
+
+        canChooseMeaning:
+          false,
+
+        canChooseRoute:
+          false,
+
+        canAnswerUser:
+          false,
+
+        role:
+          "canonical_reference_packet"
+      }
+    };
+
     return {
+      /*
+       * Canonical contract consumed by AriPerceptionPipeline.
+       */
+      referenceResolverRan:
+        true,
+
+      referenceResolverReady:
+        referencePacket.ready ===
+        true,
+
+      referenceResolverVersion:
+        this.version,
+
+      referenceResolverSource:
+        "ari-entity-reference-resolver",
+
+      source:
+        "ari-entity-reference-resolver",
+
+      resolverRan:
+        true,
+
+      referencePacket,
+
+      referenceDecisions,
+
+      resolutions:
+        resolvedReferences,
+
+      referencesDetected:
+        referenceCount >
+        0,
+
+      referenceCount,
+
+      resolvedReferenceCount:
+        resolvedCount,
+
+      ambiguousReferenceCount:
+        ambiguousCount,
+
+      unresolvedReferenceCount:
+        unresolvedCount,
+
+      errors:
+        [],
+
+      warnings:
+        quality.warnings ||
+        [],
+
+      /*
+       * Existing resolver output.
+       */
       entityReferenceResolverRan:
         true,
 
@@ -3273,11 +3481,9 @@ window.AriEntityReferenceResolver = {
       confidence:
         referenceResolution.confidence,
 
-      warnings:
-        quality.warnings ||
-        [],
-
-      // Temporary compatibility aliases.
+      /*
+       * Temporary compatibility aliases.
+       */
       entityReferenceState:
         referenceResolution,
 
